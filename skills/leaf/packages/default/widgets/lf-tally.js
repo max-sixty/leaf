@@ -91,7 +91,7 @@ customElements.define(
       keepsText(this.#words, words(open, held.length));
       // Two digits are in the drawing; a longer count widens its room once.
       const digits = "0".repeat(Math.max(2, String(held.length).length));
-      keepsText(this.#room, words(1, 1).replace(/1 of 1/, `${digits} of ${digits}`));
+      keepsText(this.#room, words(digits, digits));
       this.#next?.toggleAttribute("disabled", asksIn(region, asks.user).length === 0);
     }
   },

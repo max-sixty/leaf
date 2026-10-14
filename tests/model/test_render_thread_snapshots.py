@@ -7,7 +7,7 @@ reviewed PNG images pinned in leaf-assets; run evidence stays in .tmp.
 """
 
 import pytest
-from leaf_dev.thread_snapshots import visible_capture
+from leaf_dev.commands.thread_snapshots import visible_capture
 from PIL import Image
 from pytest_image_snapshot import ImageMismatchError, ImageNotFoundError
 

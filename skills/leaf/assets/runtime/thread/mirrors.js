@@ -143,7 +143,13 @@ export function registerMirrorConsumer(owner, render, { commands }) {
    the presentation's words for its box and its own landing of a send (replies.js,
    `createReplyView`). The thread itself, where a walk or a notice lands the keyboard, is
    the drawing the presentation declares around the parts, as the panel's view is. */
-export function createPrimaryReader(owner, render, commands, update) {
+export function createPrimaryReader(
+  owner,
+  render,
+  commands,
+  update,
+  { answersAtOnce = false } = {},
+) {
   let active = true;
   let generation = 0;
   let pending = null;
@@ -160,7 +166,10 @@ export function createPrimaryReader(owner, render, commands, update) {
       if (whole) return whole;
       return {
         node: drawingOf(parts) ?? parts.at(-1).node,
-        newsMoves: ({ news, changed, folds }) =>
+        // A presentation that makes room for the agent's answer to the user's last turn
+        // itself (`answersAtOnce`) is handed it whatever it moves.
+        newsMoves: ({ news, changed, folds, answers }) =>
+          !(answersAtOnce && answers) &&
           parts.some(
             (part) =>
               (news.appended ||

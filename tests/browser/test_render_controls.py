@@ -3493,7 +3493,10 @@ STATUS_COUNTS = """() => {
   const others = [document.querySelector('.lf-banner-status'),
     ...document.querySelectorAll('.lf-banner-actions > :not([hidden])')];
   const approval = document.querySelector('.lf-banner-actions > .lf-signoff');
-  return {shown: counts.clientWidth, needed: counts.scrollWidth,
+  // A room cuts its words inside its own child (controls.css), which the control's
+  // scroll width does not see.
+  const words = (n) => n.querySelector('[data-lf-room] > *') ?? n;
+  return {shown: words(counts).clientWidth, needed: words(counts).scrollWidth,
           left: box.left, top: box.top, inert: counts.inert,
           statusLeft: document.querySelector('.lf-status-button').getBoundingClientRect().left,
           statusBottom: document.querySelector('.lf-banner-status').getBoundingClientRect().bottom,
@@ -3501,7 +3504,8 @@ STATUS_COUNTS = """() => {
             && box.top >= banner.top && box.bottom <= banner.bottom,
           drawn: box.top < rowsEnd - 0.5 && box.bottom > banner.top + 0.5,
           approval: approval?.checkVisibility()
-            ? {shown: approval.clientWidth, needed: approval.scrollWidth} : null,
+            ? {shown: words(approval).clientWidth, needed: words(approval).scrollWidth}
+            : null,
           overlaps: others.filter((n) => meets(n.getBoundingClientRect()))
             .map((n) => n.className)};
 }"""

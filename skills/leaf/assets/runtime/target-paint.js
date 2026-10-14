@@ -112,7 +112,7 @@ export function labelAim(node) {
       ? levels.findLastIndex(({ axes, band }) => axes.x && band.left === shown.left)
       : -1;
   if (index >= 0) {
-    const home = aimStand.levels[index].frame;
+    const home = aimStand.frames[index];
     if (node.parentElement !== home) move(home, node, null);
     const { band } = levels[index];
     standBox(node, at, { anchored: false, origin: { x: band.left, y: band.top } });

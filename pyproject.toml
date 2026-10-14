@@ -46,7 +46,7 @@ version = "0"
 requires-python = ">=3.12"
 dependencies = [
   "anyio>=4.10",
-  "click>=8",
+  "click>=8.2",
   "jmespath>=1",
   "jsonschema>=4.18",
   "linkify-it-py>=2",
@@ -134,7 +134,7 @@ extend-exclude = [
 # runner sets its count in ci.yaml.
 # `-n0` to debug a single test.
 [tool.pytest.ini_options]
-addopts = "-n 2 --dist loadgroup --regtest-consider-line-endings --image-snapshot-save-diff -p leaf_dev.thread_snapshot_plugin -p leaf_dev.suite_profile"
+addopts = "-n 2 --dist loadgroup --regtest-consider-line-endings --image-snapshot-save-diff -p leaf_dev.thread_snapshot_plugin -p leaf_dev.commands.suite_profile"
 markers = [
   "network: requires external network access after development setup",
   "shifts_unsurveyed: its browser tests await a shift survey, so they do not reject unsolicited layout shifts",
@@ -145,7 +145,9 @@ markers = [
 # thread's stack, which names the call that blocked, and exits; xdist reports the test
 # as crashed and starts a fresh worker for the rest. Without this, a call with no
 # deadline of its own (`page.evaluate`, a new page, a lock) holds the run until the CI
-# job's six-hour limit.
+# job's six-hour limit. Pytest cancels this timer when a test reports a failure,
+# so it does not bound that test's cleanup. CI also bounds the whole Python/profile
+# command, including failed-test cleanup, before the job deadline.
 faulthandler_timeout = 1800
 faulthandler_exit_on_timeout = true
 

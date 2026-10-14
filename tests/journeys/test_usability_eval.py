@@ -3,7 +3,7 @@
 import json
 
 import pytest
-from leaf.delivery import DELIVERY_FORMAT, record_pickup
+from leaf.delivery import batch_data, batch_refs, freeze_delivery, record_pickup
 from leaf.event_log import read_cursor, read_events
 from leaf.service import PageTransaction
 from leaf_dev import ROOT
@@ -36,7 +36,7 @@ from leaf_dev.usability_eval import (
         "elided",
     ],
 )
-def test_fixture_builds_through_current_leaf_admission(tmp_path, case):
+def test_fixture_builds_through_current_leaf_admission(tmp_path, monkeypatch, case):
     run = Run(case, ROOT, tmp_path)
     run.state.mkdir()
     page = tmp_path / "page"
@@ -73,24 +73,23 @@ def test_fixture_builds_through_current_leaf_admission(tmp_path, case):
             "kind": "reply", "parent": latest["id"], "revision": 1,
             "attempt": "usability-eval-0-0", "text": "When does the copy start?",
         })  # fmt: skip
-        read_premise = {
-            "type": "user",
-            "message": {"content": [{"type": "tool_result", "content": PREMISE}]},
-        }
         trace = [
             {"type": "result"},
             {"type": "eval_post", "round": 1},
-            {"type": "system", "subtype": "hook_response",
-             "output": json.dumps({"format": DELIVERY_FORMAT,
-                                   "elided": {"messages": 16}})},
             {"type": "eval_received", "round": 1},
-            read_premise,
             {"type": "result"},
-        ]  # fmt: skip
-        assert score_elided(run, trace)["middle_read"]
-        assert not score_elided(
-            run, [read_premise, *[r for r in trace if r is not read_premise]]
-        )["middle_read"]
+        ]
+        assert not score_elided(run, trace)["shown_elided"]
+        with monkeypatch.context() as context:
+            context.setenv("XDG_STATE_HOME", str(run.state))
+            with PageTransaction(page) as transaction:
+                question = transaction.events[-1]
+                delivery = freeze_delivery([batch_data(page, transaction, [question])])
+                [batch] = delivery["batches"]
+                record_pickup(transaction, [question], refs=batch_refs(batch))
+        # The canonical opened receipt and immutable envelope prove elision even
+        # when the native trace contains no printed delivery JSON.
+        assert score_elided(run, trace)["shown_elided"]
 
 
 def test_live_rounds_wait_for_delivery_and_cancel_the_completion_timer(

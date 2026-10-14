@@ -11,7 +11,6 @@ from interact_support import (
     FLOW_PAGE,
     PAGE,
     ModelPage,
-    Prose,
     _start,
     _status,
     append_carried_log_record,
@@ -25,6 +24,7 @@ from interact_support import (
     record_claim,
     refused_on,
     response_reference,
+    said,
     served_thread,
     serving,
     stamp,
@@ -1039,7 +1039,7 @@ def test_ending_a_section_todo_done_names_the_section_left_among_the_open_work(
     page_dir, snapshot
 ):
     """Finished work belongs collapsed after what is still open, so ending a to-do on
-    an element `done` says on stderr when that element still stands open, and says
+    an element `done` notes when that element still stands open, and says
     nothing for another outcome, while work or a thread on it or inside it stays on
     either list, or once the saved page folds it."""
     publish(page_dir)
@@ -1054,7 +1054,7 @@ def test_ending_a_section_todo_done_names_the_section_left_among_the_open_work(
     snapshot.check(
         yaml_document(
             "Ending a to-do done on an element that still stands among the open work.",
-            {"exit": ended.exit_code, "stderr": Prose(ended.stderr)},
+            {"exit": ended.exit_code, "stderr": said(ended.stderr)},
         )
     )
     comment = append_carried_log_record(

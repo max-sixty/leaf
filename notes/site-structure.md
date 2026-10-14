@@ -12,7 +12,7 @@ meaning; word counts describe the cut, not its quality.
 
 ## Proposed routes
 
-The current routes are `PRODUCT_ROUTES` in `dev/leaf_dev/site.py`. The proposal
+The current routes are `PRODUCT_ROUTES` in `dev/leaf_dev/commands/site.py`. The proposal
 gives each page one reader:
 
 | Route | Reader and purpose |

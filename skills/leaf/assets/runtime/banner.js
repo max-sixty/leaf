@@ -72,8 +72,10 @@ export const queueCounts = bannerStatus.queues;
 // count, which chrome.css draws from `data-lf-count`; the accessible name is the same
 // words on both. The desk's words stay one run of text, so they draw as they always have.
 export const toggleBtn = el("button", "lf-btn lf-auxiliary-toggle lf-threads-toggle");
-const threadsLabel = el("span", "lf-threads-label", "Threads");
+const threadsLabel = el("span", "lf-threads-label");
 threadsLabel.dataset.lfRoom = "Threads\nThreads: 999";
+const threadsWords = el("span", "", "Threads");
+threadsLabel.append(threadsWords);
 toggleBtn.append(iconElement("comment", "lf-threads-icon"), threadsLabel);
 toggleBtn.title = "Show or hide the thread panel";
 toggleBtn.setAttribute("aria-expanded", "false");
@@ -82,7 +84,7 @@ let unreadThreads = 0;
 function paintThreadCounts() {
   const label = openThreads === null ? "Threads" : `Threads: ${openThreads}`;
   const accessible = openThreads === null ? "Threads" : `Open threads: ${openThreads}`;
-  keepsText(threadsLabel, label);
+  keepsText(threadsWords, label);
   keeps(toggleBtn, "data-lf-count", openThreads === null ? null : String(openThreads));
   toggleBtn.toggleAttribute("data-unread-threads", unreadThreads > 0);
   const unread = unreadThreads
@@ -109,9 +111,11 @@ export function setThreadCounts(open, unread) {
 // without changing the page's reading loop.
 const approveBtn = el("button", "lf-btn primary lf-signoff");
 approveBtn.id = "lf-approve";
+const approveRoom = el("span");
+approveRoom.dataset.lfRoom = "Approve version\n✓ Version approved";
 const approveWords = el("span");
-approveWords.dataset.lfRoom = "Approve version\n✓ Version approved";
-approveBtn.append(approveWords);
+approveRoom.append(approveWords);
+approveBtn.append(approveRoom);
 // Another chrome that presents the approval in this control's place, as the floating
 // panel's On view does, names the control it shows and brings the user to it.
 let approvalPresentation = null;
@@ -183,7 +187,7 @@ registerBannerControl({
   rank: BANNER_CONTROL_RANK.versions,
   row: {
     label: "Versions",
-    value: () => versionsReading().picker.token.replace(/^Showing /, ""),
+    value: () => versionsReading().picker.token,
     group: "page",
   },
 });

@@ -19,9 +19,9 @@ vars:
 
     Answer in a short reply with the exact commands.
 assert:
-- type: regex
+- type: llm-rubric
   metric: runs-the-report
-  value: package check\s+\S*timeline\S*\s+--render|package check\s+--render\s+\S*timeline
+  value: The reply proposes a leaf package check command for packages/timeline with --render enabled. Read the command's arguments, allowing valid quoting and flag order; merely mentioning the command does not pass.
 - type: llm-rubric
   metric: findings-are-advice
   value: |

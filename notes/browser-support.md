@@ -450,3 +450,81 @@ application. Recheck the affected Leaf journey when resolving this entry.
 - **Recheck:** set `anchor-name` on a document element, attach a shadow root after
   it, and compare a fixed child's `getBoundingClientRect()` against the anchor in
   each engine.
+
+The reverse direction works: a box in a widget's shadow tree can be named from the
+document, and the runtime relies on it (next entry).
+
+### Naming a shadow-tree box from the document
+
+- **Disposition: supported one tree deep; deeper boxes anchor through their host.**
+  `runtime/css-anchors.js` (`anchorReading`, `anchorElement`) adds a part spelled as
+  the anchor's name, `lf-a7` for `--lf-a7`, to a box inside a widget's shadow tree,
+  and a document sheet it owns declares `::part(lf-a7) { anchor-name: --lf-a7 }`, so
+  margin rows, target paint and the floating card follow a scroller inside the tree.
+  A name the tree itself declares reaches no box outside it.
+- **Observed, 2026-10-14:** a fixed chrome box anchored to such a part follows the
+  part through the shadow scroller's scroll, and a frame anchored to that scroller
+  and cut with `clip-path: inset(0)` cuts it at the scroller's edge, in Playwright
+  Chromium 153.0.8010.12, installed Chrome 155, Firefox 155 and WebKit 26.6. A part
+  re-exported through a nested host's `exportparts` anchors in Chromium and WebKit
+  and stays at its fallback in Firefox 155, so the runtime names no box deeper than
+  the first shadow tree; no shipped widget nests one. One `::part(lf-anchor)` rule
+  reading every name from `attr(data-lf-anchor type(<custom-ident>))` anchors in
+  Chromium 153 and Firefox 155 and leaves the box at its fallback in WebKit 26.6,
+  which resolves the same `attr()` outside a `::part()` rule, so the runtime writes
+  one rule per name. Words alone in a shadow scroller anchor to the start of what it
+  holds the same way, through `::part(lf-a7)::before { content: ""; anchor-name:
+  --lf-a7 }`, which anchors and follows the scroller's scroll in all three engines.
+- **Recheck:** attach a shadow root holding a scroller with a `part`-named child,
+  declare `#host::part(name) { anchor-name: --x }` in the document, and compare a
+  fixed `position-anchor: --x` box's rectangle with the child's after scrolling the
+  inner scroller, in each engine; repeat with the child one host deeper behind
+  `exportparts`.
+
+### A stuck sticky anchor in Firefox
+
+- **Disposition: accepted.** Every box that follows scrolled content is anchored
+  (`runtime/css-anchors.js`); a script that placed boxes after each scroll and
+  scroll-driven layers were removed rather than kept for this case. Revisit if
+  readers report marks missing from stuck headers in Firefox.
+- **Affected:** a margin row, highlight, aim or floating card whose target stands in
+  a sticky box while it is stuck, such as an `lf-diff` file header, a table's
+  sticky caption or a sticky `lf-tabs` strip.
+- **Observed, 2026-10-14, Firefox 155:** a box anchored to a sticky element, or to
+  an element inside one, is placed where the anchor would stand without sticking:
+  with its scroller scrolled 300 px, the stuck anchor reads 300 px from the window's
+  top and the anchored box 20 px, outside the frame that cuts it, so the mark
+  disappears until the header unsticks. A header stuck to the document's top reads
+  10 px with its box at -200 px. Chromium 153, Chrome 155 and WebKit
+  26.6 place it on the stuck anchor. Writing the stuck position into the inset with
+  `max(anchor(--t top), calc(anchor(--scroller top) + inset))` does not help:
+  Firefox resolves anchors before applying scroll compensation.
+- **Effect:** the mark, pin or card for a stuck target is not drawn, or is drawn
+  where the target stood before it stuck; controls stay reachable through Threads
+  and the Page Map.
+- **Recheck:** in a scroller 220 px tall, a `position: sticky; top: 0` header holding
+  an element named `--t`, and a `position: fixed` box with
+  `position-anchor: --t; top: anchor(top)` after the scroller; scroll the scroller
+  past the header's start and compare the two rectangles' tops.
+
+### An anchor under a fixed box in WebKit
+
+- **Disposition: accepted.** As above, no script or scroll-driven layer answers it.
+  Revisit if a page puts marks inside fixed panels for Safari readers, such as a
+  contents list or side panel that is `position: fixed` and holds commented or
+  highlighted targets.
+- **Affected:** a margin row, highlight or floating card whose target stands in a
+  `position: fixed` box, while the document is scrolled.
+- **Observed, 2026-10-14, WebKit 26.6:** a box anchored to an element inside a
+  fixed panel moves with the root scroll as well: with the page scrolled 120 px and
+  the panel 40 px, the anchor reads 160 px from the window's top and the anchored
+  box 40 px, the root's scroll applied a second time. Chromium 153, Chrome 155 and
+  Firefox 155 place it on the anchor. Standing the box in a fixed frame anchored to
+  the panel and cut with `clip-path` does not change WebKit's answer.
+- **Effect:** in Safari, the mark or row for a target in a fixed panel drifts from
+  its target as the page scrolls, and comes back at the top of the page. Leaf's own
+  fixed chrome holds no page targets.
+- **Recheck:** a `position: fixed; overflow: auto` panel holding an element named
+  `--t`, a `position: fixed` box with `position-anchor: --t; top: anchor(top)`
+  after it, and a document tall enough to scroll; scroll the document and the panel
+  and compare the two rectangles' tops.

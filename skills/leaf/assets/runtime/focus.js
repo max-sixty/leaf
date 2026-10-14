@@ -470,8 +470,10 @@ let paintedFocus = null;
 let paintedWithin = new Set();
 function markFocus(node, name, present) {
   keeps(node, `data-lf-${name}`, present ? "" : null);
-  if (!present) node.part?.remove(`lf-${name}`);
-  else if (
+  // Removing an absent token still rewrites the attribute.
+  if (!present) {
+    if (node.part?.contains(`lf-${name}`)) node.part.remove(`lf-${name}`);
+  } else if (
     node.getRootNode().nodeType === Node.DOCUMENT_FRAGMENT_NODE &&
     node.hasAttribute("part")
   )

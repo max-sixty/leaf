@@ -114,7 +114,10 @@ representative desktop viewport.
   may grow within its stationary scrollport while existing messages stay put: new
   children, or, where none joins, a last child declared its growing tail
   (`data-lf-append-tail`), the working message or a streaming reply. The idle reply row and later cards may move by that growth, and no
-  other change may. A scrollport sized to what it holds, as the margin's floating card
+  other change may. Where the growth would carry a reply row the user just sent from past
+  its scroller's landing band, the row stops at the band's foot and the scroller takes
+  the rest, so Send and the caret stay in view (`thread/reply-landing.js`,
+  `sendLanding`). A scrollport sized to what it holds, as the margin's floating card
   is, counts as stationary while it grows only at its foot, by that growth. Declare the
   box that owns the room, not an auto-sized inner label group or a boxless wrapper. A
   nested region holds its own boundary and every enclosing declaration's guarantees,
@@ -156,9 +159,9 @@ representative desktop viewport.
 - **Generated interface first appears in its settled position.** Reserve space before
   a generated control appears. Transient feedback may repaint a control or briefly
   replace its label but never changes its geometry (`data-lf-room`, `controls.css`,
-  sizes a label for all its words). An action awaiting confirmation dims its
-  existing control after the shared delay. The parent laying out adjacent actions gives
-  them disjoint hit boxes.
+  holds a label at the room of its words and cuts words past it). An action awaiting
+  confirmation dims its existing control after the shared delay. The parent laying out
+  adjacent actions gives them disjoint hit boxes.
 - **An unlikely event fits into what is already there.** Reserve no room for a state
   the user rarely meets, such as a failed save or another writer changing a file.
   Show it in a surface that already stands and already has room, such as a status
@@ -214,12 +217,12 @@ representative desktop viewport.
 ### Motion
 
 - **Animations are restrained and finite, and acknowledge state changes.** An
-  unchanged state does not animate continuously. One sheen is the only continuous
-  animation, and it marks work under way: across “Generating title” on an untitled thread
-  awaiting the agent (`styles/chrome.css`), across a thread's working message while the
-  agent's work on it runs (`styles/components/surfaces.css`), and across the floating
-  panel's empty field while it says the agent is working (`styles/floating-panel.css`).
-  It stops when that state ends, and is static under reduced motion.
+  unchanged state does not animate continuously. One sheen, `@keyframes lf-sheen` in
+  `styles/components/surfaces.css`, is the only continuous animation, and it marks work
+  under way: across “Generating title” on an untitled thread awaiting the agent, across
+  a thread's working message while the agent's work on it runs, and across the floating
+  panel's empty field while it says the agent is working. It stops when that state ends,
+  and is static under reduced motion.
 - **Nothing the user must read, press, or decide waits on a clock.** Motion runs from
   a state that is already true, and motion that must finish before the result can be
   read is a pause. A motion the user waits on stays under 300ms; one that moves
@@ -267,7 +270,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Vocabulary and public helpers | `registry.js`, `widget-api.js`, `widget-elements.js` |
 | External data | `data.js`, `projection/data.js`, `projection/authored.js` |
 | Revision installs and continuity | `version.js`, `version-picker.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js` |
-| Repaint and geometry | `rendering.js`, `repaint.js`, `page-geometry.js`, `geometry.js`, `element-frame.js`, `scroll-motion.js`, `css-anchors.js`, `rect.js`, `pointer.js` |
+| Repaint and geometry | `rendering.js`, `repaint.js`, `page-geometry.js`, `geometry.js`, `element-frame.js`, `css-anchors.js`, `rect.js`, `pointer.js` |
 | Chrome and available room | `chrome.js`, `chrome-layout.js`, `auxiliary-surfaces.js`, `drawn-edge.js` |
 | Reading regions and scrolling | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js` |
 | Keyboard | `keyboard/AGENTS.md` |
@@ -366,7 +369,7 @@ it, and shape the markup and CSS so the runtime uses its answer:
 
 | Question | The browser feature that answers it |
 | --- | --- |
-| How large a box is, including the widest of several labels | grid and flex tracks, `min-content` and `max-content`, labels stacked in one grid cell, a label's room drawn invisibly beside its words (`data-lf-room`) |
+| How large a box is, including the widest of several labels | grid and flex tracks, `min-content` and `max-content`, labels stacked in one grid cell, a label's room drawn invisibly over its words, which fill it and are cut past it (`data-lf-room`) |
 | Where a box stands against another box or the scroller holding it | the containing block, sticky positioning, anchor positioning, scroll timelines |
 | Which of Leaf's surfaces paints over which, and that the page paints beneath them all | the top layer, and stacking contexts: the theme's `--lf-z-*` ladder, and `main` as one context at 0 |
 | Whether a box is rendered at all | `checkVisibility` |

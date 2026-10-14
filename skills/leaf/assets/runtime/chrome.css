@@ -29,6 +29,8 @@
     --lf-fp-radius: 12px;
     --lf-fp-folded: 42px;
     --lf-fp-line: 32px;
+    --lf-fp-say: 18px;
+    --lf-fp-foot-room: calc(var(--lf-fp-say) - 6px);
     --lf-fp-width: min( 540px, calc(100vw - 24px - var(--lf-safe-left) - var(--lf-safe-right)) );
     --lf-fp-view-height: calc(100dvh - var(--lf-bottom-bar-h) - 160px);
   }
@@ -178,17 +180,10 @@
     color: var(--lf-fp-muted);
     font-weight: 500;
   }
-  .lf-floating-panel[data-says=status][data-tone=working]:not([data-asks]) .lf-fp-field leaf-text::part(placeholder) {
-    color: transparent;
-    background:
-      linear-gradient(
-        110deg,
-        var(--lf-fp-quiet) 42%,
-        var(--ink) 50%,
-        var(--lf-fp-quiet) 58%);
-    background-size: 200% 100%;
-    background-clip: text;
-    animation: lf-runtime-4f3c2a8d-sheen 2s ease-in-out infinite alternate;
+  @media (prefers-reduced-motion: no-preference) {
+    .lf-floating-panel[data-says=status][data-tone=working]:not([data-asks]) .lf-fp-field leaf-text::part(placeholder) {
+      animation: lf-sheen 2s ease-in-out infinite alternate;
+    }
   }
   .lf-floating-panel[data-says=status][data-asks] .lf-fp-field leaf-text::part(placeholder) {
     color: var(--lf-fp-asks);
@@ -288,38 +283,69 @@
     background: var(--accent);
     box-shadow: 0 0 0 1.5px var(--lf-fp-surface);
   }
+  .lf-fp-row-notice {
+    flex: none;
+    display: flex;
+    align-items: center;
+    min-height: var(--lf-fp-line);
+  }
+  .lf-floating-panel[data-typing] .lf-fp-row-notice {
+    display: none;
+  }
+  .lf-fp-row-notice-press {
+    padding: 0;
+  }
+  :where(.lf-floating-panel) .lf-fp-row-notice-press:hover {
+    background: none;
+  }
+  .lf-fp-row-notice-face {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 26px;
+    padding: 0 9px;
+    border-radius: 7px;
+    background: var(--warn-tint);
+    color: var(--ink);
+    font-size: 12px;
+  }
+  .lf-fp-row-notice-press:hover .lf-fp-row-notice-face {
+    background: color-mix(in srgb, var(--warn-ink) 16%, var(--warn-tint));
+  }
+  .lf-fp-row-notice-sep {
+    color: var(--lf-fp-quiet);
+  }
+  .lf-fp-row-notice-act {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
+  }
   .lf-fp-step {
     color: var(--ink);
     box-shadow: inset 0 0 0 1px var(--lf-fp-ring);
     padding-inline: 10px;
   }
   .lf-fp-context {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
+    position: relative;
+    z-index: 1;
     box-sizing: content-box;
-    min-height: 1lh;
+    height: var(--lf-fp-say);
+    line-height: var(--lf-fp-say);
     padding: 8px 14px 0;
     color: var(--lf-fp-muted);
     font-size: 12px;
     white-space: nowrap;
-  }
-  .lf-fp-context[data-empty] {
-    visibility: hidden;
-  }
-  .lf-floating-panel:not([data-open]) .lf-fp-context[data-empty] {
-    display: none;
-  }
-  .lf-fp-dest {
-    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .lf-fp-dest[data-notice] {
-    color: var(--ink);
+  .lf-floating-panel[data-open] .lf-fp-context {
+    padding-top: 0;
+    margin: calc(6px - var(--lf-fp-say)) 0 -6px;
+    background: var(--lf-fp-surface);
+    box-shadow: 0 -3px 4px var(--lf-fp-surface);
   }
-  .lf-fp-keys {
-    flex: none;
+  .lf-fp-context[data-notice] {
+    color: var(--ink);
   }
   .lf-floating-panel[data-rest=mark] {
     width: var(--lf-fp-folded);
@@ -327,6 +353,7 @@
     right: calc(20px + var(--lf-safe-right));
     margin: 0;
     .lf-fp-field,
+    .lf-fp-row-notice,
     .lf-fp-quick,
     .lf-fp-context,
     .lf-fp-opened {
@@ -547,7 +574,7 @@
     max-height: var(--lf-fp-view-height);
     overflow-y: auto;
     overscroll-behavior: contain;
-    padding: 4px 6px 6px;
+    padding: 4px 6px var(--lf-fp-foot-room);
     box-sizing: border-box;
     scrollbar-width: thin;
   }
@@ -568,6 +595,28 @@
         to bottom,
         transparent 0,
         #000 12px);
+  }
+  .lf-fp-foot {
+    position: sticky;
+    bottom: 0;
+    margin: 0 -6px calc(-1 * var(--lf-fp-foot-room));
+    padding: 10px 0 calc(var(--lf-fp-foot-room) + 4px);
+    background: linear-gradient(transparent, var(--lf-fp-surface) 10px);
+  }
+  .lf-fp-new-reply {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin: 0 auto;
+    padding: 0 12px 0 8px;
+    border-radius: 14px;
+    background: var(--lf-fp-surface);
+    box-shadow: 0 0 0 1px var(--lf-fp-ring), 0 4px 10px -6px var(--shade);
+    color: var(--ink);
+    font-size: 12px;
+  }
+  :where(.lf-floating-panel) .lf-fp-new-reply:hover {
+    background: color-mix(in srgb, var(--ink) 5%, var(--lf-fp-surface));
   }
   .lf-fp-list {
     display: grid;
@@ -921,11 +970,6 @@
     .lf-floating-panel[data-rest=mark] :is(.lf-fp-leaf, .lf-fp-badge, .lf-fp-news-dot) {
       animation: none;
     }
-    .lf-floating-panel[data-says=status][data-tone=working]:not([data-asks]) .lf-fp-field leaf-text::part(placeholder) {
-      animation: none;
-      background: none;
-      color: var(--lf-fp-quiet);
-    }
     .lf-fp-peek,
     .lf-floating-panel[data-menu] .lf-fp-menu {
       transition: none;
@@ -941,11 +985,6 @@
     .lf-fp-menu,
     .lf-fp-peek {
       border: 1px solid CanvasText;
-    }
-    .lf-floating-panel[data-says=status][data-tone=working]:not([data-asks]) .lf-fp-field leaf-text::part(placeholder) {
-      animation: none;
-      background: none;
-      color: GrayText;
     }
   }
 }
@@ -1066,35 +1105,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   outline-offset: var(--focus-ring-gap);
   scroll-margin-block: var(--focus-ring-room);
 }
-@media print {
-  [data-lf-offer]:not([data-lf-said], [data-lf-echo]) {
-    display: none !important;
-  }
-  [data-lf-offer]:is([data-lf-said], [data-lf-echo]) {
-    background: none !important;
-    border: 0 !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    padding-inline: 0 !important;
-    cursor: default !important;
-    text-decoration: none !important;
-    list-style: none !important;
-  }
-  [data-lf-offer]:is([data-lf-said], [data-lf-echo])::-webkit-details-marker {
-    display: none !important;
-  }
-}
 @keyframes lf-runtime-4f3c2a8d-working {
   to {
     opacity: .5;
-  }
-}
-@keyframes lf-runtime-4f3c2a8d-sheen {
-  from {
-    background-position: 100% 0;
-  }
-  to {
-    background-position: 0% 0;
   }
 }
 @keyframes lf-runtime-4f3c2a8d-flash {
@@ -1183,15 +1196,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     top: 0;
     pointer-events: none;
   }
-  .lf-paint-frame {
-    position: absolute;
-  }
-  :is(.lf-paint-motion, .lf-paint-carrier) {
+  .lf-paint-carrier {
     position: absolute;
     left: 0;
     top: 0;
-  }
-  .lf-paint-carrier {
     width: 0;
     height: 0;
   }
@@ -1283,11 +1291,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-banner-actions > .lf-signoff {
     flex-shrink: 1;
     overflow: hidden;
-  }
-  .lf-signoff > [data-lf-room] {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    vertical-align: top;
   }
   .lf-banner-actions > .lf-btn:where(:not(.primary)) {
     border-color: transparent;
@@ -1854,11 +1857,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     display: block;
     padding: 6px 10px 4px;
     border-radius: 6px;
-    color: var(--muted);
-    font-size: var(--t-6);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: .05em;
   }
   .lf-queue-done {
     margin: 8px 0 0;
@@ -2316,31 +2314,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-thread-topic[data-lf-pending-title] {
     justify-self: start;
     font-weight: 500;
-    --lf-pending-title-color: color-mix(in oklab, var(--muted) 80%, var(--paper));
-    color: transparent;
-    background:
-      linear-gradient(
-        110deg,
-        var(--lf-pending-title-color) 42%,
-        var(--ink) 50%,
-        var(--lf-pending-title-color) 58%);
-    background-size: 200% 100%;
-    background-clip: text;
-    animation: lf-runtime-4f3c2a8d-sheen 2s ease-in-out infinite alternate;
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .lf-thread-topic[data-lf-pending-title] {
-      animation: none;
-      background: none;
-      color: var(--lf-pending-title-color);
-    }
-  }
-  @media (forced-colors: active) {
-    .lf-thread-topic[data-lf-pending-title] {
-      animation: none;
-      background: none;
-      color: GrayText;
-    }
+    color: color-mix(in oklab, var(--muted) 80%, var(--paper));
+    animation: lf-sheen 2s ease-in-out infinite alternate;
   }
   .lf-thread-meta {
     grid-column: 2;
@@ -2877,11 +2852,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-command-reference h3 {
     margin: 12px 0 4px;
-    font-size: var(--t-6);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: .05em;
-    color: var(--muted);
   }
   .lf-command-reference table {
     display: table;

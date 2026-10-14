@@ -1,0 +1,1036 @@
+"""Serve an example or developer fixture as a live page, or export it as one file.
+
+An example is authored content, not a page directory; opened from disk it is a dead
+page, since Chrome refuses ES modules from file://. This builds the page directory
+(`page_fixtures.prepare_page`, companion `.jsonl` history and `.data.json` values
+included) and serves it until stopped. `--export` instead writes one HTML file that
+opens offline.
+
+A plain preview takes no claim: its comments settle in the page's log and nowhere
+else, so a session can drive it. `--user` claims the page for this session, so presses
+arrive through the harness's feedback path, and serves it from the page's durable
+service. Ending the preview stops its service and withdraws its acquisition.
+In Codex it also starts or joins
+the task's delivery adapter, so comments can start a new turn after this one ends.
+
+A desktop Codex user preview detaches its watcher: the chat's idle instance can
+unload without losing the page, feedback, or source updates. Other previews run
+in the foreground; SIGTERM takes the same cleanup path as Ctrl-C.
+User previews resume the page in their slot, preserving its feedback and authored
+revisions. Plain previews build fresh from the fixture. A start into a slot another
+preview is serving is refused. The slot is a page directory under
+`LEAF_PREVIEWS_ROOT` (default `.tmp/previews/`), marked by its `preview.json`, with
+its lease at `<slot>.lock` beside it.
+
+A product document is served as builders read it, with the parts other sources own
+composed in (`page_fixtures.authored_markup`), and an edit to one of those owners
+refreshes it like an edit to the document.
+
+The preview vendors from a cached compiled installation, shared with the suite and
+developer probes. Runtime and compiler edits prepare a new kernel; authored-page edits
+reuse it. The source checkout remains the owner of its watched inputs and provenance.
+
+While it runs, `watchfiles` reports edits. Initialization decides whether the layer
+actually changed; identical saves leave the browser and server alone. A source or
+`.page/` companion edit is stamped into the live page at the same URL; a layer edit
+(a vendored file, the runtime's Python, its lock)
+re-vendors through `page init`, which mints a new layer generation the browser follows
+into a fresh document. A refused update is printed and retried after the next edit.
+Fixture history, data and earlier versions initialize a fresh slot. Live updates
+follow current markup, page-owned files, media and the runtime; restarting a user
+preview preserves the history and data its page already holds.
+
+    uv run leaf-dev preview [EXAMPLE] [--source FILE] [--runtime CHECKOUT]
+        [--slot NAME] [--user] [--export]
+
+The command execs the selected checkout's own worker,
+`python -m leaf_dev.commands.preview --worker`, into its environment
+(`start_preview_worker`). The worker and the server share that checkout's contracts.
+"""
+
+import contextlib
+import hashlib
+import json
+import os
+import re
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+from datetime import UTC, datetime
+from functools import partial
+from pathlib import Path
+from typing import NamedTuple
+
+import click
+from leaf.file_changes import FileChanges
+from leaf.locations import canonical_path
+from leaf.publishing import authored_digest, authored_files, write_authored_files
+from leaf.refusals import Refused
+from leaf.schema import BROWSER_DIRS, VENDORED_FILES
+
+from leaf_dev import ROOT
+from leaf_dev.commands.distribution import COMPILER_INPUTS, cached_installation
+from leaf_dev.example_data import named_source, page_files
+from leaf_dev.leaf_assets import CACHE as ASSETS_CACHE
+from leaf_dev.leaf_assets import assets_lock
+from leaf_dev.page_fixtures import (
+    DEFAULT_PACKAGES,
+    authored_markup,
+    composition_inputs,
+    import_referenced_media,
+    media_source,
+    package_selection_args,
+    prepare_page,
+    read_fixture,
+    source_manifest,
+    source_manifest_candidates,
+    source_packages,
+)
+
+TMP = ROOT / ".tmp"
+# A slot names a page directory, so its name must stay inside the root.
+SLOT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+# The idle wake-up at which a preview checks its server and owning session.
+WATCH_INTERVAL_MS = 250
+# A refused bind is retried without requiring the author to edit the page. Keep
+# starts apart while the port is occupied; repeat diagnostics only when they change.
+REVIVE_INTERVAL_SECS = 1
+STOP_SIGNALS = (signal.SIGINT, signal.SIGTERM)
+
+
+class LeafFailed(RuntimeError):
+    """A `leaf` command exited nonzero, having already said why.
+
+    Its own type rather than `SystemExit`, so a refresh can refuse a failed update
+    without also swallowing the exit a SIGTERM raises.
+    """
+
+    def __init__(self, args: tuple, returncode: int):
+        super().__init__(f"leaf {' '.join(args[:2])} exited {returncode}")
+        self.returncode = returncode
+
+
+def leaf(launcher: Path, runtime: Path, *args, input_text: str | None = None) -> str:
+    """Hide successful chatter; a failure replays its stdout."""
+    result = subprocess.run(
+        [str(launcher), *args],
+        cwd=runtime,
+        check=False,
+        input=input_text,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    if result.returncode != 0:
+        print(result.stdout, end="", flush=True)
+        raise LeafFailed(args, result.returncode)
+    return result.stdout
+
+
+def slot_name(_ctx, _param, value: str | None) -> str | None:
+    if value is not None and not SLOT_NAME.fullmatch(value):
+        raise click.BadParameter("use letters, digits, dots, underscores, or hyphens")
+    return value
+
+
+def checkout(value: Path) -> tuple[Path, Path]:
+    runtime = canonical_path(value.expanduser())
+    launcher = runtime / "bin" / "leaf"
+    if not launcher.is_file():
+        raise click.UsageError(f"{runtime} has no bin/leaf launcher")
+    return runtime, launcher
+
+
+def authored_source(example: str | None, source: Path | None) -> Path:
+    if source:
+        selected = canonical_path(source.expanduser())
+        if not selected.is_file():
+            raise click.UsageError(f"no authored source at {selected}")
+        return selected
+    try:
+        return named_source(example or "triage-board")
+    except ValueError as error:
+        raise click.UsageError(str(error)) from None
+
+
+def preparation_note(source: Path, data_sources: int, versions: int) -> str:
+    """Summarize successful setup without replaying each child command."""
+    details = []
+    if data_sources:
+        data_label = "data source" if data_sources == 1 else "data sources"
+        details.append(f"{data_sources} {data_label}")
+    version_label = "version" if versions == 1 else "versions"
+    details.append(f"{versions} {version_label}")
+    return f"prepared {source.stem} ({', '.join(details)})"
+
+
+def fixture_identity(source: Path) -> str:
+    """Name an authored source without exposing its absolute path to the browser."""
+    return hashlib.sha256(str(source).encode()).hexdigest()
+
+
+def mark_preview(
+    source: Path, page: Path, runtime: Path, user: bool, authored: str
+) -> None:
+    """Record the preview the browser chrome labels, and mark the page as one.
+
+    Every field written here reaches the browser: the server hands the file to
+    the page whole. It serves neither the file itself nor an absolute checkout path.
+    `input` records the fixture publication this watcher last applied, so a later
+    watcher can distinguish source edits from competing page edits. The page's own
+    authored files and event log remain authoritative.
+    """
+    from leaf.state import write_json
+
+    write_json(
+        page / "preview.json",
+        {
+            "example": source.stem,
+            "checkout": runtime.name,
+            "interaction": "user" if user else "author",
+            "started": datetime.now(UTC).isoformat(),
+            "input": {"source": fixture_identity(source), "authored": authored},
+        },
+    )
+
+
+def previews_root() -> Path:
+    """Where slots live, read per call so a test that sets the variable agrees with
+    the preview it launches. The suite points it at its own temporary root."""
+    return Path(os.environ.get("LEAF_PREVIEWS_ROOT") or TMP / "previews").resolve()
+
+
+def preview_directory(source: Path, slot: str | None, user: bool) -> Path:
+    if slot:
+        return previews_root() / slot
+    stem = re.sub(r"[^A-Za-z0-9._-]", "-", source.stem).strip("._-") or "preview"
+    return previews_root() / (stem + ("-user" if user else ""))
+
+
+WATCHER_NOTE = "server   preview (no task claim; stops with this process)"
+
+
+def preview_lease(page: Path) -> Path:
+    """The lock a running preview holds on its slot: beside the page, not in it,
+    since a discard removes the page and a lock on a removed inode excludes nobody.
+    """
+    page.parent.mkdir(parents=True, exist_ok=True)
+    return page.with_name(f"{page.name}.lock")
+
+
+def copy_media(media: Path, page: Path) -> None:
+    """Copy in new media. A name already copied keeps its bytes, since earlier
+    revisions may reference it."""
+    for path in sorted(media.rglob("*")):
+        if not path.is_file():
+            continue
+        target = page / "media" / path.relative_to(media)
+        if not target.exists():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(path, target)
+        elif target.read_bytes() != path.read_bytes():
+            raise ValueError(
+                f"media/{path.relative_to(media)} has different bytes in the preview; "
+                "use a new filename to preserve historical revisions"
+            )
+
+
+def incoming_files(source: Path) -> dict[str, bytes]:
+    """The authored inputs a preview installs: the markup as builders read it
+    (`authored_markup`), and the source's page-owned files."""
+    return {
+        **authored_files(source, page_files(source)),
+        "index.html": authored_markup(source).encode(),
+    }
+
+
+def refresh_media(source: Path, page: Path, run_leaf) -> None:
+    """Supply local and pinned media needed by the complete authored inputs."""
+    copy_media(media_source(source), page)
+    import_referenced_media(
+        page,
+        [authored_markup(source)],
+        run_leaf,
+        source=source,
+    )
+
+
+def refused(reason) -> bool:
+    """Say why the page the user has is the page that stays up."""
+    print(
+        f"Preview update refused: {reason}. Feedback is preserved; edit the inputs to retry.",
+        file=sys.stderr,
+        flush=True,
+    )
+    return False
+
+
+class PreviewService:
+    """The preview's server: a process-owned one on a retained address, or for
+    `--user` the page's claimed durable service, which `page init` restarts itself
+    around a re-vendor. The two modes are told apart here and nowhere else.
+    """
+
+    def __init__(self, page: Path, user: bool, prepared_claim: dict | None = None):
+        self.page = page
+        self.user = user
+        self.temporary = None
+        self.address: dict = {}
+        self.revive_at = 0.0
+        self.revive_refusal: str | None = None
+        self.claim: dict | None = None
+        self.prepared_claim = prepared_claim
+
+    @contextlib.contextmanager
+    def starting(self):
+        """Prepare serving; claim the page only when the caller accepts on exit."""
+        from leaf.hosting import claim_and_start
+
+        if not self.user:
+            yield self._serve_temporary()
+            return
+        with claim_and_start(self.page, prepared_claim=self.prepared_claim) as started:
+            self.claim = started.claim
+            yield started.url
+
+    @property
+    def note(self) -> str:
+        """Describe the committed service: a `--user` one as `leaf server start`
+        reads it (`hosting.server_reading`), as one JSON line."""
+        from leaf.hosting import server_reading
+
+        return json.dumps(server_reading(self.page)) if self.user else WATCHER_NOTE
+
+    def serve_again(self) -> None:
+        """Put a `--user` service that is down but still wanted back up.
+
+        A revival: it claims nothing, since the claim the first start took is
+        still this session's and taking it again would reopen a turn the Stop hook
+        closed, and it starts only a service still enabled, so a stop that lands
+        first is kept. A refused start is retried on later watcher polls; the same
+        refusal is printed once while it stands."""
+        from leaf.detached import StartRefused
+        from leaf.harness import claim_harness
+        from leaf.hosting import start_server
+
+        if time.monotonic() < self.revive_at:
+            return
+        try:
+            start_server(
+                self.page,
+                revive=True,
+                harness=claim_harness(self.claim) if self.claim else None,
+            )
+        except StartRefused as error:
+            refusal = str(error)
+            if refusal != self.revive_refusal:
+                print(refusal, file=sys.stderr, flush=True)
+            self.revive_refusal = refusal
+            self.revive_at = time.monotonic() + REVIVE_INTERVAL_SECS
+        else:
+            self.revive_refusal = None
+            self.revive_at = 0.0
+
+    @contextlib.contextmanager
+    def replacing(self):
+        """Hold a process-owned server down across a re-vendor and bring it back,
+        admitted or not, unless the preview itself is ending. `page init` restarts
+        a `--user` service itself."""
+        if self.user:
+            yield
+            return
+        self._close_temporary()
+        try:
+            yield
+        except Exception:
+            self._serve_temporary()
+            raise
+        self._serve_temporary()
+
+    def _serve_temporary(self) -> str:
+        from leaf.hosting import TemporaryPageServer
+
+        self.temporary = TemporaryPageServer(self.page, **self.address).start()
+        self.address = {
+            "token": self.temporary.token,
+            "port": self.temporary.port,
+        }
+        return self.temporary.url
+
+    def _close_temporary(self) -> None:
+        if self.temporary is not None:
+            self.temporary.close()
+            self.temporary = None
+
+    def stop(self) -> None:
+        """Stop serving and withdraw this preview's acquisition, keeping successors."""
+        from leaf.hosting import cmd_stop
+        from leaf.service import PageTransaction
+
+        if self.user:
+            cmd_stop(self.page, owner=self.claim)
+            if self.claim is not None:
+                with PageTransaction(self.page) as page:
+                    page.restore_claim(self.claim, None)
+        else:
+            self._close_temporary()
+
+    @property
+    def running(self) -> bool:
+        """Whether the server is up. A `--user` one also ends with its claim."""
+        from leaf.server import running_server
+
+        if not self.user:
+            return self.temporary is not None and self.temporary.running
+        return running_server(self.page) is not None
+
+    @property
+    def ended(self) -> bool:
+        """Whether the server is down because its owner ended it, which ends the
+        preview: a process-owned one whenever it is down, and a `--user` one when
+        its service was stopped or its claim left this session.
+
+        A `--user` service still enabled but down is not ended. That is a server
+        that died, or one `page init` re-vendored but could not start again (the
+        recorded port was taken), and the watcher tries it again."""
+        from leaf.server import read_service
+        from leaf.service import claim_is_active, page_claim, same_claim
+
+        if not self.user:
+            return not self.running
+        service = read_service(self.page)
+        if not service or not service["enabled"]:
+            return True
+        claim = page_claim(self.page)
+        return not same_claim(claim, self.claim) or (
+            claim is not None and not claim_is_active(claim)
+        )
+
+
+def refresh_preview(
+    source: Path,
+    page: Path,
+    launcher: Path,
+    runtime: Path,
+    state: dict,
+    service: PreviewService,
+) -> bool:
+    """Carry an edit into the live page, keeping its log; False if refused.
+
+    Initialization compares the desired contract with the installed layer, so a
+    retry also adopts layer edits a previous refusal held back. Only a changed
+    layer takes a process-owned server down. A
+    source edit replaces the authored HTML and companion files and stamps them,
+    the way an agent revises a page, so it arrives in the tab the user is reading
+    in. An agent's own revision of a `--user` preview survives a runtime edit; a
+    source edit over competing authored inputs is refused rather than replacing
+    them. A refused stamp restores the previous mutable inputs as well.
+    """
+    try:
+        launcher = cached_installation(runtime) / "bin/leaf"
+        incoming = incoming_files(source)
+        incoming_digest = authored_digest(incoming)
+        source_changed = incoming_digest != state["authored"]
+        previous = authored_files(page / "index.html", page / "page")
+        previous_digest = authored_digest(previous)
+        if source_changed and previous_digest not in (
+            state["authored"],
+            incoming_digest,
+        ):
+            return refused(
+                "both the fixture and the preview's authored files changed; "
+                "reconcile them before retrying"
+            )
+        packages = source_packages(source)
+        selection_args = package_selection_args(packages)
+        # Initialization owns the change decision. Ask before a process-owned
+        # server is taken down; the actual init checks again before committing.
+        planned = json.loads(
+            leaf(
+                launcher,
+                runtime,
+                "page",
+                "init",
+                "--dry-run",
+                *selection_args,
+                str(page),
+            )
+        )
+        if planned["changed"]:
+            with service.replacing():
+                leaf(launcher, runtime, "page", "init", *selection_args, str(page))
+        if source_changed and previous_digest != incoming_digest:
+            # Resolve the complete candidate before touching served authored files.
+            # The selected payload's stamp owner installs and publishes it under
+            # one transaction, including a final check against competing edits.
+            with tempfile.TemporaryDirectory(prefix="leaf-preview-candidate-") as raw:
+                candidate = Path(raw) / "page"
+                candidate.mkdir()
+                for name in VENDORED_FILES:
+                    if (page / name).is_file():
+                        shutil.copyfile(page / name, candidate / name)
+                for name in (*BROWSER_DIRS, "media"):
+                    if (page / name).is_dir():
+                        shutil.copytree(page / name, candidate / name)
+                # Media's ordinary CLI door needs an initialized, isolated log.
+                # The candidate holds no history or feedback from the served page.
+                (candidate / "events.jsonl").write_text("")
+                write_authored_files(candidate, incoming, {})
+                refresh_media(source, candidate, partial(leaf, launcher, runtime))
+                copy_media(candidate / "media", page)
+                leaf(
+                    launcher,
+                    runtime,
+                    "page",
+                    "stamp",
+                    str(page),
+                    "--text",
+                    "Updated in the checkout",
+                    "--from-directory",
+                    str(candidate),
+                    "--if-source",
+                    authored_digest(previous),
+                )
+        else:
+            refresh_media(source, page, partial(leaf, launcher, runtime))
+        state["authored"] = incoming_digest
+        mark_preview(source, page, runtime, service.user, state["authored"])
+    except (
+        LeafFailed,
+        Refused,
+        ValueError,
+        OSError,
+        RuntimeError,
+        subprocess.CalledProcessError,
+    ) as error:
+        return refused(error)
+    return True
+
+
+class Watched(NamedTuple):
+    """One filesystem subscription and what the paths it reports mean.
+
+    `roots` hold individual files and recursive directories. `trees` name where
+    new inputs may arrive; existing inputs elsewhere match only their exact path.
+    A missing tree is subscribed through its existing parent, without admitting
+    unrelated writes in that parent to expensive input discovery.
+    """
+
+    roots: tuple[Path, ...]
+    paths: frozenset[str]
+    trees: frozenset[Path]
+
+    def relevant(self, path: str) -> bool:
+        if path in self.paths:
+            return True
+        candidate = Path(path)
+        return not self.trees.isdisjoint((candidate, *candidate.parents))
+
+
+def watch_paths(source: Path, runtime: Path, roots: list[Path]) -> Watched:
+    """The inputs one preview follows (`paths`).
+
+    Every path is resolved: `input_paths` answers in resolved paths, so a package
+    root reached through a symlink or `..` would otherwise match nothing.
+    """
+    from leaf.layer import input_paths, payload_server_inputs
+
+    runtime = runtime.resolve()
+    scripts = runtime / "skills" / "leaf" / "scripts"
+    resolved_roots = {root.resolve() for root in roots}
+    # The layer reading follows a link inside a package as well as one at its root,
+    # so a vendored file can resolve outside every package root.
+    package = [
+        path
+        for path in input_paths(roots)
+        if path not in resolved_roots and not path.is_dir()
+    ]
+    layer = {
+        *(str(path) for path in package),
+        *(str(path) for path in payload_server_inputs(runtime)),
+        *(str(ROOT / path) for path in COMPILER_INPUTS),
+    }
+    manifest = source_manifest(source)
+    companions = page_files(source)
+    media = media_source(source)
+    lock = assets_lock(source)
+    page = {
+        path.resolve()
+        for path in (
+            source,
+            *composition_inputs(source),
+            companions,
+            *companions.rglob("*"),
+            *source_manifest_candidates(source),
+            manifest or DEFAULT_PACKAGES,
+            # A pinned copy's bytes change only with its pin, which is followed
+            # instead, and it sits under `.tmp`, which no subscription may cover.
+            *(() if media.is_relative_to(ASSETS_CACHE) else media.rglob("*")),
+            *([lock] if lock is not None else []),
+            # The nearer of these two directories is the one the page's images come
+            # from, so either arriving changes which images the refresh copies.
+            source.parent / "media",
+            *([manifest.parent / "media"] if manifest is not None else []),
+        )
+    }
+    discovering = {
+        companions,
+        source.parent / "media",
+        *([manifest.parent / "media"] if manifest is not None else []),
+    }
+    trees = {*resolved_roots, scripts, *(path.parent for path in package), *discovering}
+    # Discovery subscriptions stay at the parent even after a missing directory
+    # arrives, so rebuilding does not discard events collected during refresh.
+    holders = (trees - discovering) | {tree.parent for tree in discovering}
+    holders.update(Path(path) for path in layer)
+    holders.update(page)
+    existing = set()
+    for path in holders:
+        while not path.exists():
+            path = path.parent
+        existing.add(path)
+    # Only directories cover descendants. A pin at the checkout root is a file
+    # subscription, never a recursive subscription to the checkout itself.
+    subscribed: list[Path] = []
+    for path in sorted(existing):
+        if not any(root in path.parents for root in subscribed):
+            subscribed.append(path)
+    return Watched(
+        tuple(subscribed),
+        frozenset(layer | {str(path) for path in page}),
+        frozenset(tree.resolve() for tree in trees),
+    )
+
+
+class PreviewChanges(FileChanges):
+    """Input path batches with the preview's bounded lifetime-check wake-up."""
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        return self.batch(WATCH_INTERVAL_MS / 1000)
+
+
+def watch_roots(watched: Watched) -> dict[Path, bool]:
+    """Recursive input trees and shallow parents for replaceable file inputs."""
+    directories = {path for path in watched.roots if path.is_dir()}
+    roots = {path.parent: False for path in watched.roots if path not in directories}
+    roots.update(dict.fromkeys(directories, True))
+    return roots
+
+
+def watch_changes(watched: Watched) -> PreviewChanges:
+    """Install the native subscriptions before publishing the preview URL.
+
+    Single files use shallow parent watches: an editor's atomic rename changes
+    the inode, so a file watch on Linux otherwise loses later saves.
+    """
+    from watchfiles import DefaultFilter
+
+    default_filter = DefaultFilter()
+    return PreviewChanges(
+        watch_roots(watched),
+        lambda path: default_filter(None, str(path)),
+        collect=True,
+    )
+
+
+def discard_preview(page: Path) -> None:
+    """Remove what an earlier preview left in this slot, claim included.
+
+    Called with the slot's lease held, so no preview is serving it. A durable
+    service a `--user` preview left behind when it was killed outright is stopped
+    first, since its record goes with the page.
+    """
+    from leaf.hosting import cmd_stop
+    from leaf.service import claim_path
+
+    if page.exists():
+        cmd_stop(page)
+        shutil.rmtree(page)
+    claim_path(page).unlink(missing_ok=True)
+
+
+def run_preview(
+    source: Path,
+    page: Path,
+    launcher: Path,
+    runtime: Path,
+    user: bool,
+    *,
+    prepared_claim: dict | None = None,
+    handshake=None,
+) -> None:
+    """Take the slot, resume a user's page or build a plain preview, then serve."""
+    from leaf.leases import release_lease, take_lease
+
+    lease = take_lease(preview_lease(page))
+    if lease is None:
+        raise ValueError(
+            f"another preview is serving {page}; stop that process, or choose "
+            "another --slot"
+        )
+    try:
+        if not user:
+            discard_preview(page)
+        serve_preview(
+            source,
+            page,
+            launcher,
+            runtime,
+            user,
+            prepared_claim=prepared_claim,
+            handshake=handshake,
+        )
+    finally:
+        release_lease(lease)
+
+
+def serve_preview(
+    source: Path,
+    page: Path,
+    launcher: Path,
+    runtime: Path,
+    user: bool,
+    *,
+    prepared_claim: dict | None = None,
+    handshake=None,
+) -> None:
+    """Build this slot's page, serve it, and follow its inputs until stopped."""
+    from leaf.files import read_json
+    from leaf.layer import layer_inputs
+
+    # Fixture progress is distinct from the page's own authored inputs: an agent
+    # may have revised those while this watcher was absent.
+    state = {
+        "authored": authored_digest(incoming_files(source)),
+    }
+    resumed = user and page.exists()
+    if resumed:
+        record = read_json(page / "preview.json")
+        inputs = record.get("input") if isinstance(record, dict) else None
+        if (
+            not isinstance(inputs, dict)
+            or inputs.get("source") != fixture_identity(source)
+            or not isinstance(inputs.get("authored"), str)
+            or record.get("interaction") != "user"
+        ):
+            raise ValueError(
+                f"{page} belongs to another preview; choose another --slot"
+            )
+        state["authored"] = inputs["authored"]
+    service = None
+    changes = None
+    try:
+        launcher = cached_installation(runtime) / "bin/leaf"
+        prepared_page = None
+        if resumed:
+            service = PreviewService(page, user, prepared_claim)
+            refresh_preview(source, page, launcher, runtime, state, service)
+        else:
+            # The fixture owner builds all versions, seed history, data and media
+            # privately. Only a complete page directory acquires the public slot;
+            # a refused build cannot expose partial state or clean up a successor.
+            page.parent.mkdir(parents=True, exist_ok=True)
+            with tempfile.TemporaryDirectory(
+                prefix=".leaf-preview-", dir=page.parent
+            ) as raw:
+                staged = Path(raw) / "page"
+                prepared_page = prepare_page(
+                    staged,
+                    read_fixture(source, runtime=runtime),
+                    partial(leaf, launcher, runtime),
+                )
+                mark_preview(source, staged, runtime, user, state["authored"])
+                staged.rename(page)
+            service = PreviewService(page, user, prepared_claim)
+        with service.starting() as url:
+            pass
+        roots = layer_inputs(
+            tuple(read_json(page / "registry.json")["$layer"]["packages"])
+        )
+        watched = watch_paths(source, runtime, roots)
+        changes = watch_changes(watched)
+        if handshake is not None and not handshake.announce({"url": url}):
+            return
+        print(
+            preparation_note(source, prepared_page.data_sources, prepared_page.versions)
+            if prepared_page is not None
+            else f"resumed {source.stem}",
+            end="\n\n",
+            flush=True,
+        )
+        print(service.note, file=sys.stderr, flush=True)
+        print(url, flush=True)
+        print(f"Watching {source} and {runtime}; feedback stays in {page}", flush=True)
+        while True:
+            reported = next(changes)
+            if service.ended:
+                return  # the service was stopped, or the owning session ended
+            if service.user and not service.running:
+                service.serve_again()
+            replaced = not changes.matches(watch_roots(watched))
+            if replaced:
+                # Native directory watches expire when their directory is
+                # removed, even if its pathname and selected inputs return.
+                # Edits during that gap have no file batch, so this invalidates
+                # the canonical input reading as well as the subscription.
+                changes.close()
+                changes = watch_changes(watched)
+            if not replaced:
+                if not reported:
+                    continue  # lifetime and root checks need no input discovery
+                if not any(watched.relevant(path) for path in reported):
+                    continue
+                # An added input is only in the reading taken after it arrived, and a
+                # deleted one only in the reading taken while it was still there.
+                if not reported & watched.paths:
+                    current = watch_paths(source, runtime, roots)
+                    if not reported & current.paths:
+                        continue
+            refreshed = refresh_preview(source, page, launcher, runtime, state, service)
+            # Init can commit a selection even when the following source stamp
+            # refuses. Follow the installed layer after every attempt, so that
+            # its newly selected packages remain observable while source is fixed.
+            roots = layer_inputs(
+                tuple(read_json(page / "registry.json")["$layer"]["packages"])
+            )
+            rebuilt = watch_paths(source, runtime, roots)
+            if not changes.matches(watch_roots(rebuilt)):
+                # A refresh can change which packages the page vendors, and a
+                # subscription is fixed for its lifetime. Holding the old one
+                # wherever the roots stand still keeps the edits made during the
+                # refresh, which the rust watcher collected while this was busy.
+                changes.close()
+                changes = watch_changes(rebuilt)
+            watched = rebuilt
+            if service.user and not service.running:
+                # A server that died, or that a re-vendor could not start again,
+                # which said why. The next watcher poll is another try.
+                service.serve_again()
+            if refreshed and service.running:
+                print(f"Updated {source.stem}", flush=True)
+    finally:
+        if changes is not None:
+            changes.close()
+        if service is not None:
+            service.stop()
+
+
+def start_preview_worker(source: Path, page: Path, runtime: Path, user: bool) -> None:
+    """Become the preview, in the selected checkout's uv environment.
+
+    That environment is the one `bin/leaf` syncs, which carries no dev group, so
+    `leaf_dev`, which builds the page from the fixture, is overlaid onto it. The selected
+    checkout owns both the worker and `leaf`, so their startup and serving contracts
+    stay together when comparing versions. The launcher is replaced rather than
+    kept as a parent, so whatever stops this process — Ctrl-C, or a runner's
+    SIGTERM, which `uv run` forwards — reaches the preview itself.
+    """
+    command = [
+        "uv",
+        "run",
+        "-q",
+        "--no-dev",
+        "--project",
+        str(runtime),
+        "--with-editable",
+        str(runtime / "dev"),
+        "python",
+        "-m",
+        "leaf_dev.commands.preview",
+        "--source",
+        str(source),
+        "--runtime",
+        str(runtime),
+        "--slot",
+        page.name,
+        "--worker",
+    ]
+    # The worker runs in the selected checkout, so it is handed the slot by name and
+    # the root as this launcher resolved it, rather than reading a relative setting
+    # against a directory of its own.
+    os.environ["LEAF_PREVIEWS_ROOT"] = str(page.parent)
+    if user:
+        command.append("--user")
+    os.chdir(runtime)
+    os.execvp(command[0], command)
+
+
+def terminated(signum, _frame) -> None:
+    """Begin shutdown once and let its cleanup finish despite later stop signals.
+
+    Ignore both SIGINT and SIGTERM before unwinding so another stop cannot
+    interrupt the watcher or service cleanup.
+    """
+    for stop_signal in STOP_SIGNALS:
+        signal.signal(stop_signal, signal.SIG_IGN)
+    raise SystemExit(128 + signum)
+
+
+def start_desktop_preview(source: Path, page: Path, runtime: Path, harness) -> None:
+    """Hand the prepared task lifetime to a detached watcher before returning.
+
+    The launcher's adapter lock spans the child's claim publication, just as a
+    foreground serve's does. Readiness includes its input subscription, and the
+    existing detached handshake owns refusal and abandoned-start cleanup.
+    """
+    from leaf.detached import starting_detached
+    from leaf.hosting import server_reading
+    from leaf.service import prepare_claim
+
+    log = page.with_name(f"{page.name}.log")
+    log.parent.mkdir(parents=True, exist_ok=True)
+    with harness.preparing_delivery():
+        claim = prepare_claim(harness, page)
+        with starting_detached(
+            [
+                "--source",
+                str(source),
+                "--runtime",
+                str(runtime),
+                "--slot",
+                page.name,
+                "--user",
+                "--worker",
+                "--prepared-claim",
+                json.dumps(claim),
+            ],
+            harness=harness,
+            module="leaf_dev.commands.preview",
+            what=f"the preview for {source}",
+            log=log,
+            cwd=runtime,
+            timeout=120,
+        ) as ready:
+            pass
+    print(json.dumps(server_reading(page)), file=sys.stderr, flush=True)
+    print(ready["url"], flush=True)
+    print(f"Watching {source}; detached preview log: {log}", flush=True)
+
+
+@click.command()
+@click.argument("example", required=False)
+@click.option(
+    "--source",
+    type=click.Path(path_type=Path),
+    help="Authored HTML source to preview.",
+)
+@click.option(
+    "--runtime",
+    type=click.Path(path_type=Path),
+    default=ROOT,
+    help="Leaf checkout whose bin/leaf vendors the page.",
+)
+@click.option(
+    "--slot",
+    callback=slot_name,
+    help="Stable name for a preview that may coexist with other slots.",
+)
+@click.option(
+    "--user",
+    is_flag=True,
+    help="Hand this preview to a user: claim the page so presses arrive as feedback.",
+)
+@click.option(
+    "--export",
+    is_flag=True,
+    help="Write an offline HTML file instead of serving the page.",
+)
+@click.option("--worker", is_flag=True, hidden=True)
+@click.option("--prepared-claim", hidden=True)
+@click.option("--handshake", type=int, hidden=True)
+def preview(
+    example: str | None,
+    source: Path | None,
+    runtime: Path,
+    slot: str | None,
+    user: bool,
+    export: bool,
+    worker: bool,
+    prepared_claim: str | None,
+    handshake: int | None,
+) -> None:
+    """Serve an example as a live page, or export it as one file.
+
+    EXAMPLE is a public example or developer fixture, triage-board by default."""
+    if source and example:
+        raise click.UsageError("choose an example name or --source, not both")
+    if user and export:
+        raise click.UsageError("--user serves a page; omit --export")
+    # An explicitly selected runtime owns its launcher, including in the worker
+    # and the page commands it starts. A host override would redirect those calls.
+    os.environ.pop("LEAF_HOST_LAUNCHER", None)
+    try:
+        if worker:
+            from leaf.detached import Handshake
+            from leaf.harness import session_harness
+
+            for stop_signal in STOP_SIGNALS:
+                signal.signal(stop_signal, terminated)
+            source = source.resolve()
+            runtime = runtime.resolve()
+            page = preview_directory(source, slot, user)
+            if handshake is not None:
+                with Handshake(handshake) as announcement:
+                    run_preview(
+                        source,
+                        page,
+                        runtime / "bin" / "leaf",
+                        runtime,
+                        user,
+                        prepared_claim=json.loads(prepared_claim),
+                        handshake=announcement,
+                    )
+            else:
+                harness = session_harness() if user else None
+                if harness and harness.lifetime() == {"chat": True}:
+                    start_desktop_preview(source, page, runtime, harness)
+                else:
+                    run_preview(source, page, runtime / "bin" / "leaf", runtime, user)
+        elif export:
+            export_preview(*checkout(runtime), authored_source(example, source), slot)
+        else:
+            runtime, _ = checkout(runtime)
+            source = authored_source(example, source)
+            start_preview_worker(
+                source, preview_directory(source, slot, user), runtime, user
+            )
+    except KeyboardInterrupt:
+        raise SystemExit(130) from None
+    except LeafFailed as error:
+        raise SystemExit(error.returncode) from None
+    except (Refused, ValueError, OSError, RuntimeError) as error:
+        raise click.ClickException(str(error)) from None
+
+
+def export_preview(
+    runtime: Path, launcher: Path, source: Path, slot: str | None
+) -> None:
+    """Write the page as one offline file under `.tmp/`, and print its path."""
+    from leaf_dev.arms import run_directory
+
+    out_dir = run_directory(TMP / "exports")
+    launcher = cached_installation(runtime) / "bin/leaf"
+    with tempfile.TemporaryDirectory(prefix="preview-export-", dir=TMP) as staging:
+        page = Path(staging) / "page"
+        prepared = prepare_page(
+            page,
+            read_fixture(source, runtime=runtime),
+            partial(leaf, launcher, runtime),
+        )
+        suffix = f"-{slot}" if slot else ""
+        out = out_dir / f"example-{source.stem}{suffix}.html"
+        leaf(launcher, runtime, "page", "export", str(page), "-o", str(out))
+    print(
+        preparation_note(source, prepared.data_sources, prepared.versions),
+        end="\n\n",
+    )
+    print(out.resolve())
+
+
+if __name__ == "__main__":
+    preview()

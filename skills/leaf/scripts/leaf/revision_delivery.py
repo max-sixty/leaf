@@ -432,7 +432,8 @@ def mark_declared(
                     )
                 )
         if prepaint := prepaint_markup(registry, element.tag):
-            root = len(re.match(r"<[a-z][a-z0-9]*", prepaint)[0])
+            painted = turbohtml.parse(prepaint, scripting=True).find("body")
+            root = 1 + len(next(iter(painted.children)).tag)
             edits.append(
                 (
                     index(location.start_tag.end_line, location.start_tag.end_col),

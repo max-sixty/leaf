@@ -2,11 +2,11 @@
 
 The shipped triage board shows seven defect cards and a status tile counting open
 defects. The `seeded` scenario's status tile claims eight; the `clean` control claims
-seven. Each sample shows the judge that grades authored pages one page, and
+seven. Each sample shows the screenshot judge one page, and
 the YAML case asks the same question of both: whether the displayed total equals the
 cards. Seeded passes only when the judge says no, so a judge that agrees with
 the rubric's wording fails one of them. This calibrates count reading, not
-general page acceptance or judge reliability.
+general page acceptance or the live authoring judge's reliability.
 """
 
 from pathlib import Path

@@ -9,8 +9,8 @@ from pathlib import Path
 import click
 import pytest
 import yaml
-from leaf_dev.eval import catalog, native_provider, prepare, select_cases
-from leaf_dev.review_detection_eval import grading, summarize
+from leaf_dev.commands.eval import catalog, native_provider, prepare, select_cases
+from leaf_dev.commands.eval_ui_review import grading, summarize
 
 
 @pytest.mark.usefixtures("codex_cli")
@@ -135,7 +135,7 @@ def test_library_cases_supply_a_task_and_native_promptfoo_assertions(address):
 def test_catalog_rejects_execution_modes_conflicting_after_variant_inheritance(
     tmp_path, monkeypatch
 ):
-    from leaf_dev import eval as module
+    from leaf_dev.commands import eval as module
 
     path = tmp_path / "evals" / "example" / "case.yaml"
     path.parent.mkdir(parents=True)
@@ -159,7 +159,7 @@ def test_catalog_rejects_execution_modes_conflicting_after_variant_inheritance(
 def test_authoring_instruction_sources_stay_per_sample_with_the_task(
     tmp_path, monkeypatch
 ):
-    from leaf_dev import eval as module
+    from leaf_dev.commands import eval as module
 
     sources = {
         "first": ".claude/skills/developing-leaf/SKILL.md",
@@ -463,7 +463,7 @@ def test_native_codex_discovers_the_complete_arm_with_root_relative_access(
 def test_native_javascript_assertions_and_asset_addresses_survive_preparation(
     tmp_path, monkeypatch
 ):
-    import leaf_dev.eval as module
+    import leaf_dev.commands.eval as module
 
     case = tmp_path / "evals" / "example" / "case.yaml"
     case.parent.mkdir(parents=True)
@@ -533,7 +533,7 @@ def test_sidebar_primary_scores_rendered_work_and_retains_instruction_diagnostic
     assert cases[task]["metadata"]["executor"] == "leaf_dev.arrangement_eval"
     assert not any(check.startswith("choice-") for check in expected_checks(task))
     assert any(
-        "completed rollout" in rubric["value"]
+        "completed rollout" in rubric.get("config", {}).get("rubric", rubric["value"])
         for rubric in definition("arrangement_eval")["cases"][task]["assert"]
     )
     for variant in ("instructions", "live"):
@@ -604,17 +604,13 @@ def test_workflows_run_declared_conditions_harnesses_and_fixed_checks(
                 ]
             ),
         ]
-        # The screenshot judge may read the run's screenshots and nothing else
-        # outside the runtime and its own executable.
-        judge = test["assert"][-1]["provider"]["config"]
-        assert "sandbox_mode" not in judge
-        profile = (Path(judge["cli_env"]["CODEX_HOME"]) / "config.toml").read_text()
-        assert [line for line in profile.splitlines() if line.endswith('"read"')] == [
-            '":minimal" = "read"',
-            f'"{tmp_path / "screenshots"}/**" = "read"',
-            f'"{codex.resolve()}" = "read"',
-        ]
-        assert judge["codex_path_override"] == str(codex.resolve())
+        # Complete authoring criteria use the native live-page Python provider.
+        visual = next(
+            check for check in test["assert"] if check.get("config", {}).get("judge")
+        )
+        judge = visual["config"]["judge"]
+        assert judge["id"].endswith("/dev/leaf_dev/arrangement_eval.py")
+        assert Path(judge["config"]["pythonExecutable"]).is_file()
     assert "tools" not in config["defaultTest"]["options"]["provider"]["config"]
     html = next(
         provider["config"]
@@ -758,7 +754,7 @@ def test_command_passes_promptfoo_options_and_status_without_api_keys(
     """The command's own edges: case/option split, the optional base arm, the
     environment Promptfoo gets, and its exit status."""
     from click.testing import CliRunner
-    from leaf_dev import eval as module
+    from leaf_dev.commands import eval as module
 
     promptfoo = tmp_path / "promptfoo"
     calls = tmp_path / "calls"

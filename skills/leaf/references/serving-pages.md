@@ -46,10 +46,10 @@ startup waits for that preparation.
 
 ## Unreachable URLs and `--host`
 
-A serve that binds loopback says so on the line after the lifetime note. That is
-the no-SSH default above, and it covers sessions that are remote from the user
+A serve that binds loopback says so beside its URL, in a `loopback-only` note. That
+is the no-SSH default above, and it covers sessions that are remote from the user
 without having arrived over SSH: a scheduler, a daemon, a detached background job.
-When that line appears and the session is not one the user is sitting at, ask them
+When that note appears and the session is not one the user is sitting at, ask them
 for a name their browser routes to and serve on it before handing the URL over, or
 export the version as a file.
 
@@ -163,8 +163,8 @@ leaf page interactions <page> --session TAB \
 ```
 
 Omit the session filter to include server requests, which have no browser session
-association. Use `--json` for complete structured values, or `tail -F
-<page>/interactions.jsonl` to follow raw delivery order while reproducing. The
+association. Each line is one complete JSON record; `tail -F
+<page>/interactions.jsonl` follows raw delivery order while reproducing. The
 reader orders observations by their recorded time, deduplicates retries,
 reconstructs split values, and retains visible gap diagnostics under type filters.
 Browser and server clocks can differ; recorded order alone does not prove causation.

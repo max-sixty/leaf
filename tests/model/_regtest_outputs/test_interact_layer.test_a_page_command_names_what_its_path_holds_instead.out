@@ -1,4 +1,4 @@
-Error: <tmp>/page.html is a file; a page command takes the page's directory
+{"error": "<tmp>/page.html is a file; a page command takes the page's directory", "findings": []}
 
-Error: <tmp>/missing is not an initialized page; run `leaf page init <tmp>/missing`
+{"error": "<tmp>/missing is not an initialized page; run `leaf page init <tmp>/missing`", "findings": []}
 

@@ -58,6 +58,29 @@ def page_element(page_dir: Path, name: str) -> dict | None:
     return {"kind": "element", "id": name}
 
 
+# What a reader opens before reading what it holds: a closed disclosure, a tab after
+# the first in authored order, which is the order a page shows its tabs by default,
+# or a hidden element.
+FOLDED = ":is(details:not([open]), lf-tab:not(:first-of-type), [hidden])"
+
+
+def stands_open(page_dir: Path, element: str) -> bool:
+    """Whether `element` is on the newest revision where a reader meets it without
+    opening anything (`FOLDED`)."""
+    revision = latest_revision(page_dir)
+    if revision is None:
+        return False
+    found = next(
+        (
+            node
+            for node in read_revision(page_dir, revision).document.tree.iter_elements()
+            if node.attrs.get("id") == element
+        ),
+        None,
+    )
+    return found is not None and found.closest(FOLDED) is None
+
+
 def page_subject(page_dir: Path, events: list, name: str) -> dict | None:
     """What `name` names (`thread_context.id_subject`), against the page the user is
     looking at: the newest revision's widgets, and the widgets its threads' messages

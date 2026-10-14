@@ -159,8 +159,9 @@ For work that will run longer than a few minutes, coordinate it rather than perf
 it. Hand the reading, editing, and testing to background subagents or background
 commands, and end your turn as the harness contract says, so the watcher's next delivery
 reaches you while the work runs instead of waiting behind it. When a worker reports
-back, put its result on the page; the thread that asked for it then gets a reply
-saying what changed and linking to it.
+back, put its result on the page, moving what it finished out of the open work
+(`authoring-revisions.md`, "Keep the current page current"); the thread that asked
+for it then gets a reply saying what changed and linking to it.
 
 You drive the page and your workers do not. The server, the watcher and its
 acknowledgements, replies, starts and status, edits to `index.html`, and stamps stay

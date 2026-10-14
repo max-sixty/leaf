@@ -114,14 +114,14 @@ in the log.
 A list of work holds what is still to do. When an item of a plan, a backlog, or a list
 of problems found is done, move it out of that list to the finished work, which sits
 collapsed after the open work, with the item cut down to its outcome, for example in a
-`<details>` at the foot whose summary says what is done. A widget that tracks
-completion itself, such as a milestone rail, a board, or a task list, keeps its
-members and shows them its own way. Material the current state replaces, such as a
-concluded run, a superseded section, or a page tab the current work no longer needs
-(the `lf-tabs` entry says what of it to keep), is removed outright rather than kept
-beside its successor; keep older material only where the current work still needs its
-context, collapsed the same way. Put deferred work in the list of work with enough
-context to resume it.
+`<details>` at the foot whose summary says what is done, or on a tab of its own. A
+widget that tracks completion itself, such as a milestone rail, a board, or a task
+list, keeps its members and shows them its own way. Material the current state
+replaces, such as a concluded run, a superseded section, or a page tab the current
+work no longer needs (the `lf-tabs` entry says what of it to keep), is removed
+outright rather than kept beside its successor; keep older material only where the
+current work still needs its context, collapsed the same way. Put deferred work in
+the list of work with enough context to resume it.
 
 An ask the user answered and you have acted on is finished work too. Move it whole
 to the finished work with the user's answer in force, and put anything still worth

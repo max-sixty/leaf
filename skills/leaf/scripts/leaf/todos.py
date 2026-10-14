@@ -68,7 +68,10 @@ no seat; a start on an open to-do of the agent's or an update the agent owes; an
 end of an open to-do, the user's only of one the agent opened on them
 (`todo_error`). `TodoReading` holds the log's to-dos, starts and endings for one
 event basis, and `WorkReading.page_todos` attaches thread and activity readings to
-to-dos.
+to-dos. Ending the last open to-do on an element `done` while that element still
+stands among the open work makes `task end` say so (`finished_in_view`): agents
+recorded each result where its item stood and left pages mostly finished work. The
+agent judges whether the element is finished work or the page's current content.
 
 Experimental: to-dos and the two lists are new, and their shape is expected to
 change a lot (notes/what-needs-you/). Change them freely; nothing outside this
@@ -477,17 +480,38 @@ def put_down(page) -> dict | None:
     return record
 
 
+def finished_in_view(page_dir: Path, end: dict) -> str | None:
+    """The element a `done` end finished, where no other to-do stays open on it and
+    it still stands among the open work (`work.stands_open`); else None."""
+    from .event_log import read_events
+    from .work import stands_open
+
+    if end["outcome"] != "done":
+        return None
+    todos = TodoReading(read_events(page_dir)).todos
+    subject = next(
+        (todo["subject"] for todo in todos if todo["id"] == end["todo"]), None
+    )
+    if subject is None or subject["kind"] != "element":
+        return None
+    if any(todo["subject"] == subject and todo["state"] == "open" for todo in todos):
+        return None
+    return subject["id"] if stands_open(page_dir, subject["id"]) else None
+
+
 def cmd_end(page_dir: Path, todo: str, outcome: str, detail: str | None) -> dict:
     """End `todo` with `outcome`, `detail` saying where the result is or why there
     is none; the record."""
     from .event_contracts import append_admitted
     from .harness import message_identity
     from .leases import contract_writer
+    from .revisioning import activate_source
     from .service import PageTransaction
 
     @contract_writer
     def write(page_dir: Path) -> dict:
         with PageTransaction(page_dir) as page:
+            activate_source(page_dir, transaction=page)
             record, _ = append_admitted(
                 page,
                 {

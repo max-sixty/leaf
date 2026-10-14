@@ -1033,6 +1033,38 @@ def test_idle_refuses_over_an_open_todo(page_dir):
     written(leaf("status", page_dir, "idle"))
 
 
+def test_ending_a_section_todo_done_names_the_section_left_among_the_open_work(
+    page_dir,
+):
+    """Finished work belongs collapsed after what is still open, so ending the last
+    open to-do on an element `done` says on stderr when that element still stands
+    open, and says nothing for another outcome, while other work on it stays open, or
+    once the saved page folds it."""
+    publish(page_dir)
+    first = written(leaf("task", "open", page_dir, "plan", "Rework the plan"))
+    second = written(leaf("task", "open", page_dir, "plan", "Recheck the plan"))
+    ended = leaf("task", "end", page_dir, first["id"], "done", "version 2")
+    assert len(ended.output.splitlines()) == 1
+    ended = leaf("task", "end", page_dir, second["id"], "done", "version 2")
+    record, note = ended.output.splitlines()
+    assert json.loads(record)["outcome"] == "done"
+    assert "`plan` is done, and it still stands among the open work" in note
+
+    dropped = written(leaf("task", "open", page_dir, "plan", "Trim the plan"))
+    ended = leaf("task", "end", page_dir, dropped["id"], "dropped", "not needed")
+    assert len(ended.output.splitlines()) == 1
+
+    # Saved, not stamped: the end reads the page as saved.
+    folded = written(leaf("task", "open", page_dir, "plan", "Tidy the plan"))
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            '<section id="plan">', '<details id="plan"><summary>Done</summary>'
+        ).replace("</section>", "</details>")
+    )
+    ended = leaf("task", "end", page_dir, folded["id"], "done", "version 3")
+    assert len(ended.output.splitlines()) == 1
+
+
 def test_a_start_on_a_widget_todo_holds_the_moves_delivered_before_it(page_dir):
     """A to-do on a widget answers the moves on it: once started, the move the user
     made there reads Working and lets the turn that started it end over it. A move

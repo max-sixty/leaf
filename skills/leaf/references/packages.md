@@ -178,7 +178,7 @@ The override contract distinguishes four kinds of custom property:
 | Kind | Owner and supported use |
 | --- | --- |
 | Theme inputs | Page authors and themes may set semantic colors (`--paper`, `--ink`, `--muted`, `--accent`, `--ok`, `--danger`), type faces (`--serif`, `--sans`, `--mono`), type/reading scales, radius (`--r`), code palette (`--code-*`), focus inputs, and page geometry, which Layouts read: the column's widths (`--col`, `--wide`), the sidebar's width (`--sidebar`), and the room above and below the page (`--page-pad-start`, `--page-pad-end`). Set them on the document root for a page-wide change; inherited inputs can also style a local subtree. The theme owns shared defaults and derivations; diff additions and deletions derive from the widget's local `--ok`, `--danger` and `--pre-bg`. Derived custom properties resolve where declared, so changing a local base color does not recompute an inherited derived token. `--focus-ring` draws outlines; `--focus-shadow` draws the equivalent shadow-based cue, so a custom complete ring updates both. Shared duration inputs `--lf-motion-flash`, `--lf-motion-fold`, and `--lf-motion-agent-arrival` are nonnegative document-root time values. `--lf-thread-panel-default-width` is a root length input until the user chooses a panel width. |
-| Layout declarations | The allocating box sets `--lf-full-height`, `--lf-density`, `--lf-block-frame`, and `--lf-holds-edge` according to the contracts below. These express room or layout behavior; they are not palette knobs. |
+| Layout declarations | The allocating box sets `--lf-full-height`, `--lf-density`, `--lf-block-frame`, and `--lf-holds-edge` according to the contracts in `package-themes.md`, "A theme change". These express room or layout behavior; they are not palette knobs. |
 | Runtime outputs | Runtime owners write measurements and choices such as `--lf-thread-panel-width`, banner row counts, anchor geometry, and retained body extents. Consumers read them; themes do not set them. `--lf-banner-face` is a stylesheet-owned responsive decision consumed by chrome and JavaScript. |
 | Vendor bridges | The dependency adapter maps Leaf inputs to provider properties such as `--wa-*`, `--diffs-*`, and `--plot-background`. Change the Leaf input or the owning adapter, rather than repeating a provider recipe in each consumer. |
 
@@ -283,8 +283,8 @@ module and use relative imports, while third-party or data files can live under
 theme.
 
 Browser behavior follows [module-authoring.md](module-authoring.md), which owns module
-obligations and the public browser API. Registry declarations and their state
-meaning stay in the sections below.
+obligations and the public browser API. The state meaning of registry declarations
+is in [package-data.md, "User state"](package-data.md#user-state).
 
 ## Seeing it
 

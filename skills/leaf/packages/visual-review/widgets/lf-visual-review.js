@@ -881,10 +881,9 @@ customElements.define(
                   (record, index) =>
                     html`<wa-option ${offered("")} value=${record.id}
                       >${`${index + 1} of ${cases.length} · ${record.title} · ${
-                          DISPOSITION[
-                            this.#reviewUnits[record.id]?.detail.disposition
-                          ] ?? CLASSIFICATION[record.classification]
-                        }`}</wa-option
+                        DISPOSITION[this.#reviewUnits[record.id]?.detail.disposition] ??
+                        CLASSIFICATION[record.classification]
+                      }`}</wa-option
                     >`,
                 )}
               </wa-select>

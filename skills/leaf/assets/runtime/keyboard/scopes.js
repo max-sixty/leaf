@@ -29,7 +29,7 @@ import {
   directive,
   effect,
   nothing,
-} from "../../vendor/browser-runtime.js";
+} from "/vendor/browser-runtime.js";
 import {
   activeRows,
   ariaShortcuts,

@@ -129,8 +129,13 @@ interface HTMLElement {
 interface HTMLScriptElement {
   /** A sample child's private port, owned by the bootstrap element until the entry starts. */
   lfDocumentPort?: MessagePort;
-  /** The entry's rendering reading, for render checks (`leaf.js`, `validationEntry`). */
+  // The entry's scene readings, for render checks (`leaf.js`, `validationEntry`).
+  lfReadiness?: typeof import("../../skills/leaf/assets/runtime/presentation.js").pageReadiness;
   lfRenderingState?: typeof import("../../skills/leaf/assets/runtime/rendering.js").renderingState;
+  lfObserveQueuedWork?: typeof import("../../skills/leaf/assets/runtime/queued-work.js").observeQueuedWork;
+  lfObserveWidgetPreparations?: typeof import("../../skills/leaf/assets/runtime/rendering.js").observePreparations;
+  lfNativeLayers?: typeof import("../../skills/leaf/assets/runtime/keyboard/layer-stack.js").nativeLayers;
+  lfFloatingSelections?: typeof import("../../skills/leaf/assets/runtime/annotation-overlay/floating.js").floatingSelections;
 }
 
 interface Window {

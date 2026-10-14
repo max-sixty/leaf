@@ -49,7 +49,7 @@ import { readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "../media.
 import { announce, notice } from "../notifications.js";
 import { iconElement, iconTemplate } from "../icons.js";
 import { drawingThumbnail } from "./drawing-context.js";
-import { LitElement, html } from "../../vendor/browser-runtime.js";
+import { LitElement, html } from "/vendor/browser-runtime.js";
 import "./text-field.js";
 import { followBoxGrowth, readBoxPlace } from "../thread/reply-landing.js";
 import { focusDestination, focused } from "../focus.js";

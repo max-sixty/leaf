@@ -19,7 +19,7 @@
    and the panel's visible control share the same exact-message arrival. Ordinary
    `u` remains paired with `d` in whichever reading region the user stands in. */
 import { nextRender, sizeObserver } from "../rendering.js";
-import { signal } from "../../vendor/browser-runtime.js";
+import { signal } from "/vendor/browser-runtime.js";
 import { containingView, presented, seenRect, watchRoom } from "../geometry.js";
 import { intersect } from "../rect.js";
 import { whenDocumentPresented } from "../semantic-state.js";

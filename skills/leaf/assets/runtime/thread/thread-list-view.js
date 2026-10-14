@@ -37,7 +37,7 @@
    the rule beside `keeping`, as paint the list spliced into each reading it drew
    (#2387), which every later change to when a card leaves had to repeat and which
    committing had to rebuild from the drawn rows. */
-import { html, repeat, ref } from "../../vendor/browser-runtime.js";
+import { html, repeat, ref } from "/vendor/browser-runtime.js";
 import {
   holdFocus,
   onStanding,
@@ -458,6 +458,10 @@ class ThreadListView extends RetainedFace {
   }
 
   updated() {
+    // A card the list shows takes the reply being written in its thread where no view
+    // holds it (thread/replies.js, `claim`), once it stands in the document.
+    for (const view of this.#views.values())
+      view.claimReply(() => view.node.checkVisibility());
     this.#showExpanded();
     const restore = this.#restoreFocusAfterPaint;
     this.#restoreFocusAfterPaint = null;

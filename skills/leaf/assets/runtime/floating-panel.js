@@ -59,7 +59,7 @@
  * stood to where it stands, the way the Codex app's floating panel moves
  * (`notes/floating-panel/GOAL.md`): nothing's layout tweens, so nothing a user aims at
  * travels after the gesture that moved it. */
-import { html, nothing, ref, render, repeat } from "../vendor/browser-runtime.js";
+import { html, nothing, ref, render, repeat } from "/vendor/browser-runtime.js";
 import { el } from "./widget-elements.js";
 import { iconTemplate } from "./icons.js";
 import { copyControl } from "./copy-control.js";

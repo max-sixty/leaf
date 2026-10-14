@@ -94,6 +94,7 @@ customElements.define(
     #contributors = new Map();
     #presetSettings = new Map();
     #presetButtons = new Map();
+    /** @type {Readonly<Record<string, unknown>>} */
     #defaults = Object.freeze({});
     #values = Object.freeze({});
     #storedCandidate = null;
@@ -211,8 +212,9 @@ customElements.define(
           });
         this.#copy.addEventListener("click", () => this.#copyInstruction());
         this.addEventListener("mousedown", (event) => {
-          if (event.target.closest(".lf-playground-control-label")) return;
-          const pressed = event.target.closest(ONE_PRESS);
+          const target = /** @type {Element} */ (event.target);
+          if (target.closest(".lf-playground-control-label")) return;
+          const pressed = target.closest(ONE_PRESS);
           if (
             pressed?.closest("lf-playground") === this &&
             !this.#preview.contains(pressed) &&
@@ -221,7 +223,7 @@ customElements.define(
             const selection = getSelection();
             if (selection && !this.#preview.contains(selection.focusNode))
               selection.removeAllRanges();
-            const range = event.target.closest('input[type="range"]');
+            const range = target.closest('input[type="range"]');
             if (range) {
               // Native range focus and track operation share a browser default.
               // Return focus after that default takes it, so dragging remains native

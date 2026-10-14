@@ -12,13 +12,14 @@
    Reply continuity begins after commit and runs independently: its selected route may
    itself need this renderer to finish. Its caret follows the actual returned editor;
    its failures reach the page's existing asynchronous error channel. */
-import { untracked } from "../../vendor/browser-runtime.js";
+import { untracked } from "/vendor/browser-runtime.js";
 import { keeps } from "../keeps.js";
 import { reportPageError } from "../layer-client.js";
 import { closestAcross, elementById, inChrome } from "../passages.js";
 import { threadState, readThreads } from "./state.js";
-import { holdReply } from "./focus.js";
+import { holdThreadPlace } from "./focus.js";
 import { holdReplyCompositions } from "./replies.js";
+import { surfaceFocusTarget } from "./surfaces.js";
 import {
   renderSeats,
   beginThreadSeats,
@@ -57,6 +58,7 @@ export function createThreadPresentation({
   renderSurfaces,
   openThread,
   continueThread,
+  threadAt,
   read,
 }) {
   const panels = new Set();
@@ -112,9 +114,12 @@ export function createThreadPresentation({
     read.begin();
     const current = () => generation === surfaceGeneration && presenting();
     const batch = beginThreadSeats();
-    // The reply the user is writing, which this pass may take off the surface drawing it
-    // (thread/focus.js, `holdReply`).
-    const restoreReply = holdReply(openThread);
+    // Where the user stands on a thread, which this pass may take off the surface drawing
+    // it (thread/focus.js, `holdThreadPlace`).
+    const restorePlace = holdThreadPlace(openThread, {
+      threadAt,
+      seated: (id) => Boolean(surfaceFocusTarget(id, { part: "thread" })),
+    });
     let prepared = null;
     const livePanels = [...panels].filter((panel) => panel.threadsBox.isConnected);
     let surfaces = null;
@@ -185,7 +190,7 @@ export function createThreadPresentation({
             read.present();
             // Continuity may reveal a route needing this very presenter. Its work starts
             // after the cohort commits, and never joins the ticket it is completing.
-            void continueReplies(restoreReply).catch((error) =>
+            void continueReplies(restorePlace).catch((error) =>
               reportPageError(error, `Reply continuation failed`),
             );
           }),

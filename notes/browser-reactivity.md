@@ -20,14 +20,14 @@ open questions; each owning module's header states the current contract.
   Preact effect also subscribes the paint to private signals it reads, such as where
   the user stands, which a paint may also write: tracked by an effect, the annotation
   inventory's paint re-ran itself without end and hung the page.
-- **Regions collect what they read before their first `await`.** The four document
-  regions (projection, threads, asks, the Questions panel) are `applicationPresenter`s
-  (`runtime/semantic-state.js`). Each one's `reading` says whether it owes a paint, and
-  the parts its reading and its paint read synchronously are collected, as a watcher's
-  are. A publication that moves none of them carries the region's last commit into the
-  new epoch. A widget a paint mounts connects inside that paint, and its controller
-  reads outside the collection (`untracked`, `snapshot.ts`), since what it draws is
-  its own to follow.
+- **Regions collect what they read.** The four document regions (projection, threads,
+  asks, the Questions panel) are `applicationPresenter`s (`runtime/semantic-state.js`).
+  Each one's `reading` says whether it owes a paint, and the parts its reading and its
+  paint read are collected, as a watcher's are. A publication that moves none of them
+  carries the region's last commit into the new epoch. Another owner a paint drives
+  reads outside the collection (`untracked`, `snapshot.ts`), since what it draws is its
+  own to follow: a widget a paint mounts, which connects inside that paint, and the
+  margin the thread presentation refreshes once it commits, which has its own watcher.
 - **Key and button availability are tracked effects** (`runtime/keyboard/scopes.js`).
   Private state their predicates read, such as where the user stands and the thread
   list's models, is held in signals so the effects see it move.
@@ -39,17 +39,18 @@ open questions; each owning module's header states the current contract.
 
 A region claims inside a publication and paints on the pass after it, once the regions
 ranked before it have painted, so a paint reads the root, and the document those
-regions wrote, as they stand then. Collection covers that paint only up to its first
-`await`: JavaScript has no way to carry a collection across one (the TC39 AsyncContext
-proposal would, but no browser ships it). The Questions panel, the asks, and the
-projection read everything before they wait. The thread presentation does not: once a
-package's thread reader has prepared, its commit reads the anchors' targets, the
-annotation inventory and the thread list's rows again (`renderReading`,
-`thread/presentation.js`). Those reads fall inside its `reading` (phase, thread
-state, document) or repeat parts its synchronous part already read, which is why the
-region still lists them. The way to cover them is to collect each continuation as it
-resumes, wrapping each callback after a wait in the same collection, and to report a
-part a continuation reads that the synchronous part did not.
+regions wrote, as they stand then. Collection sees only what runs synchronously, and
+JavaScript has no way to carry it across an `await` (the TC39 AsyncContext proposal
+would, but no browser ships it). So a region paint is handed `resume`, which wraps a
+continuation, a `.then` callback or a function called after an `await`, so its reads
+join the paint's parts while the paint is current. The thread presentation resumes its
+commit after a package's thread reader prepares, and the thread list resumes the rows it
+derives again once frozen widgets have connected (`renderReading`,
+`thread/presentation.js`; `renderThreads`, `thread/thread-list.js`). The clock keeps its
+own record of what a paint read (`clocked`), so `clocked` hands a paint the same kind
+of `resume` for its time readings, and the thread presentation composes the two.
+Nothing checks that a continuation is wrapped: a read in one that is not goes
+unfollowed, as a read outside a watcher's paint does.
 
 A region checks its parts from one subscription to the publication, made when the
 region is. Subscribing to each part it read, again after every read, put its claim
@@ -119,8 +120,6 @@ and approved state (not every ask). No check finds the rest;
   `PRESENTATION` count it last saw. Readings of the clock, the deferral and the
   presentation that record themselves in the same collection as the publication's
   parts would leave the watcher one rule for every input and retire those records.
-- **The thread's `reading`,** once its continuations are collected, would say only
-  whether it owes a paint, as the other regions' do.
 
 ## What reactivity will not fix
 

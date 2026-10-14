@@ -72,3 +72,29 @@ test("a reading that moves a part it read is refused", () => {
     /reading moved a part it read/,
   );
 });
+
+test("a part a paint reads after it waits is followed only where it resumes", async () => {
+  applicationState.setPhase("waiting");
+  const host = readPart((root) => root.hostAvailable);
+  const paints = { resumed: [], bare: [] };
+  const regions = Object.entries(paints).map(([name, seen]) =>
+    applicationPresenter({
+      region: `probe-${name}`,
+      reading: () => true,
+      paint: async (value, current, resume) => {
+        await null;
+        const after = () => seen.push(host());
+        if (name === "resumed") resume(after)();
+        else after();
+        return true;
+      },
+    }),
+  );
+  await Promise.all(regions.map((region) => region.present()));
+  await whenApplicationPresented();
+  applicationState.setHostAvailable(!applicationState.read().hostAvailable);
+  await whenApplicationPresented();
+  assert.equal(paints.resumed.length, 2);
+  assert.equal(paints.bare.length, 1);
+  for (const region of regions) region.disconnect();
+});

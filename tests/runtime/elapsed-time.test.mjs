@@ -119,6 +119,58 @@ test("a paint stopped inside its callback stays off the clock until rendered aga
   owner.remove();
 });
 
+test("a time read after a paint waits stays on the clock where the paint resumes", async () => {
+  const owner = document.createElement("div");
+  document.body.append(owner);
+  let clock = 0;
+  const seen = { resumed: [], bare: [], synchronous: [] };
+  const paints = Object.entries(seen).map(([name, shown]) => {
+    const paint = clocked(owner, async () => {
+      const after = () => shown.push(clockValue(() => clock));
+      if (name === "synchronous") return paint.resume(after)();
+      const continued = name === "resumed" ? paint.resume(after) : after;
+      await null;
+      continued();
+    });
+    return paint;
+  });
+  await Promise.all(paints.map((paint) => paint()));
+  clock += 1;
+  await tickClock((message) => {
+    throw new Error(message);
+  });
+  assert.deepEqual(seen, { resumed: [0, 1], bare: [0], synchronous: [0, 1] });
+  for (const paint of paints) paint.stop();
+  owner.remove();
+});
+
+test("a resumed time reading made inside another paint stays with its own paint", async () => {
+  const owner = document.createElement("div");
+  document.body.append(owner);
+  let clock = 0;
+  const calls = { outer: 0, inner: 0 };
+  let continued = null;
+  const inner = clocked(owner, () => {
+    calls.inner += 1;
+    continued?.();
+  });
+  const outer = clocked(owner, () => {
+    calls.outer += 1;
+    continued = outer.resume(() => clockValue(() => clock));
+    inner();
+  });
+  outer();
+  continued = null;
+  clock += 1;
+  await tickClock((message) => {
+    throw new Error(message);
+  });
+  assert.deepEqual(calls, { outer: 2, inner: 2 });
+  outer.stop();
+  inner.stop();
+  owner.remove();
+});
+
 test("the sentence and compact elapsed readings name the same figure", (t) => {
   t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-10-03T12:00:00Z") });
   // Ninety minutes rounds to two hours in both, where a floor put "1h" beside "2h ago".

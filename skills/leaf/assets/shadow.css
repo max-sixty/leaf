@@ -1758,6 +1758,13 @@ html[data-lf-draw-mode] main {
 .lf-code-copy.lf-code-copy-away {
   display: none;
 }
+.lf-code-copy-cut {
+  pointer-events: none;
+  z-index: 1;
+}
+.lf-code-copy-cut > .lf-code-copy {
+  position: fixed;
+}
 :not(.lf-chrome):is(:hover, [data-lf-focus-within]) > .lf-code-copy,
 .lf-code-copy-hover,
 .lf-code-copy-focused,

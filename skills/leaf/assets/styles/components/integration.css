@@ -37,6 +37,12 @@ html[data-lf-draw-mode] main { --lf-draw-mode: on; }
   pointer-events: none;
 }
 .lf-code-copy.lf-code-copy-away { display: none; }
+/* The frames a block's sticky headers cut its control in (code-copy.js) take no presses
+   of their own and stack where the control would. A frame is the containing block of
+   an absolute box, which an anchor outside the frame cannot position, so the control
+   inside one is fixed. */
+.lf-code-copy-cut { pointer-events: none; z-index: 1; }
+.lf-code-copy-cut > .lf-code-copy { position: fixed; }
 /* A document block's control stands in chrome, which marks it; a widget's stands
    inside the widget, so the widget's hover or focus shows it. */
 :not(.lf-chrome):is(:hover, [data-lf-focus-within]) > .lf-code-copy,

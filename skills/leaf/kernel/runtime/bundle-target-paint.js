@@ -41,6 +41,7 @@ import {
   coarsePointer,
   el,
   hasArea,
+  headerCuts,
   iconTemplate,
   intersect,
   keys,
@@ -354,7 +355,15 @@ function paintSet(root, { onNear = () => {
         if (nearWindow(target, clips)) near.add(target);
       }
       const carriedBy = anchor === void 0 ? anchoredBy(target, root) : anchor && anchorReaches(anchor, root) ? anchor : null;
-      if (!framed) placed = { ...placed, levels: [] };
+      if (!framed)
+        placed = {
+          ...placed,
+          levels: headerCuts(target, clips).map(({ box: box2, band }) => ({
+            holder: box2 === box2.ownerDocument.scrollingElement ? null : box2,
+            band: band ?? { left: 0, top: 0, right: 0, bottom: 0 },
+            axes: { x: false, y: true }
+          }))
+        };
       for (const { holder } of placed.levels)
         if (holder && !holders.has(holder))
           holders.set(holder, holder.getBoundingClientRect());

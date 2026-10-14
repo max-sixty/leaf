@@ -4983,7 +4983,12 @@ function difference(was, now, { progressOpen = false } = {}) {
   ];
   if (!settled && counts.every((count) => !news[count])) return null;
   const appendedAtEnd = news.appended && was.messages.every((message, index) => now.messages[index]?.key === message.key);
-  return { news, changed: changed2, folds, appendedAtEnd, footFold };
+  const turn = was.messages.findLastIndex(
+    (message) => message.author === "user" && !message.progress
+  );
+  const asked = new Set(was.messages.slice(0, turn + 1).map(({ key }) => key));
+  const answers = turn >= 0 && was.messages.slice(turn + 1).every((message) => message.progress || message.provisional) && !settled && !news.messages && !news.edits && !news.reactions && !news.summaries && !folds.summaries.length && (!news.appended || appendedAtEnd) && ![...changed2, ...folds.messages].some((key) => asked.has(key));
+  return { news, changed: changed2, folds, appendedAtEnd, footFold, answers };
 }
 function withheld(was, now) {
   const current = new Map(now.msgs.map((message) => [messageKey(message), message]));

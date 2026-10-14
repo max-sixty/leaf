@@ -45,7 +45,13 @@ import {
 } from "./semantic-state.js";
 import { widgetDescriptor } from "./widget-descriptors.js";
 import { drawsItself, widgetController, widgetMounted } from "./widget-controller.js";
-import { failSoft, failSoftUnreported, once, placesFailure } from "./widget-upgrade.js";
+import {
+  failSoft,
+  failSoftUnreported,
+  once,
+  placesFailure,
+  reportFailure,
+} from "./widget-upgrade.js";
 import { watchOwner } from "./arrivals.js";
 import { paintKeysWithin } from "./keyboard/scopes.js";
 import { dataReader, joinDataDelivery, stagesOnly } from "./data.js";
@@ -76,7 +82,6 @@ export class LeafElement extends LitElement {
   #broken = false;
   // The claim the update under way draws, settled once `updated` has run too.
   #drawing = null;
-  #depth = 0;
   #data = new Map();
   #leaveData = null;
 
@@ -205,20 +210,16 @@ export class LeafElement extends LitElement {
   // An update settles its claim once all of it has run, `updated` included, and one
   // that failed anywhere, its gate too, reports once and shows its failure; Lit has
   // marked it done, so the next move draws again. A draw that `updated` asks for at
-  // once, as a module's own paint may, settles its own claim inside this one; with no
-  // claim of its own, its failure is the enclosing update's.
+  // once, as a module's own paint may, settles its own claim inside this one.
   performUpdate() {
     const outer = this.#drawing;
     this.#drawing = null;
-    this.#depth += 1;
     try {
       super.performUpdate();
       this.#drawing?.resolve();
     } catch (error) {
-      if (this.#depth > 1 && !this.#drawing) throw error;
       this.#failed(error, this.#drawing);
     } finally {
-      this.#depth -= 1;
       this.#drawing = outer;
     }
   }
@@ -229,11 +230,12 @@ export class LeafElement extends LitElement {
     paintKeysWithin(this);
   }
 
-  // A claim's failure is the coordinator's to report, and it shows the box through its
-  // fallback; any other is reported and shown here.
+  // Every failure is reported here, naming the widget; a claim's rejection then shows
+  // the box through the coordinator's fallback, which reports nothing again.
   #failed(error, ticket) {
-    if (ticket) ticket.reject(error);
-    else failSoft(this, error);
+    if (!ticket) return failSoft(this, error);
+    reportFailure(this, error);
+    ticket.reject(error);
   }
 
   #follow() {

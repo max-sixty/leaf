@@ -481,7 +481,8 @@ def test_a_failed_draw_keeps_the_options_and_the_next_reading_draws_over_it(
       delete options.render;
     }""")
     expect(page.locator("#options .lf-error")).to_have_count(1)
-    consume_browser_errors(page, "an intentional draw failure")
+    # The report names the widget, which is how the agent that wrote it finds it.
+    consume_browser_errors(page, '<lf-options id="options"> failed')
     append_command(
         serve.page_dir,
         {

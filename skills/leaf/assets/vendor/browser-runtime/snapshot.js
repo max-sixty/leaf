@@ -12,6 +12,8 @@
  * object the last reading held. So a selection is a `computed` compared by identity,
  * and a reader subscribed to one part of the reading hears only that part change. A
  * selection shares its own derived value against its previous one by the same rule.
+ * Derivations and subscriber callbacks own their reads: they run outside a notifier's
+ * collection, while an explicit collection inside either still records its own reads.
  */
 import { computed, signal } from "./signals-core.js";
 
@@ -140,8 +142,9 @@ export function outsideReading   (
     read: ()    => collected(reading, read),
     subscribe(listener                                       ) {
       let active = true;
-      const stop = heard((round) => (active ? listener(read(), round) : undefined));
-      listener(read(), {});
+      const deliver = (round        ) => untracked(() => listener(read(), round));
+      const stop = heard((round) => (active ? deliver(round) : undefined));
+      deliver({});
       return () => {
         active = false;
         stop();
@@ -324,13 +327,13 @@ export function createApplicationPublisher                               (initia
     },
     select   (derive                               )                                {
       let prior         ;
-      const selected = computed(
-        () => (prior = immutable(share(prior, derive(root.value)))),
+      const selected = computed(() =>
+        untracked(() => (prior = immutable(share(prior, derive(root.value))))),
       );
       const reading                                = Object.freeze({
         read: ()               => collected(reading, () => selected.value),
         subscribe: (listener                               ) =>
-          selected.subscribe(listener),
+          selected.subscribe((value) => untracked(() => listener(value))),
       });
       return reading;
     },

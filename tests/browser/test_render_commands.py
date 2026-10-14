@@ -783,21 +783,23 @@ def test_a_shot_outlines_where_its_images_differ(browser, serve):
     outlines.press("Enter")
     expect(group.locator('[aria-checked="true"]')).to_have_text("Outlines")
 
-    # A pixels-only comparison starts Plain. Selecting Pixels twice keeps it open;
-    # selecting Plain, the picture, or an endpoint returns to the same divider.
+    # A pixels-only comparison starts in Pixels, the dark square painted as what the
+    # after image drew. Selecting Pixels again keeps it open; selecting Plain, the
+    # picture, or an endpoint returns to the same divider.
     shot = page.locator("#shot-pixels")
     views = shot.get_by_role("radiogroup", name="Comparison view")
     expect(views.get_by_role("radio")).to_have_text(["Plain", "Pixels"])
-    expect(views.locator('[aria-checked="true"]')).to_have_text("Plain")
+    expect(views.locator('[aria-checked="true"]')).to_have_text("Pixels")
     pixels = views.get_by_role("radio", name="Pixels", exact=True)
     view = shot.locator(".lf-shotpixels")
-    expect(view).to_have_count(0)
+    expect(view).to_be_visible()
+    for side in ("before", "after"):
+        expect(view.locator(f'[data-lf-shot-side="{side}"]')).to_have_attribute(
+            "style", re.compile("--lf-shot-pixels")
+        )
     comparison = shot.locator(".lf-shotcomparison")
     expect(comparison).to_be_attached()
     before = comparison.get_attribute("position")
-    pixels.click()
-    expect(view).to_be_visible()
-    expect(views.locator('[aria-checked="true"]')).to_have_text("Pixels")
     pixels.press("Enter")
     expect(view).to_be_visible()
     for state in ("before", "after"):

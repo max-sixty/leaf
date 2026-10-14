@@ -10,9 +10,11 @@ they may not cover (`faults`).
 
 The command builds that page from this working tree, and with `--base` from the
 merge base with `main` (or REF) too, and writes a Leaf page under `.tmp/pins/` that
-shows each case's crop at every viewport, with its targets outlined in blue and its
-pins in green, or red where the case has a fault. With `--base` each crop is an
-`lf-shot` pair. It prints the command that previews that page.
+shows each case's crop at every viewport, its targets outlined in blue, beside the
+faults read there. With `--base` each crop is an `lf-shot` pair that opens on its
+changed pixels: where the base drew a pin in red, where this tree draws it in blue.
+Both arms' crops of a case cover the same rectangle, so the pair lines up. It prints
+the command that previews that page.
 
 The same catalogue is a test: `test_render_margin.py` asserts that every case at
 every viewport has no fault beyond the kinds its `allow` accepts. So a case that
@@ -465,17 +467,31 @@ def unaccepted(case: Case, reading: dict, viewport: str) -> list[tuple[str, str]
     return [f for f in faults(reading) if not accepted(case, f[0], viewport)]
 
 
-def crop(shot: Path, reading: dict, faulted: bool, out: Path) -> None:
-    """Crop the viewport screenshot `shot` to the case and its pins, outline its
-    targets and pins, and write it to `out`."""
+def frame(readings: list[dict]) -> tuple[int, int, int, int]:
+    """The rectangle around a case and its pins in every reading of it, so each arm's
+    crop of one case at one viewport covers the same place on the page."""
     pad = 16
-    entries = [entry for pin in reading["pins"] for entry in pin["entries"]]
-    frame = [reading["box"], *entries]
-    left = max(0, min(r["left"] for r in frame) - pad)
-    top = max(0, min(r["top"] for r in frame) - pad)
-    right = min(reading["width"], max(r["right"] for r in frame) + pad)
-    bottom = min(reading["height"], max(r["bottom"] for r in frame) + pad)
-    image = Image.open(shot).convert("RGB")
+    rects = [
+        rect
+        for reading in readings
+        for rect in (
+            reading["box"],
+            *(entry for pin in reading["pins"] for entry in pin["entries"]),
+        )
+    ]
+    return (
+        int(max(0, min(r["left"] for r in rects) - pad)),
+        int(max(0, min(r["top"] for r in rects) - pad)),
+        int(min(readings[0]["width"], max(r["right"] for r in rects) + pad)),
+        int(min(readings[0]["height"], max(r["bottom"] for r in rects) + pad)),
+    )
+
+
+def crop(seen: dict, rect: tuple[int, int, int, int], out: Path) -> Path:
+    """Crop one arm's screenshot of a case to `rect`, outlining its targets, and write
+    it to `out`."""
+    reading = seen["reading"]
+    image = Image.open(seen["shot"]).convert("RGB")
     draw = ImageDraw.Draw(image)
     for target in reading["targets"]:
         for part in target["parts"]:
@@ -483,39 +499,26 @@ def crop(shot: Path, reading: dict, faulted: bool, out: Path) -> None:
                 (part["left"], part["top"], part["right"] - 1, part["bottom"] - 1),
                 outline=(40, 110, 230),
             )
-    for entry in entries:
-        draw.rectangle(
-            (
-                entry["left"] - 2,
-                entry["top"] - 2,
-                entry["right"] + 1,
-                entry["bottom"] + 1,
-            ),
-            outline=(220, 40, 40) if faulted else (20, 160, 60),
-            width=2,
-        )
-    image.crop((int(left), int(top), int(right), int(bottom))).save(out)
+    image.crop(rect).save(out)
+    return out
 
 
 def capture(browser, address: str, cases, out: Path) -> dict:
-    """Open `address` at each viewport, and for each case write its crop under `out`
-    and return its reading: `{case: {viewport: {"faults": …, "image": path}}}`."""
+    """Open `address` at each viewport, screenshot each case under `out`, and return
+    `{case: {viewport: {"faults", "unaccepted", "reading", "shot"}}}`."""
     result = {case.name: {} for case in cases}
     for viewport, (size, touch) in VIEWPORTS.items():
         with tab(browser, size, touch=touch) as page:
             load(page, address)
             for case in cases:
                 reading = read(page, case)
-                found = unaccepted(case, reading, viewport)
                 shot = out / f"{case.name}-{viewport}-full.png"
                 page.screenshot(path=shot)
-                image = out / f"{case.name}-{viewport}.png"
-                crop(shot, reading, bool(found), image)
-                shot.unlink()
                 result[case.name][viewport] = {
                     "faults": faults(reading),
-                    "unaccepted": found,
-                    "image": image,
+                    "unaccepted": unaccepted(case, reading, viewport),
+                    "reading": reading,
+                    "shot": shot,
                 }
     return result
 
@@ -534,6 +537,13 @@ def _fault_list(case: Case, viewport: str, found: list[tuple[str, str]]) -> str:
         f"{kind} ({target}){' — accepted' if accepted(case, kind, viewport) else ''}"
         for kind, target in found
     )
+
+
+PAIRS = (
+    " Each pair opens on its changed pixels: red where the base drew something, such as"
+    " a pin it has moved, and blue where this tree draws it. Plain shows the two"
+    " images under a divider."
+)
 
 
 def report(arms: dict[str, tuple[str, dict]], cases, out: Path) -> Path:
@@ -562,21 +572,24 @@ def report(arms: dict[str, tuple[str, dict]], cases, out: Path) -> Path:
         rows = []
         for viewport in VIEWPORTS:
             seen = head[case.name][viewport]
+            before = base[1][case.name][viewport] if base else None
+            rect = frame([seen["reading"], *([before["reading"]] if before else [])])
+            stem = out / f"{case.name}-{viewport}"
+            after_image = _media(media, crop(seen, rect, stem.with_suffix(".head.png")))
             line = f"<p><strong>{viewport}</strong>: faults {_fault_list(case, viewport, seen['faults'])}"
-            if base:
-                before = base[1][case.name][viewport]
+            if before:
                 line += (
                     f"; on the base, {_fault_list(case, viewport, before['faults'])}"
                 )
                 picture = (
-                    f'<lf-shot id="{case.name}-{viewport}-shot" outlines '
+                    f'<lf-shot id="{case.name}-{viewport}-shot" pixels '
                     f'alt="the {case.name} case at {viewport} width" '
-                    f'before="{_media(media, before["image"])}" '
-                    f'after="{_media(media, seen["image"])}"></lf-shot>'
+                    f'before="{_media(media, crop(before, rect, stem.with_suffix(".base.png")))}" '
+                    f'after="{after_image}"></lf-shot>'
                 )
             else:
                 picture = (
-                    f'<img src="{_media(media, seen["image"])}" '
+                    f'<img src="{after_image}" '
                     f'alt="the {case.name} case at {viewport} width">'
                 )
             rows.append(f"{line}</p>\n{picture}")
@@ -597,8 +610,7 @@ def report(arms: dict[str, tuple[str, dict]], cases, out: Path) -> Path:
 <h1>Pin cases</h1>
 <p>{len(cases)} cases on {escape(arms["head"][0])}{against}, at
 {" and ".join(f"{v} ({s[0][0]}px)" for v, s in VIEWPORTS.items())}. Targets are
-outlined in blue, pins in green, or red where the case has a fault it does not
-accept.</p>
+outlined in blue.{PAIRS if base else ""}</p>
 {summary}
 </header>
 {chr(10).join(sections)}

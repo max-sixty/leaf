@@ -370,15 +370,19 @@ If a race appears only under load, order it with `page.route` rather than repeat
 test. `leaf-dev flake` (`dev/AGENTS.md`) reproduces it and prints each failing copy's
 message, which names the mechanism, and then confirms the route holds. Register the
 route before the gesture it catches, or through `primed` or `held_events` for the first
-navigation; raw and `browser.unwatched` pages aren't set up for later routes. Where the driver loses a fact, such as the Page for a tab Chromium opened,
-read the browser's record (`opened_tab`).
+navigation; raw and `browser.unwatched` pages aren't set up for later routes. Where
+the driver loses a fact, such as the Page for a tab Chromium opened, read the
+browser's record (`opened_tab`).
 
 - A route handler that returns without resolving holds the request before the server.
-  Call `holding` before reading its list. Release it mid-test only when later behavior
-  is asserted; closing the context cancels the rest.
+  Call `holding` before reading the list of held requests, since the ledger counts a
+  send before the handler runs. Release a held request mid-test only when later
+  behavior is asserted; closing the context cancels the rest.
 - `route.fetch()` lets the server answer and withholds the response. Freshness reads
-  still name the append, so attach listeners before the fetch, and call
-  `page.unroute_all(behavior="wait")` before teardown, even when the test fails.
+  still name the append, so attach listeners before the fetch. Call
+  `page.unroute_all(behavior="wait")` after releasing held routes; in failure cleanup
+  that may still hold requests, use `behavior="ignoreErrors"`, and closing the context
+  cancels them.
 - `refuse` cancels a request without a console error. A route that keeps refusing
   `**/api/state*` causes endless retries, so use `CutOff` to hold state reads.
 

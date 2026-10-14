@@ -271,7 +271,7 @@ export function createResponseSurface({
   function restoreFab({ place = true } = {}) {
     if (
       (placement || !place || !fabAnchor || !composerOpen) &&
-      (fabBar.parentElement === responseHome || placement?.holdsHome(responseHome)) &&
+      fabBar.parentElement === responseHome &&
       (!fabInlineOutlet || fabInlineOutlet === responseHome)
     )
       return false;

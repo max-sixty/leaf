@@ -1877,3 +1877,132 @@ test("pending undo removes a custom ask answer before authoritative completion c
   app.refuse("re-pick");
   assert.equal(app.read().effective.asks.all[0].answer.event.id, accepted.id);
 });
+
+test("unchanged selection republishes when a move changes its members", () => {
+  const move = {
+    unit: "unit",
+    writer: "user",
+    record: { kind: "position", within: "lf-audit-lane" },
+  };
+  const choose = {
+    unit: "widget",
+    writer: "user",
+    record: { kind: "attribute", attr: "selected" },
+  };
+  const declared = (id, tag, verbs, parent = null) => ({
+    ...descriptor,
+    id,
+    tag,
+    declaration: { "x-state": verbs },
+    parent: parent && { id: parent, tag: "lf-audit-manifest" },
+    ancestors: [],
+  });
+  const board = declared("manifest", "lf-audit-manifest", { move });
+  const north = declared("north", "lf-audit-lane", { choose }, "manifest");
+  const south = declared("south", "lf-audit-lane", { choose }, "manifest");
+  const cargo = declared("cargo", "lf-audit-cargo", {}, "north");
+  const baseline = (owner, value) => [
+    owner.id,
+    {
+      tag: owner.tag,
+      specs: new Map([["choose", choose]]),
+      state: { choose: { action: null, value, detail: { value } } },
+    },
+  ];
+  const app = setup(
+    [board, north, south, cargo].map((owner) => [owner.id, owner]),
+    [
+      [
+        board.id,
+        {
+          tag: board.tag,
+          specs: new Map([["move", move]]),
+          state: {
+            move: {
+              value: { north: ["cargo"], south: [] },
+              units: {},
+              ranks: { cargo: "1" },
+            },
+          },
+        },
+      ],
+      baseline(north, ["cargo"]),
+      baseline(south, []),
+    ],
+  );
+  const destination = app.selectWidget(south);
+  const before = destination.read().state;
+  let paints = 0;
+  const stop = destination.subscribe(() => paints++);
+  const placed = app.enqueue(
+    {
+      kind: "action",
+      widget: "manifest",
+      action: "move",
+      detail: { unit: "cargo", value: "south", rank: "1" },
+      revision: 1,
+      attempt: "move",
+    },
+    "now",
+  );
+  assert.equal(paints, 2);
+  assert.deepEqual(destination.read().memberships, { selected: ["cargo"] });
+  assert.deepEqual(destination.read().state, before);
+  app.enqueue({ kind: "undo", undoes: placed.localId, attempt: "undo" }, "now");
+  assert.equal(paints, 3);
+  assert.deepEqual(destination.read().memberships, { selected: [] });
+  stop();
+});
+
+test("parent memberships include flat creations until undone", () => {
+  const sow = {
+    unit: "seed",
+    writer: "user",
+    creates: { child: "lf-seedling", words: "label" },
+  };
+  const choose = {
+    unit: "widget",
+    writer: "user",
+    record: { kind: "attribute", attr: "chosen" },
+  };
+  const tray = {
+    ...descriptor,
+    id: "tray",
+    tag: "lf-tray",
+    declaration: { "x-state": { sow, choose } },
+  };
+  const app = setup(
+    [[tray.id, tray]],
+    [
+      [
+        tray.id,
+        {
+          tag: tray.tag,
+          specs: new Map([
+            ["sow", sow],
+            ["choose", choose],
+          ]),
+          state: {
+            sow: { value: {}, units: {} },
+            choose: { action: null, value: [], detail: { value: [] } },
+          },
+        },
+      ],
+    ],
+  );
+  const selected = app.selectWidget(tray);
+  const created = app.enqueue(
+    {
+      kind: "action",
+      revision: 1,
+      widget: "tray",
+      action: "sow",
+      detail: { seed: "elm", label: "Elm" },
+      attempt: "sow-elm",
+    },
+    "now",
+  );
+  assert.deepEqual(selected.read().memberships.chosen, ["elm"]);
+  app.enqueue({ kind: "undo", undoes: created.localId, attempt: "undo-sow" }, "now");
+  assert.deepEqual(selected.read().memberships.chosen, []);
+});

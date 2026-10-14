@@ -118,7 +118,11 @@
    its width, which doubled the rise; keeping its box and scrolling the transcript,
    which scrolls Resolve away; and holding all news while it is open, which stops
    progress showing live where the user watches it. A held step's notice reads like a
-   held reply's (the user's decision, 2026-10-13).
+   held reply's (the user's decision, 2026-10-13). A presentation that makes room for
+   the agent's answer to the user's last turn itself shows that answer at once, as the
+   floating panel's thread view does (the user's decision, 2026-10-14, floating-panel.js):
+   held, the reply the user waited for stood unseen behind a small notice in their own
+   message's head row.
 
    `HeldReading` is the same rule for a widget's region whose rows only the log or the
    clock decides, such as a command's lists of stopped goals and live workers. The first
@@ -212,8 +216,11 @@ function messageChange(prior, message) {
 // change redraws from their tops. A summary a new reply completes, as progress is
 // folded when the agent's answer arrives, moves what it covers but is that reply's news,
 // so the notice does not count it, and where it folds the run standing at the thread's
-// foot (`footFold`) it changes only that foot, as the answer's arrival does. A message
-// the log took back is no news: it goes. Null where nothing differs.
+// foot (`footFold`) it changes only that foot, as the answer's arrival does. `answers`
+// says the news is the agent answering the user, who had the last turn as drawn: all of
+// it, the reply, the work under way on it and that work's fold, lies after that turn,
+// which a presentation may show at once (mirrors.js, `answersAtOnce`). A message the log
+// took back is no news: it goes. Null where nothing differs.
 function difference(was, now, { progressOpen = false } = {}) {
   const drawn = new Map(was.messages.map((message) => [message.key, message]));
   const settled =
@@ -322,7 +329,24 @@ function difference(was, now, { progressOpen = false } = {}) {
   const appendedAtEnd =
     news.appended &&
     was.messages.every((message, index) => now.messages[index]?.key === message.key);
-  return { news, changed, folds, appendedAtEnd, footFold };
+  const turn = was.messages.findLastIndex(
+    (message) => message.author === "user" && !message.progress,
+  );
+  const asked = new Set(was.messages.slice(0, turn + 1).map(({ key }) => key));
+  const answers =
+    turn >= 0 &&
+    was.messages
+      .slice(turn + 1)
+      .every((message) => message.progress || message.provisional) &&
+    !settled &&
+    !news.messages &&
+    !news.edits &&
+    !news.reactions &&
+    !news.summaries &&
+    !folds.summaries.length &&
+    (!news.appended || appendedAtEnd) &&
+    ![...changed, ...folds.messages].some((key) => asked.has(key));
+  return { news, changed, folds, appendedAtEnd, footFold, answers };
 }
 
 // The thread `now` with what `was`, the thread as the seat drew it, did not show held

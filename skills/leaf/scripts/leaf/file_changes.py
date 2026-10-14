@@ -14,7 +14,6 @@ import threading
 import weakref
 from pathlib import Path
 
-from watchfiles._rust_notify import WatchfilesRustInternalError
 from watchfiles.main import (
     RustNotify,
     _default_debug,
@@ -24,7 +23,6 @@ from watchfiles.main import (
 )
 
 from .page_memory import memo
-from .refusals import Refused
 from .served_state.reading import outside_inputs, page_input
 
 
@@ -68,9 +66,8 @@ class FileChanges:
                 )
                 thread.start()
                 self.threads.append(thread)
-        except BaseException as error:
+        except BaseException:
             self.close()
-            _refuse_exhausted_watcher(error)
             raise
 
     def matches(self, roots: dict[Path, bool]) -> bool:
@@ -108,10 +105,6 @@ class FileChanges:
                         self.condition.notify_all()
         except Exception as error:  # noqa: BLE001 - propagate watcher failures to its owner
             with self.condition:
-                try:
-                    _refuse_exhausted_watcher(error)
-                except Refused as refusal:
-                    error = refusal
                 self.error = error
                 self.condition.notify_all()
 
@@ -161,16 +154,6 @@ class FileChanges:
             paths = self.pending.copy()
             self.pending.clear()
             return paths
-
-
-def _refuse_exhausted_watcher(error: BaseException) -> None:
-    """Name the Linux resource limit when native watcher creation exhausts it."""
-    if isinstance(error, WatchfilesRustInternalError) and "os error 24" in str(error):
-        raise Refused(
-            "Could not start a filesystem watcher: the inotify instance limit "
-            "may be reached. Check fs.inotify.max_user_instances and close unused "
-            "watching processes."
-        ) from error
 
 
 def existing_root(path: Path) -> Path:

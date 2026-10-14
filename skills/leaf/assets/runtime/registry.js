@@ -29,6 +29,9 @@ export function adoptRegistry(declarations) {
 }
 
 let stateIndex;
+/** @param {import("../../../../build/browser/domain.ts").StateRecord} record */
+const recordSlot = (record) =>
+  JSON.stringify([record.kind, "attr" in record ? record.attr : null]);
 function indexedState() {
   const generation = registry.$layer?.generation;
   if (typeof generation !== "string" || !generation)
@@ -39,18 +42,25 @@ function indexedState() {
   for (const [tag, entry] of elementDeclarations())
     for (const [verb, spec] of Object.entries(entry["x-state"] ?? {}))
       specs.push({ tag, verb, spec });
-  stateIndex = {
-    generation,
-    recordedWidgetSelector: [
-      ...new Set(specs.filter(({ spec }) => spec.record).map(({ tag }) => tag)),
-    ].join(","),
-    specs,
-  };
+  const recordTags = new Map();
+  for (const { tag, spec } of specs) {
+    if (!spec.record) continue;
+    const slot = recordSlot(spec.record);
+    const tags = recordTags.get(slot) ?? new Set();
+    tags.add(tag);
+    recordTags.set(slot, tags);
+  }
+  const recordSelectors = new Map(
+    [...recordTags].map(([slot, tags]) => [slot, [...tags].join(",")]),
+  );
+  stateIndex = { generation, recordSelectors, specs };
   return stateIndex;
 }
 
 export const stateSpecs = () => indexedState().specs;
-export const recordedWidgetSelector = () => indexedState().recordedWidgetSelector;
+/** @param {import("../../../../build/browser/domain.ts").StateRecord} record */
+export const recordedWidgetSelector = (record) =>
+  indexedState().recordSelectors.get(recordSlot(record)) ?? "";
 
 // Shared `$` declarations belong to the layer rather than to one widget. Return a copy so
 // a package module can read its cross-widget vocabulary without a registry write path.

@@ -84,11 +84,9 @@ here that the others import, never through `sys.path`, `PYTHONPATH` or a file pa
 ## Website and demo
 
 `leaf-dev distribution --output NEW-DIRECTORY` builds the installation the website's
-container runs, with the browser runtime compiled into one kernel.
+container runs, with its kernel compiled again for its own modules.
 `distribution.cached_installation` shares that build between suite workers and
-previews. Developer arms use the kernel by default;
-`arms.build_source(..., compiled=False)` gives a source baseline for startup
-comparisons.
+previews, and a runtime change builds a new one. Developer arms use the kernel.
 
 CI, the root pnpm scripts and `.config/wt.toml` run the commands below. The images
 they make live in `max-sixty/leaf-assets`, so outside `.tmp/` they change only the pin

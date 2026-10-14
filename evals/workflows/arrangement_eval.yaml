@@ -86,7 +86,6 @@ cases:
         - 55% peak CPU
         text: The database owners are Mei Tanaka's team. Name them here and ask for their answer
           by Wednesday, the day before the decision.
-        applied: Mei Tanaka
       decision:
         task: 'As the platform team, decide the review''s question: choose option 1, staying
           on managed Redis and shortening the TTL to 7 days.'
@@ -167,7 +166,6 @@ cases:
         - timeout change with the payments team
         text: Dana confirmed at 15:52 that 7.2's 3 s connect timeout is the cause. Mark this
           follow-up done and say so where the page explains the cause.
-        applied: '15:52'
       decision:
         task: 'Decide eu-west: roll it back to 4.11 and ship 4.12.1 with the old timeout.'
         typed: Roll eu-west back to 4.11 and ship 4.12.1 with the old timeout.
@@ -200,7 +198,6 @@ cases:
         - feature request board
         text: 'Brightline is on a Team trial that converts next week, so don''t just close it:
           route it to their account manager, Sam Okafor, with the Q4 plan.'
-        applied: Sam Okafor
       decision:
         task: 'Work through the queue and decide each ticket: ESC-4107: fix; ESC-4108: close;
           ESC-4109: fix; ESC-4111: escalate to engineering; ESC-4112: escalate to engineering;
@@ -271,7 +268,6 @@ cases:
         - ledger-reconciliation-lag
         text: Finance owns this alert. If it pages, it pages the finance-ops rotation, not payments
           on-call; show that beside its routing.
-        applied: finance-ops
       decision:
         task: 'Set each alert''s threshold and routing: payments-5xx-rate: over 2%, pages; payments-p99-latency:
           over 1,200 ms, opens a ticket; card-auth-decline-spike: over 3×, opens a ticket; webhook-backlog:

@@ -45,7 +45,10 @@ const moduleOwnsBox = (el) => {
 // lint over the CSS would be reading the declarations and not the result, which is the same
 // mistake the reserved-width lint made before the press sweep replaced it.
 //
-// Two exclusions, both about what a margin means where it stands. A flex or grid container
+// Three exclusions, each about what a margin means where it stands. The root is the
+// page's edge and draws no frame, since its background paints the whole canvas: the
+// inset between it and the body is the page's margin, the browser's 8px on a page with
+// no Layout (layouts.css), and it shows exactly what it states. A flex or grid container
 // collapses no margin anywhere, so a margin on an item at its edge is a placement rather
 // than room that could not get out — the switch under a screenshot pair carries 3px of
 // exactly that, the UA's own on a checkbox. And an edge whose box is a generated one (a
@@ -141,6 +144,7 @@ export function trappedMargins() {
   const found = [];
   for (const root of openRoots(document))
     for (const el of root.querySelectorAll("*")) {
+      if (el === document.documentElement) continue;
       const s = getComputedStyle(el);
       if (s.display === "none" || s.display === "contents" || el.closest("[hidden]"))
         continue;

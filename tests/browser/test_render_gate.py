@@ -2904,6 +2904,22 @@ def test_frame_edges_pass_through_whatever_stands_at_them(browser, serve):
     ]
 
 
+def test_the_page_edge_is_no_frame(browser, serve):
+    """A page with no Layout keeps the browser's margin on its body, and the live root
+    scrolls, so the root holds that margin in. The root draws no frame, its background
+    being the canvas's, so the reading has nothing to ask of it, where it named the
+    root of every such page."""
+    page = open_page(
+        browser, serve(leaf_page("No Layout", "<p>Plain prose.</p>", layout=None))
+    )
+    margin = page.evaluate("() => getComputedStyle(document.body).marginTop")
+    trapped = render_checks_model.evaluate_probe(page, "trappedMargins")
+    page.close()
+
+    assert margin == "8px", "the body lost the browser's margin, so this tests nothing"
+    assert trapped == [], trapped
+
+
 @pytest.mark.parametrize("display", ("flex", "grid"))
 @pytest.mark.parametrize("frame", ("1", "trim", "propagated"))
 def test_a_row_at_a_frame_edge_holds_the_trim_by_declaring_it(
@@ -3988,6 +4004,39 @@ def test_a_breakout_takes_the_rooms_width_unless_the_page_sizes_it(browser, serv
     assert at["granted"]["right"] - at["prose"]["right"] == pytest.approx(grown, abs=1)
     off = [m["at"] for m in misplaced if m["code"] == "off-axis"]
     assert off == ["<iframe id=sized>", "<iframe id=wider>"], misplaced
+
+
+def test_a_box_is_held_to_the_column_by_what_it_sets_out(browser, serve):
+    """An Ask allocated the column spans the wide block it holds with padding it leaves
+    bare, its content still the column's, and the gate named it as set out in the
+    margin on every page with one. A box padded out the same way that paints a
+    background shows that padding past the column, and is named."""
+    source = leaf_page(
+        "Padded past the column",
+        """
+<h1>Padded past the column</h1>
+<p>Prose sets the column.</p>
+<lf-ask id="ask"><h2>Which one?</h2>
+  <figure id="evidence" data-width="wide"><p>Evidence the room holds.</p></figure>
+  <lf-options id="ask-o" choose><lf-option id="ask-a">This one</lf-option></lf-options>
+</lf-ask>
+<div id="bare" style="margin: 0 -120px; padding: 0 120px">Bare padding.</div>
+<div id="tinted" style="margin: 0 -120px; padding: 0 120px; background: #eee">Tint.</div>
+""",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1440, 900)
+    grown = page.evaluate("""() => {
+      const ask = document.getElementById('ask').getBoundingClientRect();
+      const prose = document.querySelector('main > p').getBoundingClientRect();
+      return prose.left - ask.left;
+    }""")
+    misplaced = render_checks_model.evaluate_probe(page, "misplacedBoxes")
+    page.close()
+
+    assert grown > 100, "the Ask never spanned its block, so nothing here was tested"
+    past = [m["at"] for m in misplaced if m["code"] == "past-column"]
+    assert past == ["<div id=tinted>"], misplaced
 
 
 def test_a_change_level_with_a_note_is_decided_on_the_change(browser, serve):

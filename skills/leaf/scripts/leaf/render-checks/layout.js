@@ -351,6 +351,20 @@ export function misplacedBoxes() {
       if (draws(a)) return a;
     return null;
   };
+  // What a box sets out on the page: its content, and its padding only where it paints
+  // a background or a border. A box widened by padding it leaves bare sets nothing past
+  // its content: an Ask allocated the column spans the wide block it holds that way
+  // (ask.css), its content still the column's, and was named as standing out in the
+  // margin with nothing of its own there.
+  const shown = (el) => {
+    const b = el.getBoundingClientRect();
+    if (draws(el)) return b;
+    const s = getComputedStyle(el);
+    return {
+      left: b.left + parseFloat(s.paddingLeft),
+      right: b.right - parseFloat(s.paddingRight),
+    };
+  };
   const over = new Map();
   for (const el of main.querySelectorAll("*")) {
     const wide = el.matches(BREAKOUT);
@@ -362,8 +376,8 @@ export function misplacedBoxes() {
     // board was excused from the only reading that applies to it. A diagram in a card
     // was drawn across the neighbouring column and this said the page was clean.
     if (!pageBox(el) || !el.checkVisibility() || (!wide && answeredFor(el))) continue;
-    const b = el.getBoundingClientRect();
-    if (b.width < 1) continue;
+    if (el.getBoundingClientRect().width < 1) continue;
+    const b = shown(el);
     const frame = wide ? framing(el) : null;
     const host = wide ? null : insideWide(el);
     const bound = (frame || host)?.getBoundingClientRect() ?? null;

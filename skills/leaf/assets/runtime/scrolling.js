@@ -63,8 +63,28 @@ export const scrollToEnd = (box, behavior = "instant") =>
 // lets document reading continuity and anchor travel share the operation without either
 // owning the other's default destination. A move of less than a pixel is none: written,
 // it would still stop a smooth scroll under way in the box.
+//
+// A box stores a whole-pixel offset, rounding a fractional one (Chromium to the nearest,
+// WebKit down: measured in both, at device pixel ratios 1 and 2), and words stand at
+// fractions of a pixel. So an instant move lands short of its aim by less than a pixel,
+// and the box remembers its aim while it stands where the move left it (`aimedTop`).
+// A place read there is read from the aim: read from where the box landed, each
+// restore's rounding would become the reader's place, and the next restore would add
+// its own, so a line creeps down the screen revision by revision.
+const aims = new WeakMap();
 export const moveScrollerBy = (box, top, behavior = "instant") => {
+  const aim = box.scrollTop + top;
   if (Math.abs(top) >= 0.5) box.scrollBy({ top, behavior });
+  if (behavior === "instant" && Math.abs(aim - box.scrollTop) < 1)
+    aims.set(box, { aim, at: box.scrollTop });
+  else aims.delete(box);
+};
+// Where Leaf last aimed `box`, while it stands where that move left it, else its offset.
+// A move that fell a pixel or more short was cut off by the box's range, and names no
+// position the box stands at.
+export const aimedTop = (box) => {
+  const kept = aims.get(box);
+  return kept?.at === box.scrollTop ? kept.aim : box.scrollTop;
 };
 
 // How much of a move a box can make from where it stands: a box at its end moves no

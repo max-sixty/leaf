@@ -1097,24 +1097,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   outline-offset: var(--focus-ring-gap);
   scroll-margin-block: var(--focus-ring-room);
 }
-@media print {
-  [data-lf-offer]:not([data-lf-said], [data-lf-echo]) {
-    display: none !important;
-  }
-  [data-lf-offer]:is([data-lf-said], [data-lf-echo]) {
-    background: none !important;
-    border: 0 !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    padding-inline: 0 !important;
-    cursor: default !important;
-    text-decoration: none !important;
-    list-style: none !important;
-  }
-  [data-lf-offer]:is([data-lf-said], [data-lf-echo])::-webkit-details-marker {
-    display: none !important;
-  }
-}
 @keyframes lf-runtime-4f3c2a8d-working {
   to {
     opacity: .5;

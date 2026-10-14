@@ -655,17 +655,23 @@ Revisit these when their stated trigger becomes real; they are not an active que
   Trigger: the policy leaves beta, or leaf.page gains visitors a deploy would
   interrupt.
 - **Push page updates instead of polling.** Each visible tab asks `api/news` every
-  250 ms (`runtime/state-feed.js`). Measured on 2026-10-13, that costs about 1% of
-  one core per visible tab locally. On leaf.page each look bills a Worker and a
-  Durable Object request, under $1.20 a month per user at list price and inside the
-  included quotas, and polling accounts for about 1% of container hours. A held
-  stream into the container keeps it awake as polling does, so push would save only
-  the request charges. It would make updates appear sooner: a page notices an agent's
-  change at its next look, an estimated 125 ms later on average locally and 300 ms
-  on leaf.page. The likely design is one EventSource per browser, held by a leader
-  tab through a Web Lock, relayed to other tabs over a BroadcastChannel, woken by
-  the file watcher, and closed when the tab is hidden. Trigger: an agent's reply
-  visibly lags, or leaf.page's request charges leave the included quota.
+  250 ms (`runtime/state-feed.js`). Pages streamed updates until #1589 replaced
+  per-document streams with polling, because the streams used up HTTP/1.1's six
+  connections per host. Measured on 2026-10-13, polling costs about 1% of one core
+  per visible tab locally. On leaf.page each look bills a Worker and a Durable
+  Object request, under $1.20 a month per user at list price and inside the
+  included quotas, and polling accounts for about 1% of container hours; a held
+  stream keeps the container awake as polling does. Push would show an agent's
+  change sooner: locally the file watcher notices an append in about 90 ms against
+  polling's 125 ms average, and on leaf.page, where a look takes about 370 ms, it
+  would save roughly 250 ms. A sketch of one stream per browser (a leader tab
+  holding it through a Web Lock, relaying over a BroadcastChannel, with samples
+  relayed through their parent) adds about 115 lines more than it deletes; a
+  WebSocket per document avoids the leader and the relay. Either way, first give
+  the server one subscribable change detector per page, whose watched files and
+  stat token derive from one declaration of page inputs (today `page_reading` and
+  `file_changes.page_targets` disagree on bound files and `viewed.json`). Trigger:
+  hosted replies visibly lag.
 - **#27 — Runtime fold tests:** add focused Node tests as rules change; extend
   `tests/runtime/dom.mjs` only when a test needs another module.
 - **Claude Code tool observation:** consider a cheap hook for sessions holding

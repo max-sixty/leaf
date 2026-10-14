@@ -65,6 +65,19 @@ icon.
   they apply, the session reference and preview diagnostics) "are both a bit
   orphaned": find more that belongs in About, or move them elsewhere and drop the
   group.
+- **One general kind of small notice in the row.** On 14 October the user accepted a
+  chip in the row while an older version is shown ("v2 of 3 · Latest"), on the
+  condition that it be "one general case" of "a way to generally add small notices
+  to the user". Build that chip through a single row-notice slot, and grow the slot
+  into the mechanism: what a notice says, who raises it, what press it offers, how it
+  ends, and which other states use it (a stale page, offline, a page opened from a
+  share link).
+- **Idea: a thread opens with the passage it is about.** The fresh review of 14
+  October found that a thread opened in the panel never shows what it is anchored to,
+  and the open view can cover that passage on the page. Its mock-up quoted the
+  passage as the view's first line, pressing it doing what On the page does. The user
+  called it "an interesting idea" but "maybe a bit complicated", and suggested first
+  "just try making the messages better", so a thread's own words name their subject.
 
 Build an opt-in alternative to Leaf's chrome: one panel that hovers over the
 bottom of the page, like the Codex app's floating chat panel, and replaces both

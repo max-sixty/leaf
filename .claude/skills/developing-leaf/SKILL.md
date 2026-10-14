@@ -81,13 +81,28 @@ general reading to adding a narrow one beside it.
 ## Be a helpful linter, not a nanny nor a complicated partial checker
 
 Root `AGENTS.md`, "Leaf's role", says what a check is worth. A nanny refuses or
-explains input the agent's next attempt would fix anyway. A partial checker judges an
-input that a component in its path already judges, such as a parser, a widget or uv:
-the second judgment disagrees with the first at the edges, and each disagreement found
-becomes another check.
-Leave the judging to that component and make sure its refusal reaches the agent:
-`patch_manifest.py` stores a patch as given, and `lf-diff` refuses a file it cannot
-draw and reports it with `reportFailure`.
+explains input the agent's next attempt would fix anyway. Beyond that, Leaf refuses or
+rearranges what an agent writes only where some code reads that shape, and each such
+demand is one of three kinds:
+
+- **A refusal** names the code it protects, such as the code that titles an ask, folds
+  an action or upgrades a widget. The check calls that code, or the validation it
+  already has, and refuses only what that code can't read. A check that copies the
+  shape instead goes wrong once the protected code changes: the `lf-ask` heading check
+  refused an `<hgroup>` for weeks after the ask's title moved to the shared name rule.
+  Where something in the path already refuses bad input, such as a parser, a widget or
+  uv, add no second check; make sure its refusal reaches the agent. `patch_manifest.py`
+  stores a patch as given, and `lf-diff` refuses a file it cannot draw and reports it
+  with `reportFailure`.
+- **A layout or runtime rule keyed on structure**, such as a selector on child order or
+  a script that reads a child's position, depends only on the structure its mechanism
+  needs. Content outside that structure leaves the result unchanged: a paragraph after
+  an Ask's options doesn't stop its cards lying across.
+- **Everything else is advice**: a goal and its reason in the shipped instructions,
+  which the authoring agent weighs against its page.
+
+When you change code that reads authored markup, update the checks and selectors that
+guard it in the same commit.
 
 What one Leaf module writes for another, over a channel only Leaf code writes, is not
 input: the browser reading the server's answer, the Worker reading the manifest its

@@ -1,0 +1,4 @@
+Error: <tmp>/page.html is a file; a page command takes the page's directory
+
+Error: <tmp>/missing is not an initialized page; run `leaf page init <tmp>/missing`
+

@@ -377,7 +377,7 @@ function pickerModel(state) {
   return Object.freeze({
     picker: Object.freeze({
       offered,
-      token: `Showing ${currentVersionToken()}`,
+      token: currentVersionToken(),
       compared: diffOn || diffPendingBase !== null,
       news: behind,
       keyTitle: offered

@@ -183,7 +183,7 @@ registerBannerControl({
   rank: BANNER_CONTROL_RANK.versions,
   row: {
     label: "Versions",
-    value: () => versionsReading().picker.token.replace(/^Showing /, ""),
+    value: () => versionsReading().picker.token,
     group: "page",
   },
 });

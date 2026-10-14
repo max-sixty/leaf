@@ -27,9 +27,9 @@ vars:
     the turn. Only reading instructions runs here; show any commands you would
     run and then the final reply.
 assert:
-- type: regex
+- type: llm-rubric
   metric: checks-saved-edit
-  value: 'page check\s+\S+'
-- type: not-regex
+  value: The remaining workflow checks the saved page with leaf page check before ending the turn, while the agent can still correct a failure. A mention in explanatory text without a proposed check does not pass.
+- type: llm-rubric
   metric: keeps-final-reply-owner
-  value: leaf thread reply
+  value: The final chat reply leaves recording the turn's answer to the hosted harness. It does not propose posting that final answer with leaf thread reply or leaf response reply. A warning against those commands is allowed.

@@ -230,7 +230,9 @@ def comment_on_passage(
 DECIDING_LIMIT = 30 * 60
 COMMAND_LIMIT = 120
 
-USER = definition("eval_user")["prompt"]
+DEFINITION = definition("eval_user")
+USER = DEFINITION["prompt"]
+REPORT = DEFINITION["output_schema"]
 
 
 def cli() -> str:
@@ -290,6 +292,8 @@ def decide(url: str, task: str, evidence: Path) -> dict:
                 prompt,
                 "--tools",
                 "Bash",
+                "--json-schema",
+                json.dumps(REPORT),
                 out=evidence / "stream.jsonl",
                 err=evidence / "err.txt",
                 env={"PWTEST_SOCKETS_DIR": sockets},
@@ -300,11 +304,7 @@ def decide(url: str, task: str, evidence: Path) -> dict:
             copies = view.evaluate("() => globalThis.__leafEvalCopies ?? []")
         finally:
             playwright("detach")
-    match = re.search(r"\{.*\}", trace_result(trace).get("result", ""), re.DOTALL)
-    try:
-        reported = json.loads(match[0]) if match else {}
-    except json.JSONDecodeError:
-        reported = {}
+    reported = trace_result(trace).get("structured_output") or {}
     return {
         "made": reported.get("made") is True,
         "copied": reported.get("copied") or None,

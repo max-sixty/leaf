@@ -158,6 +158,15 @@ cases:
         user a step; content cut off with no visible way to reach it does not count. Judge only
         what a user sees; don't infer interaction behavior from an unoperated screenshot. Pass
         only if version 2 follows the lasting width preference the output quotes.
+    - &comment_applied
+      type: agent-rubric
+      metric: comment-applied
+      value: >-
+        Read the user's comment quoted in the output and open every screenshot
+        listed for version 3. Pass only if the page implements the requested
+        change in the passage or item the comment concerns. Merely mentioning
+        a name or value elsewhere, or claiming the change in the answer, does
+        not establish that the page applied it.
     - &comment_answered
       type: agent-rubric
       metric: comment-answered
@@ -195,6 +204,7 @@ cases:
     - *phase_3_quality
     - *phase_4_quality
     - *phase_2_preference
+    - *comment_applied
     - *comment_answered
   queue:
     inputs:
@@ -266,6 +276,7 @@ cases:
     - *phase_3_quality
     - *phase_4_quality
     - *phase_2_preference
+    - *comment_applied
     - *comment_answered
   configuration:
     inputs:
@@ -358,6 +369,7 @@ cases:
     - *phase_3_quality
     - *phase_4_quality
     - *phase_2_preference
+    - *comment_applied
     - *comment_answered
   sidebar-page-at-900px:
     inputs:

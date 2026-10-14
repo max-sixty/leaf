@@ -1004,20 +1004,6 @@ def commands(record: dict) -> list[str]:
     ]
 
 
-def waits_started(record: dict) -> list[str]:
-    """The ids of the backgrounded `leaf wait` calls one stream record makes, however
-    the command spells the launcher: `leaf`, its path, or a variable holding it."""
-    content = (record.get("message") or {}).get("content")
-    return [
-        block["id"]
-        for block in (content if isinstance(content, list) else ())
-        if block.get("type") == "tool_use"
-        and block["name"] == "Bash"
-        and re.search(r"(\bleaf|\$\{?\w+\}?) wait\b", block["input"].get("command", ""))
-        and block["input"].get("run_in_background")
-    ]
-
-
 def hook_delivered(record: dict) -> bool:
     """Whether one stream record is a Leaf hook handing a delivery to the turn: its
     output, the hook's whole stdout, names one in `DELIVERY_FIELD`. Other hooks in

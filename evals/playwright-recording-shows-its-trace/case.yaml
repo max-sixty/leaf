@@ -26,9 +26,9 @@ vars:
     The page directory is unavailable here. Reply with the commands you would run,
     in order, and the HTML of the section you would add.
 assert:
-- type: regex
+- type: llm-rubric
   metric: selects-playwright-package
-  value: 'page\s+init\b[^\n]*--package[\s=]+playwright\b'
+  value: The proposed commands add the playwright package to the existing ~/pages/thread-review page with leaf page init before using its trace widget or producer. Read valid command arguments, allowing quoting, line continuations and flag order.
 - type: llm-rubric
   metric: trace-is-the-recording
   value: The section presents the recorded journey through an lf-trace widget bound to a source the commands fill by importing trace.zip with the playwright package's producer (import_trace.py, or a step reading the package's producer instructions for the command) and `leaf data set`. A video of the screencast may accompany the trace, but the reply does not offer the video as the recording on its own.

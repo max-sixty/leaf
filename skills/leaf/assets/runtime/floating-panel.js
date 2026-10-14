@@ -944,7 +944,7 @@ export function createFloatingPanel({
             }
           </div>`,
       )}
-      ${versions.length ? nothing : html`<p class="lf-fp-empty">${picker.token}</p>`}
+      ${versions.length ? nothing : html`<p class="lf-fp-empty">Showing ${picker.token}</p>`}
       ${
         approval
           ? html`<hr />

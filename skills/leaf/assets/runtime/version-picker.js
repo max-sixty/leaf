@@ -24,7 +24,7 @@ const EMPTY = Object.freeze([]);
 const INITIAL = Object.freeze({
   picker: Object.freeze({
     offered: false,
-    token: "Showing Draft",
+    token: "Draft",
     compared: false,
     news: false,
     keyTitle: "Draft",
@@ -180,7 +180,7 @@ class VersionPickerView {
     this.button.toggleAttribute("data-lf-news", picker.news);
     keeps(this.button, "data-lf-key-title", picker.keyTitle);
     keeps(this.button, "aria-label", picker.ariaLabel);
-    render(picker.token, this.button);
+    render(`Showing ${picker.token}`, this.button);
 
     this.latestChip.toggleAttribute("disabled", latest.disabled);
     keeps(this.latestChip, "data-lf-key-title", latest.keyTitle);

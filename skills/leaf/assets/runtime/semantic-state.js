@@ -3,6 +3,7 @@
    their adapters. Importing this module does not mount any view or start delivery. */
 import {
   collectReads,
+  outsideReading,
   untracked,
   createPresentationCoordinator,
   createPresentationSchedule,
@@ -277,11 +278,21 @@ export const whenApplicationRegionsPresented = (regions, current) =>
         : null,
     regions,
   );
-const applicationRegionsPresented = (regions) =>
+export const applicationRegionsPresented = (regions) =>
   presentation.currentRegionsPresented(currentApplicationPresentation, regions);
 export const projectionRegionsPresented = (widgets) =>
   applicationRegionsPresented(["projection:chrome", ...widgets.flatMap(widgetRegions)]);
 export const watchPresentation = presentation.subscribe;
+// A reading of presentation proof itself, such as whether the regions a report waits
+// on have committed. A paint that follows one draws again when it moves without
+// claiming its own region for it: a claim moves presentation, and the reading with it.
+const proofReadings = new WeakSet();
+export const proofReading = (read) => {
+  const reading = outsideReading(read, (moved) => watchPresentation(() => moved({})));
+  proofReadings.add(reading);
+  return reading;
+};
+export const readsProof = (reading) => proofReadings.has(reading);
 export const readApplicationPresentation = presentation.read;
 export function setPresentationFailureReporter(report) {
   reportPresentationFailure = (reason) => report(reason, "Presentation failed");

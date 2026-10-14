@@ -368,14 +368,7 @@ def _by(v: dict) -> str:
 
 
 def _shift_evidence(v: dict) -> str:
-    """The comparison behind a shift sensor's report, and, where the sensor ran
-    without its ledger, the setting that reruns the test with it."""
-    rerun = (
-        f"; rerun with {v['rerun']} to see what moved and from where"
-        if "rerun" in v
-        else ""
-    )
-    return f"{rerun}\nshift evidence: {json.dumps(v['evidence'], ensure_ascii=False)}"
+    return f"\nshift evidence: {json.dumps(v['evidence'], ensure_ascii=False)}"
 
 
 # The words for each code, from the finding's `at` and `values`. A console code's

@@ -130,7 +130,6 @@ markers = [
   "network: requires external network access after development setup",
   "shifts_unsurveyed: its browser tests await a shift survey, so they do not reject unsolicited layout shifts",
   "watch_shifts: a surveyed test marked `shifts_unsurveyed` rejects unsolicited layout shifts and typing that carries its field",
-  "shift_ledger(on=True): the shift watch runs its ledger, or with False its gate, whatever LEAF_SHIFT_LEDGER says",
 ]
 # A test still running after half an hour is hung, not slow: the slowest takes under
 # three minutes on CI, so even ten times slower it finishes. The worker prints every

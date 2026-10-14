@@ -1,18 +1,10 @@
-"""The shift watch's ledger fails the layout shifts the "Stability" rule forbids
-(`shift_watch.js`): a shift without input, and typing that carries its field. Every
-test here runs the ledger; `test_render_shift_gate.py` holds the gate every other
-test runs."""
+"""The browser fixture fails the layout shifts the "Stability" rule forbids
+(`shift_watch.js`): a shift without input, and typing that carries its field."""
 
 from datetime import datetime, timedelta
 
 import pytest
-from browser.test_render_shift_watch import (
-    held_stretch,
-    paint,
-    pytest_generate_tests,  # noqa: F401 — runs the listed cases in both modes
-    shift_evidence,
-    shift_mode_fixture,  # noqa: F401 — the mode each case runs in
-)
+from browser.test_render_shift_watch import held_stretch, paint, shift_evidence
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import ASK_PAGE
@@ -26,9 +18,6 @@ from render_harness import (
     take_browser_errors,
     ticked,
 )
-
-# These tests prove the ledger's readings and credits.
-pytestmark = pytest.mark.shift_ledger
 
 
 @pytest.mark.parametrize("surface", ["card", "inline"])

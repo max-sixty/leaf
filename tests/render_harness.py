@@ -132,14 +132,9 @@ def document_port_binding_source():
     })();"""
 
 
-# Setting this to 1 runs the shift watch's ledger on every test (`shift_ledger`).
-SHIFT_LEDGER = "LEAF_SHIFT_LEDGER"
-
-
 @cache
-def shift_watch_source(ledger):
-    """Bind the sensor to the runtime's control, clipping, and scroll-space readings,
-    in the mode `shift_ledger` chose."""
+def shift_watch_source():
+    """Bind the sensor to the runtime's control, clipping, and scroll-space readings."""
     controls = subprocess.check_output(
         [
             "node",
@@ -168,11 +163,10 @@ def shift_watch_source(ledger):
         + "const nativePerformance = window.lfWatchPlatform.performance;\n"
         + "const nativeFrame = callback => window.lfWatchPlatform.frame(callback);\n"
         + "const nativeTask = (callback, ...args) => window.lfWatchPlatform.later(callback, ...args);\n"
-        + f"((interactive, clippingAxes, ledger, rerun) => {{\n"
+        + f"((interactive, clippingAxes) => {{\n"
         f"const shadowHost = {host};\nconst upFrom = {parent};\n"
         f"const renderedParent = {rendered_parent};\nconst elementAxes = {element_axes};\nconst scrollAxes = {axes};\n"
-        f"{SHIFT_WATCH_SOURCE.read_text()}\n}})({json.dumps(interactive)}, {clipping},"
-        f" {json.dumps(ledger)}, {json.dumps(f'{SHIFT_LEDGER}=1')});"
+        f"{SHIFT_WATCH_SOURCE.read_text()}\n}})({json.dumps(interactive)}, {clipping});"
     )
 
 
@@ -1256,17 +1250,6 @@ def watches_shifts(test):
     )
 
 
-def shift_ledger(test):
-    """Whether the shift watch runs its ledger in place of the gate (`shift_watch.js`,
-    "The gate"). The closest `shift_ledger` marker decides for the watch's own tests,
-    `shift_ledger(False)` for those of the gate; every other test runs the ledger once
-    `LEAF_SHIFT_LEDGER=1` asks it to say what moved and from where."""
-    marker = test and test.get_closest_marker("shift_ledger")
-    if marker:
-        return marker.args[0] if marker.args else True
-    return os.environ.get(SHIFT_LEDGER) == "1"
-
-
 @contextmanager
 def clean_browser(test=None):
     """Reject every browser problem a test did not explicitly consume.
@@ -1442,7 +1425,7 @@ def watched(page, *, java_script_enabled=True):
         + document_port_binding_source()
     )
     if _TEST is None or watches_shifts(_TEST):
-        page.add_init_script(script=shift_watch_source(shift_ledger(_TEST)))
+        page.add_init_script(script=shift_watch_source())
     # Diagnostics join the captured graph through its compiled public entries. Tests
     # cannot name a private source path or load a second runtime from the mutable layer.
     page.add_init_script(

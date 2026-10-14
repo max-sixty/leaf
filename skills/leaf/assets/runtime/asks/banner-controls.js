@@ -15,6 +15,10 @@ const FACE_TAG = "lf-ask-banner-face";
 
 /** @typedef {AskBannerFace} AskBannerFaceElement For its tag (`runtime-globals.d.ts`). */
 class AskBannerFace extends RetainedFace {
+  // The widest words the control reaches below a thousand, so a count changing moves
+  // nothing on the row.
+  room = "";
+
   updated() {
     const control = this.parentElement;
     if (!control) return;
@@ -25,14 +29,15 @@ class AskBannerFace extends RetainedFace {
   }
 
   render() {
-    return html`${this.model.text}`;
+    return html`<span data-lf-room=${this.room}>${this.model.text}</span>`;
   }
 }
 
 if (!customElements.get(FACE_TAG)) customElements.define(FACE_TAG, AskBannerFace);
 
-const face = (control, initial) => {
-  const owner = document.createElement(FACE_TAG);
+const face = (control, initial, room) => {
+  const owner = /** @type {AskBannerFace} */ (document.createElement(FACE_TAG));
+  owner.room = room;
   owner.model = initial;
   owner.commit();
   owner.style.display = "contents";
@@ -57,6 +62,7 @@ export function createAskBannerControls(activateBulk) {
         title: `${label} every one still waiting on me`,
         outcome,
       }),
+      `${label} all (999)`,
     );
     registerBannerControl({
       key: `blanket:${outcome}`,

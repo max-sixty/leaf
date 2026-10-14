@@ -972,7 +972,7 @@ def test_a_menu_row_that_puts_the_menu_away_leaves_the_user_on_the_leaf(browser,
     leaf = page.locator(".lf-fp-leaf")
     menu = page.locator(".lf-fp-menu")
     leaf.click()
-    menu.locator(".lf-fp-item", has_text="About this page").click()
+    menu.locator(".lf-fp-item", has_text="Annotations").click()
     page.locator(".lf-fp-view[data-view=group] .lf-fp-item").last.click()
     expect(page.locator(".lf-fp-view")).to_have_count(0)
     expect(leaf).to_be_focused()

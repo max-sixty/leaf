@@ -99,9 +99,10 @@
 // already running on its ancestors belongs to the gesture that began that motion.
 // Continuing translation is credited from sampled animated property values, not
 // the ancestor's whole box: independent movement of it or its children still fails.
-// This proof supports unique replace effects with pure transform translation or
-// pixel left/top/marginLeft/marginTop. Scale, rotation and composed effects receive
-// no inferred translation credit.
+// This proof supports unique replace effects with pure transform translation, a
+// `translate` in pixels or percentages of the border box, or pixel
+// left/top/marginLeft/marginTop. Scale, rotation and
+// composed effects receive no inferred translation credit.
 //
 // Chrome's paint signal and landmark poses answer distinct questions. The ledger
 // retains samples that precede the source-associated frame window and is classified
@@ -597,6 +598,37 @@
         .flatMap((frame) => Object.keys(frame).filter((key) => GEOMETRY.test(key))),
     ),
   ];
+  // An animated property's value as a translation reads it. The individual `translate`
+  // keeps its percentages in its computed value, each of the target's border box (an
+  // HTML element's transform reference box), so the reading resolves them to pixels.
+  const animatedValue = (target, style, property) => {
+    const value = style[property];
+    if (
+      property !== "translate" ||
+      !value.includes("%") ||
+      !(target instanceof HTMLElement)
+    )
+      return value;
+    const edges = (a, b) =>
+      ["padding", "border"].reduce(
+        (sum, part) =>
+          sum +
+          parseFloat(style[`${part}${a}${part === "border" ? "Width" : ""}`]) +
+          parseFloat(style[`${part}${b}${part === "border" ? "Width" : ""}`]),
+        0,
+      );
+    const content = style.boxSizing === "content-box";
+    const size = [
+      parseFloat(style.width) + (content ? edges("Left", "Right") : 0),
+      parseFloat(style.height) + (content ? edges("Top", "Bottom") : 0),
+    ];
+    return value
+      .split(" ")
+      .map((length, axis) =>
+        length.endsWith("%") ? `${(parseFloat(length) / 100) * size[axis]}px` : length,
+      )
+      .join(" ");
+  };
   const animationTranslation = (property, value) => {
     if (property === "transform") {
       const matrix = new DOMMatrixReadOnly(value === "none" ? undefined : value);
@@ -606,6 +638,17 @@
         matrix.c === 0 &&
         matrix.d === 1
         ? { left: matrix.e, top: matrix.f }
+        : null;
+    }
+    // The individual property, which a surface's entrance often slides by: none, or
+    // pixel lengths along x, y and z. Travel along z is not a pure translation.
+    if (property === "translate") {
+      if (value === "none") return { left: 0, top: 0 };
+      const [x, y = "0px", z = "0px", ...rest] = value.split(" ");
+      return !rest.length &&
+        [x, y, z].every((length) => /^-?[\d.]+(?:e[-+]?\d+)?px$/.test(length)) &&
+        parseFloat(z) === 0
+        ? { left: parseFloat(x), top: parseFloat(y) }
         : null;
     }
     if (
@@ -703,9 +746,9 @@
         .flatMap(animationProperties),
     );
     return Object.fromEntries(
-      ["transform", "left", "top", "marginLeft", "marginTop"]
+      ["transform", "translate", "left", "top", "marginLeft", "marginTop"]
         .filter((property) => !competing.has(property))
-        .map((property) => [property, style[property]]),
+        .map((property) => [property, animatedValue(target, style, property)]),
     );
   };
   if (ledger) {
@@ -811,9 +854,10 @@
             (property) =>
               replace &&
               uses.get(effect.target)?.get(property) === 1 &&
-              (!returning || origin?.[property] === style[property]),
+              (!returning ||
+                origin?.[property] === animatedValue(effect.target, style, property)),
           )
-          .map((property) => [property, style[property]]),
+          .map((property) => [property, animatedValue(effect.target, style, property)]),
       );
       const readings = animated.get(animation) ?? [];
       readings.push({
@@ -1978,9 +2022,10 @@
     return delta;
   };
   const viewportTranslation = (property, before, after, by) => {
-    // Animated transforms translate in their target's local basis; physical
-    // insets and margins translate layout in its parent's basis with their own
-    // CSS zoom. Every effect uses this same viewport conversion, and a changed
+    // Animated transforms translate in their target's local basis. The individual
+    // `translate` applies outside the target's own transform, rotate and scale, so
+    // like physical insets and margins it translates in its parent's basis with its
+    // own CSS zoom. Every effect uses this same viewport conversion, and a changed
     // basis cannot explain translation with the earlier coordinate system.
     const key = property === "transform" ? "transform" : "layout";
     const axes = before.axes[key];

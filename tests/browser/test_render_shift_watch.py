@@ -3055,6 +3055,50 @@ def test_owned_animation_retains_local_motion_through_next_gesture(browser, faul
         assert not errors, errors
 
 
+@pytest.mark.parametrize("begun", ["press", "script"])
+@pytest.mark.parametrize(
+    ("property", "moved"),
+    [
+        ("transform", "translateX(-600px)"),
+        ("translate", "-600px 0"),
+        ("translate", "-300% 0%"),
+    ],
+)
+def test_a_pressed_transition_owns_its_travel_whichever_property_carries_it(
+    browser, property, moved, begun
+):
+    """A press beginning a transition of a box's translation owns the travel it
+    samples, by the transform or by the individual `translate` property, in pixels
+    or in percentages of the box, as the floating panel's menu slides in. A later
+    press moving the layout has that travel judged with its own rendering: credited
+    where the press began it, and a move without input where a script did."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(f"""<!doctype html><body style="margin:0">
+<button id="slide">Slide</button><button id="grow">Grow</button>
+<div id="menu" style="margin-left:650px;width:200px;transition:{property} 3s linear"><button>Row</button><p>Menu reading</p></div>
+<div id="room"></div><p>Below</p>
+<script>function slideIn(){{window.from=menu.getBoundingClientRect().left;menu.style.{property}='{moved}'}}
+slide.addEventListener('click',slideIn);
+grow.addEventListener('click',()=>room.style.height='40px')</script>""")
+    )
+    paint(page)
+    if begun == "press":
+        page.locator("#slide").click()
+    else:
+        page.evaluate("slideIn()")
+    page.wait_for_function("from - menu.getBoundingClientRect().left > 20")
+    page.locator("#grow").click()
+    page.evaluate(PAINTED)
+    assert page.evaluate("menu.getAnimations()[0].playState") == "running"
+    judge_watches()
+    if begun == "press":
+        assert take_browser_errors(page) == []
+    else:
+        consume_browser_errors(page, moved_within("div#menu"))
+
+
 @pytest.mark.parametrize("mode", ["static", "fallback"])
 def test_unused_anchor_cannot_bank_an_earlier_scroll(browser, mode):
     page = browser.new_page()

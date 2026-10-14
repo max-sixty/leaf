@@ -51,8 +51,8 @@ representative desktop viewport.
   when their CSS loads before first paint: adding, removing or moving one keeps every
   block's position, wrapping and size. No rule pads, indents, widens or reflows a block
   to clear a pin, since reserved room would make the page's geometry depend on which
-  markers exist and where. Resting pins use clear space or are withheld, while Page Map
-  retains their threads and actions. The rail sits right of `main` wherever the window
+  markers exist and where. A pin stands by its target, over the target's own words
+  where no seat beside it is clear; hiding annotations reveals what it covers. The rail sits right of `main` wherever the window
   has room, and seating it there never moves, narrows or indents the column
   (`content-layout.js`). `data-rail` on `body` withholds or reserves it: `"right"` makes
   the shell give up the rail's width, so the page's layout gets narrower
@@ -588,6 +588,11 @@ visible change").
 container ownership and how placements keep the user's place. Paints whose contract requires the current
 turn use `render`; `LitElement` schedules updates on a microtask and belongs only to
 runtime faces that permit that delay.
+
+A watcher's paint subscribes to every selection it reads (`projection-watch.js`), so a
+reader a paint can call derives what it returns inside its own selection (`readPart`)
+rather than selecting a broader part and narrowing it afterwards: the paint then runs
+again only when that answer moves. Reading the whole root inside a paint throws.
 
 `build/browser/build.mjs` compiles the TypeScript foundation into
 `vendor/browser-runtime.js` and the modules beside it in `vendor/browser-runtime/`,

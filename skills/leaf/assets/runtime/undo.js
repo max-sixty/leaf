@@ -19,6 +19,7 @@ import {
   readApplication,
   whenDocumentPresented,
 } from "./semantic-state.js";
+import { runtime } from "./context.js";
 import { pageCommand } from "./keyboard/register.js";
 import { savedReadingSettled } from "./keyboard/bindings.js";
 import { undoSentence } from "./reactions.js";
@@ -57,7 +58,7 @@ export function createUndo({ post, stateApplying, unaccountedGesture }) {
 
   function undoable() {
     if (stateApplying()) return null;
-    const head = readApplication().effective.view?.undo[0];
+    const head = runtime.undo[0];
     return head?.newest ? head.event : null;
   }
 

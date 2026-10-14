@@ -32,7 +32,7 @@
    attribute, so one `MutationObserver` over `open` and `aria-expanded` repaints for both,
    and `shadowStage` hands it each root. */
 import { PRESS, rowArrows } from "./bindings.js";
-import { paintKeys } from "./scopes.js";
+import { paintKeysWithin } from "./scopes.js";
 
 import { inChrome } from "../passages.js";
 
@@ -42,10 +42,10 @@ import { inChrome } from "../passages.js";
 // row's keys are named on two surfaces, the line the user sees and the
 // `aria-keyshortcuts` a listener is read. Repainting the line alone left the attribute
 // saying whichever way the row was when its scope was declared, naming the arrow that no
-// longer moves the section and withholding the one that does. `paintKeys()` is the superset
-// — it revalidates the connected scopes and requests the shared repaint — so the watcher that
-// already hears this write is the one place both surfaces are kept together, rather than a
-// repaint each DISCLOSE row has to remember for itself.
+// longer moves the section and withholding the one that does. The watcher that already
+// hears this write repaints the keys of the disclosure that moved, and the shared line with
+// them, so it is the one place both surfaces are kept together, rather than a repaint each
+// DISCLOSE row has to remember for itself.
 // A write that says what the attribute already said is not a disclosure changing, and
 // taking it for one closes a loop: renderShortcutBar paints `aria-expanded` on the shortcut bar's
 // More control, so every paint scheduled the next one and the page repainted for
@@ -53,8 +53,9 @@ import { inChrome } from "../passages.js";
 // toggle still arrives, including one that lands back where it started, because the
 // record for its return leg carries the other value.
 const disclosureWatch = new MutationObserver((records) => {
-  if (records.some((r) => r.target.getAttribute(r.attributeName) !== r.oldValue))
-    paintKeys();
+  for (const r of records)
+    if (r.target.getAttribute(r.attributeName) !== r.oldValue)
+      paintKeysWithin(r.target);
 });
 export const watchDisclosures = (root) =>
   disclosureWatch.observe(root, {

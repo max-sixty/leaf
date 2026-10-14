@@ -175,6 +175,8 @@ ignore_names = [
   "log_message",
   "daemon_threads",
   "handlers",
+  # a reference held only so its page stays in the recent pages (samples.py)
+  "parent_memory",
   # click, uvicorn, markdown-it
   "get_command",
   "format_commands",

@@ -22,6 +22,7 @@ export {
   repeat,
   styleMap,
   unsafeHTML,
+  signal,
 } from "../vendor/browser-runtime.js";
 export { move } from "./dom-move.js";
 export { iconElement, iconTemplate } from "./icons.js";
@@ -78,6 +79,7 @@ export { comparisonChanges, watchComparison } from "./version.js";
 export { askWords } from "./asks/answer.js";
 export {
   readWork,
+  watchWork,
   workRole,
   workElements,
   directWorkElements,

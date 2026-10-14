@@ -38,7 +38,14 @@ import {
   standsOn,
   standingIn,
 } from "../focus.js";
-import { html, render, nothing, ref } from "../../vendor/browser-runtime.js";
+import {
+  html,
+  render,
+  nothing,
+  ref,
+  share,
+  signal,
+} from "../../vendor/browser-runtime.js";
 import { turns, threadKey, threadSummary } from "./model.js";
 import { anchorLabel, MessageView, messageReading } from "./messages.js";
 import { offer, reachedForWords, measure, reserve } from "../widget-elements.js";
@@ -201,9 +208,15 @@ export function threadReading(thread, surface, commands, options) {
       leaves: leaves(message),
     }),
   );
+  const summary = threadSummary(thread);
   return Object.freeze({
     key: threadKey(thread),
-    summary: threadSummary(thread),
+    summary,
+    // How long ago the thread last moved, read here with the rest of the reading, so a
+    // card whose reading did not change shows the same age and need not draw again.
+    recency: summary.latest
+      ? Object.freeze({ short: shortAgo(summary.latest), long: ago(summary.latest) })
+      : null,
     // A title comes from the agent's answer or beside it, so an untitled thread
     // waits for one only while the agent's work on it is under way. A turn that
     // ended, stalled or was never picked up sends none, and the thread reads its
@@ -352,8 +365,8 @@ function navigationSummary(model, control) {
               class="lf-thread-recency"
               datetime=${latest}
               title=${`Last message activity ${new Date(latest).toLocaleString()}`}
-              aria-label=${`Last message activity ${ago(latest)}`}
-              >${shortAgo(latest)}</time
+              aria-label=${`Last message activity ${model.recency.long}`}
+              >${model.recency.short}</time
             >`
           : nothing
       }
@@ -407,7 +420,15 @@ export class ThreadView {
   #commands;
   #messageCommands;
   #rewrites;
-  #model = null;
+  // The model this card shows. A signal, because its commands' liveness reads it, and
+  // key and button reflection follow what they read (keyboard/scopes.js).
+  #shown = signal(null);
+  get #model() {
+    return this.#shown.value;
+  }
+  set #model(model) {
+    this.#shown.value = model;
+  }
   #messages = new Map();
   #reply = null;
   #replyShown = false;
@@ -703,8 +724,50 @@ export class ThreadView {
     );
   }
 
+  // What a card draws from beyond its reading: whether a reply to it is being written
+  // and whether it holds a draft, and whether it stands open.
+  #outside(model) {
+    return [
+      replyIsEditing(model.key),
+      threadHoldsDraft(
+        model.key,
+        model.messages.map(({ id }) => id),
+      ),
+      this.node.open,
+    ];
+  }
+
+  // Whether `model` is the reading this card last drew, outside inputs included, so a
+  // list pass that hands it over again need not draw it (thread-list-view.js). The
+  // reading is rebuilt on every pass, so it is compared by content; its `reread` is a
+  // fresh closure over the same reading each time.
+  shows(model) {
+    const prior = this.#received;
+    if (!prior || !this.#drawnWith) return false;
+    // A card mid-fold, holding news or owing a release draws on every pass: what it
+    // shows then moves with time and the reader, not with its reading.
+    if (
+      prior.folding ||
+      this.#model?.folding ||
+      this.#model?.news ||
+      isFolding(this.node) ||
+      !(this.#heldNews?.settled ?? true)
+    )
+      return false;
+    const { reread: _priorReread, ...was } = prior;
+    const { reread: _reread, ...now } = model;
+    const outside = this.#outside(model);
+    return (
+      share(was, now) === was &&
+      outside.every((part, index) => part === this.#drawnWith[index])
+    );
+  }
+
+  #drawnWith = null;
+
   present(model, { retaining = false, viewChanged = false, writing = null } = {}) {
     this.#received = model;
+    this.#drawnWith = this.#outside(model);
     const prior = this.#model;
     // The list chooses membership. The complete thread owns its outgoing paint and
     // retirement, keeping the last shown reading until its root gives back its room.

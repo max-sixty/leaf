@@ -45,7 +45,7 @@
       color-mix(in srgb, var(--ink) 19%, transparent)
     );
     --lf-fp-muted: color-mix(in srgb, var(--ink) 60%, transparent);
-    --lf-fp-quiet: color-mix(in srgb, var(--ink) 38%, transparent);
+    --lf-fp-quiet: color-mix(in srgb, var(--ink) 48%, transparent);
     --lf-fp-faint: color-mix(in srgb, var(--ink) 8%, transparent);
     --lf-fp-hover: color-mix(in srgb, var(--ink) 5%, transparent);
     --lf-fp-radius: 12px;

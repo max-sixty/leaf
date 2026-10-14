@@ -423,9 +423,6 @@
                      padding-inline-start: var(--lf-key-badge-col); }
 
 }
-@media print {
-  :scope:is(lf-options) > :is(.lf-another, lf-options-done) { display: none; }
-}
 /* The row form: a list whose rows open at one column with the mark leading, and the
  * block reference at the line's end.
  *

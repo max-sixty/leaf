@@ -214,14 +214,19 @@ def live_facts(page_dir: Path, claim: dict | None, *, process: bool = True) -> d
     }
 
 
-def page_agent(claim: dict | None, events: list) -> str:
+def page_agent(claim: dict | None, events: list, *, process: bool = True) -> str:
     """The name the page calls its agent: the claimant's, who reads what the user
     writes; on a page no session holds now, the voice that last wrote on it, whose
     words the page shows; and `UNNAMED_AGENT` where neither names one. One name for
     the agent's side, so a page whose session ended still calls its agent what its
-    messages do."""
+    messages do.
+
+    A captured publication (`process` false) names none from its log: whoever
+    answers a hosted copy is the host's agent, not the one that wrote the page."""
     if claim:
         return claim["agent"]
+    if not process:
+        return UNNAMED_AGENT
     return next(
         (
             event["agent"]
@@ -279,7 +284,7 @@ def presence_with_activity(
         # (`page_agent`). Harness-specific facts stay out of this reading: it is what
         # a browser seat may know, and the browser has never had a use for which
         # program is running the agent.
-        "agent": page_agent(claim, events),
+        "agent": page_agent(claim, events, process=process),
         # Which session the turn-closed evidence belongs to. Thread updates carry
         # their posting session too, so a claim another session wrote — the page
         # task's, while a Codex watcher task holds the page — is not declared

@@ -1334,7 +1334,9 @@ export function createFloatingPanel({
     seatOnItems();
   }
   // A card's seat is the height it first stands at once its message is drawn; a card
-  // whose message Leaf's reader has not drawn yet asks it to (`nominate`), once.
+  // whose message Leaf's reader has not drawn yet asks it to (`nominate`), once, and
+  // releases what the reader holds back, since a thread it holds as news would leave the
+  // card standing without its question (thread/held-news.js).
   const asked = new WeakSet();
   function seatOnItems() {
     if (trail.at(-1)?.view !== "on") return;
@@ -1349,7 +1351,7 @@ export function createFloatingPanel({
       } else if (!seatHeights.has(card.dataset.key))
         seatHeights.set(card.dataset.key, card.getBoundingClientRect().height);
     }
-    if (draw) void present();
+    if (draw) void present({ release: true });
   }
   // A thread the reader opens, or answers, or asks to see the news of, stands at its end.
   function landReader() {

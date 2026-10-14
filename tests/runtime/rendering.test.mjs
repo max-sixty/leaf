@@ -341,3 +341,31 @@ test("work waiting on settling waits for an update after it and every preparatio
   await update();
   assert.equal(settled, 1);
 });
+
+test("a preparation waiting before the ask is not the asker's", async () => {
+  const unrelated = holdRendering();
+  await update();
+  let settled = 0;
+  afterSettling(() => settled++);
+  await update();
+  assert.equal(settled, 1);
+  unrelated();
+  await update();
+});
+
+test("a preparation released between an update and its check owes another update", async () => {
+  await update();
+  let settled = 0;
+  const preparing = holdRendering();
+  afterSettling(() => settled++);
+  // The update's frame callbacks run, then the preparation lands before their check.
+  const due = [...queued.values()];
+  queued.clear();
+  for (const callback of due) await callback(0);
+  preparing();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(settled, 0, "the release's commit has had no update yet");
+  assert.equal(renderingState().updatesSettled, false);
+  await update();
+  assert.equal(settled, 1);
+});

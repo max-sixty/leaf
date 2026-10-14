@@ -3,6 +3,7 @@
    their adapters. Importing this module does not mount any view or start delivery. */
 import {
   collectReads,
+  untracked,
   createPresentationCoordinator,
   createPresentationSchedule,
   createSemanticApplication,
@@ -12,10 +13,6 @@ import {
 import { bindQueuedWork } from "./queued-work.js";
 
 const documentToken = Object.freeze({});
-// The semantic epoch the application last began presenting, which is the epoch of the
-// root it publishes next. Presentation proof compares against it; a paint that waits on
-// proof reads no part of the root for it, so the wait subscribes the paint to nothing.
-let begunEpoch;
 let reportPresentationFailure = (reason) =>
   console.error("leaf: presentation failed", reason);
 const presentation = createPresentationCoordinator({
@@ -29,8 +26,7 @@ const schedule = createPresentationSchedule(bindQueuedWork);
 /** @type {ReturnType<typeof import("../../../../build/browser/application.ts").createSemanticApplication>} */
 export const applicationState = createSemanticApplication({
   presentation: {
-    begin: (semanticEpoch) =>
-      presentation.begin(documentToken, (begunEpoch = semanticEpoch)),
+    begin: (semanticEpoch) => presentation.begin(documentToken, semanticEpoch),
     // The application seals each publication as `begin` returned it.
     seal: (publication) =>
       presentation.seal(
@@ -83,6 +79,8 @@ export const PRESENTATION_ORDER = Object.freeze({
 // caller reaches for when it has changed something every region may be showing and has
 // no business knowing which those are.
 const documentPresenters = [];
+// Every publication, which each region checks its parts against.
+const publications = applicationState.select((root) => root);
 
 // One region's epoch presenter. `reading` decides, synchronously, whether the region
 // owes a paint and with what value: it returns null where the region owes nothing,
@@ -132,6 +130,12 @@ export const applicationPresenter = ({
       owed = false;
       const outcome = collectReads(() => paint(value, current));
       paintReads = outcome.reads;
+      // A publication the paint made after reading a part checked the parts the last
+      // paint read, so a part this paint read first and moved itself owes another.
+      if (moved(paintReads)) {
+        const next = read();
+        if (next !== null) void claim(next);
+      }
       if ("error" in outcome) throw outcome.error;
       return outcome.value;
     },
@@ -157,17 +161,15 @@ export const applicationPresenter = ({
   // every publication, so each region claims at the same point in a publication as it
   // always has, before anything that publication starts waits on presentation.
   claimed = read();
-  applicationState
-    .select((root) => root)
-    .subscribe(() => {
-      // A paint's part moved, which owes a paint unless one is already owed, or the
-      // reading's part moved, which owes one only where the value changed.
-      const painted = !owed && moved(paintReads);
-      if (!painted && !moved(readingReads)) return;
-      const value = read();
-      if (value === null) claimed = null;
-      else if (painted || value !== claimed) void claim(value);
-    });
+  publications.subscribe(() => {
+    // A paint's part moved, which owes a paint unless one is already owed, or the
+    // reading's part moved, which owes one only where the value changed.
+    const painted = !owed && moved(paintReads);
+    if (!painted && !moved(readingReads)) return;
+    const value = read();
+    if (value === null) claimed = null;
+    else if (painted || value !== claimed) void claim(value);
+  });
   // A document-wide region lives as long as the page; `disconnect` releases its renderer,
   // and a region that may mount again reads null while it is not mounted.
   const disconnect = () => {
@@ -202,9 +204,12 @@ export const failSoftAfterRetention = (proof) => (reason) => {
   if (reason instanceof PresentationRetentionError) throw reason;
   return proof;
 };
+// The epoch presentation proof compares against. A paint that waits on proof reads it
+// outside its collection, so waiting subscribes the paint to nothing.
+const currentEpoch = () => untracked(() => readApplication().semanticEpoch);
 const currentApplicationPresentation = () => ({
   document: documentToken,
-  semanticEpoch: begunEpoch,
+  semanticEpoch: currentEpoch(),
 });
 export const whenApplicationPresented = () =>
   presentation.whenCurrentPresented(currentApplicationPresentation);
@@ -214,7 +219,7 @@ export const whenWidgetsPresented = (widgets) =>
   presentation.whenCurrentRegionsPresented(
     () => ({
       document: documentToken,
-      semanticEpoch: begunEpoch,
+      semanticEpoch: currentEpoch(),
     }),
     widgets.flatMap(widgetRegions),
   );
@@ -224,7 +229,7 @@ export const whenApplicationRegionsPresented = (regions, current) =>
       current()
         ? {
             document: documentToken,
-            semanticEpoch: begunEpoch,
+            semanticEpoch: currentEpoch(),
           }
         : null,
     regions,

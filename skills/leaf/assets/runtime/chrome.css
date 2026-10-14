@@ -95,7 +95,7 @@
     cursor: default;
     background: none;
   }
-  :where(.lf-floating-panel) :is(button, input, textarea):focus-visible {
+  :where(.lf-floating-panel) :is(button, input, textarea, .lf-fp-on-item):focus-visible {
     outline: var(--focus-ring);
     outline-offset: -2px;
     --lf-focus-ring: floating-panel;
@@ -409,6 +409,12 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  .lf-fp-title[data-unseen] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    clip-path: inset(50%);
+  }
   .lf-fp-back {
     flex: none;
     min-height: 0;
@@ -457,6 +463,9 @@
     margin-left: 1px;
     text-align: start;
     font-variant-numeric: tabular-nums;
+  }
+  .lf-fp-count[data-zero] {
+    color: var(--lf-fp-muted);
   }
   .lf-fp-icon-btn {
     display: grid;

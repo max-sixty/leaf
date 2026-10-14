@@ -6620,7 +6620,7 @@ def test_a_completed_ask_stays_reachable_through_the_on_panel(browser, serve, wi
         page.keyboard.press("Shift+m")
     expect(page.locator("button.lf-queue-row[data-lf-kind='ask']")).to_have_count(1)
     expect(page.locator(".lf-queue-done .lf-queue-where")).to_contain_text(
-        "Answered First"
+        "Answered: First"
     )
     expect(page.locator(".lf-queue-panel")).to_have_class(re.compile(r"\bopen\b"))
 
@@ -6743,7 +6743,7 @@ def test_a_completed_ask_keeps_its_answer_in_the_on_panel(browser, serve):
     expect(page.locator("button.lf-queue-row[data-lf-kind='ask']")).to_have_count(1)
     expect(page.locator(".lf-queue-panel")).to_have_class(re.compile(r"\bopen\b"))
     expect(page.locator(".lf-queue-done .lf-queue-where")).to_contain_text(
-        "Answered First"
+        "Answered: First"
     )
 
     reading = page.evaluate(

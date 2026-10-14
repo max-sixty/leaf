@@ -274,7 +274,9 @@ export function readBoxPlace(input) {
 // arriving there waits behind its thread's notice instead (held-news.js). `holdBox`
 // reads where the focused control stands and returns the step that puts it back, so
 // news moves no control under the user's hands. Only one in view is under their hands
-// (user-place.js, `focusedInView`). A control the render replaced has nothing to hold. The box scrolling the control takes the move
+// (user-place.js, `focusedInView`). A control the render replaced, or one that left the
+// thread view it stood in, as a reply going on where its thread now stands does
+// (replies.js, `releaseReplies`), has nothing to hold. The box scrolling the control takes the move
 // first and the boxes around it whatever it cannot: a bounded block not yet full grows
 // in the page instead.
 export function holdBox(control) {
@@ -282,7 +284,8 @@ export function holdBox(control) {
   if (!held || control !== focusedInView()) return () => {};
   const top = control.getBoundingClientRect().top;
   return () => {
-    if (focused() !== control || !control.isConnected) return;
+    if (focused() !== control || !control.isConnected || !held.contains(control))
+      return;
     for (const box of scrollersOf(control)) {
       const moved = control.getBoundingClientRect().top - top;
       if (Math.abs(moved) < 1) return;

@@ -1678,6 +1678,12 @@ export class ThreadView {
     }
   }
 
+  // The reply being written in this thread, which no view holds, comes into this one
+  // once it is `shown` (replies.js, `claim`).
+  claimReply(shown) {
+    this.#reply?.claim(shown);
+  }
+
   retire() {
     this.#reply?.cancelDictation();
     for (const view of this.#messages.values()) view.retire();

@@ -458,6 +458,10 @@ class ThreadListView extends RetainedFace {
   }
 
   updated() {
+    // A card the list shows takes the reply being written in its thread where no view
+    // holds it (thread/replies.js, `claim`), once it stands in the document.
+    for (const view of this.#views.values())
+      view.claimReply(() => view.node.checkVisibility());
     this.#showExpanded();
     const restore = this.#restoreFocusAfterPaint;
     this.#restoreFocusAfterPaint = null;

@@ -215,10 +215,11 @@ async function protocolHeader() {
 // resolve the rooted paths a page serves, a package's `vendor/` and `widgets/` among
 // them, and map the facade's, `/vendor/browser-runtime.js`, to `index.ts`, so a
 // module importing the facade by that path reads the framework's source types and no
-// declaration file ships in the layer; a relative path to it would reach the compiled
-// facade, whose types are blanked. `runtime-globals.d.ts` declares what the classic scripts hang on `<html>`
-// and `window`, the events the runtime dispatches with a detail, and the runtime's
-// own elements by tag. tsc checks a JavaScript file wherever an import reaches it,
+// declaration file ships in the layer. A relative path to it would reach the compiled
+// facade, whose types are blanked, so ESLint refuses one (`semanticStoreOwnershipRule`).
+// `runtime-globals.d.ts` declares what the classic scripts hang on `<html>` and
+// `window`, the events the runtime dispatches with a detail, and the runtime's own
+// elements by tag. tsc checks a JavaScript file wherever an import reaches it,
 // with the options of the program it is in, and has no per-file opt-out, so the
 // runtime program also reaches the strict program's files and the vendored
 // third-party bundles. A diagnostic there is not the runtime program's to report, and

@@ -550,6 +550,11 @@ _TEXT = {
         f"{at} is drawn over {v['resident']}, which stands in the margin it grew into"
         " — the side that holds it gives no room"
     ),
+    "off-axis": lambda at, v: (
+        f"{at} is drawn {v['drawn']}px wide where its width grants {v['granted']}px"
+        " of room, so it stands off the prose axis — a width or max-width set on it"
+        " overrides the room's"
+    ),
     "clipped-out": lambda at, v: (
         f"{at} is drawn {v['past']}px outside {v['container']}, which does not show it"
     ),

@@ -4290,17 +4290,19 @@ def test_server_start_names_the_page_layer_and_running_payload(page_dir):
         assert stopped.exit_code == 0, stopped.output
 
 
-def test_a_server_refuses_a_page_another_leaf_vendored_until_it_is_re_vendored(
-    page_dir,
-):
+def test_a_server_start_re_vendors_an_older_page_and_refuses_a_newer_one(page_dir):
     """A server speaks the contract of the Leaf that started it, and the page speaks
     the one its last `page init` copied in. Served across the two, the page breaks in
-    the browser on every read, so the start is refused before it claims the page or
-    records a service, and the refusal names the re-vendor that ends it. A server
-    already running over the page, as one an older Leaf started does, is refused the
-    same way rather than handed out as this Leaf's."""
+    the browser on every read. A page an older Leaf vendored the start re-vendors
+    first, as the plugin update that left it there calls for. One a newer Leaf
+    vendored, which this Leaf does not take back, is refused before the start claims
+    the page or records a service, and the refusal names the re-vendor that ends it.
+    A server already running over such a page is refused the same way rather than
+    handed out as this Leaf's."""
+    from leaf.event_contracts import write_refusal
+
     runner = CliRunner()
-    foreign = vendored_at_another_protocol(page_dir)
+    foreign = vendored_at_another_protocol(page_dir, newer=True)
 
     refused = runner.invoke(cli_model.cli, ["server", "start", str(page_dir)])
 
@@ -4313,11 +4315,13 @@ def test_a_server_refuses_a_page_another_leaf_vendored_until_it_is_re_vendored(
 
     reinitialized = runner.invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert reinitialized.exit_code == 0, reinitialized.output
+    vendored_at_another_protocol(page_dir)
     started = runner.invoke(cli_model.cli, ["server", "start", str(page_dir)])
     try:
         assert started.exit_code == 0, started.output
         assert server_model.running_server(page_dir)
-        foreign = vendored_at_another_protocol(page_dir)
+        assert write_refusal(page_dir) is None
+        foreign = vendored_at_another_protocol(page_dir, newer=True)
         reused = runner.invoke(cli_model.cli, ["server", "start", str(page_dir)])
         assert reused.exit_code != 0, reused.output
         assert f"page protocol {foreign}" in reused.output

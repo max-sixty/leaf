@@ -7147,6 +7147,57 @@ def test_a_packages_rules_reach_only_inside_its_widgets(browser, serve, tmp_path
     assert faces["shelf"][1] == "3px", faces
 
 
+def test_a_theme_package_styles_every_page_as_the_pages_own_sheet_does_one(
+    browser, serve, tmp_path
+):
+    """A package that declares no widgets is a theme: its rules outrank the Layouts and
+    every widget package's defaults (layer.py, `lf-theme`), so its `main` padding beats
+    the column Layout's and its plain `lf-card` rule beats the board's own
+    `:scope:is(lf-card)`. Like the page's own rules, its bare `button` dresses the
+    page's buttons and leaves the controls the board builds alone, and a rule naming
+    the board reaches them (runtime/page-sheets.js)."""
+    theme = tmp_path / "theme"
+    theme.mkdir()
+    (theme / "theme.css").write_text(
+        "main { padding-top: 11px; }\n"
+        "lf-card { padding-left: 13px; }\n"
+        "button { font-family: cursive; }\n"
+        "lf-board button { outline: 3px solid rgb(0, 128, 0); }\n"
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "t",
+                '<h1>t</h1><p><button id="own" type="button">Own</button></p>'
+                '<lf-board id="b"><lf-column id="c1" label="To do">'
+                '<lf-card id="k1">One</lf-card></lf-column></lf-board>',
+            ),
+            packages=("./theme",),
+        ),
+    )
+    faces = page.evaluate("""() => {
+        const cs = el => getComputedStyle(el);
+        return {
+            main: cs(document.querySelector('main')).paddingTop,
+            card: cs(document.getElementById('k1')).paddingLeft,
+            own: cs(document.getElementById('own')).fontFamily,
+            controls: [...document.querySelectorAll('lf-board button.lf-ui')].map(
+                el => [cs(el).fontFamily, cs(el).outlineColor]),
+            chrome: [...document.querySelectorAll('.lf-chrome button')].map(
+                el => cs(el).fontFamily),
+        };
+    }""")
+    assert faces["main"] == "11px", faces
+    assert faces["card"] == "13px", faces
+    assert faces["own"] == "cursive", faces
+    assert faces["controls"], "the board built no control to read"
+    assert faces["chrome"], "the chrome built no button to read"
+    assert not [f for f, _ in faces["controls"] if "cursive" in f], faces
+    assert not [f for f in faces["chrome"] if "cursive" in f], faces
+    assert {color for _, color in faces["controls"]} == {"rgb(0, 128, 0)"}, faces
+
+
 def _shadow_tree_widget(tag):
     """A declaration and module for a widget that renders one word into a declared
     shadow tree."""
@@ -7206,6 +7257,33 @@ def test_a_packages_shadow_rules_reach_only_trees_its_widgets_host(
             .color]))""")
     assert colors["own"] == "rgb(0, 128, 0)", colors
     assert colors["other"] != "rgb(0, 128, 0)", colors
+
+
+def test_a_theme_packages_shadow_rules_outrank_the_widget_packages_own(
+    browser, serve, tmp_path
+):
+    """A theme package's `shadow.css` reaches every declared shadow tree from the
+    `lf-theme` tier, above the shadow rules of the package that owns the widget: its
+    bare `span` beats the owner's more specific rule for the same span."""
+    own, own_module = _shadow_tree_widget("lf-own-tree")
+    project = tmp_path / ".leaf"
+    project.mkdir()
+    (project / "shadow.css").write_text(":scope span { color: rgb(255, 0, 0); }\n")
+    theme = tmp_path / "theme"
+    theme.mkdir()
+    (theme / "shadow.css").write_text("span { color: rgb(0, 128, 0); }\n")
+    url = serve(
+        leaf_page("t", '<h1>t</h1><lf-own-tree id="own"></lf-own-tree>'),
+        packages=("./theme",),
+        layer_registry={"lf-own-tree": own},
+        layer_widgets={"lf-own-tree.js": own_module},
+    )
+    page = open_page(browser, url)
+    color = page.evaluate(
+        """() => getComputedStyle(document.getElementById('own').shadowRoot
+            .querySelector('span')).color"""
+    )
+    assert color == "rgb(0, 128, 0)", color
 
 
 def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
@@ -11285,10 +11363,12 @@ def test_a_zoomed_floating_draft_and_sent_comment_fit_a_narrow_window(
     assert text.evaluate("el => el.scrollHeight <= el.clientHeight + 1")
 
 
-def test_a_rewrite_of_a_comment_just_sent_stands_where_its_words_did(browser, serve):
+def test_a_rewrite_of_a_comment_just_sent_is_the_reply_box(browser, serve):
     """The card holding a comment just sent keeps its words in the room the draft had,
-    clear of Send (`data-lf-comment-frame`); a rewrite opened there stands in that same
-    room, so the message keeps its place and its words their lines."""
+    clear of Send (`data-lf-comment-frame`). A rewrite opened there kept that narrow
+    room too, a box shorter and narrower than the reply box under it; it is now the
+    reply box's own field, its words at their inset, its ring whole inside the
+    transcript that scrolls it."""
     touch = False
     context = browser.new_context(has_touch=touch, is_mobile=touch)
     page = open_page(browser, serve(LONG_PAGE), context=context)
@@ -11312,19 +11392,33 @@ def test_a_rewrite_of_a_comment_just_sent_stands_where_its_words_did(browser, se
     words = message.locator(".lf-msg-text")
     rendered(page)
     before = message.bounding_box(), words.bounding_box()
+    first_line = words.evaluate(FIRST_LINE)
     message.locator(".lf-msg-edit").click()
     editor = message.locator(".lf-msg-editor")
     expect(editor.locator("leaf-text")).to_be_focused()
     rendered(page)
-    assert message.bounding_box() == before[0]
-    box = editor.bounding_box()
-    assert (box["x"], box["y"], box["height"]) == (
-        before[1]["x"],
-        before[1]["y"],
-        before[1]["height"],
-    ), (box, before[1])
-    # The rewrite's frame and focus ring reach past its box, so nothing clips it.
-    assert editor.evaluate("el => getComputedStyle(el).overflow") == "visible"
+    assert message.bounding_box()["y"] == before[0]["y"]
+    field = editor.locator(".lf-compose-field")
+    reply = card.locator(".lf-thread-reply .lf-compose-field")
+    box, reply_box = field.bounding_box(), reply.bounding_box()
+    for side in ("x", "width"):
+        assert abs(box[side] - reply_box[side]) < 0.5, (side, box, reply_box)
+    # Its words take the reply box's padding, over the lines the comment wrapped to.
+    frame = """el => {
+      const field = getComputedStyle(el), text = getComputedStyle(el.querySelector(":scope > leaf-text"));
+      return [field.borderTopWidth, text.paddingTop, text.paddingBottom, text.paddingLeft];
+    }"""
+    assert field.evaluate(frame) == reply.evaluate(frame)
+    assert (
+        abs(editor.locator("leaf-text").evaluate(FIRST_LINE)[0] - first_line[0]) < 0.5
+    )
+    # The transcript scrolls, so it would clip a ring drawn outside the field.
+    assert field.evaluate(
+        """el => {
+          const style = getComputedStyle(el);
+          return parseFloat(style.outlineOffset) <= -parseFloat(style.outlineWidth);
+        }"""
+    )
 
 
 def test_a_scaled_floating_draft_keeps_its_room_when_its_passage_scrolls_away(
@@ -11662,12 +11756,15 @@ FIRST_LINE = """n => {
 
 
 @pytest.mark.parametrize("surface", ["panel", "seat", "card", "feed"])
-def test_a_rewrite_opens_and_closes_without_moving_the_thread(browser, serve, surface):
+def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surface):
     """Opening a rewrite with ↑ swapped the message for a bordered box with Cancel on a
     row of its own, pushing every turn and the reply box below it down 55px, and Escape
     left that room behind and the user standing on the thread rather than in the box
-    they pressed ↑ from. The box now surrounds the words where they stood, Cancel and
-    Save take the message's head, and every way out steps back up to the reply box.
+    they pressed ↑ from. A later box painted around the words, with no padding of its
+    own, moved nothing but read as a thinner, narrower field than the reply box beside
+    it. The rewrite is now the reply box's own field, at its width and height, with the
+    words at their inset under the message's head; Cancel and Save take that head, and
+    every way out steps back up to the reply box, leaving the thread as it was.
 
     In the margin card each keystroke in the rewrite also threw, from the reply box's
     growth-following reading a reply row the rewrite has none of; the browser fixture
@@ -11696,11 +11793,18 @@ def test_a_rewrite_opens_and_closes_without_moving_the_thread(browser, serve, su
     editor = message.locator(".lf-msg-editor leaf-text")
     expect(editor).to_be_focused()
     rendered(page)
-    unmoved()
-    # The words stand where they stood.
-    editing_line = editor.evaluate(FIRST_LINE)
-    assert abs(editing_line[0] - first_line[0]) < 0.5, (editing_line, first_line)
-    assert abs(editing_line[1] - first_line[1]) < 0.5, (editing_line, first_line)
+    # The message keeps its head's place, and its words their inset, in a box the
+    # reply box's size.
+    assert abs(message.bounding_box()["y"] - rest["message"]["y"]) < 0.5
+    field = message.locator(".lf-msg-editor > .lf-compose-field").bounding_box()
+    reply_field = thread.locator(".lf-thread-reply .lf-compose-field").bounding_box()
+    for side in ("x", "width", "height"):
+        assert abs(field[side] - reply_field[side]) < 0.5, (side, field, reply_field)
+    # Feed mode draws its messages at the reply box's edge, not inset in a transcript,
+    # so there the words take the reply box's inset instead.
+    if surface != "feed":
+        editing_line = editor.evaluate(FIRST_LINE)
+        assert abs(editing_line[0] - first_line[0]) < 0.5, (editing_line, first_line)
     head = message.locator(".lf-msg-head").bounding_box()
     for name in ("Cancel", "Save"):
         box = message.get_by_role("button", name=name, exact=True).bounding_box()
@@ -12442,12 +12546,18 @@ def test_saving_one_of_two_open_rewrites_leaves_no_gap(browser, serve):
     page.keyboard.press("ControlOrMeta+a")
     page.keyboard.type("Short.")
     rendered(page)
-    typed = reply.bounding_box()["y"]
+    typed = reply.bounding_box()["y"], latest.bounding_box()["height"]
     page.keyboard.press("Enter")
     expect(latest.locator(".lf-msg-text")).to_have_text("Short.")
     round_trip(page)
     rendered(page)
-    assert abs(reply.bounding_box()["y"] - typed) < 0.5, (typed, reply.bounding_box())
+    # The reply box moves by what the message gave back as its box closed, and no more.
+    given_back = latest.bounding_box()["height"] - typed[1]
+    assert abs(reply.bounding_box()["y"] - (typed[0] + given_back)) < 0.5, (
+        typed,
+        given_back,
+        reply.bounding_box(),
+    )
     expect(earlier.locator(".lf-msg-editor leaf-text")).to_have_js_property(
         "value", "Fit the north bracket. And the east."
     )

@@ -54,12 +54,15 @@ import { landingBand } from "../geometry.js";
 import { retainUserIntent } from "../user-intent.js";
 import { discussed, threadKey } from "./model.js";
 import { ago } from "../presence.js";
-import { readApplication, whenWidgetsPresented } from "../semantic-state.js";
+import { readPart, whenWidgetsPresented } from "../semantic-state.js";
+import { threadState } from "./state.js";
 import { reachScrollers } from "../reach.js";
 import { hasFolding } from "./folding.js";
 import { inPageOrder, inRecentOrder, pageOutline, threadSection } from "./placement.js";
 import { threadSearchReading } from "./narrowing.js";
 import { threadReading } from "./thread-card.js";
+
+const readDescriptors = readPart((root) => root.document.descriptors);
 
 // A folding card is renamed out of the list's cards in the frame its thread settles.
 export function createThreadListController({ panel, threadsBox, narrowingView }) {
@@ -225,7 +228,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
         }),
       );
     }
-    for (const e of readApplication().effective.thread.approvalHistory) {
+    for (const e of threadState().approvalHistory) {
       rows.push(
         Object.freeze({
           kind: "system",
@@ -322,7 +325,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
   }
 
   async function prepareFrozenWidgets(current) {
-    const widgets = [...readApplication().document.descriptors.values()]
+    const widgets = [...readDescriptors().values()]
       .filter(
         (descriptor) =>
           descriptor.document.kind === "thread" &&

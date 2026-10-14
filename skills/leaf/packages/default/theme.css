@@ -2567,7 +2567,7 @@
 :scope:is(lf-sample) {
   display: table;
   table-layout: fixed;
-  width: var(--lf-breakout-width);
+  width: 100%;
   box-sizing: border-box;
   margin: 18px 0;
   padding-left: var(--sp-4);

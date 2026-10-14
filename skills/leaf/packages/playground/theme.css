@@ -17,9 +17,9 @@
   grid-template-columns: minmax(0, 1fr);
   gap: var(--sp-4);
   box-sizing: border-box;
-  /* A grid box keeps the width it states, so it states the room's
-   * (`--lf-breakout-width`, layouts.css), which a granted `data-width` widens. */
-  width: var(--lf-breakout-width);
+  /* A grid box keeps the width it states, so it fills its holder, and a granted
+   * `data-width` widens it (layouts.css). */
+  width: 100%;
   margin: var(--sp-4) 0;
   container-type: inline-size;
 }

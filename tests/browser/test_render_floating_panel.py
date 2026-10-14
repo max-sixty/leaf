@@ -1354,6 +1354,25 @@ def test_the_leaf_s_menu_is_one_tab_stop_its_keys_walk(browser, serve):
         expect(threads).to_have_count(0)
 
 
+def test_the_leaf_s_menu_says_the_agent_s_state_once(browser, serve):
+    """The menu's head says the agent's state in a word, over its one line, and under
+    that only what the banner's disclosure adds to the line: while the agent works, the
+    disclosure's sentence restates the line, so what waits on the user is all it adds."""
+    url = serve(ASK_PAGE)
+    working(serve.page_dir, "Drafting the rollout")
+    page = floating(browser, url)
+    line = re.compile(r"^Claude working\b.* — Drafting the rollout")
+    expect(field(page)).to_have_attribute("placeholder", line)
+    expect(page.locator(".lf-fp-on-user")).to_contain_text("2")
+    page.locator(".lf-fp-leaf").click()
+    head = page.locator(".lf-fp-state")
+    expect(head.locator("b")).to_have_text("Working")
+    expect(head.locator("span").first).to_have_text(line)
+    expect(head.locator(".lf-fp-explain")).to_have_text(
+        re.compile(r"^Waiting on me: 2 asks\. Waiting on Claude: 1 to-do")
+    )
+
+
 def test_each_view_s_list_is_one_tab_stop_its_keys_walk(browser, serve):
     """Threads and On are walked as the leaf's menu is: one stop for Tab, which the
     arrows, Home and End move, and from the view a pointer opened, ↓ enters its first

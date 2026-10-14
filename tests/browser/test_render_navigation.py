@@ -9326,7 +9326,9 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     # glance. The reference below is the surface that names it, and this is the pair of
     # counts that tells a row the line declined to paint from a row that says nothing.
     expect(
-        line.locator('.lf-shortcut:not([data-lf-off-line])[data-lf-command-ids~="page.down"]')
+        line.locator(
+            '.lf-shortcut:not([data-lf-off-line])[data-lf-command-ids~="page.down"]'
+        )
     ).to_have_count(0)
     resized(page, 420, 800)
     compact = line.evaluate(

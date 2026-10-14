@@ -95,6 +95,9 @@ from render_harness import (
     write,
 )
 
+from browser.test_render_floating_panel import field as floating_field
+from browser.test_render_floating_panel import floating
+
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
@@ -3077,6 +3080,44 @@ def paste_image(field, pixels, *, count=1):
             {"encoded": base64.b64encode(pixels).decode(), "count": count},
         )
     expect(field).not_to_have_attribute("aria-busy", "true")
+
+
+@pytest.mark.parametrize("chrome", ["card", "floating"])
+def test_a_draft_s_image_closes_back_to_the_draft(browser, serve, chrome):
+    """Opening a draft's attached image and closing it, by Escape, the close control or
+    a press outside, returns the user to the draft with its words and picture. The page
+    comment card is an auto popover, which modal entry dismisses unless the modal stands
+    in it; the floating panel puts a thread's view away on a press it reads as outside
+    it, and with it the reply being written."""
+    url = serve(LONG_PAGE)
+    if chrome == "card":
+        page = open_page(browser, url)
+        page.keyboard.press("c")
+        box = page.locator(".lf-page-comment-card leaf-text")
+    else:
+        panel_comment(serve.page_dir, "Can you show me the fault?")
+        page = floating(browser, url)
+        page.locator("body").focus()
+        page.keyboard.press("t")
+        expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()
+        box = floating_field(page)
+    write(box, "See the fault")
+    paste_image(box, (example_media() / "051bee487bfb5d13.png").read_bytes())
+    thumbnail = page.get_by_role("button", name="View attached image 1", exact=True)
+    viewer = page.get_by_role("dialog", name="Image preview")
+
+    for dismiss in (
+        lambda: page.keyboard.press("Escape"),
+        lambda: viewer.get_by_role("button", name="Close image preview").click(),
+        lambda: page.mouse.click(8, 400),
+    ):
+        thumbnail.click()
+        expect(viewer).to_be_visible()
+        dismiss()
+        expect(viewer).to_be_hidden()
+        expect(thumbnail).to_be_focused()
+        expect(box).to_be_visible()
+        expect(box).to_have_js_property("value", "See the fault")
 
 
 def test_original_image_link_has_a_standalone_target(browser, serve):

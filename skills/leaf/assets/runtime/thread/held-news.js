@@ -414,7 +414,9 @@ const newsLabel = ({
  *  reopen control (`lf-reopen`), so the thread's Enter and `r` keep their meaning and
  *  press it to show the thread reopened. A `header` notice stands in a resolved panel
  *  card's title as a node of its own, since the notice in the card's rows may have
- *  stood elsewhere a moment before. */
+ *  stood elsewhere a moment before. The words have a span of their own, so a card that
+ *  holds the notice's room (`data-lf-room`, controls.css) cuts later, longer news at
+ *  that width; the title and the accessible name keep it whole. */
 export function newsNotice(header = false) {
   const node = offer(
     "button",
@@ -422,6 +424,8 @@ export function newsNotice(header = false) {
       ? "lf-thread-notice lf-thread-notice-news lf-thread-header-action lf-thread-news"
       : "lf-thread-notice lf-thread-notice-news lf-thread-news",
   );
+  const words = document.createElement("span");
+  node.append(words);
   let open = () => null;
   const show = () => {
     const standing = focused() === node;
@@ -441,7 +445,7 @@ export function newsNotice(header = false) {
   return {
     node,
     set(news) {
-      keepsText(node, news.label);
+      keepsText(words, news.label);
       keeps(node, "title", news.label);
       node.classList.toggle("lf-reopen", news.reopened);
       open = news.open;

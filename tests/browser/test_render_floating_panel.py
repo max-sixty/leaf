@@ -610,9 +610,9 @@ def test_threads_is_as_tall_as_the_threads_it_first_shows(browser, serve):
 
 def test_about_s_rows_that_copy_say_what_they_copy(browser, serve):
     """A row of About whose press copies, such as the Leaf version's diagnostics, shows
-    the text it copies beside Leaf's copy control, as the share link does, and names it.
-    The control is the one a code block wears, an icon named for what it copies, and a
-    press copies the text and says so."""
+    the text it copies beside Leaf's copy control, and names it. The control is the one
+    a code block wears, an icon named for what it copies, and a press copies the text
+    and says so."""
     page = floating(browser, serve(LONG_PAGE))
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
     page.locator(".lf-fp-leaf").click()
@@ -627,6 +627,46 @@ def test_about_s_rows_that_copy_say_what_they_copy(browser, serve):
         "placeholder", re.compile("^Leaf version copied")
     )
     assert page.evaluate("navigator.clipboard.readText()") == text.input_value()
+
+
+def test_copy_link_is_one_press_in_the_leaf_s_menu(browser, serve):
+    """The page's link is copied from a row of the leaf's menu itself, in one press that
+    puts the menu away and says in the field that the link was copied; its hover name
+    says what the link grants. About keeps the Leaf version and no longer the link."""
+    page = floating(browser, serve(LONG_PAGE))
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    page.locator(".lf-fp-leaf").click()
+    row = page.locator(".lf-fp-menu").get_by_role("menuitem", name="Copy link")
+    expect(row).to_have_attribute("title", re.compile("^Grants access"))
+    row.click()
+    expect(page.locator(".lf-fp-menu")).to_be_hidden()
+    expect(field(page)).to_have_attribute("placeholder", re.compile("^Link copied"))
+    assert re.match(
+        r"^http://.*[?&]t=", page.evaluate("navigator.clipboard.readText()")
+    )
+
+    page.locator(".lf-fp-leaf").click()
+    page.locator(".lf-fp-menu .lf-fp-item", has_text="About this page").click()
+    about = page.locator(".lf-fp-view[data-view=group]")
+    expect(about.locator(".lf-fp-copy", has_text="Leaf version")).to_be_visible()
+    expect(about.get_by_label("Link", exact=True)).to_have_count(0)
+
+
+def test_a_refused_copy_leaves_the_link_to_select_in_about(browser, serve):
+    """A clipboard that refuses the write leaves the user the link all the same: the
+    press opens About on the link, in a field they can select, and the field says the
+    link was not copied."""
+    refuses = (
+        "Clipboard.prototype.writeText = () => Promise.reject(new Error('refused'));"
+    )
+    page = open_page(browser, serve(LONG_PAGE), init_script=f"{FLOATING}\n{refuses}")
+    page.locator(".lf-fp-leaf").click()
+    page.locator(".lf-fp-menu").get_by_role("menuitem", name="Copy link").click()
+    about = page.locator(".lf-fp-view[data-view=group]")
+    link = about.get_by_label("Link", exact=True)
+    expect(link).to_have_value(re.compile(r"^http://.*[?&]t="))
+    expect(page.locator(".lf-fp-head")).to_contain_text("About this page")
+    expect(field(page)).to_have_attribute("placeholder", re.compile("^Link not copied"))
 
 
 def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
@@ -926,7 +966,7 @@ def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, 
     """At rest the empty field says what the agent is doing, in the banner's words and
     dimmer than anything written there, and while the work runs it carries the one sheen
     that marks work under way, standing still under reduced motion and once the work
-    ends. Clicking in gives the placeholder to where the words go and opens the line
+    ends, and never hiding the words under forced colours. Clicking in gives the placeholder to where the words go and opens the line
     above with the keys that send; once words hide the placeholder, that line says where
     they go. It never names who reads them, since every word here goes to the one agent.
     """
@@ -947,7 +987,7 @@ def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, 
     def sheen(running):
         page.wait_for_function(
             """running => (getComputedStyle(document.querySelector(
-              '.lf-fp-field .lf-compose-placeholder > span')).color
+              '.lf-fp-field .lf-compose-placeholder > span')).webkitTextFillColor
               === 'rgba(0, 0, 0, 0)') === running""",
             arg=running,
         )
@@ -963,6 +1003,12 @@ def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, 
     alpha = float(re.search(r"/\s*([\d.]+)\)$", words.evaluate(ink)).group(1))
     assert alpha < 0.5, f"the resting status reads at {alpha:.0%} of ink"
     page.emulate_media(reduced_motion="no-preference")
+    sheen(True)
+    # Forced colours drop the gradient but keep the animation, so the words keep
+    # their fill rather than vanishing.
+    page.emulate_media(forced_colors="active")
+    sheen(False)
+    page.emulate_media(forced_colors="none")
     sheen(True)
 
     field(page).click()
@@ -1248,6 +1294,48 @@ def test_versions_travel_and_approval_open_in_the_panel(browser, serve):
     number = re.search(r"v\d+", other.inner_text()).group(0)
     other.click()
     expect(page).to_have_url(re.compile(rf"/versions/{number}\b"))
+
+
+def test_an_older_version_says_so_in_the_row_and_one_press_opens_the_latest(
+    browser, serve
+):
+    """While the page shows a version older than the latest, the row says which beside
+    the marks, which keep their seats, since the field gives up the room; its one press,
+    which the keyboard reaches in the row's order, opens the latest, and the notice goes
+    with it: in place on a tab the agent has since revised, and from a version the user
+    travelled back to."""
+    url = serve(LONG_PAGE)
+    page = floating(browser, url)
+    notice = page.locator(".lf-fp-row-notice")
+    marks = page.locator(".lf-fp-quick")
+    settled(page)
+    seats = marks.bounding_box()
+    expect(notice).to_be_hidden()
+
+    # The agent revises the page under the open tab, which keeps what it shows.
+    stamp_page(
+        serve.page_dir, LONG_PAGE.replace("Paragraph 0.", "Paragraph zero."), "two"
+    )
+    told(page)
+    expect(notice).to_have_text(re.compile(r"^\s*v1 of 2\s*·\s*Latest\s*$"))
+    settled(page)
+    assert marks.bounding_box() == seats
+    notice.locator("button").click()
+    expect(page.locator("main")).to_contain_text("Paragraph zero.")
+    expect(notice).to_be_hidden()
+
+    page.locator(".lf-fp-leaf").click()
+    page.locator(".lf-fp-menu .lf-fp-item", has_text="Versions").click()
+    page.locator(".lf-fp-version:not([data-current]) .lf-fp-label").click()
+    expect(page).to_have_url(re.compile(r"/versions/v1\b"))
+    expect(notice).to_have_text(re.compile(r"^\s*v1 of 2\s*·\s*Latest\s*$"))
+    page.locator(".lf-fp-on-user").focus()
+    page.keyboard.press("Shift+Tab")
+    expect(notice.locator("button")).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(page).not_to_have_url(re.compile(r"/versions/"))
+    expect(page.locator("main")).to_contain_text("Paragraph zero.")
+    expect(notice).to_be_hidden()
 
 
 def test_the_on_me_walk_arrives_at_the_approval_in_the_panel(browser, serve):
@@ -1662,19 +1750,20 @@ def test_the_share_link_shows_where_it_can_be_selected_without_a_clipboard(
     browser, serve
 ):
     """A browser offers the clipboard only to a secure context, so a page read from
-    another machine over plain http cannot copy. About shows the share link in a field
-    the user can select, with no copy control that could only fail, and says what the
-    link grants."""
+    another machine over plain http cannot copy. The menu's Copy link gives way to the
+    link in About, in a field the user can select, with no copy control that could only
+    fail, saying what the link grants."""
     no_clipboard = "Object.defineProperty(Navigator.prototype, 'clipboard', {get: () => undefined});"
     page = open_page(
         browser, serve(LONG_PAGE), init_script=f"{FLOATING}\n{no_clipboard}"
     )
     page.locator(".lf-fp-leaf").click()
+    expect(page.locator(".lf-fp-menu")).not_to_contain_text("Copy link")
     page.locator(".lf-fp-menu .lf-fp-item", has_text="About this page").click()
-    share = page.locator(".lf-fp-copy", has_text="Share link")
+    share = page.locator(".lf-fp-copy", has_text="Link")
     link = share.locator(".lf-fp-copy-text")
     expect(link).to_have_value(re.compile(r"^http://.*[?&]t="))
-    expect(link).to_have_accessible_name("Share link")
+    expect(link).to_have_accessible_name("Link")
     expect(share.get_by_role("button", name=re.compile("Copy"))).to_have_count(0)
     expect(share).to_contain_text("Grants access")
     link.focus()

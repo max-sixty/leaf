@@ -78,6 +78,14 @@ told. A check that fires mostly on pages that already work, because delivery or 
 page's own CSS handles what it looks for, costs more than it catches. Prefer widening a
 general reading to adding a narrow one beside it.
 
+The same bar holds for a note a command prints about what the agent should do next.
+Before adding a check or a note, weigh two rates: its precision, the share of its
+firings that land where one was needed, and its recall, the share of the failure's
+occurrences it reaches. Attempt to measure them on real pages and sessions, not on the
+failure that prompted it, and where the data isn't there, estimate them and say so. Low precision spams the agent. Low recall hides the wider
+problem: the cases its predicate sees get fixed, and the failure goes on everywhere
+else, now looking handled.
+
 ## Be a helpful linter, not a nanny nor a complicated partial checker
 
 Root `AGENTS.md`, "Leaf's role", says what a check is worth. A nanny refuses or

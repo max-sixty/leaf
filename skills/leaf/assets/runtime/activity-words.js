@@ -84,7 +84,7 @@ const publicationWords = (published) => [
 // The updates an open turn picked up, by kind: a comment in a thread, or an answer to an
 // ask. A lone update is the user's own; several are counted.
 function pickedUpWords({ comments, answers }) {
-  if (comments + answers === 1) return comments ? "my comment" : "my answer";
+  if (comments + answers === 1) return comments ? "the comment" : "the answer";
   const counted = (count, noun) => `${count} ${noun}${count === 1 ? "" : "s"}`;
   return [
     comments && counted(comments, "comment"),
@@ -235,11 +235,11 @@ export function pageStatus(state, { keyRefused = false } = {}) {
 }
 
 // The page's two queues (`served_state.queues`) are told apart in the banner by where
-// they stand. What waits on the user, which `q` walks, is the Questions door beside
+// they stand. What waits on the user, which `m` walks, is the On me door beside
 // Threads (queue-panel.js paints its count), and on a phone's one row it waits in More.
-// What waits on the agent, its Tasks, stands beside the status, apart from the sentence,
+// What waits on the agent, On <agent>, stands beside the status, apart from the sentence,
 // as the banner's whole account of the agent's side, with the disclosure naming both
-// sides' kinds and each open to-do's title. The Tasks count is a page fact, like the
+// sides' kinds and each open to-do's title. The agent's count is a page fact, like the
 // Threads count, and stands apart from the sentence so the agent's words changing never
 // carries it. On one row it ends the status's room, which gives up its words to the
 // ellipsis first; where the banner takes two rows, the sentence has the first to itself
@@ -269,24 +269,25 @@ function queueKinds(items) {
       : words;
   });
 }
-function queueWords({ questions, tasks }, agent) {
+function queueWords({ on_user: onUser, on_agent: onAgent }, agent) {
+  // The count stands in the banner's row, whose room theme.css states before the name is
+  // known, so a long name is cut there; the explanation keeps it whole.
+  const short = agent.length > 12 ? `${agent.slice(0, 11)}…` : agent;
   const named = (items, whom) =>
     items.length ? `Waiting on ${whom}: ${queueKinds(items).join(", ")}.` : "";
   return {
-    summary: tasks.length ? `Tasks: ${tasks.length}` : "",
-    explanation: [named(questions, "me"), named(tasks, agent)]
-      .filter(Boolean)
-      .join(" "),
+    summary: onAgent.length ? `On ${short}: ${onAgent.length}` : "",
+    explanation: [named(onUser, "me"), named(onAgent, agent)].filter(Boolean).join(" "),
     // The widest the count usually reaches, under ten, which its box keeps; more
     // widens it once (banner-status-view.js).
-    widest: "Tasks: 9",
+    widest: `On ${short}: 9`,
   };
 }
 const WITHOUT_QUEUES = new Set(["broken", "unreachable", "publication"]);
 
 // What the banner shows for a status (`pageStatus`, or a reading of startup's own),
 // beside the page's `queues` (`readQueues`) and the `agent` they wait on: the dot's
-// `tone`, the row's `summary` and Tasks count, the disclosure's `explanation`, and a
+// `tone`, the row's `summary` and the agent's count, the disclosure's `explanation`, and a
 // publication's introduction and links, which remain an ordinary reading row rather
 // than children of the status disclosure button.
 export function statusModel(status, queues, agent) {

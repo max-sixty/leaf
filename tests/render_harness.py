@@ -844,8 +844,8 @@ def admit_before_presenting_comment(page, page_dir, text):
     )
     page.wait_for_function(
         """async id => {
-          const {threadList} = await window.__lfRuntimeImport('/runtime/thread/state.js');
-          return threadList().some(thread => thread.id === id);
+          const {readThreads} = await window.__lfWidgetApi();
+          return readThreads().threads.some(thread => thread.id === id);
         }""",
         arg=admitted["id"],
     )
@@ -1201,7 +1201,7 @@ def draft_key(page, ctx: str) -> str:
     """The `localStorage` key the page's own draft store keeps the draft at `ctx`
     under, page scope included (`whereDraft`, runtime/drafts.js)."""
     return page.evaluate(
-        """async ctx => (await window.__lfRuntimeImport('/runtime/drafts.js'))
+        """async ctx => (await window.__lfCheckApi())
           .whereDraft(ctx).key""",
         ctx,
     )
@@ -1210,7 +1210,7 @@ def draft_key(page, ctx: str) -> str:
 def stored_draft(page):
     """The page's own reader of stored drafts (`storedDraft`, runtime/drafts.js)."""
     return page.evaluate_handle(
-        """async () => (await window.__lfRuntimeImport('/runtime/drafts.js'))
+        """async () => (await window.__lfCheckApi())
           .storedDraft"""
     )
 
@@ -1443,12 +1443,20 @@ def watched(page, *, java_script_enabled=True):
     )
     if _TEST is None or watches_shifts(_TEST):
         page.add_init_script(script=shift_watch_source(shift_ledger(_TEST)))
-    # Diagnostics join the document's captured module graph, not the mutable layer.
+    # Diagnostics join the captured graph through its compiled public entries. Tests
+    # cannot name a private source path or load a second runtime from the mutable layer.
     page.add_init_script(
-        script="""window.__lfRuntimeImport = path => {
-          const entry = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
-          return import(new URL(path.replace(/^\\//, ''), new URL(entry, location.href)).href);
-        };"""
+        script="""(() => {
+          const entry = path => {
+            const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
+            return import(new URL(path, new URL(boot, location.href)).href);
+          };
+          window.__lfWidgetApi = () => entry('runtime/widget-api.js');
+          window.__lfCheckApi = () => entry('runtime/check-api.js');
+          window.__lfOverlayApi = () => entry('runtime/annotation-overlay/check-api.js');
+          window.__lfClientApi = () => entry('runtime/layer-client.js');
+          window.__lfVendorImport = name => entry(`vendor/${name}`);
+        })();"""
     )
     return errors
 
@@ -1652,8 +1660,7 @@ def active_digit_bindings(page):
     rendered(page)
     digits = page.evaluate(
         """async () => {
-          const {availableCommandRoutes} = await window.__lfRuntimeImport(
-            '/runtime/keyboard/dispatch.js');
+          const {availableCommandRoutes} = await window.__lfCheckApi();
           return [...new Set([...availableCommandRoutes().values()].flatMap(
             keys => [...keys].filter(key => /^[1-9]$/.test(key))))].sort();
         }"""
@@ -1674,7 +1681,7 @@ def open_versions(page):
 def banner_control(page, selector):
     """Return a banner control, opening its fixed menu seat when needed.
 
-    Approval, Questions and Threads stand on the row; every secondary control stands in More at
+    Approval, On me and Threads stand on the row; every secondary control stands in More at
     every width, and a gesture's next step stands on the row in their place. A caller
     reaching a gesture step reads it off the row rather than through this, since opening
     More would hide a step that had wrongly been seated there. A caller may already have
@@ -1726,10 +1733,10 @@ def expect_banner_control_offered(control, *, offered=True):
 
 
 # How many of the page's active Asks are answered, as "answered/total": the publisher's
-# own Ask reading, which the Questions panel's Done list and the `q` walk select from. Before
+# own Ask reading, which the On panel's Done list and the `m` walk select from. Before
 # the page has admitted a state answer the reading is empty, which is no count at all.
 _ASKS_ANSWERED = """async () => {
-  const { readApplication } = await window.__lfRuntimeImport('/runtime/semantic-state.js');
+  const { readApplication } = await window.__lfCheckApi();
   window.__lfAsksAnswered = () => {
     const application = readApplication();
     if (application.phase !== 'ready') return null;
@@ -2129,32 +2136,23 @@ def other_leaf(live_leaf):
 
 
 def margins_laid_out(page):
-    """Run the margin layout the page has scheduled, so a geometry read follows it.
+    """Announce a layout change and wait for the margin's own placement delivery.
 
-    The margin's own geometry owner answers a width change through a ResizeObserver on
-    the body and a `requestAnimationFrame`, which is one whole rendering turn later than
-    the resize event `resized` waits for. A read taken in between is a read of the rows
-    at the width they have just left: on a page narrowed to exactly what its residents
-    need, the widest margin row was still at its roomy width and hung 24px past the
-    window — but only on the runs where the frame had not landed yet, which is why the
-    same probe condensed on one run and not the next.
-
-    The pending frame is not a fact to wait a frame for (`tests/AGENTS.md`, "Waits"), so the work is run instead of guessed at.
-    Whether the observer schedules it at all is `test_render_margin.py`'s subject, not
-    that of a test reading the layout it produces.
-
-    The module load is awaited from the driver rather than inside `page.evaluate`, which
-    takes no timeout in any binding: a preview that stalls on the way out would hold the
-    worker for the rest of the job step instead of failing in thirty seconds naming its
-    test. `SERVED_TIMEOUT_MS` is the same patience the payload's own probes carry.
-
-    The `true` is load-bearing, not the comma operator's leftover: `wait_for_function`
-    awaits a promise the predicate returns, but a falsy resolution ends the wait rather
-    than polling again, so a predicate handing back the layout's own result would return
-    at once and prove nothing."""
+    The public widget invalidation runs the normal observer/scheduler path. Its
+    native completion event proves placement occurred; no private solver is invoked.
+    """
+    page.evaluate(
+        """async () => {
+          const {layoutChanged} = await window.__lfWidgetApi();
+          window.__lfMarginLaidOut = false;
+          document.addEventListener('lf-margin-layout', () => {
+            window.__lfMarginLaidOut = true;
+          }, {once: true});
+          layoutChanged(document.body);
+        }"""
+    )
     page.wait_for_function(
-        "() => window.__lfRuntimeImport('/runtime/annotation-overlay/margin-layout.js')"
-        ".then(({layoutMarginRows}) => (layoutMarginRows(), true))",
+        "() => window.__lfMarginLaidOut",
         timeout=render_checks_model.SERVED_TIMEOUT_MS,
     )
 
@@ -2244,7 +2242,7 @@ SHELL_BOX = """(() => {
 # runtime's own let-go (focus.js, `releaseFocus`). Body holds no stop of its own, so
 # `document.body.focus()` moves nothing on a page whose root does not scroll.
 RELEASE_FOCUS = """async () =>
-  (await window.__lfRuntimeImport('/runtime/focus.js')).releaseFocus()"""
+  (await window.__lfCheckApi()).releaseFocus()"""
 
 
 def panel_settled(page, open=True):
@@ -2312,10 +2310,7 @@ def fills_the_window(page, block, fills):
 
 # An async page expression for the top of the page scroller's landing band, below the
 # banner and anything else covering its top edge: where a reading place is measured from.
-LANDING_TOP = (
-    "(await window.__lfRuntimeImport('/runtime/geometry.js'))"
-    ".landingBand(document.scrollingElement).top"
-)
+LANDING_TOP = "(await window.__lfCheckApi()).landingBand(document.scrollingElement).top"
 
 
 def resized(page, width, height):

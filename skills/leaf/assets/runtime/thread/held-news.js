@@ -10,8 +10,8 @@
 
    A seat draws its threads in the page's flow (inline.js: a widget's seat, or a widget's
    outlet such as a diff line's), so whatever the agent adds grows the page there: a turn
-   at the foot of its thread, a turn that reopens a resolved thread unfolding it, a thread
-   the agent starts at the foot of the seat. A turn of the user's that this page did not
+   at the foot of its thread, a turn that reopens a resolved thread taking it out of the
+   seat's Resolved disclosure, a thread the agent starts at the foot of the seat. A turn of the user's that this page did not
    just send, such as one from another tab, grows it the same way. Where that growth
    starts above the screen, the browser's scroll anchoring takes it into what the user
    has scrolled past; where it starts below, it moves nothing they see (geometry.js,
@@ -23,9 +23,9 @@
    - a thread's own news (its new turns, a reaction put on a reply or taken off it, a
      summary the agent folds turns into or one that goes, and its resolving or reopening,
      which draws or folds its reply box and reaction strips) in the thread's control
-     row: the head row beside Resolve while it is drawn open, Reopen's place while it is
-     drawn resolved (a page thread's foot row, a panel card's title), and a folded
-     outlet's summary;
+     row: the head row beside Resolve or Reopen, Reopen's place in a resolved panel
+     card's title, and, for its reopening alone, the summary of a seat's closed Resolved
+     disclosure folding it, where nothing else it changes shows;
    - a new thread in the control row of the thread it would follow, or, where the seat
      draws no thread, in place of its first-message row, at that row's height, unless the
      user stands in that box, which `holdBox` (reply-landing.js) keeps still instead;
@@ -67,7 +67,8 @@
    what a thread holds are the ones that take the user to it:
 
    - pressing its notice, or its margin marker where a widget holds it out of the flow;
-   - opening the thread: a folded outlet, or a panel card the list opens;
+   - opening the thread: a seat's Resolved disclosure folding it, or a panel card the
+     list opens;
    - arriving at it: coming to stand in it from outside it, by a move of theirs, a t/T
      walk, an ask, a link, Tab, whatever route took them (focus.js, `onStanding`), or by
      a press on its title, which stands for the whole thread, whether or not it already

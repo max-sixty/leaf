@@ -28,9 +28,9 @@ submitted map, and presets and Reset set it.
 A preview that needs width, such as two candidates side by side, takes the room beside
 the column: give the `lf-playground` `data-width="available"`, so it widens while the
 question and premise in its `lf-ask` keep the prose's width. On a workspace page (`<main
-class="layout-workspace density-working">`) whose body is that `lf-ask`, the stage also
-grows to the window's height. Draw candidates directly on the stage without separate
-cards.
+class="layout-workspace density-working">`) whose body is that `lf-ask`, the ask fills
+the window and the stage grows to the window's height. Draw candidates directly on the
+stage without separate cards.
 
 The preview is the surface the user operates. An A/B comparison keeps both candidates
 mounted there with the same configuration and starting content. Candidates that stand

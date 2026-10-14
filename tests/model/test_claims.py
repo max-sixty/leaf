@@ -182,6 +182,25 @@ def test_a_claim_records_where_the_session_is_working(page_dir, tmp_path, monkey
     assert presence_model.presence(page_dir, [])["session_alive"] is False
 
 
+def test_a_page_calls_its_agent_by_its_claimant_or_last_voice(page_dir, monkeypatch):
+    """The page's agent has one name, which every label naming the agent's side reads
+    (`presence.page_agent`): its claimant's, else the voice that last wrote on it, else
+    the unnamed agent's."""
+    voiced = [
+        {"seq": 1, "kind": "comment", "author": "agent", "agent": "Codex"},
+        {"seq": 2, "kind": "reply", "author": "user"},
+        {"seq": 3, "kind": "reply", "author": "agent", "agent": "Claude"},
+        {"seq": 4, "kind": "reply", "author": "agent"},
+    ]
+    assert presence_model.presence(page_dir, [])["agent"] == "Agent"
+    assert presence_model.presence(page_dir, voiced)["agent"] == "Claude"
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s1")
+    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    assert service_model.claim_page(page_dir)
+    claimant = service_model.page_claim(page_dir)["agent"]
+    assert presence_model.presence(page_dir, voiced[:1])["agent"] == claimant
+
+
 def test_reinitializing_a_deleted_page_path_drops_its_old_claim(page_dir, monkeypatch):
     """A regenerated page is not the deleted page that occupied its path."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "old-session")

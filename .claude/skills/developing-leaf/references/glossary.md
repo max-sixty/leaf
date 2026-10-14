@@ -31,11 +31,14 @@ and implementation terms retain their exact spelling when the reader needs them.
 | **Threads** | The control and panel listing conversations. A **thread** is one conversation; a **comment box** is the field where the user writes a comment or reply |
 | **Version** | A stamped page the user can revisit: **Showing v4** in the version picker, or **Showing Draft** for the live unstamped source |
 
-Visible copy speaks in the user's voice, since the page is their own space. What is
-theirs is named in the first person: **Me** as an author, **Waiting on me**, **My turn
-to answer**, **my change**, and commands such as **Edit my last message**. What Leaf
-reports to them drops the pronoun rather than saying *you* or *my*: “The draft is
-kept”, “retrying the change”, “not in the version shown”. Text addressed to the agent,
+Visible copy speaks in the user's voice, since the page is their own space. The first
+person is for labels that tell the user's side from the agent's: **Me** as an author,
+**Waiting on me**, **My turn to answer**, **my change**, and commands such as **Edit my
+last message**. Copy never narrates what the user saw, decided, or is doing (*since I
+last looked*, *what I'm standing on*): Leaf can't know it, and saying it in their voice
+is uncanny. Everything else Leaf reports drops the pronoun rather than saying *you* or
+*my*: “The draft is kept”, “retrying the change”, “not in the version shown”, “New
+messages”. Text addressed to the agent,
 such as `x-instructions` and event handling, stays in the second person, as does the
 website's prose to a visitor.
 
@@ -47,7 +50,7 @@ user's input is an update: a worker's news is a **report**, and the agent's inte
 thread message a **progress message**. Until an answer folds it, the thread draws the agent's
 current line at its foot as the **working message**: a message's head over dim words, with
 the sheen of a title being generated while the work runs. Update counts do not count revisions. Where the
-kind is known, say **answer** or **reply** rather than *response*; the Questions panel
+kind is known, say **answer** or **reply** rather than *response*; the On panel
 lists a reply the agent owes as **Reply** and a revision it owes as **Answer**. Undo
 keeps its name whatever widget verb it withdraws.
 
@@ -133,16 +136,16 @@ stylesheet decides whether their bodies scroll.
 | Term | Identity criterion |
 |---|---|
 | **Chrome** | Runtime-owned interface outside authored content, rooted at the one `.lf-chrome` container |
-| **Leaf panel** | Opt-in chrome (`?lf-chrome=floating`, `floating-panel.js`): one box floating over the window's foot whose resting row holds the leaf, coloured by the agent's state and opening the leaf's menu of the page's other controls; the comment field, which shows the agent's status and passing notices while empty; and the Questions and Threads marks. Threads, Questions, Versions and the menu's groups open as views above that row, and folding leaves the leaf alone in the window's corner. It stands for the banner and the bottom bar, drawing their controls from the toolbar's rows (`banner-toolbar.js`) |
-| **Banner** | Default chrome, which `?lf-chrome=classic` also restores after the Leaf panel was chosen (`prepaint.js`): the fixed row at the window's top: page status ending with the agent's Tasks count, the primary Approval, Comment on the page, Questions and Threads controls, and an overflow disclosure of secondary controls (`banner-toolbar.js` says where each control sits) |
+| **Leaf panel** | Opt-in chrome (`?lf-chrome=floating`, `floating-panel.js`): one box floating over the window's foot whose resting row holds the leaf, coloured by the agent's state and opening the leaf's menu of the page's other controls; the comment field, which shows the agent's status and passing notices while empty; and the On me and Threads marks. Threads, the On panel, Versions and the menu's groups open as views above that row, and folding leaves the leaf alone in the window's corner. It stands for the banner and the bottom bar, drawing their controls from the toolbar's rows (`banner-toolbar.js`) |
+| **Banner** | Default chrome, which `?lf-chrome=classic` also restores after the Leaf panel was chosen (`prepaint.js`): the fixed row at the window's top: page status ending with the agent's count (**On Claude: 2**), the primary Approval, Comment on the page, On me and Threads controls, and an overflow disclosure of secondary controls (`banner-toolbar.js` says where each control sits) |
 | **Page comment card** | The card hung from the banner's Comment on the page control, holding the page's general comment box, the one place a page thread starts (`thread/page-comment.js`) |
 | **Bottom bar** | Classic chrome's row at the window's foot, at one stated height (`--lf-bottom-bar-h`), holding the shortcut bar and the status |
 | **Auxiliary surface** | Chrome opened `beside`, `over`, or `covering` the content frame |
-| **Side panel** | The right-edge slot, with one width and one drawn edge, that the thread panel and the Questions panel take turns in; Questions and Threads are its two banner doors |
+| **Side panel** | The right-edge slot, with one width and one drawn edge, that the thread panel and the On panel take turns in; On me and Threads are its two banner doors |
 | **Thread panel** | The auxiliary surface listing threads, one of the two that take turns in the side panel |
-| **Drawer** | An auxiliary surface built as a head over a list of rows, one open at a time: the Questions panel at the right edge, in the side panel, and the Pages drawer at the left |
+| **Drawer** | An auxiliary surface built as a head over a list of rows, one open at a time: the On panel at the right edge, in the side panel, and the Pages drawer at the left |
 
-The current drawers are the **Questions panel** (experimental) and the **Pages drawer**. Use *covering auxiliary
+The current drawers are the **On panel** (experimental) and the **Pages drawer**. Use *covering auxiliary
 surface*, not *modal workspace*: a covering surface and a modal dialog are different
 web interaction primitives. A covering surface makes the page inert behind it; a surface
 over the page, such as the thread panel on a desktop window, takes no width from
@@ -191,15 +194,15 @@ the document's height.
 | **Go-to sequence** | The `g` prefix grammar that builds a current map of Go-to targets, paints transient hint codes, and resolves complete ordered addresses |
 | **Target picker** | The `s` interaction that presents addressable elements and ends when the user chooses one or closes it |
 | **Page search** | The `/` interaction that filters or walks text matches for a query |
-| **Walk** | Ordered semantic movement among one category of destination: open threads (`t`), the user's Questions (`q`), a list's rows |
-| **Questions** | The user's list, everything waiting on the user (`queues.questions`): open asks, to-dos the agent put on the user, and resends. An open ask the user has commented on leaves it until the agent replies, since the comment's answer is then on Tasks. The banner's Questions control opens the Questions panel, and the `q` walk steps through the same list; the panel's Done fold holds completed asks and to-dos |
-| **Tasks** | The agent's list, everything waiting on the agent (`queues.tasks`): answers it owes, work in hand, and its own to-dos. The banner ends with its count, and the Questions panel shows it as its Tasks section. A message the user sends counts among Tasks as an answer the agent owes before any to-do exists |
+| **Walk** | Ordered semantic movement among one category of destination: open threads (`t`), the user's On me list (`m`), a list's rows |
+| **On me** | The user's list, everything waiting on the user (`queues.on_user`), named in the user's voice: open asks, to-dos the agent put on the user, and resends. An open ask the user has commented on leaves it until the agent replies, since the comment's answer is then on the agent's list. The banner's On me control opens the On panel, and the `m` walk steps through the same list; the panel's Done fold holds completed asks and to-dos |
+| **On *agent*** | The agent's list, everything waiting on the agent (`queues.on_agent`), named for the agent, such as **On Claude**: answers it owes, work in hand, and its own to-dos. The banner ends with its count, and the On panel shows it as its second section. A message the user sends counts on it as an answer the agent owes before any to-do exists. Prose about no particular agent writes `On <agent>` |
 | **Ask** | One core record of a request for the user's input, with its typed answer and its lifecycle. A widget ask has identity `widget:<source-id>`; a prose ask, from a reply sent with `--ask`, has `reply:<agent-message-id>`; an approval ask, `approval:v<version>`, tracks a stamped version's sign-off. Widget state owns a widget ask's values, and the conversation owns a prose ask's settlement. An optional `lf-ask` frames one or more asks with prompt context without changing their identity. An ask is distinct from a to-do and from a resend |
 | **To-do** | Explicit work owed until it ends (`todo` in the protocol), by the agent or by the user. An ask is a separate record, not a to-do |
 | **Tally** | `lf-tally`: how many of the asks a region holds (`asksIn`) are still open, “7 of 8 to answer”, with an optional Next question that walks the region's asks waiting on the user |
-| **Resend** | An update the user has to send again, which stays on Questions until they do |
+| **Resend** | An update the user has to send again, which stays in On me until they do |
 | **Done** | The control with which the user ends a to-do the agent put on them; it writes `todo_end`. A widget may also name its own answer-submission control Done |
-| **Done fold** | The Questions panel's third list, below Questions and Tasks: asks answered, here or elsewhere, or withdrawn, and to-dos ended |
+| **Done fold** | The On panel's third list, below On me and On *agent*: asks answered, here or elsewhere, or withdrawn, and to-dos ended |
 | **Trip** | One travel to a destination (a thread's passage, an ask, a datum, or the element a followed fragment link names): it clears the auxiliary surface hiding the destination, then stays where the user already has it, or departs and leaves a history entry (`history.js`) |
 | **Journey** | Consecutive trips each leaving from the last one's landing, which share one history entry so Back returns to where the first began; it may mix threads and asks, and is not a walk |
 | **Standing** | Holding a destination or a control inside it: a thread on the page or in the panel, an ask, or authored page content. A panel thread's title and its messages are one destination; chrome controls, margin rows, comment notes, and contents-outline links are apparatus, not destinations |

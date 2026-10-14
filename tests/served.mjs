@@ -47,7 +47,7 @@ export function servedReading(name) {
   return structuredClone(RECORDS.readings[name]);
 }
 
-// An ask as Questions lists it, holding `ask`; `changes` set where it stands, for a
+// An ask as On me lists it, holding `ask`; `changes` set where it stands, for a
 // test whose served reading states its asks by hand.
 export const servedAskItem = (ask, changes) =>
   served("ask_item", {

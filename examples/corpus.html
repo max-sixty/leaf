@@ -1456,6 +1456,14 @@
         }
       }
 </style>
+<!-- alert-review.html authored styles -->
+<style>
+      /* Each alert is one decision read top to bottom, so it keeps the evidence width
+         rather than spreading its lines across a wide window. */
+      #ar-queue > lf-tab > * {
+        max-inline-size: var(--wide);
+      }
+</style>
 <!-- pr-walkthrough.html authored styles -->
 <style>
       @import url("/page/theme.css");
@@ -4297,7 +4305,7 @@ export const summarize = checks =>
           group="Mostly noise"
           summary="0 of 47 pages real"
         >
-          <lf-ask id="ar-canary-decision" data-width="wide">
+          <lf-ask id="ar-canary-decision">
             <h4>How should the canary probe page?</h4>
             <dl class="facts">
               <dt>Rule</dt>
@@ -4450,7 +4458,7 @@ export const summarize = checks =>
           group="Mostly noise"
           summary="0 of 18 pages real"
         >
-          <lf-ask id="ar-export-decision" data-width="wide">
+          <lf-ask id="ar-export-decision">
             <h4>What should happen during the nightly batch?</h4>
             <p>Finance reads the export at 07:00 UTC.</p>
             <dl class="facts">
@@ -4591,7 +4599,7 @@ export const summarize = checks =>
           group="Mostly noise"
           summary="1 of 3 pages real"
         >
-          <lf-ask id="ar-3ds-decision" data-width="wide">
+          <lf-ask id="ar-3ds-decision">
             <h4>Should one issuer's outage page us?</h4>
             <p>Per-issuer failure rates are already on the payments dashboard.</p>
             <dl class="facts">
@@ -7723,6 +7731,61 @@ observe --cohort staff</code></pre>
       </lf-tabs>
 </lf-tab>
 
+<lf-tab id="corpus-thread-choice-hints" label="Thread Choice Hints">
+<h1 id="heading">Heating the bird bath</h1>
+      <lf-ask id="heating-decision">
+        <h2>Which heater should we use?</h2>
+        <p>
+          The bath froze eleven mornings last winter. Both heaters would keep it usable,
+          but the cable takes more work to fit around the basin.
+        </p>
+        <table id="comparison">
+          <thead>
+            <tr>
+              <th>Requirement</th>
+              <th>Immersion heater</th>
+              <th>Heated cable</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th>Installation</th>
+              <td>Drop into the water.</td>
+              <td>Wrap around the basin.</td>
+            </tr>
+            <tr>
+              <th>Maintenance</th>
+              <td>Lift out to clean.</td>
+              <td>Leave fitted while cleaning.</td>
+            </tr>
+            <tr>
+              <th>When spring arrives</th>
+              <td>Store indoors.</td>
+              <td>Disconnect the power.</td>
+            </tr>
+          </tbody>
+        </table>
+        <lf-options id="heaters" choose>
+          <lf-option id="immersion"
+            ><strong>Fit an immersion heater</strong>
+            <p>
+              This is the simpler installation. It drops into the water and can be
+              lifted out for cleaning or stored indoors when spring arrives.
+            </p></lf-option
+          >
+          <lf-option id="cable"
+            ><strong>Wrap a heated cable around the basin</strong>
+            <p>
+              The cable can stay in place through the year. It takes more work to fit
+              but keeps the basin clear for the birds.
+            </p></lf-option
+          >
+        </lf-options>
+      </lf-ask>
+      <h2 id="next">Next question</h2>
+      <p>Continue after reading the discussion.</p>
+</lf-tab>
+
 <lf-tab id="corpus-thread-journey-inline" label="Thread Journey Inline">
 <h1 id="title">Review the changed line</h1>
       <p id="plan">Keep the shipping order visible while we discuss this change.</p>
@@ -7764,9 +7827,9 @@ observe --cohort staff</code></pre>
 <h1 id="dfg-title">Review app.py</h1>
       <p id="dfg-guide">
         Two fictional conversations sit below the same file. Reply to one while keeping
-        the other separate. Resolve a conversation with its check, then open its
-        resolved summary to reopen it. Comment on app.py starts another conversation
-        without opening the patch.
+        the other separate. Resolve a conversation with its check, then open Resolved
+        below them to reopen it. Comment on app.py starts another conversation without
+        opening the patch.
       </p>
       <script id="dfg-history" type="application/json">
         [
@@ -7817,33 +7880,33 @@ observe --cohort staff</code></pre>
           <section id="bg-core-surfaces">
             <p class="eyebrow bg-feature-elements">lf-ask · lf-options · lf-option</p>
             <h2>
-              <strong>Questions</strong
+              <strong>On me</strong
               ><span class="bg-feature-detail">: decisions and answers</span>
             </h2>
             <p id="bg-core-surfaces-guide">
               An <code>lf-ask</code> puts a heading and context around the choice below.
-              Your questions are everything waiting on you: open asks, threads whose
-              question is yours to answer (such as the gallery thread about a pasted
-              image), to-dos the agent put on you, and updates whose reply failed and
-              need sending again.
+              <strong>On me</strong> lists everything waiting on you: open asks, threads
+              whose question is yours to answer (such as the gallery thread about a
+              pasted image), to-dos the agent put on you, and updates whose reply failed
+              and need sending again.
             </p>
             <ul id="bg-core-surfaces-steps">
               <li>
-                Press <kbd>q</kbd>: the page moves to your next question in page order,
-                and <kbd>Shift+Q</kbd> walks back. Where that question is in another
+                Press <kbd>m</kbd>: the page moves to the next item on you in page
+                order, and <kbd>Shift+M</kbd> walks back. Where that item is in another
                 view, it appears at once and the view's tab name briefly highlights;
                 with reduced motion, there is no glide or highlight.
               </li>
               <li>
-                Look at the banner: the <strong>Questions</strong> control beside
-                Threads counts your questions, and the agent's Tasks count follows its
-                status.
+                Look at the banner: the <strong>On me</strong> control beside Threads
+                counts what is on you, and the agent's count, such as
+                <strong>On Claude: 1</strong>, follows its status.
               </li>
               <li>
-                Press either, or <kbd>g</kbd> then <kbd>Shift+Q</kbd>: the experimental
-                Questions panel opens where Threads opens, with both lists and with
-                answered asks and ended to-dos folded under Done. Press Enter on a row:
-                it goes where <kbd>q</kbd> would.
+                Press either, or <kbd>g</kbd> then <kbd>Shift+M</kbd>: the experimental
+                On panel opens where Threads opens, with both lists and with answered
+                asks and ended to-dos folded under Done. Press Enter on a row: it goes
+                where <kbd>m</kbd> would.
               </li>
               <li>
                 On a stamped page that asks for sign-off, find the version approval
@@ -7851,7 +7914,7 @@ observe --cohort staff</code></pre>
                 answers it, and Undo reopens it.
               </li>
               <li>
-                Comment on the map question, then press <kbd>q</kbd> until it lands
+                Comment on the map question, then press <kbd>m</kbd> until it lands
                 there: the discussion stays closed while you read and choose, even when
                 Tab enters the controls. Press <kbd>c</kbd> to reply in that discussion,
                 <kbd>t</kbd> to read it, or, under a finger, its Thread marker to open
@@ -7888,11 +7951,11 @@ observe --cohort staff</code></pre>
               </p>
               <ul>
                 <li>
-                  Open the Questions panel: the to-do waits under Questions, and its row
-                  has a Done button.
+                  Open the On panel: the to-do waits under On me, and its row has a Done
+                  button.
                 </li>
                 <li>
-                  Press <kbd>q</kbd> until it lands on the to-do, after the ask above,
+                  Press <kbd>m</kbd> until it lands on the to-do, after the ask above,
                   then press <kbd>x</kbd>, or under a finger the banner's
                   <strong>Done</strong>: the to-do moves to the panel's Done fold, and
                   the agent is told.
@@ -7964,7 +8027,7 @@ observe --cohort staff</code></pre>
             <p id="bg-core-controls-guide">
               The banner also shows <strong>Threads</strong>, the
               <strong>Versions</strong> menu, <strong>Page Map</strong> (<kbd>g</kbd>
-              then <kbd>Shift+M</kbd>), <strong>Command reference</strong> (<kbd>?</kbd>
+              then <kbd>Shift+P</kbd>), <strong>Command reference</strong> (<kbd>?</kbd>
               twice), and <strong>All pages</strong> when another Leaf page is live. A
               quiet status line at the bottom right reports the current keyboard walk or
               a useful command result. It moves above the bottom-left shortcuts when
@@ -8609,7 +8672,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 </li>
                 <li>
                   Start a conversation and mark the proofreading to-do Done: the
-                  package's lists and Leaf's Questions panel show the same outcomes.
+                  package's lists and Leaf's On panel show the same outcomes.
                 </li>
                 <li>
                   Use first-unread and question navigation: each lands in this reader.

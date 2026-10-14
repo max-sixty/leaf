@@ -848,7 +848,7 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
         for text in ("Reading the banner's styles.", "Trying a lighter weight.")
     ]
     page = open_page(browser, url)
-    # The comment's Tasks row says the line the agent last gave, as the thread will.
+    # The comment's row on the agent's list says the line the agent last gave, as the thread will.
     page.locator(".lf-queue").click()
     row = page.locator("[data-lf-queue='agent'] .lf-queue-row")
     expect(row.locator(".lf-queue-where")).to_contain_text(
@@ -1164,6 +1164,8 @@ def test_an_inline_reply_link_reveals_its_thread(browser, serve, resolved):
     page = open_page(browser, url)
     thread = page.locator(f'.lf-thread[data-id="{root}"]')
     destination = thread.locator(f'.lf-msg[data-mid="{reply["id"]}"]')
+    if resolved:
+        page.locator(".lf-resolved-summary").click()
     page.locator(".lf-page-thread-open").evaluate(
         """(open, destination) => open.addEventListener(
           'click',
@@ -1961,6 +1963,7 @@ def test_a_held_inline_reply_reveal_yields_to_new_user_focus(browser, serve):
     expect(thread).to_be_hidden()
     hold_visible_thread_presentation(page, root)
 
+    page.locator("#jobs .lf-resolved-summary").click()
     page.locator(
         f'#jobs .lf-page-thread[data-thread="{root}"] .lf-page-thread-open'
     ).click()
@@ -2005,8 +2008,12 @@ def test_inline_settlement_retains_focus_when_its_controls_are_replaced(browser,
     thread.get_by_role("button", name="Resolve thread", exact=True).focus()
     page.keyboard.press("Enter")
     round_trip(page)
+    # The resolved thread folds into the seat's Resolved disclosure, and the user with
+    # it onto the disclosure's summary, which opens to its Reopen.
+    summary = page.locator("#proposal .lf-resolved-summary")
+    expect(summary).to_be_focused()
+    page.keyboard.press("Enter")
     expect(thread.get_by_role("button", name="Reopen")).to_be_visible()
-    expect(thread).to_be_focused()
     thread.get_by_role("button", name="Reopen").click()
     round_trip(page)
     expect(destination).to_be_focused()
@@ -2017,10 +2024,14 @@ def test_inline_settlement_retains_focus_when_its_controls_are_replaced(browser,
         ("Resolve thread", "Reopen"),
         ("Reopen", "Resolve thread"),
     ):
+        if action == "Reopen":
+            summary.click()
         with page.expect_request("**/api/event"):
             thread.get_by_role("button", name=action, exact=True).click()
         expect(
-            thread.get_by_role("button", name=optimistic, exact=True)
+            thread.get_by_role(
+                "button", name=optimistic, exact=True, include_hidden=True
+            )
         ).to_have_attribute("aria-busy", "true")
         page.locator("#later").fill("Keep my later focus here.")
         held.pop().continue_()
@@ -2570,6 +2581,7 @@ def test_settlement_controls_share_one_request_across_page_and_panel(
     panel = page.locator(f'.lf-thread[data-id="{root}"]')
     with page.expect_request("**/api/event"):
         inline.get_by_role("button", name="Resolve thread", exact=True).click()
+    page.locator("#jobs .lf-resolved-summary").click()
     pending = inline.get_by_role("button", name="Reopen", exact=True)
     expect(pending).to_be_disabled()
     expect(pending).to_have_attribute("aria-busy", "true")
@@ -2638,6 +2650,7 @@ def test_a_poll_accounted_settlement_repaints_before_its_post_response(
     with page.expect_request("**/api/event"):
         inline.get_by_role("button", name="Resolve thread", exact=True).click()
     holding(page, held, 1, "the resolution whose response remains held")
+    page.locator("#jobs .lf-resolved-summary").click()
     pending = inline.get_by_role("button", name="Reopen", exact=True)
     expect(pending).to_be_disabled()
     expect(pending).to_have_attribute("aria-busy", "true")
@@ -3923,8 +3936,8 @@ def test_taking_back_a_resolve_is_the_users_own_gesture(browser, serve):
 def test_a_resolution_from_elsewhere_moves_nothing_after_a_diff_thread(browser, serve):
     """A diff line's thread resolved elsewhere stays open behind its notice.
 
-    Resolving folds an outlet to its summary, which would lift the paragraph after
-    the diff under the reader."""
+    Resolving folds the thread into its outlet's Resolved disclosure, which would lift
+    the paragraph after the diff under the reader."""
     url = serve(
         leaf_page(
             "inline diff thread",
@@ -3984,7 +3997,8 @@ def test_a_resolution_from_elsewhere_moves_nothing_after_a_diff_thread(browser, 
     assert after.bounding_box() == before
     notice.click()
     expect(thread).to_have_attribute("data-resolved", "true")
-    expect(thread).not_to_have_attribute("open", "")
+    expect(thread).to_be_hidden()
+    expect(page.locator("lf-diff .lf-resolved-summary")).to_have_text("Resolved · 1")
 
 
 def long_diff_thread(serve):
@@ -4047,7 +4061,7 @@ def test_diff_news_waits_only_where_its_growth_would_be_seen(browser, serve, foo
         return the banner's foot and the root's landing band top."""
         return node.evaluate(
             """async (node, offset) => {
-              const {bannerFoot} = await window.__lfRuntimeImport('/runtime/geometry.js');
+              const {bannerFoot} = await window.__lfCheckApi();
               scrollBy({top: node.getBoundingClientRect().bottom - bannerFoot() - offset,
                 behavior: 'instant'});
               const root = getComputedStyle(document.documentElement);
@@ -4107,7 +4121,7 @@ def test_growth_is_seen_only_below_where_scroll_anchoring_holds(browser, serve):
     readings = page.evaluate(
         """async () => {
           const {bannerFoot, growthAfterIsSeen} =
-            await window.__lfRuntimeImport('/runtime/geometry.js');
+            await window.__lfCheckApi();
           const landing = parseFloat(
             getComputedStyle(document.documentElement).scrollPaddingTop);
           const frame = () => new Promise(requestAnimationFrame);
@@ -4142,9 +4156,10 @@ def test_growth_is_seen_only_below_where_scroll_anchoring_holds(browser, serve):
 def test_an_agent_settling_a_diff_thread_above_the_screen_moves_nothing_below(
     browser, serve
 ):
-    """A diff thread folds shut when the agent resolves it and opens when it reopens
-    it. Above the screen, either change is scroll anchoring's to absorb, so the line
-    the user reads stays put, though each also changes what the thread holds."""
+    """A diff thread folds into its outlet's Resolved disclosure when the agent
+    resolves it and comes back out when it reopens it. Above the screen, either change
+    is scroll anchoring's to absorb, so the line the user reads stays put, though each
+    also changes what the outlet holds."""
     url, root = long_diff_thread(serve)
     page = open_page(browser, url)
     resized(page, 1280, 800)
@@ -4164,10 +4179,69 @@ def test_an_agent_settling_a_diff_thread_above_the_screen_moves_nothing_below(
         )
         told(page)
         rendered(page)
-        expect(thread).to_have_js_property("open", opened)
+        expect(thread).to_be_visible() if opened else expect(thread).to_be_hidden()
         # Anchoring lands the scroll on a device pixel, so the line may settle a
         # fraction of one from where it stood.
         assert read.bounding_box()["y"] == pytest.approx(before, abs=0.5), kind
+
+
+@pytest.mark.parametrize("disclosure", ["closed", "open"])
+def test_a_reopening_waits_where_the_reopened_thread_would_stand(
+    browser, serve, disclosure
+):
+    """A diff thread in its outlet's Resolved disclosure reopens ahead of the open
+    threads that came after it, not where the disclosure stands. With the disclosure
+    below the window, closed or open, and a later open thread on screen, an agent's
+    reply that reopened the earlier thread pushed the open one down under the reader.
+    It waits, and the disclosure's summary says so."""
+    url, first = long_diff_thread(serve)
+    append_carried_log_record(
+        serve.page_dir, {"kind": "resolve", "author": "user", "parent": first}
+    )
+    later = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "And keep the old name working.",
+            "anchor": {
+                "section": "patch",
+                "datum": '["app.py","new",1]',
+                "source": "review-patch",
+                "source_revision": source_revision(serve.page_dir, "review-patch"),
+            },
+        },
+    )["id"]
+    for turn in range(8):
+        append_agent_reply(
+            serve.page_dir, later, f"Step {turn}: " + "the alias stays. " * 12
+        )
+    page = open_page(browser, url)
+    resized(page, 1280, 800)
+    open_thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{later}"]')
+    summary = page.locator("lf-diff .lf-resolved-summary")
+    expect(summary).to_have_text("Resolved · 1")
+    if disclosure == "open":
+        summary.click()
+        expect(
+            page.locator(f'lf-diff .lf-page-thread[data-thread="{first}"]')
+        ).to_be_visible()
+    open_thread.evaluate(
+        "node => scrollBy({top: node.getBoundingClientRect().top - 200,"
+        " behavior: 'instant'})"
+    )
+    rendered(page)
+    assert summary.bounding_box()["y"] > 800
+    page.wait_for_function(
+        "at => performance.now() - at > 600", arg=page.evaluate("performance.now()")
+    )
+    before = open_thread.bounding_box()["y"]
+    append_agent_reply(serve.page_dir, first, "The check now covers both paths.")
+    told(page)
+    rendered(page)
+    expect(summary).to_have_text("Resolved · 1 · Reopened · 1 new reply")
+    assert open_thread.bounding_box()["y"] == pytest.approx(before, abs=0.5)
 
 
 def test_a_reaction_list_closes_once_its_trigger_is_out_of_sight(browser, serve):
@@ -4189,7 +4263,7 @@ def test_a_reaction_list_closes_once_its_trigger_is_out_of_sight(browser, serve)
     expect(strip).to_contain_class("lf-react-open")
     banner = trigger.evaluate(
         """async trigger => {
-          const {bannerFoot} = await window.__lfRuntimeImport('/runtime/geometry.js');
+          const {bannerFoot} = await window.__lfCheckApi();
           scrollBy({top: trigger.getBoundingClientRect().bottom - bannerFoot() + 4,
             behavior: 'instant'});
           return bannerFoot();
@@ -4294,8 +4368,11 @@ def test_explicit_navigation_reveals_held_panel_news(browser, serve, destination
     if destination == "message":
         page.evaluate(
             """async id => {
-              const {openThread} = await window.__lfRuntimeImport('/runtime/application.js');
-              await openThread(id, {part: 'message'});
+              const {readThreads, threadActions} = await window.__lfWidgetApi();
+              const thread = readThreads().threads.find(thread =>
+                thread.msgs.some(message => message.id === id));
+              const message = thread.msgs.find(message => message.id === id);
+              await threadActions.open(thread.key, {message: message.key});
             }""",
             reply["id"],
         )
@@ -4310,7 +4387,7 @@ def test_explicit_navigation_reveals_held_panel_news(browser, serve, destination
         expect(
             thread.get_by_role("button", name="1 new reply", exact=True)
         ).to_be_visible()
-        page.keyboard.press("q")
+        page.keyboard.press("m")
         expect(thread.locator("#held-question")).to_be_focused()
     expect(message).to_be_visible()
     expect(thread.locator(".lf-thread-news")).to_have_count(0)
@@ -4658,7 +4735,7 @@ def test_resolving_an_early_thread_keeps_the_rest_in_place(browser, serve):
 
 
 def test_a_failed_thread_list_update_keeps_one_coherent_reading(browser, serve):
-    """A failed child paint restores the retained card until the next reading paints."""
+    """A rejected list paint restores cards even after their child paint ran."""
     url = serve(LONG_PAGE, comments=2)
     roots = [
         event["id"]
@@ -4678,23 +4755,19 @@ def test_a_failed_thread_list_update_keeps_one_coherent_reading(browser, serve):
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 1")
     page.evaluate(
         """async (id) => {
-          const presentation = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js'
-          );
-          const {ThreadView} = await window.__lfRuntimeImport(
-            '/runtime/thread/thread-card.js'
-          );
+          const presentation = await window.__lfCheckApi();
           const list = document.querySelector('leaf-thread-list');
-          const presentCard = ThreadView.prototype.present;
+          const presentList = list.present.bind(list);
           let armed = true;
-          ThreadView.prototype.present = function(model) {
-            const node = presentCard.call(this, model);
-            if (armed && model.id === id && (model.folding || model.resolved)) {
+          list.present = async model => {
+            const presented = await presentList(model);
+            const child = model.rows.find(row => row.descriptor?.id === id)?.descriptor;
+            if (armed && child && (child.folding || child.resolved)) {
               armed = false;
               window.threadChildFailed = true;
-              throw new Error('injected thread-card failure');
+              throw new Error('injected thread-list failure after child paint');
             }
-            return node;
+            return presented;
           };
           window.threadListPresentation = presentation;
           window.committedThread = document.querySelector(
@@ -4750,7 +4823,7 @@ def test_a_failed_thread_list_update_keeps_one_coherent_reading(browser, serve):
     expect(page.locator(".lf-thread-view-summary")).to_have_text("1 open thread")
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 1")
     assert [said(error) for error in take_browser_errors(page)] == [
-        "leaf: Presentation failed: injected thread-card failure"
+        "leaf: Presentation failed: injected thread-list failure after child paint"
     ]
 
     holding(page, held_events, 2, "the gesture and the page's report of its failure")
@@ -4794,8 +4867,7 @@ def test_a_failed_narrowing_restore_has_one_owned_presentation_error(browser, se
     page.get_by_role("searchbox", name="Find in threads").fill("comment")
     page.wait_for_function(
         """async () => {
-          const {readApplicationPresentation} = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js');
+          const {readApplicationPresentation} = await window.__lfCheckApi();
           return readApplicationPresentation().pending.includes('thread');
         }"""
     )
@@ -4810,8 +4882,7 @@ def test_a_failed_narrowing_restore_has_one_owned_presentation_error(browser, se
     page.get_by_role("searchbox", name="Find in threads").fill("")
     page.wait_for_function(
         """async () => {
-          const {readApplicationPresentation} = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js');
+          const {readApplicationPresentation} = await window.__lfCheckApi();
           return !readApplicationPresentation().pending.includes('thread');
         }"""
     )
@@ -4857,8 +4928,7 @@ def test_a_failed_narrowing_view_restores_its_committed_list_and_keeps_the_input
     )
     page.wait_for_function(
         """async () => {
-          const {readApplicationPresentation} = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js');
+          const {readApplicationPresentation} = await window.__lfCheckApi();
           return readApplicationPresentation().pending.includes('thread');
         }"""
     )
@@ -4891,8 +4961,7 @@ def test_a_failed_narrowing_view_restores_its_committed_list_and_keeps_the_input
     find.fill("")
     page.wait_for_function(
         """async () => {
-          const {readApplicationPresentation} = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js');
+          const {readApplicationPresentation} = await window.__lfCheckApi();
           return !readApplicationPresentation().pending.includes('thread');
         }"""
     )
@@ -4936,8 +5005,7 @@ def test_a_failed_reopen_reveal_still_processes_its_durable_answer(held_events, 
     holding(page, held, 2, "the reopen and its presentation report")
     page.wait_for_function(
         """async () => {
-          const {readApplicationPresentation} = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js');
+          const {readApplicationPresentation} = await window.__lfCheckApi();
           return readApplicationPresentation().pending.includes('thread');
         }"""
     )
@@ -4959,8 +5027,7 @@ def test_a_failed_reopen_reveal_still_processes_its_durable_answer(held_events, 
     round_trip(page)
     page.wait_for_function(
         """async () => {
-          const {readApplicationPresentation} = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js');
+          const {readApplicationPresentation} = await window.__lfCheckApi();
           return !readApplicationPresentation().pending.includes('thread');
         }"""
     )
@@ -5028,7 +5095,9 @@ def test_an_approval_made_elsewhere_reaches_the_panel_and_the_banner(browser, se
 
 def test_the_thread_clock_reopens_its_same_epoch_ticket(browser, serve):
     """A system-row age is presented mechanically without advancing semantic time."""
-    url = serve(LONG_PAGE, comments=1)
+    # The approval age is mechanical. An unanswered comment would also cross its
+    # server-owned workflow deadline, correctly requesting a fresh semantic reading.
+    url = serve(LONG_PAGE)
     append_carried_log_record(
         serve.page_dir,
         {
@@ -5058,21 +5127,19 @@ def test_the_thread_clock_reopens_its_same_epoch_ticket(browser, serve):
             throw new Error('superseded thread preparation failed');
           };
           window.releaseThreadClock = release;
-          window.threadPresence = await window.__lfRuntimeImport(
-            '/runtime/presence.js'
-          );
-          window.threadPresentation = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js'
-          );
+          window.threadClockHeld = false;
+          window.threadClockStaleFailed = false;
+          const now = Date.now.bind(Date);
+          window.threadClockAdvance = 0;
+          Date.now = () => now() + threadClockAdvance;
+          window.threadPresentation = await window.__lfCheckApi();
           return threadPresentation.readApplicationPresentation();
         }"""
     )
+    page.evaluate("window.threadClockAdvance = 60_000")
+    page.wait_for_function("threadClockHeld")
     held = page.evaluate(
         """() => {
-          threadPresence.observeServerNow(
-            new Date(Date.now() + 60_000).toISOString()
-          );
-          window.threadClockTick = threadPresence.tickClock(() => {});
           window.threadClockReady = false;
           threadPresentation.whenApplicationPresented().then(() => {
             window.threadClockReady = true;
@@ -5091,24 +5158,13 @@ def test_the_thread_clock_reopens_its_same_epoch_ticket(browser, serve):
     assert held["presentedEpoch"] == before["presentedEpoch"]
     assert held["ready"] is False
 
-    page.wait_for_function("threadClockHeld")
     # A second age change while preparation is held claims another pass. Its proof
     # cannot be acknowledged by the old reading, and it need not await that package.
-    second = page.evaluate(
-        """() => {
-          threadPresence.observeServerNow(
-            new Date(Date.now() + 120_000).toISOString()
-          );
-          window.threadClockTickAgain = threadPresence.tickClock(() => {});
-          return threadPresentation.readApplicationPresentation();
-        }"""
-    )
-    assert "thread" in second["pending"]
+    page.evaluate("window.threadClockAdvance = 120_000")
     page.wait_for_function("threadClockReady")
     expect(system).to_have_text("✓ Approved 2m ago")
     page.evaluate("releaseThreadClock()")
     page.wait_for_function("threadClockStaleFailed")
-    page.evaluate("Promise.all([threadClockTick, threadClockTickAgain])")
     expect(system).to_have_text("✓ Approved 2m ago")
     assert take_browser_errors(page) == []
     after = page.evaluate("threadPresentation.readApplicationPresentation()")
@@ -5164,7 +5220,7 @@ def test_the_panel_reads_the_thread_in_the_pages_own_order(browser, serve):
         "placeholder", "Reply"
     )
     # From no place on the page the walk starts at the list's first thread; a caret a
-    # click leaves is a place, as it is for `q`.
+    # click leaves is a place, as it is for `m`.
     page.evaluate(
         "() => { document.activeElement?.blur(); getSelection().removeAllRanges(); }"
     )
@@ -5249,7 +5305,7 @@ def test_recent_order_lists_threads_by_their_latest_message(browser, serve):
 
     # The page's walk is the page's order whatever the panel shows.
     # From no place on the page, which is where the walk starts from its first thread:
-    # a caret a click leaves is a place, as it is for `q`.
+    # a caret a click leaves is a place, as it is for `m`.
     order.get_by_role("button", name="Recent").click()
     page.locator(".lf-threads-toggle").click()
     page.evaluate(
@@ -5600,7 +5656,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_user(browser, serve):
     page.keyboard.press("n")
     expect(theirs_title).to_be_focused()
     # The card the narrowing hides keeps its node. A widget an agent sent in a reply is
-    # instantiated once, in that card, and the Ask reading and the Questions panel find it by
+    # instantiated once, in that card, and the Ask reading and the On panel find it by
     # id in the document — hidden is the list's business, gone would be a claim about the
     # log (test_a_narrowing_hides_a_thread_without_taking_its_ask_off_the_page).
     expect(
@@ -6477,8 +6533,7 @@ def test_a_folding_reference_hands_its_hold_to_the_next_card(browser, serve):
     # a card news resolves stays where it stands (thread-list-view.js), and their own
     # settlement folds it.
     page.evaluate(
-        "async key => (await window.__lfRuntimeImport('/runtime/application.js'))"
-        ".threadActions.resolve(key)",
+        "async key => (await window.__lfWidgetApi()).threadActions.resolve(key)",
         source,
     )
     round_trip(page)
@@ -6541,8 +6596,7 @@ def test_a_render_arriving_mid_fold_keeps_the_place_the_fold_is_holding(browser,
     # a card news resolves stays where it stands (thread-list-view.js), and their own
     # settlement folds it.
     page.evaluate(
-        "async key => (await window.__lfRuntimeImport('/runtime/application.js'))"
-        ".threadActions.resolve(key)",
+        "async key => (await window.__lfWidgetApi()).threadActions.resolve(key)",
         source,
     )
     round_trip(page)
@@ -6717,6 +6771,7 @@ def test_an_inline_reply_link_finishes_a_resolution_fold(browser, serve):
     round_trip(page)
     expect(page.locator(f'.lf-going[data-id="{root}"]')).to_have_count(1)
 
+    page.locator("#jobs .lf-resolved-summary").click()
     inline.get_by_role("button", name="Open interactive reply").click()
     expect(page.locator(f'.lf-going[data-id="{root}"]')).to_have_count(0)
     message = page.locator(
@@ -7124,7 +7179,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     )
     surface = page.evaluate("""async () => {
         const {chromeSheet: sheet, chromeSharedClasses: declared} =
-            await window.__lfRuntimeImport('/runtime/stylesheets.js');
+            await window.__lfCheckApi();
         const classes = sel => [...(sel || "").matchAll(/\\.([A-Za-z0-9_-]+)/g)].map(m => m[1]);
         const scoped = new Set(), unscoped = new Set(), themed = new Set();
         const collect = (rules, into, privateRules = null) => { for (const r of rules) {
@@ -7418,7 +7473,7 @@ def test_a_delayed_accordion_reveal_yields_to_the_users_new_thread(browser, serv
     page.locator(".lf-threads").focus()
     # The thread the list shows asks the user a question too, so focus on the list is
     # standing on that item of their queue; the hidden Ask stands before it on the page.
-    page.keyboard.press("Shift+q")
+    page.keyboard.press("Shift+m")
     page.wait_for_function("window.visibleThreadPresentationHeld === true")
     later = page.locator(".lf-thread:not([hidden])").first
     later_id = later.get_attribute("data-id")
@@ -7678,7 +7733,7 @@ def test_a_boxless_widget_in_a_reply_still_shows_the_parts_it_paints(browser, se
     focus_panel_thread(page.locator('.lf-thread[data-id="tv-decisioned"]'))
     parts = page.evaluate(
         """async () => {
-             const { shownParts } = await window.__lfRuntimeImport('/runtime/widget-api.js');
+             const { shownParts } = await window.__lfWidgetApi();
              const el = document.getElementById('tv-decision');
              return { boxless: el.getBoundingClientRect().height === 0,
                       display: getComputedStyle(el).display,
@@ -8466,7 +8521,7 @@ def test_the_line_offers_the_thread_g_t_lands_on_its_own_keys(browser, serve):
 def test_a_narrowing_hides_a_thread_without_taking_its_ask_off_the_page(browser, serve):
     """Thread narrowing changes presentation, not the admitted ask inventory.
 
-    After both Questions are answered, hiding a thread with the On you filter keeps
+    After both asks are answered, hiding a thread with the On you filter keeps
     both canonical records in Done and preserves the page-wide completion count.
     """
     page = open_page(
@@ -8694,8 +8749,7 @@ def test_a_bounded_log_in_an_agent_reply_follows_its_end_as_a_reading_region(
     rendered(page)
     held = log.evaluate(
         """async log => {
-          const { scrollerFor } = await window.__lfRuntimeImport(
-            '/runtime/reading-regions.js');
+          const { scrollerFor } = await window.__lfWidgetApi();
           return {
             scroller: scrollerFor(log.querySelector('p')) === log,
             atEnd: log.scrollHeight > log.clientHeight
@@ -9791,8 +9845,7 @@ def test_a_pressed_send_leaves_the_user_where_enter_does(browser, serve, surface
             # Exact message navigation belongs to Threads, not the local reply box.
             assert page.evaluate(
                 """async id => {
-                  const {surfaceFocusTarget} = await window.__lfRuntimeImport(
-                    '/runtime/thread/surfaces.js');
+                  const {surfaceFocusTarget} = await window.__lfCheckApi();
                   return surfaceFocusTarget(id, {part: 'message'}) === null;
                 }""",
                 sent["id"],
@@ -10021,9 +10074,10 @@ def test_an_agent_turn_arriving_holds_still_the_page_box_being_typed_in(
 def test_resolving_a_long_page_thread_by_its_button_leaves_the_page_still(
     browser, serve
 ):
-    """The pressed Resolve leaves with the state it changed, and the thread took the
-    focus back with a landing: the nearest edge of a thread taller than the window was
-    a 700px jump to its head."""
+    """The pressed Resolve leaves with the state it changed, and the thread folds into
+    its seat's Resolved disclosure, taking the focus to the disclosure's summary. It
+    took it back with a landing on the thread: the nearest edge of a thread taller than
+    the window was a 700px jump to its head."""
     kind = "verdict"
     url, root = seated_thread(serve, kind, 12)
     page = open_page(browser, url)
@@ -10037,15 +10091,15 @@ def test_resolving_a_long_page_thread_by_its_button_leaves_the_page_still(
         page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
     rendered(page)
     scroll_settled(page)
-    expect(thread).to_be_focused()
+    expect(page.locator(".lf-resolved-summary")).to_be_focused()
     after = page.evaluate("() => document.scrollingElement.scrollTop")
     assert abs(after - before) < 10, f"the page jumped {after - before}px"
 
 
 def test_settling_a_long_diff_thread_by_key_keeps_it_in_view(browser, serve):
-    """A diff thread folds to its summary when resolved and unfolds when reopened, and
-    nothing landed it either way: the summary the user stood on went above the window,
-    and the reopened thread with it."""
+    """A diff thread folds into its outlet's Resolved disclosure when resolved and
+    comes back out when reopened, and nothing landed it either way: the summary the
+    user stood on went above the window, and the reopened thread with it."""
     url, root = seated_thread(serve, "diff", 12)
     page = open_page(browser, url)
     thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
@@ -10060,6 +10114,9 @@ def test_settling_a_long_diff_thread_by_key_keeps_it_in_view(browser, serve):
     rendered(page)
     scroll_settled(page)
     assert focus_clear_of_the_bar(page), "the resolved thread left the window"
+    expect(page.locator("lf-diff .lf-resolved-summary")).to_be_focused()
+    page.keyboard.press("Enter")
+    thread.focus()
     with sending(page, "the reopen"):
         page.keyboard.press("r")
     rendered(page)
@@ -10482,7 +10539,7 @@ def test_a_wheel_during_a_resolution_fold_outranks_the_landing_after_it(browser,
 
 
 def test_a_walk_to_an_ask_the_narrowing_hides_widens_the_list(browser, serve):
-    """A card the narrowing hid keeps its node, so the `q` walk can still name the
+    """A card the narrowing hid keeps its node, so the `m` walk can still name the
     question in it — and arriving there has to show it, the way showThread does:
     focus on a card with no box is a no-op and the announcement would say "1 of 2"
     over a list that shows something else. The thread the list shows asks the user a
@@ -10500,7 +10557,7 @@ def test_a_walk_to_an_ask_the_narrowing_hides_widens_the_list(browser, serve):
     page.get_by_role("searchbox", name="Find in threads").fill("stay blocked")
     expect(card).to_have_attribute("hidden", "")
     page.locator(".lf-threads").focus()
-    page.keyboard.press("Shift+q")
+    page.keyboard.press("Shift+m")
     expect(card).not_to_have_attribute("hidden", "")
     expect(page.get_by_role("searchbox", name="Find in threads")).to_have_value("")
     assert page.evaluate(
@@ -11015,8 +11072,7 @@ def test_a_zoomed_window_places_floating_surfaces_by_their_held_edges(browser, s
     readings = page.evaluate(
         """async () => {
           document.documentElement.style.zoom = '1.25';
-          const {floatingPlacement, floatingUi} = await window.__lfRuntimeImport(
-            '/runtime/annotation-overlay/floating.js');
+          const {floatingPlacement, floatingUi} = await window.__lfOverlayApi();
           const {computePosition, shift} = await floatingUi();
           const readings = [];
           for (const [transform, border] of [
@@ -13103,7 +13159,7 @@ customElements.define('lf-quote-subject', class extends HTMLElement {
         "window.quoteSubject.show('Old plan', 'The revised requirement uses automatic review.')"
     )
     reading = page.evaluate(
-        """anchor => window.__lfRuntimeImport('/runtime/anchor-resolution.js')
+        """anchor => window.__lfCheckApi()
           .then(({resolveAnchor}) => {const {kind, exact, status} = resolveAnchor(anchor);
             return {kind, exact, status};})""",
         comment["anchor"],

@@ -593,8 +593,10 @@ class SourceDocument:
             '<!doctype html><html lang="en"><head>'
             '<meta name="viewport" content="width=device-width, initial-scale=1">'
             f"<title>{escape(attrs.get('id', 'Sample'))}</title></head>"
-            # A sample shows a column page; the template is its content, not its frame.
-            f'<body{body}><main class="layout-column">'
+            # The template is the child's content, not its frame. The child is a column
+            # page unless the template names its `main`'s classes, as a workspace's
+            # `layout-workspace` does, since a document's Layout is not every page's.
+            f'<body{body}><main class="{escape(attrs.get("class") or "layout-column")}">'
             # Preserve authored lines, including multiline tags in nested samples.
             + "\n" * (location.start_tag.end_line - 1)
             + self._source[content_start:content_end]
@@ -834,6 +836,22 @@ def annotation_mode(document: SourceDocument) -> str:
     """
     body = document.tree.select_one("body")
     return element_attrs(body).get("data-annotations", "overlay") if body else "overlay"
+
+
+def page_layout(document: SourceDocument):
+    """The `layout-` names the document's `main` carries (`layout-column` is `column`),
+    space-separated, or None.
+
+    A Layout's class is on `main`, which the parser reaches after it has begun painting
+    the body, so delivery repeats it on the root for the Layout's own body rules
+    (layouts.css) to read before the first paint. Every name goes across, since a
+    block's own (`layout-tiles`) can stand on `main` beside the page's."""
+    main = document.tree.select_one("body > main")
+    tokens = main.attrs.get("class", []) if main else []
+    names = [
+        name for token in tokens if (name := token.removeprefix("layout-")) != token
+    ]
+    return " ".join(names) or None
 
 
 def review_mode(document: SourceDocument):

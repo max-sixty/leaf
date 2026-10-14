@@ -53,7 +53,7 @@ banner.id = "lf-banner";
 declareBanner(banner);
 const bannerStatus = createBannerStatusView(repaint, INITIAL);
 registerNoticePresentation(() => bannerStatus.presentNotice(noticeReading()));
-// The agent's Tasks count, which opens the Questions panel listing them (drawers.js).
+// The agent's On count, which opens the On panel listing what it holds (drawers.js).
 export const queueCounts = bannerStatus.queues;
 
 // Threads reads "Threads: 3" on a desk and, on a phone's one row, a thread icon with its
@@ -93,7 +93,7 @@ export function setThreadCounts(open, unread) {
 const approveBtn = el("button", "lf-btn primary lf-signoff");
 approveBtn.id = "lf-approve";
 // Another chrome that presents the approval in this control's place, as the floating
-// panel's Questions view does, names the control it shows and brings the user to it.
+// panel's On view does, names the control it shows and brings the user to it.
 let approvalPresentation = null;
 export function registerApprovalPresentation(presentation) {
   approvalPresentation = presentation;
@@ -152,8 +152,8 @@ registerBannerControl({
   rank: BANNER_CONTROL_RANK.queue,
   seat: { desk: "row", phone: "menu" },
   row: {
-    label: "Questions",
-    value: () => String(readQueues().questions.length),
+    label: "On me",
+    value: () => String(readQueues().on_user.length),
     group: "page",
   },
 });
@@ -267,9 +267,9 @@ let saidKind;
 let saidActionableWork;
 
 // The queues are read from the application's publication rather than the state
-// answer: a reply the user sends joins the agent's Tasks count in the turn it is
-// sent, and leaves the user's Questions once the server has read it. A press on
-// either opens the Questions panel, which lists both (`statusModel` words them).
+// answer: a reply the user sends joins the agent's count in the turn it is sent,
+// and leaves On me once the server has read it. A press on either opens the On
+// panel, which lists both (`statusModel` words them).
 let lastStatus = null;
 // The status the banner shows, as one reading another presentation of it shares: the
 // floating panel's leaf and comment field say the same words in the same tone.
@@ -336,6 +336,7 @@ if (SHARE_ROOT) {
   const share = el("summary", "lf-btn", "Share");
   share.title = "Show this page's access link";
   const panel = el("div", "lf-share-panel");
+  const grants = "Grants access to all Leaf pages on this machine.";
   const label = el("label", "", "Share link");
   const link = offer("input", "lf-share-link");
   link.id = "lf-share-link";
@@ -348,11 +349,7 @@ if (SHARE_ROOT) {
   const copy = copyControl(copyButton, "Link copied", "Select and copy the link above");
   copy.copyLabel = "Copy link";
   copy.hidden = !navigator.clipboard?.writeText;
-  panel.append(
-    el("p", "", "Grants access to all Leaf pages on this machine."),
-    label,
-    copy,
-  );
+  panel.append(el("p", "", grants), label, copy);
   details.append(share, panel);
   details.addEventListener("toggle", () => {
     if (details.open) link.value = copy.value = shareUrl();
@@ -367,7 +364,9 @@ if (SHARE_ROOT) {
     rank: BANNER_CONTROL_RANK.share,
     // The press is the Copy link control's own, with its success and failure notices.
     row: {
-      label: "Copy share link",
+      label: "Share link",
+      value: grants,
+      copies: shareUrl,
       group: "about",
       press: () => {
         copy.value = shareUrl();
@@ -453,7 +452,14 @@ function renderPreview(state) {
       control: previewMarginEntryCopy,
       focusTarget: previewMarginEntry,
       rank: BANNER_CONTROL_RANK.preview,
-      row: { label: () => previewLabel, group: "about" },
+      // What the press copies is the diagnostics, which a presentation shows to select
+      // as well; the line naming the preview says what they describe.
+      row: {
+        label: "Preview diagnostics",
+        value: () => previewLabel,
+        copies: () => previewDiagnostics,
+        group: "about",
+      },
     });
   }
   previewMarginEntryCopy.value = previewDiagnostics;
@@ -474,7 +480,7 @@ function renderPreview(state) {
 // whoever meets a problem can tell how far apart the two are (AGENTS.md, "Pages
 // across Leaf updates").
 let layerReferenceElement = null;
-let layerIdentity = "";
+let layerNamed = "";
 let layerReferenceElementCopy = null;
 let layerDiagnostics = "";
 function renderLayerReference(state) {
@@ -486,7 +492,6 @@ function renderLayerReference(state) {
     : fingerprint && `sha256:${fingerprint.replace(/^sha256:/, "").slice(0, 12)}`;
   if (!fullIdentity) return;
   const identity = producer.commit ? shortCommit(producer) : fullIdentity;
-  layerIdentity = identity;
   const age = payloadAge(producer);
   const dateLines = payloadDateLines(producer);
   // Present only where the serving Leaf is another than the page's (`http.page_state`).
@@ -522,7 +527,8 @@ function renderLayerReference(state) {
       rank: BANNER_CONTROL_RANK.layer,
       row: {
         label: "Leaf version",
-        value: () => layerIdentity,
+        value: () => layerNamed,
+        copies: () => layerDiagnostics,
         group: "about",
       },
     });
@@ -532,6 +538,7 @@ function renderLayerReference(state) {
     ? ` · served by ${serverIdentity}${serverAge ? ` · ${serverAge}` : ""}`
     : "";
   const named = `Leaf ${identity}${age ? ` · ${age}` : ""}${servedBy}`;
+  layerNamed = named;
   layerReferenceElementCopy.copyLabel = `${named} · copy version`;
   render(
     served
@@ -589,7 +596,11 @@ function renderSessionReference() {
       control: sessionReferenceElementCopy,
       focusTarget: sessionReferenceElement,
       rank: BANNER_CONTROL_RANK.session,
-      row: { label: () => sessionReferenceLabel, group: "about" },
+      row: {
+        label: "Session reference",
+        copies: () => runtime.sessionReference,
+        group: "about",
+      },
     });
   }
   sessionReferenceElementCopy.value = runtime.sessionReference;
@@ -638,10 +649,10 @@ export function mountBanner({ approveVersion, paintApproval }) {
   watchSemantic(() => lastStatus && presentStatus(lastStatus));
   showNews(othersBtn, false);
   banner.append(bannerStatus, bannerStatus.queues, bannerActions);
-  // On two rows the Tasks count stands on the second line only where the run leaves it
+  // On two rows the agent's count stands on the second line only where the run leaves it
   // room whole, else on a third the banner does not draw, and a phone's one row leaves
   // it out (chrome.css). A press there is a stop nobody can see, so an undrawn count is
-  // inert; the Questions door and the status's disclosure still reach what it says.
+  // inert; the On me door and the status's disclosure still reach what it says.
   const counts = bannerStatus.queues;
   const seatCounts = sizeObserver(() => {
     const drawn =
@@ -700,7 +711,7 @@ export function stateSignoff(next, syncLayout, paintApproval) {
 // More without changing the page's reading loop.
 function reserveBannerControls() {
   if (signoff) reserve(approveBtn, ["Approve version", "✓ Version approved"]);
-  reserve(queueBtn, ["Questions: 99"]);
+  reserve(queueBtn, ["On me: 99"]);
   reserve(toggleBtn, ["Threads", "Threads: 999"]);
 }
 

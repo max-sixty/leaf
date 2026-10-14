@@ -1870,9 +1870,7 @@ diff --git a/value.txt b/value.txt
             picture.setAttribute('viewBox', '0 0 20 20');
             root.append(picture);
           }
-          const { layoutChanged } = await window.__lfRuntimeImport(
-            '/runtime/widget-api.js'
-          );
+          const { layoutChanged } = await window.__lfWidgetApi();
           layoutChanged(document.querySelector('#patch'));
         }"""
     )
@@ -1885,9 +1883,7 @@ diff --git a/value.txt b/value.txt
 
     page.evaluate(
         """async () => {
-          const { layoutChanged } = await window.__lfRuntimeImport(
-            '/runtime/widget-api.js'
-          );
+          const { layoutChanged } = await window.__lfWidgetApi();
           layoutChanged(document.querySelector('#patch'));
         }"""
     )

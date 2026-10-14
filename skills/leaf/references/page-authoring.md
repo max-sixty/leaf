@@ -3,7 +3,7 @@
 - [Read the registry](#read-the-registry)
 - [Document scaffold](#document-scaffold)
 - [Composing a page](#composing-a-page)
-- [Draw the subject](#draw-the-subject)
+- [Show the subject](#show-the-subject)
 - [Theme and vocabulary](#theme-and-vocabulary)
 - [Page behavior](#page-behavior)
 - [Live samples](#live-samples)
@@ -102,7 +102,8 @@ stands alone, since whoever reads it there has none of the page around it.
 
 Most pages use a reading column, `<main class="layout-column">`. Text stays within
 the column's measure; wider blocks extend beside it without moving the prose.
-Without a Layout class, `main`'s blocks fill the window's width. A diagram or board
+Without a Layout class, Leaf sets no page geometry: the page lays out as the browser
+lays out plain HTML, and `main`'s blocks fill its width. A diagram or board
 declares its preferred width in the registry; `data-width` makes the same request
 for other blocks, such as a wide table ("Bounds and widths", below). Compose the page
 from these:
@@ -190,15 +191,21 @@ or a diagram declares its width, and `data-width` asks for one on any other bloc
 as a table, a trace or a playground ("Bounds and widths"). The
 prose keeps its axis around it.
 
-On a sidebar page or a workspace, every block, the title included, starts at one left
-edge and takes its region's width, while text keeps the reading measure, as does a
-widget read as text, such as an option list or a draft. A sidebar page is capped at the
-widest page and sets its title larger; a workspace takes the whole window and leaves its
-title to the theme.
+On a sidebar page, every block, the title included, starts at one left edge and takes
+its region's width, while text keeps the reading measure, as does a widget read as
+text, such as an option list or a draft. A sidebar page is capped at the widest page
+and sets its title larger.
 
-An `lf-ask` and a callout keep the reading measure in every Layout. Give the chart,
-table, playground or other surface inside one that needs more room its own
+On a column or sidebar page, an `lf-ask` and a callout keep the reading measure. Give
+the chart, table, playground or other surface inside one that needs more room its own
 `data-width`.
+
+A workspace takes the whole window and leaves its title to the theme. It sets no
+reading measure and no `wide` width, so every block, text included, fills the region it
+stands in, and `data-width` changes nothing. The page's grid sizes the regions: where
+one would hold prose wider than it reads well, narrow its track, or cap its blocks in
+the page's `<style>`, such as `#queue > lf-tab > * { max-inline-size: var(--wide); }`
+for a queue whose items each read top to bottom.
 
 A Layout is a starting point. The page's own `<style>` comes after it in the cascade, so
 an ordinary rule adjusts it — a different track share, a gap, an order — and a page
@@ -337,9 +344,9 @@ in a scroller it did not make.
 
 An individual block or section may request a responsive allocation with
 `data-width="wide"` or `data-width="available"`, which overrides a widget's or idiom's
-default. `wide` uses the shared evidence width, `--wide`, in every Layout: past a
-column it grows to that width, and in a wider body or pane it holds to it at its
-start. A narrower frame still bounds it. `available` uses all room left by the page
+default. On a column or sidebar page, `wide` uses the shared evidence width, `--wide`:
+past a column it grows to that width, and in a wider body it holds to it at its start.
+A narrower frame still bounds it. `available` uses all room left by the page
 shell, frames, chrome, and a margin resident that takes its side, such as a sidebar
 standing in the margin or the contents map's spine; the markers beside it then stand as
 pins on it, and it moves below a note hanging level with it. A native `table` given
@@ -388,7 +395,8 @@ For CSS that depends on a margin resident, use `main`'s `data-lf-margin` tokens
 `main:not([data-lf-margin~="sidebar"]) #route { display: none }`. Verify the
 page at the widths where a resident returns to the document flow.
 
-`data-rail="right"` on `body` keeps a rail on a sidebar page or a workspace.
+`data-rail="right"` on `body` keeps a rail on a sidebar page. A workspace has none,
+since its panes scroll on their own: a comment there stands on its block as a pin.
 `data-rail="none"` gives a column page's right margin to the page's own content.
 A marker beside a hanging `aside.sidenote` already appears as a pin, so notes
 need neither override.
@@ -408,35 +416,37 @@ A page or package that shows conversations and actions in its own layout registe
 a presentation through "Page annotation presentation" in `module-authoring.md`; do
 not reconstruct the event log or annotation inventory in page code.
 
-## Draw the subject
+## Show the subject
 
-Decide what each view draws before writing its words. Most of what a page explains
-has a shape, and the user takes in a picture of it at a glance, where a description
-has to be rebuilt in their head:
+Decide what each view shows before writing its words. Find what the user would have
+to picture from a description to judge the view's point, and put that thing on the
+page in the form it takes:
 
-- where things sit, and what bounds, covers, or moves what: a layout, a page's
-  regions, the same page at two widths;
-- what contains, calls, or feeds what: a structure, an architecture, a data flow;
-- how a state changes: a sequence, a lifecycle, a plan's phases;
-- how two states differ: today beside proposed, before beside after;
-- how alternatives differ, when they differ in arrangement or mechanism.
+- An interface that exists is a screenshot, cropped or marked where the point sits
+  so the eye lands there, its crop cutting through background rather than through
+  text the reader would try to read; a visual change is an `lf-shot` before-and-after
+  capture.
+- A behavior, such as an interaction, a motion, or a process over time, runs: in a
+  live sample the user operates ("Live samples"), or in a page module that draws it
+  from its state and the moment, with controls to pause and scrub, so every moment
+  stays readable and its parts stay commentable. A fixed recording or screen
+  capture follows `authoring-evidence.md`, "Source files and media".
+- A proposal or mechanism that nothing can show yet is drawn: where things sit and
+  what bounds, covers, or moves what; what contains, calls, or feeds what; how a
+  state changes; today beside proposed; alternatives in one frame at one scale.
+- Numbers whose shape is the point, such as a trend, a ranking, groups on one scale,
+  or series moving together, are an `lf-chart`, even when the numbers compare the
+  same dimensions across items. The chart labels the values the page's argument
+  cites (`lf-chart`'s instructions); put the rest in a table below it in
+  `<details>` when readers also need exact values.
+- Code, a command, a message, or any other wording is the text itself, as it would
+  appear.
 
-A page deciding, planning, or reviewing one of these draws it too. A table or list whose
-rows name places, sizes, or connections is a drawing written out.
+A page deciding, planning, or reviewing something shows it the same way: a work item
+that fixes a visible fault shows the fault, and an ask's options show what each
+answer gives the user (`authoring-asks.md`). A table or list whose rows name places,
+sizes, or connections is a drawing written out.
 
-Show a visible subject with an image instead of describing its appearance: an
-interface with a screenshot, cropped or marked where the point sits so the eye lands
-there, and a visual change with an `lf-shot` before-and-after capture. A proposal or
-a mechanism has nothing to capture yet, so draw it. A process that unfolds over time
-is a diagram that moves: draw it in a page module from its state and the moment,
-with controls to pause and scrub, so every moment stays readable and its parts stay
-commentable. For fixed recordings and screen captures,
-follow `authoring-evidence.md`, "Source files and media". When the shape of numbers is
-the point — a trend, ranking, groups on one scale, or series moving together —
-lead with an `lf-chart`, even if the numbers compare the same dimensions across
-items. The chart labels the values the page's argument cites (`lf-chart`'s
-instructions); put the rest in a table below it in `<details>` when readers also
-need exact values.
 Use a table for value lookup, mixed units that cannot share an axis, or comparisons
 with text-heavy cells; use native sections for a few alternatives read as wholes,
 and `lf-options` when the user must choose among them. A headline measurement is
@@ -448,10 +458,10 @@ of your own.
 For `lf-diagram`, omit `parts` when the whole drawing is one Comment target. When
 individual boxes need their own targets, set `parts="all"` to expose every named box.
 
-The prose beside a shape says only what the shape cannot. What is left for prose is
-the claim, the reason it holds, and the question the page is asking. A few sentences
-hold all three. A section that runs longer is carrying either a structure with a
-shape of its own or backing that belongs under `<details>`.
+The prose beside what the page shows says only what it cannot. What is left for prose
+is the claim, the reason it holds, the cost, and the question the page is asking. A
+few sentences hold them. A section that runs longer is carrying either something the
+page should show or backing that belongs under `<details>`.
 
 ## Theme and vocabulary
 
@@ -489,8 +499,8 @@ whitespace. Verbatim source quotations keep their exact text; logs and transcrip
 stay literal and uncolored when they are not source code.
 
 The runtime injects the status banner, thread panel, Versions menu, keyboard
-shortcuts, live-leaves drawer, and Questions panel. `conversation-loop.md`,
-"Questions and Tasks", owns what belongs in those lists and how to inspect them.
+shortcuts, live-leaves drawer, and On panel. `conversation-loop.md`,
+"The On lists", owns what belongs in those lists and how to inspect them.
 Readers can turn off **Quick keyboard shortcuts** under **More → Keyboard shortcuts**.
 This preference persists across pages on the same origin and removes Leaf's character
 shortcuts and their hints; commands and ordinary control navigation remain available.
@@ -591,7 +601,9 @@ do not turn their contents into source code or markup.
 Use `lf-sample` with one direct `template[data-sample]` to let the user
 operate a complete Leaf page inside the surrounding document. Give both the
 element and template stable ids. Put the child's content and styles directly in
-the template; Leaf supplies the document and its `main`:
+the template; Leaf supplies the document and its `main`, a column page unless the
+template's `class` names the child's Layout instead, such as
+`class="layout-workspace density-working"` for a workspace:
 
 ```html
 <lf-sample id="practice" label="practice release note">
@@ -808,11 +820,11 @@ At each destination, check that the visible content and focus leave the user
 oriented and able to continue; compare equivalent moves across the page's views.
 
 For a page with asks, the check also saves the window at each of the first eight
-as `q` reaches it from the top, which is how a user working the page meets each
-question (`conversation-loop.md`, "Questions and Tasks"). At each arrival, confirm
+as `m` reaches it from the top, which is how a user working the page meets each
+question (`conversation-loop.md`, "The On lists"). At each arrival, confirm
 that the question, shared premise, alternatives, and evidence that distinguishes them
 are visible together, the displayed numbers match the available actions, and the next
-press of `q` reaches the next item on Questions while the complete page remains
+press of `m` reaches the next item on the user's On me list while the complete page remains
 visible.
 
 Without a way to inspect the rendered page, read `leaf page state <page>`'s

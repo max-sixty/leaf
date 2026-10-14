@@ -78,16 +78,16 @@ const wireAsk = (
   status: "open",
   next_actor: "user",
 });
-// A view's asks as the served lists hold them: each the user owes on Questions, and
-// each that is no longer open, done.
+// A view's asks as the served lists hold them: each the user owes on their list, On me,
+// and each that is no longer open, done.
 const askQueues = (asks) => {
   const item = (ask) =>
     servedAskItem(ask, {
       subject: { kind: "widget", id: ask.source.id },
     });
   return {
-    questions: asks.filter((ask) => ask.next_actor === "user").map(item),
-    tasks: [],
+    on_user: asks.filter((ask) => ask.next_actor === "user").map(item),
+    on_agent: [],
     done: asks
       .filter((ask) => ask.status !== "open")
       .map((ask) => ({ ...item(ask), state: "done", ended: null, detail: null })),
@@ -126,7 +126,7 @@ const state = (taken, events = []) => ({
         undo: [],
         reports: [],
         published_at: null,
-        queues: { questions: [], tasks: [], done: [] },
+        queues: { on_user: [], on_agent: [], done: [] },
         approval_blocking: [],
         document: {
           asks: noAsks(),
@@ -1283,9 +1283,9 @@ for (const resolved of [null, { author: "user" }]) {
   });
 }
 
-test("a pending gesture leaves asks and Questions as served until the log answers", () => {
+test("a pending gesture leaves asks and On me as served until the log answers", () => {
   // A settling reaction answered the agent's question, so the server lists the ask as
-  // done. Which asks taking it back reopens is the log's reading, so Questions moves
+  // done. Which asks taking it back reopens is the log's reading, so On me moves
   // when the server answers the undo, not before.
   const ask = {
     kind: "comment",
@@ -1328,7 +1328,7 @@ test("a pending gesture leaves asks and Questions as served until the log answer
   app.enqueue({ kind: "undo", undoes: kept.id, attempt: "take-back" }, "now");
   const pending = app.read().effective;
   assert.deepEqual(pending.asks.user, []);
-  assert.deepEqual(pending.queues.questions, []);
+  assert.deepEqual(pending.queues.on_user, []);
   assert.deepEqual(
     pending.queues.done.map(({ kind, id }) => [kind, id]),
     [["ask", answered.id]],
@@ -1352,7 +1352,7 @@ test("a pending gesture leaves asks and Questions as served until the log answer
   const { thread, queues } = app.read().effective;
   assert.equal(thread.all[0].attention.kind, "needs_user");
   assert.deepEqual(
-    queues.questions.map(({ kind, id }) => [kind, id]),
+    queues.on_user.map(({ kind, id }) => [kind, id]),
     [["ask", answered.id]],
   );
 });
@@ -1487,7 +1487,7 @@ test("a reaction root is not a spoken turn awaiting the user", () => {
   assert.equal(app.read().effective.thread.all[0].attention, null);
 });
 
-test("approval leaves Questions in its sending turn and undo restores the exact version", () => {
+test("approval leaves On me in its sending turn and undo restores the exact version", () => {
   const adopt = (name) => {
     const app = createSemanticApplication();
     app.identify(1);
@@ -1495,21 +1495,21 @@ test("approval leaves Questions in its sending turn and undo restores the exact 
     return app;
   };
   const app = adopt("approval");
-  const questions = () => app.read().effective.queues.questions;
+  const onUser = () => app.read().effective.queues.on_user;
   const record = () => app.read().effective.asks.all[0];
   const ask = record();
   assert.equal(ask.source.kind, "approval");
-  assert.equal(questions()[0].id, ask.id);
-  assert.equal(questions()[0].kind, "ask");
-  assert.equal(questions()[0].offers.done, false);
+  assert.equal(onUser()[0].id, ask.id);
+  assert.equal(onUser()[0].kind, "ask");
+  assert.equal(onUser()[0].offers.done, false);
   app.enqueue({ kind: "done", version: 2, attempt: "other-version" }, "now");
-  assert.equal(questions().length, 1);
+  assert.equal(onUser().length, 1);
   app.refuse("other-version");
   const pending = app.enqueue(
     { kind: "done", version: 1, attempt: "approve" },
     "queued-at",
   );
-  assert.equal(questions().length, 0);
+  assert.equal(onUser().length, 0);
   assert.equal(app.read().effective.queues.done[0].id, ask.id);
   assert.deepEqual(record().answer, { value: true, event: null });
   assert.equal(record().status, "answered");
@@ -1524,7 +1524,7 @@ test("approval leaves Questions in its sending turn and undo restores the exact 
   ]);
   app.refuse("approve");
   assert.deepEqual(app.read().effective.thread.approvalHistory, []);
-  assert.equal(questions().length, 1);
+  assert.equal(onUser().length, 1);
   assert.equal(record().answer, null);
 
   const approved = adopt("approved");
@@ -1533,9 +1533,9 @@ test("approval leaves Questions in its sending turn and undo restores the exact 
     approved.read().effective.thread.approvalHistory.map(({ id }) => id),
     [approval.id],
   );
-  assert.equal(approved.read().effective.queues.questions.length, 0);
+  assert.equal(approved.read().effective.queues.on_user.length, 0);
   approved.enqueue({ kind: "undo", undoes: approval.id, attempt: "undo" }, "now");
-  assert.equal(approved.read().effective.queues.questions[0].id, ask.id);
+  assert.equal(approved.read().effective.queues.on_user[0].id, ask.id);
   assert.equal(approved.read().effective.queues.done.length, 0);
   assert.equal(approved.read().effective.asks.all[0].answer, null);
   assert.equal(approved.read().effective.asks.all[0].status, "open");
@@ -1671,7 +1671,7 @@ test("An ask contains the local typed answer while completion waits for admissio
   assert.equal(pending.all[0].status, "open");
   assert.equal(pending.all[0], pending.user[0]);
   assert.equal(pending.all[0], pending.unanswered[0]);
-  assert.equal(app.read().effective.queues.questions[0].kind, "ask");
+  assert.equal(app.read().effective.queues.on_user[0].kind, "ask");
   app.refuse("typed");
   assert.equal(app.read().effective.asks.all[0].answer, null);
 });
@@ -1717,7 +1717,7 @@ test("empty completed answer and wrapper changes preserve ask identity", () => {
   reading.browser.views[1].queues = askQueues([ask]);
   app.adopt(reading);
   assert.deepEqual(app.read().effective.asks.all[0].answer.value, []);
-  assert.equal(app.read().effective.queues.questions.length, 0);
+  assert.equal(app.read().effective.queues.on_user.length, 0);
   assert.equal(app.read().effective.queues.done[0].kind, "ask");
   const wrapped = structuredClone(reading);
   wrapped.taken = 3;

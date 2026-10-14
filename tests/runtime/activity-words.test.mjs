@@ -19,7 +19,7 @@ import { servedActivity, servedReading } from "../served.mjs";
 
 const NOW = Date.parse(servedActivity().ts);
 const minutesAgo = (minutes) => new Date(NOW - minutes * 60_000).toISOString();
-const NO_QUEUES = { questions: [], tasks: [], done: [] };
+const NO_QUEUES = { on_user: [], on_agent: [], done: [] };
 
 // The page's served state with `activity`, as the banner reads it.
 const state = (activity, agent = "Claude") => ({
@@ -61,10 +61,10 @@ test("working with no sentence of the agent's names what its turn picked up", ()
       counts: { handling, handling_comments },
     });
   assert.deepEqual(picked(1, 1), [
-    "Claude working — picked up my comment",
-    "Claude picked up my comment and hasn't said what it's doing yet (just now)",
+    "Claude working — picked up the comment",
+    "Claude picked up the comment and hasn't said what it's doing yet (just now)",
   ]);
-  assert.equal(picked(1, 0)[0], "Claude working — picked up my answer");
+  assert.equal(picked(1, 0)[0], "Claude working — picked up the answer");
   assert.equal(picked(3, 2)[0], "Claude working — picked up 2 comments and 1 answer");
   // Nothing picked up and nothing said is plain work.
   assert.deepEqual(picked(0, 0), ["Claude working", "Claude is working (just now)"]);
@@ -222,7 +222,14 @@ test("the disclosure names what waits on each side, and the row counts the agent
     activity: servedActivity({ kind: "listening" }),
   });
   const model = statusModel(status, queues, reading.agent);
-  assert.equal(model.queues, "Tasks: 2");
+  assert.equal(model.queues, "On Agent: 2");
+  // The row cuts a long name to the room its box keeps; the disclosure keeps it whole.
+  const long = statusModel(status, queues, "Codex Research Agent");
+  assert.deepEqual(
+    [long.queues, long.queuesWidest],
+    ["On Codex Resea…: 2", "On Codex Resea…: 9"],
+  );
+  assert.match(long.explanation, /Waiting on Codex Research Agent: 1 reply/);
   assert.equal(
     model.explanation,
     "Agent awaits — select text to comment. Waiting on me: 2 asks, 1 to-do (Try the build on a phone), 2 updates to send again. Waiting on Agent: 1 reply, 1 to-do (Rebuild the chart).",

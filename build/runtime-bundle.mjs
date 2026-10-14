@@ -13,7 +13,16 @@
  * while preserving authored module locations. Neither path runs on a user's machine.
  */
 
-import { cp, mkdir, mkdtemp, readFile, readdir, realpath, rm } from "node:fs/promises";
+import {
+  cp,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  realpath,
+  rm,
+  stat,
+} from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -30,6 +39,10 @@ export const runtimeEntries = [
   "runtime/widget-api.js",
   "runtime/check-api.js",
 ];
+
+// Historical comparison arms predate optional diagnostic capabilities. Compile
+// the entries a layer supplies; the required delivery boundaries above stay strict.
+const diagnosticEntries = ["runtime/annotation-overlay/check-api.js"];
 
 const GENERATION = "runtime/layer-generation.js";
 
@@ -183,7 +196,15 @@ export async function bundleRuntime(layerRoot, entries, outputRoot, assetRoot = 
 /** Prepared install output is relocatable; package modules need no build. */
 export async function bundleDistribution(layerRoot, outputRoot) {
   layerRoot = await realpath(layerRoot);
-  await bundleRuntime(layerRoot, runtimeEntries, outputRoot);
+  const diagnostics = [];
+  for (const entry of diagnosticEntries) {
+    try {
+      if ((await stat(join(layerRoot, entry))).isFile()) diagnostics.push(entry);
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+  }
+  await bundleRuntime(layerRoot, [...runtimeEntries, ...diagnostics], outputRoot);
   await mkdir(join(outputRoot, "runtime"), { recursive: true });
   for (const path of [
     GENERATION,

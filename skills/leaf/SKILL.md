@@ -13,11 +13,12 @@ its URL with a status saying what you want back, and wait.
 Answer each delivered update on the page and in its thread, stamp checkpoints,
 and idle the page when it is finished.
 
-Anything you need from the user must appear in **Questions**. Zero Questions
-means you need nothing from them now. Before handing over or waiting, read
-`leaf page state <page>` and reconcile `queues.questions` and
-`queues.tasks` with the work and decisions still open.
-`references/conversation-loop.md`, "Questions and Tasks", owns what appears there
+Anything you need from the user must appear in the user's **On me** list. An
+empty On me list means you need nothing from them now. Your own list, which the
+user sees as **On <your name>**, holds what waits on you. Before handing over or
+waiting, read `leaf page state <page>` and reconcile `queues.on_user` (On me)
+and `queues.on_agent` (yours) with the work and decisions still open.
+`references/conversation-loop.md`, "The On lists", owns what appears there
 and how to register each request.
 
 The input is a subject to present, or a delivery from a page already handed
@@ -38,8 +39,12 @@ $ARGUMENTS
   headings, pictures, and controls, as a player takes in a board: where that leaves
   a view's point or its move unclear, the view has put in words what it should draw
   or let the user do.
-- **Visual.** The page shows its subject in pictures and controls, and uses words
-  for what they cannot say.
+- **Concrete.** The page puts the thing itself in front of the user, wherever they
+  judge it: an interface as it looks, a behavior running, a proposal sketched, a
+  numeric relationship as a chart, code or wording as the text itself. Whatever the
+  user would have to picture from your words to judge, show instead; each option of
+  an ask shows what choosing it gives them. Words carry what the thing cannot show:
+  the claim, the reason, the cost.
 - **Current.** The page states what is true now, so a returning user finds each
   outcome in place.
 - **Personalized.** The user's word decides the page's content and presentation;
@@ -126,9 +131,8 @@ Unless the user specifies the page's shape or depth, a Leaf is a short sequence
 of visually distinct, self-contained views. Each view makes one point, shows one
 state, or offers one move, so the user can grasp it at a glance and continue;
 disclosures keep supporting detail available without putting it in that path.
-Where a view's point has a shape, it shows the point in a picture and uses words
-for what the picture cannot say; `references/page-authoring.md`, "Draw the
-subject", says which points have one.
+Each view shows its subject as **Concrete** says; `references/page-authoring.md`,
+"Show the subject", says which form each kind of subject takes.
 The visible page follows the subject's shape: prose read in order, regions read side
 by side on a sidebar page, or a workspace, a screen the user moves through rather than
 scrolls. A Layout class

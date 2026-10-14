@@ -20,7 +20,7 @@ import { registerReadingRegion } from "./reading-regions.js";
 // Two drawers, each a head over a list of rows, selected one at a time with every other
 // auxiliary surface by the shared auxiliary-surface owner. Both stand over the page and
 // take no room from it. The pages drawer holds the left edge and covers the document,
-// because its rows leave the page. The Questions panel holds the right edge, where the
+// because its rows leave the page. The On panel holds the right edge, where the
 // Threads panel stands, and is drawn by that panel's edge at that panel's width: only one
 // of them is open at a time, so they are two views of one side panel, and their doors
 // stand side by side in the banner. It leaves the page live beside it, because its rows
@@ -45,12 +45,13 @@ import { registerReadingRegion } from "./reading-regions.js";
 // Callers state the clearance; this owner decides which lists it reaches and how each
 // one spends it. Mounting registers each shell and list as a reading region, so
 // reading keys and travel select the list from its rows or header in either posture.
-function drawerFurniture(panel, name, list = el("div", "lf-drawer-list")) {
+// `closes` is what its close button names: the drawer in the words its Escape step uses.
+function drawerFurniture(panel, name, list, closes) {
   const head = el("div", "lf-drawer-head");
   const title = el("span", "lf-auxiliary-title", name);
   const close = closeControl({
-    name: `Close ${name.toLowerCase()}`,
-    title: `Close ${name.toLowerCase()} (Esc)`,
+    name: `Close ${closes}`,
+    title: `Close ${closes} (Esc)`,
   });
   list.classList.add("lf-drawer-list");
   head.append(title, close);
@@ -62,9 +63,9 @@ function drawerFurniture(panel, name, list = el("div", "lf-drawer-list")) {
 }
 
 // What waits on the user and on the agent, and what is done (queue-panel.js; EXPERIMENTAL).
-// The Questions door beside Threads opens the panel listing them, and the agent's Tasks
+// The On me door beside Threads opens the panel listing them, and the agent's On
 // count beside the status opens it too.
-export const queueBtn = el("button", "lf-btn lf-queue", "Questions");
+export const queueBtn = el("button", "lf-btn lf-queue", "On me");
 // The machine's live leaves and what each is doing: a left panel of rows, each a
 // link opening that page in its own tab, saying what that page's agent last declared
 // in the shape of the banner's activity — `others` on /api/state carries it for every
@@ -86,22 +87,28 @@ const leavesFurniture = drawerFurniture(
   othersPanel,
   "Pages",
   createLiveLeavesList(othersBtn),
+  "pages",
 );
 export const liveLeavesList = leavesFurniture.list;
-// The Questions panel, on the right edge: what waits on the user, what waits on the
+// The On panel, on the right edge: what waits on the user, what waits on the
 // agent, and what is done, each row a route to its item on this page (queue-panel.js).
 export const queuePanel = el("nav", "lf-ui lf-drawer-panel lf-queue-panel");
 queuePanel.id = "lf-queue";
-queuePanel.setAttribute("aria-label", "Questions");
+queuePanel.setAttribute("aria-label", "On");
 queuePanel.tabIndex = -1;
-const queueFurniture = drawerFurniture(queuePanel, "Questions", createQueueList());
+const queueFurniture = drawerFurniture(
+  queuePanel,
+  "On",
+  createQueueList(),
+  "the On panel",
+);
 export const queueList = queueFurniture.list;
-// Its head's Next question, as the Threads panel's head has Next unread: `q` as a press,
+// Its head's Next on me, as the Threads panel's head has Next unread: `m` as a press,
 // shown while a question waits (queue-panel.js).
-export const queueNextBtn = el("button", "lf-btn lf-queue-next", "Next question");
+export const queueNextBtn = el("button", "lf-btn lf-queue-next", "Next on me");
 queueNextBtn.type = "button";
 queueNextBtn.hidden = true;
-queueNextBtn.title = "Go to the next question waiting on me (q)";
+queueNextBtn.title = "Next on me (m)";
 // The walk steps on from where the user stands, so a press leaves them standing there
 // rather than moving focus onto the button, as a gesture step on the banner does.
 queueNextBtn.addEventListener("mousedown", (event) => event.preventDefault());
@@ -112,7 +119,7 @@ const drawers = new Map();
 export const currentDrawer = () =>
   drawers.has(currentAuxiliarySurface()) ? currentAuxiliarySurface() : null;
 export const drawerIsOpen = (key) => currentDrawer() === key;
-// The stops a walk down the Questions panel lands on: its items, and Done's door between
+// The stops a walk down the On panel lands on: its items, and Done's door between
 // them.
 const queueRows = () => walkStops(queueList);
 
@@ -127,8 +134,8 @@ export function createDrawers({
   function setOpenDrawer(key, options) {
     if (key || currentDrawer()) auxiliarySurfaces.select(key, options);
   }
-  // A drawer's control is its door, and a drawer may have more than one: the Questions
-  // panel's is also the agent's Tasks count beside the status. Every door says whether
+  // A drawer's control is its door, and a drawer may have more than one: the On
+  // panel's is also the agent's On count beside the status. Every door says whether
   // the drawer stands, and closing hands focus back to the door the user opened it from,
   // where that door is still on screen, else to the control (through More where it is
   // folded). `names` is what the user reads it as: the word its door says, and the whole
@@ -146,7 +153,7 @@ export function createDrawers({
       surface: panel,
       scroller: () => panel.querySelector(".lf-drawer-list"),
       edge: side,
-      // Questions needs the document beside it because its rows lead to places there.
+      // The On panel needs the document beside it because its rows lead to places there.
       // The pages drawer covers it: its rows leave the page.
       beside: key === "queue",
       // Every drawer list ends above the bottom bar, which stands over the drawer in
@@ -201,7 +208,7 @@ export function createDrawers({
   );
   registerDrawer(
     "queue",
-    ["Questions", "Questions panel"],
+    ["On panel", "On panel"],
     queuePanel,
     queueBtn,
     queueFurniture.close,
@@ -210,7 +217,7 @@ export function createDrawers({
   );
   const drawerNames = Object.freeze([...drawers.keys()]);
 
-  // The Questions panel's own walk, the same one as the pages drawer's: the arrows, Home
+  // The On panel's own walk, the same one as the pages drawer's: the arrows, Home
   // and End are the page's scroll everywhere else and the drawer's here, and Enter is the
   // platform's, a row being a button — so the scope names what walking does and leaves
   // the press to the button.
@@ -241,7 +248,7 @@ export function createDrawers({
     }
     keys(
       queuePanel,
-      "In Questions",
+      "In the On panel",
       rowWalk({
         id: "queue.panel",
         noun: "Item",

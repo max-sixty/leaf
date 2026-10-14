@@ -614,7 +614,7 @@ export function mountApplication(dependencies) {
       }
       return dependencies.annotationCommands.goToAsk(ask, readAsks().all);
     },
-    // The Questions walk within one region (queue-walk.js), the walk an `lf-tally` steps.
+    // The On me walk within one region (queue-walk.js), the walk an `lf-tally` steps.
     nextAsk: (options) => dependencies.nextAskWithin(options),
     startFeed: feed.startFeed,
     wireInput: dependencies.wireInput,
@@ -624,7 +624,6 @@ export function mountApplication(dependencies) {
 
 export const threadBox = (...args) => app().threadBox(...args);
 export const dispatchWidget = commandDispatch.dispatchWidget;
-export const hasPending = (...args) => app().hasPending(...args);
 export const invalidateDom = (...args) => app().invalidateDom(...args);
 export const landInThread = (...args) => app().landInThread(...args);
 export const navigateToDatum = (...args) => app().navigateToDatum(...args);
@@ -633,14 +632,11 @@ export const navigateToDatum = (...args) => app().navigateToDatum(...args);
 export const openThread = (...args) => app().threadDestinations.openPageThread(...args);
 export const post = commandDispatch.post;
 export const projectData = (...args) => app().projectData(...args);
-export const readAndApply = (...args) => app().readAndApply(...args);
-export const refreshThread = (...args) => app().refreshThread(...args);
 export const placePageThreads = (...args) => app().placePageThreads(...args);
 export const consumeAnnotations = (...args) => app().consumeAnnotations(...args);
 export const mountThreadViews = (...args) => app().mountThreadViews(...args);
 export const registerThreadPresentation = (...args) =>
   app().registerThreadPresentation(...args);
-export const registerThreadPanel = (...args) => app().registerThreadPanel(...args);
 export const threadActions = Object.freeze({
   open: (...args) => app().threadActions.open(...args),
   create: (...args) => app().threadActions.create(...args),

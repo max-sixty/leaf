@@ -214,7 +214,10 @@ each assertion at the boundary that owns it").
 Use maintained dependencies for established capabilities, including prototypes.
 Leaf code owns product-specific behavior and integration. Native platform and
 standard-library implementations count as reuse. Implement a mechanism ourselves
-only when existing implementations cannot meet a concrete requirement.
+only when existing implementations cannot meet a concrete requirement. In the
+browser, use the platform's layout, cascade and focus model before writing a
+mechanism of your own (`skills/leaf/assets/AGENTS.md`, "The browser answers
+first").
 
 Build browser dependencies in Leaf's development and release pipeline and ship
 ready assets. Consumers run no browser build.
@@ -410,7 +413,7 @@ user-visible benefit and why it cannot wait. Bytes off that path, such as a lazi
 loaded module, a vendored file, or the install's size, are not on their own a reason
 for a change.
 
-Land through a pull request or with `wt merge`, which squash-merges to `main`.
-A failing check the change doesn't cause blocks nothing (`tests/AGENTS.md`, "Run
-what the change needs"). Tend sessions follow
-**Landing** in `.claude/skills/running-tend/SKILL.md`.
+Land through a pull request or with `wt merge`, which squash-merges to `main`. For
+now, a failing check the change doesn't cause blocks nothing (`tests/AGENTS.md`, "Run
+what the change needs"). Tend sessions follow **Landing** in
+`.claude/skills/running-tend/SKILL.md`.

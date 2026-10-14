@@ -452,7 +452,7 @@ def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve):
         held.pop(0).continue_()
         page.evaluate(
             """async () => {
-              const {loadMarkdown} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+              const {loadMarkdown} = await window.__lfWidgetApi();
               await loadMarkdown();
             }"""
         )
@@ -1953,7 +1953,7 @@ def test_a_revision_keeps_the_paragraph_under_a_focused_stuck_tab(browser, serve
     rendered(page)
     expect(tab).to_be_focused()
     assert tab.evaluate("""async tab => {
-        const {stuckBox, seenRect} = await window.__lfRuntimeImport('/runtime/geometry.js');
+        const {stuckBox, seenRect} = await window.__lfCheckApi();
         return Boolean(stuckBox(tab) && seenRect(tab, new Map()));
     }"""), "the tab strip did not stick over the panel"
     landmark = page.evaluate("""() => [...document.querySelectorAll('#first p')].find(
@@ -2070,6 +2070,29 @@ def test_a_revision_leaves_root_attributes_it_does_not_change_untouched(browser,
     told(page)
     expect(page).to_have_title("Live more")
     assert page.evaluate("[...document.body.style].includes('--live-added')")
+
+
+def test_a_revision_brings_its_page_layout_to_the_body(browser, serve):
+    """The body's geometry follows the page's Layout across a live revision.
+
+    A Layout's body rules read the Layout delivery repeats on the root, so a revision
+    that drops the Layout hands the body back the browser's margin, and one that names
+    it again takes the margin away."""
+    margin = "getComputedStyle(document.body).marginTop"
+    page = open_page(browser, live_url(serve(LIVE_V1)))
+    assert page.evaluate(margin) == "0px"
+
+    (serve.page_dir / "index.html").write_text(
+        LIVE_V2.replace('<main class="layout-column">', "<main>")
+    )
+    told(page)
+    expect(page).to_have_title("Live second")
+    assert page.evaluate(margin) == "8px"
+
+    (serve.page_dir / "index.html").write_text(LIVE_V3)
+    told(page)
+    expect(page).to_have_title("Live third")
+    assert page.evaluate(margin) == "0px"
 
 
 def test_a_stamped_live_draft_and_its_unstamped_view_keep_distinct_menu_rows(
@@ -2507,7 +2530,7 @@ def test_a_revision_reaches_markup_wherever_its_source_holds_it(browser, serve):
     template = "() => document.getElementById('tm-held').content.textContent"
     assert page.evaluate(template) == "The first account."
     quoted = (
-        "async () => { const api = await window.__lfRuntimeImport('/runtime/widget-api.js');"
+        "async () => { const api = await window.__lfWidgetApi();"
         " const reading = api.widgetController(document.getElementById('qt-opts')).read();"
         " return { choose: reading.actions.choose.available,"
         " label: document.getElementById('qt-b').textContent.trim() }; }"
@@ -2882,7 +2905,7 @@ def test_a_revision_releases_the_served_markup_it_removes(browser, serve, depart
             page.evaluate("getSelection().anchorNode.parentElement.id")
             == "served-selection"
         )
-        page.keyboard.press("q")
+        page.keyboard.press("m")
         expect(page.locator("#question")).to_be_focused()
     if departure != "focused":
         assert page.evaluate("history.length") == entries + 1
@@ -2916,7 +2939,7 @@ def test_a_revision_releases_the_served_markup_it_removes(browser, serve, depart
 
 
 @pytest.mark.parametrize("subject", ["diff", "selection"])
-def test_a_live_revision_updates_the_closed_questions_door(browser, serve, subject):
+def test_a_live_revision_updates_the_closed_on_me_door(browser, serve, subject):
     """Unrelated questions arrive while an anchored comment keeps its native editor."""
     reading = (
         '<p id="reading">Work under discussion.</p>'
@@ -2935,7 +2958,7 @@ def test_a_live_revision_updates_the_closed_questions_door(browser, serve, subje
     second = first.replace(reading, questions + reading)
     page = open_page(browser, live_url(serve(first, packages=("diff",))))
     door = page.locator(".lf-queue")
-    expect(door).to_have_text("Questions: 0")
+    expect(door).to_have_text("On me: 0")
     target = (
         page.locator("#reading")
         if subject != "diff"
@@ -2953,8 +2976,8 @@ def test_a_live_revision_updates_the_closed_questions_door(browser, serve, subje
     # An empty but open composer was sufficient to hold the original report.
     (serve.page_dir / "index.html").write_text(second)
     expect(page.locator("lf-ask")).to_have_count(3)
-    expect(door).to_have_text("Questions: 3")
-    expect(door).to_have_attribute("aria-label", "Questions: 3 waiting on me")
+    expect(door).to_have_text("On me: 3")
+    expect(door).to_have_attribute("aria-label", "On me: 3")
     if subject == "selection":
         assert (
             page.evaluate("getSelection().toString().trim()")
@@ -2969,7 +2992,7 @@ def test_a_live_revision_updates_the_closed_questions_door(browser, serve, subje
     editor.evaluate("node => node.setSelectionRange(5, 9)")
     (serve.page_dir / "index.html").write_text(first)
     expect(page.locator("lf-ask")).to_have_count(0)
-    expect(door).to_have_text("Questions: 0")
+    expect(door).to_have_text("On me: 0")
     expect(editor).to_be_focused()
     expect(editor).to_have_js_property(
         "value", "Keep this comment while questions change."
@@ -2999,13 +3022,13 @@ def test_a_live_revision_holds_a_changed_comment_anchor_scope(browser, serve):
     (serve.page_dir / "index.html").write_text(second)
     expect_banner_control_offered(page.locator(".lf-latest-chip"))
     expect(page.locator("#subject p")).to_have_count(1)
-    expect(page.locator(".lf-queue")).to_have_text("Questions: 0")
+    expect(page.locator(".lf-queue")).to_have_text("On me: 0")
     expect(editor).to_be_focused()
     expect(editor).to_have_js_property("value", "This occurrence matters.")
 
     editor.press("Escape")
     expect(page.locator("#subject p")).to_have_count(2)
-    expect(page.locator(".lf-queue")).to_have_text("Questions: 1")
+    expect(page.locator(".lf-queue")).to_have_text("On me: 1")
 
 
 def test_a_live_revision_preserves_an_unchanged_authored_editor(browser, serve):
@@ -3088,8 +3111,7 @@ def test_a_live_revision_reorders_the_page_and_ask_inventory_together(browser, s
     ]
     descriptors = page.evaluate(
         """async () => {
-          const {readApplication} = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js');
+          const {readApplication} = await window.__lfCheckApi();
           return [...readApplication().document.descriptors.keys()];
         }"""
     )
@@ -3154,7 +3176,7 @@ customElements.define("lf-conditional", class extends HTMLElement {
             layer_widgets={"lf-conditional.js": module},
         ),
     )
-    expect(page.locator(".lf-queue")).to_have_text("Questions: 0")
+    expect(page.locator(".lf-queue")).to_have_text("On me: 0")
 
     for phase, count in (("open", 1), ("closed", 0)):
         append_command(
@@ -3556,7 +3578,7 @@ def test_ask_repaints_keep_the_queues_reading_until_an_explicit_arrival(browser,
     )
     resized(page, 1200, 900)
     page.keyboard.press("g")
-    page.keyboard.press("Shift+q")
+    page.keyboard.press("Shift+m")
     page.locator('.lf-queue-row[data-lf-at="widget:options-0"]').click()
     expect(page.locator("#ask-0")).to_be_focused()
     list_selector = ".lf-queue-panel .lf-drawer-list"
@@ -3579,7 +3601,7 @@ def test_ask_repaints_keep_the_queues_reading_until_an_explicit_arrival(browser,
     assert drawer.evaluate("list => list.scrollTop") == reading
     expect(page.locator("#ask-0")).to_be_focused()
 
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#ask-1")).to_be_focused()
     scroll_settled(page, list_selector)
     assert drawer.evaluate("list => list.scrollTop") < reading
@@ -3627,7 +3649,7 @@ def test_a_panes_posture_change_keeps_the_reading_after_scrolling_past_focus(
         # Interleave at the announced handover, before its deferred restoration. The
         # platform input supersedes that restoration just as a trackpad gesture does.
         page.evaluate("""async () => {
-          const regions = await window.__lfRuntimeImport('/runtime/reading-regions.js');
+          const regions = await window.__lfWidgetApi();
           const stop = regions.watchReadingRegionTransitions(({phase, shifted}) => {
             if (phase !== 'shift' || !shifted.some(({region}) => region.id === 'reading'))
               return;
@@ -4007,7 +4029,7 @@ def test_a_revision_that_restates_an_ask_leaves_the_user_standing_in_it(browser,
     page = open_page(browser, live_url(version_url))
     decision = page.locator("#lk-decision")
 
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(decision).to_be_focused()
     (serve.page_dir / "index.html").write_text(LIVE_KEYS_ASK_REWRITTEN)
     told(page)
@@ -4370,7 +4392,7 @@ customElements.define('page-counter', class extends HTMLElement {
         "</head>", module.replace("count 0", "count 10") + "</head>"
     )
     page = open_page(browser, live_url(serve(first)))
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#lk-decision")).to_be_focused()
     original_document = page.evaluate("performance.timeOrigin")
 
@@ -4530,7 +4552,7 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
     The passage they were reading did; where the walk had got to was a variable in a
     module the navigation threw away, so it did not, and the user was demoted without
     a word from the most exact reading of where they stand to the coarsest. Standing on
-    the third of four Asks when v2 landed, they pressed `q` and were handed the third
+    the third of four Asks when v2 landed, they pressed `m` and were handed the third
     again — after looking slightly back above that Ask, the block at the top of the
     window is somewhere they had already walked past.
 
@@ -4546,7 +4568,7 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
     resized(page, 900, 400)
 
     for ask in ASKS_IN_ORDER[:3]:
-        page.keyboard.press("q")
+        page.keyboard.press("m")
         expect(page.locator(f"#{ask}")).to_have_attribute("data-lf-ask", "1")
     scroll_settled(page)
 
@@ -4574,7 +4596,7 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
                 scrollTop: document.scrollingElement.scrollTop};
     }""")
     assert 42 < position["earlierBottom"] <= position["decisionTop"], position
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-ask", "1")
 
 
@@ -4648,7 +4670,7 @@ def test_the_ring_says_where_the_user_is_standing(browser, serve):
     the decision rather than in the control, so there the decision's own ring is the one."""
     page = open_page(browser, serve(ASKS_PAGE))
     question = page.locator("#live-question-decision")
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(question).to_have_attribute("data-lf-ask", "1")
     arrival_ring = question.evaluate(RING)
     assert arrival_ring == [
@@ -4678,7 +4700,7 @@ def test_the_ring_says_where_the_user_is_standing(browser, serve):
     # its own once, which is a family stating a fact about a shape the runtime owns.
     #
     # Real presses verify the keyboard route as well as its focus treatment.
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     suggestion = page.locator("#sug-refill")
     expect(suggestion).to_have_attribute("data-lf-ask", "1")
     accept = suggestion_control(page, "sug-refill", "accept")
@@ -4763,7 +4785,7 @@ def test_escape_lets_go_of_the_ask_the_user_is_standing_on(browser, serve):
         {"section": "sug-refill"},
     )
     page = open_page(browser, url)
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#live-question-decision[data-lf-ask]")).to_have_count(1)
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("let go")
     # And the reference says the same press in its own words. It said "Back out one
@@ -4773,7 +4795,7 @@ def test_escape_lets_go_of_the_ask_the_user_is_standing_on(browser, serve):
     page.keyboard.press("?")
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_contain_text(
-        "Let go of what I'm standing on"
+        "Let go of the current item"
     )
     page.keyboard.press("Escape")  # the reference's own rung, which hands focus back
     expect(page.locator(".lf-command-reference")).not_to_have_class(re.compile("open"))
@@ -4787,11 +4809,11 @@ def test_escape_lets_go_of_the_ask_the_user_is_standing_on(browser, serve):
 
     # The directional walk reads the user's current visible place after Escape.
     # Reenter the first Ask from there, then move to the next one.
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#live-question-decision")).to_be_focused()
     # The suggestion's thread comes up beside it, hung from its own entry, which the
     # cluster unfolds to show for as long as the card stands there.
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#sug-refill[data-lf-ask]")).to_have_count(1)
     walked_item = page.locator('[data-lf-margin-for="sug-refill"]')
     expect(page.locator(".lf-margin-preview")).to_contain_text("Check this wording")
@@ -4800,7 +4822,7 @@ def test_escape_lets_go_of_the_ask_the_user_is_standing_on(browser, serve):
     # A walk out of an unfolded cluster folds the old destination while suppressing
     # only the new destination's Tab-style arrival. The two halves share one native
     # focus transition, whose focusout and focusin both fire inside focus().
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#t-baffles-decision[data-lf-ask]")).to_have_count(1)
     expect(walked_item.locator(":scope > .lf-margin-more")).to_be_visible()
     expect(walked_item.locator(":scope > .lf-margin-options")).to_be_hidden()
@@ -4920,7 +4942,7 @@ def test_the_ask_walk_follows_registry_declarations(browser, serve):
         "t-baffles-decision",
         "t-bath-decision",
     ]:
-        page.keyboard.press("q")
+        page.keyboard.press("m")
         expect(page.locator(f"#{expected}")).to_have_attribute("data-lf-ask", "1")
 
 
@@ -4943,7 +4965,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     fraction = page.locator("#t-feeders > .work-progress")
     expect(fraction).to_contain_text("1/2 done")
     # Nothing waits on the user.
-    expect(page.locator(".lf-queue")).to_have_text("Questions: 0")
+    expect(page.locator(".lf-queue")).to_have_text("On me: 0")
 
     sent = CliRunner().invoke(
         cli_model.cli,
@@ -4956,7 +4978,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     expect(task).to_have_attribute("data-lf-reported", "1")
     expect(task).not_to_have_attribute("data-lf-user-override", "1")
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     report_reading = page.get_by_role(
         "button", name=re.compile(r"^Open reported state: Reported state")
     )
@@ -4966,7 +4988,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     # The visible status line follows the reported attribute, so a user listening
     # hears the current state too.
     assert "review" in task.aria_snapshot()
-    expect(page.locator(".lf-queue")).to_have_text("Questions: 0")
+    expect(page.locator(".lf-queue")).to_have_text("On me: 0")
 
     # A second report supersedes the first — absolute values fold — and the
     # progress fraction recounts across the tree.
@@ -4980,7 +5002,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     said = task.aria_snapshot()
     assert "done" in said and "review" not in said, said
     expect(fraction).to_contain_text("2/2 done")
-    expect(page.locator(".lf-queue")).to_have_text("Questions: 0")
+    expect(page.locator(".lf-queue")).to_have_text("On me: 0")
 
     # The overruling version: its markup keeps `active` and publishes typed report
     # settlements resolved from `overruled`, so replay stops them
@@ -5223,7 +5245,7 @@ def test_the_report_feed_reads_reports_by_typed_target(browser, serve):
     told(page)
 
     reports = page.evaluate(
-        "async () => (await window.__lfRuntimeImport('/runtime/widget-api.js')).reportSequence()"
+        "async () => (await window.__lfWidgetApi()).reportSequence()"
     )
     by_source = {report["source"]: report for report in reports}
     assert set(by_source) == {"report"}
@@ -5244,7 +5266,7 @@ def test_the_report_feed_reads_reports_by_typed_target(browser, serve):
     assert by_source["report"]["session"]
     targeted = page.evaluate(
         """async () => {
-            const feed = await window.__lfRuntimeImport('/runtime/widget-api.js');
+            const feed = await window.__lfWidgetApi();
             return {
                 widget: feed.reportSequence(document.querySelector('#ag-wren')),
                 thread: feed.reportSequence({kind: 'thread', id: 'ag-wren'}),
@@ -5276,7 +5298,7 @@ def test_the_report_feed_reads_reports_by_typed_target(browser, serve):
     wait_for_revision(page, 2)
 
     reports = page.evaluate(
-        "async () => (await window.__lfRuntimeImport('/runtime/widget-api.js')).reportSequence()"
+        "async () => (await window.__lfWidgetApi()).reportSequence()"
     )
     by_source = {report["source"]: report for report in reports}
     assert by_source["report"]["disposition"] == "settled"
@@ -5309,8 +5331,7 @@ def test_report_words_and_widget_state_wait_together_for_a_drag(browser, serve):
 
     page.evaluate(
         """async () => {
-          const {dragging} = await window.__lfRuntimeImport(
-            '/runtime/widget-elements.js');
+          const {dragging} = await window.__lfWidgetApi();
           dragging(document.body, true);
         }"""
     )
@@ -5334,8 +5355,7 @@ def test_report_words_and_widget_state_wait_together_for_a_drag(browser, serve):
 
     page.evaluate(
         """async () => {
-          const {dragging} = await window.__lfRuntimeImport(
-            '/runtime/widget-elements.js');
+          const {dragging} = await window.__lfWidgetApi();
           dragging(document.body, false);
         }"""
     )
@@ -5374,9 +5394,9 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
     expect(row.locator(".lf-doing")).to_have_text("first report")
     page.evaluate(
         """async holding => {
-          const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const {clockValue, tickClock} = await window.__lfRuntimeImport('/runtime/presence.js');
-          const {readApplicationPresentation} = await window.__lfRuntimeImport('/runtime/semantic-state.js');
+          const api = await window.__lfWidgetApi();
+          const {clockValue} = await window.__lfWidgetApi();
+          const {readApplicationPresentation} = await window.__lfCheckApi();
           const owner = document.getElementById('ag-wren');
           window.__proofClock = 0;
           window.__proofReads = [];
@@ -5384,10 +5404,7 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
             clockValue(() => window.__proofClock);
             window.__proofReads.push(reports.map(report => report.text));
           });
-          window.__proofTick = async () => {
-            window.__proofClock += 1;
-            await tickClock(message => { throw new Error(message); });
-          };
+          window.__proofTick = () => { window.__proofClock += 1; };
           window.__proofPending = () => {
             const proof = readApplicationPresentation();
             return api.reportSequence(owner).some(report => report.text === 'held report') &&
@@ -5418,6 +5435,7 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
         page.evaluate("window.__proofWatching.refresh()")
         assert page.evaluate("window.__proofReads.length") == reads
         page.evaluate("window.__proofTick()")
+        ticked(page)
         assert page.evaluate("window.__proofReads.length") == reads
     second = CliRunner().invoke(
         cli_model.cli,
@@ -5434,6 +5452,7 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
     assert second.exit_code == 0, second.output
     page.wait_for_function("window.__proofPending()")
     page.evaluate("window.__proofTick()")
+    ticked(page)
     assert not page.evaluate(
         "window.__proofReads.some(read => read.includes('held report'))"
     )
@@ -5667,7 +5686,7 @@ customElements.define("lf-tally", class extends HTMLElement {
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "3")
     kept = page.evaluate(
         """async () => {
-          const {state} = (await window.__lfRuntimeImport('/runtime/widget-api.js'))
+          const {state} = (await window.__lfWidgetApi())
             .widgetController(document.getElementById('tally-fitted')).read();
           return [state.set.value, state.observe.value];
         }"""
@@ -5793,7 +5812,7 @@ customElements.define("lf-piece", class extends HTMLElement {
     expect(page.locator("#piece")).to_have_attribute("pinned", "yes")
     kept = page.evaluate(
         """async () => {
-          const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {widgetController} = await window.__lfWidgetApi();
           return ['owner', 'piece'].map(id => {
             const widget = document.getElementById(id);
             const {state} = widgetController(widget).read();
@@ -5968,7 +5987,7 @@ def test_replay_signatures_exclude_settlement_and_other_runtime_paint(browser, s
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
 
     signatures = page.evaluate("""async () => {
-        const { shallowSigs } = await window.__lfRuntimeImport("/runtime/check-api.js");
+        const { shallowSigs } = await window.__lfCheckApi();
         const widget = document.getElementById("sug-refill");
         const read = () => shallowSigs(document.body).get(widget.id);
         const decided = read();
@@ -5990,7 +6009,7 @@ def test_replay_signatures_exclude_settlement_and_other_runtime_paint(browser, s
         "rendered settlement paint became authored state in the replay signature"
     )
     positions = page.evaluate("""async () => {
-        const { shallowSigs } = await window.__lfRuntimeImport("/runtime/check-api.js");
+        const { shallowSigs } = await window.__lfCheckApi();
         const root = document.createElement("div");
         root.id = "signature-root";
         root.innerHTML = '<i></i><div id="first"><b id="nested"></b></div>' +
@@ -6689,8 +6708,7 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
     holding(page, held, 1, "the frozen draft module")
     assert len(held) == 1
     frozen_reading = """async () => {
-      const {readApplication} = await window.__lfRuntimeImport(
-        '/runtime/semantic-state.js');
+      const {readApplication} = await window.__lfCheckApi();
       const root = readApplication();
       return {
         descriptor: root.document.descriptors.has('crossed-draft'),
@@ -6862,7 +6880,7 @@ def test_a_thread_answer_is_not_repainted_after_its_undo_arrives_with_it(
     url = serve(REPLY_HOST_PAGE)
     append_carried_log_record(serve.page_dir, THREAD_ASKS[1])
     page = open_page(browser, url)
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     held = []
     page.route("**/api/event", lambda route: _hold_gesture(route, held))
     done = page.locator("#tq-set .lf-done")
@@ -6904,7 +6922,7 @@ def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
     url = serve(REPLY_HOST_PAGE)
     append_carried_log_record(serve.page_dir, THREAD_ASKS[1])
     page = open_page(browser, url)
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
 
     held = []
@@ -6970,7 +6988,7 @@ def test_refusal_restores_queued_recordless_thread_actions_in_order(browser, ser
     url = serve(REPLY_HOST_PAGE)
     append_carried_log_record(serve.page_dir, THREAD_ASKS[1])
     page = open_page(browser, url)
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     held = []
     page.route("**/api/event", lambda route: _hold_gesture(route, held))
     with page.expect_request(_gesture_request):
@@ -7024,9 +7042,9 @@ def test_a_done_press_answers_optimistically_and_only_once(browser, serve):
     for event in THREAD_ASKS:
         append_carried_log_record(serve.page_dir, event)
     page = open_page(browser, url)
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#tq-set-decision")).to_be_focused()
     done = page.locator("#tq-set .lf-done")
     held = []
@@ -7066,7 +7084,7 @@ def test_closing_a_thread_withdraws_the_ask_in_it(browser, serve):
         serve.page_dir, {"kind": "resolve", "author": "agent", "parent": "c-which"}
     )
     told(page)
-    expect(page.locator(".lf-queue")).to_have_text("Questions: 0")
+    expect(page.locator(".lf-queue")).to_have_text("On me: 0")
     page.locator(".lf-threads-toggle").click()
     panel_settled(page, True)
     page.locator(".lf-thread-filter-toggle").click()
@@ -7111,7 +7129,7 @@ def test_worktree_identity_does_not_follow_the_missing_evidence_placeholder(
 
     def status():
         return page.evaluate(
-            """anchor => window.__lfRuntimeImport('/runtime/anchor-resolution.js')
+            """anchor => window.__lfCheckApi()
               .then(({resolveAnchor}) => resolveAnchor(anchor)?.status)""",
             anchor,
         )

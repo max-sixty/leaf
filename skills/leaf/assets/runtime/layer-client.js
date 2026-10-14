@@ -320,6 +320,7 @@ const reportedReasons = new WeakSet();
 const reportedPrimitives = new Set();
 const reportedErrors = new Set();
 export function reportPageError(reason, context = "") {
+  if (!document.documentElement.lfDocumentLifetime.active) return;
   if (typeof reason === "object" && reason !== null) reportedReasons.add(reason);
   else reportedPrimitives.add(String(reason));
   const text = exceptionText(reason, context);

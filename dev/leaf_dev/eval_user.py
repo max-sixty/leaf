@@ -40,7 +40,7 @@ from leaf_dev.arms import (
     trace_result,
     trace_summary,
 )
-from leaf_dev.browser import BESIDE, DESKTOP, chrome, load, settle, tab
+from leaf_dev.browser import BESIDE, DESKTOP, headless_shell, load, settle, tab
 from leaf_dev.eval_cases import definition
 
 # Elements a reader clicks to open what a list or a disclosure holds.
@@ -191,7 +191,7 @@ def comment_on_passage(
     context anchors, opening `target` first where none is drawn, or otherwise
     on the page whole with `fallback`. Return the route, the quote, and the
     `attempt` key that finds the admitted comment in the log."""
-    with chrome() as browser, tab(browser, viewport=DESKTOP) as view:
+    with headless_shell() as browser, tab(browser, viewport=DESKTOP) as view:
         load(view, url)
         quote = view.evaluate(SELECT, list(quotes))
         opened = None
@@ -252,7 +252,7 @@ def decide(url: str, task: str, evidence: Path) -> dict:
         probe.bind(("127.0.0.1", 0))
         port = probe.getsockname()[1]
     with (
-        chrome(args=[f"--remote-debugging-port={port}"]) as browser,
+        headless_shell(args=[f"--remote-debugging-port={port}"]) as browser,
         tab(browser, viewport=BESIDE, motion="no-preference") as view,
         scratch() as cwd,
         tempfile.TemporaryDirectory(prefix="leaf-pw-", dir="/tmp") as sockets,

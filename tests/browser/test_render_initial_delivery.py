@@ -1,7 +1,6 @@
 """Initial drawings stay coherent when HTML arrives across separate parser tasks."""
 
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path
 from threading import Event
 
 from interact_support import running_http_server
@@ -10,13 +9,15 @@ from leaf.revision_artifact import Resource
 from leaf.revision_delivery import Delivery, compose_document
 
 
-def test_a_streamed_initial_host_first_shows_its_complete_drawing(browser):
+def test_a_streamed_initial_host_first_shows_its_complete_drawing(
+    browser, compiled_installation
+):
     """A pause inside a nested widget must not expose source layout before its drawing.
 
     The same nodes then reach the behavior module, with tab memory already drawn and
     the original nested source still available for semantic intake and revisions.
     """
-    assets = Path(__file__).resolve().parents[2] / "skills/leaf/assets"
+    assets = compiled_installation / "skills/leaf/assets"
     host_source = (
         '<lf-initial-outer id="outer"><aside data-lf-exhibit="">'
         '<lf-initial-inner id="inner"><p>Original nested prose</p>'
@@ -45,9 +46,15 @@ def test_a_streamed_initial_host_first_shows_its_complete_drawing(browser):
         });
     """
     resources = {
+        **{
+            "/" + path.relative_to(assets).as_posix(): Resource(
+                path.read_bytes(), "application/javascript"
+            )
+            for path in assets.rglob("*.js")
+        },
         "/leaf.js": Resource(
             b"""
-                import {initialRender} from '/runtime/initial-render.js';
+                import {initialRender} from '/runtime/widget-api.js';
                 const host = document.getElementById('outer');
                 const frame = host.querySelector('.initial-frame');
                 const adopted = initialRender(host);
@@ -55,14 +62,7 @@ def test_a_streamed_initial_host_first_shows_its_complete_drawing(browser):
             """,
             "application/javascript",
         ),
-        "/runtime/prepaint.js": Resource(
-            (assets / "runtime/prepaint.js").read_bytes(), "application/javascript"
-        ),
         "/vendor/initial.js": Resource(producer, "application/javascript"),
-        "/runtime/initial-render.js": Resource(
-            (assets / "runtime/initial-render.js").read_bytes(),
-            "application/javascript",
-        ),
         **{
             path: Resource(b"", "text/css")
             for path in (

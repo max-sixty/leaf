@@ -27,7 +27,7 @@ representative desktop viewport.
 
 - **The page owns its arrangement.** A page arranges itself with a shipped Layout
   class (`layouts.css`, `@layer lf-layouts`) or its own CSS. Leaf owns what pages and
-  widgets coordinate through: the bands, the reading measure as typography, and each
+  widgets coordinate through: the bands, the reading measure a Layout sets, and each
   widget's contract to fill the box it is given, declare the minimum it needs, and
   never let its content widen its holder.
 - **A Layout, a style and a widget never read one another.** A Layout (`layouts.css`)
@@ -62,7 +62,7 @@ representative desktop viewport.
   ("Stability"). Owners: `runtime/annotation-overlay/margin-placement.js` for where a margin
   row sits and when a pin folds.
 - **Auxiliary surfaces open over the page and never change its geometry.** The
-  Questions panel, the thread panel and the Pages drawer take no room from the page;
+  On panel, the thread panel and the Pages drawer take no room from the page;
   `auxiliary-surfaces.js` says when one leaves the page live beside it and when it
   covers the page (`--lf-auxiliary-beside`, `standsBeside`). Which box scrolls is the
   stylesheet's, a Layout's or the page's, and the runtime reads it rather than deciding
@@ -204,9 +204,10 @@ representative desktop viewport.
 - **Animations are restrained and finite, and acknowledge state changes.** An
   unchanged state does not animate continuously. One sheen is the only continuous
   animation, and it marks work under way: across “Generating title” on an untitled thread
-  awaiting the agent (`styles/chrome.css`), and across a thread's working message while the
-  agent's work on it runs (`styles/components/surfaces.css`). It stops when that state
-  ends, and is static under reduced motion.
+  awaiting the agent (`styles/chrome.css`), across a thread's working message while the
+  agent's work on it runs (`styles/components/surfaces.css`), and across the floating
+  panel's empty field while it says the agent is working (`styles/floating-panel.css`).
+  It stops when that state ends, and is static under reduced motion.
 - **Nothing the user must read, press, or decide waits on a clock.** Motion runs from
   a state that is already true, and motion that must finish before the result can be
   read is a pause. A motion the user waits on stays under 300ms; one that moves
@@ -342,6 +343,45 @@ its owner writes. A `:has()` on the chrome root, `body` or `html` is read again 
 every write below it and restyles it (`test_no_has_rule_stands_on_a_root`), so the
 owner of such a condition states it as an attribute on the element the rule styles.
 
+### The browser answers first
+
+The browser runs a layout engine, a cascade, and a focus model on every page. A script
+that recomputes one of their answers disagrees with them under zoom, subpixel
+rounding, a transform, or the page's own CSS. So before a module measures, positions,
+stacks, isolates, or tracks something, find the browser feature that already decides
+it, and shape the markup and CSS so the runtime uses its answer:
+
+| Question | The browser feature that answers it |
+| --- | --- |
+| How large a box is, including the widest of several labels | grid and flex tracks, `min-content` and `max-content`, labels stacked in one grid cell |
+| Where a box stands against another box or the scroller holding it | the containing block, sticky positioning, anchor positioning, scroll timelines |
+| Which of Leaf's surfaces paints over which | the top layer, and stacking contexts |
+| Whether a box is rendered at all | `checkVisibility` |
+| Which rules reach an element | cascade layers, `@scope`, and a shadow root as the boundary |
+
+Where the feature nearly fits, change what the runtime asks of it, such as where a
+box lives in the DOM or which element carries a style, rather than computing its
+answer. A module that answers one of these questions in script says why in its
+header: the requirement the feature cannot meet and the case that shows it. A review
+asks for that reason, and a change that adds a script answer without one does not
+land. Patching a built-in prototype or a dependency's internals needs the same reason.
+
+Some questions already have script answers. `focus.js` paints
+`data-lf-focus` and `data-lf-focus-within` because native `:focus` also matches
+retargeted shadow hosts and a held label press, so style focus on those marks.
+Whether the user can see a box, and what covers it, stay with `geometry.js`
+(`seenRect`, `declareOccluder`), since Leaf's chrome stands over the page without
+clipping it, and some of it, such as the shortcut bar, takes no pointer hits for
+`elementsFromPoint` to find. `reserve` (`widget-elements.js`) predates this rule and
+measures each label in script; a change that touches it replaces it with labels
+stacked in one grid cell, or states why that fails.
+
+Each rendering callback gathers its layout reads before it writes: a read after a
+write forces a synchronous style and layout. A document-wide renderer that reads DOM
+another one materializes takes an entry in `PRESENTATION_ORDER`
+(`runtime/semantic-state.js`), which says why CSS or the publication cannot supply
+that reading.
+
 ### One writer for each fact
 
 Each mutable fact has one authority and one browser writer. The application publisher
@@ -383,9 +423,9 @@ A question the runtime asks in many places has one owner, which every caller ask
 second copy usually starts where a symptom appeared and its author did not find the
 first, then drifts from it at the edges: under a stuck header, in a shadow tree, in
 right-to-left text. Before writing a predicate or reading, or approving one in review,
-look for its question here. A change that creates an owner adds its row; a caller that
-keeps its own test says why beside it. Rows marked *lint* are enforced in
-`eslint.config.mjs`.
+look for its question in "The browser answers first", then here. A change that
+creates an owner adds its row; a caller that keeps its own test says why beside it.
+Rows marked *lint* are enforced in `eslint.config.mjs`.
 
 | Question | Owner |
 | --- | --- |

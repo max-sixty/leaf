@@ -25,7 +25,7 @@
 // may be one an agent sent, since a widget in a message is scrolled by the panel's own
 // list and by nothing else. Threads and drawers are alternate auxiliary surfaces, so only
 // one stands at a time, over the page and taking no width from it. Leaves always covers
-// the page. Threads and Questions, which share the right edge and its width, cover it
+// the page. Threads and the On panel, which share the right edge and its width, cover it
 // only where they would leave less than a usable page beside them, one rule for both
 // (`standsBeside`, auxiliary-surfaces.js; `--lf-auxiliary-beside`, theme.css); elsewhere
 // the page beside them stays live.
@@ -75,14 +75,14 @@ export function createChromeLayout({
     syncLayoutRegion();
     scheduleResidency();
     scheduleThreadPreviewPosition?.();
-    // Over a live page, the side panel, Threads or Questions, owns the right of the
+    // Over a live page, the side panel, Threads or On, owns the right of the
     // window all the way to its foot. Cap the line's room at its edge rather than letting
     // a long hint cross into it, so swapping the two views moves nothing in the bar.
     const sideLive = standsBeside() && rightCover() !== Infinity;
     const panelRoom = (sideLive ? sideEdge.width() : 0) + "px";
     shortcutBarEl.style.setProperty("--lf-shortcut-bar-right", panelRoom);
     bottomStatusEl.style.setProperty("--lf-shortcut-bar-right", panelRoom);
-    // Over a live page the right edge's surface, Threads or Questions, stands over the
+    // Over a live page the right edge's surface, Threads or On, stands over the
     // page's right margin at any window short of about 1700px, and over the pins at the
     // column's edge at the same widths. The markers are still drawn, under the surface;
     // what says the user lost them is a margin row the surface's edge reaches. Where one

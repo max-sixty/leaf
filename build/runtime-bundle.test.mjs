@@ -19,6 +19,7 @@ test("prepared kernels preserve native packages, shared state, and stampable gen
     "runtime/vendor-bridge.js": 'export { state } from "./state.js";',
     "runtime/widget-api.js": 'export { state } from "./state.js";',
     "runtime/check-api.js": 'export { state } from "./state.js";',
+    "runtime/annotation-overlay/check-api.js": 'export { state } from "../state.js";',
     "runtime/media.js":
       'export { state } from "./state.js"; export { rendered } from "../vendor/browser-runtime.js";',
     "runtime/layer-client.js":
@@ -59,7 +60,13 @@ test("prepared kernels preserve native packages, shared state, and stampable gen
 
     const leaf = await import(pathToFileURL(join(output, "leaf.js")));
     const api = await import(pathToFileURL(join(output, "runtime/widget-api.js")));
+    const checks = await import(pathToFileURL(join(output, "runtime/check-api.js")));
+    const overlayChecks = await import(
+      pathToFileURL(join(output, "runtime/annotation-overlay/check-api.js"))
+    );
     assert.equal(leaf.state.annotations, false);
+    assert.equal(checks.state, leaf.state);
+    assert.equal(overlayChecks.state, leaf.state);
     const annotations = await leaf.annotations();
     assert.equal(leaf.state.annotations, true);
     const bridge = await import(
@@ -112,6 +119,12 @@ test("prepared kernels preserve native packages, shared state, and stampable gen
     // A lazily imported kernel module is a chunk, and its vendor import stays native.
     assert.match(javascript.join("\n"), /import\("\/vendor\/example\.js"\)/);
     assert.doesNotMatch(javascript.join("\n"), /browser-runtime/);
+    // A historical developer arm may predate the optional diagnostic entry.
+    await rm(join(layer, "runtime/annotation-overlay/check-api.js"));
+    const historical = join(temporary, "historical");
+    await bundleDistribution(layer, historical);
+    const prior = await import(pathToFileURL(join(historical, "leaf.js")));
+    assert.equal(prior.state.annotations, false);
   } finally {
     await rm(temporary, { recursive: true });
   }

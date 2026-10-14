@@ -235,7 +235,7 @@ function wireDeclaredButtons(scope) {
 // either says so — a `when` or an `at` nobody wrote means always, which is what makes the
 // first contributor's silence carry rather than the second's answer.
 const either = (a, b) => (a && b ? () => a() || b() : undefined);
-export const elementScopes = new WeakMap();
+const elementScopes = new WeakMap();
 // The scopes other owners project onto an element, keyed by the owner, so one control can
 // carry several: a margin entry holds its widget's scope and an ask's digit route at once.
 const projectedScopes = new WeakMap();
@@ -629,7 +629,7 @@ export function projectCommandScope(control, projector, capability = null) {
 // declaring scope beside each row: a control presentation may be hoisted elsewhere,
 // while Decision ownership still belongs to the source that declared the command.
 // This is the shared capability reading: the dispatcher, shortcut bar and reference use
-// the same rows directly, while projections such as Questions select the role they need.
+// the same rows directly, while projections such as the On panel select the role they need.
 // A scope may sit on a nested control rather than the widget itself, so containment
 // follows the runtime's cross-shadow parent walk instead of a light-DOM selector.
 function scopesWithin(root, activeOnly) {

@@ -529,7 +529,7 @@ with no record sends what its declared `detail` schema asks for.
 
 A widget's `x-awaits.value` selects its typed answer from the state ("Reading asks and
 obligation queues"). Its class may declare `static answerWords(value, element)`, which
-returns concise words for that answer in the Questions panel. `value` is the ask's typed
+returns concise words for that answer in the On panel. `value` is the ask's typed
 `answer.value`; `element` supplies authored markup such as option labels. Read nothing
 the module renders; Leaf collapses the words' whitespace. A widget without this
 formatter supplies no answer wording, and its typed answer stays available through
@@ -763,8 +763,8 @@ forwards to the enclosing ask's opening and its margin controls and threads; a r
 declare its own. Numbers are the widget's own choices, not an allocation across asks:
 options own their stable numeric assignments, and a classifier declares Pass as `1` and
 Keep as `2`. Never assign numbers from the currently available actions: disabling `1`
-must not turn `2` into a different action. The page owns `q` and `Shift+q` for moving
-between Questions.
+must not turn `2` into a different action. The page owns `m` and `Shift+m` for moving
+through the user's On me list.
 
 `decision: true` marks the command's role in the ask; it neither assigns a binding nor
 makes ordinary keys forwardable, and a numeric command need not be a Decision. A
@@ -1347,7 +1347,7 @@ Each record contains:
 - An approval ask has `source.kind === "approval"`, `source.version` naming the stamped
   version, and id `approval:v<version>`. Its answer is `null` until that version's approval
   settles it with typed `answer.value === true`; Undo reopens it. Its arrival reaches the
-  Approve control in the Questions view of Leaf's panel.
+  Approve control in the On view of Leaf's floating panel.
 
 `thread` and `message` name a frozen widget ask's Thread and exact message, and a prose
 ask's Thread and source message; both are null for page-widget and approval asks.
@@ -1373,8 +1373,8 @@ user.
 `askActions.open(id)` resolves the current ask and follows its arrival, including to
 earlier prose prompts and completed asks, and resolves to `false` when that ask is
 unavailable. `askActions.next({within, dir})` steps to the next ask waiting on the
-user inside the element `within`, or the previous with `dir: -1`, as `q` steps through
-Questions: from the one the user stands on, else from their place in document order,
+user inside the element `within`, or the previous with `dir: -1`, as `m` steps through
+On me: from the one the user stands on, else from their place in document order,
 coming round at either end. From outside the region it counts from the ask the user last
 went to when that ask is in the region, so Tab from an ask to a control above it and
 Enter steps on; otherwise from the first of the region's asks in sight, the next if it
@@ -1384,18 +1384,18 @@ region's edge. It resolves to whether it arrived. A control that calls it keeps 
 declared command; asks expose no separate answer API.
 
 `readQueues()` and `watchQueues(owner, callback)` supply the immutable
-`{phase, questions, tasks, done}` that the Questions panel and `q` navigation use. Ask rows
+`{phase, on_user, on_agent, done}` that the On panel and `m` navigation use. Ask rows
 have `kind === "ask"` and their canonical `ask` record, whose `source.kind` is `widget`,
 `reply` or `approval`. To-do rows have `kind === "todo"`; response obligations and delivery
 retries keep their own kinds. An ask is not also a to-do. Live rows carry their workflow or
 `null`, plus `offers: {open, done}` for current command availability. Keep local filters and
 ordering separate. `queueItemKey(row)` names a row across a move between lists, and
-`queueTitle(row)` names its subject with the same conversation or ask title the Questions
+`queueTitle(row)` names its subject with the same conversation or ask title the On
 panel uses.
 
 `queueActions.open(key)`, with a row's `queueItemKey`, resolves the current row and follows
 Leaf's arrival, and resolves to `false` for an unavailable row. `queueActions.done(key)`
-returns an admission promise only for a current to-do on `questions`, one the agent opened
+returns an admission promise only for a current to-do on `on_user`, one the agent opened
 on the user, and `null` otherwise. A widget ask ends through its widget, a prose ask through
 a reply, a settling reaction or the agent's `leaf task end`, and an approval ask through its version's approval.
 Done removes its to-do optimistically, a duplicate cannot send again, and a refusal restores
@@ -1812,4 +1812,4 @@ retired slots their space with no interactive descendants. An owner that scrolls
 box of its own is a reading region: a page bounds it with `data-bound`, which registers it,
 and a widget whose theme makes it scroll calls `registerReadingRegion`. At narrow widths
 the owner stays where touch and the keyboard reach it. Omitting either consumer keeps the
-core Threads and Questions routes.
+core Threads and On routes.

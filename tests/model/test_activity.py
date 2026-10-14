@@ -1262,7 +1262,7 @@ def test_an_ended_pickup_keeps_the_invitation_the_agent_declared(page_dir):
     )
     assert (activity["counts"]["pending"], activity["counts"]["queued"]) == (0, 0)
     [view] = state["browser"]["views"].values()
-    assert [item["kind"] for item in view["queues"]["tasks"]] == ["answer"]
+    assert [item["kind"] for item in view["queues"]["on_agent"]] == ["answer"]
 
 
 def test_newer_page_work_takes_the_activity_from_an_older_thread_start(page_dir):

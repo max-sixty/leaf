@@ -189,7 +189,7 @@ jobs:
           pnpm --dir .. exec wrangler --cwd worker deploy --dry-run --outdir ../.tmp/worker-deploy
         working-directory: worker
 
-      - name: Measure the bundled release in Chrome
+      - name: Measure the bundled release in a browser
         if: github.event_name == 'pull_request'
         run: uv run leaf-dev verify-site website-worker
 

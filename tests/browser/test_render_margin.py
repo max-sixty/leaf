@@ -61,6 +61,7 @@ from render_harness import (
     FOLLOWER_MARK,
     LONG_PAGE,
     RELEASE_FOCUS,
+    ROOT,
     SUBJECT_MARK,
     _traffic,
     _until,
@@ -309,13 +310,7 @@ def _layout_passes_batch_without_refolding_controls(page):
     # pass after it — a resize costs 3 as well, so the reconciliation is page startup rather
     # than the price of a changed pass. Spend it before the count starts: what this test
     # bounds is the five passes below, which touch nothing.
-    page.evaluate(
-        """async () => {
-          const {layoutMarginRows} =
-            await window.__lfRuntimeImport('/runtime/annotation-overlay/margin-layout.js');
-          layoutMarginRows();
-        }"""
-    )
+    margins_laid_out(page)
     session = page.context.new_cdp_session(page)
     session.send("Performance.enable")
     before = {
@@ -324,7 +319,7 @@ def _layout_passes_batch_without_refolding_controls(page):
     }
     reading = page.evaluate(
         """async () => {
-          const {layoutMarginRows} = await window.__lfRuntimeImport('/runtime/annotation-overlay/margin-layout.js');
+          const {layoutChanged} = await window.__lfWidgetApi();
           const rows = [...document.querySelectorAll('.lf-margin-cluster')];
           const boxes = () => rows.map(row => {
             const {x, y, width, height} = row.getBoundingClientRect();
@@ -338,7 +333,10 @@ def _layout_passes_batch_without_refolding_controls(page):
           const observer = new MutationObserver(list => seen.push(...list));
           observer.observe(document.body, {subtree: true, attributes: true,
             attributeFilter: ['data-lf-margin-entry-primary', 'data-lf-margin-entry-overflow']});
-          for (let i = 0; i < 5; i++) layoutMarginRows();
+          for (let i = 0; i < 5; i++) await new Promise(done => {
+            document.addEventListener('lf-margin-layout', done, {once: true});
+            layoutChanged(document.body);
+          });
           const mutations = seen.length + observer.takeRecords().length;
           observer.disconnect();
           return {before, after: boxes(), mutations};
@@ -548,7 +546,7 @@ def test_a_surface_over_the_rail_hands_the_user_the_map(browser, serve):
     drawn, but at 1100 it stands over the rail, so the banner offers the Page Map in the
     markers' place; at 1920 the rail stands clear of it and the margin stays the way in.
     The Map is read as offered rather than as visible, since the toolbar may fold it behind
-    the More door at a width the banner is crowded at. The Questions panel stands on the
+    the More door at a width the banner is crowded at. The On panel stands on the
     Threads panel's edge, so it is read the same way: drawn over, the rail is still drawn,
     and the banner offers the map in its place."""
     comment = {
@@ -598,7 +596,7 @@ def test_a_surface_over_the_rail_hands_the_user_the_map(browser, serve):
     margins_laid_out(page)
     expect(marker).to_be_visible()
     assert page.evaluate(offered), (
-        "the Questions panel stands over the rail and the page offered the user nothing "
+        "the On panel stands over the rail and the page offered the user nothing "
         "in its place"
     )
 
@@ -665,7 +663,7 @@ def test_an_inline_contribution_name_needs_no_physical_margin(
     page.evaluate(
         """async () => {
           const {contributionEntry, presentContributionEntry} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           presentContributionEntry(document.getElementById('inline'),
             contributionEntry({key: 'inline', icon: 'dot', label: 'Read inline name'}));
         }"""
@@ -688,7 +686,7 @@ def test_a_margin_entry_label_starts_at_its_settled_place(browser, serve):
     page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           registerContribution({key: 'names', target: document.getElementById('target'),
             read: () => ({entries: ['action', 'disclosure'].map(behavior =>
               contributionEntry({key: behavior, behavior, icon: 'dot',
@@ -744,7 +742,7 @@ def test_a_transient_margin_entry_label_avoids_the_next_margin_entry(browser, se
     page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           for (const id of ['first', 'second']) {
             registerContribution({key: id, target: document.getElementById(id),
               read: () => ({entries: [contributionEntry({
@@ -927,7 +925,7 @@ def test_lit_margin_projection_reorders_retained_controls_without_moving_the_use
     page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           let swapped = false;
           let changed = false;
           const registration = registerContribution({
@@ -1023,7 +1021,7 @@ def test_lit_inline_margin_projection_keys_controls_inside_thread_chrome(
     page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           let target = document.createElement('span');
           target.id = 'inline-margin-target';
           target.textContent = 'Inline decision';
@@ -1204,7 +1202,7 @@ def test_ask_binding_badges_follow_the_visible_margin_entries(browser, serve, wi
         ),
         context=context,
     )
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#s-replace")).to_be_focused()
     expect(
         page.locator(".lf-command-binding-badges .lf-command-binding-badge")
@@ -1273,7 +1271,7 @@ def test_the_standing_ask_marks_its_selected_margin_reading(browser, serve):
     page = open_page(browser, serve(ASK_PAGE))
     resized(page, 1440, 900)
 
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     first = page.locator("#jobs-decision")
     expect(first).to_be_focused()
     first_marker = page.locator(
@@ -1284,7 +1282,7 @@ def test_the_standing_ask_marks_its_selected_margin_reading(browser, serve):
     assert first_marker.evaluate(
         "marker => getComputedStyle(marker).borderTopColor"
     ) == first.evaluate("ask => getComputedStyle(ask).outlineColor")
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#bracket-decision")).to_be_focused()
     expect(first_marker).not_to_have_attribute(
         "data-lf-target-selected", re.compile(".*")
@@ -1556,7 +1554,7 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
     grammar = page.evaluate(
         """async () => {
           const {CONTRIBUTION_ENTRY_SCHEMA} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           return CONTRIBUTION_ENTRY_SCHEMA;
         }"""
     )
@@ -1685,7 +1683,7 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
         "Compact face · full row"
     )
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     map_projection = dialog.get_by_role(
         "button", name="Inspect projection, Compact face · full row", exact=True
@@ -1730,9 +1728,7 @@ def _a_pin_on_a_wide_figure_hides_with_o_while_the_rail_stays(page):
     status = child.locator('.lf-margin-entry[data-lf-kinds="sent"]')
     expect(status).to_be_visible()
     expect(status.locator("..")).to_have_attribute("data-lf-place", "pin")
-    expect(
-        child.get_by_role("button", name="Questions: 0 waiting on me")
-    ).to_be_visible()
+    expect(child.get_by_role("button", name="On me: 0")).to_be_visible()
     expect(child.get_by_role("button", name="Open threads: 0")).to_be_visible()
     for width in (720, 390):
         resized(page, width, 900)
@@ -1870,7 +1866,7 @@ def test_a_margin_row_is_unseen_until_its_first_placement_lands(browser, serve):
     unplaced = page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           return new Promise(resolve => requestAnimationFrame(() => {
             const registration = registerContribution({
               key: 'first-placement', target: document.querySelector('#how-cap'),
@@ -1922,7 +1918,7 @@ def test_a_margin_row_leaves_with_its_target_before_the_next_paint(
     page.evaluate(
         """async kind => {
           const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           const holder = document.querySelector('#holder');
           window.lifetimeTarget = document.querySelector('#target');
           if (kind === 'shadow') holder.attachShadow({mode: 'open'}).append(lifetimeTarget);
@@ -1991,7 +1987,7 @@ def test_margin_projection_keeps_opaque_owner_and_entry_identities_distinct(
     readings = page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           const target = document.querySelector('#how-cap');
           const first = registerContribution({
             key: 'a:b', target,
@@ -2025,7 +2021,7 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
     page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           let state = {state: 'engaged', expanded: true, popup: 'dialog',
             pressed: true, disabled: false, behavior: 'disclosure'};
           const read = () => ({entries: [contributionEntry({
@@ -2073,7 +2069,7 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
         }"""
     )
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     proxy = dialog.get_by_role("button", name="Inspect source, Patch ready", exact=True)
     expect(proxy).to_be_visible()
@@ -2186,7 +2182,7 @@ def test_page_map_preserves_opaque_contribution_identity_and_relation_targets(
     page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           const target = document.querySelector('#how-cap');
           window.lfIdentityActivations = [];
           const register = (owner, key, label) => registerContribution({
@@ -2213,7 +2209,7 @@ def test_page_map_preserves_opaque_contribution_identity_and_relation_targets(
         }"""
     )
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     first = dialog.get_by_role("button", name="First opaque action", exact=True)
     second = dialog.get_by_role("button", name="Second opaque action", exact=True)
@@ -2250,7 +2246,7 @@ def test_page_map_preserves_opaque_contribution_identity_and_relation_targets(
     first.click()
     expect(dialog).to_be_hidden()
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     second.click()
     expect(dialog).to_be_hidden()
     assert page.evaluate("() => window.lfIdentityActivations") == ["c", "b:c"]
@@ -2266,7 +2262,7 @@ def test_page_map_keyed_reconciliation_preserves_user_standing(browser, serve):
     page.evaluate(
         """async () => {
           const {commandScope, contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           let swapped = false;
           window.lfKeyedCommandRuns = 0;
           const scope = commandScope('On the retained Page Map action', [{
@@ -2314,7 +2310,7 @@ def test_page_map_keyed_reconciliation_preserves_user_standing(browser, serve):
         }"""
     )
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     search = dialog.get_by_role(
         "searchbox", name="Find an action, status, or location in Page Map"
@@ -2405,7 +2401,7 @@ def test_g_hints_address_the_visible_window_and_g_shift_m_opens_the_complete_pag
     scroll_settled(page)
     before_sheet = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     expect(dialog).to_be_visible()
     expect(dialog.locator(".lf-page-map-group")).to_have_count(12)
@@ -2430,7 +2426,7 @@ def test_page_map_filtering_keeps_search_and_close_in_place(browser, serve, view
     page = open_page(browser, serve(PAGE_MAP_PAGE, events=PAGE_MAP_EVENTS))
     resized(page, *viewport)
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     search = dialog.get_by_role(
         "searchbox", name="Find an action, status, or location in Page Map"
@@ -2480,7 +2476,7 @@ def test_the_page_map_dialog_walks_its_rows_from_the_search(browser, serve):
     resized(page, 1440, 600)
     before = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     rows = dialog.locator("button.lf-page-map-action")
     search = dialog.get_by_role(
@@ -2519,18 +2515,18 @@ def test_the_page_map_dialog_walks_its_rows_from_the_search(browser, serve):
 
 def test_the_chrome_names_an_ask_by_its_question(browser, serve):
     """An Ask is named by its heading, not its heading run into its options and their
-    chips: the Questions panel row, and the Page Map group for it, whose one row says why the
+    chips: the On panel row, and the Page Map group for it, whose one row says why the
     Ask is there rather than naming it a second time."""
     page = open_page(browser, serve(ASK_PAGE))
     page.keyboard.press("g")
-    page.keyboard.press("Shift+q")
+    page.keyboard.press("Shift+m")
     row = page.locator("button.lf-queue-row").first
     expect(row).to_contain_text("Which jobs are worth starting?")
     expect(row).not_to_contain_text("Replace the")
     page.keyboard.press("Escape")
 
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     group = dialog.locator(".lf-page-map-group").filter(
         has=page.get_by_role(
@@ -2551,7 +2547,7 @@ def test_a_finger_opens_the_page_map_on_its_first_row(browser, serve):
         browser, serve(PAGE_MAP_PAGE, events=PAGE_MAP_EVENTS), context=context
     )
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     expect(dialog.locator("button.lf-page-map-action").first).to_be_focused()
 
@@ -2569,7 +2565,7 @@ def test_g_hints_reach_a_late_visible_action_only_location(browser, serve):
     resized(page, 1440, 900)
     page.evaluate("""async () => {
       const {contributionEntry, registerContribution} =
-        await window.__lfRuntimeImport('/runtime/widget-api.js');
+        await window.__lfWidgetApi();
       for (let index = 0; index < 30; index++) {
         registerContribution({key: `capture-${index}`,
           target: document.querySelector(`#action-${index}`),
@@ -2686,7 +2682,7 @@ def test_g_shift_m_exposes_dense_suggestion_verdicts_as_real_buttons(browser, se
     )
 
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     expect(dialog).to_be_visible()
     for title, word in (
@@ -2777,7 +2773,7 @@ def test_keyboard_arrival_at_a_margin_entry_cluster_replaces_ellipsis_with_all_e
     page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           registerContribution({key: 'extra', target: document.querySelector('#sug-refill'),
             read: () => ({entries: [contributionEntry({
               key: 'details', icon: 'comment', label: 'Details',
@@ -2947,7 +2943,7 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
     page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           const tones = ['neutral', 'positive', 'negative'];
           let currentState = 'idle';
           let stage = null;
@@ -3445,7 +3441,7 @@ def test_a_margin_entry_walk_position_stays_out_of_its_visible_word(browser, ser
     named = next(button["name"] for button in placed if "Which jobs" in button["name"])
     assert named.index("percent down") < named.index("Which jobs"), named
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     expect(page.locator(".lf-page-map-group h3", has_text=subject)).to_have_count(1)
 
 
@@ -3486,7 +3482,7 @@ def test_page_map_only_origins_do_not_count_as_margin_entries(browser, serve):
         1
     )
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     origin = page.get_by_role(
         "button", name=re.compile(r"^Open reported state: Reported state")
     )
@@ -3652,7 +3648,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     expect(preview).not_to_contain_text(COMMENT_ON_ASK["text"])
     leave_card_by_its_target(page)
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     dialog = page.locator(".lf-page-map-dialog")
     rows = dialog.locator(".lf-page-map-action").filter(
         has=page.locator('[data-lf-icon="comment"]')
@@ -3680,7 +3676,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     # primary must retain the workflow, and its own accessible description survives it.
     page.evaluate("""async () => {
       const {contributionEntry, registerContribution} =
-        await window.__lfRuntimeImport('/runtime/widget-api.js');
+        await window.__lfWidgetApi();
       let cancelReceipt = null;
       window.agentContribution = registerContribution({
         key: 'carrier-probe', target: document.querySelector('#bracket'),
@@ -3710,8 +3706,8 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     )
     # A secondary entry can publish the same canonical workflow receipt.
     page.evaluate("""async () => {
-      const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
-      const receipt = runtime.workflows.find(
+      const {readApplication} = await window.__lfCheckApi();
+      const receipt = readApplication().effective.workflows.find(
         item => item.stage === 'working' && !item.condition
       );
       window.setAgentCancelReceipt(receipt);
@@ -3792,7 +3788,7 @@ def test_each_seat_agrees_with_the_page_map_on_a_controls_receipt(
         seat = page.locator("#receipt-view")
         page.evaluate("""async () => {
           const {consumeAnnotations} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           const box = document.createElement('aside');
           box.id = 'receipt-view';
           document.querySelector('#bracket').after(box);
@@ -3809,9 +3805,9 @@ def test_each_seat_agrees_with_the_page_map_on_a_controls_receipt(
         }""")
     page.evaluate("""async () => {
       const {contributionEntry, registerContribution} =
-        await window.__lfRuntimeImport('/runtime/widget-api.js');
-      const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
-      const ownReceipt = runtime.workflows.find(item => item.stage === 'picked_up');
+        await window.__lfWidgetApi();
+      const {readApplication} = await window.__lfCheckApi();
+      const ownReceipt = readApplication().effective.workflows.find(item => item.stage === 'picked_up');
       let approving = false;
       const contribution = registerContribution({
         key: 'receipt-probe', target: document.querySelector('#bracket'),
@@ -3837,7 +3833,7 @@ def test_each_seat_agrees_with_the_page_map_on_a_controls_receipt(
             if seat.locator(f'[data-lf-margin-entry-key="{key}"]').count()
         }
         page.keyboard.press("g")
-        page.keyboard.press("Shift+m")
+        page.keyboard.press("Shift+p")
         dialog = page.locator(".lf-page-map-dialog")
         expect(dialog).to_be_visible()
         rows = dialog.locator("[data-lf-map-margin-entry]")
@@ -3959,7 +3955,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     # Page Map lists each thread on its own row, so the user's own thread is the
     # control for the agent's beside it.
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     expect(dialog).to_be_visible()
     rows = dialog.locator('.lf-page-map-action[data-lf-map-item^="comment:"]')
@@ -4095,7 +4091,7 @@ def test_unit_claim_arrivals_share_one_window_with_the_open_page_map(browser, se
     told(page)
     page.keyboard.press("Escape")
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     dialog = page.locator(".lf-page-map-dialog")
     expect(dialog).to_be_visible()
     expect(dialog.locator('[data-lf-agent-workflow="picked_up"]')).to_have_count(2)
@@ -4151,7 +4147,7 @@ def test_unit_claim_arrivals_share_one_window_with_the_open_page_map(browser, se
     expect(page.locator("[data-lf-agent-arrival]")).to_have_count(0)
     page.keyboard.press("Escape")
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     expect(dialog.locator('[data-lf-agent-workflow="working"]')).to_have_count(2)
     expect(dialog.locator("[data-lf-agent-arrival]")).to_have_count(0)
     assert page.evaluate("window.unitArrivals.length") == 4
@@ -4414,7 +4410,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           window.lfReceiptSecondary = registerContribution({
             key: 'workflow-primary-probe', target: document.querySelector('#jobs'),
             read: () => ({entries: [contributionEntry({
@@ -4436,7 +4432,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     ).to_have_count(1)
     carrier.focus()
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     mapped = page.locator('.lf-page-map-action[data-lf-agent-workflow="picked_up"]')
     expect(mapped).to_have_count(1)
     expect(mapped.locator(".lf-margin-kind")).to_have_attribute("data-lf-icon", "edit")
@@ -4491,7 +4487,7 @@ def test_secondary_margin_entry_proxies_preserve_disabled_and_focus_contract(
     page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           let visible = {act: true, backup: true, locked: true, details: true};
           window.lfPrimaryClicks = 0;
           window.lfBackupClicks = 0;
@@ -4623,7 +4619,7 @@ def test_margin_entry_order_and_page_map_actions_are_stable_at_both_widths(
     page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           window.contributionEntryFixtures = [];
           for (const [index, id] of ['first', 'second'].entries()) {
             const target = document.getElementById(id);
@@ -4703,7 +4699,7 @@ def test_margin_entry_order_and_page_map_actions_are_stable_at_both_widths(
         assert box["x"] >= 0 and box["x"] + box["width"] <= width
         assert label.evaluate("label => label.scrollWidth <= label.clientWidth")
         page.keyboard.press("g")
-        page.keyboard.press("Shift+m")
+        page.keyboard.press("Shift+p")
         dialog = page.locator(".lf-page-map-dialog")
         expect(dialog).to_be_visible()
         expect(
@@ -4768,7 +4764,7 @@ def test_a_reading_marker_remains_visible_beside_offered_actions(browser, serve)
     page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           registerContribution({
             key: 'reading-actions', target: document.querySelector('#how-cap'),
             read: () => ({entries: Array.from({length: 2}, (_, index) =>
@@ -4794,7 +4790,7 @@ def test_a_spilled_thread_opens_the_full_thread_without_a_hidden_anchor(browser,
     page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           const entries = [];
           const registration = registerContribution({
             key: 'details', target: document.getElementById('sug-refill'),
@@ -4863,16 +4859,13 @@ def test_page_map_opens_a_thread_anchored_to_a_drawn_zero_area_svg_line(browser,
         "anchor": {"section": "hline"},
     }
     page = open_page(browser, serve(source, events=[comment]))
-    page.wait_for_function(
-        "() => window.__lfRuntimeImport('/runtime/annotation-overlay/margin-layout.js')"
-        ".then(({layoutMarginRows}) => (layoutMarginRows(), true))"
-    )
+    margins_laid_out(page)
 
     line = page.locator("#hline")
     assert line.evaluate("node => node.getBoundingClientRect().height") == 0
     assert line.evaluate("node => node.checkVisibility()")
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     expect(dialog).to_be_visible()
     dialog.get_by_role(
@@ -5046,7 +5039,7 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           let primaryVisible = true;
           let peers = [];
           const registration = registerContribution({
@@ -5156,8 +5149,9 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     expect(options).to_be_visible()
     assert page.evaluate(
         """async id => {
-          const {openThread} = await window.__lfRuntimeImport('/runtime/application.js');
-          return Boolean(await openThread(id, {part: 'thread'}));
+          const {readThreads, threadActions} = await window.__lfWidgetApi();
+          const thread = readThreads().threads.find(thread => thread.id === id);
+          return Boolean(await threadActions.open(thread.key, {part: 'thread'}));
         }""",
         second["id"],
     )
@@ -5216,7 +5210,7 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
     readings = page.evaluate(
         """async () => {
               const { contributionEntry, registerContribution } =
-                await window.__lfRuntimeImport('/runtime/widget-api.js');
+                await window.__lfWidgetApi();
           const makeRecord = label => {
             const shell = document.createElement('div');
             const root = shell.attachShadow({mode: 'open'});
@@ -5352,7 +5346,7 @@ def test_status_hover_trace_uses_a_registered_visual_surface(browser, serve):
     page.evaluate(
         """async () => {
               const {contributionEntry, registerContribution} =
-                await window.__lfRuntimeImport('/runtime/widget-api.js');
+                await window.__lfWidgetApi();
           registerContribution({
             key: 'shape-status', target: document.querySelector('#outer'),
             read: () => ({entries: [contributionEntry({
@@ -5901,9 +5895,7 @@ def test_an_incoming_margin_reply_follows_only_at_the_tail(browser, serve):
             "text": "A new answer at the end of this thread. " * 8,
         },
     )
-    page.evaluate(
-        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
-    )
+    told(page)
     incoming = transcript.locator(f'[data-event="{newest["id"]}"]')
     expect(incoming).to_be_visible()
     page.wait_for_function(
@@ -5929,9 +5921,7 @@ def test_an_incoming_margin_reply_follows_only_at_the_tail(browser, serve):
             "text": "The answer now has more detail. " * 25,
         },
     )
-    page.evaluate(
-        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
-    )
+    told(page)
     append_carried_log_record(
         serve.page_dir,
         {
@@ -5942,9 +5932,7 @@ def test_an_incoming_margin_reply_follows_only_at_the_tail(browser, serve):
             "text": "The answer now has even more detail. " * 30,
         },
     )
-    page.evaluate(
-        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
-    )
+    told(page)
     page.wait_for_function(
         "before => document.querySelector('.lf-margin-preview .lf-thread-transcript').scrollTop > before",
         arg=at_tail,
@@ -5972,9 +5960,7 @@ def test_an_incoming_margin_reply_follows_only_at_the_tail(browser, serve):
             "text": "A later answer should not interrupt earlier reading.",
         },
     )
-    page.evaluate(
-        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
-    )
+    told(page)
     assert transcript.evaluate("list => list.scrollTop") == pytest.approx(
         earlier, abs=2
     )
@@ -6249,7 +6235,7 @@ def test_the_thread_card_s_transcript_is_its_scroller_when_it_opens(browser, ser
     page = open_page(browser, url)
     resized(page, 1440, 700)
     scroller = """async () => {
-      const regions = await window.__lfRuntimeImport('/runtime/reading-regions.js');
+      const regions = await window.__lfCheckApi();
       const list = document.querySelector('.lf-margin-preview .lf-thread-transcript');
       const box = regions.effectiveScroller('lf-margin-preview');
       return list && box === list ? 'transcript'
@@ -6257,7 +6243,7 @@ def test_the_thread_card_s_transcript_is_its_scroller_when_it_opens(browser, ser
     }"""
     assert page.evaluate(scroller) == "page"
     page.evaluate("""async () => {
-      const regions = await window.__lfRuntimeImport('/runtime/reading-regions.js');
+      const regions = await window.__lfWidgetApi();
       window.__previewShifts = [];
       regions.watchReadingRegionTransitions(({phase, shifted}) => {
         if (phase === 'shift')
@@ -6463,7 +6449,7 @@ def test_the_first_rail_allocation_matches_its_native_row(browser, serve):
     )
     expect(page.locator(".lf-margin-entry")).to_have_count(0)
     prospective = page.evaluate("""async () => {
-      const owner = await __lfRuntimeImport('/runtime/annotation-overlay/margin-layout.js');
+      const owner = await window.__lfOverlayApi();
       return owner.marginSpot(document.querySelector('#subject'));
     }""")
     assert prospective["right"] - prospective["left"] == pytest.approx(55)
@@ -6484,7 +6470,7 @@ def test_the_first_rail_allocation_matches_its_native_row(browser, serve):
     assert actual["left"] == pytest.approx(prospective["left"])
     assert actual["right"] == pytest.approx(prospective["right"])
     reused = page.evaluate("""async () => {
-      const owner = await __lfRuntimeImport('/runtime/annotation-overlay/margin-layout.js');
+      const owner = await window.__lfOverlayApi();
       const observer = new MutationObserver(() => {});
       observer.observe(document.body, {childList:true, subtree:true});
       const spot = owner.marginSpot(document.querySelector('#next-subject'));
@@ -6499,7 +6485,7 @@ def test_the_first_rail_allocation_matches_its_native_row(browser, serve):
     # wider row cannot supply the allocation of a new single-entry comment row.
     page.evaluate("""async () => {
       const {contributionEntry, registerContribution} =
-        await __lfRuntimeImport('/runtime/widget-api.js');
+        await window.__lfWidgetApi();
       registerContribution({key: 'rail-details', target: document.querySelector('#subject'),
         read: () => ({entries: [contributionEntry({
           key: 'details', icon: 'comment', label: 'Rail details',
@@ -6511,7 +6497,7 @@ def test_the_first_rail_allocation_matches_its_native_row(browser, serve):
         entry.locator("xpath=..").locator(":scope > .lf-margin-options")
     ).to_be_visible()
     expanded = page.evaluate("""async () => {
-      const owner = await __lfRuntimeImport('/runtime/annotation-overlay/margin-layout.js');
+      const owner = await window.__lfOverlayApi();
       return owner.marginSpot(document.querySelector('#next-subject'));
     }""")
     assert expanded["right"] - expanded["left"] == pytest.approx(55)
@@ -7016,8 +7002,8 @@ def test_a_card_walked_off_the_unfolded_cluster_lands_on_the_page(browser, serve
 def test_going_to_a_side_surface_folds_the_cluster_the_user_left(browser, serve):
     """Unfolded options stay open while a layer over the page holds the user, since
     that layer hands them back to the cluster as it closes. A side surface standing
-    beside the page is somewhere else they went, so going to Questions folds the
-    options, though Questions stands in the same native dialog as the chrome's layers."""
+    beside the page is somewhere else they went, so going to the On panel folds
+    the options, though that panel stands in the same native dialog as the chrome's layers."""
     page = open_page(browser, serve(ACTION_PAGE, events=[COMMENT_ON_SUGGESTION]))
     resized(page, 1440, 900)
     item = page.locator('[data-lf-margin-for="sug-refill"]')
@@ -7038,7 +7024,7 @@ def test_going_to_a_side_surface_folds_the_cluster_the_user_left(browser, serve)
     expect(option).to_be_focused()
 
     page.keyboard.press("g")
-    page.keyboard.press("Shift+q")
+    page.keyboard.press("Shift+m")
     expect(page.locator("#lf-queue")).to_be_visible()
     assert page.locator("#lf-queue").evaluate(
         "panel => panel.matches(':focus-within') || panel === document.activeElement"
@@ -7279,7 +7265,7 @@ CARD_AND_REPLY = """async () => {
   const box = card.getBoundingClientRect();
   const editor = card.querySelector('leaf-text');
   const reply = editor.getBoundingClientRect();
-  const geometry = await window.__lfRuntimeImport('/runtime/geometry.js');
+  const geometry = await window.__lfWidgetApi();
   return {cardTop: box.top, cardBottom: box.bottom,
           turn: card.querySelector('.lf-msg').getBoundingClientRect().top,
           editorTop: reply.top, editorBottom: reply.bottom, scrolled: editor.scrollTop,
@@ -7781,7 +7767,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     resized_shell(page, 1920, 900)
 
     page.keyboard.press("g")
-    page.keyboard.press("Shift+q")
+    page.keyboard.press("Shift+m")
     expect(preview).to_be_hidden()
     expect(page.locator(".lf-queue-panel")).to_have_class(re.compile(r"\bopen\b"))
     # Exchanging one auxiliary surface for another is lateral, so the drawer's Escape
@@ -8079,7 +8065,7 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
     if opener == "keyboard":
         page.keyboard.press("g")
         expect(page.locator(".lf-shortcut-bar")).to_contain_text("Page Map")
-        page.keyboard.press("Shift+m")
+        page.keyboard.press("Shift+p")
     else:
         toggle.click()
     dialog = page.locator(".lf-page-map-dialog")
@@ -8400,6 +8386,45 @@ QUOTED_ON_ASK = {
 }
 
 
+def test_a_focused_thread_covers_the_pages_choice_hints(browser, serve):
+    """A fallback chip for a covered option stays behind the focused discussion."""
+    page = open_page(
+        browser, serve(ROOT / "tests/fixtures/pages/thread-choice-hints.html")
+    )
+    resized(page, 741, 838)
+    page.keyboard.press("Tab")
+    page.locator(".lf-margin-marker").first.focus()
+    page.keyboard.press("Enter")
+    card = page.locator(".lf-margin-preview .lf-page-thread")
+    expect(card).to_be_focused()
+    chip = page.locator(".lf-command-binding-badge").filter(has_text=re.compile("^2$"))
+    expect(chip).to_have_count(1)
+    rendered(page)
+    paint = chip.evaluate(
+        """chip => {
+          const card = document.querySelector('.lf-margin-preview');
+          const box = chip.getBoundingClientRect();
+          const x = box.left + box.width / 2, y = box.top + box.height / 2;
+          const frame = card.getBoundingClientRect();
+          // The hint is normally pointer-transparent. Include it in the browser's
+          // hit test to read its paint order against the thread without moving it.
+          chip.style.pointerEvents = 'auto';
+          const top = document.elementFromPoint(x, y);
+          chip.style.removeProperty('pointer-events');
+          return {
+            overlaps: x > frame.left && x < frame.right &&
+              y > frame.top && y < frame.bottom,
+            covered: card.contains(top),
+          };
+        }"""
+    )
+    assert paint == {"overlaps": True, "covered": True}, paint
+    # Reading the thread keeps the reply's own hint and keyboard route usable.
+    expect(card.locator(".lf-compose-placeholder > .lf-key-badge")).to_have_text("c")
+    page.keyboard.press("c")
+    expect(card.locator("leaf-text")).to_be_focused()
+
+
 def test_a_scroll_that_carries_the_card_writes_nothing(browser, serve):
     """A scroll the card rides with its cluster leaves the page's DOM as it was: the
     card, its target's trace, the marks, and the Ask's binding badges stand in the plane
@@ -8453,7 +8478,7 @@ def test_a_card_beside_an_element_scrolled_past_its_top_waits_at_the_windows_top
     card = page.locator(".lf-margin-preview")
     expect(card).to_have_attribute("data-lf-thread-placement", "right")
     reading = """async id => {
-      const geometry = await window.__lfRuntimeImport('/runtime/geometry.js');
+      const geometry = await window.__lfWidgetApi();
       const target = document.getElementById(id).getBoundingClientRect();
       return {
         card: document.querySelector('.lf-margin-preview').getBoundingClientRect().top,
@@ -8888,7 +8913,7 @@ def test_a_pin_stands_after_its_run_of_text_rather_than_over_it(browser, serve):
 
 
 PIN_READING = """async (id) => {
-  const {shownParts} = await window.__lfRuntimeImport('/runtime/geometry.js');
+  const {shownParts} = await window.__lfWidgetApi();
   const edges = ({left, top, right, bottom}) => ({left, top, right, bottom});
   const words = [];
   const walk = document.createTreeWalker(document.querySelector('main'),
@@ -9271,9 +9296,12 @@ def test_a_contents_target_reply_observes_visibility_without_layout(browser, ser
     expect(reply).to_have_js_property("value", words)
 
 
-def test_a_workspace_page_keeps_no_rail(browser, serve):
+@pytest.mark.parametrize("rail", [None, "right"])
+def test_a_workspace_page_keeps_no_rail(browser, serve, rail):
     """A workspace takes the window, which leaves no room beside it for a rail, so a
-    comment in a pane stands on its block as a pin, as it does on a sidebar page."""
+    comment in a pane stands on its block as a pin. Asking for a rail changes neither:
+    a row stands in the rail only beside what the page scrolls, and a workspace scrolls
+    its panes, so the strip would only stand empty beside them."""
     source = leaf_page(
         "workspace page",
         '<header><h1 id="t">Workspace</h1></header>'
@@ -9281,11 +9309,17 @@ def test_a_workspace_page_keeps_no_rail(browser, serve):
         "</lf-pane>",
         layout="workspace",
     )
+    if rail:
+        source = source.replace("<body>", f'<body data-rail="{rail}">')
     page = open_page(browser, serve(source, events=[_comment_on("p")]))
     resized(page, 1440, 900)
     margins_laid_out(page)
     row = page.locator('.lf-margin-cluster[data-lf-margin-for="p"]')
     expect(row).to_have_attribute("data-lf-place", "pin")
+    assert (
+        page.evaluate("document.querySelector('main').getBoundingClientRect().right")
+        == 1440
+    )
 
 
 def test_o_hides_what_is_drawn_over_the_page_and_moves_nothing(browser, serve):
@@ -9360,7 +9394,7 @@ def test_an_ask_arrival_reveals_its_pin_while_annotations_are_hidden(browser, se
 
     # The passage follows both Asks, so a step back lands on the last one.
     page.locator("#gap").click()
-    page.keyboard.press("Shift+q")
+    page.keyboard.press("Shift+m")
     expect(page.locator("#sug-card")).to_be_focused()
     rendered(page)
     expect(pin).to_be_visible()
@@ -9423,7 +9457,7 @@ PANE_PIN_PAGE = leaf_page(
 
 
 def test_a_keyboard_arrival_brings_its_card_once_its_row_is_shown(browser, serve):
-    """`q` to an Ask below a pane's fold scrolls it into view while its row is still
+    """`m` to an Ask below a pane's fold scrolls it into view while its row is still
     withheld, so there is nothing yet to hang its card from. The card of the thread the
     user leaves goes at once, and the Ask's comes once the margin shows its row, as it
     would for an arrival whose row was already there."""
@@ -9444,7 +9478,7 @@ def test_a_keyboard_arrival_brings_its_card_once_its_row_is_shown(browser, serve
     page.keyboard.press("t")
     leaving = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{left}"]')
     expect(leaving).to_be_focused()
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#work")).to_be_focused()
     expect(leaving).to_have_count(0)
     expect(row).to_be_visible()
@@ -9571,7 +9605,7 @@ def test_a_bounded_region_reflows_its_margin_without_resizing_the_page(
           if (change === 'size') target.previousElementSibling.style.height = '224px';
           else {
             target.setAttribute('data-offset', '');
-            const {layoutChanged} = await window.__lfRuntimeImport('/runtime/widget-elements.js');
+            const {layoutChanged} = await window.__lfWidgetApi();
             await layoutChanged(target);
           }
         }""",
@@ -9588,9 +9622,8 @@ def test_a_bounded_region_reflows_its_margin_without_resizing_the_page(
         # notification must settle that seat as a full geometry reading would.
         assert after["top"] != before["top"]
         page.evaluate("""async () => {
-          const {layoutMarginRows} = await window.__lfRuntimeImport(
-            '/runtime/annotation-overlay/margin-layout.js');
-          layoutMarginRows();
+          const {layoutChanged} = await window.__lfWidgetApi();
+          layoutChanged(document.body);
         }""")
         assert page.evaluate(reading) == after
     assert after["hit"]
@@ -9772,7 +9805,7 @@ def test_a_pin_keeps_clear_of_controls_slotted_into_its_reading_region(browser, 
     page = open_page(browser, serve(source))
     page.evaluate("""async () => {
       const { registerReadingRegion } =
-        await window.__lfRuntimeImport('/runtime/widget-api.js');
+        await window.__lfWidgetApi();
       const host = document.getElementById('reader-host');
       const root = host.attachShadow({mode:'open'});
       root.innerHTML = '<section style="height:240px; overflow:auto">'
@@ -9818,7 +9851,7 @@ def test_a_row_follows_its_target_through_a_scroller_inside_a_shadow_tree(
     page.evaluate(
         """async ({tree, native}) => {
           const { contributionEntry, registerContribution } =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           if (!native) window.ScrollTimeline = undefined;
           const host = document.createElement('div');
           const root = host.attachShadow({mode: 'open'});
@@ -9944,7 +9977,7 @@ def test_document_overlay_follows_the_scrollers_signed_origin(browser, serve):
     page.evaluate(
         """async () => {
           const {scrollMotions, followScroll} =
-            await window.__lfRuntimeImport('/runtime/scroll-motion.js');
+            await window.__lfCheckApi();
           window.__signedScroll = [...document.querySelectorAll('.scroll-source')]
             .map(source => {
               const target = source.querySelector('.scroll-target');
@@ -10282,7 +10315,7 @@ def test_the_rail_s_way_in_is_a_marker_in_front_of_the_user(browser, serve):
     expect(first).to_have_attribute("tabindex", "0")
     banner = first.evaluate(
         """async row => {
-          const {bannerFoot} = await window.__lfRuntimeImport('/runtime/geometry.js');
+          const {bannerFoot} = await window.__lfCheckApi();
           scrollBy({top: row.getBoundingClientRect().bottom - bannerFoot() + 4,
             behavior: 'instant'});
           return bannerFoot();
@@ -10483,7 +10516,7 @@ def test_page_map_disclosure_arrival_yields_to_newer_search(
     page.evaluate(
         """async () => {
           const {registerContribution, contributionEntry} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           let expanded = false;
           const registration = registerContribution({
             key: 'disclosure', target: document.querySelector('#target'),
@@ -10502,7 +10535,7 @@ def test_page_map_disclosure_arrival_yields_to_newer_search(
         }"""
     )
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     door = dialog.get_by_role("button", name="Expand choices", exact=True)
     child = dialog.get_by_role("button", name="Revealed choice", exact=True)
@@ -10612,7 +10645,7 @@ def test_observed_scroll_retains_the_seat_of_a_constrained_target(
     page.evaluate(
         """async ({position, native}) => {
           const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           if (!native) window.ScrollTimeline = undefined;
           document.querySelector('main').dataset.lfMargin = 'none';
           const host = document.createElement('div');
@@ -10690,7 +10723,7 @@ def test_distant_margin_coordinates_follow_small_moves_without_restatement(
     page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           const main = document.querySelector('main');
           main.dataset.lfMargin = 'none';
           const space = document.createElement('div');
@@ -10748,7 +10781,7 @@ def test_signed_scroll_motion_survives_unobserved_extent_changes(browser, serve)
     page.evaluate(
         """async () => {
           const {scrollMotions, followScroll} =
-            await window.__lfRuntimeImport('/runtime/scroll-motion.js');
+            await window.__lfCheckApi();
           const source = document.createElement('div');
           source.style.cssText = 'height: 160px; width: 400px; overflow: auto; direction: rtl';
           source.innerHTML = '<p style="width: 200px; height: 30px; margin: 0 100px 0 0">'
@@ -10806,7 +10839,7 @@ def test_signed_scroll_motion_survives_unobserved_extent_changes(browser, serve)
     page.evaluate(
         """async () => {
           const {scrollMotions, followScroll} =
-            await window.__lfRuntimeImport('/runtime/scroll-motion.js');
+            await window.__lfCheckApi();
           const {source, target, stand} = window.__extentMotion;
           const layer = stand.parentElement;
           for (const animation of layer.getAnimations()) animation.cancel();
@@ -10959,7 +10992,7 @@ def test_exhausted_seat_uses_map_then_restores(browser, serve):
         context=context,
     )
     page.evaluate(
-        "async () => {\n      const {contributionEntry, registerContribution} = await window.__lfRuntimeImport('/runtime/widget-api.js');\n      let reviewed = false;\n      const contribution = registerContribution({\n        key: 'review-exhausted', target: document.querySelector('#target'),\n        read: () => ({entries: [contributionEntry({key:'review',glyph:'R',label:reviewed ? 'Plot reviewed' : 'Mark plot reviewed'})]}),\n        activate: () => {reviewed = true; contribution.update();},\n      });\n    }"
+        "async () => {\n      const {contributionEntry, registerContribution} = await window.__lfWidgetApi();\n      let reviewed = false;\n      const contribution = registerContribution({\n        key: 'review-exhausted', target: document.querySelector('#target'),\n        read: () => ({entries: [contributionEntry({key:'review',glyph:'R',label:reviewed ? 'Plot reviewed' : 'Mark plot reviewed'})]}),\n        activate: () => {reviewed = true; contribution.update();},\n      });\n    }"
     )
     margins_laid_out(page)
     row = page.locator('[data-lf-margin-for="target"]')
@@ -10979,12 +11012,12 @@ def test_exhausted_seat_uses_map_then_restores(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator("#lf-margin-preview")).to_be_hidden()
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     expect(dialog).to_be_visible()
     dialog.get_by_role("button", name="Mark plot reviewed", exact=True).press("Enter")
     expect(dialog).to_be_hidden()
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     expect(
         dialog.get_by_role("button", name="Plot reviewed", exact=True)
     ).to_be_visible()
@@ -11046,7 +11079,8 @@ def test_a_pin_keeps_native_presses_inside_painted_walls_reachable(browser, serv
     """No clear seat leaves native controls reachable and the thread in Page Map.
 
     Adjacent painted cards leave no clear seat beside the second card. A pin at
-    its bounded home previously covered Action inside a tinted header.
+    its bounded home previously covered Action inside a tinted header. The cards
+    run edge to edge and end clear of the window's foot.
     """
     cards = "".join(
         f'<section id="card{i}" style="border:1px solid var(--rule);'
@@ -11056,7 +11090,14 @@ def test_a_pin_keeps_native_presses_inside_painted_walls_reachable(browser, serv
         "onclick=\"this.textContent='Opened'\">Action</button></div></section>"
         for i in range(12)
     )
-    url = serve(leaf_page("Pin controls", "<h1>Pin controls</h1>" + cards, layout=None))
+    url = serve(
+        leaf_page(
+            "Pin controls",
+            "<h1>Pin controls</h1>" + cards,
+            head="<style>body { margin: 0 } main { padding-block: 28px 72px }</style>",
+            layout=None,
+        )
+    )
     append_carried_log_record(
         serve.page_dir,
         {
@@ -11236,7 +11277,7 @@ def test_new_rail_keeps_a_pin_reachable(browser, serve, focused):
         page.mouse.move(20, 20)
     before = pin.bounding_box()
     page.evaluate("""async()=>{
-      const {contributionEntry,registerContribution}=await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const {contributionEntry,registerContribution}=await window.__lfWidgetApi();
       registerContribution({key:'new-rail',target:document.querySelector('#rail-target'),read:()=>({entries:[contributionEntry({key:'activate',glyph:'R',label:'Activate rail'})]}),activate:()=>{window.railActivated=true;}});
     }""")
     margins_laid_out(page)
@@ -11272,7 +11313,7 @@ def test_new_pin_keeps_a_rail_reachable(browser, serve, focused):
         browser, serve(leaf_page("Held rail and new pin", body)), context=context
     )
     page.evaluate("""async()=>{
-      const {contributionEntry,registerContribution}=await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const {contributionEntry,registerContribution}=await window.__lfWidgetApi();
       window.registerPlacementControl=id=>registerContribution({key:id,target:document.getElementById(id+'-target'),read:()=>({entries:[contributionEntry({key:'activate',glyph:'R',label:'Activate '+id})]}),activate:()=>{window.placementActivated=id;}});
       window.registerPlacementControl('rail');
     }""")

@@ -1,12 +1,12 @@
 # Asks and sign-off
 
 Pose an ask for every decision waiting on the user. A recommendation leaves
-that decision open until the user decides. `conversation-loop.md`, "Questions and
-Tasks", owns the complete queue contract, including conversational questions and
+that decision open until the user decides. `conversation-loop.md`, "The On
+lists", owns the complete queue contract, including conversational questions and
 requests for actions outside the page.
 
 The user answers an ask from what is on screen when they reach it, often by pressing
-`q` (`conversation-loop.md`, "Questions and Tasks"). Keep its question,
+`m` (`conversation-loop.md`, "The On lists"). Keep its question,
 short shared premise, and evidence together with the answering control. Use `lf-ask`
 to frame that material when it lives outside the answering widget: a question heading,
 then context and evidence, then one answering widget. Backing detail and reproductions
@@ -45,7 +45,7 @@ replace the widget's identity. Standalone decision widgets also pose asks.
 If a widget ask stops mattering before the user answers, retire its source in a
 version or mark that source `restated` as `authoring-revisions.md` says. A to-do you
 put on the user is work you ask them to do, such as trying a build, rather than a
-question they answer (`conversation-loop.md`, "Questions and Tasks").
+question they answer (`conversation-loop.md`, "The On lists").
 
 The user can finish each independently answerable proposal as they review it,
 without leaving the material it rests on. Choosing which of several items to act
@@ -59,17 +59,20 @@ ones keep their own asks. A selected set, answered in one `lf-options` with
 `multiple`, is for items whose answers depend on each other, such as a limit on how
 many or a combination that has to work together.
 
-An ask whose subject has a shape (`page-authoring.md`, "Draw the subject") shows it
-inside the ask, on any page, a plan or a list of mixed items included. For an
-interface or behavior choice, make the relevant interaction work inside each option
-so the user can try every alternative before choosing. For a choice between
-arrangements, structures, or mechanisms that nothing can run yet, draw each option
-inside it, all in one frame at one scale. A proposal to accept or reject is a choice
-between today and the change: show today as it is, a visible defect in a capture
-cropped or marked where it goes wrong, and draw or demonstrate the change beside it
-in one frame or in the accepting option. In each case, hold everything except the
-disputed treatment constant, and include the current or no-treatment case as a
-neutral control. Put longer rationale or provenance in a disclosure after the ask.
+Each option shows what choosing it gives the user, inside the ask and in the form
+`page-authoring.md`, "Show the subject", names for that kind of thing, on any page, a
+plan or a list of work items included. For an interface or behavior choice, make the
+relevant interaction work inside each option so the user can try every alternative
+before choosing. For a choice between arrangements, structures, or mechanisms that
+nothing can run yet, draw each option inside it, all in one frame at one scale. A
+proposal to accept or reject, or a piece of work to take on, is a choice between
+today and the change: show both in the form the work takes, with the change beside
+today in one frame or in the accepting option. A visible fault is a capture cropped
+or marked where it goes wrong, beside a drawing or demonstration of the fix; a code
+or data change is the code or data before and after. A choice of wording shows each wording as it would
+appear. In each case, hold everything except the disputed treatment constant, and
+include the current or no-treatment case as a neutral control. Put longer rationale
+or provenance in a disclosure after the ask.
 The `lf-ask`, `lf-options`, and `lf-option` entries say how to word the question and
 shape each option.
 

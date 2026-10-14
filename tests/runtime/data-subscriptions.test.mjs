@@ -470,3 +470,81 @@ test("a subscriber that fails on return reports once and draws the next reading"
   assert.equal(errors.mock.callCount(), 1);
   assert.match(errors.mock.calls[0].arguments[0], /return refused/);
 });
+
+test("a projection watcher repaints for what its paint read, however it read it", async () => {
+  const { watchProjection } = await import("/runtime/projection-watch.js");
+  const { applicationState, readPart } = await import("/runtime/semantic-state.js");
+  const host = readPart((root) => root.effective.hostAvailable);
+  const revision = readPart((root) => root.document.revision);
+  // Read through a helper, as a widget reads through `readWork`: the watcher is never
+  // told which part it draws.
+  const describe = () => (host() ? "online" : "offline");
+  const settle = () => new Promise((resolve) => setTimeout(resolve));
+  const owner = document.createElement("div");
+  document.body.append(owner);
+  const drawn = [];
+  const stop = watchProjection(owner, () => drawn.push(describe()));
+  await settle();
+  const initial = drawn.length;
+  applicationState.identify(revision() === 41 ? 42 : 41);
+  await settle();
+  const unread = drawn.length;
+  applicationState.setHostAvailable(!host());
+  await settle();
+  const read = drawn.length;
+  // A part that moved while the owner was away paints on its return; a return with
+  // nothing moved paints nothing.
+  owner.remove();
+  await settle();
+  applicationState.setHostAvailable(!host());
+  await settle();
+  document.body.append(owner);
+  await settle();
+  const returned = drawn.length;
+  owner.remove();
+  await settle();
+  document.body.append(owner);
+  await settle();
+  const unchanged = drawn.length;
+  stop();
+  applicationState.setHostAvailable(!host());
+  await settle();
+  owner.remove();
+  assert.deepEqual(
+    { initial, unread, read, returned, unchanged, stopped: drawn.length },
+    { initial: 1, unread: 1, read: 2, returned: 3, unchanged: 3, stopped: 3 },
+  );
+});
+
+test("a projection watcher repaints for a part its own paint published after reading it", async () => {
+  const { watchProjection } = await import("/runtime/projection-watch.js");
+  const { applicationState, readPart } = await import("/runtime/semantic-state.js");
+  const host = readPart((root) => root.effective.hostAvailable);
+  const owner = document.createElement("div");
+  document.body.append(owner);
+  const drawn = [];
+  const stop = watchProjection(owner, () => {
+    drawn.push(host());
+    if (drawn.length === 1) applicationState.setHostAvailable(!host());
+  });
+  await new Promise((resolve) => setTimeout(resolve));
+  stop();
+  owner.remove();
+  assert.deepEqual(drawn, [drawn[0], !drawn[0]]);
+});
+
+test("a projection watcher's paint that reads the whole publication fails", async (t) => {
+  // Every publication moves the root, so such a paint would repaint on all of them.
+  await scene();
+  const errors = t.mock.method(console, "error", () => {});
+  const { watchProjection } = await import("/runtime/projection-watch.js");
+  const { readApplication } = await import("/runtime/semantic-state.js");
+  const owner = document.createElement("div");
+  document.body.append(owner);
+  const stop = watchProjection(owner, () => readApplication().phase);
+  await new Promise((resolve) => setTimeout(resolve));
+  stop();
+  owner.remove();
+  assert.equal(errors.mock.callCount(), 1);
+  assert.match(errors.mock.calls[0].arguments[0], /whole publication/);
+});

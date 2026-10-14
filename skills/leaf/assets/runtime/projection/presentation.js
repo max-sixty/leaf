@@ -91,23 +91,27 @@ function paintSettlements(widgets) {
 export function createProjectionPresentation({ onDeferredReady }) {
   let stopWatchingDrag = null;
 
-  const presenter = applicationPresenter({
+  // The claim happens in the publisher's synchronous subscription phase, before it seals
+  // presentation membership, so an inherited commit cannot acknowledge a new reading
+  // while frozen widget markup is still joining the document; the pass paints it after.
+  // A publication that moves none of the parts this paint draws — the fold's restated
+  // and origin marks, each holder's settlement, against the authored states — claims
+  // nothing and carries its last commit. The coverage stamp below reads the server's
+  // view of the log beside the fold, and follows the coordinator rather than this claim.
+  applicationPresenter({
     region: "projection:chrome",
     order: PRESENTATION_ORDER.projection,
-    current: () => {
-      const root = applicationState.read();
-      return root.authoritative === null ? null : root.effective.projection;
-    },
+    reading: (root) =>
+      root.authoritative === null
+        ? null
+        : {
+            phase: root.phase,
+            projection: root.effective.projection,
+            widgets: root.effective.widgets,
+            authored: root.document.authored,
+          },
     paint: () => paintReading(applicationState.read()),
   });
-
-  // A semantic publication precedes the imperative adapter that paints it. The claim
-  // happens in the publisher's synchronous subscription phase, before it seals
-  // presentation membership, so an inherited commit cannot acknowledge the new reading
-  // while frozen widget markup is still joining the document; the pass paints it after.
-  // Every epoch owes one: the coverage stamp reads the server's view of the log beside
-  // the fold, so an unchanged fold is not an unchanged chrome reading.
-  applicationState.select((snapshot) => snapshot.semanticEpoch).subscribe(present);
 
   // The stamp retains the last complete coverage. Only the widgets whose events
   // it covers owe proof, so unrelated preparation cannot hold this log reading.
@@ -200,10 +204,6 @@ export function createProjectionPresentation({ onDeferredReady }) {
     // A drag holds this region open at the user's own gesture rather than
     // committing a document-wide reading their own controller has not taken yet.
     return projectionDeferred() ? PRESENTATION_HELD : projection;
-  }
-
-  function present() {
-    return presenter.present();
   }
 
   // `present` stays in here. The region has two ways in — its own subscription above,

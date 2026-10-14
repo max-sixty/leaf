@@ -362,19 +362,6 @@ EXTENSION_SCHEMA = {
         # A default height in CSS pixels, or `true` for a widget that has none and
         # reserves only what an occurrence's data-height states.
         "x-height": {"oneOf": [{"const": True}, {"type": "integer", "minimum": 1}]},
-        # Child selectors, each matched inside the element, for the painted boxes that
-        # draw its own face: a margin pin whose target is the element may stand on them.
-        # Only a light-DOM child by tag and classes, so a malformed selector is refused
-        # here rather than throwing in the browser's layout pass.
-        "x-face": {
-            "type": "array",
-            "items": {
-                "type": "string",
-                "pattern": r"^:scope > (?:[a-z][a-z0-9-]*(?:\.[A-Za-z_][\w-]*)*|(?:\.[A-Za-z_][\w-]*)+)$",
-            },
-            "minItems": 1,
-            "uniqueItems": True,
-        },
         "x-history": {"const": True},
         # A captured classic bundle registering one synchronous DOM producer. Delivery
         # runs it after each occurrence closes; the module adopts its existing nodes.

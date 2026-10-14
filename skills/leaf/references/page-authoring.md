@@ -380,9 +380,9 @@ scrolling; page-local width overrides and wheel handlers should not be needed.
 ### The rail and the margin
 
 Lay out the page without reserving space for Leaf's annotation markers. Leaf seats
-markers in a rail or clear space near their targets. Crowded views retain their
-threads and actions in Page Map. User-opened controls and threads can overlay
-content. Padding a heading for its pin leaves unused space when the marker is in
+markers in a rail beside the column or by their targets, over the target itself where
+nothing beside it is clear; the reader hides annotations to see beneath. User-opened
+controls and threads can overlay content. Padding a heading for its pin leaves unused space when the marker is in
 the rail.
 
 On a column page, write its contents outline in the first `aside.sidebar` and
@@ -472,7 +472,7 @@ The page's own CSS reaches the page's content and leaves Leaf's apparatus alone:
 banner, the thread panel, and the controls a widget builds. A rule for `button` or
 `input` dresses the page's own buttons and fields, and a face set on `body` stops at
 those controls. To change them on purpose, name the widget they stand in or Leaf's
-class for them: `lf-options button`, `lf-board .lf-btn`, or, for controls a page
+class for them: `lf-options button`, `lf-board .lf-grip`, or, for controls a page
 module builds with `offer`, the page's own element (`my-explorer .toolbar`). A token
 such as `--accent` on `:root` changes every surface that reads it.
 

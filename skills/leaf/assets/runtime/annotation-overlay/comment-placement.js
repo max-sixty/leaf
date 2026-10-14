@@ -17,11 +17,7 @@
    without one, the card's minimum width ends at `clear`'s right edge. `margin` is where
    across the page the margin row for it stands,
    or would stand in the rail once its thread is sent (margin-layout.js, `marginSpot`),
-   or nothing where no row stands and its rows would be pins. When local pin seating
-   exhausted a pane, this reading also supplies its chosen external attachment and
-   outer scroller. Both comment surfaces use that boundary, so a small pane does not
-   squeeze an opened thread into an unreadable transcript or carry it with inner scroll.
-   The semantic comment anchor remains the original target. A caller requesting
+   or nothing where no row stands and its rows would be pins. A caller requesting
    window placement without a visible attachment supplies `clear: null` and stands
    at its upper inline edge through the same sizing and placement machinery.
    A target that is not drawn has no attachment: seated surfaces withhold their native
@@ -149,40 +145,37 @@ export function commentAttachment({
       scroller: effectiveScroller(element),
     };
   }
-  // The margin may offer a different mechanical seat, but the comment still belongs
-  // to its semantic target. If that target is not drawn, a seated editor or card must
-  // withhold until it returns; an explicit Resume can request the window posture above
-  // without changing that target. A drawn target may have a zero-area box, as an SVG
-  // line does, and still supplies the geometry fallback below.
+  // If the target is not drawn, a seated editor or card must withhold until it
+  // returns; an explicit Resume can request the window posture above without changing
+  // that target. A drawn target may have a zero-area box, as an SVG line does, and
+  // still supplies the geometry fallback below.
   if (!visibleTargetParts(target).length) return null;
   const margin = marginSpot(target, point);
-  const external = margin?.attachment && margin.attachment !== target;
-  const attachment = external ? margin.attachment : target;
-  const context = external ? attachment : (point ?? passage?.contextNode ?? target);
-  const element = external ? attachment : (point ?? target);
+  const context = point ?? passage?.contextNode ?? target;
+  const element = point ?? target;
   const geometry = floatingGeometry([element, context]);
   const clips = new Map();
   const shown = union(
-    shownParts(attachment)
+    shownParts(target)
       .map((part) => shownRect(part, clips))
       .filter(Boolean),
   );
-  const whole = shownExtent(attachment) ?? attachment.getBoundingClientRect();
-  const extent = point && !external ? pointBand(whole, point) : whole;
-  const clear = point && !external ? extent : (shown ?? whole);
-  const region = containingReadingRegionFor(external ? margin.scroller : element);
+  const whole = shownExtent(target) ?? target.getBoundingClientRect();
+  const extent = point ? pointBand(whole, point) : whole;
+  const clear = point ? extent : (shown ?? whole);
+  const region = containingReadingRegionFor(element);
   return {
     element,
     contextNode: context,
     geometry,
     clear,
     extent,
-    row: (!external && passage?.attachment ? passage.attachment : extent).top,
-    lastRow: !external && passage?.attachment ? passage.attachment.top : extent.bottom,
-    column: !external ? (passage?.attachment?.left ?? null) : null,
+    row: (passage?.attachment ?? extent).top,
+    lastRow: passage?.attachment ? passage.attachment.top : extent.bottom,
+    column: passage?.attachment?.left ?? null,
     margin,
     region,
-    scroller: external ? margin.scroller : effectiveScroller(region ?? element),
+    scroller: effectiveScroller(region ?? element),
   };
 }
 

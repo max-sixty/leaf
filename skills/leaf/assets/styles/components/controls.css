@@ -299,8 +299,9 @@ svg[data-lf-icon] { max-width: none; overflow: visible; fill: none; stroke: curr
  * every room line widen the element, as any label's would. Because the room wraps at
  * its spaces, it never holds the element wider than its container; where the words
  * outgrow the container, the element's owner decides whether they truncate. Leading
- * the words, the block leaves their line as the element's baseline. */
-[data-lf-room]:not([hidden]) { display: inline-block; max-inline-size: 100%; }
+ * the words, the block leaves their line as the element's baseline. The element's own
+ * rules outrank this one, so an owner's tighter cap or display stands. */
+:where([data-lf-room]:not([hidden])) { display: inline-block; max-inline-size: 100%; }
 [data-lf-room]::before { content: attr(data-lf-room); display: block; block-size: 0;
   overflow: hidden; visibility: hidden; white-space: pre-line; }
 :is(.lf-btn, .button):not(:disabled, [aria-disabled="true"]):hover { background: var(--chip); }

@@ -1187,7 +1187,7 @@ svg[data-lf-icon] {
 :is(.lf-btn, .button)[hidden]:not([hidden=until-found]) {
   display: none;
 }
-[data-lf-room]:not([hidden]) {
+:where([data-lf-room]:not([hidden])) {
   display: inline-block;
   max-inline-size: 100%;
 }

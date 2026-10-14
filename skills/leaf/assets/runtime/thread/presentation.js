@@ -25,11 +25,8 @@ import {
   commitThreadSeats,
   retainThreadSeats,
 } from "./inline.js";
-import {
-  applicationPresenter,
-  PRESENTATION_ORDER,
-  readApplication,
-} from "../semantic-state.js";
+import { applicationPresenter, PRESENTATION_ORDER } from "../semantic-state.js";
+import { runtime } from "../context.js";
 
 // Each held element names the thread holding it, decided whole before any is written, so
 // an element that stays held is not cleared and marked again.
@@ -96,7 +93,7 @@ export function createThreadPresentation({
               document: root.document,
             },
     paint: async (value, current) => {
-      const phase = readApplication().phase;
+      const phase = runtime.statePhase;
       // A pass reads the latest root. Clock changes claim another pass through the
       // same presenter, so its current predicate also retires in-flight preparation.
       if (phase === "ready") await paintCurrent(current);

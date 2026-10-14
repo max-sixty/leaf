@@ -37,6 +37,49 @@ import { computed, signal } from "./signals-core.js";
 
 
 
+// The readings a caller is collecting (`collectReads`), each with the first value it
+// gave. A reading records itself when read, after its own derivation, whose reads of
+// the root are the selection's rather than the caller's.
+let collecting                                                = null;
+function collected   (reading                    , read         )    {
+  const outer = collecting;
+  collecting = null;
+  let value   ;
+  try {
+    value = read();
+  } finally {
+    collecting = outer;
+  }
+  if (outer && !outer.has(reading)) outer.set(reading, value);
+  return value;
+}
+
+/**
+ * Run `run`, collecting every selection of a publication it reads synchronously, with
+ * the value it read. A watcher subscribes to exactly these, so it repaints when a part
+ * its paint read moves and for nothing else.
+ * Only reads of the publication count: a paint also reads and writes private signals,
+ * such as where the user stands, and subscribing it to those would have a paint that
+ * moves focus repaint itself. Reading the root whole inside `run` throws, since every
+ * publication moves the root: a paint that read it would repaint on every publication,
+ * however little of it the paint draws, so it reads its parts through selections. A
+ * failure still returns what was read before it.
+ */
+export function collectReads   (
+  run         ,
+)                                                                                          {
+  const outer = collecting;
+  const reads = new Map                                   ();
+  collecting = reads;
+  try {
+    return { reads, value: run() };
+  } catch (error) {
+    return { reads, error };
+  } finally {
+    collecting = outer;
+  }
+}
+
 // Object.freeze says nothing about descendants or Map/Set entries. Only values this
 // owner has secured can skip traversal when a publication reuses an existing subtree.
 const secured = new WeakSet        ();
@@ -184,7 +227,16 @@ export function share   (prior         , next   )    {
 export function createApplicationPublisher                               (initial   ) {
   const root = signal(immutable(initial));
   return Object.freeze({
-    read: ()               => root.value,
+    read: ()               => {
+      if (collecting)
+        throw new Error(
+          "a collected read took the whole publication; select the part it needs",
+        );
+      return root.value;
+    },
+    // The root without subscribing or collecting, for the owner computing what it
+    // publishes next.
+    peek: ()               => root.peek(),
     publish(candidate   )               {
       root.value = immutable(share(root.peek(), candidate));
       return root.peek();
@@ -194,11 +246,12 @@ export function createApplicationPublisher                               (initia
       const selected = computed(
         () => (prior = immutable(share(prior, derive(root.value)))),
       );
-      return Object.freeze({
-        read: ()               => selected.value,
+      const reading                                = Object.freeze({
+        read: ()               => collected(reading, () => selected.value),
         subscribe: (listener                               ) =>
           selected.subscribe(listener),
       });
+      return reading;
     },
   });
 }

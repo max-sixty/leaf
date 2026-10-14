@@ -17,9 +17,9 @@ open questions; each owning module's header states the current contract.
   watchers (`watchAsks`, `watchReports`, `watchWork` and the rest) are that watcher
   around a reader, and a widget callback that also calls `readWork` or a controller's
   `read()` is subscribed to those parts too. Only reads of the publication count. A
-  Preact effect would also subscribe the paint to private signals it reads, such as
-  where the user stands and the thread list's models, which a paint may also write, so
-  a paint could set off its own repaint.
+  Preact effect also subscribes the paint to private signals it reads, such as where
+  the user stands, which a paint may also write: tracked by an effect, the annotation
+  inventory's paint re-ran itself without end and hung the page.
 - **Regions declare their reading.** The four document regions (projection, threads,
   asks, the Questions panel) are `applicationPresenter`s that name, as a `reading`, the
   parts they draw (`runtime/semantic-state.js`). A publication that leaves that reading
@@ -76,16 +76,29 @@ key availability already do. So `skills/leaf/assets/AGENTS.md` keeps paints that
 land in the current script on `render()`, and nothing on the path toward tracking
 needs that rule lifted.
 
-## Reads of the whole root
+## What a paint's readers cost
 
-`readApplication()` reads the whole root, so a watcher whose paint calls it repaints
-on every publication. Under declared readings that cost nothing, since the declared
-list decided when to paint; with collected reads it decides. The readers on watcher
-paths now go through narrow parts (`readPart`, the runtime getters in
-`runtime/context.js`, `readAsks`, `threadState`). The other callers of
-`readApplication()` are mostly event handlers and the regions, which collect nothing.
-A lint rule refusing `readApplication()` outside `semantic-state.js` and the publishers
-would keep a new watcher paint from reaching for the whole root.
+With collected reads, every reader a paint calls decides when that paint runs again,
+so how narrowly a reader selects is a performance contract. On the corpus page the
+first cut-over doubled the time from a card move to the server's reading on screen
+(Sent 126 → 280 ms), because each of the seven `lf-atlas-worker`s repaints through
+`readWork`, about 10 ms a paint, and two readers on that path read more than they
+returned:
+
+- `HeldReading.hold` read the phase as `readApplication().phase`, the whole root,
+  so every publication repainted every worker. A read of the whole root inside a
+  collection now throws (`collectReads`, `snapshot.ts`), and the phase is read through
+  `runtime.statePhase`.
+- `passages.js` derived which widgets' decisions retire their slots from a selection
+  of every widget's state, so any widget action repainted every paint that reads a
+  passage's words. The settlements are now a selection themselves, which moves only
+  when a settlement does.
+
+After both, the corpus comment and move match the declared-reading baseline. The throw
+catches only the coarsest case. The rule behind both is to derive a reader's result
+inside its selection, so its callers subscribe to the result rather than to its
+inputs; `leaf-dev bench-latency` against the previous commit is what shows a reader
+that breaks it.
 
 ## Simplifications this opens
 

@@ -515,3 +515,19 @@ test("a projection watcher repaints for what its paint read, however it read it"
     { initial: 1, unread: 1, read: 2, returned: 3, unchanged: 3, stopped: 3 },
   );
 });
+
+test("a projection watcher's paint that reads the whole publication fails", async (t) => {
+  // Every publication moves the root, so such a paint would repaint on all of them.
+  await scene();
+  const errors = t.mock.method(console, "error", () => {});
+  const { watchProjection } = await import("/runtime/projection-watch.js");
+  const { readApplication } = await import("/runtime/semantic-state.js");
+  const owner = document.createElement("div");
+  document.body.append(owner);
+  const stop = watchProjection(owner, () => readApplication().phase);
+  await new Promise((resolve) => setTimeout(resolve));
+  stop();
+  owner.remove();
+  assert.equal(errors.mock.callCount(), 1);
+  assert.match(errors.mock.calls[0].arguments[0], /whole publication/);
+});

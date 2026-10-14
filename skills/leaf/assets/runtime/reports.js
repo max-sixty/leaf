@@ -55,6 +55,7 @@
 import { watchProjection } from "./projection-watch.js";
 import { currentProjection } from "./projection/state.js";
 import { projectionRegionsPresented, readPart } from "./semantic-state.js";
+import { runtime } from "./context.js";
 import { closestAcross } from "./passages.js";
 
 function reportTarget(target) {
@@ -104,10 +105,11 @@ export const saidAt = (el) =>
 // whether this is the complete ready application, so a retained mechanical reading
 // is never replaced by the empty preparation reading.
 const history = readPart((root) => root.authoritative?.browser.history ?? null);
-const ready = readPart((root) => root.phase === "ready");
 export const watchHistory = (owner, callback) =>
   watchProjection(owner, () =>
-    callback(structuredClone(history() ?? []), { ready: ready() }),
+    callback(structuredClone(history() ?? []), {
+      ready: runtime.statePhase === "ready",
+    }),
   );
 
 // A report can speak only once the renderer of its widget and coordinate chrome

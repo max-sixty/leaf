@@ -165,29 +165,34 @@ export const verbatimBoundaryIdentity = new WeakMap();
 //
 // `settlements` is that reading per holder id: its tag, and the tags its outcome
 // in force retires.
-// It is rebuilt once per publication or registry, and `settledKey` names it, so the
-// page reading is forgotten exactly when it changes (`catchUpReading`).
-let settledFrom = [];
-let settled = new Map();
+// It is a selection of the publication, one per registry, so it moves only when a
+// settlement does, and a paint that reads a passage's words repaints for a decision
+// rather than for every widget's state. `settledKey` names it, so the page reading is
+// forgotten exactly when it changes (`catchUpReading`).
+let settledReading = null;
+let settledDecisions;
+let settled = null;
 let settledKey = "[]";
-const settlementInputs = readPart((root) => ({
-  widgets: root.effective.widgets,
-  authored: root.document.authored,
-}));
 function settlements() {
-  const { widgets, authored } = settlementInputs();
-  const from = [widgets, authored, registry.$decisions];
-  if (from.every((input, index) => input === settledFrom[index])) return settled;
-  settledFrom = from;
-  settled = new Map();
-  for (const [id, { state }] of widgets) {
-    const tag = authored.get(id)?.tag;
-    const decision = registry.$decisions?.[tag];
-    const outcome = decision && state[decision.verb]?.detail?.outcome;
-    const retires = outcome ? decision.retires[outcome] : null;
-    if (retires?.length) settled.set(id, { tag, retires });
+  if (settledDecisions !== registry.$decisions || !settledReading) {
+    const decisions = (settledDecisions = registry.$decisions);
+    settledReading = readPart((root) => {
+      const holders = new Map();
+      for (const [id, { state }] of root.effective.widgets) {
+        const tag = root.document.authored.get(id)?.tag;
+        const decision = decisions?.[tag];
+        const outcome = decision && state[decision.verb]?.detail?.outcome;
+        const retires = outcome ? decision.retires[outcome] : null;
+        if (retires?.length) holders.set(id, { tag, retires: [...retires] });
+      }
+      return holders;
+    });
   }
-  settledKey = JSON.stringify([...settled]);
+  const next = settledReading();
+  if (next !== settled) {
+    settled = next;
+    settledKey = JSON.stringify([...settled]);
+  }
   return settled;
 }
 // A slot its holder's decision took off the page: a child of the holder, in its light

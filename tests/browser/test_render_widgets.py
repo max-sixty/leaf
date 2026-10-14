@@ -7149,8 +7149,8 @@ def test_the_ask_walk_starts_from_where_the_user_is(browser, serve):
     halfway down and press `d` and you were taken back past everything you had read,
     and so was anyone who had just selected a paragraph to comment on.
 
-    Two readings of where they are are left in turn: what they are reading, and where
-    the walk itself last left off. The banner's button is no place — pressing it opens
+    With focus in the chrome, the walk measures from what they are reading, which the
+    last walk's landing scroll put in front of them. The banner's button is no place — pressing it opens
     the drawer and leaves the focus on itself, so a walk measured from the focus after it
     would restart on every press, and the ring is gone from the page by then, the user
     being in the banner. A selected passage now enters its comment field immediately;
@@ -7167,6 +7167,9 @@ def test_the_ask_walk_starts_from_where_the_user_is(browser, serve):
     page.locator("#refill-now").evaluate("el => el.scrollIntoView({block: 'center'})")
     page.keyboard.press("q")
     expect(page.locator("#t-baffles-decision")).to_have_attribute("data-lf-ask", "1")
+    # The walk scrolls to the ask it arrived at, and the next walk measures from what
+    # that scroll leaves in front of the user, so the scroll has to have landed.
+    scroll_settled(page)
 
     # The banner's press opens the drawer and keeps the focus, so the walk after it
     # measures from where the user stands in the page and steps on rather than

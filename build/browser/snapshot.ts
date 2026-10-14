@@ -55,13 +55,15 @@ function collected<T>(reading: SnapshotReading<T>, read: () => T): T {
 }
 
 /**
- * Run `run`, collecting every reading of a publication it reads synchronously, with
- * the value it read: each selection, and the root itself where it is read whole. A
- * watcher subscribes to exactly these, so it repaints when a part its paint read moves
- * and for nothing else.
+ * Run `run`, collecting every selection of a publication it reads synchronously, with
+ * the value it read. A watcher subscribes to exactly these, so it repaints when a part
+ * its paint read moves and for nothing else.
  * Only reads of the publication count: a paint also reads and writes private signals,
  * such as where the user stands, and subscribing it to those would have a paint that
- * moves focus repaint itself. A failure still returns what was read before it.
+ * moves focus repaint itself. Reading the root whole inside `run` throws, since every
+ * publication moves the root: a paint that read it would repaint on every publication,
+ * however little of it the paint draws, so it reads its parts through selections. A
+ * failure still returns what was read before it.
  */
 export function collectReads<T>(
   run: () => T,
@@ -224,12 +226,14 @@ export function share<T>(prior: unknown, next: T): T {
 
 export function createApplicationPublisher<S extends ApplicationSnapshot>(initial: S) {
   const root = signal(immutable(initial));
-  const whole: SnapshotReading<Immutable<S>> = Object.freeze({
-    read: (): Immutable<S> => collected(whole, () => root.value),
-    subscribe: (listener: (value: Immutable<S>) => void) => root.subscribe(listener),
-  });
   return Object.freeze({
-    read: whole.read,
+    read: (): Immutable<S> => {
+      if (collecting)
+        throw new Error(
+          "a collected read took the whole publication; select the part it needs",
+        );
+      return root.value;
+    },
     // The root without subscribing or collecting, for the owner computing what it
     // publishes next.
     peek: (): Immutable<S> => root.peek(),

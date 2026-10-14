@@ -38,14 +38,7 @@ import {
   standsOn,
   standingIn,
 } from "../focus.js";
-import {
-  html,
-  render,
-  nothing,
-  ref,
-  share,
-  signal,
-} from "../../vendor/browser-runtime.js";
+import { html, render, nothing, ref, share, signal } from "/vendor/browser-runtime.js";
 import { turns, threadKey, threadSummary } from "./model.js";
 import { anchorLabel, MessageView, messageReading } from "./messages.js";
 import { offer, reachedForWords, measure, reserve } from "../widget-elements.js";

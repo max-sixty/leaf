@@ -18,7 +18,7 @@ import {
   render,
   repeat,
   signal,
-} from "../../vendor/browser-runtime.js";
+} from "/vendor/browser-runtime.js";
 import { searchField, reserve } from "../widget-elements.js";
 import { focusDestination, focused } from "../focus.js";
 

@@ -27,7 +27,7 @@ import {
   classMap,
   createRef,
   ref,
-} from "../vendor/browser-runtime.js";
+} from "/vendor/browser-runtime.js";
 import { el, reserve } from "./widget-elements.js";
 import { keeps, keepsHidden } from "./keeps.js";
 import { focusDestination, focused } from "./focus.js";

@@ -136,7 +136,7 @@ customElements.define(
         if (
           pressIsKeyboardActivation(ev) ||
           ev.button !== 0 ||
-          ev.target.closest("[data-lf-offer], a, button")
+          /** @type {Element} */ (ev.target).closest("[data-lf-offer], a, button")
         )
           return;
         if (reachedForWords(this)) return;

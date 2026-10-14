@@ -17,8 +17,7 @@
  * Each TypeScript module compiles to one JavaScript module, its types blanked to
  * whitespace, so every line keeps its source line number and two branches conflict
  * in the output exactly where they conflict in the source. `index.ts` becomes the
- * facade `vendor/browser-runtime.js`, whose declaration file re-exports the source's
- * types for the runtime's type check; the modules it reaches sit in
+ * facade `vendor/browser-runtime.js`, and the modules it reaches sit in
  * `vendor/browser-runtime/`. Their imports are rewritten to the layer paths a page
  * serves: runtime modules stay native, so a page holds one instance of each, and
  * packages bind to the vendored builds below. Delivery compiles the whole framework
@@ -210,19 +209,23 @@ async function protocolHeader() {
 // Two programs type-check the browser code, and each file has one checker.
 // `tsconfig.json` holds the framework's TypeScript, and the runtime modules that opt
 // in with a leading `// @ts-check`, to strict mode; it includes every runtime module so
-// that each one opting in is checked there. `tsconfig.runtime.json` checks
-// the rest of the runtime's modules, and the render checks pages import from
-// `/checks/`, without it. They read the framework's types through the facade's
-// declaration file, and `runtime-globals.d.ts` declares what the classic scripts hang
-// on `<html>` and `window`, the events the runtime dispatches with a detail, and the
-// runtime's own elements by tag. tsc checks a JavaScript file wherever an import
-// reaches it, with the options of the program it is in, and has no per-file opt-out,
-// so the runtime program also reaches the strict program's files and the vendored
+// that each one opting in is checked there. `tsconfig.runtime.json` checks without
+// it the rest of the runtime's modules, `leaf.js`, the kernel's and packages' widget
+// modules, and the render checks pages import from `/checks/`. The `paths` both share
+// resolve the rooted paths a page serves, a package's `vendor/` and `widgets/` among
+// them, and map the facade's, `/vendor/browser-runtime.js`, to `index.ts`, so a
+// module importing the facade by that path reads the framework's source types and no
+// declaration file ships in the layer; a relative path to it would reach the compiled
+// facade, whose types are blanked. `runtime-globals.d.ts` declares what the classic scripts hang on `<html>`
+// and `window`, the events the runtime dispatches with a detail, and the runtime's
+// own elements by tag. tsc checks a JavaScript file wherever an import reaches it,
+// with the options of the program it is in, and has no per-file opt-out, so the
+// runtime program also reaches the strict program's files and the vendored
 // third-party bundles. A diagnostic there is not the runtime program's to report, and
 // the build drops it.
 const runtimeChecks = (file) =>
   file.endsWith(".js") &&
-  !file.startsWith(`${assets}/vendor/`) &&
+  !/^skills\/leaf\/(?:assets|packages\/[^/]+)\/vendor\//.test(file) &&
   !readFileSync(path.join(root, file), "utf8").startsWith("// @ts-check");
 
 function typecheck(config, reports = () => true) {
@@ -309,15 +312,6 @@ export async function buildOutputs() {
     checkModule(file.text, name);
     outputs.set(name, Buffer.from(file.contents));
   }
-  // The facade's types are its source's, which the runtime's type check reads
-  // through the runtime's imports of the facade (tsconfig.runtime.json).
-  outputs.set(
-    `${assets}/${facade.replace(/\.js$/, ".d.ts")}`,
-    Buffer.from(
-      `// The types of browser-runtime.js, which build/browser/build.mjs compiles from index.ts.\n` +
-        `export * from "${path.posix.relative(`${assets}/vendor`, `${sourceRoot}/index.ts`)}";\n`,
-    ),
-  );
   const packageRoots = bundledPackages(result.metafile, root);
   outputs.set(
     `${assets}/vendor/browser-runtime.LICENSES.txt`,

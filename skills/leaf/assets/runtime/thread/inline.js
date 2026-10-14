@@ -12,7 +12,7 @@
    Rejected: folding each resolved thread to a summary of its own, which repeated
    "Resolved" once per thread and named none of them. */
 import { setChildren } from "../dom-children.js";
-import { html, render } from "../../vendor/browser-runtime.js";
+import { html, render } from "/vendor/browser-runtime.js";
 import { seatRoot } from "./model.js";
 import { ThreadView, threadReading } from "./thread-card.js";
 import { elementById } from "../passages.js";

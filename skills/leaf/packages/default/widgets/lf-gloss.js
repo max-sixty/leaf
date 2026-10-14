@@ -122,7 +122,7 @@ customElements.define(
       this.addEventListener(
         "focusout",
         (event) => {
-          if (this.contains(event.relatedTarget)) return;
+          if (this.contains(/** @type {Node | null} */ (event.relatedTarget))) return;
           this.#focused = false;
           this.#dismissed = false;
           this.#sync();

@@ -50,7 +50,7 @@
    are announced because the revealed hint chips themselves remain visual. When there is
    no additional current row, the first activation opens the reference directly. The
    native control also opens it directly. */
-import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
+import { html, nothing, render, repeat } from "/vendor/browser-runtime.js";
 
 import {
   activeRows,

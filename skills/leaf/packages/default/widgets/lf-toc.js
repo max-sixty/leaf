@@ -156,6 +156,7 @@ customElements.define(
       const floor = Math.min(
         ...headings.map(({ heading }) => Number(heading.localName.slice(1))),
       );
+      /** @type {{heading: any, label: string, destination: any, depth: number, row?: Element, link?: Element}[]} */
       const items = headings.map(({ heading, label }, index) => ({
         heading,
         label,
@@ -360,6 +361,7 @@ customElements.define(
       this.#mapHeight = track.height;
 
       const readLabels = () => {
+        /** @type {{index: number, ideal: number, height: number, center: number, prefix?: number}[]} */
         const labels = this.#sections.flatMap(({ row, link }, index) =>
           this.#shown[index]
             ? [

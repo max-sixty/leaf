@@ -1,7 +1,7 @@
 // Every timestamp the page renders was written by its server. Keep the browser's one
 // measured offset here, beside the two public readings that depend on it, so no seat can
 // accidentally render against a second clock.
-import { collectOutside, outsideReading } from "../vendor/browser-runtime.js";
+import { collectOutside, outsideReading } from "/vendor/browser-runtime.js";
 import { watchOwner } from "./arrivals.js";
 import { reportPageError } from "./layer-client.js";
 

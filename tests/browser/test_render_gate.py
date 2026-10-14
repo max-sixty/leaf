@@ -1080,7 +1080,7 @@ def test_the_render_gate_requires_a_declared_threads_host_and_a_defined_element(
 def test_the_render_gate_refuses_visual_inventories_it_cannot_trust(
     browser, serve, tmp_path, monkeypatch
 ):
-    """A provider must register a valid inventory whose ids its prefixes admit."""
+    """A provider registers its inventory and declares which generated ids it admits."""
     monkeypatch.chdir(tmp_path)
     add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     callout = json.loads((tmp_path / ".leaf" / "registry.json").read_text())[
@@ -1097,13 +1097,10 @@ def test_the_render_gate_refuses_visual_inventories_it_cannot_trust(
         },
         "lf-callout": callout,
     }
-    widgets = visual_widgets(outside_surface_for="outside") | visual_widgets(
-        tag="lf-test-visual-prefixed"
-    )
+    widgets = visual_widgets() | visual_widgets(tag="lf-test-visual-prefixed")
     markup = CUSTOM_WIDGET_PAGE.replace(
         "</main>",
-        """<lf-test-visual id="outside" parts="all"></lf-test-visual>
-<lf-test-visual-prefixed id="prefixed"></lf-test-visual-prefixed>
+        """<lf-test-visual-prefixed id="prefixed"></lf-test-visual-prefixed>
 </main>""",
     )
     failures = render_gate_model.render_version(
@@ -1122,18 +1119,6 @@ def test_the_render_gate_refuses_visual_inventories_it_cannot_trust(
     assert {problem["kind"] for _, _, problem in problems("lf-callout")} == {
         "unregistered"
     }, failures
-    visual = problems("lf-test-visual")
-    assert [(scheme, at, problem["kind"]) for scheme, at, problem in visual] == [
-        (scheme, "<lf-test-visual id=outside>", "unreadable")
-        for scheme in ("light", "dark")
-    ], failures
-    unread = [problem["error"] for _, _, problem in visual if "error" in problem]
-    assert len(unread) == 2, failures
-    assert all(
-        "Visual part outer has no descendant Element surface" in error
-        and "TypeError:" in error
-        for error in unread
-    ), unread
     assert problems("lf-test-visual-prefixed") == [
         (
             scheme,

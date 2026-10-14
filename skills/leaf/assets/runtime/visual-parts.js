@@ -5,8 +5,8 @@
  * and a rendered hit resolves to the nearest registered part. `surface` is the native
  * element whose paint Leaf should follow; it defaults to the semantic element, while a
  * package may name one descendant to exclude decorative paint from a compound part.
- * Page check reports malformed inventories. Live readers omit their generated parts;
- * the independently authored whole-visual coordinate remains usable.
+ * Invalid inventories throw at the read that consumes them; live readers do not
+ * replace a package error with an empty inventory.
  *
  * A visual that draws its parts over time (a timeline, an animation, a stepper) does not
  * hold every declared part at every moment. Its registration names `reveal(id)`, which
@@ -16,7 +16,6 @@
  * travel asks for it, rather than detaching. A label reader can
  * name an absent part in Threads without changing the visual's state. */
 
-import { exceptionText } from "./layer-client.js";
 import { under, upFrom } from "./shadow.js";
 import { layoutChanged } from "./widget-elements.js";
 
@@ -48,8 +47,6 @@ export function registerVisualParts(
   return { update: () => layoutChanged(source) };
 }
 
-const hasVisualParts = (source) => registrations.has(source);
-
 /** The part ids admitted by a whole-inventory opt-in or generated-id prefixes.
  * Registered inventory order is also the order of the visual's targets. */
 export function visualPartAdmission(visual, declaration) {
@@ -65,29 +62,25 @@ export const revealsVisualParts = (source) =>
   Boolean(registrations.get(source)?.reveal);
 
 /** Settle the requested part, even while old pixels await a replacement. */
-export function revealUsableVisualPart(source, id) {
+export function revealRegisteredVisualPart(source, id) {
   const reveal = registrations.get(source)?.reveal;
   if (reveal) reveal(id);
-  return usableVisualPart(source, id);
+  return registeredVisualPart(source, id);
 }
 
 /** Invalid registrations or ids outside a provider's declared prefixes. */
 export function visualPartProblems(source, declaration) {
   if (!declaration || typeof declaration !== "object") return [];
-  if (!hasVisualParts(source)) return [{ kind: "unregistered" }];
-  try {
-    const parts = registeredVisualParts(source);
-    const admission = visualPartAdmission(source, declaration);
-    const outside = declaration.prefixes
-      ? parts.filter((part) => !admission(part.id)).map((part) => part.id)
-      : [];
-    return outside.length ? [{ kind: "unadmitted-parts", parts: outside }] : [];
-  } catch (error) {
-    return [{ kind: "unreadable", error: exceptionText(error) }];
-  }
+  if (!registrations.has(source)) return [{ kind: "unregistered" }];
+  const parts = registeredVisualParts(source);
+  const admission = visualPartAdmission(source, declaration);
+  const outside = declaration.prefixes
+    ? parts.filter((part) => !admission(part.id)).map((part) => part.id)
+    : [];
+  return outside.length ? [{ kind: "unadmitted-parts", parts: outside }] : [];
 }
 
-function registeredVisualParts(source) {
+export function registeredVisualParts(source) {
   const read = registrations.get(source)?.read;
   if (!read) return [];
   const seenIds = new Set();
@@ -95,11 +88,11 @@ function registeredVisualParts(source) {
   const seenSurfaces = new Set();
   return [...read()].map((part, index) => {
     const number = index + 1;
-    const id = words(part?.id);
-    const element = part?.element;
-    const label = words(part?.label);
-    const surface = part?.surface ?? element;
-    if (!id || /\s/.test(id))
+    const id = part.id;
+    const element = part.element;
+    const label = words(part.label);
+    const surface = part.surface ?? element;
+    if (typeof id !== "string" || !id || /\s/.test(id))
       throw new TypeError(`Visual part ${number} has no single-token id`);
     if (!(element instanceof Element) || element === source || !under(element, source))
       throw new TypeError(`Visual part ${id} has no descendant Element`);
@@ -119,30 +112,20 @@ function registeredVisualParts(source) {
   });
 }
 
-// An invalid package inventory is reported by visualPartProblems at page check.
-// The live page can still upgrade and expose its other controls for that reading.
-export function usableVisualParts(source) {
-  try {
-    return registeredVisualParts(source);
-  } catch {
-    return [];
-  }
-}
+export const registeredVisualPart = (source, id) =>
+  registeredVisualParts(source).find((part) => part.id === id) ?? null;
 
-export const usableVisualPart = (source, id) =>
-  usableVisualParts(source).find((part) => part.id === id) ?? null;
-
-export const usableVisualPartLabel = (source, id) => {
-  const current = usableVisualPart(source, id)?.label;
+export const registeredVisualPartLabel = (source, id) => {
+  const current = registeredVisualPart(source, id)?.label;
   if (current) return current;
   const label = registrations.get(source)?.label?.(id);
   return words(label) || null;
 };
 
 /** @param {(part: any) => boolean} [admits] */
-export function usableVisualPartAt(source, target, admits = () => true) {
+export function registeredVisualPartAt(source, target, admits = () => true) {
   const byElement = new Map(
-    usableVisualParts(source)
+    registeredVisualParts(source)
       .filter(admits)
       .map((part) => [part.element, part]),
   );

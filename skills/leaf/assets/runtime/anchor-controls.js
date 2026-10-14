@@ -112,8 +112,6 @@ export function createAnchorControls({
     for (const candidate of pageQueryAll(visualSelector())) {
       const found = visualAt(candidate);
       if (!found || found.element !== candidate) continue;
-      // Generated part validity does not change the authored whole-visual seat.
-      // The live reader withholds malformed parts; page check reports their fault.
       const parts = visualParts(candidate);
       const targets = [
         {

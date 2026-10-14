@@ -56,6 +56,7 @@ from .files import read_json
 from .harness import session_harness
 from .machine import state_home
 from .refusals import Refused
+from .registry.kernel import record_format
 from .schema import CURSOR_FILE, WIDGET_KINDS
 from .service import (
     PageTransaction,
@@ -71,7 +72,7 @@ from .state import (
     write_json,
 )
 
-DELIVERY_FORMAT = "leaf-delivery-v5"
+DELIVERY_FORMAT = record_format("delivery")
 DELIVERY_ID = re.compile(r"[0-9a-f]{8}")
 _BATCH_FIELDS = (
     "page",

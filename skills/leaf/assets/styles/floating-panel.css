@@ -693,6 +693,15 @@
     align-items: center;
     gap: 8px;
   }
+  /* A row that copies is the copy control's face: the control's own box is the row's,
+     and its copy icon ends the row where a value would. */
+  .lf-fp-copy-item {
+    display: block;
+  }
+  .lf-fp-copy-item wa-icon {
+    color: var(--lf-fp-muted);
+    font-size: 13px;
+  }
   .lf-fp-chevron {
     width: 12px;
     height: 12px;

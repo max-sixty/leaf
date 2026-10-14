@@ -164,10 +164,19 @@ const HELD_ELSEWHERE = Object.freeze([
 // A row the menu or a group lists: neither held elsewhere nor the next step of a
 // gesture, which stands in the counts' place instead.
 const listed = (entry) => !entry.gesture && !HELD_ELSEWHERE.includes(entry.key);
-// Where a row stands in the menu: in its group, and a keyboard's convenience (`keys`)
-// under Navigate only where no keyboard is there to reach it, so a finger still can.
+// A browser offers the clipboard only to a secure context (https or localhost), so a
+// page read over plain http from another machine has none to copy with.
+const canCopy = () => Boolean(navigator.clipboard?.writeText);
+// Where a row stands in the menu: in its group; a keyboard's convenience (`keys`) under
+// Navigate only where no keyboard is there to reach it, so a finger still can; and a row
+// that copies a text, such as the page's link, under About where no clipboard is there to
+// copy it with, since About shows its text to select.
 const groupOf = (entry) =>
-  entry.group === "keys" && !advertisesKeys() ? "navigate" : entry.group;
+  entry.group === "keys" && !advertisesKeys()
+    ? "navigate"
+    : entry.copies && !canCopy()
+      ? "about"
+      : entry.group;
 const FILTERS = Object.freeze(["open", "unread", "drafts", "resolved"]);
 // The views a thread is opened from.
 const LISTS = Object.freeze(["threads", "on"]);
@@ -737,12 +746,14 @@ export function createFloatingPanel({
       role = "menuitem",
       row = null,
       opens = false,
+      title = null,
     } = {},
   ) =>
     html`<button
       type="button"
       role=${role ?? nothing}
       data-row=${row ?? nothing}
+      title=${title ?? nothing}
       class="lf-fp-item"
       ?disabled=${disabled}
       ?data-lf-urgent=${urgent}
@@ -763,7 +774,45 @@ export function createFloatingPanel({
         ? keySequenceTemplate(keySequenceModel(entry.shortcut))
         : nothing
     }`;
+  // A row of the menu whose press copies a text, such as the page's link, is Leaf's copy
+  // control worn by the row (copy-control.js): one press copies, the menu goes, and the
+  // field says whether the copy took, as it says any passing notice. What the text is,
+  // which a field to select it would say beneath it, is the row's hover name. Where no
+  // clipboard is offered, the row stands in About instead, its text there to select
+  // (`groupOf`).
+  const copyItems = new Map();
+  function copyItem(entry) {
+    let copy = copyItems.get(entry.key);
+    if (!copy) {
+      copy = copyControl("lf-fp-copy-item", {
+        success: `${entry.label} copied`,
+        error: `${entry.label} not copied`,
+      });
+      const done = () => putAwayThen(() => {});
+      copy.addEventListener("wa-copy", done);
+      copy.addEventListener("wa-error", done);
+      copyItems.set(entry.key, copy);
+    }
+    copy.value = entry.copies;
+    copy.disabled = entry.disabled;
+    render(
+      menuItem(
+        `Copy ${entry.label[0].toLowerCase()}${entry.label.slice(1)}`,
+        html`<wa-icon library="system" name="copy" variant="regular"></wa-icon>`,
+        () => {},
+        {
+          disabled: entry.disabled,
+          role: menuOpen ? "menuitem" : null,
+          row: entry.key,
+          title: entry.value || null,
+        },
+      ),
+      copy,
+    );
+    return copy;
+  }
   function rowFor(entry) {
+    if (entry.copies) return copyItem(entry);
     const view = OWN_VIEWS[entry.key];
     return menuItem(
       entry.label,
@@ -866,11 +915,11 @@ export function createFloatingPanel({
         .map((entry) => (entry.copies ? copyRow(entry) : rowFor(entry)))}
     </div>`;
   }
-  // A row whose press copies a text, such as the share link, shows that text for the
-  // user to select as well, with Leaf's copy control beside it (copy-control.js), which
-  // shows on its own face whether the copy took. A browser offers the clipboard only to
-  // a secure context (https or localhost), so where there is none the control stands
-  // down and the text is there to select; the view stays open across a press, so the
+  // A row of a group whose press copies a text, such as the Leaf version, shows that text
+  // for the user to select as well, with Leaf's copy control beside it (copy-control.js),
+  // which shows on its own face whether the copy took. Where no clipboard is offered
+  // (`canCopy`) the control stands down and the text is there to select, as the page's
+  // link is, which joins About then (`groupOf`); the view stays open across a press, so the
   // text is still there if the copy failed. Its value, which a one-line row would end
   // with, says beneath it what the text is. A text of several lines, such as a preview's
   // diagnostics, shows its first few, and selecting it takes the whole.
@@ -888,7 +937,7 @@ export function createFloatingPanel({
     const copy = copies.get(entry.key);
     copy.value = entry.copies;
     copy.disabled = entry.disabled;
-    keepsHidden(copy, !navigator.clipboard?.writeText);
+    keepsHidden(copy, !canCopy());
     return copy;
   }
   function copyRow(entry) {

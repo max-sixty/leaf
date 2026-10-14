@@ -273,7 +273,9 @@ Leaf's type and keeps the browser's frame.
 Leaf's banner, panels, highlights and markers paint over everything in `main`,
 whatever `z-index` the page gives it. A box of the page's that must stand over them,
 such as its own modal or menu, opens in the top layer: a `<dialog>` shown with
-`showModal()`, an element with `popover`, or fullscreen.
+`showModal()`, an element with `popover`, or fullscreen. Since `main` is a stacking
+context, a box in it with `mix-blend-mode` blends only with what `main` paints, not with
+`body`'s background behind it.
 
 The runtime injects the status banner, thread panel, Versions menu, keyboard
 shortcuts, live-leaves drawer, and On panel. `conversation-loop.md`,

@@ -122,6 +122,9 @@ import { CARET_KEYS, selectsAll } from "./control-selectors.js";
 // the older shared attempt. The log still outranks both: an attempt already present in
 // `events` is settled whatever stale active record storage hands back on reload.
 const DRAFT = "lf-draft:";
+// The page's own draft: the box of Comment on the page (thread/page-comment.js), which
+// the floating panel's field shares, and the one place a page thread starts.
+export const PAGE_DRAFT = "general";
 // Where the draft at `ctx` is kept, as the store says (`where`): the page scope is in
 // the key. The storage listener below reads other tabs' writes by it, and a test that
 // seeds or reads a stored draft asks it rather than spelling the key.
@@ -330,7 +333,9 @@ export function transferDraft(from, to, text) {
     writingPlace?.context === from
       ? writingPlace.selection
       : readCaret(editor && editorInput(editor));
-  const held = carriedHeld(from) ?? null;
+  // A destination already holding a reply keeps it, with the source's after it.
+  const held =
+    [carriedHeld(to), carriedHeld(from)].filter(Boolean).join("\n\n") || null;
   const durable = to.startsWith("reply:")
     ? saveDraft(to, held ? `${text}\n\n${held}` : text, undefined, null)
     : saveDraft(to, text, undefined, held);
@@ -660,7 +665,37 @@ export function registerWritingDestination(prefix, reveal) {
 // (`rewrite:<message id>`, thread/message-edit.js).
 const THREAD_HELD = /^(reply|rewrite):/;
 
-export function createWritingResume({ revealInThread, arriveEditor }) {
+// Words nothing on the active document holds a box for, as when a version removes the
+// content an edit was for, join the page's own draft after the words it already holds,
+// and Resume writing moves with them (`transferDraft`): one copy, sent or put away like
+// any page comment. Whatever took the box away, the words now stand where a comment
+// about no particular place is written.
+function moveToPage(ctx) {
+  const words = loadDraft(ctx) ?? "";
+  const text = [loadDraft(PAGE_DRAFT), words].filter(Boolean).join("\n\n");
+  if (!transferDraft(ctx, PAGE_DRAFT, text)) return false;
+  const shift = text.length - words.length;
+  const [start, end, ...direction] = writingPlace.selection;
+  keepWritingPlace({
+    ...writingPlace,
+    selection: [start + shift, end + shift, ...direction],
+  });
+  return true;
+}
+
+// `holdsThreadDraft` answers whether the thread or message a thread-held draft is
+// written under still stands; any other draft is held by a route declared for its kind
+// or an editor registered for it, each for its owner's lifetime.
+export function createWritingResume({
+  revealInThread,
+  arriveEditor,
+  holdsThreadDraft,
+}) {
+  const holdsBox = (ctx) =>
+    THREAD_HELD.test(ctx)
+      ? holdsThreadDraft(ctx)
+      : [...writingRoutes.keys()].some((prefix) => ctx.startsWith(prefix)) ||
+        [...draftEditors].some((view) => view.ctx === ctx);
   const resume = async () => {
     const place = writingPlace;
     if (!place) return;
@@ -685,16 +720,26 @@ export function createWritingResume({ revealInThread, arriveEditor }) {
       (view) => view.ctx === place.context && editorInput(view) === input,
     );
     if (
-      !matchesEditor ||
-      !input?.isConnected ||
-      !input.checkVisibility() ||
-      input.readOnly ||
-      input.disabled
+      matchesEditor &&
+      input?.isConnected &&
+      input.checkVisibility() &&
+      !input.readOnly &&
+      !input.disabled
     ) {
-      notice("That writing place is unavailable on this version");
+      intent.handoff(() => focusDestination(input, "move", { caret: place.selection }));
       return;
     }
-    intent.handoff(() => focusDestination(input, "move", { caret: place.selection }));
+    // A document behind the active one may lack a box the active one holds, so only
+    // the active document moves the words to the page.
+    if (runtime.showsActive && !holdsBox(place.context) && moveToPage(place.context)) {
+      notice("Its box is gone, so its words moved to a comment on the page");
+      return resume();
+    }
+    // A box that stands but takes no words now, as a resolved thread's in the floating
+    // panel, is no fault of the version shown.
+    notice(
+      `That writing place is unavailable${runtime.showsActive ? "" : " on this version"}`,
+    );
   };
   return {
     id: "writing.resume",

@@ -3,11 +3,11 @@
    their adapters. Importing this module does not mount any view or start delivery. */
 import {
   collectReads,
+  outsideReading,
   untracked,
   createPresentationCoordinator,
   createPresentationSchedule,
   createSemanticApplication,
-  PRESENTATION_HELD,
 } from "/vendor/browser-runtime.js";
 
 import { bindQueuedWork } from "./queued-work.js";
@@ -131,9 +131,7 @@ const publications = applicationState.select((root) => root);
 // claims the region as a moved part does. What else the paint takes from beyond the
 // root — a draft, the document's own nodes — is a mechanical change, and its owner
 // claims through `present`, which claims whatever the reading gives, so a reading that
-// stands still is still painted when asked for. A
-// renderer withholds a value it does owe by returning `PRESENTATION_HELD`, which keeps
-// its region pending until a later claim supersedes it.
+// stands still is still painted when asked for.
 /** @param {{
  *   region: string,
  *   renderer?: object,
@@ -266,7 +264,6 @@ export const presentDocument = () => {
 // is what a caller awaits instead of naming renderers, and it carries the first paint
 // failure of the pass so an accepted reading that could not be shown stays unrecorded.
 export const whenDocumentPresented = () => schedule.passed();
-export { PRESENTATION_HELD };
 
 export class PresentationRetentionError extends AggregateError {}
 
@@ -304,11 +301,21 @@ export const whenApplicationRegionsPresented = (regions, current) =>
         : null,
     regions,
   );
-const applicationRegionsPresented = (regions) =>
+export const applicationRegionsPresented = (regions) =>
   presentation.currentRegionsPresented(currentApplicationPresentation, regions);
 export const projectionRegionsPresented = (widgets) =>
   applicationRegionsPresented(["projection:chrome", ...widgets.flatMap(widgetRegions)]);
 export const watchPresentation = presentation.subscribe;
+// A reading of presentation proof itself, such as whether the regions a report waits
+// on have committed. A paint that follows one draws again when it moves without
+// claiming its own region for it: a claim moves presentation, and the reading with it.
+const proofReadings = new WeakSet();
+export const proofReading = (read) => {
+  const reading = outsideReading(read, (moved) => watchPresentation(() => moved({})));
+  proofReadings.add(reading);
+  return reading;
+};
+export const readsProof = (reading) => proofReadings.has(reading);
 export const readApplicationPresentation = presentation.read;
 export function setPresentationFailureReporter(report) {
   reportPresentationFailure = (reason) => report(reason, "Presentation failed");

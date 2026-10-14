@@ -110,12 +110,18 @@ representative desktop viewport.
   The value names the stationary box and what may move inside it. In a `text` region,
   such as a message header, labels may repack while every contained control stays put.
   In a `controls` region, such as the shortcut bar, hints and controls may repack. In
-  an `append` region, a panel card's transcript, new children may grow its end within
-  its stationary scrollport while existing messages stay put; the idle reply row and
-  later cards may move by that growth, and no other change may. Declare the box that
-  owns the room, not an auto-sized inner label group or a boxless wrapper. A nested
-  region holds its own boundary and every enclosing declaration's guarantees, including
-  across a shadow root, and never relaxes them. Neighbours and the page's reading
+  an `append` region, a thread card's transcript in the panel or the margin, its end
+  may grow within its stationary scrollport while existing messages stay put: new
+  children, or, where none joins, a last child declared its growing tail
+  (`data-lf-append-tail`), the working message or a streaming reply. The idle reply row and later cards may move by that growth, and no
+  other change may. Where the growth would carry a reply row the user just sent from past
+  its scroller's landing band, the row stops at the band's foot and the scroller takes
+  the rest, so Send and the caret stay in view (`thread/reply-landing.js`,
+  `sendLanding`). A scrollport sized to what it holds, as the margin's floating card
+  is, counts as stationary while it grows only at its foot, by that growth. Declare the
+  box that owns the room, not an auto-sized inner label group or a boxless wrapper. A
+  nested region holds its own boundary and every enclosing declaration's guarantees,
+  including across a shadow root, and never relaxes them. Neighbours and the page's reading
   content stay put. Check: the shift watch. Owners: `thread/thread-card.js`,
   `thread/messages.js` and `keyboard/shortcut-bar.js` declare today's regions.
 - **News never moves what the reader is reading.** News grows where the reader isn't
@@ -153,9 +159,18 @@ representative desktop viewport.
 - **Generated interface first appears in its settled position.** Reserve space before
   a generated control appears. Transient feedback may repaint a control or briefly
   replace its label but never changes its geometry (`data-lf-room`, `controls.css`,
-  sizes a label for all its words). An action awaiting confirmation dims its
-  existing control after the shared delay. The parent laying out adjacent actions gives
-  them disjoint hit boxes.
+  holds a label at the room of its words and cuts words past it). An action awaiting
+  confirmation dims its existing control after the shared delay. The parent laying out
+  adjacent actions gives them disjoint hit boxes.
+- **An unlikely event fits into what is already there.** Reserve no room for a state
+  the user rarely meets, such as a failed save or another writer changing a file.
+  Show it in a surface that already stands and already has room, such as a status
+  slot, rather than in a new region, and let the user's own gesture expand it where it
+  carries more: a file conflict says so in the editor's status, and its two versions
+  open only on Compare (`lf-file-editor.js` in the file-editor package). Room held
+  empty for an unlikely event is a defect, and so is the jump when it arrives. The
+  settled position above is for interface the ordinary course of use brings, such as
+  a label's other words; an unlikely event takes no room of its own.
 - **A gesture shows the result the page can draw as it is made** (root `AGENTS.md`,
   "The document starts state; the log changes it"). `standGesture` in `drafts.js` owns
   both the send and the refusal that returns words to their box. The content and its
@@ -202,12 +217,12 @@ representative desktop viewport.
 ### Motion
 
 - **Animations are restrained and finite, and acknowledge state changes.** An
-  unchanged state does not animate continuously. One sheen is the only continuous
-  animation, and it marks work under way: across “Generating title” on an untitled thread
-  awaiting the agent (`styles/chrome.css`), across a thread's working message while the
-  agent's work on it runs (`styles/components/surfaces.css`), and across the floating
-  panel's empty field while it says the agent is working (`styles/floating-panel.css`).
-  It stops when that state ends, and is static under reduced motion.
+  unchanged state does not animate continuously. One sheen, `@keyframes lf-sheen` in
+  `styles/components/surfaces.css`, is the only continuous animation, and it marks work
+  under way: across “Generating title” on an untitled thread awaiting the agent, across
+  a thread's working message while the agent's work on it runs, and across the floating
+  panel's empty field while it says the agent is working. It stops when that state ends,
+  and is static under reduced motion.
 - **Nothing the user must read, press, or decide waits on a clock.** Motion runs from
   a state that is already true, and motion that must finish before the result can be
   read is a pause. A motion the user waits on stays under 300ms; one that moves
@@ -354,7 +369,7 @@ it, and shape the markup and CSS so the runtime uses its answer:
 
 | Question | The browser feature that answers it |
 | --- | --- |
-| How large a box is, including the widest of several labels | grid and flex tracks, `min-content` and `max-content`, labels stacked in one grid cell, a label's room drawn invisibly beside its words (`data-lf-room`) |
+| How large a box is, including the widest of several labels | grid and flex tracks, `min-content` and `max-content`, labels stacked in one grid cell, a label's room drawn invisibly over its words, which fill it and are cut past it (`data-lf-room`) |
 | Where a box stands against another box or the scroller holding it | the containing block, sticky positioning, anchor positioning, scroll timelines |
 | Which of Leaf's surfaces paints over which, and that the page paints beneath them all | the top layer, and stacking contexts: the theme's `--lf-z-*` ladder, and `main` as one context at 0 |
 | Whether a box is rendered at all | `checkVisibility` |

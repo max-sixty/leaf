@@ -29,7 +29,13 @@ import {
 export { ContainerProxy } from "@cloudflare/containers";
 import { type DurableObject } from "cloudflare:workers";
 import * as z from "zod/mini";
-import { CHUNK_BYTES, PageStore, dateStateDelivery, readPublication, type PagePublication } from "./storage";
+import {
+  CHUNK_BYTES,
+  PageStore,
+  dateStateDelivery,
+  readPublication,
+  type PagePublication,
+} from "./storage";
 
 import { agentLog, dispatchAgentTask } from "./agent";
 import { projectInteractionBatch, sampleInteractionReference } from "./interactions";
@@ -160,7 +166,10 @@ export class LeafWebsiteSession extends Container<Env> {
   private async publication(value: unknown): Promise<PagePublication> {
     const publication = readPublication(value);
     const manifest = await siteManifest(new Request("https://leaf.page/"), this.env);
-    if (!(publication.root in manifest.pages) || publication.release !== manifest.release) {
+    if (
+      !(publication.root in manifest.pages) ||
+      publication.release !== manifest.release
+    ) {
       throw new Error("publication does not name a page in this website release");
     }
     return publication;
@@ -190,7 +199,8 @@ export class LeafWebsiteSession extends Container<Env> {
         }
         let path = route.inside;
         if (path === "api/state") {
-          const revision = url.searchParams.get("revision") ||
+          const revision =
+            url.searchParams.get("revision") ||
             request.headers.get("Leaf-View-Revision");
           if (revision) path += `?revision=${revision}`;
         } else if (path === "api/deferred") {
@@ -200,7 +210,11 @@ export class LeafWebsiteSession extends Container<Env> {
             key: url.searchParams.get("key") ?? "",
           })}`;
         }
-        const response = await this.pages.response(route.root, path, request.method === "HEAD");
+        const response = await this.pages.response(
+          route.root,
+          path,
+          request.method === "HEAD",
+        );
         if (response !== null) return response;
       }
     }
@@ -211,7 +225,11 @@ export class LeafWebsiteSession extends Container<Env> {
 // Assignment invokes Container's inherited setter, which registers the handler for
 // ContainerProxy. A static class field would shadow that setter.
 LeafWebsiteSession.outboundByHost = {
-  "leaf-state.internal": async (request: Request, env: Env, ctx: OutboundHandlerContext) => {
+  "leaf-state.internal": async (
+    request: Request,
+    env: Env,
+    ctx: OutboundHandlerContext,
+  ) => {
     // The proxy supplies the owning DO identity. The container cannot select a
     // different user's session by changing a URL, cookie, or request header.
     const session = env.PAGES.get(env.PAGES.idFromString(ctx.containerId));
@@ -220,19 +238,24 @@ LeafWebsiteSession.outboundByHost = {
       return session.savedRecords();
     }
     if (request.method === "PUT" && path === "/prepare") {
-      return Response.json({ missing: await session.preparePublication(await request.json()) });
+      return Response.json({
+        missing: await session.preparePublication(await request.json()),
+      });
     }
     const blob = /^\/blobs\/([0-9a-f]{64})$/.exec(path);
     if (blob !== null && request.method === "PUT") {
       // Bound the body before it crosses the RPC boundary or enters SQLite.
       let length = 0;
-      const body = request.body?.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
-        transform(chunk, controller) {
-          length += chunk.byteLength;
-          if (length > CHUNK_BYTES) throw new Error("page storage chunk exceeds 1 MiB");
-          controller.enqueue(chunk);
-        },
-      }));
+      const body = request.body?.pipeThrough(
+        new TransformStream<Uint8Array, Uint8Array>({
+          transform(chunk, controller) {
+            length += chunk.byteLength;
+            if (length > CHUNK_BYTES)
+              throw new Error("page storage chunk exceeds 1 MiB");
+            controller.enqueue(chunk);
+          },
+        }),
+      );
       await session.saveBlob(blob[1], await new Response(body).arrayBuffer());
       return new Response(null, { status: 204 });
     }
@@ -271,20 +294,19 @@ function browserIdentity(request: Request): {
     .map(([browser, pattern]) => ({ browser, match: userAgent.match(pattern) }))
     .find(({ match }) => match !== null);
   const parsedVersion = browserReading ? Number(browserReading.match?.[1]) : null;
-  const platform =
-    /Windows/.test(userAgent)
-      ? "windows"
-      : /(?:iPhone|iPad)/.test(userAgent)
-        ? "ios"
-        : /Android/.test(userAgent)
-          ? "android"
-          : /CrOS/.test(userAgent)
-            ? "chromeos"
-            : /Macintosh/.test(userAgent)
-              ? "macos"
-              : /Linux/.test(userAgent)
-                ? "linux"
-                : "other";
+  const platform = /Windows/.test(userAgent)
+    ? "windows"
+    : /(?:iPhone|iPad)/.test(userAgent)
+      ? "ios"
+      : /Android/.test(userAgent)
+        ? "android"
+        : /CrOS/.test(userAgent)
+          ? "chromeos"
+          : /Macintosh/.test(userAgent)
+            ? "macos"
+            : /Linux/.test(userAgent)
+              ? "linux"
+              : "other";
   return {
     browser: browserReading?.browser ?? "other",
     browserVersion:
@@ -299,7 +321,10 @@ function browserIdentity(request: Request): {
 
 // The body as text, or null once it passes maxBytes, whether the client declared that
 // length or streamed it without one. A request with no body reads as "".
-async function readBoundedText(request: Request, maxBytes: number): Promise<string | null> {
+async function readBoundedText(
+  request: Request,
+  maxBytes: number,
+): Promise<string | null> {
   if (Number(request.headers.get("Content-Length")) > maxBytes) return null;
   const reader = request.body?.getReader();
   if (!reader) return "";
@@ -423,8 +448,7 @@ async function recordInteractions(
     return new Response("invalid interaction batch", { status: 400 });
   }
   const batch = projectInteractionBatch(value);
-  if (batch === null)
-    return new Response("invalid interaction batch", { status: 400 });
+  if (batch === null) return new Response("invalid interaction batch", { status: 400 });
   console.log({
     component: "leaf-interaction",
     event: "client_batch",
@@ -632,7 +656,9 @@ export default {
     // An opaque sample has no session cookie. The first sample segment carries a
     // namespace object ID for routing; Python admits only the independent random
     // sample capability. Nested samples retain this first routing reference.
-    const sample = /^api\/samples\/[a-f0-9]{32}~([a-f0-9]{64})(?:\/|$)/.exec(route.inside);
+    const sample = /^api\/samples\/[a-f0-9]{32}~([a-f0-9]{64})(?:\/|$)/.exec(
+      route.inside,
+    );
     if (sample) {
       let id: DurableObjectId;
       try {
@@ -640,10 +666,14 @@ export default {
       } catch {
         return new Response("not found", { status: 404 });
       }
-      const sampleReference = request.method === "POST" && route.inside.endsWith("/api/interaction")
-        ? sampleInteractionReference(`/${route.inside.slice(0, -"/api/interaction".length)}`)
-        : null;
-      const interaction = sampleReference === null ? null : { request: request.clone(), sampleReference };
+      const sampleReference =
+        request.method === "POST" && route.inside.endsWith("/api/interaction")
+          ? sampleInteractionReference(
+              `/${route.inside.slice(0, -"/api/interaction".length)}`,
+            )
+          : null;
+      const interaction =
+        sampleReference === null ? null : { request: request.clone(), sampleReference };
       const fetched = await env.PAGES.get(id).fetch(request);
       const response = new Response(fetched.body, fetched);
       response.headers.delete("Set-Cookie");
@@ -651,7 +681,12 @@ export default {
       // same bounded, redacted cloud evidence as a parent batch; the clone lets
       // the native request also keep its full local trace.
       if (interaction !== null && response.status === 204)
-        await recordInteractions(interaction.request, route, { sampleReference: interaction.sampleReference }, manifest.release);
+        await recordInteractions(
+          interaction.request,
+          route,
+          { sampleReference: interaction.sampleReference },
+          manifest.release,
+        );
       return response;
     }
 
@@ -687,11 +722,7 @@ export default {
         return recordPageFault(request, fault, manifest, route, reference);
       }
     }
-    if (
-      !active &&
-      request.method === "GET" &&
-      route.inside === "api/state"
-    ) {
+    if (!active && request.method === "GET" && route.inside === "api/state") {
       return staticState(request, env, manifest, route, reference);
     }
     // An active page's current document belongs to its private record, including
@@ -717,7 +748,10 @@ export default {
           return response;
         }
         response.headers.set("Leaf-Session-Reference", reference);
-        response.headers.set("Server-Timing", `leaf;dur=${Date.now() - requestStarted}`);
+        response.headers.set(
+          "Server-Timing",
+          `leaf;dur=${Date.now() - requestStarted}`,
+        );
         if (existing === null) {
           response.headers.append("Set-Cookie", sessionCookie(sessionId, secure));
         }
@@ -761,7 +795,7 @@ export default {
     }
     let body: BodyInit | null = response.body;
     if (request.method === "POST" && route.inside === "api/samples" && response.ok) {
-      const answer = await response.json() as { url: string; page: string };
+      const answer = (await response.json()) as { url: string; page: string };
       const allocated = new URL(answer.url, request.url);
       const objectId = env.PAGES.idFromName(privateContainer).toString();
       allocated.pathname = `${allocated.pathname.slice(0, -1)}~${objectId}/`;
@@ -779,7 +813,11 @@ export default {
     if (existing === null) {
       answer.headers.append("Set-Cookie", sessionCookie(sessionId, secure));
     }
-    if (!active) answer.headers.append("Set-Cookie", activeCookie(secure, route.root, manifest.release));
+    if (!active)
+      answer.headers.append(
+        "Set-Cookie",
+        activeCookie(secure, route.root, manifest.release),
+      );
     if (response.headers.get("Content-Type")?.startsWith("text/html")) {
       answer.headers.set("Server-Timing", `leaf;dur=${Date.now() - requestStarted}`);
     }

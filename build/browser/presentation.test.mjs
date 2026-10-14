@@ -4,7 +4,6 @@ import {
   createPresentationCoordinator,
   createPresentationSchedule,
   describeFailure,
-  PRESENTATION_HELD,
 } from "./presentation.ts";
 
 // Present `value` and settle its ticket with `proof` at once.
@@ -635,28 +634,6 @@ test("a superseded claim releases its hold without painting", async () => {
 
   await Promise.all([stale, current]);
   assert.deepEqual(painted, ["current"]);
-  assert.equal(coordinator.read().presentedEpoch, 0);
-});
-
-test("a held reading keeps its region pending until the next claim supersedes it", async () => {
-  const { coordinator } = setup();
-  const document = {};
-  const renderer = {};
-  const publication = coordinator.begin(document, 0);
-  const schedule = createPresentationSchedule((callback) => callback);
-  let hold = true;
-  const presenter = schedule.presenter({
-    attach: () => coordinator.attach("projection:chrome", renderer),
-    paint: (value) => (hold ? PRESENTATION_HELD : value),
-  });
-  const deferred = presenter.sync("deferred");
-  coordinator.seal(publication);
-  await deferred;
-  assert.deepEqual(coordinator.read().pending, ["projection:chrome"]);
-
-  hold = false;
-  await presenter.sync("resumed");
-  assert.deepEqual(coordinator.read().pending, []);
   assert.equal(coordinator.read().presentedEpoch, 0);
 });
 

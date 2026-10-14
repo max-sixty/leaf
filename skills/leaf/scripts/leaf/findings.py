@@ -1,4 +1,5 @@
-"""A finding: one thing a check found, as a record its readers take fields from.
+"""A finding: one thing a check found, or a command says, as a record its readers take
+fields from.
 
 Every check behind `page check` and `package check` reports through this one type: the
 registry's validation, the markup checks, the page-code run, the render gate in each
@@ -7,12 +8,14 @@ The suite's browser fixture reports through it too: what the browser said, and w
 health sensors (`tests/*_watch.js`) found. So does every gate that refuses one event at
 the append door (`event_contracts.admitted_event`). A refusal raised with what a check
 found (`Rejected`, such as `RegistryError` or `event_log.EventRefused`) carries the
-records, so a command that reports it reads them from it. Each is produced where it is
+records, so a command that reports it reads them from it. So does every note a command
+gives beside its result, such as the advice `task end` gives on the to-do it ends
+(`todos.finished_in_view`) or why a `leaf wait` ended. Each is produced where it is
 detected, the browser probes and sensors included, which return records rather than
-sentences, and its words are written here and nowhere else. The command boundary prints
-`str(finding)` for a reader and `finding.json()` for `--json`, as the event door's
-refusal answer carries it, and a failing test prints the words; every other reader, the
-gate's retry policy and the suite among them, reads the fields.
+sentences, and its words are written here and nowhere else. A command prints
+`finding.json()`, its words as `text`, in its result or as a note on stderr (`note`), as
+the event door's refusal answer carries it, and a failing test prints the words; every
+other reader, the gate's retry policy and the suite among them, reads the fields.
 
 - `code` names what was found, and decides the words (`_TEXT`).
 - `at` names the element it concerns as `render-checks/locate.js` does (`<div id=x>`,
@@ -37,6 +40,7 @@ finding and the same fault at another width is another.
 """
 
 import json
+import sys
 from dataclasses import dataclass, field, replace
 
 from leaf.refusals import Refused
@@ -131,6 +135,16 @@ def _json(value) -> str:
     from leaf.registry.schema import json_value
 
     return json_value(value)
+
+
+def note(*found: Finding) -> None:
+    """Say each finding beside a command's result, as one JSON line on stderr
+    (`cli`), after whatever the result has printed."""
+    sys.stdout.flush()
+    for finding in found:
+        print(
+            json.dumps(finding.json(), ensure_ascii=False), file=sys.stderr, flush=True
+        )
 
 
 def element_at(tag: str, id: str = "") -> str:
@@ -786,15 +800,9 @@ _TEXT = {
         f"{_line(at, v)}: a matching {v['role']} instance requires an id"
     ),
     "empty-ask-context": _ask_context,
-    "ask-context-headings": lambda at, v: (
-        f"{_line(at, v)}: an ask context must have exactly one direct heading,"
-        f" found {_json(v['headings']) if v['headings'] else 'none'}"
-    ),
-    "ask-context-heading-first": lambda at, v: (
-        f"{_line(at, v)}: an ask context's direct heading must be its first"
-        " content, found "
-        + ("text" if v["first"] == "#text" else f"<{v['first']}>")
-        + " first"
+    "ask-context-title": lambda at, v: (
+        f"{_line(at, v)}: an ask context needs a heading to title its ask, leading"
+        " its content alone or in an <hgroup> or <header>"
     ),
     "unknown-word": lambda at, v: (
         f"{_bearing(at, v, _quoted(v['value']))}: not {_HONORED[v['declares']]} —"
@@ -1054,7 +1062,7 @@ _TEXT = {
             " must declare a string `id` attribute"
         )
     ),
-    "ask-context-id": _declared(lambda v: "x-ask-context does not require an id"),
+    "ask-context-id": _declared(lambda v: "x-ask-context must require an id"),
     "ask-context-prose": _declared(
         lambda v: "x-ask-context must admit prose around the ask it frames"
     ),
@@ -1674,6 +1682,80 @@ _TEXT = {
     "unknown-todo": lambda at, v: f"unknown to-do {v['todo']!r}",
     "agents-todo": lambda at, v: (
         f"to-do {v['todo']!r} is the agent's; the user ends only a to-do on them"
+    ),
+    # Advice on a to-do ended `done` (`todos.finished_in_view`).
+    "finished-in-view": lambda at, v: (
+        f"Your work on `{v['element']}` is done, and it still stands among the open"
+        " work. Unless it is the page's current content, move it, cut to its outcome,"
+        " to the finished work collapsed after the open work, and let what comes next"
+        ' take its place (authoring-revisions.md, "Keep the current page current").'
+    ),
+    # What other commands note beside their result (`note`). `status waiting` over
+    # updates it still owes an answer, each named by the command that answers it:
+    "waiting-owes": lambda at, v: (
+        f"{len(v['answers'])} user update{'s' if len(v['answers']) != 1 else ''} with"
+        f" no answer ({'; '.join(v['answers'])}); the page reads waiting once each"
+        " has one"
+    ),
+    # A re-vendor a command naming the page made (`vendoring.renew_layer`), and the
+    # service it held down (`hosting.restarting_server`).
+    "unready-revendor": lambda at, v: (
+        f"re-vendored {v['page']}, but index.html will not activate until"
+        " `leaf page check` passes:\n" + "\n".join(f"  - {e}" for e in v["errors"])
+    ),
+    "revendor-refused": lambda at, v: (
+        f"{v['page']} needs a re-vendor this Leaf could not make: {v['error']}"
+    ),
+    "server-stays-stopped": lambda at, v: (
+        f"{v['page']}'s server stays stopped; `leaf server start {v['page']}` serves"
+        " it again."
+    ),
+    "server-unowned": lambda at, v: (
+        f"{v['page']}'s server has no live session owner, so it stays stopped;"
+        f" `leaf server start {v['page']}` serves it for this one."
+    ),
+    "stopped-while-revendored": lambda at, v: (
+        f"{v['page']}'s server was stopped while it was re-vendored, so it stays"
+        " stopped."
+    ),
+    # A server just started (`hosting.announce_server`).
+    "loopback-only": lambda at, v: (
+        "the URL reaches only this machine; re-serve with --host NAME for a user"
+        " elsewhere"
+    ),
+    # A `leaf wait` (`session.Watch`, `session.read_watch_pass`): a server it brought
+    # back or could not, and why it ended.
+    "server-restarted": lambda at, v: (
+        f"{v['page']}: server had died; restarted at {v['url']}"
+    ),
+    "revive-refused": lambda at, v: (
+        f"{v['page']}: server had died and did not start again: {v['error']}"
+    ),
+    "server-down": lambda at, v: (
+        f"{v['page']}: server is not running; restart it with"
+        f" `leaf server start {v['page']}`"
+    ),
+    "not-owned": lambda at, v: (
+        f"stopped watching {', '.join(v['pages'])}: this session no longer owns"
+        + (" it" if len(v["pages"]) == 1 else " them")
+    ),
+    "nothing-to-watch": lambda at, v: (
+        "nothing to watch: "
+        + (
+            f"{v['page']} is not claimed by this session"
+            if v["page"]
+            else "no page named and none claimed by this session"
+        )
+    ),
+    "pages-idle": lambda at, v: (
+        f"the {'page' if len(v['pages']) == 1 else 'pages'} closed;"
+        f" {', '.join(v['pages'])} {'is' if len(v['pages']) == 1 else 'are'} idle"
+    ),
+    "wait-active": lambda at, v: (
+        f"another `leaf wait` is already active for {v['target']}"
+    ),
+    "watch-taken-over": lambda at, v: (
+        "a watch between turns took over this session's pages"
     ),
     # The thread and task commands' refusals (`thread`, `tasks.cmd_open`), before or
     # beside the append door's. `held` is what the log holds a refused id as

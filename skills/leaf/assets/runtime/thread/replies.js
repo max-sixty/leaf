@@ -305,14 +305,15 @@ function wireReply(key, row, input, send, wireInput, { hint, accessibleName }) {
       remember(composition);
     },
     // The new turn is drawn above the box; the landing shows it with the box the user
-    // sent from, around wherever the send left them standing. A view whose box stays
-    // for the next turn lands the send itself (`sent`).
+    // sent from, read before the send draws, around wherever the send left them
+    // standing. A view whose box stays for the next turn lands the send itself (`sent`).
     send: (_text, raw, owns) => {
       const { actions, landSent, sent } = composition.binding;
+      const land = sendLanding(input);
       if (!sendReply(draftCtx, key, raw, owns, actions)) return;
       if (sent) return sent();
       landSent(closestAcross(input, THREAD));
-      sendLanding(input, focused())();
+      land(focused());
     },
     // ↑ from an empty box reaches back to the user's own last words in the thread, to
     // rewrite them where they stand (`message-edit.js`). A box holding words keeps the
@@ -392,6 +393,16 @@ export const replyCompositionHasDraft = (node) => {
 // Editing belongs to the reply row's session, including Send and native Tab browsing.
 // Persisted words alone never reopen an editor after settlement or reload.
 export const replyIsEditing = (key) => compositions.has(replyContext(key));
+
+// Whether the user is writing in the reply row `field` stands in: standing anywhere in
+// the row, Send included, holding words in it, or `sending` a turn of theirs. A
+// floating card holds the edge its placement keeps still by this (thread-preview.js),
+// and the news it would move waits by it (thread-card.js, `newsMoves`).
+export const writingIn = (field, sending) =>
+  Boolean(
+    field?.checkVisibility() &&
+    (standingIn(field.closest(".lf-thread-reply")) || field.value !== "" || sending),
+  );
 
 // Every reply renderer and route shares the same admission: open conversation,
 // or a settled conversation whose native editing session still owns its words.

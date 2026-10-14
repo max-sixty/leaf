@@ -756,6 +756,106 @@ def test_the_leaf_s_menu_marks_what_opens_a_list_and_leaves_key_conveniences_out
     assert set(listed.all_inner_texts()) <= {"All pages", "Search page"}
 
 
+def test_every_chevron_in_the_menu_is_drawn_as_a_stroke_at_one_size(browser, serve):
+    """A chevron is a Leaf icon like any other, drawn in the row's muted ink rather than
+    filled in the browser's black, and at one size whatever its row ends with, so the
+    chevrons stand in one column."""
+    page = floating(browser, serve(LONG_PAGE, comments=1))
+    page.locator(".lf-fp-leaf").click()
+    drawn = page.locator(".lf-fp-menu .lf-fp-chevron").evaluate_all(
+        """chevrons => chevrons.map(c => {
+            const style = getComputedStyle(c), box = c.getBoundingClientRect();
+            return {fill: style.fill, stroke: style.stroke, width: box.width,
+                    right: Math.round(box.right)};
+        })"""
+    )
+    assert len(drawn) >= 3, drawn
+    assert all(c["fill"] == "none" and c["stroke"] != "none" for c in drawn), drawn
+    assert {(c["width"], c["right"]) for c in drawn} == {(12, drawn[0]["right"])}, drawn
+
+
+def test_the_leaf_s_menu_is_one_tab_stop_its_keys_walk(browser, serve):
+    """Opened by a press, the leaf's menu is walked from the leaf by the arrows, Home and
+    End, as one stop for Tab; Tab leaves it for the field, putting it away. On the leaf
+    and on a count, as Escape leaves the user, the page's two-key Go-to still answers."""
+    page = floating(browser, serve(LONG_PAGE, comments=1))
+    leaf = page.locator(".lf-fp-leaf")
+    leaf.click()
+    rows = page.locator(".lf-fp-menu .lf-fp-item:not(:disabled)")
+    page.keyboard.press("ArrowDown")
+    expect(rows.first).to_be_focused()
+    page.keyboard.press("End")
+    expect(rows.last).to_be_focused()
+    expect(rows.last).to_have_text(re.compile("Fold to the leaf"))
+    page.keyboard.press("Home")
+    expect(rows.first).to_be_focused()
+    page.keyboard.press("ArrowDown")
+    expect(rows.nth(1)).to_be_focused()
+    expect(page.locator(".lf-fp-menu button[tabindex='0']")).to_have_count(1)
+    page.keyboard.press("Tab")
+    expect(page.locator(".lf-fp-menu")).to_be_hidden()
+    expect(field(page)).to_be_focused()
+
+    threads = page.locator(".lf-fp-view[data-view=threads]")
+    for door in (leaf, page.locator(".lf-fp-on-user")):
+        door.focus()
+        page.keyboard.press("g")
+        page.keyboard.press("Shift+T")
+        expect(threads).to_be_visible()
+        page.keyboard.press("Escape")
+        expect(threads).to_have_count(0)
+
+
+def test_a_menu_row_that_puts_the_menu_away_leaves_the_user_on_the_leaf(browser, serve):
+    """A row's press takes its row away with the menu, so the user stands on the leaf
+    that opened it: a row in a view the menu opened returns there, and folding stands
+    on the folded leaf."""
+    page = floating(browser, serve(LONG_PAGE, comments=1))
+    leaf = page.locator(".lf-fp-leaf")
+    menu = page.locator(".lf-fp-menu")
+    leaf.click()
+    menu.locator(".lf-fp-item", has_text="About this page").click()
+    page.locator(".lf-fp-view[data-view=group] .lf-fp-item").last.click()
+    expect(page.locator(".lf-fp-view")).to_have_count(0)
+    expect(leaf).to_be_focused()
+
+    leaf.click()
+    menu.locator(".lf-fp-item", has_text="Fold to the leaf").click()
+    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-rest", "mark")
+    expect(leaf).to_be_focused()
+
+
+def test_a_layer_a_menu_row_opened_closes_back_to_the_leaf(browser, serve):
+    """The command reference a menu row opens records the leaf as where it was opened
+    from, since the row went with the menu, so Escape returns the user there."""
+    page = floating(browser, serve(LONG_PAGE, comments=1))
+    page.locator(".lf-fp-leaf").click()
+    page.locator(".lf-fp-menu .lf-fp-item", has_text="Keyboard shortcuts").click()
+    reference = page.locator(".lf-command-reference")
+    expect(reference).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(reference).to_be_hidden()
+    expect(page.locator(".lf-fp-leaf")).to_be_focused()
+
+
+def test_tab_from_the_field_reaches_dictate(browser, serve):
+    """Dictate stands beside the field while the user writes in the panel and is gone at
+    rest, so Tab from the field lands on it rather than hiding it as the field lets go.
+    """
+    page = floating(browser, serve(LONG_PAGE))
+    dictate = page.locator(".lf-fp-box .lf-compose-dictate")
+    expect(dictate).to_be_hidden()
+    field(page).click()
+    expect(dictate).to_be_visible()
+    page.keyboard.press("Tab")
+    # The field's letting go repaints the box a frame later; Dictate is still there.
+    page.evaluate(
+        "new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
+    )
+    expect(dictate).to_be_visible()
+    expect(dictate).to_be_focused()
+
+
 def test_a_finger_finds_the_keyboard_s_conveniences_under_navigate(browser, serve):
     """Where no keyboard is there to reach them, the conveniences the desk's menu leaves
     to their keys stand under Navigate, so a finger keeps a way to each."""

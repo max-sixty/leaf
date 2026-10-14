@@ -473,20 +473,30 @@ def test_on_shows_an_ask_as_its_message_and_reply_comes_back(browser, serve):
 def test_clicking_into_the_field_moves_nothing_at_an_open_view_s_head(browser, serve):
     """The line over the field keeps its room while a view is open, one line whatever
     it says, so clicking into the field or typing there leaves the view's tabs and Close
-    where the pointer may be about to press them."""
+    where the pointer may be about to press them. The room is blank while the caret is
+    elsewhere: the keys that send show only while it is in the field."""
     page = floating(browser, serve(LONG_PAGE, comments=3))
     page.locator(".lf-fp-threads").click()
     expect(page.locator(".lf-fp-view[data-view=threads]")).to_be_visible()
     settled(page)
     close = page.locator(".lf-fp-close").bounding_box()
     tab = page.locator(".lf-fp-filters button", has_text="Resolved").bounding_box()
+    line = page.locator(".lf-fp-context")
     field(page).click()
-    expect(page.locator(".lf-fp-context")).to_be_visible()
+    expect(line).to_be_visible()
+    expect(line).to_contain_text("to send")
     settled(page)
     assert page.locator(".lf-fp-close").bounding_box() == close
     assert (
         page.locator(".lf-fp-filters button", has_text="Resolved").bounding_box() == tab
     )
+    # Stepping from the field into the view takes the keys away, and the room stays.
+    page.locator(".lf-fp-filters button", has_text="Open").click()
+    expect(line).to_be_hidden()
+    settled(page)
+    assert page.locator(".lf-fp-close").bounding_box() == close
+    field(page).click()
+    expect(line).to_contain_text("to send")
     # Words arriving give the line where they go, in the same one line's room.
     page.keyboard.type("Could")
     expect(page.locator(".lf-fp-dest")).to_have_text("Comment on the page")

@@ -19,14 +19,17 @@
  *   "Comment"; in a thread it says whose turn it is. A status reads dimmer than anything
  *   written, and while the agent works it carries the one sheen that marks work under
  *   way. Clicking in gives the placeholder to where the words go, and opens one quiet
- *   line above it with the keys that send; once words hide the placeholder, the line
- *   says where they go instead. It never names who reads them: the page has one agent.
+ *   line above it with the keys that send, which it shows only while the caret is in the
+ *   field; once words hide the placeholder, the line says where they go as well, and
+ *   keeps saying it while they stand. It never names who reads them: the page has one
+ *   agent.
  * - **Opened**: a view above the same row (On, Threads, a thread, Versions, or a
  *   group of the page's controls) with where the user is at its top edge. It lasts while
  *   it is used: Escape or a press on the page puts it away, Escape once the caret has
  *   left the field, since the caret is the innermost thing open. The room of the line
- *   above the field stands while a view is open, one line tall whatever it says, so
- *   clicking in or typing moves nothing at the view's head. It is as tall as what it
+ *   above the field stands while a view is open, one line tall whatever it says and
+ *   blank while it has nothing to say, so clicking in or typing moves nothing at the
+ *   view's head. It is as tall as what it
  *   holds, so a one-message thread opens one message tall, up to most of the window's
  *   height, the larger size a long thread or a long Threads list is read at; past that
  *   it scrolls. The user chose views that fit their content with a larger size for long
@@ -1587,9 +1590,9 @@ export function createFloatingPanel({
     const input = fieldInput();
     if (input) syncInput(input);
     const holds = Boolean(loadDraft(destination())?.trim());
-    // Clicking in opens one quiet line above the field with the keys that send; it
-    // stays while the field holds words, and while a thread is open, whose field is
-    // always its reply, so nothing moves when the caret leaves.
+    // Clicking in opens one quiet line above the field; it stays while the field holds
+    // words, and while a thread is open, whose field is always its reply, so nothing
+    // moves when the caret leaves.
     const engaged = Boolean(thread) || writing || holds;
     keeps(host, "data-engaged", engaged ? "" : null);
     keeps(host, "data-writing", writing ? "" : null);
@@ -1614,9 +1617,12 @@ export function createFloatingPanel({
       contextDest,
       covered ? reading.words : empty ? "" : whereTo(replying ? top.thread : null),
     );
+    // The keys that send are said while the caret is in the field, where they work,
+    // and nowhere else: not on the leaf or its menu, and not in a view the user has
+    // stepped into from the field.
     keepsText(
       contextKeys,
-      advertisesKeys()
+      input === focused() && advertisesKeys()
         ? `${submitLabel()} to send${submitLabel() === "⏎" ? " · ⇧⏎ new line" : ""}`
         : "",
     );

@@ -745,11 +745,12 @@ function standFolded(row, fold, on) {
 // square the row's height, beside the gaps and the focus ring's room the row keeps.
 function pinSeating(rows, { bands, shell, pinInset }) {
   const main = marginColumn();
-  // A scrollable document can reveal seats beyond the viewport. A root whose
-  // overflow prevents user scrolling cannot, so its window bounds the seats.
+  // A scrollable document can reveal seats beyond the viewport, but none above its own
+  // top. A root whose overflow prevents user scrolling cannot, so its window bounds the
+  // seats.
   const rootBounds = /^(hidden|clip)$/.test(getComputedStyle(pageScroller).overflowY)
     ? shownWindow({ viewport: "layout" })
-    : null;
+    : { top: pageScroller.getBoundingClientRect().top };
   const pins = [];
   for (const entry of rows) {
     const { read } = entry;
@@ -815,15 +816,15 @@ function pinSeating(rows, { bands, shell, pinInset }) {
             {
               left: end.right + GAP,
               right: end.right + GAP + size,
-              top: (end.top + end.bottom - height) / 2,
-              bottom: (end.top + end.bottom + height) / 2,
+              top: end.top,
+              bottom: end.top + height,
             },
           ]
         : []),
       { ...home, left: home.right - size },
       {
-        left: box.right - size,
-        right: box.right,
+        left: home.right - size,
+        right: home.right,
         top: box.top - GAP - height,
         bottom: box.top - GAP,
       },

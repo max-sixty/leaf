@@ -2819,7 +2819,7 @@ def test_a_work_seat_declaration_is_checked_whole(page_dir, mutate, message):
         (_report_authored_detail, "registry extensions are invalid"),
         # `overruled` is how a version keeps its state over a report; without it
         # every contradiction is unpublishable.
-        (_report_without_overruled, "not the boolean `overruled`"),
+        (_report_without_overruled, "no boolean `overruled` attribute"),
         # Reports replay through renderState, so the widget must upgrade.
         (_report_without_upgrade, "declares x-state"),
         # Only an agent verb declares `text`.

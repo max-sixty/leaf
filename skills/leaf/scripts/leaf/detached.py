@@ -1,16 +1,20 @@
-"""Resource readiness, caller acceptance, and producer confirmation.
+"""Start a detached child process and wait until it is ready.
 
-The child announces a prepared resource. The caller captures its identity inside
-`starting_detached`, then accepts on normal context exit. Acceptance is the
-caller's one write. The child runs any deferred commit and confirms readiness
-before the caller returns.
+For example, `hosting._starting_server` starts a page server this way (`leaf
+server _serve`), and `codex_adapter` starts the Codex delivery adapter (`leaf codex
+run`). `starting_detached` spawns the child and yields what it sends through
+`Handshake.announce`, or raises `StartRefused` with the child's reason.
 
-A producer deferring publication to the commit callback publishes nothing before
-acceptance. A producer that publishes earlier cleans up if the caller abandons it.
-After acceptance, a missing confirmation is uncertain commitment, never evidence
-that the child did not commit. The caller already holds the announced owner and
-retires only that owner's resources; it never restores an owner an accepted start
-superseded.
+Leaving the parent's `with` block normally accepts the start, and an exception
+abandons it. Only after acceptance does the child run the `commit` callback it gave
+`announce`, then send a confirmation. The page server writes its service record and
+claim in that callback, so an abandoned start publishes nothing. The Codex adapter
+passes no callback: it starts its connection before announcing and exits if
+abandoned.
+
+A missing confirmation raises `StartUnconfirmed`, though the child may have
+committed. `hosting.claim_and_start` then stops the server only while the page still
+holds the claim it captured, and never restores the claim that start replaced.
 """
 
 import json
@@ -33,8 +37,8 @@ class StartRefused(Refused):
 
 
 class StartUnconfirmed(Refused):
-    """An accepted start whose publication confirmation did not arrive. The caller
-    reports it like a refusal, though the child may have committed."""
+    """An accepted start whose confirmation did not arrive. The child may have
+    committed, though the caller reports it like a refusal."""
 
 
 @contextmanager
@@ -124,11 +128,12 @@ class Handshake:
         *,
         commit: Callable[[], dict] | None = None,
     ) -> bool:
-        """Prepare an announcement, accept the caller's commit, then confirm it.
+        """Send `answer`, wait for the caller to accept, and return whether it did.
 
-        The optional commit callback defers publication until acceptance. Without
-        it, the producer supplies an already prepared resource and cleans up on
-        refusal. Losing confirmation does not undo an accepted commit.
+        On acceptance, run `commit` if given and send its result as the
+        confirmation. A child that passes no `commit` has already set up its
+        resource, and cleans it up itself when this returns False. A confirmation
+        that fails to send does not undo the commit.
         """
         try:
             self._socket.sendall(json.dumps(answer or {}).encode() + b"\n")

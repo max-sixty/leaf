@@ -1234,7 +1234,7 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(claimed, capsys)
         "answer"
     ]
     told = [batch["handling"][ref] for ref in event["handling"]]
-    assert any("write it in, and stamp a version" in text for text in told)
+    assert any("write the answer in, and stamp a version" in text for text in told)
     receive_through(claimed, last_deliverable_seq(claimed))
 
     assert f"records action {picked['id']}" in _stop(capsys)

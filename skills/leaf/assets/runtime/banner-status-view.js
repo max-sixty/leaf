@@ -49,7 +49,9 @@ class BannerStatusView extends HTMLElement {
   #presentQueues = () => {
     const model = this.#model;
     render(
-      html`<span data-lf-room=${model.queuesWidest}><span>${model.queues}</span></span>`,
+      html`<span data-lf-room=${model.queuesWidest}
+        ><span>${model.queues}</span></span
+      >`,
       this.#queues,
     );
     keeps(this.#queues, "title", `Show or hide what's on me and on ${agentName()}`);

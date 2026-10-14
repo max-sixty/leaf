@@ -80,18 +80,6 @@ export const PRESENTATION_ORDER = Object.freeze({
 // no business knowing which those are.
 const documentPresenters = [];
 
-// Subscribe to each part a collected run read (`collectReads`), calling `moved` when one
-// no longer holds the value the run read. A part's subscriber hears its value at once,
-// which is the value read unless the run itself published after reading it.
-export const followReads = (reads, moved) => {
-  const stops = [...reads].map(([part, seen]) =>
-    part.subscribe((now) => now !== seen && moved()),
-  );
-  return () => {
-    for (const stop of stops) stop();
-  };
-};
-
 // One region's epoch presenter. `reading` decides, synchronously, whether the region
 // owes a paint and with what value: it returns null where the region owes nothing,
 // before the page has read the log or where this renderer was never mounted, and
@@ -119,8 +107,9 @@ export const applicationPresenter = ({
   paint,
   failSoft,
 }) => {
-  let unfollowReading = () => {};
-  let unfollowPaint = () => {};
+  // The parts the last reading and the last paint read, each with the value it read.
+  let readingReads = new Map();
+  let paintReads = new Map();
   // The value last claimed, and whether its paint has yet to start.
   let claimed;
   let owed = false;
@@ -130,8 +119,7 @@ export const applicationPresenter = ({
     paint: (value, current) => {
       owed = false;
       const outcome = collectReads(() => paint(value, current));
-      unfollowPaint();
-      unfollowPaint = followReads(outcome.reads, () => moved(true));
+      paintReads = outcome.reads;
       if ("error" in outcome) throw outcome.error;
       return outcome.value;
     },
@@ -139,8 +127,7 @@ export const applicationPresenter = ({
   });
   const read = () => {
     const outcome = collectReads(reading);
-    unfollowReading();
-    unfollowReading = followReads(outcome.reads, () => moved(false));
+    readingReads = outcome.reads;
     if ("error" in outcome) throw outcome.error;
     return outcome.value;
   };
@@ -150,23 +137,29 @@ export const applicationPresenter = ({
     owed = true;
     return presenter.sync(value);
   };
-  // A paint's part moved, which owes a paint unless one is already owed for this value,
-  // or the reading's part moved, which owes one only where the value changed.
-  function moved(painted) {
-    const value = read();
-    if (value === null) claimed = null;
-    else if (value !== claimed || (painted && !owed)) void claim(value);
-  }
+  const moved = (reads) => [...reads].some(([part, seen]) => part.read() !== seen);
   const present = () => claim(read());
   documentPresenters.push(present);
   // A region claims on the publications after this first reading; a renderer that owes
-  // its first value earlier asks with `present`.
+  // its first value earlier asks with `present`. One subscription, made here, hears
+  // every publication, so each region claims at the same point in a publication as it
+  // always has, before anything that publication starts waits on presentation.
   claimed = read();
+  applicationState
+    .select((root) => root)
+    .subscribe(() => {
+      // A paint's part moved, which owes a paint unless one is already owed, or the
+      // reading's part moved, which owes one only where the value changed.
+      const painted = !owed && moved(paintReads);
+      if (!painted && !moved(readingReads)) return;
+      const value = read();
+      if (value === null) claimed = null;
+      else if (painted || value !== claimed) void claim(value);
+    });
   // A document-wide region lives as long as the page; `disconnect` releases its renderer,
   // and a region that may mount again reads null while it is not mounted.
   const disconnect = () => {
-    unfollowPaint();
-    unfollowPaint = () => {};
+    paintReads = new Map();
     presenter.disconnect();
   };
   return Object.freeze({ present, disconnect });

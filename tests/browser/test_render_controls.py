@@ -3552,8 +3552,9 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(
     )
     assert any("lf-banner-more" in name for name in beside["names"]), beside["names"]
 
-    # Longer, and still inside a phone's room beside Threads and More.
-    longer = say("running tests")
+    # Longer, and still inside a phone's room beside Threads and More, with room to
+    # spare for Linux's wider sans and the agent's name.
+    longer = say("tests again")
     assert longer["shown"] >= longer["needed"], longer
     assert (longer["left"], longer["top"]) == (short["left"], short["top"])
     assert longer["right"] > short["right"], (short, longer)

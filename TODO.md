@@ -654,6 +654,18 @@ Revisit these when their stated trigger becomes real; they are not an active que
   (pings, sleep, outbound interception) and `standard-1` in place of `basic`.
   Trigger: the policy leaves beta, or leaf.page gains visitors a deploy would
   interrupt.
+- **Push page updates instead of polling.** Each visible tab asks `api/news` every
+  250 ms (`runtime/state-feed.js`). Measured on 2026-10-13, that costs about 1% of
+  one core per visible tab locally. On leaf.page each look bills a Worker and a
+  Durable Object request, under $1.20 a month per user at list price and inside the
+  included quotas, and polling accounts for about 1% of container hours. A held
+  stream into the container keeps it awake as polling does, so push would save only
+  the request charges. It would make updates appear sooner: a page notices an agent's
+  change at its next look, an estimated 125 ms later on average locally and 300 ms
+  on leaf.page. The likely design is one EventSource per browser, held by a leader
+  tab through a Web Lock, relayed to other tabs over a BroadcastChannel, woken by
+  the file watcher, and closed when the tab is hidden. Trigger: an agent's reply
+  visibly lags, or leaf.page's request charges leave the included quota.
 - **#27 — Runtime fold tests:** add focused Node tests as rules change; extend
   `tests/runtime/dom.mjs` only when a test needs another module.
 - **Claude Code tool observation:** consider a cheap hook for sessions holding

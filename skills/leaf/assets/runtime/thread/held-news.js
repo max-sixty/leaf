@@ -46,8 +46,9 @@
    selection reaching into it (`standsOn`, focus.js). The progress itself is no news:
    until that answer it joins the thread's working message, not its replies
    (thread-card.js), and its messages stand behind that message's disclosure. The
-   working message's arrival or departure changes the thread's height, so a seat
-   holds it behind its control-row notice when that growth would move the reader.
+   working message's arrival, its departure, and a new step whose words wrap to
+   another height change the thread's height, so a seat holds any change of its words
+   behind its control-row notice when that growth would move the reader.
    A run on screen stays open where
    it stood, its group's border drawn around it (components/surfaces.css), so the fold
    moves none of its words; a run off screen folds away. Changes to other existing
@@ -210,13 +211,11 @@ function difference(was, now, { progressOpen = false } = {}) {
   const news = {
     settled,
     working:
-      Boolean(was.working) !== Boolean(now.working)
-        ? now.working
-          ? now.working.live
-            ? "Work in progress"
-            : "Work updated"
-          : "Work updated"
-        : null,
+      was.working?.words === now.working?.words
+        ? null
+        : now.working?.live
+          ? "Work in progress"
+          : "Work updated",
     replies: 0,
     messages: 0,
     edits: 0,
@@ -343,6 +342,16 @@ function withheld(was, now) {
 }
 
 const counted = (count, one, many) => count && `${count} ${count === 1 ? one : many}`;
+/** @param {{
+ *   settled?: string,
+ *   working?: string,
+ *   replies?: number,
+ *   messages?: number,
+ *   edits?: number,
+ *   reactions?: number,
+ *   summaries?: number,
+ *   threads?: number,
+ * }} news */
 const newsLabel = ({
   settled,
   working,

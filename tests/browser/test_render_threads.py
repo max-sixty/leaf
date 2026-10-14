@@ -866,8 +866,8 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
     )
     expect(line).to_have_attribute("data-lf-live", "")
     expect(line.get_by_role("button")).to_have_count(0)
-    # A step is a line: a long one keeps the working message's box, so nothing below
-    # it moves while the reader is there.
+    # A long step wraps as a message does, so all of it shows; in an idle open card
+    # it grows the thread's foot, as an arriving reply would.
     height = line.evaluate("node => node.getBoundingClientRect().height")
     steps.append(
         thread_model.post_reply(
@@ -880,8 +880,13 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
         )
     )
     told(page)
-    expect(line.locator(".lf-thread-working-words")).to_contain_text("Comparing")
-    assert line.evaluate("node => node.getBoundingClientRect().height") == height
+    expect(line.locator(".lf-thread-working-words")).to_contain_text(
+        "before and after the change"
+    )
+    expect(thread.locator(".lf-thread-news")).to_have_count(0)
+    words = line.locator(".lf-thread-working-words")
+    assert words.evaluate("node => node.scrollWidth <= node.clientWidth")
+    assert line.evaluate("node => node.getBoundingClientRect().height") > height
     for step in steps:
         expect(thread.locator(f'.lf-msg[data-mid="{step["id"]}"]')).to_be_hidden()
 
@@ -897,6 +902,45 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
     expect(
         thread.get_by_role("button", name="Show 3 progress messages", exact=True)
     ).to_be_visible()
+
+
+@pytest.mark.watch_shifts
+def test_a_new_step_waits_where_its_words_would_move_the_draft(browser, serve):
+    """A step's words wrap, so a new step can change the working message's height. In a
+    seat where that would move the reply being typed, the step waits behind the
+    thread's notice, as a reply would, and the draft keeps its place."""
+    url = serve(SEATED_ASK_PAGE)
+    root = panel_comment(serve.page_dir, "Which job comes first?", {"section": "jobs"})
+    thread_model.post_reply(
+        serve.page_dir, {"to": root, "for": root}, "Reading the jobs.", ephemeral=True
+    )
+    page = open_page(browser, url)
+    resized(page, 390, 900)
+    thread = page.locator("#jobs .lf-page-thread")
+    words = thread.locator(".lf-thread-working-words")
+    expect(words).to_have_text("Reading the jobs")
+    editor = thread.locator("leaf-text")
+    write(editor, "Start with the mounts.")
+    rendered(page)
+    box = editor.bounding_box()
+
+    thread_model.post_reply(
+        serve.page_dir,
+        {"to": root, "for": root},
+        "Comparing the mounts, the bird bath and the camera against the frost "
+        "dates, and what each one needs before it can start.",
+        ephemeral=True,
+    )
+    told(page)
+    notice = thread.get_by_role("button", name="Work in progress", exact=True)
+    expect(notice).to_be_visible()
+    expect(words).to_have_text("Reading the jobs")
+    rendered(page)
+    assert editor.bounding_box() == pytest.approx(box, abs=0.5)
+
+    notice.click()
+    expect(words).to_contain_text("what each one needs before it can start")
+    assert editor.evaluate("box => box.value") == "Start with the mounts."
 
 
 def test_a_streaming_answer_takes_the_working_messages_place_and_disclosure(
@@ -1375,7 +1419,8 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
     """The answer and its fold arrive together; originals remain a keyboard route.
     Pending progress stands hidden behind the working message; in the panel a search
     for it shows it, and a reader standing on it holds the answer that would fold it
-    behind its notice. The page thread has no search, so its answer lands at once."""
+    behind its notice. In the page thread the answer would grow the thread's foot under
+    the reader, so it waits behind the same notice."""
     url = serve(SEATED_ASK_PAGE)
     root = panel_comment(serve.page_dir, "Check the schedule.", {"section": "jobs"})
     progress = thread_model.post_reply(
@@ -1445,6 +1490,8 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
         expect(original).to_be_focused()
         notice.click()
         expect(original).to_be_visible()
+    else:
+        card.get_by_role("button", name="1 new reply", exact=True).click()
     expect(card.locator(f'.lf-msg[{identity}="{answer["id"]}"]')).to_be_visible()
     checkpoint = card.locator(".lf-thread-checkpoint")
     expect(checkpoint.locator(".lf-summary-label")).to_have_count(0)
@@ -11238,10 +11285,12 @@ def test_a_zoomed_floating_draft_and_sent_comment_fit_a_narrow_window(
     assert text.evaluate("el => el.scrollHeight <= el.clientHeight + 1")
 
 
-def test_a_rewrite_of_a_comment_just_sent_stands_where_its_words_did(browser, serve):
+def test_a_rewrite_of_a_comment_just_sent_is_the_reply_box(browser, serve):
     """The card holding a comment just sent keeps its words in the room the draft had,
-    clear of Send (`data-lf-comment-frame`); a rewrite opened there stands in that same
-    room, so the message keeps its place and its words their lines."""
+    clear of Send (`data-lf-comment-frame`). A rewrite opened there kept that narrow
+    room too, a box shorter and narrower than the reply box under it; it is now the
+    reply box's own field, its words at their inset, its ring whole inside the
+    transcript that scrolls it."""
     touch = False
     context = browser.new_context(has_touch=touch, is_mobile=touch)
     page = open_page(browser, serve(LONG_PAGE), context=context)
@@ -11265,19 +11314,33 @@ def test_a_rewrite_of_a_comment_just_sent_stands_where_its_words_did(browser, se
     words = message.locator(".lf-msg-text")
     rendered(page)
     before = message.bounding_box(), words.bounding_box()
+    first_line = words.evaluate(FIRST_LINE)
     message.locator(".lf-msg-edit").click()
     editor = message.locator(".lf-msg-editor")
     expect(editor.locator("leaf-text")).to_be_focused()
     rendered(page)
-    assert message.bounding_box() == before[0]
-    box = editor.bounding_box()
-    assert (box["x"], box["y"], box["height"]) == (
-        before[1]["x"],
-        before[1]["y"],
-        before[1]["height"],
-    ), (box, before[1])
-    # The rewrite's frame and focus ring reach past its box, so nothing clips it.
-    assert editor.evaluate("el => getComputedStyle(el).overflow") == "visible"
+    assert message.bounding_box()["y"] == before[0]["y"]
+    field = editor.locator(".lf-compose-field")
+    reply = card.locator(".lf-thread-reply .lf-compose-field")
+    box, reply_box = field.bounding_box(), reply.bounding_box()
+    for side in ("x", "width"):
+        assert abs(box[side] - reply_box[side]) < 0.5, (side, box, reply_box)
+    # Its words take the reply box's padding, over the lines the comment wrapped to.
+    frame = """el => {
+      const field = getComputedStyle(el), text = getComputedStyle(el.querySelector(":scope > leaf-text"));
+      return [field.borderTopWidth, text.paddingTop, text.paddingBottom, text.paddingLeft];
+    }"""
+    assert field.evaluate(frame) == reply.evaluate(frame)
+    assert (
+        abs(editor.locator("leaf-text").evaluate(FIRST_LINE)[0] - first_line[0]) < 0.5
+    )
+    # The transcript scrolls, so it would clip a ring drawn outside the field.
+    assert field.evaluate(
+        """el => {
+          const style = getComputedStyle(el);
+          return parseFloat(style.outlineOffset) <= -parseFloat(style.outlineWidth);
+        }"""
+    )
 
 
 def test_a_scaled_floating_draft_keeps_its_room_when_its_passage_scrolls_away(
@@ -11615,12 +11678,15 @@ FIRST_LINE = """n => {
 
 
 @pytest.mark.parametrize("surface", ["panel", "seat", "card", "feed"])
-def test_a_rewrite_opens_and_closes_without_moving_the_thread(browser, serve, surface):
+def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surface):
     """Opening a rewrite with ↑ swapped the message for a bordered box with Cancel on a
     row of its own, pushing every turn and the reply box below it down 55px, and Escape
     left that room behind and the user standing on the thread rather than in the box
-    they pressed ↑ from. The box now surrounds the words where they stood, Cancel and
-    Save take the message's head, and every way out steps back up to the reply box.
+    they pressed ↑ from. A later box painted around the words, with no padding of its
+    own, moved nothing but read as a thinner, narrower field than the reply box beside
+    it. The rewrite is now the reply box's own field, at its width and height, with the
+    words at their inset under the message's head; Cancel and Save take that head, and
+    every way out steps back up to the reply box, leaving the thread as it was.
 
     In the margin card each keystroke in the rewrite also threw, from the reply box's
     growth-following reading a reply row the rewrite has none of; the browser fixture
@@ -11649,11 +11715,18 @@ def test_a_rewrite_opens_and_closes_without_moving_the_thread(browser, serve, su
     editor = message.locator(".lf-msg-editor leaf-text")
     expect(editor).to_be_focused()
     rendered(page)
-    unmoved()
-    # The words stand where they stood.
-    editing_line = editor.evaluate(FIRST_LINE)
-    assert abs(editing_line[0] - first_line[0]) < 0.5, (editing_line, first_line)
-    assert abs(editing_line[1] - first_line[1]) < 0.5, (editing_line, first_line)
+    # The message keeps its head's place, and its words their inset, in a box the
+    # reply box's size.
+    assert abs(message.bounding_box()["y"] - rest["message"]["y"]) < 0.5
+    field = message.locator(".lf-msg-editor > .lf-compose-field").bounding_box()
+    reply_field = thread.locator(".lf-thread-reply .lf-compose-field").bounding_box()
+    for side in ("x", "width", "height"):
+        assert abs(field[side] - reply_field[side]) < 0.5, (side, field, reply_field)
+    # Feed mode draws its messages at the reply box's edge, not inset in a transcript,
+    # so there the words take the reply box's inset instead.
+    if surface != "feed":
+        editing_line = editor.evaluate(FIRST_LINE)
+        assert abs(editing_line[0] - first_line[0]) < 0.5, (editing_line, first_line)
     head = message.locator(".lf-msg-head").bounding_box()
     for name in ("Cancel", "Save"):
         box = message.get_by_role("button", name=name, exact=True).bounding_box()
@@ -12395,12 +12468,18 @@ def test_saving_one_of_two_open_rewrites_leaves_no_gap(browser, serve):
     page.keyboard.press("ControlOrMeta+a")
     page.keyboard.type("Short.")
     rendered(page)
-    typed = reply.bounding_box()["y"]
+    typed = reply.bounding_box()["y"], latest.bounding_box()["height"]
     page.keyboard.press("Enter")
     expect(latest.locator(".lf-msg-text")).to_have_text("Short.")
     round_trip(page)
     rendered(page)
-    assert abs(reply.bounding_box()["y"] - typed) < 0.5, (typed, reply.bounding_box())
+    # The reply box moves by what the message gave back as its box closed, and no more.
+    given_back = latest.bounding_box()["height"] - typed[1]
+    assert abs(reply.bounding_box()["y"] - (typed[0] + given_back)) < 0.5, (
+        typed,
+        given_back,
+        reply.bounding_box(),
+    )
     expect(earlier.locator(".lf-msg-editor leaf-text")).to_have_js_property(
         "value", "Fit the north bracket. And the east."
     )

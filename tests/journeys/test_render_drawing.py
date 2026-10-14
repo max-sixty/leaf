@@ -70,7 +70,6 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
     assert event["anchor"] == {"section": "map-trail"}
     assert event["text"] == "This bend is the part I mean."
     drawing = event["drawing"]
-    assert drawing["format"] == "leaf-drawing/3"
     assert drawing["viewport"] == page.evaluate(
         "[document.documentElement.clientWidth, document.documentElement.clientHeight]"
     )

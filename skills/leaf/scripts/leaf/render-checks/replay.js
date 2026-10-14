@@ -29,6 +29,7 @@ export function relativeReplays() {
   };
   for (const id of new Set([...before.keys(), ...now.keys()])) {
     if (before.get(id) === now.get(id)) continue;
+    /** @type {(HTMLElement & {renderState?: unknown}) | null} */
     let widget = document.getElementById(id);
     while (widget && !widget.renderState) widget = widget.parentElement;
     note(widget ? at(widget) : `id=${id}`, id);

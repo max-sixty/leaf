@@ -53,8 +53,9 @@ import { inChrome } from "../passages.js";
 // toggle still arrives, including one that lands back where it started, because the
 // record for its return leg carries the other value.
 const disclosureWatch = new MutationObserver((records) => {
+  // Every record is an attribute's, so its target is an element.
   for (const r of records)
-    if (r.target.getAttribute(r.attributeName) !== r.oldValue)
+    if (/** @type {Element} */ (r.target).getAttribute(r.attributeName) !== r.oldValue)
       paintKeysWithin(r.target);
 });
 export const watchDisclosures = (root) =>

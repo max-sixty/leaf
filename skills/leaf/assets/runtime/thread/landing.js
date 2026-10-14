@@ -78,6 +78,8 @@ import {
   heldThread,
   threadReplyInput,
   threadFocusDestination,
+  threadPart,
+  wholeThread,
 } from "./focus.js";
 import { landingTarget, latestTurn, scrollThreadIntoView } from "./reply-landing.js";
 
@@ -139,10 +141,12 @@ export function threadInput(node) {
 }
 
 const heldThreadOrSeat = () => focused() && closestAcross(focused(), SAYS_IN);
+// The thread the user writes in from where they stand, whole where it is drawn in
+// pieces (focus.js, `wholeThread`), and its box.
 export const standingThread = () => {
   const held = heldThreadOrSeat();
   const box = threadReplyInput(held);
-  return box ? { held, box } : null;
+  return box ? { held: wholeThread(held), box } : null;
 };
 const backFromThread = (box) => threadReturns.get(box) ?? null;
 
@@ -207,7 +211,7 @@ pageScope("text entry", {
         const panelList = focused(document)
           ?.closest?.(".lf-thread-panel")
           ?.querySelector(".lf-threads");
-        deepFocus()?.blur();
+        /** @type {HTMLElement | null} */ (deepFocus())?.blur();
         const target = back?.target ?? panelList;
         if (!target) return;
         if (!target.matches?.(THREAD)) {
@@ -250,16 +254,14 @@ const cardThread = () => {
 };
 // Settlement belongs to the thread, wherever its view places that control.
 const resolutionControl = (thread) =>
-  thread
-    ? ([...thread.querySelectorAll(".lf-resolve, .lf-reopen")].find(
-        (control) => control.closest(THREAD) === thread,
-      ) ?? null)
-    : null;
+  thread ? threadPart(thread, "settlement") : null;
 
+// A box a presentation declares as its thread's reply may stand outside the thread
+// (focus.js, `threadPart`), so landing in one asks for the box alone.
 function prepareLanding({ held = null, box, route = null }) {
-  held ??= box && closestAcross(box, SAYS_IN);
-  if (!held) return false;
-  if (route && !held.hasAttribute("tabindex")) {
+  if (!box) return false;
+  held ??= closestAcross(box, SAYS_IN);
+  if (route && held && !held.hasAttribute("tabindex")) {
     threadReturns.set(box, route);
     whenLeft(box, () => threadReturns.delete(box));
   }

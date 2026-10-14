@@ -140,14 +140,17 @@ export function watchCodeBlocks() {
       // Read every source before anchor names and connected controls change layout.
       const prepared = blocks
         .filter((pre) => pre.getRootNode() === document)
-        .map((pre) => [
-          pre,
-          prepareCodeBlock(
-            pre,
-            () => pre.querySelector(":scope > code").textContent,
-            "code",
-          ),
-        ]);
+        .map(
+          (pre) =>
+            /** @type {[HTMLElement, ReturnType<typeof prepareCodeBlock>]} */ ([
+              pre,
+              prepareCodeBlock(
+                pre,
+                () => pre.querySelector(":scope > code").textContent,
+                "code",
+              ),
+            ]),
+        );
       for (const [pre, pending] of prepared) {
         const copy = positionCodeBlock(pending);
         // Keep the page's authored sibling and child selectors intact. The anchor

@@ -69,8 +69,10 @@ function targetValue(target) {
     return { value: target.value };
   }
   if (target instanceof Element && target.matches(`${TEXT_BOX}, select`))
-    return { value: target.value };
-  if (target instanceof Element && target.isContentEditable)
+    return {
+      value: /** @type {HTMLSelectElement | HTMLTextAreaElement} */ (target).value,
+    };
+  if (target instanceof HTMLElement && target.isContentEditable)
     return { value: target.textContent };
   return {};
 }
@@ -163,7 +165,9 @@ function describe(event) {
   if (event.type === "resize") entry.viewport = [window.innerWidth, window.innerHeight];
   if (event.type === "visibilitychange") entry.visibility = document.visibilityState;
   if (["beforetoggle", "toggle"].includes(event.type) && target instanceof Element)
-    entry.open = target.open === true || isNativeLayer(target);
+    entry.open =
+      /** @type {Partial<HTMLDetailsElement>} */ (target).open === true ||
+      isNativeLayer(target);
   if (event.type === "fullscreenchange")
     entry.fullscreen = document.fullscreenElement
       ? {
@@ -400,7 +404,9 @@ if (enabled) {
   });
   if (typeof window.PerformanceObserver !== "undefined") {
     const observer = new window.PerformanceObserver((list) => {
-      for (const resource of list.getEntries()) {
+      for (const resource of /** @type {PerformanceResourceTiming[]} */ (
+        list.getEntries()
+      )) {
         if (resource.name.startsWith(url)) continue;
         const resourceUrl = new URL(resource.name);
         // Freshness is transport housekeeping; failed reads are explained by the

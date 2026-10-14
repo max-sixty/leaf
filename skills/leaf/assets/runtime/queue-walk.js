@@ -42,7 +42,7 @@
    such threads from its list's ends. A step past either end comes round to the other.
 
    The walk can also step within one region of the page (`askActions.next`, as an
-   `lf-tally`'s Next question presses it): its stops are then the asks waiting on the user
+   `lf-tally`'s Next on me presses it): its stops are then the asks waiting on the user
    that the region holds (`asksIn`, asks/place.js), stepped by the same standing and
    page order, and its position counts them alone. A press from outside the region, such as
    one on the tally's own control above it, counts from the ask the user last went to, if
@@ -336,7 +336,7 @@ export function createQueueWalk({
   // reading them are repainted where the list empties or fills or those to-dos change.
   function mount() {
     stopWatching ??= applicationState
-      .select((root) => root.effective.queues.questions)
+      .select((root) => root.effective.queues.on_user)
       .subscribe(() => {
         if (offered() === wasOffered && doneable() === wasDoneable) return;
         wasOffered = offered();

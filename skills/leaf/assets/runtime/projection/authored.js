@@ -70,6 +70,7 @@ export function domValue(el, record) {
 // `parent` states where a root that is not yet in the document will stand, so the
 // readings that ask about its place are right before insertion; a root already in the
 // document answers for itself.
+/** @param {Document | Element | DocumentFragment} [root] @param {Element | null} [parent] */
 export function rememberAuthoredParents(root = document, parent = root.parentElement) {
   if (root.nodeType === Node.ELEMENT_NODE && !authoredParents.has(root))
     authoredParents.set(root, root.parentElement ? initialParent(root) : parent);

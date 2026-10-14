@@ -89,17 +89,28 @@ Leaf's own `$events` (`registry.kernel`), so a field a newer Leaf writes passes 
 page an older one vendored. Bump the number when a page an older Leaf vendored at it
 would break under this one: the served state, a runtime module the server relies on,
 or an event drops, renames or changes the meaning of something the other side reads,
-or a field the page's runtime sends becomes required, as a new drawing `format` does.
+or a field the page's runtime sends becomes required.
 Adding a field or kind the older code ignores needs no bump. The browser build holds
 the event contract to this: it keeps the contract as it last stood at the current
 number (`build/browser/protocol-contract.d.ts`), and `protocol.test.ts` fails a
 change that drops a kind or a field at any depth, requires a new one, or narrows a
 value's type or constant, until the change takes what it took or the number moves.
+
 The check reads the types generated from the schemas, which carry no patterns,
 bounds or conditional clauses, so a change to one of those is the author's to judge. The promise runs one
 way: an older Leaf serving a page a newer one vendored may refuse a field it does not
 know. Every page vendored before a bump, and one vendored before the number was
 declared, is refused until `leaf page init` re-vendors it.
+
+The number is also the only version of what Leaf keeps outside a page's log and
+document: the delivery envelope and the Codex record of one in the state home, which
+every installed Leaf on the machine shares, the page's `user-views.json`, and the
+composer's draft in browser storage, which outlives a re-vendor. Each carries
+`leaf-<kind>/<protocol>` in its `format` (`registry.kernel.record_format`, and
+`runtime/protocol.js` generated from the same number), and a reader at another number
+leaves it alone: it ignores the record, or keeps a draft's words without its drawing.
+So a change to one of those shapes that an older reader would misread bumps the number
+too.
 
 The render gate's probes are outside the number. They come from the Leaf running the
 check and import `check-api.js` and `widget-api.js` from the page's runtime, so a

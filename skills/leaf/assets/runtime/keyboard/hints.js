@@ -58,6 +58,7 @@ export function renderKeys() {
   };
 }
 
+/** @returns {{left: number, right: number, top: number, bottom: number, width: number, height: number, held?: boolean}} */
 const movedTo = (box, left, top) => ({
   left,
   right: left + box.width,
@@ -71,6 +72,7 @@ const movedTo = (box, left, top) => ({
 // the seat stands clear of, or nothing where the preferred top is open.
 function nearestOpenTop(box, preferred, barriers, top, bottom, gap) {
   const last = Math.max(top, bottom - box.height);
+  /** @type {{at: number, by: null | "edge" | {held?: boolean}}[]} */
   const seats = [
     { at: preferred, by: null },
     { at: top, by: "edge" },
@@ -101,6 +103,8 @@ function nearestOpenTop(box, preferred, barriers, top, bottom, gap) {
 // each seat stands (chip-seats.js), its `box` a barrier for a following pass.
 // `placement` chooses the corner, below, before, or above the target;
 // outside seats keep the target clear.
+/** @param {any} seats @param {any} hints
+ * @param {{barriers?: object[], lineBox?: DOMRect, viewportTop?: number}} [options] */
 function spreadHints(seats, hints, { barriers = [], lineBox, viewportTop = 0 } = {}) {
   const band =
     parseFloat(

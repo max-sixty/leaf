@@ -84,6 +84,7 @@ export function createDataProjection({ invalidateDom }) {
     });
   }
 
+  /** @param {Element} root @param {any} datums @param {{snapshot?: any}} [options] */
   function projectData(root, datums, { snapshot } = {}) {
     if (!root.id)
       throw new TypeError("projectData root needs an id to name its projection");

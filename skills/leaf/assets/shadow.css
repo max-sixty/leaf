@@ -423,9 +423,6 @@ summary {
   max-inline-size: 100%;
   font: max(var(--entry-floor), var(--t-5))/1.5 var(--sans);
   color: var(--lf-working-dim);
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
 }
 .lf-thread-working[data-lf-live] .lf-thread-working-words {
   color: transparent;
@@ -756,7 +753,7 @@ leaf-text.lf-fab-input,
   overflow-wrap: anywhere;
   --lf-measure: var(--col);
 }
-:is(.lf-msg-text, .lf-msg-editor) {
+.lf-msg-text {
   display: block;
   padding-block: var(--lf-thread-text-pad-block, 0px);
 }
@@ -1261,6 +1258,8 @@ svg[data-lf-icon] {
   min-width: 0;
   min-height: var(--lf-compose-h);
   padding-inline-end: var(--lf-compose-pad-inline-start);
+}
+.lf-compose-field:where(:has(> .lf-compose-submit)) > leaf-text:not(.lf-fab-input) {
   --lf-field-end-room: calc(var(--lf-icon-action-hit) + 12px - var(--lf-compose-pad-inline-start));
 }
 .lf-icon-action {
@@ -1515,49 +1514,18 @@ button.lf-media-open {
   margin-top: var(--sp-3);
   min-width: 0;
 }
-:is(.lf-thread-reply, .lf-fab-bar) .lf-compose-field {
+:is(.lf-thread-reply, .lf-fab-bar, .lf-msg-editor) .lf-compose-field {
   --lf-compose-pad-inline-start: calc(var(--lf-thread-text-inset) - 1px);
 }
 .lf-msg-editor {
   display: block;
   min-width: 0;
-  font: inherit;
 }
-.lf-msg-editor > .lf-compose-field {
-  isolation: isolate;
+.lf-thread-transcript .lf-msg-editor {
+  margin-inline-start: calc(-1 * var(--lf-thread-text-inset));
 }
-.lf-msg-editor > .lf-compose-field::before {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  inset: -4px 0 -4px calc(-1 * var(--lf-thread-text-inset));
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--card);
-  pointer-events: none;
-}
-.lf-msg-editor > .lf-compose-field:has(> leaf-text[data-lf-focus])::before {
-  outline: var(--focus-ring);
-  --lf-focus-ring: text-box;
+.lf-msg-editor > .lf-compose-field:has(> leaf-text[data-lf-focus]) {
   outline-offset: calc(-1 * var(--focus-ring-w));
-  border-color: transparent;
-}
-.lf-msg-editor > .lf-compose-field > leaf-text:not(.lf-fab-input) {
-  display: block;
-  min-width: 0;
-  min-height: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--ink);
-  font: inherit;
-  max-height: none;
-  overflow: visible;
-  --lf-field-end-room: 0px;
-}
-.lf-msg-editor > .lf-compose-field > leaf-text[data-lf-focus] {
-  outline: none;
 }
 .lf-msg-edit-foot {
   display: block;

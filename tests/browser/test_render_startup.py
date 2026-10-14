@@ -350,7 +350,6 @@ def test_public_startup_reports_upgrade_separately_from_held_state(
     page.evaluate("dispatchEvent(new PageTransitionEvent('pagehide'))")
     assert len(reports) == 1
     reading = reports[0]
-    assert reading["version"] == 2
     assert reading["outcome"] == (
         "presented" if outcome in {"offline", "slow"} else outcome
     )

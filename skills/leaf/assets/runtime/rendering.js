@@ -248,7 +248,7 @@ function rendered() {
   if (document.hidden) return false;
   const sample = sampleVisibility();
   if (sample) return sample.visible;
-  for (let view = window; view.frameElement; view = view.parent)
+  for (let view = /** @type {Window} */ (window); view.frameElement; view = view.parent)
     if (!view.frameElement.checkVisibility()) return false;
   return true;
 }

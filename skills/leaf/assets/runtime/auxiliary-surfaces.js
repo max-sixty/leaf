@@ -229,6 +229,8 @@ export function createAuxiliarySurfaces({
   // opens it again (`handBack`, which lets go where none takes them), or wherever the
   // closer's `land` puts them instead, as the Escape step's `letGo` does. A surface's own
   // `hide` moves no focus, so the close places the user once (focus.js, `closeLayer`).
+  /** @param {string | null} key
+   * @param {{remember?: boolean, focus?: boolean, phase?: string, land?: () => unknown}} [options] */
   function select(
     key,
     { remember = true, focus = false, phase = "gesture", land } = {},

@@ -32,6 +32,7 @@ const EMPTY_MODEL = Object.freeze({
   rows: EMPTY_ROWS,
 });
 
+/** @typedef {LeavesBannerFace} LeavesBannerFaceElement For its tag (`runtime-globals.d.ts`). */
 class LeavesBannerFace extends RetainedFace {
   constructor() {
     super(EMPTY_MODEL);
@@ -67,6 +68,7 @@ const rowBody = (row) => html`
   <div class="lf-others-line">${row.line}</div>
 `;
 
+/** @typedef {LiveLeavesList} LiveLeavesListElement For its tag (`runtime-globals.d.ts`). */
 class LiveLeavesList extends RetainedFace {
   #face = null;
   // Across a repaint the user keeps their row, or the nearest that survived it

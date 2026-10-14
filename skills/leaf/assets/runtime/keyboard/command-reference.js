@@ -213,6 +213,7 @@ const EMPTY_CATALOG = Object.freeze({
   entries: Object.freeze([]),
   sections: Object.freeze([]),
 });
+/** @type {ReturnType<typeof captureCommandReferenceCatalog>} */
 let commandReferenceCatalog = EMPTY_CATALOG;
 let commandReferenceState = {
   query: "",
@@ -866,6 +867,7 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
       metaOverride: null,
     };
     presentCommandReference();
+    /** @type {HTMLInputElement} */
     const search = commandReferenceDialog.querySelector(".lf-command-reference-search");
     const results = commandReferenceDialog.querySelector(
       ".lf-command-reference-results",
@@ -897,7 +899,8 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
     closeLayer(
       () => {
         if (commandReferenceDialog.open) closeNativeLayer(commandReferenceDialog);
-        if (standingIn(commandReferenceDialog)) deepFocus()?.blur();
+        if (standingIn(commandReferenceDialog))
+          /** @type {HTMLElement | null} */ (deepFocus())?.blur();
         repaint();
       },
       handingBack && (() => handBack(restore)),
@@ -918,9 +921,11 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
 }
 
 const commandButton = (id) =>
-  [...commandReferenceDialog.querySelectorAll(".lf-command-reference-command")].find(
-    (button) => button.dataset.lfCommand === id,
-  ) ?? null;
+  [
+    .../** @type {NodeListOf<HTMLElement>} */ (
+      commandReferenceDialog.querySelectorAll(".lf-command-reference-command")
+    ),
+  ].find((button) => button.dataset.lfCommand === id) ?? null;
 
 const focusedCommandId = () =>
   focused()?.matches?.(".lf-command-reference-command")

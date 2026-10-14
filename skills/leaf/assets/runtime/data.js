@@ -198,7 +198,9 @@ export function watchData(element, input, callback) {
 export async function loadDeferred(manifest, key) {
   const { source, revision } = manifest;
   const current = () => {
-    const reading = runtime.data.sources[source];
+    const reading = /** @type {{revision?: string, contract?: unknown} | undefined} */ (
+      runtime.data.sources[source]
+    );
     return (
       reading?.revision === revision &&
       reading.contract === manifest.contract &&

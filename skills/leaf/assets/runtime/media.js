@@ -202,6 +202,7 @@ const open = (url, alt, from) => {
   keepsText(viewerZoom, "100%");
   if (!mediaViewer.open) showNativeLayer(mediaViewer);
   focusDestination(viewerClose, "move");
+  /** @type {HTMLImageElement} */
   const probe = stage.querySelector(".lf-media-viewer-probe > img");
   Promise.all([imageTools(), probe.decode()]).then(
     ([PhotoSwipe]) => {
@@ -308,12 +309,14 @@ document.addEventListener("click", (event) => {
   if (event.defaultPrevented || !plainPress(event)) return;
   // The path ends at the document and the window, and an element whose id is
   // `matches` puts an object at `window.matches`, so only elements are asked.
-  const trigger = event
-    .composedPath()
-    .find(
-      (node) =>
-        node instanceof Element && node.matches(".lf-media-open[data-lf-media-url]"),
-    );
+  const trigger = /** @type {HTMLElement | undefined} */ (
+    event
+      .composedPath()
+      .find(
+        (node) =>
+          node instanceof Element && node.matches(".lf-media-open[data-lf-media-url]"),
+      )
+  );
   const link = event.composedPath().find((node) => node instanceof HTMLAnchorElement);
   const image = link?.querySelector("img");
   // A linked image explicitly names its inspection destination; other image links

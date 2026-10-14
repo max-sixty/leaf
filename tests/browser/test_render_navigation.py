@@ -3639,12 +3639,12 @@ def test_the_on_panels_next_on_me_walks_as_m_does(browser, serve):
 
 def test_a_tally_counts_its_regions_asks_and_walks_them(browser, serve):
     """An `lf-tally` counts the asks its region holds, by the rule a queue row's mark
-    reads, and leaves out one outside it. Its Next question is `m` within the region: a
+    reads, and leaves out one outside it. Its Next on me is `m` within the region: a
     press keeps the user standing where they are and steps on, coming round at the end,
     and the walk announces its place among the region's asks. Reached by Shift+Tab from
     an ask, through the queue's own rows, Enter counts from that ask, so the keyboard
     steps on too. An answer leaves the count once the log admits it; with none left the
-    tally says so and Next question is disabled."""
+    tally says so and Next on me is disabled."""
 
     def item(key, label):
         return (
@@ -3672,7 +3672,7 @@ def test_a_tally_counts_its_regions_asks_and_walks_them(browser, serve):
         ),
     )
     words = page.locator("#left .lf-tally-words")
-    button = page.locator("#left").get_by_role("button", name="Next question")
+    button = page.locator("#left").get_by_role("button", name="Next on me")
     position = page.locator(".lf-walk-position")
     first, second = page.locator("#first-decision"), page.locator("#second-decision")
     expect(words).to_have_text("2 of 2 to answer")
@@ -3683,7 +3683,7 @@ def test_a_tally_counts_its_regions_asks_and_walks_them(browser, serve):
             if button.evaluate("button => button === document.activeElement"):
                 return
             page.keyboard.press("Shift+Tab")
-        raise AssertionError("Shift+Tab never reached Next question")
+        raise AssertionError("Shift+Tab never reached Next on me")
 
     button.click()
     expect(first).to_be_focused()
@@ -13169,7 +13169,7 @@ def test_comment_escape_returns_to_its_authored_parent(browser, serve, entry):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-composer")).to_be_hidden()
     expect(ask).to_be_focused()
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("comment on the question")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("comment on the ask")
     page.keyboard.press("Escape")
     assert page.evaluate("document.activeElement === document.body")
 
@@ -13220,10 +13220,10 @@ def test_c_comments_on_what_the_user_is_standing_in(browser, serve):
     # walk happens to stand the user on, and rather than on the page.
     page.keyboard.press("m")
     expect(page.locator("#shape-decision")).to_have_attribute("data-lf-ask", "1")
-    expect(line).to_contain_text("comment on the question")
+    expect(line).to_contain_text("comment on the ask")
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_be_visible()
-    expect(page.locator(".lf-composer")).to_contain_text("question")
+    expect(page.locator(".lf-composer")).to_contain_text("ask")
     drop()
 
     # A settled group: not a decision at all, and the thread seat it still holds is
@@ -13568,7 +13568,7 @@ def test_c_in_a_seated_thread_reaches_the_thread_it_is_in(browser, serve):
     # The control: standing on a widget that seats nothing, so the press has no thread
     # to prefer and opens the composer on the widget itself.
     page.locator("#shape .lf-pick").first.focus()
-    expect(line).to_contain_text("comment on the question")
+    expect(line).to_contain_text("comment on the ask")
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_be_visible()
     page.keyboard.press("Escape")
@@ -14127,7 +14127,7 @@ def test_an_ask_and_its_thread_are_one_standing_target(browser, serve):
     page.keyboard.press("m")
     expect(page.locator("#retry-ask")).to_be_focused()
     expect(card.locator(f'.lf-page-thread[data-thread="{about_task}"]')).to_be_visible()
-    expect(line).to_contain_text("comment on the question")
+    expect(line).to_contain_text("comment on the ask")
     page.keyboard.press("Escape")
 
     # With Threads open, the list's thread about the Ask plays the card's part, and a

@@ -64,7 +64,8 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
     line runs past its height, so it scrolls vertically and is named.
 
     `lf-keyed` declares a context key with no `bindingBadge`, so the page never shows
-    it and it is named; `lf-badged` asks for a corner badge, so it is not."""
+    it and it is named; `lf-badged` asks for a corner badge, so it is not. Each finding
+    names the Layout it was read in, and each of these is read in both."""
     package = tmp_path / "package"
     for widget in (
         "lf-grow",
@@ -137,8 +138,15 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
     findings = report["findings"]
     assert {f["severity"] for f in findings} == {"advice"}, findings
     named = {}
+    layouts = {}
     for f in findings:
-        named.setdefault(f["code"], {})[f["at"]] = f["values"]
+        values = dict(f["values"])
+        if "layout" in values:
+            layouts.setdefault((f["code"], f["at"]), set()).add(values.pop("layout"))
+        named.setdefault(f["code"], {})[f["at"]] = values
+    # Each page of examples is read as a column document and in a workspace's pane, and
+    # these widgets behave alike in both.
+    assert all(seen == {"column", "workspace"} for seen in layouts.values()), layouts
     assert set(named) == {
         "example",
         "keeps-first-box",

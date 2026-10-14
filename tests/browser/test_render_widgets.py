@@ -1180,7 +1180,8 @@ def test_wide_evidence_in_a_page_tab_takes_the_room_it_would_outside_one(
         page.unroute_all(behavior="wait")
     expect(page.locator("#root-tabs")).to_have_attribute("data-lf-tabs-flow", "page")
     assert twins("desktop") == first
-    assert first["in-wide"]["width"] > first["prose"]["width"], first
+    # Wider than the reading column, which a workspace's prose does not keep.
+    assert first["in-wide"]["width"] > 720, first
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     twins("panel open")
@@ -1750,6 +1751,51 @@ THREE_PART_ASK_PAGE = leaf_page(
 """,
     layout="workspace",
 )
+
+
+def test_a_bounded_stream_that_is_all_a_pane_holds_takes_the_panes_height(
+    browser, serve
+):
+    """A full-height workspace's pane body has the window's height to give, so a bounded
+    stream that is all it holds fills it rather than scrolling 28rem of it; one beside
+    other blocks keeps its bound, and so does a bounded block inside another, whose
+    holder has only a cap and no height to give."""
+    rows = "".join(f"<p>Event {i}.</p>" for i in range(80))
+    source = leaf_page(
+        "Streams in panes",
+        f"""<header><h1>Streams</h1></header>
+<div id="regions">
+<lf-pane id="alone" label="Alone"><div id="alone-body">
+<div id="feed" data-bound="start">{rows}</div></div></lf-pane>
+<lf-pane id="mixed" label="Mixed"><div><p>Intro.</p>
+<div id="beside" data-bound="start">{rows}</div>
+<div id="outer" data-bound="start" style="--lf-bound: 300px">
+<div id="inner" data-bound="start" style="--lf-bound: 120px">{rows}</div></div>
+</div></lf-pane>
+</div>""",
+        head=regions_side_by_side("regions"),
+        layout="workspace",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1440, 900)
+    at = page.evaluate(
+        """() => {
+          const box = id => document.getElementById(id).getBoundingClientRect();
+          const body = document.getElementById('alone-body');
+          const style = getComputedStyle(body);
+          return {
+            feed: Math.round(box('feed').height),
+            room: Math.round(body.clientHeight - parseFloat(style.paddingTop)
+              - parseFloat(style.paddingBottom)),
+            beside: Math.round(box('beside').height),
+            inner: Math.round(box('inner').height),
+            rem: parseFloat(getComputedStyle(document.documentElement).fontSize),
+          };
+        }"""
+    )
+    assert at["feed"] == pytest.approx(at["room"], abs=1), at
+    assert at["beside"] == round(28 * at["rem"]), at
+    assert at["inner"] == 120, at
 
 
 def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):

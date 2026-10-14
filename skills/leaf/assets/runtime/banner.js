@@ -5,7 +5,7 @@
 import { html, nothing, render } from "/vendor/browser-runtime.js";
 import { ago } from "./presence.js";
 import { pageStatus, statusModel } from "./activity-words.js";
-import { el, offer, reserve } from "./widget-elements.js";
+import { el, offer } from "./widget-elements.js";
 import { keeps, keepsText } from "./keeps.js";
 import { SHARE_ROOT, runtime, runtimeResource, shareUrl } from "./context.js";
 import {
@@ -63,6 +63,7 @@ export const queueCounts = bannerStatus.queues;
 // words on both. The desk's words stay one run of text, so they draw as they always have.
 export const toggleBtn = el("button", "lf-btn lf-auxiliary-toggle lf-threads-toggle");
 const threadsLabel = el("span", "lf-threads-label", "Threads");
+threadsLabel.dataset.lfRoom = "Threads\nThreads: 999";
 toggleBtn.append(iconElement("comment", "lf-threads-icon"), threadsLabel);
 toggleBtn.title = "Show or hide the thread panel";
 toggleBtn.setAttribute("aria-expanded", "false");
@@ -92,8 +93,15 @@ export function setThreadCounts(open, unread) {
   unreadThreads = unread;
   paintThreadCounts();
 }
+// The primary controls hold the room of the widest words they can show, so an
+// asynchronous count or approval result cannot move a sibling. CSS bounds Approval's
+// room when the complete words cannot fit. Secondary controls can grow inside More
+// without changing the page's reading loop.
 const approveBtn = el("button", "lf-btn primary lf-signoff");
 approveBtn.id = "lf-approve";
+const approveWords = el("span");
+approveWords.dataset.lfRoom = "Approve version\n✓ Version approved";
+approveBtn.append(approveWords);
 // Another chrome that presents the approval in this control's place, as the floating
 // panel's On view does, names the control it shows and brings the user to it.
 let approvalPresentation = null;
@@ -120,7 +128,7 @@ export const approvalReading = () => {
 };
 // Keep a refused press focusable, with its reason available to keyboard and touch.
 function presentApproval({ reason, text, title }) {
-  render(text, approveBtn);
+  render(text, approveWords);
   keeps(approveBtn, "aria-disabled", reason ? "true" : null);
   keeps(approveBtn, "aria-description", reason || null);
   keeps(approveBtn, "title", title);
@@ -656,7 +664,6 @@ export function mountBanner({ approveVersion }) {
     keeps(counts, "inert", drawn ? null : "");
   });
   for (const box of [banner, bannerActions, counts]) seatCounts.observe(box);
-  reserveBannerControls();
   approveBtn.onclick = approve;
   async function approveNow() {
     if (approving) return;
@@ -695,19 +702,8 @@ export function stateSignoff(next, syncLayout) {
   if (shown === signoff) return;
   signoff = shown;
   showBannerControl(approveBtn, signoff);
-  if (signoff) reserve(approveBtn, ["Approve version", "✓ Version approved"]);
   paintApproval();
   syncLayout();
-}
-
-// The primary controls reserve the widest words they can show, so an asynchronous
-// count or approval result cannot move a sibling. CSS bounds Approval's room when
-// the complete words cannot fit. Secondary controls can grow inside
-// More without changing the page's reading loop.
-function reserveBannerControls() {
-  if (signoff) reserve(approveBtn, ["Approve version", "✓ Version approved"]);
-  reserve(queueBtn, ["On me: 99"]);
-  reserve(toggleBtn, ["Threads", "Threads: 999"]);
 }
 
 let approving = false;

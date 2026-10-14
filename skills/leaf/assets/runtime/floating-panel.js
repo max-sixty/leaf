@@ -74,6 +74,7 @@ import { readThreads } from "./thread/state.js";
 import { watchThreads } from "./thread/watch.js";
 import { threadAttention, workflowLabel } from "./thread/workflow.js";
 import { threadSummary } from "./thread/model.js";
+import { messageReading } from "./thread/messages.js";
 import {
   draftHasContent,
   loadDraft,
@@ -956,16 +957,26 @@ export function createFloatingPanel({
     // A prose ask is a message in its thread, and reads as that message, drawn whole by
     // Leaf's reader as the thread draws it (`nominate`), images and all: its words cut
     // to text would end at whatever they introduce. The thread names it above, where it
-    // has a name of its own rather than the message's opening words.
-    const message =
+    // has a name of its own rather than the message's opening words. Where the page's
+    // package draws its conversations instead, Leaf's reader draws none here, and the
+    // message's words stand for it under the thread's name.
+    const asking =
       ask?.source.kind === "reply" && thread
         ? thread.msgs.find((candidate) => candidate.id === ask.message)
         : null;
+    const message = asking && presentation?.primary !== false ? asking : null;
     const title = message
       ? (thread.title ??
         (thread.root.id === message.id ? "" : threadSummary(thread).topic))
-      : queueTitle(item);
-    const said = message ? "" : ask?.prompt?.text;
+      : asking
+        ? threadSummary(thread).topic
+        : queueTitle(item);
+    const said = message
+      ? ""
+      : asking
+        ? messageReading(asking, { panel: false, reactions: [], workflows: [] }).body
+            .plainText
+        : ask?.prompt?.text;
     const prompt = said && said.trim() !== title.trim() ? said : "";
     const answered = ask && ask.status !== "open";
     const choices =

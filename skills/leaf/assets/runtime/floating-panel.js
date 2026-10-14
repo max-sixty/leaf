@@ -14,8 +14,11 @@
  *   user folds it from the leaf's menu; a press on the leaf unfolds it, and it stays as
  *   it was left across pages (`rest`).
  * - **The row**: the leaf, the comment field, and marks with counts for On me and
- *   Threads. The empty field says what the agent is doing or wants, in the banner's own
- *   words (`statusReading`), or what a passing notice says, where a placeholder would say
+ *   Threads, with at most one small notice beside the marks for a state the user should
+ *   not miss, such as reading an older version, and the one press that ends it
+ *   (`rowNotice`); the field gives it room, so the marks keep their seats. The empty
+ *   field says what the agent is doing or wants, in the banner's own words
+ *   (`statusReading`), or what a passing notice says, where a placeholder would say
  *   "Comment"; in a thread it says whose turn it is. A status that reports reads dimmer
  *   than anything written, and while the agent works it carries the one sheen that marks
  *   work under way; one that asks the user to act reads in its tone's ink, and pointing
@@ -246,8 +249,9 @@ export function createFloatingPanel({
   const mark = el("span", "lf-dot");
   leaf.append(mark);
   const field = el("div", "lf-fp-field");
+  const rowNoticeSeat = el("div", "lf-fp-row-notice");
   const quick = el("div", "lf-fp-quick");
-  row.append(leaf, field, quick);
+  row.append(leaf, field, rowNoticeSeat, quick);
 
   const CONNECTING = {
     tone: "",
@@ -1756,6 +1760,10 @@ export function createFloatingPanel({
       !engaged || !(contextDest.textContent || contextKeys.textContent),
     );
 
+    const standing = rowNotice();
+    keepsHidden(rowNoticeSeat, !standing);
+    render(standing ? rowNoticeTemplate(standing) : nothing, rowNoticeSeat);
+
     // The next step of what the user is doing now, such as leaving Draw mode or
     // commenting on the words a finger selected, stands in the counts' place while that
     // gesture holds it, as it stands on the banner's row (banner-toolbar.js, `gesture`).
@@ -1818,6 +1826,46 @@ export function createFloatingPanel({
         </button>`,
       quick,
     );
+  }
+
+  // ---------- the row's notice ----------
+  // The one small notice the row shows, beside the marks: what it says, and the press
+  // that ends it, where one does. Reading an older version is its one case: the menu's
+  // row that opens the latest says so too, but only once the menu is open, while the
+  // counts beside it follow the version shown with no word of why.
+  // TODO(2026-10-14): grow this into one general kind of small notice to the user
+  // (notes/floating-panel/GOAL.md, "One general kind of small notice in the row"): what
+  // a notice says, who raises it, the press it offers, and how it ends, and which states
+  // raise one, such as a stale page, being offline, or a page opened from a share link.
+  // Until then each case is a branch here, and the slot shows the first that holds.
+  function rowNotice() {
+    const { latest } = versionsReading();
+    if (latest.shown === null) return null;
+    return {
+      says: latest.shown,
+      press: {
+        label: "Latest",
+        title: latest.keyTitle,
+        disabled: latest.disabled,
+        run: () => putAwayThen(() => versionPicker.latest()),
+      },
+    };
+  }
+  function rowNoticeTemplate({ says, press }) {
+    return press
+      ? html`<button
+          type="button"
+          class="lf-fp-chip lf-fp-row-notice-press"
+          title=${press.title}
+          ?disabled=${press.disabled}
+          @click=${press.run}
+        >
+          <span class="lf-fp-row-notice-face"
+            >${says}<span class="lf-fp-row-notice-sep" aria-hidden="true">·</span
+            ><span class="lf-fp-row-notice-act">${press.label}</span></span
+          >
+        </button>`
+      : html`<span class="lf-fp-row-notice-face">${says}</span>`;
   }
 
   // ---------- gestures ----------

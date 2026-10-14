@@ -1250,6 +1250,48 @@ def test_versions_travel_and_approval_open_in_the_panel(browser, serve):
     expect(page).to_have_url(re.compile(rf"/versions/{number}\b"))
 
 
+def test_an_older_version_says_so_in_the_row_and_one_press_opens_the_latest(
+    browser, serve
+):
+    """While the page shows a version older than the latest, the row says which beside
+    the marks, which keep their seats, since the field gives up the room; its one press,
+    which the keyboard reaches in the row's order, opens the latest, and the notice goes
+    with it: in place on a tab the agent has since revised, and from a version the user
+    travelled back to."""
+    url = serve(LONG_PAGE)
+    page = floating(browser, url)
+    notice = page.locator(".lf-fp-row-notice")
+    marks = page.locator(".lf-fp-quick")
+    settled(page)
+    seats = marks.bounding_box()
+    expect(notice).to_be_hidden()
+
+    # The agent revises the page under the open tab, which keeps what it shows.
+    stamp_page(
+        serve.page_dir, LONG_PAGE.replace("Paragraph 0.", "Paragraph zero."), "two"
+    )
+    told(page)
+    expect(notice).to_have_text(re.compile(r"^\s*v1 of 2\s*·\s*Latest\s*$"))
+    settled(page)
+    assert marks.bounding_box() == seats
+    notice.locator("button").click()
+    expect(page.locator("main")).to_contain_text("Paragraph zero.")
+    expect(notice).to_be_hidden()
+
+    page.locator(".lf-fp-leaf").click()
+    page.locator(".lf-fp-menu .lf-fp-item", has_text="Versions").click()
+    page.locator(".lf-fp-version:not([data-current]) .lf-fp-label").click()
+    expect(page).to_have_url(re.compile(r"/versions/v1\b"))
+    expect(notice).to_have_text(re.compile(r"^\s*v1 of 2\s*·\s*Latest\s*$"))
+    page.locator(".lf-fp-on-user").focus()
+    page.keyboard.press("Shift+Tab")
+    expect(notice.locator("button")).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(page).not_to_have_url(re.compile(r"/versions/"))
+    expect(page.locator("main")).to_contain_text("Paragraph zero.")
+    expect(notice).to_be_hidden()
+
+
 def test_the_on_me_walk_arrives_at_the_approval_in_the_panel(browser, serve):
     """The version's approval waits on the user in On me, and `m` arrives at it where
     this chrome shows it: the panel's On view, standing on its Approve."""

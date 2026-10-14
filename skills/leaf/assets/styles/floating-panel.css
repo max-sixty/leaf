@@ -940,7 +940,7 @@
     text-wrap: pretty;
   }
   /* While the menu stands, each part keeps the lines its first status took
-     (floating-panel.js, `holdHeadLines`). */
+     (floating-panel.js, `holdMenu`). */
   .lf-fp-state[data-held] > span {
     display: -webkit-box;
     -webkit-box-orient: vertical;

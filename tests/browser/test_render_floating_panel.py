@@ -1382,13 +1382,15 @@ def test_the_leaf_s_menu_says_the_agent_s_state_once(browser, serve):
     )
 
 
-def test_a_status_changing_under_the_open_menu_moves_none_of_its_words(browser, serve):
-    """The leaf's menu stands on the leaf and grows upward, so its head keeps the room
-    its first status took while the menu stays open: a status that wraps to more lines,
-    or fewer, re-wraps inside that room, and neither the head's words nor the rows
-    under it move. The shift watch holds the words; the boxes are read here."""
+def test_news_under_the_open_menu_moves_nothing_in_it(browser, serve):
+    """The leaf's menu stands on the leaf and grows upward, so while it stands it holds
+    what it showed: a status that wraps to more lines, or fewer, re-wraps inside the
+    lines its head first took, and a row a revision offers joins at the next opening, so
+    neither the head's words nor the rows move. The shift watch holds the words; the
+    boxes are read here."""
     page = floating(browser, serve(LONG_PAGE))
-    page.locator(".lf-fp-leaf").click()
+    leaf = page.locator(".lf-fp-leaf")
+    leaf.click()
     head = page.locator(".lf-fp-state")
     expect(head.locator("b")).to_have_text("Away")
     settled(page)
@@ -1405,6 +1407,15 @@ def test_a_status_changing_under_the_open_menu_moves_none_of_its_words(browser, 
         working(serve.page_dir, line)
         expect(head.locator("span").first).to_contain_text(line)
         assert page.evaluate(boxes) == before
+
+    source = (serve.page_dir / "index.html").read_text()
+    stamp_page(serve.page_dir, source.replace("Filler.", "Filler!", 1), "revised")
+    newer = re.compile("New page available → open v2")
+    expect(page.locator(".lf-latest-chip")).to_have_text(newer)
+    assert page.evaluate(boxes) == before
+    page.keyboard.press("Escape")
+    leaf.click()
+    expect(page.locator(".lf-fp-menu .lf-fp-item", has_text=newer)).to_be_visible()
 
 
 def test_each_view_s_list_is_one_tab_stop_its_keys_walk(browser, serve):

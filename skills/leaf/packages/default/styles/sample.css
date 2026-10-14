@@ -90,9 +90,9 @@
  * the painted bar against the exhibit's own boxes over every sample the corpus has
  * (test_the_gutter_runs_beside_the_exhibit_and_no_further) — loud where the rule goes
  * quiet, and what a leading suggestion meets the day one is written. */
-/* A table box keeps to its content unless given a width, so the sample states the room's
- * (`--lf-breakout-width`, layouts.css), which an authored width widens. */
-:scope:is(lf-sample) { display: table; table-layout: fixed; width: var(--lf-breakout-width);
+/* A table box keeps to its content unless given a width, so the sample fills its holder,
+ * and an authored width widens it (layouts.css). */
+:scope:is(lf-sample) { display: table; table-layout: fixed; width: 100%;
               box-sizing: border-box; margin: 18px 0; padding-left: var(--sp-4);
               border-left: 3px solid var(--border-2); --lf-block-frame: 1; }
 /* Containment does not apply to a table, so the sample cannot be the size container
@@ -126,7 +126,24 @@
 .lf-sample-exhibit { padding-left: var(--sp-4); border-left: 3px solid var(--border-2); }
 .lf-sample-controls { margin-bottom: 10px; }
 .lf-sample-controls > div { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-.lf-sample-status { color: var(--muted); font: var(--t-6)/1.4 var(--sans); }
+/* The status keeps one row's room whatever it says, so loading, ready and a failure
+ * wrap the row alike and move neither the frame nor what follows: its basis, not its
+ * words, places it, and its height is a line's or the pressable floor's, which a
+ * failure's control takes. A failure's words stand in a disclosure (lf-sample.js),
+ * worn as the status's words rather than as the page's details, whose summary ends in
+ * an ellipsis where they run past that row. Opened, it wraps them whole over the top of
+ * the frame, out of the row's flow, so the row keeps its size open or shut. The summary
+ * clips its own words, so nothing around it clips its focus ring. */
+.lf-sample-status { position: relative; flex: 1 1 10em; min-width: 0;
+                    min-height: max(1lh, var(--aim-floor)); align-content: center;
+                    white-space: nowrap;
+                    color: var(--muted); font: var(--t-6)/1.4 var(--sans); }
+.lf-sample-failure { margin: 0; padding: 0; border: 0; }
+.lf-sample-failure, .lf-sample-failure > summary { font: inherit; color: inherit; }
+.lf-sample-failure > summary { overflow: hidden; text-overflow: ellipsis; }
+.lf-sample-failure[open] > summary { position: absolute; inset: 0 0 auto; z-index: 1;
+                    white-space: normal; background: var(--paper);
+                    border-bottom: 1px solid var(--border-2); }
 .lf-sample-frame { display: block; box-sizing: border-box; width: 100%; height: 32rem;
                     border: 1px solid var(--border-2); border-radius: var(--r);
                     background: var(--paper); }

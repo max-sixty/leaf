@@ -1,6 +1,7 @@
 """The browser, and tabs on a served page, opened and settled the same way by every
 browser check or command that reads or screenshots one."""
 
+import os
 import subprocess
 import sys
 from contextlib import contextmanager
@@ -18,7 +19,7 @@ DESKTOP = (1440, 900)
 # The width of a window beside an editor.
 BESIDE = (900, 900)
 
-# Pytest browser checks and captures use native DejaVu faces on Linux.
+# The fixed fontconfig that lays text out in DejaVu faces on Linux (`use_linux_fonts`).
 LINUX_FONTCONFIG = ROOT / "tests/fonts.conf"
 LINUX_FONTS = Path("/usr/share/fonts/truetype/dejavu")
 
@@ -40,6 +41,16 @@ def require_linux_fonts():
                     "Install fonts-dejavu before running Linux browser tests "
                     "(core alone omits UI and serif italic faces)"
                 )
+
+
+def use_linux_fonts():
+    """On Linux, lay text out in the DejaVu faces the fixed fontconfig names, in every
+    browser and leaf this process starts from here on; elsewhere the host's faces
+    serve. The suite does this for its whole run, and so does a command whose readings
+    the suite asserts (`leaf-dev pins`), so the two measure the same text."""
+    if sys.platform == "linux":
+        require_linux_fonts()
+        os.environ["FONTCONFIG_FILE"] = str(LINUX_FONTCONFIG)
 
 
 @contextmanager

@@ -12,6 +12,7 @@
    Reply continuity begins after commit and runs independently: its selected route may
    itself need this renderer to finish. Its caret follows the actual returned editor;
    its failures reach the page's existing asynchronous error channel. */
+import { untracked } from "../../vendor/browser-runtime.js";
 import { clocked } from "../presence.js";
 import { keeps } from "../keeps.js";
 import { reportPageError } from "../layer-client.js";
@@ -63,13 +64,10 @@ export function createThreadPresentation({
   let mounted = false;
   let primary = null;
 
-  // The parts of the root a thread presentation draws: the fold itself, whose records
-  // already carry the receipts and attention the workflows give them, and the document
-  // whose messages, descriptors and revision the cards name. A publication that moves
-  // neither — a widget's own action, say — claims nothing, and the current presentation
-  // carries into the new epoch. The margin this presentation renders once it commits
-  // also draws the Questions and the workflows; its own watcher follows those
-  // (`annotationSelection`).
+  // The paint follows what it reads, before it waits for preparation and in the
+  // continuations it resumes after (`renderReading`). The margin this presentation
+  // renders once it commits also draws the Questions and the workflows; its own watcher
+  // follows those (`annotationSelection`).
   //
   // Before the page has read the log, an epoch with no thread draws the same line about
   // waiting, and repainting the margin and the anchors to say it again is work done
@@ -82,24 +80,20 @@ export function createThreadPresentation({
   const presenter = applicationPresenter({
     region: "thread",
     order: PRESENTATION_ORDER.thread,
-    reading: (root) =>
+    reading: () =>
       !available
         ? null
-        : root.phase === "waiting" && !root.effective.thread.all.length
+        : runtime.statePhase === "waiting" && !threadState().all.length
           ? "waiting"
-          : {
-              phase: root.phase,
-              thread: root.effective.thread,
-              document: root.document,
-            },
-    paint: async (value, current) => {
+          : true,
+    paint: async (value, current, resume) => {
       const phase = runtime.statePhase;
       // A pass reads the latest root. Clock changes claim another pass through the
       // same presenter, so its current predicate also retires in-flight preparation.
-      if (phase === "ready") await paintCurrent(current);
+      if (phase === "ready") await paintCurrent(current, resume);
       else {
         paintCurrent.stop();
-        await startRender(current);
+        await startRender(current, resume);
       }
       return value;
     },
@@ -109,15 +103,18 @@ export function createThreadPresentation({
 
   let surfaceGeneration = 0;
   let cancelCurrentRender = () => {};
-  const startRender = (presenting) => {
+  const startRender = (presenting, resume = (run) => run) => {
     cancelCurrentRender();
     /** @type {PromiseWithResolvers<void>} */
     const { promise: cancelled, resolve } = Promise.withResolvers();
     cancelCurrentRender = resolve;
-    return renderReading(cancelled, presenting);
+    return renderReading(cancelled, presenting, resume);
   };
 
-  async function renderReading(cancelled, presenting) {
+  async function renderReading(cancelled, presenting, resumePaint) {
+    // A continuation joins this pass's reads of the publication and of the clock.
+    const resumeClock = paintCurrent.resume;
+    const resume = (run) => resumePaint(resumeClock(run));
     const generation = ++surfaceGeneration;
     read.begin();
     const current = () => generation === surfaceGeneration && presenting();
@@ -156,7 +153,7 @@ export function createThreadPresentation({
         if (!current()) return;
         prepared = Promise.all(
           livePanels.map(({ controller, view }) =>
-            controller.renderThreads(collection, view),
+            controller.renderThreads(collection, view, resume),
           ),
         );
         void prepared.catch(() => {});
@@ -175,30 +172,34 @@ export function createThreadPresentation({
             }),
           ]),
           cancelled.then(() => null),
-        ]).then((result) => {
-          if (!result) return;
-          const [, candidates] = result;
-          if (!current()) return;
-          for (const candidate of candidates) candidate?.commit();
-          // Preparation may materialize or retire targets without another publication.
-          // Preserve immediate semantic paint, then refresh the same directory and its
-          // retained decoration before any nominated surface actually moves.
-          readTargets();
-          surfaces.commit();
-          commitThreadSeats(batch);
-          surfaceView.composition.finishPlacement();
-          renderAnnotations();
-          pageGeometry.pageShifted();
-          read.present();
-          // Continuity may reveal a route needing this very presenter. Its work starts
-          // after the cohort commits, and never joins the ticket it is completing.
-          void continueReplies(restoreReply).catch((error) =>
-            reportPageError(error, `Reply continuation failed`),
-          );
-        });
+        ]).then(
+          resume((result) => {
+            if (!result) return;
+            const [, candidates] = result;
+            if (!current()) return;
+            for (const candidate of candidates) candidate?.commit();
+            // Preparation may materialize or retire targets without another publication.
+            // Preserve immediate semantic paint, then refresh the same directory and its
+            // retained decoration before any nominated surface actually moves.
+            readTargets();
+            surfaces.commit();
+            commitThreadSeats(batch);
+            surfaceView.composition.finishPlacement();
+            // The margin is an owner of its own, with its own watcher; this pass only
+            // refreshes it over the targets it moved, so what it reads is not this paint's.
+            untracked(renderAnnotations);
+            pageGeometry.pageShifted();
+            read.present();
+            // Continuity may reveal a route needing this very presenter. Its work starts
+            // after the cohort commits, and never joins the ticket it is completing.
+            void continueReplies(restoreReply).catch((error) =>
+              reportPageError(error, `Reply continuation failed`),
+            );
+          }),
+        );
       };
       await (primaryPreparation?.then
-        ? primaryPreparation.then(paintPrepared)
+        ? primaryPreparation.then(resume(paintPrepared))
         : paintPrepared(primaryPreparation));
     } catch (error) {
       surfaces?.cancel();

@@ -143,11 +143,9 @@ export function createAskView({
     region: "asks",
     renderer: asksRenderer,
     order: PRESENTATION_ORDER.asks,
-    // The banner counts the asks on the user; a publication that leaves them unchanged
-    // claims nothing.
-    reading: (root) => (mounted ? root.effective.asks.user : null),
+    reading: () => (mounted ? true : null),
     failSoft: failSoftAfterRetention(asksRenderer),
-    paint: (epoch, current) => paintAsks(current),
+    paint: (owed, current) => paintAsks(current),
   });
 
   // One blanket answer per outcome a widget declares one for (x-awaits.all), each
@@ -673,7 +671,7 @@ export function createAskView({
   function mount() {
     if (mounted) return;
     mounted = true;
-    stopContextScopes = contextScopes("In this question", askContext);
+    stopContextScopes = contextScopes("In this ask", askContext);
     void syncAsks();
     document.addEventListener(PRESENTATION, actionsChanged);
     addEventListener("resize", repaint);

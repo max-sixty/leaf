@@ -566,6 +566,7 @@ const queue = createQueuePanel({
   actions: app.queueActions,
   next: queueWalk.next,
   announce,
+  agentDoor: queueCounts,
 });
 
 const commandHints = createCommandHints({
@@ -782,6 +783,7 @@ if (document.documentElement.lfSample) {
 
 drawers = createDrawers({
   doors: { queue: [queueCounts] },
+  views: { queue: queue.views },
   auxiliarySurfaces,
   closePreview: app.overlay?.closePreview,
   leavesOffered,

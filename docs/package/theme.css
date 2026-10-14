@@ -1,8 +1,8 @@
 /* Product-site furniture. Published examples keep their authored Leaf layer. */
 
 /* Leaf's banner already opens every product page, so the column starts at the runtime's
- * narrow-screen top padding at every width. The Layout sets main's padding above this
- * package's tier, so the package sets the token the Layout reads. */
+ * narrow-screen top padding at every width. Every Layout reads the room above the page
+ * from this token. */
 body.site-page {
   --page-pad-start: 28px;
 }

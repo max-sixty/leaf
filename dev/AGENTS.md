@@ -51,6 +51,11 @@ reaches a module by importing it from this package, never through `sys.path`,
   reached by input, on a base runtime and HEAD's, and crops each state that changed
   into a before/after pair in its own run directory under `.tmp/stills/`.
   Repeat `--state NAME` to compare only the states a change touches.
+- `leaf-dev pins [--base]` seats comment pins on a small, unselected catalogue of
+  ordinary and pathological targets (`pins.py`'s `CASES`) at a desktop and a phone
+  width, and writes a Leaf page of crops beside the faults read in each; with `--base`
+  each crop is a before/after pair. `test_render_margin.py` holds every case to the
+  same reading, so a placement that looks wrong anywhere becomes a case.
 - `leaf-dev thread-snapshots` owns reviewed message-delivery images in leaf-assets;
   `thread_snapshots.py` owns capture and acceptance. Acceptance alone advances
   `leaf-assets.json`'s `thread_snapshots_revision`; media publication advances

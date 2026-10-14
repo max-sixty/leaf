@@ -94,8 +94,13 @@ export const shellRight = () => document.body.getBoundingClientRect().right;
 // coarse pointer arriving deepens the banner's rows, the shortcut bar wraps as its hints
 // change, and a panel opens, shuts or is dragged wider, each with no scroll or resize
 // for a reader to hear.
+//
+// Chrome takes room from the page, not from itself: what stands in the banner or in a
+// bar's elements is in the room its own chrome leaves (`item`), as the floating panel's
+// field stands in the row that bar declares. Such a box is in front of the user wherever
+// it is, so it names no place in the page (`inWindowChrome`).
 let banner = null;
-const windowChrome = new Set();
+const windowChrome = new Map(); // boxes -> the elements they stand
 const chromeSizes = sizeObserver(() => announceRoom(document));
 const watchChrome = (element) => chromeSizes.observe(element, { box: "border-box" });
 export const declareBanner = (element) => {
@@ -103,12 +108,22 @@ export const declareBanner = (element) => {
   watchChrome(element);
 };
 export const declareWindowChrome = (boxes, elements) => {
-  windowChrome.add(boxes);
+  windowChrome.set(boxes, elements);
   elements.forEach(watchChrome);
 };
+const inBanner = (node) => Boolean(node && banner) && under(node, banner);
+const standsIn = (node, elements) =>
+  Boolean(node) && elements.some((element) => under(node, element));
+export const inWindowChrome = (node) =>
+  inBanner(node) ||
+  [...windowChrome.values()].some((elements) => standsIn(node, elements));
 // Every box the declared window chrome stands now, for a reading that keeps clear of
-// them all, as Go-to's chips and a search's marks do.
-export const windowChromeBoxes = () => [...windowChrome].flatMap((boxes) => boxes());
+// them all, as Go-to's chips and a search's marks do; but for the chrome `item` stands
+// in.
+export const windowChromeBoxes = (item = null) =>
+  [...windowChrome]
+    .filter(([, elements]) => !standsIn(item, elements))
+    .flatMap(([boxes]) => boxes());
 export const bannerFoot = () => banner?.getBoundingClientRect().bottom ?? 0;
 // The layout viewport's box, less the scrollbars the root draws at its edges, where
 // nothing the page shows stands: `innerWidth` and `innerHeight` count a classic
@@ -120,7 +135,12 @@ export const layoutWindow = (doc = document) => ({
   right: doc.documentElement.clientWidth,
   bottom: doc.documentElement.clientHeight,
 });
-export function shownWindow({ within = null, gap = 0, viewport = "visual" } = {}) {
+export function shownWindow({
+  within = null,
+  gap = 0,
+  viewport = "visual",
+  item = null,
+} = {}) {
   const layout = layoutWindow();
   const { offsetLeft, offsetTop, width, height } =
     viewport === "visual"
@@ -128,10 +148,11 @@ export function shownWindow({ within = null, gap = 0, viewport = "visual" } = {}
       : { offsetLeft: 0, offsetTop: 0, width: layout.right, height: layout.bottom };
   const left = Math.max(offsetLeft, within?.left ?? -Infinity) + gap;
   const right = Math.min(offsetLeft + width, within?.right ?? Infinity) - gap;
-  let top = Math.max(offsetTop, bannerFoot(), within?.top ?? -Infinity);
+  const head = inBanner(item) ? -Infinity : bannerFoot();
+  let top = Math.max(offsetTop, head, within?.top ?? -Infinity);
   let bottom = Math.min(offsetTop + height, within?.bottom ?? Infinity);
   const middle = offsetTop + height / 2;
-  for (const box of windowChromeBoxes()) {
+  for (const box of windowChromeBoxes(item)) {
     if (!overlapsAcross(box, { left, right })) continue;
     if (box.top + box.bottom < 2 * middle) top = Math.max(top, box.bottom);
     else bottom = Math.min(bottom, box.top);
@@ -445,15 +466,16 @@ export function shownRect(item, clips) {
   return clippedRect(shownBox(item), item, clips);
 }
 // What of an item the user sees: what every box over it lets through, within the room the
-// chrome leaves. `within` keeps a bottom-bar box from cutting the item unless it stands
-// across it. The chrome cuts the item's top and foot only; its sides stay shownRect's, the
+// chrome leaves, but for chrome the item stands in. `within` keeps a bottom-bar box from
+// cutting the item unless it stands across it. The chrome cuts the item's top and foot
+// only; its sides stay shownRect's, the
 // layout viewport's, since a pinch zoom's visual viewport is a pan across the page and not
 // a clip — read with its sides, a message wider than the zoomed view was never seen whole
 // across, and never counted read. Null when none of it shows.
 export function seenRect(item, clips) {
   const shown = shownRect(item, clips);
   if (!shown) return null;
-  const room = shownWindow({ within: shown });
+  const room = shownWindow({ within: shown, item });
   return room.width > 0 && room.height > 0
     ? { left: shown.left, top: room.top, right: shown.right, bottom: room.bottom }
     : null;

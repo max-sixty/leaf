@@ -1,4 +1,4 @@
-/* Served threads and workflows, as `/api/state` sends them.
+/* Served threads, workflows and activity, as `/api/state` sends them.
 
    Each importing process reads what `tests/served_records.py` folds through the
    server, so it carries every field the server sends. A test changes only the
@@ -29,6 +29,16 @@ export const servedThread = (msgs, changes = {}) =>
 
 // A workflow for a message the agent has not picked up yet.
 export const servedWorkflow = (changes = {}) => served("workflow", changes);
+
+// The activity of a page a live session holds, owing nothing; `counts` changes only
+// the counts it names.
+export function servedActivity({ counts = {}, ...changes } = {}) {
+  const activity = served("activity", changes);
+  for (const name of Object.keys(counts))
+    if (!Object.hasOwn(activity.counts, name))
+      throw new Error(`The server sends no activity count ${name}`);
+  return { ...activity, counts: { ...activity.counts, ...counts } };
+}
 
 // A whole served reading, `{ threads, workflows }`, whose premise is the named case.
 export function servedReading(name) {

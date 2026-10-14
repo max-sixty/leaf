@@ -35,9 +35,12 @@ batch's receipt can still be refused, as when the page changed hands after the p
 read it, so whatever the hook could not confirm goes as a pointer, whose reader's
 explicit `leaf delivery ack` either confirms it or shows the refusal. A page vendored
 at another protocol, whose log this Leaf may not write
-(`event_contracts.write_refusal`), offers no new input at all (`delivery.deliverable`):
-the hook records no pickup there and names the refusal in the turn's attention, so
-it never fails on a page it cannot write, nor offers input it could never confirm.
+(`event_contracts.write_refusal`), is re-vendored before it is read
+(`vendoring.renew_layer`), and the turn's attention carries what the re-vendor left
+for the agent: why it was refused, or the checks index.html now fails. One it could
+not re-vendor offers no new input at all (`delivery.deliverable`): the hook records
+no pickup there and names the refusal, so it never fails on a page it cannot write,
+nor offers input it could never confirm.
 Claude Code cuts context over a limit to a preview (`HOOK_CONTEXT_LIMIT`), so a
 delivery that large goes as a pointer too, unconfirmed, as do pointers Codex's tool
 hook offers.
@@ -74,6 +77,7 @@ from .delivery import (
     deliverable,
     delivery_pointer_prompt,
     freeze_delivery,
+    reads_reference,
     receive_held,
     record_pickup,
 )
@@ -88,6 +92,7 @@ from .served_state.context import read_page
 from .service import (
     PageTransaction,
     owned_pages,
+    page_claim,
 )
 from .state import flocked, session_lock_path, session_record
 
@@ -122,7 +127,8 @@ class PagePlan:
     one log, cursor, status and ownership snapshot. Planning never records a
     pickup. The caller selects which pending batches its transport can hand over.
     `unwritable` says why this Leaf may record no pickup there, or is None
-    (`event_contracts.write_refusal`).
+    (`event_contracts.write_refusal`). `unready` is what re-vendoring the page
+    before the reading left for the agent, or None (`vendoring.renew_layer`).
     """
 
     page: Path
@@ -138,11 +144,22 @@ class PagePlan:
     watched: bool
     preview: bool
     unwritable: Finding | None
+    unready: str | None
 
 
 def read_plans(session_id: str) -> list[PagePlan]:
+    from .vendoring import renew_layer
+
     plans = []
     for page_dir in owned_pages(session_id):
+        # The claim's harness, since a hook's environment does not name its
+        # session, and only while the claim is still this session's.
+        held = page_claim(page_dir)
+        unready = (
+            renew_layer(page_dir, claim_harness(held))
+            if held and held["id"] == session_id
+            else None
+        )
         try:
             with PageTransaction(page_dir) as page:
                 claim = page.active_claim
@@ -163,7 +180,22 @@ def read_plans(session_id: str) -> list[PagePlan]:
                     continue
                 pending = deliverable(page)
                 watched = harness.watcher_live(listening=state["listening"])
-                owed = turn_obligations(state, watched=watched)
+                # A reference into a delivery an earlier Leaf wrote is no use to
+                # this one, which cannot read it, so its update is captured again.
+                owed = [
+                    {
+                        **item,
+                        "answer": {
+                            key: value
+                            for key, value in item["answer"].items()
+                            if key != "ref"
+                        },
+                    }
+                    if "ref" in item["answer"]
+                    and not reads_reference(item["answer"]["ref"])
+                    else item
+                    for item in turn_obligations(state, watched=watched)
+                ]
                 recovery_ids = {
                     item["input"] for item in owed if "ref" not in item["answer"]
                 }
@@ -196,6 +228,7 @@ def read_plans(session_id: str) -> list[PagePlan]:
                         watched,
                         (page_dir / PREVIEW_FILE).exists(),
                         write_refusal(page_dir),
+                        unready,
                     )
                 )
         except FileNotFoundError:
@@ -218,6 +251,7 @@ def stop_continues(
     )
     needs_attention = any(
         plan.owed
+        or plan.unready
         or (
             not plan.watched
             and (
@@ -239,8 +273,8 @@ def remedies(
     }
     reasons = []
     for plan in plans:
-        if plan.unwritable:
-            reasons.append((str(plan.unwritable), None))
+        if plan.unready or plan.unwritable:
+            reasons.append((plan.unready or str(plan.unwritable), None))
         if plan.owed:
             reasons.append(
                 (

@@ -164,6 +164,12 @@ renderer it loads only once the user has the page, runs that work through
 `afterPresentation(() => …)`, which both waits for presentation and declares the work.
 Until every such arrival lands the page reads as still arriving, so a reader outside it
 waits on the page rather than on a widget it would have to know about.
+Work that should start at once but that presentation need not wait for, such as a
+slow load whose landing moves nothing the reader sees, goes through
+`deferredArrival(promise)` instead: it counts the running promise without waiting.
+`growthIsSeen(element)` answers whether a change of the element's size now would move
+what the user sees; where it would, register the work with the widget controller's
+`present(promise)` instead, so it lands before the page presents.
 
 ### First paint
 
@@ -259,7 +265,8 @@ container in later stage updates.
 
 A module that writes stylesheet text of its own, for a constructed sheet or a `<style>`
 in its shadow root, wraps it in `inBaseLayer(css)`. The rules then join the theme's
-`lf-base` cascade layer, below Layouts, semantic state and the page's own stylesheet.
+`lf-base` cascade layer, below Layouts, theme packages, semantic state and the page's
+own stylesheet.
 
 ### Scheduling paints
 
@@ -1268,9 +1275,12 @@ the image; and outlines `{x, y, width, height, side, kind}` drawn on the `before
 `differenceKind(reading)` classifies a reading as `identical`, `throughout`, `slight` or
 `areas`; `describeDifference(reading)` words it for the reader, and `countAreas(regions)`
 counts the changed and moved areas, each once. `compareImagePixels(a, b)` reads the same
-pair pixel by pixel and returns `{width, height, data}`, black RGBA whose alpha is opaque
-where a pixel changed by as much as an outline needs, faint where it changed less, and
-clear elsewhere, for use as a mask. The comparison is experimental; `lf-shot` is the
+pair pixel by pixel and returns `{width, height, before, after, both}`, three black RGBA
+masks, clear where a pixel did not change and otherwise rising with how far it changed,
+from faint to opaque at twice the change an outline needs. A changed pixel is in `before` where only
+the before image draws something there, unlike the ground around that run of changed
+pixels, in `after` where only the after image does, and in `both` otherwise, as for a
+recolour. The comparison is experimental; `lf-shot` is the
 worked example.
 
 ### Media URLs
@@ -1387,7 +1397,10 @@ region's edge. It resolves to whether it arrived. A control that calls it keeps 
 declared command; asks expose no separate answer API.
 
 `readQueues()` and `watchQueues(owner, callback)` supply the immutable
-`{phase, on_user, on_agent, done}` that the On panel and `m` navigation use. Ask rows
+`{phase, on_user, on_agent, done}` that the On panel and `m` navigation use. Every row
+names the list it stands on, or left for `done`, in `owner` (`user` or `agent`); `done`
+holds asks answered or withdrawn, ended to-dos, and the agent's sent replies, as
+`kind === "answer"` rows, newest first. Ask rows
 have `kind === "ask"` and their canonical `ask` record, whose `source.kind` is `widget`,
 `reply` or `approval`. To-do rows have `kind === "todo"`; response obligations and delivery
 retries keep their own kinds. An ask is not also a to-do. Live rows carry their workflow or
@@ -1698,7 +1711,10 @@ parts can share an outlet. A shadow outlet displays the parts through native slo
 their nodes stay in the document. Leaf keeps the generated nodes, message rendering,
 reactions, read tracking and the shared reply draft; a nominated message of the user's own
 offers its rewrite in place, and a nominated reply box opens the latest of those on ↑, as a
-whole conversation does. The package keeps layout, ordering, selection, scroll and
+whole conversation does. `parts.reply` takes optional `{hint, accessibleName, sent}`: what
+the empty box reads and is named, each a string or a function read as it paints, and
+`sent()`, called after a send in place of standing the user on the thread, for a box that
+stays for the next turn. The package keeps layout, ordering, selection, scroll and
 disclosure. A returned promise delays the presentation; check `parts.signal` before
 asynchronous layout changes, since a newer pass or `unregister` aborts it.
 

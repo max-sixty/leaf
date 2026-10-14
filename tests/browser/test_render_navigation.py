@@ -3442,13 +3442,16 @@ def test_m_walks_what_waits_on_you_and_the_banner_counts_both_queues(browser, se
     counts(1, 2)
 
 
-def test_the_on_panel_lists_both_queues_and_what_is_done(browser, serve):
-    """The On panel lists the queues the `m` walk and the banner's counts read,
-    the user's first and then the agent's, and folds what is done at the foot: here a
-    task the agent ended. The prose question is an agent opening comment, which
-    asks implicitly. A row arrives where `m` would. A reply the user sends joins the
-    agent's list as it is sent, and its thread leaves the user's once the server has
-    read the reply."""
+def test_the_on_panel_shows_each_list_with_its_own_done(browser, serve):
+    """The On panel is two tabs, the lists the `m` walk and the banner's counts read,
+    and the open tab is its title. Each list shows its open items, then folds its own
+    Done: what left that list. Here the agent's Done holds a to-do it ended and the
+    replies it sent, and the user's fills as they answer. The prose question is an
+    agent opening comment, which asks implicitly. The agent's count opens the agent's
+    list, and every other way in opens the user's. A row arrives where `m` would. A
+    reply the user sends joins the agent's list as it is sent, and its thread leaves the
+    user's for the user's Done once the server has read the reply. A door pressed while
+    the panel shows the other list turns it to the door's list."""
     url = serve(QUEUE_PAGE)
     d = serve.page_dir
 
@@ -3492,21 +3495,51 @@ def test_the_on_panel_lists_both_queues_and_what_is_done(browser, serve):
     page = open_page(browser, url)
     resized(page, 1280, 900)
     panel = page.locator(".lf-queue-panel")
+    tabs = panel.locator(".lf-queue-tab")
 
     # The user's On me stands on its door beside Threads, and the agent's On count
-    # beside the status is a door too: a press opens what they count and another takes
-    # it down, and closing it from inside hands focus back to them.
+    # beside the status is a door too, to the agent's list: a press opens what they
+    # count and another takes it down, and closing it from inside hands focus back.
     expect(page.locator(".lf-queue")).to_have_text("On me: 2")
     counts = page.locator(".lf-status-queues")
     expect(counts).to_have_text("On Agent: 2")
     counts.click()
     expect(panel).to_be_visible()
+    expect(panel).to_have_accessible_name("On Agent")
+    expect(tabs.nth(1)).to_have_attribute("aria-pressed", "true")
     expect(counts).to_have_attribute("aria-expanded", "true")
     counts.click()
     expect(panel).to_be_hidden()
     expect(counts).to_have_attribute("aria-expanded", "false")
     counts.click()
     expect(panel).to_be_visible()
+    rows = page.evaluate(QUEUE_ROW_SAYS)
+    assert [(row["list"], row["word"], row["title"]) for row in rows[:2]] == [
+        ("agent", "Reply", "Tighten this."),
+        ("agent", "To-do", "Rebuild the notes"),
+    ], rows
+    # Its Done holds what left it: the to-do it ended and the replies it sent, each
+    # under its own words, newest first.
+    assert sorted((row["list"], row["word"], row["title"]) for row in rows[2:]) == [
+        ("done", "Reply", "Rebuilding them."),
+        ("done", "Reply", "Retitling it."),
+        ("done", "To-do", "Retitle the release"),
+    ], rows
+    assert all(row["where"].startswith(("Done", "Sent")) for row in rows[2:]), rows
+    expect(page.locator(".lf-queue-done > summary")).to_have_text("Done · 3")
+    # The On me door turns the open panel to the user's list rather than closing it,
+    # and the agent's count turns it back.
+    page.locator(".lf-queue").click()
+    expect(panel).to_have_accessible_name("On me")
+    expect(tabs.first).to_have_attribute("aria-pressed", "true")
+    counts.click()
+    expect(panel).to_have_accessible_name("On Agent")
+    # The dialog the panel stands in takes the list's name as it turns, and `g`
+    # offers Shift+M as the turn to On me rather than a close.
+    expect(page.get_by_role("dialog", name="On Agent")).to_have_count(1)
+    page.keyboard.press("g")
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("close On panel")
+    page.keyboard.press("Escape")
     page.get_by_role("button", name="Close the On panel").click()
     expect(panel).to_be_hidden()
     expect(counts).to_be_focused()
@@ -3514,40 +3547,26 @@ def test_the_on_panel_lists_both_queues_and_what_is_done(browser, serve):
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     expect(panel).to_be_visible()
+    expect(panel).to_have_accessible_name("On me")
+    expect(tabs).to_have_text(["On me · 2", "On Agent · 2"])
     rows = page.evaluate(QUEUE_ROW_SAYS)
+    # A question asked in a thread is answered there, so its row says Thread.
     assert [(row["list"], row["word"], row["title"]) for row in rows] == [
         ("you", "Options", "Which channel first?"),
         ("you", "Thread", "Weekly?"),
-        ("agent", "Reply", "Tighten this."),
-        ("agent", "To-do", "Rebuild the notes"),
-        ("done", "To-do", "Retitle the release"),
-    ], rows
-    # A question asked in a thread is answered there, so its row says Thread.
-    assert [row["word"] for row in rows] == [
-        "Options",
-        "Thread",
-        "Reply",
-        "To-do",
-        "To-do",
     ], rows
     assert rows[1]["where"].startswith("§ Release"), rows
-    assert rows[-1]["where"].startswith("Done"), rows
-    expect(panel.locator(".lf-queue-heading")).to_have_text(
-        ["On me · 2", "On Agent · 2", "Done · 1"]
-    )
-    expect(page.locator(".lf-queue-done > summary")).to_have_text("Done · 1")
+    # Nothing has left the user's list yet, so it has no Done.
+    expect(page.locator(".lf-queue-done")).to_have_count(0)
 
     # The first row holds the focus, and the next is the thread whose question waits on
     # the user: Enter arrives where `m` would.
     expect(page.locator("button.lf-queue-row").first).to_be_focused()
-    # The walk's position counts the items, not Done's door, though the door is a stop.
     position = page.locator(".lf-walk-position")
     page.keyboard.press("End")
-    expect(page.locator(".lf-queue-done > summary")).to_be_focused()
-    page.keyboard.press("ArrowUp")
-    expect(position).to_have_text("Item 4 of 4")
+    expect(position).to_have_text("Item 2 of 2")
     page.keyboard.press("Home")
-    expect(position).to_have_text("Item 1 of 4")
+    expect(position).to_have_text("Item 1 of 2")
     page.keyboard.press("ArrowDown")
     page.keyboard.press("Enter")
     thread = page.locator(f'.lf-page-thread[data-thread="{asked["id"]}"]')
@@ -3561,7 +3580,7 @@ def test_the_on_panel_lists_both_queues_and_what_is_done(browser, serve):
     page.keyboard.press("ControlOrMeta+Enter")
     holding(page, held, 1, "the reply")
     you = panel.locator("[data-lf-queue='you'] .lf-queue-row")
-    expect(panel.locator("[data-lf-queue='agent'] .lf-queue-row")).to_have_count(3)
+    expect(tabs).to_have_text(["On me · 2", "On Agent · 3"])
     expect(you).to_have_count(2)
     page.unroute("**/api/event")
     for route in held:
@@ -3569,12 +3588,17 @@ def test_the_on_panel_lists_both_queues_and_what_is_done(browser, serve):
     round_trip(page)
     expect(you).to_have_count(1)
 
-    # The answered question joins what is done, which stays folded until opened, and a
-    # done row arrives at its thread too.
-    expect(page.locator(".lf-queue-done > summary")).to_have_text("Done · 2")
-    page.locator(".lf-queue-done > summary").click()
+    # The answered question joins the user's Done, which stays folded until opened, and
+    # a done row arrives at its thread too. The thread's card stands over the panel's
+    # head, so the keyboard opens the fold.
+    summary = page.locator(".lf-queue-done > summary")
+    expect(summary).to_have_text("Done · 1")
+    summary.focus()
+    page.keyboard.press("Enter")
     done = page.locator(".lf-queue-done .lf-queue-row")
-    expect(done.filter(has_text="Weekly?")).to_have_count(1)
+    expect(done).to_have_text([re.compile("Weekly\\?")])
+    tabs.nth(1).click()
+    expect(page.locator(".lf-queue-done > summary")).to_have_text("Done · 3")
     done.filter(has_text="Retitle the release").click()
     expect(
         page.locator(f'.lf-page-thread[data-thread="{retitle["id"]}"]')
@@ -3639,12 +3663,12 @@ def test_the_on_panels_next_on_me_walks_as_m_does(browser, serve):
 
 def test_a_tally_counts_its_regions_asks_and_walks_them(browser, serve):
     """An `lf-tally` counts the asks its region holds, by the rule a queue row's mark
-    reads, and leaves out one outside it. Its Next question is `m` within the region: a
+    reads, and leaves out one outside it. Its Next on me is `m` within the region: a
     press keeps the user standing where they are and steps on, coming round at the end,
     and the walk announces its place among the region's asks. Reached by Shift+Tab from
     an ask, through the queue's own rows, Enter counts from that ask, so the keyboard
     steps on too. An answer leaves the count once the log admits it; with none left the
-    tally says so and Next question is disabled."""
+    tally says so and Next on me is disabled."""
 
     def item(key, label):
         return (
@@ -3672,7 +3696,7 @@ def test_a_tally_counts_its_regions_asks_and_walks_them(browser, serve):
         ),
     )
     words = page.locator("#left .lf-tally-words")
-    button = page.locator("#left").get_by_role("button", name="Next question")
+    button = page.locator("#left").get_by_role("button", name="Next on me")
     position = page.locator(".lf-walk-position")
     first, second = page.locator("#first-decision"), page.locator("#second-decision")
     expect(words).to_have_text("2 of 2 to answer")
@@ -3683,7 +3707,7 @@ def test_a_tally_counts_its_regions_asks_and_walks_them(browser, serve):
             if button.evaluate("button => button === document.activeElement"):
                 return
             page.keyboard.press("Shift+Tab")
-        raise AssertionError("Shift+Tab never reached Next question")
+        raise AssertionError("Shift+Tab never reached Next on me")
 
     button.click()
     expect(first).to_be_focused()
@@ -6378,7 +6402,7 @@ def test_generated_hints_follow_the_page_while_it_moves(browser, serve):
     expect(page.locator(CHIPS).first).to_be_visible()
     # Longer than the session's settle, so the map has stood still and the user has had
     # the chance to read it. A map armed into a page already moving is a different case,
-    # covered by test_inflight_native_paging_hides_hints_until_the_scene_settles.
+    # held by tests/runtime/hint-session.test.mjs.
     page.wait_for_timeout(200)
 
     # A smooth scroll is the case that holds the session in motion: a programmatic step
@@ -6605,9 +6629,10 @@ def test_a_completed_ask_stays_reachable_through_the_on_panel(browser, serve, wi
     page.keyboard.press("Shift+m")
     expect(page.locator(".lf-queue-panel")).to_be_hidden()
 
+    # With nothing left on the user, the panel opens on its Done's door.
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
-    expect(page.locator(".lf-queue-row").first).to_be_focused()
+    expect(page.locator(".lf-queue-done > summary")).to_be_focused()
 
 
 # What the shortcut bar is saying, chip by chip. The word is the chip's own trailing span —
@@ -6870,6 +6895,8 @@ def test_on_me_says_when_a_revision_removes_its_last_ask(browser, serve):
     expect(page.locator(".lf-queue-panel")).to_have_class(re.compile(r"\bopen\b"))
     expect(note).to_be_visible()
     expect(note).to_have_text("Nothing waiting on me.")
+    # The agent's tab says the same of its list.
+    page.locator(".lf-queue-tab", has_text="On ").nth(1).click()
     expect(
         page.locator(".lf-queue-panel [data-lf-queue='agent'] .lf-queue-empty")
     ).to_have_text(re.compile(r"^Nothing waiting on \S+\.$"))
@@ -6964,130 +6991,6 @@ def test_page_map_cancellation_without_an_opener_keeps_the_scrolled_reading(
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
     page.keyboard.press("Tab")
     assert not page.evaluate(STANDING)["isFirstStop"]
-
-
-def test_generated_hints_refresh_to_the_visible_scene_after_scroll(browser, serve):
-    """Scroll changes the map at rest without letting an old letter act elsewhere."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Scrolling hints",
-                """
-<h1 id="top">Scrolling hints</h1>
-<p><a id="top-link-one" href="#top">First top destination</a></p>
-<p><a id="top-link-two" href="#top">Second top destination</a></p>
-<p><a id="top-link-three" href="#top">Third top destination</a></p>
-<div style="height: 1600px" aria-hidden="true"></div>
-<p><a id="bottom-link" href="#bottom">Bottom destination</a></p>
-<h2 id="bottom">Bottom</h2>
-<div style="height: 1200px" aria-hidden="true"></div>
-""",
-            )
-        ),
-    )
-
-    page.keyboard.press("g")
-    old_code = address_code(page, "Link", "top-link-two")
-    expect(page.locator(f'{CHIPS}[data-lf-go-to-target="bottom-link"]')).to_have_count(
-        0
-    )
-    page.keyboard.press("Tab")
-    expect(page.locator(f'{CHIPS}[data-lf-go-to-target="top-link-one"]')).to_have_class(
-        re.compile(r"\blf-current\b")
-    )
-
-    page.evaluate(
-        "() => document.querySelector('#bottom-link').scrollIntoView({block: 'start'})"
-    )
-    expect(page.locator(f'{CHIPS}[data-lf-go-to-target="bottom-link"]')).to_have_count(
-        1
-    )
-    expect(page.locator(f'{CHIPS}[data-lf-go-to-target="top-link-one"]')).to_have_count(
-        0
-    )
-    expect(page.locator(f"{CHIPS}.lf-current")).to_have_count(0)
-
-    # The old code must be consumed as a missed hint after the scene changes, even
-    # if it also names an unrelated page command in the unarmed grammar.
-    before = page.evaluate("() => document.scrollingElement.scrollTop")
-    page.keyboard.press(old_code)
-    expect(page.locator(".lf-live")).to_have_text(
-        f"No hint {old_code}. The current hints are unchanged."
-    )
-    expect(page.locator(f'{CHIPS}[data-lf-go-to-target="bottom-link"]')).to_have_count(
-        1
-    )
-    page_at_rest(page)
-    assert page.evaluate("() => document.scrollingElement.scrollTop") == before
-
-    bottom_code = address_code(page, "Link", "bottom-link")
-    page.keyboard.type(bottom_code)
-    page.wait_for_url(re.compile(r"#bottom$"))
-    expect(page.locator("#bottom")).to_be_focused()
-
-
-def test_inflight_native_paging_hides_hints_until_the_scene_settles(browser, serve):
-    """A user can arm the spatial map immediately after a page-down press."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Map after travel",
-                '<h1>Map after travel</h1><p><a id="near" href="#arrival">Near</a></p>'
-                '<div style="height: 600px" aria-hidden="true"></div>'
-                '<p><a id="middle" href="#arrival">Middle</a></p>'
-                '<div style="height: 1200px" aria-hidden="true"></div>'
-                '<h2 id="arrival">Arrival</h2>',
-            )
-        ),
-    )
-
-    # Hold the hint settle timer and arm the scroll observation before the key.
-    # PageDown returns before its first native scroll event, so pressing g right
-    # after the driver returns can instead arm a map of the old, still scene.
-    page.clock.install(time=0)
-    page.clock.pause_at(page.evaluate("() => (Date.now() + 100) / 1000"))
-    page.evaluate(
-        """() => {
-          window.firstPageScroll = false;
-          document.addEventListener('scroll', () => { window.firstPageScroll = true; },
-            {once: true, capture: true});
-        }"""
-    )
-    page.keyboard.press("PageDown")
-    page.wait_for_function("() => window.firstPageScroll", polling=20)
-    page.keyboard.press("g")
-    page.clock.run_for(20)
-    expect(page.locator("body")).to_have_attribute("data-lf-go-to-active", "")
-    expect(page.locator(CHIPS)).to_have_count(0)
-    page.clock.resume()
-    expect(page.locator(CHIPS)).to_have_count(1)
-    codes = address_codes(page)
-    mapped_at = page.evaluate("() => document.scrollingElement.scrollTop")
-    assert mapped_at > 0, "PageDown never moved the document"
-    page_at_rest(page)
-
-    assert page.evaluate("() => document.scrollingElement.scrollTop") == mapped_at
-    assert address_codes(page) == codes
-    expect(page.locator(CHIPS)).to_have_count(1)
-    page.keyboard.press("Escape")
-
-
-def test_armed_hints_settle_after_resize(browser, serve):
-    """A resize during the arming wait still lets the map appear at rest."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Map at resize",
-                '<h1>Map at resize</h1><p><a id="destination" href="#destination">Go</a></p>',
-            )
-        ),
-    )
-    page.keyboard.press("g")
-    page.set_viewport_size({"width": 800, "height": 700})
-    expect(page.locator(CHIPS).first).to_be_visible()
 
 
 def test_only_controls_and_boxes_with_something_out_of_sight_take_a_tab_stop(
@@ -8027,7 +7930,6 @@ def test_generated_hints_branch_after_the_single_letter_alphabet(browser, serve)
         "line": shortcut_bar_text(page),
         "live": page.locator(".lf-live").text_content(),
     }
-    expect(page.locator(".lf-live")).to_have_text(f"{len(branched)} targets remain.")
     expect(line).to_contain_text("back one letter")
     target_route = line.locator(
         '.lf-shortcut:not([hidden])[data-lf-command-ids~="navigation.target"]'
@@ -8064,17 +7966,10 @@ def test_generated_hints_branch_after_the_single_letter_alphabet(browser, serve)
     ) == [[prefix, "pressed"], [branched[0][1], "neutral"]]
     expect(continued_hint).to_have_css("gap", "1px")
 
-    # Escape removes only the opaque prefix; the same visible scene returns. A complete
-    # two-letter code then activates immediately, with no timeout or terminator.
-    page.keyboard.press("Escape")
-    assert address_codes(page) == codes
-    page.keyboard.type(branched[-1])
-    page.wait_for_url(re.compile(r"#link-23$"))
-    expect(page.locator(CHIPS)).to_have_count(0)
-
 
 def test_generated_hints_are_browsable_without_entering_the_paint_layer(browser, serve):
-    """Tab speaks the visual map, Shift-Tab reverses it, and Enter activates it."""
+    """The map paints, Tab speaks it, and Enter activates the hint heard. The session's
+    letters, walk and rereading are `tests/runtime/hint-session.test.mjs`'s."""
     page = open_page(
         browser,
         serve(
@@ -8093,6 +7988,8 @@ def test_generated_hints_are_browsable_without_entering_the_paint_layer(browser,
 
     page.keyboard.press("g")
     expect(page.locator(CHIPS)).to_have_count(2)
+    for chip in page.locator(CHIPS).all():
+        expect(chip).to_be_visible()
     expect(page.locator(".lf-go-to-hints")).to_have_attribute("aria-hidden", "true")
     expect(page.locator(".lf-live")).to_contain_text("2 visible targets")
     expect(line).to_contain_text("browse hints")
@@ -8112,16 +8009,7 @@ def test_generated_hints_are_browsable_without_entering_the_paint_layer(browser,
     )
 
     page.keyboard.press("Tab")
-    second_code = address_code(page, "Link", "second")
     expect(page.locator(".lf-walk-position")).to_have_text("Target 2 of 2")
-    expect(page.locator(".lf-live")).to_have_text(
-        f"Hint {second_code}: Link, Second destination. Press Enter to go there."
-    )
-    page.keyboard.press("Shift+Tab")
-    expect(page.locator(".lf-live")).to_have_text(
-        f"Hint {first_code}: Link, First destination. Press Enter to go there."
-    )
-    page.keyboard.press("Tab")
     page.keyboard.press("Enter")
     page.wait_for_url(re.compile(r"#arrival$"))
     expect(page.locator("#arrival")).to_be_focused()
@@ -13308,7 +13196,7 @@ def test_comment_escape_returns_to_its_authored_parent(browser, serve, entry):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-composer")).to_be_hidden()
     expect(ask).to_be_focused()
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("comment on the question")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("comment on the ask")
     page.keyboard.press("Escape")
     assert page.evaluate("document.activeElement === document.body")
 
@@ -13359,10 +13247,10 @@ def test_c_comments_on_what_the_user_is_standing_in(browser, serve):
     # walk happens to stand the user on, and rather than on the page.
     page.keyboard.press("m")
     expect(page.locator("#shape-decision")).to_have_attribute("data-lf-ask", "1")
-    expect(line).to_contain_text("comment on the question")
+    expect(line).to_contain_text("comment on the ask")
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_be_visible()
-    expect(page.locator(".lf-composer")).to_contain_text("question")
+    expect(page.locator(".lf-composer")).to_contain_text("ask")
     drop()
 
     # A settled group: not a decision at all, and the thread seat it still holds is
@@ -13495,6 +13383,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     expect(page.locator('.lf-queue-row[data-lf-at="widget:sug-window"]')).to_have_count(
         1
     )
+    page.locator(".lf-queue-tab").nth(1).click()
     agent_rows = page.locator("[data-lf-queue='agent'] .lf-queue-row")
     expect(agent_rows).to_have_count(1)
     expect(agent_rows).to_contain_text("Steel, unless the sealing is quick?")
@@ -13707,7 +13596,7 @@ def test_c_in_a_seated_thread_reaches_the_thread_it_is_in(browser, serve):
     # The control: standing on a widget that seats nothing, so the press has no thread
     # to prefer and opens the composer on the widget itself.
     page.locator("#shape .lf-pick").first.focus()
-    expect(line).to_contain_text("comment on the question")
+    expect(line).to_contain_text("comment on the ask")
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_be_visible()
     page.keyboard.press("Escape")
@@ -14266,7 +14155,7 @@ def test_an_ask_and_its_thread_are_one_standing_target(browser, serve):
     page.keyboard.press("m")
     expect(page.locator("#retry-ask")).to_be_focused()
     expect(card.locator(f'.lf-page-thread[data-thread="{about_task}"]')).to_be_visible()
-    expect(line).to_contain_text("comment on the question")
+    expect(line).to_contain_text("comment on the ask")
     page.keyboard.press("Escape")
 
     # With Threads open, the list's thread about the Ask plays the card's part, and a

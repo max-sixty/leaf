@@ -19,6 +19,24 @@ const at = (el) => (el === pageScroller ? "<root scrollport>" : element(el));
 // keeps the measure as text does, so these checks read it as ordinary flow.
 const BREAKOUT = '[data-lf-space]:not([data-lf-space="column"])';
 
+// The box a block's width and margins resolve against: its nearest ancestor that
+// generates one, inside that ancestor's border, padding and any scrollbar gutter, at
+// the place its scroll puts it.
+function contentBox(el) {
+  let s = getComputedStyle(el);
+  while (s.display === "contents") s = getComputedStyle((el = el.parentElement));
+  const left =
+    el.getBoundingClientRect().left +
+    el.clientLeft +
+    parseFloat(s.paddingLeft) -
+    el.scrollLeft;
+  return {
+    left,
+    right:
+      left + el.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight),
+  };
+}
+
 // The page's own margin residents, without Leaf's rail: that holds only markers and
 // never moves the column. Both a sweep sample and its breakpoint refinement read the
 // tokens the margin layout publishes, rather than rediscovering residency from boxes.
@@ -406,6 +424,34 @@ export function misplacedBoxes() {
       );
     });
     if (hit) report(el, "over-margin", { resident: at(hit) });
+    // The theme grows a breakout past its holder by its margins and gives it the
+    // room's width (layouts.css), so it spans exactly the room its margins open. A
+    // width of the box's own, such as a page rule sizing an iframe, overrides the
+    // width and keeps the margins, so the box starts where the room does and ends
+    // somewhere else, off the prose axis, while every bound above still holds. The
+    // computed margins are the ones the theme set, however the box's own width
+    // over-constrains them. Only growth the margins made counts: a positioned box is
+    // not grown (prepaint.js, `indents`), and a table is placed by its translation
+    // (layouts.css), so its margins do not say where its room is. Only a box the user
+    // can see is read.
+    if (!el.checkVisibility({ opacityProperty: true, visibilityProperty: true }))
+      continue;
+    const s = getComputedStyle(el);
+    const grownL = -parseFloat(s.marginLeft);
+    const grownR = -parseFloat(s.marginRight);
+    if ((grownL > 1 || grownR > 1) && s.translate === "none") {
+      const h = contentBox(el.parentElement);
+      const left = h.left - grownL;
+      const right = h.right + grownR;
+      const off = Math.round(
+        Math.max(Math.abs(b.left - left), Math.abs(b.right - right)),
+      );
+      if (off > 1)
+        report(el, "off-axis", {
+          drawn: Math.round(b.width),
+          granted: Math.round(right - left),
+        });
+    }
   }
   // The other half of excusing a resident: an excuse is only good if the user can
   // see the thing. Both readings above hand a box to something else to answer for —

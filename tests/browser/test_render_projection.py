@@ -5728,6 +5728,82 @@ customElements.define("lf-piece", class extends LeafElement {
 """
 
 
+def test_lit_parent_moves_before_controller_members_render_selection(
+    browser, serve, tmp_path, monkeypatch
+):
+    """A later-upgraded parent moves a member before its destination clears it."""
+    monkeypatch.chdir(tmp_path)
+    package = tmp_path / ".leaf"
+    for tag, upgrade in (("lf-owner", True), ("lf-zone", True), ("lf-piece", False)):
+        add_test_widget(package, tag, upgrade=upgrade)
+    path = package / "registry.json"
+    declarations = json.loads(path.read_text())
+    markup = (
+        '<lf-owner id="owner"><lf-zone id="north">'
+        '<lf-piece id="piece" selected>Piece</lf-piece></lf-zone>'
+        '<lf-zone id="south"></lf-zone></lf-owner>'
+    )
+    declarations["lf-owner"].update(
+        {
+            "x-content": "members",
+            "x-example": markup,
+            "x-state": {
+                "move": {
+                    "unit": "unit",
+                    "record": {"kind": "position", "within": "lf-zone"},
+                }
+            },
+        }
+    )
+    zone = declarations["lf-zone"]
+    zone.update({"x-content": "members", "x-owners": ["lf-owner"]})
+    zone["properties"]["restated"] = {"type": "boolean"}
+    zone["x-state"] = {
+        "choose": {
+            "unit": "widget",
+            "record": {"kind": "attribute", "attr": "selected"},
+        }
+    }
+    piece = declarations["lf-piece"]
+    piece["x-owners"] = ["lf-zone"]
+    piece["properties"]["selected"] = {"type": "boolean"}
+    for declaration in (zone, piece):
+        declaration.pop("x-example", None)
+    path.write_text(json.dumps(declarations))
+    (package / "widgets/lf-owner.js").write_text(
+        'await customElements.whenDefined("lf-zone");\n' + LEAF_OWNER
+    )
+    (package / "widgets/lf-zone.js").write_text("""\
+import { keeps, once, widgetController } from "/runtime/widget-api.js";
+customElements.define("lf-zone", class extends HTMLElement {
+  connectedCallback() {
+    if (once(this)) widgetController(this).subscribe(() => {});
+  }
+  renderState(state) {
+    for (const piece of this.querySelectorAll("lf-piece"))
+      keeps(piece, "selected", state.choose.value.includes(piece.id) ? "" : null);
+  }
+});
+""")
+    page = open_page(
+        browser, serve(leaf_page("Moved selection", markup), packages=["./.leaf"])
+    )
+    expect(page.locator("#piece")).to_have_attribute("selected", "")
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "owner",
+            "action": "move",
+            "detail": {"unit": "piece", "value": "south", "rank": "1"},
+        },
+    )
+    expect(page.locator("#south > #piece")).to_have_count(1)
+    expect(page.locator("#piece")).not_to_have_attribute("selected", "")
+
+
 @pytest.mark.parametrize("contract", ["controller", "leaf-element"])
 def test_a_part_and_its_own_widget_keep_same_named_verbs_independent(
     browser, serve, tmp_path, monkeypatch, contract

@@ -710,6 +710,21 @@ export function createPresentationSchedule(
   /** The page has caught up with the root it is reading. */
   const passed = () => pass?.promise ?? Promise.resolve();
 
+  /** Queue a renderer that already owns its claim; return only its own completion. */
+  function enqueue(order        , run                                )                {
+    const completion = Promise.withResolvers      ();
+    collect(order, async () => {
+      try {
+        await run();
+        completion.resolve();
+      } catch (error) {
+        completion.reject(error);
+        throw error;
+      }
+    });
+    return completion.promise;
+  }
+
   function presenter              ({
     attach,
     paint,
@@ -771,6 +786,6 @@ export function createPresentationSchedule(
     return Object.freeze({ sync, disconnect });
   }
 
-  return Object.freeze({ presenter, passed });
+  return Object.freeze({ presenter, enqueue, passed });
 }
 // Generated from build/browser/presentation.ts by build/browser/build.mjs.

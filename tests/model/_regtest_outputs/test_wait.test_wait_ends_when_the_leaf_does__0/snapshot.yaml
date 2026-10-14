@@ -3,11 +3,21 @@
 still served:
   exit: 2
   stdout: ''
-  stderr: |
-    the page closed; <page> is idle
+  stderr:
+    - code: pages-idle
+      severity: advice
+      values:
+        pages: [<page>]
+      text: >-
+        the page closed; <page> is idle
 
 server stopped:
   exit: 2
   stdout: ''
-  stderr: |
-    the page closed; <page> is idle
+  stderr:
+    - code: pages-idle
+      severity: advice
+      values:
+        pages: [<page>]
+      text: >-
+        the page closed; <page> is idle

@@ -1,5 +1,6 @@
 """Drawing-comment browser journeys."""
 
+import json
 import re
 
 import pytest
@@ -246,7 +247,7 @@ def test_a_drawing_is_pictured_in_the_window_it_was_drawn_in(browser, serve):
         cli_model.cli, ["page", "picture", str(serve.page_dir), event["id"]]
     )
     assert pictured.exit_code == 0, pictured.output
-    image = Image.open(pictured.output.strip()).convert("RGB")
+    image = Image.open(json.loads(pictured.stdout)["file"]).convert("RGB")
 
     def where(color):
         """The bounding box of the picture's pixels within a few levels of `color`."""

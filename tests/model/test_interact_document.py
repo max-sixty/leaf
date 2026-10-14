@@ -1601,12 +1601,11 @@ def test_reply_refuses_an_invalid_current_source(page_dir, invalid):
             reference,
             "--text",
             "Updated.",
-            "--json",
         ],
     )
 
     assert result.exit_code != 0
-    assert refused_on(result.stdout).values["operation"] == "reply"
+    assert refused_on(result.stderr).values["operation"] == "reply"
     assert events_model.read_events(page_dir) == before
     assert files_model.list_revisions(page_dir) == revisions
     assert "c1" in delivery_model.current_responses(page_dir, before)
@@ -1729,8 +1728,7 @@ def test_response_belongs_to_the_session_with_the_opened_delivery(
     )
 
     assert result.exit_code != 0
-    assert result.stderr.startswith("Error: ")
-    assert "claim no longer matches its delivery" in result.stderr
+    assert "claim no longer matches its delivery" in json.loads(result.stderr)["error"]
 
 
 def test_response_address_survives_its_delivery_turn_closing(page_dir):
@@ -1858,12 +1856,11 @@ def test_reply_for_a_stale_event_reports_the_failed_fence(page_dir):
             "distinct-retry-attempt",
             "--text",
             "Again.",
-            "--json",
         ],
     )
 
     assert result.exit_code != 0
-    assert refused_on(result.stdout).code == "superseded-reply"
+    assert refused_on(result.stderr).code == "superseded-reply"
 
 
 @pytest.mark.parametrize(
@@ -2095,9 +2092,9 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
         {"kind": "thread", "id": opened["id"]},
     )
 
-    not_a_thread = run("thread", "resolve", "g1", "--json")
+    not_a_thread = run("thread", "resolve", "g1")
     assert not_a_thread.exit_code != 0
-    assert refused_on(not_a_thread.stdout).code == "widget-not-thread"
+    assert refused_on(not_a_thread.stderr).code == "widget-not-thread"
     [closed] = [
         json.loads(line)
         for line in run("thread", "resolve", "t-ask").output.splitlines()
@@ -2381,9 +2378,9 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
             input=encoded,
         )
         assert rejected.exit_code != 0
-        assert rejected.output.startswith("Error: ")
-        assert "source 'deployments' value is invalid" in rejected.output
-        assert ("false" if isinstance(invalid, list) else encoded) in rejected.output
+        error = json.loads(rejected.stderr)["error"]
+        assert "source 'deployments' value is invalid" in error
+        assert ("false" if isinstance(invalid, list) else encoded) in error
         assert read_page_data(page_dir) == first
 
     non_json = runner.invoke(
@@ -3036,7 +3033,8 @@ def test_events_follow_ends_when_its_log_is_replaced(page_dir, spawn):
     os.replace(replacement, log)
 
     follower.process.wait(timeout=STATED_TIMEOUT)
-    assert follower.stop(signal.SIGTERM) == (1, f"Error: {log} is gone\n")
+    status, stderr = follower.stop(signal.SIGTERM)
+    assert (status, json.loads(stderr)["error"]) == (1, f"{log} is gone")
 
 
 def test_page_state_points_to_a_users_suggestion_record(page_dir):

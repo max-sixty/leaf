@@ -60,6 +60,7 @@ from interact_support import (
     registry_refusal,
     styled,
     wait_for,
+    words,
     yaml_block,
     yaml_document,
 )
@@ -2012,7 +2013,8 @@ def test_the_registry_door_validates_data_contracts(page_dir, contracts, message
     result = check(page_dir)
 
     assert result.exit_code != 0
-    assert "$data" in result.output and message in result.output
+    said = words(result.output)
+    assert "$data" in said and message in said
 
 
 def test_layer_facts_read_names_whole_and_an_absent_records_as_null():
@@ -3635,7 +3637,9 @@ def test_check_refuses_a_key_naming_an_attribute_the_widget_has_not_got(
 
     result = check(page_dir)
     assert result.exit_code != 0
-    assert f'<{tag}> {key} names undeclared attributes ["{missing}"]' in result.output
+    assert f'<{tag}> {key} names undeclared attributes ["{missing}"]' in words(
+        result.output
+    )
 
 
 @pytest.mark.parametrize(
@@ -4443,7 +4447,7 @@ def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path)
         ],
     )
     assert result.exit_code != 0
-    assert 'unadmitted ["x-nope"]' in result.output
+    assert 'unadmitted ["x-nope"]' in words(result.output)
 
     (overlay / "registry.json").write_text(
         json.dumps({"$keys": {"x-space": "wider, in this project"}})
@@ -4977,7 +4981,7 @@ def test_x_awaits_names_the_verbs_that_answer_it(page_dir):
     result = check(page_dir)
 
     assert result.exit_code == 1
-    assert 'x-awaits answers with verbs ["missing"], which are not x-state' in (
+    assert 'x-awaits answers with verbs ["missing"], which are not x-state' in words(
         result.output
     )
 

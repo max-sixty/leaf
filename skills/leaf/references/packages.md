@@ -290,16 +290,15 @@ is in [package-data.md, "User state"](package-data.md#user-state).
 
 Before a page uses the package, `leaf package check PACKAGE --render` draws the worked
 examples of the widgets the package's own `registry.json` declares, in the browser
-`page check --render` uses, and prints one line per finding: the widget, the check,
-and what the check measured. A finding is advice for the widget's author: it refuses
+`page check --render` uses. It prints one object in the shape `page check` prints,
+each finding a record with its `code`, the widget it names as `at`, and what the
+check measured as `values`; a package the check refuses is reported as its one
+`package` finding. A widget finding is advice for the widget's author: it refuses
 nothing, and the exit status ignores it. The command fails only where the package
-check does or the examples cannot be drawn; where no browser launches, it says the
-examples were not drawn. Examples share a
-page where their ids allow, so one example may point at an element another declares,
-and a blank image stands in for any media an example names. `--json` prints the
-result as one object in the shape `page check --json` prints, each finding a record
-with its `code`, the element it names as `at`, and the measured `values`; a package
-the check refuses is reported as its one `package` finding. The checks:
+check does or the examples cannot be drawn; where no browser launches, it says why
+the examples were not drawn. Examples share a page where their ids allow, so one
+example may point at an element another declares, and a blank image stands in for
+any media an example names. The checks:
 
 - `example`: no worked example shows the tag, so no other check reads it.
 - `keeps-first-box`: the widget's box once the page presents differs from its box at

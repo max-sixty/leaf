@@ -22,6 +22,7 @@ The file goes to the state home's `pictures/` directory for the page, named for 
 comment, since a file in the page directory would count as activity on the page.
 """
 
+import json
 from pathlib import Path
 
 from leaf.event_log import read_events
@@ -29,7 +30,7 @@ from leaf.render_checks import PageNotReady, rendered, wait_until_ready
 from leaf.revision_artifact import read_revision
 
 from ..refusals import Refused
-from .command import in_browser
+from .command import NoBrowser, run_in_browser
 from .preview import preview_server
 from .scheme import served
 from .screens import page_files
@@ -80,7 +81,7 @@ CLIP = """(el, context) => {
 
 
 def cmd_picture(page_dir: Path, message: str) -> int:
-    """Write the picture of drawing comment `message` and print its path."""
+    """Write the picture of drawing comment `message` and print its `file`."""
     comment = next(
         (event for event in read_events(page_dir) if event["id"] == message), None
     )
@@ -97,15 +98,15 @@ def cmd_picture(page_dir: Path, message: str) -> int:
         revision,
         through_seq=comment["seq"],
     ) as url:
-        ran = in_browser(
-            "picture", lambda browser: _picture(browser, url, comment, out)
-        )
-    if ran is None:
-        return 1
-    refused, _ = ran
+        try:
+            refused, _ = run_in_browser(
+                lambda browser: _picture(browser, url, comment, out)
+            )
+        except NoBrowser as error:
+            raise Refused(f"no picture: {error}") from error
     if refused:
         raise Refused(f"message {message}: {refused}")
-    print(out)
+    print(json.dumps({"file": str(out)}, ensure_ascii=False))
     return 0
 
 

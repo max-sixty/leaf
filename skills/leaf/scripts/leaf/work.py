@@ -64,12 +64,12 @@ def page_element(page_dir: Path, name: str) -> dict | None:
 FOLDED = ":is(details:not([open]), lf-tab:not(:first-of-type), [hidden])"
 
 
-def stands_open(page_dir: Path, element: str) -> bool:
-    """Whether `element` is on the newest revision where a reader meets it without
-    opening anything (`FOLDED`)."""
+def open_ids(page_dir: Path, element: str) -> set[str] | None:
+    """The ids of `element` and everything inside it, where `element` is on the newest
+    revision and a reader meets it without opening anything (`FOLDED`); else None."""
     revision = latest_revision(page_dir)
     if revision is None:
-        return False
+        return None
     found = next(
         (
             node
@@ -78,7 +78,11 @@ def stands_open(page_dir: Path, element: str) -> bool:
         ),
         None,
     )
-    return found is not None and found.closest(FOLDED) is None
+    if found is None or found.closest(FOLDED) is not None:
+        return None
+    return {element} | {
+        inner.attrs["id"] for inner in found.iter_elements() if inner.attrs.get("id")
+    }
 
 
 def page_subject(page_dir: Path, events: list, name: str) -> dict | None:

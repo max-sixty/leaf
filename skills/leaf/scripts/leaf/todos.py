@@ -68,8 +68,9 @@ no seat; a start on an open to-do of the agent's or an update the agent owes; an
 end of an open to-do, the user's only of one the agent opened on them
 (`todo_error`). `TodoReading` holds the log's to-dos, starts and endings for one
 event basis, and `WorkReading.page_todos` attaches thread and activity readings to
-to-dos. Ending the last open to-do on an element `done` while that element still
-stands among the open work makes `task end` say so (`finished_in_view`): agents
+to-dos. Ending a to-do on an element `done` while that element still stands among
+the open work, with nothing on it or inside it left on either list, makes `task end`
+say so (`finished_in_view`): agents
 recorded each result where its item stood and left pages mostly finished work. The
 agent judges whether the element is finished work or the page's current content.
 
@@ -481,22 +482,39 @@ def put_down(page) -> dict | None:
 
 
 def finished_in_view(page_dir: Path, end: dict) -> str | None:
-    """The element a `done` end finished, where no other to-do stays open on it and
-    it still stands among the open work (`work.stands_open`); else None."""
+    """The element a `done` end finished, where it still stands among the open work
+    (`work.open_ids`) and nothing on it or inside it is on either list; else None."""
     from .event_log import read_events
-    from .work import stands_open
+    from .served_state.context import read_page
+    from .served_state.page import read_served_page
+    from .work import open_ids
 
     if end["outcome"] != "done":
         return None
-    todos = TodoReading(read_events(page_dir)).todos
+    events = read_events(page_dir)
     subject = next(
-        (todo["subject"] for todo in todos if todo["id"] == end["todo"]), None
+        (
+            todo["subject"]
+            for todo in TodoReading(events).todos
+            if todo["id"] == end["todo"]
+        ),
+        None,
     )
     if subject is None or subject["kind"] != "element":
         return None
-    if any(todo["subject"] == subject and todo["state"] == "open" for todo in todos):
+    within = open_ids(page_dir, subject["id"])
+    if within is None:
         return None
-    return subject["id"] if stands_open(page_dir, subject["id"]) else None
+    served, _, _ = read_served_page(read_page(page_dir, events))
+    queues = served["browser"]["views"][str(served["active"]["revision"])]["queues"]
+    if any(
+        item["subject"]["id"] in within
+        for side in ("on_user", "on_agent")
+        for item in queues[side]
+        if item["subject"]["kind"] in ("element", "widget")
+    ):
+        return None
+    return subject["id"]
 
 
 def cmd_end(page_dir: Path, todo: str, outcome: str, detail: str | None) -> dict:

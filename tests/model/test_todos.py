@@ -1036,19 +1036,24 @@ def test_idle_refuses_over_an_open_todo(page_dir):
 def test_ending_a_section_todo_done_names_the_section_left_among_the_open_work(
     page_dir,
 ):
-    """Finished work belongs collapsed after what is still open, so ending the last
-    open to-do on an element `done` says on stderr when that element still stands
-    open, and says nothing for another outcome, while other work on it stays open, or
-    once the saved page folds it."""
+    """Finished work belongs collapsed after what is still open, so ending a to-do on
+    an element `done` says on stderr when that element still stands open, and says
+    nothing for another outcome, while work on it or inside it stays on either list,
+    or once the saved page folds it."""
     publish(page_dir)
-    first = written(leaf("task", "open", page_dir, "plan", "Rework the plan"))
-    second = written(leaf("task", "open", page_dir, "plan", "Recheck the plan"))
-    ended = leaf("task", "end", page_dir, first["id"], "done", "version 2")
+    parent = written(leaf("task", "open", page_dir, "plan", "Rework the plan"))
+    child = written(
+        leaf("task", "open", page_dir, "plan-choice-decision", "Recheck the choice")
+    )
+    ended = leaf("task", "end", page_dir, parent["id"], "done", "version 2")
     assert len(ended.output.splitlines()) == 1
-    ended = leaf("task", "end", page_dir, second["id"], "done", "version 2")
+    ended = leaf("task", "end", page_dir, child["id"], "done", "version 2")
     record, note = ended.output.splitlines()
     assert json.loads(record)["outcome"] == "done"
-    assert "`plan` is done, and it still stands among the open work" in note
+    assert "`plan-choice-decision` is done, and it still stands among" in note
+    again = written(leaf("task", "open", page_dir, "plan", "Recheck the plan"))
+    ended = leaf("task", "end", page_dir, again["id"], "done", "version 2")
+    assert "`plan` is done" in ended.output.splitlines()[1]
 
     dropped = written(leaf("task", "open", page_dir, "plan", "Trim the plan"))
     ended = leaf("task", "end", page_dir, dropped["id"], "dropped", "not needed")

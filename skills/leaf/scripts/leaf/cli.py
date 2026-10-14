@@ -1255,9 +1255,9 @@ def task_end(dir: str, task_id: str, outcome: str, detail: str | None) -> None:
     either side. A prose ask's id (`reply:<message-id>`) ends that request
     without creating a user answer: `done` records it answered elsewhere, DETAIL
     saying where, and `dropped` records it withdrawn. Widget asks end through
-    their declared state or an authored withdrawal. Ending the last open to-do on
-    an element `done` while that element still stands among the open work says so
-    on stderr."""
+    their declared state or an authored withdrawal. Ending a to-do on an element
+    `done` while that element still stands among the open work, with nothing on it
+    or inside it left on either list, says so on stderr."""
     from leaf.todos import cmd_end, finished_in_view
 
     page_dir = resolve_dir(dir)

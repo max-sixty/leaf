@@ -1893,7 +1893,9 @@ flowchart TD
                     <li class="page">
                       <span class="tier">The page's <code>@layer</code> blocks</span>
                       <span class="by">Page</span>
-                      <span class="what">Declared after Leaf's tiers, so above them.</span>
+                      <span class="what"
+                        >Declared after Leaf's tiers, so above them.</span
+                      >
                     </li>
                     <li class="leaf">
                       <span class="tier"><code>lf-state</code></span>
@@ -1919,7 +1921,9 @@ flowchart TD
                     <li class="leaf">
                       <span class="tier"><code>lf-reset</code></span>
                       <span class="by">Leaf</span>
-                      <span class="what">Clears the browser's form-control styles.</span>
+                      <span class="what"
+                        >Clears the browser's form-control styles.</span
+                      >
                     </li>
                   </ol>
                 </div>
@@ -1953,8 +1957,8 @@ flowchart TD
                     </li>
                   </ol>
                   <p class="cascade-note">
-                    Page rules and Layouts stop at the shadow root. Inherited tokens such
-                    as <code>--accent</code> cross it, as does a part the widget
+                    Page rules and Layouts stop at the shadow root. Inherited tokens
+                    such as <code>--accent</code> cross it, as does a part the widget
                     exports with <code>::part</code>.
                   </p>
                 </div>
@@ -1975,9 +1979,9 @@ flowchart TD
               cascade ranks later layers higher.
             </p>
             <p>
-              A rule for <code>button</code> or <code>input</code> dresses the page's own
-              controls and leaves the controls Leaf and its widgets build alone. To change
-              those, the selector names the widget or Leaf's class:
+              A rule for <code>button</code> or <code>input</code> dresses the page's
+              own controls and leaves the controls Leaf and its widgets build alone. To
+              change those, the selector names the widget or Leaf's class:
               <code>lf-board .lf-grip</code>. Leaf's banner and panels take the page's
               colors and type from tokens set on <code>:root</code>, such as
               <code>--accent</code> and <code>--sans</code>.
@@ -1986,27 +1990,28 @@ flowchart TD
             <h3 id="override-layout">Overriding a Layout</h3>
             <p>
               A Layout is a starting point. On one page, a rule in the page's
-              <code>&lt;style&gt;</code> changes a track, a gap or an order, and a page no
-              Layout fits drops the class and writes its own grid. Across pages, a
+              <code>&lt;style&gt;</code> changes a track, a gap or an order, and a page
+              no Layout fits drops the class and writes its own grid. Across pages, a
               package's <code>theme.css</code> sits in <code>lf-base</code>, below the
               Layouts, so it changes a Layout through the tokens the Layout reads:
               <code>--col</code> and <code>--wide</code> for the column's widths,
               <code>--sidebar</code> for the sidebar's width, and
               <code>--page-pad-start</code> and <code>--page-pad-end</code> for the room
               above and below the page. A package that declares widgets reaches only
-              inside them, so these rules go in a theme package, one that declares
-              none.
+              inside them, so these rules go in a theme package, one that declares none.
             </p>
-            <pre id="override-layout-example"><code class="language-css">/* A theme package's theme.css: the page starts 28px below the banner. */
+            <pre
+              id="override-layout-example"
+            ><code class="language-css">/* A theme package's theme.css: the page starts 28px below the banner. */
 body.site-page {
   --page-pad-start: 28px;
 }</code></pre>
 
             <h3 id="override-widget">Overriding a widget or a package</h3>
             <p>
-              For one page, a rule in the page's <code>&lt;style&gt;</code> that names the
-              widget restyles it, such as <code>lf-card { padding: 8px; }</code>. For
-              every page, the widget's own package styles it in its
+              For one page, a rule in the page's <code>&lt;style&gt;</code> that names
+              the widget restyles it, such as <code>lf-card { padding: 8px; }</code>.
+              For every page, the widget's own package styles it in its
               <code>theme.css</code>, where <code>:scope</code> names the widget itself
               and ordinary selectors name what it contains.
             </p>
@@ -2018,10 +2023,12 @@ body.site-page {
               package's <code>:scope:is(lf-card)</code>, which is more specific, and an
               equally specific unscoped rule still loses to the scoped one. To change a
               widget's own declaration, the theme package writes its rule in the same
-              scope with a selector at least as specific, and wins by coming later in the
-              page's package order:
+              scope with a selector at least as specific, and wins by coming later in
+              the page's package order:
             </p>
-            <pre id="override-widget-example"><code class="language-css">/* A theme package's theme.css */
+            <pre
+              id="override-widget-example"
+            ><code class="language-css">/* A theme package's theme.css */
 @scope (lf-card) {
   :scope:is(lf-card) {
     padding: 8px;

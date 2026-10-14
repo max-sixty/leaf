@@ -1,110 +1,65 @@
-"""Leaf's side of one Codex task, shared by every App Server client that holds
-one open.
+"""Leaf's side of one Codex task, shared by both App Server clients.
 
-An App Server client is whatever connects to a Codex task's App Server on Leaf's
-behalf: the detached process in `codex_adapter.py`, which observes a task it does
-not own, and the website's host in `leaf_website` (`worker/`), which owns the tasks
-it starts.
-What both need is here — the App Server connection and the request shapes one Leaf
-turn is opened with, the per-turn fold from a turn's notifications into its
-activity, its reply and its ending (`TurnFold`), the loop that reads a started
-turn's own connection to its end (`CarriedTurn`), the writers that put those
-readings on a claimed page, and the durable records a delivery passes through.
+Two programs connect to a Codex task's App Server for Leaf: the detached
+`codex_adapter.py`, which watches a task the user owns, and `leaf_website`
+(`worker/`), which owns the tasks it starts. Both use this module's App Server
+connection, `start_app_server_delivery` to start a delivery's turn, `TurnFold` to
+turn a turn's notifications into page activity, a reply and an ending, and
+`CarriedTurn` to follow a turn on the connection that started it. Each client's
+header says how notifications reach its folds and what it does when a start or a
+connection fails.
 
-A delivery record under the state home is the handoff between Leaf capturing a
-user's updates and a transport taking them. One record is offered once, accepted once,
-and receipted per page batch, whichever transport carried it — an App Server turn or
-the `codex queue` command, or a tool or Stop hook — so preparing, accepting, opening
-and abandoning one live here rather than beside either client. The immutable
-payload itself belongs to `delivery`; what this module keeps is which task holds it and how far it has got.
+A delivery carries a batch of the user's updates to the task. Its content is an
+immutable envelope (`delivery.freeze_delivery`, read with `leaf delivery read <id>`).
+Its progress is one mutable record per delivery under the state home, whose class
+says how far it has got: `Collecting` while `append_batch` adds events, `Offering`
+once `offer_delivery` freezes the envelope and hands out a pointer to it,
+`HookOffer` when that pointer went to a hook's running turn, `StartingOffer` while an
+App Server start is unconfirmed, then `Accepted` (the queue took it), `Opened` (a
+known turn took it) or `Abandoned`. Every transport shares the record, writing it
+under the session's delivery lock: an App Server turn, the `codex queue` command, and
+Codex's tool and Stop hooks. A record is offered once, accepted once
+(`accept_codex_delivery`), and receipted on each page (`finish_codex_batch`).
 
-Each delivery has one globally addressed immutable envelope and one mutable record.
-The adapter and Codex's tool and Stop hooks capture into the same records under the
-session's delivery lock. Capture skips events already in any live record, an offer no
-transport has accepted yet included, and input collected after a record freezes
-belongs to a later delivery. The record's variant says how far it has got: capture
-(`collecting`), a frozen pointer (`offering`), an offer reserved to a hook's turn
-(`hook`), an uncertain provider start (`starting`), durable queue acceptance
-(`queued`), proven context entry (`opened`), or abandonment (`abandoned`). A frozen
-record keeps only the event identities its page receipts need. Recovery repeats an
-outcome's idempotent page effects before it removes each pending receipt, since the
-cursor alone cannot prove the exact pickup evidence was written. An outcome with no
-pending receipts moves under `history/`, including one a crash left in the live
-directory, and `leaf delivery read <id>` still resolves its envelope. Reinitializing a
-page path cannot revive a completed receipt, and a page whose events no longer match
-retires its old batch.
+`append_batch` adds only events no live record holds, offered or not, and events
+that arrive after a record freezes go into the next delivery. A record holds at most
+one thread reply, so the turn it starts writes one reply. Page receipts are
+idempotent, and `recover_codex_receipt` repeats a batch's page writes before marking
+it done, because the page cursor alone can't show the pickup was written. A record
+with no pending receipts moves under `history/`, where `leaf delivery read` still
+finds its envelope. A batch whose page is gone, or whose events no longer match the
+page, is retired without writing (`delivery.receive_batch`).
 
-A hook offer and the idle transport share each record. While a proven tool hook can
-reach the running claimant turn, the hook freezes a plain-reply pointer and records
-its offer's exact turn; Stop uses the same path, including for a resumed turn that
-runs no tool, and no hook repeats a pointer or takes an offer another transport owns.
-Reading the pointer in the task reserves acceptance before any page receipt. That
-exact reservation proves receipt eligibility even where no earlier tool hook proved
-delivery between steps, and the queue respects it while its turn stays eligible. An
-unread hook offer passes to the idle transport once Stop or Interrupt closes the turn,
-or once the activity reading stops believing the turn. Without an App Server
-observer, the idle transport is Codex's durable same-task queue, which receives the
-bounded id-only `leaf-delivery` pointer; a failed or uncertain queue call retries the
-same frozen pointer while the session owns a page, and the queue command never calls
-`turn/start`. With an observer, Leaf keeps the frozen delivery offering until the task
-is idle and then starts it directly. A tool-hook delivery during work owes a plain
-reply; an idle App Server delivery binds the turn's final message.
+While Codex's tool hook can reach the running turn, `offer_hook_delivery` offers the
+pointer between steps and records the turn in a `HookOffer`. The Stop hook does the
+same, even for a resumed turn that ran no tool. `leaf delivery ack` in that turn
+accepts it (`codex_state.confirm_codex_pointer`). A hook never re-offers a pointer or
+takes one another transport holds. Once Stop or Interrupt closes the turn, or the
+turn no longer reads as running, the adapter's `_offer_queued_delivery` offers the
+unread pointer itself. Without an App Server connection it hands the pointer to
+`codex queue`, retrying the same pointer while the session owns a page, and never
+calls `turn/start`. With a connection it waits until the task is idle and starts the
+turn. A delivery offered by a hook or the queue asks the agent for a plain reply; one
+started over App Server takes the turn's final message as its reply.
 
-A session that loses its final page leaves its collecting or offering record in place
-but inactive until the same session claims a page again. Acceptance has crossed the
-external-effect boundary, so an accepted record's remaining page receipts are
-reconciled before the adapter checks ownership and retires. If every website startup
-retry fails, its deterministic fallback settles the triggering event and removes the
-unaccepted record, while the immutable payload stays at its permanent path for a turn
-whose acceptance may have raced the failed response.
+When a session loses its last page, its `Collecting` or `Offering` record waits until
+the same session claims a page again. The adapter finishes an accepted record's
+remaining receipts before it checks ownership and exits. When the website gives up
+starting a delivery, `abandon_codex_delivery` removes the unaccepted record and keeps
+the envelope, in case a turn took it after all.
 
-Starting a delivery's App Server turn is shared as well: `start_app_server_delivery`
-makes the delivery's reply reservation (`delivery`), sends `turn/start`, and says
-whether a failed start may have left a turn running. Which delivery is offered, when,
-and what an uncertain start means for the turn it may have made are each client's own
-policy: the adapter's offer loop and the website's turn follower each keep theirs. The start returns the lifecycle
-publication it admitted, and both clients' folds retain its generation and provider ID
-through construction, activity and cleanup: a fold projects live activity only under
-the exact current publication with its matching turn open, under page→session locks,
-and cleans up under the matching publication after closure. A resumed new generation replaces an older live
-fold instead of borrowing it.
+`start_app_server_delivery` reserves the delivery's reply, sends `turn/start` with the
+delivery id as `clientUserMessageId`, and raises `AppServerDeliveryUncertain` when a
+failed start may have left a turn running. Its docstring says what each failure does
+to the reservation, and each client decides what an uncertain start means. A
+`TurnFold` writes activity only while its session generation and turn are current
+(`TurnFold.activity_epoch`), so a fold from an older generation never touches a
+newer one's activity. `delivery`'s header owns the reply reservation, and
+`../../references/harness-codex-app-server.md`, "Replies", is the agent's side of it.
 
-A client that owns its task, as the website's host does, delivers the same immutable
-envelope with `turn/start` when the task is idle. The request carries the delivery id
-as its client message id, and App Server answers with the turn it made, so the starter
-knows its turn before reading a notification. The structured delivery also stays in
-the transcript, which is how a client that did not start a turn recovers the same
-binding: one resuming a task after the fact, or reading the turn a queued pointer
-opened. Once App Server accepts the turn, the host opens the claim turn under App
-Server's turn id, records the delivery against it, advances the page cursor, holds the
-task's wait lease for the container harness's lifetime, and keeps the initiating
-connection for activity. The pickup, the claim turn and streamed activity all name
-that one id, which Codex's own hooks name too, and a retry reads the durable pickup
-instead of starting the event again. Its subscription spans the active turn, the
-delivery turn's opening and that turn's terminal notification, recording both `opened`
-and the exact close, and a host that owns a starting connection closes only that turn
-on its terminal notification. A host owns the provider task and interrupts its turn
-when its initiating stream fails; the adapter observes a user-owned task and
-reconnects without interrupting it.
-
-An App Server client presents at most one thread reply in each turn's chronological
-delivery slice, with an exact response reference and `writer: "turn"`; once the turn's
-reply reservation holds it, its workflow keeps that reply operation and records that
-the turn writes it.
-The completed final-answer item finishes that exact response: the hook lets the
-provider turn close, and the client commits the provider text through the canonical
-reply writer when the terminal notification arrives. An explicit addressed reply
-commits at once through the same writer, so its validation refusals reach the agent
-while it can still correct them, and a provider final yields to a successful reply
-already recorded at its exact input. The reservation fences competing provider finals
-and failure receipts; it stores no authored content and survives a lost connection
-until commit or terminal release. `../../references/harness-codex-app-server.md`,
-"Replies", is the agent's side of this contract.
-
-Codex's hooks import this module between steps and before Stop for a task holding
-a page (`offer_hook_delivery`), so `thread`, which brings the page model and its validators,
-is imported inside the functions that write a reply or a failure onto a thread
-rather than here.
+Codex's hooks import this module between steps and before Stop
+(`offer_hook_delivery`), so `thread`, which brings the page model and its validators,
+is imported inside the functions that need it.
 """
 
 import atexit

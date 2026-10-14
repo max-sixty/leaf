@@ -4,14 +4,13 @@ Read with [packages.md](packages.md), which holds the package contract and a wid
 
 ## User state
 
-A widget whose user changes something records each change as an `action` event in the
-page's append-only log. The package writes no storage or server code. It declares verbs
-under the element's `x-state`, and Leaf validates each event at the log's one append
-door, folds the log into current state, gives that state to the module, and lists it
-for the agent under `state` in `leaf page state`.
+A widget records each change the user makes as an `action` event in the page's log;
+the package writes no storage or server code. It declares each kind of change as a verb
+under the element's `x-state`. Leaf validates each event, works out the current state,
+hands it to the module, and shows it to the agent under `state` in `leaf page state`.
 
 The default board declares `move` as a position record in
-`packages/default/registry.json`; its module subscribes to and dispatches that state:
+`packages/default/registry.json`:
 
 ```json
 {
@@ -24,63 +23,67 @@ The default board declares `move` as a position record in
 }
 ```
 
-The record determines the event's payload schema. A move sends
-`detail: {unit: cardId, value: columnId, rank}`: the moved card, its destination column,
-and its rank key. Leaf checks their types and ownership at admission. The package
-declares no separate `detail` schema or input-field mapping for a recorded verb.
+Leaf keys each action by `[widget, unit, verb]`: the element, the part of it the action
+changes, and the verb. For each key the latest action not taken back sets the state, so
+moving a card again replaces that card's position while other cards keep theirs.
+`record` says how the state shows in markup, here as the card's place in a column. A
+new version may change the authored markup freely; the user's decisions still apply
+over it until a `restated` event takes one back. The `$keys` entries in
+`assets/registry.json` define each key exactly.
 
-Each verb is its own piece of state: the owning element, the `unit`, and the verb together form the fold
-coordinate. At each coordinate the latest surviving action stands, and different
-coordinates stand side by side. Moving a card again therefore replaces that card's
-earlier position, while positions of different cards coexist. Recorded body, attribute,
-and value verbs use `unit: "widget"`; position verbs use `unit: "unit"`, naming the
-canonical detail field for the moved element. `record` says how the current state reads in markup: here, the
-card's position inside a column. Decisions in force supply the current state;
-`restated` explicitly retracts a decision, and revisions may change their authored
-baseline without a historical-state veto. The `$keys`
-entries in `assets/registry.json` define each key exactly.
+The record kind fixes the event's payload, a closed object with every field required:
 
-Each physical attribute has one recording owner. A member's scalar value record
-cannot share its attribute with an enclosing attribute-set record. Leaf checks that
-composition in authored markup and when a move would place the member under a new
-owner; records on different attributes compose independently.
+- `body` sends `{value}`, a string that replaces the widget's body.
+- `attribute` sends `{value}`, an array of distinct member ids, marked by the boolean
+  attribute `record.attr` names.
+- `value` sends `{value}`, matching the schema of the attribute `record.attr` names in
+  the widget's `properties`.
+- `position` sends `{unit, value, rank}`: the moved element, the destination container
+  (of the tag `record.within` names), and its rank.
 
-Recorded payloads are closed objects: all listed fields are required and extra fields
-are refused. Their fields come from the effect:
+These verbs use `unit: "widget"`, except position verbs, whose `unit: "unit"` names the
+detail field holding the moved element. A verb with no record declares its own closed
+`detail` JSON Schema, with `unit` either `"widget"` or a required string detail field
+naming what the verb's state is about, by element id or by data key, as a playground's
+submitted settings do.
 
-| Record kind | Detail fields | Value validation |
-| --- | --- | --- |
-| `body` | `{value}` | String replacing the widget's body. |
-| `attribute` | `{value}` | Array of distinct owned member ids; `record.attr` names the boolean attribute marking them. |
-| `value` | `{value}` | The schema of the destination in the widget's `properties`; `record.attr` names that attribute. |
-| `position` | `{unit, value, rank}` | Strings naming the owned element, valid destination container, and rank key; `record.within` names the container tag. |
+Only one widget records each attribute. A member's `value` record can't use the same
+attribute as an `attribute` record on a widget around it; `page check` refuses that in
+the markup, and Leaf refuses a move that would put the member under such a widget.
+Records on different attributes don't interact.
 
-`text: true` on an agent-written verb requires each report to carry non-empty
-`detail.text`, the report's news. Omit `text` when the verb has no news. The effect
-determines the complete payload; a recorded verb cannot add contextual fields or
-independent schema refinements.
+A verb that lets the user add a child element declares `creates`, as `lf-options`' `add`
+does with `{"child": "lf-option", "words": "text"}`. Its `unit` names the detail field
+holding the new child's id, which must be one no page or Thread markup holds, created
+members included, and `words` the field holding its text; its detail schema has just
+those two fields. Each added child is its own key, so undoing the add removes it. The
+child's tag lists the widget in `x-owners`, requires only an `id`, and has
+`x-content: markup`.
 
-A verb with no record declares its own closed `detail` JSON Schema. Its `unit` is
-`"widget"` or a required string detail field identifying the subject of that verb's
-state, by element id or data key. This supports custom actions, such as a playground's
-submitted settings, and generated children.
+The added child belongs to its parent. Its entry may have a module and a shadow root for
+presentation, but `package check` refuses one that declares state, asks, work, history,
+data, visual parts, or a thread seat or surface of its own; the parent's controller
+records and presents
+it. Removing the child doesn't withdraw the parent's actions, so a parent selection
+still in force selects the same id if it returns. A widget that needs its own actions
+or services belongs in authored markup.
 
-`x-awaits` registers an ask automatically for each matching widget. Its
-required `value` names one `x-state` verb: recorded state supplies that verb's
-typed value, and a verb without a record supplies its admitted action detail.
-For example, `"value": "choose"` exposes selected option ids; a playground's
-recordless `choose` exposes its submitted configuration. The source widget
-continues to own that state and admit its commands.
+A verb the agent writes, such as the task `status` on the Atlas example page, declares
+`"writer": "agent"`, `unit: "widget"`, and an `attribute` or `value` record. A worker sets
+it with `leaf page report`; the page shows it at once, and it stays until a new version
+answers it. `text: true` requires each report to carry short news for a person in
+`detail.text`. Each verb has one writer, so no key holds both a user's action and an
+agent's report. A widget with such a verb also declares a boolean `overruled` attribute,
+which a version sets to keep its authored state over the report. A worker that reacts to
+the user follows their actions with `leaf page events PAGE --follow`.
 
-`x-awaits.retired` names the flag an author sets to end an ask already
-posed, such as a decision kept collapsed with its options; `when` must require
-that flag absent. An ask context, such as `lf-ask`, must frame at least one
-source that asks or was retired, and `page check` refuses one that frames none.
-
-`x-awaits.answered` separately says when the ask is complete. `{}` holds
-while the verb's state stands, `when` narrows a verb to instances with matching
-attributes, and `empty` holds while the named container has no members. A
-page-owned queue can declare:
+`x-awaits` makes each matching widget pose an ask. Its `value` names the verb whose
+state is the answer: the recorded value, or a recordless verb's latest `detail`. An
+options group uses `"value": "choose"` for the selected ids; a playground's unrecorded
+`choose` gives its submitted settings. `x-awaits.answered` separately says when the ask
+is complete: `{}` once the verb has a state, `when` for instances with matching
+attributes, and `empty` while the named container has no members. A page-owned queue can
+declare:
 
 ```json
 {
@@ -91,67 +94,30 @@ page-owned queue can declare:
 }
 ```
 
-The ask is answered when the marked column is empty; returning a card
-reopens it. The package declares its own columns and cards, whose `x-owners`
-name their containers. The default board's `lf-column` belongs only to
-`lf-board`; ordinary boards pose no ask unless they declare one.
+The ask is answered once the marked column is empty, and returning a card reopens it. A
+draft declares `"value": "edit", "answered": {"edit": {}}`, and an options group answers
+on `choose` for single choice and on Done's `answer` for multiple choice. A partial
+choice can be open and an empty selection complete. If the ask's `when` stops holding,
+a complete ask stays answered and an incomplete one is withdrawn.
 
-A draft declares `"value": "edit", "answered": {"edit": {}}`. An options group
-keeps `"value": "choose"` for both forms, while `answered` selects `choose` for
-single choice and `answer` for multiple choice's Done. Completion never depends
-on the answer's truthiness: partial choices can be open, and an empty selected
-set can be complete. If the ask's `when` stops holding, a complete source
-remains answered and an incomplete one becomes withdrawn.
+`x-awaits.retired` names the attribute an author sets to close an ask but keep it on the
+page, such as a decided question collapsed with its options; the ask's `when` must
+require it to be absent. A wrapper like `lf-ask`, declared with `x-ask-context`, gives
+a nested ask its heading and where the user lands, and must hold at least one widget
+that asks or was retired.
 
-`x-ask-context` contributes the leading heading and arrival target to a
-nested ask. It does not replace its source identity or own the answer.
-`lf-ask` is the default context adapter. The module's `static answerWords(value,
-element)` formats values for presentation ([module-state.md, "Declared widget
-state"](module-state.md#declared-widget-state)); `readAsks()` exposes
-typed values directly ([module-reading.md, "Reading asks and obligation
+The module reads and records this state through `widgetController(owner)`
+([module-state.md, "The widget controller"](module-state.md#the-widget-controller)),
+words answers with `static answerWords` ([module-state.md, "Declared widget
+state"](module-state.md#declared-widget-state)), and reads asks with `readAsks()`
+([module-reading.md, "Reading asks and obligation
 queues"](module-reading.md#reading-asks-and-obligation-queues)).
-
-The module reads and writes through `widgetController(owner)`, described in
-[module-state.md, "The widget controller"](module-state.md#the-widget-controller): `subscribe` delivers the authored baseline with the fold applied, and
-`dispatch({kind: "action", verb, detail})` sends a gesture whose result is on screen
-before the server admits it.
-
-A verb that lets the user add a real child declares `creates: {child, words}`.
-Its fold unit names the detail field carrying the new child's canonical element id,
-`words` names the field carrying its non-empty words, and the detail holds exactly those
-two required fields with no record form. Each added child therefore stands on its own
-coordinate: a later action of another verb leaves it in place, and undoing the `add`
-removes it. The child tag admits the sender through `x-owners`, requires only its
-canonical `id`, and has `x-content: markup`. The append door refuses an id already
-held by page or frozen markup, including created members in force. `page check` enforces the declared tag and
-direct-ownership relation once an author writes the child into the markup.
-The child is a parent-owned member. Its declaration has no state, asks, work,
-history, or independent data, visual-part, or thread bindings; `package check`
-refuses those capabilities on a `creates` target. It may have a presentation
-module and shadow root. Its parent's controller owns its recorded behavior and
-presentation readiness; it does not get its own widget controller.
-Removing the member does not withdraw a separate parent action: a parent selection
-still in force can select the same id when it returns. Use authored page or message
-markup for a widget that needs its own declared actions or services.
-
-A verb whose state the agent writes rather than the user declares `"writer": "agent"`
-beside its `unit` and `record`. A worker posts it with
-`leaf page report`, the page paints it live, and it stands until a version
-answers it; the user has no control for it. It uses `unit: "widget"` and a required
-`attribute` or `value` record. It declares `text: true` when each report must also
-carry short human-readable news in `detail.text`. Every verb has exactly one
-writer, so a coordinate never holds a user's action and an agent's report at once.
-The Atlas example's page-owned task `status` is one example. A widget declaring
-such a verb also declares the boolean `overruled` attribute a version keeps its own
-state with. A worker that reacts to the user's actions follows them as they land with
-`leaf page events PAGE --follow`.
 
 ## References between widgets
 
-Use `x-refers` when authored attributes point at other page objects. Its value is
-a map from attribute names to target contracts. `{}` accepts any existing element id.
-A typed contract uses `via` to name a package-owned shared registry map and `where` to
-match a declaration there:
+When an attribute names another element, declare it in `x-refers`, mapping the
+attribute to a target contract. `{}` accepts any element id. A typed contract names a
+package's shared registry map with `via` and the entries it accepts with `where`:
 
 ```json
 {
@@ -162,14 +128,17 @@ match a declaration there:
 }
 ```
 
-Add `"owns": true` to a typed contract whose referrer fills its target, as a command
-fills the readings seat it names. `page check` then requires the target in the
-referrer's own document, and every element there that the predicate selects named by
-exactly one referrer, so no seat stands empty or holds two commands' readings.
+Leaf checks only the relation; the package owns the map and its roles, so a later
+package adds a goal or worker widget by adding its entry to `$work.widgets`.
 
-Where members of one owner name each other by a word rather than an id, declare the
-word unique within the owner with `x-unique`, a map from the member's attribute to the
-owner's tag, and refer to it with a keyed contract, `{tag, key}`:
+Add `"owns": true` when the referring widget draws into its target, as a command widget
+draws its readings into the element its `readings` attribute names. `page check` then
+requires the target in the referrer's own document, the page or the message holding it,
+and every element there matching `where` to be named by exactly one referrer, so no
+target is empty or filled twice.
+
+Members of one owner can name each other by a word instead of an id. A playground's
+setting names its control by `name`:
 
 ```json
 {
@@ -180,26 +149,18 @@ owner's tag, and refer to it with a keyed contract, `{tag, key}`:
 }
 ```
 
-`page check` and message markup validation then refuse two controls of one playground
-sharing a `name`, and a setting whose `for` names no control of its own playground. A
-keyed contract resolves inside the referrer's nearest enclosing owner of the tag its
-target's `x-unique` names for `key`, so the same name in another playground never
-answers it. Rules that need the content itself, such as a range value within its
-bounds, stay with the widget and `page check --render`.
-
-Leaf validates the generic relation; the package owns the map, roles, and participating
-widget tags. A later package can therefore add another goal or worker widget by merging
-its entry into `$work.widgets`, without changing core.
+`x-unique` makes `name` unique within each `lf-playground`, and the keyed contract
+`{tag, key}` looks `for` up only inside the setting's own playground. `page check`
+refuses a repeated name, or a `for` naming no control there. Rules about content, such as
+a value within its range, belong to the widget and `page check --render`.
 
 ## External or derived data
 
-Authored markup says what a version begins with; the event log says what users and
-agents did afterward. A current deployment, sensor reading, worktree, or query result
-is neither. Leaf keeps that third authority as one replaceable JSON file per source.
+A current deployment, sensor reading, worktree or query result belongs neither in the
+page's markup nor in its log. Leaf keeps each as a source: one replaceable JSON file.
 
-The source id belongs to the page: it says which concrete feed this page uses. Its
-meaning comes from a named contract under `$data.contracts`, which can travel in any
-package and be shared by more than one widget:
+A named contract under `$data.contracts`, which any package can declare and several
+widgets share, says what a source's data means:
 
 ```json
 {
@@ -218,21 +179,16 @@ package and be shared by more than one widget:
 }
 ```
 
-State in the contract every rule the widget relies on, such as `records` for unique
-keys or `if`/`then` for a field one kind of record requires, so `data set` refuses a
-value the widget could not present instead of storing it for the page to fail on. A
-widget then reads its value without checking it again. A schema may name a `format`
-only where Leaf checks one: `date-time` is an absolute, timezone-aware instant, `uri`
-is an absolute URL the browser's URL parser accepts, and `package check` lists the
-others and refuses any it does not check.
+Put every rule the widget relies on into the schema, such as `if`/`then` for a field
+one kind of record needs, so `data set` refuses a value the widget couldn't show and
+the widget needn't check it again. A `format` must be one Leaf checks: `date-time` is a
+timezone-aware instant, `uri` an absolute URL, and `package check` lists the rest.
 
-A widget declares the inputs it knows how to present. Each input names its contract and
-the attribute that will carry the page's source id. Make that attribute required when
-the widget cannot work without the input; an optional unbound input delivers `null`.
-Widget-specific authoring instructions travel in `x-instructions`;
-contract-specific producer instructions travel beside the contract in the
-`instructions` audience map. Shared package instructions apply to the package as
-a whole. `packages.md`, "Package contract", defines how a reader selects them.
+A widget declares the inputs it can show under `x-data`, each naming its contract and
+the attribute that carries the page's source id. Make that attribute required when the
+widget can't work without the input; an unbound optional input delivers `null`. Tell
+page authors how to bind it in `x-instructions`, and whoever produces the data in the
+contract's `instructions` (`packages.md`, "Package contract").
 
 ```json
 {
@@ -257,16 +213,14 @@ a whole. `packages.md`, "Package contract", defines how a reader selects them.
 }
 ```
 
-The page makes the concrete binding in ordinary authored markup. Several widgets may
-share one source when they read the same contract; two independent feeds use different
-ids.
+The page binds a source by id in its markup, and widgets reading the same contract can
+share one:
 
 ```html
 <lf-builds id="release-builds" source="release-ci"></lf-builds>
 ```
 
-The harness gathers the value; Leaf does not run a provider or fetch a package URL. Set a
-complete value using the page's source id:
+The agent gathers the value and sets it whole; Leaf fetches nothing:
 
 ```bash
 printf '%s' '{"main":"passing"}' | leaf data set PAGE release-ci
@@ -275,77 +229,45 @@ sed -n '20,44p' CHANGELOG.md | jq -Rs . | leaf data set PAGE release-notes
 leaf data clear PAGE release-ci
 ```
 
-Each source is one JSON publication at `data/<source>.json`, holding its opaque
-`run` receipt, `updated` instant, and complete `value`; `data.json` records its
-contract. Write a value through `leaf data set`, which checks the binding, validates
-the value and replaces the publication atomically. A rejected value leaves it
-untouched. Every reading validates the value against the contract the source is
-bound to now, so a value that no longer fits it reaches users as that source's error,
-and `page check` and `page state` report it. Tabs hear a new publication as they hear any page change.
+`leaf data set` validates the value against the source's contract and replaces
+`data/<source>.json` in one step, or leaves it untouched. Open tabs pick up the new
+value at once. `leaf data clear` removes the value, and each bound widget receives
+`null`. A value that stops fitting a later contract shows users an error for that
+source, and `page check` and `page state` report it. A stamped version keeps the
+contract it was stamped with, so a value written for a changed contract shows there as
+a source error. `leaf page state PAGE` lists every binding under `data_bindings`, so a
+producer needn't parse markup. Every value goes to every user of the page, so never put
+credentials or private host state in one.
 
-A contract that carries media URLs declares `resources`, a list of
-[JMESPath expressions](https://jmespath.org/tutorial.html) selecting each URL string
-or array of URL strings. For example, `"resources": ["images[].url"]` names the
-`url` fields of an `images` array. An absent optional field may select null.
-Selected URLs must be canonical `/media/` URLs returned by `page media`, or
-HTTP(S) URLs. Leaf does not interpret ordinary strings elsewhere as references.
-Snapshots capture the selected local media with the current data value; offline
-exports embed those bytes. Remote media stays remote. These resources belong to
-the data reading, so capturing them does not change a stored authored revision.
+Leaf keeps no old values: every document bound to a source, stamped versions and
+widgets in Threads included, shows its current value. A document that must keep one
+value binds a source id nothing rewrites. Each value has a `revision`, which identifies
+the value, and a `run`, which identifies the write. They don't order against the page's
+events: an old poll may hold new data.
 
-A source's revision identifies its encoded value, its `run` receipt identifies the
-write, and `updated` records when it was written. A rerun with the same value keeps
-its revision and produces a new run. Copying a page preserves those identities.
-Nothing keeps a replaced value: every document that binds a
-source reads its current value, including stamped versions and widgets frozen into
-threads. A document that must keep one value binds its own source id and nothing
-rewrites that source. Source revisions and event sequences are independent: an old poll
-may contain new data, and a new event response may contain old data, so neither orders
-the other.
+A contract whose value has media URLs selects them in `resources`, a list of
+[JMESPath expressions](https://jmespath.org/tutorial.html), such as `"images[].url"`.
+Each must be a `/media/` URL from `page media`, or an HTTP(S) URL; snapshots and offline
+exports carry the local ones.
 
-Leaf derives no values: `data set` stores the value it is given. A value that has
-to be derived from a file — a text excerpt, a patch split into files — is the
-producer's to build, and a contract that needs more than `jq` says how in its
-producer `instructions`. A package may ship that tool
-as a Python file under `scripts/`, declaring its dependencies in inline script metadata
-(PEP 723). `leaf package run NAME SCRIPT [ARGS]...` finds the
-package by the name `--package` selects it by, bundled or installed, and runs the
-script with `uv run --script` in the environment its header declares, apart from
-Leaf's own. The script owns stdin, stdout, and the exit status, so the instructions state the
-pipeline with no path in it:
+Leaf derives nothing: `data set` stores the value it is given, and a producer builds
+anything derived, such as a patch split into files. A package may ship that tool as a
+Python file under `scripts/` with PEP 723 inline metadata naming its dependencies, which
+`package check` requires. `leaf package run NAME SCRIPT` runs it with `uv run --script`,
+so the contract's instructions give a pipeline with no paths:
 
 ```bash
 git diff main... | leaf package run diff patch_manifest.py | leaf data set PAGE review-patch
 ```
 
-`package check` and `package install` refuse a `scripts/*.py` without that header,
-since uv would run it in whatever project the caller's directory reaches. A
-subdirectory of `scripts/` holds helpers and is not checked or run. A page never
-vendors `scripts/`. When a producer upstream of `data set` fails and writes nothing,
-`data set` refuses the empty input and points back at that producer's own error.
+If a producer fails and writes nothing, `data set` refuses the empty input and points
+back at that producer's error.
 
-A revision may replace a source's contract, including its schema, record declaration,
-and resource selectors. `data set` validates against the current binding and replaces
-its stored contract and value together. `data clear` removes the value; retaining
-its last stored contract does not reserve the source id. Archived documents retain
-their captured vocabulary and validate incoming values against that contract; an
-incompatible value is shown as a source error rather than passed to its renderer.
-`leaf page state PAGE` exposes the complete `data_bindings` inventory so a producer can
-discover the ids, contracts, widgets, and documents it needs without parsing markup.
-Every source value goes to every user of the page, including fields a module does not
-paint. Do not put credentials or private host state in it.
-
-A contract whose value holds keyed rows declares `records`: the top-level array field
-and each row's key field. A source replacement is accepted only when every row has a
-non-empty, unique string key. Rows that each carry a large, independently useful
-payload may name that field `deferred`; the item schema decides which rows carry it.
-The source file still holds the complete value, and readings validate all of it,
-but `/api/state` sends each row with that field
-omitted; a widget uses `loadDeferred(snapshot, key)` to fetch one row's payload
-using the delivery `watchData` handed it. A request naming a source revision the file
-no longer holds is refused instead of combining a new payload with an old manifest.
-This is how a collapsed `lf-diff` can show thousands of files without transferring or
-rendering every patch first.
+A contract whose value holds keyed rows declares `records`, naming the array and each
+row's key, which must be a unique non-empty string. A row's large payload can be
+`deferred`: the file keeps it, but the page receives rows without it, and a widget
+fetches one with `loadDeferred(snapshot, key)`. That is how a collapsed `lf-diff` lists
+thousands of files without loading every patch:
 
 ```json
 {

@@ -1,8 +1,9 @@
 # Authoring behavior modules
 
-Use this reference for browser behavior in a page script, a page-owned widget, or a
-reusable package widget. Read this file before writing one, then
-the sections its behavior needs in the files beside it:
+Read this file before writing browser behavior: a page script, a page-owned widget, or
+a reusable package widget. All three use the same helpers, though only a
+registry-declared widget gets a widget controller. Then read the sections your
+behavior needs in the files beside this one:
 
 - [module-reading.md](module-reading.md): the page's words, elements and declarations,
   content helpers, and page readings such as asks and history;
@@ -15,92 +16,67 @@ the sections its behavior needs in the files beside it:
 - [module-annotations.md](module-annotations.md): margin contributions, visual
   parts, and Threads.
 
-The same helpers serve each form. A semantic controller needs a registry-declared
-widget; ordinary elements use the other helpers alone.
-
-[page-behavior.md](page-behavior.md) owns script placement,
-imports, and revision lifetime. [packages.md, "A widget"](packages.md#a-widget)
-owns element declarations; [package-data.md](package-data.md) owns
-state and source contracts. Add or change those declarations when the module needs
-a new capability.
+[page-behavior.md](page-behavior.md) covers where a script goes, its imports, and how
+long it lives across revisions. A widget's declarations are in
+[packages.md, "A widget"](packages.md#a-widget), and its state and data sources in
+[package-data.md](package-data.md).
 
 ## The helper surface
 
-`/runtime/widget-api.js` is the whole Leaf API a behavior module gets. A module imports
-only from it: it does not reach into the runtime's other modules, query Leaf's own
-chrome, or copy a runtime helper into itself. Each helper is documented once, in
-this file or one beside it, in the section for the task it serves, and the header of
-its module under `runtime/` states its full contract. A DOM helper takes the element whose behavior it implements.
+Import Leaf only from `/runtime/widget-api.js`. Don't import the runtime's other
+modules, query Leaf's own chrome, or copy a runtime helper. Each helper is described in
+the section for the task it serves, and the header of its module under `runtime/` has
+the full contract. A DOM helper takes the element it acts for as its first argument.
 
-Of Lit, the surface exports `render`, `html`, `nothing`, `repeat`, `keyed`, `live`,
-`ref`, `createRef`, `classMap`, `styleMap`, `guard`, and `unsafeHTML`. Of Preact
-Signals it exports `signal`, for private state a command's `when` reads
+From Lit, `widget-api.js` exports `render`, `html`, `nothing`, `repeat`, `keyed`,
+`live`, `ref`, `createRef`, `classMap`, `styleMap`, `guard` and `unsafeHTML`. From
+Preact Signals it exports `signal`, for private state a command's `when` reads
 (`module-input.md`, "Command rows").
 
 ## What a behavior module owes
 
-Each rule names the section that documents its helpers, and its file where that is
-another one.
-
 - Upgrade once with `once()`, and hold each connection's listeners, observers and
   registrations in `whileConnected` ("Upgrade", "Connection lifetimes").
-- Check `quoted()` before wiring anything that carries input back ("Upgrade").
-- Read the page's words with `says()` or `wrote()`, never `textContent`, and a widget's
-  `<pre>` body with `bodyText()` or `dataBody()` (`module-reading.md`,
-  "Reading the page").
-- Build injected UI with `offer()`, `offered` or `selectableOffer()`, label it with
-  `relabel()`, give a label whose words change the room of all of them with
-  `data-lf-room`, and take measurements inside `measure` ("Generated controls").
-- After a view swap that keeps the widget's outer box, await `layoutChanged()` before
-  restoring scroll ("Generated controls").
-- Keep the widget's first-paint box once the page presents ("First paint").
-- Schedule paints with `frameFor` and observe size with `sizeObserver`, so checks and
-  tests wait for that work too ("Scheduling paints"); write repeated state through
-  `keeps` ("Writes that change nothing").
-- Record durable user state only through the widget controller, and keep working state
-  in `tabStore` (`module-state.md`, "The widget controller", "Tab-local working
-  state").
-- Register commands at upgrade (`module-input.md`, "Commands and keyboard
-  routes").
-- Place focus with `focusDestination`, never `element.focus()` (`module-input.md`, "Focus and layers").
-- Animate through `motion`, never `element.animate` (`module-scroll-and-motion.md`, "Motion").
+- Check `quoted()` before wiring anything that sends input back ("Upgrade").
+- Read the page's words with `says()` or `wrote()`, never `textContent`
+  (`module-reading.md`, "Reading the page").
+- Build injected controls with `offer()`, `offered` or `selectableOffer()` and label
+  them with `relabel()` ("Generated controls").
+- Keep the box the widget has at first paint ("First paint").
+- Schedule paints with `frameFor`, observe size with `sizeObserver`, and write repeated
+  values through `keeps` ("Scheduling paints", "Writes that change nothing").
+- Record the user's choices only through the widget controller, and keep working state
+  in `tabStore` (`module-state.md`, "The widget controller", "Tab-local working state").
+- Register commands at upgrade (`module-input.md`, "Commands and keyboard routes").
+- Move focus with `focusDestination`, never `element.focus()` (`module-input.md`,
+  "Focus and layers").
+- Animate with `motion`, never `element.animate` (`module-scroll-and-motion.md`,
+  "Motion").
 
 ## Upgrade
 
-A module's `connectedCallback` returns at once unless `once(this)`, which is true only
-on the element's first connection, so a reconnection never builds the widget twice.
-Keep `disconnectedCallback` for teardown that must happen synchronously, such as
-cancelling a grab or removing hoisted UI; everything else a connection holds goes in
-`whileConnected` ("Connection lifetimes").
+Start `connectedCallback` with `if (!once(this)) return;`. `once(this)` is true only on
+the element's first connection, so the widget is never built twice. Use
+`disconnectedCallback` only for teardown that must happen at once, such as cancelling a
+grab or removing hoisted UI, and hold everything else in `whileConnected`.
 
-`quoted(element)` is true for a widget inside one the registry marks `x-exhibit`: quoted
-material, which never takes the user's edits. Check it before wiring anything that
-carries input back, such as a choose path or a drag grip. Presentational upgrades and
-view state still run in a quoted widget.
+`quoted(element)` is true for a widget inside one the registry marks `x-exhibit`, such
+as `lf-sample`. A quoted widget never takes the user's edits, so
+check `quoted` before wiring a choice, a drag grip or anything else that sends input
+back. Its presentation and view state still work.
 
-`failSoft(element, error, source)` turns a failed upgrade, or a failed part of one, into
-a visible error box naming the widget, with `source` beneath it when given, and reports
-the failure as the page's error, which `page check` fails on. In a container a template
-renders, the box is a template value, so the next `render` there replaces it. On a
-widget with a shadow stage the box stands in the stage, and the next `shadowStage` call
-replaces it. `reportFailure(element, error)` sends that report alone, for a part the
-widget shows failed its own way while the rest stands, such as a diff file whose patch
-it cannot draw.
+When an upgrade fails, or one part of it, `failSoft(element, error, source)` replaces
+the widget or part with an error box naming it, shows `source` beneath when given, and
+reports a page error, which fails `page check`. The next `render` into the same
+container, or the next `shadowStage` call, replaces the box. Where the widget shows a
+failed part its own way and the rest keeps working, as `lf-diff` does for a file whose
+patch it cannot draw, call `reportFailure(element, error)`, which only reports.
 
 ## Connection lifetimes
 
-A widget can leave the page and return, as a revision or a thread presentation moves
-it. Register `whileConnected(element, start)` once, after `once(this)`, for the
-listeners, observers and registrations one connection holds. It calls `start(signal)`
-at once on a connected element and again on each return. Listeners take `{signal}`, and
-`start` may return a cleanup function for other resources. A departure aborts the
-signal and runs that cleanup. A `start` that throws has its signal aborted and is never
-started again; its error reaches the caller of `whileConnected`, or the page's error
-report when it was a return. The function `whileConnected` returns retires the
-registration for good and releases what it holds. Call it when the element no longer
-needs those resources, as a widget that fails soft from a paint it cannot repeat does,
-so a return does not start them again. Register resources a `watchData` callback uses
-before `watchData`, so they stand when the callback runs.
+A revision or a thread can take a widget out of the page and put it back. After
+`once(this)`, register `whileConnected(element, start)` once for what a connection
+holds:
 
 ```js
 schedulePaint = frameFor(this, () => this.paint());
@@ -117,281 +93,220 @@ connectedCallback() {
 }
 ```
 
-Leaf decides a departure once a DOM mutation batch is read: an element removed and put
-back in the same batch has not left and keeps its resources. A connecting element's
-`start` runs only after every element that left before it has released, so a widget a
-revision replaces hands its replacement a registration only one element may hold, such
-as `registerThreadPresentation` or `registerReadingRegion`.
+Leaf calls `start(signal)` now and on each return. When the element leaves, Leaf aborts
+the signal and runs the cleanup `start` returned. If `start` throws, Leaf never calls
+it again. `whileConnected` returns a function that ends the registration for good, for
+an element that no longer needs it, such as one that has failed soft. Register what a
+`watchData` callback uses before calling `watchData`.
 
-A `widgetController` subscription, `watchData`, `watchComparison` and the page readings
-(`module-reading.md`, "Page readings") pause while their owner is away. On a return, a subscription calls
-its callback again, and the controller its `renderState`, only when its reading changed
-while the owner was away or when a callback's returned promise had not settled before
-the owner left. A callback that throws or rejects is reported once, as a page error
-naming the element, and its subscription stays: the next changed reading calls it again.
-So return the promise of any paint that finishes later, abandon unfinished work on
-departure, keep finished nodes where they are, and have `start` restore whatever its
-cleanup cleared. A `renderState` or controller subscriber that throws also replaces what
-the widget shows with its fail-soft box ("Upgrade"), since the rest of its view may be
-half drawn.
+Moving an element within the page doesn't count as leaving, since Leaf only decides
+after reading the whole batch of DOM changes. When a revision replaces a widget, the old
+element's cleanup runs before the new one's `start`, so a registration only one element
+may hold, such as `registerReadingRegion`, passes to the replacement.
 
-`readingPaint(element, draw)` gives a reading of the module's own the same rule. Build it
-once, before `whileConnected`. The returned `paint(key, ...args)` calls `draw(...args)`
-unless `key` names the reading it last drew, so calling it from `start` on every
-connection draws again only a changed reading, or one whose promise a departure cut
-short. Authored content that never changes is one reading, keyed by its text. A `draw`
-that throws or rejects is reported by the same rule and never fails `start`; `paint`
-then returns a rejected promise you may ignore. `paint.owes(key)` says whether a call
-would draw, `paint.forget()` makes the next call draw, `paint.refresh()` redraws the last
-reading (on the return, when asked while the owner is away), and `paint.stop()` retires
-it.
+The controller's subscriptions, `watchData`, `watchComparison` and the page readings
+pause while the element is away. On its return, Leaf calls a callback again only if its
+reading changed meanwhile, or if the promise the callback returned had not settled when
+the element left. A callback that throws or rejects is reported once and stays
+subscribed. If `renderState` or a controller subscriber throws, the widget also shows its
+fail-soft box. So return the promise of any paint that finishes later, drop unfinished
+work when the element leaves but keep finished nodes, and have `start` restore what its
+cleanup removed.
 
-`aborted(signal)` resolves once a signal aborts, for work that races its own
-cancellation: `Promise.race([work, aborted(signal)])`.
+For a reading the module computes itself, build `const paint = readingPaint(element,
+draw)` once, before `whileConnected`, and call `paint(key, ...args)` from `start`. It
+calls `draw(...args)` only when `key` differs from the last key it drew or the last draw
+was cut short; key authored content that never changes by its text. A failing `draw` is
+reported as above and never makes `start` throw. `paint.refresh()` redraws the last
+reading, `paint.forget()` makes the next call draw, `paint.owes(key)` says whether it
+would, and `paint.stop()` retires it.
+
+`Promise.race([work, aborted(signal)])` ends work when its signal aborts.
 
 ## Startup and presentation
 
-`body[data-lf-presented]` means the page's first authoritative presentation, or its
-deliberate offline fallback, has rendered. Authored content is visible before then,
-and Leaf disables its arrival transitions until the stamp. New comments and drawings
-become available at `body[data-lf-upgraded]`, when the shown document and its anchors
-are ready. Printed keys pressed earlier are held and handed to the command dispatcher
-at upgrade. Ordinary UI commands use the shown document immediately. A scope, row,
-or route that needs an incomplete reading declares `ready()`; rows and routes
-override their scope. A false reading retains a printed key while startup waits
-for saved state. Decision commands queue while saved state is loading; their owner's
-availability still requires a complete reading. Offline presentation discards pending
-keys and ends startup capture; it does not supply saved state. The shortcut bar names commands
-available now; held keys have their own loading feedback. Packages need no arrival guard.
-A package opens a dialog or popover only after the stamp or in response to a user
-gesture; Leaf does not defer top-layer UI during startup. A declared `x-shadow` widget
-gets the same arrival protection when it builds its shadow root with `shadowStage`
-("Shadow stages and styles").
+The authored page shows at once, and `body[data-lf-presented]` is set once the page's
+first complete presentation has rendered: from the server's state, or offline from the
+authored page alone. Leaf turns off arrival transitions until then, so a widget needs no
+guard against animating in, and an `x-shadow` widget that builds its shadow root with
+`shadowStage` gets the same protection. Leaf doesn't hold back a dialog or popover, so
+open one only after presentation or in response to a user gesture.
 
-Startup dispatches events on `document`. `UPGRADE` fires when comment capture
-is ready. `PRESENTATION` fires once, in the turn the
-page's complete authoritative layout first stands: UI drawn from element geometry reads
-it there synchronously for its first paint, then follows ordinary layout signals.
-`PAGE_INTERFACE` fires at startup and at each in-place revision activation; UI derived
-from authored structure reconciles there, and its `detail.present(promise)` holds the
-page until asynchronous preparation lands.
+Letters and other printed keys typed during startup wait until `body[data-lf-upgraded]`,
+when the page can take comments and drawings, and then run in order. A command whose
+input is still loading declares `ready()` on its scope, row or route; the most specific
+wins. While it returns false, that key and every later one keep waiting. A row with
+`decision: true` waits until the page's saved state has loaded.
 
-A widget that keeps part of its own upgrade off the presentation path, such as a heavy
-renderer it loads only once the user has the page, runs that work through
-`afterPresentation(() => …)`, which both waits for presentation and declares the work.
-Until every such arrival lands the page reads as still arriving, so a reader outside it
-waits on the page rather than on a widget it would have to know about.
-Work that should start at once but that presentation need not wait for, such as a
-slow load whose landing moves nothing the reader sees, goes through
-`deferredArrival(promise)` instead: it counts the running promise without waiting.
-`growthIsSeen(element)` answers whether a change of the element's size now would move
-what the user sees; where it would, register the work with the widget controller's
-`present(promise)` instead, so it lands before the page presents.
+A module can listen on `document` for two startup events. `PRESENTATION` fires once,
+when the page's complete layout is first in place, and is where UI drawn from element
+geometry takes its first measurements. `PAGE_INTERFACE` fires at startup and again when a
+new revision is applied in place; UI built from the authored structure rebuilds there
+and passes any asynchronous preparation to `detail.present(promise)`.
+
+A heavy renderer the widget loads only once the user has the page runs through
+`afterPresentation(() => …)`. Work that should start now but need not delay
+presentation, such as a slow load whose result moves nothing visible, goes to
+`deferredArrival(promise)`. Either way, checks and tests that wait for the page also
+wait for this work. Before deferring work that resizes the widget, ask
+`growthIsSeen(element)`: if growing now would move what the user sees, pass the work to
+the widget controller's `present(promise)` instead, so it lands before presentation.
 
 ### First paint
 
-Upgrade should add behavior and move nothing: a widget's box at first paint is the box
-it keeps once the page presents. `leaf package check --render` names a widget that moves
-as `keeps-first-box` ([packages.md, "Seeing it"](packages.md#seeing-it)).
+Upgrade should add behavior without moving anything: the widget's box at first paint is
+the box it keeps. `leaf package check --render` reports a widget that moves as
+`keeps-first-box` ([packages.md, "Seeing it"](packages.md#seeing-it)).
 
-- Size the widget in the package theme under `html[data-lf-interactive]`, as its module
-  will draw it. Leaf sets that attribute before first paint wherever its runtime will
-  run, in a served page or an export.
-- Where the module draws a structure of its own whose shape the log does not change,
-  such as a row of count tiles, declare that structure as `x-prepaint` rather than
-  summing its line heights in the theme. Delivery writes it into each occurrence for the
-  first paint, and the module removes it (`:scope > [data-lf-prepaint]`) in the same
-  step that draws its replacement.
-- Where the structure depends on the instance's authored members or on values it keeps
-  in `tabStore` (`module-state.md`, "Tab-local working state"), declare `x-initial` instead: the rooted
-  path of a classic JavaScript bundle that registers one synchronous producer with
-  `document.documentElement.lfInitial.register(tag, render)`. Delivery draws each host
-  with it as soon as the host's source has arrived, so the widget first appears whole
-  while prose before it can paint; with scripts disabled, the authored host stays as
-  written. `render(host, {tabStore, offer, offerElement, keeps})` builds the drawing and
-  returns the node references and mechanical state the behavior module needs. It may
-  move authored nodes within its host; Leaf keeps their original source for passages,
-  anchors and version comparison. The producer does no asynchronous or network work
-  and reads no log-derived state. The behavior module calls `initialRender(host)`, which
-  adopts the existing drawing or produces it for a later revision or a thread arrival,
-  then adds behavior to those nodes without rebuilding them. The theme styles the
-  actual initial layout; neither the producer nor the module reserves an estimated
-  height. `x-initial` requires `x-upgrade: true` and cannot accompany `x-prepaint`.
-  Build its classic bundle during development and commit it; installation, serving and
-  export run the committed bundle without a compiler.
-- Where the markup cannot say how tall the drawing will be, declare `x-height`, add the
-  class `lf-rendered` once the drawing is in, and draw at the stated height where the
-  drawing can take any. `page check --render` tells a page's author the height to
-  state for a drawing that cannot.
-- Where the widget shows one of its members at a time, declare `x-views`, open on the
-  member `openingView(holder, members)` returns, and until the module upgrades show only
-  the member marked `data-lf-opening`, as `lf-tabs` does. Record each member the widget
-  shows with `keepView(holder, member)`, so a reload reopens it.
+- Size the widget in the package theme under `html[data-lf-interactive]`, which Leaf
+  sets before first paint wherever its runtime will run.
+- A structure whose shape the log never changes, such as a row of count tiles, goes in
+  `x-prepaint`. Delivery writes it into each occurrence, and the module removes it
+  (`:scope > [data-lf-prepaint]`) in the same step that draws its replacement.
+- A structure that depends on the instance's authored members or on its `tabStore`
+  values (`module-state.md`, "Tab-local working state") goes in `x-initial`: the path of
+  a committed classic script that calls
+  `document.documentElement.lfInitial.register(tag, render)`. Delivery calls
+  `render(host, {tabStore, offer, offerElement, keeps})` as soon as each host's markup
+  arrives, so the widget first appears whole. It must be synchronous, fetch nothing and
+  read nothing from the log; it may move authored nodes within the host, and returns the
+  node references the module needs. The module calls `initialRender(host)` to get that
+  result, drawn on demand for a host that arrived later, and adds behavior to those
+  nodes. `x-initial` requires `x-upgrade: true` and excludes `x-prepaint`.
+- Where the markup can't say how tall the drawing will be, declare `x-height` and add
+  the class `lf-rendered` once drawn. For a drawing that can't fit any height,
+  `page check --render` tells the author what height to state.
+- A widget that shows one member at a time, as `lf-tabs` does, declares `x-views`.
+  Before upgrade only the member marked `data-lf-opening` shows; on upgrade, open the
+  member `openingView(holder, members)` returns, and record each member it shows with
+  `keepView(holder, member)` so a reload reopens it.
 
 ## Rendering
 
 ### Template rendering
 
-Paint templates with `render(template, container)`, which lands in the turn that
-caused it, including a forward widget gesture. Package widgets extend `HTMLElement` and
-receive semantic state through `widgetController`, without a reactive copy of that
-state.
+`render(template, container)` draws synchronously, so a gesture's result shows in the
+same turn. Render only into containers the module generated, never into authored
+children, and once `render` draws into a container, change its children only through
+`render`. `repeat(items, identity, template)` keeps a row's nodes when rows reorder, but
+rebuilds a row that moves to another `repeat`; place nodes you keep yourself as
+"Retained nodes" describes. A widget that extends `HTMLElement` gets its state from
+`widgetController` and keeps no reactive copy.
 
-Templates own generated containers or bounded ranges, never authored children. Once
-`render` owns a container, update its children only through `render`, so Lit keeps its
-markers and disconnects removed directives. `repeat(items, identity, template)` keys
-template rows and keeps a row's nodes across reorders, but builds afresh a row that
-moves to another `repeat`, detaching any retained node in it; place nodes the module
-retains itself as "Retained nodes" describes.
-
-When the application owns a native property the user also changes, bind it with `live`,
-such as `.value=${live(value)}` or `.checked=${live(checked)}`: it compares the live DOM
-value and restores the authoritative value even when that value equals the previous
-template input, as when a gesture is refused. Do not bind initial defaults onto
-properties whose current value belongs to the browser.
+Bind a property the user can also change with `live`, as in `.value=${live(value)}`, so
+a refused gesture restores the recorded value even when the template input is
+unchanged. Don't bind an initial default onto a property the browser owns.
 
 ### Drawing what a widget reads (experimental)
 
-`LeafElement` is a `LitElement` base class for a widget that draws everything it shows
-in one `render()`. It draws into the element itself unless `createRenderRoot()` names a
-generated part to draw into instead, and it never replaces the authored children. Do
-one-time building in `setup()`, which runs on the first connection before the first
-render, in place of `once(this)` in `connectedCallback`. In `render()`, read through
-readers: `this.reading` and `this.state` for the widget's own reading, `this.data(input)`
-for a bound source as `watchData` delivers it, and any page reading or time
-(`readAsks`, `reportSequence`, `ago`). The element draws again when anything it read
-moves, and not otherwise. Return a template, `nothing` when the render writes retained
-nodes itself, or `noChange` to keep what it drew last. `this.controller` dispatches and
-presents preparation; its `defer()` holds the element's draws through a gesture that
-moves its nodes. Lit's own reactive properties update the element for state it keeps
-itself; `requestUpdate()` draws again after a mechanical change, such as revealing held
-news, and `performUpdate()` draws at once when the next lines read what it drew.
+`LeafElement` is a `LitElement` base class for a widget that draws everything in one
+`render()`, into itself or into a generated part `createRenderRoot()` returns, never over
+its authored children. One-time building goes in `setup()`, in place of `once(this)`.
+`render()` reads through Leaf's readers: `this.reading` and `this.state`,
+`this.data(input)` for a bound source, and page readings such as `readAsks`,
+`reportSequence` or `ago`. The element redraws whenever anything it read changes. Return
+a template, `nothing` when the render places retained nodes itself, or `noChange`.
+`this.controller` is the widget controller. Call `requestUpdate()` after a change Leaf
+can't see, such as revealing held news, and `performUpdate()` to draw at once.
 
+### Retained nodes
 
-`setChildren(parent, nodes)` makes `parent`'s children `nodes`, in order, moving only
-what is out of place. Where nodes move between parents, place every list at once with
-`setChildLists([[parent, nodes], …])`, naming outer parents first, so a node moves
-straight from the list it leaves to the one it joins. For one placement use
-`move(parent, node, before)`, with `null` to append. For a subtree whose contents and
-descendant attributes all belong to the renderer, `setRenderedChildren(parent, nodes)`
-matches unchanged nodes and edits only changed text, keeping native selections in text
-the source kept; keep independently stateful controls outside that subtree.
+To place nodes the module keeps, use `setChildren(parent, nodes)`, which moves only what
+is out of order, or `move(parent, node, before)` for one node. Where nodes move between
+parents, place every list at once with `setChildLists([[parent, nodes], …])`, outer
+parents first. For a subtree the renderer owns entirely, `setRenderedChildren(parent,
+nodes)` edits only changed text and keeps a text selection the user made in it.
 
-Every placement of a retained node, by `render`, `repeat`, these helpers or `move`,
-keeps the user standing in it. Within one document it uses native `moveBefore` where the
-browser has it, which keeps focus, caret, typed text and iframe documents. Elsewhere,
-Safari included, it inserts the node and puts the user back on it with a text field's
-caret, and an iframe in it reloads. A reorder needs no focus hold of its own. A plain
-`append` or `insertBefore` of a node that already stands somewhere takes it out first,
-which blurs it. A selection in a moved editable collapses even under `moveBefore`, so a
+These helpers, `render` and `repeat` keep the user's focus in a moved node, so a reorder
+needs no `holdFocus`. A plain `append` or `insertBefore` of a node already in the page
+blurs it. Where the browser lacks native `moveBefore`, as Safari does, an iframe inside a
+moved node reloads. A moved editable loses its selection even under `moveBefore`, so a
 custom element holding a `LeafEditorView` calls the view's `placeSelection()` from its
-`connectedMoveCallback`. Leave native disclosure, editor and scroll state with the
-retained nodes.
+`connectedMoveCallback`.
 
 ### Shadow stages and styles
 
-`shadowStage(host, nodes)` builds an `x-shadow` widget's shadow root, gives it the
-theme's styles, makes its children `nodes`, and returns the root; never call
-`attachShadow` yourself. For a template, stage a concrete container with
-`shadowStage(host, [container])`, call `render(template, container)`, and keep that
-container in later stage updates.
+Build an `x-shadow` widget's shadow root with `shadowStage(host, nodes)`, never
+`attachShadow`; it applies the theme's styles and returns the root. For a template,
+stage a container with `shadowStage(host, [container])` and render into that container.
 
-A module that writes stylesheet text of its own, for a constructed sheet or a `<style>`
-in its shadow root, wraps it in `inBaseLayer(css)`. The rules then join the theme's
-`lf-base` cascade layer, below Layouts, theme packages, semantic state and the page's
-own stylesheet.
+Wrap stylesheet text the module writes itself in `inBaseLayer(css)`, so its rules sit in
+the theme's `lf-base` cascade layer, below Layouts, theme packages and the page's own
+stylesheet.
 
 ### Scheduling paints
 
-Paint an element through `frameFor(element, paint)`, which returns a scheduling
-function: calls coalesce into one `nextRender` callback, calls while the element is
-detached are ignored, a departure cancels pending work, and the element is checked
-again before painting. A return permits fresh scheduling; it does not replay cancelled
-work.
+`frameFor(element, paint)` returns a function that schedules one call to `paint` for the
+next render, however often it is called. It does nothing while the element is out of the
+page, and leaving cancels a scheduled paint, which a return doesn't replay, so schedule
+it again from `start`.
 
-`nextRender(callback)` runs a callback in the rendering pass under way, or in the next
-frame's when asked from anywhere else, such as an input handler. `nextFrame(callback)`
-never runs in the pass that asked for it, for a step that must wait a frame, such as an
-animation tick. Both return an id for `cancelRender(id)`. Leaf counts this work: the
-page does not read as settled until it is done. Continuous motion that may run until
-the user stops it, such as recording playback, uses `nextAnimation(callback)` and
-`cancelAnimation(id)` instead, which hold no settlement open; cancel it when the motion
-stops or its owner leaves.
+`nextRender(callback)` runs in the rendering pass under way, or the next frame's.
+`nextFrame(callback)` always waits a frame, for a step such as an animation tick. Cancel
+either with `cancelRender(id)`. The page doesn't count as settled until this work runs,
+so motion that may run until the user stops it, such as playback, uses
+`nextAnimation(callback)` instead. Cancel it with `cancelAnimation(id)` when the motion
+stops or the element leaves.
 
-`afterScript(callback)` runs a callback once, at the microtask checkpoint that ends the
-current script, for a paint two steps of one script would otherwise invalidate twice.
-Asked again with the same function before it runs, it still runs once, so pass a function
-the module keeps rather than a new arrow at each call.
+`afterScript(callback)` runs a callback once when the current script finishes, for a
+paint two steps of one script would otherwise trigger twice; pass the same function each
+time, not a new arrow.
 
-Observe size with `sizeObserver(callback)` in place of `new ResizeObserver`, so the
-page reads as unsettled while sizes change. Pass `{counted: false}` for boxes that move
-for as long as the page plays.
+Use `sizeObserver(callback)` in place of `new ResizeObserver`, so the page counts as
+unsettled while sizes change; pass `{counted: false}` for boxes that keep moving while
+the page plays.
 
 ### Writes that change nothing
 
-A write that restates what a node already says still reaches everything watching the
-page, from screen readers to a full-document repaint. `keeps(node, name, value)` writes
-an attribute only when its value would read back differently; pass booleans and counts
-directly, and `null` or `undefined` to remove it. `keepsText(node, text)` and
-`keepsHidden(node, hidden)` do the same for words and `hidden`. `toggleAttribute` and
-`classList.toggle(name, force)` already write nothing for an unchanged flag or class. A
-length measured off the page goes into a style property as `layoutPx(length)`, which
-rounds to layout's 1/64px so a box that has not moved writes nothing new;
-`atLayoutPrecision(length)` returns the rounded number.
+Writing a value a node already has still reaches screen readers and can repaint the
+whole document. `keeps(node, name, value)` writes an attribute only when it would read
+back differently; pass booleans and counts as they are, and `null` to remove it.
+`keepsText(node, text)` and `keepsHidden(node, hidden)` do the same for words and
+`hidden`. Write a measured length into a style as `layoutPx(length)`, which rounds to
+layout's 1/64px; `atLayoutPrecision(length)` returns the rounded number.
 
 ## Generated controls
 
-`offer(tag, className, label, inputType, pressable)` makes a control or a box of
-controls a widget injects: the native element, so the browser keeps its activation,
-disabled state, focus and accessibility, carrying Leaf's markers for generated chrome.
-`inputType` is for an `input` only. A custom element whose host has a complete `focus()`
-and `click()` contract passes `true` as `pressable`, so its tag marks it as a press
-like a native control. In a Lit template, `<button ${offered("lf-btn")}>` gives an
-element the same anatomy: `offered` owns its class and markers, and a native button's
-type defaults to `button`. A native input's `type` binding goes before `offered`, so its
-press marker reads that type. Bind values and handlers normally.
+`offer(tag, className, label, inputType, pressable)` makes a native control, or a box of
+controls, marked as Leaf-generated; the browser keeps its activation, focus and
+accessibility. `inputType` is for an `input`. Pass `pressable: true` for a custom element
+whose host implements `focus()` and `click()`. In a template, `<button
+${offered("lf-btn")}>` does the same, with an input's `type` binding placed before
+`offered`.
 
-A page word that is also a control, such as a tab's name, has to stay selectable, which
-a form control is not. `selectableOffer(role, className, label)` builds it as a focusable
-span with that `role`, and the widget supplies the keyboard pattern the native element
-would have had. `el(tag, className, text)` makes an element with its class and first
-words and no Leaf markers, for structure that is not injected UI. Paper drops every
-offer, in the document and in a shadow stage alike, so a box holding what the widget
-shows, such as an editor's file, is an `el`.
+A control whose label is the page's own words, such as a tab's name, must stay
+selectable, so build it with `selectableOffer(role, className, label)`, a focusable span
+for which the widget supplies the keyboard behavior. `el(tag, className, text)` makes a
+plain element for structure that isn't injected UI. Printing drops every offer, in a
+shadow stage too, so build a box holding what the widget shows, such as an editor's
+file, with `el`.
 
-`relabel(node, label, {says})` writes a generated control's label. `says` is required:
-`true` where the label is the page speaking, such as a pick mark reading "chosen",
-`false` for an ordinary action word, and `"echo"` for a copy of words the page says
-elsewhere, such as a roster row naming a worker. A template label writes the same
-markers as static attributes: `data-lf-gen="1"`, plus `data-lf-said` or `data-lf-echo`.
+`relabel(node, label, {says})` writes a generated control's label. Set `says: true`
+where the label is the page speaking, as a pick mark reading "chosen" does, `false` for an
+action word, and `"echo"` for a copy of words the page shows elsewhere, such as a
+worker's name. In a template, write `data-lf-gen="1"` plus `data-lf-said` or
+`data-lf-echo` instead.
 
-A widget upgrades wherever Leaf connects it, including in a shut panel where every box
-measures zero. Take a measurement inside `measure(element, take)`, which runs `take`
-now when the element has a box and otherwise the first time it does.
+A widget can upgrade inside a shut panel where every box measures zero, so take
+measurements inside `measure(element, take)`, which runs `take` once the element has a
+box.
 
-A label whose words change, such as a count, keeps one width for all of them, so a
-change moves nothing beside it. Put the words it can show, one per line, in
-`data-lf-room` on an element whose one child holds the words, and write the words into
-that child. The theme draws the element as an inline block as wide as its widest room
-line in its own face, and no wider than its container; the room is invisible and stays
-out of its text and accessible name. The element keeps its own `::before` free for the
-room. Words wider than the room are cut with an ellipsis rather than widening it, so
-list the longest words the label will show; cut words stay whole in the accessible
-name.
+A label whose words change, such as a count, keeps one width so nothing beside it moves.
+Put the words in the only child of an element whose `data-lf-room` lists every wording it
+can show, one per line; the theme sizes the element to the widest, drawing the list
+invisibly in its `::before`. Longer words are cut with an ellipsis, though the accessible
+name keeps them whole.
 
-After a view swap that rearranges descendants without resizing the widget's outer box,
-call `layoutChanged(element)` and await its promise before restoring scroll. It
-dispatches the bubbling, composed `LAYOUT` event, which a widget that measures what it
-holds listens for; a listener joins asynchronous work through the event's
-`detail.present(promise)`. A size change needs no call, since a `sizeObserver` hears it.
+After a view swap that rearranges a widget's contents without resizing it, await
+`layoutChanged(element)` before restoring scroll. It dispatches `LAYOUT` to widgets that
+measure what they hold, which pass their asynchronous work to `detail.present(promise)`.
+A size change needs no call.
 
-`searchField(className, {name, label, placeholder = label})` builds a search or filter
-field with the shared frame, accessible label, native editor and Clear. The caller owns
-its query and results. Put an auxiliary reading such as a match count in its `end` slot,
-holding the room of its longest value as above.
+`searchField(className, {name, label, placeholder})` builds a search or filter field
+with Leaf's frame, label, editor and Clear button; the widget owns the query and
+results, and can put a match count in its `end` slot.
 
-A widget folds content it may show again by setting its `hidden` to `HIDDEN`. Where the
-browser supports `hidden="until-found"`, find-in-page and fragment links still reach the
-content and fire `beforematch` on it, and the widget opens it there; elsewhere the
-content is plainly hidden. Paper prints until-found content open. A folded element that is itself a Tab stop stays one, so the
-widget withdraws it.
+To fold content it may show again, set its `hidden` to `HIDDEN`. Where the browser
+supports `hidden="until-found"`, find-in-page and fragment links still reach the content
+and fire `beforematch` on it, and the widget opens it there. Take a folded element that
+is itself a Tab stop out of the Tab order.

@@ -353,7 +353,7 @@ function placeKeeper(scroller, { items, identity, active = () => true, preferred
   function release2(hold) {
     if (current !== hold) return;
     current = null;
-    claim();
+    if (hold.spans) claim();
   }
   function correct(hold) {
     if (current !== hold || !active()) return false;
@@ -383,7 +383,7 @@ function placeKeeper(scroller, { items, identity, active = () => true, preferred
     const prior = current;
     if (prior) correct(prior);
     current = heldPlace(prior, spans2);
-    claim();
+    if (spans2 || prior?.spans) claim();
     return current;
   }
   function heldPlace(prior, spans2) {
@@ -448,7 +448,7 @@ function placeKeeper(scroller, { items, identity, active = () => true, preferred
       finish(held);
     }
   }
-  return { take: () => take(), finish, around };
+  return { take, finish, around };
 }
 
 // runtime/landing-scroll.js
@@ -5681,15 +5681,11 @@ function unreadBoundaries(ranges) {
 }
 
 // runtime/thread/reply-continuity.js
-var writingArea = (row2, target) => row2?.contains(target) ? row2 : target.closest?.(".lf-msg-editor")?.closest(".lf-msg") ?? null;
 var ReplyContinuity = class {
   #owner;
   #row = null;
   #departure = null;
-  #extent = null;
-  // The writing area read at an edit's boundary, and its height then.
-  #read = null;
-  #readHeight = 0;
+  #space = 0;
   // The writing areas a presentation changes, each with its height before it.
   #presenting = [];
   #writing = null;
@@ -5708,7 +5704,6 @@ var ReplyContinuity = class {
         parseFloat(getComputedStyle(writing2.input).inlineSize)
       );
       this.#allocateWriting(writing2.input, layoutPx(writing2.input.naturalBlockSize));
-      this.#readArea(this.#row);
     });
   });
   gap = document.createElement("div");
@@ -5721,12 +5716,13 @@ var ReplyContinuity = class {
       if (!this.#visible()) this.release();
     });
     owner.addEventListener(
-      "lf-before-edit",
-      (event) => this.#readArea(writingArea(this.#row, event.target))
-    );
-    owner.addEventListener(
       "input",
-      (event) => this.#edited(writingArea(this.#row, event.target)),
+      (event) => {
+        if (!this.#row?.contains(event.target)) return;
+        const input = this.#row.querySelector(TEXT_FIELD);
+        if (input.value) this.#allocateWriting(input, layoutPx(input.naturalBlockSize));
+        else this.#releaseWriting();
+      },
       { capture: true }
     );
   }
@@ -5741,50 +5737,41 @@ var ReplyContinuity = class {
     if (!this.#visible()) return null;
     this.#presenting = writing2.filter((node) => node.isConnected).map((node) => ({ node, height: node.getBoundingClientRect().height }));
     const body = this.#owner.localName === "details" ? getComputedStyle(this.#owner, "::details-content") : getComputedStyle(this.#owner);
-    return parseFloat(body.blockSize);
+    const extent = parseFloat(body.blockSize);
+    const place2 = placeKeeper(scrollerFor(this.#owner), {
+      items: ".lf-reply-continuity",
+      identity: (node) => node.dataset.id,
+      preferred: () => this.#owner
+    });
+    return { extent, place: place2, held: place2.take({ spans: false }) };
   }
-  after(extent) {
+  after(reading) {
     this.#row = this.#owner.querySelector(":scope > .lf-thread-reply");
     const presenting = this.#presenting;
     this.#presenting = [];
-    if (extent == null || !this.#row?.isConnected || this.#owner.localName === "details" && !this.#owner.open) {
-      this.release();
-      if (this.#visible()) this.#retainWriting();
-      return;
+    if (!this.#row?.isConnected || this.#owner.localName === "details" && !this.#owner.open)
+      return this.release();
+    if (reading != null) {
+      const { extent, place: place2, held } = reading;
+      const body = this.#owner.localName === "details" ? getComputedStyle(this.#owner, "::details-content") : getComputedStyle(this.#owner);
+      const written = presenting.filter(({ node }) => node.isConnected).reduce(
+        (sum, { node, height }) => sum + node.getBoundingClientRect().height - height,
+        0
+      );
+      this.#keep(
+        Math.max(0, this.#space + extent - parseFloat(body.blockSize) + written)
+      );
+      place2.finish(held);
     }
-    if (this.#extent == null) this.#keep(extent);
-    const grown = presenting.filter(({ node }) => node.isConnected).reduce(
-      (sum, { node, height }) => sum + node.getBoundingClientRect().height - height,
-      0
-    );
-    this.#keep(Math.max(0, extent + grown));
-    this.#readArea(this.#row);
+    if (!this.#visible()) return this.release();
     this.#retainWriting();
     this.#departure?.();
     this.#departure = whenNone([this.#row], growthIsSeen, () => this.release());
   }
-  #keep(extent) {
-    if (extent === this.#extent) return;
-    this.#extent = extent;
-    this.#owner.style.setProperty("--lf-thread-body-extent", layoutPx(extent));
-  }
-  #edited(area) {
-    if (!area?.isConnected) return;
-    if (area === this.#row) {
-      const input = this.#row.querySelector(TEXT_FIELD);
-      if (input.value) this.#allocateWriting(input, layoutPx(input.naturalBlockSize));
-      else this.#releaseWriting();
-    }
-    const height = area.getBoundingClientRect().height;
-    if (this.#extent != null && area === this.#read)
-      this.#keep(Math.max(0, this.#extent + height - this.#readHeight));
-    this.#read = area;
-    this.#readHeight = height;
-  }
-  #readArea(area) {
-    if (!area?.isConnected) return;
-    this.#read = area;
-    this.#readHeight = area.getBoundingClientRect().height;
+  #keep(space) {
+    if (space === this.#space) return;
+    this.#space = space;
+    this.gap.style.setProperty("--lf-reply-space", layoutPx(space));
   }
   #retainWriting() {
     const input = this.#row?.querySelector(TEXT_FIELD);
@@ -5816,9 +5803,9 @@ var ReplyContinuity = class {
   release() {
     this.#departure?.();
     this.#departure = null;
-    this.#extent = null;
+    this.#space = 0;
     this.#releaseWriting();
-    this.#owner.style.removeProperty("--lf-thread-body-extent");
+    this.gap.style.removeProperty("--lf-reply-space");
   }
 };
 
@@ -6099,7 +6086,7 @@ var ThreadView = class {
       views: () => (this.#model?.messages ?? []).flatMap(
         ({ key }) => this.#messages.get(key) ?? []
       ),
-      paint: (message) => this.repaint({ writing: message }),
+      paint: () => this.repaint(),
       send: (id, text, options) => this.#speak(
         () => commands2.reply.actions.edit(this.#model.key, id, text, options),
         options.attempt,
@@ -6184,8 +6171,8 @@ var ThreadView = class {
   }
   // Local disclosure and draft changes repaint the complete received descriptor,
   // never feed a held presentation back into the news owner's input.
-  repaint(options) {
-    this.present(this.#received, options);
+  repaint() {
+    this.#paint(this.#received);
   }
   // What holds the card folded away: its own closed disclosure, a panel card's, or the
   // closed Resolved disclosure its seat gathers it in (inline.js).
@@ -6327,7 +6314,12 @@ var ThreadView = class {
     return share(was, now) === was && outside.every((part, index) => part === this.#drawnWith[index]);
   }
   #drawnWith = null;
-  present(model, { retaining = false, viewChanged = false, writing: writing2 = null } = {}) {
+  present(model, options = {}) {
+    return this.#paint(model, options, true);
+  }
+  // The caller knows whether this is a publication or a local repaint. Only a
+  // publication allocates passive space; disclosures and editors stay intrinsic.
+  #paint(model, { retaining = false, viewChanged = false } = {}, published = false) {
     this.#received = model;
     this.#drawnWith = this.#outside(model);
     const prior = this.#model;
@@ -6351,11 +6343,8 @@ var ThreadView = class {
         this.#heldNews.hold({ threads: [model] }, { row: false }).threads[0]
       );
     if (model.news && !prior?.news) this.#retainHeaderSlot({ observe: false });
-    const rewritten2 = new Set(
-      [...this.#messages.values()].filter((view) => view.editing).map(({ node }) => node)
-    );
-    if (writing2) rewritten2.add(writing2);
-    const bodyPlace = this.#continuity?.before([...rewritten2]);
+    const rewritten2 = [...this.#messages.values()].filter((view) => view.editing).map(({ node }) => node);
+    const bodyPlace = published ? this.#continuity?.before(rewritten2) : null;
     const restoreFocus = holdFocus(this.node);
     const standing2 = focused();
     const priorSummaries = new Set(prior?.summaries.map(({ id }) => id) ?? []);

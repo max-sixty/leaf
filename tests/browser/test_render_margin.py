@@ -7784,6 +7784,7 @@ def test_a_press_in_the_card_keeps_the_pressed_spot_still(browser, serve, how):
     expect(disclosure).to_have_text("Show 3 progress messages")
     rendered(page)
     pressed = disclosure.bounding_box()
+    compact = preview.bounding_box()
 
     if how == "key":
         disclosure.focus()
@@ -7796,6 +7797,21 @@ def test_a_press_in_the_card_keeps_the_pressed_spot_still(browser, serve, how):
     after = disclosure.bounding_box()
     assert (after["x"], after["y"]) == pytest.approx(
         (pressed["x"], pressed["y"]), abs=0.5
+    )
+
+    expanded = preview.bounding_box()
+    assert expanded["height"] > compact["height"]
+    if how == "key":
+        page.keyboard.press("Enter")
+    else:
+        disclosure.click()
+    expect(disclosure).to_have_text("Show 3 progress messages")
+    rendered(page)
+    assert preview.bounding_box()["height"] == pytest.approx(compact["height"], abs=0.5)
+    expect(disclosure).to_be_focused()
+    collapsed = disclosure.bounding_box()
+    assert (collapsed["x"], collapsed["y"]) == pytest.approx(
+        (after["x"], after["y"]), abs=0.5
     )
 
     close = preview.get_by_role("button", name="Dismiss thread view", exact=True)

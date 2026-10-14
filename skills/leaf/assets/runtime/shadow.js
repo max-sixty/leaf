@@ -141,7 +141,8 @@ export let shadowRules = "";
 // layer.
 export const SHADOW_LEADING_CSS = `
 @layer {
-  [hidden]:not([hidden="until-found"]) {
+  [hidden]:not([hidden="until-found"]),
+  :host([hidden]:not([hidden="until-found"])) {
     display: none !important;
   }
   @media screen {

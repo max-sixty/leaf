@@ -139,8 +139,9 @@ Layout rules do not cross the root. Normal declarations in the page's
 unlayered stylesheet outrank these defaults. Within a tier, specificity, native scope
 proximity, then source order decide. `!important` reverses layer priority, and inline
 styles outrank ordinary stylesheet declarations; neither is a customization API.
-An anonymous layer leads every tree and holds `hidden` (except `until-found`) at
-`display: none` whatever display a rule states, so no rule restores it; a box that
+An important rule ahead of every tier but `lf-reset` holds `hidden` (except
+`until-found`) at `display: none` in the document and in each shadow tree, its host
+included, whatever display another rule states, so no rule restores it; a box that
 stays laid out while unseen wears a state of its own, not `hidden`.
 Runtime chrome and annotation marks remain unlayered and own their apparatus paint.
 The generic indication contour is a default in `lf-base`, so a widget can style its

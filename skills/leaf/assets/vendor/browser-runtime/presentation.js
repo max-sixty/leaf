@@ -636,7 +636,6 @@ export function createPresentationCoordinator
  * handle releases a superseded hold; a superseded paint keeps its own ticket, so the
  * coordinator still reports its failure.
  */
-export const PRESENTATION_HELD = Symbol("presentation held");
 
 
 
@@ -742,15 +741,12 @@ export function createPresentationSchedule(
     async function run({ claimed, value, presentation }       ) {
       // Superseded before it painted: the newer claim's ticket already released this one.
       if (claimed !== generation) return;
-      let painted                                                       ;
+      let painted                            ;
       try {
         painted = paint(value, () => claimed === generation);
       } catch (error) {
         painted = Promise.reject(error);
       }
-      // A withheld reading keeps its ticket open until a newer claim or `disconnect`
-      // releases it, so there is no answer to wait for.
-      if (painted === PRESENTATION_HELD) return;
       presentation.resolve(painted);
       // The coordinator's answer is the verdict on this reading. It resolves once the
       // region has committed one, fail-soft proof included, and rejects when the failure

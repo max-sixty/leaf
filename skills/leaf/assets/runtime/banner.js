@@ -358,8 +358,9 @@ if (SHARE_ROOT) {
     control: details,
     focusTarget: share,
     rank: BANNER_CONTROL_RANK.share,
-    // A presentation copies the link with its own copy control, beside it to select.
-    row: { label: "Share link", value: grants, copies: shareUrl, group: "about" },
+    // A presentation copies the link with its own copy control: a row of the page's own
+    // menu with one press, or, where no clipboard is offered, beside the link to select.
+    row: { label: "Link", value: grants, copies: shareUrl, group: "page" },
   });
 }
 

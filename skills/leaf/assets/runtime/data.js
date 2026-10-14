@@ -15,6 +15,7 @@
    result into the authored seat; they do not fetch it, mutate the accepted copy, or keep a
    hidden current-value map of their own.*/
 
+import { outsideReading, untracked } from "/vendor/browser-runtime.js";
 import { offlineData, offlineInteractive, pageUrl, runtime } from "./context.js";
 import {
   applicationState,
@@ -52,6 +53,9 @@ function readingIdentity(reading) {
 
 export async function notifyDataSubscribers() {
   const version = runtime.data.version;
+  deliveries += 1;
+  const round = {};
+  for (const delivered of [...deliveryListeners]) delivered(round);
   const current = [...subscriptions];
   for (const subscription of current) subscription.notify();
   const regions = current.map((subscription) => subscription.region);
@@ -68,6 +72,91 @@ export async function notifyDataSubscribers() {
     setRuntimeRootAttribute(document.body, PAGE_PAINT_ATTRIBUTE.dataVersion, version);
 }
 
+const declaredInput = (element, input) => {
+  const declaration = registry[element.localName]?.["x-data"]?.[input];
+  if (!declaration)
+    throw new Error(
+      `watchData(${element.localName}, ${input}) input is not declared by this widget`,
+    );
+  return declaration;
+};
+
+// A `LeafElement`'s reader of one bound input (leaf-element.js): the value `watchData`
+// would deliver for the accepted source reading, read through a selection of that
+// source, so a render that reads it is drawn again when the source moves. The binding
+// is captured at the first read, as `watchData` captures it at mount.
+export function dataReader(element, input) {
+  const declaration = declaredInput(element, input);
+  const source = element.getAttribute(declaration.source);
+  const selected = applicationState.select((root) =>
+    source && Object.hasOwn(root.data.sources, source)
+      ? root.data.sources[source]
+      : null,
+  );
+  // What the element shows moves only as state application delivers, as a `watchData`
+  // subscription's staged paint does, so a reading accepted for a revision still being
+  // activated never draws into the document it replaces. The first read takes the
+  // accepted reading, as a subscription's mount delivery does.
+  let shown;
+  let taken = -1;
+  const delivered = outsideReading(
+    () => {
+      if (taken !== deliveries) {
+        taken = deliveries;
+        shown = untracked(selected.read);
+      }
+      return shown;
+    },
+    (moved) => {
+      deliveryListeners.add(moved);
+      return () => deliveryListeners.delete(moved);
+    },
+  );
+  stagedReadings.add(selected);
+  let reported = null;
+  return () => {
+    // The accepted reading claims the element's region inside the publication that
+    // accepts it; the delivered one draws.
+    selected.read();
+    const sourceStore = /** @type {{contract: string, revision?: string} | null} */ (
+      delivered.read()
+    );
+    const incompatible = sourceStore && sourceStore.contract !== declaration.contract;
+    if (incompatible && reported !== sourceStore) {
+      reported = sourceStore;
+      reportPageError(
+        `data source ${source} carries contract ${sourceStore.contract}; ` +
+          `<${element.localName}> input ${input} requires ${declaration.contract}`,
+      );
+    }
+    if (incompatible || !source || !sourceStore || !Object.hasOwn(sourceStore, "value"))
+      return null;
+    return structuredClone({
+      source,
+      ...sourceStore,
+      origin: {
+        input,
+        source,
+        contract: declaration.contract,
+        revision: sourceStore.revision,
+      },
+    });
+  };
+}
+
+// A renderer that draws data as it reads it holds the data version until its region
+// presents, as a `watchData` subscription does; its readers hear the delivery itself.
+let deliveries = 0;
+const deliveryListeners = new Set();
+// The accepted readings a `LeafElement` follows to claim its region, not to draw.
+const stagedReadings = new WeakSet();
+export const stagesOnly = (reading) => stagedReadings.has(reading);
+export function joinDataDelivery(region) {
+  const subscription = { region, notify() {} };
+  subscriptions.add(subscription);
+  return () => subscriptions.delete(subscription);
+}
+
 // A source value remains the server snapshot's to own. Subscribers name one input on
 // their own widget; the declaration supplies its contract and the attribute where this
 // page bound a concrete source. They receive a fresh JSON clone immediately, then
@@ -77,11 +166,7 @@ export async function notifyDataSubscribers() {
 // `projectData` remains the rendering boundary: this helper delivers records but writes no
 // DOM and keeps no widget-specific cache.
 export function watchData(element, input, callback) {
-  const declaration = registry[element.localName]?.["x-data"]?.[input];
-  if (!declaration)
-    throw new Error(
-      `watchData(${element.localName}, ${input}) input is not declared by this widget`,
-    );
+  const declaration = declaredInput(element, input);
   // Markup owns the binding. Capture it at mount so module code cannot turn a live
   // attribute mutation into an unvalidated rebind. Version activation mounts a new
   // element and therefore establishes a new subscription when authored markup changes.

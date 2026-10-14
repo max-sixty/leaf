@@ -166,8 +166,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     box-sizing: border-box; overflow: hidden; scroll-padding-block: var(--focus-ring-room);
     margin: 0; padding: var(--lf-comment-inset);
     border: 1px solid var(--border-2); border-radius: 10px;
-    background: var(--paper); color: var(--ink); box-shadow: 0 12px 36px var(--shade); }
-  .lf-margin-preview:not([hidden]) { display: flex; flex-direction: column; }
+    background: var(--paper); color: var(--ink); box-shadow: 0 12px 36px var(--shade);
+    display: flex; flex-direction: column; }
   /* Open before its first placement lands (thread-preview.js, `placeThreadPreview`),
      the card has no spot yet, so it is not seen or pressed where it happens to lie. */
   .lf-margin-preview:not([data-lf-thread-placement]) { opacity: 0; pointer-events: none; }
@@ -267,7 +267,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-fab-bar[data-lf-target-only] > .lf-surface-grip { display: none; }
   .lf-margin-preview-nav { display: flex; flex: none; align-items: center;
     gap: 0; color: var(--muted-2); font-size: 10px; }
-  .lf-margin-preview-nav[hidden] { display: none; }
   .lf-margin-preview-position { white-space: nowrap; }
   .lf-margin-preview-step { border: 0;
     background: transparent; color: var(--muted); }

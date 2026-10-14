@@ -153,16 +153,12 @@ export function activeFromCookie(
   if (cookie === null) return false;
   const prefix = secure ? ACTIVE_COOKIE_PREFIX : HTTP_ACTIVE_COOKIE_PREFIX;
   const expected = pageCookieName(prefix, pageRoot);
-  return cookie
-    .split(";")
-    .some((item) => item.trim() === `${expected}=${release}`);
+  return cookie.split(";").some((item) => item.trim() === `${expected}=${release}`);
 }
 
 function pageCookieName(prefix: string, pageRoot: string): string {
   const suffix =
-    pageRoot === "/"
-      ? "root"
-      : `page-${pageRoot.slice(1).replaceAll("/", "_")}`;
+    pageRoot === "/" ? "root" : `page-${pageRoot.slice(1).replaceAll("/", "_")}`;
   return `${prefix}-${suffix}`;
 }
 
@@ -189,7 +185,11 @@ function pageActiveCookie(secure: boolean, pageRoot: string, value: string): str
   return `${name}=${value}; Path=/${security}; HttpOnly; SameSite=Lax`;
 }
 
-export function activeCookie(secure: boolean, pageRoot: string, release: string): string {
+export function activeCookie(
+  secure: boolean,
+  pageRoot: string,
+  release: string,
+): string {
   return pageActiveCookie(secure, pageRoot, release);
 }
 

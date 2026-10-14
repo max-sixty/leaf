@@ -22,6 +22,7 @@ from interact_support import (
     STATED_TIMEOUT,
     append_carried_log_record,
     install_payload,
+    neighbour_page,
     wait_for,
 )
 from leaf import cli as cli_model
@@ -32,12 +33,14 @@ from leaf import files as files_model
 from leaf import harness as harness_model
 from leaf import hooks as hooks_model
 from leaf import leases as leases_model
+from leaf import machine as machine_model
 from leaf import server as server_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf.findings import Finding
 from leaf.render_checks import HANDOVER_DEADLINE_MS, wait_until_ready
 from leaf.schema import ELEMENT_ID
+from leaf.served_state.service import PageStateService
 from leaf.structure import SourceDocument
 from leaf_dev import preview as preview_model
 from playwright.sync_api import expect
@@ -55,6 +58,29 @@ pytestmark = pytest.mark.shifts_unsurveyed
 ROOT = Path(__file__).parents[2]
 # `leaf-dev preview`, run by the interpreter this suite runs on.
 PREVIEW = [sys.executable, "-m", "leaf_dev", "preview"]
+
+
+def test_export_omits_neighboring_pages_and_their_access_key(serve, tmp_path):
+    """Sharing an offline record grants no access to the machine's other pages."""
+    serve(leaf_page("Exported record", "<h1>Exported record</h1>"), packages=())
+    neighbor = machine_model.state_home() / "pages" / "private-neighbor"
+    url = neighbour_page(neighbor, title="Private neighboring page")
+    live = PageStateService(serve.page_dir).page_state(1)
+    assert any(row["url"] == url for row in live["others"])
+
+    output = tmp_path / "offline.html"
+    result = CliRunner().invoke(
+        cli_model.cli,
+        ["page", "export", str(serve.page_dir), "--out", str(output)],
+    )
+    assert result.exit_code == 0, result.output
+    exported = output.read_text(encoding="utf-8")
+    assert server_model.host_key() not in exported
+    assert "Private neighboring page" not in exported
+    assert any(
+        row["url"] == url
+        for row in PageStateService(serve.page_dir).page_state(1)["others"]
+    )
 
 
 @pytest.fixture(name="preview_slot")

@@ -26,16 +26,18 @@
  * does, gives the board that much or wraps it onto a row of its own; held to less, the
  * board scrolls its columns inside itself. Its declared reach caps the minimum at the
  * room its holder grants, including the page's occupied margins. A frame grants only
- * its own width. Without a declared reach (a frozen message), the nearest size container
- * caps it: a framed box holding the board (a pane's body, a card), and a sample,
- * which cannot be one, through `--lf-box-cap`. So a phone or a box narrower
+ * its own width. Only a document declares a reach (layouts.css); without one (a
+ * workspace, a page with no Layout, a frozen message) the box the board stands in caps
+ * it, a grid cell included, and so does the nearest size container: a framed box
+ * holding the board (a pane's body, a card), and a sample, which cannot be one, through
+ * `--lf-box-cap`. So a phone or a box narrower
  * than the minimum scrolls the board rather than the page. Screen only: a sheet has no room
  * beside the column to give, so on paper the board is the column's width. */
 :scope:is(lf-board) { --lf-board-columns: 1; }
 @media screen {
   :scope:is(lf-board) { min-inline-size: min(calc(var(--lf-board-columns)
                * var(--lf-reading-column-floor) + (var(--lf-board-columns) - 1) * var(--sp-2)),
-               var(--lf-reach, calc(100cqi - 2 * var(--col-pad))),
+               var(--lf-reach, min(100%, 100cqi)),
                var(--lf-box-cap, 100vw)); }
 }
 :scope:is(lf-board):has(> lf-column:nth-of-type(2)) { --lf-board-columns: 2; }

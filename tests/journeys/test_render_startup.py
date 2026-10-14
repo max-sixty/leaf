@@ -751,14 +751,14 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     # no pid to ask after, so a claim made moments ago is evidence and still stands.
     declare("working", "running the migration", claimed=False)
     expect(text).to_have_text(
-        re.compile(r"^\s*Agent is working — running the migration")
+        re.compile(r"^\s*Claude is working — running the migration")
     )
 
     # Once that claim goes quiet there is nothing left holding the page, and an hour of
     # silence on a page that stands for weeks is not a fault to report.
     declare("working", "running the migration", quiet_for=60 * 60, claimed=False)
     expect(text).to_have_text(
-        UNHELD + " Waiting on Agent: 2 replies, 1 to-do (Work on the page)."
+        UNHELD + " Waiting on Claude: 2 replies, 1 to-do (Work on the page)."
     )
 
     declare("working", "revising the plan", agent="Codex")

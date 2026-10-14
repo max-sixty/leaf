@@ -1386,16 +1386,18 @@ _TEXT = {
     ),
     "example": lambda at, v: f"{at} example: no worked example shows it",
     "keeps-first-box": lambda at, v: (
-        f"{at} keeps-first-box: first painted {_size(v['first'])},"
-        f" {_size(v['now'])} once presented"
+        f"{at} keeps-first-box: in a {v['layout']} page, first painted"
+        f" {_size(v['first'])}, {_size(v['now'])} once presented"
     ),
     "shows-context-keys": lambda at, v: (
-        f"{at} shows-context-keys: {v['command']} declares context keys and no"
+        f"{at} shows-context-keys: in a {v['layout']} page, {v['command']} declares"
+        " context keys and no"
         " bindingBadge, so its key works with nothing on the page showing it; lend"
         " the command a face, or request a corner badge with bindingBadge: null"
     ),
     "grows-with-content": lambda at, v: (
-        f"{at} grows-with-content: {v['box']} holds {v['height']}px and scrolls"
+        f"{at} grows-with-content: in a {v['layout']} page, {v['box']} holds"
+        f" {v['height']}px and scrolls"
         " inside it; let it grow with its content, or declare --lf-holds-height: 1"
         " where the task needs its own scroll"
     ),

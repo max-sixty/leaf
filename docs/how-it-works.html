@@ -2183,8 +2183,10 @@ flowchart TD
             <h2>The reading column</h2>
             <p id="column-measure">
               On a <code>layout-column</code> page, headings, paragraphs, lists, and
-              code occupy a centred column up to 720px wide. In every Layout, the theme
-              limits paragraphs, list items, and headings to that reading width.
+              code occupy a centred column up to 720px wide. On a sidebar page too, the
+              theme limits paragraphs, list items, and headings to that reading width. A
+              workspace sets no reading width, and none of the widths below: every block
+              fills the pane it stands in.
             </p>
             <p id="column-widths-lede">
               A diagram, board, or wide table can extend into the margins beyond the
@@ -2659,10 +2661,11 @@ flowchart TD
               The <em>rail</em> is the strip to the right of <code>main</code> where
               Leaf places comment and decision markers. It appears when the window has
               enough space: about 960px on a column page or about 1920px on a sidebar
-              page. <code>data-rail="right"</code> keeps it visible above 640px. Where
-              no rail fits, and inside a scrolling pane, a small pin appears beside the
-              target on the page. Leaf places it clear of text and controls when space
-              permits. The <kbd>o</kbd> shortcut hides pins and passage highlights.
+              page. <code>data-rail="right"</code> keeps it visible above 640px, except
+              on a workspace, whose panes scroll on their own. Where no rail fits, and
+              inside a scrolling pane, a small pin appears beside the target on the
+              page. Leaf places it clear of text and controls when space permits. The
+              <kbd>o</kbd> shortcut hides pins and passage highlights.
             </p>
             <p id="chrome-surfaces-what">
               A thread card opens beside its marker in the margin. If the margin is

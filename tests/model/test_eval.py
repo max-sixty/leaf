@@ -288,7 +288,7 @@ def test_native_columns_isolate_each_harness_and_arm(tmp_path, monkeypatch):
             assert skill == {
                 "type": "skill",
                 "name": "leaf",
-                "path": config["prompts"][0]["config"]["skills"][label],
+                "path": config["prompts"][0]["config"]["leaf_skills"][label],
             }
             assert (
                 Path(skill["path"]).read_text() == f"{label.split('/')[1]} instructions"
@@ -406,7 +406,7 @@ def test_internal_instruction_cases_receive_their_arms_source(
         assert injected.endswith(f"{arm} maintainer instructions")
     assert [check["type"] for check in config["tests"][0]["assert"]] == ["llm-rubric"]
     assert config["tests"][0]["vars"]["prompt"] == catalog()[address]["vars"]["prompt"]
-    assert config["prompts"][0]["config"]["skills"] == {}
+    assert config["prompts"][0]["config"]["leaf_skills"] == {}
 
 
 def test_instruction_cases_selected_together_each_receive_their_own_source(tmp_path):

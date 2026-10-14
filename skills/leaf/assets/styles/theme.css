@@ -64,7 +64,8 @@
    contents map, a sidebar, a sidenote) stands in the margin is measured, since what it
    asks is the room the page's Layout and CSS left beside `main`: the margin pass writes
    the answer on `main` (prepaint.js, `residency`) and the rules below key on
-   it. A narrow column's facts ask `lf-shell` (640), one answering to the device, such as
+   it. Facts ask the nearest container (640): the shell on a column page, a pane's body
+   or a card where one holds them. One answering to the device, such as
    a phone's vertical rhythm, asks the window, and a package's widget asks its own box
    (references/packages.md).
 
@@ -340,6 +341,10 @@
      chrome.css is about, and this one would show as the picker sinking again. */
   --lf-ui-lh: 1.45;
   --details-padding-block: 8px; --details-margin-block: 18px; --details-border: 1px;
+  /* The flow's larger gaps, as tokens so a density restates each once and every rule
+     that keeps one (an eyebrow standing in for its heading's gap) follows it. */
+  --h2-start: 48px; --h3-start: 32px; --figure-margin-block: 22px;
+  --callout-margin-block: 18px; --hr-margin-block: 40px;
   /* The ladder, body at --t-4. Measured on Charter at 17px: 7.9px a character, so
      the column below holds about 74 of them. The numbered rungs are the prose's hierarchy;
      --t-working-label is the shared compact heading between its two smallest rungs. A size
@@ -935,9 +940,10 @@ main {
 @property --map { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --sidebar { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --note { syntax: "<length>"; inherits: true; initial-value: 0px; }
-/* The column: the reading measure, and the one rule that applies it. A page Layout
- * states its measure (`--lf-measure`, layouts.css); a page with no Layout states none,
- * and its lines run as the browser runs them. Where a measure is stated, text keeps it
+/* The column: the reading measure, and the one rule that applies it. A document's
+ * Layout states its measure (`--lf-measure`, layouts.css); a workspace, whose regions
+ * the page's grid sizes, and a page with no Layout state none, and there a line runs to
+ * the edge of the box it stands in. Where a measure is stated, text keeps it
  * wherever it stands: a paragraph, a list item or a heading is never set wider than the
  * column, however wide the box around it. So does a block allocated the column
  * (`data-lf-space="column"`): a widget whose content is read as lines of text, or a box
@@ -995,8 +1001,8 @@ main {
 h1 { font-size: var(--t-1); line-height: 1.16; letter-spacing: -0.014em;
      margin: 0 0 12px; text-wrap: balance; }
 h2 { font-size: var(--t-2); line-height: 1.25; letter-spacing: -0.008em;
-     margin: 48px 0 12px; text-wrap: balance; }
-h3 { font-size: var(--t-3); line-height: 1.3; margin: 32px 0 8px;
+     margin: var(--h2-start) 0 12px; text-wrap: balance; }
+h3 { font-size: var(--t-3); line-height: 1.3; margin: var(--h3-start) 0 8px;
      text-wrap: balance; }
 /* A page as wide as the window (`--lf-wide-page`, set by the sidebar Layout)
  * sets its title a size up and tighter, to hold its line above panels as wide as the
@@ -1013,8 +1019,8 @@ p { margin: 13px 0; }
  * are restated for the block's subtree, so every rule that reads them, a Layout's gutter
  * and a widget's padding included, sets at working size; shadow trees too, since custom
  * properties cross into them. A token derived from the ladder at the root is declared
- * again here, since it resolves where it is declared. The flow's own margins are numbers
- * rather than tokens, so they are restated here.
+ * again here, since it resolves where it is declared. The flow's larger gaps are tokens
+ * restated here; its small margins are numbers, restated in the rules below.
  *
  * `--lf-density` names the setting for what a size alone cannot carry: a widget whose
  * form changes, such as an option card becoming a row, reads it with a style query, as
@@ -1028,6 +1034,8 @@ p { margin: 13px 0; }
   --lf-key-badge-size: calc(round(var(--t-6) * 1.478 + 2px, 1px));
   --pane-bar-pad: 6px 12px;
   --pane-inset: 12px;
+  --h2-start: 18px; --h3-start: 12px; --figure-margin-block: 10px;
+  --callout-margin-block: 10px; --hr-margin-block: 14px; --details-margin-block: 10px;
   font-size: var(--t-4);
   line-height: 1.45;
 }
@@ -1035,11 +1043,11 @@ p { margin: 13px 0; }
  * spacing must win, including package rules in this same base layer. */
 :where(.density-working) :is(p, ul, ol) { margin-block: 6px; }
 :where(.density-working) li { margin-block: 3px; }
-:where(.density-working) h2 { margin: 18px 0 6px; }
-:where(.density-working) h3 { margin: 12px 0 4px; }
+:where(.density-working) h2 { margin-block-end: 6px; }
+:where(.density-working) h3 { margin-block-end: 4px; }
 :where(.density-working) h4 { margin: 10px 0 4px; }
 :where(.density-working) :is(th, td) { padding: 4px 10px; }
-figure { margin: 22px 0; }
+figure { margin: var(--figure-margin-block) 0; }
 figcaption { font-size: var(--t-6); color: var(--muted); margin-top: 8px; }
 /* Media fits its container on every page, with a Layout or without, and in a thread: the
  * live root clips what overflows sideways (html[data-lf-live], above), so an image wider
@@ -1150,8 +1158,8 @@ dd { margin: 0 0 8px 0; }
 /* An eyebrow and the heading below it are one title: the heading level's large top
    margin belongs before the pair, while the eyebrow's bottom margin owns the small gap
    inside it. */
-.eyebrow:has(+ h2) { margin-top: 48px; }
-.eyebrow:has(+ h3) { margin-top: 32px; }
+.eyebrow:has(+ h2) { margin-top: var(--h2-start); }
+.eyebrow:has(+ h3) { margin-top: var(--h3-start); }
 .eyebrow + :is(h2, h3) { margin-top: 0; }
 /* The one paragraph a user is guaranteed to read, so it is set as one: larger
    than the body, looser, and in the ink the body isn't. */
@@ -1167,7 +1175,8 @@ dd { margin: 0 0 8px 0; }
    for a difference no user could see; stating --t-4 instead was the same number in a
    token, true and inert, and a second place the body's size had to be kept. */
 .callout { background: var(--field); border: 1px solid var(--rule);
-           border-radius: var(--r); padding: 12px 16px; margin: 18px 0; --lf-block-frame: 1; }
+           border-radius: var(--r); padding: 12px 16px; margin: var(--callout-margin-block) 0;
+           --lf-block-frame: 1; }
 /* A panel is one titled region of a sidebar page: the checks, the log, the steps. Every region
    on a dashboard is drawn the same way, so the eye reads the page as a set of like things
    laid on a grid, where a mix of raised tiles, tinted fields, bare tables and bordered logs
@@ -1213,10 +1222,11 @@ aside.sidenote { font-size: var(--t-5); line-height: 1.45; color: var(--muted);
 .facts dt { color: var(--muted); font-weight: 400; font-size: var(--t-5); }
 .facts dd { margin: 0; }
 @media screen {
-  @container lf-shell (width <= 640px) {
-    /* A long term must not spend most of a phone's line on the first column and leave
-       its explanation as a one-word ribbon. Stack each fact while the reading column is
-       narrow; later terms keep the ordinary block rhythm through the row gap. */
+  @container (width <= 640px) {
+    /* A long term must not spend most of a narrow box's line on the first column and
+       leave its explanation as a one-word ribbon. Stack each fact while the box holding
+       the facts is narrow, a phone's column or a narrow pane alike; later terms keep the
+       ordinary block rhythm through the row gap. */
     .facts { grid-template-columns: minmax(0, 1fr); align-items: start; }
     .facts dd + dt { margin-top: var(--sp-2); }
   }
@@ -1542,11 +1552,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
   width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
 }
 .lf-margin-entry-glyph { line-height: 1; }
-.lf-margin-entry-icon {
-  inline-size: 16px; block-size: 16px; overflow: visible;
-  fill: none; stroke: currentColor; stroke-width: 1.6;
-  stroke-linecap: round; stroke-linejoin: round;
-}
+.lf-margin-entry-icon { inline-size: 16px; block-size: 16px; }
 .lf-margin-entry > .lf-margin-entry-space { display: none; }
 .lf-margin-entry > .lf-margin-entry-label {
   position: absolute; z-index: 3; inset-block-start: calc(100% + 6px);

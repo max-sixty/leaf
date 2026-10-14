@@ -1357,6 +1357,13 @@ export function layoutMarginRows() {
     const cursors = new Map([[lane, lane.firstElementChild]]);
     const runs = new Map();
     const cutRuns = new Map();
+    // A withheld row keeps its carrier and frames where they stand, so a shown row
+    // allocating a run takes the next one they leave free, keeping document order.
+    const kept = new Set(
+      members
+        .filter((read) => !read.target)
+        .flatMap(({ home, container }) => [home, container]),
+    );
     let previous = null;
     for (const read of members) {
       const { row } = read;
@@ -1365,7 +1372,9 @@ export function layoutMarginRows() {
         else if (previous?.cutKey === read.cutKey && previous.container !== lane)
           read.container = previous.container;
         else {
-          const run = cutRuns.get(read.cutKey) ?? 0;
+          const held = cutFramesByKey.get(`${idOf(lane)}|${read.cutKey}`) ?? [];
+          let run = cutRuns.get(read.cutKey) ?? 0;
+          while (kept.has(held[run])) run += 1;
           cutRuns.set(read.cutKey, run + 1);
           read.container = cutRun(lane, read, run);
         }
@@ -1379,7 +1388,9 @@ export function layoutMarginRows() {
           read.home = previous.home;
         else {
           const key = carrierFor(read.container, read.carrier, axes, 0);
-          const run = runs.get(key) ?? 0;
+          let run = runs.get(key) ?? 0;
+          while (kept.has(carrierFor(read.container, read.carrier, axes, run)))
+            run += 1;
           runs.set(key, run + 1);
           read.home = carrierFor(read.container, read.carrier, axes, run);
         }

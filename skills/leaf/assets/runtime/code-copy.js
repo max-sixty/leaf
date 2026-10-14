@@ -63,6 +63,11 @@ const revealed = (pre, copy) => {
   if (cuts.has(copy)) standUnderHeaders(copy, headerLevels(pre));
   refreshAnchorView(copy);
 };
+// A resize can change a header's height under a control the user is on.
+const shown = new Map(); // revealed document control → its block
+addEventListener("resize", () => {
+  for (const [copy, pre] of shown) revealed(pre, copy);
+});
 // The key this module projects its Copy scope under, beside the block's other owners.
 const COPY_SCOPE = Symbol("code copy");
 
@@ -194,24 +199,30 @@ export function watchCodeBlocks() {
             },
             options,
           );
+          const mark = (name, on) => {
+            copy.classList.toggle(name, on);
+            if (copy.matches(".lf-code-copy-hover, .lf-code-copy-focused"))
+              shown.set(copy, pre);
+            else shown.delete(copy);
+          };
           pre.addEventListener(
             "pointerenter",
-            () => copy.classList.add("lf-code-copy-hover"),
+            () => mark("lf-code-copy-hover", true),
             options,
           );
           pre.addEventListener(
             "pointerleave",
-            () => copy.classList.remove("lf-code-copy-hover"),
+            () => mark("lf-code-copy-hover", false),
             options,
           );
           pre.addEventListener(
             "focus",
-            () => copy.classList.add("lf-code-copy-focused"),
+            () => mark("lf-code-copy-focused", true),
             options,
           );
           pre.addEventListener(
             "blur",
-            () => copy.classList.remove("lf-code-copy-focused"),
+            () => mark("lf-code-copy-focused", false),
             options,
           );
         }
@@ -226,6 +237,7 @@ export function watchCodeBlocks() {
       copy?.remove();
       cuts.get(copy)?.[0]?.remove();
       cuts.delete(copy);
+      shown.delete(copy);
       releaseReachStop(pre);
       projectCommandScope(pre, COPY_SCOPE, null);
     },

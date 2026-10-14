@@ -25,12 +25,8 @@ import {
   commitThreadSeats,
   retainThreadSeats,
 } from "./inline.js";
-import {
-  applicationPresenter,
-  applicationState,
-  PRESENTATION_ORDER,
-  readApplication,
-} from "../semantic-state.js";
+import { applicationPresenter, PRESENTATION_ORDER } from "../semantic-state.js";
+import { runtime } from "../context.js";
 
 // Each held element names the thread holding it, decided whole before any is written, so
 // an element that stays held is not cleared and marked again.
@@ -67,15 +63,37 @@ export function createThreadPresentation({
   let mounted = false;
   let primary = null;
 
+  // The parts of the root a thread presentation draws: the fold itself, whose records
+  // already carry the receipts and attention the workflows give them, and the document
+  // whose messages, descriptors and revision the cards name. A publication that moves
+  // neither — a widget's own action, say — claims nothing, and the current presentation
+  // carries into the new epoch. The margin this presentation renders once it commits
+  // also draws the Questions and the workflows; its own watcher follows those
+  // (`annotationSelection`).
+  //
+  // Before the page has read the log, an epoch with no thread draws the same line about
+  // waiting, and repainting the margin and the anchors to say it again is work done
+  // ahead of the first paint the user is waiting on, so all of them read as one
+  // unchanging value. A thread the user starts in that window is drawn, and so is its
+  // removal, the refusal of the last send included. A user who opens the panel then
+  // asks for the reading directly, through `present`, and gets it: every phase owes a
+  // reading when asked. A page that draws no thread surface (`available` false, as an
+  // offline export does) owes no reading at all.
   const presenter = applicationPresenter({
     region: "thread",
     order: PRESENTATION_ORDER.thread,
-    // Every phase owes a reading, the ones before the log has been read included: what
-    // the panel says while it waits is this region's to draw, and a user who opens it
-    // then is asking for exactly that.
-    current: () => (available ? readApplication().effective.thread : null),
+    reading: (root) =>
+      !available
+        ? null
+        : root.phase === "waiting" && !root.effective.thread.all.length
+          ? "waiting"
+          : {
+              phase: root.phase,
+              thread: root.effective.thread,
+              document: root.document,
+            },
     paint: async (value, current) => {
-      const phase = readApplication().phase;
+      const phase = runtime.statePhase;
       // A pass reads the latest root. Clock changes claim another pass through the
       // same presenter, so its current predicate also retires in-flight preparation.
       if (phase === "ready") await paintCurrent(current);
@@ -88,25 +106,6 @@ export function createThreadPresentation({
   });
 
   const present = () => presenter.present();
-
-  // Every epoch owes a fresh generated presentation, because this owner reads more of
-  // the root than its own fold: thread receipts come from canonical activity and the
-  // margin draws the ask rows beside them. The claim registers that obligation inside
-  // the publication that seals membership; the pass paints it.
-  //
-  // Empty startup epochs need no repeated thread paint. Once a local thread is
-  // drawn, its removal still owes a paint, including refusal of the last send.
-  let waitingEmpty = true;
-  applicationState
-    .select((snapshot) => snapshot.semanticEpoch)
-    .subscribe(() => {
-      const snapshot = readApplication();
-      const empty =
-        snapshot.phase === "waiting" && !snapshot.effective.thread.all.length;
-      if (empty && waitingEmpty) return;
-      waitingEmpty = empty;
-      void present();
-    });
 
   let surfaceGeneration = 0;
   let cancelCurrentRender = () => {};

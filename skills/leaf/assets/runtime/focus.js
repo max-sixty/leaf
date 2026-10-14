@@ -61,6 +61,7 @@
    Its dependencies are structural vocabulary, rendering and writes; importing a
    gesture owner would cycle through its focus dependency. */
 import { afterScript, nextRender } from "./rendering.js";
+import { signal } from "/vendor/browser-runtime.js";
 import { keeps } from "./keeps.js";
 import { MODIFIER_KEYS, TEXT_BOX, TAB_STOP } from "./control-selectors.js";
 import {
@@ -308,7 +309,12 @@ function landLabelPress() {
 // the host of the shadow tree the user stands in, for a reader comparing or containing
 // nodes of that tree. Every reading of focus outside this module asks here, so none
 // misses a label press or a shadow tree (eslint's `architecture/standing-reads`).
+// Each reading of where the user stands advances this signal, and `focused` reads it, so
+// a command whose liveness asks where the user stands is read again when they move
+// (keyboard/scopes.js).
+const standing = signal(0);
 export const focused = (tree = null) => {
+  void standing.value;
   let at = heldByLabel() ?? deepFocus();
   if (tree) while (at && at.getRootNode() !== tree) at = shadowHost(at.getRootNode());
   return at;
@@ -534,6 +540,7 @@ function publish(node, cause) {
   departed = false;
   const left = published?.deref() ?? null;
   const reading = ++readings;
+  standing.value = reading;
   // A drop leaves the place where readers last heard the user stood, so the next
   // reading, the owner putting them back there included, is told against it.
   if (cause === "drop") departed = true;

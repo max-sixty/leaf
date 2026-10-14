@@ -9,7 +9,7 @@ import { claimsEsc, paintKeys, watchCommandAvailability } from "./scopes.js";
 import { onStanding, takesLetters, typesText, focused } from "../focus.js";
 import { nextFrame } from "../rendering.js";
 import { pageUpgraded } from "../page-paint.js";
-import { readApplication } from "../semantic-state.js";
+import { runtime } from "../context.js";
 import { UPGRADE, PRESENTATION } from "../presentation.js";
 export function mountKeyboard({
   goToSequenceActive,
@@ -48,7 +48,7 @@ export function mountKeyboard({
   const takeHeldKeys = () => {
     if (!pageUpgraded() || pressingHeld) return;
     const taking = new CustomEvent("lf-held-keys", {
-      detail: { ready: keyReady, keep: () => readApplication().phase === "waiting" },
+      detail: { ready: keyReady, keep: () => runtime.statePhase === "waiting" },
     });
     document.dispatchEvent(taking);
     const { keys, pause, release } = taking.detail;

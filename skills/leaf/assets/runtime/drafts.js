@@ -169,7 +169,7 @@ export const storedDraft = (ctx) => {
   return read.available ? parseDraftRecord(read.value) : null;
 };
 const attemptAccepted = (attempt) =>
-  (runtime.browser?.receipts ?? []).some((event) => event.attempt === attempt);
+  runtime.receipts.some((event) => event.attempt === attempt);
 const writeDraftRecord = (ctx, record) =>
   draftStore.set(DRAFT + ctx, JSON.stringify(record));
 const rawDraftRecord = (ctx) => {

@@ -5,7 +5,7 @@
  * cloned DOM, inverse action, or restoration statement is retained. */
 import { recordedWidgetSelector, stateSpecs } from "../registry.js";
 import { elementReading } from "../passages.js";
-import { readApplication } from "../semantic-state.js";
+import { readPart } from "../semantic-state.js";
 import { dataBody } from "../widget-upgrade.js";
 import { authoredRank } from "./model.js";
 import { initialParent, initialSource } from "../initial-render.js";
@@ -42,7 +42,7 @@ import { initialParent, initialSource } from "../initial-render.js";
    Ownership of record members stops at `recordedOwner`, the nearest widget with a
    declared record. A custom outer container must not capture or restore a nested
    recorded widget's members. */
-export const authoredStates = () => readApplication().document.authored;
+export const authoredStates = readPart((root) => root.document.authored);
 export const authoredParents = new WeakMap();
 /** @param {Element} member */
 const recordedOwner = (member) => {

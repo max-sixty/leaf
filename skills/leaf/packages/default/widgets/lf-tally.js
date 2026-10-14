@@ -8,7 +8,7 @@
  * guess. Until the page's first reading is in, the tally says nothing rather than a
  * count of an inventory it has not seen.
  *
- * With `next`, a Next question control steps to the next ask waiting on the user inside
+ * With `next`, a Next on me control steps to the next ask waiting on the user inside
  * the region (`askActions.next`), from where the user stands, so a press keeps
  * them standing there rather than taking focus onto the control, as the On
  * panel's Next on me does. It is a native button: Tab and Enter reach it, and a
@@ -58,8 +58,8 @@ customElements.define(
       if (this.hasAttribute("next")) {
         this.#next = offer("button", "lf-btn lf-tally-next");
         seat.replaceWith(this.#next);
-        relabel(this.#next, "Next question", { says: false });
-        this.#next.title = "Go to the next question waiting on me here";
+        relabel(this.#next, "Next on me", { says: false });
+        this.#next.title = "Go to the next ask on me here";
         this.#next.setAttribute("aria-controls", this.getAttribute("for"));
         this.#next.addEventListener("mousedown", (event) => event.preventDefault());
         this.#next.addEventListener("click", () => {

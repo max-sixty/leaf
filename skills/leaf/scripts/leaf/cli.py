@@ -11,13 +11,27 @@ from leaf.schema import SKILL_ROOT, WAIT_BATCH_OUTPUT_INSTRUCTION
 from leaf.state import EVENTS_FILE
 
 
-def resolve_dir(dir_arg: str, must_exist: bool = True) -> Path:
+def resolve_dir(dir_arg: str, must_exist: bool = True, *, renew: bool = True) -> Path:
+    """The page a command names. An initialized one this Leaf cannot serve, as a
+    plugin update that bumps the page protocol leaves it, is re-vendored first for
+    the session running the command (`vendoring.renew_layer`), which says on stderr
+    what still holds it back; `renew` is off for a command that would undo the
+    re-vendor's restart."""
     page_dir = Path(dir_arg).expanduser().resolve()
-    if must_exist and not (page_dir / EVENTS_FILE).is_file():
+    if not must_exist:
+        return page_dir
+    if not (page_dir / EVENTS_FILE).is_file():
         raise click.ClickException(
             f"{page_dir} is not an initialized page; "
             f"run `leaf page init {shlex.quote(str(page_dir))}`"
         )
+    if not renew:
+        return page_dir
+    from leaf.harness import session_harness
+    from leaf.vendoring import renew_layer
+
+    if unready := renew_layer(page_dir, session_harness()):
+        print(unready, file=sys.stderr)
     return page_dir
 
 
@@ -886,7 +900,8 @@ def _serve(
     release_on_termination()
     with Handshake(handshake) as answer:
         cmd_serve(
-            resolve_dir(dir),
+            # A re-vendor here would restart the server this process is becoming.
+            resolve_dir(dir, renew=False),
             host,
             persistent,
             revive,
@@ -903,7 +918,7 @@ def stop(dir: str) -> None:
     """Stop a page's server."""
     from leaf.hosting import cmd_stop
 
-    print(json.dumps({"stopped": cmd_stop(resolve_dir(dir))}))
+    print(json.dumps({"stopped": cmd_stop(resolve_dir(dir, renew=False))}))
 
 
 @cli.command(short_help="Say the page waits on its user, or is done.")

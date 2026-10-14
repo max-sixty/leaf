@@ -642,6 +642,7 @@ button.lf-thread-notice[data-lf-focus] {
 @media print {
   :where(:root, .lf-thread-transcript) pre {
     white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
 }
 :where(:root, .lf-thread-transcript) blockquote {

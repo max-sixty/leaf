@@ -84,7 +84,7 @@
    naming that box here would tie on specificity and lose on source order, and `@media`
    contributes nothing to break the tie. */
 @media print {
-  :where(:root, .lf-thread-transcript) pre { white-space: pre-wrap; }
+  :where(:root, .lf-thread-transcript) pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 }
 :where(:root, .lf-thread-transcript) blockquote { margin: 18px 0; padding: 2px var(--quote-inset);
              border-left: var(--quote-rule); color: var(--muted);

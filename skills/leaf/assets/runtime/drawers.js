@@ -135,6 +135,7 @@ const queueRows = () => walkStops(queueList);
 
 export function createDrawers({
   doors = {},
+  turns = {},
   auxiliarySurfaces,
   closePreview,
   leavesOffered,
@@ -149,7 +150,10 @@ export function createDrawers({
   // the drawer stands, and closing hands focus back to the door the user opened it from,
   // where that door is still on screen, else to the control (through More where it is
   // folded). `names` is what the user reads it as: the word its door says, and the whole
-  // noun.
+  // noun. Where doors open a drawer on different views, as the On panel's open their
+  // own lists, the drawer's `turns` takes each press first, turning the drawer to that
+  // door's view and saying whether it moved: a press that moves an open drawer leaves it
+  // open, and only the door of the view it shows closes it.
   function registerDrawer(key, names, panel, btn, close, paint, side) {
     const entrances = [btn, ...(doors[key] ?? [])];
     const returnDoor = () => {
@@ -247,8 +251,10 @@ export function createDrawers({
       drawer.btn.classList.add("lf-auxiliary-toggle");
       for (const door of drawer.entrances) {
         door.onclick = (event) => {
+          const open = drawerIsOpen(key);
+          if (turns[key]?.(door) && open) return;
           openLayer(drawer.panel, door);
-          setOpenDrawer(drawerIsOpen(key) ? null : key, {
+          setOpenDrawer(open ? null : key, {
             focus: pressIsKeyboardActivation(event),
           });
         };

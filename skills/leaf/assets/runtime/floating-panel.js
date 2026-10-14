@@ -966,6 +966,21 @@ export function createFloatingPanel({
   // answer that shortens it moves nothing below.
   const seatHeights = new Map();
   const QUEUE_TABS = Object.freeze({ you: "user", agent: "agent" });
+  // Turning to another list seats its items afresh.
+  const chooseQueueTab = (tab) => {
+    if (tab === queueTab) return false;
+    queueTab = tab;
+    seated = null;
+    seatHeights.clear();
+    return true;
+  };
+  // The On me door, as the mark and the banner's control press it: the view on the
+  // user's list, turned to it where the view shows the agent's, else opened or closed.
+  function openOnMe() {
+    const turned = chooseQueueTab("you");
+    if (turned && trail.at(-1)?.view === "on") paint();
+    else open({ view: "on" });
+  }
   const queueLists = () => {
     const reading = readQueues();
     if (reading.phase !== "ready") return { you: [], agent: [], done: [] };
@@ -1138,11 +1153,7 @@ export function createFloatingPanel({
   };
   // An approval is an ask, always On me's, open or done.
   function arriveAtApproval() {
-    if (queueTab !== "you") {
-      queueTab = "you";
-      seated = null;
-      seatHeights.clear();
-    }
+    chooseQueueTab("you");
     open({ view: "on" }, { reopen: true, focus: false });
     paint();
     const target = approvalControl();
@@ -1253,10 +1264,7 @@ export function createFloatingPanel({
         queueTab,
         (tab) => html`${tabLabel(tab)}${tabCount(lists[tab].length)}`,
         (tab) => {
-          queueTab = tab;
-          seated = null;
-          seatHeights.clear();
-          paint();
+          if (chooseQueueTab(tab)) paint();
         },
       );
     } else if (thread) {
@@ -1564,7 +1572,7 @@ export function createFloatingPanel({
           aria-pressed=${String(top?.view === "on")}
           ?data-due=${onUser > 0}
           aria-label=${onUser ? `On me: ${onUser}` : "On me"}
-          @click=${() => open({ view: "on" })}
+          @click=${openOnMe}
         >
           ${iconTemplate("question", "lf-action-icon")}<span class="lf-fp-num"
             >${onUser || ""}</span
@@ -1767,10 +1775,9 @@ export function createFloatingPanel({
       (event) => {
         event.stopImmediatePropagation();
         event.preventDefault();
-        if (view === "threads") {
-          filter = "open";
-          query = "";
-        }
+        if (view === "on") return openOnMe();
+        filter = "open";
+        query = "";
         open({ view });
       },
       { capture: true },

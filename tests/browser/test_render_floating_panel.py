@@ -294,7 +294,8 @@ def test_the_on_view_is_titled_by_its_tab_with_that_list_s_done_under_it(
 ):
     """The On view has no name of its own: its title is the open tab's, On me or On
     Claude, and under each list stands what left it. A reply the agent sent leaves its
-    list, so it stands under On Claude, said as sent."""
+    list, so it stands under On Claude, said as sent. The On me mark opens the user's
+    list, turning the view to it where it shows the agent's."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Is the window long enough?")
     append_carried_log_record(
@@ -323,6 +324,11 @@ def test_the_on_view_is_titled_by_its_tab_with_that_list_s_done_under_it(
     expect(sent).to_have_count(1)
     expect(sent).to_contain_text("Forty-eight hours covers the first cohort.")
     expect(sent.locator(".lf-fp-said")).to_have_text(re.compile(r"^Sent"))
+    # The On me mark turns the open view back to the user's list, and then closes it.
+    page.locator(".lf-fp-on-user").click()
+    expect(title).to_have_text("On me")
+    page.locator(".lf-fp-on-user").click()
+    expect(title).to_have_count(0)
 
 
 def test_on_shows_an_ask_as_its_message_and_reply_comes_back(browser, serve):

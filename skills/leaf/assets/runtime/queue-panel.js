@@ -6,10 +6,11 @@
 
    The panel has no name of its own. Its head is two tabs, one per list, and the open
    one reads as its title; the list in view is that tab's open items, then, folded, its
-   Done: what left that list (`served_state.queues`, by `owner`). It opens on the list
-   of the door it was opened from, so the agent's count beside the status opens On
-   <agent>, and every other way in opens On me, the list `m` walks. Which tab is open
-   is the panel's own view state, which the log never holds.
+   Done: what left that list (`served_state.queues`, by `owner`). Each door opens it on
+   its own list, the agent's count beside the status on On <agent>, and every other way
+   in, `g Shift+M` included, opens On me, the list `m` walks; a door pressed while the
+   panel shows the other list turns it to the door's (drawers.js, `turns`). Which tab is
+   open is the panel's own view state, which the log never holds.
 
    On me holds asks, to-dos on the user and resends; On <agent> holds answers the agent
    owes, its work in hand and its to-dos. Each ask carries its source and answer; only a
@@ -58,7 +59,6 @@ import {
   queueTabs,
   drawerIsOpen,
 } from "./drawers.js";
-import { openerOf } from "./focus.js";
 import { markBannerControl } from "./banner-toolbar.js";
 import { clocked, shortAgo } from "./presence.js";
 import { elementById, inChrome } from "./passages.js";
@@ -229,7 +229,8 @@ export function createQueuePanel({ actions, next, announce, agentDoor }) {
     });
   }
 
-  // The list in view, and which of the served lists and Done owners it reads.
+  // The list in view, and which of the served lists and Done owners it reads. It goes
+  // back to On me as the panel closes, so a door or a key opens it fresh.
   let tab = "you";
   let wasOpen = false;
   const LISTS = Object.freeze({
@@ -237,11 +238,16 @@ export function createQueuePanel({ actions, next, announce, agentDoor }) {
     agent: Object.freeze({ items: "on_agent", owner: "agent" }),
   });
   const tabName = (id) => (id === "you" ? "On me" : `On ${agent()}`);
+  const turnTo = (id) => {
+    if (id === tab) return false;
+    tab = id;
+    void present();
+    return true;
+  };
   for (const [id, control] of Object.entries(queueTabs))
-    control.onclick = () => {
-      tab = id;
-      void present();
-    };
+    control.onclick = () => turnTo(id);
+  // A door's press, before the drawer opens or closes: the list that door counts.
+  const turn = (door) => turnTo(door === agentDoor ? "agent" : "you");
   // Each tab names its list and, once the log has answered, how many items wait on it;
   // the open one is pressed, and names the panel.
   function nameTabs() {
@@ -295,9 +301,8 @@ export function createQueuePanel({ actions, next, announce, agentDoor }) {
   const model = clocked(queueList, readModel, () => present());
 
   async function paintQueue(current) {
-    // Opened, it shows the list of the door it was opened from.
     const open = drawerIsOpen("queue");
-    if (open && !wasOpen) tab = openerOf(queuePanel) === agentDoor ? "agent" : "you";
+    if (wasOpen && !open) tab = "you";
     wasOpen = open;
     nameDoor();
     nameTabs();
@@ -389,5 +394,5 @@ export function createQueuePanel({ actions, next, announce, agentDoor }) {
     document.addEventListener(PRESENTATION, present);
   }
 
-  return { mount, present };
+  return { mount, present, turn };
 }

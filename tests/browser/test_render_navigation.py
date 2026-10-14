@@ -3450,7 +3450,8 @@ def test_the_on_panel_shows_each_list_with_its_own_done(browser, serve):
     agent opening comment, which asks implicitly. The agent's count opens the agent's
     list, and every other way in opens the user's. A row arrives where `m` would. A
     reply the user sends joins the agent's list as it is sent, and its thread leaves the
-    user's for the user's Done once the server has read the reply."""
+    user's for the user's Done once the server has read the reply. A door pressed while
+    the panel shows the other list turns it to the door's list."""
     url = serve(QUEUE_PAGE)
     d = serve.page_dir
 
@@ -3526,6 +3527,13 @@ def test_the_on_panel_shows_each_list_with_its_own_done(browser, serve):
     ], rows
     assert all(row["where"].startswith(("Done", "Sent")) for row in rows[2:]), rows
     expect(page.locator(".lf-queue-done > summary")).to_have_text("Done · 3")
+    # The On me door turns the open panel to the user's list rather than closing it,
+    # and the agent's count turns it back.
+    page.locator(".lf-queue").click()
+    expect(panel).to_have_attribute("aria-label", "On me")
+    expect(tabs.first).to_have_attribute("aria-pressed", "true")
+    counts.click()
+    expect(panel).to_have_attribute("aria-label", "On Agent")
     page.get_by_role("button", name="Close the On panel").click()
     expect(panel).to_be_hidden()
     expect(counts).to_be_focused()

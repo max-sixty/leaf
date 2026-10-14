@@ -27,8 +27,7 @@ in markup settles when a version writes the action in, which is the ask's Done, 
 reply, so it lands in none.
 """
 
-from datetime import datetime
-
+from ..registry.schema import aware_instant
 from ..thread import is_answer
 
 
@@ -150,11 +149,19 @@ def queues(
         for todo in ended_todos
     ]
     # A reply the agent sent is the answer On <agent> listed for the input it responds
-    # to, under that answer's identity, so the item keeps its key as it moves.
+    # to. The input's first answer takes that answer's identity, so the item keeps its
+    # key as it moves; any later answer to the same input is its own item.
+    answered = set()
+
+    def answer_id(message: dict) -> str:
+        first = message["responds"] not in answered
+        answered.add(message["responds"])
+        return message["responds"] if first else message["id"]
+
     done += [
         {
             "kind": "answer",
-            "id": message["responds"],
+            "id": answer_id(message),
             "owner": "agent",
             "subject": {"kind": "thread", "id": thread["id"]},
             "thread": thread["id"],
@@ -175,7 +182,7 @@ def queues(
     done.sort(
         key=lambda item: (
             item["ended"] is not None,
-            datetime.fromisoformat(item["ended"]) if item["ended"] else None,
+            aware_instant(item["ended"]) if item["ended"] else None,
         ),
         reverse=True,
     )

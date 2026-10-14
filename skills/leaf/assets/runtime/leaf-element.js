@@ -233,13 +233,14 @@ export class LeafElement extends LitElement {
     }
   }
 
-  /** The reading drawn again at once, outside any claim and Lit's own schedule, with a
+  /** The render drawn again at once, outside any claim and Lit's own schedule, with a
    *  failure thrown rather than shown: the render check's replay
    *  (render-checks/replay.js), which holds a draw of the same reading to change
-   *  nothing. An update Lit has queued stays queued, with its claim. */
+   *  nothing. `updated()` does not run, since what follows a draw may start
+   *  preparation that would claim the widget's presentation and land after the check
+   *  reads the page. An update Lit has queued stays queued, with its claim. */
   redraw() {
     render(this.render(), this.renderRoot, this.renderOptions);
-    this.updated(new Map());
   }
 
   updated(changed) {

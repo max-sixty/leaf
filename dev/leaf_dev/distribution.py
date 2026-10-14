@@ -1,18 +1,20 @@
-"""Prepare and reuse installations with the compiled browser kernel.
+"""Prepare and reuse installation trees whose committed kernel is current.
 
-Consumer installs follow `main` and serve the runtime's source modules; the source
-tree contains no generated kernel bundles. The website, suite, and developer previews
-prepare an installation before vendoring pages. The website's container installs
-that same payload (`leaf_dev.site`). Nothing
-compiles during installation, page init, export, or custom-package authoring.
-Package widgets remain native ESM and import the same widget-api entry as the
-compiled kernel, so their state has one owner. How consumer installs could carry the
-compiled kernel too is open in `TODO.md`.
+An install is the tracked tree. It serves the kernel committed under
+`skills/leaf/kernel/` wherever that was compiled from the tree's own modules, and the
+source modules otherwise (`leaf.layer.current_kernel`). A developer checkout's kernel
+is stale whenever its runtime has been edited and not rebuilt, so the website, the
+suite's browser tiers, and developer previews run a prepared installation instead:
+the payload with its kernel compiled again by the same build
+(`build/runtime-bundle.mjs`), so each vendors the kernel an install of that tree
+will serve once it is rebuilt. The website's container installs that same payload
+(`leaf_dev.site`). Nothing compiles during installation, page init, export, or
+custom-package authoring. Package widgets remain native ESM and import the same
+widget-api entry as the compiled kernel, so their state has one owner.
 
-The developer arm's payload layout preserves uv's workspace and each harness's
-local marketplace layout. Only browser runtime JavaScript is replaced; source
-paths retained in the distribution manifest enforce the private kernel boundary.
-The Pi manifest excludes maintainer dependencies and compiler commands.
+The payload layout preserves uv's workspace and each harness's local marketplace
+layout. A prepared tree has no Git metadata, so `leaf-distribution.json` records the
+producer its provenance names (`leaf.layer.payload_provenance`).
 """
 
 import json
@@ -23,13 +25,7 @@ import tempfile
 from pathlib import Path
 
 import click
-from leaf.layer import (
-    compose_layer,
-    files_identity,
-    kernel_runtime_paths,
-    layer_inputs,
-    payload_provenance,
-)
+from leaf.layer import files_identity, payload_provenance
 from leaf.state import flocked, write_json
 
 from leaf_dev import ROOT
@@ -45,16 +41,33 @@ COMPILER_INPUTS = (
 )
 
 
-def prepare(output: Path) -> None:
-    """Build a new installation tree from this checkout or an extracted payload."""
+def prepare(output: Path, runtime: Path = ROOT) -> None:
+    """Build a new installation tree from this checkout or an extracted payload.
+
+    The developer checkout supplies the compiler, so an older comparison arm gets the
+    kernel this checkout's build makes of its modules.
+    """
     if output.exists():
         raise click.ClickException(f"installation destination already exists: {output}")
-    if (ROOT / ".git").exists():
+    if runtime == ROOT and (ROOT / ".git").exists():
         extract_payload(output)
     else:
         output.mkdir(parents=True)
-        copy_payload(ROOT, output)
-    compile_installation(output)
+        copy_payload(runtime, output)
+    subprocess.run(
+        [
+            "node",
+            str(ROOT / "build/runtime-bundle.mjs"),
+            str(output / "skills/leaf/assets"),
+            str(output / "skills/leaf/kernel"),
+        ],
+        cwd=ROOT,
+        check=True,
+    )
+    write_json(
+        output / "leaf-distribution.json",
+        {"producer": payload_provenance(root=runtime)},
+    )
 
 
 def copy_payload(runtime: Path, output: Path) -> None:
@@ -68,59 +81,6 @@ def copy_payload(runtime: Path, output: Path) -> None:
         elif source.is_file():
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, target)
-
-
-def compile_installation(output: Path) -> None:
-    """Compile this interpreter's Leaf into an already extracted payload.
-
-    A comparison arm runs this helper in its own environment, so its own composer
-    supplies the graph and contracts; the developer checkout supplies the compiler.
-    Native package modules retain their public widget-api import and share the
-    kernel's instance. The completed payload needs neither Node nor developer tools.
-    """
-
-    composition = compose_layer(layer_inputs())
-    runtime_paths = sorted(kernel_runtime_paths())
-    producer = payload_provenance()
-    with tempfile.TemporaryDirectory(prefix="leaf-distribution-") as directory:
-        layer = Path(directory)
-        (layer / "leaf.js").write_bytes(composition.top_files["leaf.js"])
-        for sub in ("runtime", "widgets", "vendor"):
-            for name, data in composition.directory_files[sub].items():
-                target = layer / sub / name
-                target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_bytes(data)
-        assets = output / "skills/leaf/assets"
-        for source in (assets / "runtime").rglob("*.js"):
-            source.unlink()
-        subprocess.run(
-            [
-                "node",
-                str(ROOT / "build/runtime-bundle.mjs"),
-                str(layer),
-                str(assets),
-            ],
-            cwd=ROOT,
-            check=True,
-        )
-
-    package = json.loads((output / "package.json").read_text())
-    (output / "package.json").write_text(
-        json.dumps(
-            {key: package[key] for key in ("name", "private", "type", "pi")}, indent=2
-        )
-        + "\n"
-    )
-    (output / "leaf-distribution.json").write_text(
-        json.dumps(
-            {
-                "producer": producer,
-                "runtime_paths": runtime_paths,
-            },
-            indent=2,
-        )
-        + "\n"
-    )
 
 
 def installation_inputs(runtime: Path = ROOT) -> dict[str, Path]:
@@ -179,8 +139,8 @@ def cached_installation(runtime: Path = ROOT) -> Path:
     Suite workers and preview slots serialize preparation, then use an immutable
     installation. Authored-page edits and Git-label changes reuse its compiled
     bytes while publishing accurate producer metadata. A payload or compiler edit
-    builds a new kernel; no page ever receives private source
-    modules alongside the kernel. Recheck after lock acquisition and before
+    builds a new kernel, so every page these installations vendor gets the kernel
+    rather than the source modules. Recheck after lock acquisition and before
     returning or publishing: an edit that overtakes this attempt retries selection
     without needing another watcher event. A failed build publishes no cache entry.
     """
@@ -207,33 +167,7 @@ def cached_installation(runtime: Path = ROOT) -> Path:
                     prefix=".preparing-", dir=cache
                 ) as raw:
                     staged = Path(raw) / "installation"
-                    if runtime == ROOT:
-                        prepare(staged)
-                    else:
-                        staged.mkdir()
-                        copy_payload(runtime, staged)
-                        subprocess.run(
-                            [
-                                "uv",
-                                "run",
-                                "-q",
-                                "--no-dev",
-                                "--project",
-                                str(runtime),
-                                "--with-editable",
-                                str(ROOT / "dev"),
-                                "python",
-                                "-c",
-                                (
-                                    "import sys; from pathlib import Path; "
-                                    "from leaf_dev.distribution import compile_installation; "
-                                    "compile_installation(Path(sys.argv[1]))"
-                                ),
-                                str(staged),
-                            ],
-                            cwd=runtime,
-                            check=True,
-                        )
+                    prepare(staged, runtime)
                     if installation_identity(runtime) != identity:
                         continue
                     staged.rename(content)

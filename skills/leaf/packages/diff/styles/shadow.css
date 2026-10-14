@@ -362,7 +362,6 @@
 .lf-diff-thread-outlet .lf-page-thread { padding: var(--sp-2) 0; }
 /* Paper has no sideways scroll; wrap evidence within the printed sheet. */
 @media print {
-  .lf-diff-tools, .lf-diff-file-actions, .lf-diff-comment { display: none !important; }
   .lf-diff-file > :is(.lf-diff-fold, .lf-diff-metadata) { margin-top: 0 !important; }
   :scope:host(.lf-rendered) .lf-diff-file > details > summary { padding-right: 10px; }
   :scope:host(.lf-rendered) .lf-diff-metadata { padding-right: 0; }

@@ -10,9 +10,9 @@ What a module exports, and what each module reads from others, come from its par
 interfaces included. A module reads a name it imports or re-exports, names in a type
 `import("…").Name`, TypeScript's or a JSDoc comment's, or takes from a module
 namespace, each resolved to the module that exports it; `imports` says how. A read
-through `export * from` reaches the modules re-exported. A committed bundle exports
-nothing this checks, since its source is checked, but its imports are readers: what
-it left external is what it reads from the tree. A read of a bundle compiled from one
+through `export * from` reaches the modules re-exported. A committed bundle, the kernel
+included, exports nothing this checks, since its source is checked, but its imports
+are readers: what it left external is what it reads from the tree. A read of a bundle compiled from one
 module here, such as `vendor/browser-runtime.js`, is a read of that module.
 
 The readers that are not JavaScript are found by word, and only in the files that hold
@@ -41,7 +41,7 @@ from interact_support import PLUGIN_ROOT, js_facts, shipped_payload
 
 SOURCES = (".js", ".mjs", ".ts")
 WORDED = (".py", ".html", ".md")
-VENDORED = re.compile(r"(^|/)vendor/")
+BUNDLED = re.compile(r"(^|/)vendor/|^skills/leaf/kernel/")
 # A third-party bundle's own input under `build/` exports the surface of the package
 # it stands in for, which the bundled dependency reads and this tree never names
 # (`build/AGENTS.md`). Its own imports are still readers. `protocol-contract.d.ts` is
@@ -69,7 +69,7 @@ def test_every_export_has_a_reader_in_another_file():
     modules = [
         relative
         for relative in sources
-        if not VENDORED.search(relative) and not UNCHECKED.search(relative)
+        if not BUNDLED.search(relative) and not UNCHECKED.search(relative)
     ]
     exported = json.loads(js_facts("exports", modules))
     imported = json.loads(js_facts("imports", sources))
@@ -124,7 +124,7 @@ def test_every_export_has_a_reader_in_another_file():
             and not any(
                 PurePosixPath(module).name in text
                 for relative, text in texts.items()
-                if relative != module and not VENDORED.search(relative)
+                if relative != module and not BUNDLED.search(relative)
             )
         ]
     )

@@ -751,6 +751,10 @@ _TEXT = {
         f"{_line(at, v)}: unknown widget — not in the vendored registry.json"
     ),
     "attribute-schema": lambda at, v: f"{_line(at, v)}: {v['reason']}",
+    "member-record-slot": lambda at, v: (
+        f"{_line(at, v)}: scalar verb `{v['value_verb']}` and `{v['owner']}`'s "
+        f"selection verb `{v['owner_verb']}` both write attribute `{v['attr']}`"
+    ),
     "not-member": lambda at, v: (
         f"{_line(at, v)}: must be a direct member of "
         + " or ".join(f"<{owner}>" for owner in v["owners"])
@@ -1274,6 +1278,13 @@ _TEXT = {
     "creates-id": _declared(
         lambda v: _created(
             v, "whose required id must use the canonical element-id schema"
+        )
+    ),
+    "creates-semantic-owner": _declared(
+        lambda v: _created(
+            v,
+            "which must be a parent-owned member without independent owner capabilities: "
+            + ", ".join(v["keys"]),
         )
     ),
     "shared-slot": _declared(

@@ -3,6 +3,7 @@
 # filenames need --force-exclude, which the pre-commit hook already supplies.
 extend-exclude = [
   "skills/leaf/assets/vendor/**",
+  "skills/leaf/kernel/**",
   "skills/leaf/packages/**/vendor/**",
   "examples/corpus.html",
   "evals/ui-review-detection/fixtures/**",

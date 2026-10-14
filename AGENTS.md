@@ -13,6 +13,12 @@ The agent decides both a page's content and its presentation. The user's
 word overrides either, whether given in a comment or as a standing preference,
 and Leaf's own defaults yield to both.
 
+Leaf's product principles live in `skills/leaf/SKILL.md`, "Core principles".
+Core owns shared state, event, and lifecycle guarantees; packages own domain
+behavior and widget presentation. Judge simplifications by the mechanisms they
+remove and the package compositions they preserve or rule out, rather than by
+use in bundled widgets alone.
+
 Leaf supplies what the agent builds with: primitives, instructions, and
 templates. An agent could instead build a bespoke site for each task, so each
 primitive must give the user something that site would not:
@@ -229,11 +235,13 @@ ready assets. Consumers run no browser build.
 
 ### The install runs this tree
 
-Consumer installers follow `main` and serve the browser runtime's source modules.
-The leaf.page container instead installs a tree with the runtime compiled into one
-kernel, which `leaf-dev site` prepares beside the site (`dev/leaf_dev/distribution.py`).
-Installation, page authoring, custom packages, and export require no browser build or
-npm command.
+Consumer installers follow `main`, and pages vendor the browser runtime compiled
+into one kernel, committed in `skills/leaf/kernel/`, while it was built from the
+tree's modules; where a merge has left it stale, they vendor the source modules
+(`leaf.layer.current_kernel`). The leaf.page container, the suite's browser tiers and
+developer previews install a tree whose kernel is compiled again for its own
+modules (`dev/leaf_dev/distribution.py`). Installation, page authoring, custom
+packages, and export require no browser build or npm command.
 
 An install is the tracked tree copied into a harness's plugin cache, and nothing is
 built at install time: `bin/leaf` is `uv run --no-dev` on the tree, so the
@@ -244,12 +252,13 @@ survive one belongs in the page directory or the state home. Runtime
 dependencies, and those a bundled package script declares, state a floor and no
 cap. The host supplies Chrome and `jq`; leaf never downloads a browser.
 
-Files under `skills/leaf/assets/vendor/` and each package's `vendor/` are
-generated and committed where their consumer reads them; `build/AGENTS.md` says
+Files under `skills/leaf/assets/vendor/`, each package's `vendor/`, and the kernel
+are generated and committed where their consumer reads them; `build/AGENTS.md` says
 how to regenerate them.
 
 Every tracked byte ships in every install and stays in history, so the tree
-holds no binary files and no large ones. An image a tool in this repository
+holds no binary files and no large ones other than the kernel, whose `leaf.js` is
+near 500 KB and whose rebuilds add an estimated 5 to 13 MB of history a month. An image a tool in this repository
 reads, such as the demo recording, a catalog preview, an example page's image,
 or an eval case's capture, is published to `max-sixty/leaf-assets` at the path
 its reader looks for it and pinned by `leaf-assets.json`
@@ -265,7 +274,7 @@ Evidence, such as screenshots, probe
 captures, recordings and raw run output, stays in `.tmp/` and reaches the user
 on a Leaf page; a note keeps the finding and the command that reproduces it,
 not the capture. The suite refuses a binary file, and pre-commit refuses a new
-file over 500 KB.
+file over 500 KB outside the generated directories.
 
 ## Cross-runtime invariants
 

@@ -72,7 +72,22 @@ cases:
            autoscaling added nodes late.
 
         This session is headless: nobody can open a browser or answer you during it. If you would normally serve something and wait for feedback, don't start a server or wait; finish once the work is written and checked, and end with one line saying where it is. Keep every file you create inside {work}.
-    assert: []
+    assert:
+    - type: llm-rubric
+      metric: leaf_skill
+      value: >-
+        The agent loaded the Leaf skill before authoring its page, through a successful native Skill invocation or a successful reading of the Leaf SKILL.md. A filename mentioned in a command, failed read, or invocation of an unrelated skill does not count.
+      transform: context.metadata.texts?.["trace"] ?? ''
+    - type: llm-rubric
+      metric: agent_checked
+      value: >-
+        The agent actually ran Leaf page check on the page it authored or handed over, and the tool result confirms the check succeeded before its final handover. Merely mentioning or printing a check command, reading help, or a failed invocation does not count. Recognize equivalent launcher paths, variables, wrappers, and argument layouts from the calls and their results.
+      transform: context.metadata.texts?.["trace"] ?? ''
+    - type: llm-rubric
+      metric: not_served
+      value: >-
+        The agent completed this headless task without starting a server to serve the authored page. Judge executed tools and their results, including wrappers and indirect invocations. Quoting a server command, reading server help, or a command that failed before starting a server is allowed.
+      transform: context.metadata.texts?.["trace"] ?? ''
   cold-decision:
     inputs:
       prompts:
@@ -91,6 +106,21 @@ cases:
         This session is headless: nobody can open a browser or answer you during it. If you would normally serve something and wait for feedback, don't start a server or wait; finish once the work is written and checked, and end with one line saying where it is. Keep every file you create inside {work}.
     assert:
     - type: llm-rubric
+      metric: leaf_skill
+      value: >-
+        The agent loaded the Leaf skill before authoring its page, through a successful native Skill invocation or a successful reading of the Leaf SKILL.md. A filename mentioned in a command, failed read, or invocation of an unrelated skill does not count.
+      transform: context.metadata.texts?.["trace"] ?? ''
+    - type: llm-rubric
+      metric: agent_checked
+      value: >-
+        The agent actually ran Leaf page check on the page it authored or handed over, and the tool result confirms the check succeeded before its final handover. Merely mentioning or printing a check command, reading help, or a failed invocation does not count. Recognize equivalent launcher paths, variables, wrappers, and argument layouts from the calls and their results.
+      transform: context.metadata.texts?.["trace"] ?? ''
+    - type: llm-rubric
+      metric: not_served
+      value: >-
+        The agent completed this headless task without starting a server to serve the authored page. Judge executed tools and their results, including wrappers and indirect invocations. Quoting a server command, reading server help, or a command that failed before starting a server is allowed.
+      transform: context.metadata.texts?.["trace"] ?? ''
+    - type: llm-rubric
       metric: names_gesture
       value: 'The message tells the user how to make the decision on the page: by picking,
         choosing or selecting one of its options.'
@@ -103,7 +133,12 @@ cases:
         relational database. A short answer is fine.
 
         This session is headless: nobody can open a browser or answer you during it. If you would normally serve something and wait for feedback, don't start a server or wait; finish once the work is written and checked, and end with one line saying where it is. Keep every file you create inside {work}.
-    assert: []
+    assert:
+    - type: llm-rubric
+      metric: leaf_skill_quiet
+      value: >-
+        The agent answered this short chat request without loading or invoking the Leaf skill. Judge actual skill loading or successful file reads; a mention of Leaf or an unrelated skill name does not count as loading the Leaf skill.
+      transform: context.metadata.texts?.["trace"] ?? ''
   reading:
     inputs:
       prompts:
@@ -419,7 +454,17 @@ cases:
         and 62% of the budget is spent so far. Check the page and stamp the new version.
         This session is headless: nobody can open a browser or answer you during it, so don't start a server or wait for feedback.
       fixture: package
-    assert: []
+    assert:
+    - type: llm-rubric
+      metric: entry_read
+      value: >-
+        Before first modifying page/index.html to use the unfamiliar slo package widget, the agent successfully read the package's declared registry entry. Judge file-tool paths, shell or script behavior and their results. A registry filename mentioned in a failed command, read from an unrelated package, or read only after the modification does not count.
+      transform: context.metadata.texts?.["trace"] ?? ''
+    - type: llm-rubric
+      metric: source_unread
+      value: >-
+        Before first modifying page/index.html to add the slo widget, the agent did not read the implementation source of that widget (lf-burn.js or equivalent package implementation files). Reading package instructions, the selected registry or page declarations is allowed; merely mentioning implementation filenames without reading their contents is allowed.
+      transform: context.metadata.texts?.["trace"] ?? ''
   shared-source:
     inputs:
       prompts:
@@ -436,6 +481,11 @@ cases:
         main, and its tests pass. Update the page to show that. This session is headless: nobody can open a browser or answer you during it, so don't start a server or wait for feedback.
       fixture: shared-source
     assert:
+    - type: llm-rubric
+      metric: source_unread
+      value: >-
+        Across both phases the agent worked from the page declarations and source data without reading the worktree widget implementation (lf-atlas-tree.js or its equivalent implementation files). Reading page declarations, package instructions, registries and the shared source snapshot is allowed. Mentioning an implementation filename without reading its contents is allowed.
+      transform: context.metadata.texts?.["trace"] ?? ''
     - type: llm-rubric
       metric: finch_branch
       value: Answer 1, to which branch finch's worktree is on and whether its tests pass,
@@ -470,6 +520,16 @@ cases:
           - lede
           - Pick how the copy runs.
     assert:
+    - type: llm-rubric
+      metric: checked
+      value: >-
+        The agent actually ran Leaf page check on the page it authored or handed over, and the tool result confirms the check succeeded before its initial handover (the first completed result, preceding the posted user rounds). Merely mentioning or printing a check command, reading help, or a failed invocation does not count. Recognize equivalent launcher paths, variables, wrappers, and argument layouts from the calls and their results.
+      transform: context.metadata.texts?.["trace"] ?? ''
+    - type: llm-rubric
+      metric: watch_left_to_leaf
+      value: >-
+        Throughout this live scenario, the agent left watching for later user input to Leaf rather than launching its own background wait or polling loop. Judge what the tools actually started, including renamed launchers, variables and wrappers. Reading help, quoting a wait command, and failed attempts that started nothing are allowed.
+      transform: context.metadata.texts?.["trace"] ?? ''
     - type: llm-rubric
       metric: detail_names_ask
       value: 'This status, shown while the page waits on the user, says what it waits for:
@@ -527,6 +587,11 @@ cases:
           text: 'Uncaught TypeError: replaceAll must be called with a global RegExp ({origin}/:{line})'
     assert:
     - type: llm-rubric
+      metric: watch_left_to_leaf
+      value: >-
+        Throughout this live scenario, the agent left watching for later user input to Leaf rather than launching its own background wait or polling loop. Judge what the tools actually started, including renamed launchers, variables and wrappers. Reading help, quoting a wait command, and failed attempts that started nothing are allowed.
+      transform: context.metadata.texts?.["trace"] ?? ''
+    - type: llm-rubric
       metric: comment_done
       value: The paragraph says the dry run took 3 hours 10 minutes.
       transform: context.metadata.texts?.["dry-run"] ?? ''
@@ -544,6 +609,16 @@ cases:
           text: Remind me what time the copy starts each night, in UTC? I'm putting it in
             the on-call calendar.
     assert:
+    - type: llm-rubric
+      metric: watch_left_to_leaf
+      value: >-
+        Throughout this live scenario, the agent left watching for later user input to Leaf rather than launching its own background wait or polling loop. Judge what the tools actually started, including renamed launchers, variables and wrappers. Reading help, quoting a wait command, and failed attempts that started nothing are allowed.
+      transform: context.metadata.texts?.["trace"] ?? ''
+    - type: llm-rubric
+      metric: middle_read
+      value: >-
+        After receiving the user question about the nightly start time, and before committing its answer, the agent successfully retrieved the omitted middle of the historical thread containing the premise "the vacuum job now owns the ops window". Judge actual retrieved content and ordering in the structured calls and results, allowing any tool or launcher. Mentioning the premise in the agent's own text does not prove retrieval, and retrieving it only after answering fails.
+      transform: context.metadata.texts?.["trace"] ?? ''
     - type: llm-rubric
       metric: answer_right
       value: The answer says the copy starts at 22:00 UTC each night. Answering 01:00 UTC

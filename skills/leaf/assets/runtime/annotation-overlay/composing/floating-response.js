@@ -211,7 +211,7 @@ export function createFloatingResponsePlacement({
             update();
           };
           const stopSize = autoUpdate(reference, floating, invalidate, {
-            ancestorScroll: !fabPosition.nativeAvailable(),
+            ancestorScroll: false,
             layoutShift: false,
           });
           let x = reference.getBoundingClientRect().left;
@@ -542,7 +542,6 @@ export function createFloatingResponsePlacement({
     });
   }
   return {
-    holdsHome: fabPosition.holdsHome,
     stands: () => response.open || Boolean(anchorGeometry(response.anchor)),
     place: placeFab,
     stop: stopFabPositioning,

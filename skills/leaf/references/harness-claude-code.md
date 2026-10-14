@@ -2,9 +2,8 @@
 
 ## Launcher
 
-Run the launcher as `leaf`. It is `${CLAUDE_SKILL_DIR}/../../bin/leaf`, and Claude
-Code puts it on `PATH`. Claude Code's settings match a command by its text, and the
-ones that let Leaf run outside its sandbox name `leaf`.
+The launcher is `${CLAUDE_SKILL_DIR}/../../bin/leaf`, and Claude Code puts it on
+`PATH`.
 
 ## Serve the page
 

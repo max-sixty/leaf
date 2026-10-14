@@ -106,7 +106,10 @@ def environment(**extra: str) -> dict[str, str]:
     identity: its id, job directory, effort level and App Server endpoint. A `leaf`
     command would sign events as that session, and a child would use its transport
     and settings. An inherited LEAF_HOST_LAUNCHER would override the arm's launcher.
-    `CLAUDE_CONFIG_DIR` stays, since it names where the login lives.
+    `CLAUDE_CONFIG_DIR` stays, since it names where the login lives. Nor does PATH
+    keep `uv run`'s environment or the bin directory of a Leaf tree, such as the
+    one the session's harness added for its own Leaf plugin: the `leaf` in either
+    would shadow the launcher a child harness puts on PATH for the arm's plugin.
 
     A child names the pinned headless shell as its browser through
     LEAF_BROWSER_EXECUTABLE (`shell_executable`), unless that variable is already
@@ -121,6 +124,13 @@ def environment(**extra: str) -> dict[str, str]:
     }
     if browser_model.VARIABLE not in env:
         env[browser_model.VARIABLE] = shell_executable()
+    venv = os.environ.get("VIRTUAL_ENV")
+    env["PATH"] = os.pathsep.join(
+        entry
+        for entry in env["PATH"].split(os.pathsep)
+        if not (venv and entry == str(Path(venv) / "bin"))
+        and not (Path(entry).parent / "skills" / "leaf").is_dir()
+    )
     return {**env, **extra}
 
 

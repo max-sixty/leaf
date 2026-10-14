@@ -252,8 +252,8 @@ touches; each target's module header lists its steps and the promises it checks:
 - `claude-code` (`journey_claude_code.py`): with and without `--hooks-module`, after a
   change to `hooks/hooks.json`, `hooks/claude-code.ts`, `ClaudeCodeHarness`,
   `hooks.py`, `background-watch.py`, or the watch between turns in `session.py`. Add
-  `--sandbox` after a change to the README's "Agent sandboxes" settings or to what a
-  `leaf` command needs from outside its page directory.
+  `--sandbox` after a change to `bridge.py`, the README's "Agent sandboxes" settings,
+  or what a `leaf` command needs from outside its page directory.
 - `codex-app-server` and `codex-queue` (`journey_codex.py`): both, after a change to
   `codex.py`, `codex_adapter.py`, `hooks.py`, `hook_transport.py`, or the claim's turn
   in `service.py`; add `--preview` for a change to preview startup or lifetime.

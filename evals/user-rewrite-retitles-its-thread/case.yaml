@@ -14,7 +14,8 @@
 # Handling re-pasted from the registry at 3fe3eb0af (`--ask`, `--todo`, "update"),
 # where it passed 1/1 cold and 1/1 `mid-session` on Claude Code.
 # Re-pasted after the registry's readability rewrite (725e29e28 and its review
-# fixes), which reworded the `edit` clause and the reply clause; not yet scored.
+# fixes), which reworded the `edit` clause and the reply clause: 2/2 cold and
+# 2/2 mid-session on each harness.
 description: user-rewrite-retitles-its-thread
 metadata:
   purpose: "A user's rewrite of a thread's opening message to a new subject retitles the thread."

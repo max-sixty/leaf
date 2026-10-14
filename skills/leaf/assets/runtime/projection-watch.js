@@ -1,4 +1,4 @@
-/* The one watcher of a browser reading, for chrome and packages alike.
+/* The one watcher of the page's readings, for chrome and packages alike.
 
    `watchProjection(owner, paint, ready)` calls `paint()` on the microtask after it
    subscribes, then once per microtask in which a part of the page's publication that
@@ -26,9 +26,9 @@
    including queued paints. Its `refresh()` reruns the same paint synchronously for
    mechanical changes such as revealing held news, or on the return when the owner is
    away, while retaining the owner's lifetime and readiness proof; before the first
-   paint it draws that one at once. `watchAsks`,
-   `watchQueues`, `watchThreads`, `watchReports`, `watchHistory` and `watchWork` are this
-   watcher around a reader of their own, so none of them states these rules again. */
+   paint it draws that one at once. A reading has no watcher of its own: a paint calls
+   its reader (`readAsks`, `readQueues`, `readThreads`, `readWork`, `reportSequence`,
+   `readHistory`), and one watcher serves a paint that reads several. */
 import { collectReads } from "../vendor/browser-runtime.js";
 import { watchPresentation } from "./semantic-state.js";
 import { projectionDeferred, watchProjectionDeferral } from "./projection/state.js";

@@ -10,7 +10,7 @@ import { reportPageError } from "../layer-client.js";
 import { under, renderedUnder, shadowHost } from "../shadow.js";
 import { clearThreadMirrors, renderThreadMirrors } from "./inline.js";
 import { readThreads } from "./state.js";
-import { watchThreads } from "./watch.js";
+import { watchProjection } from "../projection-watch.js";
 import { ThreadView, threadReading } from "./thread-card.js";
 import { MessageView, messageReading } from "./messages.js";
 import { createReplyView, replyAvailable } from "./replies.js";
@@ -113,7 +113,7 @@ export function registerMirrorConsumer(owner, render, { commands }) {
   };
   // The watcher holds the reconcile it started, so a departure that cuts it short
   // owes the reading again on return.
-  const stop = watchThreads(owner, () => reconcile());
+  const stop = watchProjection(owner, reconcile);
   const handle = Object.freeze({
     update,
     unregister() {

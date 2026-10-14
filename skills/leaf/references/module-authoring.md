@@ -1300,32 +1300,32 @@ The icon is decorative; the button supplies its accessible label.
 
 ## Page readings
 
-Each page reading below has a `watch…(owner, callback)` subscription; register it once for
-each owner. `watchAsks`, `watchQueues`, `watchThreads`, `watchReports` and
-`watchHistory` share these rules, as does `watchWork` ("Work hierarchies"). Each calls the callback on the microtask after
-subscribing, then again, at most once per microtask, whenever anything the callback read
-from the page's state has changed, a drag starts or stops holding the page's projection
-back ("Pointer presses"), or the page dispatches `PRESENTATION` ("Startup and
-presentation"). What the callback reads is tracked: its watcher's own reading, and any
-other reader it calls synchronously, such as `readWork`, `readAsks`, `reportSequence` or
-a widget controller's `read()`, so a callback never lists its inputs. A publication that
-moves none of them calls nothing. Reads after an `await` and reads of the document's
-nodes are not tracked; a callback that depends on them watches them itself. Several
-of these in one task make one call. It pauses while the owner is away and reads
+Each page reading below has a reader, and one watcher follows them all:
+`watchProjection(owner, paint)` calls `paint()` on the microtask after subscribing, then
+again, at most once per microtask, whenever anything `paint` read from the page's state
+has changed, a drag starts or stops holding the page's projection back ("Pointer
+presses"), or the page dispatches `PRESENTATION` ("Startup and presentation"). Register
+it once for each owner. What the paint reads is tracked: every reader it calls
+synchronously, such as `readAsks`, `readQueues`, `readThreads`, `readWork`,
+`reportSequence`, `readHistory` or a widget controller's `read()`, so a paint never
+lists its inputs, and one watcher serves a paint that reads several readings. A
+publication that moves none of them calls nothing. Reads after an `await` and reads of
+the document's nodes are not tracked; a paint that depends on them watches them itself.
+Several of these in one task make one call. It pauses while the owner is away and reads
 again on a return by the rule in "Connection lifetimes"; moving the owner within one
 mutation batch keeps it. The returned function retires the subscription for good,
 including queued reads and clock paints. Its `refresh()` reruns the same clock-tracked
 reading synchronously, on the return when asked while the owner is away; use it when a
 mechanical change, such as revealing held news or entering print, needs a repaint, since
 calling the renderer directly would leave its new time readings outside the
-subscription. Package semantic behavior subscribes to its own widget's state through its
-controller.
+subscription. An optional third argument, `ready()`, withholds every paint, clock paints
+included, until it returns true; a withheld paint stays owed. Package semantic behavior
+subscribes to its own widget's state through its controller.
 
 ### Reading asks and obligation queues
 
-`readAsks()` returns the publisher's immutable `{phase, all, user, unanswered}`, and
-`watchAsks(owner, callback)` calls `callback(readAsks())`. `all` holds widget,
-prose and stamped-version approval asks, including answered and withdrawn asks whose
+`readAsks()` returns the publisher's immutable `{phase, all, user, unanswered}`. `all`
+holds widget, prose and stamped-version approval asks, including answered and withdrawn asks whose
 sources remain. `user` selects open asks currently awaiting the user; `unanswered`
 includes every open ask, even one held with the agent or hidden behind a later prompt.
 Each record contains:
@@ -1396,9 +1396,8 @@ region's edge. It resolves to whether it arrived. A control that calls it keeps 
 (`mousedown` default prevented), so a second press steps on. Answering uses the source's
 declared command; asks expose no separate answer API.
 
-`readQueues()` and `watchQueues(owner, callback)` supply the immutable
-`{phase, on_user, on_agent, done}` that the On panel and `m` navigation use. Every row
-names the list it stands on, or left for `done`, in `owner` (`user` or `agent`); `done`
+`readQueues()` returns the immutable `{phase, on_user, on_agent, done}` that the On
+panel and `m` navigation use. Every row names the list it stands on, or left for `done`, in `owner` (`user` or `agent`); `done`
 holds asks answered or withdrawn, ended to-dos, and the agent's sent replies, as
 `kind === "answer"` rows, newest first. Ask rows
 have `kind === "ask"` and their canonical `ask` record, whose `source.kind` is `widget`,
@@ -1420,10 +1419,10 @@ the admitted reading; the server stays final. Collections keep their shape while
 
 ### Work hierarchies
 
-`readWork(scope)` reads a page-owned work hierarchy from the current publication, and
-`watchWork(owner, callback)` calls `callback()` whenever the widget states, threads, asks
-or reports it reads change, by the rules of "Page readings"; a widget whose display
-counts its children's work reads it there rather than in `watchReports`. The page
+`readWork(scope)` reads a page-owned work hierarchy from the current publication; a
+paint that calls it repaints whenever the widget states, threads, asks or reports it
+reads change ("Page readings"), so a widget whose display counts its children's work
+reads it there rather than reading their reports. The page
 declares `$work.widgets` roles: `scope` bounds one hierarchy; `goal` names a recorded
 `state` attribute and its `done` and `stopped` values; `worker` names its recorded `state`,
 its `running` and `retired` values, and an optional assignment attribute `on`; `evidence`
@@ -1438,18 +1437,18 @@ domain tags belong to that page.
 
 ### Page history and reports
 
-A widget that renders the page's history declares `x-history` and reads it through
-`watchHistory(owner, callback)`: the server's rows, newest first, each already carrying its
-thread, whether it was undone, the name an agent's row is shown under as `agent`, and a
-gesture's words as the document it was made in had them. The widget words those facts; it
-does not fold the log. The callback's second argument is `{ready}`, whether the
-authoritative application is ready. A widget that restores a tab-local reading keeps it
-through preparation, then compares it with the ready history; a preparation reading is no
-new baseline.
+A widget that renders the page's history declares `x-history` and reads it with
+`readHistory()`, which returns `{phase, events}`: the server's rows, newest first, each
+already carrying its thread, whether it was undone, the name an agent's row is shown under
+as `agent`, and a gesture's words as the document it was made in had them. The widget
+words those facts; it does not fold the log. `phase` is `ready` once the authoritative
+application is. A widget that restores a tab-local reading keeps it through preparation,
+then compares it with the ready history; a preparation reading is no new baseline.
 
-A widget an agent reports on reads the reports with `watchReports(this, callback)`, which
-calls the callback with `reportSequence(this)` once the widget has painted every report it
-holds. Each entry is one report about the widget, in log order, carrying `id`, `target`,
+A widget an agent reports on reads the reports with `reportSequence(this)` in a paint
+that waits for them to be drawn:
+`watchProjection(this, paint, () => reportsPresented(this))` paints only once the widget
+has painted every report it holds. Each entry is one report about the widget, in log order, carrying `id`, `target`,
 `source`, `action`, `detail`, its words as `text`, `ts`, and `disposition`: `effective`,
 `outranked` by a newer report on its coordinate, or `settled` by a stamped version. Pass
 `{kind: "thread", id}` in place of the element to read a Thread's reports, or call
@@ -1577,7 +1576,7 @@ their geometry changed; call it after any such rendering change.
 ### Reading and opening Threads from a widget
 
 `readThreads()` returns the same immutable `{phase, threads}` collection the Threads panel
-reads, and `watchThreads(owner, callback)` calls the callback with it ("Page readings").
+reads; a paint that reads it follows it ("Page readings").
 `threads` holds conversations, including local sends while `phase` is `waiting` or
 `offline`; only `ready` means the saved inventory is complete. A bare reaction without
 a spoken turn is not a listed Thread. Each widget keeps its own search, filter and order

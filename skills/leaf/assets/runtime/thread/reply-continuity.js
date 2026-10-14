@@ -10,11 +10,10 @@
    surviving words and Send stay put; longer replacement text scrolls inside it.
    A change of inline measure starts a fresh allocation. Native edits resize that
    room to their intrinsic content. What the user writes is theirs to see grow and
-   shrink: the retained body extent changes by the height change of the box they write
-   in, the reply row or a message they are rewriting (`message-edit.js`), on each native
-   edit and on each presentation that opens, closes or saves a rewrite
-   (`before(writing)`), so the transcript's space never retains deleted lines, and
-   space held for news stays held.
+   shrink: the retained body extent follows the boxes the user resizes, through native
+   editing, a rewrite or a disclosure (`before(resizing)`). Hiding progress or a full
+   quote returns its room rather than retaining an empty transcript, while space held
+   for news stays held.
    A departed or closed region releases that mechanical extent. A floating card
    bounds that extent by its already allocated body room.
    No message or delivery state is retained; a short panel card starts at its
@@ -96,13 +95,12 @@ export class ReplyContinuity {
       growthIsSeen(this.#row)
     );
   }
-  // `writing` are the boxes the presentation opens, closes or changes the words of, as
-  // rewrites do, whose own height changes the extent follows.
-  before(writing = []) {
+  // Follow height changes of boxes the user resizes in this presentation.
+  before(resizing = []) {
     this.#row = this.#owner.querySelector(":scope > .lf-thread-reply");
     this.#presenting = [];
     if (!this.#visible()) return null;
-    this.#presenting = writing
+    this.#presenting = resizing
       .filter((node) => node.isConnected)
       .map((node) => ({ node, height: node.getBoundingClientRect().height }));
     const body =

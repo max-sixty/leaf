@@ -13661,8 +13661,15 @@ def test_a_long_quote_of_replaced_data_has_a_local_reading(browser, serve):
         "button", name="Full quote", exact=True
     )
     expect(disclosure).to_be_visible()
+    card = page.locator(".lf-thread-panel .lf-thread")
+    compact = card.bounding_box()["height"]
     disclosure.click()
     assert quote.evaluate("el => el.scrollHeight <= el.clientHeight + 1")
+    rendered(page)
+    assert card.bounding_box()["height"] > compact
+    disclosure.click()
+    rendered(page)
+    assert card.bounding_box()["height"] == pytest.approx(compact, abs=0.5)
 
 
 @pytest.mark.parametrize("quoted", [True, False], ids=["short-quote", "whole-section"])

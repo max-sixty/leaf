@@ -12,6 +12,7 @@ import ipaddress
 import json
 import logging
 import secrets
+import shlex
 import socket
 import sys
 import threading
@@ -22,6 +23,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from .detached import Handshake, StartRefused, starting_detached
+from .findings import Finding, note
 from .harness import Harness, claim_harness, harness_argument, session_harness
 from .leases import (
     end_if_terminated,
@@ -34,12 +36,12 @@ from .refusals import Refused
 from .schema import SERVER_LOCK, SERVICE_FILE
 from .server import (
     host_key,
-    lifetime_note,
-    loopback_note,
+    loopback_only,
     page_access,
     page_url,
     read_service,
     running_server,
+    served_lifetime,
     stop_when_service_ends,
 )
 from .service import (
@@ -51,9 +53,6 @@ from .service import (
     same_claim,
 )
 from .state import write_json
-
-TEMPORARY_SERVER_NOTE = "server   temporary (stops with this command)"
-
 
 # The side that closes a TCP connection first keeps its address in TIME_WAIT, for
 # 60 s on Linux and 30 s on macOS. A server is that side for the keep-alive
@@ -377,39 +376,41 @@ class TemporaryPageServer:
 def cmd_serve_temporary(page_dir: Path) -> None:
     """Run the process-owned page server used by browser automation."""
     server = TemporaryPageServer(page_dir)
-    print(json.dumps({"url": server.url}), flush=True)
-    print(TEMPORARY_SERVER_NOTE, file=sys.stderr, flush=True)
+    print(json.dumps({"url": server.url, "lifetime": "temporary"}), flush=True)
     server.run()
 
 
-def startup_note(page_dir: Path) -> str:
-    """Identify the page, vendored bytes, and serving Leaf beside its lifetime."""
-    from .layer import provenance_label
+def server_reading(page_dir: Path) -> dict:
+    """What a started server serves, beside its URL: the page, the server's lifetime
+    (`server.served_lifetime`) with the command that stops a persistent one, the
+    vendored layer's fingerprint and the Leaf that vendored it, and the Leaf serving
+    it (`payload_provenance`), or None for a service whose record names none."""
     from .registry.storage import layer_metadata
 
     layer = layer_metadata(page_dir)
-    service = read_service(page_dir) or {}
-    # An older live service has no trustworthy runtime identity. Naming this
-    # command's payload instead would make the exact stale-server case this note
-    # exists to expose look current merely because a newer client inspected it.
-    runtime = service.get("runtime") or {}
-    fingerprint = layer["fingerprint"]
-    # After the lifetime line, not before: a foreground serve's first line of
-    # stderr is the lifetime, and its readers take exactly one.
-    return "\n".join(
-        line
-        for line in (
-            lifetime_note(page_dir),
-            loopback_note(page_dir),
-            f"page     {page_dir}",
-            f"layer    {fingerprint} ({provenance_label(layer.get('producer', {}))})",
-            (
-                f"runtime  {runtime.get('path', 'unknown payload')} "
-                f"({provenance_label(runtime)})"
-            ),
-        )
-        if line
-    )
+    lifetime = served_lifetime(page_dir)
+    reading = {"page": str(page_dir), "lifetime": lifetime}
+    if lifetime == "persistent":
+        reading["stop"] = f"leaf server stop {shlex.quote(str(page_dir))}"
+    return reading | {
+        "layer": {
+            "fingerprint": layer["fingerprint"],
+            "leaf": layer.get("producer", {}),
+        },
+        # An older live service has no trustworthy runtime identity. Naming this
+        # command's payload instead would make the exact stale-server case this
+        # reading exists to expose look current merely because a newer client
+        # inspected it.
+        "runtime": (read_service(page_dir) or {}).get("runtime"),
+    }
+
+
+def announce_server(page_dir: Path, url: str) -> None:
+    """Print a started server's URL and reading (`server_reading`) as one object, and
+    note an address that stays on this machine (`server.loopback_only`)."""
+    print(json.dumps({"url": url} | server_reading(page_dir)), flush=True)
+    if loopback_only(page_dir):
+        note(Finding("loopback-only", severity="advice"))
 
 
 def _serve_claim(
@@ -440,9 +441,8 @@ def _serve_claim(
 
 
 def _announce_server(page_dir: Path, url: str) -> bool:
-    """Print a committed foreground URL, then its lifetime note."""
-    print(json.dumps({"url": url}), flush=True)
-    print(startup_note(page_dir), file=sys.stderr, flush=True)
+    """Print a committed foreground server's reading (`announce_server`)."""
+    announce_server(page_dir, url)
     return True
 
 
@@ -646,10 +646,6 @@ class PageStart:
     url: str
     claim: dict | None
     page: Path
-
-    @property
-    def note(self) -> str:
-        return startup_note(self.page)
 
 
 @contextlib.contextmanager
@@ -866,11 +862,7 @@ def restarting_server(page_dir: Path, harness: Harness | None):
         # started does. It has no lifetime this version could bring back, so it
         # stops and stays stopped.
         cmd_stop(page_dir)
-        print(
-            f"{page_dir}'s server stays stopped; `leaf server start {page_dir}` "
-            "serves it again.",
-            file=sys.stderr,
-        )
+        note(Finding("server-stays-stopped", values={"page": str(page_dir)}))
         yield
         return
     if not service or not service["enabled"]:
@@ -889,21 +881,13 @@ def restarting_server(page_dir: Path, harness: Harness | None):
             "re-vendor it from there"
         )
     if not comes_back:
-        print(
-            f"{page_dir}'s server has no live session owner, so it stays "
-            f"stopped; `leaf server start {page_dir}` serves it for this one.",
-            file=sys.stderr,
-        )
+        note(Finding("server-unowned", values={"page": str(page_dir)}))
         yield
         return
     try:
         yield
     except BaseException:
-        print(
-            f"{page_dir}'s server stays stopped; `leaf server start {page_dir}` "
-            "serves it again.",
-            file=sys.stderr,
-        )
+        note(Finding("server-stays-stopped", values={"page": str(page_dir)}))
         raise
     with page_locked(page_dir):
         service = read_service(page_dir)
@@ -912,11 +896,7 @@ def restarting_server(page_dir: Path, harness: Harness | None):
             del service["restart"]
             write_json(page_dir / SERVICE_FILE, {**service, "enabled": True})
     if not resumed:
-        print(
-            f"{page_dir}'s server was stopped while it was re-vendored, so it stays "
-            "stopped.",
-            file=sys.stderr,
-        )
+        note(Finding("stopped-while-revendored", values={"page": str(page_dir)}))
         return
     try:
         start_server(page_dir, persistent=persistent, revive=True, harness=harness)

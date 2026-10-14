@@ -13,7 +13,7 @@ runs it in every shell-tool command.
 leaf server start <page>
 ```
 
-It prints `{"url": ...}`, the page's keyed URL, on stdout and returns. Follow
+It prints a JSON object whose `url` is the page's keyed URL, and returns. Follow
 `references/conversation-loop.md`, "Status and handoff".
 `references/serving-pages.md` owns the key, the address it binds, and a URL the
 user cannot reach.

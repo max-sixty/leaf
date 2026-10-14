@@ -106,6 +106,8 @@ import {
   keeps,
   keepsText,
   commands,
+  LeafElement,
+  nothing,
   landInThread,
   markdownWords,
   offer,
@@ -114,7 +116,6 @@ import {
   reachedForWords,
   rowWalk,
   notice,
-  widgetController,
   worksInside,
   wrote,
   focusDestination,
@@ -139,18 +140,18 @@ const SELECTED = "selected";
 const SECTION = "In an ask's options";
 const MARK_TAG = "lf-option-control";
 const DONE_TAG = "lf-options-done";
-// The controller paints retained controls in its synchronous render. These generated
-// hosts carry no authored content and need no separate reactive element lifecycle.
+// The group's render paints retained controls on the authored options. These generated
+// hosts carry no authored content and need no reactive element lifecycle of their own.
 
 customElements.define(
   "lf-options",
-  class extends HTMLElement {
+  class extends LeafElement {
     // What the ask was answered with: the picked options' names, the group's own in its
     // order and then the user's in the order they added them. An option the user added
     // is named by the words its `add` carries, and an authored one by its markup.
     static answerWords(value, group) {
       const picked = new Set(value);
-      const added = Object.entries(group.#controller?.read()?.state.add?.units ?? {});
+      const added = Object.entries(group.reading?.state.add?.units ?? {});
       const authored = [...group.querySelectorAll(":scope > lf-option")].filter(
         (option) => picked.has(option.id) && !added.some(([id]) => id === option.id),
       );
@@ -167,37 +168,32 @@ customElements.define(
     #addition = null;
     #answering = null;
     #choosable = false;
-    #controller = null;
     #controls = new Map();
     #contextNumbers = new Map();
     #done = null;
     #settled = null;
-    #wired = false;
+    #keyed = false;
+
+    // An exhibited or purely structural group has no semantic identity: it renders the
+    // authored alternatives, but owns no selection and therefore has no captured widget
+    // descriptor, so it has no reading. Only a live or settled decision has one.
+    setup() {
+      this.#wire(quoted(this));
+    }
 
     connectedCallback() {
-      // An exhibited or purely structural group has no semantic identity: it renders
-      // the authored alternatives, but owns no selection and therefore has no captured
-      // widget descriptor. Only a live or settled decision enters the controller path.
-      const exhibited = quoted(this);
-      const firstConnection = !this.#wired;
-      if (firstConnection) this.#wire(exhibited);
+      super.connectedCallback();
       this.#addition?.connect();
       if (this.#choosable && this.hasAttribute("multiple") && !this.#done)
         this.#doneRow();
       this.#settled?.connect();
-      if (firstConnection && this.#choosable) this.#keys();
-      if (!exhibited && (this.hasAttribute("choose") || this.hasAttribute("settled"))) {
-        if (firstConnection) {
-          this.#controller = widgetController(this);
-          this.#controller.subscribe(this.#present);
-        }
-      } else {
-        this.#syncChoice(this.#authoredChoice());
+      if (!this.#keyed && this.#choosable) {
+        this.#keyed = true;
+        this.#keys();
       }
     }
 
     #wire(exhibited) {
-      this.#wired = true;
       // Quoted material is exhibited, not offered, so a sample renders exactly like a
       // group that was never choosable: it shows what a decision looks like without
       // taking one.
@@ -277,14 +273,12 @@ customElements.define(
     }
 
     #dispatch(verb, detail, attempt) {
-      const sent = this.#controller?.dispatch({
+      return this.controller?.dispatch({
         kind: "action",
         verb,
         detail,
         ...(attempt && { attempt }),
       });
-      if (sent) this.#present(sent.reading);
-      return sent;
     }
 
     #options() {
@@ -347,15 +341,11 @@ customElements.define(
       if (!this.#doneAvailable()) return Promise.resolve(false);
       const undo = this.#doneUndo();
       const dispatched = undo
-        ? this.#controller.dispatch({ kind: "undo", target: undo.attempt ?? undo.id })
+        ? this.controller.dispatch({ kind: "undo", target: undo.attempt ?? undo.id })
         : this.#dispatch("answer", {});
       if (!dispatched) return Promise.resolve(false);
-      if (undo) this.#present(dispatched.reading);
       const sent = dispatched.delivery.then((accepted) => {
         if (!accepted) return false; // reconciliation restored the prior state
-        // Usually replay has painted the accepted answer already. Repeat the absolute
-        // paint for a partial render, but never over a same-read undo of this action.
-        this.#present(this.#controller.read());
         if (!undo) notice("Marked answered — sent");
         return true;
       });
@@ -569,12 +559,12 @@ customElements.define(
       };
     }
 
-    #present = (reading) => {
-      this.reading = reading;
-      this.#refreshAvailability();
-    };
-
-    renderState(state) {
+    render() {
+      if (!this.reading) {
+        this.#syncChoice(this.#authoredChoice());
+        return nothing;
+      }
+      const { state } = this.reading;
       // A settled group may have no choose projection, so its authored attributes
       // supply the selection. A live group's complete choice is authoritative,
       // including accepted replay.
@@ -589,6 +579,8 @@ customElements.define(
       for (const option of created) this.#control(option, this.#choosable);
       this.#syncChoice(detail);
       if (created.length) this.#keys();
+      this.#refreshAvailability();
+      return nothing;
     }
 
     lfWord() {

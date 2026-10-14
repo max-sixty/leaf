@@ -272,8 +272,9 @@ whole word in that state as it does under keyboard focus.
 
 A widget the user drags calls `dragging(this, true)` as the drag starts and
 `dragging(this, false)` as it ends, is cancelled, or the widget disconnects. While any
-drag is held, Leaf holds new state back from widgets and the page and paints it once the
-last drag is released, so nothing moves under the pointer. The image that follows the
+drag is held, the page takes no new revision and no undo, and a widget whose drag moves
+its own nodes holds its drawing with `defer()` (`module-state.md`); other widgets go on
+drawing new state. The image that follows the
 pointer is `motionPreview(label)`, an inert box carrying the dragged item's label.
 
 A mechanical surface that must stop its motion before a gesture is handled subscribes

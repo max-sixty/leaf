@@ -174,10 +174,18 @@
                         font-family: var(--sans); }
 /* An inline patch without comment controls has no action row to pull over. */
 .lf-diff-file-actions:empty { display: none; }
-.lf-diff-comment { border-color: transparent; background: transparent; color: var(--muted); }
+:is(.lf-diff-comment, .lf-diff-fold-all) { border-color: transparent; background: transparent;
+                                           color: var(--muted); }
 .lf-diff-file-comment { --lf-icon-action-hit: var(--lf-diff-action-h); }
-.lf-diff-file-comment:is(:hover, [data-lf-focus]) {
+:is(.lf-diff-file-comment, .lf-diff-fold-all):is(:hover, [data-lf-focus]) {
   background: var(--chip); color: var(--ink); }
+/* An auxiliary control of the filter field, like its Clear: the field's frame carries
+   the focus band for the group, and the press shows it is the one focused by its fill.
+   It is no taller than the count, so the field keeps the height it has without it, and
+   a finger's floor raises it as it does every other press. */
+.lf-diff-fold-all { --lf-icon-action-hit: max(24px, var(--aim-floor)); margin-inline-end: -3px; }
+.lf-diff-fold-all[data-lf-focus] { outline: none; }
+.lf-diff-fold-all[inert] { visibility: hidden; }
 /* Keep Pierre's compact gutter and row height. The whole number row is a press,
    while its hover mark fits the existing 2ch blank margin, clear of the number.
    Touch can tap that same number; keyboard commenting also has the target picker. */
@@ -269,8 +277,15 @@
                 font-size: var(--t-6); font-variant-numeric: tabular-nums;
                 white-space: nowrap; }
 :scope:host(.lf-rendered) {
-  /* The token theme uses the page's light-dark() palette. Pierre's single-theme
-     default pins the host to its nominal scheme; inherit the page's choice. */
+  /* Pierre's sheets style `:host` as one file's box, and here the host is the whole
+     diff, so what they paint on it is restated for the diff. Each file's box and code
+     state their own paper and ink above; the host keeps the page's, which it has until
+     the first file opens and brings the sheets. Their paper filled the gaps between
+     files and around the tools row, and their ink reached the threads beside the code.
+     Their single-theme default pins the host to its nominal scheme, where the token
+     theme uses the page's light-dark() palette. */
+  background: none;
+  color: inherit;
   color-scheme: inherit;
   --diffs-font-family: var(--mono);
   --diffs-font-size: var(--code-size);

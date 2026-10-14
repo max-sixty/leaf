@@ -554,6 +554,10 @@ ATTRIBUTE_KEYS = (
 # page's flow and on `main` or `body` would size the page itself; `declared`, an element
 # whose tag declares the mark, since a stated height reserves room for a module's
 # drawing and a block no module draws into would be clipped to it for good.
+# `paints` names a value painted as an attribute of its own, with no value, rather than
+# as a value of `paint`: the column is a cap on a box read as lines of text, unlike the
+# room past it that `wide` and `available` grant, so `data-lf-column` marks it and
+# `data-lf-space` means a breakout wherever it stands.
 # `message` says
 # whether the mark holds in a thread's message too:
 # each is the element's own fact wherever it renders, except the room and the margin
@@ -574,6 +578,7 @@ DECLARED_MARKS = {
     "x-verbatim": {"paint": "data-lf-verbatim", "message": True},
     "x-space": {
         "paint": "data-lf-space",
+        "paints": {"column": "data-lf-column"},
         "authored": "data-width",
         "authored_on": "content",
         "message": False,

@@ -37,7 +37,8 @@ nothing. A flex row or grid declares `--lf-holds-edge: 1` to stop the trim, whic
 otherwise take its first item's margin and not its neighbours'.
 
 Shared CSS selects widgets by what their registry entries declare, which delivery
-writes onto each element as `[data-lf-space]`, `[data-lf-bound]`, `[data-lf-height]`,
+writes onto each element as `[data-lf-space]` (a breakout; `x-space: column`
+is `[data-lf-column]`), `[data-lf-bound]`, `[data-lf-height]`,
 `[data-lf-exhibit]` and similar attributes, rather than by tag. An element that names
 page media also arrives with `data-lf-media-width` and `data-lf-media-height`, the
 largest width and height among its images, so a theme can give the frame their shape

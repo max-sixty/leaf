@@ -3,7 +3,7 @@
  * question's opening and reaches around the context and control the standing ring says
  * are one ask. */
 :scope:is(lf-ask) { display: block; }
-/* An Ask allocated the column around a block of its own that breaks out of it (`wide`
+/* An Ask kept to the column around a block of its own that breaks out of it (`wide`
  * or `available`) spans the reach that block lends it (layouts.css), and its padding
  * gives everything else it holds the column back. Nothing in it moves, since its content
  * box is still its holder's, and the block still breaks out exactly as it did; what changes
@@ -16,7 +16,7 @@
  * block's (prepaint.js, `indents`). Only its own children count, as for the measure it
  * widens to (theme.css). */
 @media screen {
-  :scope:is(lf-ask)[data-lf-space="column"]:has(> :is([data-lf-space="wide"], [data-lf-space="available"]):not([data-lf-arranged])) {
+  :scope:is(lf-ask)[data-lf-column]:has(> [data-lf-space]:not([data-lf-arranged])) {
     margin-left: calc(-1 * var(--lf-grow-l));
     margin-right: calc(-1 * var(--lf-grow-r));
     padding-left: var(--lf-grow-l);

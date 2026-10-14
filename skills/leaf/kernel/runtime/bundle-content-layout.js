@@ -48,7 +48,7 @@ function scheduleResidency() {
 function settleResidency() {
   if (residencyOpen) readResidency();
 }
-var BREAKOUT = '[data-lf-space]:not([data-lf-space="column"])';
+var BREAKOUT = "[data-lf-space]";
 var bringsBreakout = (node) => node.nodeType === Node.ELEMENT_NODE && (node.matches(BREAKOUT) || node.querySelector(BREAKOUT) !== null);
 var watched = /* @__PURE__ */ new Map();
 var holderSizes = sizeObserver((entries) => {

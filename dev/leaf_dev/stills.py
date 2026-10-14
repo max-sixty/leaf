@@ -909,7 +909,7 @@ STATES = (
         "captured-source",
         "developer/feature-gallery",
         captured_source,
-        region="#bg-source-live",
+        region="#bg-source-captures",
     ),
     State(
         "banner-more",

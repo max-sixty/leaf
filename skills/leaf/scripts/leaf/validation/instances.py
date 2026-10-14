@@ -2,6 +2,7 @@
 
 from leaf.asks import asking, local_ask_entry, quoted_in
 from leaf.findings import Finding, element_at
+from leaf.gesture_words import element_name
 from leaf.projection import enclosing_widgets
 from leaf.registry.contract import (
     is_element_name,
@@ -208,17 +209,10 @@ def ask_context_errors(lf_elements: list, registry: dict) -> list[Finding]:
                 for rec, lacks in framed[id(region)]
             ]
             errors.append(found_at("empty-ask-context", region, widgets=widgets))
-        headings = [
-            child
-            for child in region["children"]
-            if child in {f"h{n}" for n in range(1, 7)}
-        ]
-        if len(headings) != 1:
-            errors.append(found_at("ask-context-headings", region, headings=headings))
-        elif region["direct"][0] != headings[0]:
-            errors.append(
-                found_at("ask-context-heading-first", region, first=region["direct"][0])
-            )
+        # The ask's title is whatever the shared name rule reads, so this asks that
+        # rule rather than restating a shape it accepts.
+        if not element_name(region["node"], registry):
+            errors.append(found_at("ask-context-title", region))
     return errors
 
 

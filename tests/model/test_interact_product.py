@@ -250,7 +250,7 @@ def test_choose_requires_an_id(page_dir):
         '<lf-options choose><lf-option id="o1"><strong>A</strong></lf-option></lf-options>',
         registry,
     )
-    assert found(errs, "attribute-schema", keyword="dependentRequired")
+    assert [finding.code for finding in errs] == ["needs-id"]
 
 
 def test_sample_admits_interactive_widgets(page_dir):
@@ -302,29 +302,21 @@ def test_ask_context_frames_any_number_of_independent_sources(page_dir):
     )
     assert fragment_errors(with_evidence, registry) == []
 
+    # The ask's title is what the shared name rule reads, so a heading in an
+    # hgroup after its eyebrow, a subheading, or context before the heading all
+    # name the ask; only a frame with no title is refused.
+    for titled in (
+        f'<lf-ask id="d"><hgroup><p class="eyebrow">#5</p><h2>Choose</h2></hgroup>{first}</lf-ask>',
+        f'<lf-ask id="d"><p class="eyebrow">#5</p><h2>Choose</h2>{first}</lf-ask>',
+        f'<lf-ask id="d"><h2>Choose</h2><h3>Again</h3>{first}<p>After.</p></lf-ask>',
+    ):
+        assert fragment_errors(titled, registry) == []
+
     untitled = fragment_errors(
         f'<lf-ask id="decision-untitled"><p>Context.</p>{first}</lf-ask>',
         registry,
     )
-    assert found(untitled, "ask-context-headings", headings=[])
-
-    retitled = fragment_errors(
-        f'<lf-ask id="decision-retitled"><h2>Choose</h2><h3>Again</h3>{first}</lf-ask>',
-        registry,
-    )
-    assert found(retitled, "ask-context-headings", headings=["h2", "h3"])
-
-    context_first = fragment_errors(
-        f'<lf-ask id="decision-context-first"><p>Context.</p><h2>Choose</h2>{first}</lf-ask>',
-        registry,
-    )
-    assert found(context_first, "ask-context-heading-first", first="p")
-
-    control_first = fragment_errors(
-        f'<lf-ask id="decision-control-first">{first}<h2>Choose</h2></lf-ask>',
-        registry,
-    )
-    assert found(control_first, "ask-context-heading-first", first="lf-options")
+    assert found(untitled, "ask-context-title")
 
     # A context framing no live source would show a question the banner never
     # counts. A retired source still counts: settling a decision keeps its context.

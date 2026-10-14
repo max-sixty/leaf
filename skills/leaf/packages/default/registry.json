@@ -18,7 +18,7 @@
   "lf-ask": {
     "description": "Prompt context and an arrival region shared by the independent asks nested within.",
     "x-space": "column",
-    "x-instructions": "Begin with a direct heading that names the shared question or context without relying on surrounding prose. Include the evidence needed to answer. Each nested widget declaring x-awaits registers its own ask and keeps its source identity and answer. Keep an ordinary semantic section around the context when the document needs a section landmark.",
+    "x-instructions": "Give it a heading that names the shared question or context without relying on surrounding prose, with any eyebrow beside it in an <hgroup>. Include the evidence needed to answer. Each nested widget declaring x-awaits registers its own ask and keeps its source identity and answer. Keep an ordinary semantic section around the context when the document needs a section landmark.",
     "type": "object",
     "properties": {
       "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" }
@@ -197,7 +197,6 @@
       }
     },
     "dependentRequired": {
-      "choose": ["id"],
       "settled": ["id"],
       "multiple": ["choose"]
     },

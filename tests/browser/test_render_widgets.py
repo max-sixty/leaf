@@ -1626,7 +1626,7 @@ def test_root_tab_targets_remain_global(browser, serve):
 
 ACROSS_ASK = """
   <lf-ask id="{id}"{width}>
-    <h3>How long should logs be kept?</h3>
+    <hgroup><p class="eyebrow">Retention</p><h3>How long should logs be kept?</h3></hgroup>
     <figure><table id="{id}-figure">
       <thead><tr><th>Store</th><th class="num">Daily GB</th></tr></thead>
       <tbody><tr><td>Hot</td><td class="num">40</td></tr>
@@ -1642,6 +1642,7 @@ ACROSS_ASK = """
       <lf-option id="{id}-30"><strong>30 days</strong> Covers every incident review.</lf-option>
       <lf-option id="{id}-90"><strong>90 days</strong> Covers a quarter's audit.</lf-option>
     </lf-options>
+    <p>Whichever you pick, the hot tier keeps a day.</p>
   </lf-ask>
 """
 ACROSS_ASK_PAGE = leaf_page(
@@ -1669,12 +1670,13 @@ ACROSS_GEOMETRY = """(id) => {
 
 
 def test_an_ask_framing_a_figure_lays_its_options_across(browser, serve):
-    """An Ask whose heading, figure and one option list come in that order sets the
-    titled options side by side under the figure in columns of one width, as many as
+    """An Ask holding a figure before its option list sets the titled options side by
+    side under the figure in columns of one width, as many as
     its width holds, so the question, its figure and every option share a window. Where
     fewer fit, a card left over on the last row keeps its column's width, and where only
-    one fits they stack. The arrangement belongs to that Ask's own list: a group nested
-    in one of its options keeps its options one to a row."""
+    one fits they stack. Where the heading sits, in an hgroup after an eyebrow, and a
+    paragraph after the list change nothing. The arrangement belongs to that Ask's own
+    list: a group nested in one of its options keeps its options one to a row."""
     page = open_page(browser, serve(ACROSS_ASK_PAGE))
     resized(page, 1440, 900)
     wide = page.evaluate(ACROSS_GEOMETRY, "across")

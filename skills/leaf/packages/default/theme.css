@@ -2540,7 +2540,7 @@
     --lf-breakout: 1;
   }
 }
-:scope:is(lf-ask):has(> :is(h1, h2, h3, h4, h5, h6):first-child ~ :is(figure, img, svg, table, lf-chart, lf-shot) ~ lf-options:last-child) {
+:scope:is(lf-ask):has(> :is(figure, img, svg, table, lf-chart, lf-shot) ~ lf-options) {
   --lf-options-across: 1;
 }
 @container style(--lf-full-height: 1) {

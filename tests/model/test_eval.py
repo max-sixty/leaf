@@ -547,8 +547,7 @@ def test_workflows_run_declared_conditions_harnesses_and_fixed_checks(
                 ]
             ),
         ]
-        # Complete authoring criteria use the native live-page Python provider;
-        # the browser and source exclusion are owned by that provider per call.
+        # Complete authoring criteria use the native live-page Python provider.
         visual = next(
             check for check in test["assert"] if check.get("config", {}).get("judge")
         )

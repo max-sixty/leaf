@@ -63,8 +63,7 @@ supplies the existing browser CLI; the judge opens and operates its own browser.
 The native agent stream and its screenshots retain the evidence. Report
 screenshots show arrival only. Unvisited required content remains
 insufficient evidence, while supported defects still fail when other parts remain
-unobserved. The judge follows the requested output's scope. See
-[the small fixed control set](authoring-calibration/README.md) for calibration.
+unobserved. The judge follows the requested output's scope.
 
 An authored task's quality score is `uv run leaf-dev eval-pairs RUN...`, which
 judges its samples in two columns side by side, each pair in both orders, and counts
@@ -231,9 +230,8 @@ turn ends. Each judgment retains the native agent trace and screenshots under it
 sample. Its task asks for rendered evidence, keeps exploratory choices distinct
 from authored state and excludes expected verdicts. Run complete-task grading
 serially (`-j 1`) to bound browser load.
-Successful execution does not prove the judge understood every image. The fixed controls
-exercise particular distinctions; they do not establish general grading accuracy
-or replace human quality ratings.
+Successful execution does not prove the judge understood every image. Read its
+actions, screenshots and reasons before accepting a judgment.
 
 Another judge may grade the same samples differently, so a judged difference is
 partly the judge's. To compare judges, point `screenshot_judge` in

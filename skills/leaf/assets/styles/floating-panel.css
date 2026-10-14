@@ -164,8 +164,15 @@
     align-self: stretch;
     align-items: flex-end;
   }
+  /* The field holds the page's editor, or the open thread's reply box, which Leaf's
+     reader draws in the panel's outlet there (floating-panel.js, `replyOutlet`). Both
+     stand alike: the frame, the inset and the focus wash a card gives its reply box are
+     the card's, so the panel leaves them out, matching the card's own selectors. */
   .lf-fp-box,
-  .lf-fp-box .lf-compose-field {
+  .lf-fp-reply,
+  .lf-fp-reply > .lf-primary-part,
+  .lf-fp-reply .lf-thread-reply,
+  .lf-fp-field .lf-compose-field {
     flex: 1;
     min-width: 0;
     display: flex;
@@ -177,7 +184,21 @@
     margin: 0;
     box-shadow: none;
   }
-  .lf-fp-box leaf-text {
+  .lf-fp-reply[hidden],
+  .lf-fp-reply > .lf-primary-part[hidden] {
+    display: none;
+  }
+  .lf-fp-field .lf-compose-field:has(> leaf-text[data-lf-focus]) {
+    outline: none;
+  }
+  .lf-fp-resolved {
+    flex: 1;
+    margin: 0;
+    padding: 5px 6px;
+    color: var(--lf-fp-quiet);
+    font: 14px / 22px var(--sans);
+  }
+  .lf-fp-field .lf-compose-field > leaf-text {
     flex: 1;
     min-width: 0;
     border: 0;
@@ -192,7 +213,7 @@
        neither the words nor the status saying what the agent does keep room for them. */
     --lf-field-end-room: 0px;
   }
-  .lf-fp-box leaf-text[data-lf-focus] {
+  .lf-fp-field .lf-compose-field > leaf-text[data-lf-focus] {
     outline: none;
   }
   /* The empty field's words read dimmer than anything written in it: the agent's
@@ -201,15 +222,15 @@
      its status carries the sheen that marks work under way (chrome.css), from its own
      dim face to ink and back. The face is the field's placeholder part, so it holds
      whether the words come with a key drawn beside them or alone. */
-  .lf-fp-box leaf-text::part(placeholder) {
+  .lf-fp-field leaf-text::part(placeholder) {
     color: var(--lf-fp-quiet);
   }
-  .lf-floating-panel[data-says="notice"] .lf-fp-box leaf-text::part(placeholder) {
+  .lf-floating-panel[data-says="notice"] .lf-fp-field leaf-text::part(placeholder) {
     color: var(--lf-fp-muted);
     font-weight: 500;
   }
   .lf-floating-panel[data-says="status"][data-tone="working"]
-    .lf-fp-box
+    .lf-fp-field
     leaf-text::part(placeholder) {
     color: transparent;
     background: linear-gradient(
@@ -222,11 +243,11 @@
     background-clip: text;
     animation: lf-runtime-4f3c2a8d-sheen 2s ease-in-out infinite alternate;
   }
-  .lf-fp-box .lf-compose-placeholder kbd {
+  .lf-fp-field .lf-compose-placeholder kbd {
     display: none;
   }
   /* Send stands in the counts' place while the user types, as a round ink press. */
-  .lf-fp-box .lf-compose-submit {
+  .lf-fp-field .lf-compose-submit {
     flex: none;
     display: none;
     place-items: center;
@@ -237,16 +258,16 @@
     background: var(--ink);
     color: var(--lf-fp-surface);
   }
-  .lf-fp-box .lf-compose-submit:hover {
+  .lf-fp-field .lf-compose-submit:hover {
     background: var(--ink);
   }
-  .lf-floating-panel[data-typing] .lf-fp-box .lf-compose-submit {
+  .lf-floating-panel[data-typing] .lf-fp-field .lf-compose-submit {
     display: grid;
   }
   .lf-floating-panel[data-typing] .lf-fp-quick:not([data-steps]) {
     display: none;
   }
-  .lf-fp-box .lf-compose-dictate:not([hidden]) {
+  .lf-fp-field .lf-compose-dictate:not([hidden]) {
     flex: none;
     display: grid;
     place-items: center;
@@ -927,7 +948,7 @@
       animation: none;
     }
     .lf-floating-panel[data-says="status"][data-tone="working"]
-      .lf-fp-box
+      .lf-fp-field
       leaf-text::part(placeholder) {
       animation: none;
       background: none;
@@ -950,7 +971,7 @@
       border: 1px solid CanvasText;
     }
     .lf-floating-panel[data-says="status"][data-tone="working"]
-      .lf-fp-box
+      .lf-fp-field
       leaf-text::part(placeholder) {
       animation: none;
       background: none;

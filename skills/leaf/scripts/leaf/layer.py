@@ -181,15 +181,26 @@ def composed_dir_files(inputs: list[Path], sub: str) -> dict[str, Path]:
 
 # The document's cascade tiers, lowest first. The chrome's form-control clearing
 # (`lf-reset`, runtime/chrome.css) stays below everything that chooses a face. The
-# kernel, every package, and each widget module's adopted sheet (runtime/stylesheets.js)
-# share one layer, so specificity, scope proximity, then order rank their rules.
-# The kernel's Layouts sit above it, followed by semantic state: retirement must
-# outrank a package's default box and a Layout's arrangement. The page's own sheet
-# stays unlayered above these tiers, and inline widget motion outranks them too.
-# The page's rules reach Leaf's own controls only where they name them
-# (runtime/page-sheets.js). Chrome and apparatus marks stay unlayered to beat page
-# and widget alike; runtime/stylesheets.js owns their precedence and defaults.
-CASCADE_LAYERS = ("lf-reset", "lf-base", "lf-layouts", "lf-shadow", "lf-state")
+# kernel, every widget package, and each widget module's adopted sheet
+# (runtime/stylesheets.js) share one layer, so specificity, scope proximity, then
+# order rank their rules. The kernel's Layouts sit above it. A theme package, one that
+# declares no widgets, sits above those defaults and the Layouts (`lf-theme`), so it
+# styles every page the way the page's own sheet styles one; its rules reach Leaf's
+# controls only where they name them, as the page's do (runtime/page-sheets.js).
+# Semantic state follows: retirement must outrank a theme's or package's default box
+# and a Layout's arrangement. The page's own sheet stays unlayered above these tiers,
+# and inline widget motion outranks them too. Chrome and apparatus marks stay
+# unlayered to beat page and widget alike; runtime/stylesheets.js owns their
+# precedence and defaults. `lf-shadow` holds shared shadow rules and is read only in
+# shadow trees, where it sits above adopted widget sheets and below theme packages.
+CASCADE_LAYERS = (
+    "lf-reset",
+    "lf-base",
+    "lf-layouts",
+    "lf-shadow",
+    "lf-theme",
+    "lf-state",
+)
 
 
 def _sheet(source: Path) -> str:
@@ -234,18 +245,23 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     the document: the stage copies the composed shadow.css into each tree, and the
     document's theme.css reads each root's shadow.css just ahead of its theme.css.
 
-    In the document, every root's sheets are the `lf-base` cascade layer, and the
-    kernel's layouts.css and state.css name their higher tiers and come last.
-    Shared shadow rules use `lf-shadow` above adopted widget sheets (`lf-base`),
-    preserving their precedence over vendor defaults. state.css ranks above both,
-    so declared retirement has the same precedence in both trees. Authored
-    unlayered styles and inline widget motion remain above it.
+    In the document, the kernel's and every widget package's sheets are the `lf-base`
+    cascade layer, the kernel's layouts.css and state.css name their higher tiers and
+    come last, and a theme package's sheets are `lf-theme`, between the two. In shadow
+    trees, shared shadow rules use `lf-shadow` above adopted widget sheets (`lf-base`),
+    preserving their precedence over vendor defaults, and a theme package's shadow.css
+    is `lf-theme` above them. state.css ranks above all of these, so declared
+    retirement has the same precedence in both trees. Authored unlayered styles and
+    inline widget motion remain above it.
 
     Each widget package's sheet has one native @scope around its declared tags
     in the document, or around their :host in shadow trees. :scope names the root,
     ordinary selectors its descendants. CSS owns nested conditions and proximity;
     composition neither rewrites selectors nor adds specificity. Widget-free
-    packages are unscoped themes that reach the page and every tree.
+    packages are unscoped themes that reach the page and every tree. In the document
+    the browser keeps a theme's rules off Leaf's controls unless they name them
+    (runtime/page-sheets.js); a theme's shadow.css is written for widget internals and
+    stands as written.
     """
     from .styles import scoped
 
@@ -256,6 +272,7 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     shadow = [order]
     for position, root in enumerate(inputs):
         where = widget_confinement(root) if position else None
+        themes = position > 0 and where is None
         for name in ROOT_SHEETS:
             source = root / name
             if not source.is_file():
@@ -264,8 +281,10 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
             placed = scoped(css, where[0]) if where else css
             if name == "shadow.css":
                 shadow_css = scoped(css, where[1]) if where else css
-                shadow.append(f"@layer lf-shadow {{\n{shadow_css}}}\n")
-            theme.append(f"@layer lf-base {{\n{placed}}}\n")
+                tier = "lf-theme" if themes else "lf-shadow"
+                shadow.append(f"@layer {tier} {{\n{shadow_css}}}\n")
+            tier = "lf-theme" if themes else "lf-base"
+            theme.append(f"@layer {tier} {{\n{placed}}}\n")
     for name in ("layouts.css", "state.css"):
         if (source := inputs[0] / name).is_file():
             sheet = _sheet(source)
@@ -412,7 +431,10 @@ def incompatible_layer(page_dir: Path, registry: dict) -> Finding | None:
     the gate's and the website's included (`http.page_endpoint`,
     `leaf_website.page_binding`), the one append door and the writers that ask it
     first (`event_contracts.write_refusal`), and `page check` refuse on this one
-    reading, each naming the re-vendor that repairs the page. So does the source
+    reading, each naming the re-vendor that repairs the page; for a page vendored at an
+    older number, the holding session's prompt and Stop hooks, and each of its
+    commands that names the page, make that re-vendor first
+    (`vendoring.renew_layer`). So does the source
     check (`validation.source.check_source`), so activation writes no revision under
     the layer and `page state` reports the refusal as `source.error`. A revision the
     page saved before its last re-vendor is judged on its own registry

@@ -3639,12 +3639,12 @@ def test_the_on_panels_next_on_me_walks_as_m_does(browser, serve):
 
 def test_a_tally_counts_its_regions_asks_and_walks_them(browser, serve):
     """An `lf-tally` counts the asks its region holds, by the rule a queue row's mark
-    reads, and leaves out one outside it. Its Next question is `m` within the region: a
+    reads, and leaves out one outside it. Its Next on me is `m` within the region: a
     press keeps the user standing where they are and steps on, coming round at the end,
     and the walk announces its place among the region's asks. Reached by Shift+Tab from
     an ask, through the queue's own rows, Enter counts from that ask, so the keyboard
     steps on too. An answer leaves the count once the log admits it; with none left the
-    tally says so and Next question is disabled."""
+    tally says so and Next on me is disabled."""
 
     def item(key, label):
         return (
@@ -3672,7 +3672,7 @@ def test_a_tally_counts_its_regions_asks_and_walks_them(browser, serve):
         ),
     )
     words = page.locator("#left .lf-tally-words")
-    button = page.locator("#left").get_by_role("button", name="Next question")
+    button = page.locator("#left").get_by_role("button", name="Next on me")
     position = page.locator(".lf-walk-position")
     first, second = page.locator("#first-decision"), page.locator("#second-decision")
     expect(words).to_have_text("2 of 2 to answer")
@@ -3683,7 +3683,7 @@ def test_a_tally_counts_its_regions_asks_and_walks_them(browser, serve):
             if button.evaluate("button => button === document.activeElement"):
                 return
             page.keyboard.press("Shift+Tab")
-        raise AssertionError("Shift+Tab never reached Next question")
+        raise AssertionError("Shift+Tab never reached Next on me")
 
     button.click()
     expect(first).to_be_focused()
@@ -6378,7 +6378,7 @@ def test_generated_hints_follow_the_page_while_it_moves(browser, serve):
     expect(page.locator(CHIPS).first).to_be_visible()
     # Longer than the session's settle, so the map has stood still and the user has had
     # the chance to read it. A map armed into a page already moving is a different case,
-    # covered by test_inflight_native_paging_hides_hints_until_the_scene_settles.
+    # held by tests/runtime/hint-session.test.mjs.
     page.wait_for_timeout(200)
 
     # A smooth scroll is the case that holds the session in motion: a programmatic step
@@ -6964,130 +6964,6 @@ def test_page_map_cancellation_without_an_opener_keeps_the_scrolled_reading(
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
     page.keyboard.press("Tab")
     assert not page.evaluate(STANDING)["isFirstStop"]
-
-
-def test_generated_hints_refresh_to_the_visible_scene_after_scroll(browser, serve):
-    """Scroll changes the map at rest without letting an old letter act elsewhere."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Scrolling hints",
-                """
-<h1 id="top">Scrolling hints</h1>
-<p><a id="top-link-one" href="#top">First top destination</a></p>
-<p><a id="top-link-two" href="#top">Second top destination</a></p>
-<p><a id="top-link-three" href="#top">Third top destination</a></p>
-<div style="height: 1600px" aria-hidden="true"></div>
-<p><a id="bottom-link" href="#bottom">Bottom destination</a></p>
-<h2 id="bottom">Bottom</h2>
-<div style="height: 1200px" aria-hidden="true"></div>
-""",
-            )
-        ),
-    )
-
-    page.keyboard.press("g")
-    old_code = address_code(page, "Link", "top-link-two")
-    expect(page.locator(f'{CHIPS}[data-lf-go-to-target="bottom-link"]')).to_have_count(
-        0
-    )
-    page.keyboard.press("Tab")
-    expect(page.locator(f'{CHIPS}[data-lf-go-to-target="top-link-one"]')).to_have_class(
-        re.compile(r"\blf-current\b")
-    )
-
-    page.evaluate(
-        "() => document.querySelector('#bottom-link').scrollIntoView({block: 'start'})"
-    )
-    expect(page.locator(f'{CHIPS}[data-lf-go-to-target="bottom-link"]')).to_have_count(
-        1
-    )
-    expect(page.locator(f'{CHIPS}[data-lf-go-to-target="top-link-one"]')).to_have_count(
-        0
-    )
-    expect(page.locator(f"{CHIPS}.lf-current")).to_have_count(0)
-
-    # The old code must be consumed as a missed hint after the scene changes, even
-    # if it also names an unrelated page command in the unarmed grammar.
-    before = page.evaluate("() => document.scrollingElement.scrollTop")
-    page.keyboard.press(old_code)
-    expect(page.locator(".lf-live")).to_have_text(
-        f"No hint {old_code}. The current hints are unchanged."
-    )
-    expect(page.locator(f'{CHIPS}[data-lf-go-to-target="bottom-link"]')).to_have_count(
-        1
-    )
-    page_at_rest(page)
-    assert page.evaluate("() => document.scrollingElement.scrollTop") == before
-
-    bottom_code = address_code(page, "Link", "bottom-link")
-    page.keyboard.type(bottom_code)
-    page.wait_for_url(re.compile(r"#bottom$"))
-    expect(page.locator("#bottom")).to_be_focused()
-
-
-def test_inflight_native_paging_hides_hints_until_the_scene_settles(browser, serve):
-    """A user can arm the spatial map immediately after a page-down press."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Map after travel",
-                '<h1>Map after travel</h1><p><a id="near" href="#arrival">Near</a></p>'
-                '<div style="height: 600px" aria-hidden="true"></div>'
-                '<p><a id="middle" href="#arrival">Middle</a></p>'
-                '<div style="height: 1200px" aria-hidden="true"></div>'
-                '<h2 id="arrival">Arrival</h2>',
-            )
-        ),
-    )
-
-    # Hold the hint settle timer and arm the scroll observation before the key.
-    # PageDown returns before its first native scroll event, so pressing g right
-    # after the driver returns can instead arm a map of the old, still scene.
-    page.clock.install(time=0)
-    page.clock.pause_at(page.evaluate("() => (Date.now() + 100) / 1000"))
-    page.evaluate(
-        """() => {
-          window.firstPageScroll = false;
-          document.addEventListener('scroll', () => { window.firstPageScroll = true; },
-            {once: true, capture: true});
-        }"""
-    )
-    page.keyboard.press("PageDown")
-    page.wait_for_function("() => window.firstPageScroll", polling=20)
-    page.keyboard.press("g")
-    page.clock.run_for(20)
-    expect(page.locator("body")).to_have_attribute("data-lf-go-to-active", "")
-    expect(page.locator(CHIPS)).to_have_count(0)
-    page.clock.resume()
-    expect(page.locator(CHIPS)).to_have_count(1)
-    codes = address_codes(page)
-    mapped_at = page.evaluate("() => document.scrollingElement.scrollTop")
-    assert mapped_at > 0, "PageDown never moved the document"
-    page_at_rest(page)
-
-    assert page.evaluate("() => document.scrollingElement.scrollTop") == mapped_at
-    assert address_codes(page) == codes
-    expect(page.locator(CHIPS)).to_have_count(1)
-    page.keyboard.press("Escape")
-
-
-def test_armed_hints_settle_after_resize(browser, serve):
-    """A resize during the arming wait still lets the map appear at rest."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Map at resize",
-                '<h1>Map at resize</h1><p><a id="destination" href="#destination">Go</a></p>',
-            )
-        ),
-    )
-    page.keyboard.press("g")
-    page.set_viewport_size({"width": 800, "height": 700})
-    expect(page.locator(CHIPS).first).to_be_visible()
 
 
 def test_only_controls_and_boxes_with_something_out_of_sight_take_a_tab_stop(
@@ -8027,7 +7903,6 @@ def test_generated_hints_branch_after_the_single_letter_alphabet(browser, serve)
         "line": shortcut_bar_text(page),
         "live": page.locator(".lf-live").text_content(),
     }
-    expect(page.locator(".lf-live")).to_have_text(f"{len(branched)} targets remain.")
     expect(line).to_contain_text("back one letter")
     target_route = line.locator(
         '.lf-shortcut:not([hidden])[data-lf-command-ids~="navigation.target"]'
@@ -8064,17 +7939,10 @@ def test_generated_hints_branch_after_the_single_letter_alphabet(browser, serve)
     ) == [[prefix, "pressed"], [branched[0][1], "neutral"]]
     expect(continued_hint).to_have_css("gap", "1px")
 
-    # Escape removes only the opaque prefix; the same visible scene returns. A complete
-    # two-letter code then activates immediately, with no timeout or terminator.
-    page.keyboard.press("Escape")
-    assert address_codes(page) == codes
-    page.keyboard.type(branched[-1])
-    page.wait_for_url(re.compile(r"#link-23$"))
-    expect(page.locator(CHIPS)).to_have_count(0)
-
 
 def test_generated_hints_are_browsable_without_entering_the_paint_layer(browser, serve):
-    """Tab speaks the visual map, Shift-Tab reverses it, and Enter activates it."""
+    """The map paints, Tab speaks it, and Enter activates the hint heard. The session's
+    letters, walk and rereading are `tests/runtime/hint-session.test.mjs`'s."""
     page = open_page(
         browser,
         serve(
@@ -8093,6 +7961,8 @@ def test_generated_hints_are_browsable_without_entering_the_paint_layer(browser,
 
     page.keyboard.press("g")
     expect(page.locator(CHIPS)).to_have_count(2)
+    for chip in page.locator(CHIPS).all():
+        expect(chip).to_be_visible()
     expect(page.locator(".lf-go-to-hints")).to_have_attribute("aria-hidden", "true")
     expect(page.locator(".lf-live")).to_contain_text("2 visible targets")
     expect(line).to_contain_text("browse hints")
@@ -8112,16 +7982,7 @@ def test_generated_hints_are_browsable_without_entering_the_paint_layer(browser,
     )
 
     page.keyboard.press("Tab")
-    second_code = address_code(page, "Link", "second")
     expect(page.locator(".lf-walk-position")).to_have_text("Target 2 of 2")
-    expect(page.locator(".lf-live")).to_have_text(
-        f"Hint {second_code}: Link, Second destination. Press Enter to go there."
-    )
-    page.keyboard.press("Shift+Tab")
-    expect(page.locator(".lf-live")).to_have_text(
-        f"Hint {first_code}: Link, First destination. Press Enter to go there."
-    )
-    page.keyboard.press("Tab")
     page.keyboard.press("Enter")
     page.wait_for_url(re.compile(r"#arrival$"))
     expect(page.locator("#arrival")).to_be_focused()
@@ -13308,7 +13169,7 @@ def test_comment_escape_returns_to_its_authored_parent(browser, serve, entry):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-composer")).to_be_hidden()
     expect(ask).to_be_focused()
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("comment on the question")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("comment on the ask")
     page.keyboard.press("Escape")
     assert page.evaluate("document.activeElement === document.body")
 
@@ -13359,10 +13220,10 @@ def test_c_comments_on_what_the_user_is_standing_in(browser, serve):
     # walk happens to stand the user on, and rather than on the page.
     page.keyboard.press("m")
     expect(page.locator("#shape-decision")).to_have_attribute("data-lf-ask", "1")
-    expect(line).to_contain_text("comment on the question")
+    expect(line).to_contain_text("comment on the ask")
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_be_visible()
-    expect(page.locator(".lf-composer")).to_contain_text("question")
+    expect(page.locator(".lf-composer")).to_contain_text("ask")
     drop()
 
     # A settled group: not a decision at all, and the thread seat it still holds is
@@ -13707,7 +13568,7 @@ def test_c_in_a_seated_thread_reaches_the_thread_it_is_in(browser, serve):
     # The control: standing on a widget that seats nothing, so the press has no thread
     # to prefer and opens the composer on the widget itself.
     page.locator("#shape .lf-pick").first.focus()
-    expect(line).to_contain_text("comment on the question")
+    expect(line).to_contain_text("comment on the ask")
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_be_visible()
     page.keyboard.press("Escape")
@@ -14266,7 +14127,7 @@ def test_an_ask_and_its_thread_are_one_standing_target(browser, serve):
     page.keyboard.press("m")
     expect(page.locator("#retry-ask")).to_be_focused()
     expect(card.locator(f'.lf-page-thread[data-thread="{about_task}"]')).to_be_visible()
-    expect(line).to_contain_text("comment on the question")
+    expect(line).to_contain_text("comment on the ask")
     page.keyboard.press("Escape")
 
     # With Threads open, the list's thread about the Ask plays the card's part, and a

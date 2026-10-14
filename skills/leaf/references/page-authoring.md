@@ -440,7 +440,9 @@ page in the form it takes:
   cites (`lf-chart`'s instructions); put the rest in a table below it in
   `<details>` when readers also need exact values.
 - Code, a command, a message, or any other wording is the text itself, as it would
-  appear.
+  appear, where that text is what the user judges. What code does, such as what it
+  draws, which rule wins, or what calls what, is the interface, behavior, or
+  mechanism above, with the code beside it.
 
 A page deciding, planning, or reviewing something shows it the same way: a work item
 that fixes a visible fault shows the fault, and an ask's options show what each
@@ -693,7 +695,10 @@ and native resource loaders and module-relative URLs reach its own captured asse
 page module can await the element's `ready` promise for the current child's
 upgraded, usable interface. The child's banner can still say saved state is loading;
 its comments already work, independently of the containing page.
-Reset, and the child leaving its page, each replace that promise. `await
+Reset, and the child leaving its page, each replace that promise. The surrounding
+page presents and takes keys without waiting for a sample whose arrival the reader
+would not see, such as one below the first screen, so a module that needs the child
+awaits `ready` rather than the page's presentation. `await
 sample.reset()` replaces the child with a fresh copy of its initial state, and a
 reload inside the child reconnects the same child. When the child cannot be loaded,
 `ready` rejects and the sample shows the error with Reset available. The bubbling

@@ -273,6 +273,73 @@ diff --git a/other.md b/other.md
     expect(head.locator("..").locator("[data-line]").last).to_contain_text("new")
 
 
+def test_one_press_folds_every_shown_file_and_the_page_shows_between_them(
+    browser, serve
+):
+    """The filter's quiet press opens every file the filter shows while any is closed,
+    and closes them once all are open. The diff keeps the page's paper and ink between
+    its files after the first file brings the renderer's sheets, whose `:host` is one
+    file's box where here it is the whole diff."""
+    patch = "".join(
+        f"diff --git a/src/f{index}.py b/src/f{index}.py\n"
+        f"--- a/src/f{index}.py\n+++ b/src/f{index}.py\n@@ -1 +1 @@\n-old\n+new\n"
+        for index in range(3)
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Fold all",
+                f'<h1>Fold all</h1><lf-diff id="patch" collapsed><pre>{escape(patch)}'
+                "</pre></lf-diff>",
+            )
+        ),
+    )
+    diff = page.locator("#patch")
+    folds = diff.locator("details.lf-diff-fold")
+    editor = diff.locator(".lf-diff-search input")
+    press = diff.locator(".lf-diff-fold-all")
+    paints = """node => {
+      const style = getComputedStyle(node);
+      return [style.backgroundColor, style.color];
+    }"""
+    page_paint = diff.evaluate(paints)
+    assert page_paint[0] == "rgba(0, 0, 0, 0)"
+    folds.first.locator("summary").click()
+    rendered(page)
+    assert diff.evaluate(paints) == page_paint
+
+    expect(press).to_have_accessible_name("Expand all files")
+    press.click()
+    for index in range(3):
+        expect(folds.nth(index)).to_have_attribute("open", "")
+    rendered(page)
+    expect(folds.locator("[data-line]")).to_have_count(6)
+    expect(press).to_have_accessible_name("Collapse all files")
+
+    # Only what the filter shows, and the field's Tab order reaches the press.
+    editor.fill("f1")
+    expect(press).to_have_accessible_name("Collapse all files")
+    editor.press("Tab")
+    expect(press).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(folds.nth(1)).not_to_have_attribute("open", "")
+    expect(press).to_have_accessible_name("Expand all files")
+    # A filter that shows nothing to open idles the press in its room, so the count
+    # beside it does not move.
+    count = diff.locator(".lf-diff-progress")
+    place = count.bounding_box()
+    editor.fill("none")
+    expect(count).to_have_text("0 of 3")
+    expect(press).to_have_attribute("inert", "")
+    assert count.bounding_box() == place
+    editor.fill("")
+    expect(press).not_to_have_attribute("inert", "")
+    expect(folds.nth(0)).to_have_attribute("open", "")
+    expect(folds.nth(2)).to_have_attribute("open", "")
+    expect(press).to_have_accessible_name("Expand all files")
+
+
 PATH_PARTS = """head => {
   const path = head.querySelector('.lf-diff-path');
   const room = path.getBoundingClientRect();

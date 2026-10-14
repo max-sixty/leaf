@@ -21,6 +21,7 @@ import {
   watchPresentation,
   PRESENTATION_HELD,
   PRESENTATION_ORDER,
+  readPart,
 } from "../semantic-state.js";
 import { decisionFor } from "../registry.js";
 import { dragHeld, watchDragRelease } from "../widget-elements.js";
@@ -88,29 +89,25 @@ function paintSettlements(widgets) {
   }
 }
 
+const answered = readPart((root) => root.authoritative !== null);
+const phase = readPart((root) => root.phase);
+const currentProjection = readPart((root) => root.effective.projection);
+const widgetStates = readPart((root) => root.effective.widgets);
+
 export function createProjectionPresentation({ onDeferredReady }) {
   let stopWatchingDrag = null;
 
   // The claim happens in the publisher's synchronous subscription phase, before it seals
   // presentation membership, so an inherited commit cannot acknowledge a new reading
   // while frozen widget markup is still joining the document; the pass paints it after.
-  // A publication that moves none of the parts this paint draws — the fold's restated
-  // and origin marks, each holder's settlement, against the authored states — claims
-  // nothing and carries its last commit. The coverage stamp below reads the server's
-  // view of the log beside the fold, and follows the coordinator rather than this claim.
+  // Before the server's first answer the region owes nothing. The coverage stamp below
+  // reads the server's view of the log beside the fold, and follows the coordinator
+  // rather than this claim.
   applicationPresenter({
     region: "projection:chrome",
     order: PRESENTATION_ORDER.projection,
-    reading: (root) =>
-      root.authoritative === null
-        ? null
-        : {
-            phase: root.phase,
-            projection: root.effective.projection,
-            widgets: root.effective.widgets,
-            authored: root.document.authored,
-          },
-    paint: () => paintReading(applicationState.read()),
+    reading: () => (answered() ? true : null),
+    paint: paintReading,
   });
 
   // The stamp retains the last complete coverage. Only the widgets whose events
@@ -167,13 +164,13 @@ export function createProjectionPresentation({ onDeferredReady }) {
     stopWatchingDrag = null;
   }
 
-  function presentCurrent(snapshot) {
-    const projection = snapshot.effective.projection;
+  function presentCurrent() {
+    const projection = currentProjection();
     // Before the first state or the offline fallback, authored capture has completed
     // but the application still cannot know whether an action is available. Controllers
     // independently present any complete authored widget state; this adapter has no
     // authoritative projection coordinates or chrome to commit yet.
-    if (snapshot.phase === "waiting" || snapshot.authoritative === null) {
+    if (phase() === "waiting" || !answered()) {
       // This provisional epoch has no authoritative projection to withhold. Settling
       // its chrome ticket lets document installation finish and start the state feed;
       // adoption publishes a ready/offline epoch and claims a fresh ticket before any
@@ -191,7 +188,7 @@ export function createProjectionPresentation({ onDeferredReady }) {
     for (const entry of projection.classified.values())
       for (const id of entry.restated ?? [])
         keeps(elementById(id), PAGE_PAINT_ATTRIBUTE.restated, "1");
-    paintSettlements(snapshot.effective.widgets);
+    paintSettlements(widgetStates());
     const originTargets = paintStateOrigins(projection);
     renderQuiet(document.body, originTargets);
     return projection;
@@ -199,8 +196,8 @@ export function createProjectionPresentation({ onDeferredReady }) {
 
   // A throw leaves this region pending and preserves the application error boundary;
   // the next claim supersedes the hold and tries the current semantic root again.
-  function paintReading(snapshot) {
-    const projection = presentCurrent(snapshot);
+  function paintReading() {
+    const projection = presentCurrent();
     // A drag holds this region open at the user's own gesture rather than
     // committing a document-wide reading their own controller has not taken yet.
     return projectionDeferred() ? PRESENTATION_HELD : projection;

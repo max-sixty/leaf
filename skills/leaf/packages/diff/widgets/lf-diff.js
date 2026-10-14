@@ -3,7 +3,8 @@
  * rendered lines support selection anchors. A source revision updates evidence
  * under stable file owners: reader controls, disclosure and code scrollports stay
  * connected. The search reserves its current source's longest count label, so
- * filtering files leaves its field and controls in place. Changed file
+ * filtering files leaves its field and controls in place. A quiet press after the count
+ * opens every file the filter shows, or closes them once all are open. Changed file
  * evidence replaces only its inner presentation and hands
  * source focus to that same file; supplied thread/composer outlets keep core focus
  * ownership across replacement. Unchanged parsed files keep their rendering; changed files
@@ -46,6 +47,7 @@ import {
   loadDeferred,
   listWalkPosition,
   move,
+  nextRender,
   offer,
   once,
   paintKeys,
@@ -610,8 +612,14 @@ function diffTools(host) {
   progress.className = "lf-diff-progress";
   progress.dataset.lfGen = "1";
   progress.slot = "end";
-  search.append(progress);
-  return { search, progress };
+  // Opening every file is rare beside opening one, so it is a quiet icon after the count
+  // of the files it opens rather than a labelled button of its own (shadow.css).
+  const foldAll = offer("button", "lf-btn lf-icon-action lf-diff-fold-all");
+  foldAll.type = "button";
+  foldAll.slot = "end";
+  foldAll.addEventListener("click", () => host.foldAll());
+  search.append(progress, foldAll);
+  return { search, progress, foldAll };
 }
 
 function operationWord(record) {
@@ -1468,16 +1476,49 @@ customElements.define(
           entry.file ? { file: entry.file } : undefined,
         );
         if (rendering !== this.rendering || !this.isConnected) return;
-        entry.loading = null;
-        entry.prepared = prepared;
-        const restore = this.applyEntry(entry);
-        this.layoutThreadOutlets();
-        this.stageFiles();
-        this.projectFiles();
-        restore?.();
+        await this.commitLoaded(entry, prepared, rendering);
       })();
       entry.loading = { rendering, promise };
       return promise;
+    }
+
+    // Files whose loads finish before the next frame commit together in it. A commit
+    // lays out, stages and projects every loaded file, so a commit per file made
+    // opening many at once, as Expand all does, quadratic in their number; a commit
+    // per frame still shows each file in the frame after it is ready.
+    commitLoaded(entry, prepared, rendering) {
+      this.loadedQueue ??= new Map();
+      this.loadedQueue.set(entry, { prepared, rendering });
+      this.loadedCommit ??= new Promise((resolve, reject) =>
+        nextRender(() => {
+          const queue = this.loadedQueue;
+          this.loadedQueue = null;
+          this.loadedCommit = null;
+          try {
+            const ready = [...queue].filter(
+              ([entry, load]) =>
+                load.rendering === this.rendering &&
+                this.isConnected &&
+                this.fileEntries?.includes(entry),
+            );
+            for (const [entry] of ready) entry.loading = null;
+            const restores = ready.map(([entry, { prepared }]) => {
+              entry.prepared = prepared;
+              return this.applyEntry(entry);
+            });
+            if (ready.length) {
+              this.layoutThreadOutlets();
+              this.stageFiles();
+              this.projectFiles();
+            }
+            for (const restore of restores) restore?.();
+            resolve();
+          } catch (error) {
+            reject(error);
+          }
+        }),
+      );
+      return this.loadedCommit;
     }
 
     // Returns the focus restore for the caller to run once the file's evidence is staged.
@@ -1569,6 +1610,7 @@ customElements.define(
         const previous = entry.disclosureOpen;
         entry.disclosureOpen = entry.details.open;
         threadSurface(this).update();
+        this.paintFoldAll();
         if (previous === entry.disclosureOpen) return;
         if (!entry.details.open || !this.fileEntries?.includes(entry) || entry.refused)
           return;
@@ -1624,6 +1666,19 @@ customElements.define(
 
     filterFiles(query) {
       const needle = query.trim().toLocaleLowerCase();
+      // A query narrows the files without pulling up what the window shows: while it
+      // applies, the body keeps the height it reached on screen, down to the window's
+      // foot. What follows the diff in view stays put, and near the page's end the
+      // scroll cannot clamp the field out from under the caret; the room held is at
+      // most one window, below the files that match. Clearing the query lets go.
+      if (this.filesBody) {
+        const { top, height } = this.filesBody.getBoundingClientRect();
+        const hold = needle
+          ? layoutPx(Math.max(0, Math.min(height, innerHeight - top)))
+          : "";
+        if (this.filesBody.style.minBlockSize !== hold)
+          this.filesBody.style.minBlockSize = hold;
+      }
       for (const entry of this.fileEntries ?? []) {
         const paths = [entry.record.path, entry.record.previousPath ?? ""]
           .join("\n")
@@ -1653,7 +1708,38 @@ customElements.define(
         reserve(this.diffTools.progress, [all, `${total} of ${total}`]);
       }
       keepsText(this.diffTools.progress, shown.length === total ? all : matching);
+      this.paintFoldAll();
       paintKeys();
+    }
+
+    // The files the filter shows: all opened while any is closed, and all closed once
+    // every one is open, so the press does what its face says.
+    foldAll() {
+      const folds = this.shownFolds();
+      const open = folds.some((details) => !details.open);
+      for (const details of folds) details.toggleAttribute("open", open);
+      this.paintFoldAll();
+      announce(`${open ? "Expanded" : "Collapsed"} all files`);
+    }
+
+    paintFoldAll() {
+      const button = this.diffTools?.foldAll;
+      if (!button) return;
+      const folds = this.shownFolds();
+      // With nothing to open it keeps its room, so the count beside it stays put.
+      button.toggleAttribute("inert", !folds.length);
+      const open = folds.some((details) => !details.open);
+      const icon = open ? "unfold" : "fold";
+      if (button.firstElementChild?.dataset.lfIcon !== icon)
+        button.replaceChildren(iconElement(icon, "lf-action-icon"));
+      // No number: the count beside it also counts files that have nothing to open.
+      const label = `${open ? "Expand" : "Collapse"} all files`;
+      keeps(button, "aria-label", label);
+      keeps(button, "title", label);
+    }
+
+    shownFolds() {
+      return this.shownEntries().flatMap(({ details }) => (details ? [details] : []));
     }
 
     shownEntries() {

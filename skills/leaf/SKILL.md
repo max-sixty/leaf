@@ -40,11 +40,13 @@ $ARGUMENTS
   a view's point or its move unclear, the view has put in words what it should draw
   or let the user do.
 - **Concrete.** The page puts the thing itself in front of the user, wherever they
-  judge it: an interface as it looks, a behavior running, a proposal sketched, a
-  numeric relationship as a chart, code or wording as the text itself. Whatever the
-  user would have to picture from your words to judge, show instead; each option of
-  an ask shows what choosing it gives them. Words carry what the thing cannot show:
-  the claim, the reason, the cost.
+  judge it: an interface as it looks, a behavior running, a mechanism or proposal
+  drawn, a numeric relationship as a chart, wording as the text itself. Code is
+  wording only where its text is what the user judges; what code does, such as what
+  it draws, overrides or calls, is shown as that effect. Whatever the user would have
+  to picture from your words to judge, show instead; each option of an ask shows
+  what choosing it gives them. Words carry what the thing cannot show: the claim,
+  the reason, the cost.
 - **Current.** The page states what is true now, so a returning user finds each
   outcome in place.
 - **Personalized.** The user's word decides the page's content and presentation;
@@ -72,11 +74,17 @@ directory explicitly; export or copy anything that must outlive the page directo
 2. Read `references/page-authoring.md`, then the authoring reference each part
    of the page needs, listed under "Author a version" below. Follow "Read the
    registry" there to select elements and class idioms and read their examples
-   and selected instructions before authoring. Write
-   `<page>/index.html` in the registry's vocabulary. Each valid save becomes the
-   active immutable revision; an invalid save leaves the last valid one live and
-   reports its diagnostic in page state and the browser. You write `index.html` and
-   `page/`; Leaf alone writes revisions and version mappings.
+   and selected instructions before authoring. Show each view's subject as
+   **Concrete** says, so the page carries pictures: drawings, captures, charts, or
+   the thing running. A picture on another page or in another section shows
+   nothing to a user judging this view, so show it here. A draft of only prose,
+   tables, lists and code has left in words what it should show, unless what the
+   user judges is the words or exact values themselves, such as a text edit, a
+   message, or a table read for lookup.
+   Write `<page>/index.html` in the registry's vocabulary. Each valid save becomes
+   the active immutable revision; an invalid save leaves the last valid one live
+   and reports its diagnostic in page state and the browser. You write
+   `index.html` and `page/`; Leaf alone writes revisions and version mappings.
 3. **Check the page.** Before you hand the page over or reply about a revision,
    run `leaf page check <page>` and fix every failure. That is the whole check for a quick page, one the user reacts to once
    and then revises or drops: hand it over without stamping or a browser review. It

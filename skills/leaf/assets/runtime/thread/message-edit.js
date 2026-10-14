@@ -27,10 +27,13 @@
    Rejected: Escape keeping them as an unsaved edit, as a reply box keeps its draft,
    which left the user a draft to find and drop that the message could barely show.
 
-   The editor takes the message's place without moving it. Its box surrounds the words
-   where they stood, and its Cancel and Save stand at the message's head, where the
-   message's own control stood (shadow.css, `.lf-msg-edit-actions`), so opening and
-   closing it moves nothing around the message, and a line wraps where it wrapped.
+   The editor takes the message's words' place, and is the thread's comment box, the
+   field its reply box is, at the reply box's width and padding (shadow.css,
+   `.lf-msg-editor`). Its Cancel and Save stand at the message's head, where the
+   message's own control stood (`.lf-msg-edit-actions`), so opening it grows the
+   message by the box's padding alone. Rejected: a box painted around the words where
+   they stood, with no padding of its own, so opening it moved nothing; beside the reply
+   box it read as a thinner, narrower field (the user's decision, 2026-10-13).
 
    A double click on the message or a press on its Edit control opens it. The keyboard
    opens it with ↑: from the thread's empty reply box, the user's latest message, and
@@ -76,7 +79,7 @@ import { revealEditor } from "./reply-landing.js";
 import { PENDING } from "./identity.js";
 import { keys } from "../keyboard/scopes.js";
 import { announce, notice } from "../notifications.js";
-import { sizeObserver } from "../rendering.js";
+import { afterScript, sizeObserver } from "../rendering.js";
 import { retainUserIntent } from "../user-intent.js";
 import { offer } from "../widget-elements.js";
 
@@ -270,7 +273,7 @@ export class MessageEditor {
     if (keptOver && keptOver !== base && !keptOver.startsWith(PENDING))
       notice(`This message changed since this edit began. It now says: “${said()}”`);
     this.#reveal = reveal;
-    this.node = offer("div", "lf-msg-editor");
+    this.node = offer("div", "lf-msg-editor lf-comment-box");
     this.input = offer(TEXT_FIELD);
     this.input.name = "edit";
     const actions = offer("span", "lf-msg-edit-actions");
@@ -323,9 +326,13 @@ export class MessageEditor {
       });
     // Making way for another rewrite, as ↑ to an earlier message or opening one
     // elsewhere in the thread does, closes one the user has not changed; changed words
-    // stay in their box, which no key here meant to put away.
+    // stay in their box, which no key here meant to put away. The closed box is drawn
+    // away once the script ends, so a reader drawing the other one's opening meanwhile
+    // draws both in one paint, rather than the thread shrinking and growing back.
     const putAside = () => {
-      if (unchanged()) leave(true, { landing: false });
+      if (!unchanged()) return;
+      leave(true, { landing: false, painting: false });
+      afterScript(paint);
     };
     this.#putAside = putAside;
     const sync = wireInput(this.input, {

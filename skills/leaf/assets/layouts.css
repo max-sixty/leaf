@@ -1,6 +1,6 @@
 /* Layouts: starting points a page pulls on by class. They are plain CSS above the
- * layer the kernel and every package share (lf-base), below semantic state and the
- * page's own stylesheet, which is unlayered. So a Layout
+ * layer the kernel and every widget package share (lf-base), below theme packages,
+ * semantic state and the page's own stylesheet, which is unlayered. So a Layout
  * resets what the base and widgets set on the boxes it arranges, and a page adjusts a
  * Layout with ordinary rules or writes its own; nothing reads a Layout back. The layer
  * merge appends this file after every package (layer.py, composed_sheets). */
@@ -230,12 +230,13 @@
    *
    * The negative margins widen a box whose width is its holder's less its margins, which
    * an auto-width block is and a box with a width of its own is not: a table box (a
-   * sample) moved left by the margin and kept the column's width. Such a box takes its
-   * width from `--lf-breakout-width` instead, the room's width: its holder's, and the
-   * breakout's surplus on top where the box takes one. It does not inherit, so a box in
-   * a list inside wide evidence takes its holder's width, not that plus the section's
-   * surplus. */
-  @property --lf-breakout-width { syntax: "*"; inherits: false; initial-value: 100%; }
+   * sample) moved left by the margin and kept the column's width, and an iframe, whose
+   * size containment leaves it no intrinsic width, collapsed to its borders at the room's
+   * left edge. So a breakout states its width as well, the room's: its holder's, and the
+   * breakout's surplus on top where the box takes one. It outranks a widget's own width,
+   * so a widget whose box fills its holder needs no part in the breakout. A page rule
+   * sizing a breakout replaces the width and keeps the margins, which moves the box off
+   * the prose axis; the render check names it (layout.js, `off-axis`). */
   /* Measured on each breakout alone, so they do not inherit: a block inside one stands in
    * its own holder. Zero until read, the holder taken as the column. */
   @property --lf-indent-l { syntax: "<length>"; inherits: false; initial-value: 0px; }
@@ -276,10 +277,10 @@
         calc((var(--lf-surplus) + var(--lf-indent-l) - var(--lf-indent-r)) / 2),
         min(var(--lf-surplus), calc(var(--lf-free-l) + var(--lf-indent-l))));
       --lf-grow-r: calc(var(--lf-surplus) - var(--lf-grow-l));
-      --lf-breakout-width: calc(100% + var(--lf-surplus));
     }
     :where(main.layout-column, main.layout-sidebar) [data-lf-space]:where(:not([data-lf-space="column"])) {
       max-width: none;
+      width: calc(100% + var(--lf-surplus));
       margin-left: calc(-1 * var(--lf-grow-l));
       margin-right: calc(-1 * var(--lf-grow-r));
       /* The allocation is the box's outer width, as the column's is (theme.css), so a

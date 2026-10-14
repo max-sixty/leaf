@@ -48,18 +48,60 @@ export function setRenderedChildren(parent, nodes) {
 
 // Put `nodes` in order under `parent`, walking past the children `passed` names, and
 // moving only a node that is not already where it belongs. A retained move within one
-// shadow-including tree preserves native state where the browser supports it (`move`).
+// shadow-including tree preserves native state where the browser supports it (`move`),
+// but the browser still lays the node out afresh, and Firefox then anchors scrolling on
+// whatever ends the viewport. So the nodes that stay are the most that can, elements
+// before text (`staying`): a revision that drops a section moves the whitespace that
+// stood after it, not each section below.
 /** @param {(node: Node) => boolean} [passed] */
 function order(parent, nodes, passed = () => false) {
+  const list = [...nodes];
+  const stay = staying(parent, list);
   let cursor = parent.firstChild;
-  for (const node of nodes) {
+  for (const node of list) {
     while (cursor && passed(cursor)) cursor = cursor.nextSibling;
-    if (node === cursor) {
-      cursor = cursor.nextSibling;
-      continue;
-    }
-    move(parent, node, cursor);
+    if (node === cursor) cursor = cursor.nextSibling;
+    // Whatever stands between is moved after it, where it belongs.
+    else if (stay.has(node)) cursor = node.nextSibling;
+    else move(parent, node, cursor);
   }
+}
+
+// The heaviest run of `nodes` already in order under `parent`: an increasing subsequence
+// of their places, where an element outweighs every text node together. Of runs that
+// weigh the same it keeps the later nodes, so a swap moves the earlier of the two, as a
+// cursor walk does. A Fenwick tree holds the heaviest run ending at or before each place,
+// so a long list costs n log n.
+function staying(parent, nodes) {
+  const places = new Map([...parent.childNodes].map((node, at) => [node, at + 1]));
+  const size = places.size;
+  const best = new Array(size + 1).fill(-1);
+  const weightAt = new Array(size + 1).fill(0);
+  const weights = [];
+  const previous = [];
+  let last = -1;
+  nodes.forEach((node, at) => {
+    const place = places.get(node);
+    if (!place) return;
+    let before = -1;
+    for (let i = place - 1; i > 0; i -= i & -i)
+      if (best[i] >= 0 && (before < 0 || weightAt[i] >= weights[before]))
+        before = best[i];
+    const weight =
+      (node.nodeType === Node.ELEMENT_NODE ? nodes.length + 1 : 1) +
+      (before < 0 ? 0 : weights[before]);
+    weights[at] = weight;
+    previous[at] = before;
+    for (let i = place; i <= size; i += i & -i)
+      if (best[i] < 0 || weight >= weightAt[i]) {
+        best[i] = at;
+        weightAt[i] = weight;
+      }
+    if (last < 0 || weight >= weights[last]) last = at;
+  });
+  const stay = new Set();
+  for (let at = last; at >= 0; at = previous[at]) stay.add(nodes[at]);
+  return stay;
 }
 
 /* Apply the difference between two authored revisions to the live page between them.

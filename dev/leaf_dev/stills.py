@@ -479,13 +479,13 @@ def options_in_pane(page: Page) -> None:
 
 
 def tally_after_an_answer(page: Page) -> None:
-    """A queue's tally after Next question and one answer: the count down by one, the
-    answered row's check above the open marks, and Next question's second ask open."""
-    next_question = page.locator("#ar-left .lf-tally-next")
-    next_question.click()
+    """A queue's tally after Next on me and one answer: the count down by one, the
+    answered row's check above the open marks, and Next on me's second ask open."""
+    next_on_me = page.locator("#ar-left .lf-tally-next")
+    next_on_me.click()
     page.locator("#ar-canary-consecutive").click()
     expect(page.locator("#ar-left .lf-tally-words")).to_have_text("8 of 9 to answer")
-    next_question.click()
+    next_on_me.click()
     expect(page.locator("#ar-latency-decision")).to_be_focused()
     settle(page)
 

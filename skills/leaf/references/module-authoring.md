@@ -164,6 +164,12 @@ renderer it loads only once the user has the page, runs that work through
 `afterPresentation(() => …)`, which both waits for presentation and declares the work.
 Until every such arrival lands the page reads as still arriving, so a reader outside it
 waits on the page rather than on a widget it would have to know about.
+Work that should start at once but that presentation need not wait for, such as a
+slow load whose landing moves nothing the reader sees, goes through
+`deferredArrival(promise)` instead: it counts the running promise without waiting.
+`growthIsSeen(element)` answers whether a change of the element's size now would move
+what the user sees; where it would, register the work with the widget controller's
+`present(promise)` instead, so it lands before the page presents.
 
 ### First paint
 
@@ -259,7 +265,8 @@ container in later stage updates.
 
 A module that writes stylesheet text of its own, for a constructed sheet or a `<style>`
 in its shadow root, wraps it in `inBaseLayer(css)`. The rules then join the theme's
-`lf-base` cascade layer, below Layouts, semantic state and the page's own stylesheet.
+`lf-base` cascade layer, below Layouts, theme packages, semantic state and the page's
+own stylesheet.
 
 ### Scheduling paints
 
@@ -1698,7 +1705,10 @@ parts can share an outlet. A shadow outlet displays the parts through native slo
 their nodes stay in the document. Leaf keeps the generated nodes, message rendering,
 reactions, read tracking and the shared reply draft; a nominated message of the user's own
 offers its rewrite in place, and a nominated reply box opens the latest of those on ↑, as a
-whole conversation does. The package keeps layout, ordering, selection, scroll and
+whole conversation does. `parts.reply` takes optional `{hint, accessibleName, sent}`: what
+the empty box reads and is named, each a string or a function read as it paints, and
+`sent()`, called after a send in place of standing the user on the thread, for a box that
+stays for the next turn. The package keeps layout, ordering, selection, scroll and
 disclosure. A returned promise delays the presentation; check `parts.signal` before
 asynchronous layout changes, since a newer pass or `unregister` aborts it.
 

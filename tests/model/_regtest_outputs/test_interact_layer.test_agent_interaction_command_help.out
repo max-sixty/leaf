@@ -139,17 +139,16 @@ Usage: leaf response reply [OPTIONS] REFERENCE
 
   Reply to the update REFERENCE names: the `answer.ref` its delivery printed.
 
-  An answer says what it leaves the thread with: --done when it delivers what
-  the message asked for, --ask when it asks the user something back, or --todo
-  TITLE when it promises work it doesn't deliver, which stays on you as a to-do.
-  Progress (--ephemeral) and failure receipts (--failure) take none of them.
+  Mark every answer with one of --done (it delivers what the message asked for),
+  --ask (it asks the user something back) or --todo TITLE (it promises work it
+  doesn't deliver, which stays on you as a to-do). A progress line (--ephemeral)
+  or a failure (--failure) takes none of them.
 
-  The same command sets text, frozen HTML, the thread's title and a new anchor.
-  It validates and activates saved page edits, then posts the reply at once.
-  Once an answer posts, your turn's final message is not posted as a second
-  reply; progress (--ephemeral) does not stop that. Rerunning a reply that
-  posted prints the earlier reply instead of posting again; give a retried
-  --ephemeral progress line an --attempt so it posts once.
+  The reply can also set frozen HTML, the thread's title and a new anchor. Saved
+  page edits are checked and made live before it posts. After an answer posts,
+  your turn's final message is not posted as a second reply; an --ephemeral line
+  does not change that. Rerunning a reply that already posted prints the earlier
+  one; give a retried --ephemeral line an --attempt so it posts once.
 
 Options:
   --attempt TEXT  retry key: a rerun with the same key posts nothing new
@@ -205,11 +204,11 @@ Usage: leaf page report [OPTIONS] PAGE WIDGET VERB [NAME=VALUE]...
 
   Report a state change onto a page widget, as a worker.
 
-  The verb and its fields are the widget's own agent-written x-state verb \u2014
-  `leaf page report <page> t-parser status value=review text="Ready for review"`
-  moves a task. The page paints the report live as provisional news; it stands
-  until a version absorbs or overrules it, and the page's watcher wakes to fold
-  it in.
+  VERB is one of the widget's agent-written x-state verbs, and each NAME=VALUE
+  one of its fields: `leaf page report <page> t-parser status value=review
+  text="Ready for review"` moves a task. The page shows the report at once,
+  marked provisional, until a stamped version writes it into the markup or
+  overrules it. The page's watcher wakes so the agent can do that.
 
 Options:
   --help  Show this message and exit.
@@ -235,19 +234,22 @@ Usage: leaf page stamp [OPTIONS] PAGE
 
   Stamp PAGE/index.html with a changelog.
 
-  Checks the exact source first, then records it as the next public version.
-  Repeat --completes for each widget whose open to-dos this version completes,
-  which ends them done, citing the version. A to-do otherwise remains open,
-  including when a revision removes its widget. --from-directory replaces
-  index.html and the complete page/ tree atomically with stamping; --if-source
-  is the authored-input digest read through leaf.publishing, refusing a
-  competing edit.
+  Checks the source first, then records it as the next public version. Repeat
+  --completes for each widget whose open to-dos this version completes; it ends
+  them done, citing the version. Other to-dos stay open, even when the version
+  removes their widget.
+
+  --from-directory replaces index.html and the whole page/ tree and stamps them
+  in one step. Pass --if-source with the digest of the files you started from;
+  if they have changed since, the stamp is refused and the page is left as it
+  was.
 
 Options:
   --text TEXT                 changelog text (default: stdin)
   --from-directory DIRECTORY  replace index.html and page/ together from this
                               candidate directory
-  --if-source TEXT            expected authored-input digest, required with
+  --if-source TEXT            the page's current index.html and page/ digest
+                              (leaf.publishing.authored_digest), required with
                               --from-directory
   --completes WIDGET          a widget whose open to-dos this version completes
                               (repeatable)

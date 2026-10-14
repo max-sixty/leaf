@@ -10,9 +10,18 @@ def test_child_list_restatements_are_judged_across_one_delivery(browser):
     page.goto(
         "data:text/html,"
         + quote(
+            '<div hidden id="changed-shadow"><span></span></div>'
+            '<div hidden id="retained-shadow"><span></span></div>'
+            '<div hidden id="changed-text"><span>before</span></div>'
+            '<div hidden id="changed-attribute"><span title="before"></span></div>'
+            '<div hidden id="changed-descendants"><span><i>before</i></span></div>'
             '<div hidden id="membership"><i data-for="old"></i></div>'
             '<div hidden id="order"><i data-for="a"></i><i data-for="b"></i></div>'
             '<div hidden id="measurement"><i></i></div>'
+            '<div hidden id="retained-content"><span title="before">before</span></div>'
+            '<div hidden id="nested-roundtrip"><span><i>before</i></span></div>'
+            '<div hidden id="before-restore"><span>before</span></div>'
+            '<div hidden id="after-restore"><span>before</span></div>'
             '<div hidden id="retained"><i></i><b></b></div>'
             '<div hidden id="cloned"><i></i><b></b></div>'
             '<div hidden id="replaced"><i></i><b></b></div>'
@@ -26,6 +35,35 @@ def test_child_list_restatements_are_judged_across_one_delivery(browser):
         )
     )
     page.evaluate("""() => {
+      for (const id of ['changed-shadow', 'retained-shadow']) {
+        const root = document.getElementById(id).firstChild.attachShadow({mode: 'closed'});
+        root.innerHTML = '<b>before</b>';
+        if (id === 'changed-shadow') {
+          root.host.remove();
+          root.firstChild.firstChild.data = 'after';
+          document.getElementById(id).append(root.host);
+        }
+      }
+      const text = document.getElementById('changed-text');
+      const words = text.firstChild;
+      words.remove();
+      words.textContent = 'after';
+      text.append(words);
+      const attributes = document.getElementById('changed-attribute');
+      const labelled = attributes.firstChild;
+      labelled.remove();
+      labelled.title = 'after';
+      labelled.setAttributeNS('urn:test', 'p:state', 'after');
+      labelled.setAttributeNS('urn:another', 'q:state', 'before');
+      document.getElementById('retained-content').firstChild.setAttributeNS(
+        'urn:test', 'p:state', 'before',
+      );
+      attributes.append(labelled);
+      const descendants = document.getElementById('changed-descendants');
+      const changed = descendants.firstChild;
+      changed.remove();
+      changed.firstChild.firstChild.data = 'after';
+      descendants.append(changed);
       const membership = document.getElementById('membership');
       const arrival = document.createElement('i');
       arrival.dataset.for = 'new';
@@ -45,6 +83,39 @@ def test_child_list_restatements_are_judged_across_one_delivery(browser):
     assert take_browser_errors(page) == []
 
     page.evaluate("""() => {
+      const namespaced = document.getElementById('changed-attribute').firstChild;
+      namespaced.setAttributeNS('urn:test', 'p:state', 'new');
+      namespaced.setAttributeNS('urn:another', 'q:state', 'before');
+      const shadow = document.getElementById('retained-shadow');
+      const host = shadow.firstChild;
+      host.remove();
+      shadow.append(host);
+      const content = document.getElementById('retained-content');
+      const repeated = content.firstChild;
+      repeated.remove();
+      repeated.setAttributeNS('urn:test', 'p:state', 'before');
+      repeated.title = 'after';
+      repeated.firstChild.data = 'after';
+      repeated.title = 'before';
+      repeated.firstChild.data = 'before';
+      content.append(repeated);
+      const nested = document.getElementById('nested-roundtrip');
+      const parent = nested.firstChild;
+      parent.remove();
+      const inner = parent.firstChild;
+      inner.remove();
+      parent.append(inner);
+      nested.append(parent);
+      const before = document.getElementById('before-restore');
+      before.firstChild.firstChild.data = 'after';
+      const beforeChild = before.firstChild;
+      beforeChild.remove();
+      before.append(beforeChild);
+      const after = document.getElementById('after-restore');
+      const afterChild = after.firstChild;
+      afterChild.remove();
+      after.append(afterChild);
+      afterChild.firstChild.data = 'after';
       const retained = document.getElementById('retained');
       const same = retained.firstChild;
       same.remove();
@@ -84,6 +155,16 @@ def test_child_list_restatements_are_judged_across_one_delivery(browser):
     assert {
         (failure.values["what"], failure.values["node"]) for failure in failures
     } == {
+        ("children", "div#retained-shadow"),
+        ("children", "div#retained-content"),
+        ("title", "span in div#retained-content"),
+        ("state", "span in div#retained-content"),
+        ("state", "span in div#changed-attribute"),
+        ("text", "#text in span in div#retained-content"),
+        ("children", "div#nested-roundtrip"),
+        ("children", "span in div#nested-roundtrip"),
+        ("children", "div#before-restore"),
+        ("children", "div#after-restore"),
         ("children", "div#retained"),
         ("children", "div#cloned"),
         ("children", "div#replaced"),

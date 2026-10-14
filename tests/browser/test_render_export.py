@@ -17,7 +17,6 @@ from leaf import exporting as exporting_model
 from leaf import files as files_model
 from leaf import media as media_model
 from leaf import server as server_model
-from leaf import state as cleanup_model
 from leaf.render_checks import HANDOVER_DEADLINE_MS, wait_until_ready
 from leaf.structure import UTF8_BOM
 from leaf_dev.example_data import patch_manifest
@@ -183,52 +182,55 @@ def test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back(
     interrupted fetch is the registry's; a widget's dynamic import reaches the same
     supervision with the module's name in its words.
 
-    The restart is the preview's own, set off by a runtime edit. Holding the page
-    transaction pauses it after it has stopped the service, so the service stays gone
-    until the page has said so, and then comes back at the address the tab already
-    has.
+    A runtime edit makes the preview replace its server. Abort the in-flight registry
+    request as that replacement starts, then check that the page reports the lost
+    request and follows the replacement at the same address.
     """
     _, runtime, directory, _, url, _ = served_preview
     page = browser.new_page()
     errors = page.lf_errors
-    paused = ExitStack()
-    stopped = []
+    interrupted = []
+    page.add_init_script(
+        """(() => {
+          const words = "Leaf couldn't start. Waiting for the server to update.";
+          const check = () => {
+            if (![...document.querySelectorAll('[role="status"]')]
+                .some(node => node.textContent === words && node.checkVisibility())) return;
+            observer.disconnect();
+            sessionStorage.setItem('__lf-test-startup-notice', 'seen');
+          };
+          const observer = new MutationObserver(check);
+          observer.observe(document, {childList: true, subtree: true});
+          check();
+        })();"""
+    )
 
-    def stop_the_service(route):
-        # The registry is the runtime's own fetch, so a service stopped before it is
-        # answered is a service that goes away between the document arriving and the
-        # start that document began — the transport has nothing left to name it by.
-        # Once only: the reload the recovery makes must find a server that answers.
-        if not stopped:
-            stopped.append(True)
-            paused.enter_context(cleanup_model.flocked(directory / "events.jsonl"))
+    def interrupt_start(route):
+        # The registry is the runtime's own fetch. Once only: the reload the recovery
+        # makes must find a server that answers.
+        if not interrupted:
+            interrupted.append(True)
             theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
             updated = runtime.parent / "theme.css.next"
             updated.write_text(theme.read_text() + "\nh1 { color: navy; }\n")
             updated.replace(theme)
-            # The record says the service is stopping before its socket closes, so
-            # the address is what says the start's fetch will find nothing.
-            wait_for(
-                lambda: _reachable(url),
-                lambda reachable: not reachable,
-                failure="the runtime edit did not stop the service",
-            )
-        route.continue_()
+            route.abort("failed")
+        else:
+            route.continue_()
 
-    page.route("**/registry.json", stop_the_service)
-    with paused, restarting(page):
-        page.goto(url, wait_until="load")
-        # `load` is not the boundary: a widget is imported after it, so the stop is
-        # waited for through the answer the page gives it rather than read straight
-        # after the goto.
-        expect(
-            page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
-        ).to_be_visible()
+    page.route("**/registry.json", interrupt_start)
+    with restarting(page):
+        vanished = "leaf: page failed to start: Failed to fetch"
+        with page.expect_console_message(lambda message: vanished in message.text):
+            page.goto(url, wait_until="commit")
+        # Recovery may navigate after the failure. The observer records the notice
+        # in this tab when it appears, before a later document replaces it.
+        page.wait_for_function(
+            "sessionStorage.getItem('__lf-test-startup-notice') === 'seen'"
+        )
         # The reach: an interrupted start is a fetch the runtime made itself, which no
         # transport error names, and the words are the interrupted fetch's own.
-        vanished = "leaf: page failed to start: Failed to fetch"
         assert [error for error in errors if is_problem(error, vanished)], errors
-        paused.close()
         # The page's own recovery is bounded; the re-vendor ahead of it is not.
         wait_for(
             lambda: server_model.running_server(directory),
@@ -236,6 +238,7 @@ def test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back(
             failure="the preview did not bring its service back",
             timeout=COMPOSITE_TIMEOUT,
         )
+        expect(page.locator("h1")).to_have_css("color", "rgb(0, 0, 128)")
 
 
 def test_interactive_export_with_an_ask_reaches_application_presentation(

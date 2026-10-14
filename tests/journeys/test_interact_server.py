@@ -315,7 +315,6 @@ def test_server_round_trip(server, page_dir):
     )
     assert "> “Remove” · grip" in transcript.output
     drawing = {
-        "format": "leaf-drawing/3",
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],
         "box": [640.5, 96],
         "frame": {
@@ -419,7 +418,6 @@ def test_server_round_trip(server, page_dir):
             "text": "x",
             "anchor": {"section": "feeder-board"},
             "drawing": {
-                "format": "leaf-drawing/3",
                 "strokes": [[[10, 60]]],
             },
         },
@@ -429,7 +427,6 @@ def test_server_round_trip(server, page_dir):
             "text": "x",
             "anchor": {"section": "feeder-board"},
             "drawing": {
-                "format": "leaf-drawing/3",
                 "strokes": [[[10], [50, 20]]],
             },
         },
@@ -439,7 +436,6 @@ def test_server_round_trip(server, page_dir):
             "text": "x",
             "anchor": {"section": "feeder-board"},
             "drawing": {
-                "format": "leaf-drawing/3",
                 "strokes": [[[10, 60], [33554433, 20]]],
             },
         },

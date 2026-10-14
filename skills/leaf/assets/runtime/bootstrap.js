@@ -359,7 +359,6 @@
         credentials: "same-origin",
         keepalive: true,
         body: JSON.stringify({
-          version: 2,
           loadId: randomId(),
           release,
           layer,

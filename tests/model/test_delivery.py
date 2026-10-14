@@ -82,7 +82,6 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
         "meaning": {**page_pick["meaning"], "scope": "thread"},
     }
     drawing = {
-        "format": "leaf-drawing/3",
         "strokes": [[[0, 0], [10, 10]]],
         "box": [640, 120],
         "viewport": [1200, 900],
@@ -184,7 +183,6 @@ def test_codex_delivery_carries_only_the_selected_events_handling(page_dir):
             "kind": "comment",
             "text": "later drawing",
             "drawing": {
-                "format": "leaf-drawing/3",
                 "strokes": [[[0, 0], [1, 1]]],
                 "box": [640, 120],
                 "viewport": [1200, 900],

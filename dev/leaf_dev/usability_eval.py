@@ -64,7 +64,7 @@ from leaf_dev.arms import (
     trace_summary,
     waits_started,
 )
-from leaf_dev.browser import chrome, load, tab
+from leaf_dev.browser import headless_shell, load, tab
 from leaf_dev.eval_cases import definition
 
 FIXTURES = ROOT / "evals/usability/fixtures"
@@ -1417,7 +1417,7 @@ def checks_for(case: str, score: dict, phases: list[dict], usable: bool) -> dict
 def score_run(run: Run, traces: list[list[dict]], calls: list[str]) -> dict:
     """Apply the scenario's semantic reading to its complete native trajectory."""
     if run.case == "mixed":
-        with chrome() as browser:
+        with headless_shell() as browser:
             return score_mixed(run, traces[0], browser)
     if run.case in LIVE_SCORES:
         return LIVE_SCORES[run.case](run, traces[0])

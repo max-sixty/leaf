@@ -1859,7 +1859,7 @@ def test_a_draft_in_an_ask_takes_no_digits_and_answers_from_its_controls(
     editor = page.locator("#note leaf-text")
     edit = draft_control(page, "edit", "note")
 
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(question).to_be_focused()
     expect(edit).not_to_have_attribute("aria-keyshortcuts", re.compile(r"\d"))
     page.keyboard.press("1")
@@ -6948,14 +6948,12 @@ def test_saved_widget_words_cannot_dismiss_an_unfinished_comment(
     assert comments[0]["anchor"]["quote"] == "The words first shown."
 
 
-@pytest.mark.parametrize("surface", ["questions", "threads"])
+@pytest.mark.parametrize("surface", ["on", "threads"])
 def test_covering_surface_retains_the_open_passage_editor(browser, serve, surface):
     """Every covering auxiliary surface lends room back to the same native editor."""
     page = open_page(browser, serve(ASK_PAGE))
     resized(page, 900, 844)
-    page.locator(
-        ".lf-queue" if surface == "questions" else ".lf-threads-toggle"
-    ).click()
+    page.locator(".lf-queue" if surface == "on" else ".lf-threads-toggle").click()
     rendered(page)
     select_words(page, "#h")
     page.keyboard.press("c")
@@ -6966,15 +6964,13 @@ def test_covering_surface_retains_the_open_passage_editor(browser, serve, surfac
     field.press("ArrowRight")
     field.evaluate("el => { window.heldDraftEditor = el; }")
     resized(page, 390, 844)
-    panel = page.locator(
-        ".lf-queue-panel" if surface == "questions" else ".lf-thread-panel"
-    )
+    panel = page.locator(".lf-queue-panel" if surface == "on" else ".lf-thread-panel")
     expect(panel).to_be_visible()
     expect(page.locator(".lf-fab-bar")).to_have_attribute("data-lf-withheld", "")
     expect(field).not_to_be_focused()
     landing = panel.locator(
         ".lf-drawer-list button, .lf-drawer-list a[href]"
-        if surface == "questions"
+        if surface == "on"
         else ".lf-threads"
     ).first
     expect(landing).to_be_focused()

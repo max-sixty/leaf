@@ -31,8 +31,7 @@
           place-items: center; border-radius: var(--r); }
 .lf-icon-action[hidden] { display: none; }
 .lf-action-icon { position: relative; z-index: 1; inline-size: 16px; block-size: 16px;
-          overflow: visible; pointer-events: none; fill: none; stroke: currentColor; stroke-width: 1.6;
-          stroke-linecap: round; stroke-linejoin: round; }
+          pointer-events: none; }
 /* Closing changes the view; resolving changes durable thread state. */
 .lf-close-action { border: 0; background: transparent;
           color: var(--muted); }

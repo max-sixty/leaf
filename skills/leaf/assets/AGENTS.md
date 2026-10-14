@@ -62,7 +62,7 @@ representative desktop viewport.
   ("Stability"). Owners: `runtime/annotation-overlay/margin-placement.js` for where a margin
   row sits and when a pin folds.
 - **Auxiliary surfaces open over the page and never change its geometry.** The
-  Questions panel, the thread panel and the Pages drawer take no room from the page;
+  On panel, the thread panel and the Pages drawer take no room from the page;
   `auxiliary-surfaces.js` says when one leaves the page live beside it and when it
   covers the page (`--lf-auxiliary-beside`, `standsBeside`). Which box scrolls is the
   stylesheet's, a Layout's or the page's, and the runtime reads it rather than deciding

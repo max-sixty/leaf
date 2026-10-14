@@ -276,11 +276,13 @@ Layout class or its own CSS (`page-authoring.md`, "Layouts"); a package's elemen
 the box it is given, and its `x-space` states the width it prefers, which a page may
 override. Declare `column` for an element whose content is read as lines of text, such
 as a list of choices or a timeline, so in a flow wider than the column, such as a
-sidebar page's body or a workspace pane, it keeps the measure the prose
-around it keeps instead of stretching its rows across the page.
+sidebar page's body, it keeps the measure the prose around it keeps instead of
+stretching its rows across the page. Only the column and the sidebar page allocate
+`x-space`; in a workspace every element fills the region it stands in.
 A widget that needs a minimum width to stay usable, such as a board's columns at a
 readable size, states it as `min-inline-size` capped by the box it stands in:
-`min(<its floor>, 100cqi, var(--lf-box-cap, 100vw))`. `100cqi` measures the nearest size
+`min(<its floor>, 100%, 100cqi, var(--lf-box-cap, 100vw))`. `100%` is the box it
+stands in, such as a workspace's grid cell; `100cqi` measures the nearest size
 container, which is the page's shell or a framed box around the widget (a pane's body, a
 card), and a sample, which cannot be one, states `--lf-box-cap`. So in a box
 narrower than the floor the widget scrolls sideways rather than widening the page.

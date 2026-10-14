@@ -181,7 +181,7 @@ def native_provider(
 def render_prompt(context: dict) -> str | list[dict]:
     """Use native skill input on Codex shipped-skill probes, keeping one table row."""
     prompt = context["vars"]["prompt"]
-    skill = context["config"]["skills"].get(context["provider"]["label"])
+    skill = context["config"]["leaf_skills"].get(context["provider"]["label"])
     if skill is None:
         return prompt
     return [
@@ -423,7 +423,9 @@ def prepare(
             {
                 "id": f"file://{Path(__file__)}:{render_prompt.__name__}",
                 "label": "task",
-                "config": {"skills": skills},
+                # Promptfoo merges a prompt's config into every provider's, so its
+                # key must be one no provider reads: the Agent SDK takes `skills`.
+                "config": {"leaf_skills": skills},
             }
         ],
         "providers": list(providers.values()),

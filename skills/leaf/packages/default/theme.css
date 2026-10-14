@@ -1288,7 +1288,7 @@
 }
 @media screen {
   :scope:is(lf-board) {
-    min-inline-size: min(calc(var(--lf-board-columns) * var(--lf-reading-column-floor) + (var(--lf-board-columns) - 1) * var(--sp-2)), var(--lf-reach, calc(100cqi - 2 * var(--col-pad))), var(--lf-box-cap, 100vw));
+    min-inline-size: min(calc(var(--lf-board-columns) * var(--lf-reading-column-floor) + (var(--lf-board-columns) - 1) * var(--sp-2)), var(--lf-reach, min(100%, 100cqi)), var(--lf-box-cap, 100vw));
   }
 }
 :scope:is(lf-board):has(> lf-column:nth-of-type(2)) {

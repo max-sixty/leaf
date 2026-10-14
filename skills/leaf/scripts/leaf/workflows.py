@@ -106,7 +106,7 @@ def obligation_reading(readings) -> dict:
         if source["author"] == "user"
     ]
     return {
-        "questions": {
+        "on_user": {
             "page": [
                 ask["id"]
                 for ask in work.document.asks["unanswered"]

@@ -6,7 +6,7 @@
    The panel stands on the page's own ground, set off by a hairline and the faintest
    shadow, with 12px corners: part of the page rather than a widget laid on it. Its
    controls are set in the sans at 13px, with 12px for what qualifies them, and the
-   page's words (questions, messages) in the page's serif; two inks, full and 60%, and
+   page's words (asks, messages) in the page's serif; two inks, full and 60%, and
    the accent for what is on the user. The leaf is the one symbol at rest, and its
    colour is the agent's state. Every row is one line. */
 @scope (.lf-chrome) {
@@ -247,8 +247,10 @@
     min-height: 32px;
     padding: 0;
   }
-  /* Dictation is offered in the field the user is in, not at rest. */
-  .lf-fp-box:not(:has(leaf-text[data-lf-focus])) .lf-compose-dictate {
+  /* Dictation is offered while the user writes in the panel, not at rest. Writing lasts
+     while they stay in the panel (floating-panel.js, `writing`), so Tab from the field
+     lands on Dictate rather than hiding it as the field lets go. */
+  .lf-floating-panel:not([data-writing]) .lf-compose-dictate {
     display: none;
   }
 
@@ -279,12 +281,12 @@
     background: var(--lf-fp-faint);
   }
   /* A count's room stands whether or not it has a number. */
-  .lf-fp-questions,
+  .lf-fp-on-user,
   .lf-fp-threads {
     min-width: calc(16px + 4px + 2ch + 14px);
     justify-content: flex-start;
   }
-  .lf-fp-questions[data-due] .lf-fp-num {
+  .lf-fp-on-user[data-due] .lf-fp-num {
     color: var(--accent);
     font-weight: 600;
   }
@@ -717,15 +719,15 @@
     color: var(--ink);
   }
 
-  /* A question reads as the thread it belongs to, its words in the page's serif, and
-     the answers it takes, answered here. */
-  .lf-fp-question {
+  /* An item reads as the thread it belongs to, its words in the page's serif, and the
+     answers it takes, answered here. */
+  .lf-fp-on-item {
     padding: 10px 8px 12px;
   }
-  .lf-fp-question + .lf-fp-question {
+  .lf-fp-on-item + .lf-fp-on-item {
     border-top: 1px solid var(--lf-fp-faint);
   }
-  .lf-fp-qtitle {
+  .lf-fp-on-title {
     margin: 0 0 2px;
     font: inherit;
     font-size: 12px;

@@ -364,7 +364,8 @@ export function misplacedBoxes() {
   // every such Ask as standing in the margin; excusing a box no wider than its block
   // still named an Ask round a two-column table, which reaches further than the table
   // does, and passed a box pulled into the margin with its words. A breakout the page
-  // arranged keeps to its holder (prepaint.js), so its holder does not grow.
+  // arranged keeps to its holder (prepaint.js), so its holder does not grow, and nor
+  // does an inline box, whose words stand where its own box does.
   const holdsBreakout = (el) =>
     [...el.children].some(
       (child) =>
@@ -390,7 +391,7 @@ export function misplacedBoxes() {
     if (b.width < 1) continue;
     const host = wide ? null : insideWide(el);
     if (!wide && !host) {
-      const grown = holdsBreakout(el);
+      const grown = getComputedStyle(el).display !== "inline" && holdsBreakout(el);
       const past = outside(grown ? contentBox(el) : b, left, right);
       if (past > 1) over.set(el, [past, false, null, null]);
       if (past > 1 || !grown) continue;

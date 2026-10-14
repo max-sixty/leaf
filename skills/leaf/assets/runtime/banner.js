@@ -28,10 +28,9 @@ import {
   registerNoticePresentation,
 } from "./notifications.js";
 import { watchProjection } from "./projection-watch.js";
-import { readAsks } from "./asks/model.js";
 import { createBannerStatusView } from "./banner-status-view.js";
 import { declareBanner } from "./geometry.js";
-import { agentName, applicationState } from "./semantic-state.js";
+import { agentName, applicationState, readPart } from "./semantic-state.js";
 import { itemNoun } from "./queues.js";
 import { UPGRADE } from "./presentation.js";
 import { WEBSITE_DELIVERY } from "./context.js";
@@ -1008,13 +1007,17 @@ function reserveBannerControls() {
 }
 
 let approving = false;
+// Whether the user has approved the shown version.
+const versionApproved = readPart((root) =>
+  root.effective.asks.all.some(
+    (ask) => ask.source.kind === "approval" && ask.status === "answered",
+  ),
+);
 
 // `blockingAsks` is the unanswered asks that hold approval, or null before the page has
 // read the log and so cannot say which those are.
 export function paintApproval(blockingAsks) {
-  const approved = readAsks().all.some(
-    (ask) => ask.source.kind === "approval" && ask.status === "answered",
-  );
+  const approved = versionApproved();
   // The word and the title turn over together. The title read "Approve this work; the
   // page stays open for follow-up" whether or not the work had been approved, so the one
   // surface that could have told a user what pressing it would do next went on

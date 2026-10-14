@@ -97,10 +97,11 @@ returned:
 After both, the corpus comment and move match the declared-reading baseline. The throw
 catches only the coarsest case. The rule behind both is to derive a reader's result
 inside its selection, so its callers subscribe to the result rather than to its
-inputs (`skills/leaf/assets/AGENTS.md`, "Working on the runtime"). A review found three
-more readers breaking it, now selections of what they return: `readThreads` (the thread
+inputs (`skills/leaf/assets/AGENTS.md`, "Working on the runtime"). A review found more
+readers breaking it, now selections of what they return: `readThreads` (the thread
 collection, not all thread state), the to-dos and undo list (`runtime.todos`,
-`runtime.undo`, not the whole browser reading or view). No check finds the rest;
+`runtime.undo`, not the whole browser reading or view), and approval's blocking asks
+and approved state (not every ask). No check finds the rest;
 `leaf-dev bench-latency` against the previous commit shows one that costs time.
 
 ## Simplifications this opens

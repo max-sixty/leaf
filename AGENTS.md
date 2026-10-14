@@ -13,8 +13,7 @@ The agent decides both a page's content and its presentation. The user's
 word overrides either, whether given in a comment or as a standing preference,
 and Leaf's own defaults yield to both.
 
-Extensibility is a product goal: Leaf has a small core and default packages, and
-independently authored packages use the same declared interfaces as the defaults.
+Leaf's product principles live in `skills/leaf/SKILL.md`, "Core principles".
 Core owns shared state, event, and lifecycle guarantees; packages own domain
 behavior and widget presentation. Judge simplifications by the mechanisms they
 remove and the package compositions they preserve or rule out, rather than by

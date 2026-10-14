@@ -137,6 +137,7 @@ HTMLElement.prototype.showPopover = function (options) {
 // through focusDestination, which prevents native scrolling. Restoring the layer
 // afterward moves no focus. Authored
 // scripts keep the native methods; this is the runtime's navigation contract.
+/** @param {HTMLElement} layer @param {{source?: HTMLElement, modal?: boolean}} [options] */
 export function showNativeLayer(layer, { source, modal = true } = {}) {
   const withholdFocus = Boolean(document.documentElement.lfSample) && !layer.inert;
   if (withholdFocus) layer.inert = true;

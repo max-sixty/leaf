@@ -24,6 +24,7 @@ import { focusDestination, focused } from "../focus.js";
 // `lf-*` is reserved for authored widgets. This is generated runtime chrome.
 const TAG = "leaf-thread-narrowing";
 
+/** @typedef {ThreadNarrowingView} ThreadNarrowingViewElement For its tag (`runtime-globals.d.ts`). */
 class ThreadNarrowingView extends HTMLElement {
   #changeWords = null;
   #chooseFacet = null;

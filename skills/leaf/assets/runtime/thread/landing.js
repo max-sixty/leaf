@@ -207,7 +207,7 @@ pageScope("text entry", {
         const panelList = focused(document)
           ?.closest?.(".lf-thread-panel")
           ?.querySelector(".lf-threads");
-        deepFocus()?.blur();
+        /** @type {HTMLElement | null} */ (deepFocus())?.blur();
         const target = back?.target ?? panelList;
         if (!target) return;
         if (!target.matches?.(THREAD)) {

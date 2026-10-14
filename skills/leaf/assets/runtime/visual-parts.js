@@ -137,6 +137,7 @@ export const registeredVisualPartLabel = (source, id) => {
   return words(label) || null;
 };
 
+/** @param {(part: any) => boolean} [admits] */
 export function usableVisualPartAt(source, target, admits = () => true) {
   const byElement = new Map(
     usableVisualParts(source)

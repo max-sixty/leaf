@@ -47,6 +47,7 @@ export function mountKeyboard({
   // the saved reading. New ready keys otherwise pass straight through bootstrap.
   const takeHeldKeys = () => {
     if (!pageUpgraded() || pressingHeld) return;
+    /** @type {DocumentEventMap["lf-held-keys"]} */
     const taking = new CustomEvent("lf-held-keys", {
       detail: { ready: keyReady, keep: () => readApplication().phase === "waiting" },
     });

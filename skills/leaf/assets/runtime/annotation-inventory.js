@@ -240,7 +240,9 @@ export function createAnnotationInventory({
     const groups = new Map();
     const receiptByCoordinate = new Map();
     for (const receipt of visibleWidgetWorkflows()) {
-      receiptByCoordinate.set(stateCoordinate(...receipt.coordinate), receipt);
+      // A widget's workflow names its owner, unit and verb.
+      const coordinate = /** @type {[string, string, string]} */ (receipt.coordinate);
+      receiptByCoordinate.set(stateCoordinate(...coordinate), receipt);
     }
     for (const thread of threadList()) {
       if (!threadHasDiscussion(thread) || !thread.anchor || claimed(thread.id))

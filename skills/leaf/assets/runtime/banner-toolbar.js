@@ -312,7 +312,22 @@ function replaceEntry(prior, next) {
   menu = menu.map((entry) => (entry === prior ? next : entry));
 }
 
-/** Register one internal banner contribution and synchronously seat its native node. */
+/**
+ * Register one internal banner contribution and synchronously seat its native node.
+ *
+ * @param {{
+ *   key: string,
+ *   control: HTMLElement,
+ *   focusTarget?: HTMLElement,
+ *   rank: number,
+ *   seat?: string | { desk: string, phone: string },
+ *   conditional?: boolean,
+ *   present?: boolean,
+ *   offered?: boolean,
+ *   urgent?: string | null,
+ *   row: { label: string | (() => string), group: string, [field: string]: any },
+ * }} contribution
+ */
 export function registerBannerControl({
   key,
   control,

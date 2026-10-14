@@ -18,14 +18,16 @@ export const LIVE_ROOT = PAGE_PATH.endsWith("/");
 // address alike, and every page operation resolves against it. An interactive export
 // has no server and no link, so no root: the file is the page.
 export const PAGE_ROOT =
-  document.querySelector('link[rel="canonical"][data-lf-runtime]')?.href ?? null;
+  /** @type {HTMLLinkElement | null} */ (
+    document.querySelector('link[rel="canonical"][data-lf-runtime]')
+  )?.href ?? null;
 // How a server delivered this document: the runtime script it adds to every document it
 // serves (http.py) names the layer and release the document belongs to, the probe its
 // source answers, and a keyed transport's share address. An interactive export carries
 // no such script. Its own marker (`offlineMarker` below) shares only `data-lf-entry`, the
 // seam a harness finds either delivery by.
-const served = document.querySelector(
-  "script[data-lf-runtime][data-lf-server]",
+const served = /** @type {HTMLScriptElement | null} */ (
+  document.querySelector("script[data-lf-runtime][data-lf-server]")
 )?.dataset;
 export const DELIVERY = Object.freeze({
   layer: served?.lfLayer,
@@ -143,7 +145,9 @@ export const runtime = {
   get state() {
     return readApplication().authoritative;
   },
-  registry: {},
+  // The layer's `registry.json`, which fills this once it loads (registry.js).
+  registry:
+    /** @type {import("../../../../build/browser/application.ts").SemanticDocument["registry"] & Record<string, any>} */ ({}),
   get statePhase() {
     return readApplication().phase;
   },

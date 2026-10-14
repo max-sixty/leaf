@@ -74,6 +74,15 @@ export function scrollToFragment(element) {
   scrollIntoView(element, { behavior: "auto", block: "start" });
 }
 
+/** @param {{
+ *   anchors: any,
+ *   surfaces: any,
+ *   currentThreads: typeof import("./thread/state.js").allThreads,
+ *   refreshThread: () => unknown,
+ *   focusForNavigation: any,
+ *   threadFocusTarget: any,
+ *   announce: any,
+ * }} travel */
 export function createAnchorTravel({
   anchors,
   surfaces,
@@ -266,6 +275,7 @@ export function createAnchorTravel({
   // own (an ask's arrival region), built on the reading it is handed. Clearing a surface
   // can take the focus out of it, so the caller's retained `intent` hands the gesture
   // over to where that leaves the user rather than reading the move as a newer one.
+  /** @param {{landing?: () => unknown, url?: URL, keep?: boolean, intent: any}} trip */
   function prepareTrip({ landing = null, url, keep = false, intent }) {
     const write = prepareEntry();
     const continuing = landing && stillLanded();
@@ -418,6 +428,7 @@ export function createAnchorTravel({
   // not move with that region, so a fixed boundary ends the scrollers that move it
   // (`scrollersOf`); a scroller inside that boundary still owns its ordinary descendants.
 
+  /** @param {{at: any, align?: any, block?: string, behavior?: string, when?: () => boolean}} place */
   function placeScroll(
     { at, align = at, block = "center", behavior = scrollBehavior(), when },
     replacedView,
@@ -502,6 +513,8 @@ export function createAnchorTravel({
     );
   };
 
+  /** @param {string} id
+   * @param {{part?: any, focus?: boolean, keep?: boolean, presented?: any, intent?: any}} [options] */
   async function scrollToThread(
     id,
     { part = null, focus = true, keep = false, presented = null, intent } = {},

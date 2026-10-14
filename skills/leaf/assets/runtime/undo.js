@@ -138,7 +138,7 @@ export function createUndo({ post, stateApplying, unaccountedGesture }) {
     // included. The line drops the chip for as long as that is true rather than
     // promising a press that would undo the wrong thing.
     when: () => !unaccountedGesture() && Boolean(undoable()),
-    run: (...args) => undoLast(...args),
+    run: (/** @type {Parameters<typeof undoLast>} */ ...args) => undoLast(...args),
   });
 
   return {

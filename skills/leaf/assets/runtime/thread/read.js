@@ -75,6 +75,7 @@ export function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
   const refusedThisVisit = new Set();
   const sizes = sizeObserver(() => scheduleScan());
   const frameWatches = [];
+  /** @type {ReturnType<typeof readThreads>["threads"]} */
   let committedThreads = [];
   let threadsPresented = false;
   let presentationGeneration = 0;

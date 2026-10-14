@@ -118,16 +118,19 @@ const done = (goal, read) => {
 // itself: in its scope, under no nearer goal, and not a goal.
 function interventions(goal, open) {
   const scope = workAncestor(goal, "scope");
-  return asksIn(goal, open)
-    .map((ask) => elementById(ask.source.id))
-    .filter(
-      (item) =>
-        item !== goal &&
-        !workRole(item, "goal") &&
-        workAncestor(item, "scope") === scope &&
-        workAncestor(item.parentElement, "goal") === goal &&
-        !quoted(item),
-    );
+  return (
+    asksIn(goal, open)
+      // `asksIn` holds widgets' asks, which each name their widget.
+      .map((ask) => elementById(/** @type {{id: string}} */ (ask.source).id))
+      .filter(
+        (item) =>
+          item !== goal &&
+          !workRole(item, "goal") &&
+          workAncestor(item, "scope") === scope &&
+          workAncestor(item.parentElement, "goal") === goal &&
+          !quoted(item),
+      )
+  );
 }
 
 function stopped(goal, open, nested, read) {

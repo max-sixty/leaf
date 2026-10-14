@@ -130,7 +130,9 @@ export function createAskView({
         if (askEntry(ask)?.all !== outcome) continue;
         const nodes = reachAsk(ask);
         const { source } = unbuilt(ask, nodes) ? await materializeAsk(ask) : nodes;
-        await source?.[decisionFor(ask.source.tag)?.verb]?.(outcome);
+        // An ask answered for all at once is a widget's, which names its tag.
+        const { tag } = /** @type {{tag?: string}} */ (ask.source);
+        await source?.[decisionFor(tag)?.verb]?.(outcome);
       }
     } finally {
       answeringAll.delete(outcome);

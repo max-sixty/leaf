@@ -246,7 +246,8 @@ for (const type of ["pointerdown", "wheel", "touchstart", "click"])
     (event) => {
       const at = event.composedPath()[0];
       if (type !== "click") actedAt(at, false);
-      else if (event.isTrusted && event.button === 0) readingInput(at);
+      else if (event.isTrusted && /** @type {MouseEvent} */ (event).button === 0)
+        readingInput(at);
     },
     { capture: true, passive: true },
   );

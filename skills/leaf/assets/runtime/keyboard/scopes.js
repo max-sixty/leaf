@@ -563,7 +563,8 @@ export const commandsOn = directive(
       if (part.type !== PartType.ELEMENT)
         throw new TypeError("commandsOn belongs in a template's element part");
     }
-    render() {
+    // The values the template passes, which `update` reads.
+    render(title, rows, options) {
       return nothing;
     }
     update(part, [title, rows, options]) {

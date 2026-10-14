@@ -361,7 +361,7 @@ export function foldWidgetStates(authoredSnapshots, projection) {
    can make an empty recorded value an answer, but cannot invent custom state after
    undo removes its action. Python's projection.ask_value owns the same reading;
    the shared ask-value cases exercise both runtimes. */
-/** @param {Pick<import("../../../../../build/browser/domain.ts").AuthoredWidget, "state" | "specs">} widget
+/** @param {import("../../../../../build/browser/snapshot.ts").Immutable<Pick<import("../../../../../build/browser/domain.ts").AuthoredWidget, "state" | "specs">>} widget
  * @param {string} verb @param {boolean} answered */
 export function askValue(widget, verb, answered) {
   const state = widget.state[verb];

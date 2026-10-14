@@ -1161,15 +1161,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     top: 0;
     pointer-events: none;
   }
-  .lf-paint-frame {
-    position: absolute;
-  }
-  :is(.lf-paint-motion, .lf-paint-carrier) {
+  .lf-paint-carrier {
     position: absolute;
     left: 0;
     top: 0;
-  }
-  .lf-paint-carrier {
     width: 0;
     height: 0;
   }

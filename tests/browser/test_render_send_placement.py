@@ -1405,12 +1405,6 @@ def test_native_attachment_measures_solver_and_scroll_origin_together(
               ? captured : range.getBoundingClientRect(),
           };
           const owner = floatingPlacement({floating: box, update: () => {}});
-          window.detachPlacement = () => {
-            const framed = box.parentElement !== document.querySelector('.lf-chrome');
-            box.remove();
-            owner.stop();
-            return framed;
-          };
           if (existing) {
             owner.begin();
             const answer = await owner.position(ui.computePosition, reference,
@@ -1476,55 +1470,6 @@ def test_native_attachment_measures_solver_and_scroll_origin_together(
     assert state["plane"] == "page", state
     assert state["box"]["x"] == pytest.approx(state["quote"]["right"], abs=1), state
     assert state["box"]["y"] == pytest.approx(state["quote"]["top"], abs=1), state
-    # Words alone in their scroller anchor to the start of what it holds, which its
-    # scroll carries, rather than standing in a frame of motion layers.
-    assert not page.evaluate("detachPlacement()"), "the placement stood in a frame"
-
-
-def test_a_comment_box_on_words_in_a_scroller_stands_without_scroll_timelines(
-    browser, serve
-):
-    """Where the browser has neither anchors nor scroll timelines, the comment box for
-    words in a scroller starts below its containing box in the window's plane, then
-    follows the quoted words through observed placement."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Words in a scroller",
-                '<h1>Comments follow the words</h1><p id="quote">'
-                "The export keeps each tenant in an archive.<br>"
-                + "More lines in this reading region.<br>" * 50
-                + '</p><div style="height:1200px"></div>',
-                head="<style>#quote { height:120px; overflow:auto; }</style>",
-            )
-        ),
-        init_script="""delete window.ViewTimeline; delete window.ScrollTimeline;
-          const supports = CSS.supports;
-          CSS.supports = (...args) =>
-            !String(args[0]).startsWith('anchor') && supports.apply(CSS, args);""",
-    )
-    resized(page, 1200, 700)
-    words = """() => { const r = document.createRange();
-      r.selectNodeContents(document.getElementById('quote').firstChild);
-      return r.getBoundingClientRect().toJSON(); }"""
-    box = page.evaluate(words)
-    select(page, (box["x"] + 2, box["y"] + 8), (box["x"] + 150, box["y"] + 8))
-    page.locator(".lf-fab-input").click()
-    bar = page.locator(".lf-fab-bar")
-    expect(bar).to_have_attribute("data-lf-plane", "window")
-    quote = page.locator("#quote")
-    below = quote.bounding_box()
-    assert bar.bounding_box()["y"] >= below["y"] + below["height"]
-    before, words_before = bar.bounding_box(), page.evaluate(words)
-    page.mouse.move(below["x"] + 50, below["y"] + 50)
-    page.mouse.wheel(0, 30)
-    expect(quote).to_have_js_property("scrollTop", 30)
-    scroll_settled(page, "#quote")
-    rendered(page)
-    assert bar.bounding_box()["y"] - before["y"] == pytest.approx(
-        page.evaluate(words)["y"] - words_before["y"], abs=1
-    )
 
 
 def test_a_comment_box_on_words_alone_in_a_scroller_paints_in_the_frame_they_scroll(

@@ -112,6 +112,10 @@ const part = {
   versions: readPart((root) => root.authoritative?.versions ?? []),
   workflows: readPart((root) => root.effective.workflows),
   view: readPart((root) => root.effective.view),
+  undo: readPart((root) => root.effective.view?.undo ?? []),
+  todos: readPart((root) => root.authoritative?.browser.todos ?? []),
+  receipts: readPart((root) => root.authoritative?.browser.receipts ?? []),
+  revisionLabels: readPart((root) => root.authoritative?.revision_labels),
 };
 
 export const runtime = {
@@ -172,6 +176,17 @@ export const runtime = {
   get view() {
     return part.view();
   },
+  // The gestures that can still be taken back, newest first; empty between versions.
+  get undo() {
+    return part.undo();
+  },
+  get todos() {
+    return part.todos();
+  },
+  // The events the server has admitted from this tab's attempts.
+  get receipts() {
+    return part.receipts();
+  },
 };
 
-export const revisionLabel = (revision) => runtime.state.revision_labels[revision];
+export const revisionLabel = (revision) => part.revisionLabels()[revision];

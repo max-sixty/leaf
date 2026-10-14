@@ -430,7 +430,7 @@ export function createAnnotationInventory({
     // with the line of the start running on it, or as an open to-do under its title.
     // A thread's to-do is its thread's attention (above); the page's is the banner's. A
     // to-do on the user is on their Questions instead.
-    for (const todo of runtime.browser?.todos ?? []) {
+    for (const todo of runtime.todos) {
       if (
         todo.owner !== "agent" ||
         (todo.subject.kind !== "widget" && todo.subject.kind !== "element") ||

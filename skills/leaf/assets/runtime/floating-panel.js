@@ -97,7 +97,8 @@ import {
 import { sizeObserver } from "./rendering.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { declareOccluder, declareWindowChrome } from "./geometry.js";
-import { agentName, applicationState, readApplication } from "./semantic-state.js";
+import { agentName, applicationState } from "./semantic-state.js";
+import { runtime } from "./context.js";
 import { renderedUnder } from "./shadow.js";
 import { closestAcross } from "./passages.js";
 
@@ -865,7 +866,7 @@ export function createFloatingPanel({
   const answerGesture = (ask) => {
     const id = ask?.answer?.event?.id ?? ask?.answer?.event;
     if (!id) return null;
-    const entry = readApplication().effective.view?.undo.find(
+    const entry = runtime.undo.find(
       ({ event }) => event.id === id || event.attempt === id,
     );
     return entry?.event ?? null;

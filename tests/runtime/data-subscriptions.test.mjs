@@ -516,6 +516,23 @@ test("a projection watcher repaints for what its paint read, however it read it"
   );
 });
 
+test("a projection watcher repaints for a part its own paint published after reading it", async () => {
+  const { watchProjection } = await import("/runtime/projection-watch.js");
+  const { applicationState, readPart } = await import("/runtime/semantic-state.js");
+  const host = readPart((root) => root.effective.hostAvailable);
+  const owner = document.createElement("div");
+  document.body.append(owner);
+  const drawn = [];
+  const stop = watchProjection(owner, () => {
+    drawn.push(host());
+    if (drawn.length === 1) applicationState.setHostAvailable(!host());
+  });
+  await new Promise((resolve) => setTimeout(resolve));
+  stop();
+  owner.remove();
+  assert.deepEqual(drawn, [drawn[0], !drawn[0]]);
+});
+
 test("a projection watcher's paint that reads the whole publication fails", async (t) => {
   // Every publication moves the root, so such a paint would repaint on all of them.
   await scene();

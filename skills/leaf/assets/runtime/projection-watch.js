@@ -66,18 +66,15 @@ export function watchProjection(owner, paint, ready = null) {
     });
   };
   // Subscribe to the parts the last paint read, while the owner is here. A part's
-  // subscriber hears its value at once, which is the value already read.
+  // subscriber hears its value at once, which differs from the value read only where
+  // the paint itself published after reading it.
   const follow = () => {
     for (const stop of subscribed) stop();
     subscribed =
       unsubscribe && read
-        ? [...read.keys()].map((part) => {
-            let first = true;
-            return part.subscribe(() => {
-              if (first) first = false;
-              else update();
-            });
-          })
+        ? [...read].map(([part, value]) =>
+            part.subscribe((now) => now !== value && update()),
+          )
         : [];
   };
   // Every route, including the shared clock, checks this synchronous proof.

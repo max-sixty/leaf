@@ -225,9 +225,15 @@ so a phase does not depend on discovering a chain of references.
   re-vendoring a served page, a page a Leaf update broke, or resuming another
   session's page.
 - `references/module-authoring.md`: before writing or changing browser behavior in
-  a page script, page-owned widget, or package widget.
-- `references/packages.md`: for package design, registry declarations, theme rules,
-  data contracts, or a design comment whose fix belongs in a package.
+  a page script, page-owned widget, or package widget; then, as the behavior needs
+  them, `references/module-reading.md` for reading the page, content helpers, asks and
+  history, `references/module-state.md` for recorded state and data,
+  `references/module-input.md` for commands, focus and text entry,
+  `references/module-scroll-and-motion.md` for scrolling, travel and motion, and
+  `references/module-annotations.md` for margin entries, visual parts and Threads.
+- `references/packages.md`: for package design, registry declarations, or a design
+  comment whose fix belongs in a package; `references/package-themes.md` for theme
+  rules, and `references/package-data.md` for user state and data contracts.
 
 ### Set up a Codex connection
 

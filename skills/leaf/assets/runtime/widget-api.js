@@ -7,7 +7,7 @@
    gate's probes read belongs in check-api.js instead.
 
    Every export above the `// Internal:` comment is the authoring API, and
-   references/module-authoring.md documents each one; the exports below it serve Leaf's
+   the references/module-*.md files document each one; the exports below it serve Leaf's
    bundled packages and kernel widgets alone (tests/runtime/widget-api.test.mjs). */
 export {
   html,
@@ -229,7 +229,7 @@ export {
 } from "./syntax.js";
 export { bodyText, dataBody, failSoft, once, reportFailure } from "./widget-upgrade.js";
 export { saidAt, readHistory, reportSequence, reportsPresented } from "./reports.js";
-// The one watcher of the page's readings ("Page readings").
+// The one watcher of the page's readings (module-reading.md, "Page readings").
 export { watchProjection } from "./projection-watch.js";
 export {
   HIDDEN,
@@ -253,7 +253,7 @@ export { atLayoutPrecision, keeps, keepsHidden, keepsText, layoutPx } from "./ke
 export { LeafEditorView } from "./editor-view.js";
 
 // Internal: what Leaf's own bundled packages and kernel widgets import beyond the
-// authoring API module-authoring.md documents. Package authors do not use these.
+// authoring API the references/module-*.md files document. Package authors do not use these.
 export async function mountSample(frame, options) {
   const owner = await import("./sample.js");
   return owner.mountSample(frame, options);

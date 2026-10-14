@@ -249,12 +249,12 @@ replaces the document through the ordinary revision lifetime.
 With nothing more, comments open in Threads, which remains the complete
 conversation index, and selection offers the banner's Comment on selection control.
 A page or package that shows conversations and actions in its own layout registers
-a presentation through "Page annotation presentation" in `module-authoring.md`; do
+a presentation through "Page annotation presentation" in `module-annotations.md`; do
 not reconstruct the event log or annotation inventory in page code.
 
 ## Page CSS and Leaf's controls
 
-For a page-specific inset, use the frame declaration in `references/packages.md`,
+For a page-specific inset, use the frame declaration in `references/package-themes.md`,
 "A theme change".
 
 The page's own CSS reaches the page's content and leaves Leaf's apparatus alone: the
@@ -277,8 +277,8 @@ Readers can turn off **Quick keyboard shortcuts** under **More → Keyboard shor
 This preference persists across pages on the same origin and removes Leaf's character
 shortcuts and their hints; commands and ordinary control navigation remain available.
 A package can arrange conversations and obligations with the canonical APIs in
-`module-authoring.md`, "Owning the primary conversation presentation" and "Reading
-asks and obligation queues". Leaf owns their state, rendering, and activation;
+`module-annotations.md`, "Owning the primary conversation presentation", and
+`module-reading.md`, "Reading asks and obligation queues". Leaf owns their state, rendering, and activation;
 page composition can choose their layout.
 
 ## Activity from several contributors

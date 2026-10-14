@@ -3,9 +3,9 @@
 This file owns browser-wide contracts: how the page should look and move, module
 boundaries, startup, state authority, and the render gates. Each module's header
 owns its local contract. Page-authoring rules live in
-`../references/page-authoring.md`, module authoring in
-`../references/module-authoring.md`, package contracts in `../references/packages.md`,
-and rules shared with Python in root `AGENTS.md`, "Cross-runtime invariants".
+`../references/page-authoring.md`, module authoring in `../references/module-*.md`,
+package contracts in `../references/packages.md` and `package-*.md`, and rules
+shared with Python in root `AGENTS.md`, "Cross-runtime invariants".
 
 Shared stylesheet owners live under `styles/`: `styles/shadow.css` composes
 `styles/components/` into the shared root sheet. Document composition loads that

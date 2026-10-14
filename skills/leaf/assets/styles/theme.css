@@ -67,7 +67,7 @@
    it. Facts ask the nearest container (640): the shell on a column page, a pane's body
    or a card where one holds them. One answering to the device, such as
    a phone's vertical rhythm, asks the window, and a package's widget asks its own box
-   (references/packages.md).
+   (references/package-themes.md).
 
    Text may break at any character needed to keep the page inside its column.
    `overflow-wrap` is inherited from the page. Any token that must remain one unit, such

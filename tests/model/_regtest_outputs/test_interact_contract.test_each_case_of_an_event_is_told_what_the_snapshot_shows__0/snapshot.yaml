@@ -44,13 +44,14 @@
 #              text inside the ink's bounding box, from its first word to its last, so
 #              an arrow across a paragraph gives the whole paragraph; it is absent
 #              where the box covers no words, as over a picture. `drawing.strokes` are
-#              coordinates in the frame `drawing.frame` names inside the comment's
-#              target (CSS pixels for HTML, user units for SVG, intrinsic pixels for
-#              an image, canvas or video), and `drawing.box` is that frame's size. To
-#              see what the mark covers, run `leaf page picture PAGE ID` with the
-#              comment's `id`: it prints the path of a PNG of that revision in the
-#              user's window size and color scheme, with the ink drawn over it. Any
-#              `text` explains the mark; otherwise answer it like any comment.
+#              coordinates in one frame: the comment's target, or the visual inside it
+#              that the optional `drawing.frame` names (CSS pixels for HTML, user
+#              units for SVG, intrinsic pixels for an image, canvas or video), and
+#              `drawing.box` is that frame's size. To see what the mark covers, run
+#              `leaf page picture PAGE ID` with the comment's `id`: it prints the path
+#              of a PNG of that revision in the user's window size and color scheme,
+#              with the ink drawn over it. Any `text` explains the mark; otherwise
+#              answer it like any comment.
 #      clause 2, does not apply:
 #        when: {"required": ["text"], "properties": {"text": {"pattern": "\\]\\(/media/"}}}
 #        text: The message links an image in Markdown, as `/media/<digest>.<ext>`
@@ -96,26 +97,27 @@
 #              with what shows it (captures, a figure, the numbers). Then answer with
 #              `leaf response reply <answer.ref> --done < reply.md`: what changed, in
 #              a sentence or two, linking the section that shows it. If the event asks
-#              for no work, answer at once. The page holds the work; the thread holds
-#              only the conversation about it. `leaf response reply` checks any saved
-#              page edit and makes it live before posting. If the revision removes the
-#              thread's anchor, move the thread in the same reply with `--section
-#              <id>` (narrowed by `--quote` or `--part`), or `--detach` it if its
-#              subject left the page. Each answer takes `--done` when it delivers what
-#              was asked, `--ask` when it asks the user something back, or `--todo
-#              "<what you owe>"` when it promises work beyond this turn, which stays
-#              on you until `leaf task end` (`references/conversation-loop.md`,
-#              "Long-running work").
+#              for no work, as a question may not, answer it with that reply at once.
+#              The page holds the work; the thread holds only the conversation about
+#              it. `leaf response reply` checks any saved page edit and makes it live
+#              before posting. If the revision removes the thread's anchor, move the
+#              thread in the same reply with `--section <id>` (narrowed by `--quote`
+#              or `--part`), or `--detach` it if its subject left the page. Each
+#              answer takes `--done` when it delivers what was asked, `--ask` when it
+#              asks the user something back, or `--todo "<what you owe>"` when it
+#              promises work beyond this turn, which stays on you until `leaf task
+#              end` (`references/conversation-loop.md`, "Long-running work").
 #      clause 8, does not apply:
 #        when: {"properties": {"answer": {"properties": {"writer": {"const": "turn"}}}}}
 #        text: Leaf streams your opening message into the thread and posts your final
 #              message as the reply, unless an explicit reply already answered this
 #              input. Before your first tool call, tell the user briefly the answer or
 #              what you are about to do; later working messages stay in Codex. End
-#              with the answer, or what changed and where it shows. For widgets,
-#              `--ask`, `--todo`, a title or moving the thread, reply explicitly with
-#              `leaf response reply <answer.ref>` (`references/threads.md`); it posts
-#              at once, and your final message is then not posted.
+#              with the answer, or what changed and where it shows. For widgets, an
+#              ask awaiting the user (`--ask`), work promised beyond this turn
+#              (`--todo`), a title or moving the thread, reply explicitly with `leaf
+#              response reply <answer.ref>` (`references/threads.md`); it posts at
+#              once, and your final message is then not posted.
 #      clause 9, applies:
 #        (no `when`, so it always applies)
 #        text: Your reply renders as Markdown in a narrow column: give each point its
@@ -167,7 +169,7 @@
 #            ],
 #            "handling": {
 #              "h1": "The thread has no title yet. Name it with `--title \"<a few words>\"` on your reply, so the Threads panel lists its subject instead of its opening words. If Leaf has already named it from its first message, that name stays.",
-#              "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even reading the source: `leaf response reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. It shows at once and starts the update, which reads Working until you answer. Do the work and put the result on the page, with what shows it (captures, a figure, the numbers). Then answer with `leaf response reply <answer.ref> --done < reply.md`: what changed, in a sentence or two, linking the section that shows it. If the event asks for no work, answer at once. The page holds the work; the thread holds only the conversation about it. `leaf response reply` checks any saved page edit and makes it live before posting. If the revision removes the thread's anchor, move the thread in the same reply with `--section <id>` (narrowed by `--quote` or `--part`), or `--detach` it if its subject left the page. Each answer takes `--done` when it delivers what was asked, `--ask` when it asks the user something back, or `--todo \"<what you owe>\"` when it promises work beyond this turn, which stays on you until `leaf task end` (`references/conversation-loop.md`, \"Long-running work\").",
+#              "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even reading the source: `leaf response reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. It shows at once and starts the update, which reads Working until you answer. Do the work and put the result on the page, with what shows it (captures, a figure, the numbers). Then answer with `leaf response reply <answer.ref> --done < reply.md`: what changed, in a sentence or two, linking the section that shows it. If the event asks for no work, as a question may not, answer it with that reply at once. The page holds the work; the thread holds only the conversation about it. `leaf response reply` checks any saved page edit and makes it live before posting. If the revision removes the thread's anchor, move the thread in the same reply with `--section <id>` (narrowed by `--quote` or `--part`), or `--detach` it if its subject left the page. Each answer takes `--done` when it delivers what was asked, `--ask` when it asks the user something back, or `--todo \"<what you owe>\"` when it promises work beyond this turn, which stays on you until `leaf task end` (`references/conversation-loop.md`, \"Long-running work\").",
 #              "h3": "Your reply renders as Markdown in a narrow column: give each point its own short paragraph or list item, link a page section as `[its name](#section-id)`, and fence code or markup."
 #            },
 #            "events": [
@@ -261,16 +263,16 @@
 #              Do the work and put the result on the page, with what shows it (captures,
 #              a figure, the numbers). Then answer with `leaf response reply <answer.ref>
 #              --done < reply.md`: what changed, in a sentence or two, linking the section
-#              that shows it. If the event asks for no work, answer at once. The page holds
-#              the work; the thread holds only the conversation about it. `leaf response
-#              reply` checks any saved page edit and makes it live before posting. If the
-#              revision removes the thread's anchor, move the thread in the same reply
-#              with `--section <id>` (narrowed by `--quote` or `--part`), or `--detach`
-#              it if its subject left the page. Each answer takes `--done` when it delivers
-#              what was asked, `--ask` when it asks the user something back, or `--todo
-#              "<what you owe>"` when it promises work beyond this turn, which stays on
-#              you until `leaf task end` (`references/conversation-loop.md`, "Long-running
-#              work").
+#              that shows it. If the event asks for no work, as a question may not, answer
+#              it with that reply at once. The page holds the work; the thread holds only
+#              the conversation about it. `leaf response reply` checks any saved page edit
+#              and makes it live before posting. If the revision removes the thread's anchor,
+#              move the thread in the same reply with `--section <id>` (narrowed by `--quote`
+#              or `--part`), or `--detach` it if its subject left the page. Each answer
+#              takes `--done` when it delivers what was asked, `--ask` when it asks the
+#              user something back, or `--todo "<what you owe>"` when it promises work
+#              beyond this turn, which stays on you until `leaf task end` (`references/conversation-loop.md`,
+#              "Long-running work").
 #          - text: >-
 #              Your reply renders as Markdown in a narrow column: give each point its own
 #              short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -303,16 +305,16 @@ comment:
         Do the work and put the result on the page, with what shows it (captures,
         a figure, the numbers). Then answer with `leaf response reply <answer.ref>
         --done < reply.md`: what changed, in a sentence or two, linking the section
-        that shows it. If the event asks for no work, answer at once. The page holds
-        the work; the thread holds only the conversation about it. `leaf response
-        reply` checks any saved page edit and makes it live before posting. If the
-        revision removes the thread's anchor, move the thread in the same reply
-        with `--section <id>` (narrowed by `--quote` or `--part`), or `--detach`
-        it if its subject left the page. Each answer takes `--done` when it delivers
-        what was asked, `--ask` when it asks the user something back, or `--todo
-        "<what you owe>"` when it promises work beyond this turn, which stays on
-        you until `leaf task end` (`references/conversation-loop.md`, "Long-running
-        work").
+        that shows it. If the event asks for no work, as a question may not, answer
+        it with that reply at once. The page holds the work; the thread holds only
+        the conversation about it. `leaf response reply` checks any saved page edit
+        and makes it live before posting. If the revision removes the thread's anchor,
+        move the thread in the same reply with `--section <id>` (narrowed by `--quote`
+        or `--part`), or `--detach` it if its subject left the page. Each answer
+        takes `--done` when it delivers what was asked, `--ask` when it asks the
+        user something back, or `--todo "<what you owe>"` when it promises work
+        beyond this turn, which stays on you until `leaf task end` (`references/conversation-loop.md`,
+        "Long-running work").
     - text: >-
         Your reply renders as Markdown in a narrow column: give each point its own
         short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -333,8 +335,9 @@ comment over App Server:
         as the reply, unless an explicit reply already answered this input. Before
         your first tool call, tell the user briefly the answer or what you are about
         to do; later working messages stay in Codex. End with the answer, or what
-        changed and where it shows. For widgets, `--ask`, `--todo`, a title or moving
-        the thread, reply explicitly with `leaf response reply <answer.ref>` (`references/threads.md`);
+        changed and where it shows. For widgets, an ask awaiting the user (`--ask`),
+        work promised beyond this turn (`--todo`), a title or moving the thread,
+        reply explicitly with `leaf response reply <answer.ref>` (`references/threads.md`);
         it posts at once, and your final message is then not posted.
     - text: >-
         Your reply renders as Markdown in a narrow column: give each point its own
@@ -359,13 +362,13 @@ comment with a drawing:
         inside the ink's bounding box, from its first word to its last, so an arrow
         across a paragraph gives the whole paragraph; it is absent where the box
         covers no words, as over a picture. `drawing.strokes` are coordinates in
-        the frame `drawing.frame` names inside the comment's target (CSS pixels
-        for HTML, user units for SVG, intrinsic pixels for an image, canvas or video),
-        and `drawing.box` is that frame's size. To see what the mark covers, run
-        `leaf page picture PAGE ID` with the comment's `id`: it prints the path
-        of a PNG of that revision in the user's window size and color scheme, with
-        the ink drawn over it. Any `text` explains the mark; otherwise answer it
-        like any comment.
+        one frame: the comment's target, or the visual inside it that the optional
+        `drawing.frame` names (CSS pixels for HTML, user units for SVG, intrinsic
+        pixels for an image, canvas or video), and `drawing.box` is that frame's
+        size. To see what the mark covers, run `leaf page picture PAGE ID` with
+        the comment's `id`: it prints the path of a PNG of that revision in the
+        user's window size and color scheme, with the ink drawn over it. Any `text`
+        explains the mark; otherwise answer it like any comment.
     - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
       text: >-
         If the event asks for work, first post one line in its thread saying what
@@ -375,16 +378,16 @@ comment with a drawing:
         Do the work and put the result on the page, with what shows it (captures,
         a figure, the numbers). Then answer with `leaf response reply <answer.ref>
         --done < reply.md`: what changed, in a sentence or two, linking the section
-        that shows it. If the event asks for no work, answer at once. The page holds
-        the work; the thread holds only the conversation about it. `leaf response
-        reply` checks any saved page edit and makes it live before posting. If the
-        revision removes the thread's anchor, move the thread in the same reply
-        with `--section <id>` (narrowed by `--quote` or `--part`), or `--detach`
-        it if its subject left the page. Each answer takes `--done` when it delivers
-        what was asked, `--ask` when it asks the user something back, or `--todo
-        "<what you owe>"` when it promises work beyond this turn, which stays on
-        you until `leaf task end` (`references/conversation-loop.md`, "Long-running
-        work").
+        that shows it. If the event asks for no work, as a question may not, answer
+        it with that reply at once. The page holds the work; the thread holds only
+        the conversation about it. `leaf response reply` checks any saved page edit
+        and makes it live before posting. If the revision removes the thread's anchor,
+        move the thread in the same reply with `--section <id>` (narrowed by `--quote`
+        or `--part`), or `--detach` it if its subject left the page. Each answer
+        takes `--done` when it delivers what was asked, `--ask` when it asks the
+        user something back, or `--todo "<what you owe>"` when it promises work
+        beyond this turn, which stays on you until `leaf task end` (`references/conversation-loop.md`,
+        "Long-running work").
     - text: >-
         Your reply renders as Markdown in a narrow column: give each point its own
         short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -412,16 +415,16 @@ comment with a pasted image:
         Do the work and put the result on the page, with what shows it (captures,
         a figure, the numbers). Then answer with `leaf response reply <answer.ref>
         --done < reply.md`: what changed, in a sentence or two, linking the section
-        that shows it. If the event asks for no work, answer at once. The page holds
-        the work; the thread holds only the conversation about it. `leaf response
-        reply` checks any saved page edit and makes it live before posting. If the
-        revision removes the thread's anchor, move the thread in the same reply
-        with `--section <id>` (narrowed by `--quote` or `--part`), or `--detach`
-        it if its subject left the page. Each answer takes `--done` when it delivers
-        what was asked, `--ask` when it asks the user something back, or `--todo
-        "<what you owe>"` when it promises work beyond this turn, which stays on
-        you until `leaf task end` (`references/conversation-loop.md`, "Long-running
-        work").
+        that shows it. If the event asks for no work, as a question may not, answer
+        it with that reply at once. The page holds the work; the thread holds only
+        the conversation about it. `leaf response reply` checks any saved page edit
+        and makes it live before posting. If the revision removes the thread's anchor,
+        move the thread in the same reply with `--section <id>` (narrowed by `--quote`
+        or `--part`), or `--detach` it if its subject left the page. Each answer
+        takes `--done` when it delivers what was asked, `--ask` when it asks the
+        user something back, or `--todo "<what you owe>"` when it promises work
+        beyond this turn, which stays on you until `leaf task end` (`references/conversation-loop.md`,
+        "Long-running work").
     - text: >-
         Your reply renders as Markdown in a narrow column: give each point its own
         short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -453,16 +456,16 @@ suggestion:
         Do the work and put the result on the page, with what shows it (captures,
         a figure, the numbers). Then answer with `leaf response reply <answer.ref>
         --done < reply.md`: what changed, in a sentence or two, linking the section
-        that shows it. If the event asks for no work, answer at once. The page holds
-        the work; the thread holds only the conversation about it. `leaf response
-        reply` checks any saved page edit and makes it live before posting. If the
-        revision removes the thread's anchor, move the thread in the same reply
-        with `--section <id>` (narrowed by `--quote` or `--part`), or `--detach`
-        it if its subject left the page. Each answer takes `--done` when it delivers
-        what was asked, `--ask` when it asks the user something back, or `--todo
-        "<what you owe>"` when it promises work beyond this turn, which stays on
-        you until `leaf task end` (`references/conversation-loop.md`, "Long-running
-        work").
+        that shows it. If the event asks for no work, as a question may not, answer
+        it with that reply at once. The page holds the work; the thread holds only
+        the conversation about it. `leaf response reply` checks any saved page edit
+        and makes it live before posting. If the revision removes the thread's anchor,
+        move the thread in the same reply with `--section <id>` (narrowed by `--quote`
+        or `--part`), or `--detach` it if its subject left the page. Each answer
+        takes `--done` when it delivers what was asked, `--ask` when it asks the
+        user something back, or `--todo "<what you owe>"` when it promises work
+        beyond this turn, which stays on you until `leaf task end` (`references/conversation-loop.md`,
+        "Long-running work").
     - text: >-
         Your reply renders as Markdown in a narrow column: give each point its own
         short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -498,16 +501,16 @@ design comment:
         Do the work and put the result on the page, with what shows it (captures,
         a figure, the numbers). Then answer with `leaf response reply <answer.ref>
         --done < reply.md`: what changed, in a sentence or two, linking the section
-        that shows it. If the event asks for no work, answer at once. The page holds
-        the work; the thread holds only the conversation about it. `leaf response
-        reply` checks any saved page edit and makes it live before posting. If the
-        revision removes the thread's anchor, move the thread in the same reply
-        with `--section <id>` (narrowed by `--quote` or `--part`), or `--detach`
-        it if its subject left the page. Each answer takes `--done` when it delivers
-        what was asked, `--ask` when it asks the user something back, or `--todo
-        "<what you owe>"` when it promises work beyond this turn, which stays on
-        you until `leaf task end` (`references/conversation-loop.md`, "Long-running
-        work").
+        that shows it. If the event asks for no work, as a question may not, answer
+        it with that reply at once. The page holds the work; the thread holds only
+        the conversation about it. `leaf response reply` checks any saved page edit
+        and makes it live before posting. If the revision removes the thread's anchor,
+        move the thread in the same reply with `--section <id>` (narrowed by `--quote`
+        or `--part`), or `--detach` it if its subject left the page. Each answer
+        takes `--done` when it delivers what was asked, `--ask` when it asks the
+        user something back, or `--todo "<what you owe>"` when it promises work
+        beyond this turn, which stays on you until `leaf task end` (`references/conversation-loop.md`,
+        "Long-running work").
     - text: >-
         Your reply renders as Markdown in a narrow column: give each point its own
         short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -548,16 +551,16 @@ reply:
         Do the work and put the result on the page, with what shows it (captures,
         a figure, the numbers). Then answer with `leaf response reply <answer.ref>
         --done < reply.md`: what changed, in a sentence or two, linking the section
-        that shows it. If the event asks for no work, answer at once. The page holds
-        the work; the thread holds only the conversation about it. `leaf response
-        reply` checks any saved page edit and makes it live before posting. If the
-        revision removes the thread's anchor, move the thread in the same reply
-        with `--section <id>` (narrowed by `--quote` or `--part`), or `--detach`
-        it if its subject left the page. Each answer takes `--done` when it delivers
-        what was asked, `--ask` when it asks the user something back, or `--todo
-        "<what you owe>"` when it promises work beyond this turn, which stays on
-        you until `leaf task end` (`references/conversation-loop.md`, "Long-running
-        work").
+        that shows it. If the event asks for no work, as a question may not, answer
+        it with that reply at once. The page holds the work; the thread holds only
+        the conversation about it. `leaf response reply` checks any saved page edit
+        and makes it live before posting. If the revision removes the thread's anchor,
+        move the thread in the same reply with `--section <id>` (narrowed by `--quote`
+        or `--part`), or `--detach` it if its subject left the page. Each answer
+        takes `--done` when it delivers what was asked, `--ask` when it asks the
+        user something back, or `--todo "<what you owe>"` when it promises work
+        beyond this turn, which stays on you until `leaf task end` (`references/conversation-loop.md`,
+        "Long-running work").
     - text: >-
         Your reply renders as Markdown in a narrow column: give each point its own
         short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -591,16 +594,16 @@ reply in an untitled thread:
         Do the work and put the result on the page, with what shows it (captures,
         a figure, the numbers). Then answer with `leaf response reply <answer.ref>
         --done < reply.md`: what changed, in a sentence or two, linking the section
-        that shows it. If the event asks for no work, answer at once. The page holds
-        the work; the thread holds only the conversation about it. `leaf response
-        reply` checks any saved page edit and makes it live before posting. If the
-        revision removes the thread's anchor, move the thread in the same reply
-        with `--section <id>` (narrowed by `--quote` or `--part`), or `--detach`
-        it if its subject left the page. Each answer takes `--done` when it delivers
-        what was asked, `--ask` when it asks the user something back, or `--todo
-        "<what you owe>"` when it promises work beyond this turn, which stays on
-        you until `leaf task end` (`references/conversation-loop.md`, "Long-running
-        work").
+        that shows it. If the event asks for no work, as a question may not, answer
+        it with that reply at once. The page holds the work; the thread holds only
+        the conversation about it. `leaf response reply` checks any saved page edit
+        and makes it live before posting. If the revision removes the thread's anchor,
+        move the thread in the same reply with `--section <id>` (narrowed by `--quote`
+        or `--part`), or `--detach` it if its subject left the page. Each answer
+        takes `--done` when it delivers what was asked, `--ask` when it asks the
+        user something back, or `--todo "<what you owe>"` when it promises work
+        beyond this turn, which stays on you until `leaf task end` (`references/conversation-loop.md`,
+        "Long-running work").
     - text: >-
         Your reply renders as Markdown in a narrow column: give each point its own
         short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -633,16 +636,16 @@ reply with a pasted image:
         Do the work and put the result on the page, with what shows it (captures,
         a figure, the numbers). Then answer with `leaf response reply <answer.ref>
         --done < reply.md`: what changed, in a sentence or two, linking the section
-        that shows it. If the event asks for no work, answer at once. The page holds
-        the work; the thread holds only the conversation about it. `leaf response
-        reply` checks any saved page edit and makes it live before posting. If the
-        revision removes the thread's anchor, move the thread in the same reply
-        with `--section <id>` (narrowed by `--quote` or `--part`), or `--detach`
-        it if its subject left the page. Each answer takes `--done` when it delivers
-        what was asked, `--ask` when it asks the user something back, or `--todo
-        "<what you owe>"` when it promises work beyond this turn, which stays on
-        you until `leaf task end` (`references/conversation-loop.md`, "Long-running
-        work").
+        that shows it. If the event asks for no work, as a question may not, answer
+        it with that reply at once. The page holds the work; the thread holds only
+        the conversation about it. `leaf response reply` checks any saved page edit
+        and makes it live before posting. If the revision removes the thread's anchor,
+        move the thread in the same reply with `--section <id>` (narrowed by `--quote`
+        or `--part`), or `--detach` it if its subject left the page. Each answer
+        takes `--done` when it delivers what was asked, `--ask` when it asks the
+        user something back, or `--todo "<what you owe>"` when it promises work
+        beyond this turn, which stays on you until `leaf task end` (`references/conversation-loop.md`,
+        "Long-running work").
     - text: >-
         Your reply renders as Markdown in a narrow column: give each point its own
         short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -669,8 +672,8 @@ reply in a long thread:
       text: >-
         This thread's entry in the batch's `threads` has a `summary_hint`: an earlier
         range of messages worth summarizing. As you answer, follow the Leaf skill's
-        `references/threads.md`, "Summarize a long discussion". The hint owes nothing
-        of its own.
+        `references/threads.md`, "Summarize a long discussion". The hint needs no
+        separate answer.
     - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
       text: >-
         If the event asks for work, first post one line in its thread saying what
@@ -680,16 +683,16 @@ reply in a long thread:
         Do the work and put the result on the page, with what shows it (captures,
         a figure, the numbers). Then answer with `leaf response reply <answer.ref>
         --done < reply.md`: what changed, in a sentence or two, linking the section
-        that shows it. If the event asks for no work, answer at once. The page holds
-        the work; the thread holds only the conversation about it. `leaf response
-        reply` checks any saved page edit and makes it live before posting. If the
-        revision removes the thread's anchor, move the thread in the same reply
-        with `--section <id>` (narrowed by `--quote` or `--part`), or `--detach`
-        it if its subject left the page. Each answer takes `--done` when it delivers
-        what was asked, `--ask` when it asks the user something back, or `--todo
-        "<what you owe>"` when it promises work beyond this turn, which stays on
-        you until `leaf task end` (`references/conversation-loop.md`, "Long-running
-        work").
+        that shows it. If the event asks for no work, as a question may not, answer
+        it with that reply at once. The page holds the work; the thread holds only
+        the conversation about it. `leaf response reply` checks any saved page edit
+        and makes it live before posting. If the revision removes the thread's anchor,
+        move the thread in the same reply with `--section <id>` (narrowed by `--quote`
+        or `--part`), or `--detach` it if its subject left the page. Each answer
+        takes `--done` when it delivers what was asked, `--ask` when it asks the
+        user something back, or `--todo "<what you owe>"` when it promises work
+        beyond this turn, which stays on you until `leaf task end` (`references/conversation-loop.md`,
+        "Long-running work").
     - text: >-
         Your reply renders as Markdown in a narrow column: give each point its own
         short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -730,16 +733,16 @@ rewritten message:
         Do the work and put the result on the page, with what shows it (captures,
         a figure, the numbers). Then answer with `leaf response reply <answer.ref>
         --done < reply.md`: what changed, in a sentence or two, linking the section
-        that shows it. If the event asks for no work, answer at once. The page holds
-        the work; the thread holds only the conversation about it. `leaf response
-        reply` checks any saved page edit and makes it live before posting. If the
-        revision removes the thread's anchor, move the thread in the same reply
-        with `--section <id>` (narrowed by `--quote` or `--part`), or `--detach`
-        it if its subject left the page. Each answer takes `--done` when it delivers
-        what was asked, `--ask` when it asks the user something back, or `--todo
-        "<what you owe>"` when it promises work beyond this turn, which stays on
-        you until `leaf task end` (`references/conversation-loop.md`, "Long-running
-        work").
+        that shows it. If the event asks for no work, as a question may not, answer
+        it with that reply at once. The page holds the work; the thread holds only
+        the conversation about it. `leaf response reply` checks any saved page edit
+        and makes it live before posting. If the revision removes the thread's anchor,
+        move the thread in the same reply with `--section <id>` (narrowed by `--quote`
+        or `--part`), or `--detach` it if its subject left the page. Each answer
+        takes `--done` when it delivers what was asked, `--ask` when it asks the
+        user something back, or `--todo "<what you owe>"` when it promises work
+        beyond this turn, which stays on you until `leaf task end` (`references/conversation-loop.md`,
+        "Long-running work").
     - text: >-
         Your reply renders as Markdown in a narrow column: give each point its own
         short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -775,16 +778,16 @@ rewritten suggestion:
         Do the work and put the result on the page, with what shows it (captures,
         a figure, the numbers). Then answer with `leaf response reply <answer.ref>
         --done < reply.md`: what changed, in a sentence or two, linking the section
-        that shows it. If the event asks for no work, answer at once. The page holds
-        the work; the thread holds only the conversation about it. `leaf response
-        reply` checks any saved page edit and makes it live before posting. If the
-        revision removes the thread's anchor, move the thread in the same reply
-        with `--section <id>` (narrowed by `--quote` or `--part`), or `--detach`
-        it if its subject left the page. Each answer takes `--done` when it delivers
-        what was asked, `--ask` when it asks the user something back, or `--todo
-        "<what you owe>"` when it promises work beyond this turn, which stays on
-        you until `leaf task end` (`references/conversation-loop.md`, "Long-running
-        work").
+        that shows it. If the event asks for no work, as a question may not, answer
+        it with that reply at once. The page holds the work; the thread holds only
+        the conversation about it. `leaf response reply` checks any saved page edit
+        and makes it live before posting. If the revision removes the thread's anchor,
+        move the thread in the same reply with `--section <id>` (narrowed by `--quote`
+        or `--part`), or `--detach` it if its subject left the page. Each answer
+        takes `--done` when it delivers what was asked, `--ask` when it asks the
+        user something back, or `--todo "<what you owe>"` when it promises work
+        beyond this turn, which stays on you until `leaf task end` (`references/conversation-loop.md`,
+        "Long-running work").
     - text: >-
         Your reply renders as Markdown in a narrow column: give each point its own
         short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -802,7 +805,7 @@ pick on the page:
         The user already sees the action applied.
     - when: {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["scope"], "properties": {"scope": {"const": "thread"}}}}}}
       text: >-
-        To ask for clarification, ask in a thread on the picked option. To override
+        If you need clarification, ask in a thread on the picked option. To override
         the pick in a later version, mark the element `restated` and say why in
         the version note.
     - text: >-
@@ -831,7 +834,7 @@ option the user added:
         it, after the authored options, so leave it out of the markup.
     - when: {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["scope"], "properties": {"scope": {"const": "thread"}}}}}}
       text: >-
-        To ask for clarification, ask in a thread on the picked option. To override
+        If you need clarification, ask in a thread on the picked option. To override
         the pick in a later version, mark the element `restated` and say why in
         the version note.
     - when: {"not": {"required": ["answer"]}}
@@ -854,7 +857,7 @@ pick before Done:
         without an edit.
     - when: {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["scope"], "properties": {"scope": {"const": "thread"}}}}}}
       text: >-
-        To ask for clarification, ask in a thread on the picked option. To override
+        If you need clarification, ask in a thread on the picked option. To override
         the pick in a later version, mark the element `restated` and say why in
         the version note.
     - when: {"not": {"required": ["answer"]}}
@@ -881,7 +884,7 @@ decided suggestion:
         write the kept branch in as plain prose with its ids and remove the suggestion.
     - when: {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["scope"], "properties": {"scope": {"const": "thread"}}}}}}
       text: >-
-        To ask for clarification, ask in a thread on the picked option. To override
+        If you need clarification, ask in a thread on the picked option. To override
         the pick in a later version, mark the element `restated` and say why in
         the version note.
     - text: >-
@@ -911,16 +914,16 @@ pick inside a thread:
         Do the work and put the result on the page, with what shows it (captures,
         a figure, the numbers). Then answer with `leaf response reply <answer.ref>
         --done < reply.md`: what changed, in a sentence or two, linking the section
-        that shows it. If the event asks for no work, answer at once. The page holds
-        the work; the thread holds only the conversation about it. `leaf response
-        reply` checks any saved page edit and makes it live before posting. If the
-        revision removes the thread's anchor, move the thread in the same reply
-        with `--section <id>` (narrowed by `--quote` or `--part`), or `--detach`
-        it if its subject left the page. Each answer takes `--done` when it delivers
-        what was asked, `--ask` when it asks the user something back, or `--todo
-        "<what you owe>"` when it promises work beyond this turn, which stays on
-        you until `leaf task end` (`references/conversation-loop.md`, "Long-running
-        work").
+        that shows it. If the event asks for no work, as a question may not, answer
+        it with that reply at once. The page holds the work; the thread holds only
+        the conversation about it. `leaf response reply` checks any saved page edit
+        and makes it live before posting. If the revision removes the thread's anchor,
+        move the thread in the same reply with `--section <id>` (narrowed by `--quote`
+        or `--part`), or `--detach` it if its subject left the page. Each answer
+        takes `--done` when it delivers what was asked, `--ask` when it asks the
+        user something back, or `--todo "<what you owe>"` when it promises work
+        beyond this turn, which stays on you until `leaf task end` (`references/conversation-loop.md`,
+        "Long-running work").
     - text: >-
         Your reply renders as Markdown in a narrow column: give each point its own
         short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -947,8 +950,9 @@ pick inside a thread over App Server:
         as the reply, unless an explicit reply already answered this input. Before
         your first tool call, tell the user briefly the answer or what you are about
         to do; later working messages stay in Codex. End with the answer, or what
-        changed and where it shows. For widgets, `--ask`, `--todo`, a title or moving
-        the thread, reply explicitly with `leaf response reply <answer.ref>` (`references/threads.md`);
+        changed and where it shows. For widgets, an ask awaiting the user (`--ask`),
+        work promised beyond this turn (`--todo`), a title or moving the thread,
+        reply explicitly with `leaf response reply <answer.ref>` (`references/threads.md`);
         it posts at once, and your final message is then not posted.
     - text: >-
         Your reply renders as Markdown in a narrow column: give each point its own
@@ -972,8 +976,8 @@ unresolve:
     kind: unresolve
   told:
     - text: >-
-        The user reopened a closed thread. Reopening owes nothing itself; if the
-        thread's latest user message was never answered, `leaf page state <page>
+        The user reopened a closed thread. Reopening needs no separate answer; if
+        the thread's latest user message was never answered, `leaf page state <page>
         <thread-id>` shows the `answer` still owed.
 
 done:
@@ -1013,8 +1017,7 @@ report:
         until a stamped version answers it. Before the page ends, answer it in a
         stamped version: write the reported state into the markup, or mark the element
         `overruled` and say why in the version note. Until then the report stays
-        in force, and `page check` refuses a version whose markup contradicts it
-        without answering it.
+        in force.
 
 error:
   event:

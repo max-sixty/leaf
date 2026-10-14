@@ -70,7 +70,7 @@ delivery:
           This thread's entry in the batch's `threads` has a `summary_hint`: an
           earlier range of messages worth summarizing. As you answer, follow the
           Leaf skill's `references/threads.md`, "Summarize a long discussion". The
-          hint owes nothing of its own.
+          hint needs no separate answer.
         h4: >-
           If the event asks for work, first post one line in its thread saying what
           you will do, before any other command, even reading the source: `leaf
@@ -80,15 +80,16 @@ delivery:
           shows it (captures, a figure, the numbers). Then answer with `leaf response
           reply <answer.ref> --done < reply.md`: what changed, in a sentence or
           two, linking the section that shows it. If the event asks for no work,
-          answer at once. The page holds the work; the thread holds only the conversation
-          about it. `leaf response reply` checks any saved page edit and makes it
-          live before posting. If the revision removes the thread's anchor, move
-          the thread in the same reply with `--section <id>` (narrowed by `--quote`
-          or `--part`), or `--detach` it if its subject left the page. Each answer
-          takes `--done` when it delivers what was asked, `--ask` when it asks the
-          user something back, or `--todo "<what you owe>"` when it promises work
-          beyond this turn, which stays on you until `leaf task end` (`references/conversation-loop.md`,
-          "Long-running work").
+          as a question may not, answer it with that reply at once. The page holds
+          the work; the thread holds only the conversation about it. `leaf response
+          reply` checks any saved page edit and makes it live before posting. If
+          the revision removes the thread's anchor, move the thread in the same
+          reply with `--section <id>` (narrowed by `--quote` or `--part`), or `--detach`
+          it if its subject left the page. Each answer takes `--done` when it delivers
+          what was asked, `--ask` when it asks the user something back, or `--todo
+          "<what you owe>"` when it promises work beyond this turn, which stays
+          on you until `leaf task end` (`references/conversation-loop.md`, "Long-running
+          work").
         h5: >-
           Your reply renders as Markdown in a narrow column: give each point its
           own short paragraph or list item, link a page section as `[its name](#section-id)`,

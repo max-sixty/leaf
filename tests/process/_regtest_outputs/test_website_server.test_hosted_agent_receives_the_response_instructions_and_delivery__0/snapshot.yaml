@@ -37,8 +37,9 @@ turn/start:
       as the reply, unless an explicit reply already answered this input. Before
       your first tool call, tell the user briefly the answer or what you are about
       to do; later working messages stay in Codex. End with the answer, or what
-      changed and where it shows. For widgets, `--ask`, `--todo`, a title or moving
-      the thread, reply explicitly with `leaf response reply <answer.ref>` (`references/threads.md`);
+      changed and where it shows. For widgets, an ask awaiting the user (`--ask`),
+      work promised beyond this turn (`--todo`), a title or moving the thread, reply
+      explicitly with `leaf response reply <answer.ref>` (`references/threads.md`);
       it posts at once, and your final message is then not posted.","h2":"Your reply
       renders as Markdown in a narrow column: give each point its own short paragraph
       or list item, link a page section as `[its name](#section-id)`, and fence

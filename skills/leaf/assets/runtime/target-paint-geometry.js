@@ -163,11 +163,11 @@ export function paintShape(host, geometry, { left, top, right, bottom }, options
 // after the scroll writes nothing. Boxes the same frames cut share a stand (`standIn`,
 // then `standBox` for each).
 //
-// Where an anchor cannot position the stand (`anchoredBy`), as for a target in the top
-// layer or a box in the chrome after the stand, every frame and box stands where the
-// window holds it as measured, and the pass a scroll brings places them again. The
-// stand, not the box, carries the paint's stacking (`data-lf-paint-plane`), since the
-// frames it holds stack what they hold.
+// Where an anchor cannot position the stand (`anchoredBy`), as for a target in a native
+// layer the stand is not in or a box in the chrome after the stand, every frame and box
+// stands where the window holds it as measured, and the pass a scroll brings places them
+// again. The stand, not the box, carries the paint's stacking (`data-lf-paint-plane`),
+// since the frames it holds stack what they hold.
 export function paintStand(box = null) {
   const root = document.createElement("div");
   root.className = "lf-ui lf-target-paint lf-paint-stand";

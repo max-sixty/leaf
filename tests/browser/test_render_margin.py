@@ -10357,10 +10357,19 @@ def test_an_authored_anchor_scope_leaves_margin_controls_reachable(browser, serv
     source = leaf_page(
         "a scoped note",
         '<h1 id="t">Scoped</h1><p id="flow">In the flow.</p>'
-        '<div id="scope" style="anchor-scope: all"><p id="fixed-note">Behind a scope.</p></div>',
+        '<div id="scope" style="anchor-scope: all"><p id="fixed-note">Behind a scope.</p>'
+        '<p id="sticky-note" style="position: sticky; top: 0">Sticky behind it.</p></div>',
     )
     page = open_page(
-        browser, serve(source, events=[_comment_on("fixed-note"), _comment_on("flow")])
+        browser,
+        serve(
+            source,
+            events=[
+                _comment_on("fixed-note"),
+                _comment_on("flow"),
+                _comment_on("sticky-note"),
+            ],
+        ),
     )
     resized(page, 1440, 900)
     margins_laid_out(page)
@@ -10369,6 +10378,14 @@ def test_an_authored_anchor_scope_leaves_margin_controls_reachable(browser, serv
     flow = page.locator('.lf-margin-cluster[data-lf-margin-for="flow"]')
     expect(flow).to_be_visible()
     expect(stuck).to_be_visible()
+    # A sticky target's row stands in a carrier, anchored outside the scope its own
+    # name could not leave, so it stands level with its target rather than at the
+    # anchor's fallback off the page.
+    sticky = page.locator('.lf-margin-cluster[data-lf-margin-for="sticky-note"]')
+    expect(sticky).to_be_visible()
+    assert sticky.bounding_box()["y"] == pytest.approx(
+        page.locator("#sticky-note").bounding_box()["y"], abs=12
+    )
 
     # The author's scope can change while the target and its row keep their identity.
     page.locator("#scope").evaluate("el => el.style.anchorScope = 'none'")

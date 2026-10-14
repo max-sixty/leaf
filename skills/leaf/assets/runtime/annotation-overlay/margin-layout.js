@@ -149,11 +149,11 @@ let layer = null;
 // fixed box anchored to an element that box's scroll carries (`carriedAnchor`), so the
 // browser moves the row with every scroll around its target, in the frame that scrolls
 // it. Where a sticky, fixed or absolute box stands between the target and that scroll,
-// or the target's only scroll is the document's, the carrier is anchored to the target
-// itself (`carrierAnchor`). Rows share carriers by anchor and axis set, never one per
-// row: an anchor every row named made each layout pass revisit every target. A rail row
-// moves with the column, not with its region's sideways scroll, so its carrier follows
-// its anchor's block axis alone.
+// or a sticky or fixed box holds a target only the document scrolls, the carrier is
+// anchored to the target itself (`carrierAnchor`). Rows share carriers by anchor and
+// axis set, never one per row: an anchor every row named made each layout pass revisit
+// every target. A rail row moves with the column, not with its region's sideways
+// scroll, so its carrier follows its anchor's block axis and the column's inline axis.
 // A carrier holds one run of consecutive rows, so rows keep document order across
 // carriers; a second run on the same anchor takes a second carrier.
 const carriers = new Map();
@@ -170,9 +170,6 @@ function carrierFor(anchor, axes, run) {
   return held[axes][run];
 }
 const isCarrier = (node) => node?.classList.contains("lf-margin-carrier");
-// The page's sideways scroll as the last pass placed rows: a rail row's carrier
-// follows its anchor down the page but stands across it in the window.
-let laidOutScrollX = 0;
 // Where the scroll reading finds a row standing, as offsets from its target's shown
 // extent, which every scroll around the target moves with it as it moves the row.
 const standsBy = new WeakMap();
@@ -195,12 +192,19 @@ function scrollSources(node) {
 // lane's document coordinates carry: the subject's own box where something between it
 // and its innermost scroller is sticky, fixed or absolute, else what that scroller's
 // scroll carries beside it. A row in a bounded region always has a carrier, since its
-// lane is a frame the region's scroll does not carry.
+// lane is a frame the region's scroll does not carry. The document's scroll carries an
+// absolute box with everything else, so there only a sticky or fixed one parts a row
+// from the root lane.
+const stuckOrFixed = (node) => {
+  for (let at = node; at instanceof Element; at = renderedParent(at))
+    if (/^(sticky|fixed)$/.test(getComputedStyle(at).position)) return true;
+  return false;
+};
 function carrierAnchor(subject, sources, scroller) {
-  const inner = sources[0] ?? (scroller === pageScroller ? pageScroller : scroller);
+  const inner = sources[0] ?? (scroller === pageScroller ? null : scroller);
   const own = () => anchorElement(targetBox(subject));
+  if (!inner) return stuckOrFixed(subject) ? own() : null;
   if (!scrollsWith(subject, inner)) return own();
-  if (inner === pageScroller) return null;
   return carriedAnchor(inner) ?? own();
 }
 
@@ -934,14 +938,6 @@ function scheduleScrollReading() {
     scrollReading = 0;
     const boxes = [...scrolled];
     scrolled.clear();
-    if (
-      boxes.includes(pageScroller) &&
-      scrollX !== laidOutScrollX &&
-      [...carriers.values()].some((held) => held.y.length)
-    ) {
-      scheduleMarginLayout();
-      return;
-    }
     const bands = new Map();
     for (const [row, options] of rows) {
       const target = options.anchor();
@@ -983,7 +979,6 @@ export function layoutMarginRows() {
   pending = 0;
   if (!layer) return;
   pass += 1;
-  laidOutScrollX = scrollX;
   const present = [];
   const main = marginColumn();
   const columnRect = main.getBoundingClientRect();
@@ -1035,6 +1030,8 @@ export function layoutMarginRows() {
     }
   }
   const carrierNames = new Map();
+  // A rail row's carrier stands across the page where the column does.
+  const columnName = anchorReading(main);
   for (const [row, options] of rows) {
     const target = options.anchor();
     if (!target?.isConnected) {
@@ -1370,16 +1367,19 @@ export function layoutMarginRows() {
       const carrier = read.home;
       const from = (side, at) => `calc(anchor(${side}, -9999px) - ${layoutPx(at)})`;
       const reading = carrierNames.get(read.carrier);
-      if (reading.write) {
-        nameAnchor(reading);
-        reading.write = null;
-      }
+      for (const named of [reading, columnName])
+        if (named.write) {
+          nameAnchor(named);
+          named.write = null;
+        }
       setStyle(carrier, "position-anchor", reading.name);
       setStyle(carrier, "top", from("top", read.carrierBox.top));
       setStyle(
         carrier,
         "left",
-        carrierAxes.get(carrier) === "xy" ? from("left", read.carrierBox.left) : "0px",
+        carrierAxes.get(carrier) === "xy"
+          ? from("left", read.carrierBox.left)
+          : `calc(anchor(${columnName.name} left, 0px) - ${layoutPx(columnRect.left)})`,
       );
       setStyle(row, "--lf-margin-x", layoutPx(left));
       setStyle(row, "--lf-margin-y", layoutPx(top));

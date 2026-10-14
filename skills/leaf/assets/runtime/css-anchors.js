@@ -61,6 +61,8 @@ import { move } from "./dom-move.js";
 // box deeper than that anchors through the host holding its tree in the first one
 // (`anchorElement`). A box its own tree already names keeps that name and anchors through
 // its host too: declared again from the document, the name would leave the tree using it.
+// A widget that renders its part attribute again takes the part away until the next pass
+// reading the box names it again; no shipped widget binds `part`.
 const anchorNames = new WeakMap();
 let anchorOrdinal = 0;
 const nextName = () => `--lf-a${++anchorOrdinal}`;
@@ -68,21 +70,21 @@ const partOf = (name) => name.slice(2);
 const partNamed = (el) => el.part.contains(partOf(anchorNames.get(el)));
 let partRules = null;
 const declared = new Set();
-// A widget that renders its part attribute again takes the part away, and naming the box
-// again gives it back under the rule already declared.
-function namePart(el, name) {
+// Names `el`, or its `::before` where `pseudo` says so, through the part `name` spells.
+function namePart(el, name, pseudo = "") {
   if (!partRules) {
     partRules = new CSSStyleSheet();
     document.adoptedStyleSheets = [...document.adoptedStyleSheets, partRules];
   }
   if (!declared.has(name)) {
+    const content = pseudo ? 'content: "";' : "";
     partRules.insertRule(
-      `::part(${partOf(name)}) { anchor-name: ${name}; }`,
+      `::part(${partOf(name)})${pseudo} { ${content} anchor-name: ${name}; }`,
       partRules.cssRules.length,
     );
     declared.add(name);
   }
-  el.part.add(partOf(name));
+  if (!el.part.contains(partOf(name))) el.part.add(partOf(name));
 }
 /** @returns {{el: any, name: string, write?: string, part?: boolean}} */
 export function anchorReading(el, name = anchorNames.get(el) ?? nextName()) {
@@ -123,13 +125,23 @@ function nameable(el) {
   return !authored || authored === "none";
 }
 
-// The box a row or a float anchors to. A target in a shadow tree anchors as itself where
-// the document can name it (`nameable`), and otherwise through the host holding its tree;
-// a shape inside an SVG drawing has no CSS box of its own, so it anchors through the
+// The box a row or a float anchors to. A target inside an author's `anchor-scope: all`
+// anchors through the box holding the outermost such scope, since a name declared inside
+// one reaches nothing outside it; a target in a shadow tree anchors as itself where the
+// document can name it (`nameable`), and otherwise through the host holding its tree; a
+// shape inside an SVG drawing has no CSS box of its own, so it anchors through the
 // drawing; a `display: contents` target through its first shown part. Wherever it
 // anchors, what stands against it is written as insets from the anchor's box.
-export function anchorElement(target) {
+const SCOPES = CSS.supports("anchor-scope", "all");
+function outsideScopes(target) {
   let el = target;
+  if (SCOPES)
+    for (let at = target; at instanceof Element; at = renderedParent(at))
+      if (getComputedStyle(at).anchorScope === "all") el = renderedParent(at) ?? at;
+  return el;
+}
+export function anchorElement(target) {
+  let el = outsideScopes(target);
   for (let host; !nameable(el) && (host = shadowHost(el.getRootNode()));) el = host;
   while (el instanceof SVGElement && el.ownerSVGElement) el = el.ownerSVGElement;
   if (el !== target) return el;
@@ -138,15 +150,18 @@ export function anchorElement(target) {
 }
 
 // Whether an anchor on `anchor`, or on the scroller holding a content start, positions a
-// fixed box at `box`: the browser lays it out before that box, earlier in the document
-// and outside the top layer.
+// fixed box at `box`: the browser lays it out before that box. An anchor in the document
+// reaches into the top layer, laid out after it; within one native layer, or the
+// document, the anchor comes earlier in the tree; an anchor in another native layer is
+// read as out of reach, since which layer opened first is the browser's.
 export function anchorReaches(anchor, box) {
   const holder = anchorHolder(anchor);
+  const layer = nativeLayerHolding(holder);
+  if (layer !== nativeLayerHolding(box)) return !layer;
   const order = hostIn(holder, document).compareDocumentPosition(box);
   return (
     Boolean(order & Node.DOCUMENT_POSITION_FOLLOWING) &&
-    !(order & Node.DOCUMENT_POSITION_CONTAINED_BY) &&
-    !nativeLayerHolding(holder)
+    !(order & Node.DOCUMENT_POSITION_CONTAINED_BY)
   );
 }
 
@@ -219,11 +234,11 @@ export function anchorFor(context) {
 // scroller holds only words and breaks, and where it is a
 // block container, a flex or grid box making its `::before` an item, with no `::before`
 // of its own and no first letter floated out of the line, which would stand the range
-// in the float, and where the browser reads a name from an attribute; and only in the
-// document, which the rule naming it reaches no further than. Its handle answers
-// `getBoundingClientRect` as an element anchor does,
-// and naming it names the `::before`, through the scroller's `data-lf-content-start`,
-// written where it is made and again where a revision rewrote it.
+// in the float, and where the browser reads a name from an attribute. Its handle answers
+// `getBoundingClientRect` as an element anchor does, and naming it names the `::before`:
+// through the scroller's `data-lf-content-start` (marks.css) in the document, and in a
+// shadow tree through a part, as a box there is named (`namePart`), each written where it
+// is made and again where a revision rewrote it.
 const contentStarts = new WeakMap(); // handle → { scroller, name }
 const starts = new WeakMap(); // scroller → handle
 const START = "data-lf-content-start";
@@ -231,7 +246,6 @@ function contentStart(scroller) {
   const first = scroller.firstChild;
   if (
     !first ||
-    scroller.getRootNode() !== document ||
     [...scroller.childNodes].some(
       (node) =>
         node.nodeType !== Node.TEXT_NODE &&
@@ -273,7 +287,8 @@ function contentStart(scroller) {
     contentStarts.set(handle, { scroller, name: nextName() });
   }
   const { name } = contentStarts.get(handle);
-  keeps(scroller, START, name);
+  if (scroller.getRootNode() === document) keeps(scroller, START, name);
+  else namePart(scroller, name, "::before");
   return handle;
 }
 

@@ -1040,10 +1040,15 @@ export function layoutMarginRows({ retainSeats = false } = {}) {
   const pinInset = parseFloat(rootStyle.getPropertyValue("--pin-inset")) || 0;
   const railInner = columnRect.right + hang;
   // The half that decides rail or pin is a rail marker's: a pin's entries are smaller.
-  const entry = layer.root.parentElement.querySelector(
-    '.lf-margin-cluster:not([data-lf-place="pin"]) .lf-margin-entry:not([hidden])',
-  );
-  const size = entry?.offsetWidth || restingRail().entry;
+  // Read once a row could stand in the rail, since every other row pins whatever the
+  // size, and with no rail entry live the reading inserts and removes a measuring
+  // clone, which restyles the whole document (`restingRail`).
+  let railEntry;
+  const railEntrySize = () =>
+    (railEntry ??=
+      layer.root.parentElement.querySelector(
+        '.lf-margin-cluster:not([data-lf-place="pin"]) .lf-margin-entry:not([hidden])',
+      )?.offsetWidth || restingRail().entry);
   // The notes hanging in the margin the rail stands in (theme.css, aside.sidenote): a
   // marker level with one would be drawn over it.
   const notes = [...main.querySelectorAll("aside.sidenote")]
@@ -1123,9 +1128,11 @@ export function layoutMarginRows({ retainSeats = false } = {}) {
     const extent = whole && clippedBand(target, whole, bands, scroller);
     const top = extent && point ? pointBand(extent, point).top : extent?.top;
     const level = point ? top : box.top;
+    const besideRail = railBeside(scroller);
+    const size = stands && besideRail ? railEntrySize() : 0;
     const place = rowPosture({
       railStands: stands,
-      besideRail: railBeside(scroller),
+      besideRail,
       blockRight: reach(anchor, box, main, reaches),
       railInner,
       half: size / 2,

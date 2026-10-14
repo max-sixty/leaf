@@ -5,11 +5,15 @@
   max-width: 100%; max-height: min(60vh, 480px); border-radius: var(--r); }
 :is(.lf-btn, .button):is(.on, [aria-pressed="true"]) { border-color: var(--accent); color: var(--accent); background: var(--chip); }
 /* Draw mode takes document presses while Leaf surfaces keep their gestures.
-   Document selectors do not cross a declared shadow root. */
-:host-context(html[data-lf-draw-mode]):host-context(main) * { cursor: crosshair !important; }
-:host-context(html[data-lf-draw-mode]):host-context(main) [data-lf-runtime],
-:host-context(html[data-lf-draw-mode]):host-context(main) [data-lf-runtime] * {
-  cursor: auto !important; }
+   Document selectors do not cross a declared shadow root, so the document's draw-mode
+   rules (chrome.css) reach a tree hosted in main as an inherited property its own
+   rules query. */
+html[data-lf-draw-mode] main { --lf-draw-mode: on; }
+@container style(--lf-draw-mode: on) {
+  :host * { cursor: crosshair !important; }
+  :host [data-lf-runtime],
+  :host [data-lf-runtime] * { cursor: auto !important; }
+}
 /* Copy floats over the code's corner without changing its box or scrolling text.
    Hover, keyboard focus, or a tap that stands the user on the source reveals it
    (code-copy.js). Hidden, it takes no presses, so a finger selecting the words beneath

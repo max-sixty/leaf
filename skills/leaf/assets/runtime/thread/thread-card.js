@@ -454,7 +454,6 @@ export class ThreadView {
   #news = newsNotice();
   #titleNews = newsNotice(true);
   #titleControl = null;
-  #lastMessage = null;
   #continuity = null;
   #heldNews = null;
   #replyReservation = null;
@@ -611,12 +610,18 @@ export class ThreadView {
     this.#settlesAt = place;
   }
 
-  // The last of the thread a reader can see, after which its news grows: its last
-  // message, and none while the thread is folded. A closed panel card draws news in a
-  // title row of one size, and a card folded in its seat's Resolved disclosure draws
-  // nothing at all.
+  // The last of the thread a reader can see, after which its news grows: the last
+  // node its transcript shows, which is the working message while one stands, and none
+  // while the thread is folded. Progress behind the working message and originals
+  // behind a closed checkpoint stand in the transcript unrendered, so the last message
+  // alone may have no box to grow after. A closed panel card draws news in a title row
+  // of one size, and a card folded in its seat's Resolved disclosure draws nothing at
+  // all.
   get #foot() {
-    return this.#fold ? null : this.#lastMessage;
+    if (this.#fold) return null;
+    return (
+      [...this.#transcript.children].findLast((node) => node.checkVisibility()) ?? null
+    );
   }
 
   // What the thread draws after its messages that its settlement swaps: the reply box
@@ -1008,7 +1013,6 @@ export class ThreadView {
       });
       return { key: message.key, node: view.node };
     });
-    this.#lastMessage = messages.at(-1)?.node ?? null;
     const messageNodes = new Map(messages.map(({ key, node }) => [key, node]));
     // Each message, behind its read boundary, in the transcript or its checkpoint.
     const markers = new Map();

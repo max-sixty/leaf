@@ -593,6 +593,23 @@
         transparent 0,
         #000 12px);
   }
+  .lf-fp-new-reply {
+    position: sticky;
+    bottom: 2px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin: 0 auto;
+    padding: 0 12px 0 8px;
+    border-radius: 14px;
+    background: var(--lf-fp-surface);
+    box-shadow: 0 0 0 1px var(--lf-fp-ring), 0 4px 10px -6px var(--shade);
+    color: var(--ink);
+    font-size: 12px;
+  }
+  :where(.lf-floating-panel) .lf-fp-new-reply:hover {
+    background: color-mix(in srgb, var(--ink) 5%, var(--lf-fp-surface));
+  }
   .lf-fp-list {
     display: grid;
   }
@@ -1080,24 +1097,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   outline-offset: var(--focus-ring-gap);
   scroll-margin-block: var(--focus-ring-room);
 }
-@media print {
-  [data-lf-offer]:not([data-lf-said], [data-lf-echo]) {
-    display: none !important;
-  }
-  [data-lf-offer]:is([data-lf-said], [data-lf-echo]) {
-    background: none !important;
-    border: 0 !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    padding-inline: 0 !important;
-    cursor: default !important;
-    text-decoration: none !important;
-    list-style: none !important;
-  }
-  [data-lf-offer]:is([data-lf-said], [data-lf-echo])::-webkit-details-marker {
-    display: none !important;
-  }
-}
 @keyframes lf-runtime-4f3c2a8d-working {
   to {
     opacity: .5;
@@ -1189,15 +1188,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     top: 0;
     pointer-events: none;
   }
-  .lf-paint-frame {
-    position: absolute;
-  }
-  :is(.lf-paint-motion, .lf-paint-carrier) {
+  .lf-paint-carrier {
     position: absolute;
     left: 0;
     top: 0;
-  }
-  .lf-paint-carrier {
     width: 0;
     height: 0;
   }

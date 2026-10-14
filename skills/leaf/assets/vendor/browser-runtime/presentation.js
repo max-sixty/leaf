@@ -5,10 +5,12 @@
  * renderers replace inherited work, and seals membership after that publication
  * checkpoint. Replacing a required renderer reopens mechanical completion for the same
  * epoch. It retains renderer instances, promises, and commit proof; none of those
- * mechanical values enter the semantic snapshot.
+ * mechanical values enter the semantic snapshot. Independent proof observers run
+ * outside a notifier's snapshot collection; their reads belong to their own owner.
  */
 
 import { signal } from "./signals-core.js";
+import { untracked } from "./snapshot.js";
 
 
 
@@ -598,13 +600,15 @@ export function createPresentationCoordinator
     whenCurrentRegionsPresented,
     currentRegionsPresented,
     subscribe: (callback            ) =>
-      changes.subscribe(() => {
-        try {
-          callback();
-        } catch (reason) {
-          reportFailure(reason);
-        }
-      }),
+      changes.subscribe(() =>
+        untracked(() => {
+          try {
+            callback();
+          } catch (reason) {
+            reportFailure(reason);
+          }
+        }),
+      ),
     read,
   });
 }
@@ -710,6 +714,21 @@ export function createPresentationSchedule(
   /** The page has caught up with the root it is reading. */
   const passed = () => pass?.promise ?? Promise.resolve();
 
+  /** Queue a renderer that already owns its claim; return only its own completion. */
+  function enqueue(order        , run                                )                {
+    const completion = Promise.withResolvers      ();
+    collect(order, async () => {
+      try {
+        await run();
+        completion.resolve();
+      } catch (error) {
+        completion.reject(error);
+        throw error;
+      }
+    });
+    return completion.promise;
+  }
+
   function presenter              ({
     attach,
     paint,
@@ -758,7 +777,7 @@ export function createPresentationSchedule(
       // The claim is synchronous, inside the publication that opened the epoch. Only
       // the paint waits for the pass.
       const ticket = claim(value);
-      collect(order, () => run(ticket));
+      collect(typeof order === "function" ? order() : order, () => run(ticket));
       return passed();
     }
 
@@ -771,6 +790,6 @@ export function createPresentationSchedule(
     return Object.freeze({ sync, disconnect });
   }
 
-  return Object.freeze({ presenter, passed });
+  return Object.freeze({ presenter, enqueue, passed });
 }
 // Generated from build/browser/presentation.ts by build/browser/build.mjs.

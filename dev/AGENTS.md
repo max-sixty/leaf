@@ -111,8 +111,7 @@ website's container runs, with its kernel compiled again for its own modules.
 and developer previews, keyed by payload and compiler inputs. Authored-page edits reuse
 it; relevant runtime revisions build a new immutable payload. Consumer installs and
 custom-package authoring retain their build-free workflow. Developer arms use the
-kernel by default; `arms.build_source(..., compiled=False)` provides a source baseline
-for startup comparisons.
+kernel.
 
 CI, the root pnpm scripts and `.config/wt.toml` run these. The images they
 write live in `max-sixty/leaf-assets`, so outside `.tmp/` they write only the pin

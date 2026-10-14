@@ -246,8 +246,9 @@ async function layerModules(layerRoot) {
  * chunk), and the hash moves whenever anything inside the chunk does, so every
  * runtime change would rename chunks and conflict with every other. Each chunk is
  * renamed after the first module in it, `bundle-<its path, / as ~>.js`, numbered
- * `-2`, `-3` in the order of their module lists where two start alike, and every
- * reference to it is rewritten.
+ * `-2`, `-3` in the order of their module lists where that name is already an
+ * entry's, a layer module's or another chunk's, and every reference to it is
+ * rewritten.
  */
 export async function kernelOutputs(layerRoot) {
   layerRoot = await realpath(layerRoot);
@@ -276,6 +277,14 @@ export async function kernelOutputs(layerRoot) {
     }))
     .map((chunk) => ({ ...chunk, order: [...chunk.modules, chunk.first].join("\n") }))
     .sort((a, b) => (a.order < b.order ? -1 : a.order > b.order ? 1 : 0));
+  // A chunk never takes the path of an entry or of any module in the layer.
+  const modules = await layerModules(layerRoot);
+  const taken = new Set([
+    ...modules,
+    ...outputs
+      .filter(({ name, output }) => name === output.entryPoint)
+      .map(({ name }) => name),
+  ]);
   const renames = new Map();
   for (const { name, first } of chunks) {
     const stem = `runtime/bundle-${first
@@ -283,8 +292,8 @@ export async function kernelOutputs(layerRoot) {
       .replace(/\.js$/, "")
       .replaceAll("/", "~")}`;
     let stable = `${stem}.js`;
-    const taken = new Set(renames.values());
     for (let n = 2; taken.has(stable); n++) stable = `${stem}-${n}.js`;
+    taken.add(stable);
     renames.set(name, stable);
   }
   const files = new Map();
@@ -297,7 +306,7 @@ export async function kernelOutputs(layerRoot) {
   }
   const replaces = new Set(outputs.flatMap(({ output }) => Object.keys(output.inputs)));
   const inputs = {};
-  for (const module of await layerModules(layerRoot))
+  for (const module of modules)
     inputs[module] = createHash("sha256")
       .update(await readFile(join(layerRoot, module)))
       .digest("hex");

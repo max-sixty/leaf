@@ -776,7 +776,17 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
         }
         for sub in BROWSER_DIRS
     }
-    if roots[0].resolve() == ASSETS.resolve() and (kernel := current_kernel()):
+    # A package may replace a vendor module the kernel compiled in; that page keeps
+    # the source modules, so the replacement is the one it loads.
+    if (
+        roots[0].resolve() == ASSETS.resolve()
+        and (kernel := current_kernel())
+        and all(
+            directory_sources[sub][name].is_relative_to(roots[0])
+            for sub, _, name in (path.partition("/") for path in kernel.replaces)
+            if name
+        )
+    ):
         _with_kernel(kernel, top_files, directory_files)
     client = directory_files["runtime"].get("layer-generation.js", b"")
     if client.count(LAYER_PLACEHOLDER) != 1:

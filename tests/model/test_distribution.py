@@ -28,8 +28,10 @@ def test_pages_vendor_the_kernel_only_while_it_matches_the_tree(tmp_path, monkey
     monkeypatch.setattr(layer_model, "ASSETS", assets)
     monkeypatch.setattr(layer_model, "KERNEL", kernel)
 
-    def vendored():
-        roots = layer_model.checked_layer_inputs(layer_model.layer_inputs())
+    def vendored(*packages):
+        roots = layer_model.checked_layer_inputs(
+            [*layer_model.layer_inputs(), *packages]
+        )
         composition = layer_model.compose_layer(roots)
         return composition.top_files["leaf.js"], composition.directory_files
 
@@ -42,6 +44,14 @@ def test_pages_vendor_the_kernel_only_while_it_matches_the_tree(tmp_path, monkey
         files["runtime"]["layer-generation.js"]
         == (assets / "runtime/layer-generation.js").read_bytes()
     )
+
+    # A package that replaces a vendor module the kernel compiled in loads its own.
+    package = tmp_path / "package"
+    (package / "vendor").mkdir(parents=True)
+    (package / "vendor/browser-runtime.js").write_text("export const own = 1;\n")
+    entry, files = vendored(package)
+    assert entry == (assets / "leaf.js").read_bytes()
+    assert files["vendor"]["browser-runtime.js"] == b"export const own = 1;\n"
 
     module = assets / "runtime/context.js"
     module.write_text(module.read_text() + "\n")

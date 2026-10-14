@@ -9216,6 +9216,38 @@ def test_collapsing_progress_preserves_room_for_a_later_canceled_stream(
     assert card.bounding_box()["height"] == pytest.approx(compact, abs=0.5)
 
 
+def test_canceling_a_long_stream_keeps_the_panel_reading(browser, serve, request):
+    """Measuring removed content must not reset the surrounding list's scroll."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Keep this thread here.")
+    claim_for_codex(serve.page_dir, request)
+    stream_reply(
+        serve.page_dir,
+        root,
+        "\n\n".join(["A provisional answer with useful detail. " * 5] * 25),
+    )
+    page = open_page(browser, url)
+    open_threads_list(page, 1400, 700)
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    if card.get_attribute("open") is None:
+        card.locator(":scope > .lf-thread-summary").click()
+    write(card.locator("leaf-text"), "Half a thought")
+    listing = page.locator(".lf-threads")
+    listing.evaluate("node => node.scrollTop = node.scrollHeight")
+    rendered(page)
+    top = listing.evaluate("node => node.scrollTop")
+    reply = card.locator(":scope > .lf-thread-reply")
+    reply_top = reply.bounding_box()["y"]
+    assert top > 500
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        transaction.clear_stream_reply("codex-thread", "leaf-turn")
+    told(page)
+    expect(card.locator(f'.lf-msg[data-attempt="{STREAM_ATTEMPT}"]')).to_have_count(0)
+    rendered(page)
+    assert listing.evaluate("node => node.scrollTop") == pytest.approx(top, abs=1)
+    assert reply.bounding_box()["y"] == pytest.approx(reply_top, abs=1)
+
+
 def reply_by_keyboard(page, root):
     """Stand on the thread's title and press `c` into its reply box."""
     card = page.locator(f'.lf-thread[data-id="{root}"]')
@@ -12842,9 +12874,9 @@ def test_opening_a_rewrite_keeps_room_the_thread_holds(browser, serve):
     rendered(page)
     latest = thread.locator(".lf-msg").last
     held = latest.bounding_box()
-    assert thread.evaluate(
-        "n => n.style.getPropertyValue('--lf-thread-body-extent')"
-    ), "the thread holds no room, so this proves nothing"
+    assert thread.locator(":scope > .lf-reply-space").bounding_box()["height"] > 0, (
+        "the thread holds no room, so this proves nothing"
+    )
     page.keyboard.press("ArrowUp")
     expect(latest.locator(".lf-msg-editor leaf-text")).to_be_focused()
     rendered(page)

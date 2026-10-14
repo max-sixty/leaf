@@ -47,7 +47,9 @@
    scroller inherits its reference, because a mutation in flight (a fold) has already
    moved whatever the pointer would now name.
 
-   One synchronous mutation takes its hold with `around(mutate)`, which claims nothing.
+   One synchronous mutation takes its hold with `around(mutate)`, or with
+   `take({spans: false})` / `finish` across separate paint steps. It claims nothing,
+   including any anchoring property another keeper already owns.
    Nothing but reflow moves a scroller inside one task: the browser's own anchoring, which
    a forced layout applies, or a clamp. So its correction pays for every movement since
    the reading and lands the reference where it stood, whatever the browser did first,
@@ -174,7 +176,7 @@ export function placeKeeper(
   function release(hold) {
     if (current !== hold) return;
     current = null;
-    claim();
+    if (hold.spans) claim();
   }
 
   function correct(hold) {
@@ -211,7 +213,7 @@ export function placeKeeper(
     const prior = current;
     if (prior) correct(prior);
     current = heldPlace(prior, spans);
-    claim();
+    if (spans || prior?.spans) claim();
     return current;
   }
 
@@ -297,5 +299,5 @@ export function placeKeeper(
     }
   }
 
-  return { take: () => take(), finish, around };
+  return { take, finish, around };
 }

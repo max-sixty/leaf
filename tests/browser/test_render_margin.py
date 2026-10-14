@@ -7687,7 +7687,11 @@ def test_an_open_card_takes_news_without_moving_its_controls(browser, serve):
     expect(notice).to_have_text("1 new update")
     expect(words).to_contain_text("before and after the change")
     thread_model.post_reply(
-        serve.page_dir, address, "Done: the banner's status line is one weight lighter."
+        serve.page_dir,
+        address,
+        "Done: the banner's status line is one weight lighter, and its title sets in "
+        "the muted ink, so the banner reads as chrome rather than as the page's first "
+        "heading in both schemes.",
     )
     told(page)
     expect(notice).to_contain_text("new reply")
@@ -7705,7 +7709,7 @@ def test_an_open_card_takes_news_without_moving_its_controls(browser, serve):
     rendered(page)
     for name, control in controls.items():
         assert control.bounding_box() == pytest.approx(held[name], abs=0.5), name
-    assert editor.bounding_box()["y"] > held["editor"]["y"] + 1
+    assert editor.bounding_box()["y"] > held["editor"]["y"] + 20
 
 
 @pytest.mark.watch_shifts

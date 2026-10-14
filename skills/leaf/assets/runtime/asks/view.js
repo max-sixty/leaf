@@ -62,8 +62,6 @@ import {
   failSoftAfterRetention,
   PRESENTATION_ORDER,
   PresentationRetentionError,
-  readApplication,
-  watchSemantic,
 } from "../semantic-state.js";
 import { hostIn, under, upFrom } from "../shadow.js";
 import { showHeld } from "../thread/held-news.js";
@@ -140,11 +138,14 @@ export function createAskView({
     }
   });
   const asksRenderer = Object.freeze({ banner: bannerControls });
+  let mounted = false;
   const presenter = applicationPresenter({
     region: "asks",
     renderer: asksRenderer,
     order: PRESENTATION_ORDER.asks,
-    current: () => (mounted ? readApplication().semanticEpoch : null),
+    // The banner counts the asks on the user; a publication that leaves them unchanged
+    // claims nothing.
+    reading: (root) => (mounted ? root.effective.asks.user : null),
     failSoft: failSoftAfterRetention(asksRenderer),
     paint: (epoch, current) => paintAsks(current),
   });
@@ -190,7 +191,7 @@ export function createAskView({
       });
     });
   }
-  // The banner's reading of that one list. Every semantic publication refreshes it,
+  // The banner's reading of that one list. A publication that changes it refreshes it,
   // and a publication is where the server's ask reading changes, so a send moves
   // these counts once the state its POST returns has been adopted.
   async function paintAsks(current) {
@@ -218,10 +219,10 @@ export function createAskView({
       throw error;
     }
   }
-  // Every semantic notification opens the region's ticket synchronously, before its
-  // deferred read. Package subscribers therefore finish their own synchronous updates
-  // first, while the application barrier already knows this inherited ask paint is stale.
-  // The pass runs this reading after the thread whose markup its rows stand on.
+  // A publication that changes the asks opens the region's ticket synchronously, before
+  // its deferred read, so the application barrier already knows the inherited ask paint
+  // is stale. The pass runs this reading after the thread whose markup its rows stand
+  // on. A local change, such as a blanket answer starting, claims here.
   function syncAsks() {
     return presenter.present();
   }
@@ -666,8 +667,6 @@ export function createAskView({
     return ready;
   }
 
-  let mounted = false;
-  let stopActionChanges = null;
   let stopContextScopes = null;
   const actionsChanged = () => mounted && void syncAsks();
 
@@ -675,7 +674,7 @@ export function createAskView({
     if (mounted) return;
     mounted = true;
     stopContextScopes = contextScopes("In this question", askContext);
-    stopActionChanges = watchSemantic(actionsChanged);
+    void syncAsks();
     document.addEventListener(PRESENTATION, actionsChanged);
     addEventListener("resize", repaint);
   }
@@ -683,8 +682,6 @@ export function createAskView({
   function destroy() {
     if (mounted) {
       mounted = false;
-      stopActionChanges?.();
-      stopActionChanges = null;
       document.removeEventListener(PRESENTATION, actionsChanged);
       globalThis.removeEventListener("resize", repaint);
     }

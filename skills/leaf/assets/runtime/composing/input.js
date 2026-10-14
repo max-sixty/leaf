@@ -37,7 +37,7 @@
 // interleaving a forced style recalculation with each. That paint runs in the frame the
 // change first shows in, so the button and placeholder never trail the words.
 import { rememberWriting } from "../drafts.js";
-import { keys, paintKeys } from "../keyboard/scopes.js";
+import { keys, paintKeysWithin } from "../keyboard/scopes.js";
 import { keeps, keepsHidden, keepsText } from "../keeps.js";
 import {
   advertisesKeys,
@@ -466,7 +466,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         if (shown && focused() === sendBtn) focusDestination(ta, "return");
         if (!shown && focused() === mic) focusDestination(ta, "return");
       }
-      paintKeys();
+      // Which of its controls the box shows moves its own keys, not the page's.
+      paintKeysWithin(field);
+      if (submitIn) paintKeysWithin(submitIn);
     };
     const refresh = () => {
       if (dictationPhase() === "idle") {

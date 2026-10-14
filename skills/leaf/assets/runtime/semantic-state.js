@@ -33,9 +33,20 @@ export const applicationState = createSemanticApplication({
   },
 });
 export const readApplication = applicationState.read;
+// A reader of one part of the root, through its own selection. A key or button
+// reflection tracks what it reads (keyboard/scopes.js), and a watcher's paint collects
+// it (projection-watch.js), so each reads again only when that part moves. An accessor
+// that reads the whole root would make every reflection read again on every
+// publication, and inside a watcher's paint it throws.
+/**
+ * @template T
+ * @param {(root: ReturnType<typeof readApplication>) => T} derive
+ */
+export const readPart = (derive) => applicationState.select(derive).read;
 // What the page calls its agent: the name the server's answer gives, or "the agent"
 // before one has arrived. Every surface naming the agent's side reads it here.
-export const agentName = () => readApplication().authoritative?.agent || "the agent";
+const agent = readPart((root) => root.authoritative?.agent ?? null);
+export const agentName = () => agent() || "the agent";
 // The same name where it opens a sentence or stands alone as a label.
 export const agentLabel = () =>
   agentName().replace(/^./, (first) => first.toUpperCase());
@@ -67,20 +78,26 @@ export const PRESENTATION_ORDER = Object.freeze({
 // no business knowing which those are.
 const documentPresenters = [];
 
-// One region's epoch presenter: the claim is synchronous, inside the publication that
-// opened the epoch, and the paint runs on the pass that follows it. `current` reads the
-// value this region owes now, so claiming never needs the caller to carry one, and
-// returns null where the region owes nothing yet — before the page has read the log,
-// or where this renderer was never mounted. That answer belongs to the
-// presenter rather than to whoever asks it to paint: a region claimed for a renderer
-// that cannot paint stays pending, and the page never presents at all. A renderer
+// One region's epoch presenter. `reading` selects, from the semantic root, everything
+// the region's paint draws from it, and returns null where the region owes nothing:
+// before the page has read the log, or where this renderer was never mounted. The
+// region claims a presentation inside each publication that changes that selection,
+// and the paint runs on the pass that follows; a publication that leaves it unchanged
+// is no claim, so the region carries its last commit into the new epoch
+// (presentation.ts, `begin`). A selection shares unchanged parts across publications
+// (snapshot.ts), so a reading that names the parts it draws claims only when one of
+// them moves. What the paint reads beyond the root — the clock, a draft, the document's
+// own nodes — is a mechanical change, and its owner claims through `present`, which
+// selects the root as it stands. `reading` is the region's one decision of whether it
+// owes anything, for a publication's claim and `present` alike, and a claim always
+// paints, so a reading that stands still is still painted when asked for. A renderer
 // withholds a reading it does owe by returning `PRESENTATION_HELD`, which keeps its
 // region pending until a later claim supersedes it.
 /** @param {{
  *   region: string,
  *   renderer?: object,
  *   order?: number,
- *   current: () => unknown,
+ *   reading: (root: ReturnType<typeof readApplication>) => unknown,
  *   paint: (value: any, current: () => boolean) => unknown,
  *   failSoft?: (reason: unknown) => unknown,
  * }} presenter */
@@ -88,7 +105,7 @@ export const applicationPresenter = ({
   region,
   renderer = document,
   order,
-  current,
+  reading,
   paint,
   failSoft,
 }) => {
@@ -98,16 +115,29 @@ export const applicationPresenter = ({
     paint,
     failSoft,
   });
-  const present = () => {
-    const value = current();
-    return value === null ? schedule.passed() : presenter.sync(value);
-  };
+  const claim = (value) => (value === null ? schedule.passed() : presenter.sync(value));
+  const present = () => claim(reading(readApplication()));
   documentPresenters.push(present);
+  // A document-wide region lives as long as the page; `disconnect` releases its renderer,
+  // and a region that may mount again reads null while it is not mounted.
+  // A selection's subscriber hears its value at once; a region claims on the changes
+  // after it, and a renderer that owes its first reading earlier asks with `present`.
+  let subscribed = false;
+  applicationState.select(reading).subscribe((value) => {
+    if (subscribed) void claim(value);
+    subscribed = true;
+  });
   return Object.freeze({ present, disconnect: presenter.disconnect });
 };
 
+// How many times a caller has said the document changed under every region. A reading
+// derived from the page's own nodes, rather than from the root, keys on it.
+let documentChanges = 0;
+export const documentChanged = () => documentChanges;
+
 /** Claim every document-wide region for the root as it stands now. */
 export const presentDocument = () => {
+  documentChanges += 1;
   for (const present of documentPresenters) void present();
   return schedule.passed();
 };

@@ -17,6 +17,7 @@ import {
   nothing,
   render,
   repeat,
+  signal,
 } from "../../vendor/browser-runtime.js";
 import { searchField, reserve } from "../widget-elements.js";
 import { focusDestination, focused } from "../focus.js";
@@ -29,7 +30,14 @@ class ThreadNarrowingView extends HTMLElement {
   #changeWords = null;
   #chooseFacet = null;
   #disclosed = false;
-  #model = null;
+  // A signal, because the panel's waiting toggle reads it for its liveness.
+  #shown = signal(null);
+  get #model() {
+    return this.#shown.value;
+  }
+  set #model(model) {
+    this.#shown.value = model;
+  }
   #countDigits = 2;
   #reservedCounts = new WeakMap();
   #reset = null;

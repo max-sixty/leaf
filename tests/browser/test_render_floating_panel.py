@@ -161,6 +161,34 @@ def test_escape_leaves_the_field_before_it_puts_a_view_away(browser, serve):
     expect(page.locator(".lf-fp-view")).to_have_count(0)
 
 
+def test_c_in_an_open_thread_returns_to_its_reply(browser, serve):
+    """Standing anywhere in the thread open in the panel, `c` comments on that thread:
+    from the view an Escape left the user on, and from a message in it, the caret
+    returns to the thread's reply with its words, and the thread stays open."""
+    url = serve(LONG_PAGE)
+    panel_comment(serve.page_dir, "Is the window long enough?")
+    page = floating(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    thread = page.locator(".lf-fp-view[data-view=thread]")
+    expect(thread).to_be_visible()
+    field(page).click()
+    page.keyboard.type("Make it the weekend.")
+    page.keyboard.press("Escape")
+    expect(thread).to_be_focused()
+    page.keyboard.press("c")
+    expect(field(page)).to_be_focused()
+    expect(field(page)).to_have_attribute("name", "reply")
+    expect(field(page)).to_have_js_property("value", "Make it the weekend.")
+    expect(thread).to_be_visible()
+
+    thread.locator(".lf-msg").first.focus()
+    page.keyboard.press("c")
+    expect(field(page)).to_be_focused()
+    expect(field(page)).to_have_attribute("name", "reply")
+    expect(thread).to_be_visible()
+
+
 def test_the_panel_names_the_agent_as_the_page_s_messages_do(browser, serve):
     """The agent has one name across the panel, the one the page gives it: on a page no
     session holds, the voice that last wrote there, so the page's field, a thread's reply

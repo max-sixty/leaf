@@ -46,7 +46,6 @@ export function createStateApplication({
   stateSignoff,
   renderOthers,
   accountPending,
-  paintKeys,
 }) {
   let observedSemanticNews = null;
   let presentedNewsReading = null;
@@ -204,7 +203,6 @@ export function createStateApplication({
         throw error;
       } finally {
         stateApplying = false;
-        paintKeys();
       }
     });
   }

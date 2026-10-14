@@ -435,6 +435,18 @@ on 2026-10-07.
 
 ### Development velocity
 
+- **Format authored browser-framework TypeScript.** Extend Prettier's scope to
+  `build/browser/`, keeping the generated event and protocol declarations under
+  their generator. Rebuild the vendored JavaScript in the same change: the
+  compiler preserves source formatting, and the build gate compares its bytes.
+- **Format authored JSON and YAML.** Expand Prettier's scope while keeping
+  generated corpus files, media pins, pnpm lockfiles, Tend workflows, test
+  snapshots, and frozen captures under their producers. Verify that regeneration
+  leaves the formatted tree unchanged.
+- **Set formatter conventions for authored CSS and Markdown.** Review what
+  Prettier changes in compact CSS rules and Markdown lists and tables, then
+  enable the formats where that layout is useful. Format CSS source entries
+  rather than the distribution sheets `build/styles.mjs` generates.
 - **Check what handing over on chosen tests costs.** Since 2026-10-04 a handover runs
   the tests the agent picks for its change, and the broad selection runs only at
   landing (`tests/AGENTS.md`, "Run what the change needs"). Before that, 25 of the

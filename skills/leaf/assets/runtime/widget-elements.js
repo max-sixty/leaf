@@ -109,11 +109,10 @@ export function el(tag, cls, text) {
 // How a widget collapses content it may need to show again (lf-tabs' inactive
 // panels, a settled lf-options' cards): hidden="until-found", so find-in-page
 // and fragment navigation still reach it — `beforematch` fires and the widget
-// reopens what it owns. It is only a hide where the UA supports it (it rides
-// content-visibility, and the theme's display:block outranks the boolean
-// [hidden] rule) — without beforematch, fall back to plain boolean hidden,
-// which the theme hides itself; the widget still collapses and reopens, ⌘F
-// just can't see in. content-visibility skips only what the element holds: one
+// reopens what it owns, and paper prints it open (controls.css). It is only a
+// hide where the UA supports it, since it rides content-visibility — without
+// beforematch, fall back to plain boolean hidden, which hides in every medium;
+// the widget still collapses and reopens, ⌘F just can't see in. content-visibility skips only what the element holds: one
 // that is itself a tab stop stays one while hidden, so its widget withdraws it.
 export const HIDDEN = "onbeforematch" in document.body ? "until-found" : "";
 

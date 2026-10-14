@@ -1145,11 +1145,6 @@
     padding-inline-start: var(--lf-key-badge-col);
   }
 }
-@media print {
-  :scope:is(lf-options) > :is(.lf-another, lf-options-done) {
-    display: none;
-  }
-}
 :scope:is(lf-options):not(:has(> lf-option > strong)) > lf-option {
   position: relative;
   display: table;
@@ -1277,14 +1272,6 @@
     border: 0;
     box-shadow: none;
     margin: 0;
-  }
-  :scope:is(lf-options)[settled] > lf-option[hidden]:not([hidden=until-found]) {
-    display: none;
-  }
-}
-@media print {
-  :scope:is(lf-options)[settled] > lf-option {
-    content-visibility: visible !important;
   }
 }
 
@@ -1620,9 +1607,6 @@
   }
   :scope:is(lf-tabs).lf-rendered > lf-tab[hidden] {
     margin: 0;
-  }
-  :scope:is(lf-tabs).lf-rendered > lf-tab[hidden]:not([hidden=until-found]) {
-    display: none;
   }
   :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=box] > lf-tab {
     container-type: inline-size;
@@ -2005,9 +1989,6 @@
   }
 }
 @media print {
-  :scope:is(lf-tabs).lf-rendered > lf-tab {
-    content-visibility: visible !important;
-  }
   :scope:is(lf-tabs)[list=side] > lf-tab[group]::before {
     content: attr(group) " · " attr(label);
   }
@@ -2509,11 +2490,6 @@
   color: var(--muted);
   font: var(--t-5) var(--sans);
 }
-@media print {
-  :scope:is(lf-activity) .lf-activity-news {
-    display: none;
-  }
-}
 
 /* skills/leaf/packages/default/styles/ask.css */
 :scope:is(lf-ask) {
@@ -2528,7 +2504,7 @@
     --lf-breakout: 1;
   }
 }
-:scope:is(lf-ask):has(> :is(h1, h2, h3, h4, h5, h6):first-child ~ :is(figure, img, svg, table, lf-chart, lf-shot) ~ lf-options:last-child) {
+:scope:is(lf-ask):has(> :is(figure, img, svg, table, lf-chart, lf-shot) ~ lf-options) {
   --lf-options-across: 1;
 }
 @container style(--lf-full-height: 1) {

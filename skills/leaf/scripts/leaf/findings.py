@@ -7,7 +7,8 @@ The suite's browser fixture reports through it too: what the browser said, and w
 health sensors (`tests/*_watch.js`) found. So does every gate that refuses one event at
 the append door (`event_contracts.admitted_event`). A refusal raised with what a check
 found (`Rejected`, such as `RegistryError` or `event_log.EventRefused`) carries the
-records, so a command that reports it reads them from it. Each is produced where it is
+records, so a command that reports it reads them from it. So does the advice `task end`
+gives on the to-do it ends (`todos.finished_in_view`). Each is produced where it is
 detected, the browser probes and sensors included, which return records rather than
 sentences, and its words are written here and nowhere else. The command boundary prints
 `str(finding)` for a reader and `finding.json()` for `--json`, as the event door's
@@ -782,15 +783,9 @@ _TEXT = {
         f"{_line(at, v)}: a matching {v['role']} instance requires an id"
     ),
     "empty-ask-context": _ask_context,
-    "ask-context-headings": lambda at, v: (
-        f"{_line(at, v)}: an ask context must have exactly one direct heading,"
-        f" found {_json(v['headings']) if v['headings'] else 'none'}"
-    ),
-    "ask-context-heading-first": lambda at, v: (
-        f"{_line(at, v)}: an ask context's direct heading must be its first"
-        " content, found "
-        + ("text" if v["first"] == "#text" else f"<{v['first']}>")
-        + " first"
+    "ask-context-title": lambda at, v: (
+        f"{_line(at, v)}: an ask context needs a heading to title its ask, leading"
+        " its content alone or in an <hgroup> or <header>"
     ),
     "unknown-word": lambda at, v: (
         f"{_bearing(at, v, _quoted(v['value']))}: not {_HONORED[v['declares']]} —"
@@ -1050,7 +1045,7 @@ _TEXT = {
             " must declare a string `id` attribute"
         )
     ),
-    "ask-context-id": _declared(lambda v: "x-ask-context does not require an id"),
+    "ask-context-id": _declared(lambda v: "x-ask-context must require an id"),
     "ask-context-prose": _declared(
         lambda v: "x-ask-context must admit prose around the ask it frames"
     ),
@@ -1663,6 +1658,13 @@ _TEXT = {
     "unknown-todo": lambda at, v: f"unknown to-do {v['todo']!r}",
     "agents-todo": lambda at, v: (
         f"to-do {v['todo']!r} is the agent's; the user ends only a to-do on them"
+    ),
+    # Advice on a to-do ended `done` (`todos.finished_in_view`).
+    "finished-in-view": lambda at, v: (
+        f"Your work on `{v['element']}` is done, and it still stands among the open"
+        " work. Unless it is the page's current content, move it, cut to its outcome,"
+        " to the finished work collapsed after the open work, and let what comes next"
+        ' take its place (authoring-revisions.md, "Keep the current page current").'
     ),
     # The thread and task commands' refusals (`thread`, `tasks.cmd_open`), before or
     # beside the append door's. `held` is what the log holds a refused id as

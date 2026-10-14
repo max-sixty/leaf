@@ -440,7 +440,9 @@ page in the form it takes:
   cites (`lf-chart`'s instructions); put the rest in a table below it in
   `<details>` when readers also need exact values.
 - Code, a command, a message, or any other wording is the text itself, as it would
-  appear.
+  appear, where that text is what the user judges. What code does, such as what it
+  draws, which rule wins, or what calls what, is the interface, behavior, or
+  mechanism above, with the code beside it.
 
 A page deciding, planning, or reviewing something shows it the same way: a work item
 that fixes a visible fault shows the fault, and an ask's options show what each

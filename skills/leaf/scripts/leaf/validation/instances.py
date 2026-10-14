@@ -2,7 +2,7 @@
 
 from leaf.asks import asking, local_ask_entry, quoted_in
 from leaf.findings import Finding, element_at
-from leaf.gesture_words import element_name
+from leaf.gesture_words import leading_title_node
 from leaf.projection import enclosing_widgets
 from leaf.registry.contract import (
     is_element_name,
@@ -209,9 +209,11 @@ def ask_context_errors(lf_elements: list, registry: dict) -> list[Finding]:
                 for rec, lacks in framed[id(region)]
             ]
             errors.append(found_at("empty-ask-context", region, widgets=widgets))
-        # The ask's title is whatever the shared name rule reads, so this asks that
-        # rule rather than restating a shape it accepts.
-        if not element_name(region["node"], registry):
+        # The ask's title is what the shared name rule reads, so this asks that rule
+        # rather than restating a shape it accepts. It must be a heading as well, the
+        # question's place in the outline and in heading navigation.
+        title = leading_title_node(region["node"])
+        if not title or title["tag"] not in {f"h{n}" for n in range(1, 7)}:
             errors.append(found_at("ask-context-title", region))
     return errors
 

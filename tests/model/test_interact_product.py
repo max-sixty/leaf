@@ -304,7 +304,7 @@ def test_ask_context_frames_any_number_of_independent_sources(page_dir):
 
     # The ask's title is what the shared name rule reads, so a heading in an
     # hgroup after its eyebrow, a subheading, or context before the heading all
-    # name the ask; only a frame with no title is refused.
+    # name the ask. A frame whose leading title is not a heading is refused.
     for titled in (
         f'<lf-ask id="d"><hgroup><p class="eyebrow">#5</p><h2>Choose</h2></hgroup>{first}</lf-ask>',
         f'<lf-ask id="d"><p class="eyebrow">#5</p><h2>Choose</h2>{first}</lf-ask>',
@@ -312,11 +312,11 @@ def test_ask_context_frames_any_number_of_independent_sources(page_dir):
     ):
         assert fragment_errors(titled, registry) == []
 
-    untitled = fragment_errors(
-        f'<lf-ask id="decision-untitled"><p>Context.</p>{first}</lf-ask>',
-        registry,
-    )
-    assert found(untitled, "ask-context-title")
+    for untitled in (
+        f'<lf-ask id="d"><p>Context.</p>{first}</lf-ask>',
+        f'<lf-ask id="d"><strong>Choose</strong>{first}</lf-ask>',
+    ):
+        assert found(fragment_errors(untitled, registry), "ask-context-title")
 
     # A context framing no live source would show a question the banner never
     # counts. A retired source still counts: settling a decision keeps its context.

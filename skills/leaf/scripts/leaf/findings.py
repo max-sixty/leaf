@@ -783,8 +783,8 @@ _TEXT = {
     ),
     "empty-ask-context": _ask_context,
     "ask-context-title": lambda at, v: (
-        f"{_line(at, v)}: an ask context needs a title to name its ask: a leading"
-        " heading, alone or in an <hgroup> or <header>"
+        f"{_line(at, v)}: an ask context needs a heading to title its ask, leading"
+        " its content alone or in an <hgroup> or <header>"
     ),
     "unknown-word": lambda at, v: (
         f"{_bearing(at, v, _quoted(v['value']))}: not {_HONORED[v['declares']]} —"

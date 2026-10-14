@@ -450,7 +450,9 @@ document, and the runtime relies on it (next entry).
   reading every name from `attr(data-lf-anchor type(<custom-ident>))` anchors in
   Chromium 153 and Firefox 155 and leaves the box at its fallback in WebKit 26.6,
   which resolves the same `attr()` outside a `::part()` rule, so the runtime writes
-  one rule per name.
+  one rule per name. Words alone in a shadow scroller anchor to the start of what it
+  holds the same way, through `::part(lf-a7)::before { content: ""; anchor-name:
+  --lf-a7 }`, which anchors and follows the scroller's scroll in all three engines.
 - **Recheck:** attach a shadow root holding a scroller with a `part`-named child,
   declare `#host::part(name) { anchor-name: --x }` in the document, and compare a
   fixed `position-anchor: --x` box's rectangle with the child's after scrolling the

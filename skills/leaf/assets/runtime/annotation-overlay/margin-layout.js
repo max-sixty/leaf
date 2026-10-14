@@ -164,12 +164,16 @@ let layer = null;
 // the document scrolls sideways only by script (`overflow-x: hidden`, theme.css), and
 // the pass that scroll brings places it again.
 // A carrier holds one run of consecutive rows, so rows keep document order across
-// carriers; a second run on the same anchor takes a second carrier.
-const carriers = new Map();
+// carriers; a second run on the same anchor takes a second carrier. Carriers are kept
+// by what holds them, a lane or the frames a header cuts, so a row never takes over a
+// carrier another holder's withheld row keeps.
+const carriers = new Map(); // holder → anchor → its carriers by axes
 const carrierAxes = new WeakMap();
-function carrierFor(anchor, axes, run) {
-  let held = carriers.get(anchor);
-  if (!held) carriers.set(anchor, (held = { xy: [], y: [] }));
+function carrierFor(holder, anchor, axes, run) {
+  let byAnchor = carriers.get(holder);
+  if (!byAnchor) carriers.set(holder, (byAnchor = new Map()));
+  let held = byAnchor.get(anchor);
+  if (!held) byAnchor.set(anchor, (held = { xy: [], y: [] }));
   if (!held[axes][run]) {
     const carrier = document.createElement("div");
     carrier.className = "lf-ui lf-margin-carrier";
@@ -984,7 +988,9 @@ function scheduleScrollReading() {
     if (
       boxes.includes(pageScroller) &&
       scrollX !== laidOutScrollX &&
-      [...carriers.values()].some((held) => held.y.length)
+      [...carriers.values()].some((byAnchor) =>
+        [...byAnchor.values()].some((held) => held.y.length),
+      )
     ) {
       scheduleMarginLayout();
       return;
@@ -1082,6 +1088,7 @@ export function layoutMarginRows() {
     }
   }
   const carrierNames = new Map();
+  const cutClips = new Map();
   for (const [row, options] of rows) {
     const target = options.anchor();
     if (!target?.isConnected) {
@@ -1250,7 +1257,7 @@ export function layoutMarginRows() {
     read.carrier = carrierAnchor(subject, scrollSources(subject), read.scroller);
     // The headers over the target cut its row, in frames the document's own scroll
     // does not carry, so a row they cut stands in a carrier the document's scroll does.
-    read.cuts = headerLevels(subject);
+    read.cuts = headerLevels(subject, cutClips);
     read.cutKey = read.cuts
       .map(({ anchor, band, at }) =>
         anchor
@@ -1259,8 +1266,7 @@ export function layoutMarginRows() {
       )
       .join("|");
     if (read.cuts.length)
-      read.carrier ??=
-        carriedAnchor(pageScroller) ?? anchorElement(targetBox(subject));
+      read.carrier ??= carriedAnchor(pageScroller) ?? anchorElement(targetBox(subject));
     read.carrierBox = read.carrier?.getBoundingClientRect();
     read.lane = read.scroller === pageScroller ? layer.root : null;
     if (read.carrier && !carrierNames.has(read.carrier))
@@ -1372,10 +1378,10 @@ export function layoutMarginRows() {
         )
           read.home = previous.home;
         else {
-          const key = carrierFor(read.carrier, axes, 0);
+          const key = carrierFor(read.container, read.carrier, axes, 0);
           const run = runs.get(key) ?? 0;
           runs.set(key, run + 1);
-          read.home = carrierFor(read.carrier, axes, run);
+          read.home = carrierFor(read.container, read.carrier, axes, run);
         }
         read.axes = axes;
       }
@@ -1404,19 +1410,20 @@ export function layoutMarginRows() {
       cursors.set(home, before);
     }
   }
-  for (const [anchor, held] of carriers) {
-    for (const axes of ["xy", "y"])
-      held[axes] = held[axes].filter((carrier) => {
-        if (carrier.isConnected && carrier.childElementCount) return true;
-        carrier.remove();
-        return false;
-      });
-    if (!held.xy.length && !held.y.length) carriers.delete(anchor);
+  for (const [holder, byAnchor] of carriers) {
+    for (const [anchor, held] of byAnchor) {
+      for (const axes of ["xy", "y"])
+        held[axes] = held[axes].filter((carrier) => {
+          if (carrier.isConnected && carrier.childElementCount) return true;
+          carrier.remove();
+          return false;
+        });
+      if (!held.xy.length && !held.y.length) byAnchor.delete(anchor);
+    }
+    if (!byAnchor.size) carriers.delete(holder);
   }
   for (const [key, held] of cutFramesByKey) {
-    const kept = held.filter(
-      (inner) => inner.isConnected && inner.childElementCount,
-    );
+    const kept = held.filter((inner) => inner.isConnected && inner.childElementCount);
     for (const inner of held)
       if (!kept.includes(inner)) {
         outerFrame.get(inner)?.remove();

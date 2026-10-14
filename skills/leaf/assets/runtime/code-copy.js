@@ -48,6 +48,21 @@ const makeCut = () => {
   frame.className = "lf-code-copy-cut";
   return frame;
 };
+// Stands a document control in the frames its block's headers cut (`headerLevels`),
+// read again each time the control is revealed, since a header or a scroller can change
+// size while it is hidden.
+function standUnderHeaders(copy, levels) {
+  const frames = cutFrames(levels, cuts.get(copy) ?? [], makeCut);
+  cuts.set(copy, frames);
+  if (frames[0] && frames[0].parentNode !== chromeRoot)
+    move(chromeRoot, frames[0], null);
+  const home = frames.at(-1) ?? chromeRoot;
+  if (copy.parentNode !== home) move(home, copy, null);
+}
+const revealed = (pre, copy) => {
+  if (cuts.has(copy)) standUnderHeaders(copy, headerLevels(pre));
+  refreshAnchorView(copy);
+};
 // The key this module projects its Copy scope under, beside the block's other owners.
 const COPY_SCOPE = Symbol("code copy");
 
@@ -70,7 +85,7 @@ addEventListener(
 onStanding((node) => {
   for (let at = node; at; at = upFrom(at)) {
     const copy = controls.get(at);
-    if (copy) return refreshAnchorView(copy);
+    if (copy) return revealed(at, copy);
   }
 });
 
@@ -97,7 +112,7 @@ function prepareCodeBlock(pre, source, noun) {
       if (event.pointerType === "touch" && copy.isConnected)
         focusDestination(pre, "move");
     });
-    pre.addEventListener("pointerenter", () => refreshAnchorView(copy));
+    pre.addEventListener("pointerenter", () => revealed(pre, copy));
     controls.set(pre, copy);
   }
   const place = () =>
@@ -162,12 +177,7 @@ export function watchCodeBlocks() {
         // Keep the page's authored sibling and child selectors intact. The anchor
         // still positions this control at its source when it lives in chrome, in the
         // frames its block's headers cut.
-        const frames = cutFrames(levels, cuts.get(copy) ?? [], makeCut);
-        cuts.set(copy, frames);
-        if (frames[0] && frames[0].parentNode !== chromeRoot)
-          move(chromeRoot, frames[0], null);
-        const home = frames.at(-1) ?? chromeRoot;
-        if (copy.parentNode !== home) move(home, copy, null);
+        standUnderHeaders(copy, levels);
         copy.tabIndex = -1;
         claimReachStop(pre);
         if (!wired.has(pre)) {

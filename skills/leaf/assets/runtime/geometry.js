@@ -295,21 +295,30 @@ export function visibleBand(scroller, item = null) {
   const bottom = band.bottom - footerInset(item, scroller);
   return bottom > top ? { ...band, top, bottom } : null;
 }
-// The cuts the declared sticky headers and footers over `item` make: one for each box
-// that scrolls it where a header stands over its top or a footer over its foot, the
-// document's included, outermost first. Each is `{box, band}`, with `band` what the box
-// shows `item` past them (`visibleBand`), null where they cover all of it. A header
-// that is not stuck stands above what it heads, so the cut holds at every scroll.
-export function headerCuts(item) {
-  const cuts = [];
-  for (let at = renderedParent(item); at; at = renderedParent(at))
-    if (
-      at.nodeType === 1 &&
-      scrollContainer(at) &&
-      (headerInset(item, at) || footerInset(item, at))
-    )
-      cuts.unshift({ box: at, band: visibleBand(at, item) });
-  return cuts;
+// The cuts the declared sticky headers and footers over `item` make, read by the clip
+// walk paint reads its bands from (`paintClips`), so a box passing under them and the
+// paint over `item` agree, a fixed or absolute box escaping the scrollers around it
+// included: one for each box that scrolls `item` where a header stands over its top or
+// a footer over its foot, the document's included, outermost first. Each is
+// `{box, band}`, with `band` cut at the header's foot and the footer's top and open
+// past the box's other edges, so it holds whatever size the box grows to, or null
+// where they cover all of it. A header that is not stuck stands above what it heads,
+// so the cut holds at every scroll. `clips` is the walk's cache, shared by a pass that
+// reads many.
+const OPEN = 100000;
+export function headerCuts(item, clips = new Map()) {
+  return clipWalk(item, clips, false)
+    .cuts.filter(({ covered, footed }) => covered || footed)
+    .reverse()
+    .map(({ box, band, covered, footed }) => ({
+      box,
+      band: band && {
+        left: band.left - OPEN,
+        right: band.right + OPEN,
+        top: covered ? band.top : band.top - OPEN,
+        bottom: footed ? band.bottom : band.bottom + OPEN,
+      },
+    }));
 }
 // The sticky box holding `node` while it is stuck, else null. A stuck box stands at the
 // edge of the scroller it sticks in, or is pushed past it by its holder's end, rather
@@ -909,6 +918,7 @@ function clipWalk(item, clips, held) {
         axes: c.axes,
         scrolls: c.scrolls,
         covered: c.axes.y && covered > c.band.top,
+        footed: c.axes.y && footed < c.band.bottom,
         band:
           c.axes.y && covered >= footed
             ? null

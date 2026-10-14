@@ -19,11 +19,12 @@
  *
  * A box that follows scrolled content also passes under the sticky headers and footers
  * a page declares over its target, as the target's own words do, through frames cut
- * where they stand: a margin row and Copy through `headerLevels`, target paint through
- * the bands its clip walk reads (geometry.js, `paintClips`), both from the headers each
- * target says stand over it (`--lf-top`). So a pin whose target scrolls under a stuck
- * toolbar takes none of the toolbar's presses. The comment box and the thread card stay
- * over them (floating.js), since they are where the user is writing.
+ * where they stand, all read by one clip walk (geometry.js, `headerCuts` and the
+ * `paintClips` bands target paint is cut by): a margin row and Copy through
+ * `headerLevels`, a key chip that no scroller's edge cuts through the same cuts in its
+ * paint stand. So a pin whose target scrolls under a stuck toolbar takes none of the
+ * toolbar's presses. The comment box and the thread card stay over them (floating.js),
+ * since they are where the user is writing.
  *
  * Rejected: a layer a scroll-driven animation translates, which Chrome can paint a frame
  * before or after the content it carries (a pin landed 40 px off in 6 of 20 CI runs,
@@ -376,9 +377,10 @@ const cutPath = ({ x, y }) => {
 // follows scrolled content stands in these, so whether it passes under a header is
 // decided here once.
 const nowhere = { left: 0, top: 0, right: 0, bottom: 0 };
-export function headerLevels(item) {
-  return headerCuts(item).map(({ box, band }) => {
-    const anchor = box === box.ownerDocument.scrollingElement ? null : anchorElement(box);
+export function headerLevels(item, clips = new Map()) {
+  return headerCuts(item, clips).map(({ box, band }) => {
+    const anchor =
+      box === box.ownerDocument.scrollingElement ? null : anchorElement(box);
     return {
       anchor,
       reading: anchor && anchorReading(anchor),

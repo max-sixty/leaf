@@ -318,7 +318,7 @@ function contentStart(scroller) {
 
 // The box whose scrolls carry `anchor`: the scroller a content start stands in, whose
 // own scroll carries it too, or the anchor itself.
-export const anchorHolder = (anchor) => contentStarts.get(anchor)?.scroller ?? anchor;
+const anchorHolder = (anchor) => contentStarts.get(anchor)?.scroller ?? anchor;
 
 // The name `el` answers to as an anchor, given it first where it has none.
 export const anchorName = (el) => nameAnchor(anchorReading(el));

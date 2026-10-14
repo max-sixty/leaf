@@ -433,6 +433,9 @@ function paintPicker() {
 }
 let pickerWatch = null;
 const presentPicker = () => pickerWatch?.refresh();
+// The picker's reading for another presentation of the same versions, the floating
+// panel's Versions view, derived where it is read so that paint follows its inputs.
+export const versionsReading = () => pickerModel(runtime.state);
 
 // ---------- version diff ----------
 // "Changes since vN": blocks (paragraphs, list items, Leaf elements) whose text

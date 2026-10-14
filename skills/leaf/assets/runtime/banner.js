@@ -270,21 +270,9 @@ let saidActionableWork;
 // answer: a reply the user sends joins the agent's count in the turn it is sent,
 // and leaves On me once the server has read it. A press on either opens the On
 // panel, which lists both (`statusModel` words them).
-// The status the banner shows, as one reading another presentation of it shares: the
-// floating panel's leaf and comment field say the same words in the same tone.
-let statusReading = null;
-const statusListeners = new Set();
-export function watchStatus(listener) {
-  statusListeners.add(listener);
-  if (statusReading) listener(statusReading);
-  return () => statusListeners.delete(listener);
-}
-const presentStatus = (status) => {
+const presentStatus = ({ status, model }) => {
   const { kind, actionableWork = null } = status;
-  const model = statusModel(status, readQueues(), agentName());
   bannerStatus.present(model);
-  statusReading = model;
-  for (const listener of statusListeners) listener(model);
   paintTab();
   // Interface readiness precedes the first saved reading. It paints usable chrome,
   // but only a state or failed read establishes the status announcement baseline.
@@ -612,6 +600,18 @@ function renderSessionReference() {
 // nothing until upgrade has opened the page, and then that saved state is loading.
 const reach = readPart((root) => root.reach);
 let upgraded = false;
+// The status with its words for the banner (`statusModel`), or null before there is one
+// to say. It is derived where it is read, so another presentation of it, the floating
+// panel's leaf and comment field, says the same words in the same tone and follows
+// the same inputs; only upgrade, which is mechanical, asks each to paint.
+function currentStatus() {
+  const answer = reach();
+  if (answer === "waiting" && !upgraded) return null;
+  const status =
+    answer === "waiting" ? LOADING : pageStatus(runtime.state, { reach: answer });
+  return { status, model: statusModel(status, readQueues(), agentName()) };
+}
+export const statusReading = () => currentStatus()?.model ?? null;
 function paintStatus() {
   renderSessionReference();
   const state = runtime.state;
@@ -619,9 +619,8 @@ function paintStatus() {
     renderLayerReference(state);
     renderPreview(state);
   }
-  const answer = reach();
-  if (answer !== "waiting") presentStatus(pageStatus(state, { reach: answer }));
-  else if (upgraded) presentStatus(LOADING);
+  const current = currentStatus();
+  if (current) presentStatus(current);
 }
 const statusWatch = watchProjection(document.body, paintStatus);
 document.addEventListener(

@@ -377,9 +377,10 @@ def pytest_collection_modifyitems(config, items):
       decorator names from elsewhere;
     - a page under `fixtures/pages/`, a regtest recording, or a pinned image in
       `leaf-assets.json`.
-    Each would need its own dependency mechanism (fixture graphs, call graphs, data
-    references), and every miss still runs once the change lands, in the push run or
-    the daily one. The user judged (2026-10-14) that catching these before landing is
+    Accounting for these precisely would need dependency tracking (fixture graphs, call
+    graphs, data references). A coarser rule, such as running every test in a changed
+    module, would catch some of them at the price of selecting far more, and every miss
+    still runs once the change lands, in the push run or the daily one. The user judged (2026-10-14) that catching these before landing is
     not worth that complication, after a fixture edit let a `browser` test's failure
     reach `main`."""
     selected = (

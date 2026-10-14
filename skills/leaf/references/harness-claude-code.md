@@ -13,7 +13,7 @@ that run Leaf outside its sandbox name `leaf`.
 leaf server start <page>
 ```
 
-It prints `{"url": ...}`, the page's keyed URL, on stdout and returns. Follow
+It prints a JSON object whose `url` is the page's keyed URL, and returns. Follow
 `references/conversation-loop.md`, "Status and handoff". `leaf server run`
 prints the same but never exits, so nothing it says reaches you and there is no
 turn to end. `references/serving-pages.md` owns the key, the address it binds,

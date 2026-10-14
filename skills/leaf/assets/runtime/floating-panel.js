@@ -53,8 +53,9 @@
  * draft, caret and send), and the panel stands the current one in the field's place, so
  * words never move between editors.
  *
- * Nothing moves under the pointer: a filtered inventory keeps its height, and a control
- * the user pressed stays where it was. Every change of the box's size takes effect in
+ * Nothing moves under the pointer: a filtered inventory keeps its height, the menu's
+ * head keeps its lines while the status it says changes, and a control the user pressed
+ * stays where it was. Every change of the box's size takes effect in
  * one step, and the surface behind it, a separate layer, follows by a clip from where it
  * stood to where it stands, the way the Codex app's floating panel moves
  * (`notes/floating-panel/GOAL.md`): nothing's layout tweens, so nothing a user aims at
@@ -602,6 +603,33 @@ export function createFloatingPanel({
     rooms.set(routeKey(top), view.offsetHeight);
     return true;
   }
+  // The leaf's menu stands on the leaf and grows upward, so a head following its words
+  // would carry every line of them up the window each time a change of status re-wrapped
+  // them. Each part of its head under the word instead keeps as many lines as the first
+  // status it says took, while the menu stands: a later status re-wraps inside them,
+  // ending in an ellipsis where it runs past them; a part the first status lacked stays
+  // out, and one a later status lacks stands blank. Reopening the menu shows the status
+  // whole. Connecting… is not yet a status, so the lines wait for the first. Rejected:
+  // holding the head's height and scrolling what runs past it, which still moves the
+  // words a re-wrap carries across its edge, and the same lines for every status, which
+  // leaves most heads blank.
+  let headLines = null;
+  function holdHeadLines() {
+    if (!menuOpen || headLines !== null || !statusReading()) return false;
+    const state = menu.querySelector(".lf-fp-state");
+    if (!state) return false;
+    const lines = (part) => {
+      const line = state.querySelector(`.lf-fp-${part}`);
+      return line
+        ? Math.round(
+            line.getBoundingClientRect().height /
+              Number.parseFloat(getComputedStyle(line).lineHeight),
+          )
+        : 0;
+    };
+    headLines = { summary: lines("summary"), explain: lines("explain") };
+    return true;
+  }
   function transition(before, { focus = true } = {}) {
     const after = trail.at(-1);
     const reading = [before, after].some((route) => route?.view === "thread");
@@ -771,10 +799,24 @@ export function createFloatingPanel({
     // is reached by pointer, key and finger alike.
     const { tone, summary, adds } = status();
     const word = TONE_WORDS[tone];
-    return html`<div class="lf-fp-state" role="none" data-tone=${tone || nothing}>
-        <b>${word ?? summary}</b>${word ? html`<span>${summary}</span>` : nothing}${
-          adds ? html`<span class="lf-fp-explain">${adds}</span>` : nothing
-        }
+    const part = (name, text) =>
+      (headLines ? headLines[name] : text)
+        ? html`<span
+            class="lf-fp-${name}"
+            style=${headLines ? `--lines: ${headLines[name]}` : nothing}
+            >${text}</span
+          >`
+        : nothing;
+    return html`<div
+        class="lf-fp-state"
+        role="none"
+        data-tone=${tone || nothing}
+        ?data-held=${headLines !== null}
+      >
+        <b>${word ?? summary}</b>${part("summary", word ? summary : "")}${part(
+          "explain",
+          adds,
+        )}
       </div>
       ${page.map(rowFor)}
       ${groups.map((group) =>
@@ -1503,7 +1545,7 @@ export function createFloatingPanel({
     painting = true;
     try {
       paintNow();
-      if (holdRoom()) paintNow();
+      if ([holdRoom(), holdHeadLines()].some(Boolean)) paintNow();
     } finally {
       painting = false;
     }
@@ -1552,6 +1594,7 @@ export function createFloatingPanel({
     keeps(host, "data-rest", folded ? "mark" : "row");
     keeps(host, "data-open", top ? top.view : null);
     keeps(host, "data-menu", menuOpen ? "" : null);
+    if (!menuOpen) headLines = null;
     keeps(mark, "class", `lf-dot${status().tone ? ` ${status().tone}` : ""}`);
     keeps(
       leaf,

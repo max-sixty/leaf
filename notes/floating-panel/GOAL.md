@@ -72,13 +72,6 @@ icon.
   into the mechanism: what a notice says, who raises it, what press it offers, how it
   ends, and which other states use it (a stale page, offline, a page opened from a
   share link).
-- **Idea, likely unneeded: a thread opens with the passage it is about.** The fresh
-  review of 14 October found that a thread opened in the panel never shows what it is
-  anchored to, and its mock-up quoted the passage as the view's first line. The user
-  pointed out that the view's head already shows the title the agent writes to
-  summarize the thread; the review's sample threads had none, so the head fell back to
-  their opening words. Revisit only if titled threads still leave a reader unsure what
-  a thread is about.
 - **Selected words go to the anchored comment box, not the field.** The fresh review
   found that clicking the panel's field with words selected drops the selection and
   comments on the page as a whole. The user declined carrying the selection into the

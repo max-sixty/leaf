@@ -66,6 +66,7 @@ from typing import NamedTuple
 
 import click
 from leaf.file_changes import FileChanges
+from leaf.locations import canonical_path
 from leaf.publishing import authored_digest, authored_files, write_authored_files
 from leaf.refusals import Refused
 from leaf.schema import BROWSER_DIRS, VENDORED_FILES
@@ -135,7 +136,7 @@ def slot_name(_ctx, _param, value: str | None) -> str | None:
 
 
 def checkout(value: Path) -> tuple[Path, Path]:
-    runtime = value.expanduser().resolve()
+    runtime = canonical_path(value.expanduser())
     launcher = runtime / "bin" / "leaf"
     if not launcher.is_file():
         raise click.UsageError(f"{runtime} has no bin/leaf launcher")
@@ -144,7 +145,7 @@ def checkout(value: Path) -> tuple[Path, Path]:
 
 def authored_source(example: str | None, source: Path | None) -> Path:
     if source:
-        selected = source.expanduser().resolve()
+        selected = canonical_path(source.expanduser())
         if not selected.is_file():
             raise click.UsageError(f"no authored source at {selected}")
         return selected

@@ -17,7 +17,9 @@ def resolve_dir(dir_arg: str, must_exist: bool = True, *, renew: bool = True) ->
     the session running the command (`vendoring.renew_layer`), which says on stderr
     what still holds it back; `renew` is off for a command that would undo the
     re-vendor's restart."""
-    page_dir = Path(dir_arg).expanduser().resolve()
+    from leaf.locations import canonical_path
+
+    page_dir = canonical_path(Path(dir_arg).expanduser())
     if not must_exist:
         return page_dir
     if not (page_dir / EVENTS_FILE).is_file():
@@ -751,11 +753,13 @@ def file() -> None:
 @click.argument("path", type=click.Path(path_type=Path), metavar="PATH")
 def file_bind(dir: str, binding: str, path: Path) -> None:
     """Use ID in <lf-file-editor binding=\"ID\"> to edit PATH."""
-    from leaf.file_bindings import bind_file
+    from leaf.file_bindings import bind_file, bound_paths
 
-    snapshot = bind_file(resolve_dir(dir), binding, path)
+    page_dir = resolve_dir(dir)
+    snapshot = bind_file(page_dir, binding, path)
     click.echo(
-        f"Bound {binding} to {path.expanduser().resolve()} ({snapshot['bytes']} bytes)."
+        f"Bound {binding} to {bound_paths(page_dir)[binding]} "
+        f"({snapshot['bytes']} bytes)."
     )
 
 

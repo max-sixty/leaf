@@ -27,6 +27,7 @@ from stat import S_ISREG
 
 from .files import file_stamp, read_json
 from .leases import page_locked
+from .locations import canonical_path
 from .refusals import Refused
 from .schema import FILE_BINDINGS_FILE, HTML_NAME
 from .state import flocked, replace_bytes, state_home_path, write_json
@@ -155,7 +156,9 @@ def _snapshot(path: Path, raw: bytes) -> dict:
 
 
 def bind_file(page_dir: Path, binding: str, file: Path) -> dict:
-    """Grant this page read/write access to one existing canonical text path.
+    """Grant this page read/write access to one existing text file, recorded by its
+    canonical path (`locations.canonical_path`), the one its watchers hear about and
+    every page's save of it locks, whichever spelling named it.
 
     The author named the path, so a path the system cannot reach or read is refused
     in the system's own words, path included. The page's own storage failing is a
@@ -165,7 +168,7 @@ def bind_file(page_dir: Path, binding: str, file: Path) -> dict:
             "Binding id must start with a lowercase letter and use lowercase letters, digits or -."
         )
     try:
-        path = file.expanduser().resolve(strict=True)
+        path = canonical_path(file.expanduser(), strict=True)
     except OSError as error:
         raise FileBindingError(str(error)) from error
     if path == (page_dir / FILE_BINDINGS_FILE).resolve():

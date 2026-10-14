@@ -3118,6 +3118,48 @@ def test_original_image_link_has_a_standalone_target(browser, serve):
     expect(page.locator("#image")).to_be_focused()
 
 
+def test_a_capture_in_a_table_is_named_by_its_heads(browser, serve):
+    """Image preview keeps a table of captures' labels, which name each axis once.
+
+    Heads count where they stand: spanning heads name every capture under or beside
+    them, outer first, a header row needs no <thead>, and a repeated one names once."""
+    cell = '<td><a id="{0}" href="/media/051bee487bfb5d13.png"><img src="/media/051bee487bfb5d13.png" width="180" height="75" alt="Release output"></a></td>'
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Captures",
+                "<h1>Captures</h1><table id=grid>"
+                "<thead><tr><td></td><th scope=col>Light</th><th scope=col>Dark</th></tr></thead>"
+                f"<tbody><tr><th scope=row>Before</th>{cell.format('light-before')}{cell.format('dark-before')}</tr>"
+                f"<tr><th scope=row>After</th>{cell.format('light-after')}{cell.format('dark-after')}</tr></tbody>"
+                "<tbody><tr><td></td><th>Light</th><th>Dark</th></tr>"
+                f"<tr><th scope=row>Later</th>{cell.format('light-later')}{cell.format('dark-later')}</tr></tbody></table>"
+                "<table id=spanned><tbody>"
+                "<tr><td rowspan=2 colspan=2></td><th colspan=2>Light</th><th colspan=2>Dark</th></tr>"
+                "<tr><th>Before</th><th>After</th><th>Before</th><th>After</th></tr>"
+                "<tr><th scope=row rowspan=2>Phone</th><th scope=row>Portrait</th>"
+                + "".join(cell.format(f"portrait-{n}") for n in range(4))
+                + "</tr><tr><th scope=row>Landscape</th>"
+                + "".join(cell.format(f"landscape-{n}") for n in range(4))
+                + "</tr></tbody></table>",
+            )
+        ),
+    )
+    viewer = page.get_by_role("dialog", name="Image preview")
+    for link, caption in (
+        ("dark-before", "Dark · Before"),
+        ("light-after", "Light · After"),
+        ("dark-later", "Dark · Later"),
+        ("portrait-0", "Light · Before · Phone · Portrait"),
+        ("landscape-3", "Dark · After · Phone · Landscape"),
+    ):
+        page.locator(f"#{link}").click()
+        expect(viewer.locator(".lf-media-viewer-caption")).to_have_text(caption)
+        page.keyboard.press("Escape")
+        expect(viewer).to_be_hidden()
+
+
 # A diagram that states no size of its own, only a shape, as Mermaid writes one.
 DIAGRAM_SVG = (
     b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200">'
@@ -11364,12 +11406,47 @@ def test_a_zoomed_floating_draft_and_sent_comment_fit_a_narrow_window(
     assert text.evaluate("el => el.scrollHeight <= el.clientHeight + 1")
 
 
+def _ring_gaps(page, target):
+    """The sides of `target`'s focus ring the page does not show in its colour: those a
+    clipping scroller or a box painted over them hides."""
+    ring = target.evaluate(
+        """el => {
+          const s = getComputedStyle(el), r = el.getBoundingClientRect();
+          const out = parseFloat(s.outlineOffset) + parseFloat(s.outlineWidth) / 2;
+          return {color: s.outlineColor, left: r.left - out, right: r.right + out,
+            top: r.top - out, bottom: r.bottom + out};
+        }"""
+    )
+    # A ring stands on the middle of each side, where no corner rounds it.
+    x, y = (ring["left"] + ring["right"]) / 2, (ring["top"] + ring["bottom"]) / 2
+    points = {
+        "left": (ring["left"], y),
+        "right": (ring["right"], y),
+        "top": (x, ring["top"]),
+        "bottom": (x, ring["bottom"]),
+    }
+    color = tuple(int(c) for c in re.findall(r"\d+", ring["color"])[:3])
+    gaps = []
+    for side, (px, py) in points.items():
+        shot = page.screenshot(
+            clip={"x": px - 0.5, "y": py - 0.5, "width": 1, "height": 1}
+        )
+        seen = Image.open(io.BytesIO(shot)).convert("RGB").getpixel((0, 0))
+        if max(abs(a - b) for a, b in zip(seen, color)) > 40:
+            gaps.append(side)
+    return gaps
+
+
 def test_a_rewrite_of_a_comment_just_sent_is_the_reply_box(browser, serve):
     """The card holding a comment just sent keeps its words in the room the draft had,
     clear of Send (`data-lf-comment-frame`). A rewrite opened there kept that narrow
     room too, a box shorter and narrower than the reply box under it; it is now the
-    reply box's own field, its words at their inset, its ring whole inside the
-    transcript that scrolls it."""
+    reply box's own field, its words at their inset.
+
+    The field's ring, drawn outside it as the reply box's is, lost its left and bottom
+    sides to the transcript that scrolls it, which kept no room past its edges; and the
+    card's actions painted their ground over the right side of a focused Edit's or
+    Save's ring. Each ring now stands whole."""
     touch = False
     context = browser.new_context(has_touch=touch, is_mobile=touch)
     page = open_page(browser, serve(LONG_PAGE), context=context)
@@ -11394,6 +11471,9 @@ def test_a_rewrite_of_a_comment_just_sent_is_the_reply_box(browser, serve):
     rendered(page)
     before = message.bounding_box(), words.bounding_box()
     first_line = words.evaluate(FIRST_LINE)
+    message.locator(".lf-msg-edit").focus()
+    one_frame(page)
+    assert _ring_gaps(page, message.locator(".lf-msg-edit")) == []
     message.locator(".lf-msg-edit").click()
     editor = message.locator(".lf-msg-editor")
     expect(editor.locator("leaf-text")).to_be_focused()
@@ -11413,13 +11493,12 @@ def test_a_rewrite_of_a_comment_just_sent_is_the_reply_box(browser, serve):
     assert (
         abs(editor.locator("leaf-text").evaluate(FIRST_LINE)[0] - first_line[0]) < 0.5
     )
-    # The transcript scrolls, so it would clip a ring drawn outside the field.
-    assert field.evaluate(
-        """el => {
-          const style = getComputedStyle(el);
-          return parseFloat(style.outlineOffset) <= -parseFloat(style.outlineWidth);
-        }"""
-    )
+    rendered(page)
+    assert _ring_gaps(page, field) == []
+    save = message.get_by_role("button", name="Save", exact=True)
+    save.focus()
+    one_frame(page)
+    assert _ring_gaps(page, save) == []
 
 
 def test_a_scaled_floating_draft_keeps_its_room_when_its_passage_scrolls_away(

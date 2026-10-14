@@ -766,6 +766,30 @@ def test_trace_frames_retain_saved_elements_and_disclosure_stays_closable(
             ), (axis, point_box, image_box)
 
     lands_on_its_point(pointer)
+    # Playing, the badge names the input alone: whether the shown image is next to,
+    # during or after the call changes faster than it can be read.
+    widget.evaluate("""widget => {
+      const badge = widget.querySelector('.lf-trace-input-badge');
+      window.badgeTexts = [];
+      window.badgeWatch = new MutationObserver(() => {
+        if (!badge.hidden && widget.querySelector('[data-playing]'))
+          window.badgeTexts.push(badge.textContent);
+      });
+      window.badgeWatch.observe(badge, {
+        attributes: true, childList: true, characterData: true, subtree: true,
+      });
+    }""")
+    widget.get_by_role("button", name="Play", exact=True).click()
+    expect(widget.locator(".lf-trace-input-badge")).to_have_text("Click")
+    user.wait_for_timeout(300)
+    widget.get_by_role("button", name="Pause", exact=True).click()
+    texts = user.evaluate(
+        "() => { window.badgeWatch.disconnect(); return window.badgeTexts }"
+    )
+    assert texts and set(texts) == {"Click"}, texts
+    expect(widget.locator(".lf-trace-input-badge")).to_have_text(
+        re.compile(r"^(\d+\.\d{3} s · (during|after) Click)?$")
+    )
     # A screencast frame crops the viewport's foot: its height is not the
     # viewport's scaled by its width.
     last_frame = max(

@@ -10202,11 +10202,12 @@ gallery/
                 differ, on both sides of the divider. The rail offers three views:
                 Plain, Outlines, and Pixels. Outlines starts selected; Plain hides the
                 outlines, while Pixels shows the after image greyed with every changed
-                pixel painted over it. Use the arrow keys to select a view, or choose it
-                directly. Hover or focus Outlines to read the changed and moved counts,
-                or hold it on a phone. Slide off before releasing to leave the current
-                view selected. Clicking the pixel picture returns to the previous
-                comparison view with its divider preserved.
+                pixel painted over it: red where only Before drew something, blue where
+                only After did, and amber where both did. Use the arrow keys to select a
+                view, or choose it directly. Hover or focus Outlines to read the changed
+                and moved counts, or hold it on a phone. Slide off before releasing to
+                leave the current view selected. Clicking the pixel picture returns to
+                the previous comparison view with its divider preserved.
               </p>
               <lf-shot
                 id="bg-shot"
@@ -10218,9 +10219,9 @@ gallery/
               ></lf-shot>
               <p id="bg-shot-plain-guide">
                 The same pair without <code>outlines</code> offers Plain and Pixels,
-                starting in Plain. Select Pixels to inspect every changed pixel.
-                Selecting it again keeps that view open. Choose Plain, Before or After,
-                or click the pixel picture, to return to the comparison.
+                starting in Pixels, which shows what each image draws differently in one
+                picture. Selecting Pixels again keeps that view open. Choose Plain,
+                Before or After, or click the pixel picture, to see the comparison.
               </p>
               <lf-shot
                 id="bg-shot-plain"
@@ -10239,6 +10240,54 @@ gallery/
                 before="/media/051bee487bfb5d13.png"
                 after="/media/051bee487bfb5d13.png"
               ></lf-shot>
+              <p id="bg-capture-table-guide">
+                Captures that differ by something other than a version, such as the
+                moments of one journey, share a table whose heads name each column's and
+                each row's value once. Open a capture: Image preview names it by its
+                column and its row.
+              </p>
+              <table id="bg-capture-table" data-width="wide">
+                <thead>
+                  <tr>
+                    <td></td>
+                    <th scope="col">Opened</th>
+                    <th scope="col">Documentation reviewed</th>
+                    <th scope="col">API changes reviewed</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <th scope="row">Release review</th>
+                    <td>
+                      <a href="/media/c9f9c30f168dd264.png"
+                        ><img
+                          src="/media/c9f9c30f168dd264.png"
+                          width="960"
+                          height="640"
+                          alt="the release review with both sections pending"
+                      /></a>
+                    </td>
+                    <td>
+                      <a href="/media/298268218fde4619.png"
+                        ><img
+                          src="/media/298268218fde4619.png"
+                          width="960"
+                          height="640"
+                          alt="the release review with documentation reviewed and API changes pending"
+                      /></a>
+                    </td>
+                    <td>
+                      <a href="/media/006a318b091c6d1d.png"
+                        ><img
+                          src="/media/006a318b091c6d1d.png"
+                          width="960"
+                          height="640"
+                          alt="the release review with both sections reviewed"
+                      /></a>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </section>
           </section>
 

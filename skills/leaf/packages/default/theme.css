@@ -325,6 +325,12 @@
   background: var(--warn);
   mask: var(--lf-shot-pixels, linear-gradient(transparent, transparent)) 0 0 / 100% 100% no-repeat;
 }
+:scope:is(lf-shot) > .lf-shotpixels > span[data-lf-shot-side=before] {
+  background: var(--danger);
+}
+:scope:is(lf-shot) > .lf-shotpixels > span[data-lf-shot-side=after] {
+  background: var(--accent);
+}
 :scope:is(lf-shot) > input.lf-shotflip {
   display: none;
   grid-area: 2 / 1;

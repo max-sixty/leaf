@@ -2,7 +2,7 @@
  * place of the banner and the bottom bar, which a reader has only by asking for them
  * (prepaint.js, `lfChrome`). It is another presentation of what the banner, the bottom
  * bar, Threads and the On panel already own, so it reads their readings and calls their
- * commands: the status (`watchStatus`), the toolbar's rows (`bannerRows`), the threads
+ * commands: the status (`statusReading`), the toolbar's rows (`bannerRows`), the threads
  * (`readThreads`), the queues (`readQueues`), the versions (`versionPicker`), the
  * drafts (drafts.js) and the passing notices (notifications.js). It decides only how
  * they are shown.
@@ -15,7 +15,7 @@
  *   it was left across pages (`rest`).
  * - **The row**: the leaf, the comment field, and marks with counts for On me and
  *   Threads. The empty field says what the agent is doing or wants, in the banner's own
- *   words (`watchStatus`), or what a passing notice says, where a placeholder would say
+ *   words (`statusReading`), or what a passing notice says, where a placeholder would say
  *   "Comment"; in a thread it says whose turn it is. A status reads dimmer than anything
  *   written, and while the agent works it carries the one sheen that marks work under
  *   way. Clicking in gives the placeholder to where the words go, and opens one quiet
@@ -64,7 +64,7 @@ import {
   approve,
   registerApprovalPresentation,
   toggleBtn,
-  watchStatus,
+  statusReading,
 } from "./banner.js";
 import { queueBtn } from "./drawers.js";
 import { keys } from "./keyboard/scopes.js";
@@ -73,7 +73,7 @@ import { advertisesKeys, submitLabel } from "./keyboard/bindings.js";
 import { bannerRows, watchBannerRows } from "./banner-toolbar.js";
 import { readPlace } from "./history.js";
 import { readThreads } from "./thread/state.js";
-import { watchThreads } from "./thread/watch.js";
+import { watchProjection } from "./projection-watch.js";
 import { threadAttention, workflowLabel } from "./thread/workflow.js";
 import { threadSummary } from "./thread/model.js";
 import { messageReading } from "./thread/messages.js";
@@ -91,12 +91,14 @@ import { textField } from "./composing/text-field.js";
 import { draftOf, syncInput } from "./composing/input.js";
 import { TEXT_FIELD } from "./control-selectors.js";
 import { retainUserIntent } from "./user-intent.js";
-import { queueItemKey, readQueues, watchQueues } from "./queue-api.js";
+import { queueItemKey, readQueues } from "./queue-api.js";
 import { queueTitle } from "./queue-title.js";
 import { itemOutcome } from "./queues.js";
 import { shortAgo } from "./presence.js";
 import { askEnding } from "./asks/answer.js";
 import { versionMenu, versionPicker } from "./version-picker.js";
+import { versionsReading } from "./version.js";
+import { UPGRADE } from "./presentation.js";
 import { noticeReading, registerNoticePresentation } from "./notifications.js";
 import { reducedMotion } from "./motion.js";
 import { pagePresented } from "./page-paint.js";
@@ -112,7 +114,7 @@ import { rowWalk } from "./walk-position.js";
 import { sizeObserver } from "./rendering.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { declareOccluder, declareWindowChrome } from "./geometry.js";
-import { agentName, applicationState } from "./semantic-state.js";
+import { agentName } from "./semantic-state.js";
 import { runtime } from "./context.js";
 import { renderedUnder } from "./shadow.js";
 import { closestAcross } from "./passages.js";
@@ -238,7 +240,8 @@ export function createFloatingPanel({
   const quick = el("div", "lf-fp-quick");
   row.append(leaf, field, quick);
 
-  let status = { tone: "", summary: "Connecting…", explanation: "Connecting…" };
+  const CONNECTING = { tone: "", summary: "Connecting…", explanation: "Connecting…" };
+  const status = () => statusReading() ?? CONNECTING;
   // The trail of views open above the row, innermost last; empty at rest.
   let trail = [];
   let leaving = null;
@@ -271,7 +274,7 @@ export function createFloatingPanel({
     const thread = key ? threadByKey(key) : null;
     if (thread?.resolved) return { says: "turn", words: "Resolved · reopen to reply" };
     if (input === focused()) return { says: "destination", words: whereTo(key) };
-    if (!key) return { says: "status", words: status.summary };
+    if (!key) return { says: "status", words: status().summary };
     if (!thread) return { says: "turn", words: "Reply…" };
     const agent = agentName();
     const attention = threadAttention(thread);
@@ -736,18 +739,18 @@ export function createFloatingPanel({
     );
     // The state in a word over its one line, and the whole of it under that, which the
     // banner's disclosure gave: the menu is reached by pointer, key and finger alike.
-    const word = TONE_WORDS[status.tone];
+    const word = TONE_WORDS[status().tone];
     const explanation =
-      status.explanation && status.explanation !== status.summary
-        ? status.explanation
+      status().explanation && status().explanation !== status().summary
+        ? status().explanation
         : null;
     return html`<div
         class="lf-fp-state"
         role="none"
-        data-tone=${status.tone || nothing}
+        data-tone=${status().tone || nothing}
       >
-        <b>${word ?? status.summary}</b>${
-          word ? html`<span>${status.summary}</span>` : nothing
+        <b>${word ?? status().summary}</b>${
+          word ? html`<span>${status().summary}</span>` : nothing
         }${explanation ? html`<span class="lf-fp-explain">${explanation}</span>` : nothing}
       </div>
       ${page.map(rowFor)}
@@ -817,7 +820,7 @@ export function createFloatingPanel({
   // there, with Compare where the picker offers it; then the version's approval, where
   // the page asks for one, with why a press would not approve yet.
   function versionsView() {
-    const { rows: versions, picker, selection } = versionPicker.model;
+    const { rows: versions, picker, selection } = versionsReading();
     const approval = approvalReading();
     const approved = approval?.text.startsWith("✓");
     return html`<div class="lf-fp-list">
@@ -1424,14 +1427,18 @@ export function createFloatingPanel({
   }
 
   // A paint can blur what it removes, and the blur asks for a paint; that one runs
-  // once this has finished rather than inside it.
+  // once this has finished rather than inside it. Every paint runs through the panel's
+  // watcher (`watchProjection`), so the readings it draws repaint it whichever input
+  // asked for the paint.
   let painting = false;
   let again = false;
+  let watching = null;
   function paint() {
-    if (painting) {
-      again = true;
-      return;
-    }
+    if (painting) again = true;
+    else if (watching) watching.refresh();
+    else paintPanel();
+  }
+  function paintPanel() {
     painting = true;
     try {
       paintNow();
@@ -1441,7 +1448,8 @@ export function createFloatingPanel({
     }
     if (again) {
       again = false;
-      paint();
+      paintPanel();
+      return;
     }
     landReader();
     seatOnItems();
@@ -1483,11 +1491,11 @@ export function createFloatingPanel({
     keeps(host, "data-rest", folded ? "mark" : "row");
     keeps(host, "data-open", top ? top.view : null);
     keeps(host, "data-menu", menuOpen ? "" : null);
-    keeps(mark, "class", `lf-dot${status.tone ? ` ${status.tone}` : ""}`);
+    keeps(mark, "class", `lf-dot${status().tone ? ` ${status().tone}` : ""}`);
     keeps(
       leaf,
       "aria-label",
-      folded ? `Unfold Leaf · ${status.summary}` : `Page menu · ${status.summary}`,
+      folded ? `Unfold Leaf · ${status().summary}` : `Page menu · ${status().summary}`,
     );
     keeps(leaf, "aria-expanded", folded ? null : String(menuOpen));
     paintPeek();
@@ -1577,7 +1585,7 @@ export function createFloatingPanel({
     // carries the sheen while the agent works.
     const reading = fieldReading(replying ? top.thread : null, input);
     keeps(host, "data-says", reading.says);
-    keeps(host, "data-tone", status.tone || null);
+    keeps(host, "data-tone", status().tone || null);
     // A passing notice is said where the field's placeholder would be; once the field
     // holds words, which hide that, it stands on this line instead, as a refused send's
     // reason does over the words it returned. Where the words go is said once: by the
@@ -1683,7 +1691,10 @@ export function createFloatingPanel({
     const folded = host.dataset.rest === "mark";
     const notice = noticeReading();
     const telling = folded && notice.visible;
-    keepsText(peek, telling ? notice.message : status.explanation || status.summary);
+    keepsText(
+      peek,
+      telling ? notice.message : status().explanation || status().summary,
+    );
     keeps(peek, "data-shown", folded && (peekAsked || telling) ? "" : null);
   }
   const showPeek = (on) => {
@@ -1894,29 +1905,16 @@ export function createFloatingPanel({
         return present({ release: true });
       },
     });
-    watchStatus((reading) => {
-      status = reading;
-      paint();
-    });
+    // Upgrade turns the status to its loading words without a publication.
+    document.addEventListener(UPGRADE, () => paint(), { once: true });
     registerApprovalPresentation({ target: approvalControl, arrive: arriveAtApproval });
     // A passing notice is said in the empty field, the one seat this chrome gives it.
     registerNoticePresentation(() => paint());
     watchBannerRows(() => paint());
-    watchThreads(host, () => paint());
-    watchQueues(host, () => paint());
-    // Beyond the threads and queues: the undo list, approval's asks and stamp, and
-    // the agent's name.
-    applicationState
-      .select((root) => ({
-        undo: root.effective.view?.undo ?? null,
-        asks: root.effective.asks,
-        document: root.document,
-        active: root.authoritative?.active ?? null,
-        agent: root.authoritative?.agent ?? null,
-      }))
-      .subscribe(() => paint());
+    // A comparison started or stopped changes the versions without a publication.
     versionPicker.watch(() => paint());
     document.addEventListener("lf-chrome-preference", () => paint());
+    watching = watchProjection(host, paintPanel);
     paint();
   }
 

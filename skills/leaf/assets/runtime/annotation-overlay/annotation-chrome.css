@@ -307,10 +307,16 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     scrollbar-width: thin;
     scrollbar-color: color-mix(in srgb, var(--ink) 12%, var(--paper)) transparent;
     scroll-padding-block: var(--focus-ring-room);
-    /* Room past the words for an open progress group's border, taken from the
-       card's inset so the words keep their width and nothing scrolls sideways. */
-    padding-inline-end: var(--lf-group-ring-end);
-    margin-inline-end: calc(-1 * var(--lf-group-ring-end)); }
+    /* Room past its edges for what is drawn beyond a box: a focus ring, which a
+       rewrite reaching the reply box's edges draws outside itself as the reply box
+       does, and an open progress group's border. It is taken from the card's inset,
+       so the words keep their width and place and nothing scrolls sideways. */
+    --lf-transcript-room: max(var(--focus-ring-room), var(--lf-group-ring-end));
+    padding-inline: calc(var(--lf-thread-text-inset) + var(--lf-transcript-room))
+      var(--lf-transcript-room);
+    padding-block-end: var(--lf-transcript-room);
+    margin-inline: calc(-1 * var(--lf-transcript-room));
+    margin-block-end: calc(-1 * var(--lf-transcript-room)); }
   /* The field stands at the card's inset; words stand one inset inside it. */
   .lf-margin-thread .lf-page-thread { padding: 0; background: var(--paper); }
   .lf-margin-thread .lf-page-thread::after { content: none; }
@@ -352,8 +358,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-thread .lf-thread-transcript .lf-msg-meta { overflow: hidden; }
   .lf-margin-thread .lf-thread-transcript .lf-msg-sending { min-width: 0;
     overflow: hidden; text-overflow: ellipsis; }
+  /* The actions' ground hides words scrolling past beside a head. It stands beneath the
+     head's own controls, which stop short of the actions by its padding, so a focused
+     control's ring stays whole over that ground. */
   .lf-margin-thread-controls { position: absolute; inset-block-start: 0;
-    inset-inline-end: 0; z-index: 2; display: flex; align-items: center; gap: 4px;
+    inset-inline-end: 0; z-index: 1; display: flex; align-items: center; gap: 4px;
     min-height: var(--lf-msg-head-height); padding-inline-start: var(--sp-2);
     background: var(--paper); }
   /* A sticky head and its words paint the message's one animated ground.

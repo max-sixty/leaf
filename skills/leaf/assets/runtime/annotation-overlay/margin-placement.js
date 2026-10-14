@@ -113,9 +113,13 @@ export const inSeatingOrder = (rows) =>
 // elsewhere on the page, and the reader hides annotations to see what it covers. It
 // takes, of the seats that cover no control (where a press would reach the pin
 // instead), the one that covers least, so a pin over the end of a heading's line beats
-// one over a paragraph; failing that its corner seat slid left along the target's top
-// past the controls there, as a card's header keeps its buttons at its right; and
-// failing that the corner itself, pushed below any pin already seated there.
+// one over a paragraph. Failing that it takes whichever covers less, of its corner seat
+// slid left along the target's top past the controls and pins there, as a card's header
+// keeps its buttons at its right, and the corner pushed below any pin already seated
+// there, as a short list item's pin stands below its neighbour's rather than over its
+// words; the slid seat wins a tie. The pushed seat competes only while it ends within
+// one pin's height of `floor`, the room `cover` was read from, so what it covers is
+// known. Failing both, the corner pushed below anyway, or the corner itself.
 //
 // A held pin keeps the rect it holds: unfolding its options widens it, and a seat taken
 // again at that width could move the control the user is pressing. It is seated first,
@@ -177,13 +181,18 @@ export function seatRows(pins, { gap, occupied = [] }) {
     const pressed = [...pin.controls, ...seated];
     const corner = boundedHome(seatsNow[pin.corner], boundsNow);
     const aside = slid(corner, pressed, gap, "left", boundsNow.left);
-    rect ??=
-      leastCovering(seatsNow, pin.cover, pressed, boundsNow) ??
-      (aside && inside(aside, boundsNow) ? aside : null);
+    rect ??= leastCovering(seatsNow, pin.cover, pressed, boundsNow);
     if (!rect) {
       const push = packRows([{ key: pin.key, rect: corner }], gap, seated).get(pin.key);
       const below = { ...corner, top: corner.top + push, bottom: corner.bottom + push };
-      rect = inside(below, boundsNow) ? below : corner;
+      const read = below.bottom <= pin.floor + gap + (corner.bottom - corner.top);
+      rect =
+        leastCovering(
+          [aside, read && below].filter(Boolean),
+          pin.cover,
+          pressed,
+          boundsNow,
+        ) ?? (inside(below, boundsNow) ? below : corner);
     }
     seats.set(pin.key, { rect, folded });
     seated.push(rect);

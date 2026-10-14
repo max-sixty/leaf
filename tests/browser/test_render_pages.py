@@ -1473,6 +1473,8 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
         )
         + '<div id="pulled" style="margin-inline: -150px">Pulled words.'
         + '<div data-width="available">Room.</div></div>'
+        + '<div id="padded" style="margin-inline: -600px; padding-inline: 600px">'
+        + '<div data-width="wide">Room.</div></div>'
     )
     column = open_page(browser, serve(leaf_page("Column", body + extras)))
     resized(column, 1726, 900)
@@ -1494,10 +1496,13 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     assert at["tracked"]["width"] == 350, at
     # An Ask that spans its block keeps its own words in the column, as the gate reads
     # it, even where it reaches further than a table of two columns does; a box pulled
-    # out of the column by its margins still stands in the margin with its words.
+    # out of the column by its margins still stands in the margin with its words, and
+    # one grown round its block past the page's own box is asked as the block would be.
     misplaced = evaluate_probe(column, "misplacedBoxes")
     assert [(m["code"], m["at"]) for m in misplaced] == [
-        ("past-column", "<div id=pulled>")
+        ("past-column", "<div id=pulled>"),
+        ("past-room", "<div id=padded>"),
+        ("clipped-out", "<div id=padded>"),
     ], misplaced
 
     board = (

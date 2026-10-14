@@ -2,6 +2,7 @@ import { pageScroller, readingPosture, TEXT_BOX } from "/runtime/widget-api.js";
 import {
   pageDocument,
   readingRegions,
+  renderedParent,
   shownBand,
   shownRegionBounds,
   uiInside,
@@ -20,11 +21,15 @@ const at = (el) => (el === pageScroller ? "<root scrollport>" : element(el));
 const BREAKOUT = '[data-lf-space]:not([data-lf-space="column"])';
 
 // The box a block's width and margins resolve against: its nearest ancestor that
-// generates one, inside that ancestor's border, padding and any scrollbar gutter, at
-// the place its scroll puts it.
+// generates a block, inside that ancestor's border, padding and any scrollbar gutter,
+// at the place its scroll puts it. An inline holder, such as a link around a chart, is
+// passed as prepaint.js's `holderOf` passes it, since the browser sets a block inside
+// an inline in its holder's flow; read from the link, a linked breakout was named for
+// standing off the axis of a room 0px wide.
 function contentBox(el) {
   let s = getComputedStyle(el);
-  while (s.display === "contents") s = getComputedStyle((el = el.parentElement));
+  while (s.display === "contents" || s.display === "inline")
+    s = getComputedStyle((el = renderedParent(el)));
   const left =
     el.getBoundingClientRect().left +
     el.clientLeft +

@@ -106,7 +106,13 @@ def column_figure(label: str, sample: str, paths: list[str], width: str) -> str:
 
 
 def verdict_line(pair: dict) -> str:
-    orders = [o["overall"] if o else "no verdict" for o in pair["orders"]]
+    if pair["status"] == "insufficient_evidence":
+        return "Insufficient evidence for comparison"
+    if pair["status"] == "unscored":
+        return "Comparison unscored"
+    if pair["status"] == "tie":
+        return "Both orders judged the pages equal"
+    orders = [o["overall"] for o in pair["orders"]]
     named = [condition(o) if "/" in o else o for o in orders]
     if pair["winner"]:
         return f"{condition(pair['winner'])} preferred in both orders"
@@ -163,8 +169,8 @@ def pair_section(page: Path, subject: str, n: int, pair: dict | None, x, y) -> s
         )
     return (
         f'<section id="{sid}"><h3>Pair {n}: {heading}</h3>'
-        "<p>Captures start with authored arrival. Later screens include scrolling and "
-        "collector inspection choices; those choices are not later user decisions.</p>"
+        "<p>These screens show authored arrival. The judges explore separate live "
+        "copies; their actions and inspected states are retained in each judgment's traces.</p>"
         f'<lf-tabs id="{sid}-widths" data-width="available">{tabs}</lf-tabs>{notes}</section>'
     )
 
@@ -174,9 +180,16 @@ def outcome(subject: str, pairs: list[dict]) -> str:
     wins = [condition(p["winner"]) for p in judged if p["winner"]]
     if not judged:
         return "not judged"
+    counts = {
+        status: sum(pair["status"] == status for pair in judged)
+        for status in ("split", "tie", "insufficient_evidence", "unscored")
+    }
     return (
         ", ".join(f"{c} {wins.count(c)}" for c in ("Leaf", "HTML"))
-        + f", split {len(judged) - len(wins)}"
+        + ", "
+        + ", ".join(
+            f"{status.replace('_', ' ')} {count}" for status, count in counts.items()
+        )
     )
 
 

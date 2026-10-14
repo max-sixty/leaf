@@ -1,6 +1,7 @@
-"""Product controls really render ordinary HTML; judges read real screenshots."""
+"""Authoring comparisons judge live copies and preserve incomplete observations."""
 
 import json
+from pathlib import Path
 
 from leaf_dev.arrangement_eval import WIDTHS, phases
 
@@ -29,16 +30,11 @@ def test_pairwise_counts_only_a_winner_both_orders_name(tmp_path, monkeypatch):
                         "work": str(work),
                         "diagnostics": {
                             "subject": "document",
+                            "payload": "/original/runtime",
+                            "condition": "html" if "html" in column else "leaf",
                             "phases": {
                                 "4": {
-                                    "observations": {
-                                        "narrow": {
-                                            "states": [
-                                                {"action": "Inspect option: Postgres"}
-                                            ],
-                                            "limits": [],
-                                        }
-                                    }
+                                    "page": str(work / "page-phase4"),
                                 }
                             },
                         },
@@ -48,15 +44,15 @@ def test_pairwise_counts_only_a_winner_both_orders_name(tmp_path, monkeypatch):
         )
     (run / "results.json").write_text(json.dumps({"results": {"results": results}}))
 
-    def judging(prefer):
-        def model(cwd, prompt, *args, out, err, **kwargs):
-            brief = (out.parent / "brief.md").read_text()
-            assert "Inspect option: Postgres" in brief
-            assert "collector inputs, not user decisions" in brief
-            a = brief.split("Page A:")[1].split("Page B:")[0]
-            winner = prefer(a)
-            schema = json.loads(args[args.index("--json-schema") + 1])
+    def judging(prefer, status="complete"):
+        def model(pages, widths, prompt, schema, evidence):
+            evidence.mkdir(parents=True, exist_ok=True)
+            assert pages["A"]["payload"] == Path("/original/runtime")
+            assert widths.keys() == WIDTHS.keys()
+            assert "screenshots" not in prompt
+            winner = prefer(str(pages["A"]["page"]))
             verdict = {
+                "status": status,
                 **dict.fromkeys(eval_pairs.ASPECTS, "tie"),
                 "overall": winner,
                 "margin": "clear",
@@ -65,19 +61,42 @@ def test_pairwise_counts_only_a_winner_both_orders_name(tmp_path, monkeypatch):
                 "reason": "",
             }
             assert set(verdict) == set(schema["required"])
-            return [{"type": "result", "structured_output": verdict}]
+            return {"output": verdict}
 
         return model
 
-    monkeypatch.setattr(eval_pairs, "run_agent", judging(lambda a: "A"))
+    monkeypatch.setattr(eval_pairs, "judge_pages", judging(lambda a: "A"))
     assert CliRunner().invoke(eval_pairs.eval_pairs, [str(run)]).exit_code == 0
-    assert json.loads((run / "pairs.json").read_text())[0]["winner"] is None
+    pair = json.loads((run / "pairs.json").read_text())[0]
+    assert pair["winner"] is None and pair["status"] == "split"
     monkeypatch.setattr(
-        eval_pairs, "run_agent", judging(lambda a: "A" if "html" in a else "B")
+        eval_pairs, "judge_pages", judging(lambda a: "A" if "html" in a else "B")
     )
     assert CliRunner().invoke(eval_pairs.eval_pairs, [str(run)]).exit_code == 0
     pair = json.loads((run / "pairs.json").read_text())[0]
     assert pair["winner"] == "claude-code/html/workflow"
+    monkeypatch.setattr(
+        eval_pairs, "judge_pages", judging(lambda a: "A", "insufficient_evidence")
+    )
+    assert CliRunner().invoke(eval_pairs.eval_pairs, [str(run)]).exit_code == 0
+    pair = json.loads((run / "pairs.json").read_text())[0]
+    assert pair["winner"] is None and pair["status"] == "insufficient_evidence"
+    from leaf_dev.eval_report import outcome, verdict_line
+
+    assert verdict_line(pair) == "Insufficient evidence for comparison"
+    assert "split 0" in outcome("document", [pair])
+    monkeypatch.setattr(eval_pairs, "judge_pages", judging(lambda a: "tie"))
+    assert CliRunner().invoke(eval_pairs.eval_pairs, [str(run)]).exit_code == 0
+    pair = json.loads((run / "pairs.json").read_text())[0]
+    assert pair["winner"] is None and pair["status"] == "tie"
+    assert verdict_line(pair) == "Both orders judged the pages equal"
+    missing = results[0]["response"]["metadata"]["diagnostics"]["phases"].pop("4")
+    (run / "results.json").write_text(json.dumps({"results": {"results": results}}))
+    assert CliRunner().invoke(eval_pairs.eval_pairs, [str(run)]).exit_code == 0
+    pair = json.loads((run / "pairs.json").read_text())[0]
+    assert pair["winner"] is None and pair["status"] == "unscored"
+    assert verdict_line(pair) == "Comparison unscored"
+    results[0]["response"]["metadata"]["diagnostics"]["phases"]["4"] = missing
     results.append({**results[0]})
     (run / "results.json").write_text(json.dumps({"results": {"results": results}}))
     refused = CliRunner().invoke(eval_pairs.eval_pairs, [str(run)])

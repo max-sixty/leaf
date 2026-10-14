@@ -319,12 +319,7 @@ def prepare(
                 )
                 rubrics = test["assert"]
                 if (
-                    any(
-                        r["type"].endswith("agent-rubric")
-                        or isinstance(r.get("value"), str)
-                        and r["value"].endswith("/authoring_assertion.mjs")
-                        for r in rubrics
-                    )
+                    any(r["type"].endswith("agent-rubric") for r in rubrics)
                     and judge is None
                 ):
                     judge = screenshot_judge(screenshots, scratch / "judge")
@@ -342,7 +337,20 @@ def prepare(
                         {
                             **rubric,
                             **(
-                                {"config": {**rubric["config"], "judge": judge}}
+                                {
+                                    "config": {
+                                        **rubric["config"],
+                                        "judge": {
+                                            "id": f"python:{ROOT / 'dev/leaf_dev/arrangement_eval.py'}",
+                                            "config": {
+                                                "pythonExecutable": sys.executable,
+                                                # Allow setup and retirement around
+                                                # the native judge's 20-minute turn.
+                                                "timeout": 30 * 60 * 1000,
+                                            },
+                                        },
+                                    }
+                                }
                                 if isinstance(rubric.get("value"), str)
                                 and rubric["value"].endswith("/authoring_assertion.mjs")
                                 else {"provider": judge}
@@ -502,10 +510,13 @@ def eval(args: tuple[str, ...], base: str | None, harness: str, condition: str):
         scratch = Path(temporary)
         refs = {"base": base} if base else {}
         refs["candidate"] = None
-        commits = {arm: build_arm(ref, scratch / arm) for arm, ref in refs.items()}
+        # Live regrading and pair comparisons must serve the original runtime
+        # after this invocation's private configuration directory is retired.
+        payloads = {arm: out / "arms" / arm for arm in refs}
+        commits = {arm: build_arm(ref, payloads[arm]) for arm, ref in refs.items()}
         config = prepare(
             cases,
-            {arm: scratch / arm for arm in commits},
+            payloads,
             scratch,
             HARNESSES if harness == "both" else (harness,),
             conditions,
@@ -520,7 +531,9 @@ def eval(args: tuple[str, ...], base: str | None, harness: str, condition: str):
         (out / "node_modules").symlink_to(ROOT / "node_modules")
         click.echo(config["description"])
         env = environment(
-            PROMPTFOO_DISABLE_TELEMETRY="1", PROMPTFOO_DISABLE_UPDATE_CHECK="1"
+            PROMPTFOO_DISABLE_TELEMETRY="1",
+            PROMPTFOO_DISABLE_UPDATE_CHECK="1",
+            PROMPTFOO_ASSERTIONS_MAX_CONCURRENCY="1",
         )
         # Local-login evals must not silently switch to ambient API billing.
         for key in (
@@ -539,7 +552,7 @@ def eval(args: tuple[str, ...], base: str | None, harness: str, condition: str):
                 "--no-cache",
                 "--no-share",
                 "--max-concurrency",
-                "2",
+                "1",
                 "-o",
                 str(out / "results.json"),
                 *promptfoo_args,

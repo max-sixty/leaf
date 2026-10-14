@@ -547,20 +547,14 @@ def test_workflows_run_declared_conditions_harnesses_and_fixed_checks(
                 ]
             ),
         ]
-        # The screenshot judge may read the run's screenshots and nothing else
-        # outside the runtime and its own executable.
+        # Complete authoring criteria use the native live-page Python provider;
+        # the browser and source exclusion are owned by that provider per call.
         visual = next(
             check for check in test["assert"] if check.get("config", {}).get("judge")
         )
-        judge = visual["config"]["judge"]["config"]
-        assert "sandbox_mode" not in judge
-        profile = (Path(judge["cli_env"]["CODEX_HOME"]) / "config.toml").read_text()
-        assert [line for line in profile.splitlines() if line.endswith('"read"')] == [
-            '":minimal" = "read"',
-            f'"{tmp_path / "screenshots"}/**" = "read"',
-            f'"{codex.resolve()}" = "read"',
-        ]
-        assert judge["codex_path_override"] == str(codex.resolve())
+        judge = visual["config"]["judge"]
+        assert judge["id"].endswith("/dev/leaf_dev/arrangement_eval.py")
+        assert Path(judge["config"]["pythonExecutable"]).is_file()
     assert "tools" not in config["defaultTest"]["options"]["provider"]["config"]
     html = next(
         provider["config"]

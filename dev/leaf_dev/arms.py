@@ -534,6 +534,7 @@ def run_agent(
     env: dict | None = None,
     harness: str = ClaudeCodeHarness.name,
     limit: float = TURN_LIMIT,
+    permissions: str | None = None,
     **options: str | bool,
 ) -> list[dict]:
     """Run an isolated harness turn, optionally resuming its preceding session.
@@ -543,7 +544,8 @@ def run_agent(
     have the same `limit`, TURN_LIMIT unless the caller bounds its turn more
     tightly; a timeout retains their partial native evidence and
     marks `out.with_suffix(".timed-out")` without fabricating completion. `options`
-    passes a Claude Code child's `model` and `sandbox` (`claude_child`).
+    passes a Claude Code child's `model` and `sandbox` (`claude_child`). A Codex
+    caller may require its isolated home's named default permission profile.
     """
     if harness == CodexHarness.name:
         with (
@@ -557,6 +559,7 @@ def run_agent(
                 timed_out=out.with_suffix(".timed-out"),
                 dirs=dirs,
                 env=env,
+                permissions=permissions,
             ) as child,
             out.open("w") as stream,
         ):

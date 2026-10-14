@@ -1,8 +1,10 @@
 """Scratch ownership joins native resources before their state home disappears."""
 
+import json
 import os
 import subprocess
 
+import pytest
 from leaf_dev import ROOT
 from leaf_dev.arms import environment, scratch
 
@@ -60,8 +62,9 @@ with flocked(adapter_start_lock_path(session)):
             process.communicate(timeout=10)
 
 
+@pytest.mark.parametrize("permissions", [None, "judge"])
 def test_codex_accepts_native_instruction_context_without_starting_a_model(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, permissions
 ):
     """Use the installed native server; suppress only the model turn request."""
     from leaf_dev.codex_task import Task
@@ -87,6 +90,17 @@ def test_codex_accepts_native_instruction_context_without_starting_a_model(
     )
     cwd = tmp_path / "cwd"
     cwd.mkdir()
+    if permissions:
+        from leaf_dev.arms import codex_home
+
+        home = cwd.with_name(f"{cwd.name}-home")
+        home.mkdir()
+        codex_home(
+            home / ".codex",
+            'default_permissions = "judge"\n'
+            '[permissions.judge.filesystem]\n":minimal" = "read"\n'
+            f'{json.dumps(str(cwd) + "/**")} = "write"\n',
+        )
     context = "Instructions from /arm/instructions.md:\n\nAuthor with native context."
     with CodexChild(
         cwd,
@@ -97,8 +111,10 @@ def test_codex_accepts_native_instruction_context_without_starting_a_model(
         limit=10,
         timed_out=tmp_path / "timed-out",
         env={"XDG_STATE_HOME": str(tmp_path / "state")},
+        permissions=permissions,
     ) as child:
         assert child.task.thread
     assert prompts == ["Write a page"]
     assert calls[0][0] == "thread/start"
     assert calls[0][1]["developerInstructions"] == context
+    assert ("sandbox" not in calls[0][1]) is bool(permissions)

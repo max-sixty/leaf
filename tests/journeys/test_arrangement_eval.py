@@ -1,10 +1,14 @@
 """Product controls really render ordinary HTML; the live loop carries each phase
-to a scripted author; judges read real screenshots."""
+to a scripted author; live judges explore disposable copies."""
 
 import json
+import os
+import subprocess
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
+import pytest
 import turbohtml
 from leaf.event_log import read_events
 from leaf.service import PageTransaction
@@ -370,3 +374,227 @@ def test_reveal_opens_the_named_item_though_its_words_show_elsewhere(tmp_path):
         view.set_content(f'<a href="{url}ticket.html">ESC-4110</a>')
         reveal(view, "ESC-4110", "Route to Sam", arrangement_plain.settle)
         assert view.locator("#t").is_visible()
+
+
+@pytest.mark.parametrize("condition", ["html", "leaf"])
+def test_live_judge_browser_isolation_and_cleanup(
+    browser, initialized_page, tmp_path, monkeypatch, condition
+):
+    """Only the remote model is replaced; native CLI routes and Leaf log replay run."""
+    from leaf.event_contracts import append_admitted
+    from leaf_dev import arrangement_eval
+    from leaf_dev.arms import run_leaf
+
+    (Path(os.environ["CODEX_HOME"]) / "auth.json").write_text("{}")
+    original = tmp_path / "page"
+    if condition == "leaf":
+        initialized_page(original, ["default"])
+    else:
+        original.mkdir()
+    source = """<!doctype html><html lang="en"><head><title>Judge fixture</title>
+      <meta name="viewport" content="width=device-width"></head><body><main>
+      <details><summary>Evidence</summary><p>Required fact.</p></details>
+      <button onclick="localStorage.setItem('choice','B')">Inspect B</button>
+      <lf-options id="decision" choose><lf-option id="a">A</lf-option>
+      <lf-option id="b">B</lf-option></lf-options></main></body></html>"""
+    if condition == "html":
+        # Without a viewport meta tag, a real phone retains a 980px layout
+        # viewport scaled into 390 physical pixels, rather than reflowing at 390.
+        source = source.replace(
+            '<meta name="viewport" content="width=device-width">', ""
+        )
+    (original / "index.html").write_text(source)
+    if condition == "leaf":
+        run_leaf(
+            ROOT,
+            tmp_path / "state",
+            "page",
+            "stamp",
+            str(original),
+            "--text",
+            "Saved choice",
+            check=True,
+        )
+        with PageTransaction(original) as transaction:
+            append_admitted(
+                transaction,
+                {
+                    "kind": "action",
+                    "author": "user",
+                    "widget": "decision",
+                    "action": "choose",
+                    "revision": 1,
+                    "detail": {"value": ["a"]},
+                    "attempt": "initial-user-choice",
+                },
+            )
+    before = {
+        p.relative_to(original): p.read_bytes()
+        for p in original.rglob("*")
+        if p.is_file()
+    }
+
+    def judge(cwd, prompt, *args, **kwargs):
+        env = arrangement_eval.environment(
+            HOME=str(cwd.with_name(f"{cwd.name}-home")),
+            **kwargs["env"],
+        )
+        tabs = json.loads(prompt.split("Tabs:\n", 1)[1].splitlines()[0])
+        sessions = {row["width"]: row["session"] for row in tabs}
+
+        def cli(width, *commands):
+            result = subprocess.run(
+                [*arrangement_eval.cli(), f"-s={sessions[width]}", *commands],
+                cwd=cwd,
+                env=env,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            assert result.returncode == 0, result.stdout + result.stderr
+            return result.stdout
+
+        # Each ordinary input is its own native tool call, just as the judge uses
+        # refs from the next snapshot before choosing its next input.
+        cli(
+            "narrow",
+            "run-code",
+            "async page => { await page.getByText('Evidence',{exact:true}).click(); }",
+        )
+        cli(
+            "narrow",
+            "run-code",
+            """async page => {
+          if (!await page.getByText('Required fact.',{exact:true}).isVisible())
+            throw new Error('Disclosure did not reveal required content');
+          await page.getByRole('button',{name:'Inspect B',exact:true}).click();
+        }""",
+        )
+        if condition == "leaf":
+            cli(
+                "narrow",
+                "run-code",
+                """async page => {
+              if (!await page.locator('lf-option#a').evaluate(el => el.hasAttribute('chosen')))
+                throw new Error('Saved action did not replay');
+              await page.locator('lf-option#b').click();
+            }""",
+            )
+        cli(
+            "narrow",
+            "run-code",
+            """async page => {
+          if (await page.evaluate(() => localStorage.getItem('choice')) !== 'B')
+            throw new Error('Control did not record input');
+          LEAF_CHECK
+          await page.screenshot({path:IMAGE});
+          if (await page.evaluate(() => innerWidth) !== 900)
+            throw new Error('Screenshot changed desktop viewport');
+        }""".replace("IMAGE", json.dumps(str(tmp_path / "wide.png"))).replace(
+                "LEAF_CHECK",
+                """if (!await page.locator('lf-option#b').evaluate(el => el.hasAttribute('chosen')))
+              throw new Error('Leaf gesture did not select B');"""
+                if condition == "leaf"
+                else "",
+            ),
+        )
+        cli(
+            "phone",
+            "run-code",
+            """async page => {
+          if (await page.getByText('Required fact.',{exact:true}).isVisible())
+            throw new Error('Phone inherited disclosure');
+          if (await page.evaluate(() => localStorage.getItem('choice')) !== null)
+            throw new Error('Phone inherited selection');
+          LEAF_CHECK
+          await page.screenshot({path:IMAGE});
+          const reading = await page.evaluate(() => ({
+            width:innerWidth, height:innerHeight, touch:navigator.maxTouchPoints,
+            coarse:matchMedia('(pointer:coarse)').matches
+          }));
+          if (reading.touch !== 1 || !reading.coarse || reading.width !== EXPECTED_WIDTH)
+            throw new Error('Phone emulation changed after screenshot: ' + JSON.stringify(reading));
+          if (page.viewportSize().width !== 390 || page.viewportSize().height !== 600)
+            throw new Error('Phone physical viewport changed');
+        }""".replace("IMAGE", json.dumps(str(tmp_path / "phone.png")))
+            .replace("EXPECTED_WIDTH", "390" if condition == "leaf" else "980")
+            .replace(
+                "LEAF_CHECK",
+                """if (!await page.locator('lf-option#a').evaluate(el => el.hasAttribute('chosen')))
+              throw new Error('Phone inherited wide gesture');"""
+                if condition == "leaf"
+                else "",
+            ),
+        )
+        import struct
+
+        assert struct.unpack(">II", (tmp_path / "wide.png").read_bytes()[16:24]) == (
+            900,
+            600,
+        )
+        assert struct.unpack(">II", (tmp_path / "phone.png").read_bytes()[16:24]) == (
+            390,
+            600,
+        )
+        return [
+            {
+                "type": "result",
+                "is_error": False,
+                "structured_output": {
+                    "status": "pass",
+                    "reason": "Native routes and viewports inspected.",
+                },
+                "usage": {"input_tokens": 5, "output_tokens": 3},
+            }
+        ]
+
+    @contextmanager
+    def existing_playwright(**options):
+        created = browser.browser_type.launch(
+            channel="chrome", headless=True, **options
+        )
+        try:
+            yield created
+        finally:
+            created.close()
+
+    monkeypatch.setattr(arrangement_eval, "chrome", existing_playwright)
+    monkeypatch.setattr(arrangement_eval, "run_agent", judge)
+    response = arrangement_eval.judge_pages(
+        {"page": {"page": original, "payload": ROOT, "condition": condition}},
+        {"narrow": [900, 600], "phone": [390, 600]},
+        "Inspect required content",
+        {},
+        tmp_path / "evidence",
+    )
+    assert "error" not in response, response
+    assert response["output"]["status"] == "pass"
+    assert response["tokenUsage"]["total"] == 8
+    traces = list((tmp_path / "evidence/browser-actions").rglob("*.trace"))
+    assert traces
+    assert any('"method":"click"' in path.read_text() for path in traces)
+    assert {
+        p.relative_to(original): p.read_bytes()
+        for p in original.rglob("*")
+        if p.is_file()
+    } == before
+    import urllib.error
+    import urllib.request
+
+    for tab in response["metadata"]["tabs"]:
+        with pytest.raises(urllib.error.URLError):
+            urllib.request.urlopen(tab["url"], timeout=1)
+
+    def failed(*args, **kwargs):
+        raise RuntimeError("Model transport interrupted")
+
+    monkeypatch.setattr(arrangement_eval, "run_agent", failed)
+    failure = arrangement_eval.judge_pages(
+        {"page": {"page": original, "payload": ROOT, "condition": condition}},
+        {"phone": [390, 600]},
+        "Criterion",
+        {},
+        tmp_path / "failure",
+    )
+    assert failure["error"] == "Model transport interrupted"
+    assert list((tmp_path / "failure/browser-actions").rglob("*.trace"))

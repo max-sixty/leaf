@@ -2,7 +2,7 @@
   "schema_version": 1,
   "runtime": "Native HTML/CSS/JavaScript, no external resources or Leaf layer.",
   "identity": "Per-artifact SHA-256 is authoritative; authoring baseline is context, not the revision containing these new bytes.",
-  "privacy": "Give the judge only request plus recorded capture evidence. Fields beginning private_ are an oracle, excluded from judge input. Hold heldout entries aside until the candidate evaluator is frozen.",
+  "privacy": "Give the judge only the request and live disposable artifact. Fields beginning private_ are an oracle, excluded from judge input. Original split labels record provenance; these fixtures are now known controls.",
   "cases": [
     {
       "id": "dev-7a91c5",

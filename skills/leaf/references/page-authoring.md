@@ -424,8 +424,10 @@ page in the form it takes:
 
 - An interface that exists is a screenshot, cropped or marked where the point sits
   so the eye lands there, its crop cutting through background rather than through
-  text the reader would try to read; a visual change is an `lf-shot` before-and-after
-  capture.
+  text the reader would try to read; a visual change between two versions is an
+  `lf-shot` before-and-after capture, and captures that vary along other axes, such
+  as moments of one interaction, are a table of captures (`authoring-evidence.md`,
+  "Source files and media").
 - A behavior, such as an interaction, a motion, or a process over time, runs: in a
   live sample the user operates ("Live samples"), or in a page module that draws it
   from its state and the moment, with controls to pause and scrub, so every moment

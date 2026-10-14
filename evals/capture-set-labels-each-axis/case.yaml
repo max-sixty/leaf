@@ -1,0 +1,49 @@
+# From session aace0a1e, whose bug page showed four captures (two cases, each before
+# and after an agent's step arrives) as two images, each joined from a before and an
+# after frame with ffmpeg, after lf-shot's divider hid the move. Which half was before
+# was said only in the prose above, and which image was which case only in captions.
+# Cold, base 29c077de6 kept the four captures apart and labeled where they stand in 1 of
+# 3 runs (one joined them with vstack); the table of captures in "Source files and
+# media" did in 3 of 3.
+description: capture-set-labels-each-axis
+metadata:
+  purpose:
+    "Source files and media: captures that vary along two axes stay separate images,
+    and the section labels each capture's place on both axes where it stands."
+  tags:
+    - evidence
+vars:
+  prompt: |
+    You are writing a Leaf page that demonstrates a bug in Leaf's floating thread
+    card. Write the section for this finding, after reading "Source files and media"
+    in `references/authoring-evidence.md` under the skill's base directory.
+
+    Finding. When the agent posts a new progress step, the open card widens. With a
+    reply being drafted, the reply field holds still, so the card's top (with its ✓
+    and ✕ buttons) rises 21px and moves 232px right. With no draft, the top holds,
+    so ✓ and ✕ move 232px right and the reply row drops 21px.
+
+    Captures, each 640x300, the same crop of the same window:
+    - .tmp/news-shift/dr-before.png: drafting, just before the step arrives
+    - .tmp/news-shift/dr-after.png: drafting, just after
+    - .tmp/news-shift/nd-before.png: no draft, just before
+    - .tmp/news-shift/nd-after.png: no draft, just after
+
+    You first showed the drafting pair in an `lf-shot` with `outlines`. A reviewer
+    reported that at the default divider the before card's right edge sat behind the
+    divider, so before-left and after-right read as one card and the move was hidden.
+    ffmpeg is available if you want to prepare images.
+
+    The page directory is not reachable from here, so reply with any commands you
+    would run, then the section's HTML fragment, rather than writing a file. Use
+    `/media/<name>.png` for each image you would register.
+assert:
+  - type: llm-rubric
+    metric: judgment
+    value: |
+      Read the commands and the HTML fragment. Pass only if each of the four captures
+      is shown as its own image, and the fragment says which case and which moment
+      each capture shows where that capture stands: a column or row heading over it,
+      or its own caption. Fail if any command or image combines two captures into one
+      file, or if which capture is which is said only in prose above or below the
+      images.

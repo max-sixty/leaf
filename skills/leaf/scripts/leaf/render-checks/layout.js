@@ -351,19 +351,21 @@ export function misplacedBoxes() {
       if (draws(a)) return a;
     return null;
   };
-  // What a box sets out on the page: its content, and its padding only where it paints
-  // a background or a border. A box widened by padding it leaves bare sets nothing past
-  // its content: an Ask allocated the column spans the wide block it holds that way
-  // (ask.css), its content still the column's, and was named as standing out in the
-  // margin with nothing of its own there.
-  const shown = (el) => {
-    const b = el.getBoundingClientRect();
-    if (draws(el)) return b;
-    const s = getComputedStyle(el);
-    return {
-      left: b.left + parseFloat(s.paddingLeft),
-      right: b.right - parseFloat(s.paddingRight),
-    };
+  // A box reaches as far as the breakouts it holds, each held to its own room above: an
+  // Ask allocated the column spans the wide block it holds (ask.css), its ring going
+  // round the block, and was named as standing out in the margin. Past them, a box is
+  // held to its bound like any other.
+  const breakouts = [...main.querySelectorAll(BREAKOUT)].map((w) => [
+    w,
+    w.getBoundingClientRect(),
+  ]);
+  const reach = (el, left, right) => {
+    for (const [w, r] of breakouts)
+      if (w !== el && el.contains(w) && r.width >= 1) {
+        left = Math.min(left, r.left);
+        right = Math.max(right, r.right);
+      }
+    return { left, right };
   };
   const over = new Map();
   for (const el of main.querySelectorAll("*")) {
@@ -376,20 +378,16 @@ export function misplacedBoxes() {
     // board was excused from the only reading that applies to it. A diagram in a card
     // was drawn across the neighbouring column and this said the page was clean.
     if (!pageBox(el) || !el.checkVisibility() || (!wide && answeredFor(el))) continue;
-    if (el.getBoundingClientRect().width < 1) continue;
-    const b = shown(el);
+    const b = el.getBoundingClientRect();
+    if (b.width < 1) continue;
     const frame = wide ? framing(el) : null;
     const host = wide ? null : insideWide(el);
     const bound = (frame || host)?.getBoundingClientRect() ?? null;
-    const past =
+    const held =
       wide || host
-        ? Math.round(
-            Math.max(
-              b.right - (bound ? bound.right : roomRight),
-              (bound ? bound.left : roomLeft) - b.left,
-            ),
-          )
-        : Math.round(Math.max(b.right - right, left - b.left));
+        ? reach(el, bound ? bound.left : roomLeft, bound ? bound.right : roomRight)
+        : reach(el, left, right);
+    const past = Math.round(Math.max(b.right - held.right, held.left - b.left));
     if (past > 1) over.set(el, [past, wide, frame, host]);
   }
   // Each finding is a record (findings.py) carrying its element's place

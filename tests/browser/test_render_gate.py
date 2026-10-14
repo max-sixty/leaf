@@ -4006,21 +4006,21 @@ def test_a_breakout_takes_the_rooms_width_unless_the_page_sizes_it(browser, serv
     assert off == ["<iframe id=sized>", "<iframe id=wider>"], misplaced
 
 
-def test_a_box_is_held_to_the_column_by_what_it_sets_out(browser, serve):
-    """An Ask allocated the column spans the wide block it holds with padding it leaves
-    bare, its content still the column's, and the gate named it as set out in the
-    margin on every page with one. A box padded out the same way that paints a
-    background shows that padding past the column, and is named."""
+def test_a_box_reaches_as_far_as_the_breakouts_it_holds(browser, serve):
+    """An Ask allocated the column spans the wide block it holds, so its ring goes round
+    the block, and the gate named it as set out in the margin on every page with one.
+    A box reaches as far as the breakouts it holds and no further: one padded past the
+    column with nothing wide in it is named, whether it paints there or not."""
     source = leaf_page(
-        "Padded past the column",
+        "Reaching past the column",
         """
-<h1>Padded past the column</h1>
+<h1>Reaching past the column</h1>
 <p>Prose sets the column.</p>
 <lf-ask id="ask"><h2>Which one?</h2>
   <figure id="evidence" data-width="wide"><p>Evidence the room holds.</p></figure>
   <lf-options id="ask-o" choose><lf-option id="ask-a">This one</lf-option></lf-options>
 </lf-ask>
-<div id="bare" style="margin: 0 -120px; padding: 0 120px">Bare padding.</div>
+<div id="bare" style="margin: 0 -120px; padding: 0 120px; text-indent: -120px">Out.</div>
 <div id="tinted" style="margin: 0 -120px; padding: 0 120px; background: #eee">Tint.</div>
 """,
     )
@@ -4036,7 +4036,7 @@ def test_a_box_is_held_to_the_column_by_what_it_sets_out(browser, serve):
 
     assert grown > 100, "the Ask never spanned its block, so nothing here was tested"
     past = [m["at"] for m in misplaced if m["code"] == "past-column"]
-    assert past == ["<div id=tinted>"], misplaced
+    assert past == ["<div id=bare>", "<div id=tinted>"], misplaced
 
 
 def test_a_change_level_with_a_note_is_decided_on_the_change(browser, serve):

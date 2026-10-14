@@ -174,28 +174,28 @@ export function createThreadPresentation({
           cancelled.then(() => null),
         ]).then(
           resume((result) => {
-          if (!result) return;
-          const [, candidates] = result;
-          if (!current()) return;
-          for (const candidate of candidates) candidate?.commit();
-          // Preparation may materialize or retire targets without another publication.
-          // Preserve immediate semantic paint, then refresh the same directory and its
-          // retained decoration before any nominated surface actually moves.
-          readTargets();
-          surfaces.commit();
-          commitThreadSeats(batch);
-          surfaceView.composition.finishPlacement();
-          // The margin is an owner of its own, with its own watcher; this pass only
-          // refreshes it over the targets it moved, so what it reads is not this paint's.
-          untracked(renderAnnotations);
-          pageGeometry.pageShifted();
-          read.present();
-          // Continuity may reveal a route needing this very presenter. Its work starts
-          // after the cohort commits, and never joins the ticket it is completing.
-          void continueReplies(restoreReply).catch((error) =>
-            reportPageError(error, `Reply continuation failed`),
-          );
-        }),
+            if (!result) return;
+            const [, candidates] = result;
+            if (!current()) return;
+            for (const candidate of candidates) candidate?.commit();
+            // Preparation may materialize or retire targets without another publication.
+            // Preserve immediate semantic paint, then refresh the same directory and its
+            // retained decoration before any nominated surface actually moves.
+            readTargets();
+            surfaces.commit();
+            commitThreadSeats(batch);
+            surfaceView.composition.finishPlacement();
+            // The margin is an owner of its own, with its own watcher; this pass only
+            // refreshes it over the targets it moved, so what it reads is not this paint's.
+            untracked(renderAnnotations);
+            pageGeometry.pageShifted();
+            read.present();
+            // Continuity may reveal a route needing this very presenter. Its work starts
+            // after the cohort commits, and never joins the ticket it is completing.
+            void continueReplies(restoreReply).catch((error) =>
+              reportPageError(error, `Reply continuation failed`),
+            );
+          }),
         );
       };
       await (primaryPreparation?.then

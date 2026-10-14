@@ -671,7 +671,7 @@ export function createAskView({
   function mount() {
     if (mounted) return;
     mounted = true;
-    stopContextScopes = contextScopes("In this question", askContext);
+    stopContextScopes = contextScopes("In this ask", askContext);
     void syncAsks();
     document.addEventListener(PRESENTATION, actionsChanged);
     addEventListener("resize", repaint);

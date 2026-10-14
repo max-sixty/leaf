@@ -90,9 +90,9 @@
  * the painted bar against the exhibit's own boxes over every sample the corpus has
  * (test_the_gutter_runs_beside_the_exhibit_and_no_further) — loud where the rule goes
  * quiet, and what a leading suggestion meets the day one is written. */
-/* A table box keeps to its content unless given a width, so the sample states the room's
- * (`--lf-breakout-width`, layouts.css), which an authored width widens. */
-:scope:is(lf-sample) { display: table; table-layout: fixed; width: var(--lf-breakout-width);
+/* A table box keeps to its content unless given a width, so the sample fills its holder,
+ * and an authored width widens it (layouts.css). */
+:scope:is(lf-sample) { display: table; table-layout: fixed; width: 100%;
               box-sizing: border-box; margin: 18px 0; padding-left: var(--sp-4);
               border-left: 3px solid var(--border-2); --lf-block-frame: 1; }
 /* Containment does not apply to a table, so the sample cannot be the size container

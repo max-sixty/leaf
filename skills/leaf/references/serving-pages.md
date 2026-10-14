@@ -130,12 +130,14 @@ leaf page interactions <page> --session TAB \
 ```
 
 Omit `--session` to include server requests. Each line is one JSON record:
-`leaf page interactions` sorts records by recorded time, removes retried duplicates and
-reassembles split records. The raw `<page>/interactions.jsonl`, which `tail -F` follows
-live while you reproduce a problem, is in arrival order and still holds retries and
-split records. Browser and server clocks can differ, so order alone doesn't prove cause. The
-user's decisions are in `leaf page events <page>`, and
-[page-storage.md](../scripts/leaf/page-storage.md) defines the file.
+`leaf page interactions` sorts records by host receipt time, removes retried duplicates
+and retains gap diagnostics under type filters. The raw `<page>/observations.jsonl`,
+which `tail -F` follows live while you reproduce a problem, is in arrival order and
+still holds retries. Browser wall time stays in `observed_at`; order alone does not
+prove cause. The user's decisions are in `leaf page events <page>`, and
+[page-storage.md](../scripts/leaf/page-storage.md) defines the file. The public site
+stores its browser batches in Workers Observability; `worker/README.md` describes
+lookup by session reference.
 
 ## Temporary test servers
 

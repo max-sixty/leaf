@@ -2486,7 +2486,7 @@
   display: block;
 }
 @media screen {
-  :scope:is(lf-ask)[data-lf-space=column]:has(> :is([data-lf-space=wide], [data-lf-space=available]):not([data-lf-arranged])) {
+  :scope:is(lf-ask)[data-lf-column]:has(> [data-lf-space]:not([data-lf-arranged])) {
     margin-left: calc(-1 * var(--lf-grow-l));
     margin-right: calc(-1 * var(--lf-grow-r));
     padding-left: var(--lf-grow-l);

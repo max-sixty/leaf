@@ -1299,7 +1299,9 @@ async function highlightBlocks(root) {
 
 // runtime/declared-words.js
 var PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
-var isPagePaint = (name) => PAGE_PAINT_ATTRIBUTES.has(name) || Object.values(registry.$marks).some((mark) => mark.paint === name);
+var isPagePaint = (name) => PAGE_PAINT_ATTRIBUTES.has(name) || Object.values(registry.$marks).some(
+  (mark) => mark.paint === name || Object.values(mark.paints ?? {}).includes(name)
+);
 function quietWord(el2, word2) {
   const title = el2.querySelector(":scope > strong");
   const seat = title ? title.nextSibling : el2.firstChild;
@@ -5853,9 +5855,21 @@ function workingMessage(thread, attention, messages) {
   const [words, live2, condition, agent] = running ? [running.detail || said, true, null, running.agent] : todo ? [todo.line, true, null, null] : stopped ? [stopped.detail, false, workflowLabel(stopped), stopped.agent] : [said, false, null, null];
   if (!words || !pending.length && !live2 && !condition) return null;
   const agentMessage = messages.findLast((message) => message.author === "agent");
+  const work = running?.detail ? running : !running && !todo ? stopped : null;
+  const progress = !work && (running || !todo && !stopped) ? pending.at(-1) : null;
+  const feedback = work?.input ? {
+    input_id: work.input,
+    reply_id: null,
+    reply_kind: "work"
+  } : progress ? {
+    reply_id: progress.id,
+    attempt: progress.attempt,
+    reply_kind: "progress"
+  } : null;
   return Object.freeze({
     who: agent || agentMessage?.by || "Agent",
     words: words.trim().replace(/\.$/, ""),
+    feedback,
     live: live2,
     condition
   });
@@ -6043,6 +6057,7 @@ var ThreadView = class {
   #actions = document.createElement("span");
   #transcript = document.createElement("div");
   #working = document.createElement("div");
+  #stopWorkingExposure = null;
   // Each pending progress range's covered message ids, as last drawn, so a fold that
   // takes the range over can take its disclosure state with it.
   #pendingCovers = /* @__PURE__ */ new Map();
@@ -6513,6 +6528,15 @@ var ThreadView = class {
       render(workingView(model.working), this.#working);
       transcript.push(this.#working);
     }
+    this.#stopWorkingExposure?.();
+    this.#stopWorkingExposure = model.working?.feedback ? this.#commands.read.observeFeedback(
+      this.#working.querySelector(".lf-thread-working-words"),
+      {
+        ...model.working.feedback,
+        presentation_kind: "working_words",
+        surface: model.surface
+      }
+    ) : null;
     this.#checkpoints = checkpoints;
     this.#markers = markers;
     keeps(
@@ -7031,6 +7055,8 @@ var ThreadView = class {
     this.#reply?.claim(shown);
   }
   retire() {
+    this.#stopWorkingExposure?.();
+    this.#stopWorkingExposure = null;
     this.#reply?.cancelDictation();
     for (const view of this.#messages.values()) view.retire();
   }

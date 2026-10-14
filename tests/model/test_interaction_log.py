@@ -1,4 +1,4 @@
-"""The diagnostic reader reconstructs the browser writer's transport records."""
+"""Diagnostics keep one host clock, exact retry identity and visible loss evidence."""
 
 import json
 
@@ -6,6 +6,7 @@ import pytest
 from click.testing import CliRunner
 from leaf.cli import cli
 from leaf.interaction_log import (
+    INTERACTIONS_FILE,
     append_interactions,
     client_records,
     interaction_time,
@@ -13,142 +14,95 @@ from leaf.interaction_log import (
 )
 
 
-def test_reader_reconstructs_retries_and_reports_loss_before_filtering(tmp_path):
-    def row(sequence, type="keydown", **fields):
-        return {
-            "ts": f"2026-10-09T06:08:{40 + sequence:02d}.000Z",
-            "sequence": sequence,
-            "type": type,
-            **fields,
-        }
+def observation(sequence, type="keydown", **fields):
+    return {
+        "observed_at": "2099-01-01T00:00:00.000Z",
+        "sequence": sequence,
+        "monotonic_ms": sequence * 100,
+        "visibility": "visible",
+        "type": type,
+        **fields,
+    }
 
-    complete = row(2, "input", value="a large pasted draft")
-    serialized = json.dumps(complete)
-    middle = len(serialized) // 2
-    split = [
-        row(
-            2 + part,
-            "interaction_part",
-            partOf=2,
-            part=part,
-            parts=2,
-            originalType="input",
-            json=piece,
+
+def test_reader_deduplicates_and_reports_loss_before_host_time_filtering(
+    tmp_path, monkeypatch
+):
+    def stamp(second):
+        monkeypatch.setattr(
+            "leaf.interaction_log.now_iso", lambda: f"2026-10-09T06:08:{second}Z"
         )
-        for part, piece in enumerate((serialized[:middle], serialized[middle:]))
-    ]
-    # Delivery order can differ from event order; a Beacon duplicates a batch.
-    first = client_records("tab", "/api/samples/child", [row(1, key="Escape"), *split])
-    append_interactions(tmp_path, first)
+
+    stamp(42)
+    original = client_records("tab", "/api/samples/child", [observation(1)])
+    append_interactions(tmp_path, original)
+    stamp(45)
     append_interactions(
-        tmp_path, [{**record, "received": "2026-10-09T06:10:00Z"} for record in first]
+        tmp_path, client_records("tab", "/api/samples/child", [observation(1)])
     )
+    stamp(46)
     append_interactions(
         tmp_path,
-        client_records(
-            "tab",
-            "/api/samples/child",
-            [
-                row(7, "command", id="text.leave"),
-                row(
-                    5,
-                    "interaction_part",
-                    partOf=4,
-                    part=1,
-                    parts=2,
-                    originalType="paste",
-                    json="incomplete",
-                ),
-            ],
-        ),
+        client_records("tab", "/api/samples/child", [observation(5, "command")]),
     )
-    append_interactions(tmp_path, client_records("other", "/", [row(1, key="c")]))
+    stamp(47)
     append_interactions(
         tmp_path,
-        [
-            {
-                "source": "server",
-                "ts": "2026-10-09T06:08:42Z",
-                "method": "POST",
-                "path": "/api/event",
-                "status": 200,
-                "durationMs": 1,
-            }
-        ],
+        client_records("tab", "/api/samples/child", [observation(3)]),
+    )
+    append_interactions(tmp_path, client_records("other", "/", [observation(1)]))
+    append_interactions(
+        tmp_path,
+        [{"source": "server", "type": "request", "ts": "2026-10-09T06:08:44Z"}],
     )
     records = read_interactions(tmp_path, session="tab")
-    assert [(record["type"], record["sequence"]) for record in records] == [
+    assert [(row["type"], row["sequence"]) for row in records] == [
         ("keydown", 1),
-        ("input", 2),
         ("interaction_gap", 4),
-        ("interaction_incomplete", 4),
-        ("interaction_gap", 6),
-        ("command", 7),
+        ("command", 5),
+        ("interaction_gap", 2),
+        ("keydown", 3),
     ]
-    assert records[1]["value"] == complete["value"]
-    assert records[1]["page"] == "/api/samples/child"
-    assert records[3]["missingParts"] == [0]
-    # Filtering never invents a leading gap or hides observed loss.
+    assert records[0] == original[0]
     filtered = read_interactions(
         tmp_path,
         session="tab",
-        since=interaction_time("2026-10-08T23:08:42-07:00"),
+        since=interaction_time("2026-10-08T23:08:43-07:00"),
         until=interaction_time("2026-10-08T23:08:47-07:00"),
         types=("command",),
     )
-    assert [(record["type"], record["sequence"]) for record in filtered] == [
-        ("interaction_gap", 4),
-        ("interaction_incomplete", 4),
+    assert [(row["type"], row["sequence"]) for row in filtered] == [
+        ("interaction_gap", 2),
+        ("command", 5),
     ]
+    assert filtered[0]["through"] == 4
+    # Browser wall-clock skew has no effect on host-time selection.
+    assert filtered[1]["observed_at"].startswith("2099")
 
 
-def test_cli_reads_keys_commands_focus_and_requests_without_changing_the_log(tmp_path):
+def test_cli_queries_canonical_records_without_changing_the_log(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "leaf.interaction_log.now_iso", lambda: "2026-10-09T06:08:42.551Z"
+    )
     (tmp_path / "events.jsonl").write_text("")
     rows = client_records(
-        "tab",
-        "/",
+        "tab", "/", [observation(1, "command", id="text.leave", binding="Escape")]
+    )
+    append_interactions(
+        tmp_path,
         [
+            *rows,
             {
-                "ts": "2026-10-09T06:08:42.551Z",
-                "sequence": 1,
-                "type": "keydown",
-                "key": "Escape",
-                "target": ["leaf-text[name=reply]", "div", "aside#lf-margin-preview"],
-                "nodes": [76, 77, 57],
-            },
-            {
-                "ts": "2026-10-09T06:08:42.552Z",
-                "sequence": 2,
-                "type": "command",
-                "id": "text.leave",
-                "binding": "Escape",
-            },
-            {
-                "ts": "2026-10-09T06:08:42.553Z",
-                "sequence": 3,
-                "type": "focusin",
-                "target": ["div", "aside#lf-margin-preview"],
-                "nodes": [70, 57],
+                "source": "developer",
+                "type": "run_context",
+                "ts": rows[0]["ts"],
+                "purpose": "test",
+                "run": "test-run",
             },
         ],
     )
-    request = {
-        "source": "server",
-        "ts": "2026-10-09T06:08:42.554Z",
-        "method": "POST",
-        "path": "/api/event",
-        "status": 400,
-        "durationMs": 1.5,
-    }
-    append_interactions(tmp_path, [*rows, request])
-    path = tmp_path / "interactions.jsonl"
+    path = tmp_path / INTERACTIONS_FILE
     before = path.read_bytes()
-    result = CliRunner().invoke(cli, ["page", "interactions", str(tmp_path)])
-    assert result.exit_code == 0, result.output
-    assert [json.loads(line) for line in result.stdout.splitlines()] == [
-        *rows,
-        request,
-    ]
     result = CliRunner().invoke(
         cli,
         [
@@ -162,89 +116,44 @@ def test_cli_reads_keys_commands_focus_and_requests_without_changing_the_log(tmp
         ],
     )
     assert result.exit_code == 0, result.output
-    assert json.loads(result.stdout) == rows[1]
+    assert json.loads(result.stdout) == rows[0]
     assert path.read_bytes() == before
-    result = CliRunner().invoke(
-        cli,
-        ["page", "interactions", str(tmp_path), "--since", "2026-10-09T06:08:42"],
+    all_rows = CliRunner().invoke(cli, ["page", "interactions", str(tmp_path)])
+    assert all_rows.exit_code == 0, all_rows.output
+    assert [
+        json.loads(line) for line in all_rows.stdout.splitlines()
+    ] == read_interactions(tmp_path)
+    invalid = CliRunner().invoke(
+        cli, ["page", "interactions", str(tmp_path), "--since", "2026-10-09T06:08:42"]
     )
-    assert result.exit_code == 1
-    assert "require a timezone offset" in json.loads(result.stderr)["error"]
+    assert invalid.exit_code == 1
+    assert "require a timezone offset" in json.loads(invalid.stderr)["error"]
 
 
-def test_invalid_transport_is_refused_and_a_torn_line_is_skipped(tmp_path):
-    malformed = [
-        {"type": "interaction_part", "sequence": 1},
-        {"type": "keydown", "sequence": 2, "ts": 42},
-        {"type": "focusin", "sequence": 3, "target": [{}]},
-    ]
-    for entry in malformed:
+def test_required_transport_is_validated_once_and_torn_lines_are_skipped(tmp_path):
+    valid = observation(
+        1,
+        "custom_observation",
+        detail={"nested": [1, "two"]},
+        target=[{}],
+        nodes={"custom": 1},
+    )
+    for changed in (
+        {"observed_at": 42},
+        {"sequence": True},
+        {"monotonic_ms": "4"},
+        {"monotonic_ms": -1},
+        {"monotonic_ms": float("nan")},
+        {"visibility": "unknown"},
+    ):
         with pytest.raises((TypeError, ValueError)):
-            client_records("bad", "/", [entry])
-    # Arbitrary diagnostic payloads remain open; only interpreted fields are typed.
-    valid = client_records(
-        "good", "/", [{"type": "custom_observation", "detail": {"nested": [1, "two"]}}]
-    )[0]
-    append_interactions(tmp_path, [valid])
-    # A crash can tear an append mid-line; the reader skips it and reads on.
-    with (tmp_path / "interactions.jsonl").open("a") as stream:
+            client_records("bad", "/", [{**valid, **changed}])
+    for field in ("observed_at", "sequence", "monotonic_ms", "visibility"):
+        with pytest.raises((TypeError, ValueError)):
+            client_records("bad", "/", [{k: v for k, v in valid.items() if k != field}])
+    admitted = client_records("good", "/", [valid])[0]
+    append_interactions(tmp_path, [admitted])
+    with (tmp_path / INTERACTIONS_FILE).open("a") as stream:
         stream.write('{"source": "client", "sess\n')
-    append_interactions(tmp_path, [valid])
-    (tmp_path / "events.jsonl").write_text("")
-    result = CliRunner().invoke(
-        cli, ["page", "interactions", str(tmp_path), "--session", "good"]
-    )
-    assert result.exit_code == 0, result.output
-    assert [json.loads(line) for line in result.stdout.splitlines()] == [valid] * 2
-
-
-def test_a_split_record_that_joins_into_no_entry_is_marked_not_read(tmp_path):
-    """Ingress checks each part's coordinates and that its `json` is a string, not
-    what the parts join into, so a group that joins into no entry is marked and
-    every other row still reads."""
-    broken = client_records(
-        "tab",
-        "/",
-        [
-            {
-                "type": "interaction_part",
-                "sequence": 1,
-                "partOf": 1,
-                "part": 0,
-                "parts": 1,
-                "originalType": "input",
-                "json": "{not json",
-            },
-            {"type": "keydown", "sequence": 2},
-        ],
-    )
-    append_interactions(tmp_path, broken)
-    records = read_interactions(tmp_path, session="tab")
-    assert [(row["type"], row["sequence"]) for row in records] == [
-        ("interaction_unreadable", 1),
-        ("keydown", 2),
-    ]
-    assert records[0]["originalType"] == "input"
-
-    # Parts that join into a valid entry other than the one they name are marked too.
-    mislabelled = client_records(
-        "tab",
-        "/",
-        [
-            {
-                "type": "interaction_part",
-                "sequence": 3,
-                "partOf": 3,
-                "part": 0,
-                "parts": 1,
-                "originalType": "input",
-                "json": json.dumps({"type": "command", "sequence": 9}),
-            },
-        ],
-    )
-    append_interactions(tmp_path, mislabelled)
-    records = read_interactions(tmp_path, session="tab")
-    assert [(row["type"], row["sequence"]) for row in records][-1] == (
-        "interaction_unreadable",
-        3,
-    )
+    append_interactions(tmp_path, [admitted])
+    assert read_interactions(tmp_path, session="good") == [admitted]

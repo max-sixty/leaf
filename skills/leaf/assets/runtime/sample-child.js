@@ -5,7 +5,7 @@
 import { canPlaceFocus, focusDestination, onStanding } from "./focus.js";
 import { pagePresented, pageUpgraded } from "./page-paint.js";
 import { whenArrived, whenArriving } from "./presentation.js";
-import { sizeObserver } from "./rendering.js";
+import { afterSettling, sizeObserver } from "./rendering.js";
 const child = document.documentElement.lfSample;
 const commands = new Map();
 const observers = new Map();
@@ -51,11 +51,20 @@ if (child) {
     sampleNotice("standing", { focused: Boolean(node && node !== document.body) });
   });
   // The reader's own input here, a press, a key or a wheel, is theirs to move the
-  // frame with, so the containing page applies a size it held while they read.
+  // frame with, so the containing page applies a size it held while they read. So is
+  // what that input sets going, until its rendering settles (rendering.js,
+  // `afterSettling`): a height measured meanwhile, such as a disclosure the press
+  // opened, says it came of a gesture, and the page applies it though it holds a
+  // height that came of nothing the reader did. Activation is input of its own, since
+  // a click lands after the press that began it has settled.
+  let gestures = 0;
   const input = ({ isTrusted }) => {
-    if (isTrusted) sampleNotice("input");
+    if (!isTrusted) return;
+    gestures++;
+    afterSettling(() => gestures--);
+    sampleNotice("input");
   };
-  for (const type of ["pointerdown", "keydown", "wheel"])
+  for (const type of ["pointerdown", "click", "keydown", "keyup", "wheel"])
     window.addEventListener(type, input, { capture: true, passive: true });
   registerSampleCommand("restore-standing", () => {
     if (!standing?.isConnected || !canPlaceFocus()) return false;
@@ -67,7 +76,7 @@ if (child) {
     const next = Math.ceil(document.body.getBoundingClientRect().height);
     if (next !== height) {
       height = next;
-      sampleNotice("height", { height });
+      sampleNotice("height", { height, gesture: gestures > 0 });
     }
   };
   // The containing page's image shows this part of the viewport where the frame stands.

@@ -23,8 +23,9 @@
  * again until it says it has arrived. Until a child has arrived a resize the reader
  * would see, because they scrolled to the sample while it loaded, waits until it would
  * move nothing they see, the frame keeping its loading height (`heldGrowth`), or until
- * the reader gives input inside the child; a resize after Reset or Return to page is
- * theirs and applies at once. The status line keeps its room through loading, ready
+ * the reader gives input inside the child; a resize after Reset or Return to page, or
+ * one the child says the rendering of the reader's input there made, is theirs and
+ * applies at once. The status line keeps its room through loading, ready
  * and failure, so the frame below it stays put; a failure's words that run past it
  * stand in a disclosure the reader opens over the frame.
  * Reset stays focusable
@@ -135,7 +136,9 @@ customElements.define(
             throw new DOMException("sample disconnected", "AbortError");
           }
           this.#host = host;
-          host.on("height", ({ height }) => this.#height(height));
+          host.on("height", ({ height, gesture }) =>
+            this.#height(height, { asked: gesture }),
+          );
           host.on("arrived", () => this.#arrival?.reported?.());
           // The arrived child began arriving again, as when one of its samples was
           // Reset: the page reads as arriving until it reports arrival once more.
@@ -287,7 +290,8 @@ customElements.define(
     // Full view retains the embedded height while its same frame fills the dialog;
     // returning applies the current block reading without replacing any native editor.
     // A reading while the child arrives waits while its resize would be seen, unless
-    // the reader `asked` for it.
+    // the reader `asked` for it: by Reset or Return to page here, or by a gesture in
+    // the child whose rendering it came of (sample-child.js).
     #height(height, { immediate = false, asked = false } = {}) {
       if (this.hasAttribute("window") || isNativeLayer(this.#view)) return;
       this.#heightReading = height;
@@ -300,7 +304,7 @@ customElements.define(
 
     // The reader's input inside the child makes the frame theirs to move: a resize held
     // while they read applies now. A later one the child makes while still arriving
-    // waits as before, since nothing tells this page whether their input caused it.
+    // waits as before, unless the child says that input's rendering made it.
     #release() {
       if (!this.#heldFit) return;
       this.#heldFit();

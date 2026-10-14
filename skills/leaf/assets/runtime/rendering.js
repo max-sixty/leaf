@@ -6,7 +6,8 @@
    Each field is true when that axis is settled. Hidden documents read true on
    both axes because they owe no visible paint until they become visible again.
    A reader outside the page waits on those facts after a gesture rather than
-   guessing a number of frames.
+   guessing a number of frames, and one inside it on `afterSettling`, as a sample's
+   child does to say which of its heights a gesture caused (sample-child.js).
 
    Leaf's rendering callbacks and size observers go through this module: `nextRender`,
    `nextFrame` and `cancelRender` for settling work, `nextAnimation` and
@@ -263,6 +264,21 @@ function check() {
   }
   checking = false;
   quiet = true;
+  const settled = settling;
+  settling = [];
+  for (const callback of settled) callback();
+}
+
+// Those waiting for the rendering begun when they asked to settle (`afterSettling`).
+let settling = [];
+const owed = () => {};
+
+/** Call `settled` once the rendering that work begun now sets going has settled: a
+    counted update runs after this moment, and then one is quiet. A gesture's rendering
+    is the work its input sets going until then, its answers to that input included. */
+export function afterSettling(settled) {
+  settling.push(settled);
+  nextFrame(owed);
 }
 
 // Nothing has been heard yet: the page is unsettled until its first quiet update.

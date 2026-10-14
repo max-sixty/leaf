@@ -2163,6 +2163,83 @@ def test_a_held_sample_takes_its_height_on_input_or_a_hidden_tab(browser, serve,
     )
 
 
+@pytest.mark.parametrize("route", ["click", "key"])
+def test_a_held_sample_grows_for_what_the_readers_gesture_opens(browser, serve, route):
+    """While a sample's child is still arriving, a disclosure the reader opens in it,
+    by a press or a key, grows the frame with it, and growth the child makes of its
+    own accord in the same load still waits while the reader would see it, until
+    their next press."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    held = []
+    passing = set()
+
+    def hold(request_route):
+        if SAMPLE_DOCUMENT.search(request_route.request.url).group(1) in passing:
+            request_route.continue_()
+        else:
+            held.append(request_route)
+
+    page.route(SAMPLE_DOCUMENT, hold)
+    page.goto(
+        serve(
+            leaf_page(
+                "Sample gesture",
+                '<h1>Containing page</h1><div style="height: 300vh"></div>'
+                '<lf-sample id="practice"><template id="practice-source" data-sample>'
+                '<p id="top">Practice</p><details id="more"><summary>More</summary>'
+                '<div style="height: 400px"></div></details>'
+                '<div id="room" style="height: 1200px"></div>'
+                '<lf-sample id="inner" window><template id="inner-source" data-sample>'
+                "<p>Inner</p></template></lf-sample></template></lf-sample>"
+                "<p><button id=after>After the sample</button></p>"
+                '<div style="height: 300vh"></div>',
+            )
+        ),
+        wait_until="commit",
+    )
+    holding(page, held, 1, "the sample's document")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    frame = page.locator("#practice iframe")
+    frame.scroll_into_view_if_needed()
+    loading = frame.bounding_box()["height"]
+    # The sample's document goes on; the inner sample's, once asked for, waits, so the
+    # sample's child is still arriving throughout.
+    sample = held.pop(0)
+    passing.add(SAMPLE_DOCUMENT.search(sample.request.url).group(1))
+    sample.continue_()
+    expect(page.locator("#practice .lf-sample-status")).to_have_text("")
+    holding(page, held, 1, "the inner sample's document")
+    assert frame.bounding_box()["height"] == loading
+    child = frame.content_frame
+    child_document = frame.element_handle().content_frame()
+    height = "frame => frame.clientHeight"
+    body = "body => Math.ceil(body.getBoundingClientRect().height)"
+    summary = child.locator("#more > summary")
+    if route == "click":
+        summary.click()
+    else:
+        summary.press("Enter")
+    expect(child.locator("#more")).to_have_attribute("open", "")
+    opened = child.locator("body").evaluate(body)
+    page.wait_for_function(
+        "h => document.querySelector('#practice iframe').clientHeight === h",
+        arg=opened,
+    )
+
+    # Once the gesture's rendering has settled, growth comes of nothing the reader did.
+    rendered(child_document)
+    child.locator("#room").evaluate("room => { room.style.height = '1400px'; }")
+    rendered(child_document)
+    rendered(page)
+    assert frame.evaluate(height) == opened
+    child.locator("#top").click()
+    page.wait_for_function(
+        "h => document.querySelector('#practice iframe').clientHeight === h",
+        arg=opened + 200,
+    )
+
+
 @pytest.mark.parametrize("touch", [False, True], ids=["mouse", "touch"])
 def test_a_long_sample_failure_keeps_its_row_and_opens_by_key_or_tap(
     browser, serve, touch

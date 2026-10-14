@@ -356,6 +356,9 @@ export function mountApplication(dependencies) {
         flash: false,
         intent,
       }),
+    // The thread a margin entry stands for, which a user on it goes on with when the
+    // thread leaves the margin.
+    threadAt: (node) => overlay?.entryThread(node) ?? null,
     read,
   });
   const registerThreadPanel = ({ controller, threadsBox, view }) =>

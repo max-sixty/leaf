@@ -1,6 +1,6 @@
 /* Leaf runtime boot and application composition root. */
 import { registerSampleCommand, onSampleNotice } from "./runtime/sample-child.js";
-import "./vendor/browser-runtime.js";
+import "/vendor/browser-runtime.js";
 import "./runtime/interaction-log.js";
 // Restored panels and the first keyboard gesture share the ordinary synchronous
 // control routes, so their controls must be upgraded before those routes mount.
@@ -189,7 +189,9 @@ holdArrivingBounds();
 // settled (`renderingState`), and which native layers expose reading and controls.
 // Job lifecycle tracing binds at enqueue without replacing any rendering callback, and
 // widget preparation tracing at each declaration and its settlement.
-const validationEntry = document.querySelector("script[data-lf-entry]");
+const validationEntry = /** @type {HTMLScriptElement | null} */ (
+  document.querySelector("script[data-lf-entry]")
+);
 if (validationEntry) {
   validationEntry.lfReadiness = pageReadiness;
   validationEntry.lfRenderingState = renderingState;
@@ -280,7 +282,7 @@ const navigation = createNavigation({
   coveringAuxiliaryScroller: auxiliarySurfaces.coveringScroller,
   threadDestinations: {
     openPageThread: (...args) => app.threadDestinations.openPageThread(...args),
-    scrollToThread: (...args) => anchorTravel.scrollToThread(...args),
+    scrollToThread: (id, options) => anchorTravel.scrollToThread(id, options),
     threadHere: () => app.threadDestinations.threadHere(),
     threadAtStanding: () => app.threadDestinations.threadAtStanding(),
     threadPlace: (...args) => app.threadDestinations.threadPlace(...args),
@@ -304,7 +306,9 @@ const anchorPaint = annotationRenderer?.createAnchorPaint({
   standingThreadId,
   hoveredPanelThreadId: () => {
     const { x, y } = pointerAt();
-    const thread = document.elementFromPoint(x, y)?.closest(".lf-thread");
+    const thread = /** @type {HTMLElement | null | undefined} */ (
+      document.elementFromPoint(x, y)?.closest(".lf-thread")
+    );
     return thread?.parentElement === threadsBox ? thread.dataset.id : null;
   },
   panelThreadForId: (id) =>
@@ -651,9 +655,7 @@ responseSurface = createResponseSurface({
 reactions = createReactionController({
   marginEntryChoices: app.overlay?.marginEntryChoices,
   marginEntryContextContains: app.overlay?.marginEntryContextContains,
-  foldMarginEntryOptions: app.overlay?.foldMarginEntryOptions,
   openMarginEntryOptions: app.overlay?.openMarginEntryOptions,
-  unfoldedMarginEntries: app.overlay?.unfoldedMarginEntries,
   designModeActive: designMode.active,
   hideComposer: responseSurface.hideComposer,
   syncResponseOptions: responseSurface.syncResponseOptions,

@@ -356,7 +356,7 @@ it, and shape the markup and CSS so the runtime uses its answer:
 | --- | --- |
 | How large a box is, including the widest of several labels | grid and flex tracks, `min-content` and `max-content`, labels stacked in one grid cell |
 | Where a box stands against another box or the scroller holding it | the containing block, sticky positioning, anchor positioning, scroll timelines |
-| Which of Leaf's surfaces paints over which | the top layer, and stacking contexts |
+| Which of Leaf's surfaces paints over which, and that the page paints beneath them all | the top layer, and stacking contexts: the theme's `--lf-z-*` ladder, and `main` as one context at 0 |
 | Whether a box is rendered at all | `checkVisibility` |
 | Which rules reach an element | cascade layers, `@scope`, and a shadow root as the boundary |
 
@@ -601,8 +601,10 @@ which import the runtime's own modules, and writes `vendor/lit.js`, the page's o
 (`build/AGENTS.md` owns the commands). What a module decides on its own is
 tested under `tests/runtime/` (`pnpm run test:runtime`; `tests/AGENTS.md` says
 which readings may go there). `pnpm run check:browser` type-checks every runtime
-module, the framework's types reaching it through `vendor/browser-runtime.d.ts`; a
-module marked `// @ts-check` is held to strict mode, and the rest are checked without
-it. What the classic scripts hang on `<html>` and `window`, the events the runtime
-dispatches with a detail, and the runtime's own elements by tag are declared once in
-`build/browser/runtime-globals.d.ts` (`build/browser/build.mjs`, `typecheck`).
+module, `leaf.js`, and the kernel's and packages' widget modules; a module marked
+`// @ts-check` is held to strict mode, and the rest are checked without it. A module
+imports the framework by its served path, `/vendor/browser-runtime.js`, which the
+check reads as the framework's TypeScript source. What the classic scripts hang on
+`<html>` and `window`, the events the runtime dispatches with a detail, and the
+runtime's own elements by tag are declared once in `build/browser/runtime-globals.d.ts`
+(`build/browser/build.mjs`, `typecheck`).

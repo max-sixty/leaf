@@ -10,7 +10,7 @@
  */
 import { closeNativeLayer } from "./keyboard/layer-stack.js";
 import { isNativeLayer } from "./shadow-tree.js";
-import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
+import { html, nothing, render, repeat } from "/vendor/browser-runtime.js";
 
 import { dismissBannerControls } from "./banner-toolbar.js";
 import { el } from "./widget-elements.js";

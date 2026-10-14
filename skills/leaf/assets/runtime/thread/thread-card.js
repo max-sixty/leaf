@@ -38,14 +38,7 @@ import {
   standsOn,
   standingIn,
 } from "../focus.js";
-import {
-  html,
-  render,
-  nothing,
-  ref,
-  share,
-  signal,
-} from "../../vendor/browser-runtime.js";
+import { html, render, nothing, ref, share, signal } from "/vendor/browser-runtime.js";
 import { turns, threadKey, threadSummary } from "./model.js";
 import { anchorLabel, MessageView, messageReading } from "./messages.js";
 import { offer, reachedForWords, measure, reserve } from "../widget-elements.js";
@@ -1683,6 +1676,12 @@ export class ThreadView {
       this.#reply.dispose();
       this.#reply = null;
     }
+  }
+
+  // The reply being written in this thread, which no view holds, comes into this one
+  // once it is `shown` (replies.js, `claim`).
+  claimReply(shown) {
+    this.#reply?.claim(shown);
   }
 
   retire() {

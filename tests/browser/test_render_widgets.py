@@ -10094,7 +10094,9 @@ def test_a_diff_refresh_leaves_an_inline_reply_to_its_thread_owner(
     data_model.cmd_data_set(serve.page_dir, "review-patch", value(next_patch))
     told(page)
     rendered(page)
-    current = page.locator(".lf-thread-reply leaf-text:focus-within")
+    # The editor the user stands in. Chromium leaves an editor carried through a hidden
+    # node unmatched by its own native `:focus-within` (notes/browser-support.md).
+    current = page.locator(".lf-thread-reply leaf-text:focus")
     expect(current).to_have_js_property("value", draft)
     assert current.evaluate(reading) == before
 

@@ -3971,7 +3971,8 @@ def test_a_breakout_takes_the_rooms_width_unless_the_page_sizes_it(browser, serv
     edge but short of the room is off the axis too, and a room inside a scroller is
     read inside its scrollbar gutter, which a styled scrollbar keeps classic headless. The reading asks only of a
     box the margins grew that the user can see: a positioned frame is placed by its
-    own offsets, and its parent is not what holds it."""
+    own offsets, and its parent is not what holds it. A link around a frame holds it
+    no more than a wrapper drawing no box does, so the room is read past the link."""
     source = leaf_page(
         "Sized breakouts",
         """
@@ -3981,6 +3982,7 @@ def test_a_breakout_takes_the_rooms_width_unless_the_page_sizes_it(browser, serv
 <iframe id="granted" title="Granted" data-width="wide" style="display: block"></iframe>
 <iframe id="sized" class="sized" title="Sized" data-width="wide" style="display: block"></iframe>
 <iframe id="wider" title="Wider" data-width="wide" style="display: block; width: 130%"></iframe>
+<a href="#prose"><iframe id="linked" title="Linked" data-width="wide" style="display: block"></iframe></a>
 <style>#gutter::-webkit-scrollbar { width: 15px; height: 15px; }</style>
 <div id="gutter" style="overflow: scroll; scrollbar-gutter: stable">
   <iframe id="guttered" title="Guttered" data-width="wide" style="display: block"></iframe>

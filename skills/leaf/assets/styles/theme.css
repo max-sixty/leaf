@@ -196,7 +196,17 @@
   /* Stacking: one ascending ladder for everything the runtime lifts over the page.
      A number local to a component's own stacking context stays where it is written.
      A popover or modal dialog takes no rung: the top layer paints over every z-index,
-     in the order the layers opened. */
+     in the order the layers opened.
+     The page stands beneath all of it. `main` is a stacking context at z-index 0
+     (below), so a box the page writes, whatever its z-index, stacks inside `main` and
+     never reaches a rung, and Leaf's own boxes outside `main`, the resting margin rows
+     and a code block's Copy included, paint over every box in it. A page rises over
+     Leaf only through the top layer: a modal dialog, a popover, or fullscreen. Letting
+     page z-indexes compete with the ladder was rejected: whether a page's header or
+     overlay covered the thread panel, a highlight or a pin depended on numbers neither
+     side chose against the other, and `stackLevel` (geometry.js), which asks where a
+     node stacks, could not answer for a page node inside a stacking context it did not
+     read. */
   --lf-z-page-paint: 8890;        /* paint on a page element */
   --lf-z-margin-raised: 8895;     /* the margin item under pointer or focus */
   --lf-z-page-hints: 8898;        /* page-target key chips, under surfaces covering the page */
@@ -881,9 +891,13 @@ html:not([data-lf-interactive]) [data-lf-prepaint]:not(.lf-markdown-body) { disp
  * page's own CSS. Leaf sets none of its geometry, nor the body's, so a page with no
  * Layout lays out as the browser lays out any page. What stays here is what Leaf's chrome
  * coordinates with and draws nothing: the name a margin resident asks the page's
- * readings by, and, with no Layout, no room to grow into on either side. */
+ * readings by, with no Layout, no room to grow into on either side, and the stacking
+ * context that keeps the page beneath Leaf's ladder (`--lf-z-*`, above). A stacking
+ * context also isolates blending, so a page box's `mix-blend-mode` blends with what
+ * `main` paints and not with the paper behind it. */
 main {
   position: relative;
+  z-index: 0;
   container-name: lf-content-frame;
   --lf-free-l: 0px;
   --lf-free-r: 0px;

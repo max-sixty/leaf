@@ -161,7 +161,7 @@ export function prepareEntry() {
 
 // `claim(url)` returns the handler that places the page at a traversal to `url`, or
 // nothing when the entry is not the claimant's. The first claim to answer takes it.
-/** @param {(url: string) => unknown} claim @param {{signal?: AbortSignal}} [options] */
+/** @param {(url: URL) => unknown} claim @param {{signal?: AbortSignal}} [options] */
 export function claimTraversals(claim, { signal } = {}) {
   claims.add(claim);
   signal?.addEventListener("abort", () => claims.delete(claim), { once: true });

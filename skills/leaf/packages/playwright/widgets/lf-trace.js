@@ -272,6 +272,7 @@ customElements.define(
     #imageHost = createRef();
     #imageTools = createRef();
     #zoomLabel = createRef();
+    /** @type {import("lit/directives/ref.js").Ref<HTMLDetailsElement>} */
     #tree = createRef();
     #treeList = createRef();
     #sources = createRef();
@@ -282,6 +283,7 @@ customElements.define(
     #zoomIn = createRef();
     #zoomOut = createRef();
     #zoomFit = createRef();
+    /** @type {import("lit/directives/ref.js").Ref<HTMLElement>} */
     #positionLabel = createRef();
     #selectionLabel = createRef();
     #actionDetails = createRef();
@@ -953,7 +955,7 @@ customElements.define(
             peer.#comparison() === comparison &&
             peer.#chosenBookmark !== null,
         );
-        const key = peer?.#bookmarks[peer.#chosenBookmark]?.key;
+        const key = peer && peer.#bookmarks[peer.#chosenBookmark]?.key;
         const match = key && this.#bookmarks.find((moment) => moment.key === key);
         if (match && this.#targets.has(match.target))
           this.#reveal(match.target, match.index);
@@ -1422,7 +1424,7 @@ customElements.define(
           retired?.destroy();
           this.#imageZoom();
           this.#draw();
-          resolve();
+          resolve(undefined);
         };
         const failed = () => {
           if (!current()) return;
@@ -1796,6 +1798,7 @@ customElements.define(
     // Lit owns the native controls and metadata. Library surfaces and the
     // per-frame labels (`#drawTime`) keep their imperative owners. `#draw`
     // passes the selected point and the saved tree it resolved.
+    /** @param {any} [point] @param {{tree?: any, treePoint?: any}} [saved] @param {any[]} [rows] */
     #paint(point = null, { tree, treePoint } = {}, rows = []) {
       const trace = this.#trace;
       const q = quoted(this);

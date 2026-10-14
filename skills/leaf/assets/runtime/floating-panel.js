@@ -693,24 +693,25 @@ export function createFloatingPanel({
       asked?.turn === answer.turn &&
       asked.keys.every((key) => before.coming.includes(key)) &&
       answer.keys.every((key) => message(key)?.author === "agent") &&
-      view.scrollHeight > before.extent + 0.5 &&
-      !waiting &&
       rooms.has(room)
     ) {
+      // An answer folding the work before it into less room moves nothing either.
+      if (view.scrollHeight <= before.extent + 0.5) return;
       // The answer arriving, or growing as it streams. Where the user stood at the
       // view's end and what it adds fits in the view's height, the end follows it into
-      // sight; otherwise New reply says what waits below the fold.
+      // sight; otherwise New reply says what waits below the fold, and leads to the
+      // reply itself once one follows the work under way, as it takes over the press.
       const atEnd = view.scrollTop + view.clientHeight >= before.extent - 1;
-      if (atEnd && view.scrollHeight - before.extent <= view.clientHeight)
+      if (!waiting && atEnd && view.scrollHeight - before.extent <= view.clientHeight) {
         view.scrollTop = view.scrollHeight;
-      else {
-        waiting = {
-          key: top.thread,
-          message: answer.keys[0],
-          label: answer.keys.some((key) => !message(key).ephemeral)
-            ? "New reply"
-            : "New update",
-        };
+        return;
+      }
+      const reply = answer.keys.find((key) => !message(key).ephemeral);
+      const next = reply
+        ? { key: top.thread, message: reply, label: "New reply" }
+        : { key: top.thread, message: answer.keys[0], label: "New update" };
+      if (waiting?.message !== next.message) {
+        waiting = next;
         paint();
       }
       return;

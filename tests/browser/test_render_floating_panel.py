@@ -896,6 +896,38 @@ def test_an_answer_the_user_waits_for_shows_at_once_where_it_fits(browser, serve
     expect(messages).to_have_count(4)
 
 
+def test_new_reply_leads_to_the_reply_once_one_follows_the_work(browser, serve):
+    """Work under way that does not fit waits behind New update; the reply that follows
+    it takes the press over, which then says New reply and brings the reply's start into
+    sight, not the work before it."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Which job comes first?")
+    page = floating(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    view = page.locator(".lf-fp-view[data-view=thread]")
+    expect(view.locator(".lf-msg")).to_have_count(1)
+    settled(page)
+
+    def say(text, **kwargs):
+        thread_model.post_reply(
+            serve.page_dir, {"to": root, "for": root}, text, **kwargs
+        )
+        told(page)
+
+    press = view.locator(".lf-fp-new-reply")
+    say("Reading the jobs, the mounts and the frost dates. " * 12, ephemeral=True)
+    expect(press).to_have_text("New update")
+    say("The mounts come first. " + "They need the frost to lift. " * 30)
+    expect(press).to_have_text("New reply")
+    press.click()
+    expect(press).to_have_count(0)
+    settled(page)
+    reply = view.locator(".lf-msg", has_text="The mounts come first.")
+    shown, box = reply.bounding_box(), view.bounding_box()
+    assert box["y"] <= shown["y"] < box["y"] + box["height"] - 40, (shown, box)
+
+
 def test_a_streaming_answer_follows_into_sight_until_it_outgrows_the_view(
     browser, serve, request
 ):

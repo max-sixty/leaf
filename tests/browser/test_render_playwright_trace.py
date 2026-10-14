@@ -69,6 +69,8 @@ def test_trace_arrows_step_the_way_the_time_scale_runs_in_right_to_left_text(
     """The time scale runs left to right in any text direction, and so do its arrows."""
     source = ROOT / "examples/developer/playwright-trace-gallery.data.json"
     record = json.loads(source.read_text())["release-journey"]
+    setup = next(action for action in record["actions"] if not action["input"])
+    setup["title"] = f"Setup.phase · {setup['title']}"
     media = {
         image["url"]: (example_media() / Path(image["url"]).name).read_bytes()
         for image in record["images"]
@@ -85,6 +87,9 @@ def test_trace_arrows_step_the_way_the_time_scale_runs_in_right_to_left_text(
     data_model.cmd_data_set(serve.page_dir, "rtl-trace", record)
     user = open_page(browser, url)
     widget = user.locator("#journey")
+    call = widget.locator(f'.lf-trace-call-bar[data-id="{setup["id"]}"]')
+    expect(call.locator(".lf-trace-call-name")).to_have_text(setup["method"])
+    expect(call).to_have_attribute("data-tip", re.compile(re.escape(setup["title"])))
     timeline = widget.get_by_role("group", name="Recording timeline", exact=True)
     position = widget.locator(".lf-trace-position")
     playhead = widget.locator(".lf-trace-playhead")

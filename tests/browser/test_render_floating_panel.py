@@ -12,6 +12,8 @@ import re
 import pytest
 from interact_support import append_carried_log_record, declare_idle, working
 from leaf import event_log as events_model
+from leaf import service as service_model
+from leaf import thread as thread_model
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import panel_comment
@@ -350,7 +352,7 @@ def test_the_field_is_the_thread_s_reply_box(browser, serve):
 def test_the_thread_walk_stands_on_each_thread_it_opens(browser, serve):
     """`t` opens the next thread in the panel and stands on it, as the walk stands on a
     card's title in Threads, so `t` and `T` go on walking from there rather than typing
-    into its reply; showing news held back in it stands on the thread too."""
+    into its reply; showing an answer waiting below its fold stands on the thread too."""
     url = serve(LONG_PAGE)
     first = panel_comment(serve.page_dir, "Is the window long enough?")
     panel_comment(serve.page_dir, "Should the rollout pause on Fridays?")
@@ -368,7 +370,7 @@ def test_the_thread_walk_stands_on_each_thread_it_opens(browser, serve):
     expect(title).to_have_text("Is the window long enough?")
     expect(view).to_be_focused()
 
-    # News that would move what is read waits behind its notice.
+    # An answer too long for the view waits below its fold behind New reply.
     append_carried_log_record(
         serve.page_dir,
         {
@@ -380,11 +382,12 @@ def test_the_thread_walk_stands_on_each_thread_it_opens(browser, serve):
             "text": "The window covers it. " * 60,
         },
     )
-    news = view.locator(".lf-thread-news")
+    news = view.locator(".lf-fp-new-reply")
     expect(news).to_be_visible()
     news.focus()
     page.keyboard.press("Enter")
-    expect(view).to_contain_text("The window covers it.")
+    expect(news).to_have_count(0)
+    expect(view.get_by_text("The window covers it.").first).to_be_in_viewport()
     expect(view).to_be_focused()
 
 
@@ -770,9 +773,8 @@ THREAD_FIT = """() => {
 
 def test_a_thread_s_view_is_as_tall_as_its_messages(browser, serve):
     """An opened view is as tall as what it holds. A page comment opens its thread one
-    message tall; a reply that arrives waits behind New reply, moving nothing, and
-    opening it grows the view to show it whole. A long thread reads in most of the
-    window's height, leaving a band of the page above the panel, before it scrolls."""
+    message tall, and a long thread reads in most of the window's height, leaving a band
+    of the page above the panel, before it scrolls."""
     url = serve(LONG_PAGE)
     long_root = panel_comment(serve.page_dir, "Walk me through the whole rollout.")
     for step in range(8):
@@ -792,36 +794,12 @@ def test_a_thread_s_view_is_as_tall_as_its_messages(browser, serve):
     write(field(page), "Could the rollback cover the weekend?")
     with sending(page, "the page comment"):
         page.keyboard.press("ControlOrMeta+Enter")
-    root = events_model.read_events(serve.page_dir)[-1]["id"]
     view = page.locator(".lf-fp-view[data-view=thread]")
     expect(view.locator(".lf-msg")).to_have_count(1)
     settled(page)
     short = page.evaluate(THREAD_FIT)
     assert not short["scrolls"]
     assert short["below"] < 16, short
-
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "agent": "Claude",
-            "parent": root,
-            "revision": 1,
-            "text": "It would, with someone on call.",
-        },
-    )
-    told(page)
-    held = view.locator(".lf-primary-news:visible")
-    expect(held).to_be_visible()
-    assert page.evaluate(THREAD_FIT) == short
-    held.click()
-    expect(view.locator(".lf-msg")).to_have_count(2)
-    settled(page)
-    grown = page.evaluate(THREAD_FIT)
-    assert grown["height"] > short["height"], (short, grown)
-    assert not grown["scrolls"]
-    assert grown["below"] < 16, grown
 
     page.keyboard.press("Escape")
     page.locator(".lf-fp-threads").click()
@@ -832,6 +810,184 @@ def test_a_thread_s_view_is_as_tall_as_its_messages(browser, serve):
     long = page.evaluate(THREAD_FIT)
     assert long["height"] > 600, long
     assert long["panel"] >= 100, long
+
+
+def test_an_answer_the_user_waits_for_shows_at_once_where_it_fits(browser, serve):
+    """The agent's answer to the user's own last turn is not held: where it fits in the
+    view's height, the view's end follows it into sight at once, its earlier words
+    scrolling up, and nothing at the view's head moves. Where it would not fit, the view
+    keeps its height and the answer waits below the fold, with New reply at the view's
+    foot, where it begins; a press grows the view and brings its start into sight. A
+    reply that follows the agent's own turn is still held behind the thread's notice,
+    since nobody was waiting for it."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(
+        serve.page_dir,
+        "Walk me through the whole rollout: "
+        + "which cohorts go first, and what holds the next wave back. " * 3,
+    )
+    page = floating(browser, url)
+
+    def answer(text):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Claude",
+                "parent": root,
+                "revision": 1,
+                "text": text,
+            },
+        )
+        told(page)
+
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    view = page.locator(".lf-fp-view[data-view=thread]")
+    messages = view.locator(".lf-msg")
+    expect(messages).to_have_count(1)
+    settled(page)
+    seats = page.evaluate(HEAD_SEATS)
+    stands = view.bounding_box()
+
+    def in_sight(node):
+        box, shown = node.bounding_box(), view.bounding_box()
+        return box["y"] >= shown["y"] and box["y"] + box["height"] <= (
+            shown["y"] + shown["height"] + 0.5
+        )
+
+    answer("Internal first.")
+    expect(messages).to_have_count(2)
+    settled(page)
+    assert in_sight(messages.last)
+    assert page.evaluate(HEAD_SEATS) == seats
+    assert view.bounding_box() == stands
+    expect(view.locator(".lf-fp-new-reply")).to_have_count(0)
+    expect(view.locator(".lf-primary-news:visible")).to_have_count(0)
+
+    write(field(page), "And the weekend?")
+    with sending(page, "the reply"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    expect(messages).to_have_count(3)
+    settled(page)
+    seats = page.evaluate(HEAD_SEATS)
+    stands = view.bounding_box()
+
+    answer("It would. " + "Someone stays on call through Sunday, and Monday too. " * 40)
+    press = view.locator(".lf-fp-new-reply")
+    expect(press).to_have_text("New reply")
+    expect(messages).to_have_count(4)
+    settled(page)
+    assert page.evaluate(HEAD_SEATS) == seats
+    assert view.bounding_box() == stands
+    assert messages.last.bounding_box()["y"] >= stands["y"] + stands["height"] - 40
+
+    press.click()
+    expect(press).to_have_count(0)
+    settled(page)
+    shown = messages.last.bounding_box()
+    grown = view.bounding_box()
+    assert grown["height"] > stands["height"], (stands, grown)
+    assert grown["y"] <= shown["y"] < grown["y"] + grown["height"] - 40, (shown, grown)
+
+    answer("One more thing: the alarms page the on-call too.")
+    expect(view.locator(".lf-primary-news:visible")).to_contain_text("1 new reply")
+    expect(messages).to_have_count(4)
+
+
+def test_new_reply_leads_to_the_reply_once_one_follows_the_work(browser, serve):
+    """Work under way that does not fit waits behind New update; the reply that follows
+    it takes the press over, which then says New reply and brings the reply's start into
+    sight, not the work before it."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Which job comes first?")
+    page = floating(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    view = page.locator(".lf-fp-view[data-view=thread]")
+    expect(view.locator(".lf-msg")).to_have_count(1)
+    settled(page)
+
+    def say(text, **kwargs):
+        thread_model.post_reply(
+            serve.page_dir, {"to": root, "for": root}, text, **kwargs
+        )
+        told(page)
+
+    press = view.locator(".lf-fp-new-reply")
+    say("Reading the jobs, the mounts and the frost dates. " * 12, ephemeral=True)
+    expect(press).to_have_text("New update")
+    say("The mounts come first. " + "They need the frost to lift. " * 30)
+    expect(press).to_have_text("New reply")
+    press.click()
+    expect(press).to_have_count(0)
+    settled(page)
+    reply = view.locator(".lf-msg", has_text="The mounts come first.")
+    shown, box = reply.bounding_box(), view.bounding_box()
+    assert box["y"] <= shown["y"] < box["y"] + box["height"] - 40, (shown, box)
+
+
+def test_a_streaming_answer_follows_into_sight_until_it_outgrows_the_view(
+    browser, serve, request
+):
+    """An answer the user waits for that streams in grows inside the view: while what
+    each step adds fits, the view's end follows it, and nothing at the head moves; a
+    step that would not fit, such as the durable answer completing it with longer words,
+    leaves New reply at the view's foot."""
+    # The threads suite imports this one, so its stream helpers come in at run time.
+    from browser.test_render_threads import claim_for_codex, stream_reply
+
+    url = serve(LONG_PAGE)
+    root = panel_comment(
+        serve.page_dir,
+        "Record the release on the board: "
+        + "which build shipped, which checks passed, and who signed it off. " * 3,
+    )
+    claim_for_codex(serve.page_dir, request)
+    stream_reply(serve.page_dir, root, "")
+    page = floating(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    view = page.locator(".lf-fp-view[data-view=thread]")
+    messages = view.locator(".lf-msg")
+    expect(messages).to_have_count(1)
+    settled(page)
+    seats = page.evaluate(HEAD_SEATS)
+    stands = view.bounding_box()
+
+    def streamed(text):
+        stream_reply(serve.page_dir, root, text)
+        told(page)
+        expect(messages.last.locator(".lf-msg-text")).to_have_text(text)
+        settled(page)
+        assert page.evaluate(HEAD_SEATS) == seats
+        assert view.bounding_box() == stands
+
+    streamed("I'll")
+    streamed("I'll record it on the board now.")
+    shown, box = messages.last.bounding_box(), view.bounding_box()
+    assert shown["y"] + shown["height"] <= box["y"] + box["height"] + 0.5
+    expect(view.locator(".lf-fp-new-reply")).to_have_count(0)
+
+    # The durable answer completes the streamed message with longer words.
+    thread_model.post_reply(
+        serve.page_dir,
+        {"to": root, "for": root},
+        "Recorded the release on the board. " + "Then I checked the totals. " * 40,
+        attempt="leaf-response-explicit",
+        identity={"agent": "Codex", "session": "codex-thread"},
+    )
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        transaction.clear_stream_reply("codex-thread", "leaf-turn")
+    told(page)
+    expect(messages.last.locator(".lf-msg-text")).to_contain_text(
+        "Recorded the release"
+    )
+    expect(view.locator(".lf-fp-new-reply")).to_have_text("New reply")
+    settled(page)
+    assert page.evaluate(HEAD_SEATS) == seats
+    assert view.bounding_box() == stands
 
 
 def test_an_open_view_covers_the_page_beneath_it(browser, serve):

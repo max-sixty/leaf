@@ -397,11 +397,6 @@
   padding: var(--sp-2) 0;
 }
 @media print {
-  .lf-diff-tools,
-  .lf-diff-file-actions,
-  .lf-diff-comment {
-    display: none !important;
-  }
   .lf-diff-file > :is(.lf-diff-fold, .lf-diff-metadata) {
     margin-top: 0 !important;
   }

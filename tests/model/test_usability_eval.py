@@ -25,17 +25,15 @@ def test_every_scenario_has_fixed_nonvacuous_checks():
         judged = [r["metric"] for r in cases[case]["assert"]]
         assert len(expected) > 1 or judged
         assert len(set(expected + judged)) == len(expected + judged)
-        actual = checks_for(case, {}, [], False)
+        actual = checks_for(case, {}, False)
         assert list(actual) == expected
         assert not any(actual.values())
-    handoff = checks_for("handoff", {"served": True}, [], True)
+    handoff = checks_for("handoff", {"served": True}, True)
     assert handoff["served"]
     assert not handoff["question_delivered"]
-    near_miss = checks_for("near-miss", {"pages": 0}, [{"leaf_skill": False}], True)
+    near_miss = checks_for("near-miss", {"pages": 0}, True)
     assert all(near_miss.values())
-    assert not checks_for("near-miss", {"pages": 1}, [{"leaf_skill": True}], True)[
-        "no_page"
-    ]
+    assert not checks_for("near-miss", {"pages": 1}, True)["no_page"]
 
 
 def test_live_completion_requires_every_declared_round(tmp_path):
@@ -152,9 +150,14 @@ def test_native_scenario_output_preserves_unavailable_usage(
     )
     assert response.get("tokenUsage", {}) == expected
     # Each phase's final message is a text the judge can read.
-    assert response["metadata"]["texts"] == {
+    texts = response["metadata"]["texts"]
+    assert {key: value for key, value in texts.items() if key != "trace"} == {
         f"reply-{n}": "A short reply." for n in range(1, len(usage) + 1)
     }
+    assert json.loads(texts["trace"]) == [
+        {"phase": n, "records": read_trace(tmp_path / f"stream-{n}.jsonl")}
+        for n in range(1, len(usage) + 1)
+    ]
     if not expected:
         assert "tokenUsage" not in response
     phases = response["metadata"]["diagnostics"]["phases"]
@@ -187,42 +190,6 @@ def test_live_rounds_use_confirmed_receipts_before_successful_response():
     assert live_rounds(trace)[0]["end"] == 2
     assert live_rounds(trace)[0]["delivery"] == 0
     assert live_rounds(trace[:-1])[0]["end"] is None
-
-
-def test_round_scoring_leaves_the_watch_with_leaf():
-    from leaf_dev.usability_eval import live_rounds, round_scores
-
-    trace = [
-        {"type": "eval_post", "round": 1},
-        {"type": "eval_received", "round": 1},
-        {"type": "result", "result": "http://127.0.0.1:1234/?t=abc", "is_error": False},
-        {"type": "eval_status", "status": {"state": "waiting"}},
-    ]
-    assert round_scores(trace, live_rounds(trace)[0], "input")[
-        "input_watch_left_to_leaf"
-    ]
-    trace.insert(
-        2,
-        {
-            "type": "assistant",
-            "message": {
-                "content": [
-                    {
-                        "type": "tool_use",
-                        "id": "manual",
-                        "name": "Bash",
-                        "input": {
-                            "command": "leaf wait page",
-                            "run_in_background": True,
-                        },
-                    }
-                ]
-            },
-        },
-    )
-    assert not round_scores(trace, live_rounds(trace)[0], "input")[
-        "input_watch_left_to_leaf"
-    ]
 
 
 def test_handoff_url_must_match_the_server_observed_by_the_live_run():

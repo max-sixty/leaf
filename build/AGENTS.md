@@ -1,17 +1,20 @@
 # Committed bundles
 
 This directory builds the browser bundles Leaf commits: everything under
-`skills/leaf/assets/vendor/` and each package's `vendor/`.
+`skills/leaf/assets/vendor/`, each package's `vendor/`, and the compiled kernel in
+`skills/leaf/kernel/`.
 Installation, page init, and export consume that committed output and never run a
 compiler, so nothing here runs on a host.
 
-`runtime-bundle.mjs` compiles the kernel for the website, suite, and developer
-previews. `leaf_dev.distribution` shares one compiled payload per relevant byte
-revision; producer metadata gets a new installation snapshot without recompiling.
-The named runtime entries include core and optional overlay diagnostics, so core
-checks never load the physical renderer. Generated kernel chunks never enter Git.
-Consumer installs serve the source modules; package authors use native JavaScript
-without a build.
+`runtime-bundle.mjs` compiles the kernel, readable and with chunk names that hold
+across rebuilds, so that branches conflict in it rarely; its header records why.
+An install vendors it into pages while `kernel.json` records the tree's modules as
+they are, and the source modules otherwise (`leaf.layer.current_kernel`), so an
+unrebuilt runtime edit never ships a kernel built from other source. The website,
+suite, and developer previews compile it again for their own tree
+(`leaf_dev.distribution`), so they run the kernel even while it is stale. The named
+runtime entries include core and optional overlay diagnostics, so core checks never
+load the physical renderer. Package authors use native JavaScript without a build.
 
 `browser/build.mjs` is the one builder: `pnpm run build:browser` writes every
 output below, and `pnpm run check:browser`, part of `pnpm run check`, compares a
@@ -25,8 +28,7 @@ framework and the browser's JavaScript (`browser/tsconfig.json` and
   export cannot load and writes each bundle's license notices; every build here passes its
   output through it. Branches that change the framework therefore conflict in its
   output only where their TypeScript conflicts, and `check:browser` confirms a merge
-  equals a rebuild. `runtime-bundle.mjs` compiles the framework into the kernel for
-  delivery.
+  equals a rebuild. `runtime-bundle.mjs` compiles the framework into the kernel.
 - `initial.mjs` builds each package's synchronous initial drawing from its
   `initial.js` into the one bundle its registry declares with `x-initial`.
 - `styles.mjs` resolves native CSS imports in component source entrypoints under
@@ -43,10 +45,15 @@ framework and the browser's JavaScript (`browser/tsconfig.json` and
   `floating-ui-element-zoom.patch` locally completes that conversion for a floating
   element zoomed relative to an Element offset parent, including border origins
   and overflow lengths.
+- `runtime-bundle.mjs` runs last, on the layer the rows above leave, and writes the
+  kernel.
 
 After `pnpm install --frozen-lockfile`, the build reproduces the tracked bytes, so a
-diff after a rebuild means the lock, a build script, or the registry input an output
-reads changed.
+diff after a rebuild means the lock, a build script, a runtime module, or the
+registry input an output reads changed. A change to `skills/leaf/assets/leaf.js` or
+to a `.js` module under its `runtime/`, `vendor/` or `widgets/` therefore takes a
+rebuild in the same change, and a kernel file that conflicts in a merge is resolved by merging
+`main` and rebuilding, never by hand.
 Rebuild after any of those changes:
 
 ```sh

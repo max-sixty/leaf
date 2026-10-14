@@ -291,7 +291,7 @@ test("an item the band's top cuts holds the place only where none begins in view
   scroller.remove();
 });
 
-test("a synchronous hold claims no anchoring and absorbs the browser's", () => {
+test("a synchronous hold claims no anchoring and absorbs the browser's", async () => {
   const { scroller, item, at, scrolled, scrollTo } = laidOut();
   const nodes = ["a", "b"].map((id, index) => item(id, 1000 + index * 150));
   scroller.append(...nodes);
@@ -310,5 +310,12 @@ test("a synchronous hold claims no anchoring and absorbs the browser's", () => {
   });
   assert.equal(scrolled(), 1100);
   assert.equal(nodes[0].getBoundingClientRect().top, 0);
+  // A surrounding presentation may already own anchoring across tasks. A
+  // synchronous measurement must neither claim that property nor release it later.
+  scroller.style.setProperty("overflow-anchor", "none");
+  const held = place.take({ spans: false });
+  place.finish(held);
+  await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve)));
+  assert.equal(scroller.style.getPropertyValue("overflow-anchor"), "none");
   scroller.remove();
 });

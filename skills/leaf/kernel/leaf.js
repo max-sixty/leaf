@@ -5149,12 +5149,7 @@ function createAnchorControls({
     for (const candidate of pageQueryAll(visualSelector())) {
       const found = visualAt(candidate);
       if (!found || found.element !== candidate) continue;
-      let parts;
-      try {
-        parts = visualParts(candidate, { strict: true });
-      } catch {
-        continue;
-      }
+      const parts = visualParts(candidate);
       const targets2 = [
         {
           anchor: { section: found.id },
@@ -7591,6 +7586,7 @@ function createFloatingPanel({
   let drawnThread = null;
   let waiting = null;
   let fitted = null;
+  let placed = null;
   function fitAnswer() {
     const top = trail.at(-1);
     const view = openView();
@@ -7635,8 +7631,13 @@ function createFloatingPanel({
       const reply = answer.keys.find((key) => !message(key).ephemeral);
       const next = reply ? { key: top.thread, message: reply, label: "New reply" } : { key: top.thread, message: answer.keys[0], label: "New update" };
       if (waiting?.message !== next.message) {
+        const extent = !waiting && atEnd ? view.scrollHeight : null;
         waiting = next;
         paint();
+        if (extent !== null) {
+          view.scrollTop += view.scrollHeight - extent;
+          placed = view.scrollTop;
+        }
       }
       return;
     }
@@ -7663,8 +7664,8 @@ function createFloatingPanel({
     if (node) scrollIntoView(node, { block: "start" });
   }
   function sawAnswer(event) {
-    if (!waiting) return;
     const view = event.currentTarget;
+    if (!waiting || view.scrollTop === placed) return;
     const node = view.querySelector(
       `.lf-msg[data-message="${CSS.escape(waiting.message)}"]`
     );
@@ -7700,6 +7701,7 @@ function createFloatingPanel({
     if (changed) {
       rooms.clear();
       waiting = null;
+      placed = null;
       drawnThread = null;
       onPageSeat = false;
     }
@@ -8079,9 +8081,11 @@ function createFloatingPanel({
     if (!thread)
       return html`<p class="lf-fp-empty">This thread is not on the page.</p>`;
     return html`<div class="lf-fp-messages lf-fp-outlet"></div>
-      ${waiting?.key === key ? html`<button type="button" class="lf-fp-new-reply" @click=${showAnswer}>
-              ${iconTemplate("down", "lf-action-icon")}${waiting.label}
-            </button>` : nothing}`;
+      ${waiting?.key === key ? html`<div class="lf-fp-foot">
+              <button type="button" class="lf-fp-new-reply" @click=${showAnswer}>
+                ${iconTemplate("down", "lf-action-icon")}${waiting.label}
+              </button>
+            </div>` : nothing}`;
   }
   let queueTab = "you";
   let seated = null;

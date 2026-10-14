@@ -124,10 +124,10 @@ build wrote, a caller reading what admission accepted. The reader uses it direct
 the producer's own tests hold its shape. What a person or an agent can write on the way
 is input even when Leaf code sent it: a request the browser posts, a file an agent
 edits, the answer of leaf.page's container, whose agent a visitor steers (root
-`AGENTS.md`, "Validate once and share readings"). The exception is a record an older
-Leaf left in the state home, which root `AGENTS.md`, "Stage", has the reader tolerate.
-Recovery from a state no Leaf writer produces goes the same way: delete it with the test
-that manufactures the state to reach it.
+`AGENTS.md`, "Validate once and share readings"). Code that recovers from a state no
+current Leaf writer produces, including a record an older Leaf left in the state home
+(root `AGENTS.md`, "Stage"), is deleted together with the test that manufactures that
+state.
 
 ## Explore an open design
 

@@ -23,8 +23,7 @@ import {
   registeredVisualPartLabel,
   revealRegisteredVisualPart,
   revealsVisualParts,
-  usableVisualPartAt,
-  usableVisualParts,
+  registeredVisualPartAt,
   registeredVisualParts,
   visualPartAdmission,
 } from "./visual-parts.js";
@@ -198,12 +197,10 @@ const wholeVisualSurface = (element) =>
   registry[element?.localName]?.["x-visual"] ? element : null;
 
 /** The admitted parts in their registered inventory order. */
-export function visualParts(visual, { strict = false } = {}) {
+export function visualParts(visual) {
   const admits = visualAdmission(visual);
   if (!admits) return [];
-  return (strict ? registeredVisualParts(visual) : usableVisualParts(visual)).filter(
-    (part) => admits(part.id),
-  );
+  return registeredVisualParts(visual).filter((part) => admits(part.id));
 }
 
 const admitsVisualPart = (visual, part) => visualAdmission(visual)?.(part) ?? false;
@@ -220,7 +217,9 @@ function revealVisualPart(visual, part) {
 
 function visualPartAt(visual, target) {
   const admits = visualAdmission(visual);
-  return admits ? usableVisualPartAt(visual, target, (part) => admits(part.id)) : null;
+  return admits
+    ? registeredVisualPartAt(visual, target, (part) => admits(part.id))
+    : null;
 }
 
 export const visualPartLabel = (visual, part) =>

@@ -611,11 +611,13 @@ def test_threads_is_as_tall_as_the_threads_it_first_shows(browser, serve):
     inventory = page.locator(".lf-fp-view[data-view=threads]")
     expect(inventory.locator(".lf-fp-thread")).to_have_count(3)
     settled(page)
-    below = inventory.evaluate(
-        """view => view.getBoundingClientRect().bottom
-          - view.querySelector('.lf-fp-thread:last-child').getBoundingClientRect().bottom"""
+    below, row = inventory.evaluate(
+        """view => {
+          const last = view.querySelector('.lf-fp-thread:last-child').getBoundingClientRect();
+          return [view.getBoundingClientRect().bottom - last.bottom, last.height];
+        }"""
     )
-    assert below < 12, f"{below:.0f}px stand empty under the last thread"
+    assert below < row, f"{below:.0f}px stand empty under the last thread"
 
 
 def test_about_s_rows_that_copy_say_what_they_copy(browser, serve):
@@ -765,6 +767,7 @@ THREAD_FIT = """() => {
     height: box.height,
     scrolls: view.scrollHeight > view.clientHeight + 1,
     below: box.bottom - messages.at(-1).getBoundingClientRect().bottom,
+    room: parseFloat(getComputedStyle(view).paddingBottom),
     first: messages[0].getBoundingClientRect().top,
     panel: document.querySelector('.lf-fp-card').getBoundingClientRect().top,
   };
@@ -799,7 +802,8 @@ def test_a_thread_s_view_is_as_tall_as_its_messages(browser, serve):
     settled(page)
     short = page.evaluate(THREAD_FIT)
     assert not short["scrolls"]
-    assert short["below"] < 16, short
+    # Nothing stands under its message but the room the line over the field lies in.
+    assert short["below"] - short["room"] < 10, short
 
     page.keyboard.press("Escape")
     page.locator(".lf-fp-threads").click()
@@ -988,6 +992,100 @@ def test_a_streaming_answer_follows_into_sight_until_it_outgrows_the_view(
     settled(page)
     assert page.evaluate(HEAD_SEATS) == seats
     assert view.bounding_box() == stands
+
+
+FOOT_CLEAR = """([words, fromEnd]) => {
+  const view = document.querySelector('.lf-fp-view:not([data-leaving])');
+  const text = [...view.querySelectorAll(words)].at(-1 - fromEnd).getBoundingClientRect();
+  const over = ['.lf-fp-context:not([hidden])', '.lf-fp-new-reply']
+    .map((selector) => document.querySelector(selector)?.getBoundingClientRect())
+    .filter(Boolean);
+  return {
+    over: over.length,
+    gap: Math.min(...over.map((box) => box.top - text.bottom)),
+  };
+}"""
+
+
+def test_nothing_in_a_view_stands_under_the_line_or_new_reply(browser, serve):
+    """The line over the field and New reply stand at the view's foot on the panel's
+    ground, and the view keeps room below its last words for them: at the view's end
+    its last words stand clear of both, in a long thread the user types at the end of,
+    in a long Threads list, and in a thread whose answer waits below the fold, where
+    the user's own last turn stays clear of the press that leads to it."""
+    url = serve(LONG_PAGE, comments=12)
+    long_root = panel_comment(serve.page_dir, "Walk me through the whole rollout.")
+    for step in range(8):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Claude",
+                "parent": long_root,
+                "revision": 1,
+                "text": f"Step {step}. "
+                + "The cohort widens once the alarms hold. " * 4,
+            },
+        )
+    page = floating(browser, url)
+
+    def clear(words):
+        page.locator(".lf-fp-view:not([data-leaving])").evaluate(
+            "view => view.scrollTop = view.scrollHeight"
+        )
+        settled(page)
+        foot = page.evaluate(FOOT_CLEAR, [words, 0])
+        assert foot["over"] == 1, foot
+        assert foot["gap"] >= 0, foot
+
+    page.locator(".lf-fp-threads").click()
+    page.locator(".lf-fp-filters button", has_text="Open").click()
+    inventory = page.locator(".lf-fp-view[data-view=threads]")
+    expect(inventory.locator(".lf-fp-thread")).to_have_count(13)
+    field(page).click()
+    page.keyboard.type("Could")
+    expect(page.locator(".lf-fp-context")).to_have_text("Comment on the page")
+    clear(".lf-fp-thread .lf-fp-label")
+
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.press("Backspace")
+    inventory.locator(".lf-fp-thread", has_text="Walk me through").click()
+    reader = page.locator(".lf-fp-view[data-view=thread]")
+    expect(reader.locator(".lf-msg")).to_have_count(9)
+    field(page).click()
+    page.keyboard.type("Could")
+    expect(page.locator(".lf-fp-context")).to_have_text("Reply in this thread")
+    clear(".lf-msg-text")
+
+    # The answer to the user's turn waits below the fold behind New reply, while the
+    # line says the agent replied.
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.type("And the weekend?")
+    with sending(page, "the reply"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    expect(reader.locator(".lf-msg")).to_have_count(10)
+    settled(page)
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": long_root,
+            "revision": 1,
+            "text": "It would. "
+            + "Someone stays on call through Sunday, and Monday too. " * 40,
+        },
+    )
+    told(page)
+    expect(reader.locator(".lf-fp-new-reply")).to_have_text("New reply")
+    expect(page.locator(".lf-fp-context")).to_have_text("Claude replied")
+    settled(page)
+    # The user's own turn, the last message but the answer below the fold.
+    foot = page.evaluate(FOOT_CLEAR, [".lf-msg-text", 1])
+    assert foot["over"] == 2, foot
+    assert foot["gap"] >= 0, foot
 
 
 def test_an_open_view_covers_the_page_beneath_it(browser, serve):

@@ -129,9 +129,14 @@
           display: inline-flex; align-items: center; justify-content: center;
           border-radius: var(--r);
           opacity: 0; cursor: pointer; }
-.lf-msg-control-icon { inline-size: 16px; block-size: 16px; overflow: visible;
-          fill: none; stroke: currentColor; stroke-width: 1.6;
-          stroke-linecap: round; stroke-linejoin: round; }
+/* Every Leaf icon (icons.js) is drawn the same way, whatever class its caller sizes or
+   places it by: a round-capped stroke in the text's colour, unfilled, so no caller's
+   class can leave one drawn as the browser's default black fill. It keeps the size that
+   class gives it, which the page's rule for its own pictures (theme.css, `max-width`)
+   would otherwise narrow to a holder no wider than the icon. */
+svg[data-lf-icon] { max-width: none; overflow: visible; fill: none; stroke: currentColor;
+          stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.lf-msg-control-icon { inline-size: 16px; block-size: 16px; }
 .lf-msg:is(:hover, [data-lf-focus-within]) .lf-msg-control,
 .lf-msg-control[data-lf-focus] { opacity: 1; }
 .lf-react-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 4px;

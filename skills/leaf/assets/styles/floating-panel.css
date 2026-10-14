@@ -254,8 +254,10 @@
     min-height: 32px;
     padding: 0;
   }
-  /* Dictation is offered in the field the user is in, not at rest. */
-  .lf-fp-box:not(:has(leaf-text[data-lf-focus])) .lf-compose-dictate {
+  /* Dictation is offered while the user writes in the panel, not at rest. Writing lasts
+     while they stay in the panel (floating-panel.js, `writing`), so Tab from the field
+     lands on Dictate rather than hiding it as the field lets go. */
+  .lf-floating-panel:not([data-writing]) .lf-compose-dictate {
     display: none;
   }
 

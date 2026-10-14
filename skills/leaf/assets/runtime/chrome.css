@@ -208,7 +208,7 @@
     min-height: 32px;
     padding: 0;
   }
-  .lf-fp-box:not(:has(leaf-text[data-lf-focus])) .lf-compose-dictate {
+  .lf-floating-panel:not([data-writing]) .lf-compose-dictate {
     display: none;
   }
   .lf-fp-quick {
@@ -1409,11 +1409,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     flex: none;
     inline-size: 16px;
     block-size: 16px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.6;
-    stroke-linecap: round;
-    stroke-linejoin: round;
   }
   :is(.lf-threads-toggle[data-unread-threads], .lf-banner-more[data-lf-news], .lf-version[data-lf-news])::after {
     content: "";
@@ -1505,11 +1500,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     vertical-align: middle;
     inline-size: 16px;
     block-size: 16px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.6;
-    stroke-linecap: round;
-    stroke-linejoin: round;
   }
   .lf-banner-actions .lf-page-comment-label,
   .lf-banner-menu .lf-page-comment-icon {
@@ -2914,11 +2904,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     width: 16px;
     height: 16px;
     align-self: center;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.5;
-    stroke-linecap: round;
-    stroke-linejoin: round;
   }
   .lf-page-map-action-label {
     min-width: 0;

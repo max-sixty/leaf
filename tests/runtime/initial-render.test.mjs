@@ -165,3 +165,37 @@ test("an arriving source root keeps its declared parent and exhibit fence", () =
   });
   assert.equal(after.descriptors.get("arrival").quoted, true);
 });
+
+test("member state owns each physical slot independently across a hierarchy", () => {
+  const root = document.createElement("main");
+  root.innerHTML = `<lf-audit-board id="outer">
+    <lf-audit-zone id="one"><lf-audit-card id="card" selected phase="idle">
+      <lf-audit-board id="inner"><lf-audit-zone id="inner-zone">
+        <lf-audit-card id="inner-card" selected phase="idle">Inner</lf-audit-card>
+      </lf-audit-zone></lf-audit-board>
+    </lf-audit-card></lf-audit-zone><lf-audit-zone id="two"></lf-audit-zone>
+  </lf-audit-board>`;
+  const declarations = {
+    $layer: { generation: "independent-member-records" },
+    "lf-audit-board": {
+      "x-state": {
+        move: { unit: "unit", record: { kind: "position", within: "lf-audit-zone" } },
+      },
+    },
+    "lf-audit-zone": {
+      "x-state": {
+        choose: { unit: "widget", record: { kind: "attribute", attr: "selected" } },
+      },
+    },
+    "lf-audit-card": {
+      "x-state": {
+        phase: { unit: "widget", record: { kind: "value", attr: "phase" } },
+      },
+    },
+  };
+  adoptRegistry(declarations);
+  const states = stageAuthoredStates(root, new Map());
+  assert.deepEqual(states.get("outer").state.move.value, { one: ["card"], two: [] });
+  assert.deepEqual(states.get("one").state.choose.value, ["card"]);
+  assert.deepEqual(states.get("inner-zone").state.choose.value, ["inner-card"]);
+});

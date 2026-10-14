@@ -4,7 +4,6 @@ import {
   createPresentationCoordinator,
   createPresentationSchedule,
   describeFailure,
-  PRESENTATION_HELD,
 } from "./presentation.ts";
 
 // Present `value` and settle its ticket with `proof` at once.
@@ -545,7 +544,7 @@ test("a domain-scoped wait retires when its value is superseded in the same epoc
 
 const flushed = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-test("one pass paints its presenters in declared order and coalesces repeated claims", async () => {
+test("passes read current presenter order and coalesce repeated claims", async () => {
   const { coordinator } = setup();
   const document = {};
   const publication = coordinator.begin(document, 0);
@@ -561,8 +560,9 @@ test("one pass paints its presenters in declared order and coalesces repeated cl
       },
     });
   // Registered out of order, claimed out of order: the pass still runs them by rank.
-  const late = presenter("thread", 1);
-  const early = presenter("projection", 0);
+  let projectionOrder = -1;
+  const late = presenter("thread", -0.5);
+  const early = presenter("projection", () => projectionOrder);
   void late.sync("first");
   void early.sync("only");
   const ready = late.sync("second");
@@ -572,6 +572,14 @@ test("one pass paints its presenters in declared order and coalesces repeated cl
   await ready;
   assert.deepEqual(painted, ["projection:only", "thread:second"]);
   assert.equal(coordinator.read().presentedEpoch, 0);
+
+  projectionOrder = -1 / 3;
+  const next = coordinator.begin(document, 1);
+  void early.sync("next");
+  const reordered = late.sync("next");
+  coordinator.seal(next);
+  await reordered;
+  assert.deepEqual(painted.slice(2), ["thread:next", "projection:next"]);
 });
 
 test("a reading held open does not keep the next one off the page", async () => {
@@ -626,28 +634,6 @@ test("a superseded claim releases its hold without painting", async () => {
 
   await Promise.all([stale, current]);
   assert.deepEqual(painted, ["current"]);
-  assert.equal(coordinator.read().presentedEpoch, 0);
-});
-
-test("a held reading keeps its region pending until the next claim supersedes it", async () => {
-  const { coordinator } = setup();
-  const document = {};
-  const renderer = {};
-  const publication = coordinator.begin(document, 0);
-  const schedule = createPresentationSchedule((callback) => callback);
-  let hold = true;
-  const presenter = schedule.presenter({
-    attach: () => coordinator.attach("projection:chrome", renderer),
-    paint: (value) => (hold ? PRESENTATION_HELD : value),
-  });
-  const deferred = presenter.sync("deferred");
-  coordinator.seal(publication);
-  await deferred;
-  assert.deepEqual(coordinator.read().pending, ["projection:chrome"]);
-
-  hold = false;
-  await presenter.sync("resumed");
-  assert.deepEqual(coordinator.read().pending, []);
   assert.equal(coordinator.read().presentedEpoch, 0);
 });
 

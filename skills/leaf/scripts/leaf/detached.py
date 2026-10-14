@@ -24,6 +24,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from .harness import Harness, detached_environment
+from .machine import sandbox_refusal
 from .refusals import Refused
 
 
@@ -156,7 +157,7 @@ class Handshake:
             # Worded as the CLI words each at its own boundary: a refusal by its
             # reason, an exit by its status, and any other fault by its class.
             if isinstance(error, Refused):
-                reason = str(error)
+                reason = sandbox_refusal(error) or str(error)
             elif isinstance(error, SystemExit):
                 reason = f"exited with status {error.code}"
             else:

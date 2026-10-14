@@ -6,10 +6,9 @@
    (`collectReads`, snapshot.ts), into one record: every part of the publication it
    reads through a reader that selects its part (`readPart`, `readAsks`, a widget's
    controller, the runtime getters), and every reading of something outside the
-   publication (`outsideReading`): the time it shows (`clockValue`, `ago`), whether a
-   drag holds the projection back, and how many times the page has announced
-   `PRESENTATION`. Every paint reads the last two, since a paint may draw from nodes
-   they decide. The watcher follows each entry by the same rule, and a change that
+   publication (`outsideReading`): the time it shows (`clockValue`, `ago`), and how many
+   times the page has announced `PRESENTATION`. Every paint reads the last, since a
+   paint may draw from nodes it decides. The watcher follows each entry by the same rule, and a change that
    moves none of them paints nothing. So a paint never names its inputs, and none it
    reads can go unwatched. Only reads made synchronously count: a read after an `await`
    in an asynchronous paint, or of the document's nodes, is the caller's to watch, and
@@ -31,9 +30,8 @@
    paint it draws that one at once. A reading has no watcher of its own: a paint calls
    its reader (`readAsks`, `readQueues`, `readThreads`, `readWork`, `reportSequence`,
    `readHistory`), and one watcher serves a paint that reads several. */
-import { collectReads, outsideReading } from "../vendor/browser-runtime.js";
+import { collectReads, outsideReading } from "/vendor/browser-runtime.js";
 import { watchPresentation } from "./semantic-state.js";
-import { projectionDeferred, watchProjectionDeferral } from "./projection/state.js";
 import { PRESENTATION } from "./presentation.js";
 import { watchOwner } from "./arrivals.js";
 import { readingPaint } from "./presence.js";
@@ -47,7 +45,6 @@ document.addEventListener(PRESENTATION, () => {
   const round = {};
   for (const moved of [...heard]) moved(round);
 });
-const deferral = outsideReading(projectionDeferred, watchProjectionDeferral);
 const presented = outsideReading(
   () => presentations,
   (moved) => {
@@ -94,7 +91,6 @@ export function watchProjection(owner, paint, ready = null) {
     if (ready !== null && !ready()) return draw.forget();
     const outcome = collectReads(() => {
       presented.read();
-      deferral.read();
       return paint();
     });
     read = outcome.reads;

@@ -162,7 +162,7 @@ function render(host, { tabStore, offer, keeps }) {
   if (interactive) {
     const railed = controls.filter((control) => control.parentElement === host);
     const panel = node("div", "lf-playground-controls");
-    const panelTitle = node("p", "lf-playground-controls-title", "Controls");
+    const panelTitle = node("p", "lf-playground-controls-title lf-label", "Controls");
     panelTitle.id = `${host.id}-controls-title`;
     panel.setAttribute("role", "group");
     panel.setAttribute("aria-labelledby", panelTitle.id);
@@ -283,7 +283,11 @@ function render(host, { tabStore, offer, keeps }) {
       pane(
         "instruction",
         "Instruction to agent",
-        node("header", "lf-playground-instruction-title", "Instruction to agent"),
+        node(
+          "header",
+          "lf-playground-instruction-title lf-label",
+          "Instruction to agent",
+        ),
         output,
         actions,
       ),

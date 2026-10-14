@@ -1,5 +1,6 @@
 """Filesystem path identity, containment, and overlap."""
 
+import fcntl
 import hashlib
 import os
 import sys
@@ -142,6 +143,37 @@ def paths_same(left: Path, right: Path) -> bool:
     # Containment both ways is equality of the canonical form: neither path can
     # be a strict ancestor of the other and still contain it.
     return path_location(left) == path_location(right)
+
+
+def canonical_path(path: Path, *, strict: bool = False) -> Path:
+    """`path` resolved and spelled as the filesystem stores it.
+
+    A case-insensitive volume opens `Notes.txt` when asked for `NOTES.TXT`, and
+    `resolve` keeps the spelling it was asked for, while native notifications and
+    directory listings report the stored one. A path Leaf keeps, keys state on, or
+    compares with notifications therefore enters in this form, so each file has one
+    spelling. Darwin names an open descriptor's stored path (`F_GETPATH`); on another
+    platform the resolved path stands. Components below the deepest existing
+    ancestor keep the spelling asked for, since nothing stores them yet."""
+    resolved = path.resolve(strict=strict)
+    if not hasattr(fcntl, "F_GETPATH"):
+        return resolved
+    ancestor, tail = resolved, []
+    while True:
+        try:
+            # O_NONBLOCK keeps a FIFO from waiting for a writer.
+            descriptor = os.open(ancestor, os.O_RDONLY | os.O_NONBLOCK)
+        except (FileNotFoundError, NotADirectoryError):
+            tail.append(ancestor.name)
+            ancestor = ancestor.parent
+            continue
+        break
+    try:
+        # 1024 is Darwin's MAXPATHLEN, the longest path F_GETPATH answers.
+        stored = fcntl.fcntl(descriptor, fcntl.F_GETPATH, bytes(1024))
+    finally:
+        os.close(descriptor)
+    return Path(os.fsdecode(stored.rstrip(b"\0"))).joinpath(*reversed(tail))
 
 
 def path_lock_key(path: Path) -> str:

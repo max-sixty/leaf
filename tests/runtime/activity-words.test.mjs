@@ -208,6 +208,7 @@ test("an unreachable server, a refused key and an unappliable state each say wha
     summary: "Server offline — reconnecting; keep page open",
     explanation:
       "Server offline — reconnecting. Keep this page open so pending changes can send.",
+    adds: "",
   });
   assert.deepEqual(pageStatus(null, { reach: "refused" }), {
     kind: "unreachable",
@@ -215,13 +216,49 @@ test("an unreachable server, a refused key and an unappliable state each say wha
     summary: "Key refused — open Leaf's link in a new tab",
     explanation:
       "The server no longer accepts this tab's key. Open the link Leaf printed in a new tab, and keep this one open so pending changes can send.",
+    adds: "Keep this tab open so pending changes can send.",
+    asks: true,
   });
   assert.deepEqual(pageStatus(null, { reach: "broken" }), {
     kind: "broken",
     tone: "offline",
     summary: "Page couldn't apply current state — reload",
     explanation: "Page couldn't apply current state — reload",
+    adds: "",
+    asks: true,
   });
+});
+
+test("a status asks the user to act only where its words do", () => {
+  const asks = (activity) =>
+    statusModel(pageStatus(state(activity)), NO_QUEUES, "Claude").asks;
+  // A nudge, the agent's declared request, and work waiting in its own session ask.
+  assert.equal(asks({ kind: "away", dropped: true, counts: { overdue: 1 } }), true);
+  assert.equal(asks({ kind: "listening", detail: "pick a storage engine" }), true);
+  assert.equal(
+    asks({ kind: "working", observed_kind: "awaiting_approval", awaiting: true }),
+    true,
+  );
+  // Work, waiting the agent's turn, the stock words that say where a comment starts,
+  // and a request the user's input already answers only report.
+  assert.equal(asks({ kind: "working", detail: "revising the plan" }), false);
+  assert.equal(asks({ kind: "away", detail: "" }), false);
+  assert.equal(asks({ kind: "listening", detail: "" }), false);
+  assert.equal(
+    asks({
+      kind: "listening",
+      detail: "pick a storage engine",
+      counts: { pending: 1 },
+    }),
+    false,
+  );
+  assert.equal(asks({ kind: "stalled", ts: minutesAgo(20) }), false);
+  assert.equal(asks({ kind: "unheld" }), false);
+  // A server that went away reconnects by itself; a refused key waits on the user.
+  const reached = (reach) =>
+    statusModel(pageStatus(null, { reach }), NO_QUEUES, "Claude").asks;
+  assert.equal(reached("unreachable"), false);
+  assert.equal(reached("refused"), true);
 });
 
 test("the disclosure names what waits on each side, and the row counts the agent's", () => {
@@ -237,7 +274,7 @@ test("the disclosure names what waits on each side, and the row counts the agent
   const long = statusModel(status, queues, "Codex Research Agent");
   assert.deepEqual(
     [long.queues, long.queuesWidest],
-    ["On Codex Resea…: 2", "On Codex Resea…: 9"],
+    ["On Codex Resea…: 2", "On Codex Resea…: 99"],
   );
   assert.match(long.explanation, /Waiting on Codex Research Agent: 1 reply/);
   assert.equal(
@@ -258,6 +295,44 @@ test("the disclosure names what waits on each side, and the row counts the agent
       "Server offline — reconnecting. Keep this page open so pending changes can send.",
     ],
   );
+});
+
+test("what the disclosure adds to the row says only what the row does not", () => {
+  const reading = servedReading("queues on both sides");
+  const { queues } = reading.browser.views["1"];
+  const adds = (activity, onBoth = NO_QUEUES) =>
+    statusModel(pageStatus(state(activity)), onBoth, "Claude").adds;
+  const work = { kind: "working", detail: "revising the plan", ts: minutesAgo(0) };
+  // Working restates the row; what follows the sentence is all it adds.
+  assert.equal(adds(work), "");
+  assert.equal(
+    adds({ ...work, observed_kind: "tool", observed: "Running the tests" }, queues),
+    "Running the tests. Waiting on me: 2 asks, 1 to-do (Try the build on a phone), 2 updates to send again. Waiting on Claude: 1 reply, 1 to-do (Rebuild the chart).",
+  );
+  assert.equal(adds({ kind: "listening", detail: "pick a storage engine" }), "");
+  // What the sentence says past the row, without the state the row already says.
+  assert.equal(
+    adds({
+      kind: "working",
+      detail: "",
+      ts: minutesAgo(0),
+      counts: { handling: 1, handling_comments: 1 },
+    }),
+    "It hasn't said what it's doing yet.",
+  );
+  assert.equal(
+    adds({
+      kind: "listening",
+      detail: "pick a storage engine",
+      counts: { pending: 1 },
+    }),
+    "It asked: pick a storage engine. 1 response owed on updates awaiting delivery.",
+  );
+  assert.equal(
+    adds({ kind: "away", detail: "" }),
+    "Updates are saved. It picks them up next turn.",
+  );
+  assert.equal(pageStatus(null, { reach: "unreachable" }).adds, "");
 });
 
 test("a published page introduces itself and its links in place of the status", () => {

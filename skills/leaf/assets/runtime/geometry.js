@@ -226,7 +226,7 @@ export function shownBand(el) {
 // container: `auto` and `scroll`, and `hidden` too, which a script or a landing can
 // scroll though the user cannot, and which is the scroller a sticky box inside it sticks
 // in. The runtime asks it of what a motion scrolls and which boxes scroll what they
-// hold (scroll-motion.js, `scrollsContent`), and of the boxes that hold sticky headers
+// hold (`scrollsContent`), and of the boxes that hold sticky headers
 // (`scrollContainer`). `userScrollport` is the same test without `hidden`: what the
 // user, rather than a script, can scroll, which keyboard stops and edge marks read
 // (reach.js, `paintSlot`), and the render checks asking what a reader can reach.
@@ -238,6 +238,17 @@ const scrolls = (el) => scrollsBy(getComputedStyle(el));
 // A scroll container: the document's own scroller, or a box whose overflow scrolls.
 export const scrollContainer = (box) =>
   box === box.ownerDocument.scrollingElement || scrolls(box);
+// Whether `box` scrolls what it holds: it clips into a scrollport, `hidden` included,
+// which a script or focus can scroll, and holds more than that scrollport shows on that
+// axis. An inline SVG drawing clips what it draws but scrolls none of it.
+export function scrollsContent(box) {
+  if (!(box instanceof Element) || box instanceof SVGElement) return false;
+  const style = getComputedStyle(box);
+  return (
+    (scrollport(style.overflowX) && box.scrollWidth > box.clientWidth) ||
+    (scrollport(style.overflowY) && box.scrollHeight > box.clientHeight)
+  );
+}
 // How far below the top of `scroller`'s band the view of `el` starts, past the sticky
 // headers stuck over it. Each header adds its stated height to `--lf-top` for what it
 // stands over (theme.css), so where the `--lf-top` computed at `el` exceeds the
@@ -1022,6 +1033,9 @@ export const clippedPlace = (where, clips, box = placeBox(where)) =>
 // Where a box stacks among the page's root-level layers: the z-index of its outermost
 // positioned ancestor that sets one, and above all of them in the top layer. Both are
 // read up the tree as rendered, where a slotted box stacks inside its slot's ancestors.
+// For anything in `main` that ancestor is `main`, a stacking context at 0 (theme.css,
+// at the ladder), so a page box reads 0 whatever z-index it or a box around it sets,
+// unless it stands in the top layer.
 export function stackLevel(node) {
   let level = 0;
   for (let a = node; a; a = renderedParent(a)) {

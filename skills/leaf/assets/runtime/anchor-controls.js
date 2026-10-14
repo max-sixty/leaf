@@ -23,7 +23,7 @@ import {
   nothing,
   render as renderTemplate,
   repeat,
-} from "../vendor/browser-runtime.js";
+} from "/vendor/browser-runtime.js";
 import {
   fragmentTarget,
   annotationAt,

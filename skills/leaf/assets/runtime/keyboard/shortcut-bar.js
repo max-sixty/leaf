@@ -50,7 +50,7 @@
    are announced because the revealed hint chips themselves remain visual. When there is
    no additional current row, the first activation opens the reference directly. The
    native control also opens it directly. */
-import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
+import { html, nothing, render, repeat } from "/vendor/browser-runtime.js";
 
 import {
   activeRows,
@@ -72,7 +72,7 @@ import {
   rowSteps,
 } from "./key-sequence.js";
 import { el } from "../widget-elements.js";
-import { keeps, keepsHidden } from "../keeps.js";
+import { keeps } from "../keeps.js";
 import { lineOwner, shadow, stack, executeCommand } from "./dispatch.js";
 import { scopeIdentity } from "./scopes.js";
 
@@ -495,9 +495,9 @@ export function renderShortcutBar(goToStatus) {
   const [status] = expanded ? [] : fixedStatusBoxes();
   const reserved = status ? status.width + gap : 0;
   // Which rows fit is worked out from widths the line already has, not by showing a row
-  // to see whether it wraps: a row the line leaves keeps its width out of flow
-  // (chrome.css), so every row is measured where it stands and each `hidden` and the
-  // status room are written once, to the value they end at. The line breaks as flex-wrap
+  // to see whether it wraps: a row the line leaves (`data-lf-off-line`) keeps its width
+  // out of flow (chrome.css), so every row is measured where it stands and each row's
+  // place and the status room are written once, to the value they end at. The line breaks as flex-wrap
   // breaks it: a box joins the row while it and the gap before it still fit.
   const outer = (node) => {
     const style = getComputedStyle(node);
@@ -560,7 +560,7 @@ export function renderShortcutBar(goToStatus) {
   const room = reserved && rowsUsed(reserved) > ceiling ? 0 : reserved;
   shortcutBarEl.style.setProperty("--lf-status-room", `${room}px`);
   for (const { presentation, span } of drawn)
-    keepsHidden(span, presentation.hidden || trimmed.has(span));
+    span.toggleAttribute("data-lf-off-line", presentation.hidden || trimmed.has(span));
 }
 
 const shortcutBarExpanded = () => shortcutBarIsExpanded && shortcutHelpAvailable();

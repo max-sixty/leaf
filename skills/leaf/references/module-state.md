@@ -4,14 +4,21 @@ Read with [module-authoring.md](module-authoring.md), which holds what every beh
 
 ## The widget controller
 
+`widgetController` belongs to a widget authored in page or message markup. A
+user-added `creates` member has no independent controller; its parent reads and
+renders that member through its own declared state. A member's asynchronous drawing
+joins the parent's presentation with `controller.present(promise)`.
+
 `widgetController(owner)` is the one semantic interface of a registry-declared widget;
 callers supply no options. Leaf captures the owner's identity and revision-bound
 declaration before upgrade, so an author change to those facts fails closed. Its
 methods are `read`, `subscribe`, `dispatch`, `defer`, and `present`.
 
-`read()` returns an immutable `{authored, state, thread, provenance, actions}` snapshot.
+`read()` returns an immutable `{authored, state, memberships, thread, provenance, actions}` snapshot.
 `authored` is the typed baseline decoded from validated source markup; `state` is that
-baseline with admitted and unresolved records folded over it; `thread.heldBy` is the
+baseline with admitted and unresolved records folded over it. `memberships` maps each
+recorded descendant attribute to its current owned member ids, so moving a member
+updates the reading even when the selected ids do not change. `thread.heldBy` is the
 `id` of the open, admitted Thread whose root holds this widget, or `null`. Each `actions`
 entry carries its availability and exact history or Undo candidates. Guard every
 optimistic mutation with its entry's availability; `dispatch()` repeats the same check.
@@ -44,8 +51,8 @@ current entry's candidates. The server remains final admission for every command
 rearrangement. Call it before the first local DOM mutation; it returns a one-shot
 `resume`. Invoke `resume` only after `dispatch` has synchronously staged the semantic
 result, or after cancellation has restored the prior local DOM; it renders the newest
-reading. While a drag is held (`dragging`, `module-input.md`, "Pointer presses"), Leaf holds new readings
-back without a `defer`.
+reading. A widget the user drags (`dragging`, `module-input.md`, "Pointer presses")
+defers for the drag, since the drag moves its nodes.
 
 `present(promise)` registers asynchronous visible preparation, such as a renderer
 loading; the page does not read as ready until it settles.

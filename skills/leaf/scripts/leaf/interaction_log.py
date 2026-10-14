@@ -164,30 +164,3 @@ def read_interactions(
         and (since is None or stamp >= since)
         and (not types or row["type"] in types or row["source"] == "reader")
     ]
-
-
-def format_interaction(row: dict) -> str:
-    """Render one line in the reader's local timezone; JSON retains full values."""
-    time = interaction_time(row["ts"]).astimezone().isoformat(timespec="milliseconds")
-    if row["source"] == "server":
-        return (
-            f"{time} server {row['method']} {row['path']} "
-            f"→ {row['status']} ({row['durationMs']} ms)"
-        )
-    context = (
-        f"{row.get('session', '?')} {row.get('page', '/')} #{row.get('sequence', '?')}"
-    )
-    detail = {
-        key: value
-        for key, value in row.items()
-        if key not in {"source", "ts", "session", "page", "sequence", "type"}
-    }
-    fields = []
-    for key, value in detail.items():
-        rendered = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
-        if len(rendered) > 200:
-            rendered = rendered[:197] + "…"
-        fields.append(f"{key}={rendered}")
-    return f"{time} {context} {row.get('type', '?')}" + (
-        " " + " ".join(fields) if fields else ""
-    )

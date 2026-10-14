@@ -297,7 +297,7 @@ customElements.define(
       rail.className = "lf-shotrail";
       rail.dataset.lfGen = "1";
       for (const state of ["before", "after"]) {
-        const caption = selectableOffer("button", "lf-shotcap");
+        const caption = selectableOffer("button", "lf-shotcap lf-label");
         caption.dataset.lfState = state;
         relabel(caption, state, { says: true });
         this.#captions.set(state, caption);
@@ -375,8 +375,9 @@ customElements.define(
       // authored controller explicitly owns that generated child's preparation;
       // standalone authored shots own their presentation themselves.
       const present =
-        this._lfPresentGenerated ??
-        ((promise) => widgetController(this).present(promise));
+        /** @type {{_lfPresentGenerated?: (promise: Promise<unknown>) => void}} */ (
+          this
+        )._lfPresentGenerated ?? ((promise) => widgetController(this).present(promise));
       const registered = this.register(shots);
       present(registered);
       void registered.then(() => this.#requestComparison());

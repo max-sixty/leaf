@@ -601,6 +601,8 @@ DECLARED_MARKS = {
 SKILL_ROOT = Path(__file__).resolve().parent.parent.parent
 PLUGIN_ROOT = SKILL_ROOT.parent.parent
 ASSETS = SKILL_ROOT / "assets"
+# The kernel compiled from ASSETS's modules, committed beside them (`layer.current_kernel`).
+KERNEL = SKILL_ROOT / "kernel"
 BUNDLED_PACKAGES = SKILL_ROOT / "packages"
 DEFAULT_PACKAGE = BUNDLED_PACKAGES / "default"
 VENDORED_FILES = ("leaf.js", "theme.css", "shadow.css", "registry.json", "icon.svg")

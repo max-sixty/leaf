@@ -49,7 +49,6 @@ from render_cases_layout import (
 from render_cases_navigation import (
     _CARD,
     DRAFT_EDITED,
-    DRAFT_TEXT,
     FIRST_PRESENTATION,
     JOURNEY_V1,
     JOURNEY_V2,
@@ -60,6 +59,7 @@ from render_cases_navigation import (
     _card_done,
     _draft_says,
     _publish,
+    actions,
     composer_quote,
     data_projection_page,
     live_watcher,
@@ -2891,17 +2891,34 @@ def test_user_overrides_identify_state_that_differs_from_authored_inputs(
     ), "the user's own honored drag marked as a change"
 
 
-def test_foreign_state_waits_until_a_live_drag_releases_the_page(browser, serve):
-    """A poll may finish while Sortable owns real page nodes. Reconciliation leaves
-    the whole page alone until the pointer releases them, then paints the same logged
-    edit on the next pass."""
-    page = open_page(browser, serve(JOURNEY_V1))
+def test_foreign_state_draws_beside_a_live_drag(browser, serve):
+    """A poll may finish while Sortable owns the dragged card. The board's gesture holds
+    only the board's drawing (`defer`); another widget draws the foreign edit at once,
+    even one above the board that grows, and the card still lands where it is dropped."""
+    draft = JOURNEY_V1.index('<lf-draft id="draft-ops">')
+    draft_end = JOURNEY_V1.index("</lf-draft>", draft) + len("</lf-draft>")
+    board = JOURNEY_V1.index('<lf-board id="board">')
+    html = (
+        JOURNEY_V1[:board]
+        + JOURNEY_V1[draft:draft_end]
+        + "\n"
+        + JOURNEY_V1[board:draft]
+        + JOURNEY_V1[draft_end:]
+    )
+    page = open_page(browser, serve(html))
     grip = page.locator("#card-x .lf-grip").bounding_box()
     page.mouse.move(grip["x"] + grip["width"] / 2, grip["y"] + grip["height"] / 2)
     page.mouse.down()
-    page.mouse.move(grip["x"] + grip["width"] / 2 + 12, grip["y"] + 12, steps=4)
+    done = page.locator("#col-done").bounding_box()
+    page.mouse.move(
+        done["x"] + done["width"] / 2, done["y"] + done["height"] / 2, steps=8
+    )
     page.wait_for_function(DRAG_HELD)
+    before = page.locator("#draft-ops").bounding_box()["height"]
 
+    foreign = "\n\n".join(
+        f"Foreign paragraph {n} held beside the drag." for n in range(6)
+    )
     append_command(
         serve.page_dir,
         {
@@ -2910,20 +2927,25 @@ def test_foreign_state_waits_until_a_live_drag_releases_the_page(browser, serve)
             "revision": 1,
             "widget": "draft-ops",
             "action": "edit",
-            "detail": {"value": "Foreign words held behind the drag."},
+            "detail": {"value": foreign},
         },
     )
     told(page)
-    expect(page.locator("#draft-ops .lf-draft-body")).to_have_text(
-        DRAFT_TEXT, use_inner_text=True
+    expect(page.locator("#draft-ops .lf-draft-body")).to_contain_text(
+        "Foreign paragraph 5"
     )
-    expect(page.locator("body")).to_have_attribute("data-lf-applied", "0")
+    assert page.evaluate(DRAG_HELD), "the foreign edit ended the drag"
+    assert page.locator("#draft-ops").bounding_box()["height"] > before + 50, (
+        "the draft above the board did not grow, so nothing moved under the drag"
+    )
 
     page.mouse.up()
     told(page)
-    expect(page.locator("#draft-ops .lf-draft-body")).to_have_text(
-        "Foreign words held behind the drag."
-    )
+    expect(page.locator("#col-done #card-x")).to_have_count(1)
+    moves = [e for e in actions(serve.page_dir) if e["action"] == "move"]
+    assert [(m["detail"]["unit"], m["detail"]["value"]) for m in moves] == [
+        ("card-x", "col-done")
+    ]
 
 
 def test_the_diff_marks_a_card_the_author_relocated(browser, serve):
@@ -3782,6 +3804,42 @@ def test_the_first_read_and_the_user_s_later_ones_are_bounded_apart(browser, ser
     bounds = page.evaluate("() => window.__leafReadBounds")
     assert bounds[0] == 120_000, bounds
     assert 0 < bounds[1] < bounds[0], bounds
+
+
+def test_a_widget_presents_its_authored_state_offline_and_the_log_on_recovery(
+    browser, serve
+):
+    """A first read that fails presents each widget at its authored state, and the
+    read that recovers draws the choice the log holds."""
+    url = serve(
+        leaf_page(
+            "Offline choice",
+            '<h1>Offline choice</h1><lf-ask id="ask"><h2>Which?</h2>'
+            '<lf-options id="options" choose><lf-option id="one">First</lf-option>'
+            '<lf-option id="two">Second</lf-option></lf-options></lf-ask>',
+        )
+    )
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "options",
+            "action": "choose",
+            "detail": {"value": ["two"]},
+        },
+    )
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.route("**/api/state*", refuse)
+    page.goto(url, wait_until="load")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    expect(page.locator(".lf-status-detail")).to_contain_text("Server offline")
+    expect(page.locator("#options .lf-pick")).to_have_count(2)
+    expect(page.locator("#two")).not_to_have_attribute("chosen", "")
+    page.unroute("**/api/state*")
+    told(page)
+    expect(page.locator("#two")).to_have_attribute("chosen", "")
 
 
 def test_a_pending_offline_paint_does_not_block_a_recovery_read(browser, serve):

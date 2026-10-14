@@ -142,8 +142,7 @@
    The canonical search is the tools row itself. Its count stays inside that field's
    end slot, so the same single frame holds at desktop and phone widths. */
 .lf-diff-tools { display: block; width: 100%; min-width: 0; margin: 0 0 8px; }
-.lf-diff-progress { width: var(--lf-reserved-width, auto);
-                    color: var(--code-muted); font: var(--t-6) var(--sans);
+.lf-diff-progress { color: var(--code-muted); font: var(--t-6) var(--sans);
                     font-variant-numeric: tabular-nums; white-space: nowrap; }
 /* The file comment is a sibling of its disclosure, so each keeps its own action.
    Both follow the sticky header; the shared height reserves the comment's square. */
@@ -363,7 +362,6 @@
 .lf-diff-thread-outlet .lf-page-thread { padding: var(--sp-2) 0; }
 /* Paper has no sideways scroll; wrap evidence within the printed sheet. */
 @media print {
-  .lf-diff-tools, .lf-diff-file-actions, .lf-diff-comment { display: none !important; }
   .lf-diff-file > :is(.lf-diff-fold, .lf-diff-metadata) { margin-top: 0 !important; }
   :scope:host(.lf-rendered) .lf-diff-file > details > summary { padding-right: 10px; }
   :scope:host(.lf-rendered) .lf-diff-metadata { padding-right: 0; }

@@ -117,8 +117,10 @@ Broad discovery skips both later tiers; `--run-main` adds `browser/` and
 or `--lf` runs what it names.
 Both landing gates pass `--changed-since`, which adds the tests of either later tier
 whose own source the change edits; a test moved to another module or directory
-unchanged is no edit. Tests marked `network` require an explicit selection or
-`--run-nightly`; broad discovery and `--changed-since` never add them.
+unchanged is no edit. `pytest_collection_modifyitems` in `conftest.py` lists what
+that selection misses, such as an edited fixture, and why it stays narrow. Tests
+marked `network` require an explicit selection or `--run-nightly`; broad discovery
+and `--changed-since` never add them.
 
 ### Without external network access
 
@@ -506,7 +508,9 @@ Chromium opened, observe the browser's record (`opened_tab`).
   cancels the rest, and a teardown release could reach a stopped server.
 - `route.fetch()` lets the server answer and withholds the response. Freshness reads
   still name the append, so arm listeners before the fetch, and call
-  `page.unroute_all(behavior="wait")` before teardown even when the test fails.
+  `page.unroute_all(behavior="wait")` after releasing held routes. For failure cleanup
+  that can still hold requests, use `behavior="ignoreErrors"`; context closure
+  cancels them without waiting for a release the failed body can no longer make.
 - `refuse` cancels without a console error; use a plain abort only when the error is
   the subject. A route that keeps refusing `**/api/state*` keeps producing retries, so
   `CutOff` holds state reads across a stale-state journey.

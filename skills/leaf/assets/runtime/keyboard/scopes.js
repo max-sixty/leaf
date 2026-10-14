@@ -29,7 +29,7 @@ import {
   directive,
   effect,
   nothing,
-} from "../../vendor/browser-runtime.js";
+} from "/vendor/browser-runtime.js";
 import {
   activeRows,
   ariaShortcuts,
@@ -571,18 +571,21 @@ function detachScope(element, scope) {
 // Both element-bound keys and a reusable command capability declare the same scope.
 // Attachment decides when its scene is validated, not what a declaration may contain.
 function declaredScope(title, rows, options) {
-  const { when, escape, ready } =
+  const { when, escape, ready, claims } =
     typeof options === "function" ? { when: options } : (options ?? {});
   if (escape !== undefined && escape !== "inner")
     throw new TypeError(
       `A command scope's Escape ownership must be \"inner\", got ${String(escape)}`,
     );
+  // `claims` takes the bindings it answers true for from every scope further out
+  // while the user stands in this one, as a menu standing over the page does.
   return {
     title,
     rows: checked(rows, title ?? "a scope", ready),
     when,
     escape,
     ready,
+    claims,
   };
 }
 

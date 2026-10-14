@@ -21,6 +21,9 @@ export const diffDatumKey = ({ path, file, side, oldLine, newLine }) =>
 export const diffLocationKey = (path, side, line) =>
   JSON.stringify([path, "source", side, line]);
 
+/** @typedef {{path: string, file?: true, source?: true, side?: string, oldLine?: number, newLine?: number}} DiffCoordinate */
+
+/** @param {string} key @returns {DiffCoordinate | null} */
 export function readDiffCoordinate(key) {
   let parts;
   try {

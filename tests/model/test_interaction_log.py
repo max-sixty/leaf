@@ -9,7 +9,6 @@ from leaf.interaction_log import (
     INTERACTIONS_FILE,
     append_interactions,
     client_records,
-    format_interaction,
     interaction_time,
     read_interactions,
 )
@@ -114,20 +113,21 @@ def test_cli_queries_canonical_records_without_changing_the_log(tmp_path, monkey
             "tab",
             "--type",
             "command",
-            "--json",
         ],
     )
     assert result.exit_code == 0, result.output
-    assert json.loads(result.output) == rows[0]
+    assert json.loads(result.stdout) == rows[0]
     assert path.read_bytes() == before
-    human = CliRunner().invoke(cli, ["page", "interactions", str(tmp_path)])
-    assert human.exit_code == 0, human.output
-    assert "command" in human.output and "observed_at" in human.output
+    all_rows = CliRunner().invoke(cli, ["page", "interactions", str(tmp_path)])
+    assert all_rows.exit_code == 0, all_rows.output
+    assert [
+        json.loads(line) for line in all_rows.stdout.splitlines()
+    ] == read_interactions(tmp_path)
     invalid = CliRunner().invoke(
         cli, ["page", "interactions", str(tmp_path), "--since", "2026-10-09T06:08:42"]
     )
     assert invalid.exit_code == 1
-    assert "require a timezone offset" in invalid.output
+    assert "require a timezone offset" in json.loads(invalid.stderr)["error"]
 
 
 def test_required_transport_is_validated_once_and_torn_lines_are_skipped(tmp_path):
@@ -157,4 +157,3 @@ def test_required_transport_is_validated_once_and_torn_lines_are_skipped(tmp_pat
         stream.write('{"source": "client", "sess\n')
     append_interactions(tmp_path, [admitted])
     assert read_interactions(tmp_path, session="good") == [admitted]
-    assert "target=[{}]" in format_interaction(admitted)

@@ -1143,34 +1143,14 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
     held_events = []
     page.route("**/api/event", lambda route: held_events.append(route))
     before = int(page.locator("#page-local").get_attribute("data-readings"))
-    page.evaluate(
-        """async () => {
-          const {dragging} = await window.__lfWidgetApi();
-          dragging(document.body, true);
-          window.resumeLocal = pageLocal.controller.defer();
-        }"""
-    )
+    page.evaluate("() => { window.resumeLocal = pageLocal.controller.defer(); }")
     page.locator("#page-local").get_by_role("button", name="Choose").click()
     expect(page.locator("#page-local").get_by_role("status")).to_have_text("chosen")
     assert page.evaluate("Number(pageLocal.dataset.readings)") == before
-    assert page.evaluate("readLeafPresentation().pending") == [
-        "widget:page-local:render",
-        "projection:chrome",
-    ]
-    page.evaluate(
-        """async () => {
-          const {dragging} = await window.__lfWidgetApi();
-          projectionReady = false;
-          whenLeafRegionsPresented(['projection:chrome'], () => true)
-            .then(() => { projectionReady = true; });
-          dragging(document.body, false);
-        }"""
+    page.wait_for_function(
+        "readLeafPresentation().pending.join() === 'widget:page-local:render'"
     )
-    page.wait_for_function("projectionReady")
-    assert page.evaluate("readLeafPresentation().pending") == [
-        "widget:page-local:render"
-    ]
-    holding(page, held_events, 1, "the choose deferred under the drag")
+    holding(page, held_events, 1, "the deferred choose")
     attempt = held_events[0].request.post_data_json["attempt"]
     held_events[0].fulfill(
         status=200,

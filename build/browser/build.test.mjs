@@ -29,7 +29,6 @@ test("locked source reproduces the complete committed output", async () => {
     "AsyncDirective",
     "Directive",
     "LitElement",
-    "PRESENTATION_HELD",
     "PartType",
     "classMap",
     "collectOutside",
@@ -129,6 +128,17 @@ test("checking stale output refuses it without changing any bytes", async (conte
   const chunk = "skills/leaf/packages/diagram/vendor/chunk-removed.js";
   await writeFile(path.join(scratch, chunk), "");
   await assert.rejects(checkOutputs(outputs, scratch), new RegExp(chunk));
+  await rm(path.join(scratch, chunk));
+  // A kernel left behind by a merge names the command that rebuilds it.
+  const kernel = path.join(scratch, "skills/leaf/kernel/leaf.js");
+  await writeFile(kernel, "<<<<<<< ours\n");
+  await assert.rejects(
+    checkOutputs(outputs, scratch),
+    (error) =>
+      error.message.includes(
+        "pnpm install --frozen-lockfile && pnpm run build:browser",
+      ) && error.message.endsWith("\nskills/leaf/kernel/leaf.js"),
+  );
 });
 
 test("an upstream adaptation fails the build once its seam or its module moves", async () => {

@@ -66,6 +66,7 @@ from typing import NamedTuple
 
 import click
 from leaf.file_changes import FileChanges
+from leaf.locations import canonical_path
 from leaf.publishing import authored_digest, authored_files, write_authored_files
 from leaf.refusals import Refused
 from leaf.schema import BROWSER_DIRS, VENDORED_FILES
@@ -136,7 +137,7 @@ def slot_name(_ctx, _param, value: str | None) -> str | None:
 
 
 def checkout(value: Path) -> tuple[Path, Path]:
-    runtime = value.expanduser().resolve()
+    runtime = canonical_path(value.expanduser())
     launcher = runtime / "bin" / "leaf"
     if not launcher.is_file():
         raise click.UsageError(f"{runtime} has no bin/leaf launcher")
@@ -145,7 +146,7 @@ def checkout(value: Path) -> tuple[Path, Path]:
 
 def authored_source(example: str | None, source: Path | None) -> Path:
     if source:
-        selected = source.expanduser().resolve()
+        selected = canonical_path(source.expanduser())
         if not selected.is_file():
             raise click.UsageError(f"no authored source at {selected}")
         return selected
@@ -297,10 +298,11 @@ class PreviewService:
 
     @property
     def note(self) -> str:
-        """Describe the committed service, including its retained address."""
-        from leaf.hosting import startup_note
+        """Describe the committed service: a `--user` one as `leaf server start`
+        reads it (`hosting.server_reading`), as one JSON line."""
+        from leaf.hosting import server_reading
 
-        return startup_note(self.page) if self.user else WATCHER_NOTE
+        return json.dumps(server_reading(self.page)) if self.user else WATCHER_NOTE
 
     def serve_again(self) -> None:
         """Put a `--user` service that is down but still wanted back up.
@@ -884,7 +886,7 @@ def start_desktop_preview(source: Path, page: Path, runtime: Path, harness) -> N
     existing detached handshake owns refusal and abandoned-start cleanup.
     """
     from leaf.detached import starting_detached
-    from leaf.hosting import startup_note
+    from leaf.hosting import server_reading
     from leaf.service import prepare_claim
 
     log = page.with_name(f"{page.name}.log")
@@ -912,7 +914,7 @@ def start_desktop_preview(source: Path, page: Path, runtime: Path, harness) -> N
             timeout=120,
         ) as ready:
             pass
-    print(startup_note(page), file=sys.stderr, flush=True)
+    print(json.dumps(server_reading(page)), file=sys.stderr, flush=True)
     print(ready["url"], flush=True)
     print(f"Watching {source}; detached preview log: {log}", flush=True)
 

@@ -11,8 +11,8 @@ import {
   projectData,
   synNodes,
   syntax,
-  watchData,
-  once,
+  LeafElement,
+  nothing,
   whileConnected,
   keepsText,
   setRenderedChildren,
@@ -23,18 +23,28 @@ import {
 
 customElements.define(
   "lf-text-document",
-  class extends HTMLElement {
-    connectedCallback() {
-      if (!once(this)) return;
+  class extends LeafElement {
+    setup() {
       // A departure abandons the rendering in flight and its frame's wait.
       whileConnected(this, () => () => {
         this.rendering = (this.rendering ?? 0) + 1;
         this.finishFrame?.();
       });
-      watchData(this, "document", (snapshot) => this.render(snapshot));
     }
 
-    async render(snapshot) {
+    render() {
+      this.snapshot = this.data("document");
+      return nothing;
+    }
+
+    // Highlighting and the preview load before the document shows, so its drawing
+    // holds the widget's presentation until it lands.
+    updated(changed) {
+      super.updated(changed);
+      this.controller.present(this.show(this.snapshot));
+    }
+
+    async show(snapshot) {
       const rendering = (this.rendering ?? 0) + 1;
       this.rendering = rendering;
       const source = snapshot?.value ?? "";
@@ -50,7 +60,8 @@ customElements.define(
           if (!(await loadMarkdown((error) => (failure = error)))) throw failure;
         }
         if (rendering !== this.rendering || !this.isConnected) return;
-        this.figure ??= this.build(preview);
+        /** @type {HTMLElement} */
+        this.figure = this.figure ?? this.build(preview);
         const label = this.getAttribute("label") ?? this.getAttribute("source");
         keepsText(this.caption, snapshot ? label : `${label} · no data`);
         if (this.code.textContent !== source)
@@ -71,7 +82,7 @@ customElements.define(
             const finish = () => {
               this.preview.removeEventListener("load", finish);
               if (this.finishFrame === finish) this.finishFrame = null;
-              resolve();
+              resolve(undefined);
             };
             this.finishFrame = finish;
             this.preview.addEventListener("load", finish);
@@ -122,6 +133,7 @@ customElements.define(
       literal.id = `${this.id}--source`;
       literal.setAttribute("label", "Source");
       literal.setAttribute("data-lf-bound", bound);
+      /** @type {HTMLElement & Partial<HTMLIFrameElement>} */
       this.preview = document.createElement(preview === "html" ? "iframe" : "div");
       this.preview.className = "lf-text-document-preview";
       if (preview === "html") {

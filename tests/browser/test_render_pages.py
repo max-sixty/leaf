@@ -15,7 +15,7 @@ from interact_support import (
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import schema as schema_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
 from leaf.render_gate.scheme import console_finding
 from PIL import Image, ImageChops, ImageStat
 from playwright.sync_api import expect
@@ -1466,6 +1466,17 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
         + '<div style="display: grid; grid-template-columns: 350px 1fr">'
         + ask.format(id="tracked", width="", table=table.format(id="tracked"))
         + "<p>Beside.</p></div>"
+        + ask.format(
+            id="narrow",
+            width="",
+            table='<table data-width="wide"><tr><td>a</td><td>b</td></tr></table>',
+        )
+        + '<div id="pulled" style="margin-inline: -150px">Pulled words.'
+        + '<div data-width="available">Room.</div></div>'
+        + '<div><span id="spilled" style="margin-left: -150px">Spilled words.'
+        + '<div data-width="wide">Room.</div></span></div>'
+        + '<div id="padded" style="margin-inline: -600px; padding-inline: 600px">'
+        + '<div data-width="wide">Room.</div></div>'
     )
     column = open_page(browser, serve(leaf_page("Column", body + extras)))
     resized(column, 1726, 900)
@@ -1485,6 +1496,17 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
         at
     )
     assert at["tracked"]["width"] == 350, at
+    # An Ask that spans its block is a breakout the theme grows, so the gate reads it as
+    # one, even where it reaches further than a table of two columns does; a box the
+    # page pulls out of the column by its margins, an inline one, or one it grows round
+    # its block by margins and padding of its own, still stands in the margin.
+    misplaced = evaluate_probe(column, "misplacedBoxes")
+    assert [(m["code"], m["at"]) for m in misplaced] == [
+        ("past-column", "<div id=pulled>"),
+        ("past-column", "<span id=spilled>"),
+        ("past-column", "<div id=padded>"),
+        ("clipped-out", "<div id=padded>"),
+    ], misplaced
 
     board = (
         '<lf-board id="board"><lf-column id="board-c" label="Open">'

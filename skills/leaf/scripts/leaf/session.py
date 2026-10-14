@@ -6,7 +6,6 @@ projections without importing a server. Receipt remains `delivery`'s."""
 
 import contextlib
 import json
-import sys
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -15,13 +14,9 @@ from pathlib import Path
 from typing import NamedTuple
 
 from .detached import StartRefused
-from .file_changes import (
-    FileChanges,
-    existing_root,
-    page_change,
-    page_targets,
-)
+from .file_changes import FileChanges, existing_root, target_paths
 from .files import file_stamp
+from .findings import Finding, note
 from .harness import Harness, claim_harness, session_harness
 from .leases import (
     end_if_terminated,
@@ -34,12 +29,8 @@ from .locations import path_location, paths_same
 from .machine import state_home
 from .presence import nudge_unwatched
 from .refusals import Refused
-from .schema import (
-    ANSWER_ASK_INSTRUCTION,
-    MESSAGE_KINDS,
-    VIEWED_FILE,
-)
-from .served_state.reading import page_reading
+from .schema import ANSWER_ASK_INSTRUCTION, MESSAGE_KINDS
+from .served_state.reading import outside_inputs, page_input, page_reading
 from .server import read_service, running_server
 from .service import (
     PageTransaction,
@@ -246,7 +237,7 @@ class Watch:
         pages = tuple(self.watched)
         discovery = self.discovery_targets()
         targets = discovery | {
-            target for page in pages for target in page_targets(page)
+            target for page in pages for target in outside_inputs(page)
         }
         if self.session_id:
             targets.add(session_file(self.session_id, SESSION_SUFFIX).resolve())
@@ -264,16 +255,14 @@ class Watch:
         ):
             if self.changes is not None:
                 self.changes.close()
+            watched = target_paths(targets)
             self.changes = FileChanges(
                 roots,
                 lambda changed: (
                     changed == self.claims
                     or changed.parent == self.claims
-                    or changed in targets
-                    or any(
-                        page_change(page, changed) and changed.name != VIEWED_FILE
-                        for page in pages
-                    )
+                    or changed in watched
+                    or any(page_input(page, changed) for page in pages)
                 ),
             )
             self.change_pages = key
@@ -330,7 +319,13 @@ class Watch:
 
                 started = start_server(page_dir, revive=True, harness=self.harness)
             except StartRefused as error:
-                print(error, file=sys.stderr)
+                note(
+                    Finding(
+                        "revive-refused",
+                        values={"page": str(page_dir), "error": str(error)},
+                        severity="advice",
+                    )
+                )
                 started = None
             key = str(page_dir)
             if started:
@@ -480,20 +475,18 @@ def read_watch_pass[DeliveryResult](
         readings.append(reading)
         if reading.watch_state == "lost":
             if named is not None and paths_same(reading.page_dir, named):
-                print(
-                    f"stopped watching {named}: this session no longer owns it",
-                    file=sys.stderr,
-                )
+                note(Finding("not-owned", values={"pages": [str(named)]}))
                 return _WatchPass(readings, live, 2)
             continue
         if reading.live and not reading.lost:
             live.append(reading)
         if reading.restarted:
-            print(
-                f"{reading.page_dir}: server had died; "
-                f"restarted at {reading.restarted}",
-                file=sys.stderr,
-                flush=True,
+            note(
+                Finding(
+                    "server-restarted",
+                    values={"page": str(reading.page_dir), "url": reading.restarted},
+                    severity="advice",
+                )
             )
         # A batch outranks the page's state: a wait already holding events owes
         # them to the agent whatever became of the leaf, so an idled page still
@@ -506,56 +499,36 @@ def read_watch_pass[DeliveryResult](
             # the completed pass finds no live page left to carry.
             if named is None or not paths_same(reading.page_dir, named):
                 continue
-            print(
-                f"{reading.page_dir}: server is not running; restart it with "
-                f"`leaf server start {reading.page_dir}`",
-                file=sys.stderr,
-            )
+            note(_server_down(reading))
             return _WatchPass(readings, live, 2)
     lost = [reading for reading in readings if reading.lost]
     if lost and not live:
-        for reading in lost:
-            print(
-                f"{reading.page_dir}: server is not running; restart it with "
-                f"`leaf server start {reading.page_dir}`",
-                file=sys.stderr,
-            )
+        note(*map(_server_down, lost))
         return _WatchPass(readings, live, 2)
     return _WatchPass(readings, live, None)
 
 
+def _server_down(reading: PageTick) -> Finding:
+    return Finding("server-down", values={"page": str(reading.page_dir)})
+
+
 def _ended_watch(readings: list[PageTick], page_dir: Path | None) -> int:
     """Explain why a pass with no live pages has nowhere left to wait."""
-    held = [reading for reading in readings if reading.watch_state != "lost"]
+    held = [
+        str(reading.page_dir) for reading in readings if reading.watch_state != "lost"
+    ]
     if not held:
-        transferred = [reading for reading in readings if reading.watch_state == "lost"]
-        if transferred:
-            one = len(transferred) == 1
-            names = ", ".join(str(reading.page_dir) for reading in transferred)
-            print(
-                f"stopped watching {names}: this session no longer owns "
-                f"{'it' if one else 'them'}",
-                file=sys.stderr,
-            )
-            return 2
-        if page_dir is None:
-            print(
-                "nothing to watch: no page named and none claimed by this session",
-                file=sys.stderr,
-            )
+        if transferred := [
+            str(reading.page_dir)
+            for reading in readings
+            if reading.watch_state == "lost"
+        ]:
+            note(Finding("not-owned", values={"pages": transferred}))
         else:
-            print(
-                f"nothing to watch: {page_dir} is not claimed by this session",
-                file=sys.stderr,
-            )
+            page = str(page_dir) if page_dir is not None else None
+            note(Finding("nothing-to-watch", values={"page": page}))
         return 2
-    one = len(held) == 1
-    names = ", ".join(str(reading.page_dir) for reading in held)
-    print(
-        f"the {'page' if one else 'pages'} closed; {names} "
-        f"{'is' if one else 'are'} idle",
-        file=sys.stderr,
-    )
+    note(Finding("pages-idle", values={"pages": held}, severity="advice"))
     return 2
 
 
@@ -588,7 +561,7 @@ def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:
     watch = Watch(harness, pages=explicit)
     if not watch.acquire():
         target = "this session" if harness else ", ".join(map(str, explicit))
-        print(f"another `leaf wait` is already active for {target}", file=sys.stderr)
+        note(Finding("wait-active", values={"target": target}))
         return 2
 
     def print_delivery(reading: PageTick) -> bool:
@@ -615,7 +588,7 @@ def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:
             if not reading.live:
                 return _ended_watch(reading.readings, named)
             watch.await_news(mark)
-        print("a watch between turns took over this session's pages", file=sys.stderr)
+        note(Finding("watch-taken-over"))
         return 2
     finally:
         watch.release()

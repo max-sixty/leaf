@@ -51,7 +51,7 @@ customElements.define(
       if (!once(this)) return;
       const drawing = document.createElement("template");
       drawing.innerHTML = declarationFor(this, "x-prepaint");
-      const face = drawing.content.firstElementChild;
+      const face = /** @type {HTMLElement} */ (drawing.content.firstElementChild);
       face.dataset.lfGen = "1";
       this.#room = face.querySelector(".lf-tally-room");
       this.#words = face.querySelector(".lf-tally-words");
@@ -91,7 +91,7 @@ customElements.define(
       keepsText(this.#words, words(open, held.length));
       // Two digits are in the drawing; a longer count widens its room once.
       const digits = "0".repeat(Math.max(2, String(held.length).length));
-      keepsText(this.#room, words(1, 1).replace(/1 of 1/, `${digits} of ${digits}`));
+      keepsText(this.#room, words(digits, digits));
       this.#next?.toggleAttribute("disabled", asksIn(region, asks.user).length === 0);
     }
   },

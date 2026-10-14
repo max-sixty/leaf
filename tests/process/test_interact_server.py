@@ -19,6 +19,7 @@ import time
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import wait as wait_futures
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -53,6 +54,7 @@ from interact_support import (
     response_reference,
     retire_test_services,
     running_http_server,
+    said,
     spawn_probe,
     vendored_at_another_protocol,
     vendored_before_the_ask_rename,
@@ -3108,7 +3110,7 @@ def test_neighbor_discovery_needs_no_native_subscription(
     assert second in [page for page, _record in presence_model.neighbor_candidates()]
 
 
-def test_native_watcher_limit_has_an_actionable_refusal(tmp_path, monkeypatch):
+def test_native_watcher_failure_reaches_its_owner(tmp_path, monkeypatch):
     from leaf import file_changes
     from watchfiles._rust_notify import WatchfilesRustInternalError
 
@@ -3118,7 +3120,7 @@ def test_native_watcher_limit_has_an_actionable_refusal(tmp_path, monkeypatch):
         )
 
     monkeypatch.setattr(file_changes, "RustNotify", exhausted)
-    with pytest.raises(Refused, match=r"fs\.inotify\.max_user_instances"):
+    with pytest.raises(WatchfilesRustInternalError, match="Too many open files"):
         file_changes.FileChanges({tmp_path: False}, lambda _path: True)
 
 
@@ -3179,23 +3181,28 @@ def test_a_row_ages_at_the_canonical_deadline_and_recovers_after_cache_loss(
 def test_a_row_read_cannot_block_server_stop(page_dir, spawn, tmp_path):
     """A row producer waiting on a page writer cannot hold service retirement.
 
-    The process probe announces entry to the real row transaction, so the stop
-    runs after the producer is blocked rather than winning a scheduling race.
+    The process probe announces the producer's reading of the log, its first wait
+    on a writer, so the stop runs after the producer is blocked rather than winning
+    a scheduling race.
     """
     entered = tmp_path / "row-entered"
     child = spawn_probe(
         spawn,
         page_dir,
         """
+from contextlib import contextmanager
 from leaf import hosting
-from leaf.served_state import service
+from leaf.served_state import reading
 
-class AnnouncedTransaction(service.PageTransaction):
-    def __enter__(self):
-        Path(os.environ["ENTERED"]).write_text("reading")
-        return super().__enter__()
+leased = reading.flocked
 
-service.PageTransaction = AnnouncedTransaction
+@contextmanager
+def announced(path, **options):
+    Path(os.environ["ENTERED"]).write_text("reading")
+    with leased(path, **options) as log:
+        yield log
+
+reading.flocked = announced
 hosting.cmd_serve(Path(os.environ["PAGE"]), persistent=True, harness=None)
 """,
         ENTERED=entered,
@@ -3990,7 +3997,7 @@ def test_comparison_revision_reads_stay_inside_the_page_transaction(
 
     monkeypatch.setattr(read_context, "read_revision", held_revision)
     monkeypatch.setattr(read_context, "read_data", unrelated_read)
-    monkeypatch.setattr(served_reading, "page_reading", unrelated_read)
+    monkeypatch.setattr(served_reading, "held_page_reading", unrelated_read)
     status, body = fetch(f"{server}/api/view?revision=1&through_seq={latest}")
     assert status == 200, body
     assert set(observed) == {1, 2}
@@ -4030,6 +4037,28 @@ def test_a_page_reading_moves_for_a_second_write_in_one_clock_tick(
     written(value)
     assert json.loads(value.read_text()) == {"n": 2}
     assert served_reading.page_reading(page_dir) != before
+
+
+def test_a_page_reading_waits_out_an_append_in_progress(page_dir):
+    """A look names the log before an append or after it, never mid-write. A stat
+    crossing an in-place append can pair its modification time with the size before
+    it, a state the log was never at, so the look waits for the log's lease, which
+    every append holds, and then names the finished append as a state answer would."""
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        with cleanup_model.flocked(page_dir / "events.jsonl") as log:
+            log.seek(0, os.SEEK_END)
+            log.write(b'{"kind": "comment", "author": "user", "text": "ha')
+            log.flush()
+            look = executor.submit(served_reading.page_reading, page_dir)
+            # The window is the subject of an absence assertion, not a deadline.
+            assert not wait_futures([look], timeout=0.2).done, (
+                "the look named the log while an append held it"
+            )
+            log.write(b'lf"}\n')
+            log.flush()
+        named = look.result(timeout=STATED_TIMEOUT)
+    assert named == served_reading.page_reading(page_dir)
+    assert event_model.read_events(page_dir)[-1]["text"] == "half"
 
 
 def test_neighbour_discovery_sees_a_row_made_in_one_clock_tick(page_dir, monkeypatch):
@@ -4252,8 +4281,8 @@ def test_a_loopback_serve_says_the_url_opens_only_on_this_machine(
     )
     try:
         assert started.exit_code == 0, started.output
-        assert "access   loopback only" in started.output
-        assert "--host NAME" in started.output
+        assert [note["code"] for note in said(started.stderr)] == ["loopback-only"]
+        assert "--host NAME" in started.stderr
     finally:
         stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
         assert stopped.exit_code == 0, stopped.output
@@ -4268,33 +4297,10 @@ def test_a_stated_host_serve_says_nothing_about_loopback(page_dir, monkeypatch):
     )
     try:
         assert started.exit_code == 0, started.output
-        assert "access   loopback" not in started.output
+        assert started.stderr == ""
     finally:
         stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
         assert stopped.exit_code == 0, stopped.output
-
-
-def test_the_loopback_line_follows_the_lifetime_line(page_dir):
-    """`interact_support` reads one line of a served subprocess's stderr and
-    expects the lifetime there, so the loopback line lands after it."""
-    cleanup_model.write_json(
-        page_dir / "service.json",
-        {
-            "host": "::1",
-            "bind": "::1",
-            "port": 41234,
-            "enabled": False,
-            "lifetime": "persistent",
-        },
-    )
-
-    lines = hosting_model.startup_note(page_dir).splitlines()
-
-    assert lines[:3] == [
-        "server   persistent",
-        f"stop     leaf server stop {page_dir}",
-        "access   loopback only (re-serve with --host NAME for remote users)",
-    ]
 
 
 def test_server_start_names_the_page_layer_and_running_payload(page_dir):
@@ -4305,15 +4311,20 @@ def test_server_start_names_the_page_layer_and_running_payload(page_dir):
     try:
         assert started.exit_code == 0, started.output
         identity = registry_storage.layer_metadata(page_dir)
-        assert f"page     {page_dir}" in started.output
-        assert f"layer    {identity['fingerprint']}" in started.output
-        assert f"runtime  {schema_model.PLUGIN_ROOT}" in started.output
+        reading = json.loads(started.stdout)
+        assert (reading["page"], reading["lifetime"]) == (str(page_dir), "persistent")
+        assert reading["stop"] == f"leaf server stop {page_dir}"
+        assert reading["layer"] == {
+            "fingerprint": identity["fingerprint"],
+            "leaf": identity["producer"],
+        }
+        assert reading["runtime"]["path"] == str(schema_model.PLUGIN_ROOT)
 
         state = runner.invoke(cli_model.cli, ["page", "state", str(page_dir)])
         assert state.exit_code == 0, state.output
         server = json.loads(state.output)["server"]
         assert server["runtime"]["path"] == str(schema_model.PLUGIN_ROOT)
-        assert server["url"] in started.output
+        assert server["url"] == reading["url"]
     finally:
         stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
         assert stopped.exit_code == 0, stopped.output
@@ -4535,15 +4546,7 @@ def test_an_unidentified_old_service_is_not_mislabeled_as_the_calling_leaf(page_
         },
     )
 
-    note = hosting_model.startup_note(page_dir)
-
-    # The runtime line is the only one that claims a source, and reading the
-    # whole note for the calling payload's path reads the wrong lines too: the
-    # page and stop lines name the page directory, which may legitimately sit
-    # under the checkout — as it does whenever a run is given a `--basetemp`
-    # there. Equality on that one line says what the absence was reaching for.
-    runtime = next(line for line in note.splitlines() if line.startswith("runtime"))
-    assert runtime == "runtime  unknown payload (unknown source)"
+    assert hosting_model.server_reading(page_dir)["runtime"] is None
 
 
 def test_a_stated_host_binds_every_interface_without_recording_before_serve(

@@ -12,6 +12,8 @@
  * object the last reading held. So a selection is a `computed` compared by identity,
  * and a reader subscribed to one part of the reading hears only that part change. A
  * selection shares its own derived value against its previous one by the same rule.
+ * Derivations and subscriber callbacks own their reads: they run outside a notifier's
+ * collection, while an explicit collection inside either still records its own reads.
  */
 import { computed, signal } from "@preact/signals-core";
 
@@ -119,8 +121,8 @@ export function collectOutside<T>(
 
 /**
  * A reading of a value outside the publication, which a collection records as it
- * records a part: the clock's answer to a paint's question, whether a drag holds the
- * projection, how many times the page has presented. `read` computes the value now, and
+ * records a part: the clock's answer to a paint's question, how many times the page
+ * has presented. `read` computes the value now, and
  * `heard` registers a callback for each moment it may have moved, returning the way to
  * stop; the source passes the callback one object per round of notifications, such as
  * a clock tick, so a follower of several readings answers a round once. A watcher or a
@@ -140,8 +142,9 @@ export function outsideReading<T>(
     read: (): T => collected(reading, read),
     subscribe(listener: (value: T, round?: object) => unknown) {
       let active = true;
-      const stop = heard((round) => (active ? listener(read(), round) : undefined));
-      listener(read(), {});
+      const deliver = (round: object) => untracked(() => listener(read(), round));
+      const stop = heard((round) => (active ? deliver(round) : undefined));
+      deliver({});
       return () => {
         active = false;
         stop();
@@ -324,13 +327,13 @@ export function createApplicationPublisher<S extends ApplicationSnapshot>(initia
     },
     select<T>(derive: (snapshot: Immutable<S>) => T): SnapshotReading<Immutable<T>> {
       let prior: unknown;
-      const selected = computed(
-        () => (prior = immutable(share(prior, derive(root.value)))),
+      const selected = computed(() =>
+        untracked(() => (prior = immutable(share(prior, derive(root.value))))),
       );
       const reading: SnapshotReading<Immutable<T>> = Object.freeze({
         read: (): Immutable<T> => collected(reading, () => selected.value),
         subscribe: (listener: (value: Immutable<T>) => void) =>
-          selected.subscribe(listener),
+          selected.subscribe((value) => untracked(() => listener(value))),
       });
       return reading;
     },

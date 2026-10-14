@@ -428,16 +428,13 @@ def cmd_package_init(package: Path, widget: str | None = None) -> Path:
         return package
 
 
-def cmd_package_check(
-    package: Path, render: bool = False, as_json: bool = False
-) -> int:
+def cmd_package_check(package: Path, render: bool = False) -> int:
     """Check the package, and with `render` its widgets' worked examples in the
-    host's browser. With `as_json`, print one object in `page check --json`'s shape:
-    `status`, the exit status; `findings`, each finding as a record: the findings a
-    refusal carries, such as a registry's, any other refusal as one `package`
-    record, or the widget quality findings; and `browser`, what
-    the browser gate ran in or why none could, null where none was asked for or the
-    package check refused."""
+    host's browser, and print one object in `page check`'s shape: `status`, the exit
+    status; `findings`, each finding as a record: the findings a refusal carries, such
+    as a registry's, any other refusal as one `package` record, or the widget quality
+    findings; and `browser`, what the browser gate ran in or why none could, null
+    where none was asked for or the package check refused."""
     from .findings import Finding, Rejected
 
     def reported(status, findings=(), browser=None):
@@ -456,23 +453,17 @@ def cmd_package_check(
     try:
         package, _, _ = check_package(package, require_exists=True)
     except Refused as error:
-        if not as_json:
-            raise
         found = (
             error.findings
             if isinstance(error, Rejected)
             else [Finding("package", values={"text": str(error)})]
         )
         return reported(1, found)
-    if not as_json:
-        print(f"checked {package}", flush=True)
     if not render:
-        return reported(0) if as_json else 0
-    from .render_gate.command import print_widget_quality, widget_quality
+        return reported(0)
+    from .render_gate.command import widget_quality
 
     check = widget_quality(package)
-    if not as_json:
-        return print_widget_quality(check)
     return reported(check.status, check.findings, check.json())
 
 

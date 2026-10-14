@@ -7,24 +7,18 @@
    proof as widget rendering, asynchronous preparation, and pending release. It is an
    epoch presenter and paints first
    in the pass, because the words it materializes inside authored elements are nodes
-   the thread then resolves its passages over. Its one document-wide drag gate
-   withholds that global projection work while the gesture's own controller holds its
-   local reading; the region stays open until the gesture ends and a fresh claim
-   supersedes it. */
+   the thread then resolves its passages over. */
 import { authoredStates } from "./authored.js";
 import { projectionOrigins } from "./model.js";
-import { projectionDeferred, setProjectionDeferred } from "./state.js";
 import {
   applicationPresenter,
   applicationState,
   projectionRegionsPresented,
   watchPresentation,
-  PRESENTATION_HELD,
   PRESENTATION_ORDER,
   readPart,
 } from "../semantic-state.js";
 import { decisionFor } from "../registry.js";
-import { dragHeld, watchDragRelease } from "../widget-elements.js";
 import { widgetElement } from "../widget-descriptors.js";
 import {
   authored,
@@ -94,9 +88,7 @@ const phase = readPart((root) => root.phase);
 const currentProjection = readPart((root) => root.effective.projection);
 const widgetStates = readPart((root) => root.effective.widgets);
 
-export function createProjectionPresentation({ onDeferredReady }) {
-  let stopWatchingDrag = null;
-
+export function createProjectionPresentation() {
   // The claim happens in the publisher's synchronous subscription phase, before it seals
   // presentation membership, so an inherited commit cannot acknowledge a new reading
   // while frozen widget markup is still joining the document; the pass paints it after.
@@ -151,19 +143,6 @@ export function createProjectionPresentation({ onDeferredReady }) {
   const retireProjectionCoverage = () =>
     document.body.removeAttribute(PAGE_PAINT_ATTRIBUTE.applied);
 
-  // A drag holds the projection until the last one ends (widget-elements.js).
-  function watchProjectionDrag() {
-    stopWatchingDrag ??= watchDragRelease(() => {
-      unwatchProjectionDrag();
-      onDeferredReady();
-    });
-  }
-
-  function unwatchProjectionDrag() {
-    stopWatchingDrag?.();
-    stopWatchingDrag = null;
-  }
-
   function presentCurrent() {
     const projection = currentProjection();
     // Before the first state or the offline fallback, authored capture has completed
@@ -171,20 +150,12 @@ export function createProjectionPresentation({ onDeferredReady }) {
     // independently present any complete authored widget state; this adapter has no
     // authoritative projection coordinates or chrome to commit yet.
     if (phase() === "waiting" || !answered()) {
-      // This provisional epoch has no authoritative projection to withhold. Settling
+      // This provisional epoch has no authoritative projection to paint. Settling
       // its chrome ticket lets document installation finish and start the state feed;
       // adoption publishes a ready/offline epoch and claims a fresh ticket before any
       // semantic or widget commit can become current.
-      setProjectionDeferred(false);
       return projection;
     }
-    if (dragHeld()) {
-      setProjectionDeferred(true);
-      watchProjectionDrag();
-      return projection;
-    }
-    unwatchProjectionDrag();
-    setProjectionDeferred(false);
     for (const entry of projection.classified.values())
       for (const id of entry.restated ?? [])
         keeps(elementById(id), PAGE_PAINT_ATTRIBUTE.restated, "1");
@@ -197,10 +168,7 @@ export function createProjectionPresentation({ onDeferredReady }) {
   // A throw leaves this region pending and preserves the application error boundary;
   // the next claim supersedes the hold and tries the current semantic root again.
   function paintReading() {
-    const projection = presentCurrent();
-    // A drag holds this region open at the user's own gesture rather than
-    // committing a document-wide reading their own controller has not taken yet.
-    return projectionDeferred() ? PRESENTATION_HELD : projection;
+    return presentCurrent();
   }
 
   // `present` stays in here. The region has two ways in — its own subscription above,

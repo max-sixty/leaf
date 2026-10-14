@@ -58,6 +58,7 @@ import {
   queueName,
   queuePanel,
   queueTabs,
+  queueWords,
   drawerIsOpen,
 } from "./drawers.js";
 import { markBannerControl } from "./banner-toolbar.js";
@@ -146,7 +147,7 @@ export function createQueuePanel({
   // Until the log has answered, the door claims no count, as the Threads door claims none.
   function nameDoor() {
     const count = reading().phase === "ready" ? reading().on_user.length : null;
-    keepsText(queueBtn, count === null ? "On me" : `On me: ${count}`);
+    keepsText(queueWords, count === null ? "On me" : `On me: ${count}`);
     keeps(queueBtn, "aria-label", count === null ? "On me" : `On me: ${count}`);
     keeps(queueBtn, "data-lf-key-title", `Show or hide what's on me and on ${agent()}`);
   }

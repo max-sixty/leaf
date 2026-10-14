@@ -26,7 +26,7 @@ export class OptionAddition {
   #bindingBadge = null;
   #input = null;
   #add = null;
-  #syncInput = () => {};
+  #syncInput = null;
   #inForce = new Set();
 
   constructor(host, { offered, available, commit }) {
@@ -44,6 +44,8 @@ export class OptionAddition {
     whileConnected(this.#host, () =>
       watchDraft(this.#context, (value) => this.#syncInput.load(value ?? ""), {
         input: this.#input,
+        // Resume writing (`g i`) comes back to the field, which stands in the group.
+        resume: () => ({ where: this.#input, input: () => this.#input }),
       }),
     );
   }
@@ -167,6 +169,7 @@ export class OptionAddition {
         created.push(option);
       }
       if (option.hasAttribute("data-lf-added")) {
+        /** @type {HTMLElement & {source?: string, markdownReady?: boolean}} */
         let words = option.querySelector(":scope > .lf-option-words");
         if (!words) {
           words = document.createElement("span");

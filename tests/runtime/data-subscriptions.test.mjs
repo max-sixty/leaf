@@ -536,18 +536,28 @@ test("a projection watcher repaints for a part its own paint published after rea
 
 test("a projection watcher repaints for an outside reading its own paint moved", async () => {
   const { watchProjection } = await import("/runtime/projection-watch.js");
-  const { projectionDeferred, setProjectionDeferred } =
-    await import("/runtime/projection/state.js");
+  const { outsideReading } = await import("/vendor/browser-runtime.js");
+  let value = false;
+  const heard = new Set();
+  const flag = outsideReading(
+    () => value,
+    (moved) => {
+      heard.add(moved);
+      return () => heard.delete(moved);
+    },
+  );
   const owner = document.createElement("div");
   document.body.append(owner);
   const drawn = [];
   const stop = watchProjection(owner, () => {
-    drawn.push(projectionDeferred());
-    if (drawn.length === 1) setProjectionDeferred(true);
+    drawn.push(flag.read());
+    if (drawn.length === 1) {
+      value = true;
+      for (const moved of [...heard]) moved({});
+    }
   });
   await new Promise((resolve) => setTimeout(resolve));
   stop();
-  setProjectionDeferred(false);
   owner.remove();
   assert.deepEqual(drawn, [false, true]);
 });

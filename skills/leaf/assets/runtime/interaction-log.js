@@ -191,8 +191,9 @@ function schedule() {
 
 function append(row) {
   if (queue.length >= MAX_PENDING_ENTRIES) {
-    let evict = queue.findIndex((entry, index) =>
-      index >= inFlightCount && repetitive.has(entry.originalType ?? entry.type),
+    let evict = queue.findIndex(
+      (entry, index) =>
+        index >= inFlightCount && repetitive.has(entry.originalType ?? entry.type),
     );
     if (evict < 0) {
       if (repetitive.has(row.originalType ?? row.type)) return;
@@ -216,13 +217,17 @@ function enqueue(entry) {
   const bytes = encoder.encode(JSON.stringify(row)).length;
   // Diagnostics are bounded observations. Large drafts stay with the editor and
   // semantic event log; this stream records their omission without duplicating them.
-  append(bytes <= 40_000 ? row : {
-    ...common,
-    type: "interaction_omitted",
-    originalType: entry.type,
-    bytes,
-    reason: "record_exceeds_limit",
-  });
+  append(
+    bytes <= 40_000
+      ? row
+      : {
+          ...common,
+          type: "interaction_omitted",
+          originalType: entry.type,
+          bytes,
+          reason: "record_exceeds_limit",
+        },
+  );
   schedule();
 }
 

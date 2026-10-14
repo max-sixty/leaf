@@ -7,7 +7,7 @@
    asynchronous presentation. */
 import { reportPageError } from "./layer-client.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
-import { render } from "../vendor/browser-runtime.js";
+import { render } from "/vendor/browser-runtime.js";
 import { shadowStage } from "./shadow-stage.js";
 
 const initialized = new WeakSet();
@@ -72,6 +72,12 @@ const widgetOf = (el) => {
   return owner.localName.includes("-") ? owner : el;
 };
 
+// An owner that keeps the nodes it drew through a failure places the box itself, beside
+// them, rather than have them replaced by it: a `LeafElement` (leaf-element.js), whose
+// render may paint retained nodes that no later draw would make again.
+const placers = new WeakMap();
+export const placesFailure = (el, place) => placers.set(el, place);
+
 function showFailure(el, text, source) {
   const box = document.createElement("div");
   box.className = "lf-error";
@@ -80,6 +86,11 @@ function showFailure(el, text, source) {
     const pre = document.createElement("pre");
     pre.textContent = source;
     box.append(pre);
+  }
+  const place = placers.get(el);
+  if (place) {
+    place(box);
+    return;
   }
   // An x-shadow widget shows only what its stage holds, so the box stands there, and
   // the widget's next stage replaces it.

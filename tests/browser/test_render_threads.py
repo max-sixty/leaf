@@ -96,6 +96,9 @@ from render_harness import (
     write,
 )
 
+from browser.test_render_floating_panel import field as floating_field
+from browser.test_render_floating_panel import floating
+
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
@@ -986,7 +989,7 @@ def test_a_new_step_waits_where_its_words_would_move_the_draft(browser, serve):
         ephemeral=True,
     )
     told(page)
-    notice = thread.get_by_role("button", name="Work in progress", exact=True)
+    notice = thread.get_by_role("button", name="1 new update", exact=True)
     expect(notice).to_be_visible()
     expect(words).to_have_text("Reading the jobs")
     rendered(page)
@@ -3132,6 +3135,44 @@ def paste_image(field, pixels, *, count=1):
     expect(field).not_to_have_attribute("aria-busy", "true")
 
 
+@pytest.mark.parametrize("chrome", ["card", "floating"])
+def test_a_draft_s_image_closes_back_to_the_draft(browser, serve, chrome):
+    """Opening a draft's attached image and closing it, by Escape, the close control or
+    a press outside, returns the user to the draft with its words and picture. The page
+    comment card is an auto popover, which modal entry dismisses unless the modal stands
+    in it; the floating panel puts a thread's view away on a press it reads as outside
+    it, and with it the reply being written."""
+    url = serve(LONG_PAGE)
+    if chrome == "card":
+        page = open_page(browser, url)
+        page.keyboard.press("c")
+        box = page.locator(".lf-page-comment-card leaf-text")
+    else:
+        panel_comment(serve.page_dir, "Can you show me the fault?")
+        page = floating(browser, url)
+        page.locator("body").focus()
+        page.keyboard.press("t")
+        expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()
+        box = floating_field(page)
+    write(box, "See the fault")
+    paste_image(box, (example_media() / "051bee487bfb5d13.png").read_bytes())
+    thumbnail = page.get_by_role("button", name="View attached image 1", exact=True)
+    viewer = page.get_by_role("dialog", name="Image preview")
+
+    for dismiss in (
+        lambda: page.keyboard.press("Escape"),
+        lambda: viewer.get_by_role("button", name="Close image preview").click(),
+        lambda: page.mouse.click(8, 400),
+    ):
+        thumbnail.click()
+        expect(viewer).to_be_visible()
+        dismiss()
+        expect(viewer).to_be_hidden()
+        expect(thumbnail).to_be_focused()
+        expect(box).to_be_visible()
+        expect(box).to_have_js_property("value", "See the fault")
+
+
 def test_original_image_link_has_a_standalone_target(browser, serve):
     # Under a finger the link takes the touch floor, the larger of the two.
     touch = True
@@ -4146,14 +4187,20 @@ def test_a_resolution_from_elsewhere_moves_nothing_after_a_diff_thread(browser, 
     expect(page.locator("lf-diff .lf-resolved-summary")).to_have_text("Resolved · 1")
 
 
-def long_diff_thread(serve):
-    """Serve a diff long enough for its file header to stick, with a user's thread on
-    its first line, and return the page's URL and the thread's id."""
+# Paragraphs that give a page length before the thread it is about.
+LEAD = "".join(
+    f"<p>Paragraph {n}, there to give the page length.</p>" for n in range(30)
+)
+
+
+def long_diff_thread(serve, lead=""):
+    """Serve a diff long enough for its file header to stick, after `lead`, with a
+    user's thread on its first line, and return the page's URL and the thread's id."""
     lines = "".join(f" line {number}\n" for number in range(2, 80))
     url = serve(
         leaf_page(
             "a long diff thread",
-            '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch">'
+            f'<h1 id="title">Review</h1>{lead}<lf-diff id="patch" source="review-patch">'
             "<pre></pre></lf-diff><p>Reading the paragraph after the diff.</p>",
         )
     )
@@ -4179,6 +4226,118 @@ def long_diff_thread(serve):
         },
     )["id"]
     return url, root
+
+
+def long_seated_thread(serve):
+    """Serve a widget seating a thread in the page's flow, with the page's length around
+    it, and a user's thread on the seat; return the page's URL and the thread's id."""
+    url = serve(
+        leaf_page(
+            "a seated thread",
+            f'<h1 id="title">Bracket order</h1>{LEAD}'
+            '<lf-test-plan id="cd-command" label="Bracket extras">'
+            '<lf-test-task id="cd-q" status="active" talk>'
+            "<strong>Which extras go in?</strong>"
+            "<p>Choose between a seed tray and a second pole.</p>"
+            f"</lf-test-task></lf-test-plan>{LEAD}",
+        )
+    )
+    root = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Does the tray fit the north bracket?",
+            "anchor": {"section": "cd-q"},
+        },
+    )["id"]
+    return url, root
+
+
+# Where a reply row's foot stands, where Send and the caret are, on screen and below
+# the top of the thread it grows in, and whether the thread is taller than the window.
+ROW_FOOT = """box => {
+  const row = box.closest('.lf-thread-reply');
+  const thread = row.parentElement;
+  const foot = row.getBoundingClientRect().bottom;
+  return {foot, within: foot - thread.getBoundingClientRect().top,
+    tall: thread.getBoundingClientRect().height > innerHeight};
+}"""
+
+
+def send_reply(page, thread, box, words):
+    """Type `words` into the thread's reply box, its lines on Shift+Enter, and send
+    them; return where the row's foot stood before the send and after it drew."""
+    box.click()
+    for at, line in enumerate(words.split("\n")):
+        if at:
+            page.keyboard.press("Shift+Enter")
+        page.keyboard.type(line)
+    turns = thread.locator(".lf-msg").count()
+    before = box.evaluate(ROW_FOOT)
+    page.keyboard.press("Enter")
+    expect(thread.locator(".lf-msg")).to_have_count(turns + 1)
+    rendered(page)
+    return before, box.evaluate(ROW_FOOT)
+
+
+@pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
+@pytest.mark.parametrize(("seat", "lines"), [("widget", 1), ("diff", 1), ("diff", 4)])
+def test_sends_from_a_page_threads_box_hold_its_foot_at_the_bands(
+    engine, seat, lines, request, serve
+):
+    """Each send from a thread's box at the reading band's foot, where typing brings
+    it, leaves the box's foot there, where Send and the caret stand, through the send
+    that makes the thread taller than the band.
+
+    The send landed the whole thread while it fitted and the reply row once it did
+    not, and the thread, focused by the send, took its focus ring's room at its foot.
+    So the first send lifted the box by that room and the thread's padding, and the
+    send that made the thread too tall dropped it back by the same. Held by its top
+    instead, a box emptied of several lines lifted its foot by the lines it lost."""
+    browser = request.getfixturevalue(engine)
+    url, root = (
+        long_seated_thread(serve) if seat == "widget" else long_diff_thread(serve, LEAD)
+    )
+    page = open_page(browser, url)
+    resized(page, 1200, 560)
+    thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
+    expect(thread).to_be_visible()
+    box = thread.locator("leaf-text")
+    # The box's foot just past the landing band's, where the first keystroke lands it.
+    box.evaluate(
+        """box => scrollBy({top: box.getBoundingClientRect().bottom - innerHeight
+          + parseFloat(getComputedStyle(document.documentElement).scrollPaddingBottom)
+          - 12, behavior: 'instant'})"""
+    )
+    rendered(page)
+    sends = []
+    while not sends or not sends[-1][1]["tall"]:
+        assert len(sends) < 8, sends
+        words = "\n".join(f"Reply {len(sends)}, line {n}" for n in range(lines))
+        sends.append(send_reply(page, thread, box, words))
+    for before, after in sends:
+        assert abs(after["foot"] - before["foot"]) < 1, sends
+
+
+def test_a_panel_send_with_room_below_moves_only_the_box(browser, serve):
+    """A send from a Threads panel card with room below its box draws the turn where
+    the box stood and moves the box down by it, and the list stays where it is: the
+    card's transcript is an append region, whose earlier turns stay put."""
+    url = serve(PANEL_PAGE)
+    root = seed_panel_threads(serve.page_dir, 2)[0]
+    page = open_page(browser, url)
+    open_threads_list(page, 1200, 900)
+    card = reply_by_keyboard(page, root)
+    box = card.locator("leaf-text")
+    list_top = "() => document.querySelector('.lf-threads').scrollTop"
+    scrolled = page.evaluate(list_top)
+    before, after = send_reply(page, card, box, "Reply with room below")
+    scroll_settled(page, ".lf-threads")
+    assert page.evaluate(list_top) == scrolled
+    grew = after["within"] - before["within"]
+    assert grew > 0 and abs(after["foot"] - before["foot"] - grew) < 1, (before, after)
 
 
 @pytest.mark.parametrize("foot", ["under the banner", "under the file header"])
@@ -6636,6 +6795,49 @@ def test_a_folding_thread_keeps_the_card_under_the_pointer_put(browser, serve):
     ), "the manual hold disabled native anchoring after its mutation ended"
 
 
+@pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
+def test_a_fold_frame_by_frame_keeps_the_card_below_on_its_pixel(
+    engine, request, serve
+):
+    """A card folding above the reader shrinks a little each frame, and each frame's
+    correction lands within the pixel the engine rounds a scroll offset to. The next
+    frame corrects from where the last one aimed, so the card the reader looks at
+    ends where it began rather than a rounding further per frame."""
+    browser = request.getfixturevalue(engine)
+    page = open_page(browser, serve(LONG_PAGE, comments=30), init_script=HOLD_MOTION)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    roots = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    source, target = roots[5], roots[16]
+    target_card = page.locator(f'.lf-thread[data-id="{target}"]')
+    target_card.evaluate(
+        "el => el.scrollIntoView({behavior: 'instant', block: 'center'})"
+    )
+    one_frame(page)
+    start = target_card.evaluate("el => el.getBoundingClientRect().top")
+    before = page.evaluate("() => window.__lfHeld.length")
+    append_carried_log_record(
+        serve.page_dir,
+        {"kind": "resolve", "author": "user", "parent": source},
+    )
+    told(page)
+    expect(page.locator(f'.lf-going[data-id="{source}"]')).to_have_count(1)
+    steps = 30
+    for step in range(1, steps):
+        page.evaluate(
+            "([i, part]) => { const motion = window.__lfHeld[i];"
+            " motion.currentTime = motion.effect.getComputedTiming().duration * part; }",
+            [before, step / steps],
+        )
+        one_frame(page)
+    tops = target_card.evaluate("el => el.getBoundingClientRect().top")
+    assert tops == pytest.approx(start, abs=1)
+
+
 def test_a_folding_reference_hands_its_hold_to_the_next_card(browser, serve):
     """When the aimed-at card is itself leaving, its successor inherits the hold.
 
@@ -8244,7 +8446,7 @@ def test_the_address_sequence_places_a_focused_comment_at_either_list_edge(
     page.keyboard.press("g")
     expect(
         page.locator(
-            ".lf-shortcut-bar .lf-shortcut:not([hidden])",
+            ".lf-shortcut-bar .lf-shortcut:not([data-lf-off-line])",
             has_text="thread top / bottom",
         )
     ).to_have_count(1)
@@ -8720,7 +8922,7 @@ def test_the_line_offers_the_thread_g_t_lands_on_its_own_keys(browser, serve):
     page.keyboard.press("Shift+t")
     expect(page.locator(OPEN_TITLE)).to_be_focused()
 
-    shown = page.locator(".lf-shortcut-bar .lf-shortcut:not([hidden])")
+    shown = page.locator(".lf-shortcut-bar .lf-shortcut:not([data-lf-off-line])")
     expect(shown).to_have_count(2)
     # The thread's own first key leads and the way out of the surface follows it, which
     # is what the line is for: the user can see the panel around them, and what they
@@ -9659,6 +9861,18 @@ def seated_page(serve, kind):
     ), "#proposal"
 
 
+def watch_blurs(box):
+    """Count the times the editor `box` loses focus from now on, wherever it moves:
+    a move that keeps the user in it fires none (`blurs`)."""
+    box.evaluate(
+        "box => { box.lfBlurs = 0; box.addEventListener('blur', () => box.lfBlurs++); }"
+    )
+
+
+def blurs(box):
+    return box.evaluate("box => box.lfBlurs")
+
+
 def seated_thread(serve, kind, messages, annotations="overlay"):
     """A thread of `messages` turns on a page seat (`task`, `verdict`) or on a diff
     line (`diff`, drawn inside the widget's shadow tree), and the page's URL. A diff
@@ -10421,6 +10635,7 @@ def test_a_reply_box_whose_thread_leaves_the_diff_takes_the_user_to_its_card(
         )
         told(page)
         expect(box).to_be_focused()
+    watch_blurs(box)
     # Whether the page, at any task after the box leaves, holds the user nowhere: a
     # key arriving then would run as a page command.
     page.evaluate(
@@ -10448,6 +10663,8 @@ def test_a_reply_box_whose_thread_leaves_the_diff_takes_the_user_to_its_card(
     expect(reply).to_have_js_property("value", "Half a thought")
     assert reply.evaluate("box => [box.selectionStart, box.selectionEnd]") == [4, 4]
     assert page.evaluate("() => window.__strandedAt") == []
+    # The user never left the editor on its way.
+    assert blurs(reply) == 0
     page.keyboard.type(" tr")
     expect(reply).to_have_js_property("value", "Half tr a thought")
     expect(reply).to_be_focused()
@@ -10483,12 +10700,15 @@ def test_a_reply_box_whose_thread_returns_to_the_diff_takes_the_user_back(
     expect(reply).to_be_focused()
     page.keyboard.type(" more")
     reply.evaluate("box => box.setSelectionRange(4, 4)")
+    watch_blurs(reply)
     data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
     told(page)
     expect(card).to_be_hidden()
     expect(box).to_be_focused()
     expect(box).to_have_js_property("value", "Half a thought more")
     assert box.evaluate("box => [box.selectionStart, box.selectionEnd]") == [4, 4]
+    # The user never left the editor on its way back.
+    assert blurs(box) == 0
     page.keyboard.type(" tr")
     expect(box).to_have_js_property("value", "Half tr a thought more")
     expect(box).to_be_focused()
@@ -10497,6 +10717,140 @@ def test_a_reply_box_whose_thread_returns_to_the_diff_takes_the_user_back(
     expect(box).to_have_js_property("value", "Half a thought more")
     page.keyboard.press("ControlOrMeta+z")
     expect(box).to_have_js_property("value", "Half a thought")
+
+
+# The browser's speech recognizer, replaced at its boundary as tests/runtime's
+# dictation tests replace it: each instance records whether it was aborted, and a
+# test hears words through its `onresult`.
+FAKE_RECOGNITION = """
+window.lfRecognizers = [];
+window.SpeechRecognition = class {
+  constructor() { this.aborted = false; window.lfRecognizers.push(this); }
+  start() { setTimeout(() => this.onstart?.()); }
+  stop() { setTimeout(() => this.onend?.()); }
+  abort() { this.aborted = true; }
+};
+"""
+
+
+def test_a_reply_dictated_on_the_diff_keeps_listening_as_its_thread_moves(
+    browser, serve
+):
+    """The user dictates a reply on the diff line, and the patch moves the thread to
+    its margin card and back. Leaf's dictation followed the editor's view and stopped
+    on each move. It goes on with the editor, still listening, and writes what it
+    hears into the same box wherever the thread stands."""
+    url, root = seated_thread(serve, "diff", 2)
+    page = open_page(browser, url, init_script=FAKE_RECOGNITION)
+    resized(page, 1440, 900)
+    inline = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+    row = inline.locator(":scope > .lf-thread-reply")
+    row.scroll_into_view_if_needed()
+    row.locator("leaf-text").focus()
+    row.locator(".lf-compose-dictate").click()
+    page.wait_for_function("() => window.lfRecognizers.length === 1")
+    heard = """words => window.lfRecognizers[0].onresult({
+      results: [[{ transcript: words }]],
+    })"""
+    page.evaluate(heard, "Half a")
+    data_model.cmd_data_set(
+        serve.page_dir, "review-patch", SEAT_DIFF + "@@ -9 +9 @@\n-old = 1\n+new = 1\n"
+    )
+    told(page)
+    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+    reply = card.locator(":scope > .lf-thread-reply leaf-text")
+    expect(reply).to_be_focused()
+    page.evaluate(heard, "Half a thought")
+    expect(reply).to_have_js_property("value", "Half a thought")
+    data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
+    told(page)
+    box = row.locator("leaf-text")
+    expect(box).to_be_focused()
+    page.evaluate(heard, "Half a thought more")
+    expect(box).to_have_js_property("value", "Half a thought more")
+    assert page.evaluate("() => window.lfRecognizers.map(r => r.aborted)") == [False]
+
+
+@pytest.mark.parametrize("card", ["open", "closed"])
+def test_a_reply_box_left_by_tab_returns_to_the_diff_with_its_history(
+    browser, serve, card
+):
+    """The user leaves the margin card's reply before the patch comes back: by Tab onto
+    the margin (`open`), or by Shift+Tab to the card's Close and Enter (`closed`). Its
+    editing session goes on: the diff line used to draw a fresh editor holding only
+    the words, while the hidden card kept the one with the undo history. The diff line
+    takes that editor."""
+    url, root = seated_thread(serve, "diff", 2)
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    inline = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+    box = inline.locator(":scope > .lf-thread-reply leaf-text")
+    box.scroll_into_view_if_needed()
+    write(box, "Half a thought")
+    data_model.cmd_data_set(
+        serve.page_dir, "review-patch", SEAT_DIFF + "@@ -9 +9 @@\n-old = 1\n+new = 1\n"
+    )
+    told(page)
+    shown = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+    reply = shown.locator(":scope > .lf-thread-reply leaf-text")
+    expect(reply).to_be_focused()
+    page.keyboard.type(" more")
+    preview = page.locator(".lf-margin-preview")
+    if card == "open":
+        for _ in range(10):
+            page.keyboard.press("Tab")
+            if not preview.evaluate("card => card.contains(document.activeElement)"):
+                break
+    else:
+        close = page.locator(".lf-margin-preview-close")
+        for _ in range(10):
+            page.keyboard.press("Shift+Tab")
+            if close.evaluate("close => close.matches(':focus')"):
+                break
+        page.keyboard.press("Enter")
+        expect(preview).to_be_hidden()
+    expect(reply).not_to_be_focused()
+    data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
+    told(page)
+    expect(shown).to_be_hidden()
+    expect(box).to_have_js_property("value", "Half a thought more")
+    box.focus()
+    page.keyboard.press("ControlOrMeta+z")
+    expect(box).to_have_js_property("value", "Half a thought")
+
+
+@pytest.mark.parametrize("standing", ["close", "marker"])
+def test_a_user_on_a_thread_returning_to_the_diff_goes_with_it(
+    browser, serve, standing
+):
+    """The user stands on the margin card's Close, or on the thread's margin marker,
+    when the patch comes back and the thread takes its seat on the diff line again.
+    The node they stood on goes with the margin's copy of the thread. They landed on
+    the banner's More button or the page; they land on the thread where it now
+    stands."""
+    url, root = seated_thread(serve, "diff", 2)
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    inline = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+    data_model.cmd_data_set(
+        serve.page_dir, "review-patch", SEAT_DIFF + "@@ -9 +9 @@\n-old = 1\n+new = 1\n"
+    )
+    told(page)
+    expect(inline).to_have_count(0)
+    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
+    if standing == "close":
+        marker.click()
+        close = page.locator(".lf-margin-preview-close")
+        close.focus()
+        expect(close).to_be_focused()
+    else:
+        marker.focus()
+        expect(marker).to_be_focused()
+    data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
+    told(page)
+    expect(inline).to_have_count(1)
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    expect(inline).to_be_focused()
 
 
 @pytest.mark.parametrize(

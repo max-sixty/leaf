@@ -16,6 +16,7 @@ import re
 import secrets
 import shlex
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -603,9 +604,17 @@ def refused_on(answer) -> Finding:
 
 
 def check_findings(d) -> tuple[int, list[Finding]]:
-    """`page check --json`, in-process: its exit status and what it found, as records."""
+    """`page check`, in-process: its exit status and what it found, as records."""
     report = json.loads(
-        CliRunner().invoke(cli_model.cli, ["page", "check", "--json", str(d)]).stdout
+        CliRunner().invoke(cli_model.cli, ["page", "check", str(d)]).stdout
+    )
+    return report["status"], [Finding.loads(found) for found in report["findings"]]
+
+
+def package_findings(package) -> tuple[int, list[Finding]]:
+    """`package check`, in-process: its exit status and what it found, as records."""
+    report = json.loads(
+        CliRunner().invoke(cli_model.cli, ["package", "check", str(package)]).stdout
     )
     return report["status"], [Finding.loads(found) for found in report["findings"]]
 
@@ -1470,6 +1479,21 @@ def _no_page_outlives_its_test(tmp_path, isolated_session):
     retire_test_services(tmp_path, isolated_session)
 
 
+def retire_bridge(lock):
+    """End the bridge holding `lock` once it has published its address."""
+    record = wait_for(
+        lambda: files_model.read_json(lock.with_suffix(".json")),
+        bool,
+        failure="a started bridge never published its address",
+    )
+    os.kill(record["pid"], signal.SIGTERM)
+    wait_for(
+        lambda: leases_model.lock_is_held(lock),
+        lambda held: not held,
+        failure="a bridge outlived its test",
+    )
+
+
 def retire_test_services(tmp_path, isolated_session):
     """End the test's harnesses before removing their coordination files.
 
@@ -1486,6 +1510,10 @@ def retire_test_services(tmp_path, isolated_session):
         record = files_model.read_json(path)
         if isinstance(record, dict) and isinstance(record.get("id"), str):
             cleanup_model.end_session(record["id"])
+    # A Claude Code hook leaves Leaf's bridge running for the worker's lifetime.
+    for lock in (isolated_session / "bridge").glob("*.lock"):
+        if leases_model.lock_is_held(lock):
+            retire_bridge(lock)
     for root in (tmp_path, isolated_session):
         for lease in root.rglob("server.lock"):
             if server_model.running_server(lease.parent):
@@ -1925,12 +1953,9 @@ def managed_server(spawn):
             stderr=subprocess.PIPE,
             text=True,
         )
-        assert json.loads(process.stdout.readline())["url"].startswith(
-            "http://127.0.0.1:"
-        )
-        assert process.stderr.readline().strip() == (
-            "server   session (stops with its agent session)"
-        )
+        started = json.loads(process.stdout.readline())
+        assert started["url"].startswith("http://127.0.0.1:")
+        assert started["lifetime"] == "session"
         return process
 
     return start
@@ -1957,8 +1982,8 @@ def start_server_command(page_dir, *flags, session_id="starter"):
 
 @pytest.fixture
 def persistent_server(spawn, sessionless):
-    """`server run` from a bare shell — a terminal, a login item — held to the
-    two lines it prints, the URL and the lifetime it recorded.
+    """`server run` from a bare shell — a terminal, a login item — held to what it
+    prints, the URL and the lifetime it recorded.
 
     A persistent serve is one nothing reaps: it declines the claim, so no watcher
     starts, and a run killed while one is up leaves a process only a person can
@@ -1977,10 +2002,9 @@ def persistent_server(spawn, sessionless):
             stderr=subprocess.PIPE,
             text=True,
         )
-        assert json.loads(process.stdout.readline())["url"].startswith(
-            "http://127.0.0.1:"
-        )
-        assert process.stderr.readline().strip() == "server   persistent"
+        started = json.loads(process.stdout.readline())
+        assert started["url"].startswith("http://127.0.0.1:")
+        assert started["lifetime"] == "persistent"
         return process
 
     return start
@@ -2167,6 +2191,40 @@ _SnapshotDumper.add_representer(
         flow_style=not any(isinstance(item, dict) for item in items),
     ),
 )
+
+
+def words(output: str) -> str:
+    """The words in what a command printed (`cli`): each JSON value's `error` and
+    every `text` within it, one to a line."""
+    found = []
+
+    def collect(value):
+        if isinstance(value, dict):
+            found.extend(value[key] for key in ("error", "text") if key in value)
+            for item in value.values():
+                collect(item)
+        elif isinstance(value, list):
+            for item in value:
+                collect(item)
+
+    decoder, at = json.JSONDecoder(), 0
+    while at < len(output.rstrip()):
+        value, at = decoder.raw_decode(output, at)
+        collect(value)
+        at = len(output) - len(output[at:].lstrip())
+    return "\n".join(found)
+
+
+def said(stderr: str) -> list[dict]:
+    """What a command said beside its result: each JSON object it printed on stderr
+    (`cli`), its words as `Prose`."""
+    return [
+        {
+            key: Prose(value) if key in ("text", "error") else value
+            for key, value in json.loads(line).items()
+        }
+        for line in stderr.splitlines()
+    ]
 
 
 def yaml_block(data: dict) -> str:

@@ -81,6 +81,42 @@ default watch.
 
 </details>
 
+<details>
+<summary>Agent sandboxes</summary>
+
+Leaf's hooks run outside an agent's sandbox, but `leaf` commands run wherever the
+agent's shell commands do, and a sandbox refuses them what they need: writes to
+Leaf's state in `~/.local/state/leaf`, a port on localhost for the page server, and
+a browser for render checks.
+
+In Claude Code, Leaf's hooks keep a bridge running outside the sandbox, and each
+sandboxed `leaf` command hands itself to the bridge through the sandbox's network
+proxy. The first time in a session, Claude Code asks whether to allow that
+connection. To allow it without asking, add `127.0.0.1` to Claude Code's settings,
+such as `~/.claude/settings.json`:
+
+```json
+{ "sandbox": { "network": { "allowedDomains": ["127.0.0.1"] } } }
+```
+
+Allowing `127.0.0.1` lets every sandboxed command reach any server listening on
+this machine's loopback, Leaf's bridge among them, and through the bridge run
+`leaf` commands with your own access, as Leaf's hooks already run.
+
+Codex's sandbox gives a command no such route. To have `leaf` commands run outside
+it without asking, add a rules file, such as `~/.codex/rules/leaf.rules`, and
+restart Codex:
+
+```
+prefix_rule(pattern = ["leaf"], decision = "allow")
+```
+
+The agent still chooses each command's arguments, such as the directory `page init`
+writes to. The rule applies only where the whole command line is `leaf` commands,
+so one chained after `cd` or piped into another program stays in the sandbox.
+
+</details>
+
 ## Explore and extend
 
 - [How it works](https://leaf.page/how-it-works/): comments, decisions, live

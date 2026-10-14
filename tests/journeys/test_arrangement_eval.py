@@ -1,5 +1,5 @@
 """Product controls really render ordinary HTML; the live loop carries each phase
-to a scripted author; judges read real screenshots."""
+to a scripted author; live judges explore disposable copies."""
 
 import json
 import time
@@ -236,7 +236,6 @@ def test_live_loop_carries_each_phase_to_the_author(
     decision = run.recorded("decision")
     assert decision["route"] == "page"
     assert [g["detail"] for g in decision["gestures"]] == [{"value": ["redis"]}]
-    assert arrangement_eval.comment_applied(run, evidence / "page-phase3")
     assert arrangement_eval.comment_answer(run, "") == "Named Mei Tanaka's team."
 
     def reader(cwd, prompt, *args, out, err, **kwargs):

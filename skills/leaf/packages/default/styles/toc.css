@@ -21,9 +21,7 @@
 :scope:is(lf-toc) .lf-toc-nav { position: relative; border-left: 1px solid var(--border-2);
                      padding-left: var(--sp-3); color: var(--muted);
                      font: var(--t-5)/1.3 var(--sans); }
-:scope:is(lf-toc) .lf-toc-heading { margin: 0 0 7px; color: var(--ink-2);
-                         font-size: var(--t-6); font-weight: 650;
-                         letter-spacing: .08em; text-transform: uppercase; }
+:scope:is(lf-toc) .lf-toc-heading { margin: 0 0 7px; }
 :scope:is(lf-toc) .lf-toc-start, :scope:is(lf-toc) .lf-toc-window { display: none; }
 @media print { :scope:is(lf-toc) .lf-toc-start { display: block; } }
 :scope:is(lf-toc) ol { list-style: none; margin: 0; padding: 0; }
@@ -127,10 +125,6 @@
       :scope:is(lf-toc) :is(.lf-toc-start, li):has(> a[aria-current="location"])::before {
         background: var(--ink-2); border-color: var(--ink-2);
       }
-      :scope:is(lf-toc) li[data-lf-depth="1"] { --lf-toc-indent: 10px; }
-      :scope:is(lf-toc) li[data-lf-depth="2"] { --lf-toc-indent: 20px; }
-      :scope:is(lf-toc) li[data-lf-depth="3"] { --lf-toc-indent: 30px; }
-      :scope:is(lf-toc) li[data-lf-depth="4"] { --lf-toc-indent: 40px; }
       :scope:is(lf-toc) .lf-toc-start a, :scope:is(lf-toc) li a {
         position: absolute; z-index: 3; display: -webkit-box;
         top: 0; left: 0; width: 100%;

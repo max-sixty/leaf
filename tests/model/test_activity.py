@@ -20,6 +20,7 @@ from interact_support import (
     page_state,
     record_claim,
     response_reference,
+    said,
     serving,
     state_json,
     working,
@@ -876,13 +877,13 @@ def test_waiting_written_over_an_unanswered_move_names_it(claimed, snapshot):
     early = CliRunner().invoke(cli_model.cli, waiting)
     assert early.exit_code == 0, early.output
     assert json.loads(early.stdout)["detail"] == "pick one"
-    assert early.stderr.splitlines() == [
-        (
-            "1 user update with no answer (`leaf response reply <answer.ref>` with "
-            f"the `answer.ref` that `leaf wait {claimed}` delivers for {comment}); "
-            "the page reads waiting once each has one"
-        )
-    ]
+    [owed] = said(early.stderr)
+    assert owed["code"] == "waiting-owes"
+    assert owed["text"] == (
+        "1 user update with no answer (`leaf response reply <answer.ref>` with "
+        f"the `answer.ref` that `leaf wait {claimed}` delivers for {comment}); "
+        "the page reads waiting once each has one"
+    )
 
     replied = CliRunner().invoke(
         cli_model.cli,
@@ -913,7 +914,7 @@ def test_waiting_written_over_an_unanswered_move_names_it(claimed, snapshot):
                             for key, value in json.loads(result.stdout).items()
                             if key != "ts"
                         },
-                        "note": result.stderr,
+                        "note": said(result.stderr),
                     }
                     for moment, result in (
                         ("before reply", early),

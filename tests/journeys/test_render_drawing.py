@@ -1,5 +1,6 @@
 """Drawing-comment browser journeys."""
 
+import json
 import re
 
 import pytest
@@ -246,7 +247,7 @@ def test_a_drawing_is_pictured_in_the_window_it_was_drawn_in(browser, serve):
         cli_model.cli, ["page", "picture", str(serve.page_dir), event["id"]]
     )
     assert pictured.exit_code == 0, pictured.output
-    image = Image.open(pictured.output.strip()).convert("RGB")
+    image = Image.open(json.loads(pictured.stdout)["file"]).convert("RGB")
 
     def where(color):
         """The bounding box of the picture's pixels within a few levels of `color`."""
@@ -445,7 +446,7 @@ def test_a_drawing_takes_back_its_strokes_and_comes_off_its_comment(browser, ser
         page.locator("#opt-a").click()
     picked = len(events_model.read_events(serve.page_dir))
     heading = page.locator("#h")
-    tile = page.locator(".lf-composer-drawing [role=img]")
+    tile = page.get_by_role("button", name=re.compile(r"^Inspect drawing,"))
     pending = page.locator(".lf-drawing-pending path")
     parked = page.locator(".lf-drawing-parked path")
     field = page.locator(".lf-fab-input")
@@ -461,11 +462,11 @@ def test_a_drawing_takes_back_its_strokes_and_comes_off_its_comment(browser, ser
     # Redo is pressed as a keyboard sends it, Shift making the key "Z": a "Shift+z"
     # press sends "z", which CodeMirror on Linux reads as Ctrl+Z, undo.
     page.keyboard.press("ControlOrMeta+Shift+Z")
-    expect(tile).to_have_attribute("aria-label", "Drawing, 1 stroke")
+    expect(tile).to_have_attribute("aria-label", "Inspect drawing, 1 stroke")
     stroke_over(page, heading, points=other)
-    expect(tile).to_have_attribute("aria-label", "Drawing, 2 strokes")
+    expect(tile).to_have_attribute("aria-label", "Inspect drawing, 2 strokes")
     page.keyboard.press("ControlOrMeta+z")
-    expect(tile).to_have_attribute("aria-label", "Drawing, 1 stroke")
+    expect(tile).to_have_attribute("aria-label", "Inspect drawing, 1 stroke")
     expect(pending).to_have_attribute("d", re.compile(r"^M[^M]*$"))
 
     # Words typed after a stroke are the latest change, and a stroke drawn after the
@@ -474,19 +475,19 @@ def test_a_drawing_takes_back_its_strokes_and_comes_off_its_comment(browser, ser
     write(field, "Here.")
     page.keyboard.press("ControlOrMeta+z")
     expect(field).to_have_js_property("value", "")
-    expect(tile).to_have_attribute("aria-label", "Drawing, 2 strokes")
+    expect(tile).to_have_attribute("aria-label", "Inspect drawing, 2 strokes")
     page.keyboard.press("ControlOrMeta+z")
-    expect(tile).to_have_attribute("aria-label", "Drawing, 1 stroke")
+    expect(tile).to_have_attribute("aria-label", "Inspect drawing, 1 stroke")
     stroke_over(page, heading, points=other)
     write(field, "Here.")
     stroke_over(page, heading)
-    expect(tile).to_have_attribute("aria-label", "Drawing, 3 strokes")
+    expect(tile).to_have_attribute("aria-label", "Inspect drawing, 3 strokes")
     page.keyboard.press("ControlOrMeta+z")
-    expect(tile).to_have_attribute("aria-label", "Drawing, 2 strokes")
+    expect(tile).to_have_attribute("aria-label", "Inspect drawing, 2 strokes")
     expect(field).to_have_js_property("value", "Here.")
     page.keyboard.press("ControlOrMeta+z")
     expect(field).to_have_js_property("value", "")
-    expect(tile).to_have_attribute("aria-label", "Drawing, 2 strokes")
+    expect(tile).to_have_attribute("aria-label", "Inspect drawing, 2 strokes")
 
     # The words' history orders them, not the words' text: words typed and taken out
     # again are the latest change, and words typed hard on a stroke's heels, which the
@@ -497,7 +498,7 @@ def test_a_drawing_takes_back_its_strokes_and_comes_off_its_comment(browser, ser
     page.keyboard.press("Backspace")
     page.keyboard.press("ControlOrMeta+z")
     expect(field).to_have_js_property("value", "x")
-    expect(tile).to_have_attribute("aria-label", "Drawing, 2 strokes")
+    expect(tile).to_have_attribute("aria-label", "Inspect drawing, 2 strokes")
     page.keyboard.press("ControlOrMeta+z")
     page.keyboard.type("a")
     stroke_over(page, heading, steps=2, points=other)
@@ -505,9 +506,9 @@ def test_a_drawing_takes_back_its_strokes_and_comes_off_its_comment(browser, ser
     page.keyboard.type("b")
     page.keyboard.press("ControlOrMeta+z")
     expect(field).to_have_js_property("value", "a")
-    expect(tile).to_have_attribute("aria-label", "Drawing, 3 strokes")
+    expect(tile).to_have_attribute("aria-label", "Inspect drawing, 3 strokes")
     page.keyboard.press("ControlOrMeta+z")
-    expect(tile).to_have_attribute("aria-label", "Drawing, 2 strokes")
+    expect(tile).to_have_attribute("aria-label", "Inspect drawing, 2 strokes")
     page.keyboard.press("ControlOrMeta+z")
     expect(field).to_have_js_property("value", "")
 
@@ -516,7 +517,7 @@ def test_a_drawing_takes_back_its_strokes_and_comes_off_its_comment(browser, ser
     page.keyboard.press("ControlOrMeta+Shift+Z")
     expect(field).to_have_js_property("value", "a")
     page.keyboard.press("ControlOrMeta+Shift+Z")
-    expect(tile).to_have_attribute("aria-label", "Drawing, 3 strokes")
+    expect(tile).to_have_attribute("aria-label", "Inspect drawing, 3 strokes")
     page.keyboard.press("ControlOrMeta+Shift+Z")
     expect(field).to_have_js_property("value", "ab")
     for _ in range(3):
@@ -526,7 +527,7 @@ def test_a_drawing_takes_back_its_strokes_and_comes_off_its_comment(browser, ser
     field.focus()
     page.keyboard.press("ControlOrMeta+Shift+Z")
     page.keyboard.press("ControlOrMeta+z")
-    expect(tile).to_have_attribute("aria-label", "Drawing, 2 strokes")
+    expect(tile).to_have_attribute("aria-label", "Inspect drawing, 2 strokes")
     expect(field).to_have_js_property("value", "")
     write(field, "Here.")
 
@@ -551,19 +552,19 @@ def test_a_drawing_takes_back_its_strokes_and_comes_off_its_comment(browser, ser
     page.reload()
     wait_until_ready(page)
     expect(field).to_have_js_property("value", "Here.")
-    expect(tile).to_have_attribute("aria-label", "Drawing, 2 strokes")
+    expect(tile).to_have_attribute("aria-label", "Inspect drawing, 2 strokes")
     field.focus()
     page.keyboard.press("ControlOrMeta+z")
-    expect(tile).to_have_attribute("aria-label", "Drawing, 2 strokes")
+    expect(tile).to_have_attribute("aria-label", "Inspect drawing, 2 strokes")
     expect(field).to_have_js_property("value", "Here.")
     page.get_by_role("button", name="Undo last stroke").click()
-    expect(tile).to_have_attribute("aria-label", "Drawing, 1 stroke")
+    expect(tile).to_have_attribute("aria-label", "Inspect drawing, 1 stroke")
     page.get_by_role("button", name="Remove drawing").click()
     expect(tile).to_have_count(0)
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
     expect(field).to_be_focused()
     page.keyboard.press("ControlOrMeta+z")
-    expect(tile).to_have_attribute("aria-label", "Drawing, 1 stroke")
+    expect(tile).to_have_attribute("aria-label", "Inspect drawing, 1 stroke")
     expect(pending).to_have_attribute("d", re.compile(r"^M[^M]*$"))
     page.keyboard.press("ControlOrMeta+Shift+Z")
     expect(tile).to_have_count(0)

@@ -4,8 +4,8 @@
    Count and narrowing paint share the rows' checkpoint and update boundary.
    The list owns the one expanded visible thread and writes every shown card's
    disclosure from that choice, while cards retain their message and editor nodes; a
-   card whose title takes focus, by Tab, press or script, and a card the browser opens
-   itself, as find-in-page does, become the choice. The cards
+   card whose title the user moves onto (a `move` or `step`, or a press's click), and a
+   card the browser opens itself, as find-in-page does, become the choice. The cards
    carry no native `name`: its exclusivity closes a card the moment it is named beside
    an open one, which the list's own choice then opens again. This mechanical state
    never publishes a new application epoch. Narrowing keeps the
@@ -16,8 +16,12 @@
    Focus given to the list goes on to the selected card's title or withdrawn notice's
    Dismiss button, whatever gave it — `g T`, Escape from the panel's find box, or a fold
    that took the focused card. The list keeps focus itself only while it shows no
-   selected allocation, and its ring never outlines one. No title holds focus closed:
-   focus, selection and the open card never part.
+   selected allocation, and its ring never outlines one. Only focus that focus.js
+   publishes as `move` or `step` chooses a title's card (`chooseTitle`); a press
+   chooses at its click (thread-card.js). A `holdFocus` restore is published as
+   `return` and chooses nothing, so a restore that runs after the choice moved to
+   another card, while focus stayed put, leaves focus on a closed title
+   (keyboard/AGENTS.md, Threads).
 
    The list also decides when a card leaves it (`keeping`), and news takes no card
    out from in front of the user: a card another actor resolves under Open stays where
@@ -37,7 +41,7 @@
    the rule beside `keeping`, as paint the list spliced into each reading it drew
    (#2387), which every later change to when a card leaves had to repeat and which
    committing had to rebuild from the drawn rows. */
-import { html, repeat, ref } from "../../vendor/browser-runtime.js";
+import { html, repeat, ref } from "/vendor/browser-runtime.js";
 import {
   holdFocus,
   onStanding,
@@ -458,6 +462,10 @@ class ThreadListView extends RetainedFace {
   }
 
   updated() {
+    // A card the list shows takes the reply being written in its thread where no view
+    // holds it (thread/replies.js, `claim`), once it stands in the document.
+    for (const view of this.#views.values())
+      view.claimReply(() => view.node.checkVisibility());
     this.#showExpanded();
     const restore = this.#restoreFocusAfterPaint;
     this.#restoreFocusAfterPaint = null;

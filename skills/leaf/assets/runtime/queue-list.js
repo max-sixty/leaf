@@ -15,7 +15,7 @@
    A row whose to-do the user ends with Done carries a Done button beside it, which Tab
    reaches from the row and a finger taps, and `x` on the row presses it. Pressing it
    puts focus on its row first, so focus follows the list as the row leaves for Done. */
-import { html, nothing, repeat } from "../vendor/browser-runtime.js";
+import { html, nothing, repeat } from "/vendor/browser-runtime.js";
 import { PRESS } from "./keyboard/bindings.js";
 import { commandsOn } from "./keyboard/scopes.js";
 import { RetainedFace } from "./retained-face.js";
@@ -189,7 +189,7 @@ class QueueList extends RetainedFace {
       ${
         done.rows.length
           ? html`<details class="lf-queue-group lf-queue-done" data-lf-queue="done">
-              <summary class="lf-queue-heading">${done.label}</summary>
+              <summary class="lf-queue-heading lf-label">${done.label}</summary>
               ${rowsTemplate(done.rows, this.#activateRow, this.#finishRow, this.#end)}
             </details>`
           : nothing

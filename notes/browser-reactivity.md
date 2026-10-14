@@ -19,8 +19,8 @@ findings; each owning module's header states the current contract.
   and no watcher of its own, so a paint that reads several needs one watcher, and a
   paint that narrates reports passes `reportsPresented` as the watcher's proof. The
   same record holds the paint's readings of what stands outside the publication
-  (`outsideReading`): the time it shows, whether a drag holds the projection back, and
-  the page's `PRESENTATION` count, each followed by the same rule. Nothing else a
+  (`outsideReading`): the time it shows and the page's `PRESENTATION` count, each
+  followed by the same rule. Nothing else a
   paint reads is followed. A Preact effect also subscribes the paint to private
   signals it reads, such as where the user stands, which a paint may also write:
   tracked by an effect, the annotation inventory's paint re-ran itself without end and

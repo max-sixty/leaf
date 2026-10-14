@@ -157,7 +157,9 @@ class LivePage:
             activation = activate_source(self.page_dir, transaction=page)
             # Only the complete state response carries a news token. Take it
             # after activation and before the facts it names.
-            reading = served_reading.page_reading(self.page_dir) if with_token else None
+            reading = (
+                served_reading.held_page_reading(self.page_dir) if with_token else None
+            )
             yield (
                 read_page(
                     self.page_dir, page.events, layer_identity=self.layer_identity

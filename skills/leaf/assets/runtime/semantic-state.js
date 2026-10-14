@@ -3,12 +3,12 @@
    their adapters. Importing this module does not mount any view or start delivery. */
 import {
   collectReads,
+  outsideReading,
   untracked,
   createPresentationCoordinator,
   createPresentationSchedule,
   createSemanticApplication,
-  PRESENTATION_HELD,
-} from "../vendor/browser-runtime.js";
+} from "/vendor/browser-runtime.js";
 
 import { bindQueuedWork } from "./queued-work.js";
 
@@ -57,10 +57,31 @@ export const selectWidgets = applicationState.selectWidgets;
 export const attachApplicationPresentation = (region, renderer) =>
   presentation.attach(region, renderer);
 const widgetRegion = (widget, kind) => `widget:${widget}:${kind}`;
-const widgetRegions = (widget) =>
+export const widgetRegions = (widget) =>
   ["render", "preparation"].map((kind) => widgetRegion(widget, kind));
 export const attachWidgetPresentation = (widget, kind, renderer) =>
   presentation.attach(widgetRegion(widget, kind), renderer);
+
+// A parent renders moved members before their attribute-set owner reads the DOM.
+// Authored parentage and projected moves supply the current depth; module arrival
+// order supplies none. Widgets paint ahead of document projection at zero.
+const currentWidgetParents = readPart((root) => root.effective.widgetParents);
+const widgetOrder = (widget) => {
+  const parents = currentWidgetParents();
+  const seen = new Set();
+  let depth = 0;
+  for (let parent = parents.get(widget); parent; parent = parents.get(parent)) {
+    if (seen.has(parent)) break;
+    seen.add(parent);
+    depth++;
+  }
+  return -1 / (depth + 1);
+};
+export const queueWidgetUpdate = (widget, update) =>
+  schedule.enqueue(
+    untracked(() => widgetOrder(widget)),
+    update,
+  );
 
 // Where a document-wide renderer stands in one presentation pass. The projection
 // materializes provenance words and coordinate chrome inside authored elements, the
@@ -104,9 +125,7 @@ const publications = applicationState.select((root) => root);
 // claims the region as a moved part does. What else the paint takes from beyond the
 // root — a draft, the document's own nodes — is a mechanical change, and its owner
 // claims through `present`, which claims whatever the reading gives, so a reading that
-// stands still is still painted when asked for. A
-// renderer withholds a value it does owe by returning `PRESENTATION_HELD`, which keeps
-// its region pending until a later claim supersedes it.
+// stands still is still painted when asked for.
 /** @param {{
  *   region: string,
  *   renderer?: object,
@@ -239,7 +258,6 @@ export const presentDocument = () => {
 // is what a caller awaits instead of naming renderers, and it carries the first paint
 // failure of the pass so an accepted reading that could not be shown stays unrecorded.
 export const whenDocumentPresented = () => schedule.passed();
-export { PRESENTATION_HELD };
 
 export class PresentationRetentionError extends AggregateError {}
 
@@ -277,11 +295,21 @@ export const whenApplicationRegionsPresented = (regions, current) =>
         : null,
     regions,
   );
-const applicationRegionsPresented = (regions) =>
+export const applicationRegionsPresented = (regions) =>
   presentation.currentRegionsPresented(currentApplicationPresentation, regions);
 export const projectionRegionsPresented = (widgets) =>
   applicationRegionsPresented(["projection:chrome", ...widgets.flatMap(widgetRegions)]);
 export const watchPresentation = presentation.subscribe;
+// A reading of presentation proof itself, such as whether the regions a report waits
+// on have committed. A paint that follows one draws again when it moves without
+// claiming its own region for it: a claim moves presentation, and the reading with it.
+const proofReadings = new WeakSet();
+export const proofReading = (read) => {
+  const reading = outsideReading(read, (moved) => watchPresentation(() => moved({})));
+  proofReadings.add(reading);
+  return reading;
+};
+export const readsProof = (reading) => proofReadings.has(reading);
 export const readApplicationPresentation = presentation.read;
 export function setPresentationFailureReporter(report) {
   reportPresentationFailure = (reason) => report(reason, "Presentation failed");

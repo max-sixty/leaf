@@ -12,7 +12,7 @@
    Rejected: folding each resolved thread to a summary of its own, which repeated
    "Resolved" once per thread and named none of them. */
 import { setChildren } from "../dom-children.js";
-import { html, render } from "../../vendor/browser-runtime.js";
+import { html, render } from "/vendor/browser-runtime.js";
 import { seatRoot } from "./model.js";
 import { ThreadView, threadReading } from "./thread-card.js";
 import { elementById } from "../passages.js";
@@ -21,6 +21,7 @@ import { registry } from "../registry.js";
 import { loadDraft } from "../drafts.js";
 import { holdBox } from "./reply-landing.js";
 import { HeldNews, seatNotice } from "./held-news.js";
+import { releaseReplies } from "./replies.js";
 import { passOn } from "../user-intent.js";
 
 const seats = new WeakMap();
@@ -75,8 +76,9 @@ class ThreadSeat {
   #model = EMPTY;
   #shown = EMPTY;
   #committed = EMPTY;
-  // A seat in the page's flow holds back news that would move what the reader reads, and
-  // says so in place of its first-message row while it draws no thread (held-news.js).
+  // A seat holds back news that would move what the reader reads, and says so in place
+  // of its first-message row while it draws no thread (held-news.js). The margin's
+  // floating card is a seat too, so it holds news as a seat in the page's flow does.
   #held = null;
   #notice = null;
   #commands = null;
@@ -108,7 +110,9 @@ class ThreadSeat {
         ? [...this.#resolved.node.children].slice(1)
         : [];
     this.#model = model;
-    if (model.surface === "page" || model.surface === "outlet")
+    // A reading with no surface, a first-message box drawn before its seat's threads,
+    // is no baseline for news.
+    if (model.surface)
       this.#held ??= new HeldNews(
         this.node,
         (key) => this.#views.get(key),
@@ -131,7 +135,14 @@ class ThreadSeat {
       (thread) => !prior.threads.some(({ key }) => key === thread.key),
     );
     const wanted = new Set(shown.threads.map((thread) => thread.key));
-    for (const [key, view] of this.#views) if (!wanted.has(key)) view.retire();
+    // A thread leaving the seat releases the reply being written in it before its card
+    // goes, so the editor goes on where the thread now stands (replies.js), still
+    // listening if the user was dictating; the card retires only what stays with it.
+    for (const [key, view] of this.#views)
+      if (!wanted.has(key)) {
+        releaseReplies(view.node);
+        view.retire();
+      }
     const nodes = [];
     const settled = [];
     for (const descriptor of shown.threads) {
@@ -174,6 +185,7 @@ class ThreadSeat {
       }
     }
     setChildren(this.node, foot ? [...nodes, foot] : nodes);
+    this.claim();
     // The seat's own box gives way to the thread its message started, and the user stands
     // on that thread, where any send leaves them (`landSent`). Threads the seat held back
     // show with the user's, which is the one they stand on. A disclosure the user stood
@@ -202,6 +214,15 @@ class ThreadSeat {
     }
     restoreBox();
     if (!batch) this.commit();
+  }
+
+  // Each thread the seat shows takes the reply being written in it where no view holds
+  // it (replies.js, `claim`), once the seat stands in the document, so the move keeps the
+  // user in the editor. A seat drawn before it is placed, as the margin card's is, claims
+  // once its owner places it (`claimSeatReplies`).
+  claim() {
+    const shown = () => this.node.isConnected;
+    for (const { key } of this.#shown.threads) this.#views.get(key).claimReply(shown);
   }
 
   commit() {
@@ -256,6 +277,8 @@ export function renderThreadSurface(host, threads, commands, response = null) {
     seatReading(threads, "outlet", commands, response),
   );
 }
+
+export const claimSeatReplies = (host) => seats.get(host)?.claim();
 
 export function clearThreadSurface(host) {
   seats.get(host)?.present(EMPTY);

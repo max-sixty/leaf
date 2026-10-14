@@ -134,13 +134,7 @@ export function mountApplication(dependencies) {
     return presentDocument();
   };
 
-  // The drag that deferred the projection has ended: present the reading it held.
-  const projection = createProjectionPresentation({
-    onDeferredReady: () => {
-      invalidateDom();
-      releasePendingSafely("deferred pending release");
-    },
-  });
+  const projection = createProjectionPresentation();
   const dataProjection = createDataProjection({ invalidateDom });
 
   let delivery;
@@ -356,6 +350,9 @@ export function mountApplication(dependencies) {
         flash: false,
         intent,
       }),
+    // The thread a margin entry stands for, which a user on it goes on with when the
+    // thread leaves the margin.
+    threadAt: (node) => overlay?.entryThread(node) ?? null,
     read,
   });
   const registerThreadPanel = ({ controller, threadsBox, view }) =>
@@ -491,9 +488,15 @@ export function mountApplication(dependencies) {
   // chrome's `yielded`, asked before its reader goes, returns how to hand the reader
   // taking its place the conversation it shows, which runs once the package holds its
   // registration, as that reader may ask it to present.
-  const attachPresentation = (owner, { render, reveal }) => {
-    const reader = createPrimaryReader(owner, render, inlineView, () =>
-      threadPresenter.present(),
+  // A presentation that makes room for the agent's answer to the user's last turn
+  // itself says so (`answersAtOnce`), and its reader draws that answer at once.
+  const attachPresentation = (owner, { render, reveal, answersAtOnce = false }) => {
+    const reader = createPrimaryReader(
+      owner,
+      render,
+      inlineView,
+      () => threadPresenter.present(),
+      { answersAtOnce },
     );
     const detachDestination = threadDestinations.register(owner, reveal, reader);
     let detachPresentation;

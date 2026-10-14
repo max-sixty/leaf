@@ -83,8 +83,8 @@ other page files and the external state listed below.
   `(session, sequence)`. Its end cutoff defines observed history, then gap detection
   precedes start, session and type filtering. Missing sequences remain visible under
   a type filter; an unsent tail leaves no evidence. Server and developer records have
-  no browser session association. A torn append line is skipped. Human output uses
-  local time and shortens values; `--json` preserves admitted payloads.
+  no browser session association. A torn append line is skipped. The command prints
+  each admitted observation or gap as one JSON line, retaining its complete payload.
 
   Each browser sequence names one observation. A serialized observation over 40,000
   UTF-8 bytes becomes `interaction_omitted`, retaining its original type, size and

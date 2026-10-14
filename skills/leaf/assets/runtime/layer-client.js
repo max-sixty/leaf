@@ -33,7 +33,7 @@
    work. Code running inside a sample's child page reports to the child's own
    disposable log, not the page that embeds it. */
 
-import { describeFailure } from "../vendor/browser-runtime.js";
+import { describeFailure } from "/vendor/browser-runtime.js";
 import { countTraffic } from "./traffic.js";
 import { recordInteraction } from "./interaction-log.js";
 import { DELIVERY, offlineInteractive, pageUrl, runtime } from "./context.js";
@@ -158,9 +158,11 @@ export async function requestJson(url, init, what) {
     } catch (error) {
       throw failed(`${what}: HTTP ${response.status}`, error);
     }
+  // `said` is the server's own words for the refusal, where it gave any.
   if (!response.ok)
     throw Object.assign(failed(answer?.error ?? `${what}: HTTP ${response.status}`), {
       current: answer?.current,
+      said: answer?.error,
     });
   return answer;
 }

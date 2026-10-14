@@ -131,7 +131,7 @@ customElements.define(
         const pre = document.createElement("pre");
         // The gutter fits the widest number, so an excerpt from deep in a file keeps
         // its code aligned with its notes.
-        pre.style.setProperty("--lf-code-digits", String(numbers.at(-1)).length);
+        pre.style.setProperty("--lf-code-digits", `${String(numbers.at(-1)).length}`);
         // A note stands at the row of the line it names, or the elided row standing
         // for it; one naming a line past either end of the block stands at its foot.
         lines.forEach((tokens, i) => {

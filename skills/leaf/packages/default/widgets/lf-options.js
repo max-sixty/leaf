@@ -236,7 +236,9 @@ customElements.define(
       if (!this.#choosable) return;
       this.addEventListener("click", (e) => {
         // A click ending a drag-select belongs to the selection rather than the option.
-        const option = e.target.closest?.("lf-option");
+        const option = /** @type {Partial<Element>} */ (e.target).closest?.(
+          "lf-option",
+        );
         if (!option || option.parentElement !== this) return;
         if (!pressIsKeyboardActivation(e) && reachedForWords(option)) return;
         // A click something in the option has a use for is not a pick: the user was

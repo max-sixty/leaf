@@ -55,7 +55,7 @@ import {
   html,
   render,
   signal,
-} from "../vendor/browser-runtime.js";
+} from "/vendor/browser-runtime.js";
 
 // A scroll target can sit inside a collapsed container — a closed <details>, an
 // inactive tab. Opening what the platform owns (details) and letting a container

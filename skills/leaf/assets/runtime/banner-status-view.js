@@ -10,9 +10,9 @@
  * The agent's On count (`queues`) is the view's second box, which the banner places
  * beside the status rather than inside it, so the banner can give it whichever row
  * leaves the sentence its room (chrome.css). Its words hold the room of the count it
- * usually reaches (`queuesWidest`, as `data-lf-room`), so the sentence changing never carries it and its
- * changing moves nothing. A count past that widens the box once, and it keeps the width
- * while the page is open. The count is a press, one of the On panel's doors
+ * usually reaches (`queuesWidest`, as `data-lf-room`), so the sentence changing never
+ * carries it and its changing moves nothing. A count past that widens the box once, and
+ * it keeps the width while the page is open. The count is a press, one of the On panel's doors
  * (drawers.js wires it), so the panel listing what it counts is one press from where they
  * are counted.
  *
@@ -27,7 +27,7 @@ import {
   classMap,
   createRef,
   ref,
-} from "../vendor/browser-runtime.js";
+} from "/vendor/browser-runtime.js";
 import { el } from "./widget-elements.js";
 import { keeps, keepsHidden } from "./keeps.js";
 import { focusDestination, focused } from "./focus.js";

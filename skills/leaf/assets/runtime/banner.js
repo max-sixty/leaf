@@ -2,7 +2,7 @@
  * paints its tone on the tab icon, and announces changes after the first status
  * reading. Provisional interface readiness paints the banner
  * without establishing that announcement baseline; saved state or a failed read does. */
-import { html, nothing, render } from "../vendor/browser-runtime.js";
+import { html, nothing, render } from "/vendor/browser-runtime.js";
 import { ago } from "./presence.js";
 import { pageStatus, statusModel } from "./activity-words.js";
 import { el, offer } from "./widget-elements.js";

@@ -50,7 +50,8 @@ customElements.define(
           if (!(await loadMarkdown((error) => (failure = error)))) throw failure;
         }
         if (rendering !== this.rendering || !this.isConnected) return;
-        this.figure ??= this.build(preview);
+        /** @type {HTMLElement} */
+        this.figure = this.figure ?? this.build(preview);
         const label = this.getAttribute("label") ?? this.getAttribute("source");
         keepsText(this.caption, snapshot ? label : `${label} · no data`);
         if (this.code.textContent !== source)
@@ -71,7 +72,7 @@ customElements.define(
             const finish = () => {
               this.preview.removeEventListener("load", finish);
               if (this.finishFrame === finish) this.finishFrame = null;
-              resolve();
+              resolve(undefined);
             };
             this.finishFrame = finish;
             this.preview.addEventListener("load", finish);
@@ -122,6 +123,7 @@ customElements.define(
       literal.id = `${this.id}--source`;
       literal.setAttribute("label", "Source");
       literal.setAttribute("data-lf-bound", bound);
+      /** @type {HTMLElement & Partial<HTMLIFrameElement>} */
       this.preview = document.createElement(preview === "html" ? "iframe" : "div");
       this.preview.className = "lf-text-document-preview";
       if (preview === "html") {

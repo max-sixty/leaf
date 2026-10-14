@@ -173,6 +173,7 @@ const hunkHeads = (entry) =>
 
 const LINE_KEY = "data-lf-line";
 
+/** @param {import("./diff-coordinates.js").DiffCoordinate} coordinate */
 const lineLabel = ({ path, side, oldLine, newLine }) => {
   const file = path || "(unnamed file)";
   if (side === "old") return `${file} · old line ${oldLine}`;
@@ -828,7 +829,7 @@ async function renderFile(file, sharedStyles) {
   rendered.querySelector("svg[data-icon-sprite]")?.remove();
   for (const number of rendered.querySelectorAll("[data-line-number-content]")) {
     number.classList.add("lf-ui");
-    number.dataset.lfGen = "1";
+    number.setAttribute("data-lf-gen", "1");
     number.setAttribute("aria-hidden", "true");
   }
   for (const separator of rendered.querySelectorAll("[data-separator]"))
@@ -1083,7 +1084,9 @@ customElements.define(
           // Not bodyText: a diff's trailing whitespace is content — a hunk's last line
           // can be a lone space, the context line for a blank source line — so only the
           // closing newline is the <pre>'s layout.
-          this.inlineSource ??= dataBody(this).replace(/^\n+/, "").replace(/\n$/, "");
+          /** @type {string} */
+          this.inlineSource =
+            this.inlineSource ?? dataBody(this).replace(/^\n+/, "").replace(/\n$/, "");
           paintInline(this.inlineSource);
         }
         return () => {
@@ -1511,7 +1514,7 @@ customElements.define(
               this.projectFiles();
             }
             for (const restore of restores) restore?.();
-            resolve();
+            resolve(undefined);
           } catch (error) {
             reject(error);
           }

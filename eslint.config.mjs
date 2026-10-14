@@ -348,7 +348,17 @@ export const semanticStoreOwnershipRule = {
         });
         return false;
       }
-      return /(?:^|\/)vendor\/browser-runtime\.js$/u.test(source.value);
+      if (!/(?:^|\/)vendor\/browser-runtime\.js$/u.test(source.value)) return false;
+      // The type check maps the facade's served path to the framework's source; a
+      // relative path reaches the compiled facade, whose types are blanked, so what a
+      // module imports through it goes unchecked (`build/browser/build.mjs`, `typecheck`).
+      if (source.value.startsWith("."))
+        context.report({
+          node: source,
+          message:
+            "Import the browser framework's facade by its served path, /vendor/browser-runtime.js.",
+        });
+      return true;
     };
     const report = (node) =>
       context.report({

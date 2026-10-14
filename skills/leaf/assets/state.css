@@ -18,4 +18,26 @@
 
   /* Retiring the only slot leaves its wrapper empty. Keep that wrapper in the
      layout tree so Undo can restore the text in the same place. */
+
+  /* Paper takes no input, so what a widget injects to be worked goes: the control, and
+     the box that holds controls. Here the document and every declared shadow tree read
+     it; important in the top tier, it outranks every ordinary display and yields to a
+     widget's own important print rule (threads, controls.css). What stays is a control
+     whose label is words the page keeps: one it speaks (data-lf-said, a pick mark
+     reading "chosen") or one it echoes off another element (data-lf-echo, a roster
+     row's name), keyed on the declaration each label makes (see relabel) rather than on
+     .lf-ui, whose question is anchoring's. Those give up the shape that promises a
+     press; colour stays, being part of what the control says. */
+  @media print {
+    [data-lf-offer]:not([data-lf-said], [data-lf-echo]) { display: none !important; }
+    [data-lf-offer]:is([data-lf-said], [data-lf-echo]) {
+      background: none !important; border: 0 !important; border-radius: 0 !important;
+      box-shadow: none !important; padding-inline: 0 !important;
+      cursor: default !important; text-decoration: none !important;
+      list-style: none !important;
+    }
+    [data-lf-offer]:is([data-lf-said], [data-lf-echo])::-webkit-details-marker {
+      display: none !important;
+    }
+  }
 }

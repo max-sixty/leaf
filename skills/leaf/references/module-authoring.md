@@ -355,7 +355,9 @@ A page word that is also a control, such as a tab's name, has to stay selectable
 a form control is not. `selectableOffer(role, className, label)` builds it as a focusable
 span with that `role`, and the widget supplies the keyboard pattern the native element
 would have had. `el(tag, className, text)` makes an element with its class and first
-words and no Leaf markers, for structure that is not injected UI.
+words and no Leaf markers, for structure that is not injected UI. Paper drops every
+offer, in the document and in a shadow stage alike, so a box holding what the widget
+shows, such as an editor's file, is an `el`.
 
 `relabel(node, label, {says})` writes a generated control's label. `says` is required:
 `true` where the label is the page speaking, such as a pick mark reading "chosen",

@@ -570,6 +570,57 @@ function localTodos(
 
 const NO_QUEUES: WireQueues = { on_user: [], on_agent: [], done: [] };
 
+/** Attribute-set owners depend on the members their total render paints, as well
+ * as on the selected ids. Capture supplies authored parentage; the complete
+ * position fold supplies current parentage for declared descendants. Flat creates
+ * supply additional members to their creator without becoming widget owners. */
+function currentWidgetRelations(
+  document: SemanticDocument,
+  widgets: ReturnType<typeof foldWidgetStates>,
+  projection: ReturnType<typeof foldProjection>,
+) {
+  const parents = new Map(
+    [...document.descriptors].map(([id, descriptor]) => [id, descriptor.parent?.id]),
+  );
+  const owners = new Map<string, Set<string>>();
+  const memberships = new Map<string, Record<string, string[]>>();
+  for (const [id, widget] of widgets) {
+    for (const [verb, spec] of widget.specs) {
+      const record = spec.record;
+      if (record?.kind === "attribute") {
+        const named = owners.get(record.attr) ?? new Set<string>();
+        named.add(id);
+        owners.set(record.attr, named);
+        const slots = memberships.get(id) ?? {};
+        slots[record.attr] = [];
+        memberships.set(id, slots);
+      } else if (record?.kind === "position") {
+        const state = widget.state[verb];
+        if (state && "ranks" in state)
+          for (const [container, units] of Object.entries(state.value))
+            for (const unit of units) parents.set(unit, container);
+      }
+    }
+  }
+  for (const [attr, named] of owners) {
+    for (const id of document.descriptors.keys()) {
+      const seen = new Set<string>([id]);
+      for (let parent = parents.get(id); parent; parent = parents.get(parent)) {
+        if (seen.has(parent)) break;
+        seen.add(parent);
+        if (!named.has(parent)) continue;
+        memberships.get(parent)![attr]!.push(id);
+        break;
+      }
+    }
+    for (const { e, unit, spec } of projection.desired.values())
+      if (spec.creates && named.has(e.widget) && !document.descriptors.has(unit))
+        memberships.get(e.widget)![attr]!.push(unit);
+    for (const owner of named) memberships.get(owner)![attr]!.sort();
+  }
+  return { parents, memberships };
+}
+
 /* What is on the user (On me), what is on the agent (On <agent>), and what is done:
  * the view's served lists (`served_state.queues`), with this tab's unresolved sends
  * placed against them. A send moves an item the server listed only where the item is
@@ -774,6 +825,7 @@ function widgetInputs(
     registered: root.document.descriptors.get(id),
     states: root.document.registry.$states[tag],
     current: root.effective.widgets.get(id),
+    memberships: root.effective.memberships.get(id),
     authored: root.document.authored.get(id),
     hostAvailable: root.effective.hostAvailable,
     ready: root.phase === "ready",
@@ -838,6 +890,7 @@ function widgetReading(
   return {
     authored: authored ?? {},
     state: current?.state ?? {},
+    memberships: currentDescriptor ? (inputs.memberships ?? {}) : {},
     thread: { heldBy: inputs.heldBy },
     provenance,
     actions,
@@ -965,6 +1018,7 @@ export function createSemanticApplication({
     );
     const folded = foldThreads(view?.thread.threads ?? [], gestures);
     const widgets = foldWidgetStates(document.authored, projection);
+    const { parents: widgetParents, memberships } = currentWidgetRelations(document, widgets, projection);
     const asks = ready
       ? normalizedAsks(view, widgets, document, projection, local)
       : NO_ASKS;
@@ -1157,6 +1211,8 @@ export function createSemanticApplication({
       // Part of the effective reading, so a read that changes only the view's
       // reports, publication time, or undo list opens an epoch and reaches its readers.
       view,
+      memberships,
+      widgetParents,
       // The attempts still waiting for their POST's answer, in ledger order.
       sending: unresolved
         .filter((entry) => SENDING.has(entry.state))

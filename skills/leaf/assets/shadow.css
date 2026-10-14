@@ -846,10 +846,11 @@ leaf-text.lf-fab-input,
 }
 @media print {
   .lf-page-thread,
+  .lf-resolved-threads,
   .lf-page-thread .lf-msg {
     display: block !important;
   }
-  .lf-page-thread :is(.lf-thread-reply, .lf-say, button, .lf-msg-sending) {
+  .lf-page-thread :is(button, .lf-msg-sending) {
     display: none !important;
   }
 }
@@ -1788,11 +1789,6 @@ html[data-lf-draw-mode] main {
 .lf-code-copy::part(lf-focus) {
   outline: var(--focus-ring);
   --lf-focus-ring: code-copy;
-}
-@media print {
-  .lf-code-copy {
-    display: none;
-  }
 }
 .lf-msg-body a.detached {
   color: var(--muted-2);

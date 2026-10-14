@@ -1294,6 +1294,7 @@ export default [
       ".venv/**",
       "examples/corpus.html",
       "skills/leaf/assets/vendor/**",
+      "skills/leaf/kernel/**",
       "skills/leaf/packages/*/vendor/**",
       "evals/ui-review-detection/fixtures/**",
     ],

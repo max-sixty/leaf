@@ -3949,7 +3949,8 @@ def test_a_breakout_takes_the_rooms_width_unless_the_page_sizes_it(browser, serv
     borders at the room's left edge. A page rule sizing it keeps the margins and
     replaces the width: the frame stood out in the left margin and stopped short of
     the prose's right edge, and the gate read it as clean. A width past the prose's
-    edge but short of the room is off the axis too. The reading asks only of a
+    edge but short of the room is off the axis too, and a room inside a scroller is
+    read inside its scrollbar gutter, which a styled scrollbar keeps classic headless. The reading asks only of a
     box the margins grew that the user can see: a positioned frame is placed by its
     own offsets, and its parent is not what holds it."""
     source = leaf_page(
@@ -3961,6 +3962,10 @@ def test_a_breakout_takes_the_rooms_width_unless_the_page_sizes_it(browser, serv
 <iframe id="granted" title="Granted" data-width="wide" style="display: block"></iframe>
 <iframe id="sized" class="sized" title="Sized" data-width="wide" style="display: block"></iframe>
 <iframe id="wider" title="Wider" data-width="wide" style="display: block; width: 130%"></iframe>
+<style>#gutter::-webkit-scrollbar { width: 15px; height: 15px; }</style>
+<div id="gutter" style="overflow: scroll; scrollbar-gutter: stable">
+  <iframe id="guttered" title="Guttered" data-width="wide" style="display: block"></iframe>
+</div>
 <iframe id="unseen" class="sized" title="Unseen" data-width="wide"
   style="display: block; opacity: 0"></iframe>
 <div style="position: relative; height: 160px"><div style="width: 50%; margin-left: 25%">

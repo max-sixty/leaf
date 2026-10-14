@@ -20,14 +20,20 @@ const at = (el) => (el === pageScroller ? "<root scrollport>" : element(el));
 const BREAKOUT = '[data-lf-space]:not([data-lf-space="column"])';
 
 // The box a block's width and margins resolve against: its nearest ancestor that
-// generates one, inside that ancestor's border and padding.
+// generates one, inside that ancestor's border, padding and any scrollbar gutter, at
+// the place its scroll puts it.
 function contentBox(el) {
   let s = getComputedStyle(el);
   while (s.display === "contents") s = getComputedStyle((el = el.parentElement));
-  const b = el.getBoundingClientRect();
+  const left =
+    el.getBoundingClientRect().left +
+    el.clientLeft +
+    parseFloat(s.paddingLeft) -
+    el.scrollLeft;
   return {
-    left: b.left + parseFloat(s.borderLeftWidth) + parseFloat(s.paddingLeft),
-    right: b.right - parseFloat(s.borderRightWidth) - parseFloat(s.paddingRight),
+    left,
+    right:
+      left + el.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight),
   };
 }
 

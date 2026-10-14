@@ -61,7 +61,7 @@ starts with your first message, as the selected harness's "Replies" describes.
 For a command-written reply, your first command after delivery is:
 
 ```bash
-leaf response reply <answer.ref> --ephemeral --text "<what you will do, in a few words>"
+leaf response reply <answer.ref> --ephemeral --text "<what you will do, in a line>"
 ```
 
 The user reads it at once, and it takes the update in hand: the update reads
@@ -78,11 +78,8 @@ Take the item in hand again whenever the user would describe what you are doing
 differently: a new phase such as reading, editing, testing, or waiting on a result.
 Another progress message replaces the thread's working message and keeps the step
 behind it; a start changes the line without one, and folding it into the command
-that begins the step costs no extra tool call. Name the operation and its subject in a few words, such as "Reading the reconnect
-traces": the banner, the thread's working message and the Tasks row each show the
-line on one row, which a narrow thread card cuts off past about 40 characters, so
-leave the detail to your answer. "Working on it" tells the user nothing the banner's dot does not
-already say.
+that begins the step costs no extra tool call. Name the operation and its subject in one sentence; "Working on it"
+tells the user nothing the banner's dot does not already say.
 
 Work requested in chat or begun by you gets an item too. After initializing a
 new page, open and start its to-do before authoring. On an existing page, open it

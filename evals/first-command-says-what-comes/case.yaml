@@ -9,10 +9,6 @@
 # let through the regex).
 # Reworded by #2329 (updates to progress messages); at 3fe3eb0af it passed 1/1 on
 # Claude Code.
-# The short-line assertion was added when a progress line of 130 characters stood
-# cut off at a thread card's foot, which shows one row. It separated the arms on
-# Claude Code: base 186b089c0 wrote 75-86 characters and passed 0 of 3, the handling
-# text naming the row's cut-off 27-44 and passed 3 of 3.
 description: first-command-says-what-comes
 metadata:
   purpose: 'Conversation loop: after a delivery whose message asks for work, the first command posts a short progress message in its thread saying what the agent will do, before reading or editing anything; the answer comes later.'
@@ -44,11 +40,3 @@ assert:
     after the work. A `leaf task start` on 5d1e8a42 after the progress message is
     fine. Fail if the first command is a `leaf task start`, a read, an edit, or
     anything other than that progress message, or if the comment is never answered.
-- type: llm-rubric
-  metric: short-line
-  value: |
-    Pass only if the text of every `--ephemeral` progress message and every
-    `leaf task start` line written is at most about 45 characters, a few words
-    naming the operation and its subject, with the detail left to the answer.
-    Fail if any such line runs longer, as a sentence listing the steps or
-    files involved does.

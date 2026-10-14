@@ -152,6 +152,16 @@ CASES = (
         tuple({"section": f"list-items-{i}"} for i in range(3)),
     ),
     Case(
+        "tight-list",
+        "Full-width list items shorter than a pin, one comment on the first.",
+        '<ul style="line-height:20px;margin:0">'
+        + "".join(
+            f'<li id="tight-list-{i}">{WORDS[: 30 + 10 * i]}</li>' for i in range(3)
+        )
+        + "</ul>",
+        ({"section": "tight-list-0"},),
+    ),
+    Case(
         "two-comments-one-target",
         "Two comments on one short paragraph.",
         f'<p id="two-comments-p" style="max-width:34ch">{WORDS}</p>',
@@ -176,8 +186,6 @@ CASES = (
         '<svg id="wide-image-svg" width="100%" height="160" role="img" '
         'aria-label="chart"><rect width="100%" height="160" fill="#9cc"/></svg>',
         ({"section": "wide-image-svg"},),
-        # On a phone every seat touching it is on the figure or the paragraph's words.
-        allow={"words": ("phone",)},
     ),
     Case(
         "table",
@@ -268,8 +276,6 @@ CASES = (
         + f"{WORDS} " * 6
         + "</div>",
         ({"section": "dense-text-d"},),
-        # On a phone every seat touching a block of justified lines is on words.
-        allow={"words": ("phone",)},
     ),
     Case(
         "keypad",
@@ -279,8 +285,6 @@ CASES = (
         + "".join(f'<button class="button">{key}</button>' for key in "123456789*0#")
         + "</div>",
         ({"section": "keypad-d"},),
-        # On a phone every seat touching it is on its buttons or the paragraph's words.
-        allow={"words": ("phone",)},
     ),
 )
 
@@ -444,12 +448,9 @@ def faults(reading: dict) -> list[tuple[str, str]]:
         for entry in pin["entries"]:
             if parts and min(_distance(entry, part) for part in parts) > REACH:
                 found.append(("far", name))
-            if (
-                entry["left"] < 0
-                or entry["right"] > reading["width"]
-                or entry["top"] < 0
-                or entry["bottom"] > reading["height"]
-            ):
+            # Only across: a pin below a tall target is past the window's foot at
+            # this scroll and reached by scrolling, as its target is.
+            if entry["left"] < 0 or entry["right"] > reading["width"]:
                 found.append(("offscreen", name))
             for kind in ("words", "controls", "media"):
                 if any(_meets(entry, box) for box in reading[kind]):

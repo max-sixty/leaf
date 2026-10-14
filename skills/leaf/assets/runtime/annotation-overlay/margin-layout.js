@@ -736,10 +736,13 @@ function standFolded(row, fold, on) {
 // A pin's seats, in the order it takes them, all touch its target (`seatRows`): just
 // outside the target's top-right corner; for a run of text, just after its last word,
 // where a reader finishes it; just inside the corner, on the target itself, or further
-// down its right edge; and last just above that inside seat, which keeps the inset from
-// the window's edge, so a target as wide as the window still has room above it. Above
-// comes last because a pin there can read as the block above's, and stands outside what
-// a pane shows when the pane is scrolled to its target.
+// down its right edge; then just above that inside seat, which keeps the inset from the
+// window's edge, so a target as wide as the window still has room above it; and last
+// just below its bottom-right corner, at the same inset, where nothing stands level
+// with it under the target. Above and below come last because a pin there can read as
+// the neighbouring block's, and above stands outside what a pane shows when the pane is
+// scrolled to its target. Below is the one seat clear beside a full-width figure or
+// keypad that sits right under a paragraph.
 //
 // A row that can fold (its `fold.able()`, margin-projection.js) is seated at both sizes,
 // which are worked out rather than read, since only the one it stands at is drawn:
@@ -806,6 +809,21 @@ function pinSeating(rows, { bands, shell, pinInset }) {
       end &&
       target instanceof HTMLElement &&
       getComputedStyle(target).display.startsWith("inline");
+    const floor = Math.max(home.bottom, ...parts.map((part) => part.bottom));
+    // Below the corner only where the row under the target is empty from its left edge
+    // to the corner: beside the next block's words, a pin reads as that block's.
+    // Measured from the target's own foot, not `floor`, which reaches the foot of the
+    // pin's home: a target shorter than a pin would otherwise skip the block below it.
+    const foot = parts.length
+      ? Math.max(...parts.map((part) => part.bottom))
+      : home.bottom;
+    const under = {
+      left: Math.min(home.left, ...parts.map((part) => part.left)),
+      right: home.right,
+      top: foot + GAP,
+      bottom: foot + GAP + height,
+    };
+    const belowClear = !cover.some((box) => overlaps(box, under));
     const seatsAt = (size) => [
       {
         left: box.right + GAP,
@@ -830,6 +848,7 @@ function pinSeating(rows, { bands, shell, pinInset }) {
         top: box.top - GAP - height,
         bottom: box.top - GAP,
       },
+      ...(belowClear ? [{ ...under, left: home.right - size }] : []),
     ];
     const within = stop === pageScroller ? rootBounds : contentBox(stop);
     // A board or table can clip the target across without owning its reading region.
@@ -842,7 +861,7 @@ function pinSeating(rows, { bands, shell, pinInset }) {
       came: entry.came,
       seats: seatsAt(wide),
       corner: inline ? 2 : 1,
-      floor: Math.max(home.bottom, ...parts.map((part) => part.bottom)),
+      floor,
       cover,
       controls,
       folds: fold && { seats: seatsAt(across(1)), open: across(fold.controls()) },

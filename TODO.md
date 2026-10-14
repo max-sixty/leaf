@@ -351,6 +351,20 @@ height and where a switch lands wait on the workspace decision under Layout.
   record but not the user's word for it; choose one. The list is now On me, so its
   name no longer favours question.
 
+### Before/after comparison
+
+- **#29 — Make `lf-shot`'s views one coherent comparison.** A pair now offers
+  Plain, Outlines and Pixels, and Pixels paints one picture: red where only the
+  before image drew, blue where only the after image did, amber where both did. A
+  shot with `pixels` alone opens in Pixels, one with `outlines` in Outlines, and
+  any other in Plain. Settle the details as one design: which view a pair opens
+  in, and whether every pair should offer every view rather than the author
+  choosing them per shot; a key for the three colours; the rail's reading
+  ("identical", "only slight changes", "2 areas changed"), which stands among the
+  view buttons in another voice and reads as a view or a warning, as "identical"
+  does over a pair of pin captures whose pins never moved; and the faint amber
+  halo a moved mark's redrawn shadow leaves in Pixels.
+
 ### Recorded interaction review
 
 Keep the optional Leaf timeline alongside Playwright's viewer, as Max chose

@@ -3,9 +3,9 @@
 Claude Code's sandbox refuses what a `leaf` command needs: writes to the state home,
 a port the user's browser reaches, Chrome for render checks, and on Linux the
 session's process and a server that outlives the command. Its hooks run outside the
-sandbox, so a Claude Code hook (`ensure`) keeps a bridge for this install running
-there, and `bin/leaf` hands each command confined by Claude Code's sandbox
-(`SANDBOX_RUNTIME`) to it (`run`). The command then runs as an unsandboxed one
+sandbox, so the hook Claude Code runs before a shell command naming `leaf`
+(`ensure`) starts a bridge for this install there, and `bin/leaf` hands each
+command confined by Claude Code's sandbox (`SANDBOX_RUNTIME`) to it (`run`). The command then runs as an unsandboxed one
 would, with its arguments, working directory and environment. Its stdin, output
 and exit status pass as they come, so a command that never reads a stdin that
 never ends still finishes.
@@ -20,6 +20,10 @@ bridge refuses a request without the token in its record, which only the user's
 own processes can read: neither another user on the machine nor a page in a
 browser can drive it. Codex's sandbox has no such road; its commands still run
 confined (`TODO.md`).
+
+A session that runs no `leaf` command starts no bridge and no hook for one: the
+hook's `if` rule (`hooks/hooks.json`) has Claude Code start it only before a
+command it reads as running `leaf`, or one whose commands it cannot read.
 
 One bridge serves an install while any Claude Code process a hook registered for
 it is alive. A hook writes its pid before it looks at the bridge's lock, and a
@@ -322,9 +326,10 @@ def run(argv: list[str]) -> int:
     else:
         print(
             "leaf: this command could not reach Leaf's bridge out of Claude Code's "
-            f"sandbox ({refusal}). Leaf's SessionStart and UserPromptSubmit hooks "
-            "start the bridge, and the sandbox lets a command reach it once you "
-            "approve 127.0.0.1 or add it to sandbox.network.allowedDomains "
+            f"sandbox ({refusal}). Leaf's hook starts the bridge before a Bash "
+            "command whose own text runs `leaf`, not one inside a script or "
+            "`bash -c`, and the sandbox lets a command reach it once you approve "
+            "127.0.0.1 or add it to sandbox.network.allowedDomains "
             f'("Agent sandboxes" in {Path(__file__).resolve().parents[4] / "README.md"})',
             file=sys.stderr,
         )

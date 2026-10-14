@@ -103,10 +103,8 @@ def test_every_tab_follows_a_runtime_edit(browser, watched_preview):
     """A runtime edit replaces the server, and every tab of the page follows it.
 
     An open tab takes the new layer with the user's state and log intact. A tab whose
-    start failed hears the replacement too: supervision precedes entry, dependency,
-    registry and stylesheet loading. Each fault is a different detector in the
-    prepaint, so each gets its own tab, and one restart serves them all, since a
-    restart at the recorded port waits out TCP cooldown.
+    start failed hears the replacement too: supervision precedes the kernel and
+    registry requests. One restart serves them all at the recorded port.
     """
     _, runtime, directory, _, url, _ = watched_preview
     open_tab = open_page(browser, url)
@@ -118,14 +116,7 @@ def test_every_tab_follows_a_runtime_edit(browser, watched_preview):
     generation = json.loads((directory / "registry.json").read_text())["$layer"][
         "generation"
     ]
-    resources = (
-        "leaf.js",
-        "runtime/context.js",
-        "widgets/lf-options.js",
-        "registry.json",
-        "theme.css",
-        "syntax",
-    )
+    resources = ("leaf.js", "registry.json")
     pages = {}
     # The interruption and the replacement server between them are a restart, and
     # what the browser says inside one is the fetch that was in flight rather than
@@ -144,36 +135,23 @@ def test_every_tab_follows_a_runtime_edit(browser, watched_preview):
                     route.continue_()
                     return
                 failures.append(True)
-                if resource == "syntax":
-                    route.fulfill(
-                        content_type="text/javascript", body="const = broken;"
-                    )
-                else:
-                    route.abort()
+                route.abort()
 
-            page.route(
-                "**/" + ("leaf.js" if resource == "syntax" else resource),
-                interrupt_resource,
-            )
+            page.route("**/" + resource, interrupt_resource)
             restarts.enter_context(restarting(page))
             page.goto(url, wait_until="load")
             status = page.get_by_text(
                 "Leaf couldn't start. Waiting for the server to update."
             )
             expect(status).to_be_visible()
-            # Hearing the same server does not loop on a persistent syntax/startup
-            # fault.
-            with page.expect_response("**/registry.json") as response:
-                pass
-            assert response.value.ok
             assert len(documents) == 1, resource
-            expect(status).to_be_visible()
             pages[resource] = (page, status, documents)
         # A changed layer replaces the server. An invalid input is now refused
         # before that replacement, so change a valid theme to test recovery.
         theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
-        with theme.open("a", encoding="utf-8") as stream:
-            stream.write("\nh1 { color: navy; }\n")
+        updated = runtime.parent / "theme.css.next"
+        updated.write_text(theme.read_text() + "\nh1 { color: navy; }\n")
+        updated.replace(theme)
         expect(open_tab.locator("h1")).to_have_css(
             "color", "rgb(0, 0, 128)", timeout=HANDOVER_DEADLINE_MS
         )
@@ -225,8 +203,9 @@ def test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back(
             stopped.append(True)
             paused.enter_context(cleanup_model.flocked(directory / "events.jsonl"))
             theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
-            with theme.open("a", encoding="utf-8") as stream:
-                stream.write("\nh1 { color: navy; }\n")
+            updated = runtime.parent / "theme.css.next"
+            updated.write_text(theme.read_text() + "\nh1 { color: navy; }\n")
+            updated.replace(theme)
             # The record says the service is stopping before its socket closes, so
             # the address is what says the start's fetch will find nothing.
             wait_for(

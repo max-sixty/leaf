@@ -10,8 +10,8 @@
  *
  * With `next`, a Next question control steps to the next ask waiting on the user inside
  * the region (`askActions.next`), from where the user stands, so a press keeps
- * them standing there rather than taking focus onto the control, as the Questions
- * panel's Next question does. It is a native button: Tab and Enter reach it, and a
+ * them standing there rather than taking focus onto the control, as the On
+ * panel's Next on me does. It is a native button: Tab and Enter reach it, and a
  * finger taps it. Pressed by keyboard, focus is on the control outside the region, so
  * the walk counts from the ask the user last went to there, else the first in sight,
  * else the region's start (queue-walk.js says how). With none waiting it is disabled.

@@ -57,7 +57,7 @@ from leaf_dev.arms import (
     install_codex_plugin,
     run_directory,
 )
-from leaf_dev.browser import chrome
+from leaf_dev.browser import headless_shell
 from leaf_dev.site import asset_site, install_tree
 from leaf_dev.startup import observe_startup as record_startup
 from leaf_dev.startup import startup_reading
@@ -1112,7 +1112,7 @@ def run_verification(
 ) -> None:
     """Run the release pass against `origin`, including stopped-container reads locally."""
     profiles = {}
-    with chrome() as browser:
+    with headless_shell() as browser:
         print("Leaf startup profile (observed, not a pass/fail budget):", flush=True)
         for path, kind, activate in PAGES:
             profile = verify_page(

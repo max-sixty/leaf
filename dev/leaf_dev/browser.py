@@ -1,11 +1,14 @@
 """The browser, and tabs on a served page, opened and settled the same way by every
 browser check or command that reads or screenshots one."""
 
+import subprocess
+import sys
 from contextlib import contextmanager
+from functools import cache
 from pathlib import Path
 
 from leaf.render_checks import wait_for_probe, wait_until_ready
-from leaf.render_gate.browser import ending, launch_browser
+from leaf.render_gate.browser import ending
 from playwright.sync_api import Browser, Page, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
@@ -40,14 +43,77 @@ def require_linux_fonts():
 
 
 @contextmanager
-def chrome(**options):
-    """The host's browser, as the render gate launches and ends it
-    (`launch_browser`, `ending`), however the block is left, with Playwright's
-    launch `options`."""
-    with sync_playwright() as playwright:
-        browser, _ = launch_browser(playwright, **options)
-        with ending(browser):
-            yield browser
+def headless_shell(**options):
+    """Playwright's pinned Chromium headless shell, the build the suite drives,
+    launched with Playwright's launch `options` and ended as the render gate ends its
+    browser (`ending`), however the block is left.
+
+    Not the host's browser that `launch_browser` finds for a user's `page check`:
+    leaf-dev runs on a developer's machine or CI, where `leaf-dev setup` installs the
+    shell, so it needs no discovery, and a run reads the same build on every host.
+    Installed Chrome also costs more per launch (`shell_executable` says how much).
+    """
+    with (
+        sync_playwright() as playwright,
+        ending(playwright.chromium.launch(**options)) as browser,
+    ):
+        yield browser
+
+
+@cache
+def shell_executable() -> str:
+    """The pinned headless shell's executable, which leaf-dev and the suite name as
+    the host's browser (LEAF_BROWSER_EXECUTABLE) for every `leaf` they run, so each
+    `page check` that runs a page's code or takes `--render` draws with the build
+    `headless_shell` drives. Left unnamed, each would launch installed Google Chrome
+    afresh: about three seconds apiece against the shell's 0.3 (measured over the
+    suite in #1488), and on macOS each new profile leaves a key in Chrome's keychain
+    group that every later Chrome launch makes `secd` read back, so that cost grows
+    with every launch.
+
+    Playwright reports where its full Chromium build would be whether or not that
+    build is installed, and `leaf-dev setup` installs the shell alone. Both sit under
+    one registry root at one build number, so the shell's path follows from
+    Chromium's; where a developer installed the full build instead, that is the
+    browser to hand over. The `chromium-<build>` directory is found by name rather
+    than by depth, because macOS nests the executable inside an app bundle and Linux
+    does not.
+
+    Asked in a subprocess because the answer is a path and the question is not free:
+    a second `sync_playwright()` raises in a process that already holds one open."""
+    read = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from playwright.sync_api import sync_playwright\n"
+                "with sync_playwright() as p: print(p.chromium.executable_path)"
+            ),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    chromium = Path(read.stdout.strip())
+    versioned = next(
+        (p for p in chromium.parents if p.name.startswith("chromium-")), None
+    )
+    if versioned is None:
+        raise RuntimeError(f"{chromium} is not under a Playwright chromium build")
+    root, build = versioned.parent, versioned.name.rsplit("-", 1)[1]
+    shell = root / f"chromium_headless_shell-{build}"
+    shell_executables = sorted(shell.glob("*/chrome-headless-shell*")) + sorted(
+        shell.glob("*/headless_shell")
+    )
+    executable = next(
+        (str(c) for c in (*shell_executables, chromium) if c.is_file()), None
+    )
+    if executable is None:
+        raise RuntimeError(
+            f"no Playwright Chromium under {root}; run `uv run playwright install "
+            "chromium --only-shell`"
+        )
+    return executable
 
 
 @contextmanager

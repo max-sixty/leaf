@@ -16,11 +16,11 @@
  *
  * Three seats partition the run, and measured geometry never changes the partition:
  *
- * - `row`: Threads, and on a desk Approval, Comment on the page and Questions, the
+ * - `row`: Threads, and on a desk Approval, Comment on the page and On me, the
  *   page's own reading loop: reading it, starting a conversation about it,
  *   deciding it.
  * - `menu`: every secondary action, in one stable seat behind More. On a phone
- *   Approval, Comment on the page and Questions join them, so the banner keeps one row:
+ *   Approval, Comment on the page and On me join them, so the banner keeps one row:
  *   the status in words, Threads and More. More wears its news dot while the approval
  *   or a question behind it is still open.
  * - `gesture`: the next step of something the user is doing right now, such as
@@ -87,7 +87,7 @@ export const BANNER_CONTROL_RANK = Object.freeze({
   keyboard: 95,
   approval: 100,
   pageComment: 105,
-  // Questions and Threads are the two doors to the one side panel, side by side.
+  // On me and Threads are the two doors to the one side panel, side by side.
   queue: 107,
   threads: 110,
   // The next steps in the mode or picker the user stands in.

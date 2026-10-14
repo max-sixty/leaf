@@ -11,9 +11,9 @@ from PIL import Image
 
 @pytest.fixture
 def stills_catalogue(tmp_path, monkeypatch):
-    """Replace build/server/Chrome boundaries, retaining the command, capture,
+    """Replace build/server/browser boundaries, retaining the command, capture,
     drivers, screenshots, and crops. Image comparison stands in for its browser
-    module so this tests catalogue orchestration without launching Chrome.
+    module so this tests catalogue orchestration without launching a browser.
     """
     visited = []
 
@@ -73,7 +73,7 @@ def stills_catalogue(tmp_path, monkeypatch):
     monkeypatch.setattr(stills, "run_directory", lambda path: out)
     monkeypatch.setattr(stills, "build_pair", lambda base_ref, scratch: (arms, commits))
     monkeypatch.setattr(stills, "serving_source", serving_source)
-    monkeypatch.setattr(stills, "chrome", lambda: nullcontext("browser"))
+    monkeypatch.setattr(stills, "headless_shell", lambda: nullcontext("browser"))
     monkeypatch.setattr(stills, "tab", tab)
     monkeypatch.setattr(
         stills, "load", lambda page, address: setattr(page, "url", address)

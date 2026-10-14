@@ -1007,7 +1007,7 @@ def state_json(d):
 
 
 def asks_on_user(state):
-    """Widget asks on the user's Questions, retaining source and prompt identity."""
+    """Widget asks on the user's list, On me, retaining source and prompt identity."""
     return [
         {
             "id": item["id"],
@@ -1016,7 +1016,7 @@ def asks_on_user(state):
             "widget_tag": item["ask"]["source"]["tag"],
             "thread": item["thread"],
         }
-        for item in state["queues"]["questions"]
+        for item in state["queues"]["on_user"]
         if item["kind"] == "ask" and item["ask"]["source"]["kind"] == "widget"
     ]
 

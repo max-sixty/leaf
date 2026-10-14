@@ -550,7 +550,7 @@ def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hin
     expect(result).to_have_text("0")
 
     # The question context forwards the widget's declaration without an Ask allocator.
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#question")).to_be_focused()
     expect(badge).to_be_visible()
     expect(badge).to_have_text("1")
@@ -879,7 +879,7 @@ def test_context_commands_keep_widget_assigned_aliases_and_source_lifetime(
         ),
     )
     result = page.locator("#probe output")
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#question")).to_be_focused()
     expect(
         page.locator('.lf-shortcut-bar [data-lf-command-ids~="probe.action-1"]')
@@ -989,7 +989,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
         ),
     )
     result = page.locator("#probe output")
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#question")).to_be_focused()
     rendered(page)
     routes = page.evaluate(
@@ -1084,7 +1084,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
             )
         page.keyboard.press("Escape")
         if standing == "outside":
-            page.keyboard.press("q")
+            page.keyboard.press("m")
             expect(page.locator("#question")).to_be_focused()
     page.keyboard.press("1")
     expect(result).to_have_text("Applied 1")
@@ -1130,7 +1130,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
         ),
     )
     result = page.locator("#probe output")
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#question")).to_be_focused()
     page.keyboard.press("F8")
     expect(result).to_have_text("Applied 1")
@@ -1273,7 +1273,7 @@ def test_route_corner_hint_overrides_the_rows_face_in_ask_and_widget(browser, se
     chip = page.locator(".lf-command-binding-badges .lf-command-binding-badge")
     result = page.locator("#probe output")
 
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#question")).to_be_focused()
     expect(chip).to_have_text("1")
     expect(chip).to_be_visible()
@@ -1914,7 +1914,7 @@ def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
 
 @pytest.mark.parametrize("width", [1200, 390])
 def test_required_approval_is_an_ask_until_approved(browser, serve, width):
-    """Sign-off belongs to Questions and leads to the real approval control,
+    """Sign-off belongs to On me and leads to the real approval control,
     including its phone overflow seat. A task's Done cannot substitute for it."""
     html = LONG_PAGE.replace(
         "<title>long</title>",
@@ -1922,10 +1922,8 @@ def test_required_approval_is_an_ask_until_approved(browser, serve, width):
     )
     page = open_page(browser, serve(html))
     page.set_viewport_size({"width": width, "height": 900})
-    questions = page.get_by_role(
-        "button", name="Questions: 1 waiting on me", exact=True, include_hidden=True
-    )
-    expect(questions).to_be_attached()
+    on_me = page.get_by_role("button", name="On me: 1", exact=True, include_hidden=True)
+    expect(on_me).to_be_attached()
     target = page.evaluate("""async () => {
       const {readAsks, askActions} = await window.__lfWidgetApi();
       const ask = readAsks().all.find(q => q.source.kind === 'approval');
@@ -1934,7 +1932,7 @@ def test_required_approval_is_an_ask_until_approved(browser, serve, width):
       return target === document.querySelector('.lf-signoff') && document.activeElement === target;
     }""")
     assert target, "the public ask route did not reach its declared approval target"
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     approval = page.locator(".lf-signoff")
     expect(approval).to_be_visible()
     expect(approval).to_be_focused()
@@ -1943,18 +1941,18 @@ def test_required_approval_is_an_ask_until_approved(browser, serve, width):
     expect(
         page.get_by_role(
             "button",
-            name="Questions: 0 waiting on me",
+            name="On me: 0",
             exact=True,
             include_hidden=True,
         )
     ).to_be_attached()
     page.keyboard.press("z")
     round_trip(page)
-    expect(questions).to_be_attached()
+    expect(on_me).to_be_attached()
     page.keyboard.press("Escape")
     if width < 600:
         page.locator(".lf-banner-more").click()
-    questions.click()
+    on_me.click()
     row = page.locator("button[data-lf-row]").filter(has_text="Approve v1?")
     expect(row).to_be_visible()
     expect(
@@ -1983,15 +1981,13 @@ def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serv
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     history = page.locator(".lf-threads > .lf-system")
-    questions = page.get_by_role(
-        "button", name="Questions: 1 waiting on me", exact=True, include_hidden=True
-    )
+    on_me = page.get_by_role("button", name="On me: 1", exact=True, include_hidden=True)
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     button.click()
     holding(page, held, 1, "the refused approval")
     expect(button).to_have_text("✓ Version approved")
-    expect(questions).to_have_count(0)
+    expect(on_me).to_have_count(0)
     expect(history).to_contain_text("Approved")
     held[0].fulfill(
         json={
@@ -2003,13 +1999,13 @@ def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serv
     )
     round_trip(page)
     expect(button).to_have_text("Approve version")
-    expect(questions).to_be_attached()
+    expect(on_me).to_be_attached()
     expect(history).to_have_count(0)
     held.clear()
     button.click()
     holding(page, held, 1, "the accepted approval")
     expect(button).to_have_text("✓ Version approved")
-    expect(questions).to_have_count(0)
+    expect(on_me).to_have_count(0)
     expect(history).to_contain_text("Approved")
     held[0].continue_()
     page.unroute("**/api/event")
@@ -2020,13 +2016,13 @@ def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serv
     )
 
     expect(history).to_contain_text("Approved")
-    expect(questions).to_have_count(0)
+    expect(on_me).to_have_count(0)
     held.clear()
     page.route("**/api/event", lambda route: held.append(route))
     page.keyboard.press("z")
     holding(page, held, 1, "the refused approval undo")
     expect(button).to_have_text("Approve version")
-    expect(questions).to_be_attached()
+    expect(on_me).to_be_attached()
     expect(history).to_have_count(0)
     held[0].fulfill(
         json={
@@ -2039,14 +2035,14 @@ def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serv
     page.unroute("**/api/event")
     round_trip(page)
     expect(button).to_have_text("✓ Version approved")
-    expect(questions).to_have_count(0)
+    expect(on_me).to_have_count(0)
     expect(history).to_contain_text("Approved")
     held.clear()
     page.route("**/api/event", lambda route: held.append(route))
     page.keyboard.press("z")
     holding(page, held, 1, "the accepted approval undo")
     expect(button).to_have_text("Approve version")
-    expect(questions).to_be_attached()
+    expect(on_me).to_be_attached()
     expect(history).to_have_count(0)
     expect(button).to_be_enabled()
     expect(button).to_have_attribute(
@@ -2056,7 +2052,7 @@ def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serv
     page.unroute("**/api/event")
     round_trip(page)
     expect(button).to_have_text("Approve version")
-    expect(questions).to_be_attached()
+    expect(on_me).to_be_attached()
     expect(history).to_have_count(0)
     kinds = [e["kind"] for e in events_model.read_events(serve.page_dir)]
     assert kinds[-2:] == [
@@ -2071,7 +2067,7 @@ def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serv
     button.click()
     holding(page, held, 1, "the second approval")
     expect(button).to_have_text("✓ Version approved")
-    expect(questions).to_have_count(0)
+    expect(on_me).to_have_count(0)
     expect(history).to_contain_text("Approved")
     held[0].continue_()
     page.unroute("**/api/event")
@@ -2106,7 +2102,7 @@ def test_sign_off_waits_for_the_page_while_comments_stay_live(browser, serve):
 
 
 def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
-    """An informational page offers Comment on the page, Questions, Threads and More
+    """An informational page offers Comment on the page, On me, Threads and More
     without an approval action."""
     page = open_page(browser, serve(LONG_PAGE))
     # The banner is built in one pass, so a control standing in it is what makes the
@@ -2497,7 +2493,7 @@ def test_more_wears_a_dot_while_a_press_would_approve(browser, serve):
     approval = page.locator(".lf-signoff")
     expect(more).to_have_attribute("data-lf-news", "")
     expect(more).to_have_attribute(
-        "aria-label", "More page controls, approval open, questions waiting"
+        "aria-label", "More page controls, approval open, items on me"
     )
     more.click()
     expect(page.locator(".lf-banner-menu > :visible").first).to_have_class(
@@ -3519,8 +3515,8 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(
     sentence's, not the empty banner's. As the sentence the agent declares grows, the
     press grows rightward into the room the controls leave, and nothing else on the banner
     moves; once that room runs out its words truncate rather than push More. Approval and
-    the agent's Tasks count stay whole throughout. At 390 the status shares the phone's
-    one row with Threads and More, Approval and Questions stand behind More, and the count
+    the agent's On count stay whole throughout. At 390 the status shares the phone's
+    one row with Threads and More, Approval and On me stand behind More, and the count
     gives way to the sentence, which keeps what the two controls leave."""
     html = SUGGESTION_PAGE.replace(
         "<title>suggestions</title>",
@@ -3547,9 +3543,9 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(
         f"a short status press still spans the banner's free room: {short}"
     )
     # The page's three suggestions and required approval wait on the user in
-    # Questions. The page task waits on the agent, so Tasks stands beside status.
-    expect(page.locator(".lf-queue")).to_have_text("Questions: 4")
-    expect(page.locator(".lf-status-queues")).to_have_text("Tasks: 1")
+    # On me. The page task waits on the agent, so the agent's count stands beside status.
+    expect(page.locator(".lf-queue")).to_have_text("On me: 4")
+    expect(page.locator(".lf-status-queues")).to_have_text("On Agent: 1")
     page.evaluate(DEFINE_BOXES)
     beside = page.evaluate(
         BANNER_WATCH, f":is({NEIGHBOUR}, .lf-status-queues):not(.lf-status-button)"
@@ -3594,7 +3590,7 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(
 
 def test_the_counts_lead_the_second_row_where_the_run_leaves_room(browser, serve):
     """Just wider than a phone held upright, the banner's status sentence has the first
-    row, and the agent's Tasks count leads the second, under the sentence's start, where
+    row, and the agent's On count leads the second, under the sentence's start, where
     the run leaves it room whole. A finger's search steps share that row: the count
     stands whole beside them where the font leaves it room, or gives way to them, never
     cutting a step or being cut itself, and comes back where it stood once the search
@@ -3603,10 +3599,10 @@ def test_the_counts_lead_the_second_row_where_the_run_leaves_room(browser, serve
         viewport={"width": 490, "height": 800}, has_touch=True, is_mobile=True
     )
     url = serve(SUGGESTION_PAGE)
-    # A comment the agent owes a reply, so there is a Tasks count to stand there.
+    # A comment the agent owes a reply, so there is an agent's count to stand there.
     panel_comment(serve.page_dir, "Is the feeder sized right?")
     page = open_page(browser, url, context=context)
-    expect(page.locator(".lf-status-queues")).to_have_text("Tasks: 1")
+    expect(page.locator(".lf-status-queues")).to_have_text("On Agent: 1")
     page_at_rest(page)
     resting = page.evaluate(STATUS_COUNTS)
     assert resting["drawn"] and resting["inBanner"] and not resting["inert"], resting
@@ -3622,7 +3618,7 @@ def test_the_counts_lead_the_second_row_where_the_run_leaves_room(browser, serve
     ).to_be_visible()
     page_at_rest(page)
     searching = page.evaluate(STATUS_COUNTS)
-    # Whether "Tasks: 1" fits beside the steps is the font's to say: macOS's leaves it
+    # Whether "On Agent: 1" fits beside the steps is the font's to say: macOS's leaves it
     # room at this width and Linux's does not. Either way it is drawn whole and live, or
     # gone and out of reach.
     assert searching["drawn"] != searching["inert"], searching
@@ -3757,7 +3753,7 @@ def test_the_banner_uses_the_page_mark_and_puts_each_edge_by_its_panel(
                }"""
         )
 
-    # A phone moves Approval and Questions to the head of More, off the row.
+    # A phone moves Approval and On me to the head of More, off the row.
     desk = ["others", "latest", "version", "signoff", "queue", "comments"]
     phone = ["signoff", "queue", "others", "latest", "version", "comments"]
     for width in (1200, 390, 320):
@@ -4186,7 +4182,7 @@ def test_a_covering_auxiliary_surface_keeps_a_replacement_document_inert(
         "focusInside": True,
     }, f"the updated document escaped its covering auxiliary surface: {state}"
 
-    page.get_by_role("button", name="Close questions").click()
+    page.get_by_role("button", name="Close the On panel").click()
     expect(page.locator(".lf-queue-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     assert not bool(page.locator("dialog:modal").count())
 
@@ -5712,7 +5708,7 @@ RING_CASES = (
         (),
         {"ship-review": ((".lf-react-palette:popover-open .lf-react", "chip"),)},
     ),
-    ("the Questions panel", (), {"ship-review": ((".lf-queue-row", "queue-row"),)}),
+    ("the On panel", (), {"ship-review": ((".lf-queue-row", "queue-row"),)}),
     ("the pages drawer", ("g", "Shift+l"), {RING_CHROME: ((None, "others-row"),)}),
     ("page status", (), {RING_CHROME: ((None, "status-detail"),)}),
     # The menu's own route after the key that opens it: an open lands on the version being
@@ -5820,7 +5816,7 @@ RING_SCOPE_SURFACE = {
     # frame and shows only for an anchor.
     "target hints": (".lf-target-picker-hint.lf-current", None),
     "the response bar": (".lf-fab-bar .lf-composer[data-lf-open]", None),
-    "the Questions panel": (".lf-queue-panel.open", ".lf-queue"),
+    "the On panel": (".lf-queue-panel.open", ".lf-queue"),
     "the pages drawer": (".lf-others-panel.open", ".lf-others"),
     "the versions menu": (".lf-version-menu:popover-open", None),
     "the command reference": (".lf-command-reference.open", None),
@@ -5829,7 +5825,7 @@ RING_SCOPE_SURFACE = {
 }
 RING_SCOPE_OPENER = {
     "an inline response": "#pr-exact-patch .lf-diff-file-comment",
-    "the Questions panel": ".lf-queue",
+    "the On panel": ".lf-queue",
     "a thread card": '.lf-margin-marker[data-lf-kinds~="comment"]',
     "the Page Map dialog": ".lf-page-map-toggle",
     "a reaction palette": ".lf-react-strip > .lf-react-trigger",

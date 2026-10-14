@@ -939,7 +939,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     expect(start).to_have_css("outline-width", "2px")
     expect(start).to_have_css("outline-offset", "-2px")
 
-    # The Questions panel stands over the map and changes nothing about it.
+    # The On panel stands over the map and changes nothing about it.
     page.evaluate(RELEASE_FOCUS)
     toggle_queue(page)
     expect(toc).to_have_css("position", "fixed")

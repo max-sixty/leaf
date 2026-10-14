@@ -423,9 +423,8 @@ def prepare(
             {
                 "id": f"file://{Path(__file__)}:{render_prompt.__name__}",
                 "label": "task",
-                # Promptfoo merges a prompt's config into every provider's
-                # config, so this key must be one no provider reads: the
-                # Agent SDK's `skills` option, for one, maps over its value.
+                # Promptfoo merges a prompt's config into every provider's, so its
+                # key must be one no provider reads: the Agent SDK takes `skills`.
                 "config": {"leaf_skills": skills},
             }
         ],

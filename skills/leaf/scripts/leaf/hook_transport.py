@@ -1,69 +1,59 @@
-"""The prompt and Stop hooks as a session's transport and response reminder.
+"""The prompt and Stop hooks' output for a session that owns pages.
 
-Claude Code and Pi carry pending page input here; Codex reserves its new-input
-pointers through `codex`. All three use this module's continuation policy and
-reminders for already-receipted work. A reminder names the immutable deliveries
-whose receipt references the current owner can use. Only owed inputs with no usable
-reference are captured again, as when another session takes the page. A reminder
-does not make those inputs pending again or reserve another Codex transport offer.
-A Stop hook continues the turn for each owed answer this turn has not started
-(`activity.turn_obligations`), and for a
-page whose watcher is not running while it has input pending or is not idle
-(`stop_continues`). A repeated Stop (`stop_hook_active`) continues the turn only for
-a newly delivered update that owes an answer.
+`carry_turn` builds what the prompt hook (`UserPromptSubmit`) and the Stop hook add
+to a turn. On Claude Code and Pi these hooks carry the user's updates to the agent
+(`Harness.hook_delivers`): `carry_turn` freezes the input pending on the session's
+pages into a delivery and hands it over inline or as a pointer. Codex offers its
+pointers through `codex.offer_hook_delivery` instead, but uses this module's Stop
+rule and reminders. `hooks` calls in here for pages the session owns and for a
+reconnect notice about a page it served before.
 
-`hooks` reaches this module for active ownership or a reconnect notice about a
-page the session previously served.
+Claude Code runs the prompt hook as every turn begins, including a turn opened by a
+background task's end, and adds its output to the turn's context; the Stop hook's
+output continues the turn (`Harness.hook_context`). Leaf's Pi extension
+(`hooks/pi.ts`) calls both hooks and commits their output to the session.
 
-Claude Code runs the prompt hook as every turn begins, including a turn the end
-of a background task opens, idle or between two tool calls, and adds what the
-hook returns to that turn's context; what the Stop hook returns reaches the
-model the same way, and continues the turn (`Harness.hook_context`). Leaf's Pi
-extension calls the prompt hook as accepted incoming messages are finalized or
-at live turn ends, and Stop before settling. It commits their context to the
-persisted session. These two hooks are the
-session's transport (`Harness.hook_delivers`): each freezes the input pending on
-the session's pages and hands over its complete envelope inline, or its
-immutable pointer.
+The Stop hook continues the turn for each owed answer the turn has not started
+(`activity.turn_obligations`), and for a page with no running watcher that has
+input pending or a status other than idle (`stop_continues`). A repeated Stop
+(`stop_hook_active`) continues only for a newly delivered update that owes an
+answer.
 
-The hook confirms an envelope it hands over inline itself, so the user's updates
-read Picked up without waiting on the model; the envelope's `acknowledge` is null,
-and its reader confirms nothing. So it hands an envelope over inline only once it
-has confirmed every batch: an inline envelope it could not confirm would leave its
-input pending, and every later hook and watch would offer it again as new. A
-batch's receipt can still be refused, as when the page changed hands after the plan
-read it, so whatever the hook could not confirm goes as a pointer, whose reader's
-explicit `leaf delivery ack` either confirms it or shows the refusal. A page vendored
-at another protocol, whose log this Leaf may not write
-(`event_contracts.write_refusal`), is re-vendored before it is read
-(`vendoring.renew_layer`), and the turn's attention carries what the re-vendor left
-for the agent: why it was refused, or the checks index.html now fails. One it could
-not re-vendor offers no new input at all (`delivery.deliverable`): the hook records
-no pickup there and names the refusal, so it never fails on a page it cannot write,
-nor offers input it could never confirm.
-Claude Code cuts context over a limit to a preview (`HOOK_CONTEXT_LIMIT`), so a
-delivery that large goes as a pointer too, unconfirmed, as do pointers Codex's tool
-hook offers.
+For an update already picked up and still owed an answer, the hook reminds the
+agent by naming the delivery that holds its answer reference. It captures the
+update again only when the page's current owner has no usable reference, as when
+another session took the page (`PagePlan.recovery`). A reminder does not make an
+update pending again or reserve a Codex offer.
 
-A harness reads a hook's output only once it exits, and discards it for a hook it
-times out, so the hook confirms only by a deadline well inside its timeout
-(`CONFIRM_WITHIN`) and prints once confirmation is settled. Stopped before it
-confirms, it has confirmed nothing; it never waits on a lock past the deadline
-into the harness's timeout, and a page whose lock is still held then goes
-unconfirmed. What remains is a turn that ends just after it starts, as an
-interrupt can; its updates then read Picked up in a turn that ended, as an App
-Server turn's do.
+The hook confirms an inline delivery itself (`receive_held`), so the updates read
+Picked up without waiting for the model, and the envelope's `acknowledge` is null.
+It hands a delivery over inline only after confirming every batch: an inline
+delivery left unconfirmed would stay pending, and every later hook would offer it
+again as new. A batch can still be refused, as when the page changed hands after
+`read_plans` read it, so whatever the hook could not confirm goes as a pointer; the
+agent's `leaf delivery ack` then confirms it or shows the refusal. A delivery over
+Claude Code's context limit (`HOOK_CONTEXT_LIMIT`) goes as a pointer too.
+
+A page vendored at another protocol is re-vendored before it is read
+(`vendoring.renew_layer`), and the turn is told why that failed or which checks
+index.html now fails. A page that could not be re-vendored offers no input
+(`delivery.deliverable`), so the hook names the refusal and records no pickup there.
+
+A harness reads a hook's output only after the hook exits, and discards it if the
+hook times out. So the hook confirms only before `CONFIRM_WITHIN`, well inside its
+timeout, and prints afterwards. It never waits for a lock past that deadline, and a
+page whose lock is still held goes unconfirmed. A turn that ends just after it
+starts, as an interrupt can end it, leaves its updates reading Picked up in an ended
+turn, as an App Server turn's do.
 
 Confirmed input can still miss the context, as when Leaf's Claude Code hooks module
-calls this hook for a wake and finds its session ended before it appends the
-result (`hooks/claude-code.ts`). It is not offered again as new: an update that
-owes an answer stays owed on the page, and the next prompt or first Stop hook of
-whichever session owns the page names its original pointer, or captures a recovery
-reading if that owner has no usable reference (`PagePlan.recovery`), while one that
-owes none is lost. Confirming
-only once the module has appended was rejected: a confirmation refused or never
-run after the append would leave input the turn already holds pending, and every
-later hook would offer it again as new."""
+runs this hook for a wake and finds the session ended before it appends the output
+(`hooks/claude-code.ts`). The input is not offered again as new. An update that owes
+an answer stays owed, and the owner's next prompt or first Stop hook names its
+original pointer or captures it again; an update that owes none is lost. Confirming
+only after the module appends was rejected: if that confirmation were refused or
+never ran, input the turn already holds would stay pending and be offered again.
+"""
 
 import json
 import time

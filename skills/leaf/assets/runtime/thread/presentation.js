@@ -25,8 +25,14 @@ import {
   commitThreadSeats,
   retainThreadSeats,
 } from "./inline.js";
-import { applicationPresenter, PRESENTATION_ORDER } from "../semantic-state.js";
+import {
+  applicationPresenter,
+  PRESENTATION_ORDER,
+  readPart,
+} from "../semantic-state.js";
 import { runtime } from "../context.js";
+
+const readDocument = readPart((root) => root.document);
 
 // Each held element names the thread holding it, decided whole before any is written, so
 // an element that stays held is not cleared and marked again.
@@ -65,11 +71,11 @@ export function createThreadPresentation({
 
   // The parts of the root a thread presentation draws: the fold itself, whose records
   // already carry the receipts and attention the workflows give them, and the document
-  // whose messages, descriptors and revision the cards name. A publication that moves
-  // neither — a widget's own action, say — claims nothing, and the current presentation
-  // carries into the new epoch. The margin this presentation renders once it commits
-  // also draws the Questions and the workflows; its own watcher follows those
-  // (`annotationSelection`).
+  // whose messages, descriptors and revision the cards name. The reading names them
+  // because the paint reads them again after it waits for preparation, where its reads
+  // are not collected (`renderReading`); what it reads before that is. The margin this
+  // presentation renders once it commits also draws the Questions and the workflows; its
+  // own watcher follows those (`annotationSelection`).
   //
   // Before the page has read the log, an epoch with no thread draws the same line about
   // waiting, and repainting the margin and the anchors to say it again is work done
@@ -82,15 +88,15 @@ export function createThreadPresentation({
   const presenter = applicationPresenter({
     region: "thread",
     order: PRESENTATION_ORDER.thread,
-    reading: (root) =>
+    reading: () =>
       !available
         ? null
-        : root.phase === "waiting" && !root.effective.thread.all.length
+        : runtime.statePhase === "waiting" && !threadState().all.length
           ? "waiting"
           : {
-              phase: root.phase,
-              thread: root.effective.thread,
-              document: root.document,
+              phase: runtime.statePhase,
+              thread: threadState(),
+              document: readDocument(),
             },
     paint: async (value, current) => {
       const phase = runtime.statePhase;

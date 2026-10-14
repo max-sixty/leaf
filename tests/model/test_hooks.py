@@ -36,6 +36,7 @@ from interact_support import (
 )
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
+from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import harness as harness_model
@@ -1030,15 +1031,15 @@ def test_a_watch_delivers_nothing_from_a_page_its_leaf_cannot_write(claimed):
 
 def test_a_prompt_reminds_of_debt_on_a_page_its_leaf_cannot_write(claimed, capsys):
     """A prompt records the entry of acknowledged, unanswered updates into its turn
-    as a pickup. On a page vendored at another protocol, which this Leaf may not
-    write, it records nothing and still reminds the turn of what it owes, naming
-    why, rather than failing the hook and handing the turn nothing."""
+    as a pickup. On a page a newer Leaf vendored, which this Leaf may neither write
+    nor take back, it records nothing and still reminds the turn of what it owes,
+    naming why, rather than failing the hook and handing the turn nothing."""
     asked = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "still working?"}
     )
     receive_through(claimed, last_deliverable_seq(claimed))
     cleanup_model.close_session_turn("s1")
-    vendored_at_another_protocol(claimed)
+    vendored_at_another_protocol(claimed, newer=True)
     logged = events_model.read_events(claimed)
 
     hooks_model.cmd_hook(
@@ -1054,20 +1055,116 @@ def test_a_prompt_reminds_of_debt_on_a_page_its_leaf_cannot_write(claimed, capsy
     assert events_model.read_events(claimed) == logged
 
 
+def test_a_prompt_re_vendors_a_page_an_older_leaf_vendored_and_hands_over_its_input(
+    claimed, capsys
+):
+    """A plugin update that bumps the page protocol leaves the session's page on the
+    older Leaf's layer. The first prompt under the new Leaf re-vendors it, keeping its
+    log, and hands over the input waiting there, so the user's comment reaches the
+    turn with nothing asked of the agent first."""
+    comment = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "Please answer"}
+    )
+    vendored_at_another_protocol(claimed)
+
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    )
+    prompted = json.loads(capsys.readouterr().out)
+    assert hook_transport_model.DELIVERY_FIELD in prompted
+    assert "page protocol" not in prompted["hookSpecificOutput"]["additionalContext"]
+    assert events_model.read_cursor(claimed) >= comment["seq"]
+    assert event_contracts_model.write_refusal(claimed) is None
+
+
+def test_a_prompt_captures_again_an_update_whose_delivery_an_older_leaf_wrote(
+    claimed, capsys
+):
+    """An update an older Leaf delivered and the turn has not answered owes its
+    answer through the reference that delivery printed, which this Leaf cannot
+    read once the page protocol moved. So the prompt treats it as having no usable
+    reference and captures it again in a delivery of its own, rather than pointing
+    the turn at one it can neither read nor reply through."""
+    asked = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "still working?"}
+    )
+    receive_through(claimed, last_deliverable_seq(claimed))
+    old = delivered_ref(claimed, asked["id"]).partition(":")[0]
+    written = delivery_model.delivery_path(old)
+    envelope = json.loads(written.read_text(encoding="utf-8"))
+    cleanup_model.write_json(written, {**envelope, "format": "leaf-delivery/0"})
+    cleanup_model.close_session_turn("s1")
+
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    )
+    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    [reminder] = re.findall(r'<leaf-delivery id="(\w+)"', context)
+    assert reminder != old
+    [batch] = delivery_model.read_delivery(reminder)["batches"]
+    assert [event["id"] for event in batch["events"]] == [asked["id"]]
+
+
+def test_a_hook_renews_no_page_another_session_took_after_it_listed_its_pages(
+    claimed, monkeypatch
+):
+    """A hook lists its session's pages and then re-vendors each, and another session
+    can take one in between. The re-vendor is then that session's to make, under its
+    own Leaf, so this hook leaves the page as it found it."""
+    vendored = vendored_at_another_protocol(claimed)
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s2")
+    service_model.claim_page(claimed)
+    monkeypatch.setattr(hook_transport_model, "owned_pages", lambda _: [claimed])
+
+    assert hook_transport_model.read_plans("s1") == []
+    assert (
+        files_model.read_json(claimed / "registry.json")["$events"]["protocol"]
+        == vendored
+    )
+
+
+def test_a_re_vendor_a_newer_leaf_made_first_is_not_taken_back(claimed, monkeypatch):
+    """Two versions of Leaf can each find the page vendored at a protocol they do not speak and
+    each set out to re-vendor it. Whichever takes the page lock second finds the page
+    the other left, and an older Leaf finding a newer Leaf's page leaves it there."""
+    vendored_at_another_protocol(claimed)
+    locked = vendoring_model.page_locked
+    raced = iter([True])
+
+    def newer_leaf_first(page_dir):
+        if next(raced, False):
+            # Another Leaf's own `page init` reaches the page before this one.
+            registry = files_model.read_json(page_dir / "registry.json")
+            registry["$events"]["protocol"] += 2
+            cleanup_model.write_json(page_dir / "registry.json", registry)
+        return locked(page_dir)
+
+    monkeypatch.setattr(vendoring_model, "page_locked", newer_leaf_first)
+    newer = files_model.read_json(claimed / "registry.json")["$events"]["protocol"] + 2
+
+    assert vendoring_model.renew_layer(claimed, harness_model.session_harness()) is None
+    assert (
+        files_model.read_json(claimed / "registry.json")["$events"]["protocol"] == newer
+    )
+
+
 def test_a_prompt_offers_no_new_input_from_a_page_its_leaf_cannot_write(
     claimed, capsys
 ):
-    """A prompt hands over no delivery of fresh input on a page vendored at another
-    protocol, whose receipt this Leaf would refuse: a pointer to it could never be
-    confirmed, so every later prompt or Stop offered the same input again. It names
-    the page protocol and the re-vendor instead, and the input waits on the page for
-    the first prompt after the page is writable again."""
+    """A prompt hands over no delivery of fresh input on a page a newer Leaf
+    vendored, whose receipt this Leaf would refuse and which it does not take back:
+    a pointer to it could never be confirmed, so every later prompt or Stop offered
+    the same input again. It names the page protocol and the re-vendor instead, and
+    the input waits on the page for the first prompt after the page is writable
+    again."""
     stamp = claimed / "registry.json"
     vendored = stamp.read_text(encoding="utf-8")
     comment = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "Please answer"}
     )
-    vendored_at_another_protocol(claimed)
+    vendored_at_another_protocol(claimed, newer=True)
 
     def prompt() -> dict:
         hooks_model.cmd_hook(

@@ -10799,6 +10799,90 @@ def test_each_pin_case_seats_its_pins_by_their_targets_clear_of_what_they_hide(
     context.close()
 
 
+def test_a_quoted_passage_stands_its_own_rail_row_level_with_its_words(browser, serve):
+    """Comments quoting words deep in a long paragraph stand a margin row of their own,
+    level with the passage's first line rather than at the paragraph's top, where the
+    paragraph's own comment stands; comments quoting the same words share it."""
+    text = " ".join(
+        f"Sentence number {i} says something about the release." for i in range(40)
+    )
+    body = f'<h1>Passage rows</h1><p id="long">{text} Finally the last words land.</p>'
+    events = [
+        {"kind": "comment", "author": "user", "revision": 1, "text": says, "anchor": a}
+        for says, a in (
+            ("On the paragraph", {"section": "long"}),
+            ("On its end", {"section": "long", "quote": "the last words land"}),
+            ("On its end again", {"section": "long", "quote": "the last words land"}),
+        )
+    ]
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    page = open_page(
+        browser, serve(leaf_page("Passage rows", body), events=events), context=context
+    )
+    margins_laid_out(page)
+    read = page.evaluate("""() => {
+      const p = document.getElementById('long');
+      const node = p.firstChild;
+      const at = node.data.indexOf('the last words land');
+      const words = document.createRange();
+      words.setStart(node, at);
+      words.setEnd(node, at + 'the last words land'.length);
+      return {
+        paragraph: p.getBoundingClientRect().top,
+        line: words.getClientRects()[0].top,
+        rows: [...document.querySelectorAll('[data-lf-margin-for="long"]')]
+          .map((row) => ({
+            place: row.dataset.lfPlace,
+            top: row.getBoundingClientRect().top,
+            says: row.lfEntry.items.map((item) => item.text),
+          }))
+          .sort((a, b) => a.top - b.top),
+      };
+    }""")
+    assert [row["says"] for row in read["rows"]] == [
+        ["On the paragraph"],
+        ["On its end", "On its end again"],
+    ], read
+    whole, passage = read["rows"]
+    assert whole["place"] == passage["place"] == "rail", read
+    assert abs(whole["top"] - read["paragraph"]) < 1, read
+    assert abs(passage["top"] - read["line"]) < 1, read
+    context.close()
+
+
+def test_a_quoted_passage_scrolled_out_of_its_pane_withholds_its_row(browser, serve):
+    """A passage's row is about its words, so where a pane shows its paragraph but has
+    scrolled the quoted words out of view, the row is withheld rather than standing
+    beside other words, and it comes back when the pane brings the words in."""
+    text = " ".join(
+        f"Sentence number {i} says something about the release." for i in range(40)
+    )
+    body = (
+        '<h1>Pane</h1><div id="pane" style="height:160px;overflow:auto">'
+        f'<p id="long">{text} Finally the last words land.</p></div>'
+    )
+    events = [
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "On its end",
+            "anchor": {"section": "long", "quote": "the last words land"},
+        }
+    ]
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    page = open_page(
+        browser, serve(leaf_page("Pane", body), events=events), context=context
+    )
+    margins_laid_out(page)
+    row = page.locator('[data-lf-margin-for="long"]')
+    expect(row).to_have_class(re.compile(r"\blf-withheld\b"))
+    page.locator("#pane").evaluate("pane => { pane.scrollTop = pane.scrollHeight; }")
+    margins_laid_out(page)
+    expect(row).not_to_have_class(re.compile(r"\blf-withheld\b"))
+    context.close()
+
+
 @pytest.mark.watch_shifts
 @pytest.mark.parametrize("focused", [False, True])
 def test_new_rail_keeps_a_pin_reachable(browser, serve, focused):

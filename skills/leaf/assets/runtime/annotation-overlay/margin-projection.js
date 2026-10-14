@@ -163,6 +163,7 @@ export function createMarginProjection({
     targetFor,
     entryPoint,
     entryPlace,
+    entryPassage,
     sourceItem,
     workflowReceipt,
     threadIdsAt,
@@ -373,6 +374,7 @@ export function createMarginProjection({
     return {
       anchor: () => targetFor(row.lfEntry),
       point: () => entryPoint(row.lfEntry),
+      passage: () => entryPassage(row.lfEntry),
       order,
       fold: {
         able: () =>
@@ -1556,19 +1558,23 @@ export function createMarginProjection({
   // reader keeps one definition, not in this or any other single reader.
   // Read from where the node stands (standing-target.js), so chrome that shows a page
   // target, such as a comment note, arrives at that target as its own content does.
-  // A target with pointed threads (groupFor) has a row for each: standing inside a
-  // pointed row takes that thread, and standing elsewhere on the target takes its own
-  // row, or a pointed one where it has none.
+  // A target with pointed threads or quoted passages (groupFor) has a row for each:
+  // standing inside a pointed row takes that thread, and standing elsewhere on the
+  // target takes the row the card already shows for it, else its own row, or a pointed
+  // or quoting one where it has none. Focus cannot stand on a passage, so the card's
+  // row is what keeps returning to the target from switching which passage it shows.
   // Subject identity comes from the inventory even where a widget owns its seat.
   const threadEntryAt = (node) => {
     const ids = threadIdsAt(node);
+    const here = (entry) =>
+      threadReading(entry) &&
+      threadIdsOf(entry).some((id) => ids.includes(id)) &&
+      !seatedOnPage(threadIdOf(entry));
+    const shown = previewOpen() && card.selection()?.entry?.key;
     return (
-      pageInventory.find(
-        (entry) =>
-          threadReading(entry) &&
-          threadIdsOf(entry).some((id) => ids.includes(id)) &&
-          !seatedOnPage(threadIdOf(entry)),
-      ) ?? null
+      pageInventory.find((entry) => entry.key === shown && here(entry)) ??
+      pageInventory.find(here) ??
+      null
     );
   };
   // A folded cluster opens while the keyboard stands at its target, as it does when

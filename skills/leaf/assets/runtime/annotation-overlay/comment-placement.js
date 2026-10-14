@@ -150,7 +150,7 @@ export function commentAttachment({
   // that target. A drawn target may have a zero-area box, as an SVG line does, and
   // still supplies the geometry fallback below.
   if (!visibleTargetParts(target).length) return null;
-  const margin = marginSpot(target, point);
+  const margin = marginSpot(target, point, passage?.range);
   const context = point ?? passage?.contextNode ?? target;
   const element = point ?? target;
   const geometry = floatingGeometry([element, context]);

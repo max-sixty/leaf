@@ -364,6 +364,13 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     inset-inline-end: 0; z-index: 1; display: flex; align-items: center; gap: 4px;
     min-height: var(--lf-msg-head-height); padding-inline-start: var(--sp-2);
     background: var(--paper); }
+  /* A held-news notice stands beside the actions over the end of the head beneath it,
+     message controls included, rather than narrowing that head, since news must not
+     rewrap it (thread-card.js, `allotMarginControls`); pressing it shows the news. */
+  .lf-margin-thread-news { position: absolute; inset-block-start: 0;
+    inset-inline-end: var(--lf-margin-controls-width, 0px); z-index: 3;
+    display: flex; align-items: center; min-height: var(--lf-msg-head-height);
+    padding-inline-start: var(--sp-2); background: var(--paper); }
   /* A sticky head and its words paint the message's one animated ground.
      Shared message rules own wrapping, including progress disclosures below the
      capped metadata when the card's actions leave too little inline room. */

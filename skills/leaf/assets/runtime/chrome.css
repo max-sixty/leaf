@@ -810,6 +810,13 @@
     white-space: normal;
     text-wrap: pretty;
   }
+  .lf-fp-state[data-held] > span {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: var(--lines);
+    overflow: hidden;
+    height: calc(var(--lines) * 1lh);
+  }
   .lf-fp-state[data-tone=working] b {
     color: var(--accent);
   }

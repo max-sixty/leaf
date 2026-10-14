@@ -1705,7 +1705,10 @@ parts can share an outlet. A shadow outlet displays the parts through native slo
 their nodes stay in the document. Leaf keeps the generated nodes, message rendering,
 reactions, read tracking and the shared reply draft; a nominated message of the user's own
 offers its rewrite in place, and a nominated reply box opens the latest of those on ↑, as a
-whole conversation does. The package keeps layout, ordering, selection, scroll and
+whole conversation does. `parts.reply` takes optional `{hint, accessibleName, sent}`: what
+the empty box reads and is named, each a string or a function read as it paints, and
+`sent()`, called after a send in place of standing the user on the thread, for a box that
+stays for the next turn. The package keeps layout, ordering, selection, scroll and
 disclosure. A returned promise delays the presentation; check `parts.signal` before
 asynchronous layout changes, since a newer pass or `unregister` aborts it.
 

@@ -543,7 +543,7 @@ summary { align-content: center; }
 .lf-thread-controls > .lf-thread-news {
           position: absolute;
           inset-inline-start: calc(var(--lf-thread-news-start, 0px) + var(--sp-2));
-          inline-size: var(--lf-reserved-width, max-content);
+          inline-size: max-content;
           max-inline-size: max(0px, min(
             calc(100% - var(--lf-thread-news-start, 0px) - 2 * var(--sp-2) - var(--lf-thread-action-room) - var(--lf-thread-message-control-room)),
             calc(var(--lf-thread-news-visible-end, 100%) - var(--lf-thread-news-start, 0px) - var(--sp-2))));

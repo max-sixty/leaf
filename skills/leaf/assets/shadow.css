@@ -523,7 +523,7 @@ summary {
 .lf-thread-controls > .lf-thread-news {
   position: absolute;
   inset-inline-start: calc(var(--lf-thread-news-start, 0px) + var(--sp-2));
-  inline-size: var(--lf-reserved-width, max-content);
+  inline-size: max-content;
   max-inline-size: max(0px, min(calc(100% - var(--lf-thread-news-start, 0px) - 2 * var(--sp-2) - var(--lf-thread-action-room) - var(--lf-thread-message-control-room)), calc(var(--lf-thread-news-visible-end, 100%) - var(--lf-thread-news-start, 0px) - var(--sp-2))));
   box-sizing: border-box;
   min-width: 0;
@@ -1175,7 +1175,6 @@ svg[data-lf-icon] {
   }
 }
 :is(.lf-btn, .button) {
-  width: var(--lf-reserved-width, auto);
   padding: max(4px, (var(--aim-floor) - 1lh) / 2 - 1px) 10px;
   border: 1px solid var(--border-2);
   border-radius: 6px;
@@ -1187,6 +1186,18 @@ svg[data-lf-icon] {
 }
 :is(.lf-btn, .button)[hidden]:not([hidden=until-found]) {
   display: none;
+}
+:where([data-lf-room]:not([hidden])) {
+  display: inline-block;
+  max-inline-size: 100%;
+}
+[data-lf-room]::before {
+  content: attr(data-lf-room);
+  display: block;
+  block-size: 0;
+  overflow: hidden;
+  visibility: hidden;
+  white-space: pre-line;
 }
 :is(.lf-btn, .button):not(:disabled, [aria-disabled=true]):hover {
   background: var(--chip);

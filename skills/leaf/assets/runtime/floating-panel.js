@@ -563,6 +563,9 @@ export function createFloatingPanel({
   // holds is what it shows, not what a filter hides, and a message Leaf's reader has
   // yet to draw into it is not yet held.
   const rooms = new Map();
+  // Whether this opening of a thread has shown On the page, whose seat then stands
+  // while the view does, so a revision detaching the thread moves nothing beside it.
+  let onPageSeat = false;
   function holdRoom() {
     const top = trail.at(-1);
     if (!top || top.view === "thread" || rooms.has(routeKey(top))) return false;
@@ -580,7 +583,10 @@ export function createFloatingPanel({
     }
     const changed =
       (before ? routeKey(before) : null) !== (after ? routeKey(after) : null);
-    if (changed) rooms.clear();
+    if (changed) {
+      rooms.clear();
+      onPageSeat = false;
+    }
     // Taking the panel away from a thread ends the editing session of its reply, as a
     // press elsewhere does (thread/replies.js), keeping the draft: the field no longer
     // draws that reply, and a session left standing would carry the user back to it.
@@ -1317,16 +1323,21 @@ export function createFloatingPanel({
         },
       );
     } else if (thread) {
+      // Resolve and Reopen share one seat as wide as the wider of them, both drawn and
+      // one shown, so the agent settling the thread moves nothing beside it.
       // Resolve says it is unavailable while a settling is pending rather than leaving
       // the tab order, so the user who pressed it, or `r` on it, stays standing on it;
       // the action itself refuses a press meanwhile (thread/actions.js, `settle`).
       // Resolving leaves the reply's editing place, as a card's Resolve does, keeping
       // its draft (thread/replies.js), so the thread shows its way back instead.
+      onPageSeat ||= Boolean(thread.anchor);
       aux = html`${
-          thread.anchor
+          onPageSeat
             ? html`<button
                 type="button"
                 class="lf-fp-quiet"
+                ?disabled=${!thread.anchor}
+                ?data-unoffered=${!thread.anchor}
                 @click=${() => {
                   close();
                   void threadActions.open(thread.key, { part: null });
@@ -1347,7 +1358,9 @@ export function createFloatingPanel({
             return threadActions.resolve(thread.key);
           }}
         >
-          ${thread.resolved ? "Reopen" : html`${iconTemplate("check", "lf-action-icon")}Resolve`}
+          <span class="lf-fp-face" ?data-shown=${!thread.resolved}
+            >${iconTemplate("check", "lf-action-icon")}Resolve</span
+          ><span class="lf-fp-face" ?data-shown=${thread.resolved}>Reopen</span>
         </button>`;
     }
     const openThreads = threads().filter((candidate) => !candidate.resolved);

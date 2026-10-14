@@ -1321,7 +1321,8 @@ def test_authored_blocks_choose_wide_or_available_space(browser, serve):
       for (const id of ['prose', 'wide', 'table', 'nested-prose', 'options']) {
         const el = document.getElementById(id), box = el.getBoundingClientRect();
         result[id] = {width: box.width, left: box.left,
-          space: el.getAttribute('data-lf-space'), role: el.getAttribute('role')};
+          space: el.getAttribute('data-lf-space'), role: el.getAttribute('role'),
+          column: el.hasAttribute('data-lf-column')};
       }
       return result;
     }""")
@@ -1329,7 +1330,7 @@ def test_authored_blocks_choose_wide_or_available_space(browser, serve):
     assert at["table"]["space"] == "available"
     assert at["wide"]["width"] > at["prose"]["width"]
     assert at["table"]["width"] == pytest.approx(at["wide"]["width"], abs=1)
-    assert at["options"]["space"] == "column"
+    assert at["options"]["column"] and at["options"]["space"] is None
     assert at["wide"]["left"] < at["prose"]["left"]
     for column in ("nested-prose", "options"):
         assert at[column]["width"] == pytest.approx(at["prose"]["width"], abs=1)
@@ -1471,6 +1472,13 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
             width="",
             table='<table data-width="wide"><tr><td>a</td><td>b</td></tr></table>',
         )
+        + '<div id="wrapper" data-width="wide">'
+        + ask.format(
+            id="wrapped",
+            width="",
+            table=f'<table data-width="available"><tr>{cells}</tr></table>',
+        )
+        + "</div>"
         + '<div id="pulled" style="margin-inline: -150px">Pulled words.'
         + '<div data-width="available">Room.</div></div>'
         + '<div><span id="spilled" style="margin-left: -150px">Spilled words.'
@@ -1482,7 +1490,9 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     resized(column, 1726, 900)
     at = column.evaluate(
         measure.replace(
-            "'list']", "'list', 'listed', 'listed-t', 'both', 'both-t', 'tracked']"
+            "'list']",
+            "'list', 'listed', 'listed-t', 'both', 'both-t', 'tracked', 'wrapper',"
+            " 'wrapped']",
         )
     )
     assert at["holds-t"]["width"] == 1080, at
@@ -1496,6 +1506,9 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
         at
     )
     assert at["tracked"]["width"] == 350, at
+    # An Ask kept to the column inside a breakout takes its holder's room, as any block
+    # there does, however much room its own block asks for.
+    assert at["wrapped"] == at["wrapper"], at
     # An Ask that spans its block is a breakout the theme grows, so the gate reads it as
     # one, even where it reaches further than a table of two columns does; a box the
     # page pulls out of the column by its margins, an inline one, or one it grows round
@@ -1692,6 +1705,45 @@ def test_a_scrolling_breakout_table_keeps_its_caption_in_its_scrollport(
         at = table.evaluate(reading)
         assert at["caption"][0] >= at["box"][0] - 1, (end, at)
         assert at["caption"][1] <= at["box"][1] + 1, (end, at)
+    assert root_overflow(page) == 0
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+def test_a_table_of_prose_wraps_inside_its_box_in_every_engine(request, serve, engine):
+    """A table whose cells hold sentences wraps them inside the box it stands in, and
+    scrolls nothing: in an Ask, in a panel, which it fills, and in a figure granted the
+    page's room. Firefox and WebKit have no scroll-state container and dropped the
+    table's `container-type: inline-size scroll-state` whole, so the width its fill
+    reads (100cqi) was the window's: an Ask's two-column table laid its rows out 1728px
+    wide in a 720px column and cut its second column off."""
+    sentence = (
+        "When a new copy is installed, the update copies each commit and records it. "
+    )
+    row = f"<tr><td>{sentence * 2}</td><td>{sentence}</td></tr>"
+    table = '<table id="{id}"><thead><tr><th>Decides</th><th>Can do</th></tr></thead>'
+    table += f"<tbody>{row * 2}</tbody></table>"
+    body = (
+        "<h1>Tables of prose</h1>"
+        '<lf-ask id="asked"><h2>Which copy should a session read?</h2>'
+        + table.format(id="in-ask")
+        + '<lf-options id="asked-choice" choose>'
+        '<lf-option id="asked-reload"><strong>Reload</strong> Ask for a reload.</lf-option>'
+        '<lf-option id="asked-leave"><strong>Leave</strong> Keep the old copy.</lf-option>'
+        "</lf-options></lf-ask>"
+        '<section class="panel" id="panel"><h2>Framed</h2>'
+        + table.format(id="in-panel")
+        + "</section>"
+        '<figure data-width="available">' + table.format(id="in-figure") + "</figure>"
+    )
+    page = open_page(request.getfixturevalue(engine), serve(leaf_page("Prose", body)))
+    resized(page, 1440, 900)
+    at = page.evaluate("""() => Object.fromEntries(['in-ask', 'in-panel', 'in-figure']
+      .map(id => { const t = document.getElementById(id), box = t.getBoundingClientRect();
+        const end = t.querySelector('tbody tr').getBoundingClientRect().right;
+        return [id, {scrolls: t.scrollWidth - t.clientWidth,
+                     past: Math.round(end - box.right)}]; }))""")
+    for held in at.values():
+        assert held["scrolls"] <= 1 and held["past"] <= 1, at
     assert root_overflow(page) == 0
 
 

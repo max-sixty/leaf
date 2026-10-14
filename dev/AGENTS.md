@@ -66,6 +66,10 @@ here that the others import, never through `sys.path`, `PYTHONPATH` or a file pa
   writes that caused them, and JS by function, under `.tmp/profile/`.
 - `leaf-dev bench-check [BASE_REF]` times `leaf page check --render` on a few examples,
   base against HEAD, with no model.
+- `leaf-dev response-times PAGE...` queries retained page logs for time from a
+  user message version to exact-linked progress or an answer. `commands/response_times.py`
+  owns its population, missing-evidence handling, and clock boundaries;
+  `--json` keeps individual inputs and milestone evidence for further analysis.
 - `leaf-dev eval [CASE]... --harness claude-code|codex|both` runs the eval catalog
   through Promptfoo on the working tree, and with `--base` on the merge base too
   (`evals/README.md`). `authoring_eval.py` runs the short cases that need a writable

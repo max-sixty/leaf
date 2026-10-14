@@ -271,6 +271,7 @@ import {
   announce,
   claimsEsc,
   clamp,
+  clippedContents,
   clippedPlace,
   clipsPast,
   clipsPastSurfaces,
@@ -280,6 +281,7 @@ import {
   el,
   frameFor,
   growthIsSeen,
+  hasArea,
   intersect,
   keys,
   labelOf,
@@ -298,6 +300,7 @@ import {
   pruneScopedElements,
   randomId,
   reachedForWords,
+  recordInteraction,
   registry,
   repaint,
   reportCarried,
@@ -317,6 +320,7 @@ import {
   shadowRootsIn,
   showNativeLayer,
   shownBox,
+  shownWindow,
   skipped,
   tagsDeclaring,
   union,
@@ -689,7 +693,7 @@ function sentDrawing(drawing) {
 }
 
 // runtime/protocol.js
-var recordFormat = (kind) => `leaf-${kind}/6`;
+var recordFormat = (kind) => `leaf-${kind}/7`;
 
 // runtime/composing/text-field.js
 import {
@@ -5139,13 +5143,20 @@ function createPendingLedger({ newAttempt, enqueue }) {
 
 // runtime/pending/dispatch.js
 function createCommandDispatch() {
+  const submitted = /* @__PURE__ */ new Set();
   const ledger = createPendingLedger({
     newAttempt: randomId,
-    enqueue: (event) => applicationState.enqueue(
-      event,
-      saidNow(),
-      isThreadEvent(event) ? messageText(event) : void 0
-    )
+    enqueue: (event) => {
+      if (!submitted.has(event.attempt)) {
+        submitted.add(event.attempt);
+        recordInteraction("event_submit", { kind: event.kind, attempt: event.attempt });
+      }
+      return applicationState.enqueue(
+        event,
+        saidNow(),
+        isThreadEvent(event) ? messageText(event) : void 0
+      );
+    }
   });
   let dependencies = null;
   const current = () => {
@@ -6672,9 +6683,30 @@ function visibleInterval(body, clips, band) {
     contentHeight: body.scrollHeight
   };
 }
+function wordsAreVisible(body, clips, band) {
+  if (!presented(body) || !body.checkVisibility({ opacityProperty: true }))
+    return false;
+  const text = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+  const range = document.createRange();
+  for (let node = text.nextNode(); node; node = text.nextNode()) {
+    if (!node.textContent.trim()) continue;
+    const holder = node.parentElement;
+    if (!holder || !presented(holder) || !holder.checkVisibility({ opacityProperty: true }))
+      continue;
+    range.selectNodeContents(node);
+    for (const box of range.getClientRects()) {
+      const clipped = clippedContents(box, holder, clips);
+      if (!clipped) continue;
+      const room = shownWindow({ within: clipped, item: holder });
+      if (hasArea(intersect(intersect(clipped, room), band))) return true;
+    }
+  }
+  return false;
+}
 function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
   let coverage = /* @__PURE__ */ new WeakMap();
   const renderedBodies = /* @__PURE__ */ new Map();
+  const visibleReplies = /* @__PURE__ */ new Set();
   const refusedThisVisit = /* @__PURE__ */ new Set();
   const sizes = sizeObserver(() => scheduleScan());
   const frameWatches = [];
@@ -6724,24 +6756,34 @@ function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
     run: firstUnread
   };
   function scan(sampleBand) {
-    if (!threadsPresented || document.visibilityState !== "visible" || !document.hasFocus())
-      return;
+    if (document.visibilityState !== "visible") return;
     const band = sampleBand ?? containingView();
     if (!band || sampleBand?.visible === false) return;
     const candidates = new Map(
-      actionableUnread().map(({ item }) => [item.message, item])
+      (threadsPresented ? actionableUnread() : []).map(({ item }) => [
+        item.message,
+        item
+      ])
     );
-    if (!candidates.size) return;
+    const mayRead = threadsPresented && document.hasFocus();
     const clips = /* @__PURE__ */ new Map();
     const completed = /* @__PURE__ */ new Map();
     for (const [node, rendered] of renderedBodies) {
-      const { body, id, version } = rendered;
+      const { body, id, version, feedback } = rendered;
       if (!node.isConnected || !body.isConnected) {
         sizes.unobserve(body);
         renderedBodies.delete(node);
         continue;
       }
-      const item = candidates.get(id);
+      if (feedback) {
+        const identity2 = feedback.reply_id ?? `input:${feedback.input_id}`;
+        const key2 = `${identity2}:${feedback.presentation_kind}:${feedback.surface}`;
+        if (!visibleReplies.has(key2) && wordsAreVisible(body, clips, band)) {
+          visibleReplies.add(key2);
+          recordInteraction("reply_visible", feedback);
+        }
+      }
+      const item = mayRead && candidates.get(id);
       const key = item && keyOf(item);
       if (!item || item.version !== version || completed.has(key) || refusedThisVisit.has(key))
         continue;
@@ -6809,14 +6851,13 @@ function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
       frameWatches.length = 0;
     });
   }
-  function observeMessage(body, message) {
+  function observeBody(body, reading) {
     if (!(body instanceof Element))
       throw new TypeError("A message body must be an Element");
     if (!renderedBodies.has(body)) sizes.observe(body);
     const registration = {
       body,
-      id: message.id,
-      version: message.version
+      ...reading
     };
     renderedBodies.set(body, registration);
     scheduleScan();
@@ -6825,6 +6866,22 @@ function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
       sizes.unobserve(body);
       renderedBodies.delete(body);
     };
+  }
+  function observeMessage(body, message) {
+    return observeBody(body, {
+      id: message.id,
+      version: message.version,
+      feedback: message.author === "agent" ? {
+        reply_id: message.id,
+        attempt: message.attempt,
+        presentation_kind: "message_words",
+        reply_kind: message.provisional ? "stream" : message.progress ? "progress" : message.failure ? "failure" : "answer",
+        surface: message.panel ? "panel" : "margin"
+      } : null
+    });
+  }
+  function observeFeedback(body, feedback) {
+    return observeBody(body, { id: null, version: null, feedback });
   }
   function present() {
     const generation = presentationGeneration;
@@ -6865,6 +6922,7 @@ function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
     abort,
     present,
     observeMessage,
+    observeFeedback,
     firstUnreadCommand
   };
 }

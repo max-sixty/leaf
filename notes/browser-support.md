@@ -305,6 +305,28 @@ what fails and what still works.
   `test_a_row_at_a_frame_edge_holds_the_trim_by_declaring_it` hold the required
   wrapper and row behavior. Parser support alone does not establish it.
 
+### Scroll-state containers and table fill
+
+- **Disposition: scroll-state is progressive; Firefox's unfilled frames are an
+  accepted visual difference.** A `container-type` naming `scroll-state` is written
+  after the same declaration without it, so an engine without scroll-state keeps the
+  size container. A table in a drawn frame keeps its columns' natural width in
+  Firefox, short of the frame's far edge; every cell stays readable.
+- **Owner:** the table rules in
+  [`reading.css`](../skills/leaf/assets/styles/components/reading.css) and the
+  granted-room table in [`layouts.css`](../skills/leaf/assets/layouts.css).
+- **Observed, 2026-10-14:** Firefox 157 (a user's page) and Playwright's Firefox and
+  WebKit 26.6 drop `container-type: inline-size scroll-state` whole, so the table was
+  no size container and the 100cqi its fill caption reads measured the window: an
+  Ask's two-column table laid its rows out 1728px wide in a 720px column and cut off
+  its second column. Chrome 155 keeps it. Firefox also never widens a table grid to a
+  caption wider than its columns' natural width, whatever the caption's width, so the
+  caption fill does nothing there; Chromium and WebKit spread the columns to it.
+- **Recheck:** `test_a_table_of_prose_wraps_inside_its_box_in_every_engine` holds
+  the size container in all three engines; the Chromium-only
+  `test_a_table_fills_its_declared_allocation_or_frame_and_a_bare_one_keeps_its_content`
+  holds the fill.
+
 ### State-preserving content reordering (review #22)
 
 - **Impact: state preservation; functional fallback implemented.** Retained-node

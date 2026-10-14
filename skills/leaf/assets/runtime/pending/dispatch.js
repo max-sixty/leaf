@@ -7,6 +7,7 @@ import { createPendingLedger } from "./state.js";
 import { applicationState, readApplication } from "../semantic-state.js";
 import { randomId } from "../ids.js";
 import { saidNow } from "../presence.js";
+import { recordInteraction } from "../interaction-log.js";
 import { messageText } from "../thread/messages.js";
 
 /** @typedef {import("../../../../../build/browser/domain.ts").PendingCommand} PendingCommand */
@@ -24,14 +25,22 @@ import { messageText } from "../thread/messages.js";
  * onCollision: (attempt: string | undefined) => void,
  * }} DispatchDependencies */
 export function createCommandDispatch() {
+  const submitted = new Set();
   const ledger = createPendingLedger({
     newAttempt: randomId,
-    enqueue: (event) =>
-      applicationState.enqueue(
+    enqueue: (event) => {
+      // Capture local Send before publication or a prior transport can delay it.
+      // Retrying the same attempt does not begin another response-time interval.
+      if (!submitted.has(event.attempt)) {
+        submitted.add(event.attempt);
+        recordInteraction("event_submit", { kind: event.kind, attempt: event.attempt });
+      }
+      return applicationState.enqueue(
         event,
         saidNow(),
         isThreadEvent(event) ? messageText(event) : undefined,
-      ),
+      );
+    },
   });
   /** @type {DispatchDependencies | null} */
   let dependencies = null;

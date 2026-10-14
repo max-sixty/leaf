@@ -234,6 +234,9 @@ running for their review.
 
 ## Run the agent journey
 
+For response timing, run `uv run leaf-dev response-times PAGE... --json`;
+`dev/leaf_dev/commands/response_times.py` owns its measurements and limits.
+
 `uv run --project <root> leaf-dev journey TARGET` runs one user's journey against a real
 agent. On the triage board, it tells the agent that a release passed its checks and
 asks it to record that, then checks for a reply and a revision naming the release. It

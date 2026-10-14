@@ -210,7 +210,8 @@ export class LeafElement extends LitElement {
   // An update settles its claim once all of it has run, `updated` included, and one
   // that failed anywhere, its gate too, reports once and shows its failure; Lit has
   // marked it done, so the next move draws again. A draw that `updated` asks for at
-  // once, as a module's own paint may, settles its own claim inside this one.
+  // once, as a module's own paint may, settles its own claim inside this one; with no
+  // claim of its own, its failure is the enclosing claimed update's.
   performUpdate() {
     const outer = this.#drawing;
     this.#drawing = null;
@@ -218,6 +219,7 @@ export class LeafElement extends LitElement {
       super.performUpdate();
       this.#drawing?.resolve();
     } catch (error) {
+      if (outer && !this.#drawing) throw error;
       this.#failed(error, this.#drawing);
     } finally {
       this.#drawing = outer;

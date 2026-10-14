@@ -25,6 +25,7 @@ from .schema import (
     INSTRUCTIONS_DIR,
     INSTRUCTIONS_FILE,
     JAVASCRIPT_SUFFIXES,
+    KERNEL,
     LAYER_PLACEHOLDER,
     PACKAGE_DIRS,
     PLUGIN_ROOT,
@@ -336,19 +337,80 @@ def checked_layer_inputs(inputs: list[Path]) -> list[Path]:
 
 
 def kernel_runtime_paths() -> set[str]:
-    """Private kernel paths packages cannot replace, before or after compilation.
-
-    CI records the source paths in its prepared payload because compiled chunks no
-    longer have those names. Both representations enforce the same package boundary.
-    """
-    manifest = PLUGIN_ROOT / "leaf-distribution.json"
-    paths = {
-        path.relative_to(ASSETS / "runtime").as_posix()
-        for path in (ASSETS / "runtime").rglob("*.js")
+    """Private kernel paths packages cannot replace: the source modules and the
+    compiled kernel's, so one boundary holds whichever a page vendors."""
+    return {
+        path.relative_to(root / "runtime").as_posix()
+        for root in (ASSETS, KERNEL)
+        for path in (root / "runtime").rglob("*.js")
     }
-    if manifest.is_file():
-        paths.update(json.loads(manifest.read_text())["runtime_paths"])
-    return paths
+
+
+class Kernel(NamedTuple):
+    """The compiled kernel: its files by layer path, and the source modules it holds."""
+
+    files: dict[str, bytes]
+    replaces: list[str]
+
+
+def current_kernel() -> Kernel | None:
+    """The committed kernel, where it was compiled from the modules ASSETS holds now.
+
+    Installs follow `main` and serve whatever tree it holds, so this is the one place
+    that chooses between the compiled kernel and the source modules. The build
+    (`build/runtime-bundle.mjs`, `kernelOutputs`) records in `kernel.json` the
+    SHA-256 of every module it read, `leaf.js` and each `.js` under the layer's
+    browser directories. Where any differs from the tree's, or a module has been
+    added or removed since, the kernel is stale and a page vendors the source
+    modules, so an install never serves a runtime other than the one its tree holds.
+    That happens on a branch whose runtime edit has not been rebuilt, or on a `main`
+    two green pull requests left stale together until it is rebuilt there. A tree
+    without the kernel, such as a model test's, also vendors source modules.
+
+    Reading and hashing the roughly 6 MB of modules takes about 12 ms, once for each
+    composition; serving a page reads its vendored copy and never asks again.
+    """
+    record = KERNEL / "kernel.json"
+    if not record.is_file():
+        return None
+    built = json.loads(record.read_text())
+    modules = [
+        ASSETS / "leaf.js",
+        *(path for sub in BROWSER_DIRS for path in (ASSETS / sub).rglob("*.js")),
+    ]
+    digests = {
+        path.relative_to(ASSETS).as_posix(): hashlib.sha256(
+            path.read_bytes()
+        ).hexdigest()
+        for path in modules
+    }
+    if digests != built["inputs"]:
+        return None
+    files = {
+        path.relative_to(KERNEL).as_posix(): path.read_bytes()
+        for path in KERNEL.rglob("*")
+        if path.is_file() and path != record
+    }
+    return Kernel(files, built["replaces"])
+
+
+def _with_kernel(
+    kernel: Kernel,
+    top_files: dict[str, bytes],
+    directory_files: dict[str, dict[str, bytes]],
+) -> None:
+    """Swap the modules compiled into the kernel for the kernel's own files."""
+
+    def split(path: str) -> tuple[dict[str, bytes], str]:
+        sub, _, name = path.partition("/")
+        return (directory_files[sub], name) if name else (top_files, sub)
+
+    for path in kernel.replaces:
+        files, name = split(path)
+        del files[name]
+    for path, data in kernel.files.items():
+        files, name = split(path)
+        files[name] = data
 
 
 class LayerComposition(NamedTuple):
@@ -714,6 +776,8 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
         }
         for sub in BROWSER_DIRS
     }
+    if roots[0].resolve() == ASSETS.resolve() and (kernel := current_kernel()):
+        _with_kernel(kernel, top_files, directory_files)
     client = directory_files["runtime"].get("layer-generation.js", b"")
     if client.count(LAYER_PLACEHOLDER) != 1:
         raise Refused(

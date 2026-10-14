@@ -1,102 +1,79 @@
 # Codex App Server handoff and delivery
 
-Use this contract when the main skill's "Harness selection" selects Codex App
-Server. Leaf starts the turns that deliver user input and writes each turn's
-opening and final messages to its addressed thread. A harness that starts the
-task, such as leaf.page, has already handed the page over. A terminal task hands
-its page over as "Hand a page over from a terminal" describes.
+Use this reference when the main skill's "Harness selection" picks Codex App Server.
+Leaf starts a turn for each delivery of user input and writes that turn's opening and
+final messages to the thread it answers. A harness that starts the task, such as
+leaf.page, has already handed the page over; a terminal task hands it over as "Hand a
+page over from a terminal" says.
 
 ## Delivery
 
 While a task with Leaf's trusted tool hook is working, new input can arrive between
-steps as a `leaf-delivery` pointer. Read it and answer with explicit commands as
-`references/harness-codex.md`, "Delivery", describes. That reply is not bound to
-your turn's final message.
+steps as a `leaf-delivery` pointer. Read it and answer with explicit commands, as
+`harness-codex.md`, "Delivery", describes.
 
-Otherwise a delivery starts a turn of its own: once the task is idle, Leaf starts one with the complete
-delivery as a structured `leaf_delivery` tool output. A delivery can span pages and
-threads, presented as one chronological slice per turn. Leaf acknowledges the
-delivery itself once it enters that turn, so this contract leaves no acknowledgement to
-you: run no acknowledgement command, and no `leaf wait` or `leaf wait --ack` while Leaf
-delivers to this task over App Server.
+Otherwise, once the task is idle, Leaf starts a turn whose input is the delivery as a
+`leaf_delivery` tool output, one slice per turn. Leaf acknowledges it, so run no
+acknowledgement command, `leaf wait` or `leaf wait --ack`.
 
 ## Replies
 
-Each slice contains at most one thread reply, with `kind: "reply"` and
-`writer: "turn"`. Before your first tool call, open with a short message to the
-user: the answer or what you are about to do. Leaf streams it into the captured
-thread at once. Later working messages stay in Codex. Your completed final
-commits the reply through the same durable writer as `leaf response reply`,
-unless an explicit successful reply already answered it.
+A slice holds at most one thread reply for the turn to write, marked `kind: "reply"`
+and `writer: "turn"`. Before your first tool call, write a short message to the user:
+the answer, or what you are about to do. Leaf streams this opening into the thread at
+once, and later working messages stay in Codex. When the turn completes, your final
+message joins the opening as one reply. A turn with no final message posts none.
 
-For a reply needing widgets, a prose ask awaiting the user (`--ask`),
-work promised beyond this turn (`--todo`), a title or a changed anchor, author it
-with `leaf response reply <answer.ref>` and the rich options in
-[threads](threads.md). The command validates saved edits and commits immediately.
-The completed final yields to an explicit successful answer already in the log;
-otherwise Leaf commits your opening and final text. A later failure or
-interruption cannot discard an explicit committed reply. Leaf may title an
-untitled thread from its opening before your reply arrives; that name stands.
+When the reply needs widgets, an ask in prose (`--ask`), work promised beyond this turn
+(`--todo`), a title or a changed anchor, write it with
+`leaf response reply <answer.ref>` and the options in [threads](threads.md). The command
+checks the reply and posts it at once, and your final message then posts nothing. Leaf
+may title an untitled thread from your opening message, and that title stays.
 
-If the user resolves the thread before completion, a successful reply still posts
-and reopens it. Failure receipts are refused while this turn owns the answer.
-A later user reply remains pending for the next slice.
+If the user resolves the thread before the turn completes, your reply still posts and
+reopens it. Other updates in the slice take the commands their `handling` names.
 
-Other answers in the slice take the operations their delivered `handling`
-clauses name.
+Before finishing a turn that changed `index.html`, run `leaf page check <page>` and fix
+every error. If Leaf refuses to post your final message, it starts a correction turn
+with the error and the same reply address; fix the problem and complete the answer.
 
-Before finishing a turn that changed `index.html`, run `leaf page check <page>`
-and fix every error. If automatic publication refuses a final, Leaf sends a
-correction turn with the diagnostic and the same response address. Correct that
-failure and complete the answer.
-
-A `leaf-delivery` pointer queued before Leaf observed the task can still arrive as a
-user message. Read it with `leaf delivery read <id>` and follow its receipt
-instruction: it was frozen for the queue, so
-its reply has `writer: "agent"` for `leaf response reply <answer.ref>`, as `references/harness-codex.md`
-describes.
+A `leaf-delivery` pointer queued before Leaf saw the task can still arrive as a user
+message. Read it with `leaf delivery read <id>` and follow its instruction; its reply has
+`writer: "agent"`, so post it with `leaf response reply <answer.ref>`.
 
 ## Activity
 
-Plan updates, tool starts, reasoning summaries, and waits for approval or user input
-are watched as the task's current step. Leaf retains thinking, tool use, replying,
-approval waits, and input waits as distinct observations. They describe overall page
-activity; an observed step alone does not start a particular message. The line of
-an item you started with `leaf task start` stays the page's sentence, and the step
-stands beside it in the banner's disclosure; with no item started, the step is the
-sentence.
+Leaf shows the task's current step, such as a tool call or a wait for approval, in the
+page's banner as what the agent is doing on the page as a whole. If you started an item
+with `leaf task start`, its line stays the banner's sentence and the step appears in the
+banner's details.
 
 ## Hand a page over from a terminal
 
-A terminal task reaches App Server through a detached adapter that
-serving leaves running: it connects to the task's server as a second
-client, watches the task's own turns, and starts a delivery's turn once the task is
-idle. This route is experimental.
+A terminal task reaches App Server through a background adapter that serving starts.
+It connects to the task's App Server as a second client and starts a turn for each
+delivery once the task is idle. This route is experimental.
 
-If the user supplied an endpoint and `LEAF_CODEX_APP_SERVER` is absent, bind it
-before serving starts an adapter on another route:
+If the user gave you an endpoint and `LEAF_CODEX_APP_SERVER` isn't set, bind it before
+serving:
 
 ```bash
 leaf codex start <page> --app-server <supplied-endpoint>
 ```
 
-If an adapter already holds a different endpoint, follow the conflict diagnostic.
-Terminal launch and independent-shell setup are in `references/codex-setup.md`.
+If an adapter already holds a different endpoint, follow the conflict message.
+`codex-setup.md` covers launching the terminal.
 
 ### Full Leaf handoff
 
-Serve and hand the page over as `references/harness-codex.md`, "Full Leaf handoff",
-describes. Here the delivery adapter that serving starts or joins uses
-`LEAF_CODEX_APP_SERVER` as its endpoint. Re-serving restores an adapter that
-stopped. The adapter watches every page this task owns, and a completed turn does
-not stop it.
+Serve and hand over the page as `harness-codex.md`, "Full Leaf handoff", describes;
+here the adapter uses `LEAF_CODEX_APP_SERVER` as its endpoint. It watches every page
+this task owns and keeps running when a turn ends.
 
-`leaf codex start <page>` connects delivery explicitly when claiming without
-serving. It prints `{"task", "app_server", "started"}`; a null `app_server` means
-Leaf is on the queue route in `references/harness-codex.md`. A later start reports
-`started: false` and the running adapter's endpoint, and refuses an endpoint other
-than the one that adapter holds.
+To connect delivery for a page you claim without serving it, run
+`leaf codex start <page>`. It prints `{"task", "app_server", "started"}`; a null
+`app_server` means Leaf is on the queue route in `harness-codex.md`.
 
-A `leaf wait` this task already runs, or a watcher task, carries input without the
-adapter, as `references/harness-codex.md`, "Routes without the adapter", describes; on those routes there is no App Server turn to bind, so
-answer with `leaf response reply <answer.ref>`.
+When this task runs `leaf wait` itself, or a watcher task does, no App Server turn
+writes the reply (`harness-codex.md`, "Routes without the adapter"), so answer with
+`leaf response reply <answer.ref>`.

@@ -8,7 +8,7 @@ conventionally ~/.local/state/leaf/pages/<slug>/ — and is self-contained,
 so an approved version can't change under its user; re-running `page init`
 is the explicit re-vendor, which restarts a served page's server when its installed
 layer or serving code changes
-(`../../references/serving-pages.md`, "Re-vendoring and layer epochs"). One
+(`../../references/serving-pages.md`, "Re-vendoring"). One
 transition covers start, stop, init, contract-bearing CLI writes, and preview reads.
 Stop retains it through the server's release, so no operation can cross the old
 process's contract.

@@ -70,11 +70,13 @@ file.
 ## Re-vendoring and layer epochs
 
 A Leaf update leaves open pages served and writable until it changes the page
-protocol or retires a registry key the page's layer declares; then serving or
-writing the page refuses, and `leaf page state` reports the refusal as
-`source.error`, each naming the `leaf page init` that updates the page's Leaf
-runtime. Re-vendor the page from its owning session then, or to adopt a newer
-runtime, theme or package:
+protocol or retires a registry key the page's layer declares. The first `leaf`
+command or hook of the session holding the page then re-vendors it, keeping its log
+and source, and says so only where index.html now fails `page check` or the re-vendor
+was refused. A page another live session holds stays refused, and `leaf page state`
+reports the refusal as `source.error`, naming the `leaf page init` that updates the
+page's Leaf runtime from that session. Run it yourself to adopt a newer runtime,
+theme or package:
 
 ```bash
 leaf page init <page>
@@ -99,9 +101,8 @@ session owns it. If its previous session has ended, init leaves it stopped;
 serve it from the session that will now own it. An enabled persistent service
 restarts independently of session ownership.
 
-Serving or writing a page vendored at another protocol refuses with the same init
-command. Versions the page saved before that re-vendor stay in its history but no
-longer open. If restart fails,
+Versions a page saved before a re-vendor across a protocol change stay in its
+history but no longer open. If restart fails,
 follow init's diagnostic; an enabled page's watcher also tries one revival.
 Init reads the log under Leaf's kernel transport contract. If init cannot read an
 earlier page's log, or the page still misbehaves once re-vendored, initialize a new

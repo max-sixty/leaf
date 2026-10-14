@@ -6,10 +6,13 @@ import contextlib
 import json
 import secrets
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import NamedTuple
 
 from .files import read_json, replace_files
+from .findings import Finding
+from .harness import Harness, session_harness
 from .hosting import restarting_server
 from .layer import (
     LayerComposition,
@@ -24,6 +27,7 @@ from .layer import (
 from .leases import lock_is_held, page_locked
 from .locations import located, locations_overlap, path_is_within, path_location
 from .refusals import Refused
+from .registry.kernel import kernel_protocol
 from .registry.storage import RegistryError, layer_metadata, layer_packages
 from .schema import (
     CURSOR_FILE,
@@ -33,7 +37,13 @@ from .schema import (
     PAGE_OWNED_FILES,
     SERVER_LOCK,
 )
-from .service import PageTransaction, claim_path
+from .service import (
+    PageTransaction,
+    claim_is_active,
+    claim_path,
+    claimant_matches,
+    page_claim,
+)
 from .state import EVENTS_FILE, json_bytes
 from .validation.source import check_source
 
@@ -67,17 +77,20 @@ def cmd_init(
         _refuse_package_target(page_dir, layer_inputs(selected or ()))
         page_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     if (page_dir / EVENTS_FILE).is_file():
-        with page_locked(page_dir):
-            plan = _plan_page(page_dir, selected, fresh=False)
         if dry_run:
+            with page_locked(page_dir):
+                plan = _plan_page(page_dir, selected, fresh=False)
             print(json.dumps({"page": str(page_dir), "changed": plan.changed}))
             return
-        if not plan.changed:
-            print(json.dumps({"page": str(page_dir)}))
-            return
-    elif dry_run:
+        if unready := _unready(
+            page_dir, _revendor(page_dir, selected, session_harness())
+        ):
+            print(unready, file=sys.stderr)
+        print(json.dumps({"page": str(page_dir)}))
+        return
+    if dry_run:
         raise Refused(f"{page_dir} is not initialized")
-    with restarting_server(page_dir), page_locked(page_dir):
+    with restarting_server(page_dir, session_harness()), page_locked(page_dir):
         try:
             _init_page(page_dir, selected)
         except BaseException:
@@ -85,6 +98,88 @@ def cmd_init(
                 page_dir.rmdir()
             raise
     print(json.dumps({"page": str(page_dir)}))
+
+
+def renew_layer(page_dir: Path, harness: Harness | None) -> str | None:
+    """Re-vendor a page whose layer this Leaf cannot serve
+    (`event_contracts.write_refusal`) for the session `harness` names, and say what
+    still holds the page back, for its agent to act on.
+
+    A plugin update that bumps the page protocol reaches a running session, and its
+    Leaf then refuses every page the session holds until the agent runs the
+    `leaf page init` the refusal names. That re-vendor keeps the page's log, and so
+    its threads and decisions, and its source, so it asks nothing of the agent's
+    judgment, and the first Leaf to act for the page's session makes it instead: a
+    command naming the page (`cli.resolve_dir`) or a prompt or Stop hook
+    (`hook_transport.read_plans`). Only the session holding the page renews it, or
+    any caller while no live session does: another session may still run the Leaf
+    that vendored the page, which a re-vendor would lock out of it, and its own
+    first hook under this Leaf renews it. Nor does a Leaf take back a page a newer
+    one vendored: a process the session started before its plugin updated would
+    otherwise re-vendor the page down, and the newer Leaf's next hook up again,
+    reloading the user's tabs each time.
+
+    What it says is why the re-vendor was refused, or the `page check` errors that
+    keep index.html from activating under the new layer, since a source an older
+    Leaf accepted may fail this one's checks. None where the page needed no
+    re-vendor or took one cleanly. Each of these readings is taken again under the
+    page lock and transaction the re-vendor holds, since another Leaf, newer or
+    older, may re-vendor the page or another session take it in between."""
+
+    def renewable() -> bool:
+        from .event_contracts import write_refusal
+
+        refusal = write_refusal(page_dir)
+        if refusal is None:
+            return False
+        vendored = refusal.values.get("vendored")
+        if type(vendored) is int and vendored > kernel_protocol():
+            return False
+        claim = page_claim(page_dir)
+        return not claim_is_active(claim) or claimant_matches(claim, harness)
+
+    if not renewable():
+        return None
+    try:
+        return _unready(page_dir, _revendor(page_dir, None, harness, renewable))
+    except Refused as error:
+        return f"{page_dir} needs a re-vendor this Leaf could not make: {error}"
+
+
+def _revendor(
+    page_dir: Path,
+    selected: tuple[str, ...] | None,
+    harness: Harness | None,
+    still: Callable[[], bool] = lambda: True,
+) -> list[Finding]:
+    """Re-vendor an initialized page inside a restart of its service, returning the
+    errors that keep its index.html from activating under the new layer. Everything
+    that can refuse is decided first, with the page still served, and an unchanged
+    contract restarts nothing (`cmd_init`). `still` says, under each lock, whether
+    the re-vendor is still wanted."""
+    with page_locked(page_dir):
+        if not still():
+            return []
+        plan = _plan_page(page_dir, selected, fresh=False)
+    if not plan.changed:
+        return []
+    with restarting_server(page_dir, harness), page_locked(page_dir):
+        return _init_page(page_dir, selected, still)
+
+
+def _unready(page_dir: Path, errors: list[Finding]) -> str | None:
+    """What a re-vendor that left `errors` tells the agent, or None for none."""
+    if not errors:
+        return None
+    return "\n".join(
+        [
+            (
+                f"re-vendored {page_dir}, but index.html will not activate until "
+                "`leaf page check` passes:"
+            ),
+            *(f"  - {error}" for error in errors),
+        ]
+    )
 
 
 def start_throwaway_page(page_dir: Path, composition: LayerComposition) -> None:
@@ -110,7 +205,14 @@ def _refuse_package_target(page_dir: Path, inputs: list[Path]) -> None:
         raise Refused(f"{page_dir} is inside package {package}, not a page directory")
 
 
-def _init_page(page_dir: Path, selected: tuple[str, ...] | None) -> None:
+def _init_page(
+    page_dir: Path,
+    selected: tuple[str, ...] | None,
+    still: Callable[[], bool] = lambda: True,
+) -> list[Finding]:
+    """Start or re-vendor the page under its lock and its service's restart, and
+    return what keeps a re-vendored index.html from activating; a re-vendor `still`
+    no longer wants under the transaction commits nothing."""
     # The restart around this took the server down, but the page lock came after
     # it, and a start can land in between.
     if lock_is_held(page_dir / SERVER_LOCK):
@@ -124,29 +226,23 @@ def _init_page(page_dir: Path, selected: tuple[str, ...] | None) -> None:
     # validation leaves it untouched.
     if not (page_dir / EVENTS_FILE).is_file():
         _commit_layer(page_dir, _plan_page(page_dir, selected, fresh=True))
-        return
+        return []
     # The page lock serializes this operation with other inits; an existing
     # page also has its ordinary transaction, which gives the layer commit
     # one order against every browser append. No path takes
     # the page transaction and then the page lock, so this order cannot invert.
     with PageTransaction(page_dir) as page:
+        if not still():
+            return []
         plan = _plan_page(page_dir, selected, fresh=False)
         if not plan.changed:
-            return
+            return []
         _commit_layer(page_dir, plan)
         events = page.events
     # The re-vendored layer is in place, but the page shows it only once index.html
     # activates, which runs the same check `page check` does. Say now what would
     # hold it back, rather than leave the next read to refuse it unseen.
-    check = check_source(page_dir, events)
-    if check.errors:
-        print(
-            f"re-vendored {page_dir}, but index.html will not activate until "
-            "`leaf page check` passes:",
-            file=sys.stderr,
-        )
-        for error in check.errors:
-            print(f"  - {error}", file=sys.stderr)
+    return check_source(page_dir, events).errors
 
 
 class _PagePlan(NamedTuple):

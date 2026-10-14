@@ -298,20 +298,52 @@ def test_a_page_another_leaf_vendored_at_this_protocol_takes_its_writes(
     assert checked.returncode == 0, checked.stderr
 
 
-def test_response_reply_names_a_page_vendored_at_another_protocol(claimed, server):
+def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(claimed, server):
+    """A reply through a reference names no page, so it is refused on a page an older
+    Leaf vendored, naming the re-vendor. The session's next command naming the page
+    makes that re-vendor itself (`vendoring.renew_layer`), restarting the server at
+    its address, and the reply then goes."""
     replied = _replying_after(claimed, server, vendored_at_another_protocol)
     assert replied.returncode != 0, replied.stdout
     assert f"leaf page init {claimed}" in replied.stderr
+    for command in (["page", "state", str(claimed)], replied.args[len(LEAF_COMMAND) :]):
+        ran = subprocess.run(
+            [*LEAF_COMMAND, *command],
+            capture_output=True,
+            text=True,
+            timeout=STATED_TIMEOUT,
+            check=False,
+        )
+        assert ran.returncode == 0, ran.stderr
+        assert "re-vendor" not in ran.stderr
+    assert fetch(f"{server}/api/state")[0] == 200
 
 
-def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(page_dir):
+def test_a_command_leaves_a_page_a_newer_leaf_vendored(claimed):
+    """A process the session started before its plugin updated still runs the older
+    Leaf, and must not take the page back to it: the newer Leaf's next hook would
+    re-vendor it up again, reloading the user's tabs each time."""
+    foreign = vendored_at_another_protocol(claimed, newer=True)
+    checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(claimed)])
+    assert checked.exit_code != 0
+    assert f"page protocol {foreign}" in checked.output
+    assert (
+        interact_files.read_json(claimed / "registry.json")["$events"]["protocol"]
+        == foreign
+    )
+
+
+def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(claimed):
     """A layer vendored before an x- key was renamed (`x-question-context`, now
     `x-ask-context`) declares nothing under the new name, so this Leaf would quietly
     drop what the key said. The layer still reads, but the one reading every server
     and writer refuses on (`layer.incompatible_layer`) names the re-vendor, and so
-    does `page check`. A layer that lacks a key this Leaf added is refused nothing."""
+    does `page check` from a session that may not make it, as one that does not
+    hold the page. A layer that lacks a key this Leaf added is refused nothing."""
     from leaf.event_contracts import write_refusal
 
+    page_dir = claimed
+    other = {"CLAUDE_CODE_SESSION_ID": "s2"}
     path = page_dir / "registry.json"
 
     def vendored(change):
@@ -327,11 +359,13 @@ def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(page_dir
     revendor = f"leaf page init {page_dir}"
     assert registry_storage.load_registry(page_dir) is not None
     assert write_refusal(page_dir).values["retired"] == ["x-question-context"]
-    checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
+    checked = CliRunner().invoke(
+        cli_model.cli, ["page", "check", str(page_dir)], env=other
+    )
     assert checked.exit_code != 0
     assert "x-question-context" in checked.output and revendor in checked.output
     as_json = CliRunner().invoke(
-        cli_model.cli, ["page", "check", "--json", str(page_dir)]
+        cli_model.cli, ["page", "check", "--json", str(page_dir)], env=other
     )
     report = json.loads(as_json.output)
     assert report["status"] == 1 and report["browser"] is None
@@ -345,18 +379,20 @@ def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(page_dir
 @pytest.mark.parametrize(
     ("vendored", "named"),
     [
-        (vendored_at_another_protocol, "page protocol 999"),
+        (vendored_at_another_protocol, "page protocol"),
         (vendored_before_the_ask_rename, "x-question-context"),
     ],
 )
-def test_page_state_reports_a_layer_this_leaf_cannot_serve(page_dir, vendored, named):
-    """`page state` on a page this Leaf can neither serve nor write still prints its
+def test_page_state_reports_a_layer_this_leaf_cannot_serve(claimed, vendored, named):
+    """`page state` on a page this Leaf can neither serve nor write, from a session
+    that may not re-vendor it since another one holds the page, still prints its
     reading, and says why under `source.error`, naming the re-vendor, from the one
     reading the servers and the append door refuse on (`layer.incompatible_layer`).
     Activation writes no revision under that layer, even for an edited source.
 
     A fresh process, as an agent's is: this one holds the revision `publish`
     captured in memory, under the vocabulary before the change."""
+    page_dir = claimed
     publish(page_dir)
     vendored(page_dir)
     source = page_dir / "index.html"
@@ -369,6 +405,7 @@ def test_page_state_reports_a_layer_this_leaf_cannot_serve(page_dir, vendored, n
         text=True,
         timeout=STATED_TIMEOUT,
         check=False,
+        env={**os.environ, "CLAUDE_CODE_SESSION_ID": "s2"},
     )
     assert result.returncode == 0, result.stderr
     state = json.loads(result.stdout)
@@ -390,8 +427,9 @@ def test_response_reply_names_a_published_page_vendored_before_a_key_was_renamed
     assert replied.returncode != 0, replied.stdout
     assert "x-question-context" in replied.stderr
     assert f"leaf page init {claimed}" in replied.stderr
-    # The re-vendor it names repairs the page: init runs on it, and the reply goes.
-    for command in (["page", "init", str(claimed)], replied.args[len(LEAF_COMMAND) :]):
+    # The session's next command on the page makes the re-vendor it names, and the
+    # reply goes.
+    for command in (["page", "check", str(claimed)], replied.args[len(LEAF_COMMAND) :]):
         ran = subprocess.run(
             [*LEAF_COMMAND, *command],
             capture_output=True,

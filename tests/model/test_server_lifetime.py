@@ -138,7 +138,7 @@ def test_a_stop_during_a_restart_keeps_the_service_stopped(
             sleep(seconds)
 
         monkeypatch.setattr(hosting_model.time, "sleep", stop_in_the_pause)
-    with hosting_model.restarting_server(page_dir):
+    with hosting_model.restarting_server(page_dir, harness_model.session_harness()):
         assert not files_model.read_json(page_dir / "service.json")["enabled"]
         if stopped == "during the block":
             hosting_model.cmd_stop(page_dir)
@@ -599,7 +599,7 @@ def test_a_re_vendor_stops_a_server_whose_record_it_cannot_read(
     version cannot read is still running, so the re-vendor stops it first, and it
     stays stopped: there is no lifetime this version could bring it back under."""
     process = older_server(page_dir, spawn)
-    with hosting_model.restarting_server(page_dir):
+    with hosting_model.restarting_server(page_dir, harness_model.session_harness()):
         assert not leases_model.lock_is_held(page_dir / "server.lock")
     assert process.wait(timeout=STATED_TIMEOUT) == 0
     assert not (page_dir / "service.json").exists()

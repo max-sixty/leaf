@@ -50,6 +50,10 @@
     --lf-fp-hover: color-mix(in srgb, var(--ink) 5%, transparent);
     --lf-fp-radius: 12px;
     --lf-fp-folded: 42px;
+    /* The row's one line: the leaf, each mark and press beside the field, and the
+       field's first line of words are each this tall, and the row stands them all on
+       its foot, so every one of them is centred on the line the words are written on. */
+    --lf-fp-line: 32px;
     --lf-fp-width: min(
       540px,
       calc(100vw - 24px - var(--lf-safe-left) - var(--lf-safe-right))
@@ -138,11 +142,13 @@
   }
 
   /* ---------- the row ---------- */
+  /* One alignment for the whole row: everything in it, the field's presses
+     included, stands on the row's foot and is a line tall (`--lf-fp-line`), so a field
+     grown to several lines keeps them beside its last. */
   .lf-fp-row {
     display: flex;
     align-items: flex-end;
     gap: 2px;
-    min-height: 44px;
     padding: 6px;
     box-sizing: border-box;
   }
@@ -151,7 +157,7 @@
     display: grid;
     place-items: center;
     width: 32px;
-    min-height: 32px;
+    min-height: var(--lf-fp-line);
     padding: 0;
   }
   .lf-fp-leaf .lf-dot {
@@ -194,7 +200,7 @@
   .lf-fp-resolved {
     flex: 1;
     margin: 0;
-    padding: 5px 6px;
+    padding: calc((var(--lf-fp-line) - 22px) / 2) 6px;
     color: var(--lf-fp-quiet);
     font: 14px / 22px var(--sans);
   }
@@ -204,8 +210,8 @@
     border: 0;
     background: none;
     box-shadow: none;
-    padding: 5px 6px;
-    min-height: 32px;
+    padding: calc((var(--lf-fp-line) - 22px) / 2) 6px;
+    min-height: var(--lf-fp-line);
     max-height: 30dvh;
     box-sizing: border-box;
     font: 14px / 22px var(--sans);
@@ -246,14 +252,22 @@
   .lf-fp-field .lf-compose-placeholder kbd {
     display: none;
   }
-  /* Send stands in the counts' place while the user types, as a round ink press. */
-  .lf-fp-field .lf-compose-submit {
+  /* The field's presses stand in the row's flow beside the words, rather than over the
+     words' end where a card's composer floats them, so the row's one alignment places
+     them too. */
+  .lf-fp-field :is(.lf-compose-submit, .lf-compose-dictate) {
+    position: relative;
+    inset: auto;
     flex: none;
-    display: none;
     place-items: center;
     width: 32px;
-    min-height: 32px;
+    height: auto;
+    min-height: var(--lf-fp-line);
     padding: 0;
+  }
+  /* Send stands in the counts' place while the user types, as a round ink press. */
+  .lf-fp-field .lf-compose-submit {
+    display: none;
     border-radius: 50%;
     background: var(--ink);
     color: var(--lf-fp-surface);
@@ -268,12 +282,7 @@
     display: none;
   }
   .lf-fp-field .lf-compose-dictate:not([hidden]) {
-    flex: none;
     display: grid;
-    place-items: center;
-    width: 32px;
-    min-height: 32px;
-    padding: 0;
   }
   /* Dictation is offered while the user writes in the panel, not at rest. Writing lasts
      while they stay in the panel (floating-panel.js, `writing`), so Tab from the field
@@ -296,7 +305,7 @@
     justify-content: center;
     gap: 4px;
     min-width: 32px;
-    min-height: 32px;
+    min-height: var(--lf-fp-line);
     padding: 0 7px;
     color: var(--lf-fp-muted);
     font-variant-numeric: tabular-nums;
@@ -338,13 +347,16 @@
     padding-inline: 10px;
   }
 
-  /* Clicking in names where the words go, on one quiet line above the field. While a
-     view is open its room stands empty until then, so the line arriving moves nothing
-     at the view's head and cuts nothing off the view's foot. */
+  /* Clicking in opens one quiet line above the field: the keys that send, and where
+     the words go once they hide the placeholder. It is one line tall whatever it says,
+     and while a view is open its room stands empty until then, so the line arriving or
+     changing moves nothing at the view's head and cuts nothing off the view's foot. */
   .lf-fp-context {
     display: flex;
     justify-content: space-between;
     gap: 12px;
+    box-sizing: content-box;
+    min-height: 1lh;
     padding: 8px 14px 0;
     color: var(--lf-fp-muted);
     font-size: 12px;
@@ -660,10 +672,6 @@
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
-  .lf-fp-key {
-    color: var(--lf-fp-muted);
-    font: 12px var(--sans);
-  }
   /* A row's end: its value or key, then the chevron of a row that opens a list. */
   .lf-fp-end {
     display: inline-flex;
@@ -677,8 +685,8 @@
     margin-inline-end: -2px;
     color: var(--lf-fp-muted);
   }
-  /* A row whose press copies a text: its name over the text, selectable, with Copy
-     beside it, and what the text is beneath. */
+  /* A row whose press copies a text: its name over the text, selectable, with Leaf's
+     copy control beside it, and what the text is beneath. */
   .lf-fp-copy {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -705,12 +713,36 @@
     resize: none;
     scrollbar-width: none;
   }
-  .lf-fp-copy .lf-fp-quiet {
+  /* The copy control is the text's one line tall, an icon at the size of the panel's
+     others, quiet until the pointer is on it. */
+  .lf-fp-copy-press {
     align-self: start;
+    width: 28px;
+    height: 28px;
+    color: var(--lf-fp-muted);
+    /* The host is only the press's box; its words would give it a line of their own. */
+    font-size: 0;
+    line-height: 0;
   }
-  .lf-fp-copy .lf-fp-quiet {
-    padding: 0 8px;
-    font-size: 12px;
+  .lf-fp-copy-press[hidden] {
+    display: none;
+  }
+  .lf-fp-copy-press::part(button) {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: inherit;
+    font-size: 16px;
+    cursor: pointer;
+  }
+  .lf-fp-copy-press::part(button):hover {
+    background: var(--lf-fp-hover);
+    color: var(--ink);
   }
   .lf-fp-copy-note {
     grid-column: 1 / -1;
@@ -953,9 +985,9 @@
   @media (pointer: coarse) {
     :is(.lf-floating-panel, .lf-fp-ground) {
       --lf-fp-folded: 46px;
+      --lf-fp-line: 34px;
     }
     .lf-fp-row {
-      min-height: 48px;
       padding: 7px;
     }
     .lf-fp-item,
@@ -968,7 +1000,6 @@
     .lf-fp-leaf,
     .lf-fp-chip {
       min-width: 34px;
-      min-height: 34px;
     }
   }
   @media (prefers-reduced-motion: reduce) {

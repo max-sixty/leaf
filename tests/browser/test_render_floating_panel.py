@@ -64,7 +64,7 @@ def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve
     """The field clicked at rest is the field written in. Sending a page comment opens
     its new thread above the row, the same field now replying there, and the thread is
     resolved and reopened from the thread's head. The focused field names where the
-    words go, and once they hide that, the line above it does. The banner and the
+    words go, and once they hide that, the line above it does, in the same words. The banner and the
     bottom bar are gone, and Escape, once the caret has left the field, puts the thread
     away."""
     page = floating(browser, serve(LONG_PAGE))
@@ -89,7 +89,7 @@ def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve
     )
 
     write(field(page), "And the mobile cohort too.")
-    expect(page.locator(".lf-fp-context")).to_contain_text("Reply in")
+    expect(page.locator(".lf-fp-dest")).to_have_text("Reply in this thread")
     with sending(page, "the reply"):
         page.keyboard.press("ControlOrMeta+Enter")
     reply = events_model.read_events(serve.page_dir)[-1]
@@ -382,8 +382,8 @@ def test_the_thread_walk_stands_on_each_thread_it_opens(browser, serve):
 
 def test_the_panel_names_the_agent_as_the_page_s_messages_do(browser, serve):
     """The agent has one name across the panel, the one the page gives it: on a page no
-    session holds, the voice that last wrote there, so the page's field, a thread's reply
-    and the On view all say Claude where Claude's messages do."""
+    session holds, the voice that last wrote there, so the On view says Claude where
+    Claude's messages do."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Is the window long enough?")
     append_carried_log_record(
@@ -398,8 +398,6 @@ def test_the_panel_names_the_agent_as_the_page_s_messages_do(browser, serve):
         },
     )
     page = floating(browser, url)
-    field(page).click()
-    expect(page.locator(".lf-fp-dest")).to_have_text("To Claude")
     page.locator(".lf-fp-on-user").click()
     expect(page.locator(".lf-fp-filters")).to_contain_text("On Claude")
 
@@ -473,9 +471,9 @@ def test_on_shows_an_ask_as_its_message_and_reply_comes_back(browser, serve):
 
 
 def test_clicking_into_the_field_moves_nothing_at_an_open_view_s_head(browser, serve):
-    """The line naming where the words go keeps its room while a view is open, so
-    clicking into the field leaves the view's tabs and Close where the pointer may be
-    about to press them."""
+    """The line over the field keeps its room while a view is open, one line whatever
+    it says, so clicking into the field or typing there leaves the view's tabs and Close
+    where the pointer may be about to press them."""
     page = floating(browser, serve(LONG_PAGE, comments=3))
     page.locator(".lf-fp-threads").click()
     expect(page.locator(".lf-fp-view[data-view=threads]")).to_be_visible()
@@ -489,6 +487,11 @@ def test_clicking_into_the_field_moves_nothing_at_an_open_view_s_head(browser, s
     assert (
         page.locator(".lf-fp-filters button", has_text="Resolved").bounding_box() == tab
     )
+    # Words arriving give the line where they go, in the same one line's room.
+    page.keyboard.type("Could")
+    expect(page.locator(".lf-fp-dest")).to_have_text("Comment on the page")
+    settled(page)
+    assert page.locator(".lf-fp-close").bounding_box() == close
 
 
 HEAD_SEATS = """() => {
@@ -587,15 +590,23 @@ def test_threads_is_as_tall_as_the_threads_it_first_shows(browser, serve):
 
 def test_about_s_rows_that_copy_say_what_they_copy(browser, serve):
     """A row of About whose press copies, such as the Leaf version's diagnostics, shows
-    the text it copies beside its Copy, as the share link does, and names it."""
+    the text it copies beside Leaf's copy control, as the share link does, and names it.
+    The control is the one a code block wears, an icon named for what it copies, and a
+    press copies the text and says so."""
     page = floating(browser, serve(LONG_PAGE))
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
     page.locator(".lf-fp-leaf").click()
     page.locator(".lf-fp-menu .lf-fp-item", has_text="About this page").click()
     version = page.locator(".lf-fp-copy", has_text="Leaf version")
-    expect(version.locator(".lf-fp-copy-text")).to_have_value(
-        re.compile("^Leaf layer\n")
+    text = version.locator(".lf-fp-copy-text")
+    expect(text).to_have_value(re.compile("^Leaf layer\n"))
+    copy = version.locator("wa-copy-button")
+    expect(copy).to_be_visible()
+    copy.get_by_role("button", name="Copy Leaf version").click()
+    expect(field(page)).to_have_attribute(
+        "placeholder", re.compile("^Leaf version copied")
     )
-    expect(version.get_by_role("button", name="Copy")).to_be_visible()
+    assert page.evaluate("navigator.clipboard.readText()") == text.input_value()
 
 
 def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
@@ -895,8 +906,10 @@ def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, 
     """At rest the empty field says what the agent is doing, in the banner's words and
     dimmer than anything written there, and while the work runs it carries the one sheen
     that marks work under way, standing still under reduced motion and once the work
-    ends. Clicking in gives the placeholder to where the words go and the line above to
-    who they go to; once words hide the placeholder, that line names where as well."""
+    ends. Clicking in gives the placeholder to where the words go and opens the line
+    above with the keys that send; once words hide the placeholder, that line says where
+    they go. It never names who reads them, since every word here goes to the one agent.
+    """
     url = serve(LONG_PAGE)
     # No session holds the page, so it names its agent by the voice that started the
     # work, the suite's Claude Code session (`presence.page_agent`).
@@ -938,12 +951,15 @@ def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, 
     )
     sheen(False)
     destination = page.locator(".lf-fp-dest")
-    expect(destination).to_have_text(f"To {agent}")
+    line = page.locator(".lf-fp-context")
+    expect(line).to_have_text(re.compile("^⏎ to send"))
+    expect(destination).to_have_text("")
     page.keyboard.type("Could")
-    expect(destination).to_have_text(f"Comment on the page · to {agent}")
+    expect(destination).to_have_text("Comment on the page")
+    expect(line).not_to_contain_text(agent)
     page.keyboard.press("ControlOrMeta+a")
     page.keyboard.press("Backspace")
-    expect(destination).to_have_text(f"To {agent}")
+    expect(destination).to_have_text("")
 
     page.mouse.click(5, 5)
     expect(field(page)).to_have_attribute("placeholder", status)
@@ -1099,7 +1115,8 @@ def test_asks_are_answered_where_they_are_read_on_me(browser, serve):
 
 def test_versions_travel_and_approval_open_in_the_panel(browser, serve):
     """Version travel opens the panel's Versions, whatever route asks for the versions
-    menu: the leaf's menu, whose row names the key, and that key. It lists each version,
+    menu: the leaf's menu, whose row names the key as keys, apart from its value, and
+    that key. It lists each version,
     marks the one shown, travels to another, and holds the page's approval, which
     records the sign-off."""
     url = serve(SIGN_OFF)
@@ -1110,7 +1127,10 @@ def test_versions_travel_and_approval_open_in_the_panel(browser, serve):
     view = page.locator(".lf-fp-view[data-view=versions]")
     page.locator(".lf-fp-leaf").click()
     row = page.locator(".lf-fp-menu .lf-fp-item", has_text="Versions")
-    expect(row.locator(".lf-fp-key")).to_have_text("g V")
+    expect(row.locator(".lf-fp-value")).to_have_text(re.compile(r"^v\d+$"))
+    keys = row.locator(".lf-binding-sequence")
+    expect(keys.locator("kbd.lf-key-badge")).to_have_text(["g", "V"])
+    expect(keys).to_have_attribute("aria-label", "g then V")
     row.click()
     expect(view).to_be_visible()
     page.keyboard.press("Escape")
@@ -1349,6 +1369,50 @@ def test_tab_from_the_field_reaches_dictate(browser, serve):
     expect(dictate).to_be_focused()
 
 
+ROW_CENTRES = """() => {
+  const centre = (selector) => {
+    const node = document.querySelector(selector);
+    if (!node || !node.getClientRects().length) return null;
+    const box = node.getBoundingClientRect();
+    return (box.top + box.bottom) / 2;
+  };
+  const text = document.querySelector('.lf-fp-field leaf-text').getBoundingClientRect();
+  return {
+    leaf: centre('.lf-fp-leaf .lf-dot'),
+    line: text.bottom - 16,
+    dictate: centre('.lf-fp-field .lf-compose-dictate svg'),
+    send: centre('.lf-fp-field .lf-compose-submit svg'),
+    count: centre('.lf-fp-on-user svg'),
+    words: text.right,
+    press: document.querySelector('.lf-fp-field .lf-compose-submit')
+      .getBoundingClientRect().left,
+  };
+}"""
+
+
+def test_the_row_s_marks_and_presses_share_the_words_line(browser, serve):
+    """Everything in the row stands on the one line the words are written on: the
+    leaf, Dictate beside the field, the counts, and Send where they stood while the user
+    types, each centred on the field's last line of words, however many lines it holds.
+    Send and Dictate stand beside the words rather than over their end."""
+    page = floating(browser, serve(LONG_PAGE))
+    field(page).click()
+    settled(page)
+    seats = page.evaluate(ROW_CENTRES)
+    for mark in ("leaf", "dictate", "count"):
+        assert abs(seats[mark] - seats["line"]) < 0.5, (mark, seats)
+    page.keyboard.type(
+        "Could the rollback cover the weekend, and the mobile cohort as well, and"
+        " every one of the regions the first wave reaches?"
+    )
+    settled(page)
+    seats = page.evaluate(ROW_CENTRES)
+    assert field(page).bounding_box()["height"] > 40, "the words wrapped"
+    for mark in ("leaf", "send"):
+        assert abs(seats[mark] - seats["line"]) < 0.5, (mark, seats)
+    assert seats["press"] >= seats["words"], seats
+
+
 def test_a_finger_finds_the_keyboard_s_conveniences_under_navigate(browser, serve):
     """Where no keyboard is there to reach them, the conveniences the desk's menu leaves
     to their keys stand under Navigate, so a finger keeps a way to each."""
@@ -1370,7 +1434,8 @@ def test_the_share_link_shows_where_it_can_be_selected_without_a_clipboard(
 ):
     """A browser offers the clipboard only to a secure context, so a page read from
     another machine over plain http cannot copy. About shows the share link in a field
-    the user can select, beside its Copy, and says what the link grants."""
+    the user can select, with no copy control that could only fail, and says what the
+    link grants."""
     no_clipboard = "Object.defineProperty(Navigator.prototype, 'clipboard', {get: () => undefined});"
     page = open_page(
         browser, serve(LONG_PAGE), init_script=f"{FLOATING}\n{no_clipboard}"
@@ -1381,6 +1446,7 @@ def test_the_share_link_shows_where_it_can_be_selected_without_a_clipboard(
     link = share.locator(".lf-fp-copy-text")
     expect(link).to_have_value(re.compile(r"^http://.*[?&]t="))
     expect(link).to_have_accessible_name("Share link")
+    expect(share.get_by_role("button", name=re.compile("Copy"))).to_have_count(0)
     expect(share).to_contain_text("Grants access")
     link.focus()
     selected = (

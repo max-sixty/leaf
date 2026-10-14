@@ -160,9 +160,27 @@ function workingMessage(thread, attention, messages) {
         : [said, false, null, null];
   if (!words || (!pending.length && !live && !condition)) return null;
   const agentMessage = messages.findLast((message) => message.author === "agent");
+  // A workflow's detail is explicit agent work text linked to its exact input. A
+  // to-do's line can be user-authored, so it supplies no reply visibility evidence.
+  const work = running?.detail ? running : !running && !todo ? stopped : null;
+  const progress = !work && (running || (!todo && !stopped)) ? pending.at(-1) : null;
+  const feedback = work?.input
+    ? {
+        input_id: work.input,
+        reply_id: null,
+        reply_kind: "work",
+      }
+    : progress
+      ? {
+          reply_id: progress.id,
+          attempt: progress.attempt,
+          reply_kind: "progress",
+        }
+      : null;
   return Object.freeze({
     who: agent || agentMessage?.by || "Agent",
     words: words.trim().replace(/\.$/, ""),
+    feedback,
     live,
     condition,
   });
@@ -441,6 +459,7 @@ export class ThreadView {
   #actions = document.createElement("span");
   #transcript = document.createElement("div");
   #working = document.createElement("div");
+  #stopWorkingExposure = null;
   // Each pending progress range's covered message ids, as last drawn, so a fold that
   // takes the range over can take its disclosure state with it.
   #pendingCovers = new Map();
@@ -1090,6 +1109,17 @@ export class ThreadView {
       render(workingView(model.working), this.#working);
       transcript.push(this.#working);
     }
+    this.#stopWorkingExposure?.();
+    this.#stopWorkingExposure = model.working?.feedback
+      ? this.#commands.read.observeFeedback(
+          this.#working.querySelector(".lf-thread-working-words"),
+          {
+            ...model.working.feedback,
+            presentation_kind: "working_words",
+            surface: model.surface,
+          },
+        )
+      : null;
     this.#checkpoints = checkpoints;
     this.#markers = markers;
     keeps(
@@ -1745,6 +1775,8 @@ export class ThreadView {
   }
 
   retire() {
+    this.#stopWorkingExposure?.();
+    this.#stopWorkingExposure = null;
     this.#reply?.cancelDictation();
     for (const view of this.#messages.values()) view.retire();
   }

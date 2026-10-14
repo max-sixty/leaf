@@ -400,6 +400,9 @@ def test_sample_file_editor_resize_keeps_classic_scrollbars_inside_its_document(
     expect(child.locator(".lf-file-editor-status")).to_have_attribute(
         "title", "No file is bound as 'notes'."
     )
+    expect(child.locator(".cm-placeholder")).to_have_text(
+        "No file is bound as 'notes'."
+    )
     editor.click()
     expect(editor).to_be_focused()
     assert child.evaluate("innerHeight - visualViewport.height") > 1

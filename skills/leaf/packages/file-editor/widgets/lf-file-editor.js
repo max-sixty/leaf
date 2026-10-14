@@ -23,7 +23,9 @@
  * Retry's description. A conflict reads "Changed on disk" in the warning tone, one
  * control opening a small menu of its choices: Compare, Save draft, Use file version.
  * A Save draft that fails keeps that control, with the error as its description,
- * since Save draft is the retry and the other choices still stand.
+ * since Save draft is the retry and the other choices still stand. Where no file
+ * could be read at all, the status reads "Unavailable" and the empty editor shows
+ * why, as its placeholder.
  * The comparison of both versions opens below the editor only on the reader's
  * Compare, and shares the editing room with it. Rejected (2026-10-14): a pane below
  * the editor holding the error, the choices and the comparison, which took the
@@ -110,7 +112,7 @@ customElements.define(
       // leaves them where they pressed.
       const conflictControl = () => view.querySelector(".lf-file-editor-conflict");
       const choices = () => view.querySelector(".lf-file-editor-choices");
-      const choiceRows = () => [...choices().querySelectorAll("[role^=menuitem]")];
+      const choiceRows = () => [...choices().querySelectorAll("button")];
       const putChoicesAway = () =>
         closeLayer(
           () => closeNativeLayer(choices()),
@@ -215,6 +217,9 @@ customElements.define(
         const label = base?.label ?? thisBinding;
         editor.setLabel(label);
         editor.readOnly = base === null || !api.writable;
+        // With no file to show, as on an export or an unbound page, the empty editor
+        // says why, where a finger and the eye already are.
+        editor.placeholder = base === null ? (failure?.message ?? "") : "";
         // The comparison belongs to the conflict it opened on.
         if (!latest) comparing = false;
         // A conflict keeps its choices through a failed Save draft, which is its own

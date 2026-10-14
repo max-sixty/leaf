@@ -25,6 +25,7 @@ import {
   HighlightStyle,
   syntaxHighlighting,
   indentOnInput,
+  placeholder,
   bracketMatching,
   tags,
 } from "/vendor/codemirror.esm.js";
@@ -58,6 +59,7 @@ const theme = EditorView.theme({
     backgroundColor: "color-mix(in srgb, var(--accent) 6%, transparent)",
   },
   ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--accent)" },
+  ".cm-placeholder": { color: "var(--muted)" },
   "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection":
     { backgroundColor: "color-mix(in srgb, var(--accent) 24%, transparent)" },
   ".cm-matchingBracket": {
@@ -127,7 +129,9 @@ export function createEditor(
   } = {},
 ) {
   const editable = new Compartment(),
-    language = new Compartment();
+    language = new Compartment(),
+    hint = new Compartment();
+  let shownHint = "";
   let readonly = readOnly,
     markdown = isMarkdown(filename),
     conflict = original,
@@ -148,6 +152,7 @@ export function createEditor(
         drawSelection(),
         keymap.of([...defaultKeymap, ...historyKeymap]),
         language.of(markdown ? new LanguageSupport(markdownLanguage) : []),
+        hint.of([]),
         syntaxHighlighting(highlighting),
         theme,
         // Only the primary editor needs line coordinates and an active line.
@@ -255,6 +260,12 @@ export function createEditor(
     },
     get readOnly() {
       return readonly;
+    },
+    // Words an empty editor shows in place of the file, such as why no file is there.
+    set placeholder(text) {
+      if (shownHint === text) return;
+      shownHint = text;
+      dispatch({ effects: hint.reconfigure(text ? placeholder(text) : []) });
     },
     set readOnly(value) {
       if (readonly === value) return;

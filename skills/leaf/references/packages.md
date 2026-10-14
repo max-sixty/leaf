@@ -167,7 +167,7 @@ The override contract distinguishes four kinds of custom property:
 
 | Kind | Owner and supported use |
 | --- | --- |
-| Theme inputs | Page authors and themes may set semantic colors (`--paper`, `--ink`, `--muted`, `--accent`, `--ok`, `--danger`), type faces (`--serif`, `--sans`, `--mono`), type/reading scales, radius (`--r`), code palette (`--code-*`), and focus inputs. Set them on the document root for a page-wide change; inherited inputs can also style a local subtree. The theme owns shared defaults and derivations; diff additions and deletions derive from the widget's local `--ok`, `--danger` and `--pre-bg`. Derived custom properties resolve where declared, so changing a local base color does not recompute an inherited derived token. `--focus-ring` draws outlines; `--focus-shadow` draws the equivalent shadow-based cue, so a custom complete ring updates both. Shared duration inputs `--lf-motion-flash`, `--lf-motion-fold`, and `--lf-motion-agent-arrival` are nonnegative document-root time values. `--lf-thread-panel-default-width` is a root length input until the user chooses a panel width. |
+| Theme inputs | Page authors and themes may set semantic colors (`--paper`, `--ink`, `--muted`, `--accent`, `--ok`, `--danger`), type faces (`--serif`, `--sans`, `--mono`), type/reading scales, radius (`--r`), code palette (`--code-*`), focus inputs, and page geometry, which Layouts read: the column's widths (`--col`, `--wide`), the sidebar's width (`--sidebar`), and the room above and below the page (`--page-pad-start`, `--page-pad-end`). Set them on the document root for a page-wide change; inherited inputs can also style a local subtree. The theme owns shared defaults and derivations; diff additions and deletions derive from the widget's local `--ok`, `--danger` and `--pre-bg`. Derived custom properties resolve where declared, so changing a local base color does not recompute an inherited derived token. `--focus-ring` draws outlines; `--focus-shadow` draws the equivalent shadow-based cue, so a custom complete ring updates both. Shared duration inputs `--lf-motion-flash`, `--lf-motion-fold`, and `--lf-motion-agent-arrival` are nonnegative document-root time values. `--lf-thread-panel-default-width` is a root length input until the user chooses a panel width. |
 | Layout declarations | The allocating box sets `--lf-full-height`, `--lf-density`, `--lf-block-frame`, and `--lf-holds-edge` according to the contracts below. These express room or layout behavior; they are not palette knobs. |
 | Runtime outputs | Runtime owners write measurements and choices such as `--lf-thread-panel-width`, banner row counts, anchor geometry, and retained body extents. Consumers read them; themes do not set them. `--lf-banner-face` is a stylesheet-owned responsive decision consumed by chrome and JavaScript. |
 | Vendor bridges | The dependency adapter maps Leaf inputs to provider properties such as `--wa-*`, `--diffs-*`, and `--plot-background`. Change the Leaf input or the owning adapter, rather than repeating a provider recipe in each consumer. |
@@ -242,6 +242,11 @@ under its CSS selector in the package's `registry.json`, beside element names
 An idiom may also declare `x-space`, the width it takes, as `.callout` keeps
 the column; delivery paints it on every element the selector matches.
 
+A package's rules sit below the Layouts ("Styles and composition"), so a package
+changes a Layout through the page geometry inputs it reads (the override table's
+"Theme inputs"). A package that declares widgets has its whole sheet scoped to them, so
+page-wide rules and idioms belong in a package that declares none.
+
 A package's rules read the box a widget is given and the theme's tokens, never the Layout
 or style class around it, so a widget behaves the same in a shipped Layout as on a page
 whose own CSS gives it the same box. A size query on the widget's own container answers
@@ -276,11 +281,13 @@ Layout class or its own CSS (`page-authoring.md`, "Layouts"); a package's elemen
 the box it is given, and its `x-space` states the width it prefers, which a page may
 override. Declare `column` for an element whose content is read as lines of text, such
 as a list of choices or a timeline, so in a flow wider than the column, such as a
-sidebar page's body or a workspace pane, it keeps the measure the prose
-around it keeps instead of stretching its rows across the page.
+sidebar page's body, it keeps the measure the prose around it keeps instead of
+stretching its rows across the page. Only the column and the sidebar page allocate
+`x-space`; in a workspace every element fills the region it stands in.
 A widget that needs a minimum width to stay usable, such as a board's columns at a
 readable size, states it as `min-inline-size` capped by the box it stands in:
-`min(<its floor>, 100cqi, var(--lf-box-cap, 100vw))`. `100cqi` measures the nearest size
+`min(<its floor>, 100%, 100cqi, var(--lf-box-cap, 100vw))`. `100%` is the box it
+stands in, such as a workspace's grid cell; `100cqi` measures the nearest size
 container, which is the page's shell or a framed box around the widget (a pane's body, a
 card), and a sample, which cannot be one, states `--lf-box-cap`. So in a box
 narrower than the floor the widget scrolls sideways rather than widening the page.
@@ -339,7 +346,6 @@ widget's role on the page:
 | `x-patch`            | `lf-tabs`                                                      |
 | `x-views`            | `lf-tabs`                                                      |
 | `x-thread-surface`   | `lf-diff` in `diff`, `lf-visual-review` in `visual-review`     |
-| `x-face`             | `lf-suggestion` (its slots), `lf-shot` in `default` (its rail) |
 
 A CSS-only widget is an entry and a theme rule. One with reusable behavior takes a
 module. The widget owns its implementation: supporting modules can sit beside its entry

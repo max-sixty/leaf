@@ -10,7 +10,10 @@ package appears in (`packages.package_layer_inputs`), and reads only the tags th
 package's own `registry.json` declares. Examples share a page where their ids allow,
 so an example that points at another's element finds it, and a page costs one render
 however many examples it holds; the next page starts where an example's ids would
-repeat one already on the page. A page is rendered as authored, without `page check`:
+repeat one already on the page. Each page is read twice, once as a column document and
+once in the pane of a full-height workspace (`WRAPPERS`), since a widget meets both and
+what holds its height or its width differs between them; a finding names which one it
+was read in (`layout`). A page is rendered as authored, without `page check`:
 an example may point at data or an element a package cannot carry, and what the report
 reads is the widget, not the page. A package carries no media either, so a blank
 image stands in for each one an example names.
@@ -72,6 +75,19 @@ CHECKS = ("example", "keeps-first-box", "grows-with-content", "shows-context-key
 
 MEDIA_REFERENCE = re.compile(f"/{MEDIA_DIR}/{DIR_FILES[MEDIA_DIR]}")
 
+# Where a page of examples stands: the `main` it opens and closes in, by the Layout a
+# finding names.
+WRAPPERS = {
+    "column": ("<main class='layout-column'>", "</main>"),
+    "workspace": (
+        (
+            "<main class='layout-workspace density-working'>"
+            "<lf-pane id='worked-examples' label='Worked examples'><div>"
+        ),
+        "</div></lf-pane></main>",
+    ),
+}
+
 
 def _finding(check: str, tag: str, id: str = "", **values) -> Finding:
     """One check's reading of one widget, named by its instance where the check read
@@ -92,8 +108,9 @@ def own_tags(package: Path) -> list[str]:
     return list(element_declarations(declarations))
 
 
-def example_pages(registry: dict, tags: list[str]) -> list[str]:
-    """The worked examples of `tags`, gathered into as few pages as their ids allow."""
+def example_pages(registry: dict, tags: list[str]) -> list[tuple[str, str]]:
+    """The worked examples of `tags`, gathered into as few pages as their ids allow,
+    each page once in every Layout of `WRAPPERS`, with the Layout's name."""
     pages = []
     ids = set()
     for tag in tags:
@@ -106,11 +123,15 @@ def example_pages(registry: dict, tags: list[str]) -> list[str]:
         pages[-1].append(example)
         ids |= own
     return [
-        "<!doctype html>\n<html lang='en'>\n<head><title>Worked examples</title></head>"
-        "\n<body>\n<main class='layout-column'>\n"
-        + "\n".join(examples)
-        + "\n</main>\n</body>\n</html>\n"
+        (
+            layout,
+            "<!doctype html>\n<html lang='en'>\n<head><title>Worked examples</title>"
+            f"</head>\n<body>\n{opening}\n"
+            + "\n".join(examples)
+            + f"\n{closing}\n</body>\n</html>\n",
+        )
         for examples in pages
+        for layout, (opening, closing) in WRAPPERS.items()
     ]
 
 
@@ -168,7 +189,10 @@ def _readings(
 
 
 def _page_findings(
-    browser, composition: LayerComposition, pages: list[SourceDocument], tags: list[str]
+    browser,
+    composition: LayerComposition,
+    pages: list[tuple[str, SourceDocument]],
+    tags: list[str],
 ) -> list[Finding]:
     """`keeps-first-box`, `shows-context-keys` and `grows-with-content` over each page
     of examples, served
@@ -179,7 +203,7 @@ def _page_findings(
         start_throwaway_page(page_dir, composition)
         candidate = read_page_registry(page_dir)
         (page_dir / MEDIA_DIR).mkdir(exist_ok=True)
-        for document in pages:
+        for layout, document in pages:
             for reference in sorted(document.media_refs):
                 # Only a name the server serves gets a stand-in, which also keeps
                 # every write inside the page: a name cannot hold a directory.
@@ -206,6 +230,7 @@ def _page_findings(
                     "keeps-first-box",
                     box["tag"],
                     box["id"],
+                    layout=layout,
                     first=box["first"],
                     now=box["now"],
                 )
@@ -217,6 +242,7 @@ def _page_findings(
                     "shows-context-keys",
                     command["tag"],
                     command["id"],
+                    layout=layout,
                     command=command["command"],
                 )
                 for command in unshown
@@ -226,6 +252,7 @@ def _page_findings(
                     "grows-with-content",
                     box["tag"],
                     box["id"],
+                    layout=layout,
                     box=box["at"],
                     height=box["height"],
                 )
@@ -242,8 +269,11 @@ def widget_findings(browser, package: Path) -> list[Finding]:
     package = package.resolve()
     tags = own_tags(package)
     composition = compose_layer(checked_layer_inputs(package_layer_inputs(package)))
-    pages = [SourceDocument(html) for html in example_pages(composition.registry, tags)]
-    shown = {record["tag"] for page in pages for record in page.lf_elements}
+    pages = [
+        (layout, SourceDocument(html))
+        for layout, html in example_pages(composition.registry, tags)
+    ]
+    shown = {record["tag"] for _, page in pages for record in page.lf_elements}
     findings = [_finding("example", tag) for tag in tags if tag not in shown]
     if pages:
         findings += _page_findings(browser, composition, pages, tags)

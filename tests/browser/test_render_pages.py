@@ -1411,7 +1411,8 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     from a section, and the Ask spans it, so the ring it wears goes round the block
     rather than cutting across it, while its heading keeps the column; the table's
     twelve columns need the room, since a table granted it takes only what its columns
-    need."""
+    need. A workspace states neither width, so there every one of them, and a board,
+    fills the region it stands in."""
     cells = "<td>p95 latency</td>" * 12
     table = '<table id="{id}-t" data-width="wide"><tr>' + cells + "</tr></table>"
     ask = (
@@ -1484,6 +1485,46 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
         at
     )
     assert at["tracked"]["width"] == 350, at
+
+    board = (
+        '<lf-board id="board"><lf-column id="board-c" label="Open">'
+        '<lf-card id="board-k">Retry</lf-card></lf-column></lf-board>'
+    )
+    workspace = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Workspace",
+                f'<div id="region">{body}{board}</div>',
+                layout="workspace",
+            )
+        ),
+    )
+    resized(workspace, 1726, 900)
+    at = workspace.evaluate(measure.replace("'list']", "'list', 'region', 'board']"))
+    for block in ("prose", "ask", "granted", "granted-c", "holds", "callout", "list"):
+        assert at[block] == at["region"], (block, at)
+    assert at["board"] == at["region"], at
+
+    # With no evidence width, a board reaches only its holder: six columns in a narrow
+    # cell of the page's grid scroll inside it rather than spread over the next cell.
+    columns = "".join(
+        f'<lf-column id="c{i}" label="C{i}"></lf-column>' for i in range(6)
+    )
+    cells = leaf_page(
+        "Workspace cells",
+        f'<div id="cells"><div id="cell"><lf-board id="six">{columns}</lf-board></div>'
+        "<div>Beside.</div></div>",
+        head="<style>#cells { display: grid; grid-template-columns: 290px 1fr; }</style>",
+        layout="workspace",
+    )
+    workspace = open_page(browser, serve(cells))
+    resized(workspace, 1726, 900)
+    box = workspace.evaluate(
+        """() => Object.fromEntries(['cell', 'six'].map(id =>
+          [id, Math.round(document.getElementById(id).getBoundingClientRect().width)]))"""
+    )
+    assert box["six"] == box["cell"], box
 
 
 NOTE = '<aside class="sidenote" id="note"><p>A note that needs a sidenote.</p></aside>'

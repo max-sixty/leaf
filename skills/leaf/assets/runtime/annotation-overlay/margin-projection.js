@@ -1139,8 +1139,10 @@ export function createMarginProjection({
     // map's existence; each row already asks the narrower question of whether its press
     // works from the current focus. Repeating live geometry in every scope's `when`
     // forced a layout per location when paintKeys reflected them.
-    marginKeysAvailable = pageInventory.length > 0;
-    paintKeys();
+    if (marginKeysAvailable !== pageInventory.length > 0) {
+      marginKeysAvailable = pageInventory.length > 0;
+      paintKeys();
+    }
   }
 
   // One gesture can move the trace's source more than once: a close that clears it and

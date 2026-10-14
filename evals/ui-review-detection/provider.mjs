@@ -41,27 +41,17 @@ const BROWSER_DESCRIPTION =
   "Inspect the candidate interface. snapshot returns its current screenshot, visible text, Playwright accessibility snapshot, and numbered controls. Controls labelHint is a locator hint, not a computed accessible name; consult accessibility for accessible names, roles and state. click uses a control index or an exact button accessible name. press sends one keyboard key or chord. scroll moves the document or a numbered scrollable control. Every operation returns a new snapshot. Only the candidate fixture is reachable.";
 const browserDescription = (limit) =>
   `${BROWSER_DESCRIPTION} You may make at most ${limit} total browser operations, including snapshots and failed operations. Each snapshot reports remainingOperations. Finish your final assessment before requesting another operation when none remain.`;
-const BROWSER_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  properties: {
-    action: { type: "string", enum: ["snapshot", "click", "press", "scroll"] },
-    index: { type: "integer", minimum: 0 },
-    name: { type: "string" },
-    key: { type: "string" },
-    x: { type: "number" },
-    y: { type: "number" },
-  },
-  required: ["action"],
-};
-const browserZod = {
+// The browser tool's arguments. The Claude arm's SDK takes the schema itself; the Codex
+// arm sends its JSON Schema, and `invoke` parses every call against it.
+const BrowserArgs = z.strictObject({
   action: z.enum(["snapshot", "click", "press", "scroll"]),
   index: z.number().int().nonnegative().optional(),
   name: z.string().optional(),
   key: z.string().optional(),
   x: z.number().optional(),
   y: z.number().optional(),
-};
+});
+const BROWSER_SCHEMA = z.toJSONSchema(BrowserArgs);
 const digest = (value) => createHash("sha256").update(value).digest("hex");
 const json = (value) => JSON.stringify(value, null, 2) + "\n";
 
@@ -192,11 +182,12 @@ export async function openBrowser(manifest, evidenceDir, limit = 12) {
       get calls() {
         return calls;
       },
-      async invoke(args) {
+      async invoke(call) {
         if (++calls > limit)
           throw new BudgetExhausted(`Browser tool budget exhausted (${limit} calls)`);
-        if (!BROWSER_SCHEMA.properties.action.enum.includes(args.action))
-          throw new Error("Unknown browser operation");
+        const parsed = BrowserArgs.safeParse(call);
+        if (!parsed.success) throw new Error(z.prettifyError(parsed.error));
+        const args = parsed.data;
         if (args.action === "click") {
           if (args.index === undefined && !args.name)
             throw new Error("click requires a control index or exact name");
@@ -400,7 +391,7 @@ async function claudeModel(config, content, browser, record, evidenceDir) {
               tool(
                 "browser",
                 browserDescription(config.toolBudget ?? 12),
-                browserZod,
+                BrowserArgs.shape,
                 async (args) => {
                   record("tool-call", args);
                   let items,

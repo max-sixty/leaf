@@ -192,7 +192,7 @@
 :where(:root, .lf-thread-transcript) th[scope="row"] { font-weight: 600; }
 :where(:root, .lf-thread-transcript) :is(ul, ol) { margin: 10px 0; padding-inline-start: 24px; }
 :where(:root, .lf-thread-transcript) li { margin: 6px 0; }
-:where(:root, .lf-thread-transcript) hr { border: none; border-top: 1px solid var(--rule); margin: 40px 0; }
+:where(:root, .lf-thread-transcript) hr { border: none; border-top: 1px solid var(--rule); margin: var(--hr-margin-block) 0; }
 
 /* One owner for message type and spacing on every surface, including widget shadow
    trees. The editor and messages share the theme's entry-size floor. A contextual

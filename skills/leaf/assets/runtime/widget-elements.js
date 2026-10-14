@@ -40,7 +40,7 @@
 import { WORKS } from "./control-selectors.js";
 import { sizeObserver } from "./rendering.js";
 import { tagsDeclaring } from "./registry.js";
-import { paintKeys } from "./keyboard/scopes.js";
+import { paintKeysWithin } from "./keyboard/scopes.js";
 import { shownBox } from "./geometry.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
 import { iconElement, iconTemplate } from "./icons.js";
@@ -53,6 +53,7 @@ import {
   nothing,
   html,
   render,
+  signal,
 } from "../vendor/browser-runtime.js";
 
 // A scroll target can sit inside a collapsed container — a closed <details>, an
@@ -123,16 +124,14 @@ export const HIDDEN = "onbeforematch" in document.body ? "until-found" : "";
 // with the hand up would hold every waiter for the rest of the page's life.
 //
 // Held is half of composing/engagement.js's `unaccountedGesture`, so taking it up or
-// putting it down moves core's `z` row — a row no widget declares, and therefore the one
-// no widget would think to repaint. So the paint is owed here, where the hand is
-// recorded, rather than by whoever remembers. Coalesced to a frame like every paint,
-// which is what lets it stand for everything else the same gesture moved: the widget's
-// own rows where the grab is a press on an already-focused grip and no focus event
-// fires, and a send the drop states after this returns.
-const hands = new Set();
+// putting it down moves core's `z` row — a row no widget declares. The hands are a
+// signal, so that row's reflection, which reads them, hears them move (keyboard/scopes.js,
+// `reflectKeys`). The widget's own rows move with the grab too, even where it is a press
+// on an already-focused grip and no focus event fires, so its keys are painted here.
+const hands = signal(new Set());
 const releaseWatchers = new Set();
 
-export const dragHeld = () => hands.size > 0;
+export const dragHeld = () => hands.value.size > 0;
 
 // Told, in the order they began watching, each time the last hand is put down.
 export function watchDragRelease(released) {
@@ -141,10 +140,12 @@ export function watchDragRelease(released) {
 }
 
 export const dragging = (el, on) => {
-  if (on) hands.add(el);
-  else hands.delete(el);
-  if (!hands.size) for (const released of [...releaseWatchers]) released();
-  paintKeys();
+  const held = new Set(hands.peek());
+  if (on) held.add(el);
+  else held.delete(el);
+  hands.value = held;
+  if (!held.size) for (const released of [...releaseWatchers]) released();
+  paintKeysWithin(el);
 };
 
 // ResizeObserver covers size changes. A view swap can instead keep its outer box while

@@ -214,7 +214,10 @@ each assertion at the boundary that owns it").
 Use maintained dependencies for established capabilities, including prototypes.
 Leaf code owns product-specific behavior and integration. Native platform and
 standard-library implementations count as reuse. Implement a mechanism ourselves
-only when existing implementations cannot meet a concrete requirement.
+only when existing implementations cannot meet a concrete requirement. In the
+browser, use the platform's layout, cascade and focus model before writing a
+mechanism of your own (`skills/leaf/assets/AGENTS.md`, "The browser answers
+first").
 
 Build browser dependencies in Leaf's development and release pipeline and ship
 ready assets. Consumers run no browser build.
@@ -300,10 +303,12 @@ from it. Presentation proof is separate: it records whether required renderers h
 committed the active document's current semantic epoch. Renderer nodes, promises, and
 DOM attributes never enter the semantic snapshot.
 
-A publication is also what starts a renderer. Each one claims its region inside that
-synchronous publication and paints the current root on the pass that follows, so a
-caller that changes what the page shows publishes and waits for proof rather than
-naming renderers or sequencing them. Where one renderer reads DOM another materializes,
+A publication is also what starts a renderer. Each one names, as a selection of the
+root, the parts it draws; a publication that moves one claims its region inside that
+synchronous publication and paints the current root on the pass that follows, and one
+that moves none carries the region's last commit into the new epoch. A caller that
+changes what the page shows publishes and waits for proof rather than naming renderers
+or sequencing them. Where one renderer reads DOM another materializes,
 that order is declared once, beside the coordinator, not repeated at each publisher.
 
 Focus, scroll, selection, disclosure, draft editing, drag, and layout remain with their

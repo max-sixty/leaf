@@ -28,10 +28,9 @@ import {
   registerNoticePresentation,
 } from "./notifications.js";
 import { watchProjection } from "./projection-watch.js";
-import { readAsks } from "./asks/model.js";
 import { createBannerStatusView } from "./banner-status-view.js";
 import { declareBanner } from "./geometry.js";
-import { agentName, watchSemantic } from "./semantic-state.js";
+import { agentName, applicationState, readPart } from "./semantic-state.js";
 import { itemNoun } from "./queues.js";
 import { UPGRADE } from "./presentation.js";
 import { WEBSITE_DELIVERY } from "./context.js";
@@ -582,7 +581,14 @@ function renderPreview(state) {
       control: previewMarginEntryCopy,
       focusTarget: previewMarginEntry,
       rank: BANNER_CONTROL_RANK.preview,
-      row: { label: () => previewLabel, group: "about" },
+      // What the press copies is the diagnostics, which a presentation shows to select
+      // as well; the line naming the preview says what they describe.
+      row: {
+        label: "Preview diagnostics",
+        value: () => previewLabel,
+        copies: () => previewDiagnostics,
+        group: "about",
+      },
     });
   }
   previewMarginEntryCopy.value = previewDiagnostics;
@@ -603,7 +609,7 @@ function renderPreview(state) {
 // whoever meets a problem can tell how far apart the two are (AGENTS.md, "Pages
 // across Leaf updates").
 let layerReferenceElement = null;
-let layerIdentity = "";
+let layerNamed = "";
 let layerReferenceElementCopy = null;
 let layerDiagnostics = "";
 function renderLayerReference(state) {
@@ -615,7 +621,6 @@ function renderLayerReference(state) {
     : fingerprint && `sha256:${fingerprint.replace(/^sha256:/, "").slice(0, 12)}`;
   if (!fullIdentity) return;
   const identity = producer.commit ? shortCommit(producer) : fullIdentity;
-  layerIdentity = identity;
   const age = payloadAge(producer);
   const dateLines = payloadDateLines(producer);
   // Present only where the serving Leaf is another than the page's (`http.page_state`).
@@ -651,7 +656,8 @@ function renderLayerReference(state) {
       rank: BANNER_CONTROL_RANK.layer,
       row: {
         label: "Leaf version",
-        value: () => layerIdentity,
+        value: () => layerNamed,
+        copies: () => layerDiagnostics,
         group: "about",
       },
     });
@@ -661,6 +667,7 @@ function renderLayerReference(state) {
     ? ` · served by ${serverIdentity}${serverAge ? ` · ${serverAge}` : ""}`
     : "";
   const named = `Leaf ${identity}${age ? ` · ${age}` : ""}${servedBy}`;
+  layerNamed = named;
   layerReferenceElementCopy.copyLabel = `${named} · copy version`;
   render(
     served
@@ -817,7 +824,11 @@ function renderSessionReference() {
       control: sessionReferenceElementCopy,
       focusTarget: sessionReferenceElement,
       rank: BANNER_CONTROL_RANK.session,
-      row: { label: () => sessionReferenceLabel, group: "about" },
+      row: {
+        label: "Session reference",
+        copies: () => runtime.sessionReference,
+        group: "about",
+      },
     });
   }
   sessionReferenceElementCopy.value = runtime.sessionReference;
@@ -930,9 +941,15 @@ let signoff = false;
 export function mountBanner({ approveVersion, paintApproval }) {
   signoff = isSignoffDeclared();
   showBannerControl(approveBtn, signoff);
-  watchProjection(document.body, paintApproval);
-  // The queues move with the application's publication, not only with a state answer.
-  watchSemantic(() => lastStatus && presentStatus(lastStatus));
+  watchProjection(document.body, () => paintApproval());
+  // The queues and the agent's name move with the application's publication, not only
+  // with a state answer.
+  applicationState
+    .select((root) => ({
+      queues: root.effective.queues,
+      agent: root.authoritative?.agent ?? null,
+    }))
+    .subscribe(() => lastStatus && presentStatus(lastStatus));
   showNews(othersBtn, false);
   banner.append(bannerStatus, bannerStatus.queues, bannerActions);
   // On two rows the agent's count stands on the second line only where the run leaves it
@@ -1002,13 +1019,17 @@ function reserveBannerControls() {
 }
 
 let approving = false;
+// Whether the user has approved the shown version.
+const versionApproved = readPart((root) =>
+  root.effective.asks.all.some(
+    (ask) => ask.source.kind === "approval" && ask.status === "answered",
+  ),
+);
 
 // `blockingAsks` is the unanswered asks that hold approval, or null before the page has
 // read the log and so cannot say which those are.
 export function paintApproval(blockingAsks) {
-  const approved = readAsks().all.some(
-    (ask) => ask.source.kind === "approval" && ask.status === "answered",
-  );
+  const approved = versionApproved();
   // The word and the title turn over together. The title read "Approve this work; the
   // page stays open for follow-up" whether or not the work had been approved, so the one
   // surface that could have told a user what pressing it would do next went on

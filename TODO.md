@@ -88,10 +88,12 @@ has tried; settle that before building it.
 - **Find the labels where cutting at the room misleads.** Since 2026-10-14 a label
   holding a room (`data-lf-room`, `controls.css`) cuts words past it with an ellipsis
   rather than widening its control, which had shifted the banner (the user's
-  decision). Some cuts lose the fact the label exists for: On me at 100 or more reads
-  "On me: 1…", and the user called that count essential. Survey each room's owner for
-  words it can reach past its room, starting with On me, and give each case where the
-  cut misleads a room that holds it or a shorter form, such as "99+".
+  decision). An ellipsis at the end cuts the count or the later news first, so some
+  cuts lose the fact the label exists for: On me at 100 or more reads "On me: 1…",
+  and the user called that count essential; the agent's On count reads the same way,
+  and a held-news notice that first said "1 new reply" cuts "1 new reply · 1 reaction
+  changed" to "1 new re…". Start with On me, then each room's owner, and give each
+  misleading cut a room that holds it or a shorter form, such as "99+".
 
 ### Agent and author experience
 

@@ -370,7 +370,7 @@ holds listens for; a listener joins asynchronous work through the event's
 `searchField(className, {name, label, placeholder = label})` builds a search or filter
 field with the shared frame, accessible label, native editor and Clear. The caller owns
 its query and results. Put an auxiliary reading such as a match count in its `end` slot,
-with its longest value in `data-lf-room`.
+holding the room of its longest value as above.
 
 A widget folds content it may show again by setting its `hidden` to `HIDDEN`. Where the
 browser supports `hidden="until-found"`, find-in-page and fragment links still reach the

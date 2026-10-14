@@ -156,9 +156,9 @@ representative desktop viewport.
 - **Generated interface first appears in its settled position.** Reserve space before
   a generated control appears. Transient feedback may repaint a control or briefly
   replace its label but never changes its geometry (`data-lf-room`, `controls.css`,
-  holds a label at the room of its words and cuts words past it). An action awaiting confirmation dims its
-  existing control after the shared delay. The parent laying out adjacent actions gives
-  them disjoint hit boxes.
+  holds a label at the room of its words and cuts words past it). An action awaiting
+  confirmation dims its existing control after the shared delay. The parent laying out
+  adjacent actions gives them disjoint hit boxes.
 - **An unlikely event fits into what is already there.** Reserve no room for a state
   the user rarely meets, such as a failed save or another writer changing a file.
   Show it in a surface that already stands and already has room, such as a status

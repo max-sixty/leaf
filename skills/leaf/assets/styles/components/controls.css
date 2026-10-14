@@ -296,7 +296,7 @@ svg[data-lf-icon] { max-width: none; overflow: visible; fill: none; stroke: curr
  * room out as an invisible block of no height, so the element is as wide as the
  * widest line in the face it renders in, and no script measures anything. The words
  * take no part in that width: they fill the room, and words past it are cut with an
- * ellipsis, so the control never widens when its label changes. Rejected: holding the
+ * ellipsis, so the control never widens when its words change. Rejected: holding the
  * room as a least width, which let a long label widen its control and shift the
  * banner beside it, a move too frequent and scattered to oversee (the user's
  * decision, 2026-10-14). Cut words stay whole in the element's text and accessible

@@ -12,9 +12,9 @@
  * leaves the sentence its room (chrome.css). Its words hold the room of the count it
  * usually reaches (`queuesWidest`, as `data-lf-room`), so the sentence changing never
  * carries it and its changing moves nothing; a count past that is cut there, and the
- * status's explanation and the On panel count every item. The count is a press, one of the On panel's doors
- * (drawers.js wires it), so the panel listing what it counts is one press from where they
- * are counted.
+ * status's explanation and the On panel count every item. The count is a press, one of
+ * the On panel's doors (drawers.js wires it), so the panel listing what it counts is one
+ * press from where they are counted.
  *
  * A passing notice shares the words' box (`presentNotice`), and on a phone stands over
  * them while it lasts; elsewhere the bottom status shows it, or in the floating panel

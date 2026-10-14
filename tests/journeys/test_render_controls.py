@@ -1745,9 +1745,15 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
           const actions = document.querySelector('.lf-banner-actions');
           const menu = document.querySelector('.lf-banner-menu');
           const more = document.querySelector('.lf-banner-more');
-          const words = (control) => ({
-            name: (control.getAttribute('aria-label') || control.textContent).trim(),
-            shown: control.clientWidth, needed: control.scrollWidth});
+          // A room cuts its words inside its own child (controls.css), which the
+          // control's scroll width does not see.
+          const words = (control) => {
+            const inner = control.querySelector('[data-lf-room] > *') ?? control;
+            return {
+              name: (control.getAttribute('aria-label') || control.textContent).trim(),
+              cut: control.scrollWidth > control.clientWidth
+                || inner.scrollWidth > inner.clientWidth};
+          };
           return {
             row: [...actions.children]
               .filter(c => c !== more && c.getClientRects().length).map(words),
@@ -1757,7 +1763,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
     assert crowded["secondary"], (
         f"the fixture registered no secondary controls: {crowded}"
     )
-    clipped = [c for c in crowded["row"] if c["shown"] < c["needed"]]
+    clipped = [c for c in crowded["row"] if c["cut"]]
     assert not clipped, f"the crowded row compressed the controls it kept: {clipped}"
     assert root_overflow(page) == 0, "the crowded row widened the document"
 

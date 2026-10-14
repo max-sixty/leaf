@@ -4,5 +4,10 @@ exit: 2
 
 stdout: ''
 
-stderr: |
-  stopped watching <page>: this session no longer owns it
+stderr:
+  - code: not-owned
+    severity: error
+    values:
+      pages: [<page>]
+    text: >-
+      stopped watching <page>: this session no longer owns it

@@ -114,7 +114,10 @@ representative desktop viewport.
   may grow within its stationary scrollport while existing messages stay put: new
   children, or, where none joins, a last child declared its growing tail
   (`data-lf-append-tail`), the working message or a streaming reply. The idle reply row and later cards may move by that growth, and no
-  other change may. A scrollport sized to what it holds, as the margin's floating card
+  other change may. Where the growth would carry a reply row the user just sent from past
+  its scroller's landing band, the row stops at the band's foot and the scroller takes
+  the rest, so Send and the caret stay in view (`thread/reply-landing.js`,
+  `sendLanding`). A scrollport sized to what it holds, as the margin's floating card
   is, counts as stationary while it grows only at its foot, by that growth. Declare the
   box that owns the room, not an auto-sized inner label group or a boxless wrapper. A
   nested region holds its own boundary and every enclosing declaration's guarantees,

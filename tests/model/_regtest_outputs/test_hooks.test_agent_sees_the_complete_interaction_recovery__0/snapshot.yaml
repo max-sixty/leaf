@@ -4,8 +4,12 @@
 
 idle before pickup:
   exit: 1
-  output: |
-    Error: 1 event nobody has picked up, so the page cannot idle yet. Leaf's hook puts them in your context at your next turn.
+  stdout: ''
+  stderr:
+    - error: >-
+        1 event nobody has picked up, so the page cannot idle yet. Leaf's hook puts
+        them in your context at your next turn.
+      findings: []
 
 the watch wakes the session: >-
   <page> has new input; Leaf's prompt hook puts it in your context with this notification
@@ -103,8 +107,14 @@ acknowledged at stop:
 
 idle before answer:
   exit: 1
-  output: |
-    Error: 1 acknowledged user update with no answer (`leaf response reply <delivery>:0:event-2`); answer before idling. Each update takes the answer named for it. Read current obligations with `leaf page state <page>` and thread history with `leaf page state <page> <id>`.
+  stdout: ''
+  stderr:
+    - error: >-
+        1 acknowledged user update with no answer (`leaf response reply <delivery>:0:event-2`);
+        answer before idling. Each update takes the answer named for it. Read current
+        obligations with `leaf page state <page>` and thread history with `leaf
+        page state <page> <id>`.
+      findings: []
 
 answer:
   kind: reply

@@ -53,8 +53,9 @@
    working message's arrival, its departure, and a new step whose words wrap to
    another height change the thread's height, so a seat holds any change of its words
    behind its control-row notice when that growth would move the reader. The notice
-   counts each held step as it counts a held reply, "1 new step", and says "Work in
-   progress" or "Work updated" only where the working message changed with no step.
+   counts each held progress message as it counts a held reply, "1 new progress
+   message", unless a held reply folds it, and says "Work in progress" or "Work
+   updated" only where the working message changed with none.
    A run on screen stays open where
    it stood, its group's border drawn around it (components/surfaces.css), so the fold
    moves none of its words; a run off screen folds away. Changes to other existing
@@ -229,7 +230,7 @@ function difference(was, now, { progressOpen = false } = {}) {
         : now.working?.live
           ? "Work in progress"
           : "Work updated",
-    steps: 0,
+    progress: 0,
     replies: 0,
     messages: 0,
     edits: 0,
@@ -245,12 +246,12 @@ function difference(was, now, { progressOpen = false } = {}) {
     if (!prior || prior.provisional) arrived.add(message.id);
     if (change === "completed") completed.add(message.id);
     // A progress message joins the thread's working message, not its replies, so its
-    // notice counts it as a step, as it counts a reply; the answer that later folds it
+    // notice counts it, as it counts a reply; the answer that later folds it
     // is a reply. Where the step shows, because the reader opened the progress
     // (`progressOpen`, thread-card.js) or the thread is resolved and keeps its progress
     // as messages, it is a reply's news.
     if (change === "joined" && message.progress && !progressOpen && !now.resolved) {
-      news.steps += 1;
+      news.progress += 1;
       continue;
     }
     if (change === "joined") {
@@ -310,7 +311,7 @@ function difference(was, now, { progressOpen = false } = {}) {
   };
   const counts = [
     "working",
-    "steps",
+    "progress",
     "replies",
     "messages",
     "edits",
@@ -370,7 +371,7 @@ const counted = (count, one, many) => count && `${count} ${count === 1 ? one : m
 /** @param {{
  *   settled?: string,
  *   working?: string,
- *   steps?: number,
+ *   progress?: number,
  *   replies?: number,
  *   messages?: number,
  *   edits?: number,
@@ -381,7 +382,7 @@ const counted = (count, one, many) => count && `${count} ${count === 1 ? one : m
 const newsLabel = ({
   settled,
   working,
-  steps,
+  progress,
   replies,
   messages,
   edits,
@@ -391,10 +392,11 @@ const newsLabel = ({
 }) =>
   [
     settled,
-    ![settled, steps, replies, messages, edits, reactions, summaries, threads].some(
+    ![settled, progress, replies, messages, edits, reactions, summaries, threads].some(
       Boolean,
     ) && working,
-    counted(steps, "new step", "new steps"),
+    // A reply arriving with progress before it folds that progress, so it says both.
+    !replies && counted(progress, "new progress message", "new progress messages"),
     counted(replies, "new reply", "new replies"),
     counted(messages, "new message", "new messages"),
     counted(edits, "message edited", "messages edited"),

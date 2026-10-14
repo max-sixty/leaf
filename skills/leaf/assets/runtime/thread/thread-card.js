@@ -745,7 +745,7 @@ export class ThreadView {
         this.#reply?.node.querySelector(TEXT_FIELD),
         last?.author === "user" && last.pending,
       );
-      const turn = news.appended || news.steps > 0 || footFold;
+      const turn = news.appended || news.progress > 0 || footFold;
       return (
         growthIsSeen(this.node) &&
         (!atEnd || writing || this.#marginControls?.heldEdge(turn) === "foot")

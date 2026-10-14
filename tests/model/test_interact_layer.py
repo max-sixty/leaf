@@ -1723,6 +1723,43 @@ def test_layout_style_and_widgets_never_read_each_other():
     assert not typed, "layouts.css sets type:\n" + "\n".join(typed)
 
 
+def test_every_token_a_sheet_reads_is_set_somewhere():
+    """A `var(--name)` with no fallback reads a property something sets: a sheet's
+    declaration or `@property`, or a module or delivery writing it by name. One nothing
+    sets makes its declaration invalid, so the property falls back to what it inherits or
+    its initial value, and the page shows no sign of it: a hover background that never
+    painted, an empty state with no padding, a size the scale has no step for."""
+    # Anything that names a property as a declaration, an `@property` or a string sets
+    # it, a vendored component's sheet included; what is read is Leaf's own sheets.
+    written, prefixes, reads = set(), set(), []
+    for source in sorted(schema_model.ASSETS.parent.rglob("*")):
+        if source.suffix not in (".css", ".js", ".py"):
+            continue
+        text = source.read_text()
+        written |= set(re.findall(r"(--[\w-]+)\s*:", text))
+        written |= set(re.findall(r"@property\s+(--[\w-]+)", text))
+        written |= set(re.findall(r"[\"'`](--[\w-]+)[\"'`]", text))
+        prefixes |= set(re.findall(r"`(--[\w-]+)\$\{", text))
+        if (
+            source.suffix != ".css"
+            or "vendor" in source.parts
+            or text.startswith("/* Generated from ")
+        ):
+            continue
+        for _conditions, _enclosing, selector, declarations in _style_rules(source):
+            reads += [
+                (name, f"{source.relative_to(schema_model.ASSETS.parent)}: {selector}")
+                for _property, value in declarations
+                for name in re.findall(r"var\(\s*(--[\w-]+)\s*\)", value)
+            ]
+    unset = sorted(
+        f"{where} reads {name}"
+        for name, where in set(reads)
+        if name not in written and not name.startswith(tuple(prefixes))
+    )
+    assert not unset, "a token nothing sets:\n" + "\n".join(unset)
+
+
 def _pseudo_arguments(compound, pseudos):
     """Each `pseudo(…)` in the compound, for every pseudo named, as (start, end, argument),
     where `compound[start:end]` is the whole call."""

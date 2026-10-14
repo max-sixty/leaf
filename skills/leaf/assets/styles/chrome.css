@@ -1424,7 +1424,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-media-viewer-caption { position: relative; z-index: 1501; background: var(--card);
     max-width: none; text-align: center;
     margin: 0; padding: 10px max(12px, var(--lf-safe-right), calc((100% - 70ch) / 2)) max(10px, var(--lf-safe-bottom)) max(12px, var(--lf-safe-left), calc((100% - 70ch) / 2));
-    font-size: var(--t-sm); color: var(--muted); border-top: 1px solid var(--rule);
+    font-size: var(--t-5); color: var(--muted); border-top: 1px solid var(--rule);
     max-height: 20dvh; overflow: auto; }
   .lf-command-reference-head { display: flex; align-items: center; justify-content: space-between;
     gap: 12px; margin-bottom: 8px; }

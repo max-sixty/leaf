@@ -2246,18 +2246,6 @@
         background: var(--ink-2);
         border-color: var(--ink-2);
       }
-      :scope:is(lf-toc) li[data-lf-depth="1"] {
-        --lf-toc-indent: 10px;
-      }
-      :scope:is(lf-toc) li[data-lf-depth="2"] {
-        --lf-toc-indent: 20px;
-      }
-      :scope:is(lf-toc) li[data-lf-depth="3"] {
-        --lf-toc-indent: 30px;
-      }
-      :scope:is(lf-toc) li[data-lf-depth="4"] {
-        --lf-toc-indent: 40px;
-      }
       :scope:is(lf-toc) .lf-toc-start a,
       :scope:is(lf-toc) li a {
         position: absolute;

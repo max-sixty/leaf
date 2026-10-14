@@ -465,7 +465,7 @@
 
 .lf-vr-empty {
   margin: 0;
-  padding: var(--sp-5);
+  padding: var(--sp-4);
   color: var(--muted);
   font: var(--t-5) var(--sans);
   text-align: center;

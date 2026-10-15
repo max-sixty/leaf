@@ -185,8 +185,10 @@ Focus rings show actual focus whatever the input route. Test the shared ring wit
 clicks and keyboard arrivals, require `:focus`, and compare the paint. A keyboard
 navigation test reaches its stop with `Tab` or its declared command; `element.focus()`
 doesn't prove that route. `RELEASE_FOCUS` (`render_harness.py`) resets where Tab
-starts, which `blur()` doesn't. Read a ring's paint through `RINGS_DRAWN` and
-`ring_faults`, because an ancestor may draw it.
+starts, which `blur()` doesn't. Read a ring's paint through `rings_drawn` and
+`ring_faults`, because an ancestor may draw it. Tell which ring it is by the rule the
+browser says drew it (`ring_rules`, `render_cases_layout.py`): a stylesheet rule draws
+the ring with `--focus-ring` or `--focus-shadow` and names nothing.
 
 ## Fixtures
 

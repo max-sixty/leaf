@@ -18,7 +18,7 @@
 .lf-resolved-summary:hover { color: var(--ink-2); }
 .lf-page-thread .lf-btn { font: inherit; }
 :is(.lf-page-thread :is(.lf-btn, summary), .lf-resolved-summary)[data-lf-focus] {
-          outline: var(--focus-ring); outline-offset: 1px; --lf-focus-ring: thread; }
+          outline: var(--focus-ring); outline-offset: 1px; }
 /* Paper prints every thread open, resolved ones included, as words the page keeps,
    though the card, its messages and the resolved group carry data-lf-offer, which
    paper otherwise drops (state.css); their presses and status still go. */
@@ -57,7 +57,7 @@
           align-items: center; }
 }
 .lf-outline-chip[data-lf-focus] { outline: var(--focus-ring);
-          --lf-focus-ring: chip; outline-offset: 1px; }
+          outline-offset: 1px; }
 /* Reaction controls own their resting, selected and interactive appearance together.
    A surface places and reveals them without restating their ink, border or fill.
    Margin reactions wear the margin-entry family (theme.css); response actions keep
@@ -336,4 +336,4 @@ svg[data-lf-icon] { max-width: none; overflow: visible; fill: none; stroke: curr
    too. In chrome.css, where it was, it reached neither that button nor a
    package wanting to answer it. */
 :is(.lf-btn, .button)[data-lf-focus] { outline: var(--focus-ring);
-          --lf-focus-ring: btn; outline-offset: 2px; }
+          outline-offset: 2px; }

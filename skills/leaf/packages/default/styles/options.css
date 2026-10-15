@@ -230,7 +230,7 @@
 /* Paper has no live mark, but the authored selection is part of the document. */
 @media print { :scope:is(lf-option)[chosen]::after { content: "✓"; color: var(--ok-ink);
                                         font-family: var(--sans); font-weight: 700; } }
-:scope:is(lf-option) .lf-pick[data-lf-focus] { outline: var(--focus-ring); --lf-focus-ring: options-pick;
+:scope:is(lf-option) .lf-pick[data-lf-focus] { outline: var(--focus-ring);
                      outline-offset: var(--focus-ring-gap); border-radius: 4px; }
 /* The ask's action keys, on the cells they bind. The gutter reads status, badge, then
  * prose. A card aligns its digit with its content's top; a row centres it. */
@@ -363,14 +363,14 @@
    * ring. */
   :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *)
   > lf-option:has(> .lf-pick[data-lf-focus]) {
-    outline: var(--focus-ring); --lf-focus-ring: options-row;
+    outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-w)); z-index: 1;
   }
   /* The add field's own outline is off, so its row answers the keyboard for it, in a
    * settled group opened by its disclosure as well. */
   :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *)
   > .lf-another:has(leaf-text[data-lf-focus]) {
-    outline: var(--focus-ring); --lf-focus-ring: options-row;
+    outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-w)); z-index: 1;
   }
   .lf-another { --lf-option-action-size: max(28px, var(--aim-floor));
@@ -507,7 +507,7 @@
               border: 1px solid var(--rule); border-radius: var(--r); }
 :scope:is(lf-options)[settled] > .lf-settled[aria-expanded="false"] { margin-bottom: 0; }
 :scope:is(lf-options)[settled] > .lf-settled:hover { border-color: var(--border-2); }
-:scope:is(lf-options)[settled] > .lf-settled[data-lf-focus] { outline: var(--focus-ring); --lf-focus-ring: options-settled;
+:scope:is(lf-options)[settled] > .lf-settled[data-lf-focus] { outline: var(--focus-ring);
               outline-offset: 1px; }
 .lf-settled::before { content: "▸"; color: var(--muted); font-weight: 400; }
 .lf-settled[aria-expanded="true"]::before { content: "▾"; }

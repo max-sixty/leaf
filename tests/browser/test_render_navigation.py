@@ -30,6 +30,7 @@ from render_cases_layout import (
     in_threads_scrollport,
     page_at_rest,
     ring_faults,
+    ring_rule,
     rings_drawn,
 )
 from render_cases_navigation import (
@@ -5240,7 +5241,7 @@ def test_an_inline_thread_rings_its_card_for_pointer_and_keyboard_focus(browser,
     assert writing["background"] == pointer["background"]
     drawn = rings_drawn(page)
     assert len(drawn) == 1, drawn
-    assert drawn[0]["ring"] == "text-box" and drawn[0]["sample"], drawn
+    assert ".lf-compose-field" in drawn[0]["rule"] and drawn[0]["sample"], drawn
     assert not ring_faults(drawn, "the focused reply box")
 
     # The reply delegates focus into its shadow tree. Pointer arrival preserves the
@@ -5251,7 +5252,7 @@ def test_an_inline_thread_rings_its_card_for_pointer_and_keyboard_focus(browser,
     expect(reply).to_be_focused()
     pointer_reply = rings_drawn(page)
     assert len(pointer_reply) == 1, pointer_reply
-    assert pointer_reply[0]["ring"] == drawn[0]["ring"]
+    assert pointer_reply[0]["rule"] == drawn[0]["rule"]
     assert pointer_reply[0]["sample"], pointer_reply
     assert not ring_faults(pointer_reply, "the reply box focused by pointer")
 
@@ -11328,10 +11329,11 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
     assert shortcut_bar_text(page) == standing
     focus_paint = """control => { const s = getComputedStyle(control); return {
       style: s.outlineStyle, width: s.outlineWidth, color: s.outlineColor,
-      offset: s.outlineOffset, name: s.getPropertyValue('--lf-focus-ring').trim()
+      offset: s.outlineOffset
     }; }"""
     first_ring = first.evaluate(focus_paint)
-    assert first_ring["style"] == "solid" and first_ring["name"] == "focus", first_ring
+    assert first_ring["style"] == "solid", first_ring
+    assert ring_rule(first) == ":where([data-lf-focus])"
 
     bounds = words.bounding_box()
     assert bounds is not None
@@ -11349,12 +11351,13 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
     assert shortcut_bar_text(page) == standing
     held_ask = page.locator("#first-question-decision[data-lf-ask]")
     expect(held_ask).to_have_count(1)
-    expect(held_ask).to_have_css("--lf-focus-ring", "ask")
+    assert "[data-lf-ask]" in ring_rule(held_ask)
     # Native label activation temporarily blurs the radio. Its logical input
     # destination, and therefore the fallback ring on this plain authored control,
     # remain in place until the label's click transfers focus.
     assert not first.evaluate("control => control.matches(':focus')")
     assert first.evaluate(focus_paint) == first_ring
+    assert ring_rule(first) == ":where([data-lf-focus])"
     assert not ring_faults(rings_drawn(page), "while the label press holds focus")
     intermediate = page.locator("#label-thread")
     expect(intermediate).to_be_focused()

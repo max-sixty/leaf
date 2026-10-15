@@ -5303,8 +5303,7 @@ def test_registered_control_keys_activate_once(browser, serve):
           const hs = getComputedStyle(host), es = getComputedStyle(editor);
           return {
             host: {outline: hs.outlineStyle, width: parseFloat(hs.outlineWidth)},
-            editor: {outline: es.outlineStyle, shadow: es.boxShadow,
-                     ring: es.getPropertyValue('--lf-focus-ring').trim()},
+            editor: {outline: es.outlineStyle, shadow: es.boxShadow},
           };
         }"""
     )
@@ -5313,7 +5312,6 @@ def test_registered_control_keys_activate_once(browser, serve):
     assert focus_paint["editor"] == {
         "outline": "none",
         "shadow": "none",
-        "ring": "none",
     }, "the draft's one editing surface acquired a second focus box"
     page.emulate_media(forced_colors="active")
     forced = page.locator("#draft-ops").evaluate(

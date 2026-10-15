@@ -55,6 +55,7 @@ from render_cases_layout import (
     in_threads_scrollport,
     page_at_rest,
     ring_faults,
+    ring_rule,
     rings_drawn,
     token_colour,
 )
@@ -8285,7 +8286,6 @@ def test_an_empty_thread_list_wears_its_ring_whole(browser, serve):
                 outline: current.outlineStyle,
                 width: current.outlineWidth,
                 offset: current.outlineOffset,
-                ringName: current.getPropertyValue('--lf-focus-ring').trim(),
                 ground: [list.backgroundColor, list.backgroundImage],
                 sameBox: ['left', 'top', 'right', 'bottom'].every(
                   edge => ringBox[edge] === listBox[edge]
@@ -8298,7 +8298,9 @@ def test_an_empty_thread_list_wears_its_ring_whole(browser, serve):
     assert paint["outline"] == "solid"
     assert paint["width"] == "2px"
     assert paint["offset"] == "-2px"
-    assert paint["ringName"] == "thread-list"
+    assert ".lf-threads-frame" in ring_rule(
+        page.locator(".lf-threads-frame"), pseudo="after"
+    )
     assert paint["sameBox"]
     assert paint["reachesFloor"], (
         "the focused list ended above the panel's floor and left an ownerless strip "

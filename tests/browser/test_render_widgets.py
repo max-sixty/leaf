@@ -49,6 +49,7 @@ from render_cases_interaction import (
 )
 from render_cases_layout import (
     banner_control,
+    rings_drawn,
     unfolded_button,
 )
 from render_cases_navigation import (
@@ -11084,16 +11085,9 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
     mark.focus()
     page.keyboard.press("Shift+Tab")
     page.keyboard.press("Tab")
-    ring = page.evaluate(
-        """() => { const on = document.activeElement.closest('lf-option')
-                          ?? document.activeElement;
-             const cs = getComputedStyle(on);
-             return [cs.outlineStyle, cs.outlineWidth,
-                     cs.getPropertyValue('--focus-ring-w').trim(),
-                     cs.getPropertyValue('--lf-focus-ring').trim()]; }"""
-    )
-    assert ring[0] == "solid" and ring[1] == ring[2] and ring[3] != "none", (
-        f"nothing draws a named focus ring where the keyboard is standing: {ring}"
+    drawn = rings_drawn(page)
+    assert any(ring["here"] and ring["sample"] and ring["rule"] for ring in drawn), (
+        f"no ring rule draws a focus ring where the keyboard is standing: {drawn}"
     )
 
 

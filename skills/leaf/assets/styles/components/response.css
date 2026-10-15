@@ -92,7 +92,7 @@
   font: inherit; }
 button.lf-media-open { cursor: zoom-in; }
 .lf-media-open[data-lf-focus] { outline: var(--focus-ring);
-  --lf-focus-ring: media; outline-offset: 2px; }
+  outline-offset: 2px; }
 .lf-composer-media-open { width: 68px; height: 52px; overflow: hidden;
   border: 0; border-radius: 0; align-self: center; }
 .lf-composer-media-open img { display: block; width: 100%; height: 100%;
@@ -112,7 +112,7 @@ button.lf-media-open { cursor: zoom-in; }
   color: var(--ink-2); cursor: pointer; }
 .lf-composer-media-item > button:not(.lf-media-open):hover { color: var(--accent); background: var(--chip); }
 .lf-composer-media-item > button:not(.lf-media-open)[data-lf-focus] {
-  outline: var(--focus-ring); --lf-focus-ring: composer-media;
+  outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w)); }
 .lf-composer-media-item > button:not(.lf-media-open) > svg { inline-size: 14px; block-size: 14px; }
 .lf-composer-media-item > .lf-media-open[data-lf-focus] {
@@ -126,7 +126,7 @@ button.lf-media-open { cursor: zoom-in; }
           border-radius: var(--r); background: var(--card); }
 .lf-comment-box > .lf-compose-field:has(> leaf-text[data-lf-focus]),
 .lf-response-control[data-lf-focus] {
-          outline: var(--focus-ring); --lf-focus-ring: text-box;
+          outline: var(--focus-ring);
           outline-offset: 0; border-color: transparent; }
 /* Floating comment surfaces have one elevation. The page card reserves the ring's
    room inside its scrollport; a filter lets its shadow extend beyond that clip. */

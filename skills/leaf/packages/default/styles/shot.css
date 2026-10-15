@@ -29,8 +29,7 @@
     border: 1px solid var(--rule); border-radius: 0 0 var(--r) var(--r);
     background: var(--card); --divider-width: 2px; --handle-size: 38px;
     --wa-color-surface-default: var(--card); --wa-color-neutral-on-quiet: var(--ink-2);
-    --wa-focus-ring: var(--focus-ring); --wa-focus-ring-offset: 1px;
-    --lf-focus-ring: shot; }
+    --wa-focus-ring: var(--focus-ring); --wa-focus-ring-offset: 1px; }
 :scope:is(lf-shot) .lf-shotcomparison::part(divider) {
     background: color-mix(in srgb, var(--ink-2) 48%, transparent);
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--card) 72%, transparent);
@@ -209,7 +208,7 @@
     display: block; }
 
 :scope:is(lf-shot):has(> input.lf-shotflip[data-lf-focus]) {
-    outline: var(--focus-ring); --lf-focus-ring: shot; outline-offset: 1px;
+    outline: var(--focus-ring); outline-offset: 1px;
     border-radius: var(--r); }
 
 @media print {

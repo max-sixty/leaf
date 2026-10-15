@@ -286,8 +286,8 @@
     "vendor/syntax/toml.js": "bdbbaf842db523f40867805302f06990ee16b9fcdb75c8ae6e01efabaffbb369",
     "vendor/syntax/typescript.js": "9f95bae3ff593a851ae931005e733292edc8a54d62cf4b351511f79230d643e5",
     "vendor/syntax/yaml.js": "d26d797bdd23183ea23fc5bd145ac49288f4513af32700f080139d1e484e1fcb",
-    "vendor/webawesome-chrome.js": "91be70fe4c9b329686b4bd91aebd5473fc7de249c7140220a44976bc645980db",
-    "vendor/webawesome/chunk-NTEQ6NRA.js": "7aa603efedbc4bef84c0b7798e0ad813abddfa2201fc50fd33835b2b6db0930a",
+    "vendor/webawesome-chrome.js": "561260da4b3874e2145ae505a1f43d38a6761c7190d04878f493a75709364da2",
+    "vendor/webawesome/chunk-HHRDQWGV.js": "d387e4f389c610fd79edc92804e3ab42122e317ea48c05c016378338918c657d",
     "widgets/lf-suggestion.js": "314abab661d88ebe625679b94a2b461b70484d354fc5a07b7bd3c8999d93cbc6"
   },
   "replaces": [

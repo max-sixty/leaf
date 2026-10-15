@@ -33,12 +33,12 @@ import {
   sizeObserver,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { computePosition, offset, shift } from "/vendor/floating-ui.esm.js";
 import { DEFAULT_FLAGS, EXAMPLE, Painter, compile, frame } from "../film.js";
 
 import { PhonePainter } from "../phone.js";
 
 const SVG = "http://www.w3.org/2000/svg";
-let floatingUi;
 const chapterEnd = (film, key) => {
   const last = film.scenes.findLast((scene) => scene.chapter === key);
   return last.start + last.dur;
@@ -307,9 +307,6 @@ customElements.define(
         if (this.#inspected) this.#inspect(null);
         return;
       }
-      const { computePosition, offset, shift } = await (floatingUi ??=
-        import("/vendor/floating-ui.esm.js"));
-      if (paint !== this.#inspectorPaint || !this.isConnected) return;
       keepsText(this.inspectorTitle, part.label);
       keepsText(this.inspectorBody, part.info);
       keepsHidden(this.inspector, false);

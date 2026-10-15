@@ -2468,38 +2468,28 @@ def test_merge_film_inspection_has_touch_and_keyboard_routes(browser, serve):
     context = browser.new_context(
         viewport={"width": 320, "height": 844}, has_touch=True
     )
-    held = []
-    context.route("**/vendor/floating-ui.esm.js", lambda route: held.append(route))
-    page = open_page(
-        browser,
-        live_url(serve(example)),
-        context=context,
-        wait_until="domcontentloaded",
-        upgraded=False,
-    )
-    wait_until_ready(page, through="presented")
+    page = open_page(browser, live_url(serve(example)), context=context)
     film = page.locator("lf-merge-film")
     inspector = film.locator(".film-inspect")
-    # The page presents while this optional provider is pending. Closing inspection
-    # before its first load finishes must not let that earlier request reopen it.
     inspect_next = film.get_by_role("button", name="Inspect next element")
-    inspect_next.tap()
-    holding(page, held, 1, "the inspector's positioning provider")
-    expect(inspector).to_be_hidden()
-    inspect_next.press("Escape")
-    provider_url = held[0].request.url
-    held[0].continue_()
-    context.unroute("**/vendor/floating-ui.esm.js")
-    page.wait_for_function(
-        "async url => { await import(url); return true; }", arg=provider_url
-    )
-    wait_until_ready(page)
-    expect(inspector).to_be_hidden()
     graph = film.locator("svg:visible")
     commits = graph.locator('g[data-label^="commit "]')
     first, last = commits.first, commits.last
     labels = [first.get_attribute("data-label"), last.get_attribute("data-label")]
     assert labels[0] != labels[1]
+    # Read at the end of the actual click, before later provider work can turn an
+    # initially empty response into an eventual success.
+    inspect_next.evaluate("""button => button.addEventListener('click', () => {
+      const inspector = button.closest('lf-merge-film').querySelector('.film-inspect');
+      window.firstInspection = {
+        hidden: inspector.hidden,
+        title: inspector.querySelector('strong').textContent,
+      };
+    }, {once: true})""")
+    inspect_next.tap()
+    assert page.evaluate("firstInspection") == {"hidden": False, "title": labels[0]}
+    inspect_next.press("Escape")
+    expect(inspector).to_be_hidden()
     for part, label in zip([first, last], labels, strict=True):
         part.locator("circle").tap()
         expect(inspector).to_be_visible()

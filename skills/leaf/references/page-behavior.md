@@ -9,8 +9,7 @@ referenced as `/page/…`. Load a library that ships only as a classic script wi
 `<script defer src>`; Leaf refuses an inline classic script, a parser-blocking one, or an
 `async` one. Relative imports stay within `page/`. A module imports Leaf's helpers
 from `/runtime/widget-api.js`. For floating placement that native layout cannot
-express, import the bundled Floating UI library from `/vendor/floating-ui.esm.js`;
-use a literal dynamic import when only a later interaction needs it.
+express, import the bundled Floating UI library from `/vendor/floating-ui.esm.js`.
 Leaf saves the local files that scripts and stylesheets name
 by a literal path in the same revision as the markup, so import page files by literal
 URL. Leaf refuses unresolved imports, private layer imports, and any

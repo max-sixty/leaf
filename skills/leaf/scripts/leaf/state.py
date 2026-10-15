@@ -488,32 +488,14 @@ def holds_claims(session_id: str) -> bool:
         return False
 
 
-def hook_needed(harness: str, payload: dict) -> bool:
-    """Whether `harness`'s hook has anything to do for its payload.
-
-    Most sessions with the plugin installed never claim a page, and most hooks
-    have nothing to do in a session that holds no claim. Codex's tool hook
-    offers input between steps, so it needs a claim; its other hooks record the
-    provider turn a later claim rests on, so they always run. Every Claude Code
-    hook but PreToolUse needs one. PreToolUse runs before each `leaf` command, so
-    it starts the sandbox bridge and opens the turn in place of a prompt hook
-    skipped here (`hooks.cmd_hook`).
-
-    `bin/leaf` asks this before starting uv and importing the package, and a
-    hook it skips takes about 25 ms in place of about 70 (measured on macOS)."""
-    event = payload.get("hook_event_name")
-    if harness == "codex":
-        needs_claim = event == "PostToolUse"
-    else:
-        needs_claim = harness == "claude-code" and event != "PreToolUse"
-    return not needs_claim or holds_claims(payload.get("session_id") or "")
-
-
 def main() -> None:
     payload = json.load(sys.stdin)
     if sys.argv[1:2] == ["hook-gate"]:
-        # 3 alone says "nothing to do": a failure here must not skip the hook.
-        sys.exit(0 if hook_needed(sys.argv[2], payload) else 3)
+        # `bin/leaf` asks this before starting uv for a hook registered
+        # `--if-claimed`, and a hook it skips takes about 25 ms in place of about
+        # 70 (measured on macOS). 3 alone says "nothing to do": a failure here
+        # must not skip the hook.
+        sys.exit(0 if holds_claims(payload.get("session_id") or "") else 3)
     if payload.get("hook_event_name") == "SessionEnd":
         end_harness_instance(payload.get("session_id") or "")
 

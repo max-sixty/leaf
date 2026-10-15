@@ -581,15 +581,15 @@ def test_workflow_shell_continuations_use_literal_blocks():
 @pytest.mark.parametrize(
     ("argv", "usage"),
     [
-        (["hook"], "leaf hook --harness NAME [--watch]"),
-        (["hook", "--harness"], "leaf hook --harness NAME [--watch]"),
+        (["hook"], "leaf hook --harness NAME [--if-claimed] [--watch]"),
+        (["hook", "--harness"], "leaf hook --harness NAME [--if-claimed] [--watch]"),
         (
             ["hook", "--watch", "--harness", "codex"],
-            "leaf hook --harness NAME [--watch]",
+            "leaf hook --harness NAME [--if-claimed] [--watch]",
         ),
         (
             ["hook", "--harness", "codex", "--bogus"],
-            "leaf hook --harness NAME [--watch]",
+            "leaf hook --harness NAME [--if-claimed] [--watch]",
         ),
         (["session-end", "now"], "leaf session-end"),
     ],

@@ -8,7 +8,7 @@
  * (`ClaudeCodeHarness` in `skills/leaf/scripts/leaf/harness.py`):
  *
  * - the session's start and each main-loop turn's end start the watch (`bin/leaf
- *   hook --harness claude-code --watch`), which prints a line and exits once one
+ *   hook --harness claude-code --if-claimed --watch`), which prints a line and exits once one
  *   of the session's pages has input;
  * - a turn the user interrupts ends with no Stop hook, so the module starts the
  *   watch with the Interrupt payload, which closes the turn. Receipt distinguishes
@@ -92,11 +92,14 @@ async function hook(
   payload: Payload,
 ): Promise<HookOutput | undefined> {
   try {
-    const ran = await $.process.run([launcher($), "hook", "--harness", "claude-code"], {
-      env: environment(payload.session_id),
-      stdin: JSON.stringify(payload),
-      timeoutMs: HOOK_TIMEOUT_MS,
-    });
+    const ran = await $.process.run(
+      [launcher($), "hook", "--harness", "claude-code", "--if-claimed"],
+      {
+        env: environment(payload.session_id),
+        stdin: JSON.stringify(payload),
+        timeoutMs: HOOK_TIMEOUT_MS,
+      },
+    );
     if (ran.exitCode !== 0) {
       $.ui.log(
         `Leaf: ${payload.hook_event_name} hook exited with code ${ran.exitCode}${ran.stderr.trim() ? `: ${ran.stderr.trim()}` : ""}`,
@@ -127,7 +130,14 @@ async function ensureWatch($: EngineInterface, session: string, interrupted: boo
           ended_at: ended,
         };
         const stream = $.process.spawn({
-          argv: [launcher($), "hook", "--harness", "claude-code", "--watch"],
+          argv: [
+            launcher($),
+            "hook",
+            "--harness",
+            "claude-code",
+            "--if-claimed",
+            "--watch",
+          ],
           env: environment(session),
           input: JSON.stringify(payload),
         });

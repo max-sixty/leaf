@@ -1172,7 +1172,6 @@ svg[data-lf-icon] {
   border-radius: 6px;
   background: var(--card);
   cursor: pointer;
-  white-space: nowrap;
   color: var(--ink);
   display: inline-block;
 }

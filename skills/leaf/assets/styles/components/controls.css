@@ -286,10 +286,11 @@ svg[data-lf-icon] { max-width: none; overflow: visible; fill: none; stroke: curr
 /* Ordinary action buttons share their face across document and shadow trees.
  * Authored .button controls use the same face as runtime-owned .lf-btn controls.
  * Packages may adjust placement and density; margin entries and reaction chips
- * retain their separate forms. The block padding carries the aim floor (above), less
+ * retain their separate forms. Labels wrap within their available width; controls
+ * that require one line declare it locally. The block padding carries the aim floor (above), less
  * the 1px border, so a rule restating it restates the floor with it. */
 :is(.lf-btn, .button) {
-  padding: max(4px, (var(--aim-floor) - 1lh) / 2 - 1px) 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--card); cursor: pointer; white-space: nowrap; color: var(--ink); display: inline-block; }
+  padding: max(4px, (var(--aim-floor) - 1lh) / 2 - 1px) 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--card); cursor: pointer; color: var(--ink); display: inline-block; }
 /* A label whose words change holds one room for all of them, so a count or a result
  * changing moves nothing beside it. `data-lf-room` lists the words the label shows,
  * one per line, on an element whose one child holds the words. Its ::before lays the

@@ -2,7 +2,8 @@
  * real preview is the stage and owns the larger field, and the controls that change all
  * of it stand above the instruction they write, with its actions, in a rail beside it. A
  * control written inside the preview stands there, beside the item it changes, and the
- * rail then holds only what is left. Its regions are up to three generated panes
+ * rail then holds only what is left. With all controls inline, presets precede
+ * the full-width preview and its instruction follows. Its regions are up to three generated panes
  * (data-lf-reading-role="pane", the kernel's theme.css), whose bodies scroll where a
  * workspace Layout fills the window (layouts.css); here the playground only places the
  * panes and draws them.
@@ -30,7 +31,7 @@
   grid-template-rows: minmax(0, 1fr);
 }
 
-/* The stage beside a rail: the preview takes two thirds and spans the rail's two rows; the
+/* With shared controls, the preview takes two thirds and spans the rail's two rows; the
  * controls take their content's height and the instruction stands under them. Narrower
  * than 43.5rem, a document's column included, a rail would be too narrow for the controls
  * it holds, so the regions stack in reading order: the stage, the controls, the
@@ -42,12 +43,13 @@
 }
 
 @container (min-width: 43.5rem) {
-  .lf-playground-split {
+  .lf-playground-split:has(> .lf-playground-controls-region > .lf-playground-controls) {
     grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
     grid-template-rows: auto 1fr;
   }
 
-  .lf-playground-preview-region {
+  .lf-playground-split:has(> .lf-playground-controls-region > .lf-playground-controls)
+    > .lf-playground-preview-region {
     grid-row: 1 / span 2;
     align-self: stretch;
   }
@@ -77,8 +79,18 @@
       --lf-full-height: inherit;
     }
 
+    /* Below the combined floors, the ancestor scrolls both the inline evidence
+     * and the instruction rather than hiding either one. */
+    .lf-playground-split:not(:has(> .lf-playground-controls-region > .lf-playground-controls)) {
+      grid-template-rows: minmax(12rem, 1fr) minmax(9rem, auto);
+    }
+
+    .lf-playground-split:has(> .lf-playground-controls-region):not(:has(> .lf-playground-controls-region > .lf-playground-controls)) {
+      grid-template-rows: minmax(min-content, auto) minmax(12rem, 1fr) minmax(9rem, auto);
+    }
+
     @container (min-width: 43.5rem) {
-      .lf-playground-split {
+      .lf-playground-split:has(> .lf-playground-controls-region > .lf-playground-controls) {
         grid-template-rows: minmax(12rem, 1fr) auto;
       }
 

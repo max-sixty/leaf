@@ -1,0 +1,83 @@
+# From session 07bcc268 (web-dev-gaps), which put eight small, unrelated refactors to the
+# user as one accept-or-reject ask. Earlier the user had asked for questions about
+# visible behavior to be "explained much more visually, always", so the session drew a
+# figure above the ask's table with one square per copy of a fact today and one after:
+# the table's counts again, as marks. The user called it "a comically naive diagram".
+# Stated cold, base 2fc25ade6 drew 6 or 7 figures per section, among them a mark per
+# call site and eight empty boxes for eight shadow values (0 of 3); "Show the subject"'s
+# geometry rule, with the refactor exceptions in SKILL.md and authoring-asks.md, drew
+# 1 to 3 that each show a layout or a call path (3 of 3). With the user's earlier
+# "explained much more visually, always" pasted in, both arms drew a figure per item
+# (0 of 4 and 0 of 3), which follows the user's word; the memory that carried it was
+# rewritten instead.
+description: figures-add-what-words-cannot
+metadata:
+  purpose:
+    "Show the subject: a figure carries something its words can't, through where its
+    marks sit, how large they are or what connects them; a batch of refactors judged
+    by their reasons keeps its table without a figure redrawing it."
+  tags:
+    - asks
+    - drawing
+vars:
+  prompt: |
+    You are adding a section to the user's Leaf page "Web platform lessons from Leaf",
+    which reviews Leaf's own web code. The user answered its earlier questions.
+
+    The user then asked: "Great work! Anything else we can do like this?" Three
+    read-only surveys of `main` came back with eight small switchovers, each of which
+    puts one fact or mechanism in one place. You recommend landing all eight, one pull
+    request each; the user can leave any out. Your verified notes:
+
+    1. Neighbour rows. Each page server writes `rows/<page>.json` and nothing deletes
+       one: 472 on disk, 32 with a live server. Every `/api/state` parses them all,
+       9.5 ms a call, uncached, beside a second cached reading used for news. Change:
+       a reader deletes a row whose lease isn't held, and the state answer uses the
+       cached reading. About +5 lines. Clear-cut because Leaf already retires
+       state-home records where they're read (#1124).
+    2. Page inputs. `presence._page_stamp` keeps a third list of a page's files and
+       stamps outside the log's lock; `page events --follow` polls file stats every
+       50 ms; `file_changes.py` uses watchfiles' private helpers. Change: presence
+       keys on the token news already computes, followers wait on `file_changes`,
+       which calls watchfiles' public `watch()`. About -55/+20. Finishes #2851.
+    3. Command output. 21 call sites, 16 of them in 11 domain modules, print a
+       command's JSON themselves, with two indent styles. Change: `LeafGroup.main`
+       prints what a command returns. About -61/+35. `scripts/AGENTS.md` already says
+       only a process boundary prints, and #2887 had to edit every site.
+    4. Harness check. `hooks.py:74` is the only `harness == "claude-code"` compare
+       outside `harness.py`, and the sandbox bridge keeps its own lock beside
+       `leases`. Change: a Harness method declares the sandbox escape; the bridge's
+       lock becomes a lease. About -10/+8. Waits for #2911.
+    5. Scrolling inside one box. `lf-tabs`, `lf-toc` and the page map each scroll
+       their own strip by hand because `landing-scroll` always scrolls out to the
+       page. Change: a `within` bound on `landing-scroll`'s reveal, and a lint rule
+       on raw scroll writes. About -45/+25.
+    6. Feature checks. Two checks guard APIs Chrome, Firefox and Safari all ship.
+       Change: delete both. About -5.
+    7. Shadows. About 20 elevation shadows in 11 files use 8 different values.
+       Change: three tokens, `--lf-raise-1` to `-3`. About -20/+6. Some shadows move
+       by a few pixels; each pull request will show before-and-after stills.
+    8. Layouts. `:where(main.layout-column, main.layout-sidebar)` repeats 10 times in
+       `layouts.css`. Change: one `@scope` block.
+
+    Write this section of the page. The page directory is not reachable from here, so
+    reply with the section's HTML fragment rather than writing a file.
+assert:
+  - type: llm-rubric
+    metric: figures-carry-something
+    value: |
+      Find the ask deciding the eight switchovers, and every figure, inline `<svg>`,
+      `lf-diagram`, `lf-chart` or image in the section. Pass if the section has no
+      figure, or if each figure shows something its table and prose don't already
+      say: where code or data sits and what calls or feeds what, a visible result
+      such as the shadow change, or a measure whose shape across items matters. Fail
+      if any figure only restates what the table or prose says: one mark per counted
+      copy or call site, a "today N, after 1" row of squares or bars for the items,
+      or boxes holding sentences whose position, size and connections mean nothing.
+  - type: llm-rubric
+    metric: items-stay-answerable
+    value: |
+      Pass only if the user can see, for each of the eight switchovers, what changes
+      and why it is worth doing, inside or directly beside the ask's answering
+      control, and can leave out an individual item. Fail if any item's change or
+      reason is missing, or only appears in a figure.

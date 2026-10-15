@@ -2390,8 +2390,8 @@ def test_the_thread_walk_opens_the_thread_on_the_passage_the_caret_is_in(
     ).to_be_focused()
 
 
-@pytest.mark.parametrize("key,index", [("t", 1), ("Shift+t", 0)])
-def test_thread_walks_start_at_the_selected_tabs_panel(browser, serve, key, index):
+@pytest.mark.parametrize("key", ["t", "Shift+t"])
+def test_thread_walks_start_at_the_selected_tabs_panel(browser, serve, key):
     """Both directions measure from the open panel, not the preceding tab strip."""
     url = serve(
         leaf_page(
@@ -2417,9 +2417,7 @@ def test_thread_walks_start_at_the_selected_tabs_panel(browser, serve, key, inde
     page.get_by_role("tab", name="Second", exact=True).click()
     page.keyboard.press(key)
     expect(
-        page.locator(
-            f'.lf-margin-preview .lf-page-thread[data-thread="{roots[index]}"]'
-        )
+        page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{roots[1]}"]')
     ).to_be_focused()
 
 
@@ -3767,6 +3765,9 @@ def test_a_tally_counts_its_regions_asks_and_walks_them(browser, serve):
 
     # The row opens the item the user reads. Enter its ask before deciding: the
     # strip itself precedes every panel in DOM order, but is not the walk's origin.
+    page.get_by_role("tab", name="Second", exact=True).click()
+    page.keyboard.press("Shift+m")
+    expect(second).to_be_focused()
     page.get_by_role("tab", name="Second", exact=True).click()
     page.keyboard.press("m")
     expect(second).to_be_focused()

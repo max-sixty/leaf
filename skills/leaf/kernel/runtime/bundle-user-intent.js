@@ -1033,8 +1033,15 @@ function walkOrigin() {
   }
   return { place: pageReadingBlock(), stands: true };
 }
-function stepFrom(list, here, dir, placeOfItem) {
+function stepFrom(list, { place: here, stands }, dir, placeOfItem) {
   if (!here) return cycledRow(list, null, dir);
+  if (!stands) {
+    const inside = list.filter((item) => {
+      const place2 = placeOfItem(item);
+      return place2 && renderedUnder(place2, here);
+    });
+    if (inside.length) return cycledRow(inside, null, dir);
+  }
   const reach = list.filter((item) => {
     const place2 = placeOfItem(item);
     if (!place2) return dir > 0;

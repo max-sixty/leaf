@@ -42,19 +42,28 @@ test("a place holding the user's is the nearest step either way", () => {
   const { main, first, section, held, last } = page();
   const items = [first, section, last];
   const at = (item) => item;
-  assert.equal(stepFrom(items, held, 1, at).row, section);
-  assert.equal(stepFrom(items, held, -1, at).row, section);
+  assert.equal(stepFrom(items, { place: held, stands: true }, 1, at).row, section);
+  assert.equal(stepFrom(items, { place: held, stands: true }, -1, at).row, section);
   // A place the user's holds is ahead of it, as its words follow where they stand.
-  assert.equal(stepFrom(items, main, 1, at).row, first);
-  assert.deepEqual(stepFrom(items, main, -1, at), { row: last, wrapped: true });
+  assert.equal(stepFrom(items, { place: main, stands: true }, 1, at).row, first);
+  assert.deepEqual(stepFrom(items, { place: main, stands: true }, -1, at), {
+    row: last,
+    wrapped: true,
+  });
   main.remove();
 });
 
 test("a step from inside a shadow tree goes to its neighbour there", () => {
   const { main, first, innerA, innerB, last } = page();
   const at = (item) => item;
-  assert.equal(stepFrom([first, innerB, last], innerA, 1, at).row, innerB);
-  assert.equal(stepFrom([first, innerA, last], innerB, -1, at).row, innerA);
+  assert.equal(
+    stepFrom([first, innerB, last], { place: innerA, stands: true }, 1, at).row,
+    innerB,
+  );
+  assert.equal(
+    stepFrom([first, innerA, last], { place: innerB, stands: true }, -1, at).row,
+    innerA,
+  );
   main.remove();
 });
 
@@ -62,12 +71,31 @@ test("an unplaced item stands after every place, and a step past the end comes r
   const { main, first, last } = page();
   const loose = { name: "general" };
   const at = (item) => (item === loose ? null : item);
-  assert.equal(stepFrom([first, loose], last, 1, at).row, loose);
-  assert.deepEqual(stepFrom([first, loose], last, -1, at), {
+  assert.equal(
+    stepFrom([first, loose], { place: last, stands: true }, 1, at).row,
+    loose,
+  );
+  assert.deepEqual(stepFrom([first, loose], { place: last, stands: true }, -1, at), {
     row: first,
     wrapped: false,
   });
-  assert.deepEqual(stepFrom([first], last, 1, at), { row: first, wrapped: true });
-  assert.deepEqual(stepFrom([first], null, -1, at), { row: first, wrapped: false });
+  assert.deepEqual(stepFrom([first], { place: last, stands: true }, 1, at), {
+    row: first,
+    wrapped: true,
+  });
+  assert.deepEqual(stepFrom([first], { place: null, stands: true }, -1, at), {
+    row: first,
+    wrapped: false,
+  });
+  main.remove();
+});
+
+test("entering a region reaches its first or last stop before leaving it", () => {
+  const { main, first, innerA, innerB, widget, last } = page();
+  const items = [first, innerA, innerB, last];
+  const at = (item) => item;
+  const origin = { place: widget, stands: false };
+  assert.equal(stepFrom(items, origin, 1, at).row, innerA);
+  assert.equal(stepFrom(items, origin, -1, at).row, innerB);
   main.remove();
 });

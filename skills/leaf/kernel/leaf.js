@@ -10601,7 +10601,7 @@ function createQueueWalk({
     if (region && !under(origin.place, region)) return cycledRow(list, null, dir);
     const standing2 = standingStop(list, origin);
     if (standing2) return cycledRow(list, standing2, dir);
-    return stepFrom(list, origin.place, dir, (stop) => stop.place);
+    return stepFrom(list, origin, dir, (stop) => stop.place);
   }
   function arriveAtElement(find) {
     const intent = retainUserIntent({ available: () => Boolean(find()) });
@@ -12897,9 +12897,9 @@ function stepThread(dir, destinations, panelIsOpen2, narrowing2, list) {
   const targetId = !current && threadAtStanding();
   const atTarget = targetId && threads.find((thread) => thread.dataset.id === targetId);
   const atRow = panelIsOpen2() && focused() !== threadsBox2 && standingIn(threadsBox2);
-  const { row: next, wrapped } = current ? cycledRow(threads, current, dir) : atTarget ? { row: atTarget, wrapped: false } : atRow ? stepFrom(threads, focused(), dir, (thread) => thread) : stepFrom(
+  const { row: next, wrapped } = current ? cycledRow(threads, current, dir) : atTarget ? { row: atTarget, wrapped: false } : atRow ? stepFrom(threads, { place: focused(), stands: true }, dir, (thread) => thread) : stepFrom(
     threads,
-    !panelIsOpen2() || narrowing2.listedInPageOrder() ? walkOrigin().place : null,
+    !panelIsOpen2() || narrowing2.listedInPageOrder() ? walkOrigin() : { place: null, stands: false },
     dir,
     (thread) => threadPlace(thread.dataset.id)
   );

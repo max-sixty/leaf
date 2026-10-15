@@ -118,10 +118,12 @@ function stepThread(dir, destinations, panelIsOpen, narrowing, list) {
     : atTarget
       ? { row: atTarget, wrapped: false }
       : atRow
-        ? stepFrom(threads, focused(), dir, (thread) => thread)
+        ? stepFrom(threads, { place: focused(), stands: true }, dir, (thread) => thread)
         : stepFrom(
             threads,
-            !panelIsOpen() || narrowing.listedInPageOrder() ? walkOrigin().place : null,
+            !panelIsOpen() || narrowing.listedInPageOrder()
+              ? walkOrigin()
+              : { place: null, stands: false },
             dir,
             (thread) => threadPlace(thread.dataset.id),
           );

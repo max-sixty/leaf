@@ -107,9 +107,17 @@ export function walkOrigin() {
 // either way: the user is at it without standing on it, so the press arrives there. An
 // item with no place stands after every placed one, so it is ahead of any place. A
 // caller whose user stands on an item steps off it with `cycledRow` instead; with no
-// `here` the walk enters at the end it faces.
-export function stepFrom(list, here, dir, placeOfItem) {
+// `here` the walk enters at the end it faces. An origin not yet stood at enters
+// its contained stops first, from the end the direction faces, before leaving it.
+export function stepFrom(list, { place: here, stands }, dir, placeOfItem) {
   if (!here) return cycledRow(list, null, dir);
+  if (!stands) {
+    const inside = list.filter((item) => {
+      const place = placeOfItem(item);
+      return place && renderedUnder(place, here);
+    });
+    if (inside.length) return cycledRow(inside, null, dir);
+  }
   const reach = list.filter((item) => {
     const place = placeOfItem(item);
     if (!place) return dir > 0;

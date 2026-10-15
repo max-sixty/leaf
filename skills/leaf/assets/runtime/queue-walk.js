@@ -211,7 +211,7 @@ export function createQueueWalk({
     if (region && !under(origin.place, region)) return cycledRow(list, null, dir);
     const standing = standingStop(list, origin);
     if (standing) return cycledRow(list, standing, dir);
-    return stepFrom(list, origin.place, dir, (stop) => stop.place);
+    return stepFrom(list, origin, dir, (stop) => stop.place);
   }
 
   // A page widget action handed back to the user, or a to-do on an element or the page, has

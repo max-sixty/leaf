@@ -1318,10 +1318,11 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     page = open_page(browser, url)
     resized(page, 900, 900)
     if quote_anchor:
-        words = page.locator("#source code").evaluate(
-            """code => {
+        # The code box also spans the gutter and blank column; drag on its words.
+        words = page.locator("#source [data-content] [data-line] span").evaluate(
+            """span => {
               const range = document.createRange();
-              range.selectNodeContents(code);
+              range.selectNodeContents(span);
               return range.getBoundingClientRect().toJSON();
             }"""
         )

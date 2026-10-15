@@ -378,6 +378,7 @@ def test_invalid_dependencies_leave_the_previous_revision_active(page_dir, tmp_p
         ('import "ftp://outside.example/module.js";', "http(s) URL"),
         ('import "../../outside.js";', "public layer entry point"),
         ('import "/runtime/events.js";', "public layer entry point"),
+        ('import "/vendor/lit.js";', "public layer entry point"),
         ('import "./data.json";', "JavaScript MIME"),
         ('import "./escape.js";', "symlink"),
         ('import "./data\\u002ejson";', "dependency must be a local URL"),

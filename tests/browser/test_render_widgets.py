@@ -2468,9 +2468,33 @@ def test_merge_film_inspection_has_touch_and_keyboard_routes(browser, serve):
     context = browser.new_context(
         viewport={"width": 320, "height": 844}, has_touch=True
     )
-    page = open_page(browser, live_url(serve(example)), context=context)
+    held = []
+    context.route("**/vendor/floating-ui.esm.js", lambda route: held.append(route))
+    page = open_page(
+        browser,
+        live_url(serve(example)),
+        context=context,
+        wait_until="domcontentloaded",
+        upgraded=False,
+    )
+    wait_until_ready(page, through="presented")
     film = page.locator("lf-merge-film")
     inspector = film.locator(".film-inspect")
+    # The page presents while this optional provider is pending. Closing inspection
+    # before its first load finishes must not let that earlier request reopen it.
+    inspect_next = film.get_by_role("button", name="Inspect next element")
+    inspect_next.tap()
+    holding(page, held, 1, "the inspector's positioning provider")
+    expect(inspector).to_be_hidden()
+    inspect_next.press("Escape")
+    provider_url = held[0].request.url
+    held[0].continue_()
+    context.unroute("**/vendor/floating-ui.esm.js")
+    page.wait_for_function(
+        "async url => { await import(url); return true; }", arg=provider_url
+    )
+    wait_until_ready(page)
+    expect(inspector).to_be_hidden()
     graph = film.locator("svg:visible")
     commits = graph.locator('g[data-label^="commit "]')
     first, last = commits.first, commits.last
@@ -2484,7 +2508,6 @@ def test_merge_film_inspection_has_touch_and_keyboard_routes(browser, serve):
         expect(film.locator(".film-play")).to_have_text("Play")
     graph.tap(position={"x": 3, "y": 3})
     expect(inspector).to_be_hidden()
-    inspect_next = film.get_by_role("button", name="Inspect next element")
     inspect_next.tap()
     expect(inspector).to_be_visible()
     expect(inspector.locator("strong")).to_have_text(labels[0])

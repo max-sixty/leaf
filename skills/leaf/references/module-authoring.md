@@ -23,7 +23,8 @@ long it lives across revisions. A widget's declarations are in
 
 ## The helper surface
 
-Import Leaf only from `/runtime/widget-api.js`. Don't import the runtime's other
+Import Leaf's helpers only from `/runtime/widget-api.js`; the bundled library entry
+is described in `page-behavior.md`. Don't import the runtime's other
 modules, query Leaf's own chrome, or copy a runtime helper. Each helper is described in
 the section for the task it serves, and the header of its module under `runtime/` has
 the full contract. A DOM helper takes the element it acts for as its first argument.

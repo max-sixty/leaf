@@ -894,6 +894,15 @@ def trace_comparison(page: Page) -> None:
     )
 
 
+def film_inspector(page: Page) -> None:
+    """Details beside the selected SVG commit in the merge film."""
+    page.get_by_role("button", name="Inspect next element", exact=True).click()
+    expect(page.locator("#merge-film .film-inspect")).to_be_visible()
+    page.locator("#merge-film .film-stage").evaluate(
+        "node => node.scrollIntoView({block: 'center'})"
+    )
+
+
 def trace_timeline_by_keyboard(page: Page) -> None:
     """The timeline focused, after tabbing away from it and back."""
     trace_controls(page)
@@ -968,6 +977,21 @@ STATES = (
         trace_controls,
         viewport=(540, 720),
         region=".lf-trace-toolbar",
+    ),
+    State(
+        "film-inspector",
+        "wt-merge",
+        film_inspector,
+        viewport=(900, 900),
+        region="#merge-film .film-stage",
+    ),
+    State(
+        "film-inspector-phone",
+        "wt-merge",
+        film_inspector,
+        viewport=(390, 844),
+        touch=True,
+        region="#merge-film .film-stage",
     ),
     State(
         "trace-comparison-header",

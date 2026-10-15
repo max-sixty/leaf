@@ -71,7 +71,7 @@ from leaf.structure import (
     script_kind,
 )
 
-PUBLIC_MODULES = ("/runtime/widget-api.js",)
+PUBLIC_MODULES = ("/runtime/widget-api.js", "/vendor/floating-ui.esm.js")
 
 
 RESOURCE_TYPES = {

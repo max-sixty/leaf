@@ -5017,7 +5017,10 @@ customElements.define('lf-test-surface', class extends HTMLElement {
       return this.failure === 'hidden' ? null : placement.datumElement.outlet;
     });
     for (const row of this.children) {
-      if (this.failure === 'moved') document.querySelector('main').append(row.outlet);
+      if (this.failure === 'moved') {
+        const main = document.querySelector('main');
+        if (row.outlet.parentElement !== main) main.append(row.outlet);
+      }
       if (this.failure === 'detached') row.outlet.remove();
     }
     if (this.failure === 'target-removed') {
@@ -5205,7 +5208,8 @@ customElements.define('lf-test-surface', class extends HTMLElement {
         page.keyboard.press("Escape")
         broken.evaluate("""widget => {
             widget.failure = null;
-            for (const row of widget.children) row.append(row.outlet);
+            for (const row of widget.children)
+              if (row.outlet.parentElement !== row) row.append(row.outlet);
         }""")
         append_carried_log_record(
             serve.page_dir,

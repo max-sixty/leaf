@@ -199,6 +199,7 @@ export {
 } from "./registry.js";
 export {
   foldDuration,
+  foldBlock,
   backgroundFlash,
   motion,
   onMotionPreferenceChange,

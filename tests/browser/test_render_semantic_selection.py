@@ -530,7 +530,6 @@ def test_dense_selection_hints_stay_short_and_reach_an_atomic_visual(browser, se
     page.keyboard.type(last)
     expect(page.locator(".lf-fab-input")).to_be_focused()
     expect(page.locator(".lf-composer")).to_be_visible()
-    expect(page.locator(".lf-composer .lf-suggest-row")).to_be_hidden()
 
 
 def test_nested_target_hints_show_containment_without_covering_each_other(

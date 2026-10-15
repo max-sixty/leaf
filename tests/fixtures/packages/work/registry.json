@@ -48,12 +48,7 @@
                 "minimum": 0
               },
               "tests": {
-                "enum": [
-                  "passing",
-                  "failing",
-                  "running",
-                  "not-run"
-                ]
+                "enum": ["passing", "failing", "running", "not-run"]
               },
               "observedAt": {
                 "type": "string",
@@ -107,14 +102,7 @@
         "pattern": "^[a-z0-9][a-z0-9-]*$"
       },
       "state": {
-        "enum": [
-          "working",
-          "waiting",
-          "blocked",
-          "idle",
-          "reaped",
-          "done"
-        ]
+        "enum": ["working", "waiting", "blocked", "idle", "reaped", "done"]
       },
       "on": {
         "type": "string",
@@ -124,16 +112,9 @@
         "type": "boolean"
       }
     },
-    "required": [
-      "id",
-      "state"
-    ],
+    "required": ["id", "state"],
     "additionalProperties": false,
-    "x-owners": [
-      "lf-test-roster",
-      "lf-test-plan",
-      "lf-test-task"
-    ],
+    "x-owners": ["lf-test-roster", "lf-test-plan", "lf-test-task"],
     "x-content": "markup",
     "x-refers": {
       "on": {
@@ -188,9 +169,7 @@
         "type": "string"
       }
     },
-    "required": [
-      "id"
-    ],
+    "required": ["id"],
     "additionalProperties": false,
     "x-content": "members",
     "x-upgrade": true,
@@ -213,14 +192,7 @@
         "pattern": "^[a-z0-9][a-z0-9-]*$"
       },
       "status": {
-        "enum": [
-          "planned",
-          "active",
-          "blocked",
-          "review",
-          "stalled",
-          "done"
-        ]
+        "enum": ["planned", "active", "blocked", "review", "stalled", "done"]
       },
       "owner": {
         "type": "string"
@@ -247,23 +219,14 @@
         "type": "boolean"
       }
     },
-    "required": [
-      "id",
-      "status"
-    ],
+    "required": ["id", "status"],
     "additionalProperties": false,
-    "x-owners": [
-      "lf-test-tasks",
-      "lf-test-plan",
-      "lf-test-task"
-    ],
+    "x-owners": ["lf-test-tasks", "lf-test-plan", "lf-test-task"],
     "x-content": "markup",
     "x-upgrade": true,
     "x-thread-seat": {
       "when": {
-        "talk": [
-          true
-        ]
+        "talk": [true]
       },
       "hold": "Send & pause"
     },
@@ -291,14 +254,9 @@
         "pattern": "^[a-z][a-z0-9-]*$"
       }
     },
-    "required": [
-      "id",
-      "source"
-    ],
+    "required": ["id", "source"],
     "additionalProperties": false,
-    "x-owners": [
-      "lf-test-worker"
-    ],
+    "x-owners": ["lf-test-worker"],
     "x-content": "empty",
     "x-data": {
       "worktrees": {
@@ -318,33 +276,18 @@
       "lf-test-task": {
         "role": "goal",
         "state": "status",
-        "done": [
-          "done"
-        ],
-        "stopped": [
-          "blocked",
-          "review",
-          "stalled"
-        ],
-        "review": [
-          "review"
-        ],
-        "stalled": [
-          "stalled"
-        ],
+        "done": ["done"],
+        "stopped": ["blocked", "review", "stalled"],
+        "review": ["review"],
+        "stalled": ["stalled"],
         "depends": "needs",
         "stoppedAt": "stopped-at"
       },
       "lf-test-worker": {
         "role": "worker",
         "state": "state",
-        "running": [
-          "working"
-        ],
-        "retired": [
-          "reaped",
-          "done"
-        ],
+        "running": ["working"],
+        "retired": ["reaped", "done"],
         "on": "on"
       },
       "lf-test-tree": {
@@ -369,9 +312,7 @@
         "type": "string"
       }
     },
-    "required": [
-      "id"
-    ],
+    "required": ["id"],
     "additionalProperties": false,
     "x-content": "empty",
     "x-upgrade": false

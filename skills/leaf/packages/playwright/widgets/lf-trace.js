@@ -491,9 +491,8 @@ customElements.define(
       );
       // Lit owns only this generated container; authored bookmarks and the
       // prepaint face remain outside its child-part markers.
-      this.#view = el("div");
+      this.#view = el("div", "lf-trace-view");
       this.#view.dataset.lfGen = "1";
-      this.#view.style.display = "contents";
       this.append(this.#waiting, this.#view);
       this.#paint();
       // Viewer owns the viewport's figures and the timeline module its own

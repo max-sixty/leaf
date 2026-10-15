@@ -113,7 +113,10 @@ has tried; settle that before building it.
   `leaf` with the arguments it is given, have a sandboxed refusal name it, and
   drop the README's Codex rule. Codex asks before each MCP tool call unless the
   user approves the tool or sets the server's `default_tools_approval_mode =
-  "approve"`; find whether a plugin can declare that itself.
+  "approve"`; find whether a plugin can declare that itself. A session that never
+  runs `leaf` should pay nothing for this, as Claude Code's do for the bridge, so
+  find whether Codex starts a plugin's MCP server in every session or only on first
+  use.
 - **Consider a reminder when revising decided content.** An optional `--force`
   acknowledgment could make an agent pause over an existing decision. Revisions
   currently remain unrestricted; decide whether such a reminder helps before
@@ -458,10 +461,9 @@ on 2026-10-07.
   `build/browser/`, keeping the generated event and protocol declarations under
   their generator. Rebuild the vendored JavaScript in the same change: the
   compiler preserves source formatting, and the build gate compares its bytes.
-- **Format authored JSON and YAML.** Expand Prettier's scope while keeping
-  generated corpus files, media pins, pnpm lockfiles, Tend workflows, test
-  snapshots, and frozen captures under their producers. Verify that regeneration
-  leaves the formatted tree unchanged.
+- **Format authored YAML.** JSON coverage is complete. Expand YAML while keeping
+  pnpm lockfiles, Tend workflows and test snapshots under their producers. Verify
+  that regeneration leaves the formatted tree unchanged.
 - **Set formatter conventions for authored CSS and Markdown.** Review what
   Prettier changes in compact CSS rules and Markdown lists and tables, then
   enable the formats where that layout is useful. Format CSS source entries

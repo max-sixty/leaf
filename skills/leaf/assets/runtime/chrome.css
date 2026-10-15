@@ -29,8 +29,6 @@
     --lf-fp-radius: 12px;
     --lf-fp-folded: 42px;
     --lf-fp-line: 32px;
-    --lf-fp-say: 18px;
-    --lf-fp-foot-room: calc(var(--lf-fp-say) - 6px);
     --lf-fp-width: min( 540px, calc(100vw - 24px - var(--lf-safe-left) - var(--lf-safe-right)) );
     --lf-fp-view-height: calc(100dvh - var(--lf-bottom-bar-h) - 160px);
   }
@@ -326,23 +324,14 @@
     padding-inline: 10px;
   }
   .lf-fp-context {
-    position: relative;
-    z-index: 1;
     box-sizing: content-box;
-    height: var(--lf-fp-say);
-    line-height: var(--lf-fp-say);
+    height: 1lh;
     padding: 8px 14px 0;
     color: var(--lf-fp-muted);
     font-size: 12px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-  }
-  .lf-floating-panel[data-open] .lf-fp-context {
-    padding-top: 0;
-    margin: calc(6px - var(--lf-fp-say)) 0 -6px;
-    background: var(--lf-fp-surface);
-    box-shadow: 0 -3px 4px var(--lf-fp-surface);
   }
   .lf-fp-context[data-notice] {
     color: var(--ink);
@@ -574,7 +563,7 @@
     max-height: var(--lf-fp-view-height);
     overflow-y: auto;
     overscroll-behavior: contain;
-    padding: 4px 6px var(--lf-fp-foot-room);
+    padding: 4px 6px 6px;
     box-sizing: border-box;
     scrollbar-width: thin;
   }
@@ -599,8 +588,8 @@
   .lf-fp-foot {
     position: sticky;
     bottom: 0;
-    margin: 0 -6px calc(-1 * var(--lf-fp-foot-room));
-    padding: 10px 0 calc(var(--lf-fp-foot-room) + 4px);
+    margin: 0 -6px -6px;
+    padding: 10px 0 6px;
     background: linear-gradient(transparent, var(--lf-fp-surface) 10px);
   }
   .lf-fp-new-reply {
@@ -931,6 +920,10 @@
     display: none;
     transition: opacity 120ms;
   }
+  .lf-floating-panel[data-rest=row] .lf-fp-peek {
+    right: auto;
+    left: anchor(left);
+  }
   .lf-fp-peek[data-shown] {
     display: block;
     opacity: 1;
@@ -1122,6 +1115,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
 }
 @scope (.lf-chrome) {
+  lf-ask-banner-face,
+  lf-leaves-banner-face {
+    display: contents;
+  }
   .lf-region-capture {
     position: fixed;
     inset: 0;
@@ -1779,6 +1776,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     background: transparent;
     color: inherit;
     pointer-events: none;
+    anchor-scope:
+      --lf-panel-foot,
+      --lf-panel-list,
+      --lf-panel-reply;
   }
   .lf-auxiliary-envelope::backdrop {
     background: transparent;
@@ -2181,6 +2182,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     overflow-y: auto;
     overscroll-behavior: contain;
     z-index: 0;
+    anchor-name: --lf-panel-list;
     padding: var(--focus-ring-room) var(--lf-list-inset);
     --lf-block-frame: 1;
     scroll-padding: var(--focus-ring-room) 0;
@@ -2462,10 +2464,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     color: var(--muted-2);
     font: 500 var(--t-6)/1.25 var(--sans);
   }
-  .lf-going {
-    overflow: clip;
-    box-sizing: border-box;
-  }
   .lf-going > .lf-thread-reply {
     visibility: hidden;
   }
@@ -2568,6 +2566,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     display: flex;
     flex-direction: column;
     flex: none;
+    anchor-name: --lf-panel-foot;
   }
   .lf-general {
     display: flex;
@@ -2614,9 +2613,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     --lf-comment-reply-row: calc(var(--lf-comment-foot-gap) + var(--lf-compose-h) + 2px);
     --lf-comment-frame-bottom: calc(var(--lf-comment-reply-row) + var(--lf-comment-inset) + 1px);
   }
-  .lf-fab-bar {
-    display: none;
-  }
   .lf-aim {
     position: absolute;
     display: none;
@@ -2660,9 +2656,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-drawing-mark.lf-drawing-parked path {
     stroke-dasharray: 7 6;
-  }
-  .lf-composer {
-    display: none;
   }
   .lf-fab-bar .lf-composer > :not(.lf-compose-field, .lf-composer-media) {
     display: none !important;
@@ -3074,6 +3067,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
       outline: 2px solid Highlight;
     }
   }
+  :scope {
+    --lf-auxiliary-beside: inherit;
+    --lf-shortcut-bar-right: var(--lf-auxiliary-beside);
+  }
   .lf-shortcut-bar {
     position: fixed;
     left: 0;
@@ -3189,8 +3186,14 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     }
   }
   .lf-auxiliary-envelope > .lf-thread-panel[data-lf-covered] ~ .lf-bottom-status {
-    bottom: calc(var(--lf-panel-foot-h, 0px) + 14px + var(--lf-safe-bottom));
+    bottom: calc(anchor-size(--lf-panel-foot height, 0px) + 14px + var(--lf-safe-bottom));
     translate: none;
+  }
+  .lf-threads > .lf-thread[open]:not([hidden]) > .lf-thread-reply {
+    anchor-name: --lf-panel-reply;
+  }
+  .lf-auxiliary-envelope > .lf-thread-panel[data-lf-covered]:has(.lf-thread[open]:not([hidden]) > .lf-thread-reply) ~ .lf-bottom-status {
+    bottom: calc(max(anchor-size(--lf-panel-foot height, 0px), anchor(--lf-panel-list bottom, 0px) + var(--focus-ring-room) + anchor-size(--lf-panel-reply height, 0px)) + 14px + var(--lf-safe-bottom));
   }
   .lf-auxiliary-envelope > .lf-thread-panel[data-lf-covered] ~ .lf-bottom-status:not(:has(> .lf-go-to-status:not([hidden]), > .lf-notice.show)) {
     display: none;

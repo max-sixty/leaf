@@ -21,11 +21,10 @@ import {
   announce,
   commandScope,
   commands,
-  foldDuration,
+  foldBlock,
   keeps,
   LeafElement,
   contributionEntry,
-  motion,
   nothing,
   paintKeys,
   quietWord,
@@ -536,17 +535,12 @@ customElements.define(
     // moves the page, and an inline one swaps a few words inside a line the user is
     // looking at.
     //
-    // Measured before the decision and played after it, so the state the rest of the
+    // Chosen before the decision and played after it, so the state the rest of the
     // page reads is true from the first frame — the log has it, the banner's count has
-    // it, a second tab converging on it has it — while the pixels catch up. The inline
-    // display outranks the rule that hides the slot for exactly as long as the fold
-    // lasts, and nothing but this function writes it.
-    //
-    // The height is stated as a border box, whatever the slot's own sizing is. The
-    // measurement to hand is the rendered box (padding included, since the block form
-    // pads its slots), and starting a content-box height there would open the fold two
-    // pixels taller than the paragraph it is replacing — a jump on the first frame, in
-    // the one animation written to remove one.
+    // it, a second tab converging on it has it — while the pixels catch up. The
+    // animation's display outranks the rule that hides the slot for exactly as long as
+    // its pixels fold. The browser supplies its intrinsic size and releases every
+    // override when the effect ends or Undo cancels it.
     #fold(outcome) {
       const going = /** @type {HTMLElement | null} */ (
         this.querySelector(outcome === "accept" ? ":scope > lf-old" : ":scope > lf-new")
@@ -554,34 +548,7 @@ customElements.define(
       if (!going) return null;
       const style = getComputedStyle(going);
       if (style.display !== "block") return null;
-      const from = {
-        height: going.getBoundingClientRect().height + "px",
-        marginTop: style.marginTop,
-        marginBottom: style.marginBottom,
-        paddingTop: style.paddingTop,
-        paddingBottom: style.paddingBottom,
-        opacity: 1,
-      };
-      /** @type {Record<string, string | number>} */
-      const to = Object.fromEntries(Object.keys(from).map((k) => [k, "0px"]));
-      to.opacity = 0;
-      return () => {
-        going.style.display = "block";
-        going.style.boxSizing = "border-box";
-        going.style.overflow = "hidden";
-        const played = motion(going, [from, to], foldDuration());
-        const done = () => {
-          going.style.display = "";
-          going.style.boxSizing = "";
-          going.style.overflow = "";
-        };
-        // A fold interrupted — the element taken out from under it — rejects
-        // `finished`. Caught, so it is not an unhandled rejection, and the hand-back
-        // runs either way. A user who asked for less motion gets no animation at
-        // all (motion returns null), so the hand-back runs at once and the collapse
-        // is the frame the decision lands in.
-        played ? played.finished.then(done, done) : done();
-      };
+      return () => foldBlock(going);
     }
 
     // Which slot is which, for a user listening. A struck red run and a green one

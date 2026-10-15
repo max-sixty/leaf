@@ -2888,7 +2888,6 @@ function createFloatingResponsePlacement({
   function stopFabPositioning({ reset = false } = {}) {
     carry.placed();
     nativeAttachment = false;
-    if (fabBar.style.height) fabBar.style.removeProperty("height");
     fabPosition.stop();
     cancelRender(fabPositionFrame);
     fabPositionFrame = 0;
@@ -3112,7 +3111,6 @@ function createFloatingResponsePlacement({
       fabPlacement.landed(position);
       editingAttachment = response.open ? attachment : null;
       keeps(fabBar, "data-lf-placement", position.placement);
-      fabBar.style.height = response.open ? "max-content" : "";
       fabPosition.stand(position);
       carry.placed();
       nativeAttachment = response.open && fabPosition.follows();

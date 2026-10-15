@@ -204,7 +204,8 @@
     "x-content": "members",
     "x-word": "module",
     "x-upgrade": true,
-    "x-awaits": {"value": "choose",
+    "x-awaits": {
+      "value": "choose",
       "when": {
         "choose": [true],
         "settled": [false]
@@ -505,10 +506,7 @@
         "type": "boolean"
       }
     },
-    "required": [
-      "id",
-      "for"
-    ],
+    "required": ["id", "for"],
     "additionalProperties": false,
     "x-content": "empty",
     "x-inline": true,
@@ -566,7 +564,8 @@
     "additionalProperties": false,
     "x-content": "data",
     "x-word": "module",
-    "x-awaits": {"value": "edit",
+    "x-awaits": {
+      "value": "edit",
       "when": {
         "needed": [true]
       },

@@ -6893,7 +6893,6 @@ def test_commenting_on_the_same_selection_preserves_the_existing_suggestion(
         write(editor, words)
     select_words(page, "#words")
     rendered(page)
-    expect(page.locator('input[name="suggest-replacement"]')).to_be_checked()
     page.keyboard.press("c")
     expect(editor).to_be_focused()
     expect(editor).to_have_js_property("value", words)

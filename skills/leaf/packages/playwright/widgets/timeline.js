@@ -97,6 +97,7 @@ export class RecordingTimeline {
   #labels = { input: [], moments: [] };
   #callRows = 1;
   #callRowOf = new Map();
+  #tipAnchor = null;
 
   /**
    * `host` receives the timeline. `options`: `onSeek(time, final)`, `onPick(lane,
@@ -863,18 +864,16 @@ export class RecordingTimeline {
     const tip = this.#host.querySelector(".lf-trace-tip");
     // A time keeps its unit on its line.
     keepsText(tip, pick.dataset.tip.replace(/(\d) s\b/g, "$1\u00a0s"));
+    if (this.#tipAnchor !== pick) {
+      if (this.#tipAnchor) keeps(this.#tipAnchor, "data-lf-trace-tip-anchor", null);
+      this.#tipAnchor = pick;
+      keeps(pick, "data-lf-trace-tip-anchor", "");
+    }
     keepsHidden(tip, false);
-    const host = this.#host.getBoundingClientRect();
-    const box = pick.getBoundingClientRect();
-    const width = tip.offsetWidth;
-    keepVar(
-      tip,
-      "left",
-      layoutPx(Math.max(0, Math.min(host.width - width, box.left - host.left))),
-    );
-    keepVar(tip, "top", layoutPx(box.top - host.top - tip.offsetHeight - 4));
   }
   #hideTip() {
+    if (this.#tipAnchor) keeps(this.#tipAnchor, "data-lf-trace-tip-anchor", null);
+    this.#tipAnchor = null;
     const tip = this.#host.querySelector(".lf-trace-tip");
     if (tip) keepsHidden(tip, true);
   }

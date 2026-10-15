@@ -4,16 +4,16 @@
     "description": "The release query playground with one page-owned aggregate configuration.",
     "type": "object",
     "properties": {
-      "id": {"type": "string", "const": "release-query-playground"},
-      "submit-label": {"type": "string", "const": "Build query"},
-      "restated": {"type": "boolean"}
+      "id": { "type": "string", "const": "release-query-playground" },
+      "submit-label": { "type": "string", "const": "Build query" },
+      "restated": { "type": "boolean" }
     },
     "required": ["id", "submit-label"],
     "additionalProperties": false,
     "x-content": "members",
     "x-instructions": "The page module owns ordered filter rows; the Playground package owns their aggregate reset, restore, copy, and submission path.",
     "x-upgrade": true,
-    "x-awaits": {"value": "choose", "answered": {"choose": {}}},
+    "x-awaits": { "value": "choose", "answered": { "choose": {} } },
     "x-state": {
       "choose": {
         "detail": {
@@ -22,7 +22,7 @@
             "values": {
               "type": "object",
               "properties": {
-                "limit": {"type": "number", "minimum": 1, "maximum": 6},
+                "limit": { "type": "number", "minimum": 1, "maximum": 6 },
                 "filters": {
                   "type": "object",
                   "properties": {
@@ -31,10 +31,10 @@
                       "items": {
                         "type": "object",
                         "properties": {
-                          "id": {"type": "string", "pattern": "^filter-[1-9][0-9]*$"},
-                          "field": {"enum": ["region", "risk", "owner"]},
-                          "operator": {"enum": ["is", "above", "contains"]},
-                          "value": {"type": "string"}
+                          "id": { "type": "string", "pattern": "^filter-[1-9][0-9]*$" },
+                          "field": { "enum": ["region", "risk", "owner"] },
+                          "operator": { "enum": ["is", "above", "contains"] },
+                          "value": { "type": "string" }
                         },
                         "required": ["id", "field", "operator", "value"],
                         "additionalProperties": false
@@ -42,7 +42,7 @@
                     },
                     "order": {
                       "type": "array",
-                      "items": {"type": "string", "pattern": "^filter-[1-9][0-9]*$"}
+                      "items": { "type": "string", "pattern": "^filter-[1-9][0-9]*$" }
                     }
                   },
                   "required": ["rows", "order"],
@@ -52,7 +52,7 @@
               "required": ["limit", "filters"],
               "additionalProperties": false
             },
-            "instruction": {"type": "string", "minLength": 1}
+            "instruction": { "type": "string", "minLength": 1 }
           },
           "required": ["values", "instruction"],
           "additionalProperties": false

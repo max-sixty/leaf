@@ -2575,6 +2575,8 @@
   border-left: 0;
 }
 .lf-sample-exhibit {
+  display: flex;
+  flex-direction: column;
   padding-left: var(--sp-4);
   border-left: 3px solid var(--border-2);
 }
@@ -2621,14 +2623,15 @@
 }
 .lf-sample-frame {
   display: block;
-  box-sizing: border-box;
-  width: 100%;
+  box-sizing: content-box;
+  width: auto;
   height: 32rem;
   border: 1px solid var(--border-2);
   border-radius: var(--r);
   background: var(--paper);
 }
 :scope:is(lf-sample)[window] .lf-sample-frame {
+  box-sizing: border-box;
   height: min(75vh, 48rem);
 }
 .lf-sample-view:modal {
@@ -2653,8 +2656,6 @@
 .lf-sample-view:modal > .lf-sample-exhibit {
   flex: 1;
   min-height: 0;
-  display: flex;
-  flex-direction: column;
   padding: 0;
   border: 0;
 }

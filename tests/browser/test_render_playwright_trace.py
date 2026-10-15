@@ -1069,7 +1069,9 @@ def test_trace_pointer_annotation_stays_inside_the_panned_image_viewport(
 
 
 def test_trace_comparison_prepaint_shows_only_its_opening_recording(browser, serve):
-    """Holding the chooser module cannot expose a second recording before upgrade."""
+    """Holding the chooser module cannot expose a second recording before upgrade.
+    A recording in a wrapper, here a <figure> with its caption, shows and hides with
+    it, before upgrade and after."""
     source = ROOT / "tests/fixtures/pages/playwright-paired-results.html"
     url = serve(source, packages=("playwright",))
     user = browser.new_page()
@@ -1096,9 +1098,12 @@ def test_trace_comparison_prepaint_shows_only_its_opening_recording(browser, ser
         route.continue_()
     wait_until_ready(user)
     user.locator("lf-trace-compare wa-radio").filter(has_text="After").click()
+    expect(user.locator("#paired-after-figure figcaption")).to_be_visible()
     expect(user.locator("#paired-after")).to_be_visible()
     expect(user.locator("#paired-before")).to_be_hidden()
     wait_until_ready(user)
+    user.locator("lf-trace-compare wa-radio").filter(has_text="Before").click()
+    expect(user.locator("#paired-after-figure")).to_be_hidden()
 
 
 def test_trace_render_gate_restores_the_zoomed_time_window(browser, serve):

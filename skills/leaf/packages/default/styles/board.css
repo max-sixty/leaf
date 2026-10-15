@@ -153,7 +153,6 @@
                     block-size: var(--lf-grip-block, 0px); margin-block-start: -10px; }
   :scope:is(lf-card) > :not(:first-child) { clear: right; }
 }
-:scope:is(lf-card):last-child { margin-bottom: 0; }
 :scope:is(lf-card) > strong { display: block; font-weight: 600; line-height: 1.4; margin: 0 0 2px; }
 /* The grip is a press, so the keyboard reaches it: Enter grabs, arrows move. It says no
    size, because `offer` builds it wearing .lf-ui and the runtime's own rule sets that

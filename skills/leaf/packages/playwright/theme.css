@@ -245,13 +245,14 @@
 /* The workspace spaces its parts itself; a recording inside it takes no margin. */
 :scope:is(lf-trace-compare) { display: flex; flex-direction: column; min-inline-size: 0; --lf-trace-control-size: 44px; --lf-trace-compare-top: var(--lf-top); --lf-trace-compare-head: 44px; font: var(--t-5) / 1.45 var(--sans); }
 .lf-trace-compare-controls { margin-block-end: var(--sp-2); position: sticky; inset-block-start: var(--lf-trace-compare-top); z-index: 4; background: var(--paper); padding-block: var(--sp-1); }
-:scope:is(lf-trace-compare) > lf-trace { margin-block: 0; --lf-top: calc(var(--lf-trace-compare-top) + var(--lf-trace-compare-head)); }
+:scope:is(lf-trace-compare) > * { --lf-top: calc(var(--lf-trace-compare-top) + var(--lf-trace-compare-head)); }
+:scope:is(lf-trace-compare) > lf-trace { margin-block: 0; }
 
 /* Prepaint chooses the same recording as the upgraded workspace. Without an
  * interactive runtime, every labeled recording remains available in page flow. */
 @scope (html[data-lf-interactive] :scope) {
-  :scope:is(lf-trace-compare):not(:defined):has(> lf-trace) {
+  :scope:is(lf-trace-compare):not(:defined):has(lf-trace) {
     &::before { content: ""; display: block; block-size: calc(var(--lf-trace-control-size) + 2 * var(--sp-1)); margin-block-end: var(--sp-2); }
-    & > lf-trace:not([data-lf-opening]) { display: none; }
+    & > :is(lf-trace, :has(lf-trace)):not([data-lf-opening]) { display: none; }
   }
 }

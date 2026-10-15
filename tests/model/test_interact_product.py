@@ -665,7 +665,11 @@ def test_a_playground_names_its_controls_within_itself(tmp_path, initialized_pag
             "scope": "lf-playground",
         }
 
-    assert reply(playground("a", tone, preset("tone"), slot("tone"))) == []
+    # A value slot may stand inside the output's prose, as within a <strong>.
+    assert (
+        reply(playground("a", tone, preset("tone"), f"<strong>{slot('tone')}</strong>"))
+        == []
+    )
     assert found(
         reply(playground("a", tone, preset("tine"))),
         "unmatched-member",

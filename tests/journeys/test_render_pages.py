@@ -301,6 +301,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
             )
             if tab:
                 page.get_by_role("tab", name=tab, exact=True).click()
+            page.locator(f"#{section}").scroll_into_view_if_needed()
             item = page.locator(f'.lf-margin-cluster[data-lf-margin-for="{section}"]')
             expect(item).to_have_count(1)
             # A crowded target may expose this exact reaction through overflow. Follow

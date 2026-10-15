@@ -461,7 +461,6 @@ import {
   PresentationRetentionError,
   SHARE_ROOT,
   WEBSITE_DELIVERY,
-  agentLabel,
   agentName,
   annotationMode,
   applicationPresenter,
@@ -9048,7 +9047,7 @@ var FACETS = Object.freeze([
   ]),
   group("waiting", "Waiting on", [
     choice("waiting", "user", "Me", "lf-needs"),
-    choice("waiting", "agent", agentLabel)
+    choice("waiting", "agent", "Agent")
   ]),
   group("scope", "Location", [
     choice("scope", "page", "Page"),

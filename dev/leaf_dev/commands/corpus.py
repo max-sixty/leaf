@@ -216,8 +216,12 @@ def build() -> str:
         for sheet in parsed.style_blocks:
             if sheet["css"].strip():
                 css = "\n".join(line.rstrip() for line in sheet["css"].splitlines())
+                attrs = "".join(
+                    f' {name}="{html.escape(value, quote=True)}"'
+                    for name, value in sheet["attrs"].items()
+                )
                 authored_assets.append(
-                    f"<!-- {source.name} authored styles -->\n<style>{css}</style>"
+                    f"<!-- {source.name} authored styles -->\n<style{attrs}>{css}</style>"
                 )
         authored_assets.extend(
             f"<!-- {source.name} authored script -->\n<script"

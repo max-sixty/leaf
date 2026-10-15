@@ -2628,9 +2628,9 @@ def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, ser
         "third-change",
     ]
     page.locator("#first-change").evaluate(
-        "el => { const parent = el.parentNode; const next = el.nextSibling;"
+        "el => lfUnwatched(() => { const parent = el.parentNode; const next = el.nextSibling;"
         "        el.remove();"
-        "        parent.insertBefore(el, next); }"
+        "        parent.insertBefore(el, next); })"
     )
     assert rows.evaluate_all("rows => rows.map(row => row.dataset.lfMarginFor)") == [
         "first-change",
@@ -2639,14 +2639,14 @@ def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, ser
     ], "reconnecting the first suggestion moved its controls after later source rows"
     first_accept = page.locator("[data-lf-margin-for='first-change'] .lf-sug-accept")
     first_accept.evaluate(
-        """control => {
+        """control => lfUnwatched(() => {
           control.disabled = true;
           const widget = document.getElementById('first-change');
           const parent = widget.parentNode;
           const next = widget.nextSibling;
           widget.remove();
           parent.insertBefore(widget, next);
-        }"""
+        })"""
     )
     expect(first_accept).to_be_enabled()
     page.locator("[data-lf-margin-for='first-change'] .lf-sug-accept").focus()

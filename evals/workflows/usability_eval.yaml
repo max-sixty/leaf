@@ -376,6 +376,10 @@ cases:
           size from 500 to 200.
         transform: context.metadata.texts?.["reply-1"] ?? ''
       - type: llm-rubric
+        metric: batch_200
+        value: The page states that copying uses batches of 200 documents. Judge the current plan, rather than a quoted request or rejected proposal.
+        transform: context.metadata.texts?.["batch-size"] ?? ''
+      - type: llm-rubric
         metric: next_pick
         value:
           Among what needs doing next, the message includes taking in the user's pick of
@@ -416,6 +420,10 @@ cases:
         metric: chart_read
         value: Answer 3, to "Which region has the most errors in the chart?", is us-east.
         transform: context.metadata.texts?.["reply-1"] ?? ''
+      - type: llm-rubric
+        metric: p95_text
+        value: The latency sentence states that the latest checkout p95 is 231 milliseconds, or an equivalent duration expressed in another unit. Judge the current latency, rather than a quoted request or rejected proposal.
+        transform: context.metadata.texts?.["latency-summary"] ?? ''
       - type: llm-rubric
         metric: draft_date
         value: The release note gives the rollout start as 19 November and does not say 12 November.

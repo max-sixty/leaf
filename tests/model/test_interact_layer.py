@@ -2603,26 +2603,57 @@ def test_a_spawned_process_ends_with_what_it_started(spawn, launcher_ends):
     wait_for(running, lambda alive: not alive, failure="the launcher's child survived")
 
 
-def test_init_refuses_a_layer_theme_that_leaves_a_block_open(tmp_path, monkeypatch):
-    """The CSS parser auto-closes a block left open at end of file, so tinycss2
-    reports nothing — but layer stylesheets concatenate, and an unclosed block
-    swallows every later layer's rules into its own scope. The shipped split hit
-    exactly this: a cut that dropped one closing brace nested the whole standard
-    layer inside a min-width media query, and the only symptom was print styles
-    quietly not applying. The gate names the file while the author is still in
-    front of it."""
-    project = tmp_path / "proj"
-    (project / ".leaf").mkdir(parents=True)
-    (project / ".leaf" / "theme.css").write_text(
-        "@media screen and (min-width: 900px) {\n  :root { --accent: red }\n"
+@pytest.mark.parametrize(
+    "first",
+    [
+        r".x { --token: \{; }",
+        "@media print { .x { color: red;",
+        r"@media print { .x { --token: \} \}",
+        "/* a comment ending at EOF",
+    ],
+)
+def test_composed_sheets_preserve_each_sources_eof_boundary(tmp_path, first):
+    """Browser EOF recovery belongs to each source, before Leaf wraps and joins it.
+
+    Escaped braces are tokens, not block delimiters. An unfinished block or comment
+    in one source must not capture the wrapper or any later source's rules.
+    """
+    roots = [tmp_path / name for name in ("first", "second")]
+    for root, css in zip(roots, (first, ".y { color: red; }"), strict=True):
+        root.mkdir()
+        (root / "theme.css").write_text(css)
+
+    composed = layer_model.composed_sheets(roots)["theme.css"].decode()
+    rules = tinycss2.parse_stylesheet(
+        composed, skip_whitespace=True, skip_comments=True
     )
-    monkeypatch.chdir(project)
-    result = CliRunner().invoke(
-        cli_model.cli, ["page", "init", "--package", "./.leaf", str(tmp_path / "page")]
+    assert [rule.lower_at_keyword for rule in rules] == ["layer", "layer", "layer"]
+    assert tinycss2.serialize(rules[-1].prelude).strip() == "lf-theme"
+    later = tinycss2.parse_rule_list(
+        rules[-1].content, skip_whitespace=True, skip_comments=True
     )
-    assert result.exit_code == 1
-    assert "block(s) left open at end of file" in result.output
-    assert "theme.css" in result.output
+    assert len(later) == 1
+    assert tinycss2.serialize(later[0].prelude).strip() == ".y"
+
+
+@pytest.mark.parametrize(
+    "css",
+    [
+        r'.x { content: "\d800"; }',
+        r".\dfff {}",
+        r".x { background: url(\d800.svg); }",
+    ],
+)
+def test_composed_sheets_replace_surrogate_escapes_as_the_browser_does(tmp_path, css):
+    """CSS replaces surrogate escapes with U+FFFD in strings, identifiers and URLs.
+
+    tinycss2 instead emits lone surrogates; serialization must preserve browser
+    meaning rather than crash UTF-8 encoding while composing the layer.
+    """
+    (tmp_path / "theme.css").write_text(':root { --kept: "é🍂"; }\n' + css)
+    sheet = layer_model.composed_sheets([tmp_path])["theme.css"].decode()
+    assert "\ufffd" in sheet
+    assert "é🍂" in sheet
 
 
 def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):

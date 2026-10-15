@@ -232,7 +232,11 @@ def sample_errors(
 
 def _presentation_errors(parser) -> list[Finding]:
     """Validate the page's own CSS: its <style> and each inline style."""
-    errors = list(css_syntax_errors(parser.css, "page <style>"))
+    errors = []
+    for sheet in parser.style_blocks:
+        errors.extend(
+            css_syntax_errors(sheet["css"], f"page <style> (line {sheet['line']})")
+        )
     for inline in parser.inline_styles:
         errors.extend(
             css_syntax_errors(inline["style"], inline_style_at(inline), block=True)

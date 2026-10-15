@@ -6577,6 +6577,11 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
             workflows: message.workflows
           });
           view.draw();
+          keeps(
+            view.node,
+            "data-lf-append-tail",
+            message.provisional && message === item.thread.msgs.at(-1) ? "" : null
+          );
         } else {
           keepsHidden(view.node, !replyAvailable(item.thread));
           if (view.notice.node.parentNode !== view.node)

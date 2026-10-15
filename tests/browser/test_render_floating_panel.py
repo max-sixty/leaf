@@ -386,7 +386,7 @@ def test_the_thread_walk_stands_on_each_thread_it_opens(browser, serve):
             "agent": "Claude",
             "parent": first,
             "revision": 1,
-            "text": "The window covers it. " * 60,
+            "text": "The window covers it. " * 300,
         },
     )
     news = view.locator(".lf-fp-new-reply")
@@ -819,14 +819,54 @@ def test_a_thread_s_view_is_as_tall_as_its_messages(browser, serve):
     assert long["panel"] >= 100, long
 
 
-def test_an_answer_the_user_waits_for_shows_at_once_where_it_fits(browser, serve):
-    """The agent's answer to the user's own last turn is not held: where it fits in the
-    view's height, the view's end follows it into sight at once, its earlier words
-    scrolling up, and nothing at the view's head moves. Where it would not fit, the view
-    keeps its height and the answer waits below the fold, with New reply at the view's
-    foot, where it begins; a press grows the view and brings its start into sight. A
-    reply that follows the agent's own turn is still held behind the thread's notice,
-    since nobody was waiting for it."""
+GROWTH = """() => {
+  const view = document.querySelector('.lf-fp-view[data-view=thread]');
+  const box = (node) => node.getBoundingClientRect();
+  const msgs = [...view.querySelectorAll('.lf-msg')];
+  const turn = msgs.findLast((msg) => msg.querySelector('.lf-msg-head')?.textContent.includes('Me'));
+  const foot = view.querySelector('.lf-fp-foot');
+  return {
+    view: box(view).top,
+    height: box(view).height,
+    cap: parseFloat(getComputedStyle(view).maxHeight),
+    bottom: box(view).bottom,
+    field: box(document.querySelector('.lf-fp-field')).top,
+    turn: turn && [box(turn).top - box(view).top - parseFloat(getComputedStyle(view).paddingTop),
+                   foot ? box(foot).top - box(turn).bottom : box(view).bottom - box(turn).bottom],
+    foot: foot && box(foot).bottom,
+  };
+}"""
+
+
+def risen(before, after, by):
+    """Whether every seat of the head (`HEAD_SEATS`) stands where it stood, moved `by`
+    down the window: the head rising with a view that grows at its top."""
+
+    def lifted(seat):
+        return [seat[0], seat[1] + by, seat[2], seat[3] + by]
+
+    return all(
+        (seat is None) == (after[name] is None)
+        and (
+            seat is None
+            or (
+                abs(after[name] - seat) < 0.5
+                if isinstance(seat, float | int)
+                else all(abs(a - b) < 0.5 for a, b in zip(after[name], lifted(seat)))
+            )
+        )
+        for name, seat in before.items()
+    )
+
+
+def test_an_answer_the_user_waits_for_grows_the_view_up_to_its_cap(browser, serve):
+    """The agent's answer to the user's own last turn grows the thread's view to hold
+    it: the field stays where it is, and the head rises with the view's top, carrying
+    each control by the same distance. Past the view's cap the answer goes on below the
+    fold behind New reply, with the user's own turn wholly in sight above it, its head
+    included, and nothing of the answer showing below the press; a press brings the
+    answer's start into sight. A reply that follows the agent's own turn is still held
+    behind the thread's notice, since nobody was waiting for it."""
     url = serve(LONG_PAGE)
     root = panel_comment(
         serve.page_dir,
@@ -856,20 +896,18 @@ def test_an_answer_the_user_waits_for_shows_at_once_where_it_fits(browser, serve
     expect(messages).to_have_count(1)
     settled(page)
     seats = page.evaluate(HEAD_SEATS)
-    stands = view.bounding_box()
+    stood = page.evaluate(GROWTH)
 
-    def in_sight(node):
-        box, shown = node.bounding_box(), view.bounding_box()
-        return box["y"] >= shown["y"] and box["y"] + box["height"] <= (
-            shown["y"] + shown["height"] + 0.5
-        )
-
-    answer("Internal first.")
+    answer("Internal first. " + "The second wave waits for the alarms to hold. " * 3)
     expect(messages).to_have_count(2)
     settled(page)
-    assert in_sight(messages.last)
-    assert page.evaluate(HEAD_SEATS) == seats
-    assert view.bounding_box() == stands
+    grown = page.evaluate(GROWTH)
+    by = grown["view"] - stood["view"]
+    assert by < -40, (stood, grown)
+    assert grown["field"] == stood["field"]
+    assert grown["bottom"] == stood["bottom"]
+    assert risen(seats, page.evaluate(HEAD_SEATS), by), (seats, by)
+    assert grown["turn"][0] >= 0 and grown["turn"][1] >= 0, grown
     expect(view.locator(".lf-fp-new-reply")).to_have_count(0)
     expect(view.locator(".lf-primary-news:visible")).to_have_count(0)
 
@@ -878,25 +916,25 @@ def test_an_answer_the_user_waits_for_shows_at_once_where_it_fits(browser, serve
         page.keyboard.press("ControlOrMeta+Enter")
     expect(messages).to_have_count(3)
     settled(page)
-    seats = page.evaluate(HEAD_SEATS)
-    stands = view.bounding_box()
 
-    answer("It would. " + "Someone stays on call through Sunday, and Monday too. " * 40)
+    answer("It would. " + "Someone stays on call through Sunday, and Monday too. " * 80)
     press = view.locator(".lf-fp-new-reply")
     expect(press).to_have_text("New reply")
     expect(messages).to_have_count(4)
     settled(page)
-    assert page.evaluate(HEAD_SEATS) == seats
-    assert view.bounding_box() == stands
-    assert messages.last.bounding_box()["y"] >= stands["y"] + stands["height"] - 40
+    capped = page.evaluate(GROWTH)
+    assert abs(capped["height"] - capped["cap"]) < 1, capped
+    assert capped["field"] == stood["field"]
+    # The user's turn stands wholly between the view's head and New reply's ground,
+    # which reaches the view's foot, so nothing scrolls by under the press.
+    assert capped["turn"][0] >= 0 and capped["turn"][1] >= 0, capped
+    assert abs(capped["foot"] - capped["bottom"]) < 0.5, capped
 
     press.click()
     expect(press).to_have_count(0)
     settled(page)
-    shown = messages.last.bounding_box()
-    grown = view.bounding_box()
-    assert grown["height"] > stands["height"], (stands, grown)
-    assert grown["y"] <= shown["y"] < grown["y"] + grown["height"] - 40, (shown, grown)
+    shown, box = messages.last.bounding_box(), view.bounding_box()
+    assert box["y"] <= shown["y"] < box["y"] + box["height"] - 40, (shown, box)
 
     answer("One more thing: the alarms page the on-call too.")
     expect(view.locator(".lf-primary-news:visible")).to_contain_text("1 new reply")
@@ -904,7 +942,7 @@ def test_an_answer_the_user_waits_for_shows_at_once_where_it_fits(browser, serve
 
 
 def test_new_reply_leads_to_the_reply_once_one_follows_the_work(browser, serve):
-    """Work under way that does not fit waits behind New update; the reply that follows
+    """Work under way past the view's cap waits behind New update; the reply that follows
     it takes the press over, which then says New reply and brings the reply's start into
     sight, not the work before it."""
     url = serve(LONG_PAGE)
@@ -923,9 +961,9 @@ def test_new_reply_leads_to_the_reply_once_one_follows_the_work(browser, serve):
         told(page)
 
     press = view.locator(".lf-fp-new-reply")
-    say("Reading the jobs, the mounts and the frost dates. " * 12, ephemeral=True)
+    say("Reading the jobs, the mounts and the frost dates. " * 80, ephemeral=True)
     expect(press).to_have_text("New update")
-    say("The mounts come first. " + "They need the frost to lift. " * 30)
+    say("The mounts come first. " + "They need the frost to lift. " * 120)
     expect(press).to_have_text("New reply")
     press.click()
     expect(press).to_have_count(0)
@@ -935,13 +973,13 @@ def test_new_reply_leads_to_the_reply_once_one_follows_the_work(browser, serve):
     assert box["y"] <= shown["y"] < box["y"] + box["height"] - 40, (shown, box)
 
 
-def test_a_streaming_answer_follows_into_sight_until_it_outgrows_the_view(
+def test_a_streaming_answer_grows_the_view_until_it_outgrows_its_cap(
     browser, serve, request
 ):
-    """An answer the user waits for that streams in grows inside the view: while what
-    each step adds fits, the view's end follows it, and nothing at the head moves; a
-    step that would not fit, such as the durable answer completing it with longer words,
-    leaves New reply at the view's foot."""
+    """An answer the user waits for that streams in grows the view at each step, the
+    head rising with it and the field staying put, with the answer's end in sight; a
+    step past the view's cap, such as the durable answer completing it with longer
+    words, leaves New reply at the view's foot."""
     # The threads suite imports this one, so its stream helpers come in at run time.
     from browser.test_render_threads import claim_for_codex, stream_reply
 
@@ -961,27 +999,29 @@ def test_a_streaming_answer_follows_into_sight_until_it_outgrows_the_view(
     expect(messages).to_have_count(1)
     settled(page)
     seats = page.evaluate(HEAD_SEATS)
-    stands = view.bounding_box()
+    stood = page.evaluate(GROWTH)
 
     def streamed(text):
         stream_reply(serve.page_dir, root, text)
         told(page)
         expect(messages.last.locator(".lf-msg-text")).to_have_text(text)
         settled(page)
-        assert page.evaluate(HEAD_SEATS) == seats
-        assert view.bounding_box() == stands
+        grown = page.evaluate(GROWTH)
+        assert (grown["field"], grown["bottom"]) == (stood["field"], stood["bottom"])
+        assert risen(seats, page.evaluate(HEAD_SEATS), grown["view"] - stood["view"])
+        shown, box = messages.last.bounding_box(), view.bounding_box()
+        assert shown["y"] + shown["height"] <= box["y"] + box["height"] + 0.5
+        return grown
 
-    streamed("I'll")
-    streamed("I'll record it on the board now.")
-    shown, box = messages.last.bounding_box(), view.bounding_box()
-    assert shown["y"] + shown["height"] <= box["y"] + box["height"] + 0.5
+    assert streamed("I'll")["view"] < stood["view"]
+    streamed("I'll record it on the board now. " + "Then the totals. " * 12)
     expect(view.locator(".lf-fp-new-reply")).to_have_count(0)
 
     # The durable answer completes the streamed message with longer words.
     thread_model.post_reply(
         serve.page_dir,
         {"to": root, "for": root},
-        "Recorded the release on the board. " + "Then I checked the totals. " * 40,
+        "Recorded the release on the board. " + "Then I checked the totals. " * 200,
         attempt="leaf-response-explicit",
         identity={"agent": "Codex", "session": "codex-thread"},
     )
@@ -993,8 +1033,9 @@ def test_a_streaming_answer_follows_into_sight_until_it_outgrows_the_view(
     )
     expect(view.locator(".lf-fp-new-reply")).to_have_text("New reply")
     settled(page)
-    assert page.evaluate(HEAD_SEATS) == seats
-    assert view.bounding_box() == stands
+    capped = page.evaluate(GROWTH)
+    assert abs(capped["height"] - capped["cap"]) < 1, capped
+    assert capped["field"] == stood["field"]
 
 
 FOOT = """([parts, fromEnd]) => {

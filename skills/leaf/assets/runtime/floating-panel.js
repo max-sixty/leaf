@@ -421,11 +421,8 @@ export function createFloatingPanel({
         accessibleName: () => `Reply to ${threadTitle(key)}`,
         sent: () => {
           landAtEnd = { key, after: outletOf()?.childElementCount ?? 0 };
-          // The user's turn grows the view to show it, an answer waiting below the
-          // fold included.
+          // The user's turn grows the view to show it and takes New reply away.
           waiting = null;
-          const top = trail.at(-1);
-          if (top?.view === "thread") rooms.delete(routeKey(top));
           queueMicrotask(paint);
         },
       });
@@ -657,19 +654,22 @@ export function createFloatingPanel({
   // yet to draw into it is not yet held.
   //
   // The agent's answer to the user's own last turn is the one news the reader hands the
-  // view at once (`answersAtOnce`): the user is waiting for it. While the user's turn
-  // ends the thread the view holds the height it stands at, so the answer lands inside
-  // it, and nothing at its head moves. Where the answer fits in that height and the user
-  // stood at the view's end, the end follows it into sight, the earlier words scrolling
-  // up, as a card's transcript follows a turn joining its end. Otherwise it waits below
-  // the fold, and New reply stands at the view's foot, where the answer begins, the
-  // words the user stood at the end of moving up just clear of it, until a press on it, or the user scrolling there, shows it; a press grows the view, up to its
-  // cap, and brings the answer's start into sight (`fitAnswer`). The user chose to show
-  // the answer at once (2026-10-14), reversing the hold behind the reader's "1 new reply"
-  // in the head row of their own message, which left the reply they waited for unseen.
-  // Rejected: growing the view to show the answer, which carries its head and every
-  // message up without a gesture of the user's (`skills/leaf/assets/AGENTS.md`,
-  // "Stability"). Other news in an open thread is still held.
+  // view at once (`answersAtOnce`): the user is waiting for it. The view grows to hold
+  // it, work under way and a reply streaming included, up to its cap: the field stays
+  // put and the head rises, carrying the user's own turn up with it. Where the user
+  // stood at the view's end and their turn and the answer together fit in the view, the
+  // end follows the answer into sight, as a card's transcript follows a turn joining its
+  // end. Otherwise the answer goes on below the fold, and New reply stands at the view's
+  // foot until a press on it, or the user scrolling there, shows it; the user's turn
+  // stays wholly in sight above the press, its head included (`fitAnswer`). The user
+  // chose this growth (2026-10-14), the one case where news may carry a view's head
+  // without a gesture (`skills/leaf/assets/AGENTS.md`, "Stability"), reversing the view
+  // holding its height while the user waited (#2892), which left a short thread's
+  // answer behind New reply in a view one message tall. Rejected then and now: holding
+  // the answer behind the reader's "1 new reply", which left the reply the user waited
+  // for unseen. Other news in an open thread is still held. A thread's view declares
+  // that it stands on its foot (`data-lf-rises`), which the shift watch credits for
+  // exactly this growth (tests/shift_watch.js, `appendGrowth`).
   const rooms = new Map();
   // Whether this opening of a thread has shown On the page, whose seat then stands
   // while the view does, so a revision detaching the thread moves nothing beside it.
@@ -715,9 +715,8 @@ export function createFloatingPanel({
         (key) => message(key)?.ephemeral || message(key)?.provisional,
       ),
       extent: view.scrollHeight,
+      height: view.clientHeight,
     };
-    const lastTurn = (drawn) =>
-      drawn.map(message).findLast((each) => each && !each.ephemeral);
     // What follows the user's last turn in what is drawn: the answer, as far as it has
     // come. Before, it held only work under way or a reply still streaming.
     const answerIn = (drawn) => {
@@ -727,66 +726,61 @@ export function createFloatingPanel({
       });
       return turn < 0 ? null : { turn: drawn[turn], keys: drawn.slice(turn + 1) };
     };
-    const room = routeKey(top);
-    const fresh = before ? keys.filter((key) => !before.keys.includes(key)) : [];
     const answer = answerIn(keys);
     const asked = before && answerIn(before.keys);
     if (
-      answer?.keys.length &&
-      asked?.turn === answer.turn &&
-      asked.keys.every((key) => before.coming.includes(key)) &&
-      answer.keys.every((key) => message(key)?.author === "agent") &&
-      rooms.has(room)
+      !answer?.keys.length ||
+      asked?.turn !== answer.turn ||
+      !asked.keys.every((key) => before.coming.includes(key)) ||
+      !answer.keys.every((key) => message(key)?.author === "agent")
+    )
+      return;
+    // An answer folding the work before it into less room moves nothing either.
+    if (view.scrollHeight <= before.extent + 0.5) return;
+    // The answer arriving, or growing as it streams, in a view that has grown to hold
+    // it as far as its cap lets it. Where the user stood at the view's end and their
+    // turn and the answer fit in the view, the end follows the answer into sight;
+    // otherwise New reply says what waits below the fold, and leads to the reply itself
+    // once one follows the work under way, as it takes over the press.
+    const atEnd = view.scrollTop + before.height >= before.extent - 1;
+    const turn = outlet.querySelector(
+      `.lf-msg[data-message="${CSS.escape(answer.turn)}"]`,
+    );
+    const pad = Number.parseFloat(getComputedStyle(view).paddingTop);
+    const from = () =>
+      turn.getBoundingClientRect().top - view.getBoundingClientRect().top - pad;
+    if (
+      !waiting &&
+      atEnd &&
+      view.scrollHeight - view.scrollTop - from() <= view.clientHeight
     ) {
-      // An answer folding the work before it into less room moves nothing either.
-      if (view.scrollHeight <= before.extent + 0.5) return;
-      // The answer arriving, or growing as it streams. Where the user stood at the
-      // view's end and what it adds fits in the view's height, the end follows it into
-      // sight; otherwise New reply says what waits below the fold, and leads to the
-      // reply itself once one follows the work under way, as it takes over the press.
-      const atEnd = view.scrollTop + view.clientHeight >= before.extent - 1;
-      if (!waiting && atEnd && view.scrollHeight - before.extent <= view.clientHeight) {
-        view.scrollTop = view.scrollHeight;
-        return;
-      }
-      const reply = answer.keys.find((key) => !message(key).ephemeral);
-      const next = reply
-        ? { key: top.thread, message: reply, label: "New reply" }
-        : { key: top.thread, message: answer.keys[0], label: "New update" };
-      if (waiting?.message !== next.message) {
-        // New reply takes room at the view's foot, so a user who stood at its end keeps
-        // the words they read there in sight above it.
-        const extent = !waiting && atEnd ? view.scrollHeight : null;
-        waiting = next;
-        paint();
-        if (extent !== null) {
-          view.scrollTop += view.scrollHeight - extent;
-          placed = view.scrollTop;
-        }
-      }
+      view.scrollTop = view.scrollHeight;
       return;
     }
-    // Anything else the reader draws in the thread is what the user asked to see, which
-    // grows the view as it does in a thread they are not waiting in.
-    if (fresh.length && !waiting && rooms.delete(room)) {
-      paint();
-      return;
-    }
-    // While the user's own turn ends the thread, the view holds the height it stands at,
-    // so the answer they wait for lands inside it rather than growing it.
-    if (lastTurn(keys)?.author === "user" && !rooms.has(room)) {
-      rooms.set(room, view.offsetHeight);
-      paint();
-    }
+    const reply = answer.keys.find((key) => !message(key).ephemeral);
+    const next = reply
+      ? { key: top.thread, message: reply, label: "New reply" }
+      : { key: top.thread, message: answer.keys[0], label: "New update" };
+    if (waiting?.message === next.message) return;
+    const arriving = !waiting;
+    waiting = next;
+    paint();
+    if (!arriving || !atEnd) return;
+    // The user's turn stands wholly in sight, between the view's head and New reply's
+    // ground, its head first where it is taller than that.
+    const foot = view.querySelector(".lf-fp-foot")?.getBoundingClientRect();
+    const below = foot ? turn.getBoundingClientRect().bottom - foot.top : 0;
+    const by = Math.min(Math.max(below, 0), from());
+    if (Math.abs(by) < 0.5) return;
+    view.scrollTop += by;
+    placed = view.scrollTop;
   }
-  // Shows the answer waiting below the fold: the view grows, up to its cap, and the
-  // answer's start comes into sight. The press that took New reply away leaves the user
-  // standing on the thread, the view, as showing a thread's held news does.
+  // Shows the answer waiting below the fold: its start comes into sight. The press that
+  // took New reply away leaves the user standing on the thread, the view, as showing a
+  // thread's held news does.
   function showAnswer() {
-    const top = trail.at(-1);
     const answer = waiting;
     waiting = null;
-    if (top) rooms.delete(routeKey(top));
     paint();
     const view = openView();
     if (view) focusDestination(view, "move");
@@ -1375,7 +1369,7 @@ export function createFloatingPanel({
     const thread = threadByKey(key);
     if (!thread)
       return html`<p class="lf-fp-empty">This thread is not on the page.</p>`;
-    return html`<div class="lf-fp-messages lf-fp-outlet"></div>
+    return html`<div class="lf-fp-messages lf-fp-outlet" data-lf-reflow="append"></div>
       ${
         waiting?.key === key
           ? html`<div class="lf-fp-foot">
@@ -1918,6 +1912,7 @@ export function createFloatingPanel({
             data-view=${route.view}
             data-thread=${shows(route) ?? nothing}
             ?data-lf-thread-view=${shows(route) !== null}
+            ?data-lf-rises=${route.view === "thread"}
             ${ref(declareView)}
             style=${
               rooms.has(routeKey(route))

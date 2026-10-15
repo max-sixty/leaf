@@ -4890,7 +4890,7 @@ def test_playground_keeps_contributor_drafts_until_reset_or_a_new_choice(
     # attribute this asynchronous replacement to the earlier submit gesture.
     consume_browser_errors(
         page,
-        {"code": "failed-load", "status": 400},
+        http_error_console(400),
         {
             "code": "words-left-screen",
             "words": "refused-region",

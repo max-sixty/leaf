@@ -8,7 +8,8 @@ across the modules below, belongs in the module that owns it.
 Each module owns one concern and states its contract in its header. Callers import the
 owning module directly; a subpackage's `__init__.py` is only a marker, never a second
 API. Domain code refuses by raising `refusals.Refused` or a subclass; only a process or
-transport boundary exits, prints or answers HTTP.
+transport boundary exits, prints or answers HTTP. A command returns its result and
+never prints it; `cli.LeafGroup` prints what it returns (`cli.py`'s header).
 
 ## Owners
 

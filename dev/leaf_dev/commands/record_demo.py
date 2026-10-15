@@ -18,7 +18,7 @@ import json
 import os
 import subprocess
 import tempfile
-from contextlib import contextmanager, redirect_stdout
+from contextlib import contextmanager
 from pathlib import Path
 from uuid import uuid4
 
@@ -450,8 +450,7 @@ def record_demo(output: Path | None) -> None:
         recording = Path(scratch) / "demo"
         recording.mkdir()
         page_dir = Path(scratch) / "page"
-        with redirect_stdout(io.StringIO()):
-            cmd_init(page_dir)
+        cmd_init(page_dir)
         (page_dir / "index.html").write_text(demo_page(1), encoding="utf-8")
         cmd_stamp(page_dir, "Migration rehearsal started; 2 of 4 checks complete")
         cmd_waiting(page_dir, "")

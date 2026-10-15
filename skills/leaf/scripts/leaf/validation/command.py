@@ -1,14 +1,14 @@
 """Command boundary for mutable-source validation.
 
-`page check` prints one JSON object on stdout: `status`, the exit status; `findings`,
-every finding as `findings.Finding.json` gives it, the markup checks' first; and
-`browser`, the browser gates `asked` for and those that `ran` (failing page code ends
-the check before the render gate reads anything), in which browser or why none could,
-with the render gate's margin widths and saved screens where it passed. `browser` is
-null where no gate needed one.
+`page check` returns one JSON object, which the CLI prints and exits with its status
+(`cli.Reported`): `status`, the exit status; `findings`, every finding as
+`findings.Finding.json` gives it, the markup checks' first; and `browser`, the browser
+gates `asked` for and those that `ran` (failing page code ends the check before the
+render gate reads anything), in which browser or why none could, with the render
+gate's margin widths and saved screens where it passed. `browser` is null where no
+gate needed one.
 """
 
-import json
 from pathlib import Path
 
 from leaf.event_log import read_events
@@ -21,7 +21,7 @@ from leaf.registry.storage import layer_metadata
 from .source import check_source
 
 
-def cmd_check(page_dir: Path, render: bool = False) -> int:
+def cmd_check(page_dir: Path, render: bool = False) -> dict:
     """Check the mutable source without activating or stamping it."""
     with page_locked(page_dir):
         return _check(page_dir, render)
@@ -54,21 +54,15 @@ def leaf_versions(page_dir: Path) -> list[Finding]:
     ]
 
 
-def _check(page_dir: Path, render: bool) -> int:
+def _check(page_dir: Path, render: bool) -> dict:
     from leaf.event_contracts import write_refusal
 
     def reported(status, findings, browser=None):
-        print(
-            json.dumps(
-                {
-                    "status": status,
-                    "findings": [f.json() for f in findings],
-                    "browser": browser.json() if browser else None,
-                },
-                ensure_ascii=False,
-            )
-        )
-        return status
+        return {
+            "status": status,
+            "findings": [f.json() for f in findings],
+            "browser": browser.json() if browser else None,
+        }
 
     # A page this Leaf can neither serve nor write passes no check of its source: the
     # re-vendor that repairs it comes first (`layer.incompatible_layer`).

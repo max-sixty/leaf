@@ -22,7 +22,6 @@ The file goes to the state home's `pictures/` directory for the page, named for 
 comment, since a file in the page directory would count as activity on the page.
 """
 
-import json
 from pathlib import Path
 
 from leaf.event_log import read_events
@@ -80,8 +79,8 @@ CLIP = """(el, context) => {
 }"""
 
 
-def cmd_picture(page_dir: Path, message: str) -> int:
-    """Write the picture of drawing comment `message` and print its `file`."""
+def cmd_picture(page_dir: Path, message: str) -> dict:
+    """Write the picture of drawing comment `message` and return its `file`."""
     comment = next(
         (event for event in read_events(page_dir) if event["id"] == message), None
     )
@@ -106,8 +105,7 @@ def cmd_picture(page_dir: Path, message: str) -> int:
             raise Refused(f"no picture: {error}") from error
     if refused:
         raise Refused(f"message {message}: {refused}")
-    print(json.dumps({"file": str(out)}, ensure_ascii=False))
-    return 0
+    return {"file": str(out)}
 
 
 def _picture(browser, url: str, comment: dict, out: Path) -> str | None:

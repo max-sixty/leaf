@@ -39,7 +39,6 @@ working, even after that session releases or ends; a restart of the owning
 session's process keeps it working.
 """
 
-import json
 import re
 import secrets
 import time
@@ -49,6 +48,7 @@ from pathlib import Path
 from typing import Literal
 from xml.etree import ElementTree
 
+from .event_log import jsonl_line
 from .files import read_json
 from .harness import session_harness
 from .machine import state_home
@@ -527,7 +527,7 @@ def delivery_reading(payload: dict, *, part: int = 1) -> dict:
         **payload,
         "acknowledge": payload["acknowledge"] or pointer_acknowledgement(payload["id"]),
     }
-    serialized = json.dumps(reading, indent=2, ensure_ascii=False)
+    serialized = jsonl_line(reading)
     if len(serialized.encode("utf-8")) + 1 <= READ_BYTES:
         if part != 1:
             raise Refused("this delivery has only one part")
@@ -549,15 +549,9 @@ def delivery_reading(payload: dict, *, part: int = 1) -> dict:
     }
 
 
-def cmd_delivery_read(delivery_id: str, *, part: int = 1) -> None:
-    """Print bounded immutable input without changing receipt or ownership."""
-    print(
-        json.dumps(
-            delivery_reading(read_delivery(delivery_id), part=part),
-            indent=2,
-            ensure_ascii=False,
-        )
-    )
+def cmd_delivery_read(delivery_id: str, *, part: int = 1) -> dict:
+    """Bounded immutable input, read without changing receipt or ownership."""
+    return delivery_reading(read_delivery(delivery_id), part=part)
 
 
 def cmd_delivery_ack(delivery_id: str) -> None:

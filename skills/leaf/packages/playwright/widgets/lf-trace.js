@@ -1921,7 +1921,7 @@ customElements.define(
               @click=${{ handleEvent: (event) => this.#inspect(event), capture: true }}
             >
               <div class="lf-trace-stage" ?data-ready=${!!trace} ${ref(this.#stage)}>
-                <div class="lf-trace-heading">
+                <div class="lf-trace-heading" ?hidden=${!trace && !comparing}>
                   <div class="lf-trace-comparison"></div>
                   <div class="lf-trace-toolbar" ?hidden=${!trace}>
                     <div class="lf-trace-transport">

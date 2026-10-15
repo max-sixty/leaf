@@ -175,7 +175,7 @@ export function placeKeeper(
     } else if (!returning && scroller.style.getPropertyValue("overflow-anchor"))
       returning = nextRender(() => {
         returning = 0;
-        if (!current?.spans) scroller.style.removeProperty("overflow-anchor");
+        if (!heldScrollers.has(scroller)) scroller.style.removeProperty("overflow-anchor");
       });
   }
 

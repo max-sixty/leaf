@@ -349,7 +349,7 @@ function placeKeeper(scroller, { items, identity, active = () => true, preferred
     } else if (!returning && scroller.style.getPropertyValue("overflow-anchor"))
       returning = nextRender(() => {
         returning = 0;
-        if (!current?.spans) scroller.style.removeProperty("overflow-anchor");
+        if (!heldScrollers.has(scroller)) scroller.style.removeProperty("overflow-anchor");
       });
   }
   function release2(hold) {

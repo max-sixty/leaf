@@ -262,6 +262,22 @@ test("nested keepers on one scroller correct a reflow once", () => {
   scroller.remove();
 });
 
+test("a released keeper cannot remove the next keeper's anchoring claim", async () => {
+  const { scroller, item, scrollTo } = laidOut();
+  scroller.append(item("first", 1000));
+  scrollTo(1000);
+  const options = { items: ".item", identity: (node) => node.dataset.id };
+  const first = placeKeeper(scroller, options);
+  const second = placeKeeper(scroller, options);
+  first.finish(first.take());
+  const next = second.take();
+  assert.ok(next);
+  await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve)));
+  assert.equal(scroller.style.getPropertyValue("overflow-anchor"), "none");
+  second.finish(next);
+  scroller.remove();
+});
+
 test("a node with no identity passes the place to the next candidate, not a stranger", () => {
   const { scroller, item, at, scrolled, scrollTo } = laidOut();
   const nodes = ["", "b"].map((id, index) => item(id, 1000 + index * 150));

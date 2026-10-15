@@ -167,6 +167,9 @@
   };
   // Writes that restate a value for a reason of their own, by the report they make.
   const EXPECTED = [
+    // A repeated live announcement replaces its text node so assistive technology
+    // hears a fresh arrival even when the words match the previous announcement.
+    /^children of div\.lf-ui\.lf-live$/,
     // Mermaid's diagram renderers and their shared viewport helper both assign the SVG's
     // width while measuring the same drawing. Its upstream-owned paint is separate
     // from Leaf's adapter, which uses keeps when setting the final natural width.

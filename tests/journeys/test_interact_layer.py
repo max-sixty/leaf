@@ -34,7 +34,12 @@ from leaf import packages as packages_model
 from leaf_dev.page_fixtures import package_selection_args
 
 
-def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_path):
+def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(
+    tmp_path, monkeypatch
+):
+    # This test runs the copied install's launcher, not the browser-tier fixture's
+    # prepared checkout launcher.
+    monkeypatch.delenv("LEAF_HOST_LAUNCHER", raising=False)
     commit = "4cb17dc60870"
     installed = install_payload(
         tmp_path / "host" / ".claude" / "plugins" / "cache" / "leaf" / "leaf" / commit

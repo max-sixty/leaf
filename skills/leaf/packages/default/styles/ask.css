@@ -2,7 +2,9 @@
  * Block rather than the custom-element default inline so its box begins at the
  * question's opening and reaches around the context and control the standing ring says
  * are one ask. */
-:scope:is(lf-ask) { display: block; }
+:scope:is(lf-ask) {
+  display: block;
+}
 /* An Ask frames prose, so it keeps the reading measure as its text does (theme.css),
  * its outer width the measure, and in a flow wider than the column (a sidebar page's
  * body) its ring stands round the prose rather than the flow. It widens to the widest
@@ -20,10 +22,16 @@
  * `--lf-block-frame`), and where the block keeps to its holder (`data-lf-kept`,
  * prepaint.js) it lends no reach. An Ask granted room itself is a breakout already. */
 @media screen {
-  :scope:is(lf-ask) { box-sizing: border-box; max-inline-size: var(--lf-measure); }
+  :scope:is(lf-ask) {
+    box-sizing: border-box;
+    max-inline-size: var(--lf-measure);
+  }
   :scope:is(lf-ask):has(> [data-lf-space="wide"]) {
-    max-inline-size: max(var(--lf-measure), var(--wide)); }
-  :scope:is(lf-ask):has(> [data-lf-space="available"]) { max-inline-size: none; }
+    max-inline-size: max(var(--lf-measure), var(--wide));
+  }
+  :scope:is(lf-ask):has(> [data-lf-space="available"]) {
+    max-inline-size: none;
+  }
   :scope:is(lf-ask):not([data-lf-space]):has(> [data-lf-space]:not([data-lf-kept])) {
     margin-left: calc(-1 * var(--lf-grow-l));
     margin-right: calc(-1 * var(--lf-grow-r));
@@ -58,11 +66,21 @@
  * such as a playground, fills the window. With context between the two there is no one
  * box to give the height to, so every part keeps its own. */
 @container style(--lf-full-height: 1) {
-  :scope:is(lf-ask) { display: flex; flex-direction: column; }
-  :scope:is(lf-ask):has(> :nth-child(2 of :not(script, style, template)):nth-last-child(1 of :not(script, style, template))) {
+  :scope:is(lf-ask) {
+    display: flex;
+    flex-direction: column;
+  }
+  :scope:is(lf-ask):has(
+      > :nth-child(2 of :not(script, style, template)):nth-last-child(
+          1 of :not(script, style, template)
+        )
+    ) {
     --lf-full-height: inherit;
   }
-  :scope:is(lf-ask) > :nth-child(2 of :not(script, style, template)):nth-last-child(1 of :not(script, style, template)) {
+  :scope:is(lf-ask)
+    > :nth-child(2 of :not(script, style, template)):nth-last-child(
+      1 of :not(script, style, template)
+    ) {
     flex: 1 1 0;
     min-block-size: 0;
     margin-block-end: 0;

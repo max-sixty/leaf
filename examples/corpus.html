@@ -1751,7 +1751,9 @@
       }
       lf-merge-film .film-inspect {
         position: absolute;
-        max-width: 300px;
+        box-sizing: border-box;
+        width: max-content;
+        max-width: min(300px, calc(100% - 20px));
         padding: 10px 12px;
         display: grid;
         gap: 4px;
@@ -1762,9 +1764,6 @@
         border-radius: var(--r);
         box-shadow: 0 8px 24px var(--shade);
         pointer-events: none;
-      }
-      lf-merge-film[data-phone] .film-inspect {
-        max-width: calc(100% - 20px);
       }
       lf-merge-film .film-inspect strong {
         font-family: var(--mono);

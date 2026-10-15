@@ -139,11 +139,10 @@ def validate_layer_declarations(registry: dict, path) -> None:
             missing=sorted(admitted - documented),
             unadmitted=sorted(documented - admitted),
         )
-    # Idioms share author-facing fields with elements; only marks whose readers
-    # consume delivery's paint can be declared on selectors. Validate every selector,
-    # even one without marks, because it remains an authored vocabulary identity.
-    marks = {key for key, mark in DECLARED_MARKS.items() if mark.get("idiom")}
-    allowed = {"description", "x-example", "x-instructions"} | marks
+    # Idioms share author-facing fields with elements and declare no marks: a mark is
+    # its tag's (`revision_delivery.mark_declared`). Validate every selector, because it
+    # remains an authored vocabulary identity.
+    allowed = {"description", "x-example", "x-instructions"}
     probe = turbohtml.parse("<p></p>").find("p")
     for selector, entry in registry.items():
         if selector.startswith("$") or is_element_name(selector):
@@ -162,9 +161,7 @@ def validate_layer_declarations(registry: dict, path) -> None:
             or not isinstance(entry.get("x-example"), str)
             or not entry["x-example"].strip()
         ):
-            raise registry_error(
-                "idiom-fields", path, selector=selector, marks=sorted(marks)
-            )
+            raise registry_error("idiom-fields", path, selector=selector)
         for key in set(entry) - {"description"}:
             if not json_validator(EXTENSION_SCHEMA["properties"][key]).is_valid(
                 entry[key]

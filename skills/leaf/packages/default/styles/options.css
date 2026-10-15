@@ -35,6 +35,11 @@
              --lf-option-font: var(--t-4)/1.6 var(--serif);
              --lf-option-line: 1lh;
              container-type: inline-size; }
+/* Options are read as lines of text, so the group keeps the reading measure as its
+ * words do (theme.css), its outer width the measure whatever one option holds. */
+@media screen {
+  :scope:is(lf-options) { box-sizing: border-box; max-inline-size: var(--lf-measure); }
+}
 :scope:is(lf-options):not(:has(> lf-option > strong)) {
              --lf-option-font: var(--t-5)/1.5 var(--sans);
              font: var(--lf-option-font); }

@@ -74,16 +74,16 @@
    as a small badge or key chip, declares `white-space: nowrap` locally. Test long
    identifiers and paths, not only ordinary prose.
 
-   A spatial element reads the room declared by `x-space`:
+   A spatial element reads the room past the measure declared by `x-space`:
 
-   - `column` keeps the reading measure and starts where text does;
    - `wide` takes the shared capped evidence width;
    - `available` takes all room the page can give it.
 
-   Delivery paints `column` as `data-lf-column` and the others as `data-lf-space`, so
-   `data-lf-space` always means a breakout, and CSS computes room after chrome strips and
-   occupied margins. A spatial element inside a framed box uses that box's room, not the
-   outer page's. Packages arrange content inside the allocation. Size the widget's box
+   Delivery paints it as `data-lf-space`, and CSS computes room after chrome strips and
+   occupied margins. An element read as lines of text keeps to the reading measure in
+   its own stylesheet (`max-inline-size: var(--lf-measure)`), as text does. A spatial
+   element inside a framed box uses that box's room, not the outer page's. Packages
+   arrange content inside the allocation. Size the widget's box
    with `contain: inline-size` where its contents would otherwise make the box wider.
 
    Every box that frames authored block flow declares `--lf-block-frame` where the frame is
@@ -594,10 +594,9 @@ html[data-lf-live][data-lf-floating-chrome] {
  * its children's margins, and some boxes trap them without drawing anything (`main`'s
  * padding, a page tab's panel, a goal's float containment), so the declaration has one
  * value for each: `1` draws a frame, and `trim` only trims. The trim reads both; what
- * else a frame does (withholding the page's room, layouts.css; filling it with a table,
- * below) reads `1`. `--lf-block-frame` inherits, so the reset
- * inside holds the claim to the box's own children; a nested frame outranks the reset
- * by being a selector rather than `*`.
+ * else a frame does (withholding the page's room, layouts.css) reads `1`.
+ * `--lf-block-frame` inherits, so the reset inside holds the claim to the box's own
+ * children; a nested frame outranks the reset by being a selector rather than `*`.
  *
  * Which child is at the edge is a question about the page's own blocks, and `:first-child`
  * is the DOM's answer to it. The two are the same only where no module has written
@@ -958,39 +957,27 @@ main {
  * the page's grid sizes, and a page with no Layout state none, and there a line runs to
  * the edge of the box it stands in. Where a measure is stated, text keeps it
  * wherever it stands: a paragraph, a list item or a heading is never set wider than the
- * column, however wide the box around it. So does a block kept to the column
- * (`data-lf-column`): a widget whose content is read as lines of text, or a box that
- * frames prose (an Ask, a callout, which declares it as an idiom), declares it
- * (`x-space: column`). It starts at its holder's start edge, so in a flow wider than the
- * column (a pane, a sidebar page's body) the widget's box and the prose around it share
- * one left edge and one width. It caps the width and sets no margin, so a widget's own
- * arrangement still places the box. Package captions may span their own frame, so
- * these rules share their base layer at zero specificity. */
+ * column, however wide the box around it. So do a callout, which frames prose, and a
+ * suggestion, whose slots hold it; a package keeps its own widgets read as lines of text
+ * to the measure the same way (ask.css, options.css). Each starts at its holder's start
+ * edge, so in a flow wider than the column (a pane, a sidebar page's body) the box and
+ * the prose around it share one left edge and one width. It caps the width and sets no
+ * margin, so a widget's own arrangement still places the box. Package captions may span
+ * their own frame, so these rules share their base layer at zero specificity. */
 @media screen {
-  :where(p, li, dt, dd, blockquote, figcaption, h1, h2, h3, h4, h5, h6,
-    [data-lf-column]) {
+  :where(p, li, dt, dd, blockquote, figcaption, h1, h2, h3, h4, h5, h6, .callout,
+    lf-suggestion) {
     max-inline-size: var(--lf-measure);
   }
-  /* The measure is a text's line length, and an allocated box's outer width: the box
-   * the column would give it, its border and padding inside. The box states the column
-   * as the width it may reach (`--lf-reach`, as a breakout states its own in
-   * layouts.css), so a widget whose minimum reads it, such as a board's columns, keeps
-   * to the column and scrolls inside it. */
-  :where([data-lf-column]) {
-    box-sizing: border-box;
-    --lf-reach: min(var(--lf-measure), var(--lf-room, 0px));
-  }
-  /* A box kept to the column widens to the widest allocation among its own blocks, so
-   * an Ask or a callout around a chart or table that declares `wide` or `available`
-   * frames that block rather than clipping it to the measure. On a column page the block
-   * breaks out of the column (layouts.css), and an Ask, which draws no frame of its own,
-   * spans it (ask.css); in a wider flow the box takes the room. Only its children count: a block inside one of them, such as
-   * a table in an option or a folded disclosure, is held to that child's width, so an
-   * option list keeps the measure whatever one option holds. */
-  :where([data-lf-column]:has(> [data-lf-space="wide"])) {
+  /* A callout's measure is its outer width, its border and padding inside, and it
+   * widens to the widest allocation among its own blocks, so it frames a chart or table
+   * that declares `wide` or `available` rather than clipping it to the measure. Only
+   * its children count. */
+  :where(.callout) { box-sizing: border-box; }
+  :where(.callout:has(> [data-lf-space="wide"])) {
     max-inline-size: max(var(--lf-measure), var(--wide));
   }
-  :where([data-lf-column]:has(> [data-lf-space="available"])) {
+  :where(.callout:has(> [data-lf-space="available"])) {
     max-inline-size: none;
   }
   /* A bounded block scrolls within its stated height. A widget can assign that bound to

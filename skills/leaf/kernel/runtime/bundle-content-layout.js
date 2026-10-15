@@ -47,8 +47,8 @@ function settleResidency() {
 }
 var BREAKOUT = "[data-lf-space]";
 var bringsBreakout = (node) => node.nodeType === Node.ELEMENT_NODE && (node.matches(BREAKOUT) || node.querySelector(BREAKOUT) !== null);
-function readIndents() {
-  const { changed } = document.documentElement.lfInitial.indents();
+function readBreakouts() {
+  const { changed } = document.documentElement.lfInitial.breakouts();
   if (!changed) return;
   layoutChanged(pageDocument());
   repaintPage();
@@ -64,7 +64,7 @@ function openResidency({ onRead }) {
       if (records.some(
         (record) => record.type === "attributes" ? bringsBreakout(record.target) : [...record.addedNodes].some(bringsBreakout)
       ))
-        readIndents();
+        readBreakouts();
     }).observe(main, {
       childList: true,
       subtree: true,

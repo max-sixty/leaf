@@ -673,6 +673,12 @@
   --lf-option-line: 1lh;
   container-type: inline-size;
 }
+@media screen {
+  :scope:is(lf-options) {
+    box-sizing: border-box;
+    max-inline-size: var(--lf-measure);
+  }
+}
 :scope:is(lf-options):not(:has(> lf-option > strong)) {
   --lf-option-font: var(--t-5)/1.5 var(--sans);
   font: var(--lf-option-font);
@@ -2482,7 +2488,17 @@
   display: block;
 }
 @media screen {
-  :scope:is(lf-ask)[data-lf-column]:has(> [data-lf-space]:not([data-lf-arranged])) {
+  :scope:is(lf-ask) {
+    box-sizing: border-box;
+    max-inline-size: var(--lf-measure);
+  }
+  :scope:is(lf-ask):has(> [data-lf-space=wide]) {
+    max-inline-size: max(var(--lf-measure), var(--wide));
+  }
+  :scope:is(lf-ask):has(> [data-lf-space=available]) {
+    max-inline-size: none;
+  }
+  :scope:is(lf-ask):not([data-lf-space]):has(> [data-lf-space]:not([data-lf-kept])) {
     margin-left: calc(-1 * var(--lf-grow-l));
     margin-right: calc(-1 * var(--lf-grow-r));
     padding-left: var(--lf-grow-l);
@@ -2931,6 +2947,12 @@
   margin: 12px 0;
   background: var(--card);
   font-size: max(var(--entry-floor), 1em);
+}
+@media screen {
+  :scope:is(lf-draft) {
+    box-sizing: border-box;
+    max-inline-size: var(--lf-measure);
+  }
 }
 .lf-draft-body,
 :scope:is(lf-draft) > .lf-markdown-body {

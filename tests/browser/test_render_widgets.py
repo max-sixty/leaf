@@ -2068,7 +2068,7 @@ def test_a_release_page_is_wide_and_keeps_the_log_on_its_newest_line(browser, se
     """A sidebar page of body and track: the lede starts at the page's edge and keeps
     the reading measure, as does the status callout, every other region of the body
     shares the body's two edges and every region of the track the track's, and the
-    checks table fills its panel. On a narrow
+    checks table's box fills its panel. On a narrow
     window the track stacks under the body, and the bounded log opens on its newest
     line. Paper shows the log whole."""
     example = Path(__file__).parents[2] / "examples" / "live-progress.html"

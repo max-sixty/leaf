@@ -647,34 +647,6 @@ button.lf-thread-notice[data-lf-focus] {
   margin: 18px 0;
   font-variant-numeric: tabular-nums;
 }
-@property --lf-fills-frame { syntax: "<integer>"; inherits: false; initial-value: 0; }
-@property --lf-granted { syntax: "<integer>"; inherits: true; initial-value: 0; }
-:where([data-lf-space]) {
-  --lf-granted: 1;
-}
-:where([data-lf-column]) {
-  --lf-granted: 0;
-}
-@container style(--lf-granted: 1) {
-  :where(:root, .lf-thread-transcript) table {
-    --lf-fills-frame: 1;
-  }
-}
-:where(:root, .lf-thread-transcript) table:where([data-lf-space]) {
-  --lf-fills-frame: 0;
-}
-@container style(--lf-block-frame: 1) {
-  :where(:root, .lf-thread-transcript) table {
-    --lf-fills-frame: 1;
-  }
-}
-@container style(--lf-fills-frame: 1) {
-  :where(:root, .lf-thread-transcript) table::before {
-    content: "";
-    display: table-caption;
-    min-inline-size: 100cqi;
-  }
-}
 :where(:root, .lf-thread-transcript) :is(th, td) code:not(pre code) {
   padding: 0;
   background: none;

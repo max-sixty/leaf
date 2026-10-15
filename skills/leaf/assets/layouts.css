@@ -171,20 +171,22 @@
    * A breakout states its width as well as its negative margins, because a box with a
    * width of its own (a table box, an iframe) does not widen from margins. It outranks a
    * widget's own width; a page rule sizing a breakout moves it off the prose axis, which
-   * the render check names (layout.js, `off-axis`). */
-  /* Measured on each breakout alone (prepaint.js, `indents`), so they do not inherit.
-   * Zero until read, the holder taken as the column. */
-  @property --lf-indent-l { syntax: "<length>"; inherits: false; initial-value: 0px; }
-  @property --lf-indent-r { syntax: "<length>"; inherits: false; initial-value: 0px; }
+   * the render check names (layout.js, `off-axis`).
+   *
+   * A block breaks out only from a holder whose content box is the column's, such as
+   * `main` itself, a section or an Ask standing in it. One in a box standing in from the
+   * column (a list item, a quotation, a page's own indented block) or one the page
+   * arranged keeps to its holder, and the runtime marks it so (`data-lf-kept`,
+   * prepaint.js `breakouts`): the room beside it is not the page's to give, and its
+   * holder's axis is not the prose's. */
   /* `--lf-breakout: 1`: the theme lets this box stand past its holder. Each rule that
    * lets one break out says so, so a reader (the render check, layout.js) asks the box.
    * It does not inherit. */
   @property --lf-breakout { syntax: "<integer>"; inherits: false; initial-value: 0; }
   @media screen {
-    /* `data-lf-space` is the room a block takes past the measure: its tag's or idiom's
-     * x-space, or the occurrence's `data-width`, painted by delivery (`mark_declared`) so
-     * the width is in the first paint; delivery paints `x-space: column` as
-     * `data-lf-column` instead. A message's room is withheld by not painting it.
+    /* `data-lf-space` is the room a block takes past the measure: its tag's x-space, or
+     * the occurrence's `data-width`, painted by delivery (`mark_declared`) so the width
+     * is in the first paint. A message's room is withheld by not painting it.
      *
      * A block declaring a wider room than the measure is never as wide as its content,
      * on any page: what it holds scrolls inside it. Size containment keeps its content's
@@ -198,22 +200,19 @@
      * a new one joins its list. `:where()` adds no specificity; `@scope` was rejected
      * because its proximity outranks order, letting these rules beat a later rule of
      * equal specificity in this layer, such as a tile's margin (`.layout-tiles > *`).
-     * A box kept to the measure (`data-lf-column`, theme.css) shares the arithmetic and
-     * has no surplus unless it holds a breakout among its own blocks. `wide` and
-     * `available` each refine the second rule. */
+     * A widget holding authored blocks (`x-content: markup`), one of which breaks out,
+     * shares the arithmetic, so it may span that block: an Ask does (ask.css). `wide`
+     * and `available` each refine the second rule. */
     :where(main.layout-column, main.layout-sidebar) {
-      :is([data-lf-space], [data-lf-column]) {
+      :is([data-lf-space],
+        [data-lf-content="markup"]:has(> [data-lf-space]:not([data-lf-kept]))) {
         /* Held to the free room beside the page (--lf-free-l/r) and spent evenly about
-         * the prose axis where both sides have it. A holder standing in from the column,
-         * such as a list item, adds its indent on that side (`--lf-indent-l/r`), so the
-         * box keeps the prose axis rather than its holder's. Neither side goes below
-         * zero, so the box always covers its holder. */
+         * the prose axis where both sides have it. Neither side goes below zero, so the
+         * box always covers its holder. */
         --lf-surplus: clamp(0px, calc(var(--lf-reach) - 100%),
-          calc(var(--lf-free-l) + var(--lf-indent-l) + var(--lf-free-r) + var(--lf-indent-r)));
-        --lf-grow-l: clamp(
-          max(0px, calc(var(--lf-surplus) - var(--lf-free-r) - var(--lf-indent-r))),
-          calc((var(--lf-surplus) + var(--lf-indent-l) - var(--lf-indent-r)) / 2),
-          min(var(--lf-surplus), calc(var(--lf-free-l) + var(--lf-indent-l))));
+          calc(var(--lf-free-l) + var(--lf-free-r)));
+        --lf-grow-l: clamp(max(0px, calc(var(--lf-surplus) - var(--lf-free-r))),
+          calc(var(--lf-surplus) / 2), min(var(--lf-surplus), var(--lf-free-l)));
         --lf-grow-r: calc(var(--lf-surplus) - var(--lf-grow-l));
       }
       [data-lf-space] {
@@ -226,33 +225,29 @@
       }
       /* `wide` is one width wherever the block stands: capped at --wide even in a holder
        * already wider, such as a sidebar page's body; `available` takes everything. A
-       * box kept to the column reaches as far as the widest of its own children
-       * (theme.css widens it there), unless the page arranged that child
-       * (`data-lf-arranged`). A box that draws no frame spends that reach by spanning the
-       * block (ask.css); one that draws a frame keeps the block inside it
-       * (`--lf-block-frame`, below). */
+       * widget holding a block that breaks out reaches as far as that block. */
       :is([data-lf-space="wide"],
-        [data-lf-column]:where(:has(> [data-lf-space="wide"]:not([data-lf-arranged])))) {
+        [data-lf-content="markup"]:has(> [data-lf-space="wide"]:not([data-lf-kept]))) {
         --lf-reach: min(var(--wide), var(--lf-room, 0px));
       }
       :is([data-lf-space="available"],
-        [data-lf-column]:where(:has(> [data-lf-space="available"]:not([data-lf-arranged])))) {
+        [data-lf-content="markup"]:has(
+          > [data-lf-space="available"]:not([data-lf-kept]))) {
         --lf-reach: var(--lf-room, 0px);
       }
       [data-lf-space="wide"] {
         max-width: var(--wide);
       }
-      /* A breakout inside another, or one the page arranged (`data-lf-arranged`), takes
-       * its holder's width: the room beside it is the page's own. A box kept to the
-       * column is no such holder: a framed one withholds room as any frame does (below),
-       * and an unframed one, such as an Ask, lets a breakout through. */
-      [data-lf-space] :is([data-lf-space], [data-lf-column]),
-      [data-lf-arranged] {
+      /* What a breakout holds, and a breakout kept to its holder (`data-lf-kept`),
+       * take their holder's width: the room past it is the breakout's or the page's own.
+       * `--lf-room` inherits, so a block at any depth inside a breakout gets none. */
+      [data-lf-space] > *,
+      [data-lf-kept] {
         --lf-room: 100%;
       }
       /* A widget that failed soft shows its message and source (`.lf-error`), which are
        * prose, so it takes the column; the source's `pre` scrolls inside the message. */
-      :is([data-lf-space], [data-lf-column]):has(> .lf-error) {
+      [data-lf-space]:has(> .lf-error) {
         --lf-room: 0px; }
       /* A box that draws a frame keeps a wide widget inside it: the room is the page's to
        * give, and inside a callout or disclosure the page is not what holds the widget. A
@@ -268,90 +263,51 @@
         * { --lf-room: 100%; }
       }
       /* When startup is incomplete, undrawn widgets show source in the column. */
-      html[data-lf-startup-error]:not([data-lf-interactive]) & :is([data-lf-space], [data-lf-column]) {
+      html[data-lf-startup-error]:not([data-lf-interactive]) & :is([data-lf-space],
+        [data-lf-content="markup"]:has(> [data-lf-space])) {
         --lf-room: 0px;
       }
     }
     /* A table breakout paints only its columns' rules, so its room is a limit, not a
      * size: its box takes the columns' natural width (`max-content`), at least its
-     * holder's and at most an even span about the prose axis (`--lf-table-span`). One
-     * that fits its holder starts where the holder's text does; one wider keeps the
-     * holder's far edge until it is as wide as the column, then centres on the prose
-     * axis, so it never jumps. Its place is the larger of those two offsets, in the box's
-     * width and the column's (`--lf-width`) less the holder's indents.
+     * holder's and at most the breakout's, and stands where a breakout of that width
+     * would, by the same arithmetic about the prose axis (`--lf-over` is how far it
+     * passes the column). One that fits the column starts where the prose does.
      *
-     * The margin sets the box at the span's start (percentages of the holder) and a
-     * translation, which can use the box's own width, moves it the rest; both follow the
-     * holder's direction, not the table's. Laying it out in the span keeps Firefox from
-     * counting an untranslated overhang in what the page scrolls. Where the margins are
-     * uneven the even span is twice the narrower side's room; beside a sidebar in the
-     * margin the span starts at the prose's left edge and grows right.
+     * The margin sets the box at the edge of the free room on its holder's start side,
+     * and a translation, which can use the box's own width (`--lf-pull` is how far a
+     * breakout of that width grows left), moves it the rest. Laying it out inside the
+     * room keeps Firefox from counting an untranslated overhang in what the page
+     * scrolls. A box wider than its holder is placed from the holder's start whatever
+     * margin the other side states, so each direction sets its own start.
      *
-     * Its width is its content's, so it gives up size containment and breaks out only
-     * down a chain of block flow (prepaint.js, `indents`); a table the page arranged, in a
-     * frame, or inside another breakout stays the contained table reading.css makes it.
-     * Its caption is held to the span. It says `normal` before `scroll-state` because
-     * Firefox and WebKit drop the second, and a size container would zero its
-     * `max-content`. */
+     * Its width is its content's, so it gives up size containment; a table the page
+     * arranged, in a frame, or inside another breakout stays the contained table
+     * reading.css makes it. Its caption is held to the breakout's width. It says
+     * `normal` before `scroll-state` because Firefox and WebKit drop the second, and a
+     * size container would zero its `max-content`. */
     @container not (style(--lf-room: 100%) or style(--lf-block-frame: 1)) {
-      main.layout-column table[data-lf-space]:not(
-        [data-lf-space] table, [data-lf-arranged]) {
+      main.layout-column table[data-lf-space]:not([data-lf-space] table, [data-lf-kept]) {
         contain: none;
         container-type: normal;
         container-type: scroll-state;
         width: max-content;
         min-width: 100%;
-        max-width: var(--lf-table-span);
-        margin-left: calc(var(--lf-width) / 2 - var(--lf-indent-l) - var(--lf-table-span) / 2);
-        margin-right: 0;
-        translate: min(
-          calc(var(--lf-table-span) / 2 - var(--lf-width) / 2 + var(--lf-indent-l)),
-          max(calc(var(--lf-table-span) / 2 + var(--lf-width) / 2 - var(--lf-indent-r) - 100%),
-            calc(var(--lf-table-span) / 2 - 50%))) 0;
-        --lf-table-span: calc(var(--lf-width) + 2 * min(var(--lf-free-l), var(--lf-free-r)));
-      }
-      main.layout-column table[data-lf-space="wide"]:not(
-        [data-lf-space] table, [data-lf-arranged]) {
-        --lf-table-span: min(var(--wide),
-          var(--lf-width) + 2 * min(var(--lf-free-l), var(--lf-free-r)));
-      }
-      :is(main.layout-column, main.layout-column *):dir(rtl)
-        > table[data-lf-space]:not(
-        [data-lf-space] table, [data-lf-arranged]) {
-        margin-left: 0;
-        margin-right: calc(var(--lf-width) / 2 - var(--lf-indent-r) - var(--lf-table-span) / 2);
-        translate: max(
-          calc(var(--lf-width) / 2 - var(--lf-indent-r) - var(--lf-table-span) / 2),
-          min(calc(100% - var(--lf-width) / 2 + var(--lf-indent-l) - var(--lf-table-span) / 2),
-            calc(50% - var(--lf-table-span) / 2))) 0;
-      }
-      main.layout-column[data-lf-margin~="sidebar"]
-        table[data-lf-space]:not(
-        [data-lf-space] table, [data-lf-arranged]) {
-        margin-left: calc(-1 * var(--lf-indent-l));
-        margin-right: 0;
-        translate: min(var(--lf-indent-l),
-          max(calc(var(--lf-width) - var(--lf-indent-r) - 100%), 0px)) 0;
-        --lf-table-span: calc(var(--lf-width) + var(--lf-free-r));
-      }
-      main.layout-column[data-lf-margin~="sidebar"]
-        table[data-lf-space="wide"]:not(
-        [data-lf-space] table, [data-lf-arranged]) {
-        --lf-table-span: min(var(--wide), var(--lf-width) + var(--lf-free-r));
-      }
-      :is(main.layout-column[data-lf-margin~="sidebar"],
-        main.layout-column[data-lf-margin~="sidebar"] *):dir(rtl)
-        > table[data-lf-space]:not(
-        [data-lf-space] table, [data-lf-arranged]) {
-        margin-left: 0;
-        margin-right: calc(var(--lf-width) - var(--lf-indent-r) - var(--lf-table-span));
-        translate: max(calc(var(--lf-width) - var(--lf-indent-r) - var(--lf-table-span)),
-          calc(100% - var(--lf-table-span))) 0;
-      }
-      main.layout-column table[data-lf-space]:not(
-        [data-lf-space] table,
-        [data-lf-arranged]) > caption {
-        max-inline-size: var(--lf-table-span);
+        max-width: calc(100% + var(--lf-surplus));
+        margin-left: calc(-1 * var(--lf-free-l));
+        margin-right: auto;
+        --lf-over: calc(100% - var(--lf-width));
+        --lf-pull: clamp(max(0px, var(--lf-over) - var(--lf-free-r)),
+          var(--lf-over) / 2, min(var(--lf-over), var(--lf-free-l)));
+        translate: calc(var(--lf-free-l) - var(--lf-pull)) 0;
+        :dir(rtl) > & {
+          margin-left: auto;
+          margin-right: calc(-1 * var(--lf-free-r));
+          translate: calc(var(--lf-over) - var(--lf-free-r) - var(--lf-pull)) 0;
+        }
+        & > caption {
+          max-inline-size: max(var(--lf-width), var(--lf-reach));
+        }
       }
     }
     /* A widget with a stated height (x-height, or `data-height`) has that box from the

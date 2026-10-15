@@ -359,34 +359,25 @@ def mark_declared(
     module clones it, and a declarative shadow tree's content is its host's to style, so
     neither is marked.
 
-    A mark is declared by the element's tag or by a selector idiom whose selector
-    the element matches, as a `.callout` declares the room it takes; the tag's
-    declaration comes first.
+    A mark is declared by the element's tag, so a selector idiom declares none.
     """
     tree = turbohtml.parse(source, scripting=True, source_locations=True)
     index = source_index(source)
-    idioms = [
-        (selector, entry)
-        for selector, entry in registry.items()
-        if not selector.startswith("$")
-        and not is_element_name(selector)
-        and not entry.keys().isdisjoint(DECLARED_MARKS)
-    ]
     edits = []
     for element in tree.find_all(True):
         location = element.source_location
         if location is None or element.closest("template") is not None:
             continue
-        declarations = (
-            [registry.get(element.tag, {})] if is_element_name(element.tag) else []
-        ) + [entry for selector, entry in idioms if element.matches(selector)]
+        declaration = (
+            registry.get(element.tag, {}) if is_element_name(element.tag) else {}
+        )
         attrs = element_attrs(element)
         content = element.tag not in {"html", "body", "main"} and (
             element.closest("main") is not None
         )
         marks = {}
         for key, mark in DECLARED_MARKS.items():
-            declared = next((d[key] for d in declarations if d.get(key)), None)
+            declared = declaration.get(key)
             means = {"content": content, "declared": bool(declared)}
             authored = mark.get("authored")
             if authored in attrs and means[mark["authored_on"]]:
@@ -395,10 +386,7 @@ def mark_declared(
                 value = "" if declared is True else str(declared)
             else:
                 continue
-            if value in mark.get("paints", {}):
-                marks[mark["paints"][value]] = ""
-            else:
-                marks[mark["paint"]] = value
+            marks[mark["paint"]] = value
         sizes = [
             size
             for value in attrs.values()

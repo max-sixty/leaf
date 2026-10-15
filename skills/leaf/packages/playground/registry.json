@@ -20,7 +20,8 @@
     "additionalProperties": false,
     "x-content": "members",
     "x-upgrade": true,
-    "x-awaits": {"value": "choose",
+    "x-awaits": {
+      "value": "choose",
       "answered": {
         "choose": {}
       }

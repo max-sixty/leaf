@@ -781,6 +781,77 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
         assert names_move(errors, protected), errors
 
 
+@pytest.mark.parametrize(
+    "fault, protected",
+    [
+        ("", None),
+        ("carried_words", None),
+        ("undeclared", "button#head"),
+        ("unstanding", "button#head"),
+        ("extra_head", "button#head"),
+        ("overrisen_port", "button#head"),
+        ("outside_runtime", "button#head"),
+    ],
+)
+def test_append_growth_may_raise_a_port_standing_on_its_foot(browser, fault, protected):
+    """A scrollport declared to stand on its foot (`data-lf-rises`), as the floating
+    panel's thread view stands on its row, may rise at its head with its append source's growth, carrying all it holds
+    and its head up by that rise while the row beneath stays put; and no further. A text
+    it carries may change its words as it goes, as a message's state does."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0;font:16px monospace">'
+            '<section id="stand" data-lf-runtime style="position:fixed;bottom:0;left:0;'
+            'width:360px"><header><button id="head">Close</button></header>'
+            '<div id="port" data-lf-rises '
+            'style="max-height:300px;overflow:auto;overflow-anchor:none">'
+            '<div id="source" data-lf-reflow="append">'
+            '<p id="old" style="margin:0;height:40px">Already reading.</p></div></div>'
+            '<button id="field">Comment</button></section></body>'
+        )
+    )
+    if fault == "undeclared":
+        page.locator("#source").evaluate(
+            "node => node.removeAttribute('data-lf-reflow')"
+        )
+    if fault == "unstanding":
+        page.locator("#port").evaluate("node => node.removeAttribute('data-lf-rises')")
+    if fault == "outside_runtime":
+        page.locator("#stand").evaluate(
+            "node => node.removeAttribute('data-lf-runtime')"
+        )
+    paint(page)
+    boxes = """() => Object.fromEntries(['head', 'old', 'field'].map((id) =>
+      [id, document.getElementById(id).getBoundingClientRect().top]))"""
+    before = page.evaluate(boxes)
+    page.evaluate(
+        """fault => {
+          const next = document.createElement('p');
+          next.textContent = 'The answer.';
+          next.style.cssText = 'margin:0;height:40px';
+          document.getElementById('source').append(next);
+          if (fault === 'carried_words')
+            document.getElementById('old').firstChild.data = 'Read, and longer than it was.';
+          if (fault === 'extra_head')
+            document.querySelector('header').style.marginBottom = '7px';
+          if (fault === 'overrisen_port')
+            document.getElementById('port').style.paddingTop = '7px';
+        }""",
+        fault,
+    )
+    judge_watches()
+    after = page.evaluate(boxes)
+    assert after["field"] == before["field"]
+    if not protected:
+        assert after["head"] == before["head"] - 40
+        assert after["old"] == before["old"] - 40
+    else:
+        errors = consume_browser_errors(page, {"code": "moved-without-input"})
+        assert names_move(errors, protected), errors
+
+
 @pytest.mark.parametrize("overflow", ["visible", "auto"])
 def test_boxless_overflow_does_not_hide_carried_reading(browser, overflow):
     """Overflow on a display:contents wrapper cannot clip its visible descendants."""

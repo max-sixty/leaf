@@ -6577,6 +6577,11 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
             workflows: message.workflows
           });
           view.draw();
+          keeps(
+            view.node,
+            "data-lf-append-tail",
+            message.provisional && message === item.thread.msgs.at(-1) ? "" : null
+          );
         } else {
           keepsHidden(view.node, !replyAvailable(item.thread));
           if (view.notice.node.parentNode !== view.node)
@@ -8230,7 +8235,7 @@ async function notifyDataSubscribers() {
   for (const delivered of [...deliveryListeners]) delivered(round);
   const current = [...subscriptions];
   for (const subscription of current) subscription.notify();
-  const regions = current.flatMap((subscription) => subscription.regions);
+  const regions = current.map((subscription) => subscription.region);
   await whenApplicationRegionsPresented(
     regions,
     () => runtime.data.version === version
@@ -8269,6 +8274,7 @@ function dataReader(element, input) {
   );
   stagedReadings.add(selected);
   let reported = null;
+  let copied = { store: null, value: null };
   return () => {
     selected.read();
     const sourceStore = (
@@ -8284,24 +8290,29 @@ function dataReader(element, input) {
     }
     if (incompatible || !source || !sourceStore || !Object.hasOwn(sourceStore, "value"))
       return null;
-    return structuredClone({
-      source,
-      ...sourceStore,
-      origin: {
-        input,
-        source,
-        contract: declaration.contract,
-        revision: sourceStore.revision
-      }
-    });
+    if (sourceStore !== copied.store)
+      copied = {
+        store: sourceStore,
+        value: structuredClone({
+          source,
+          ...sourceStore,
+          origin: {
+            input,
+            source,
+            contract: declaration.contract,
+            revision: sourceStore.revision
+          }
+        })
+      };
+    return copied.value;
   };
 }
 var deliveries = 0;
 var deliveryListeners = /* @__PURE__ */ new Set();
 var stagedReadings = /* @__PURE__ */ new WeakSet();
 var stagesOnly = (reading) => stagedReadings.has(reading);
-function joinDataDelivery(regions) {
-  const subscription = { regions, notify() {
+function joinDataDelivery(region) {
+  const subscription = { region, notify() {
   } };
   subscriptions.add(subscription);
   return () => subscriptions.delete(subscription);
@@ -8316,7 +8327,7 @@ function watchData(element, input, callback) {
   let completion = Promise.resolve();
   const region = `data:${element.id}:${input}:${++subscriptionSequence}`;
   let presentation = null;
-  const subscription = { regions: [region], notify: () => notifySelected() };
+  const subscription = { region, notify: () => notifySelected() };
   let stopSelection;
   let pendingDelivery = null;
   let stopped = false;

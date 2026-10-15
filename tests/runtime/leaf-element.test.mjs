@@ -481,6 +481,42 @@ test("a check's redraw leaves the update a move queued, and its claim", async ()
   element.remove();
 });
 
+test("a draw's claim waits for the drawing it holds it for", async () => {
+  let finish;
+  const tag = `lf-probe-drawing-${++tags}`;
+  customElements.define(
+    tag,
+    class extends LeafElement {
+      render() {
+        return html`${phase()}`;
+      }
+      updated(changed) {
+        super.updated(changed);
+        if (phase() === "offline") this.drawing(new Promise((done) => (finish = done)));
+      }
+    },
+  );
+  applicationState.setPhase("waiting");
+  const element = document.createElement(tag);
+  element.id = tag;
+  document.body.append(element);
+  await settled(element);
+  applicationState.setPhase("offline");
+  await settled(element);
+  assert.ok(pending(element), "the claim waits for the drawing");
+  finish();
+  await settled(element);
+  assert.ok(!pending(element));
+  // An update no move claimed, as a retry is, claims the region for its drawing.
+  element.requestUpdate();
+  await settled(element);
+  assert.ok(pending(element), "the unclaimed update's drawing holds the region");
+  finish();
+  await settled(element);
+  assert.ok(!pending(element));
+  element.remove();
+});
+
 test("accepted data claims the element's region until its delivery draws", async () => {
   const tag = `lf-probe-claim-${++tags}`;
   adoptRegistry({

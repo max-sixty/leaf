@@ -18,7 +18,7 @@ from .files import (
     version_descriptors,
 )
 from .passages import SourceReading
-from .presence import other_leaves, presence_fingerprint, presence_with_activity
+from .presence import neighbor_reading, presence_fingerprint, presence_with_activity
 from .registry.storage import read_page_registry
 from .revision_artifact import (
     Resource,
@@ -200,7 +200,7 @@ def capture_page_snapshot(
         present, live_stream = presence_with_activity(
             page_dir, list(events), process=process
         )
-        others = tuple(copy.deepcopy(other_leaves(page_dir))) if process else ()
+        others = tuple(copy.deepcopy(neighbor_reading(page_dir))) if process else ()
         observed_at = now_iso()
         snapshot_active = document_descriptor(
             revision,

@@ -7561,7 +7561,7 @@ def test_a_row_arriving_takes_the_room_below_the_markers_already_seated(browser,
 
 
 def test_an_agent_reply_leaves_the_reply_being_typed_where_it_stands(browser, serve):
-    """News arriving without a gesture moves no control the user is working in."""
+    """An agent answer waits behind a notice while the user writes in the card."""
     # The short card, where an arrival has the least room to take.
     size = (800, 520)
     page, preview, editor = drafting_in_a_short_card(browser, serve, *size)
@@ -7579,7 +7579,8 @@ def test_an_agent_reply_leaves_the_reply_being_typed_where_it_stands(browser, se
         },
     )
     told(page)
-    expect(preview).to_contain_text("An agent answer arriving while the user types.")
+    expect(preview.locator(".lf-thread-notice-news")).to_have_text("1 new reply")
+    expect(preview).not_to_contain_text("An agent answer arriving while the user types.")
     rendered(page)
     expect(editor).to_be_focused()
     assert preview.evaluate(DRAFTING_CARD) == before

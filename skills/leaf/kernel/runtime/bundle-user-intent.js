@@ -1022,16 +1022,26 @@ function placeOf(node) {
   }
   return inChrome(at) ? null : at;
 }
-function standingPlace() {
+function walkOrigin() {
   for (const node of standingNodes()) {
     const place2 = placeOf(node);
-    if (place2) return place2;
+    if (place2) {
+      const tab = place2.closest('[role="tab"][aria-selected="true"]');
+      const panel = tab?.ariaControlsElements?.[0];
+      return panel ? { place: panel, kind: "enter" } : { place: place2, kind: "standing" };
+    }
   }
-  return null;
+  return { place: pageReadingBlock(), kind: "standing" };
 }
-var walkOrigin = () => standingPlace() ?? pageReadingBlock();
-function stepFrom(list, here, dir, placeOfItem) {
+function stepFrom(list, { place: here, kind }, dir, placeOfItem) {
   if (!here) return cycledRow(list, null, dir);
+  if (kind === "enter") {
+    const inside = list.filter((item) => {
+      const place2 = placeOfItem(item);
+      return place2 && renderedUnder(place2, here);
+    });
+    if (inside.length) return cycledRow(inside, null, dir);
+  }
   const reach = list.filter((item) => {
     const place2 = placeOfItem(item);
     if (!place2) return dir > 0;

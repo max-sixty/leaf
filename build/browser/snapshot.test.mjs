@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  collectOutside,
   collectReads,
   createApplicationPublisher,
   outsideReading,
@@ -51,7 +50,7 @@ for (const kind of ["semantic", "outside", "presentation"]) {
     const registration = collectReads(() => source.subscribe(observe));
     assert.ok("value" in registration, String(registration.error));
     assert.equal(registration.reads.size, 0);
-    const delivered = collectOutside(() => {
+    const delivered = collectReads(() => {
       if (kind === "semantic") {
         app.publish({ ...initial, effective: { count: 1 }, semanticEpoch: 1 });
       } else if (kind === "outside") {

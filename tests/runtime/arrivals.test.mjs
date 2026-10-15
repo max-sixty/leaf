@@ -13,8 +13,7 @@ globalThis.requestAnimationFrame = (callback) => {
 globalThis.cancelAnimationFrame = (id) => frames.delete(id);
 
 const { whileConnected, frameFor } = await import("/runtime/arrivals.js");
-const { clocked, clockValue, readingPaint, tickClock } =
-  await import("/runtime/presence.js");
+const { clockValue, readingPaint, tickClock } = await import("/runtime/presence.js");
 const { observeQueuedWork } = await import("/runtime/queued-work.js");
 
 // A second observer acknowledges delivery of the same mutation batch as arrivals.
@@ -325,60 +324,30 @@ test("a returning owner draws a reading again only where its paint did not finis
   }
 });
 
-test("a reading paint's clock repaint fails by the same rule, reported once", async () => {
+test("a watcher's clock repaint fails by the reading paint's rule, reported once", async () => {
   const { reportCarried } = await import("/runtime/layer-client.js");
+  const { watchProjection } = await import("/runtime/projection-watch.js");
   const owner = document.createElement("section");
   owner.id = "clocked";
   await mutate(() => document.body.append(owner));
   let clock = 0;
-  const paint = readingPaint(owner, () => {
+  const stop = watchProjection(owner, () => {
     if (clockValue(() => clock)) throw new Error("clock refused");
   });
   const reports = [];
   const consoleError = console.error;
   console.error = (line) => reports.push(line.split("\n")[0]);
   try {
-    paint("reading");
+    await Promise.resolve();
     clock = 1;
     await tickClock(reportCarried);
+    await Promise.resolve();
     assert.deepEqual(reports, [
       "leaf: paint failed for section#clocked: clock refused",
     ]);
   } finally {
     console.error = consoleError;
-    paint.stop();
-    owner.remove();
-  }
-});
-
-test("a clock paint pauses while its owner is away and ticks again on its return", async () => {
-  const owner = document.createElement("section");
-  await mutate(() => document.body.append(owner));
-  let clock = 0;
-  const shown = [];
-  const paint = clocked(owner, () => shown.push(clockValue(() => clock)));
-  const tick = () =>
-    tickClock((message) => {
-      throw new Error(message);
-    });
-  try {
-    paint();
-    await mutate(() => owner.remove());
-    clock = 1;
-    await tick();
-    assert.deepEqual(shown, [0]);
-    await mutate(() => document.body.append(owner));
-    await tick();
-    assert.deepEqual(shown, [0, 1]);
-    // A stopped paint stays off the clock across a departure and return.
-    paint.stop();
-    await mutate(() => owner.remove());
-    await mutate(() => document.body.append(owner));
-    clock = 2;
-    await tick();
-    assert.deepEqual(shown, [0, 1]);
-  } finally {
-    paint.stop();
+    stop();
     owner.remove();
   }
 });

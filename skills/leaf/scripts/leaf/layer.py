@@ -528,14 +528,12 @@ def incompatible_layer(page_dir: Path, registry: dict) -> Finding | None:
     return None
 
 
-def protocol_refusal(page_dir: Path, registry: object) -> Finding | None:
+def protocol_refusal(page_dir: Path, registry: dict) -> Finding | None:
     """The half of `incompatible_layer` that reads only the page protocol a registry's
-    `$events` declare. It takes any parsed JSON, so it may run on a layer before this
-    Leaf validates its shape (`registry.storage.load_registry`): that shape is this
-    Leaf's protocol's, which a layer vendored at another one need not have. A value
-    that is not an object declares nothing to read, and is left to that validation."""
-    if not isinstance(registry, dict):
-        return None
+    `$events` declare. It reads `$events` and `$layer` only where they are objects,
+    so it may run on a layer before this Leaf validates what its entries hold
+    (`registry.storage.load_registry`): that shape is this Leaf's protocol's, which a
+    layer vendored at another one need not have."""
     if (vendored := _foreign_protocol(registry)) is not None:
         if type(vendored) is int and vendored > kernel_protocol():
             return Finding(

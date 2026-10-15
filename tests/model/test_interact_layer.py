@@ -338,6 +338,7 @@ def test_a_command_leaves_a_page_a_newer_leaf_vendored(claimed, reshape):
     the newer Leaf as the repair rather than the re-vendor it refuses. That holds
     for a layer whose shape this Leaf's schema rejects, as a newer protocol's may
     be: the protocol is read before the shape."""
+    publish(claimed)
     foreign = vendored_at_another_protocol(claimed, newer=True)
     if reshape:
         path = claimed / "registry.json"
@@ -355,6 +356,20 @@ def test_a_command_leaves_a_page_a_newer_leaf_vendored(claimed, reshape):
             interact_files.read_json(claimed / "registry.json")["$events"]["protocol"]
             == foreign
         )
+    # A fresh process in a session that does not hold the page reads the state of
+    # the revision published before, and reports the same refusal as its source
+    # error.
+    stated = subprocess.run(
+        [*LEAF_COMMAND, "page", "state", str(claimed)],
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+        check=False,
+        env={**os.environ, "CLAUDE_CODE_SESSION_ID": "s2"},
+    )
+    assert stated.returncode == 0, stated.stderr
+    error = json.loads(stated.stdout)["source"]["error"]
+    assert f"Use a Leaf at protocol {foreign} or later" in error
 
 
 def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(claimed):

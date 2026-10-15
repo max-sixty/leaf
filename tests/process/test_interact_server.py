@@ -4382,6 +4382,17 @@ def test_a_server_start_re_vendors_an_older_page_and_refuses_a_newer_one(page_di
     assert files_model.read_json(page_dir / "service.json") is None
     assert not leases_model.lock_is_held(page_dir / "server.lock")
 
+    # A newer protocol may reshape the layer past this Leaf's schema, which reads
+    # the protocol first.
+    newer = json.loads(stamp.read_text(encoding="utf-8"))
+    stamp.unlink()
+    stamp.write_text(json.dumps({**newer, "$future": 1}), encoding="utf-8")
+    reshaped = runner.invoke(
+        cli_model.cli, ["server", "start", "--persistent", str(page_dir)]
+    )
+    assert reshaped.exit_code != 0, reshaped.output
+    assert f"Use a Leaf at protocol {foreign} or later" in reshaped.output
+
     stamp.unlink()
     stamp.write_text(vendored, encoding="utf-8")
     vendored_at_another_protocol(page_dir)

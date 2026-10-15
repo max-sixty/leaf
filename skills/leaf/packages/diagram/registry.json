@@ -12,9 +12,7 @@
         "const": "all"
       }
     },
-    "required": [
-      "id"
-    ],
+    "required": ["id"],
     "additionalProperties": false,
     "x-content": "data",
     "x-upgrade": true,

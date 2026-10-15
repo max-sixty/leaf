@@ -70,15 +70,15 @@ def cmd_hook(harness: str, payload: dict) -> None:
     if event == "SessionEnd":
         end_harness_instance(sid)
         return
-    if (
-        harness == "claude-code"
-        and event in {"SessionStart", "UserPromptSubmit"}
-        and (pid := os.environ.get("CLAUDE_PID"))
-    ):
+    if event == "PreToolUse":
         # Claude Code runs hooks outside its sandbox and shell commands inside it.
-        from .bridge import ensure
+        # Its registration runs this only before a command naming `leaf`, so a
+        # session that never runs one starts no bridge.
+        if pid := os.environ.get("CLAUDE_PID"):
+            from .bridge import ensure
 
-        ensure(int(pid))
+            ensure(int(pid))
+        return
     if not sid:
         return
     from .harness import hook_harness

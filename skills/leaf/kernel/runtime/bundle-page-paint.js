@@ -286,73 +286,39 @@ function schedule() {
     void flush();
   }, 250);
 }
-function groupEnd(start) {
-  const row = queue[start];
-  if (row.type !== "interaction_part") return start + 1;
-  let end = start + 1;
-  while (end < queue.length && queue[end].partOf === row.partOf) end++;
-  return end;
-}
-function evictableGroup(repetitiveOnly) {
-  let start = 0;
-  while (start < queue.length) {
-    const end = groupEnd(start);
-    if (start >= inFlightCount && (!repetitiveOnly || repetitive.has(queue[start].originalType ?? queue[start].type)))
-      return [start, end];
-    start = end;
+function append(row) {
+  if (queue.length >= MAX_PENDING_ENTRIES) {
+    let evict = queue.findIndex(
+      (entry, index) => index >= inFlightCount && repetitive.has(entry.originalType ?? entry.type)
+    );
+    if (evict < 0) {
+      if (repetitive.has(row.originalType ?? row.type)) return;
+      evict = inFlightCount;
+      if (evict >= queue.length) return;
+    }
+    queue.splice(evict, 1);
   }
-  return null;
-}
-function append(rows) {
-  if (rows.length > MAX_PENDING_ENTRIES) return;
-  const repetitiveIncoming = repetitive.has(rows[0].originalType ?? rows[0].type);
-  while (queue.length + rows.length > MAX_PENDING_ENTRIES) {
-    const group = evictableGroup(true) ?? (!repetitiveIncoming && evictableGroup(false));
-    if (!group) return;
-    queue.splice(group[0], group[1] - group[0]);
-  }
-  queue.push(...rows);
+  queue.push(row);
 }
 function enqueue(entry) {
   if (!enabled) return;
-  const ts = timestamp();
-  const row = { ...entry, ts, sequence: nextSequence + 1 };
-  const serialized = JSON.stringify(row);
-  if (encoder.encode(serialized).length <= 4e4) {
-    nextSequence++;
-    append([row]);
-  } else {
-    const partOf = nextSequence + 1;
-    const parts = Math.ceil(serialized.length / 8e3);
-    if (parts > MAX_PENDING_ENTRIES) {
-      nextSequence += parts;
-      append([
-        {
-          type: "interaction_omitted",
-          originalType: entry.type,
-          ts,
-          sequence: ++nextSequence,
-          reason: "record_exceeds_backlog",
-          characters: serialized.length
-        }
-      ]);
-      schedule();
-      return;
+  const common = {
+    observed_at: timestamp(),
+    monotonic_ms: performance.now(),
+    visibility: document.visibilityState,
+    sequence: ++nextSequence
+  };
+  const row = { ...entry, ...common };
+  const bytes = encoder.encode(JSON.stringify(row)).length;
+  append(
+    bytes <= 4e4 ? row : {
+      ...common,
+      type: "interaction_omitted",
+      originalType: entry.type,
+      bytes,
+      reason: "record_exceeds_limit"
     }
-    const rows = [];
-    for (let part = 0; part < parts; part++)
-      rows.push({
-        type: "interaction_part",
-        originalType: entry.type,
-        ts,
-        sequence: ++nextSequence,
-        partOf,
-        part,
-        parts,
-        json: serialized.slice(part * 8e3, (part + 1) * 8e3)
-      });
-    append(rows);
-  }
+  );
   schedule();
 }
 function batch(start, maxBytes) {
@@ -3026,7 +2992,7 @@ var showingBackground = null;
 var waitingBackground = [];
 var userContext = false;
 var userHoldTimer = 0;
-var noticePresentation = Object.freeze({ message: "", visible: false });
+var noticePresentation = Object.freeze({ message: "", visible: false, news: false });
 var noticePresenters = /* @__PURE__ */ new Set();
 var noticeReading = () => noticePresentation;
 var noticeVisible = () => noticePresentation.visible;
@@ -3036,8 +3002,8 @@ function registerNoticePresentation(invalidate) {
 var presentAll = () => {
   for (const invalidate of noticePresenters) invalidate();
 };
-var presentNotice = (message, visible) => {
-  noticePresentation = Object.freeze({ message, visible });
+var presentNotice = (message, visible, news = false) => {
+  noticePresentation = Object.freeze({ message, visible, news });
   if (visible) presentAll();
   else afterScript(presentAll);
 };
@@ -3049,7 +3015,7 @@ function announce(msg) {
   }, 30);
 }
 function showNotice(msg, background = null) {
-  presentNotice(msg, true);
+  presentNotice(msg, true, Boolean(background));
   showingBackground = background;
   clearTimeout(noticeTimer);
   noticeTimer = setTimeout(() => {

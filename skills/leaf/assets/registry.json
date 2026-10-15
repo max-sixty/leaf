@@ -5,21 +5,26 @@
     "x-instructions": "Copy the current markup verbatim into lf-old and put the proposed markup in lf-new. Both slots replace, lf-new alone inserts, and lf-old alone deletes; a proposed widget change uses complete old and new markup too. Write fresh content directly, and use lf-draft for words the user owns. Suggestions cannot nest, contain a draft, or appear in a reply. Set resolves to the comment whose thread acceptance should resolve. To withdraw an undecided proposal, retain lf-old’s contents and remove both wrappers and lf-new; dropping the wrapper must not silently accept the proposal.",
     "type": "object",
     "properties": {
-      "id":       {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
-      "resolves": {"type": "string", "pattern": "^[a-z0-9]+$"},
-      "restated": {"type": "boolean"}
+      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+      "resolves": { "type": "string", "pattern": "^[a-z0-9]+$" },
+      "restated": { "type": "boolean" }
     },
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "members",
     "x-inline": true,
     "x-upgrade": true,
-    "x-awaits": {"value": "decide", "answered": {"decide": {}}, "all": "accept"},
+    "x-awaits": { "value": "decide", "answered": { "decide": {} }, "all": "accept" },
     "x-withdrawn-as": "reject",
     "x-word": "module",
     "x-state": {
       "decide": {
-        "detail": {"type": "object", "properties": {"outcome": {"enum": ["accept", "reject"]}}, "required": ["outcome"], "additionalProperties": false},
+        "detail": {
+          "type": "object",
+          "properties": { "outcome": { "enum": ["accept", "reject"] } },
+          "required": ["outcome"],
+          "additionalProperties": false
+        },
         "unit": "widget"
       }
     },
@@ -30,7 +35,7 @@
     "x-instructions": "Copy the current markup verbatim, including its ids. Omit this slot for an insertion.",
     "type": "object",
     "properties": {
-      "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}
+      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" }
     },
     "additionalProperties": false,
     "x-owners": ["lf-suggestion"],
@@ -44,7 +49,7 @@
     "x-instructions": "Omit this slot for a deletion.",
     "type": "object",
     "properties": {
-      "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}
+      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" }
     },
     "additionalProperties": false,
     "x-owners": ["lf-suggestion"],
@@ -54,65 +59,109 @@
     "x-retired-when": "reject"
   },
   "$languages": {
-    "description": "The languages this page's layer can color, and what a filename means. `names` is the whole vocabulary: what an author may declare, what the lint refuses a word outside, and what the shared syntax grammars in build/vendor.mjs are built from. It is a property of the page rather than of any widget, which is why it lives here and not under the schema of whichever tag happens to take a `language` — a widget declares that one of its attributes names a language (x-language) and the lint reads the list from here, so a second tag taking one costs a declaration and no new reader. `paths` is the half nobody writes: the one place a language is derived rather than declared, because a unified diff spans files and a file editor names one file, so neither has an attribute to carry one. An extension is the filename's own statement about what a file holds, which is a declaration like any other; an extension absent here leaves that file plain.",
-    "why-diff-is-not-a-path": "`diff` is in `names` and deliberately not in `paths`: a .patch inside a diff would be colored by the diff grammar, whose addition and deletion ink is the same statement the widget's own tints already make — said twice, in two channels, about the same line.",
-    "names": ["bash", "css", "diff", "go", "html", "java", "javascript", "json", "markdown", "python", "rust", "sql", "toml", "typescript", "yaml"],
+    "description": "The code languages this layer can color, and how a filename maps to one. `names` is the full list: an author may declare only these, validation refuses any other, and build/vendor.mjs builds a grammar for each. A widget marks an attribute as naming a language with x-language, and validation reads this list, so a new tag that takes a language needs only that declaration. `paths` maps a file extension to a language, for widgets with no attribute to name one: a diff spans several files, and a file editor shows one. A file whose extension is not listed shows uncolored.",
+    "why-diff-is-not-a-path": "`diff` is in `names` but not in `paths`. Coloring a .patch file inside a diff with the diff grammar would mark additions and deletions a second time, on top of the widget's own tints.",
+    "names": [
+      "bash",
+      "css",
+      "diff",
+      "go",
+      "html",
+      "java",
+      "javascript",
+      "json",
+      "markdown",
+      "python",
+      "rust",
+      "sql",
+      "toml",
+      "typescript",
+      "yaml"
+    ],
     "paths": {
-      "bash": "bash", "cjs": "javascript", "css": "css", "go": "go", "htm": "html",
-      "html": "html", "java": "java", "js": "javascript", "json": "json",
-      "jsx": "javascript", "markdown": "markdown", "md": "markdown", "mjs": "javascript",
-      "py": "python", "rs": "rust", "sh": "bash", "sql": "sql", "toml": "toml",
-      "ts": "typescript", "tsx": "typescript", "yaml": "yaml", "yml": "yaml"
+      "bash": "bash",
+      "cjs": "javascript",
+      "css": "css",
+      "go": "go",
+      "htm": "html",
+      "html": "html",
+      "java": "java",
+      "js": "javascript",
+      "json": "json",
+      "jsx": "javascript",
+      "markdown": "markdown",
+      "md": "markdown",
+      "mjs": "javascript",
+      "py": "python",
+      "rs": "rust",
+      "sh": "bash",
+      "sql": "sql",
+      "toml": "toml",
+      "ts": "typescript",
+      "tsx": "typescript",
+      "yaml": "yaml",
+      "yml": "yaml"
     }
   },
   "$passages": {
-    "description": "How the file's reading (`leaf/passages.py`, `leaf/anchor_capture.py`) and the browser's (`runtime/passage-facts.js`, generated from this entry by build/registry.mjs) turn a page into text, so a quote the browser captures is one `leaf thread open` can confirm. Python reads it from the running Leaf's registry, while a page's runtime carries the copy it was vendored with, so changing it bumps `$events.protocol`.",
+    "description": "How Python (`leaf/passages.py`, `leaf/anchor_capture.py`) and the browser (`runtime/passage-facts.js`, generated from this entry by build/registry.mjs) turn a page into text, so `leaf thread open` can confirm any quote the browser captures. Python reads the running Leaf's copy and a page's runtime keeps the one it was vendored with, so a change here bumps `$events.protocol`.",
     "collapse": "\t\n\u000b\f\r \u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff",
-    "why-collapse-is-spelled-out": "`collapse` lists the characters a whitespace run is made of, which both readings fold to one space. JS's \\s and Python's str.isspace() disagree at the edges — U+FEFF is whitespace to JS alone, U+0085 and U+001C–001F to Python alone — and a page carrying one of those in prose would read differently on the two sides. The browser captures every quote, so this is its set: the characters JS's \\s and trim() treat as whitespace.",
-    "blocks": ["p", "li", "h1", "h2", "h3", "h4", "h5", "h6", "td", "th", "pre", "blockquote", "dd", "dt", "figcaption", "summary"],
-    "why-blocks": "A text node's block: one space goes between two runs of text in different blocks and none between runs that share one, so `<p>a</p><p>b</p>` reads \"a b\" and `set<em>up</em>` reads \"setup\". The browser also reads a block as one unit of prose: the passage a reader is in, where a walk over the user's On me list starts, and what a version diff compares.",
+    "why-collapse-is-spelled-out": "`collapse` lists the characters both readings fold to one space. JavaScript's \\s and Python's str.isspace() disagree on a few: U+FEFF is whitespace only to JavaScript, U+0085 only to Python. The browser captures every quote, so the list is JavaScript's set.",
+    "blocks": [
+      "p",
+      "li",
+      "h1",
+      "h2",
+      "h3",
+      "h4",
+      "h5",
+      "h6",
+      "td",
+      "th",
+      "pre",
+      "blockquote",
+      "dd",
+      "dt",
+      "figcaption",
+      "summary"
+    ],
+    "why-blocks": "A text node's block decides spacing: runs of text in different blocks are joined with one space and runs in one block with none, so `<p>a</p><p>b</p>` reads \"a b\" and `set<em>up</em>` reads \"setup\". The browser also treats a block as the unit of prose a reader is in, and a version diff compares blocks.",
     "context": 24,
-    "why-context": "The characters of context a captured anchor starts with on each side of its quote. The file requires a unique quote; the browser knows which occurrence the user selected and may widen the context until the shared resolver identifies that exact span."
+    "why-context": "How many characters of context a captured anchor keeps on each side of its quote. A quote read from the file must be unique. The browser knows which occurrence the user selected, and widens the context until the shared resolver finds that one."
   },
   "$data": {
-    "description": "Replaceable external or derived values supplied to widgets. A named contract declares the meaning and JSON Schema of a value; each widget declares its typed inputs, while page and thread markup binds those inputs to concrete source ids. A source has one contract within a document; later documents may replace it. `leaf data set` validates the complete value before it can reach a page. Source values remain outside authored versions and the event log. Modules subscribe with `watchData` and render readable records through `projectData`.",
+    "description": "Values from outside the markup that widgets display, replaced with `leaf data set`, which validates the whole value first. A named contract declares a value's meaning and JSON Schema; a widget declares its inputs with x-data, and markup binds each to a source id. Values stay out of versions and the event log. Modules subscribe with `watchData` and render records with `projectData`.",
     "contracts": {}
   },
   "$events": {
-    "protocol": 6,
+    "protocol": 7,
     "ownership": {
       "derived": ["meaning", "attention"],
       "browser_discard": ["id", "author", "agent", "session", "ts", "seq", "attention"]
     },
-    "description": "Leaf's fixed kernel event contract. Each kind carries the closed `record` schema for the complete event read from the log. Admission stamps the server-owned boolean `attention` from the change to canonical answers, work in hand (a started update or an open to-do on a thread or widget) and its inputs, or sign-off approval; reports and errors always carry it. Carriers select this recorded meaning rather than classifying event kinds. A `browser` schema opts that kind into POST /api/event and adds the browser writer's assertions. `ownership.derived` names fields admission supplies; `ownership.browser_discard` names fields browser ingress removes before validation. Layers extend widget behavior through x-state; they cannot change transport kinds or field ownership. `protocol` numbers this contract together with the reading the server serves the page's runtime, and is the one version Leaf has: each record Leaf keeps outside a page's log and document, such as a delivery or a browser draft, carries it in its `format`. A Leaf serves and writes only a page whose vendored `protocol` is its own, admitting the page's events against its own kinds, so a change a page vendored at the same number would break on, such as a dropped or newly required field, bumps it. A kind declaring `bookkeeping` records a fact about the user's view of the page rather than an update: it never asks the agent for anything, and the browser sends it outside the ordered gesture queue, so it neither waits behind a gesture nor holds one back. A `pickup` is the page-owned durable transport fact that named attention-bearing inputs reached their next consumer, or with phase `failed` and a harness `failure` code that the harness gave up on them with no answer coming; it is never a claim that work has begun. Its optional `refs` maps each input its delivery owed an answer to the exact `answer.ref` that delivery gave it and the `claim` the delivery was captured under. A `comment` or `reply` carrying `token` instead of `text` is a reaction — one word from $reactions, aimed where the comment's anchor or the reply's parent points, or with neither at the page whole. It starts as a mark rather than a thread: no thread opens until someone replies to it, `resolve` on it is the floor after which it stops painting, and while nothing has answered it the user takes it back with an ordinary `undo` naming it. `handling` and `answering` remain layer-owned. `handling` holds, per kernel kind, an ordered list of clauses, each a `text` and an optional `when` JSON Schema; `answering` holds the same per answer kind (`reply`, `markup`), for the event that owes that answer. A `when` matches the delivered event: its record plus the `answer` it owes and its `thread`'s entry in the batch's digest, each if any, so a clause states one case plainly rather than naming a condition the delivery already settles. What differs by route is not a clause: the delivery states once who acknowledges it, and names its `writer` as `turn` where the turn carrying it writes the reply. Each delivered event carries its kind's matching clauses and then its answer's, so an event is told only its own case and only the answer it owes, and a later layer may restate one kind at a time.",
+    "description": "The kernel's event kinds. Each kind's `record` is the closed schema of the event as the log stores it, and a kind with a `browser` schema can also be posted to POST /api/event. Admission fills in the fields `ownership.derived` names; browser ingress drops those `ownership.browser_discard` names before validating. A layer extends widget behavior through x-state, but cannot add kinds or change who owns a field. Admission sets the boolean `attention`. Every report and error has it, and the agent's other events and the user's bookkeeping never do. The user's other input has it when it changes what is owed: an answer, an ask or to-do on the user, work the agent has started and its inputs, or a sign-off approval. Code that asks whether an event needs attention reads this field instead of switching on the kind. `protocol` is Leaf's only version number. It covers these kinds and the state the server sends a page's runtime, and every record Leaf keeps outside a page's log and document, such as a delivery or a browser draft, carries it in its `format`. A Leaf serves and writes only pages vendored at its own `protocol`, so a change that would break such a page, such as dropping a field or requiring a new one, bumps it. A `bookkeeping` kind (`read`, `reanchor`) records a fact about the user's view, never asks the agent for anything, and travels outside the queue of the user's updates. A `pickup` records that inputs reached their reader, or, with phase `failed`, that the harness gave up on them; it never means work has begun. A `comment` or `reply` with `token` instead of `text` is a reaction ($reactions). `handling` and `answering` hold the instructions delivered with each event, and a later layer may restate them one kind at a time. Each maps a kind (of event, or of the answer it owes: `reply` or `markup`) to an ordered list of clauses: a `text`, and an optional `when` JSON Schema matched against the event's record, the `answer` it owes and its thread's entry in the batch's `threads`. A delivered event carries its kind's matching clauses, then its answer's, so it is told only its own case. Instructions that differ by route are not clauses: the delivery says once who confirms receipt, and sets the answer's `writer` to `turn` where the turn carrying it writes the reply.",
     "handling": {
       "comment": [
         {
           "when": {
-            "required": [
-              "drawing"
-            ]
+            "required": ["drawing"]
           },
-          "text": "The user drew on the page. `drawing.says`, when present, holds the page's words from the first to the last inside the ink's extents: the neighbourhood of the mark rather than the mark, so an arrow across a paragraph says the whole paragraph. It is absent where the extents hold no words, as over a picture or in a margin. `drawing.strokes` are local coordinates in one frame: HTML CSS pixels, SVG user units, or intrinsic image, canvas and video pixels. Optional `drawing.frame` identifies that visual inside the semantic comment target by a structural path; `drawing.box` is the frame's size. Prefer `leaf page picture PAGE ID`, given the comment's `id`, to see what the mark covers: it prints the path of a PNG of the comment's revision laid out in their window and color scheme (`drawing.viewport`, `drawing.scheme`), with the ink over it. Any `text` explains the mark. Otherwise it is an ordinary comment, answered the same way."
+          "text": "The user drew on the page. `drawing.says`, when present, is the page's text inside the ink's bounding box, from its first word to its last, so an arrow across a paragraph gives the whole paragraph; it is absent where the box covers no words, as over a picture. `drawing.strokes` are coordinates in one frame: the comment's target, or the visual inside it that the optional `drawing.frame` names (CSS pixels for HTML, user units for SVG, intrinsic pixels for an image, canvas or video), and `drawing.box` is that frame's size. To see what the mark covers, run `leaf page picture PAGE ID` with the comment's `id`: it prints the path of a PNG of that revision in the user's window size and color scheme, with the ink drawn over it. Any `text` explains the mark; otherwise answer it like any comment."
         },
         {
           "when": {
-            "required": [
-              "text"
-            ],
+            "required": ["text"],
             "properties": {
               "text": {
                 "pattern": "\\]\\(/media/"
               }
             }
           },
-          "text": "The message carries an image as a Markdown link to `/media/<digest>.<ext>`, a path under the page directory the batch names. Open the image itself before answering: its alt text is a label, not a description of what it shows."
+          "text": "The message links an image in Markdown, as `/media/<digest>.<ext>` under the page directory the batch names. Open the image before answering; its alt text is only a label."
         },
         {
           "when": {
-            "required": [
-              "suggestion"
-            ],
+            "required": ["suggestion"],
             "properties": {
               "suggestion": {
                 "const": true
@@ -123,28 +172,21 @@
         },
         {
           "when": {
-            "required": [
-              "about"
-            ],
+            "required": ["about"],
             "properties": {
               "about": {
                 "const": "design"
               }
             }
           },
-          "text": "A design comment is about how the page looks or behaves rather than what it says. Its anchor's `section` is an authored element's id or, when it starts `lf-`, a part of Leaf's own chrome, such as `lf-banner`, `lf-threads` (the Threads panel), `lf-queue` (the On panel), `lf-versions` or `lf-composer`; `part`, when present, describes the control, region or picture the click landed on. Find the source that produces what it names and fix it in this page's own source, unless the behavior belongs to a package's widget or the user asks for a wider fix: then change the package as the Leaf skill's `references/packages.md` says, re-vendor, and note the re-vendor on the stamp. A fix that belongs in Leaf itself is the user's to raise, as the Leaf skill's \"Improve Leaf through use\" says. The stamped version that carries the fix is the result the reply reports."
+          "text": "A design comment is about how the page looks or behaves, not what it says. Its anchor's `section` is an authored element's id or, if it starts `lf-`, a part of Leaf's chrome, such as `lf-banner`, `lf-threads` (the Threads panel), `lf-queue` (the On panel), `lf-versions` or `lf-composer`. `part`, when present, describes the control, region or picture the user clicked. Fix it in this page's source. If the behavior belongs to a package's widget, or the user asks for a wider fix, change the package as the Leaf skill's `references/packages.md` says, re-vendor, and note the re-vendor on the stamp. A fix to Leaf itself is the user's to raise (the Leaf skill's \"Improve Leaf through use\"). Your reply reports the stamped version that carries the fix."
         },
         {
           "when": {
-            "required": [
-              "thread",
-              "answer"
-            ],
+            "required": ["thread", "answer"],
             "properties": {
               "thread": {
-                "required": [
-                  "title"
-                ],
+                "required": ["title"],
                 "properties": {
                   "title": {
                     "type": "null"
@@ -163,52 +205,41 @@
               }
             }
           },
-          "text": "This event's thread has no title yet: name it by adding `--title \"<a few words>\"` to the reply that answers it, so the thread panel lists its subject rather than its opening words. If Leaf has named it from its opening message by then, that name stands."
+          "text": "The thread has no title yet. Name it with `--title \"<a few words>\"` on your reply, so the Threads panel lists its subject instead of its opening words. If Leaf has already named it from its first message, that name stays."
         },
         {
           "when": {
-            "required": [
-              "token"
-            ]
+            "required": ["token"]
           },
-          "text": "A reaction is a mark, not a question. Read the token and act on it if it calls for a change; reply only if its meaning is unclear. Once the page reflects it, close it with `leaf thread resolve <page> <event-id>`. It never blocks publishing a version, and it does not wait on an answer."
+          "text": "A reaction is a mark, not a question. Act on the token if it calls for a change; reply only if its meaning is unclear. Once the page reflects it, close it with `leaf thread resolve <page> <event-id>`. It never blocks publishing a version and waits on no answer."
         }
       ],
       "reply": [
         {
           "when": {
             "not": {
-              "required": [
-                "token"
-              ]
+              "required": ["token"]
             }
           },
-          "text": "The user answered in a thread; the batch's `threads` carries the thread's context, and `leaf page state <page> <thread-id>` reads its history in pages."
+          "text": "The user answered in a thread. The batch's `threads` holds the thread's context, and `leaf page state <page> <thread-id>` reads its full history a page at a time."
         },
         {
           "when": {
-            "required": [
-              "text"
-            ],
+            "required": ["text"],
             "properties": {
               "text": {
                 "pattern": "\\]\\(/media/"
               }
             }
           },
-          "text": "The message carries an image as a Markdown link to `/media/<digest>.<ext>`, a path under the page directory the batch names. Open the image itself before answering: its alt text is a label, not a description of what it shows."
+          "text": "The message links an image in Markdown, as `/media/<digest>.<ext>` under the page directory the batch names. Open the image before answering; its alt text is only a label."
         },
         {
           "when": {
-            "required": [
-              "thread",
-              "answer"
-            ],
+            "required": ["thread", "answer"],
             "properties": {
               "thread": {
-                "required": [
-                  "title"
-                ],
+                "required": ["title"],
                 "properties": {
                   "title": {
                     "type": "null"
@@ -227,64 +258,59 @@
               }
             }
           },
-          "text": "This event's thread has no title yet: name it by adding `--title \"<a few words>\"` to the reply that answers it, so the thread panel lists its subject rather than its opening words. If Leaf has named it from its opening message by then, that name stands."
+          "text": "The thread has no title yet. Name it with `--title \"<a few words>\"` on your reply, so the Threads panel lists its subject instead of its opening words. If Leaf has already named it from its first message, that name stays."
         },
         {
           "when": {
-            "required": [
-              "thread"
-            ],
+            "required": ["thread"],
             "properties": {
               "thread": {
-                "required": [
-                  "summary_hint"
-                ]
+                "required": ["summary_hint"]
               }
             },
             "not": {
-              "required": [
-                "token"
-              ]
+              "required": ["token"]
             }
           },
-          "text": "This thread's entry in the batch's `threads` carries a `summary_hint`, a suggested earlier range to review. Follow the Leaf skill's `references/threads.md`, \"Summarize a long discussion\", as you answer this input. The hint adds no separate response obligation."
+          "text": "This thread's entry in the batch's `threads` has a `summary_hint`: an earlier range of messages worth summarizing. As you answer, follow the Leaf skill's `references/threads.md`, \"Summarize a long discussion\". The hint needs no separate answer."
         },
         {
           "when": {
-            "required": [
-              "token"
-            ]
+            "required": ["token"]
           },
-          "text": "A reaction on your message. It needs no reply, and Leaf already records whether it answers what you asked."
+          "text": "A reaction to your message. It needs no reply; Leaf already records whether it answers your question."
         }
       ],
       "edit": [
         {
-          "text": "The user rewrote their message `message` in place: `text` is how it reads now and `was` how it read before, and the thread shows only the new wording. Answer the message as it now reads. Where your earlier answer or work rested on what changed, say what that changes and redo the work it requires; where it changes nothing you did, say so. If `message` opens the thread and the thread's title no longer fits what it now asks, retitle the thread with `leaf thread edit <page> <message> --title \"<a few words>\"`, so the thread panel names what the thread is about now."
+          "text": "The user rewrote their message `message`: `text` is the new wording and `was` the old, and the thread shows only the new. Answer it as it now reads. If your earlier answer or work depended on what changed, say what that changes and redo the work; if it didn't, say so. If `message` opens the thread and the title no longer fits, retitle it with `leaf thread edit <page> <message> --title \"<a few words>\"`."
         },
         {
-          "when": {"required": ["suggestion"], "properties": {"suggestion": {"const": true}}},
-          "text": "The message is a suggestion, so `text` is now the exact replacement it proposes. Apply it verbatim, or reply with your reason for declining."
+          "when": {
+            "required": ["suggestion"],
+            "properties": { "suggestion": { "const": true } }
+          },
+          "text": "The message is a suggestion, so `text` is now its exact replacement text. Apply it verbatim, or reply with your reason for declining."
         }
       ],
       "resolve": [
         {
-          "text": "The user closed the thread. You owe no reply in it; a to-do you opened on it still stands until you end it."
+          "text": "The user closed the thread. You owe no reply there; a to-do you opened on it stays open until you end it."
         }
       ],
       "unresolve": [
         {
-          "text": "The user reopened a closed thread. The reopening owes nothing of its own; if the thread's latest user message was never answered, `leaf page state <page> <thread-id>` shows the `answer` its workflow still owes."
+          "text": "The user reopened a closed thread. Reopening needs no separate answer; if the thread's latest user message was never answered, `leaf page state <page> <thread-id>` shows the `answer` still owed."
         }
       ],
       "todo_end": [
         {
-          "text": "The user pressed Done on a to-do you put on them: `todo` names the to-do you opened with `--on user`. It ends that to-do and owes no reply of its own. Carry on with whatever the to-do was waiting for, reading the page where you need to see what they did; if you still need something from them, ask again."
+          "text": "The user pressed Done on the to-do `todo`, which you opened with `--on user`. That ends it and owes no reply. Continue the work it was waiting for, reading the page if you need to see what they did; if you still need something from them, ask again."
         }
       ],
       "done": [
         {
-          "text": "The user approved the page's sign-off. The page stays open: keep it watched while you do what the approval unblocks, and show that work on the page as a to-do (`leaf task open <page> page \"<the work>\"`, then `leaf task start`)."
+          "text": "The user approved the page's sign-off. The page stays open: keep watching it while you do the work the approval unblocks, and show that work as a to-do (`leaf task open <page> page \"<the work>\"`, then `leaf task start`)."
         }
       ],
       "action": [
@@ -296,21 +322,15 @@
             "allOf": [
               {
                 "not": {
-                  "required": [
-                    "answer"
-                  ]
+                  "required": ["answer"]
                 }
               },
               {
                 "not": {
-                  "required": [
-                    "meaning"
-                  ],
+                  "required": ["meaning"],
                   "properties": {
                     "meaning": {
-                      "required": [
-                        "scope"
-                      ],
+                      "required": ["scope"],
                       "properties": {
                         "scope": {
                           "const": "thread"
@@ -328,9 +348,7 @@
           "when": {
             "allOf": [
               {
-                "required": [
-                  "action"
-                ],
+                "required": ["action"],
                 "properties": {
                   "action": {
                     "const": "add"
@@ -339,14 +357,10 @@
               },
               {
                 "not": {
-                  "required": [
-                    "meaning"
-                  ],
+                  "required": ["meaning"],
                   "properties": {
                     "meaning": {
-                      "required": [
-                        "scope"
-                      ],
+                      "required": ["scope"],
                       "properties": {
                         "scope": {
                           "const": "thread"
@@ -362,28 +376,22 @@
         },
         {
           "when": {
-            "required": [
-              "action"
-            ],
+            "required": ["action"],
             "properties": {
               "action": {
                 "const": "decide"
               }
             }
           },
-          "text": "The user decided a suggestion, and `detail.outcome` says which way: `accept` keeps the lf-new branch and `reject` keeps the lf-old branch. The next version writes the kept branch in as settled prose with its ids and drops the suggestion."
+          "text": "The user decided a suggestion; `detail.outcome` says which way: `accept` keeps the lf-new branch and `reject` the lf-old one. In the next version, write the kept branch in as plain prose with its ids and remove the suggestion."
         },
         {
           "when": {
             "not": {
-              "required": [
-                "meaning"
-              ],
+              "required": ["meaning"],
               "properties": {
                 "meaning": {
-                  "required": [
-                    "scope"
-                  ],
+                  "required": ["scope"],
                   "properties": {
                     "scope": {
                       "const": "thread"
@@ -398,34 +406,32 @@
         {
           "when": {
             "not": {
-              "required": [
-                "answer"
-              ]
+              "required": ["answer"]
             }
           },
-          "text": "This action owes no answer of its own: it answers no ask, a later action on the same widget carries the answer, or it does not finish the answer yet, such as a pick before the Done its group waits for."
+          "text": "This action owes no answer of its own: it answers no ask, a later action on the same widget carries the answer, or the answer is not complete yet, as with a pick before the Done its group waits for."
         }
       ],
       "undo": [
         {
-          "text": "The user took back the gesture that `undoes` names. Treat the two as cancelling out: do not answer or record the withdrawn gesture. Undoing an action that answered or closed a thread reopens that thread."
+          "text": "The user took back the gesture `undoes` names. Treat the two as cancelled: don't answer or record the withdrawn gesture. Undoing an action that answered or closed a thread reopens that thread."
         }
       ],
       "report": [
         {
-          "text": "A worker reported provisional state for a page widget, which the page shows until a stamped version answers it. Answer it in a stamped version before the page ends: write the reported state into the markup, or mark the element `overruled` and say why in the version note. A version that leaves the widget as it was leaves the report in force, and `page check` refuses one whose markup contradicts the report without answering it."
+          "text": "A worker reported provisional state for a page widget, which the page shows until a stamped version answers it. Before the page ends, answer it in a stamped version: write the reported state into the markup, or mark the element `overruled` and say why in the version note. Until then the report stays in force."
         }
       ],
       "error": [
         {
-          "text": "The page's runtime reported a failure the user saw. Fix the page or widget and save the fix. It is a diagnostic: reply only if the user asked about it."
+          "text": "The page's runtime reported a failure the user saw. Fix the page or widget and save the fix. Reply only if the user asked about it."
         }
       ]
     },
     "answering": {
       "reply": [
         {
-          "text": "When the event asks for work, say in its thread what you will do before any other command, including reading the source it concerns: `leaf response reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. The user reads it in the thread at once, and it starts the update: the update reads Working, and the line stands in the banner until you answer. Do the work and put its result on the page, with whatever shows it (captures, a figure, the numbers), then answer with `leaf response reply <answer.ref> --done < reply.md`: what changed, in a sentence or two, linking the section that shows it. When the event asks for no work, as a question may not, answer it with that reply at once. The page carries the work, and the thread only the conversation about it. `leaf response reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Every answer says what it leaves: `--done` when it delivers what was asked, `--ask` when its prose asks the user something back, or `--todo \"<what you owe>\"` when it promises work that outlasts this turn, which then stays on you, under the reply's id, until `leaf task end` (`references/conversation-loop.md`, \"Long-running work\").",
+          "text": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even reading the source: `leaf response reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. It shows at once and starts the update, which reads Working until you answer. Do the work and put the result on the page, with what shows it (captures, a figure, the numbers). Then answer with `leaf response reply <answer.ref> --done < reply.md`: what changed, in a sentence or two, linking the section that shows it. If the event asks for no work, as a question may not, answer it with that reply at once. The page holds the work; the thread holds only the conversation about it. `leaf response reply` checks any saved page edit and makes it live before posting. If the revision removes the thread's anchor, move the thread in the same reply with `--section <id>` (narrowed by `--quote` or `--part`), or `--detach` it if its subject left the page. Each answer takes `--done` when it delivers what was asked, `--ask` when it asks the user something back, or `--todo \"<what you owe>\"` when it promises work beyond this turn, which stays on you until `leaf task end` (`references/conversation-loop.md`, \"Long-running work\").",
           "when": {
             "properties": {
               "answer": {
@@ -439,7 +445,7 @@
           }
         },
         {
-          "text": "Leaf streams your opening into the thread and commits your completed final unless an explicit successful reply already answered this input. Before your first tool call, open with a short message to the user: the answer, or what you are about to do. Later working messages stay in Codex. Finish with the answer or what changed and where it appears. For an explicit answer, including widgets, an ask awaiting the user (`--ask`), work promised beyond this turn (`--todo`), a title or relocation, use `leaf response reply <answer.ref>` and the rich options in `references/threads.md`; it validates saved edits and commits immediately. Your later final yields to that recorded answer.",
+          "text": "Leaf streams your opening message into the thread and posts your final message as the reply, unless an explicit reply already answered this input. Before your first tool call, tell the user briefly the answer or what you are about to do; later working messages stay in Codex. End with the answer, or what changed and where it shows. For widgets, an ask awaiting the user (`--ask`), work promised beyond this turn (`--todo`), a title or moving the thread, reply explicitly with `leaf response reply <answer.ref>` (`references/threads.md`); it posts at once, and your final message is then not posted.",
           "when": {
             "properties": {
               "answer": {
@@ -457,14 +463,10 @@
         },
         {
           "when": {
-            "required": [
-              "meaning"
-            ],
+            "required": ["meaning"],
             "properties": {
               "meaning": {
-                "required": [
-                  "scope"
-                ],
+                "required": ["scope"],
                 "properties": {
                   "scope": {
                     "const": "thread"
@@ -478,7 +480,7 @@
       ],
       "markup": [
         {
-          "text": "It answers the page's ask, so the page shows it as waiting on you until the markup records it. Name the work it selects or unblocks with `leaf task start <page> <event-id> \"<the work, in a line>\"` before starting it, then do it, write it in, and stamp a version. An option the user added needs no writing in: the page keeps it where the user put it."
+          "text": "It answers the page's ask, which shows as waiting on you until the markup records the answer. Name the work it selects or unblocks with `leaf task start <page> <event-id> \"<the work, in a line>\"` before starting it; then do it, write the answer in, and stamp a version. An option the user added needs no writing in: the page keeps it where the user put it."
         }
       ]
     },
@@ -487,34 +489,43 @@
         "record": {
           "type": "object",
           "properties": {
-            "attention": {"type": "boolean"},
-            "id": {"type": "string", "minLength": 1},
-            "ts": {"type": "string", "minLength": 1},
-            "author": {"type": "string", "minLength": 1},
-            "kind": {"const": "comment"},
-            "seq": {"type": "integer", "minimum": 1},
-            "revision": {"type": "integer", "minimum": 1},
-            "text": {"type": "string", "minLength": 1},
-            "token": {"type": "string", "minLength": 1},
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "type": "string", "minLength": 1 },
+            "kind": { "const": "comment" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "revision": { "type": "integer", "minimum": 1 },
+            "text": { "type": "string", "minLength": 1 },
+            "token": { "type": "string", "minLength": 1 },
             "anchor": {
               "type": "object",
               "properties": {
-                "section": {"type": ["string", "null"]},
-                "quote": {"type": "string"},
-                "datum": {"type": "string", "minLength": 1},
-                "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
-                "source_revision": {"type": "string", "pattern": "^[0-9a-f]{16}$"},
-                "identity": {"type": "string", "minLength": 1},
-                "visual": {"type": "string", "minLength": 1},
-                "prefix": {"type": "string"},
-                "suffix": {"type": "string"},
-                "detached": {"const": true},
-                "part": {"type": "string"}
+                "section": { "type": ["string", "null"] },
+                "quote": { "type": "string" },
+                "datum": { "type": "string", "minLength": 1 },
+                "source": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+                "source_revision": { "type": "string", "pattern": "^[0-9a-f]{16}$" },
+                "identity": { "type": "string", "minLength": 1 },
+                "visual": { "type": "string", "minLength": 1 },
+                "prefix": { "type": "string" },
+                "suffix": { "type": "string" },
+                "detached": { "const": true },
+                "part": { "type": "string" }
               },
               "anyOf": [
-                {"required": ["section"], "properties": {"section": {"type": "string", "minLength": 1}}},
-                {"required": ["quote"], "properties": {"quote": {"type": "string", "minLength": 1}}},
-                {"required": ["datum"], "properties": {"datum": {"type": "string", "minLength": 1}}}
+                {
+                  "required": ["section"],
+                  "properties": { "section": { "type": "string", "minLength": 1 } }
+                },
+                {
+                  "required": ["quote"],
+                  "properties": { "quote": { "type": "string", "minLength": 1 } }
+                },
+                {
+                  "required": ["datum"],
+                  "properties": { "datum": { "type": "string", "minLength": 1 } }
+                }
               ],
               "dependentRequired": {
                 "datum": ["section"],
@@ -543,8 +554,8 @@
                       "minItems": 2,
                       "maxItems": 2,
                       "prefixItems": [
-                        {"type": "number", "minimum": -33554432, "maximum": 33554432},
-                        {"type": "number", "minimum": -33554432, "maximum": 33554432}
+                        { "type": "number", "minimum": -33554432, "maximum": 33554432 },
+                        { "type": "number", "minimum": -33554432, "maximum": 33554432 }
                       ],
                       "items": false
                     }
@@ -555,114 +566,170 @@
                   "minItems": 2,
                   "maxItems": 2,
                   "prefixItems": [
-                    {"type": "number", "exclusiveMinimum": 0, "maximum": 33554432},
-                    {"type": "number", "exclusiveMinimum": 0, "maximum": 33554432}
+                    { "type": "number", "exclusiveMinimum": 0, "maximum": 33554432 },
+                    { "type": "number", "exclusiveMinimum": 0, "maximum": 33554432 }
                   ],
                   "items": false
                 },
                 "frame": {
                   "type": "object",
                   "properties": {
-                    "root": {"type": "string", "maxLength": 128, "pattern": "^[A-Za-z][A-Za-z0-9_.:-]*$"},
+                    "root": {
+                      "type": "string",
+                      "maxLength": 128,
+                      "pattern": "^[A-Za-z][A-Za-z0-9_.:-]*$"
+                    },
                     "path": {
-                      "type": "array", "maxItems": 32,
+                      "type": "array",
+                      "maxItems": 32,
                       "items": {
                         "type": "object",
                         "properties": {
-                          "tag": {"type": "string", "maxLength": 128, "pattern": "^[A-Za-z][A-Za-z0-9_.:-]*$"},
-                          "index": {"type": "integer", "minimum": 0, "maximum": 65535},
-                          "siblings": {"type": "integer", "minimum": 1, "maximum": 65536},
-                          "shadow": {"type": "boolean"}
+                          "tag": {
+                            "type": "string",
+                            "maxLength": 128,
+                            "pattern": "^[A-Za-z][A-Za-z0-9_.:-]*$"
+                          },
+                          "index": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 65535
+                          },
+                          "siblings": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 65536
+                          },
+                          "shadow": { "type": "boolean" }
                         },
-                        "required": ["tag", "index", "siblings"], "additionalProperties": false
+                        "required": ["tag", "index", "siblings"],
+                        "additionalProperties": false
                       }
                     }
                   },
-                  "required": ["root", "path"], "additionalProperties": false
+                  "required": ["root", "path"],
+                  "additionalProperties": false
                 },
-                "says": {"type": "string", "minLength": 1, "maxLength": 500},
+                "says": { "type": "string", "minLength": 1, "maxLength": 500 },
                 "viewport": {
                   "type": "array",
                   "minItems": 2,
                   "maxItems": 2,
                   "prefixItems": [
-                    {"type": "number", "exclusiveMinimum": 0, "maximum": 33554432},
-                    {"type": "number", "exclusiveMinimum": 0, "maximum": 33554432}
+                    { "type": "number", "exclusiveMinimum": 0, "maximum": 33554432 },
+                    { "type": "number", "exclusiveMinimum": 0, "maximum": 33554432 }
                   ],
                   "items": false
                 },
-                "scheme": {"enum": ["light", "dark"]}
+                "scheme": { "enum": ["light", "dark"] }
               },
               "required": ["strokes", "box", "viewport", "scheme"],
               "additionalProperties": false
             },
-            "suggestion": {"type": "boolean"},
-            "about": {"const": "design"},
-            "title": {"type": "string", "minLength": 1, "maxLength": 80, "pattern": "\\S", "not": {"pattern": "[\\r\\n]"}},
-            "agent": {"type": "string", "minLength": 1},
-            "session": {"type": "string", "minLength": 1},
-            "markup": {"type": "string", "minLength": 1},
-            "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"},
-            "holds": {"type": "string", "minLength": 1}
+            "suggestion": { "type": "boolean" },
+            "about": { "const": "design" },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "pattern": "\\S",
+              "not": { "pattern": "[\\r\\n]" }
+            },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 },
+            "markup": { "type": "string", "minLength": 1 },
+            "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" },
+            "holds": { "type": "string", "minLength": 1 }
           },
           "required": ["attention", "id", "ts", "author", "kind", "seq", "revision"],
           "additionalProperties": false,
           "oneOf": [
-            {"required": ["text"]},
-            {"required": ["token"]},
-            {"required": ["drawing"], "not": {"required": ["text"]}}
+            { "required": ["text"] },
+            { "required": ["token"] },
+            { "required": ["drawing"], "not": { "required": ["text"] } }
           ],
           "dependentSchemas": {
-            "title": {"properties": {"author": {"const": "agent"}}},
-            "token": {"not": {"anyOf": [{"required": ["suggestion"]}, {"required": ["holds"]}, {"required": ["markup"]}]}},
+            "title": { "properties": { "author": { "const": "agent" } } },
+            "token": {
+              "not": {
+                "anyOf": [
+                  { "required": ["suggestion"] },
+                  { "required": ["holds"] },
+                  { "required": ["markup"] }
+                ]
+              }
+            },
             "drawing": {
               "required": ["anchor"],
               "properties": {
-                "anchor": {"not": {"anyOf": [{"required": ["quote"]}, {"required": ["part"]}]}}
+                "anchor": {
+                  "not": {
+                    "anyOf": [{ "required": ["quote"] }, { "required": ["part"] }]
+                  }
+                }
               },
-              "not": {"anyOf": [{"required": ["suggestion"]}, {"required": ["about"]}, {"required": ["holds"]}, {"required": ["markup"]}]}
+              "not": {
+                "anyOf": [
+                  { "required": ["suggestion"] },
+                  { "required": ["about"] },
+                  { "required": ["holds"] },
+                  { "required": ["markup"] }
+                ]
+              }
             }
           }
         },
         "browser": {
           "required": ["kind", "revision"],
-          "not": {"required": ["markup"]}
+          "not": { "required": ["markup"] }
         }
       },
       "reply": {
         "record": {
           "type": "object",
           "properties": {
-            "attention": {"type": "boolean"},
-            "id": {"type": "string", "minLength": 1},
-            "ts": {"type": "string", "minLength": 1},
-            "author": {"type": "string", "minLength": 1},
-            "kind": {"const": "reply"},
-            "seq": {"type": "integer", "minimum": 1},
-            "parent": {"type": "string", "minLength": 1},
-            "revision": {"type": "integer", "minimum": 1},
-            "publication": {"type": "string", "pattern": "^r[1-9][0-9]*-[a-f0-9]{16}$"},
-            "text": {"type": "string", "minLength": 1},
-            "token": {"type": "string", "minLength": 1},
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "type": "string", "minLength": 1 },
+            "kind": { "const": "reply" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "parent": { "type": "string", "minLength": 1 },
+            "revision": { "type": "integer", "minimum": 1 },
+            "publication": {
+              "type": "string",
+              "pattern": "^r[1-9][0-9]*-[a-f0-9]{16}$"
+            },
+            "text": { "type": "string", "minLength": 1 },
+            "token": { "type": "string", "minLength": 1 },
             "anchor": {
               "type": ["object", "null"],
               "properties": {
-                "section": {"type": ["string", "null"]},
-                "quote": {"type": "string"},
-                "datum": {"type": "string", "minLength": 1},
-                "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
-                "source_revision": {"type": "string", "pattern": "^[0-9a-f]{16}$"},
-                "identity": {"type": "string", "minLength": 1},
-                "visual": {"type": "string", "minLength": 1},
-                "prefix": {"type": "string"},
-                "suffix": {"type": "string"},
-                "detached": {"const": true},
-                "part": {"type": "string"}
+                "section": { "type": ["string", "null"] },
+                "quote": { "type": "string" },
+                "datum": { "type": "string", "minLength": 1 },
+                "source": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+                "source_revision": { "type": "string", "pattern": "^[0-9a-f]{16}$" },
+                "identity": { "type": "string", "minLength": 1 },
+                "visual": { "type": "string", "minLength": 1 },
+                "prefix": { "type": "string" },
+                "suffix": { "type": "string" },
+                "detached": { "const": true },
+                "part": { "type": "string" }
               },
               "anyOf": [
-                {"required": ["section"], "properties": {"section": {"type": "string", "minLength": 1}}},
-                {"required": ["quote"], "properties": {"quote": {"type": "string", "minLength": 1}}},
-                {"required": ["datum"], "properties": {"datum": {"type": "string", "minLength": 1}}}
+                {
+                  "required": ["section"],
+                  "properties": { "section": { "type": "string", "minLength": 1 } }
+                },
+                {
+                  "required": ["quote"],
+                  "properties": { "quote": { "type": "string", "minLength": 1 } }
+                },
+                {
+                  "required": ["datum"],
+                  "properties": { "datum": { "type": "string", "minLength": 1 } }
+                }
               ],
               "dependentRequired": {
                 "datum": ["section"],
@@ -675,104 +742,180 @@
               },
               "additionalProperties": false
             },
-            "title": {"type": "string", "minLength": 1, "maxLength": 80, "pattern": "\\S", "not": {"pattern": "[\\r\\n]"}},
-            "agent": {"type": "string", "minLength": 1},
-            "session": {"type": "string", "minLength": 1},
-            "markup": {"type": "string", "minLength": 1},
-            "ask": {"const": true},
-            "todo": {"type": "string", "minLength": 1, "maxLength": 80, "pattern": "\\S", "not": {"pattern": "[\\r\\n]"}},
-            "ephemeral": {"const": true},
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "pattern": "\\S",
+              "not": { "pattern": "[\\r\\n]" }
+            },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 },
+            "markup": { "type": "string", "minLength": 1 },
+            "ask": { "const": true },
+            "todo": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "pattern": "\\S",
+              "not": { "pattern": "[\\r\\n]" }
+            },
+            "ephemeral": { "const": true },
             "start": {
               "type": "object",
               "properties": {
-                "item": {"type": "string", "minLength": 1},
-                "turn": {"type": "string", "minLength": 1}
+                "item": { "type": "string", "minLength": 1 },
+                "turn": { "type": "string", "minLength": 1 }
               },
               "required": ["item"],
               "additionalProperties": false
             },
-            "failure": {"type": "string", "minLength": 1},
-            "responds": {"type": "string", "minLength": 1},
-            "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
+            "failure": { "type": "string", "minLength": 1 },
+            "responds": { "type": "string", "minLength": 1 },
+            "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" }
           },
           "required": ["attention", "id", "ts", "author", "kind", "seq", "parent"],
           "additionalProperties": false,
-          "oneOf": [{"required": ["text"]}, {"required": ["token"]}],
+          "oneOf": [{ "required": ["text"] }, { "required": ["token"] }],
           "dependentSchemas": {
             "start": {
               "required": ["ephemeral", "text"],
               "properties": {
-                "author": {"const": "agent"},
-                "text": {"pattern": "\\S", "not": {"pattern": "\\S\\s*[\\r\\n]\\s*\\S"}}
+                "author": { "const": "agent" },
+                "text": {
+                  "pattern": "\\S",
+                  "not": { "pattern": "\\S\\s*[\\r\\n]\\s*\\S" }
+                }
               }
             },
-            "title": {"properties": {"author": {"const": "agent"}}},
-            "publication": {"required": ["revision"], "properties": {"author": {"const": "agent"}}},
+            "title": { "properties": { "author": { "const": "agent" } } },
+            "publication": {
+              "required": ["revision"],
+              "properties": { "author": { "const": "agent" } }
+            },
             "ephemeral": {
               "required": ["text"],
-              "properties": {"author": {"const": "agent"}},
-              "not": {"anyOf": [{"required": ["responds"]}, {"required": ["ask"]}, {"required": ["todo"]}, {"required": ["markup"]}, {"required": ["failure"]}, {"required": ["anchor"]}]}
+              "properties": { "author": { "const": "agent" } },
+              "not": {
+                "anyOf": [
+                  { "required": ["responds"] },
+                  { "required": ["ask"] },
+                  { "required": ["todo"] },
+                  { "required": ["markup"] },
+                  { "required": ["failure"] },
+                  { "required": ["anchor"] }
+                ]
+              }
             },
-            "token": {"not": {"required": ["markup"]}},
-            "ask": {"properties": {"author": {"const": "agent"}}},
-            "todo": {"required": ["text"], "properties": {"author": {"const": "agent"}}, "not": {"anyOf": [{"required": ["failure"]}, {"required": ["ask"]}]}},
-            "failure": {"required": ["text", "responds"], "properties": {"author": {"const": "agent"}}},
+            "token": { "not": { "required": ["markup"] } },
+            "ask": { "properties": { "author": { "const": "agent" } } },
+            "todo": {
+              "required": ["text"],
+              "properties": { "author": { "const": "agent" } },
+              "not": { "anyOf": [{ "required": ["failure"] }, { "required": ["ask"] }] }
+            },
+            "failure": {
+              "required": ["text", "responds"],
+              "properties": { "author": { "const": "agent" } }
+            },
             "anchor": {
               "required": ["revision", "text"],
-              "properties": {"author": {"const": "agent"}}
+              "properties": { "author": { "const": "agent" } }
             }
           }
         },
         "browser": {
           "required": ["kind", "parent", "revision"],
-          "not": {"anyOf": [{"required": ["markup"]}, {"required": ["ask"]}, {"required": ["todo"]}, {"required": ["anchor"]}, {"required": ["responds"]}, {"required": ["failure"]}, {"required": ["ephemeral"]}, {"required": ["start"]}, {"required": ["title"]}]}
+          "not": {
+            "anyOf": [
+              { "required": ["markup"] },
+              { "required": ["ask"] },
+              { "required": ["todo"] },
+              { "required": ["anchor"] },
+              { "required": ["responds"] },
+              { "required": ["failure"] },
+              { "required": ["ephemeral"] },
+              { "required": ["start"] },
+              { "required": ["title"] }
+            ]
+          }
         }
       },
       "edit": {
         "record": {
           "type": "object",
           "properties": {
-            "attention": {"type": "boolean"},
-            "id": {"type": "string", "minLength": 1},
-            "ts": {"type": "string", "minLength": 1},
-            "author": {"enum": ["agent", "user"]},
-            "kind": {"const": "edit"},
-            "seq": {"type": "integer", "minimum": 1},
-            "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"},
-            "message": {"type": "string", "minLength": 1},
-            "text": {"type": "string", "minLength": 1},
-            "base": {"type": "string", "minLength": 1},
-            "agent": {"type": "string", "minLength": 1},
-            "session": {"type": "string", "minLength": 1}
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "enum": ["agent", "user"] },
+            "kind": { "const": "edit" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" },
+            "message": { "type": "string", "minLength": 1 },
+            "text": { "type": "string", "minLength": 1 },
+            "base": { "type": "string", "minLength": 1 },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 }
           },
-          "required": ["attention", "id", "ts", "author", "kind", "seq", "message", "text"],
+          "required": [
+            "attention",
+            "id",
+            "ts",
+            "author",
+            "kind",
+            "seq",
+            "message",
+            "text"
+          ],
           "additionalProperties": false,
           "oneOf": [
-            {"properties": {"author": {"const": "agent"}}, "required": ["agent", "session"]},
-            {"properties": {"author": {"const": "user"}}, "not": {"anyOf": [{"required": ["agent"]}, {"required": ["session"]}]}}
+            {
+              "properties": { "author": { "const": "agent" } },
+              "required": ["agent", "session"]
+            },
+            {
+              "properties": { "author": { "const": "user" } },
+              "not": {
+                "anyOf": [{ "required": ["agent"] }, { "required": ["session"] }]
+              }
+            }
           ]
         },
-        "browser": {"required": ["kind", "message", "text", "base"]}
+        "browser": { "required": ["kind", "message", "text", "base"] }
       },
       "summary": {
         "record": {
           "type": "object",
           "properties": {
-            "attention": {"type": "boolean"},
-            "id": {"type": "string", "minLength": 1},
-            "ts": {"type": "string", "minLength": 1},
-            "author": {"const": "agent"},
-            "kind": {"const": "summary"},
-            "seq": {"type": "integer", "minimum": 1},
-            "thread": {"type": "string", "minLength": 1},
-            "from": {"type": "string", "minLength": 1},
-            "through": {"type": "string", "minLength": 1},
-            "text": {"type": "string"},
-            "label": {"type": "string", "minLength": 1},
-            "agent": {"type": "string", "minLength": 1},
-            "session": {"type": "string", "minLength": 1}
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "const": "agent" },
+            "kind": { "const": "summary" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "thread": { "type": "string", "minLength": 1 },
+            "from": { "type": "string", "minLength": 1 },
+            "through": { "type": "string", "minLength": 1 },
+            "text": { "type": "string" },
+            "label": { "type": "string", "minLength": 1 },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 }
           },
-          "required": ["attention", "id", "ts", "author", "kind", "seq", "thread", "from", "through", "text", "agent", "session"],
+          "required": [
+            "attention",
+            "id",
+            "ts",
+            "author",
+            "kind",
+            "seq",
+            "thread",
+            "from",
+            "through",
+            "text",
+            "agent",
+            "session"
+          ],
           "additionalProperties": false
         }
       },
@@ -781,12 +924,12 @@
         "record": {
           "type": "object",
           "properties": {
-            "attention": {"type": "boolean"},
-            "id": {"type": "string", "minLength": 1},
-            "ts": {"type": "string", "minLength": 1},
-            "author": {"const": "user"},
-            "kind": {"const": "read"},
-            "seq": {"type": "integer", "minimum": 1},
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "const": "user" },
+            "kind": { "const": "read" },
+            "seq": { "type": "integer", "minimum": 1 },
             "messages": {
               "type": "array",
               "minItems": 1,
@@ -794,36 +937,53 @@
               "items": {
                 "type": "object",
                 "properties": {
-                  "message": {"type": "string", "minLength": 1},
-                  "version": {"type": "string", "minLength": 1}
+                  "message": { "type": "string", "minLength": 1 },
+                  "version": { "type": "string", "minLength": 1 }
                 },
                 "required": ["message", "version"],
                 "additionalProperties": false
               }
             },
-            "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
+            "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" }
           },
           "required": ["attention", "id", "ts", "author", "kind", "seq", "messages"],
           "additionalProperties": false
         },
-        "browser": {"required": ["kind", "messages"]}
+        "browser": { "required": ["kind", "messages"] }
       },
       "thread_title": {
         "record": {
           "type": "object",
           "properties": {
-            "attention": {"type": "boolean"},
-            "id": {"type": "string", "minLength": 1},
-            "ts": {"type": "string", "minLength": 1},
-            "author": {"const": "agent"},
-            "kind": {"const": "thread_title"},
-            "seq": {"type": "integer", "minimum": 1},
-            "thread": {"type": "string", "minLength": 1},
-            "title": {"type": "string", "minLength": 1, "maxLength": 80, "pattern": "\\S", "not": {"pattern": "[\\r\\n]"}},
-            "agent": {"type": "string", "minLength": 1},
-            "session": {"type": "string", "minLength": 1}
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "const": "agent" },
+            "kind": { "const": "thread_title" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "thread": { "type": "string", "minLength": 1 },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "pattern": "\\S",
+              "not": { "pattern": "[\\r\\n]" }
+            },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 }
           },
-          "required": ["attention", "id", "ts", "author", "kind", "seq", "thread", "title", "agent", "session"],
+          "required": [
+            "attention",
+            "id",
+            "ts",
+            "author",
+            "kind",
+            "seq",
+            "thread",
+            "title",
+            "agent",
+            "session"
+          ],
           "additionalProperties": false
         }
       },
@@ -831,38 +991,54 @@
         "record": {
           "type": "object",
           "properties": {
-            "attention": {"type": "boolean"},
-            "id": {"type": "string", "minLength": 1},
-            "ts": {"type": "string", "minLength": 1},
-            "author": {"const": "agent"},
-            "kind": {"const": "todo"},
-            "seq": {"type": "integer", "minimum": 1},
-            "owner": {"enum": ["agent", "user"]},
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "const": "agent" },
+            "kind": { "const": "todo" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "owner": { "enum": ["agent", "user"] },
             "subject": {
               "oneOf": [
                 {
                   "type": "object",
                   "properties": {
-                    "kind": {"enum": ["widget", "element"]},
-                    "id": {"type": "string", "minLength": 1}
+                    "kind": { "enum": ["widget", "element"] },
+                    "id": { "type": "string", "minLength": 1 }
                   },
                   "required": ["kind", "id"],
                   "additionalProperties": false
                 },
                 {
                   "type": "object",
-                  "properties": {"kind": {"const": "page"}},
+                  "properties": { "kind": { "const": "page" } },
                   "required": ["kind"],
                   "additionalProperties": false
                 }
               ]
             },
-            "revision": {"type": "integer", "minimum": 1},
-            "title": {"type": "string", "minLength": 1, "maxLength": 80, "pattern": "\\S", "not": {"pattern": "[\\r\\n]"}},
-            "agent": {"type": "string", "minLength": 1},
-            "session": {"type": "string", "minLength": 1}
+            "revision": { "type": "integer", "minimum": 1 },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "pattern": "\\S",
+              "not": { "pattern": "[\\r\\n]" }
+            },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 }
           },
-          "required": ["attention", "id", "ts", "author", "kind", "seq", "owner", "subject", "title"],
+          "required": [
+            "attention",
+            "id",
+            "ts",
+            "author",
+            "kind",
+            "seq",
+            "owner",
+            "subject",
+            "title"
+          ],
           "additionalProperties": false
         }
       },
@@ -870,19 +1046,33 @@
         "record": {
           "type": "object",
           "properties": {
-            "attention": {"type": "boolean"},
-            "id": {"type": "string", "minLength": 1},
-            "ts": {"type": "string", "minLength": 1},
-            "author": {"const": "agent"},
-            "kind": {"const": "start"},
-            "seq": {"type": "integer", "minimum": 1},
-            "item": {"type": "string", "minLength": 1},
-            "text": {"type": "string", "minLength": 1, "pattern": "\\S", "not": {"pattern": "[\\r\\n]"}},
-            "turn": {"type": "string", "minLength": 1},
-            "agent": {"type": "string", "minLength": 1},
-            "session": {"type": "string", "minLength": 1}
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "const": "agent" },
+            "kind": { "const": "start" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "item": { "type": "string", "minLength": 1 },
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "\\S",
+              "not": { "pattern": "[\\r\\n]" }
+            },
+            "turn": { "type": "string", "minLength": 1 },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 }
           },
-          "required": ["attention", "id", "ts", "author", "kind", "seq", "item", "text"],
+          "required": [
+            "attention",
+            "id",
+            "ts",
+            "author",
+            "kind",
+            "seq",
+            "item",
+            "text"
+          ],
           "additionalProperties": false
         }
       },
@@ -890,14 +1080,14 @@
         "record": {
           "type": "object",
           "properties": {
-            "attention": {"type": "boolean"},
-            "id": {"type": "string", "minLength": 1},
-            "ts": {"type": "string", "minLength": 1},
-            "author": {"const": "agent"},
-            "kind": {"const": "put_down"},
-            "seq": {"type": "integer", "minimum": 1},
-            "agent": {"type": "string", "minLength": 1},
-            "session": {"type": "string", "minLength": 1}
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "const": "agent" },
+            "kind": { "const": "put_down" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 }
           },
           "required": ["attention", "id", "ts", "author", "kind", "seq"],
           "additionalProperties": false
@@ -907,23 +1097,41 @@
         "record": {
           "type": "object",
           "properties": {
-            "attention": {"type": "boolean"},
-            "id": {"type": "string", "minLength": 1},
-            "ts": {"type": "string", "minLength": 1},
-            "author": {"enum": ["agent", "user"]},
-            "kind": {"const": "todo_end"},
-            "seq": {"type": "integer", "minimum": 1},
-            "todo": {"type": "string", "minLength": 1},
-            "outcome": {"enum": ["done", "failed", "dropped"]},
-            "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"},
-            "detail": {"type": "string", "minLength": 1, "maxLength": 500, "pattern": "\\S"},
-            "agent": {"type": "string", "minLength": 1},
-            "session": {"type": "string", "minLength": 1}
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "enum": ["agent", "user"] },
+            "kind": { "const": "todo_end" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "todo": { "type": "string", "minLength": 1 },
+            "outcome": { "enum": ["done", "failed", "dropped"] },
+            "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" },
+            "detail": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500,
+              "pattern": "\\S"
+            },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 }
           },
-          "required": ["attention", "id", "ts", "author", "kind", "seq", "todo", "outcome"],
+          "required": [
+            "attention",
+            "id",
+            "ts",
+            "author",
+            "kind",
+            "seq",
+            "todo",
+            "outcome"
+          ],
           "additionalProperties": false
         },
-        "browser": {"required": ["kind", "todo", "outcome"], "properties": {"outcome": {"const": "done"}}, "not": {"required": ["detail"]}}
+        "browser": {
+          "required": ["kind", "todo", "outcome"],
+          "properties": { "outcome": { "const": "done" } },
+          "not": { "required": ["detail"] }
+        }
       },
       "reanchor": {
         "bookkeeping": true,
@@ -944,7 +1152,10 @@
             "author": {
               "const": "page"
             },
-            "publication": {"type": "string", "pattern": "^r[1-9][0-9]*-[a-f0-9]{16}$"},
+            "publication": {
+              "type": "string",
+              "pattern": "^r[1-9][0-9]*-[a-f0-9]{16}$"
+            },
             "kind": {
               "const": "reanchor"
             },
@@ -968,9 +1179,7 @@
                   "minLength": 1
                 }
               },
-              "required": [
-                "section"
-              ],
+              "required": ["section"],
               "additionalProperties": false
             }
           },
@@ -992,107 +1201,156 @@
         "record": {
           "type": "object",
           "properties": {
-            "attention": {"type": "boolean"},
-            "id": {"type": "string", "minLength": 1},
-            "ts": {"type": "string", "minLength": 1},
-            "author": {"type": "string", "minLength": 1},
-            "kind": {"const": "resolve"},
-            "seq": {"type": "integer", "minimum": 1},
-            "parent": {"type": "string", "minLength": 1},
-            "agent": {"type": "string", "minLength": 1},
-            "session": {"type": "string", "minLength": 1},
-            "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "type": "string", "minLength": 1 },
+            "kind": { "const": "resolve" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "parent": { "type": "string", "minLength": 1 },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 },
+            "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" }
           },
           "required": ["attention", "id", "ts", "author", "kind", "seq", "parent"],
           "additionalProperties": false
         },
-        "browser": {"required": ["kind", "parent"]}
+        "browser": { "required": ["kind", "parent"] }
       },
       "unresolve": {
         "record": {
           "type": "object",
           "properties": {
-            "attention": {"type": "boolean"},
-            "id": {"type": "string", "minLength": 1},
-            "ts": {"type": "string", "minLength": 1},
-            "author": {"type": "string", "minLength": 1},
-            "kind": {"const": "unresolve"},
-            "seq": {"type": "integer", "minimum": 1},
-            "parent": {"type": "string", "minLength": 1},
-            "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "type": "string", "minLength": 1 },
+            "kind": { "const": "unresolve" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "parent": { "type": "string", "minLength": 1 },
+            "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" }
           },
           "required": ["attention", "id", "ts", "author", "kind", "seq", "parent"],
           "additionalProperties": false
         },
-        "browser": {"required": ["kind", "parent"]}
+        "browser": { "required": ["kind", "parent"] }
       },
       "done": {
         "record": {
           "type": "object",
           "properties": {
-            "attention": {"type": "boolean"},
-            "id": {"type": "string", "minLength": 1},
-            "ts": {"type": "string", "minLength": 1},
-            "author": {"type": "string", "minLength": 1},
-            "kind": {"const": "done"},
-            "seq": {"type": "integer", "minimum": 1},
-            "version": {"type": "integer", "minimum": 1},
-            "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "type": "string", "minLength": 1 },
+            "kind": { "const": "done" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "version": { "type": "integer", "minimum": 1 },
+            "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" }
           },
           "required": ["attention", "id", "ts", "author", "kind", "seq", "version"],
           "additionalProperties": false
         },
-        "browser": {"required": ["kind", "version"]}
+        "browser": { "required": ["kind", "version"] }
       },
       "action": {
         "record": {
           "type": "object",
           "properties": {
-            "attention": {"type": "boolean"},
-            "id": {"type": "string", "minLength": 1},
-            "ts": {"type": "string", "minLength": 1},
-            "author": {"type": "string", "minLength": 1},
-            "kind": {"const": "action"},
-            "seq": {"type": "integer", "minimum": 1},
-            "widget": {"type": "string", "minLength": 1},
-            "action": {"type": "string", "minLength": 1},
-            "detail": {"type": "object"},
-            "meaning": {"type": "object", "properties": {"scope": {"enum": ["page", "thread"]}, "unit": {"type": "string", "minLength": 1}, "depends": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}, "answer": {"type": ["string", "null"], "minLength": 1}, "creates": {"type": "string", "pattern": "^lf-[a-z0-9]+(-[a-z0-9]+)*$"}, "among": {"type": "array", "items": {"type": "string", "minLength": 1}}, "state": {"type": "object", "properties": {"origin": {"type": "string", "pattern": "^lf-[a-z0-9]+(-[a-z0-9]+)*$"}, "unit": {"type": "string", "minLength": 1}, "record": {"type": ["object", "null"]}, "creates": {"type": ["object", "null"]}, "detail": {"type": ["object", "boolean"]}}, "required": ["origin", "unit", "record", "creates", "detail"], "additionalProperties": false}}, "required": ["scope", "unit", "depends"], "additionalProperties": false},
-            "revision": {"type": "integer", "minimum": 1},
-            "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "type": "string", "minLength": 1 },
+            "kind": { "const": "action" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "widget": { "type": "string", "minLength": 1 },
+            "action": { "type": "string", "minLength": 1 },
+            "detail": { "type": "object" },
+            "meaning": {
+              "type": "object",
+              "properties": {
+                "scope": { "enum": ["page", "thread"] },
+                "unit": { "type": "string", "minLength": 1 },
+                "depends": {
+                  "type": "array",
+                  "items": { "type": "string", "minLength": 1 },
+                  "uniqueItems": true
+                },
+                "answer": { "type": ["string", "null"], "minLength": 1 },
+                "creates": {
+                  "type": "string",
+                  "pattern": "^lf-[a-z0-9]+(-[a-z0-9]+)*$"
+                },
+                "among": {
+                  "type": "array",
+                  "items": { "type": "string", "minLength": 1 }
+                },
+                "state": {
+                  "type": "object",
+                  "properties": {
+                    "origin": {
+                      "type": "string",
+                      "pattern": "^lf-[a-z0-9]+(-[a-z0-9]+)*$"
+                    },
+                    "unit": { "type": "string", "minLength": 1 },
+                    "record": { "type": ["object", "null"] },
+                    "creates": { "type": ["object", "null"] },
+                    "detail": { "type": ["object", "boolean"] }
+                  },
+                  "required": ["origin", "unit", "record", "creates", "detail"],
+                  "additionalProperties": false
+                }
+              },
+              "required": ["scope", "unit", "depends"],
+              "additionalProperties": false
+            },
+            "revision": { "type": "integer", "minimum": 1 },
+            "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" }
           },
-          "required": ["attention", "id", "ts", "author", "kind", "seq", "widget", "action", "detail", "revision", "meaning"],
+          "required": [
+            "attention",
+            "id",
+            "ts",
+            "author",
+            "kind",
+            "seq",
+            "widget",
+            "action",
+            "detail",
+            "revision",
+            "meaning"
+          ],
           "additionalProperties": false
         },
-        "browser": {"required": ["kind", "widget", "action", "detail", "revision"]}
+        "browser": { "required": ["kind", "widget", "action", "detail", "revision"] }
       },
       "pickup": {
         "record": {
           "type": "object",
           "properties": {
-            "attention": {"type": "boolean"},
-            "id": {"type": "string", "minLength": 1},
-            "ts": {"type": "string", "minLength": 1},
-            "author": {"const": "page"},
-            "kind": {"const": "pickup"},
-            "seq": {"type": "integer", "minimum": 1},
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "const": "page" },
+            "kind": { "const": "pickup" },
+            "seq": { "type": "integer", "minimum": 1 },
             "events": {
               "type": "array",
-              "items": {"type": "string", "minLength": 1},
+              "items": { "type": "string", "minLength": 1 },
               "minItems": 1,
               "uniqueItems": true
             },
-            "phase": {"enum": ["queued", "opened", "failed"]},
-            "session": {"type": ["string", "null"], "minLength": 1},
-            "turn": {"type": ["string", "null"], "minLength": 1},
-            "failure": {"type": "string", "minLength": 1},
+            "phase": { "enum": ["queued", "opened", "failed"] },
+            "session": { "type": ["string", "null"], "minLength": 1 },
+            "turn": { "type": ["string", "null"], "minLength": 1 },
+            "failure": { "type": "string", "minLength": 1 },
             "refs": {
               "type": "object",
               "additionalProperties": {
                 "type": "object",
                 "properties": {
-                  "ref": {"type": "string", "minLength": 1},
-                  "claim": {"type": ["string", "null"], "minLength": 1}
+                  "ref": { "type": "string", "minLength": 1 },
+                  "claim": { "type": ["string", "null"], "minLength": 1 }
                 },
                 "required": ["ref", "claim"],
                 "additionalProperties": false
@@ -1100,10 +1358,21 @@
               "minProperties": 1
             }
           },
-          "required": ["attention", "id", "ts", "author", "kind", "seq", "events", "phase", "session", "turn"],
-          "if": {"properties": {"phase": {"const": "failed"}}},
-          "then": {"required": ["failure"]},
-          "else": {"not": {"required": ["failure"]}},
+          "required": [
+            "attention",
+            "id",
+            "ts",
+            "author",
+            "kind",
+            "seq",
+            "events",
+            "phase",
+            "session",
+            "turn"
+          ],
+          "if": { "properties": { "phase": { "const": "failed" } } },
+          "then": { "required": ["failure"] },
+          "else": { "not": { "required": ["failure"] } },
           "additionalProperties": false
         }
       },
@@ -1111,39 +1380,79 @@
         "record": {
           "type": "object",
           "properties": {
-            "attention": {"type": "boolean"},
-            "id": {"type": "string", "minLength": 1},
-            "ts": {"type": "string", "minLength": 1},
-            "author": {"type": "string", "minLength": 1},
-            "kind": {"const": "undo"},
-            "seq": {"type": "integer", "minimum": 1},
-            "undoes": {"type": "string", "minLength": 1},
-            "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "type": "string", "minLength": 1 },
+            "kind": { "const": "undo" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "undoes": { "type": "string", "minLength": 1 },
+            "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" }
           },
           "required": ["attention", "id", "ts", "author", "kind", "seq", "undoes"],
           "additionalProperties": false
         },
-        "browser": {"required": ["kind", "undoes"]}
+        "browser": { "required": ["kind", "undoes"] }
       },
       "report": {
         "record": {
           "type": "object",
           "properties": {
-            "attention": {"type": "boolean"},
-            "id": {"type": "string", "minLength": 1},
-            "ts": {"type": "string", "minLength": 1},
-            "author": {"type": "string", "minLength": 1},
-            "kind": {"const": "report"},
-            "seq": {"type": "integer", "minimum": 1},
-            "widget": {"type": "string", "minLength": 1},
-            "action": {"type": "string", "minLength": 1},
-            "detail": {"type": "object"},
-            "meaning": {"type": "object", "properties": {"scope": {"enum": ["page", "thread"]}, "unit": {"type": "string", "minLength": 1}, "depends": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}, "state": {"type": "object", "properties": {"origin": {"type": "string", "pattern": "^lf-[a-z0-9]+(-[a-z0-9]+)*$"}, "unit": {"type": "string", "minLength": 1}, "record": {"type": ["object", "null"]}, "creates": {"type": ["object", "null"]}, "detail": {"type": ["object", "boolean"]}}, "required": ["origin", "unit", "record", "creates", "detail"], "additionalProperties": false}}, "required": ["scope", "unit", "depends"], "additionalProperties": false},
-            "revision": {"type": "integer", "minimum": 1},
-            "agent": {"type": "string", "minLength": 1},
-            "session": {"type": "string", "minLength": 1}
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "type": "string", "minLength": 1 },
+            "kind": { "const": "report" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "widget": { "type": "string", "minLength": 1 },
+            "action": { "type": "string", "minLength": 1 },
+            "detail": { "type": "object" },
+            "meaning": {
+              "type": "object",
+              "properties": {
+                "scope": { "enum": ["page", "thread"] },
+                "unit": { "type": "string", "minLength": 1 },
+                "depends": {
+                  "type": "array",
+                  "items": { "type": "string", "minLength": 1 },
+                  "uniqueItems": true
+                },
+                "state": {
+                  "type": "object",
+                  "properties": {
+                    "origin": {
+                      "type": "string",
+                      "pattern": "^lf-[a-z0-9]+(-[a-z0-9]+)*$"
+                    },
+                    "unit": { "type": "string", "minLength": 1 },
+                    "record": { "type": ["object", "null"] },
+                    "creates": { "type": ["object", "null"] },
+                    "detail": { "type": ["object", "boolean"] }
+                  },
+                  "required": ["origin", "unit", "record", "creates", "detail"],
+                  "additionalProperties": false
+                }
+              },
+              "required": ["scope", "unit", "depends"],
+              "additionalProperties": false
+            },
+            "revision": { "type": "integer", "minimum": 1 },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 }
           },
-          "required": ["attention", "id", "ts", "author", "kind", "seq", "widget", "action", "detail", "revision", "meaning"],
+          "required": [
+            "attention",
+            "id",
+            "ts",
+            "author",
+            "kind",
+            "seq",
+            "widget",
+            "action",
+            "detail",
+            "revision",
+            "meaning"
+          ],
           "additionalProperties": false
         }
       },
@@ -1151,35 +1460,54 @@
         "record": {
           "type": "object",
           "properties": {
-            "attention": {"type": "boolean"},
-            "id": {"type": "string", "minLength": 1},
-            "ts": {"type": "string", "minLength": 1},
-            "author": {"type": "string", "minLength": 1},
-            "kind": {"const": "note"},
-            "seq": {"type": "integer", "minimum": 1},
-            "version": {"type": "integer", "minimum": 1},
-            "revision": {"type": "integer", "minimum": 1},
-            "publication": {"type": "string", "pattern": "^r[1-9][0-9]*-[a-f0-9]{16}$"},
-            "text": {"type": "string", "minLength": 1},
-            "restated": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "type": "string", "minLength": 1 },
+            "kind": { "const": "note" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "version": { "type": "integer", "minimum": 1 },
+            "revision": { "type": "integer", "minimum": 1 },
+            "publication": {
+              "type": "string",
+              "pattern": "^r[1-9][0-9]*-[a-f0-9]{16}$"
+            },
+            "text": { "type": "string", "minLength": 1 },
+            "restated": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            },
             "settles": {
               "type": "array",
               "items": {
                 "type": "object",
                 "properties": {
-                  "kind": {"enum": ["report", "todo"]},
-                  "id": {"type": "string", "minLength": 1}
+                  "kind": { "enum": ["report", "todo"] },
+                  "id": { "type": "string", "minLength": 1 }
                 },
                 "required": ["kind", "id"],
                 "additionalProperties": false
               },
               "uniqueItems": true
             },
-            "agent": {"type": "string", "minLength": 1},
-            "session": {"type": "string", "minLength": 1}
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 }
           },
-          "required": ["attention", "id", "ts", "author", "kind", "seq", "version", "revision", "text"],
-          "dependentSchemas": {"publication": {"properties": {"author": {"const": "agent"}}}},
+          "required": [
+            "attention",
+            "id",
+            "ts",
+            "author",
+            "kind",
+            "seq",
+            "version",
+            "revision",
+            "text"
+          ],
+          "dependentSchemas": {
+            "publication": { "properties": { "author": { "const": "agent" } } }
+          },
           "additionalProperties": false
         }
       },
@@ -1187,104 +1515,104 @@
         "record": {
           "type": "object",
           "properties": {
-            "attention": {"type": "boolean"},
-            "id": {"type": "string", "minLength": 1},
-            "ts": {"type": "string", "minLength": 1},
-            "author": {"type": "string", "minLength": 1},
-            "kind": {"const": "error"},
-            "seq": {"type": "integer", "minimum": 1},
-            "revision": {"type": "integer", "minimum": 1},
-            "text": {"type": "string", "minLength": 1}
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "type": "string", "minLength": 1 },
+            "kind": { "const": "error" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "revision": { "type": "integer", "minimum": 1 },
+            "text": { "type": "string", "minLength": 1 }
           },
           "required": ["attention", "id", "ts", "author", "kind", "seq", "text"],
           "additionalProperties": false
         },
-        "browser": {"required": ["kind", "text"]}
+        "browser": { "required": ["kind", "text"] }
       }
     }
   },
   "$keys": {
-    "description": "What each x- key an element declaration may carry means, one member per key. The lint admits only these keys: it refuses a registry whose $keys has a member for a key the lint does not admit, or lacks a member for one it does. A layer may override a member to document its own reading of a key, but cannot declare a new key. Authors query this entry beside element declarations, and the site's table of keys is generated from it, so authors, the lint and the site read the same text.",
-    "x-ask-context": "The element frames the asks nested in it. Its leading direct heading supplies their prompt text, and travel to one of those asks lands on the element. It never changes an ask's identity, answer or completion, and never merges asks from different sources. Where frames nest, an ask uses the nearest. One frame may hold several asks, each keeping its own widget:<source-id> identity. lf-ask is one element that declares this key; a widget that asks on its own needs no frame. When Leaf names the element's kind, it calls it a question, unless the element's x-word module returns another label.",
-    "x-awaits": "The widget asks the user for input while its authored attributes match `when`. The ask's id is widget:<source-id> and does not change; a framing x-ask-context supplies only the prompt words and where travel to the ask lands. `value` names the x-state verb whose state is the typed answer: the verb's record value, or, where it has no record, the detail of its latest action still in force. A verb that keeps state per member unit gives a map from each unit to its value. `answered` declares when the ask is complete, separately from `value`: a partial value can exist while the ask is open, and a completed empty value is still an answer. Core publishes one record per ask with source, prompt, answer {value, event}, status and next_actor. An ask once registered stays answered or withdrawn after `when` stops holding; an element that never matched `when` creates no ask. A `restated` event starts a fresh request. An open ask's next actor is the agent, and the ask stays open and unanswered, while the agent owes a reply about it: to a thread anchored inside the widget, or inside its x-ask-context and no other ask; or, for a widget frozen into a thread, to a user turn after the message that asked. A widget frozen into a thread keeps its ask after that thread closes, with no next actor. A quoted widget (x-exhibit) registers no ask. `all` names the outcome one banner control can give every ask of this kind at once. Asks and to-dos are separate records, and the user's On me list reads asks directly.",
-    "x-thread-seat": "The module places a thread box (threadBox) in each matching Leaf element, chosen by the authored, static attributes in `when`; an attribute that an x-state value record writes cannot satisfy `when`. The box shows, as text, the threads anchored exactly to that element, read from the whole log; the Threads panel keeps the full interactive view. A matching element inside thread markup or quoted content gets no box. If the widget also asks a question (x-awaits), the box is where the user answers it in words: while a thread there waits on the agent, the ask leaves the user's On me list, so the user does not see it twice. That comment does not answer the ask. The widget's state is unchanged, its controls still work, and the ask still reads as unanswered. `hold` is the label of a second send control in the box, whose comment carries `holds`, naming this widget. A held comment starts a thread like any other comment in the box, and the control stays available after other threads have started there. The widget is held while that thread is unresolved; resolving the thread releases it, and undoing the resolution restores the hold in one step. Removing the widget removes only the box, not its threads.",
-    "x-content": "The required content model: `markup` (the author's markup), `members` (only this element's declared member elements), `data` (one <pre> containing text in the notation the description names), or `empty`. A data body uses <pre> to preserve whitespace without CSS, with & < > escaped as &amp; &lt; &gt;.",
-    "x-data": "The widget's named external-data inputs. Each input names a `$data.contracts` contract and the declared canonical string attribute whose authored value is this page's source id. The input follows the source's current value. An optional source attribute leaves that input absent; `watchData` delivers null. Several widgets may bind the same source to the same contract. A document binds a source to one contract. Later documents may replace that binding; each captured document reads the current value against its own declared contract and reports incompatible values as source errors. A module subscribes by widget and input name, never by a package-owned source name.",
+    "description": "The meaning of each x- key an element declaration may carry, one member per key. The registry lint admits exactly these keys: it refuses a member for a key it does not admit, and a missing member for one it does. A layer may override a member to describe its own reading of a key, but cannot add a key. The site's registry reference is generated from this entry, so authors, the lint and the site read the same text.",
+    "x-ask-context": "The element frames the asks inside it: its leading heading gives their prompt, and going to one of those asks lands on the element. `lf-ask` declares it; a widget that asks on its own needs no frame. Each ask keeps its own id, answer and completion, and where frames nest, it uses the nearest. Leaf calls the element a question unless its x-word module returns another word.",
+    "x-awaits": "The widget asks the user for input while its authored attributes match `when`. The ask's id is `widget:<source-id>` and never changes. `value` names the x-state verb whose state is the typed answer, and `answered` says when the ask is complete ($awaits); they are separate because a partial value can exist while the ask is open, and an empty value can be a complete answer. `all` names the outcome one banner control can give every ask of this kind at once. Once created, an ask stays answered or withdrawn after `when` stops matching; an element that never matched creates none, and neither does a quoted widget (x-exhibit). A `restated` event asks again. While the agent owes a reply in a thread about the ask, anchored inside the widget, or inside its x-ask-context but no other ask, the agent is its next actor and the ask stays unanswered. A widget in a thread message keeps its ask after the thread closes. Asks and to-dos are separate records, and the user's On me list reads asks directly.",
+    "x-thread-seat": "The module puts a thread box (`threadBox`) in each element that matches `when` on authored attributes, not on attributes an x-state record writes. The box shows, as text, the threads anchored exactly to that element; the Threads panel keeps the full view. An element inside thread markup or quoted content gets no box. On a widget that also asks (x-awaits), the box is where the user answers in words: while a thread there waits on the agent, the ask leaves the user's On me list, but it is still unanswered and the widget's controls still work. `hold` labels a second send button whose comment carries `holds`, naming the widget. The widget is held while that thread is open; resolving the thread releases it. Removing the widget removes only the box, not its threads.",
+    "x-content": "The required content: `markup` (the author's markup), `members` (only this element's declared member elements), `data` (one <pre> holding text in the notation the description names, with & < > escaped as &amp; &lt; &gt;), or `empty`.",
+    "x-data": "The widget's named external-data inputs. Each input names a `$data.contracts` contract and the string attribute whose authored value is the page's source id, and follows that source's current value; where an optional source attribute is absent, `watchData` delivers null. A document binds each source to one contract, and a later document may rebind it; each document reads the value against its own contract and reports a mismatch as a source error. A module subscribes by widget and input name, never by a source name.",
     "x-example": "Authored markup exhibiting the widget, valid against the merged registry: an agent reads it with the element declaration, writes from it, and the lint refuses one that does not validate.",
-    "x-exhibit": "The element displays quoted content: nested widgets are not interactive, and nested asks do not enter the user's On me list. Modules check `quoted(el)` before enabling input. The theme suppresses interactive styling inside quoted content.",
-    "x-instructions": "Author instructions for using this widget, read after selecting it and before writing markup. A flat nonempty string, separate from its short discovery description and its structured schema.",
-    "x-inline": "The element sits inline among the words around it. The render gate therefore does not require it to have a width of its own, and does not apply the rule that a block widget must stand where a block is allowed.",
-    "x-language": "The attribute that names a code language. Its value must be one of `$languages.names`, the one list of languages the page highlights, so a new tag that takes a language needs only this declaration and no code of its own to read the attribute.",
-    "x-reading-role": "The structural role an element supplies. The only role is `pane`: a labeled reading region whose body scrolls on its own while the workspace is full-height. A pane holds exactly one body element, optionally preceded by a direct native `header` and followed by a direct native `footer`. Validation of roles reads this declaration rather than tag names, and a pane's content stays markup, so packages can contribute panes under their own tag names without a fixed list of allowed parents and children. A pane requires a string `id` and a string `label`; the label names its accessible region, and a visible heading belongs in its authored header.",
-    "x-measured": "A scalar in authored content pinned to one x-data input's run receipt. `input` names the widget's data input and `run` its required nonempty receipt attribute. When that source holds a different run, `page check` warns that the authored measurement is stale and `page state` reports it too. A source rewritten with the same value counts as a new run; a measurement's age alone does not make it stale.",
-    "x-patch": "How a revision reaches an upgraded widget the user has open. By default its module owns everything under the element, so a revision that changes any of the widget's markup replaces the whole widget and rebuilds whatever the user had open in it. `members` says the module builds its own controls beside its members, leaves them where the author wrote them, and reads nothing of them but their attributes: while a revision keeps the element's attributes and each member's tag and attributes, in order, it edits inside the members in place and the widget stays. Requires `x-content: members` and x-upgrade.",
-    "x-owners": "The element declarations that may directly own a Leaf element. Read from an owner, this defines which direct child Leaf elements are its members rather than nested elements it merely contains; a gesture the owner takes on its whole box stops at those members.",
-    "x-refers": "A map from attributes whose values name another element to their target contracts. An empty contract accepts any element id (an option's `for`). A typed contract names a shared registry map with `via` and an equality predicate with `where`; `page check` then requires both an existing id and a target tag whose declaration in that package-owned map matches the predicate. This lets a package distinguish a goal, worker, or evidence reference without Leaf knowing those roles or tags. A typed contract with `owns: true` says the referrer fills its target, as a command fills the readings seat it names: `page check` requires the target in the referrer's own document, and every element there that the predicate selects named by exactly one referrer. A keyed contract `{tag, key}` names a member by an attribute rather than an id: the `tag` element whose `key` attribute holds the value, inside the referrer's own nearest owner of the tag `key` is unique within, which `tag` declares in x-unique (a playground preset's setting names a control of its own playground by `name`); `page check` and message markup refuse one naming no such member. In the browser a declared attribute is what a module hands `navigateToDatum` and the experimental `indicate` to reach the named widget, which each resolves in that same owner for a keyed contract, and otherwise in the owner's own authored document first (its message's markup, for a widget in a reply) and then in the page.",
-    "x-resident": "How an element sits in the margin when it is the only occupant, or one occupant, of a column page's first `aside.sidebar`. The only value is `map`, a contents map: where the margin has room and the pointer is fine, such as a mouse or trackpad, it shows as a spine in the left margin and reveals its labels over the page. Delivery writes the declaration into the served document as `data-lf-resident`, so the margin layout reads it rather than a widget's tag. A thread message has no margin, so delivery does not write it there.",
-    "x-retired-when": "On a member: the outcome of its owner's decision that removes this element from the page, as `accept` removes a suggestion's `lf-old`. Requires x-owners. The outcome is a value of the `outcome` detail field on the owner's one deciding verb, so only one decision can be in force. The layer renders the decision itself and follows the log in both directions. Reconciliation writes data-lf-state=\"<outcome>\" on the owner and data-lf-retired on the members that outcome removes, and takes both off when undo or a retraction withdraws the deciding action; one theme rule hides the marked members. No module has to do any of this, though a module may write the same attributes earlier as part of its own gesture (renderRetired). These attributes are rendered output for CSS, export, and checks; code that needs the decision reads the publisher's explicit outcome rather than the attributes. The file-side reading takes the decision from the log, and once the log decides it, `page check` allows a revision to drop the member's ids. `page check --render` reports a removed member that still shows words, and a mark the log never decided.",
-    "x-says": "Attributes whose values render as selectable text, and where that text appears. `after` places the text inside the element, after its content and before trailing controls. `before` places it at the start, before content and controls; multiple `before` attributes render in declaration order. The runtime creates text nodes so the user can select, quote, and comment on these words; CSS `content: attr()` cannot provide that.",
-    "x-shadow": "The module renders the page's words into an open shadow root. Leaf's passage reading, selection capture, and every lookup by id reach into it. The render gate reports a shadow root on an element whose declaration lacks this key.",
-    "x-state": "What x-state declares, once per widget that has state: for each verb, the unit of the widget's state it changes, who writes it, and either its recorded effect or the schema of its unrecorded detail. A recorded effect's payload follows from the effect kind and the destination attribute, so it declares no detail schema or field mapping of its own. A verb is the user's unless it declares `writer: \"agent\"`. The user writes a user verb through the page, as `action` events; the agent writes an agent verb with `leaf page report`, as `report` events, so each [widget, unit, verb] key has one writer. A user verb may declare a child element it creates (`creates`). An agent verb needs a record form other than `body`, because a report changes declared state and never the page's words, so it never changes what the passage reader reads. An agent verb may declare `text: true`, which requires each report to carry non-empty `detail.text`. That text is the report's short news for a person, and the report feed shows it as written instead of composing it from the widget, verb, or field names. The runtime marks a report on the page as soon as it is in force (data-lf-reported); it stays only until a version answers it, as $report says. Each verb holds its own state: for each [widget, unit, verb] key, the latest action that has not been taken back replaces earlier ones, and different verbs on the same unit coexist. The framework combines those latest actions with the typed authored values and gives each widget its complete state through renderState, keyed by verb. The same declaration drives POST validation, replay of the complete state, inspection, the runtime's readings of user actions and reports, and the state half of a version diff. When an admitted action makes the widget's x-awaits `answered` condition hold, Leaf records meaning.answer on the event. Its value is the thread named by the widget's authored `resolves` attribute in the document the action was sent from, which the answer closes, or null when the answer closes no thread. A decision whose outcome is the widget's x-withdrawn-as value also records null, and the page then reads as if nothing had been proposed. A past action keeps the [widget, unit, verb] key it was admitted under, even after the widget leaves the page. One detail field name is reserved: `outcome`, on the one user verb that decides which retirable members leave the page (x-retired-when). $state documents units, `creates`, and record forms.",
-    "x-thread-surface": "The upgraded widget can show Leaf's comment box and threads inside itself, beside the exact data items (datums) they are about. Leaf registers the widget when it upgrades and retires it when it leaves the page. On each reconciliation pass Leaf calls the element's own `threadOutlets(targets, {signal, collection, onCommit})` with one ordered batch of the admitted targets anchored exactly to its items, and the method returns for each target an element to place it in (an outlet), or null. Leaf maps each outlet to its thread or to the open comment box and controls where it is placed and how long it stays. The widget reads its registration with `threadSurface(element)`: `update()` says its seats changed, and `open(datum)` opens Comment on one of its items. Leaf owns anchors, drafts, response modes, sending, thread rendering, reply and reaction state, settlement, focus, receipts, and the fallback to the margin. A placement holds that comment box or thread in the widget for the current reconciliation pass only. An item that is not loaded, filtered out, collapsed, outdated, or otherwise not shown gets no placement; its threads stay in the Threads panel and fall back to the margin as usual.",
-    "x-text-format": "Text format: inline-markdown formats this element's direct text nodes; markdown renders its exact data body as safe block Markdown. A body record retains Markdown source while passages read visible words. Its existing element children remain HTML. The browser formats those words with the shared safe Markdown parser, while file-side passage and revision readings use the same visible words. A generated child with this declaration interprets the user's line breaks as hard breaks; source HTML line wraps remain ordinary whitespace.",
+    "x-exhibit": "The element shows quoted content: widgets inside it take no input, and their asks stay off the user's On me list. Modules check `quoted(el)` before enabling input.",
+    "x-instructions": "Instructions for an author using this widget, read after choosing it and before writing markup. One non-empty string, separate from the short `description` and the schema.",
+    "x-inline": "The element sits inline among the surrounding words. The render check therefore requires neither a width of its own nor a place where a block may stand.",
+    "x-language": "The attribute that names a code language. Its value must be one of `$languages.names`, so a new tag that takes a language needs only this declaration.",
+    "x-reading-role": "The structural role the element plays. The only role is `pane`: a reading region, named by its required `label`, whose body scrolls on its own while the workspace is full-height. A pane holds exactly one body element, optionally between a direct `header` and `footer`; a visible heading goes in the header. Validation reads this declaration, not tag names, so a package can contribute panes under its own tags.",
+    "x-measured": "A value in authored content tied to the data run that produced it. `input` names the widget's x-data input, and `run` its required receipt attribute. When the source holds a different run, `page check` warns that the measurement is stale, and `page state` reports it. Rewriting the source counts as a new run even with the same value; age alone never makes a measurement stale.",
+    "x-patch": "How a revision reaches an upgraded widget the user has open. By default any change to the widget's markup replaces the whole widget, rebuilding whatever the user had open in it. `members` says the module builds its controls beside its members, leaves the members where the author wrote them, and reads only their attributes; then, while a revision keeps the element's attributes and each member's tag and attributes in order, Leaf edits inside the members in place. Requires `x-content: members` and x-upgrade.",
+    "x-owners": "The element declarations that may directly own this element. An owner's direct children of these kinds are its members, and a gesture on the owner's whole box stops at them.",
+    "x-refers": "A map from each attribute whose value names another element to the contract its target must meet. An empty contract accepts any element id, as an option's `for` does. A typed contract names a shared registry map with `via` and an equality test with `where`, and `page check` requires a target whose tag's entry in that map passes the test, so a package can tell a goal reference from a worker reference without Leaf knowing either. With `owns: true` the referrer fills its target: `page check` requires the target in the referrer's own document, and requires each element there that the test selects to be named by exactly one referrer. A keyed contract `{tag, key}` names a member by an attribute instead of an id: the `tag` element whose `key` holds the value, inside the referrer's nearest owner in which `key` is unique (x-unique), as a playground preset's setting names a control by `name`. In the browser a module passes the attribute to `navigateToDatum`, or the experimental `indicate`, to reach the named widget; each looks in the referrer's own document (its message, for a widget in a reply) before the page.",
+    "x-resident": "How the element sits in a column page's first `aside.sidebar`. The only value is `map`, a contents map: where the margin has room and the pointer is precise, it shows as a spine in the left margin whose labels appear over the page. Delivery writes `data-lf-resident` into the served document, except in a thread message, which has no margin.",
+    "x-retired-when": "On a member: the outcome of its owner's decision that removes it from the page, as `accept` removes a suggestion's `lf-old`. Requires x-owners. The outcome is a value of the `outcome` field on the owner's one deciding verb. Leaf renders the decision itself, including its undo: it writes `data-lf-state=\"<outcome>\"` on the owner and `data-lf-retired` on the removed members, which one theme rule hides. A module may write the same attributes earlier during its own gesture (`renderRetired`), but code that needs the decision reads it from the widget's state, not the attributes. Once the log decides, `page check` lets a revision drop the member's ids, and `page check --render` reports a removed member that still shows words.",
+    "x-says": "Attributes whose values show as selectable text: `after` inside the element after its content, `before` at its start, in declaration order. The runtime writes real text nodes, unlike CSS `content: attr()`, so the user can select, quote and comment on the words.",
+    "x-shadow": "The module renders the page's words into an open shadow root, and Leaf's passage reading, selection capture and id lookups reach into it. The render check reports a shadow root on an element whose declaration lacks this key.",
+    "x-state": "Declares each verb of a widget that has state: the unit of state it changes, who writes it, and either its record (how the state reads in markup, $state.record) or the schema of its detail. A verb is the user's, sent from the page as `action` events, unless it declares `writer: \"agent\"`; the agent writes it with `leaf page report`, as `report` events. A user verb may create a child element (`creates`). An agent verb with `text: true` requires each report to carry a non-empty `detail.text`, a short note the report feed shows as written. The page marks a reported widget `data-lf-reported` until a version answers the report ($report). For each [widget, unit, verb] key, the latest action not taken back wins, and different verbs on one unit coexist. Leaf combines those actions with the authored values and hands the widget its complete state, keyed by verb, through `renderState`. A past action keeps its key after the widget leaves the page. When an action makes the widget's x-awaits `answered` condition hold, Leaf records `meaning.answer` on it: the thread named by the widget's `resolves` attribute in the document the action came from, which the answer closes, or null. A decision whose outcome is the widget's x-withdrawn-as value also records null, and the page reads as if nothing had been proposed. The detail field `outcome` is reserved for the one user verb that decides which members leave the page (x-retired-when).",
+    "x-thread-surface": "The upgraded widget can show Leaf's comment box and threads inside itself, beside the data items they are about. On each pass, Leaf calls the element's `threadOutlets(targets, {signal, collection, onCommit})` with the targets anchored exactly to its items, in order, and the method returns for each an element to place it in (an outlet), or null. The widget reads its registration with `threadSurface(element)`: `update()` says its outlets changed, and `open(datum)` opens Comment on one item. Leaf still owns anchors, drafts, sending, thread rendering, replies, reactions and focus, and decides placement inside each outlet. An item that isn't shown (not loaded, filtered out, collapsed or outdated) gets no outlet, and its threads stay in the Threads panel and the margin.",
+    "x-text-format": "How the element's text is formatted. `inline-markdown` formats its direct text nodes; `markdown` renders its data body as safe block Markdown. A body record keeps the Markdown source, while passages read the visible words. Child elements stay HTML. In a generated child, the user's line breaks are hard breaks.",
     "x-tone": "The attribute that names one of the layer's semantic tints, held to `$tones.names`, which the theme has a rule for.",
-    "x-unique": "A map from attributes whose values no two members share within one owner to that owner's tag. `page check` and message markup refuse a member whose value repeats another's inside the same nearest enclosing owner of that tag, as two controls of one playground sharing a `name` or two choices of one control sharing a `value`. A keyed x-refers contract names members by such an attribute, so it always names one.",
-    "x-upgrade": "A module at widgets/<tag>.js enhances the element in the browser, imported where a page's markup carries the tag rather than for the whole layer. `page init` refuses a layer declaring it with no module beside it, and the render gate a module that defines no element for a widget the page contains. Required.",
-    "x-verbatim": "The upgraded element keeps its authored words, and keeps nested upgraded widgets in their authored order with their identity, so the passage reader can quote those words. Each nested upgraded widget keeps its own declarations about its words and boundaries, so what it generates is not a claim made by the wrapper. Without this declaration the passage reader treats the widget as opaque, since its module may insert or replace words. The render gate refuses a page where the wrapper's own words changed or a nested widget was removed or reordered.",
-    "x-initial": "The rooted path of a captured classic JavaScript bundle registering the widget's synchronous initial renderer with document.documentElement.lfInitial.register(tag, render). Delivery inlines each used bundle once in the head, buffers each outer host in an inert template until its source is complete, and inserts and draws it in one synchronous turn, nested hosts deepest-first. render(host, {tabStore, offer, offerElement}) builds the instance's real markup using authored values and tab-local mechanical state; it performs no network or asynchronous work and returns the structure the behavior module adopts with initialRender(host). The widget loader imports that same bundle before the behavior module for later revision and thread arrivals, only where it has not already registered. The coordinator preserves the original authored markup and node routes before rendering, so source comparisons and semantic readings do not consume the drawing. Requires x-upgrade: true and excludes x-prepaint.",
-    "x-prepaint": "Markup an upgraded element shows at its first paint, before its module draws: one element with the structure the module will draw, holding words that give it the size the drawing will have. Delivery writes it into every occurrence in the served document, as the element's first child marked data-lf-prepaint, so the browser lays the widget out from its real structure and wraps it as the drawing will, instead of reserving a height computed from line heights. The theme keeps that space and paints none of the prepaint markup, and a reading without the runtime hides it. The module removes it in the same step that draws its replacement, so nothing moves, and draws by filling in a copy of the same markup, so this declaration is the only statement of that structure. `{\"as\": tag}` takes the named widget's prepaint, for an element that first paints as that widget will appear inside it, as a command with no readings seat draws one at its head. Write the markup exactly as the parser reads it back, with every element closed, because delivery inserts it as written and an unclosed element would take in the occurrence's own children. It carries no id, no custom element, and no script, since every occurrence gets a copy. Declare it on a widget whose drawn structure is fixed while its values come from the log, as a command's outcome and count tiles are; a widget whose rows depend on the log has no fixed structure to write here.",
-    "x-views": "`true`: the element shows one of its members at a time, as a tab set shows one panel, and its module opens it on the member the runtime names (`openingView`) and records each member it shows (`keepView`). The runtime opens it on the member holding the element the address's fragment names, else on the member this browser tab last showed, else on the first; a reload puts the member last shown before the fragment's. Delivery paints it into the served document as data-lf-views, and before the first paint Leaf marks the member it will open `data-lf-opening`, so the package theme can show that member alone until the module upgrades the element.",
-    "x-visual": "How a rendered picture exposes stable Comment targets. `whole` anchors the picture on the authored widget. Every declared provider also supplies its own visual surface for whole-widget aim and marks, so chrome paint stays above the widget's drawing. For `{parts: ATTR}` or `{prefixes: [PREFIX, …]}`, its module calls `registerVisualParts(source, read)` once; `read` returns the complete current `{id, element, label, surface?}` inventory. When ATTR is present, core admits the complete registered inventory; omitting it keeps one whole-picture target. Under `prefixes`, core admits any longer id one of them begins, such as `commit:3f2a` under `commit:`. Core derives token lookup and deepest-part hit testing from that inventory. `surface` defaults to `element` and may name one descendant whose native paint excludes decoration from the contour. It changes paint only: `element` remains the semantic hit and travel target. Marks and aim follow an SVG surface's painted geometry primitives; a surface with none, and every other element, uses the shown box. Targeting a mapped part stores its id as `anchor.visual` while the widget remains the semantic seat. A missing token or registration detaches on replay rather than widening to the whole picture. A visual that draws its parts over time passes `registerVisualParts(source, read, {reveal})`: `reveal(id)` synchronously settles on a state whose inventory holds that declared part, even when it is already visible, cancelling any pending replacement that would retire it. A declared part absent from the current state then places its threads on the whole picture, and travel to the part, whether a thread anchored there or a module's `navigateToDatum`, calls `reveal` before landing on it. The registration's `update()` signals any rendering or geometry change, including an in-place attribute or style change. The render gate validates every registered record and refuses a registered id its prefixes do not admit.",
-    "x-space": "The default width an element takes in a flow wider than the prose measure: `column` keeps that measure and starts where the prose does, for an element or idiom whose content is read as lines of text or that frames prose (an ask, `.callout`), and it widens to the widest allocation among its own blocks; `wide` takes the vocabulary's shared capped evidence width; `available` takes all room the page shell can give after enclosing frames, chrome, and actual margin residents. An element that declares none fills the box it stands in, as every element does outside the column and sidebar Layouts, which alone allocate it. The declaration says nothing about how the package arranges content inside that allocation. An authored occurrence may override the default with data-width=wide|available; delivery paints that choice into the served document as data-lf-space and the theme allocates it without moving the prose axis.",
-    "x-bound": "The element holds its own height and scrolls inside it, so a long log or feed never grows the page: `start` opens at its first line and `end` follows its newest entry while the user is at the end, and stays where the user scrolled back to otherwise. An authored occurrence may state or override it with data-bound=start|end; delivery paints it into the served document as data-lf-bound.",
-    "x-height": "The height, in CSS pixels, the page reserves for the element before its module draws: the declaration's number, or an authored occurrence's data-height, which overrides it; `true` declares no number, so only an occurrence's data-height reserves. Delivery paints it into the served document as data-lf-height, and wherever the runtime runs the theme holds the box to it from the first paint until the module marks the element drawn (`lf-rendered`), when the box becomes the drawing's own. Declare it on a widget whose drawing cannot be sized from its markup before the module draws. A module that can draw to any height, as a chart's can, draws at the stated one, so nothing moves when the reservation ends; one whose content has a height of its own draws that, and the reservation is the author's estimate of it. A failure takes the height of the message it shows.",
-    "x-history": "`true`: the module renders the page's history, so a page whose markup holds one is served the `history` reading beside its state and a page without one does not pay for it. The reading is the newest 50 logged events, newest first, each naming who acted, what they did, the thread it belongs to and that thread's title, whether a later undo took it back, and for a widget gesture the words its ids had in the document it was made in, so a later version rewording or removing what was chosen leaves the row as made. The module reads it through `readHistory`.",
-    "x-withdrawn-as": "A declared deciding outcome that declines the proposal. It answers the ask without closing the widget's `resolves` thread. A revision may also remove an unanswered proposal directly, whether or not it has retirable slots; historical ids do not veto the edit.",
-    "x-within": "The regions, each an element declaration, where a member may also stand at any depth rather than as an owner's direct child; it belongs to the nearest owner x-owners names around that region, and `page check` refuses it anywhere else. A playground control written inside `lf-playground-preview` stands where it is written, beside the item it changes, rather than in the rail.",
-    "x-name": "The attribute whose value is this tag's title: what the page calls one of these elements when it names it away from itself, as the activity feed does for where something happened. Leave it off where the authoring contract already titles the element: a section by its heading, a disclosure by its summary, a titled member by its leading <strong>. Declare it where an attribute is the title instead, as a column's or a tab's `label` is. An attribute the element merely shows first, such as a metric's value or a chronology entry's time, is not its title.",
-    "x-word": "The module supplies the widget's type label through `lfWord()`. For example, `lf-suggestion` returns \"insertion\", \"deletion\", or \"rewrite\" according to its children. Leaf uses this label when referring to the widget in a panel row or comment anchor. If the widget has not upgraded, returns no label, or does not declare x-word, Leaf calls an x-ask-context widget a question; otherwise it uses the tag name without its prefix. The same declaration lets the module supply descriptive text through `lfSays()`, for widgets whose text nodes alone do not convey their structure, such as a rewrite's old and new text. If no description is returned, Leaf reads the element's text.",
-    "x-work": "`true`: the agent may open its own to-do on this widget with `leaf task open` even when the widget holds no unsettled update, and the runtime shows the to-do beside the widget's authored markup. Only a block widget whose x-content is markup may declare it. Once opened, a to-do on a page widget shows at the page edge through its target's margin entry, even if a later layer drops x-work. Markup content does not imply x-work, because markup can itself be a control its owner uses, or sit in a hidden panel."
+    "x-unique": "A map from each attribute whose value must differ between members of one owner to that owner's tag. `page check` and message markup refuse a repeat inside the same nearest owner, such as two controls of one playground sharing a `name`. A keyed x-refers contract names members by such an attribute.",
+    "x-upgrade": "A module at `widgets/<tag>.js` enhances the element in the browser, loaded only where a page's markup uses the tag. `page init` refuses a layer that declares it without the module, and the render check refuses a module that defines no element for a widget on the page. Required.",
+    "x-verbatim": "The upgraded element keeps its authored words, and its nested upgraded widgets in authored order, so the passage reader can quote those words; each nested widget's own declarations cover the words it generates. Without this key the passage reader treats the widget as opaque, since its module may insert or replace words. The render check refuses a page where the wrapper's own words changed or a nested widget was removed or reordered.",
+    "x-initial": "The rooted path of a classic JavaScript bundle that registers the widget's synchronous first drawing with `document.documentElement.lfInitial.register(tag, render)`. Delivery inlines each used bundle once in the head and draws each element as soon as its source is complete, nested elements first. `render(host, {tabStore, offer, offerElement})` builds the instance's real markup from authored values and tab-local state, without network or asynchronous work, and returns the structure the behavior module adopts with `initialRender(host)`. For revisions and thread messages that arrive later, the widget loader imports the same bundle before the behavior module. Leaf keeps the original markup before drawing, so comparisons and readings of the source ignore the drawing. Requires `x-upgrade: true`; excludes x-prepaint.",
+    "x-prepaint": "Markup the element shows at first paint, before its module draws: one element with the structure the module will draw, holding words that give it the drawing's size. Delivery writes it into every occurrence as the element's first child, marked `data-lf-prepaint`, so the browser lays the widget out at its real size instead of reserving a computed height. The theme keeps the space but paints none of it. The module removes it in the same step that draws, so nothing moves, and draws by filling a copy of this markup, so the structure is stated only here. `{\"as\": tag}` reuses another widget's prepaint, for an element that first appears as that widget will inside it. Declare it on a widget whose drawn structure is fixed while its values come from the log; a widget whose rows depend on the log has no fixed structure to write here.",
+    "x-views": "`true`: the element shows one member at a time, as a tab set shows one panel. Its module opens the member the runtime names (`openingView`) and records each member it shows (`keepView`). The runtime opens the member holding the element the URL fragment names, else the member this tab last showed, else the first; a reload prefers the member last shown. Before first paint Leaf marks the member it will open `data-lf-opening`, so the package theme can show that member alone until the module upgrades.",
+    "x-visual": "How a rendered picture offers Comment targets. `whole` makes the picture one target. With `{parts: ATTR}` or `{prefixes: [PREFIX, …]}`, the module calls `registerVisualParts(source, read)` once, and `read` returns the current list of `{id, element, label, surface?}`; a comment on a part stores its id as `anchor.visual`. Under `parts`, ATTR names an attribute of the widget, as in `<lf-diagram parts=\"all\">`: the registered parts become targets where the widget carries it, and without it the picture stays one target. Under `prefixes`, Leaf accepts any longer id starting with one of them, such as `commit:3f2a` under `commit:`. `surface` may name a descendant whose own paint, without decoration, gives the outline Leaf marks; `element` stays the target for hits and travel. A comment whose part is gone detaches on replay instead of widening to the whole picture. A visual that draws its parts over time also passes `{reveal}`: `reveal(id)` must synchronously show a state that holds that part, cancelling any pending change that would remove it, and Leaf calls it before going to the part from a thread or `navigateToDatum`. While a declared part is missing from the current state, its threads sit on the whole picture. Call the registration's `update()` after any change to rendering or geometry, including an attribute or style change in place. The render check validates each registered record.",
+    "x-space": "The default width the element takes in a column or sidebar Layout. `column` keeps the prose measure and starts where the prose does, for content read as lines or that frames prose (an ask, `.callout`), widening to its own widest block; `wide` takes the shared, capped evidence width; `available` takes all the width the page shell can give. Without it the element fills its container, as every element does in other Layouts. An authored element may override it with `data-width=wide|available`, which the theme applies without moving the prose.",
+    "x-bound": "The element has its own height and scrolls inside it, so a long log or feed never grows the page. `start` opens at the first line; `end` follows the newest entry while the user is at the end, and stays where the user scrolled back to otherwise. An authored element may set or override it with `data-bound=start|end`; delivery writes it as `data-lf-bound`.",
+    "x-height": "The height in CSS pixels the page reserves for the element before its module draws: the declared number, or an authored `data-height`, which overrides it; `true` reserves only where `data-height` is given. The theme holds the box to it from first paint until the module marks the element drawn (`lf-rendered`). Declare it on a widget whose drawing can't be sized from its markup. A module that can draw at any height, such as a chart's, draws at this one, so nothing moves; for content with its own height, the reserved height is the author's estimate of it.",
+    "x-history": "`true`: the module renders the page's history, so a page that contains one is served the `history` reading with its state. The reading is the newest 50 logged events, newest first, each with who acted, what they did, the thread and its title, whether a later undo took it back, and, for a widget gesture, the words its ids had when it was made. The module reads it with `readHistory`.",
+    "x-withdrawn-as": "The deciding outcome that declines the proposal. It answers the ask without closing the widget's `resolves` thread. A revision may also remove an unanswered proposal outright, whether or not it has retirable members; ids from earlier versions don't prevent it.",
+    "x-within": "The regions (element declarations) inside which a member may sit at any depth instead of as its owner's direct child. It belongs to the nearest owner x-owners names around that region, and `page check` refuses it anywhere else. A playground control written inside `lf-playground-preview` stays where it is written, beside the item it changes, instead of in the rail.",
+    "x-name": "The attribute that holds the element's title, which the page uses to name the element elsewhere, as the activity feed does. Declare it only where an attribute is the title, as a column's or a tab's `label` is; a section is already titled by its heading, a disclosure by its summary, and a titled member by its leading <strong>. An attribute the element merely shows first, such as a metric's value, is not its title.",
+    "x-word": "The module gives a word for the widget's kind through `lfWord()`, as `lf-suggestion` returns \"insertion\", \"deletion\" or \"rewrite\" depending on its children. Leaf uses it when naming the widget in a panel row or comment anchor; without one, it calls an x-ask-context widget a question and anything else by its tag name without the prefix. The module may also describe the widget through `lfSays()`, where its text alone doesn't convey its structure, such as a rewrite's old and new text; otherwise Leaf reads the element's text.",
+    "x-work": "`true`: the agent may open its own to-do on this widget with `leaf task open` even when no update on it is open, and the to-do shows beside the widget. Only a block widget whose x-content is markup may declare it, and markup content does not imply it: markup can itself be a control, or sit in a hidden panel."
   },
   "$state": {
-    "unit": "\"widget\" for one state value for the whole widget, or a required string detail field identifying a unit by element id or data key. Recorded positions use \"unit\"; recordless verbs name their own field.",
-    "creates": "An optional created-child contract `{child, words}` on an x-state verb. The verb's fold unit names the detail field carrying the new child's canonical element id, and `words` names the detail field carrying its non-empty prose; the detail holds exactly those two required fields and the verb declares no record form. While the action is in force, the sender has a direct `child` with that id and words, on the action's own owner-unit-verb coordinate: an action of another verb leaves it in force, and undoing or retracting the action removes it. Admission stamps the child tag in `meaning.creates`, so registry-free readers keep the action resting on its child before any markup holds it. A created child is a parent-owned member, not an independent widget owner: it declares no state, asks, work, history, or independent data, visual-part, or thread bindings. A presentation module and shadow root are allowed; its parent owns recorded behavior and presentation readiness. Widgets needing their own actions or services are authored in page or message markup. The append door refuses an id the sending document or its creating actions in force already holds. Admission also captures the semantic state definition in meaning.state. A later incompatible definition does not reinterpret that historical action as current state.",
-    "record": "How the state reads in markup: {kind: \"attribute\", attr} — every element inside the unit carrying attr, sorted, vs the ids `detail.value` lists, which is why that field is an array however many the widget allows at once; {kind: \"position\", within} — the enclosing `within` element and the nearest unit both documents list before it there, with `detail.unit` naming the moved item, `detail.value` its destination and `detail.rank` its rank among its container's siblings: a base-36 fraction key, digits 0-9a-z not ending in 0, that sorts as a string, so a container lists its units by rank (ties by id) and a unit's placement stands whichever other moves stand or are undone. Authored units rank by authored index, and a widget computes a dropped unit's rank between its new neighbours' with `rankAt` from `runtime/widget-api.js`. A rank lies among the container's authored units on the revision the move was made on, which admission records as `meaning.among`. While a later revision authors that container the same way, the rank lands in the same gap and places the unit; a revision that authors it differently absorbs the move, writing the unit where the fold left it, which becomes its authored position, and its markup places the unit from then on. Later revisions may change that placement, and an absorbed move can no longer be undone; a new move changes where the unit stands. The append door refuses a move made on an older revision whose container the newest one authors differently. Equal ranks are a known limit: two tabs dropping into one gap tie, and the id order can put the later drop outside the gap it was dropped into. A position record's unit is always a part (a widget cannot place itself), because only the widget holding the container can read the neighbours a rank lies between; {kind: \"body\"} — the unit's own words; {kind: \"value\", attr} — the unit's own attr holding one scalar, whose `detail.value` carries the attribute's own schema so the log's contract and the markup's cannot drift. Within one tag and unit, body and position are each one physical slot; value slots are keyed by their host attr, and attribute-set slots by their descendant attr. Distinct verbs cannot claim the same slot. A node has one place across tags as well: the nearest ancestor recording positions places it. Attribute sets stop at the nearest ancestor recording the same descendant attribute. A member can record its own state without claiming its membership or placement from its parent. Its scalar value record cannot share its physical attribute with an enclosing attribute-set record; authored composition and moves enforce that single recording owner. Recorded verbs declare no `detail` schema or input-field mappings: the effect defines a closed object requiring `value`, plus `unit` and `rank` for positions. An agent verb with `text: true` also requires a non-empty string `text`. The framework captures the typed initial value once, composes it with surviving winners and local gestures, and renders the resulting complete widget state. An absent value attribute starts at null, an attribute set at its authored ids, and a recordless verb at null (undecided). Position records compose ordered containers before rendering, so undo and refusal do not reset or rebuild the DOM."
+    "unit": "`\"widget\"` when one state value covers the whole widget, as `choose` on an option group does; otherwise a required string detail field that identifies the unit by element id or data key, as `add`'s `option` does. A position record always uses `unit`; a verb with no record names its own field.",
+    "creates": "An x-state verb that adds a child element declares `{child, words}`: `child` is the tag it creates, and `words` names the detail field holding the child's text; the verb's `unit` field holds the child's id. While the action is in force, the widget has that child; undoing or retracting the action removes it. Admission records the child's tag in `meaning.creates`, so a reader without the registry still knows what the action made, and refuses an id the sending document already uses. It also stores the verb's state definition in `meaning.state`, so a later incompatible definition doesn't change how the action reads.",
+    "record": "How the state reads in markup. `{kind: \"attribute\", attr}`: the elements inside the unit that carry `attr`, as the list of ids in `detail.value`, an array even where the widget allows one. `{kind: \"value\", attr}`: one scalar in the unit's own `attr`; `detail.value` takes that attribute's schema, so the log and the markup can't disagree. `{kind: \"body\"}`: the unit's own words. `{kind: \"position\", within}`: where the unit sits in a `within` container. `detail.unit` names the moved member (never the widget), `detail.value` the container, and `detail.rank` its sort key there: a base-36 fraction, digits 0-9a-z not ending in 0, compared as a string, ties broken by id. Authored members rank by authored order, and a widget computes a dropped member's rank between its new neighbours with `rankAt` from `runtime/widget-api.js`. The rank places the member in the same gap while later revisions author the container the same way. A revision that authors it differently absorbs the move: the member is written where the move left it, and the move can no longer be undone. Admission refuses a move made on an older revision whose container the newest one authors differently. Two tabs dropping into one gap get equal ranks, and the id order can put the later drop outside that gap. Leaf starts from the authored value (null for an absent value attribute or a verb with no record, the authored ids for an attribute set), applies the actions in force and the user's unsent updates, and renders the complete state without resetting or rebuilding the DOM on undo or refusal."
   },
   "$report": {
-    "answering": "Explicit, by typed id. `page stamp` puts a report target in the note's settles relation when the stamped revision absorbs its recorded state or marks its element overruled. Replay stops a settled report at that revision. An unchanged baseline settles nothing, so the report keeps painting. Changing authored content never requires a historical-state permission gate.",
-    "overruled": "A boolean attribute on the reported element, declared by every widget with an agent-written x-state verb: this revision keeps its own state over the report in force. It belongs to the revision whose stamp does the overruling — stamping records the answer on the note, so later revisions leave it off.",
-    "feed": "Reports share one derived report feed in log-causal order. Every entry has a typed target (`widget` or `thread`), source (`report`), action, structured detail, optional declared text, speaker, timestamp, version, sequence, and one closed disposition: `effective` contributes to current state on its semantic coordinate, `outranked` still awaits settlement but a newer report on its coordinate takes precedence, and `settled` has been answered by a version note that names it. The work the agent has in hand is no report: it is the workflows' Working stage and the open to-dos' running start.",
-    "wakes": "A report joins the watcher's batch: `leaf wait` prints it beside user events, the same `ack` acknowledges it, and idling is refused over one nobody read. The user's banner counts none of this — a report is news the agent owes the page, not something the user owes an answer."
+    "answering": "By explicit id. `page stamp` adds a report to the version note's `settles` list when the stamped revision writes in its reported state or marks its element `overruled`, and from that revision on the report no longer applies. A revision that changes nothing answers nothing, so the report stays shown.",
+    "overruled": "A boolean attribute on the reported element, declared by every widget with an agent-written x-state verb: this revision keeps its own state over the report in force. It belongs only to the revision whose stamp overrules; the stamp records the answer on the version note, so later revisions leave it off.",
+    "feed": "All reports form one feed, in log order. Each entry carries its target, action, detail, optional text, speaker, time and version, and one disposition: `effective` (part of current state), `outranked` (a newer report on the same key takes precedence), or `settled` (named in a version note). Work the agent has in hand is not a report: it is an update's Working stage or a started to-do.",
+    "wakes": "A report joins the watcher's batch: `leaf wait` prints it with the user's updates, the same `ack` confirms it, and `leaf status idle` is refused while one is unread. The user's banner doesn't count reports, which are news the agent owes the page."
   },
   "$settlement": {
-    "description": "The typed `settles` relation on a version note ends provisional agent facts. Each target is `{kind, id}` so independently allocated id namespaces cannot collide and adding a kind does not add another parallel note field. The relation is explicit and durable: chronology alone ends nothing, and a later note need not repeat a settlement.",
-    "report": "The id is a report event. Stamping derives these targets from reported state the source absorbs or explicitly overrules.",
-    "todo": "The id is an open to-do on a page widget. `page stamp --completes <widget>` writes this target for every open to-do on that widget opened before the stamped revision, which ends it `done` citing the version, and licenses the revision to remove the widget.",
-    "why-restated-is-separate": "`restated` is not a settlement. It retracts a user decision because authored words or state invalidated what the decision rested on, while `settles` completes provisional information supplied by the agent. Conflating them would make ending work look like taking back the user's action."
+    "description": "The `settles` list on a version note ends provisional facts the agent supplied. Each entry is `{kind, id}`, so ids of different kinds can't collide and a new kind needs no new note field. The list is explicit and permanent: time alone ends nothing, and a later note need not repeat an entry.",
+    "report": "The id is a report event. Stamping adds one for each report whose state the source writes in or explicitly overrules.",
+    "todo": "The id is an open to-do on a page widget. `page stamp --completes <widget>` adds one for each to-do on that widget opened before the stamped revision, ending it as `done`, and lets the revision remove the widget.",
+    "why-restated-is-separate": "`restated` is not a settlement. It retracts a user decision because the authored words or state it rested on changed, while `settles` completes provisional information the agent supplied. Merging the two would make finishing work look like taking back the user's action."
   },
   "$awaits": {
-    "value": "The user-written x-state verb supplying the ask’s typed answer independently of completion. A record verb supplies its recorded value; a custom verb supplies its complete current detail. Member-unit values form a map by unit id, and positions retain their container-to-ordered-unit mapping.",
-    "when": "The attribute condition that registers a local Leaf element as an ask: each attribute maps to the values that require an ask, a flag attribute's values being true and false. Every named condition must match. A group takes picks only with `choose` and stops requiring an ask once it is `settled`. An entry with no `when` is an ask on every Leaf element, which is what a pending suggestion is.",
-    "answered": "When a local ask is answered, as a map from each answering x-state verb to the condition its current state meets; the ask is answered while any one holds. `{}` holds while the verb's state stands: an attribute or value record that is not empty, read through authored markup as well as the fold so a version that honors the answer keeps it answered and a cleared value opens the ask again, and otherwise an action of the verb in force on the widget. `when` narrows a verb to instances whose attributes match, which is how a `multiple` group is answered by its Done press (`answer`) while a single-choice group is answered by its pick (`choose`). `empty: {within, when}` holds while the one member container of that tag and static authored attributes inside the widget holds no members under the positions in force, which is how a queue is answered once its designated column is empty; it needs a verb with a position record, and a verb folding on a part needs it. The action whose admission makes a condition hold is the answer, and admission marks it in meaning.answer (x-state). Naming the answering verbs keeps orthogonal actions, such as adding an option, from answering. A thread in the widget's own seat (x-thread-seat) is not an answer; it only takes the ask off the user's list while the next word there is the agent's.",
-    "all": "The outcome a blanket yes takes, where one banner control can answer every ask of this kind at once (`Accept all (3)`). It is one of the `outcome` values of the widget's deciding verb, which must be one of its answering verbs, and the widget's module exposes a method named for that verb taking the outcome, so the control records each decision separately rather than one blanket consent. Leave it off and the ask is answered where the user is, one at a time."
+    "value": "The user-written x-state verb whose state is the ask's typed answer: a recorded verb's value, or a custom verb's full current detail, as a map by member id for a verb that keeps state per member.",
+    "when": "The authored attributes that make an element an ask: a map from each attribute to the values that make it one, `true` and `false` for a flag. Every attribute named must match. `lf-options` declares `{\"choose\": [true], \"settled\": [false]}`, so a group asks only while it takes picks and stops once it is `settled`. Without `when`, every element of the tag is an ask, as every `lf-suggestion` is.",
+    "answered": "When the ask is answered: a map from each answering x-state verb to a condition on its state, and the ask is answered while any one holds. Naming the answering verbs keeps other actions, such as adding an option, from answering. `{}` holds while the verb's state is set: a non-empty attribute or value record, read from the authored markup as well as the log, so a version that writes the answer in keeps it answered; for any other verb, an action of it in force. `when` limits a verb to instances whose attributes match, which is how a `multiple` group is answered by its Done (`answer`) and a single-choice group by its pick (`choose`). `empty: {within, when}` holds while the matching member container inside the widget has no members, which is how a queue is answered once its designated column is empty; it needs a position verb, and an answering verb whose unit is a member must use it. Admission marks the action that makes a condition hold in `meaning.answer` (x-state). A thread in the widget's thread box (x-thread-seat) is not an answer.",
+    "all": "The outcome a blanket yes gives, where one banner control answers every ask of this kind at once (`Accept all (3)`). It must be an `outcome` of the widget's deciding verb, which must be an answering verb, and the module must expose a method named for that verb taking the outcome, so each ask records its own decision. Without it, the user answers each ask where it is."
   },
   "$restated": {
-    "description": "A boolean attribute saying this revision has rewritten words the user already decided on, so what they decided no longer applies and they are being asked again. It goes on the element the decision rests on — a lf-draft or lf-suggestion, or the lf-card or lf-option inside a board or group — and retracts every action that named it: a move names one card, so a rewritten card drops that card's moves, leaving the rest of the board arranged as the user left it; a pick names every option chosen at once, so a rewritten option takes back the whole answer it was part of.",
-    "why": "Decisions are recorded against the revision the user saw and survive ordinary edits. Change presentation and wording directly when needed. Use this attribute when the decision itself should no longer apply; the log records the retraction without erasing the original answer.",
-    "when": "When a revision invalidates a decision and needs a fresh answer, write the new content, mark the element the decision names, and explain the retraction in the stamp note. Revisions do not require this attribute merely to change decided wording or presentation. An unused or repeated marker is harmless.",
-    "once": "The marker belongs to the revision that retracts the decision. Stamping records the retraction; leave it off later revisions unless another decision is being withdrawn.",
+    "description": "A boolean attribute saying this revision rewrote words the user already decided on, so the decision no longer applies and the user is asked again. Put it on the element the decision rests on: an `lf-draft` or `lf-suggestion`, or the `lf-card` or `lf-option` inside a board or group. It retracts every action that named that element: a rewritten card drops only that card's moves, while a rewritten option takes back the whole pick it was part of.",
+    "why": "Decisions are recorded against the revision the user saw and survive ordinary edits, so change presentation and wording directly. Use this attribute only when the decision itself should no longer apply; the log records the retraction and keeps the original answer.",
+    "when": "When a revision makes a decision no longer apply and needs a fresh answer, write the new content, mark the element the decision names, and say why in the stamp note. Changing decided wording or presentation alone needs no marker. An unused or repeated marker does no harm.",
+    "once": "Put the marker only on the revision that retracts the decision; stamping records the retraction. Leave it off later revisions unless they withdraw another decision.",
     "example": "<lf-draft id=\"note-cli\" restated><pre>\nAdds --dry-run to every mutating command. It defaults on for `purge`.</pre></lf-draft>"
   },
   "$series": {
-    "description": "The categorical steps this layer paints a chart's series in, and how many of them there are. It is a property of the page rather than of any widget: the colours are --series-1 through --series-N in the theme, so a project that restates the palette with a step more says so once, here and beside the tokens, and every consumer reads the same number. `steps` is how many series a chart can colour apart, and what the palette's own check counts the tokens against. A chart with more series than steps folds the small ones together or splits, since two series in one colour is worse than either. The list is short on purpose: past five, the steps stop clearing the separation a user with colour-vision deficiency needs, and a sixth is a chart that lies to some users and to no others.",
+    "description": "The categorical colours this layer paints a chart's series in. The theme defines them as `--series-1` through `--series-N`, and `steps` is N: how many series a chart can tell apart, and the count the palette check holds the tokens to. A project that adds a step raises `steps` here and adds the token in its theme. A chart with more series than steps merges the small ones or splits into several charts, since two series in one colour mislead. The list stops at five because further steps can't stay distinct for users with colour-vision deficiency.",
     "steps": 5
   },
   "$reactions": {
-    "description": "The reaction vocabulary: the one-press words a user can put on a passage, an element, a message in a thread, or the page whole, each recorded as a `comment` or `reply` carrying `token` in place of `text` ($events). The kernel declares the namespace and no word; the default package ships the working set, and any selected package reshapes it merge-patch style: an entry under a token's name replaces that token, a new name adds one, `null` removes one. Core never names or interprets a token. Everything a consumer needs rides the entry: `glyph` is the mark of at most four Unicode code points the page paints for it — including one emoji — in the margin, in the reaction list, and on a thread's strip; `settles`, where true, says a reaction of this kind in force on an agent message answers the question that message asks, and only that one, so the thread no longer waits on the user for it — a projection rule the server reads, never a second event. POST refuses a token outside the merged set, the way $languages gates a language name. Tokens stand independently on one target; reaction lists and their optional digit accelerators follow this declared order, so a digit survives any layer's renaming without changing a chip's label.",
+    "description": "The reaction words: one-press marks a user can put on a passage, an element, a thread message or the whole page, each recorded as a `comment` or `reply` carrying `token` instead of `text`. The kernel declares none. The default package ships the working set, and each selected package edits it merge-patch style: a name replaces or adds a token, `null` removes one. A reaction opens no thread until someone replies to it, and while nothing answers it the user can withdraw it with an `undo`. `glyph` is the mark the page paints, at most four Unicode code points, such as one emoji. `settles: true` means a reaction of this kind on an agent message answers that message's question, so the thread stops waiting on the user. POST /api/event refuses a token outside the merged set. Reaction lists and their digit shortcuts follow this order.",
     "tokens": {}
   },
   "$tones": {
-    "description": "The semantic tints this layer paints, and the whole vocabulary an author may declare: what the lint refuses a word outside, and what the theme has a rule for. It is a property of the page rather than of any widget, which is why it lives here and not under the schema of whichever tag happens to take a `tone` — a widget declares that one of its attributes names one (x-tone) and the lint reads the list from here, so a second tag taking a tone costs a declaration and no new reader. The list is short on purpose: a page that can paint anything paints nothing, and three is what the palette already answers for. Which facts earn a tint is never the theme's to decide — `ok` on one page's chip and `danger` on another's may be the same word, because the author is the only one who knows whether the answer is good news.",
+    "description": "The semantic tints this layer paints, and the full list an author may use: validation refuses any other word, and the theme has a rule for each. A widget marks an attribute as naming a tone with x-tone, and validation reads this list, so a new tag taking a tone needs only that declaration. The list is short on purpose: a page that can tint anything conveys nothing, and the palette supports three. The author decides which facts get a tint, since only the author knows whether a value is good news; `ok` on one page and `danger` on another may mark the same word.",
     "names": ["ok", "warn", "danger"]
   },
   "button.button": {
@@ -1308,7 +1636,7 @@
     "x-example": "<span class=\"tag\">experimental</span>"
   },
   ".callout": {
-    "description": "An aside set off from the prose — a tinted field with a hairline border. For something the user must not miss; a note they lose nothing by skipping goes in the margin (aside.sidenote). Add `ok`, `warn` or `danger` when the callout reports a status, as `class=\"callout warn\"` for a paused release; its tint and title take the tone and its prose stays in the body's ink. In a flow wider than the column, such as a sidebar page's body, it keeps the prose's width; one holding a chart or table that needs more takes `data-width`.",
+    "description": "An aside set off from the prose in a tinted, bordered box, for something the user must not miss; a note they can skip goes in the margin (aside.sidenote). Add `ok`, `warn` or `danger` when it reports a status, as `class=\"callout warn\"` for a paused release; the tint and title take the tone, and the prose keeps the body's ink. In a flow wider than the column, such as a sidebar page's body, it keeps the prose width; one holding a wide chart or table takes `data-width`.",
     "x-space": "column",
     "x-example": "<aside class=\"callout\" id=\"rollback-note\">Rollback is one flag flip; the backfill is idempotent.</aside>"
   },
@@ -1317,11 +1645,11 @@
     "x-example": "<section class=\"panel\" id=\"checks\">\n  <h2>Checks</h2>\n  <table>…</table>\n</section>"
   },
   "aside.sidebar": {
-    "description": "Page-level supporting material in the left margin: local navigation, a compact legend, or stable reference facts that remain useful while the user moves through a long page. Use one, as a direct child of main near the page's opening, rather than beside the one paragraph it concerns; that local annotation is an aside.sidenote. On a roomy live screen the first such child of a column page sits left of the prose and sticks beneath Leaf's banner, the column moving right to make the room; with a fine pointer, a contents map (an element declaring `x-resident: map`, such as lf-toc) can use that margin as a fixed reading map instead. Where the window has no room for the strip beside the column and its rail, and on paper, the sidebar returns to ordinary flow where it was authored. An accidental second sidebar also stays in flow instead of occupying the first. Keep the contents compact enough to scan in about 240px. The wrapper supplies placement, not a visual panel, so what it holds keeps its own voice; an lf-toc is the usual navigation occupant, but the idiom reads the declaration, not that widget. Its content remains part of the page and may be selected or commented on unless the occupant itself declares apparatus.",
+    "description": "Page-level supporting material in the left margin: local navigation, a compact legend, or reference facts that stay useful while the user moves through a long page. Use one, as a direct child of main near the start of the page; a note on one paragraph is an aside.sidenote instead. On a wide screen the first such child of a column page sits left of the prose and sticks below Leaf's banner, the column moving right to make room; with a mouse or trackpad, a contents map (an element declaring `x-resident: map`, such as lf-toc) can use the margin as a fixed map instead. Where the window has no room beside the column, in print, and for any second sidebar, it stays in the flow where it was written. Keep it compact enough to scan at about 240px wide. The wrapper places its content without framing it, and the content stays selectable and commentable unless the occupant declares itself apparatus.",
     "x-example": "<aside class=\"sidebar\" id=\"page-route\">\n  <nav aria-label=\"On this page\"><strong>On this page</strong><ol><li><a href=\"#prepare\">Prepare</a></li><li><a href=\"#move\">Move</a></li></ol></nav>\n</aside>"
   },
   "aside.sidenote": {
-    "description": "A note in the page's right margin: a caveat, a provenance, a figure the sentence had no room for. It is read where it stands and skipped at no cost, where a .callout sits in the column the user is reading down and a <details> asks for a click. Write it immediately before the paragraph, list or block it annotates, and it comes out level with that block's first line; before a heading it sits above the heading instead, a heading carrying more room over it than the block before it leaves. A second note written soon after the first stacks under it, so a long note pushes the next one down the margin and away from its own block. It reaches the margin through any box that doesn't clip — a section, a tab panel, a disclosure; written inside one that does, a choose group or a board or a table, it is drawn nowhere at all, and `page check --render` refuses the version rather than letting it ship. It stands there where the window holds the strip beside the column, and beside a sidebar, which takes the margin first; the column moves left to make the room. Elsewhere, and on paper, it is a small indented block where it was written, so nothing it says rests on the margin being there. These are the page's own words, so the user can select, quote and comment on one. A stable id lets Alt-click point at the whole note. The margin holds about fifty-six characters to the line; a note running past a few lines wants to be a paragraph in the column instead.",
+    "description": "A note in the page's right margin: a caveat, a source, a figure the sentence had no room for. The reader can take it in or skip it without leaving the column, unlike a .callout, which sits in the column, or a <details>, which needs a click. Write it just before the paragraph, list or block it annotates, and it sits level with that block's first line, or above a heading it precedes. A note written soon after another stacks below it, so a long note pushes the next one away from its own block. It reaches the margin from inside a section, tab panel or disclosure, but not from inside a box that clips, such as an `lf-options` group, a board or a table: there it is not drawn at all, and `page check --render` refuses the version. It shows in the margin where the window has room beside the column, the column moving left to make room, and beside a sidebar too. Elsewhere, and in print, it is a small indented block where it was written, so it must make sense there. The user can select, quote and comment on it, and a stable id lets Alt-click point at the whole note. The margin fits about fifty-six characters a line; a note longer than a few lines belongs in the column as a paragraph.",
     "x-example": "<aside class=\"sidenote\" id=\"logout-frequency\">Support runs \"log out all devices\" during account-takeover response, about twice a month.</aside>\n<p>Logout must revoke immediately, which rules out any store whose invalidation is eventually consistent.</p>"
   },
   ".facts": {
@@ -1337,7 +1665,7 @@
     "x-example": "<figure id=\"sidebar-width\">\n  <svg class=\"drawing\" viewBox=\"0 0 320 120\" role=\"img\" aria-labelledby=\"sidebar-width-t\">\n    <title id=\"sidebar-width-t\">The sidebar takes 240px left of the column</title>\n    <rect class=\"frame\" x=\"4\" y=\"4\" width=\"312\" height=\"112\" rx=\"6\"/>\n    <rect class=\"box hot\" x=\"16\" y=\"20\" width=\"72\" height=\"84\" rx=\"3\"/>\n    <rect class=\"line\" x=\"104\" y=\"24\" width=\"180\" height=\"6\" rx=\"3\"/>\n    <rect class=\"line soft\" x=\"104\" y=\"38\" width=\"150\" height=\"6\" rx=\"3\"/>\n    <text class=\"strong\" x=\"52\" y=\"66\" text-anchor=\"middle\">240</text>\n  </svg>\n  <figcaption>In a narrow window the sidebar returns to the column.</figcaption>\n</figure>"
   },
   "table": {
-    "description": "Rows of one shape, compared column by column: ceilings per plan, runs per configuration. Columns take the width of what they hold, and a table wider than the measure wraps its cells or, failing that, scrolls inside itself — so nothing in one needs a width. An identifier — a test name, a path — is one word to the line breaker: in `<code>` it breaks inside its cell where it must, so a column of them takes a share of the measure beside the prose; bare, it holds its column to its own width and squeezes the rest to a word a line, and `page check --render` advises on a table that scrolls sideways with a cell in it wrapped at any width from a 360px phone to a wide desktop. `<th scope=\"row\">` names a row in the page's own voice; a bare `<th>` is a column heading, set in small caps as one. A `<caption>` above the rows says what the columns mean where the section's heading doesn't. Reach for a KPI widget when the numbers are a handful of headline figures rather than a grid, and a decision widget when the rows are alternatives the user picks between.",
+    "description": "Rows of one shape, compared column by column, such as limits per plan or runs per configuration. Columns size to their content, and a table wider than the measure wraps its cells or else scrolls inside itself, so no part of it needs a width. Put identifiers such as test names and paths in `<code>`, which can break inside its cell; a bare identifier is one unbreakable word that holds its column wide and squeezes the others to a word per line. `page check --render` warns about a table that scrolls sideways while a cell in it wraps, at any width from a 360px phone to a wide desktop. `<th scope=\"row\">` names a row in the page's voice; a bare `<th>` is a column heading, set in small caps. A `<caption>` says what the columns mean where the section's heading doesn't. Use a KPI widget for a handful of headline figures, and a decision widget when the rows are alternatives the user picks between.",
     "x-example": "<table id=\"tiers\">\n  <caption>Ceilings per plan, and what each is counted against.</caption>\n  <thead><tr><th>Plan</th><th class=\"num\">A minute</th><th>Counted against</th></tr></thead>\n  <tbody>\n    <tr><th scope=\"row\">Free</th><td class=\"num\">60</td><td>the token</td></tr>\n    <tr><th scope=\"row\">Team</th><td class=\"num\">600</td><td>the token</td></tr>\n  </tbody>\n</table>"
   },
   "td.num": {
@@ -1349,7 +1677,7 @@
     "x-example": "<details>\n  <summary>The parser drops the slash on self-closed custom tags</summary>\n  <pre><code>document.querySelector(\"lf-code\").textContent\n// → \"rest of the paragraph\"</code></pre>\n</details>"
   },
   "pre > code[class*=\"language-\"]": {
-    "description": "A literal the user can select and quote: a command to run, a config file, a snippet of output. Name the language to color it — one of $languages, the same list a widget's own language attribute is held to; a language outside it stays uncolored. Leave the class off where the body isn't source; nothing is guessed from the text. Reach for an annotated code block instead when the block is a walkthrough: numbered lines, highlighted ranges, remarks anchored at a line.",
+    "description": "A literal the user can select and quote: a command, a config file, a snippet of output. Name its language, one of $languages, to color it; any other stays uncolored. Leave the class off where the body isn't source, since nothing is guessed from the text. Use an annotated code block instead for a walkthrough with numbered lines, highlighted ranges or remarks at a line.",
     "x-example": "<pre><code class=\"language-bash\">leaf page check ~/.local/state/leaf/pages/auth-diagnosis --render</code></pre>"
   }
 }

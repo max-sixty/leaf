@@ -109,6 +109,7 @@ import {
 } from "./bundle-media.js";
 import {
   backgroundFlash,
+  foldBlock,
   foldDuration,
   motion,
   onMotionPreferenceChange,
@@ -1789,6 +1790,7 @@ export {
   failSoft,
   focusDestination,
   focused,
+  foldBlock,
   foldDuration,
   fragmentTarget,
   frameFor,

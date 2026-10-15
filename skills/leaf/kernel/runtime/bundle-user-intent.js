@@ -14,7 +14,7 @@ import {
 } from "./bundle-media.js";
 import {
   flashDuration,
-  foldDuration,
+  foldBlock,
   motion,
   scrollBehavior
 } from "./bundle-motion.js";
@@ -1299,7 +1299,9 @@ async function highlightBlocks(root) {
 
 // runtime/declared-words.js
 var PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
-var isPagePaint = (name) => PAGE_PAINT_ATTRIBUTES.has(name) || Object.values(registry.$marks).some((mark) => mark.paint === name);
+var isPagePaint = (name) => PAGE_PAINT_ATTRIBUTES.has(name) || Object.values(registry.$marks).some(
+  (mark) => mark.paint === name || Object.values(mark.paints ?? {}).includes(name)
+);
 function quietWord(el2, word2) {
   const title = el2.querySelector(":scope > strong");
   const seat = title ? title.nextSibling : el2.firstChild;
@@ -5555,20 +5557,7 @@ function foldOut(node, repaintThread) {
   if (running && node.isConnected) return true;
   folding.delete(node);
   running?.played.cancel();
-  const style = getComputedStyle(node);
-  const from = {
-    height: node.getBoundingClientRect().height + "px",
-    minHeight: style.minHeight,
-    marginBottom: style.marginBottom,
-    borderTopWidth: style.borderTopWidth,
-    borderBottomWidth: style.borderBottomWidth,
-    paddingTop: style.paddingTop,
-    paddingBottom: style.paddingBottom,
-    opacity: 1
-  };
-  const to = Object.fromEntries(Object.keys(from).map((key) => [key, "0px"]));
-  to.opacity = 0;
-  const played = motion(node, [from, to], foldDuration());
+  const played = foldBlock(node);
   if (!played) return false;
   const record = { played };
   folding.set(node, record);
@@ -5853,9 +5842,21 @@ function workingMessage(thread, attention, messages) {
   const [words, live2, condition, agent] = running ? [running.detail || said, true, null, running.agent] : todo ? [todo.line, true, null, null] : stopped ? [stopped.detail, false, workflowLabel(stopped), stopped.agent] : [said, false, null, null];
   if (!words || !pending.length && !live2 && !condition) return null;
   const agentMessage = messages.findLast((message) => message.author === "agent");
+  const work = running?.detail ? running : !running && !todo ? stopped : null;
+  const progress = !work && (running || !todo && !stopped) ? pending.at(-1) : null;
+  const feedback = work?.input ? {
+    input_id: work.input,
+    reply_id: null,
+    reply_kind: "work"
+  } : progress ? {
+    reply_id: progress.id,
+    attempt: progress.attempt,
+    reply_kind: "progress"
+  } : null;
   return Object.freeze({
     who: agent || agentMessage?.by || "Agent",
     words: words.trim().replace(/\.$/, ""),
+    feedback,
     live: live2,
     condition
   });
@@ -6005,15 +6006,6 @@ function paintBoundary(node, kind) {
   );
 }
 var nextViewId = 0;
-var allotMarginControls = (row2) => row2.parentElement?.style.setProperty(
-  "--lf-margin-controls-width",
-  layoutPx(row2.getBoundingClientRect().width)
-);
-var marginControlsSizes = sizeObserver((entries) => {
-  nextRender(() => {
-    for (const { target } of entries) allotMarginControls(target);
-  });
-});
 var replyRowSizes = sizeObserver((entries) => {
   for (const { target, borderBoxSize } of entries)
     target.parentElement?.style.setProperty(
@@ -6043,6 +6035,7 @@ var ThreadView = class {
   #actions = document.createElement("span");
   #transcript = document.createElement("div");
   #working = document.createElement("div");
+  #stopWorkingExposure = null;
   // Each pending progress range's covered message ids, as last drawn, so a fold that
   // takes the range over can take its disclosure state with it.
   #pendingCovers = /* @__PURE__ */ new Map();
@@ -6052,7 +6045,6 @@ var ThreadView = class {
   #expandedSummaries = /* @__PURE__ */ new Set();
   #quoteExpanded = false;
   #marginControls = null;
-  #marginControlsRow = null;
   #viewId = ++nextViewId;
   // What a thread in the page's flow holds back says so in its control row (held-news.js).
   #news = newsNotice();
@@ -6069,11 +6061,6 @@ var ThreadView = class {
     if (this.#quoteNode) this.#sizes.unobserve(this.#quoteNode);
     this.#quoteNode = node;
     if (node) this.#sizes.observe(node);
-  };
-  #watchMarginControls = (node) => {
-    if (this.#marginControlsRow) marginControlsSizes.unobserve(this.#marginControlsRow);
-    this.#marginControlsRow = node;
-    if (node) marginControlsSizes.observe(node);
   };
   #sizes = sizeObserver(() => {
     this.#retainHeaderSlot();
@@ -6513,6 +6500,15 @@ var ThreadView = class {
       render(workingView(model.working), this.#working);
       transcript.push(this.#working);
     }
+    this.#stopWorkingExposure?.();
+    this.#stopWorkingExposure = model.working?.feedback ? this.#commands.read.observeFeedback(
+      this.#working.querySelector(".lf-thread-working-words"),
+      {
+        ...model.working.feedback,
+        presentation_kind: "working_words",
+        surface: model.surface
+      }
+    ) : null;
     this.#checkpoints = checkpoints;
     this.#markers = markers;
     keeps(
@@ -6560,12 +6556,7 @@ var ThreadView = class {
             </header>` : nothing}
       ${this.#transcript}
       ${threadActions ? marginControls ? html`${model.news ? html`<div class="lf-margin-thread-news">${news}</div>` : nothing}
-                <div
-                  class="lf-margin-thread-controls"
-                  ${ref(this.#watchMarginControls)}
-                >
-                  ${threadActions}
-                </div>` : html`<div class="lf-thread-controls" data-lf-reflow="text">
+                <div class="lf-margin-thread-controls">${threadActions}</div>` : html`<div class="lf-thread-controls" data-lf-reflow="text">
                 ${news}${threadActions}
               </div>` : nothing}
     `;
@@ -6583,9 +6574,6 @@ var ThreadView = class {
       `,
       this.node
     );
-    const controlsRow = marginControls && this.#marginControlsRow;
-    if (controlsRow?.isConnected)
-      measure(controlsRow, () => allotMarginControls(controlsRow));
     if (!marginControls && model.news)
       measure(this.node, () => this.#retainHeaderSlot());
     else this.#releaseHeaderSlot();
@@ -7031,6 +7019,8 @@ var ThreadView = class {
     this.#reply?.claim(shown);
   }
   retire() {
+    this.#stopWorkingExposure?.();
+    this.#stopWorkingExposure = null;
     this.#reply?.cancelDictation();
     for (const view of this.#messages.values()) view.retire();
   }
@@ -7038,7 +7028,6 @@ var ThreadView = class {
     this.#sizes.disconnect();
     this.#quoteNode = null;
     this.#releaseHeaderSlot();
-    if (this.#marginControlsRow) marginControlsSizes.unobserve(this.#marginControlsRow);
     this.#heldNews?.dispose();
     this.#continuity?.release();
     this.retire();

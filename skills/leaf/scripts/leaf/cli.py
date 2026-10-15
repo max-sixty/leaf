@@ -409,11 +409,12 @@ def media(dir: str, files) -> None:
 def instructions(
     dir: str, entries: tuple[str, ...], contracts: tuple[str, ...]
 ) -> None:
-    """Print a JSON object mapping each audience to its composed instructions.
+    """Print a JSON object mapping each audience, such as `author`, to its instructions.
 
-    With no component selection, read only shared package instructions. Select
-    vocabulary entries before writing markup; their examples and data
-    contracts bring their own instructions into the same reading.
+    Alone, it prints the packages' shared instructions. Before writing markup, name
+    each element or idiom you will use with --use, and each data contract with
+    --contract; the output then adds their instructions, and those of the entries
+    their examples use.
     """
     from leaf.page import cmd_instructions
 
@@ -462,7 +463,8 @@ def state(dir: str, target: str | None, after: int | None, limit: int | None) ->
 )
 @click.option(
     "--if-source",
-    help="expected authored-input digest, required with --from-directory",
+    help="the page's current index.html and page/ digest "
+    "(leaf.publishing.authored_digest), required with --from-directory",
 )
 @click.option(
     "--completes",
@@ -479,12 +481,14 @@ def stamp(
 ) -> None:
     """Stamp PAGE/index.html with a changelog.
 
-    Checks the exact source first, then records it as the next public version. Repeat
-    --completes for each widget whose open to-dos this version completes, which ends
-    them done, citing the version. A to-do otherwise remains open, including when a
-    revision removes its widget. --from-directory replaces index.html and the
-    complete page/ tree atomically with stamping; --if-source is the authored-input
-    digest read through leaf.publishing, refusing a competing edit.
+    Checks the source first, then records it as the next public version. Repeat
+    --completes for each widget whose open to-dos this version completes; it ends
+    them done, citing the version. Other to-dos stay open, even when the version
+    removes their widget.
+
+    --from-directory replaces index.html and the whole page/ tree and stamps them in
+    one step. Pass --if-source with the digest of the files you started from; if
+    they have changed since, the stamp is refused and the page is left as it was.
     """
     from leaf.publishing import cmd_stamp
 
@@ -552,10 +556,11 @@ def picture(dir: str, message: str) -> None:
 def report(dir: str, widget: str, verb: str, fields: tuple) -> None:
     """Report a state change onto a page widget, as a worker.
 
-    The verb and its fields are the widget's own agent-written x-state verb —
-    `leaf page report <page> t-parser status value=review text="Ready for review"`
-    moves a task. The page paints the report live as provisional news; it stands until a
-    version absorbs or overrules it, and the page's watcher wakes to fold it in.
+    VERB is one of the widget's agent-written x-state verbs, and each NAME=VALUE one of
+    its fields: `leaf page report <page> t-parser status value=review text="Ready for
+    review"` moves a task. The page shows the report at once, marked provisional,
+    until a stamped version writes it into the markup or overrules it. The page's
+    watcher wakes so the agent can do that.
     """
     from leaf.thread import cmd_report
 
@@ -619,8 +624,8 @@ def interactions(
     """Read diagnostics chronologically, one JSON record per line, without
     acknowledging user input.
 
-    Retries are deduplicated, split records are reconstructed, and gaps remain
-    visible even with a type filter.
+    Retries are deduplicated and sequence gaps remain visible even with a type
+    filter. Stored timestamps use the host clock.
     """
     from leaf.interaction_log import interaction_time, read_interactions
 
@@ -641,8 +646,8 @@ def interactions(
 @page.command(short_help="Take a page this session did not serve.")
 @click.argument("dir", metavar="PAGE")
 def claim(dir: str) -> None:
-    """Make PAGE this session's, for a harness whose own hook watches between
-    turns. A watch another session runs stops watching it."""
+    """Make PAGE this session's, so the user's updates on it come to this session.
+    A watch another session runs on PAGE stops watching it."""
     from leaf.service import claim_page
 
     if not claim_page(resolve_dir(dir)):
@@ -1093,17 +1098,16 @@ def response_reply(
 ) -> None:
     """Reply to the update REFERENCE names: the `answer.ref` its delivery printed.
 
-    An answer says what it leaves the thread with: --done when it delivers what the
-    message asked for, --ask when it asks the user something back, or --todo
-    TITLE when it promises work it doesn't deliver, which stays on you as a to-do.
-    Progress (--ephemeral) and failure receipts (--failure) take none of them.
+    Mark every answer with one of --done (it delivers what the message asked for),
+    --ask (it asks the user something back) or --todo TITLE (it promises work it
+    doesn't deliver, which stays on you as a to-do). A progress line (--ephemeral)
+    or a failure (--failure) takes none of them.
 
-    The same command sets text, frozen HTML, the thread's title and a new anchor.
-    It validates and activates saved page edits, then posts the reply at once. Once
-    an answer posts, your turn's final message is not posted as a second reply;
-    progress (--ephemeral) does not stop that. Rerunning a reply
-    that posted prints the earlier reply instead of posting again; give a retried
-    --ephemeral progress line an --attempt so it posts once.
+    The reply can also set frozen HTML, the thread's title and a new anchor. Saved
+    page edits are checked and made live before it posts. After an answer posts,
+    your turn's final message is not posted as a second reply; an --ephemeral line
+    does not change that. Rerunning a reply that already posted prints the earlier
+    one; give a retried --ephemeral line an --attempt so it posts once.
     """
     from leaf.thread import post_response
 
@@ -1219,12 +1223,13 @@ def task() -> None:
     help="Whose list the to-do is on: yours, or the user's On me.",
 )
 def task_open(dir: str, subject: str, title: str, owner: str) -> None:
-    """Open a to-do titled TITLE on SUBJECT: a page widget, which for your own to-do
-    must declare x-work or hold an unsettled update; any other element of the page by
-    its id, such as a section; or `page` for the page as a whole. With `--on user`
-    the to-do is on the user: it ends at their Done, and you can end it too. Its id is
-    the printed record's `id`. In a thread, the reply that promises work opens it
-    (`--todo`), and one that asks the user is their ask (`--ask`)."""
+    """Open a to-do titled TITLE on SUBJECT and print it; its `id` names it later.
+
+    SUBJECT is an element's id, such as a section's, or `page` for the whole page.
+    Your own to-do on a widget needs a widget that declares x-work or holds an
+    unsettled update. With `--on user` the to-do is the user's: their Done ends it,
+    and you can end it too. In a thread, open a to-do with `leaf response reply
+    --todo`, and ask the user something with `--ask`."""
     from leaf.todos import cmd_open
 
     _print_records(cmd_open(resolve_dir(dir), subject, title, owner))
@@ -1256,11 +1261,13 @@ def task_start(dir: str, item: str, text: str) -> None:
 @click.argument("detail", metavar="[DETAIL]", required=False)
 def task_end(dir: str, task_id: str, outcome: str, detail: str | None) -> None:
     """End TODO with OUTCOME. DETAIL says where the result is, such as the
-    version or reply holding it, or why there is none. TODO may be a to-do on
-    either side. A prose ask's id (`reply:<message-id>`) ends that request
-    without creating a user answer: `done` records it answered elsewhere, DETAIL
-    saying where, and `dropped` records it withdrawn. Widget asks end through
-    their declared state or an authored withdrawal."""
+    version or reply holding it, or why there is none. TODO may be yours or the
+    user's.
+
+    TODO may also be a prose ask's id (`reply:<message-id>`): `done` records that
+    the user answered it elsewhere, DETAIL saying where, and `dropped` withdraws it.
+    Neither records an answer from the user. A widget's ask ends through its
+    declared state or an authored withdrawal."""
     from leaf.todos import cmd_end
 
     page_dir = resolve_dir(dir)

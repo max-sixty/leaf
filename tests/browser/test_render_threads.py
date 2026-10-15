@@ -19,6 +19,7 @@ from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
+from leaf import interaction_log as interaction_model
 from leaf import leases as leases_model
 from leaf import media as media_model
 from leaf import render_checks as render_checks_model
@@ -854,7 +855,19 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
     page = open_page(browser, url)
     # The comment's row on the agent's list says the line the agent last gave, as the
     # thread will. The agent's count opens the panel on that list.
-    page.locator(".lf-status-queues").click()
+    with page.expect_response(
+        lambda response: (
+            response.url.endswith("/api/interaction")
+            and response.ok
+            and any(
+                entry["type"] == "reply_visible"
+                and entry.get("input_id") == root
+                and entry.get("presentation_kind") == "queue_words"
+                for entry in response.request.post_data_json["entries"]
+            )
+        )
+    ):
+        page.locator(".lf-status-queues").click()
     row = page.locator("[data-lf-queue='agent'] .lf-queue-row")
     expect(row.locator(".lf-queue-where")).to_contain_text(
         "Working · Trying a lighter weight."
@@ -863,12 +876,52 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
     panel_settled(page)
     thread = page.locator(f'.lf-thread[data-id="{root}"]')
     expect(thread.locator(".lf-thread-unread")).to_have_count(0)
-    thread.locator(":scope > .lf-thread-summary").click()
+    with page.expect_response(
+        lambda response: (
+            response.url.endswith("/api/interaction")
+            and response.ok
+            and any(
+                entry["type"] == "reply_visible" and entry.get("input_id") == root
+                for entry in response.request.post_data_json["entries"]
+            )
+        )
+    ):
+        thread.locator(":scope > .lf-thread-summary").click()
     line = thread.locator(".lf-thread-working")
     expect(line.locator(".lf-thread-working-head b")).to_have_text("Codex")
     expect(line.locator(".lf-thread-working-words")).to_have_text(
         "Trying a lighter weight"
     )
+    # The working line is actual agent feedback even while each underlying progress
+    # MessageView is folded. It uses the input's exact workflow identity, not the
+    # thread parent, and carries no copy of the agent's words in diagnostics.
+    feedback = [
+        row
+        for row in interaction_model.read_interactions(serve.page_dir)
+        if row.get("type") == "reply_visible"
+    ]
+    assert any(
+        row.get("input_id") == root and row["presentation_kind"] == "queue_words"
+        for row in feedback
+    )
+    assert any(
+        row.get("input_id") == root
+        and row["reply_kind"] == "work"
+        and row["presentation_kind"] == "working_words"
+        for row in feedback
+    )
+    assert any(
+        row.get("input_id") == root
+        and row["presentation_kind"] == "banner_words"
+        and row["reply_id"] == steps[-1]["id"]
+        for row in feedback
+    )
+    assert not any(
+        row["presentation_kind"] == "message_words"
+        and row.get("reply_id") in {step["id"] for step in steps}
+        for row in feedback
+    )
+
     expect(line).to_have_attribute("data-lf-live", "")
     expect(line.get_by_role("button")).to_have_count(0)
     # A long step wraps as a message does, so all of it shows; in an idle open card
@@ -1599,6 +1652,20 @@ def test_progress_disclosure_keeps_its_words_visible_beside_margin_paging(
         preview.get_by_role("button", name="Previous thread", exact=True).click()
     expect(card).to_be_visible()
     expect(preview.locator(".lf-margin-preview-position")).to_have_text("1/3")
+
+    def expect_headers_clear_actions():
+        geometry = card.evaluate("""card => ({
+          actions: card.querySelector('.lf-margin-thread-controls').getBoundingClientRect().left,
+          heads: [...card.querySelectorAll('.lf-msg-head')]
+            .filter(head => head.checkVisibility())
+            .map(head => head.getBoundingClientRect().right)
+        })""")
+        assert geometry["heads"], geometry
+        assert all(right <= geometry["actions"] + 0.5 for right in geometry["heads"]), (
+            geometry
+        )
+
+    expect_headers_clear_actions()
     originals = [
         card.locator(f'.lf-msg[data-event="{message["id"]}"]') for message in progress
     ]
@@ -1634,6 +1701,7 @@ def test_progress_disclosure_keeps_its_words_visible_beside_margin_paging(
     page.keyboard.press("Enter")
     for original in originals:
         expect(original).to_be_visible()
+    expect_headers_clear_actions()
     collapse = card.get_by_role("button", name="Hide 3 progress messages", exact=True)
     expect(collapse).to_be_focused()
     expect_unclipped_words(collapse)

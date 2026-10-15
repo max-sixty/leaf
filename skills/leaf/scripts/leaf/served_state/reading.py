@@ -37,7 +37,7 @@ from ..service import claim_path, page_claim
 from ..state import EVENTS_FILE, SESSION_SUFFIX, flocked, session_file
 
 # Diagnostic writes cannot move application state. The server writes `viewed.json`
-# when a visible tab asks for its freshness reading and `interactions.jsonl` for every request
+# when a visible tab asks for its freshness reading and `observations.jsonl` for every request
 # it answers; counting either would make a read say it changed itself, and waking on
 # either would rouse every watcher of a page a tab is merely looking at.
 UNWATCHED = frozenset(

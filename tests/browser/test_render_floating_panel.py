@@ -10,8 +10,14 @@ folding the panel to the leaf in the window's corner and back."""
 import re
 
 import pytest
-from interact_support import append_carried_log_record, declare_idle, working
+from interact_support import (
+    append_carried_log_record,
+    declare_idle,
+    declare_work,
+    working,
+)
 from leaf import event_log as events_model
+from leaf import interaction_log as interaction_model
 from leaf import service as service_model
 from leaf import thread as thread_model
 from model_folds import leaf_page
@@ -74,9 +80,10 @@ def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve
     """The field clicked at rest is the field written in. Sending a page comment opens
     its new thread above the row, the same field now replying there, and the thread is
     resolved and reopened from the thread's head. The focused field names where the
-    words go, and once they hide that, the line above it does, in the same words. The banner and the
-    bottom bar are gone, and Escape, once the caret has left the field, puts the thread
-    away."""
+    words go, and once they hide that, the line above it does, in the same words, while
+    no view is open; over the thread, whose head names it, nothing does. The banner and
+    the bottom bar are gone, and Escape, once the caret has left the field, puts the
+    thread away."""
     page = floating(browser, serve(LONG_PAGE))
     expect(page.locator(".lf-banner")).to_be_hidden()
     expect(page.locator(".lf-shortcut-bar")).to_be_hidden()
@@ -99,7 +106,7 @@ def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve
     )
 
     write(field(page), "And the mobile cohort too.")
-    expect(page.locator(".lf-fp-context")).to_have_text("Reply in this thread")
+    expect(page.locator(".lf-fp-context")).to_be_hidden()
     with sending(page, "the reply"):
         page.keyboard.press("ControlOrMeta+Enter")
     reply = events_model.read_events(serve.page_dir)[-1]
@@ -486,9 +493,9 @@ def test_on_shows_an_ask_as_its_message_and_reply_comes_back(browser, serve):
 def test_clicking_into_the_field_moves_nothing_at_an_open_view_s_head(browser, serve):
     """An open view stands right on the row, with no empty band between them. Clicking
     into the field shows nothing over it, since the keys that send are Send's hover
-    name, and once words arrive, the line saying where they go lies over the view's foot
-    rather than lifting the view, so its tabs and Close stay where the pointer may be
-    about to press them."""
+    name, and neither do words arriving, since the placeholder said where they go before
+    they hid it, so its tabs and Close stay where the pointer may be about to press
+    them."""
     page = floating(browser, serve(LONG_PAGE, comments=3))
     page.locator(".lf-fp-threads").click()
     view = page.locator(".lf-fp-view[data-view=threads]")
@@ -508,9 +515,9 @@ def test_clicking_into_the_field_moves_nothing_at_an_open_view_s_head(browser, s
     assert (
         page.locator(".lf-fp-filters button", has_text="Resolved").bounding_box() == tab
     )
-    # Words arriving give the line where they go, over the view's foot.
     page.keyboard.type("Could")
-    expect(line).to_have_text("Comment on the page")
+    expect(page.locator(".lf-fp-send")).to_be_visible()
+    expect(line).to_be_hidden()
     # Each platform spells Shift its own way (keyboard/bindings.js, `spell`).
     expect(page.locator(".lf-fp-send")).to_have_attribute(
         "title", re.compile(r"^Send \(⏎\) · (⇧|Shift\+)⏎ new line$")
@@ -518,10 +525,6 @@ def test_clicking_into_the_field_moves_nothing_at_an_open_view_s_head(browser, s
     settled(page)
     assert page.locator(".lf-fp-close").bounding_box() == close
     assert view.bounding_box() == stands
-    # It stands across the seam, over the view's foot and clear of the field's box.
-    said = line.bounding_box()
-    assert said["y"] >= stands["y"]
-    assert said["y"] + said["height"] <= field(page).bounding_box()["y"] + 0.5
 
 
 HEAD_SEATS = """() => {
@@ -802,7 +805,7 @@ def test_a_thread_s_view_is_as_tall_as_its_messages(browser, serve):
     settled(page)
     short = page.evaluate(THREAD_FIT)
     assert not short["scrolls"]
-    # Nothing stands under its message but the room the line over the field lies in.
+    # Nothing stands under its message but the view's padding.
     assert short["below"] - short["room"] < 10, short
 
     page.keyboard.press("Escape")
@@ -994,25 +997,28 @@ def test_a_streaming_answer_follows_into_sight_until_it_outgrows_the_view(
     assert view.bounding_box() == stands
 
 
-FOOT_CLEAR = """([words, fromEnd]) => {
+FOOT = """([parts, fromEnd]) => {
   const view = document.querySelector('.lf-fp-view:not([data-leaving])');
-  const text = [...view.querySelectorAll(words)].at(-1 - fromEnd).getBoundingClientRect();
-  const over = ['.lf-fp-context:not([hidden])', '.lf-fp-new-reply']
-    .map((selector) => document.querySelector(selector)?.getBoundingClientRect())
-    .filter(Boolean);
+  const part = [...view.querySelectorAll(parts)].at(-1 - fromEnd).getBoundingClientRect();
+  const box = view.getBoundingClientRect();
+  const press = view.querySelector('.lf-fp-new-reply')?.getBoundingClientRect();
   return {
-    over: over.length,
-    gap: Math.min(...over.map((box) => box.top - text.bottom)),
+    below: box.bottom - part.bottom - parseFloat(getComputedStyle(view).paddingBottom),
+    press: press && {over: press.top - part.bottom, under: box.bottom - press.bottom},
+    said: [...document.querySelectorAll('.lf-fp-context, .lf-fp-peek')]
+      .filter((node) => node.checkVisibility())
+      .map((node) => node.textContent),
   };
 }"""
 
 
-def test_nothing_in_a_view_stands_under_the_line_or_new_reply(browser, serve):
-    """The line over the field and New reply stand at the view's foot on the panel's
-    ground, and the view keeps room below its last words for them: at the view's end
-    its last words stand clear of both, in a long thread the user types at the end of,
-    in a long Threads list, and in a thread whose answer waits below the fold, where
-    the user's own last turn stays clear of the press that leads to it."""
+def test_nothing_lies_over_a_view_s_foot_but_new_reply(browser, serve):
+    """An open view's foot keeps no room for anything but its padding, and nothing lies
+    over it: not the line over the field, which would repeat where the words go, nor
+    news arriving in it, which the view shows. At the view's end its last words stand
+    just above its padding, in a long Threads list and a long thread the user types at
+    the end of. New reply alone stands at its foot, on the panel's ground and inside the
+    view, clear of the user's own last turn while the answer to it waits below."""
     url = serve(LONG_PAGE, comments=12)
     long_root = panel_comment(serve.page_dir, "Walk me through the whole rollout.")
     for step in range(8):
@@ -1030,14 +1036,14 @@ def test_nothing_in_a_view_stands_under_the_line_or_new_reply(browser, serve):
         )
     page = floating(browser, url)
 
-    def clear(words):
+    def at_end(parts):
         page.locator(".lf-fp-view:not([data-leaving])").evaluate(
             "view => view.scrollTop = view.scrollHeight"
         )
         settled(page)
-        foot = page.evaluate(FOOT_CLEAR, [words, 0])
-        assert foot["over"] == 1, foot
-        assert foot["gap"] >= 0, foot
+        foot = page.evaluate(FOOT, [parts, 0])
+        assert foot["said"] == [], foot
+        assert 0 <= foot["below"] < 10, foot
 
     page.locator(".lf-fp-threads").click()
     page.locator(".lf-fp-filters button", has_text="Open").click()
@@ -1045,8 +1051,8 @@ def test_nothing_in_a_view_stands_under_the_line_or_new_reply(browser, serve):
     expect(inventory.locator(".lf-fp-thread")).to_have_count(13)
     field(page).click()
     page.keyboard.type("Could")
-    expect(page.locator(".lf-fp-context")).to_have_text("Comment on the page")
-    clear(".lf-fp-thread .lf-fp-label")
+    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-typing", "")
+    at_end(".lf-fp-thread")
 
     page.keyboard.press("ControlOrMeta+a")
     page.keyboard.press("Backspace")
@@ -1055,11 +1061,11 @@ def test_nothing_in_a_view_stands_under_the_line_or_new_reply(browser, serve):
     expect(reader.locator(".lf-msg")).to_have_count(9)
     field(page).click()
     page.keyboard.type("Could")
-    expect(page.locator(".lf-fp-context")).to_have_text("Reply in this thread")
-    clear(".lf-msg-text")
+    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-typing", "")
+    at_end(".lf-msg")
 
-    # The answer to the user's turn waits below the fold behind New reply, while the
-    # line says the agent replied.
+    # The answer to the user's turn waits below the fold behind New reply, and its
+    # arrival goes unsaid over the view that holds it.
     page.keyboard.press("ControlOrMeta+a")
     page.keyboard.type("And the weekend?")
     with sending(page, "the reply"):
@@ -1080,12 +1086,12 @@ def test_nothing_in_a_view_stands_under_the_line_or_new_reply(browser, serve):
     )
     told(page)
     expect(reader.locator(".lf-fp-new-reply")).to_have_text("New reply")
-    expect(page.locator(".lf-fp-context")).to_have_text("Claude replied")
     settled(page)
     # The user's own turn, the last message but the answer below the fold.
-    foot = page.evaluate(FOOT_CLEAR, [".lf-msg-text", 1])
-    assert foot["over"] == 2, foot
-    assert foot["gap"] >= 0, foot
+    foot = page.evaluate(FOOT, [".lf-msg-text", 1])
+    assert foot["said"] == [], foot
+    assert foot["press"]["over"] >= 0, foot
+    assert foot["press"]["under"] >= 0, foot
 
 
 def test_an_open_view_covers_the_page_beneath_it(browser, serve):
@@ -1223,6 +1229,133 @@ def test_a_reader_arriving_later_leaves_focus_the_user_moved_elsewhere(browser, 
     expect(page.locator("#elsewhere")).to_be_focused()
 
 
+@pytest.mark.parametrize("hidden_by", ["draft", "fold"])
+def test_floating_status_records_feedback_only_when_its_words_show(
+    browser, serve, request, hidden_by
+):
+    """Authored status words retain their exact source through the native placeholder
+    slot and folded peek. A draft, focus, or folded panel cannot claim them visible.
+    """
+    from browser.test_render_threads import claim_for_codex
+
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Can we simplify the logging?")
+    claim_for_codex(serve.page_dir, request)
+    page = floating(browser, url)
+    if hidden_by == "draft":
+        write(field(page), "Keep my unfinished question")
+    else:
+        page.locator(".lf-fp-leaf").click()
+        page.locator(".lf-fp-item", has_text="Fold to the leaf").click()
+        page.mouse.move(5, 5)
+    progress = thread_model.post_reply(
+        serve.page_dir,
+        {"to": root, "for": root},
+        "Reading the diagnostic transport.",
+        ephemeral=True,
+        identity={"agent": "Codex", "session": "codex-thread"},
+    )
+    told(page)
+
+    def batch_has(response, kind):
+        return (
+            response.url.endswith("/api/interaction")
+            and response.ok
+            and any(
+                entry["type"] == kind
+                for entry in response.request.post_data_json["entries"]
+            )
+        )
+
+    def visible():
+        return [
+            row
+            for row in interaction_model.read_interactions(serve.page_dir)
+            if row["type"] == "reply_visible" and row.get("reply_id") == progress["id"]
+        ]
+
+    # A later acknowledged gesture flushes all observations of the hidden words.
+    with page.expect_response(lambda response: batch_has(response, "click")):
+        page.locator("h1").first.click()
+    assert visible() == []
+    if hidden_by == "draft":
+        field(page).click()
+        page.keyboard.press("ControlOrMeta+a")
+        with page.expect_response(lambda response: batch_has(response, "keydown")):
+            page.keyboard.press("Backspace")
+        expect(field(page)).to_have_attribute("placeholder", re.compile("^Comment"))
+        expect(field(page).locator(".lf-key-badge")).to_contain_text("⏎")
+        assert visible() == []
+    with page.expect_response(lambda response: batch_has(response, "reply_visible")):
+        if hidden_by == "draft":
+            page.locator("h1").first.click()
+        else:
+            page.locator(".lf-fp-leaf").hover()
+            expect(page.locator(".lf-fp-peek")).to_contain_text(
+                "Reading the diagnostic transport"
+            )
+    rows = visible()
+    assert len(rows) == 1
+    assert rows[0]["input_id"] == root
+    assert rows[0]["presentation_kind"] == "banner_words"
+    assert rows[0]["surface"] == "panel"
+    assert "text" not in rows[0]
+
+
+def test_floating_menu_tracks_stalled_detail_hidden_by_a_draft(browser, serve, request):
+    """The stalled summary carries no authored detail; its menu's Last said words do.
+    A draft keeps the row's placeholder hidden, so that menu is their first exposure.
+    """
+    from browser.test_render_threads import claim_for_codex
+
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Can we simplify the logging?")
+    claim_for_codex(serve.page_dir, request)
+    page = floating(browser, url)
+    write(field(page), "Keep my unfinished question")
+    progress = declare_work(
+        serve.page_dir,
+        "Reading the diagnostic transport.",
+        item=root,
+        ts="2020-01-01T00:00:00+00:00",
+        agent="Codex",
+        session="codex-thread",
+    )
+    told(page)
+
+    def traced(response, kind):
+        return (
+            response.url.endswith("/api/interaction")
+            and response.ok
+            and any(
+                entry["type"] == kind
+                for entry in response.request.post_data_json["entries"]
+            )
+        )
+
+    def feedback():
+        return [
+            row
+            for row in interaction_model.read_interactions(serve.page_dir)
+            if row["type"] == "reply_visible" and row.get("reply_id") == progress["id"]
+        ]
+
+    with page.expect_response(lambda response: traced(response, "click")):
+        page.locator("h1").first.click()
+    assert feedback() == []
+    with page.expect_response(lambda response: traced(response, "reply_visible")):
+        page.locator(".lf-fp-leaf").click()
+        expect(page.locator(".lf-fp-explain")).to_contain_text(
+            "Last said: Reading the diagnostic transport"
+        )
+    rows = feedback()
+    assert len(rows) == 1
+    assert rows[0]["input_id"] == root
+    assert rows[0]["presentation_kind"] == "banner_words"
+    assert rows[0]["surface"] == "panel"
+    assert "text" not in rows[0]
+
+
 def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, serve):
     """At rest the empty field says what the agent is doing, in the banner's words and
     dimmer than anything written there, and while the work runs it carries the one sheen
@@ -1337,13 +1470,17 @@ def test_a_status_that_asks_the_user_to_act_stands_out(browser, serve):
 def test_a_notice_stays_in_sight_over_words_in_the_field(browser, serve):
     """A passing notice is said in the empty field's place, and once the caret is in the
     field, whose placeholder then says where the words go, or once words hide that, on
-    the line above it, so a refused send's reason is seen beside the words it returned;
-    on a folded panel, the leaf's peek says it."""
+    the line above it, so a refused send's reason is seen beside the words it returned.
+    Over an open view, where that line never shows, the leaf's peek says it, above the
+    leaf, inside the window and clear of the view's head; on a folded panel the peek
+    says it too."""
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Is the window long enough?")
     page = floating(browser, url)
     say = """async (text) => (await window.__lfWidgetApi())
       .notice(text)"""
+    line = page.locator(".lf-fp-context")
+    peek = page.locator(".lf-fp-peek")
     page.evaluate(say, "Saved for later")
     expect(field(page)).to_have_attribute(
         "placeholder", re.compile(r"^Saved for later")
@@ -1352,12 +1489,14 @@ def test_a_notice_stays_in_sight_over_words_in_the_field(browser, serve):
     expect(field(page)).to_have_attribute(
         "placeholder", re.compile(r"^Comment on the page")
     )
-    expect(page.locator(".lf-fp-context")).to_have_text("Saved for later")
+    expect(line).to_have_text("Saved for later")
     write(field(page), "Could the rollback cover the weekend?")
     page.evaluate(say, "Not sent: the page is offline")
-    expect(page.locator(".lf-fp-context")).to_have_text("Not sent: the page is offline")
+    expect(line).to_have_text("Not sent: the page is offline")
+    expect(peek).to_be_hidden()
 
-    # In a thread the focused field still says its words go there, not the notice.
+    # In a thread the focused field still says its words go there, and the peek says
+    # the notice, as it does a refused send's reason over the words it returned.
     page.locator("body").focus()
     page.keyboard.press("t")
     expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()
@@ -1366,7 +1505,28 @@ def test_a_notice_stays_in_sight_over_words_in_the_field(browser, serve):
     expect(field(page)).to_have_attribute(
         "placeholder", re.compile(r"^Reply in this thread")
     )
-    expect(page.locator(".lf-fp-context")).to_have_text("2 agent messages in 2 threads")
+    expect(peek).to_have_text("2 agent messages in 2 threads")
+    write(field(page), "And the weekend?")
+    page.evaluate(say, "Not sent: the page is offline")
+    expect(peek).to_have_text("Not sent: the page is offline")
+    expect(line).to_be_hidden()
+    settled(page)
+    seat = page.evaluate(
+        """() => {
+          const box = (selector) => document.querySelector(selector).getBoundingClientRect();
+          const [peek, head, leaf] = ['.lf-fp-peek', '.lf-fp-head', '.lf-fp-leaf'].map(box);
+          return {
+            inWindow: peek.left >= 0 && peek.right <= innerWidth && peek.top >= 0,
+            belowHead: peek.top - head.bottom,
+            aboveLeaf: leaf.top - peek.bottom,
+            fromLeaf: peek.left - leaf.left,
+          };
+        }"""
+    )
+    assert seat["inWindow"], seat
+    assert seat["belowHead"] >= 0, seat
+    assert seat["aboveLeaf"] >= 0, seat
+    assert abs(seat["fromLeaf"]) < 0.5, seat
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
 
@@ -1375,8 +1535,8 @@ def test_a_notice_stays_in_sight_over_words_in_the_field(browser, serve):
     page.keyboard.press(".")
     expect(page.locator(".lf-floating-panel")).to_have_attribute("data-rest", "mark")
     page.evaluate(say, "Reconnected")
-    expect(page.locator(".lf-fp-peek")).to_be_visible()
-    expect(page.locator(".lf-fp-peek")).to_have_text("Reconnected")
+    expect(peek).to_be_visible()
+    expect(peek).to_have_text("Reconnected")
 
 
 def test_question_mark_opens_the_command_reference_at_once(browser, serve):

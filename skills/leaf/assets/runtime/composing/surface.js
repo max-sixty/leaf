@@ -76,7 +76,6 @@ import {
 import {
   composerOpen,
   createSelectionComposer,
-  fab,
   fabBar,
   fabInput,
   pendingAbout,
@@ -406,11 +405,6 @@ export function createResponseSurface({
   // chosen, the button is the affordance; once Comment is open, the input replaces it.
   function paintFab() {
     fabBar.toggleAttribute("data-lf-target-only", Boolean(fabAnchor && !composerOpen));
-    fabBar.style.display = fabAnchor
-      ? "var(--lf-response-display, inline-flex)"
-      : "none";
-    fabInput.style.display = fabAnchor && composerOpen ? "block" : "none";
-    fab.style.display = fabAnchor ? "" : "none";
     composer.syncResponseOptions(fabAnchor);
     if (!fabAnchor) return;
     const label = anchorLabel(fabAnchor, pendingAbout).replace(/^§\s*/, "");

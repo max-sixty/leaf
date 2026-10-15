@@ -1273,6 +1273,8 @@
 /* skills/leaf/packages/default/styles/board.css */
 :scope:is(lf-board) {
   --lf-board-columns: 1;
+  --lf-grip-room: 0px;
+  --lf-grip-block: 0px;
 }
 @media screen {
   :scope:is(lf-board) {
@@ -1414,11 +1416,15 @@
   --lf-block-frame: 1;
 }
 @media screen {
-  :scope:is(lf-card)::before {
+  html[data-lf-interactive] :scope:is(lf-board):not(:where([data-lf-exhibit]) *) {
+    --lf-grip-room: max(var(--aim-floor), calc(var(--t-5) + 20px));
+    --lf-grip-block: max(var(--aim-floor), calc(var(--t-5) + 16px));
+  }
+  html[data-lf-interactive] :scope:is(lf-card):not(:where([data-lf-exhibit]) *)::before {
     content: "";
     float: right;
-    inline-size: var(--lf-grip-room, 0px);
-    block-size: var(--lf-grip-block, 0px);
+    inline-size: var(--lf-grip-room);
+    block-size: var(--lf-grip-block);
     margin-block-start: -10px;
   }
   :scope:is(lf-card) > :not(:first-child) {
@@ -1441,6 +1447,9 @@
   color: var(--muted);
   padding: 8px 10px;
   cursor: grab;
+  box-sizing: border-box;
+  inline-size: var(--lf-grip-room);
+  block-size: var(--lf-grip-block);
   min-height: var(--aim-floor);
   min-width: var(--aim-floor);
   border-radius: 4px;
@@ -2486,7 +2495,7 @@
   display: block;
 }
 @media screen {
-  :scope:is(lf-ask)[data-lf-space=column]:has(> :is([data-lf-space=wide], [data-lf-space=available]):not([data-lf-arranged])) {
+  :scope:is(lf-ask)[data-lf-column]:has(> [data-lf-space]:not([data-lf-arranged])) {
     margin-left: calc(-1 * var(--lf-grow-l));
     margin-right: calc(-1 * var(--lf-grow-r));
     padding-left: var(--lf-grow-l);

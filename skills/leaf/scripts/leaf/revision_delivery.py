@@ -388,9 +388,15 @@ def mark_declared(
             means = {"content": content, "declared": bool(declared)}
             authored = mark.get("authored")
             if authored in attrs and means[mark["authored_on"]]:
-                marks[mark["paint"]] = attrs[authored]
+                value = attrs[authored]
             elif declared:
-                marks[mark["paint"]] = "" if declared is True else str(declared)
+                value = "" if declared is True else str(declared)
+            else:
+                continue
+            if value in mark.get("paints", {}):
+                marks[mark["paints"][value]] = ""
+            else:
+                marks[mark["paint"]] = value
         sizes = [
             size
             for value in attrs.values()

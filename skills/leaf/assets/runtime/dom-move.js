@@ -7,7 +7,7 @@
  * has it: focus, a field's caret, typed text and an iframe's document. A selection in an
  * editable collapses all the same, so an editor that records its own puts it back as it
  * lands (`connectedMoveCallback`, as `leaf-text` does). New nodes, nodes from
- * another root, and engines without the API use `insertBefore`, which blurs a focused
+ * another root, and WebKit, which lacks the API, use `insertBefore`, which blurs a focused
  * descendant to the body; an element's hold (`holdFocus`) puts the user back in it, as
  * it does when a change had dropped them from it and they have not acted since. An
  * already placed node is left alone. Text, comments and fragments, which Lit inserts

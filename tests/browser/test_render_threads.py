@@ -13847,7 +13847,8 @@ def test_a_long_quote_of_replaced_data_has_a_local_reading(browser, serve):
     )
     data_model.cmd_data_set(serve.page_dir, "document", old)
     page = open_page(browser, live_url(url))
-    select_words(page, "#source code")
+    # The code box's first child is the gutter; triple-click the rendered words.
+    select_words(page, "#source [data-content] [data-line] span")
     write(page.locator(".lf-composer leaf-text"), "Does the manual review still apply?")
     with sending(page, "the earlier data comment"):
         page.keyboard.press("ControlOrMeta+Enter")

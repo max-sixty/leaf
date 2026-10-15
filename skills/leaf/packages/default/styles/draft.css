@@ -1,9 +1,13 @@
 /* Drafts read as Markdown, with editor operations in their own stable footer.
    Reserve that footer before upgrade. The frame holds focus, and print retains saved
-   prose. */
+   prose. On screen it keeps the reading measure as its prose does (theme.css), its
+   outer width the measure. */
 :scope:is(lf-draft) { display: block; border: 1px solid var(--border-2); border-radius: 6px;
   padding: 10px 14px; margin: 12px 0; background: var(--card);
   font-size: max(var(--entry-floor), 1em); }
+@media screen {
+  :scope:is(lf-draft) { box-sizing: border-box; max-inline-size: var(--lf-measure); }
+}
 .lf-draft-body, :scope:is(lf-draft) > .lf-markdown-body { white-space: normal; }
 :is(.lf-draft-body, :scope:is(lf-draft) > .lf-markdown-body) > :first-child { margin-top: 0; }
 :is(.lf-draft-body, :scope:is(lf-draft) > .lf-markdown-body) > :last-child { margin-bottom: 0; }

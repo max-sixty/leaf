@@ -943,7 +943,7 @@ _TEXT = {
     "idiom-fields": _declared(
         lambda v: (
             f"idiom {v['selector']!r} must carry a non-empty description and"
-            " x-example, with optional x-instructions and " + ", ".join(v["marks"])
+            " x-example, with optional x-instructions"
         )
     ),
     "idiom-value": _declared(

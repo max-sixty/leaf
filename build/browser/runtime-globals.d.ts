@@ -23,8 +23,8 @@ interface LeafStore {
   keys(): string[];
 }
 
-/** Whether a residency or indent reading changed what it writes (`prepaint.js`). */
-interface LeafIndents {
+/** Whether a residency or breakout reading changed what it writes (`prepaint.js`). */
+interface LeafReading {
   changed: boolean;
 }
 
@@ -55,8 +55,8 @@ interface LeafInitial {
   wear(node: Element, dress: LeafDress): void;
   runtimeRootStyles(node: Element): Set<string>;
   authoredShell(node: Node): Node;
-  residency(): LeafIndents;
-  indents(): LeafIndents;
+  residency(): LeafReading;
+  breakouts(): LeafReading;
   skipped(element: Element, parent?: (node: Element) => Element | null): boolean;
   register(tag: string, render: LeafInitialRenderer): void;
   has(tag: string): boolean;

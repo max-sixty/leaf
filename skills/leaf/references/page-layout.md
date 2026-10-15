@@ -143,11 +143,11 @@ widths. It works on column and sidebar pages:
   stopping short of a margin sidebar or the contents map.
 
 A `table` with either value is only as wide as its columns need, up to that width. A
-block in a list item gets the same width it would outside the list. A block inside an
-`lf-ask` or callout breaks out only with its own `data-width`; the ask keeps the
-column. A block inside a box the
-page lays out itself, such as a grid or flex item, stays in that box, and a table there
-scrolls sideways.
+block inside an `lf-ask` or callout breaks out only with its own `data-width`; the ask
+keeps the column. A block breaks out only from a box that spans the column, such as a
+section or an ask. One inside a box standing in from the column, such as a list item,
+or a box the page lays out itself, such as a grid or flex item, stays in that box, and
+a table there scrolls sideways.
 
 A widget whose entry declares `x-height`, such as `lf-chart`, reserves that height
 before it draws; `data-height` on the element overrides it. A widget whose drawing sets

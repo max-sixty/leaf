@@ -2755,8 +2755,6 @@ def test_init_merges_idioms_by_complete_entry_and_facts_by_member(
     shipped = json.loads((schema_model.ASSETS / "registry.json").read_text())
     assert registry[".hazard"] == hazard
     assert registry[".callout"] == callout
-    assert shipped[".callout"]["x-space"] == "column"
-    assert "x-space" not in registry[".callout"]
     assert set(shipped) <= set(registry)
     assert registry["$languages"]["paths"]["svelte"] == "javascript"
     assert set(shipped["$languages"]["paths"]) <= set(registry["$languages"]["paths"])

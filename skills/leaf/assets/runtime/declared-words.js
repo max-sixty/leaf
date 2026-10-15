@@ -61,9 +61,7 @@ const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
 // nothing has painted, and paint it did not look past is a change the author never made.
 export const isPagePaint = (name) =>
   PAGE_PAINT_ATTRIBUTES.has(name) ||
-  Object.values(registry.$marks).some(
-    (mark) => mark.paint === name || Object.values(mark.paints ?? {}).includes(name),
-  );
+  Object.values(registry.$marks).some((mark) => mark.paint === name);
 
 // A word for a user listening, silent on screen: real text — the one thing every
 // screen reader announces in every mode — placed after the element's leading title,
@@ -257,8 +255,8 @@ export function paintDeclaredWords(root) {
 // and a page carrying one had to be either a cramped board or a page whose every
 // paragraph was widened to suit it. Neither is a choice a page should have to make, so
 // the widget declares its capacity (x-space) and the theme spends the room the layout
-// resolved by the CSS shell (--lf-room). `column` keeps the prose measure in a wider
-// flow; `wide` uses the shared evidence cap; `available` uses all remaining room.
+// resolved by the CSS shell (--lf-room): `wide` uses the shared evidence cap, and
+// `available` uses all remaining room.
 // Internal arrangement remains package-owned.
 //
 // Whether the widget is set among the words around it is the second (x-inline). What

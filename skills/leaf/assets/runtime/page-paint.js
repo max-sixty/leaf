@@ -33,9 +33,8 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   goto: "data-lf-go-to-active",
   traffic: "data-lf-traffic",
   indicated: "data-lf-indicated",
-  // A breakout in a box the page arranged itself, which keeps to that box
-  // (prepaint.js, `indents`).
-  arranged: "data-lf-arranged",
+  // A breakout that keeps to its holder (prepaint.js, `breakouts`).
+  kept: "data-lf-kept",
   // Delivery's, not a runtime writer's: the size of the page media an element names
   // (revision_delivery.py, `mark_declared`).
   mediaWidth: "data-lf-media-width",

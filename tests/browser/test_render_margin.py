@@ -101,9 +101,8 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 
 def test_column_width_does_not_clear_a_sidenote(browser, serve):
-    """Column is the ordinary prose measure, so a block allocated it, such as a
-    callout, must not drop below a sidenote that ordinary neighboring paragraphs flow
-    beside."""
+    """A callout keeps the prose measure, as text does, so it must not drop below a
+    sidenote that ordinary neighboring paragraphs flow beside, as a breakout does."""
     source = leaf_page(
         "Column beside sidenote",
         """
@@ -118,7 +117,6 @@ run several lines beside the prose and the callout that follow it.</p></aside>
     page = open_page(browser, serve(source))
     resized(page, 1400, 900)
     expect(page.locator("#note")).to_have_css("float", "right")
-    expect(page.locator("#column")).to_have_attribute("data-lf-column", "")
     at = page.evaluate(
         """() => ({
           column: document.getElementById('column').getBoundingClientRect().top,

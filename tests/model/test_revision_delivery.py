@@ -611,8 +611,8 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     in their shape before they decode. A widget declaring the structure its module will
     draw (`x-prepaint`) carries it as its first child, marked as delivery's, so the
     browser lays that structure out before the module runs, and one that first paints
-    as another widget will stand in it carries that widget's (`as`). An idiom declares
-    a mark by its selector, as a callout keeps the column. Markup inside a template is
+    as another widget will stand in it carries that widget's (`as`). A mark is its
+    tag's, so a selector idiom declares none. Markup inside a template is
     inert, and everything else in the source stays as written."""
 
     def png(width, height):
@@ -630,9 +630,7 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         "lf-meter": {"x-prepaint": '<span class="lf-meter-face">0 left</span>'},
         "lf-gauge": {"x-prepaint": {"as": "lf-meter"}},
         "lf-face": {"x-prepaint": '<foo_bar class="face">Ready</foo_bar>'},
-        ".callout": {"x-space": "column"},
-        "table": {"x-space": "wide"},
-        "lf-feed.selected": {"x-space": "column"},
+        "table": {"description": "A table.", "x-example": "<table></table>"},
     }
     source = (
         "<!doctype html><html><head><title>T</title></head><body><main>"
@@ -675,13 +673,10 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     assert marks[("lf-zone", "queue")] == {"data-lf-reading-role": "pane"}
     assert marks[("lf-label", None)] == {"data-lf-inline": ""}
     assert marks[("lf-board", "board")] == {"data-lf-space": "available"}
-    assert marks[("aside", "note")] == {"data-lf-column": ""}
+    assert marks[("aside", "note")] == {}
     assert marks[("aside", "chart-note")] == {"data-lf-space": "wide"}
-    assert marks[("lf-feed", "feed")] == {
-        "data-lf-bound": "end",
-        "data-lf-column": "",
-    }
-    assert marks[("table", "native")] == {"data-lf-space": "wide"}
+    assert marks[("lf-feed", "feed")] == {"data-lf-bound": "end"}
+    assert marks[("table", "native")] == {}
     assert marks[("section", "wide")] == {"data-lf-space": "wide"}
     assert marks[("pre", None)] == {"data-lf-bound": "start"}
     assert marks[("lf-plot", "plot")] == {"data-lf-height": "400"}
@@ -714,14 +709,11 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         '<foo_bar data-lf-prepaint data-lf-gen="1" class="face">Ready</foo_bar>', ""
     )
     for mark in (
-        ' data-lf-column=""',
         ' data-lf-space="wide"',
         ' data-lf-reading-role="pane"',
         ' data-lf-inline=""',
         ' data-lf-space="available"',
         ' data-lf-bound="end"',
-        ' data-lf-column=""',
-        ' data-lf-space="wide"',
         ' data-lf-space="wide"',
         ' data-lf-bound="start"',
         ' data-lf-height="400"',

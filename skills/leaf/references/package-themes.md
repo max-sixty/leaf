@@ -9,8 +9,7 @@ faces, `--serif` for prose, `--sans` for Leaf's chrome, injected controls and no
 evidence, and `--mono` for literal evidence. An ordinary selector tunes one element. A
 pattern the project reuses across pages, such as a callout, is an idiom: declare it
 under its CSS selector in the package's `registry.json`, with a `description`, an
-`x-example` and optional `x-instructions`, and style it in the package's `theme.css`. An
-idiom may declare `x-space`, the width it takes, as `.callout` keeps to the column.
+`x-example` and optional `x-instructions`, and style it in the package's `theme.css`.
 
 Page-wide rules and idioms belong in a theme package, one that declares no widgets. A
 package that declares widgets has its stylesheet scoped to them, below the Layouts,
@@ -28,27 +27,27 @@ height to fill (`module-scroll-and-motion.md`, "Reading regions"), and
 
 A rule that draws an inset around a box, with padding, a border or a tinted background,
 also declares `--lf-block-frame: 1`. Leaf then trims the first child's top margin and the
-last child's bottom margin, keeps wide content inside the frame, and stretches a table
-to its width. A box that keeps its children's margins in but draws nothing, such as a
-page tab's panel or a box that contains floats, declares `--lf-block-frame: trim`: its
-edge margins are trimmed, but wide content may take the page's width and a table keeps
-its natural width. The trim reaches through a plain wrapper at the edge, which declares
+last child's bottom margin and keeps wide content inside the frame. A box that keeps its
+children's margins in but draws nothing, such as a page tab's panel or a box that
+contains floats, declares `--lf-block-frame: trim`: its edge margins are trimmed, but
+wide content may take the page's width. The trim reaches through a plain wrapper at the edge, which declares
 nothing. A flex row or grid declares `--lf-holds-edge: 1` to stop the trim, which would
 otherwise take its first item's margin and not its neighbours'.
 
 Shared CSS selects widgets by what their registry entries declare, which delivery
-writes onto each element as `[data-lf-space]` (a breakout; `x-space: column`
-is `[data-lf-column]`), `[data-lf-bound]`, `[data-lf-height]`,
+writes onto each element as `[data-lf-space]`, `[data-lf-bound]`, `[data-lf-height]`,
 `[data-lf-exhibit]` and similar attributes, rather than by tag. An element that names
 page media also arrives with `data-lf-media-width` and `data-lf-media-height`, the
 largest width and height among its images, so a theme can give the frame their shape
 before they load, as `lf-shot` does with `aspect-ratio`.
 
 The page decides how wide it is and how its blocks are arranged (`page-layout.md`,
-"Layouts"). A package's element fills its box, and its `x-space` states the width it
-prefers. Declare `column` for an element read as lines of text, such as a list of
-choices, so on a wide page it keeps the prose's line length. Only the column and sidebar
-Layouts apply `x-space`; in a workspace every element fills its region.
+"Layouts"). A package's element fills its box. One that needs more room than the
+reading measure, such as a board or a diagram, declares it in `x-space`: `wide` or
+`available`. One read as lines of text, such as a list of choices, keeps the prose's line
+length on a wide page with `max-inline-size: var(--lf-measure)` in its own stylesheet,
+under `@media screen`. Only the column and sidebar Layouts apply `x-space` and state a
+measure; in a workspace every element fills its region.
 
 A widget that needs a minimum width, such as a board whose columns must stay readable,
 caps it by the space it is in: `min-inline-size: min(<floor>, 100%, 100cqi,

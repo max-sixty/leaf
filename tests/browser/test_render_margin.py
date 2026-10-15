@@ -7580,7 +7580,9 @@ def test_an_agent_reply_leaves_the_reply_being_typed_where_it_stands(browser, se
     )
     told(page)
     expect(preview.locator(".lf-thread-notice-news")).to_have_text("1 new reply")
-    expect(preview).not_to_contain_text("An agent answer arriving while the user types.")
+    expect(preview).not_to_contain_text(
+        "An agent answer arriving while the user types."
+    )
     rendered(page)
     expect(editor).to_be_focused()
     assert preview.evaluate(DRAFTING_CARD) == before

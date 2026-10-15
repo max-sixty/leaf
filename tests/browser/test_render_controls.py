@@ -6036,7 +6036,15 @@ ELEVATION_SHADOWS = """() => {
           // layer, because a control may state its ring and its lift in one declaration.
           const lifts = layersOf(property, value).filter((layer) => {
             if (/(^|\\s)inset(\\s|$)/.test(layer)) return false;
-            const lengths = layer.trim().split(/\\s+/)
+            // Functions in a shadow can contain numbers (rgb, calc). Only lengths
+            // at the shadow layer's top level describe its offsets and blur.
+            let depth = 0;
+            const outside = [...layer].map((char) => {
+              if (char === '(') { depth++; return ' '; }
+              if (char === ')') { depth--; return ' '; }
+              return depth ? ' ' : char;
+            }).join('');
+            const lengths = outside.trim().split(/\\s+/)
               .filter((token) => /^-?(\\d*\\.)?\\d+(px)?$/.test(token));
             return lengths.length >= 3 && parseFloat(lengths[2]) !== 0
               && lengths.some((token) => token.endsWith('px'));

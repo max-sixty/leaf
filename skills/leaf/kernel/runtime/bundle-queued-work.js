@@ -768,47 +768,31 @@ function readThreadRecords(threads, document, widgets, workflows, markingRead = 
 
 // vendor/browser-runtime/snapshot.js
 var collecting = null;
-var collectingOutside = null;
 function collected(reading, read) {
   const outer = collecting;
-  const outerOutside = collectingOutside;
   collecting = null;
-  collectingOutside = null;
   let value;
   try {
     value = read();
   } finally {
     collecting = outer;
-    collectingOutside = outerOutside;
   }
-  const into = reading.outside ? outerOutside : outer;
-  if (into && !into.has(reading)) into.set(reading, value);
+  if (outer && !outer.has(reading)) outer.set(reading, value);
   return value;
 }
-function collectingInto(reads, outside, run) {
+function collectingInto(reads, run) {
   const outer = collecting;
-  const outerOutside = collectingOutside;
   collecting = reads;
-  collectingOutside = outside;
   try {
     return run();
   } finally {
     collecting = outer;
-    collectingOutside = outerOutside;
   }
 }
 function collectReads(run) {
   const reads = /* @__PURE__ */ new Map();
   try {
-    return { reads, value: collectingInto(reads, reads, run) };
-  } catch (error) {
-    return { reads, error };
-  }
-}
-function collectOutside(run) {
-  const reads = /* @__PURE__ */ new Map();
-  try {
-    return { reads, value: collectingInto(collecting, reads, run) };
+    return { reads, value: collectingInto(reads, run) };
   } catch (error) {
     return { reads, error };
   }
@@ -831,7 +815,7 @@ function outsideReading(read, heard) {
   return reading;
 }
 function untracked(run) {
-  return collectingInto(null, null, run);
+  return collectingInto(null, run);
 }
 var secured = /* @__PURE__ */ new WeakSet();
 function immutable(value, normalized = /* @__PURE__ */ new WeakMap()) {
@@ -2450,7 +2434,6 @@ export {
   M,
   Z,
   collectReads,
-  collectOutside,
   outsideReading,
   untracked,
   share,

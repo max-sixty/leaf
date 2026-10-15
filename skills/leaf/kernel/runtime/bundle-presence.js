@@ -38,7 +38,6 @@ import {
   wearsLentStop
 } from "./bundle-sample-visibility.js";
 import {
-  collectOutside,
   outsideReading
 } from "./bundle-queued-work.js";
 
@@ -52,77 +51,7 @@ var onTick = (moved) => {
 var serverNow = () => Date.now() + clockSkew;
 var saidNow = () => new Date(serverNow()).toISOString();
 var clockValue = (read) => outsideReading(() => read(serverNow()), onTick).read();
-function clocked(owner, paint, invalidate) {
-  let args;
-  let painted = false;
-  let reads = /* @__PURE__ */ new Map();
-  let generation = 0;
-  let connected = false;
-  let stopLifetime = null;
-  let following = [];
-  let answered = null;
-  const refresh = () => {
-    if (!painted) return;
-    if (invalidate) invalidate();
-    else return render(...args);
-  };
-  const moved = (round) => {
-    if (answered === round || !owner.isConnected) return void 0;
-    answered = round;
-    return refresh();
-  };
-  let drawing = 0;
-  const follow = () => {
-    for (const stop of following) stop();
-    let subscribing = true;
-    following = connected ? [...reads].map(
-      ([reading, value]) => reading.subscribe(
-        (now, round) => subscribing || drawing || now === value ? void 0 : moved(round)
-      )
-    ) : [];
-    subscribing = false;
-  };
-  const lifetime = () => watchOwner(owner, {
-    connect() {
-      connected = true;
-      follow();
-    },
-    disconnect() {
-      connected = false;
-      follow();
-    }
-  });
-  stopLifetime = lifetime();
-  function render(...next) {
-    const painting = ++generation;
-    args = next;
-    painted = true;
-    drawing += 1;
-    let outcome;
-    try {
-      outcome = collectOutside(() => paint(...args));
-    } finally {
-      drawing -= 1;
-    }
-    if (painting === generation) {
-      reads = outcome.reads;
-      stopLifetime ??= lifetime();
-      follow();
-    }
-    if ("error" in outcome) throw outcome.error;
-    return outcome.value;
-  }
-  render.stop = () => {
-    generation += 1;
-    reads = /* @__PURE__ */ new Map();
-    follow();
-    stopLifetime?.();
-    stopLifetime = null;
-  };
-  render.refresh = refresh;
-  return render;
-}
-function readingPaint(owner, draw, invalidate) {
+function readingPaint(owner, draw) {
   let painted = false;
   let key;
   let pending = null;
@@ -139,41 +68,39 @@ function readingPaint(owner, draw, invalidate) {
     reason,
     `paint failed for ${owner.localName}${owner.id ? `#${owner.id}` : ""}`
   );
-  const render = clocked(
-    owner,
-    (...args) => {
-      pending = null;
-      let result;
-      try {
-        result = draw(...args);
-      } catch (error) {
-        failed(error);
-        const refused = Promise.reject(error);
-        refused.catch(() => {
-        });
-        return refused;
-      }
-      if (typeof result?.then === "function") {
-        const mark = pending = {};
-        running.add(mark);
-        const settled = (reason, rejected) => {
-          running.delete(mark);
-          mark.cut ||= !owner.isConnected;
-          if (pending === mark) {
-            pending = null;
-            if (mark.cut) painted = false;
-          }
-          if (rejected && !mark.cut) failed(reason);
-        };
-        result.then(
-          () => settled(),
-          (reason) => settled(reason, true)
-        );
-      }
-      return result;
-    },
-    invalidate
-  );
+  let last = null;
+  const render = (...args) => {
+    last = args;
+    pending = null;
+    let result;
+    try {
+      result = draw(...args);
+    } catch (error) {
+      failed(error);
+      const refused = Promise.reject(error);
+      refused.catch(() => {
+      });
+      return refused;
+    }
+    if (typeof result?.then === "function") {
+      const mark = pending = {};
+      running.add(mark);
+      const settled = (reason, rejected) => {
+        running.delete(mark);
+        mark.cut ||= !owner.isConnected;
+        if (pending === mark) {
+          pending = null;
+          if (mark.cut) painted = false;
+        }
+        if (rejected && !mark.cut) failed(reason);
+      };
+      result.then(
+        () => settled(),
+        (reason) => settled(reason, true)
+      );
+    }
+    return result;
+  };
   const owes = (next) => !painted || key !== next;
   const paint = (next, ...args) => {
     if (stopped || !owes(next)) return void 0;
@@ -187,13 +114,12 @@ function readingPaint(owner, draw, invalidate) {
   };
   paint.refresh = () => {
     if (stopped) return void 0;
-    if (owner.isConnected) return render.refresh();
+    if (owner.isConnected) return last ? render(...last) : void 0;
     painted = false;
   };
   paint.stop = () => {
     stopped = true;
     stopLifetime();
-    render.stop();
   };
   return paint;
 }
@@ -933,7 +859,6 @@ export {
   serverNow,
   saidNow,
   clockValue,
-  clocked,
   readingPaint,
   tickClock,
   observeServerNow,

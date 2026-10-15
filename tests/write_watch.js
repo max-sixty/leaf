@@ -170,9 +170,6 @@
     // A repeated live announcement replaces its text node so assistive technology
     // hears a fresh arrival even when the words match the previous announcement.
     /^children of div\.lf-ui\.lf-live$/,
-    // A sample removes and reinserts its iframe to retire the old browsing context
-    // before allocating the next document. The same element then has a new context.
-    /^children of div\.lf-sample-exhibit$/,
     // Mermaid's diagram renderers and their shared viewport helper both assign the SVG's
     // width while measuring the same drawing. Its upstream-owned paint is separate
     // from Leaf's adapter, which uses keeps when setting the final natural width.

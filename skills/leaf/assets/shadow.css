@@ -116,7 +116,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 }
 :where([data-lf-focus]) {
   outline: var(--focus-ring);
-  --lf-focus-ring: focus;
   outline-offset: var(--focus-ring-gap);
 }
 :where(:focus, [data-lf-focus]) {
@@ -140,7 +139,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 }
 [data-lf-offer]:where(:not([data-lf-offer=""]))[data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: pressable;
   outline-offset: var(--focus-ring-gap);
 }
 [data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer=checkbox], [data-lf-offer=radio], .lf-skip)),
@@ -210,7 +208,6 @@ summary {
   pointer-events: none;
   border-radius: inherit;
   outline: var(--focus-ring);
-  --lf-focus-ring: page-thread;
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 @media (forced-colors: active) {
@@ -448,7 +445,6 @@ summary {
 }
 .lf-thread-disclosure[data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: summary-fold;
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 .lf-msg-head > .lf-held-header-item {
@@ -543,7 +539,6 @@ button.lf-thread-notice {
 }
 button.lf-thread-notice[data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: thread-notice;
   outline-offset: 1px;
 }
 .lf-thread-news {
@@ -852,7 +847,6 @@ leaf-text.lf-fab-input,
 :is(.lf-page-thread :is(.lf-btn, summary), .lf-resolved-summary)[data-lf-focus] {
   outline: var(--focus-ring);
   outline-offset: 1px;
-  --lf-focus-ring: thread;
 }
 @media print {
   .lf-page-thread,
@@ -892,7 +886,6 @@ leaf-text.lf-fab-input,
 }
 .lf-outline-chip[data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: chip;
   outline-offset: 1px;
 }
 .lf-msg-control {
@@ -1226,7 +1219,6 @@ svg[data-lf-icon] {
 }
 :is(.lf-btn, .button)[data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: btn;
   outline-offset: 2px;
 }
 
@@ -1428,7 +1420,6 @@ button.lf-media-open {
 }
 .lf-media-open[data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: media;
   outline-offset: 2px;
 }
 .lf-composer-media-open {
@@ -1485,7 +1476,6 @@ button.lf-media-open {
 }
 .lf-composer-media-item > button:not(.lf-media-open)[data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: composer-media;
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 .lf-composer-media-item > button:not(.lf-media-open) > svg {
@@ -1504,7 +1494,6 @@ button.lf-media-open {
 .lf-comment-box > .lf-compose-field:has(> leaf-text[data-lf-focus]),
 .lf-response-control[data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: text-box;
   outline-offset: 0;
   border-color: transparent;
 }
@@ -1807,7 +1796,6 @@ html[data-lf-draw-mode] main {
 }
 .lf-code-copy::part(lf-focus) {
   outline: var(--focus-ring);
-  --lf-focus-ring: code-copy;
 }
 .lf-msg-body a.detached {
   color: var(--muted-2);

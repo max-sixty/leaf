@@ -14,7 +14,7 @@ from collections.abc import Iterator
 from copy import deepcopy
 from pathlib import Path
 
-from leaf.files import file_stamp, next_reading, read_json
+from leaf.files import file_stamp, read_json
 from leaf.findings import Finding, Rejected
 from leaf.refusals import Refused
 from leaf.registry.kernel import kernel_event_ownership
@@ -224,13 +224,13 @@ def _line_start(data: bytes, n: int) -> int:
 def follow_events(page_dir: Path, after: int) -> Iterator[dict]:
     """Every event after seq `after`, then each one appended from here on, forever.
 
-    The trigger is the log's own stamp (`next_reading`), the look the browser's news
-    stream makes over the whole page, narrowed to the one file a follower reads. A
-    moved stamp reads only the bytes past what was already read, and only through the
-    last newline: the line after it is an append mid-flush, whose rest moves the stamp
-    again. Seq is the line number, so the lines read are counted whether or not they
-    parse, exactly as `_parse_events` counts them; the lines at or before `after` are
-    counted without being parsed.
+    It waits on the page's native subscription (`file_changes.page_changes`), so an
+    event any process appends wakes it, and each wake compares the log's own stamp
+    with the one taken before the last read. A moved stamp reads only the bytes past
+    what was already read, and only through the last newline: the line after it is
+    an append mid-flush, whose rest moves the stamp again. Seq is the line number, so
+    the lines read are counted whether or not they parse, exactly as `_parse_events`
+    counts them; the lines at or before `after` are counted without being parsed.
 
     The offset read so far is a position in the file first opened, and appends
     only ever grow that file. A log that is another file now (a rename put a new
@@ -238,6 +238,9 @@ def follow_events(page_dir: Path, after: int) -> Iterator[dict]:
     followed, and reading on from the old offset would print its middle under the
     wrong seqs, so the follower ends there, as it does when the log is removed.
     """
+    # file_changes reads the page's inputs, which reach back here through `service`.
+    from leaf.file_changes import page_changes
+
     log = page_dir / EVENTS_FILE
     gone = FileNotFoundError(f"{log} is gone")
     read = lines = 0
@@ -263,7 +266,14 @@ def follow_events(page_dir: Path, after: int) -> Iterator[dict]:
         )
         read += len(complete)
         lines += complete.count(b"\n")
-        stamp = next_reading(lambda: file_stamp(log), stamp)
+        seen = stamp
+        while (stamp := file_stamp(log)) == seen:
+            # The generation is taken before the stamp it confirms, so an append
+            # between the two still ends the wait.
+            changes = page_changes(page_dir)
+            generation = changes.mark()
+            if file_stamp(log) == seen:
+                changes.wait(generation, None)
 
 
 def cmd_events(page_dir: Path, after: int, *, follow: bool = False) -> None:

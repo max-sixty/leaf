@@ -1710,7 +1710,7 @@ _TEXT = {
         f"{v['page']}'s server was stopped while it was re-vendored, so it stays"
         " stopped."
     ),
-    # A server just started (`hosting.announce_server`).
+    # A server just started (`hosting.started_server`).
     "loopback-only": lambda at, v: (
         "the URL reaches only this machine; re-serve with --host NAME for a user"
         " elsewhere"

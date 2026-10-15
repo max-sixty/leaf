@@ -35,7 +35,7 @@
   display: none;
 }
 :scope:host(lf-file-editor) :is(.lf-file-editor-retry, .lf-file-editor-conflict)[data-lf-focus] {
-  outline: var(--focus-ring); outline-offset: 0; --lf-focus-ring: file-editor-status;
+  outline: var(--focus-ring); outline-offset: 0;
 }
 :scope:host(lf-file-editor) .lf-file-editor-retry { color: var(--accent); }
 :scope:host(lf-file-editor) .lf-file-editor-retry:not([aria-disabled="true"]):hover {
@@ -100,7 +100,6 @@
 :scope:host(lf-file-editor) .cm-editor:has(.cm-content[data-lf-focus])::after {
   content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
   outline: var(--focus-ring); outline-offset: calc(-1 * var(--focus-ring-w));
-  --lf-focus-ring: file-editor;
 }
 /* The editing region keeps the height the host states while typing grows the file. */
 :scope:host(lf-file-editor) .cm-scroller { overflow: auto; --lf-holds-height: 1; }

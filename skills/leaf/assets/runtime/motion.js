@@ -108,8 +108,9 @@ export const foldDuration = () => time("--lf-motion-fold");
 // the effect. `display` keeps an already-retired slot drawn until its pixels finish;
 // semantic retirement is still true from the first frame.
 // Clip without creating a scroller, so a folding thread's title stays sticky to its list.
-// Without intrinsic interpolation, use the caller's immediate retirement path rather
-// than a discrete height jump half way through an opacity animation.
+// Without intrinsic interpolation, which Firefox and WebKit lack, use the caller's
+// immediate retirement path rather than a discrete height jump half way through an
+// opacity animation.
 export function foldBlock(el) {
   if (!CSS.supports("block-size", "calc-size(auto, size)")) return null;
   return motion(

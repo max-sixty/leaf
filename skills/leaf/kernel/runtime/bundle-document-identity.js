@@ -671,6 +671,7 @@ var LeafEditorView = class extends EditorView {
     const to = this.domAtPos(head);
     this.#selection().setBaseAndExtent(from.node, from.offset, to.node, to.offset);
   }
+  // Firefox and WebKit lack ShadowRoot.getSelection; the document holds theirs.
   #selection() {
     return this.root.getSelection?.() ?? this.dom.ownerDocument.getSelection();
   }
@@ -1097,7 +1098,7 @@ var LeafText = class extends HTMLElement {
   }
   #describe() {
     const content = this.#view?.contentDOM;
-    if (!content || !("ariaDescribedByElements" in content)) return;
+    if (!content) return;
     const root = (
       /** @type {Document | ShadowRoot} */
       this.getRootNode()

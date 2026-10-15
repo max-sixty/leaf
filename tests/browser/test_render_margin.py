@@ -1678,7 +1678,7 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
         '[data-lf-margin-for="bg-margin-controls-samples"]'
     ).get_by_role("button", name="Inspect projection", exact=True)
     expect(projection).to_be_visible()
-    projection.hover()
+    projection.focus()
     expect(projection.locator(".lf-margin-entry-label-word")).to_have_text(
         "Inspect projection…"
     )
@@ -5647,7 +5647,7 @@ def test_the_margin_reply_outside_the_transcript_shows_its_whole_ring(
     [ring] = [
         ring
         for ring in rings_drawn(page)
-        if ring["sample"] and ring["ring"] == "text-box"
+        if ring["sample"] and ".lf-compose-field" in ring["rule"]
     ]
     assert ring["cuts"] == []
 
@@ -5672,8 +5672,9 @@ def test_a_margin_card_is_one_frame_that_rings_for_its_thread(browser, serve):
     assert thread.evaluate("node => node.matches(':focus-visible')")
     rendered(page)
     drawn = rings_drawn(page)
-    worn = [(seen["ring"], seen["who"].split(" ")[0]) for seen in drawn if seen["here"]]
-    assert worn == [("page-thread", "aside.lf-ui.lf-margin-preview")], drawn
+    worn = [(seen["who"].split(" ")[0], seen["rule"]) for seen in drawn if seen["here"]]
+    assert [who for who, _rule in worn] == ["aside.lf-ui.lf-margin-preview"], drawn
+    assert ".lf-page-thread" in worn[0][1], drawn
     assert not (faults := ring_faults(drawn, "on a card the keyboard opened")), (
         "\n".join(faults)
     )

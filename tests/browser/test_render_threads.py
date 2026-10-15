@@ -55,6 +55,7 @@ from render_cases_layout import (
     in_threads_scrollport,
     page_at_rest,
     ring_faults,
+    ring_rule,
     rings_drawn,
     token_colour,
 )
@@ -6858,6 +6859,14 @@ def test_a_fold_frame_by_frame_keeps_the_card_below_on_its_pixel(
         {"kind": "resolve", "author": "user", "parent": source},
     )
     told(page)
+    if not page.evaluate('CSS.supports("block-size", "calc-size(auto, size)")'):
+        # Engines without intrinsic-size interpolation retire the thread in one
+        # paint; there are no frames to step through or hold for inspection.
+        expect(page.locator(f'.lf-going[data-id="{source}"]')).to_have_count(0)
+        assert target_card.evaluate(
+            "el => el.getBoundingClientRect().top"
+        ) == pytest.approx(start, abs=1)
+        return
     expect(page.locator(f'.lf-going[data-id="{source}"]')).to_have_count(1)
     steps = 30
     for step in range(1, steps):
@@ -8277,7 +8286,6 @@ def test_an_empty_thread_list_wears_its_ring_whole(browser, serve):
                 outline: current.outlineStyle,
                 width: current.outlineWidth,
                 offset: current.outlineOffset,
-                ringName: current.getPropertyValue('--lf-focus-ring').trim(),
                 ground: [list.backgroundColor, list.backgroundImage],
                 sameBox: ['left', 'top', 'right', 'bottom'].every(
                   edge => ringBox[edge] === listBox[edge]
@@ -8290,7 +8298,9 @@ def test_an_empty_thread_list_wears_its_ring_whole(browser, serve):
     assert paint["outline"] == "solid"
     assert paint["width"] == "2px"
     assert paint["offset"] == "-2px"
-    assert paint["ringName"] == "thread-list"
+    assert ".lf-threads-frame" in ring_rule(
+        page.locator(".lf-threads-frame"), pseudo="after"
+    )
     assert paint["sameBox"]
     assert paint["reachesFloor"], (
         "the focused list ended above the panel's floor and left an ownerless strip "

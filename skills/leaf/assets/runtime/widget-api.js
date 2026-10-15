@@ -243,7 +243,6 @@ export {
 // The one watcher of the page's readings (module-reading.md, "Page readings").
 export { watchProjection } from "./projection-watch.js";
 export {
-  HIDDEN,
   LAYOUT,
   dragging,
   el,

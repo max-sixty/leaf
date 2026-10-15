@@ -280,6 +280,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     visibleHint.append(hintLabel, hintKey);
     field.append(ta);
     (submitIn ?? field).append(sendBtn);
+    // Firefox lacks speech recognition; WebKit has it only under its prefix.
     const Recognition =
       globalThis.SpeechRecognition ?? globalThis.webkitSpeechRecognition;
     const mic =

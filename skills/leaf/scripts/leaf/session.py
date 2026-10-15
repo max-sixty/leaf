@@ -5,7 +5,6 @@ loads the HTTP server only to revive a dead one. Status writes use those same
 projections without importing a server. Receipt remains `delivery`'s."""
 
 import contextlib
-import json
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -450,14 +449,16 @@ def wait_acknowledgement(harness: Harness | None) -> Callable[[str], str]:
 
 
 def delivery_json(reading: PageTick, harness: Harness | None) -> str:
-    """Freeze a watcher reading and present its bounded first part."""
+    """Freeze a watcher reading and present its bounded first part, as `delivery
+    read` prints it."""
     from .delivery import batch_data, delivery_reading, freeze_delivery
+    from .event_log import jsonl_line
 
     payload = freeze_delivery(
         [batch_data(reading.page_dir, reading.transaction, reading.batch)],
         acknowledge=wait_acknowledgement(harness),
     )
-    return json.dumps(delivery_reading(payload), indent=2, ensure_ascii=False)
+    return jsonl_line(delivery_reading(payload))
 
 
 def read_watch_pass[DeliveryResult](

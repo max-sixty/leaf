@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
+import watchfiles.main
 from interact_support import STATED_TIMEOUT, append_carried_log_record, record_claim
 from leaf import event_log as events_model
 from leaf import harness as harness_model
@@ -440,7 +441,7 @@ def test_native_subscription_releases_partial_startup_resources(
     real_open, real_thread, real_native = (
         os.open,
         threading.Thread,
-        file_changes.RustNotify,
+        watchfiles.main.RustNotify,
     )
 
     def opening(*args, **kwargs):
@@ -456,17 +457,20 @@ def test_native_subscription_releases_partial_startup_resources(
         return reader
 
     providers = []
+    # Each recursion group installs on its own thread, so which one is refused is
+    # decided under a lock.
+    installing_lock = threading.Lock()
 
     def installing(*args, **kwargs):
-        if failure == "provider" and providers:
-            raise RuntimeError("provider installation refused")
-        provider = real_native(*args, **kwargs)
-        providers.append(provider)
-        return provider
+        with installing_lock:
+            if failure == "provider" and providers:
+                raise RuntimeError("provider installation refused")
+            providers.append(args)
+        return real_native(*args, **kwargs)
 
     monkeypatch.setattr(os, "open", opening)
     monkeypatch.setattr(file_changes.threading, "Thread", thread)
-    monkeypatch.setattr(file_changes, "RustNotify", installing)
+    monkeypatch.setattr(watchfiles.main, "RustNotify", installing)
     with pytest.raises(RuntimeError, match="installation refused"):
         file_changes.FileChanges({shallow: False, tree: True}, lambda _path: True)
     assert opened
@@ -484,18 +488,22 @@ def test_native_subscription_rearms_a_root_replaced_during_installation(
 
     page = tmp_path / "installing"
     page.mkdir()
-    real_native = file_changes.RustNotify
+    real_native = watchfiles.main.RustNotify
     installations = []
+    # Each recursion group installs on its own thread, so the first is decided
+    # under a lock.
+    installing_lock = threading.Lock()
 
     def installing(*args, **kwargs):
-        if not installations:
-            page.rmdir()
-            page.mkdir()
-        installations.append(args)
+        with installing_lock:
+            if not installations:
+                page.rmdir()
+                page.mkdir()
+            installations.append(args)
         return real_native(*args, **kwargs)
 
     owner = file_changes._PageChanges()
-    monkeypatch.setattr(file_changes, "RustNotify", installing)
+    monkeypatch.setattr(watchfiles.main, "RustNotify", installing)
     try:
         initial = owner.connect(page)
         assert not initial.matches(

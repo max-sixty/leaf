@@ -43,7 +43,6 @@
   --wa-color-neutral-on-quiet: var(--ink-2);
   --wa-focus-ring: var(--focus-ring);
   --wa-focus-ring-offset: 1px;
-  --lf-focus-ring: shot;
 }
 :scope:is(lf-shot) .lf-shotcomparison::part(divider) {
   background: color-mix(in srgb, var(--ink-2) 48%, transparent);
@@ -362,7 +361,6 @@
 }
 :scope:is(lf-shot):has(> input.lf-shotflip[data-lf-focus]) {
   outline: var(--focus-ring);
-  --lf-focus-ring: shot;
   outline-offset: 1px;
   border-radius: var(--r);
 }
@@ -593,7 +591,6 @@
 }
 :scope:is(lf-gloss):has(> .lf-gloss-mark[data-lf-focus]) {
   outline: var(--focus-ring);
-  --lf-focus-ring: gloss-mark;
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 .lf-gloss-popover {
@@ -927,7 +924,6 @@
 }
 :scope:is(lf-option) .lf-pick[data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: options-pick;
   outline-offset: var(--focus-ring-gap);
   border-radius: 4px;
 }
@@ -1065,13 +1061,11 @@
   }
   :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *) > lf-option:has(> .lf-pick[data-lf-focus]) {
     outline: var(--focus-ring);
-    --lf-focus-ring: options-row;
     outline-offset: calc(-1 * var(--focus-ring-w));
     z-index: 1;
   }
   :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > .lf-another:has(leaf-text[data-lf-focus]) {
     outline: var(--focus-ring);
-    --lf-focus-ring: options-row;
     outline-offset: calc(-1 * var(--focus-ring-w));
     z-index: 1;
   }
@@ -1230,7 +1224,6 @@
 }
 :scope:is(lf-options)[settled] > .lf-settled[data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: options-settled;
   outline-offset: 1px;
 }
 .lf-settled::before {
@@ -1466,7 +1459,6 @@
 }
 :scope:is(lf-card) .lf-grip[data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: card-grip;
   outline-offset: calc(-1 * var(--focus-ring-w));
   color: var(--ink-2);
 }
@@ -1531,7 +1523,6 @@
 }
 .lf-tabstrip .lf-tab-btn[data-lf-focus] > .lf-tab-name {
   outline: var(--focus-ring);
-  --lf-focus-ring: tab-btn;
   outline-offset: var(--lf-tab-focus-gap);
 }
 .lf-tabstrip .lf-tab-btn > .lf-tab-name {
@@ -2253,7 +2244,6 @@
       }
       :scope:is(lf-toc) a[data-lf-focus] {
         outline: var(--focus-ring);
-        --lf-focus-ring: toc-link;
         outline-offset: calc(-1 * var(--focus-ring-w));
       }
       :scope:is(lf-toc):is(:hover, [data-lf-focus-within]) .lf-toc-nav {
@@ -2976,7 +2966,6 @@
 .lf-draft-edit.lf-ui[data-lf-focus] {
   outline: none;
   box-shadow: none;
-  --lf-focus-ring: none;
 }
 .lf-draft-footer {
   display: none;
@@ -2997,7 +2986,6 @@
   }
   :scope:is(lf-draft):has(.lf-draft-edit[data-lf-focus]) {
     outline: var(--focus-ring);
-    --lf-focus-ring: draft-editor;
     outline-offset: calc(-1 * (var(--focus-ring-w) + var(--focus-ring-gap)));
   }
   :scope:is(lf-draft):has(.lf-draft-edit:state(ready)) > .lf-draft-body {

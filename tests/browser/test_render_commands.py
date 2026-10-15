@@ -1,6 +1,7 @@
 """Render, shot, and browser-gate command tests."""
 
 import hashlib
+import json
 import os
 import re
 import subprocess
@@ -92,16 +93,20 @@ def test_a_driver_that_never_starts_is_reported_rather_than_raised(serve, tmp_pa
 
     def answered(result, node, reason):
         assert result.returncode == 0, result.stdout + result.stderr
-        assert "· render check: not run, Playwright's driver did not start: " in (
-            result.stderr
-        )
-        assert browser_model.DRIVER_VARIABLE in result.stderr
-        assert str(node) in result.stderr
-        assert reason in result.stderr
-        assert "Traceback" not in result.stderr
-        assert "_playwright" not in result.stderr
-        assert "_output" not in result.stderr
-        assert "Task exception was never retrieved" not in result.stderr
+        report = json.loads(result.stdout)
+        assert report["status"] == 0
+        assert report["browser"]["asked"] == ["render check"]
+        assert report["browser"]["ran"] == []
+        unavailable = report["browser"]["unavailable"]
+        assert "Playwright's driver did not start: " in unavailable
+        assert browser_model.DRIVER_VARIABLE in unavailable
+        assert str(node) in unavailable
+        assert reason in unavailable
+        assert result.stderr == ""
+        assert "Traceback" not in result.stdout
+        assert "_playwright" not in result.stdout
+        assert "_output" not in result.stdout
+        assert "Task exception was never retrieved" not in result.stdout
 
     def ran(node, *command):
         return subprocess.run(

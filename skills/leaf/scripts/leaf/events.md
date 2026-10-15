@@ -246,8 +246,8 @@ seq it printed misses nothing and repeats nothing. SIGINT, SIGTERM, and a closed
 stdout end it with exit 0. A log that is removed, replaced by another file, or
 shorter than what the feed has read ends it with exit 1, refusing with
 `<log> is gone`, since its positions no longer name that log's lines. The feed wakes on the
-log's file stamp at `LOOK_S` cadence, so an event any
-process appends reaches it the same way.
+page's native file subscription, so an event any process appends reaches it the same
+way.
 
 The feed carries the log only. External data under `data/` is replaced in place
 with no sequence to resume from, so a reader that needs it reads `leaf page state`

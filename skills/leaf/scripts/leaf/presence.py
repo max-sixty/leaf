@@ -11,29 +11,16 @@ from pathlib import Path
 
 from .activity import Turn, current_turn, declared_at, takes_input
 from .event_log import read_cursor
-from .files import (
-    entry_stamps,
-    file_stamp,
-    read_json,
-)
+from .files import file_stamp, read_json
 from .harness import claim_harness
 from .leases import lock_is_held, wait_is_live, waiter_lease_path
 from .machine import state_home
 from .page_memory import memo
-from .schema import (
-    INTERACTIONS_FILE,
-    SERVER_LOCK,
-    UNNAMED_AGENT,
-    USER_VIEWS_FILE,
-    USER_VIEWS_LOCK,
-    VIEWED_FILE,
-    WAITER_LOCK,
-)
+from .schema import SERVER_LOCK, UNNAMED_AGENT, VIEWED_FILE
 from .server import running_server
 from .service import (
     PageTransaction,
     claim_is_active,
-    claim_path,
     page_claim,
     read_status,
     unacknowledged,
@@ -89,28 +76,8 @@ class _Presence:
 
     def __init__(self) -> None:
         self.lock = threading.RLock()
-        # (page-file stamp, expiry, the token `presence_reading` gave)
+        # (page reading, wait lease and neighbours; expiry; the token given)
         self.token: tuple | None = None
-
-
-def _page_stamp(page_dir: Path, claim: dict | None = None) -> tuple:
-    """The mutable files whose changes can alter a page presence reading.
-
-    `viewed.json` counts here, where the page's own reading leaves it out: whether a
-    tab is looking is part of what presence reports."""
-    entries = tuple(
-        entry_stamps(page_dir, {INTERACTIONS_FILE, USER_VIEWS_FILE, USER_VIEWS_LOCK})
-    )
-    claim_stamp = file_stamp(claim_path(page_dir))
-    if claim and claim.get("id"):
-        # A harness wait lease is outside the page, and its lock state has no file
-        # stamp of its own. Its boolean is checked below on every cache refresh;
-        # including the file here still invalidates a page when the lease is first
-        # created or removed.
-        lease_stamp = file_stamp(waiter_lease_path(None, claim["id"]))
-    else:
-        lease_stamp = file_stamp(page_dir / WAITER_LOCK)
-    return entries + (("$claim", claim_stamp), ("$wait", lease_stamp))
 
 
 def neighbor_candidates() -> tuple:
@@ -361,17 +328,25 @@ def presence_fingerprint(present: dict, others: list) -> str:
     ).hexdigest()[:8]
 
 
-def presence_reading(page_dir: Path) -> str:
+def presence_reading(page_dir: Path, files: str) -> str:
     """The presence token shared by readers for one bounded freshness interval.
 
-    Page-file stamps invalidate it immediately; process and lock leases are refreshed
-    when the interval expires. The three facts are read the way `presence` and
-    `full_state` read them, so a freshness answer and the state it prompts name the same
-    reading once the bounded cache interval has elapsed.
+    It keys on `files`, the page's own reading (`served_state.reading`), which
+    names every page input, and on the claimant's wait lease, the one input of
+    presence outside them. A move in either invalidates it immediately; process
+    and lock leases are refreshed when the interval expires. The three facts are
+    read the way `presence` and `full_state` read them, so a freshness answer and
+    the state it prompts name the same reading once the bounded cache interval has
+    elapsed.
     """
     claim = page_claim(page_dir)
+    # A harness wait lease lives outside the page, and its lock state has no file
+    # stamp of its own: `live_facts` checks it on every refresh, while its stamp
+    # here invalidates the token when the lease is first created or removed. An
+    # unclaimed page's lease is in the page directory, so `files` covers it.
+    lease = file_stamp(waiter_lease_path(None, claim["id"])) if claim else None
     neighbors = neighbor_reading(page_dir)
-    stamp = (_page_stamp(page_dir, claim), neighbors)
+    stamp = (files, lease, neighbors)
     now = time.monotonic()
     kept = memo(page_dir, _Presence)
     with kept.lock:

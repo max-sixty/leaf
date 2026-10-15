@@ -171,7 +171,9 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
         },
     )
     round_trip(page)
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(
+        page, "Failed to load resource: the server responded with a status of 400"
+    )
     expect(reader).not_to_contain_text("Refused words")
     expect(box).to_have_js_property("value", "Refused words")
     if while_pending == "choose-earlier":

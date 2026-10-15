@@ -3242,7 +3242,9 @@ def test_a_page_refuses_a_browser_that_never_had_the_link(browser, serve):
 
     assert schema_model.NO_KEY in page.locator("body").inner_text()
     # The refusal is the subject: a user without the key is answered 401.
-    consume_browser_errors(page, {"code": "failed-load", "status": 401})
+    consume_browser_errors(
+        page, "Failed to load resource: the server responded with a status of 401"
+    )
 
 
 @pytest.mark.parametrize(

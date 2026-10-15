@@ -1,6 +1,5 @@
 """Lifecycle and trusted inputs for one browser color scheme."""
 
-import re
 import time
 from pathlib import Path
 from urllib.parse import urljoin, urlsplit
@@ -71,35 +70,18 @@ def _projection_was_applied(failed_stage: str | None) -> bool:
     return failed_stage in (None, "arrived", "rendering", "pageSettled")
 
 
-# The browser's own console entry for a response with an error status, in Chromium and
-# WebKit alike: it names the status but not the resource, which the entry's location
-# carries instead.
-_FAILED_LOAD = re.compile(
-    r"Failed to load resource: the server responded with a status of (\d{3})\b.*"
-)
-
-
 def console_finding(message, *, warnings: bool = True) -> Finding | None:
-    """A console entry that says the page did not load cleanly, as a finding: an
-    error, or with `warnings` a warning too.
+    """Preserve console errors and optional warnings with their browser locations.
 
-    A response with an error status is reported as its status and URL. The console
-    entry is the browser's one report of it, from the page and every frame in it, so
-    nothing listens to responses for it: a response listener has every request of a
-    load — a few hundred modules — sent to and built in this process. The browser
-    words that entry and nothing else carries the status, so its words are read here,
-    once, into the finding's fields. Any other entry keeps its words and the script
-    that wrote it (`url`, empty where the browser names none)."""
+    Console wording is diagnostic text, even when it resembles the browser's own
+    failed-resource report. It cannot establish an HTTP response or its status.
+    Reading console events also avoids a response callback for every resource.
+    """
     said = {"text": message.text, "url": message.location["url"]}
     if message.type == "warning" and warnings:
         return Finding("console-warning", values=said)
     if message.type != "error":
         return None
-    if failed := _FAILED_LOAD.fullmatch(message.text):
-        return Finding(
-            "failed-load",
-            values={"status": int(failed[1]), "url": message.location["url"]},
-        )
     return Finding("console-error", values=said)
 
 

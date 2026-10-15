@@ -813,7 +813,7 @@ def test_a_document_on_a_dead_release_asks_for_one_replacement(served_example, b
     page.close()
     consume_browser_errors(
         page,
-        {"code": "failed-load", "status": 404},
+        "Failed to load resource: the server responded with a status of 404",
         "Failed to load resource",
         "error loading",
     )

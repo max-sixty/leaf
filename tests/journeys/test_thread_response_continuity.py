@@ -528,7 +528,9 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
     )
     round_trip(page)
     rendered(page)
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(
+        page, "Failed to load resource: the server responded with a status of 400"
+    )
     restored = pose()
     for node in pending:
         for edge in pending[node]:

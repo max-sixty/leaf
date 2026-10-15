@@ -418,7 +418,7 @@ def test_a_website_example_shows_its_public_session_reference(browser, serve):
         (
             {"status": 503, "body": ""},
             "Server offline — reconnecting",
-            {"code": "failed-load", "status": 503},
+            "Failed to load resource: the server responded with a status of 503",
         ),
         (
             {"status": 200, "body": "{"},
@@ -3863,7 +3863,9 @@ def test_a_pending_offline_paint_does_not_block_a_recovery_read(browser, serve):
     expect(page.locator(".lf-status-detail")).not_to_contain_text(
         "Server offline — reconnecting"
     )
-    consume_browser_errors(page, {"code": "failed-load", "status": 503})
+    consume_browser_errors(
+        page, "Failed to load resource: the server responded with a status of 503"
+    )
 
 
 def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):

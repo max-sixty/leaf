@@ -1505,7 +1505,9 @@ def test_a_status_that_asks_the_user_to_act_stands_out(browser, serve):
     assert alpha() < 0.5
     # The refused reads recur on the page's clock until it closes.
     page.close()
-    consume_browser_errors(page, {"code": "failed-load", "status": 401})
+    consume_browser_errors(
+        page, "Failed to load resource: the server responded with a status of 401"
+    )
 
 
 def test_a_notice_stays_in_sight_over_words_in_the_field(browser, serve):

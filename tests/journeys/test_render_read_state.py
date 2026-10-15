@@ -306,7 +306,7 @@ def test_an_acknowledgement_neither_waits_for_nor_holds_up_a_gesture(browser, se
     )
     assert all(
         is_problem(error, "Failed to load")
-        or (error.code == "failed-load" and "/api/event" in error.values["url"])
+        or (error.code == "console-error" and "/api/event" in error.values["url"])
         for error in take_browser_errors(page)
     )
 

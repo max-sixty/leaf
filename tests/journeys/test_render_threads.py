@@ -1590,7 +1590,9 @@ def test_a_rewrite_never_replaces_words_it_did_not_see(browser, serve):
     b.keyboard.type("Saved in B.")
     b.keyboard.press("Enter")
     round_trip(b)
-    consume_browser_errors(b, {"code": "failed-load", "status": 400})
+    consume_browser_errors(
+        b, "Failed to load resource: the server responded with a status of 400"
+    )
     # Refused, B's words wait as its rewrite.
     expect(in_b.locator(".lf-msg-editor")).to_have_count(0)
     expect(in_b.locator(".lf-msg-kept")).to_have_text("unsaved edit")

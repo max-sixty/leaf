@@ -58,7 +58,7 @@ export async function notifyDataSubscribers() {
   for (const delivered of [...deliveryListeners]) delivered(round);
   const current = [...subscriptions];
   for (const subscription of current) subscription.notify();
-  const regions = current.flatMap((subscription) => subscription.regions);
+  const regions = current.map((subscription) => subscription.region);
   await whenApplicationRegionsPresented(
     regions,
     () => runtime.data.version === version,
@@ -114,6 +114,7 @@ export function dataReader(element, input) {
   );
   stagedReadings.add(selected);
   let reported = null;
+  let copied = { store: null, value: null };
   return () => {
     // The accepted reading claims the element's region inside the publication that
     // accepts it; the delivered one draws.
@@ -131,29 +132,35 @@ export function dataReader(element, input) {
     }
     if (incompatible || !source || !sourceStore || !Object.hasOwn(sourceStore, "value"))
       return null;
-    return structuredClone({
-      source,
-      ...sourceStore,
-      origin: {
-        input,
-        source,
-        contract: declaration.contract,
-        revision: sourceStore.revision,
-      },
-    });
+    // One copy a delivery, as `watchData` delivers one: a render that reads it again
+    // gets the same value, so a widget can tell a new delivery by identity.
+    if (sourceStore !== copied.store)
+      copied = {
+        store: sourceStore,
+        value: structuredClone({
+          source,
+          ...sourceStore,
+          origin: {
+            input,
+            source,
+            contract: declaration.contract,
+            revision: sourceStore.revision,
+          },
+        }),
+      };
+    return copied.value;
   };
 }
 
-// A renderer that draws data as it reads it holds the data version until its regions
-// present, as a `watchData` subscription does: a widget's render and the preparation
-// its draw starts (`present()`). Its readers hear the delivery itself.
+// A renderer that draws data as it reads it holds the data version until its region
+// presents, as a `watchData` subscription does; its readers hear the delivery itself.
 let deliveries = 0;
 const deliveryListeners = new Set();
 // The accepted readings a `LeafElement` follows to claim its region, not to draw.
 const stagedReadings = new WeakSet();
 export const stagesOnly = (reading) => stagedReadings.has(reading);
-export function joinDataDelivery(regions) {
-  const subscription = { regions, notify() {} };
+export function joinDataDelivery(region) {
+  const subscription = { region, notify() {} };
   subscriptions.add(subscription);
   return () => subscriptions.delete(subscription);
 }
@@ -181,7 +188,7 @@ export function watchData(element, input, callback) {
   let completion = Promise.resolve();
   const region = `data:${element.id}:${input}:${++subscriptionSequence}`;
   let presentation = null;
-  const subscription = { regions: [region], notify: () => notifySelected() };
+  const subscription = { region, notify: () => notifySelected() };
   let stopSelection;
   let pendingDelivery = null;
   let stopped = false;

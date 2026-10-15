@@ -84,7 +84,7 @@ import {
   keeps,
   keepsText,
   layoutPx,
-  once,
+  LeafElement,
   onUserInput,
   paintKeys,
   projectData,
@@ -99,9 +99,7 @@ import {
   setChildren,
   showReadingSubject,
   sizeObserver,
-  watchData,
   whileConnected,
-  widgetController,
   standingIn,
 } from "/runtime/widget-api.js";
 
@@ -219,8 +217,11 @@ const transport = (target, label, icon, disabled, title = label) =>
 
 customElements.define(
   "lf-trace",
-  class extends HTMLElement {
+  class extends LeafElement {
     #snapshot = null;
+    // The delivery the last render read, and the one shown.
+    #delivered;
+    #shown;
     #origins = new Map();
     #imageSizes = new Map();
     #trace = null;
@@ -353,8 +354,7 @@ customElements.define(
       this.#parts.update();
     });
 
-    connectedCallback() {
-      if (!once(this)) return;
+    setup() {
       this.#build();
       const timeline = this.#timelineHost.value;
       // Element command scopes leave with their element; a return keeps the declaration.
@@ -459,7 +459,20 @@ customElements.define(
           this.#closePicture();
         };
       });
-      watchData(this, "trace", (snapshot) => this.#show(snapshot));
+    }
+
+    render() {
+      this.#delivered = this.data("trace");
+      return nothing;
+    }
+
+    // A recording draws each delivery once, after Lit's update, since showing it moves
+    // focus, playback and the picture.
+    updated(changed) {
+      super.updated(changed);
+      if (this.#delivered === this.#shown) return;
+      this.#shown = this.#delivered;
+      this.#show(this.#shown);
     }
 
     #build() {
@@ -478,9 +491,8 @@ customElements.define(
       );
       // Lit owns only this generated container; authored bookmarks and the
       // prepaint face remain outside its child-part markers.
-      this.#view = el("div");
+      this.#view = el("div", "lf-trace-view");
       this.#view.dataset.lfGen = "1";
-      this.#view.style.display = "contents";
       this.append(this.#waiting, this.#view);
       this.#paint();
       // Viewer owns the viewport's figures and the timeline module its own
@@ -1506,7 +1518,7 @@ customElements.define(
         }, failed);
       });
       pending.ready = ready;
-      widgetController(this).present(ready);
+      this.controller.present(ready);
     }
 
     #inputLabel(action) {

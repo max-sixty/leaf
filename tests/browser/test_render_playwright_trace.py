@@ -11,6 +11,7 @@ from leaf_dev.page_fixtures import example_media
 from playwright.sync_api import expect
 from render_harness import (
     at_rest,
+    consume_browser_errors,
     holding,
     leaf_page,
     open_page,
@@ -27,6 +28,77 @@ def test_trace_viewer_stays_idle_after_initial_presentation(browser, serve):
     """The viewer's disabled transition cannot wake margin layout after readiness."""
     url = serve(ROOT / "examples/developer/playwright-trace-gallery.html")
     assert at_rest(still_page(browser, url)) == []
+
+
+@pytest.mark.parametrize(
+    ("engine", "width"),
+    [("browser", 1400), ("browser", 320), ("firefox_browser", 320)],
+)
+def test_timeline_tooltips_keep_their_words_above_marks_inside_the_timeline(
+    request, serve, engine, width
+):
+    """Narrow timelines keep a complete hovered label inside their inline room.
+
+    The first lane's tooltip may extend above the timeline. Its horizontal fit must
+    still work there, including after zoom changes which marks stand at its edges.
+    Firefox also wraps a narrow label without letting its lower lines cover the mark.
+    """
+    browser = request.getfixturevalue(engine)
+    record = json.loads(
+        (ROOT / "examples/developer/playwright-trace-gallery.data.json").read_text()
+    )["release-journey"]
+    media = {
+        image["url"]: (example_media() / Path(image["url"]).name).read_bytes()
+        for image in record["images"]
+    }
+    url = serve(
+        leaf_page(
+            "Timeline labels",
+            '<h1>Inspect recorded input</h1><lf-trace id="journey" source="trace"></lf-trace>',
+        ),
+        packages=("playwright",),
+        media=media,
+    )
+    data_model.cmd_data_set(serve.page_dir, "trace", record)
+    context = browser.new_context(viewport={"width": width, "height": 900})
+    page = open_page(browser, url, context=context)
+    if engine == "firefox_browser":
+        # Firefox reports the initial presentation sensor's unsupported entry type;
+        # tooltip geometry is read directly below and needs no layout-shift entries.
+        consume_browser_errors(page, "Ignoring unsupported entryTypes: layout-shift.")
+    widget = page.locator("#journey")
+    timeline = widget.get_by_role("group", name="Recording timeline", exact=True)
+    timeline.scroll_into_view_if_needed()
+    for zoom in (False, True):
+        if zoom:
+            widget.get_by_role("button", name="Zoom in", exact=True).click()
+            rendered(page)
+        marks = timeline.locator("[data-tip]")
+        visible = marks.evaluate_all("""nodes => nodes.map((node, index) => {
+            const box = node.getBoundingClientRect();
+            const band = node.closest('.lf-trace-scroller').getBoundingClientRect();
+            return {index, left:box.left, shown:box.width > 0
+              && box.left >= band.left && box.right <= band.right};
+          }).filter(item => item.shown).sort((a,b) => a.left-b.left)
+            .map(item => item.index)""")
+        assert visible
+        for index in (visible[0], visible[-1]):
+            mark = marks.nth(index)
+            mark.hover()
+            tooltip = timeline.get_by_role("tooltip")
+            expect(tooltip).to_be_visible()
+            rendered(page)
+            host, target, tip = (
+                locator.bounding_box() for locator in (timeline, mark, tooltip)
+            )
+            assert tip["y"] + tip["height"] <= target["y"]
+            assert tip["x"] >= host["x"] - 1
+            assert tip["x"] + tip["width"] <= host["x"] + host["width"] + 1
+            assert tooltip.inner_text().replace("\u00a0", " ") == mark.get_attribute(
+                "data-tip"
+            )
+        page.get_by_role("heading", name="Inspect recorded input").hover()
+        expect(timeline.get_by_role("tooltip")).to_be_hidden()
 
 
 def stop_time(record, checkpoint):

@@ -2992,7 +2992,7 @@ var showingBackground = null;
 var waitingBackground = [];
 var userContext = false;
 var userHoldTimer = 0;
-var noticePresentation = Object.freeze({ message: "", visible: false });
+var noticePresentation = Object.freeze({ message: "", visible: false, news: false });
 var noticePresenters = /* @__PURE__ */ new Set();
 var noticeReading = () => noticePresentation;
 var noticeVisible = () => noticePresentation.visible;
@@ -3002,8 +3002,8 @@ function registerNoticePresentation(invalidate) {
 var presentAll = () => {
   for (const invalidate of noticePresenters) invalidate();
 };
-var presentNotice = (message, visible) => {
-  noticePresentation = Object.freeze({ message, visible });
+var presentNotice = (message, visible, news = false) => {
+  noticePresentation = Object.freeze({ message, visible, news });
   if (visible) presentAll();
   else afterScript(presentAll);
 };
@@ -3015,7 +3015,7 @@ function announce(msg) {
   }, 30);
 }
 function showNotice(msg, background = null) {
-  presentNotice(msg, true);
+  presentNotice(msg, true, Boolean(background));
   showingBackground = background;
   clearTimeout(noticeTimer);
   noticeTimer = setTimeout(() => {

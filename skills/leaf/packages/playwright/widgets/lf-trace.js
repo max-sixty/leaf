@@ -2075,7 +2075,7 @@ customElements.define(
                   <ul class="lf-trace-nodes" ${ref(this.#treeList)}>
                     ${repeat(
                       rows,
-                      ({ id }) => id,
+                      ({ node }) => node.path,
                       ({ node }) =>
                         html`<li class="lf-trace-node">
                           <span class="lf-trace-node-name">${nodeName(node)}</span

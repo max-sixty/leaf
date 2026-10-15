@@ -62,7 +62,8 @@ contract.
 ## Source files and media
 
 Use `lf-text-document` to show a text file the user can comment on without copying it
-into your HTML. `preview="markdown"` or `preview="html"` adds Preview and Source tabs.
+into your HTML. Source lines are numbered; copied text and passage comments exclude
+the numbers. `preview="markdown"` or `preview="html"` adds Preview and Source tabs.
 An HTML preview runs in a sandboxed frame with none of Leaf's styles, and comments can't
 reach inside it, so the user comments on the source. `--lf-bound` sets the height of
 its scrolling box (default `28rem`).

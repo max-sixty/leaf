@@ -5624,9 +5624,16 @@ def test_the_margin_reply_outside_the_transcript_shows_its_whole_ring(
     assert header.bounding_box()["y"] == pytest.approx(
         transcript.bounding_box()["y"], abs=0.5
     )
-    assert (
-        row.bounding_box()["y"]
-        >= transcript.bounding_box()["y"] + transcript.bounding_box()["height"] - 0.5
+    # The scrollport extends under the reply by its bottom padding so a rewrite's
+    # outside focus ring stays visible; the scrolling turns stop above the row.
+    ring_room = transcript.evaluate(
+        "list => parseFloat(getComputedStyle(list).paddingBottom)"
+    )
+    assert row.bounding_box()["y"] >= (
+        transcript.bounding_box()["y"]
+        + transcript.bounding_box()["height"]
+        - ring_room
+        - 0.5
     )
 
     reply = preview.get_by_role("textbox", name="Reply", exact=True)

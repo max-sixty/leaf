@@ -95,7 +95,7 @@
     "x-example": "The import now takes <lf-num source=\"import-latency\" run=\"a41f103e236c985b\" via=\"uv run bench-import\">184 ms</lf-num> at p95."
   },
   "lf-text-document": {
-    "description": "A text file from page data, colored when it has a language, with an optional Markdown or HTML preview.",
+    "description": "A text file from page data with numbered lines, syntax coloring, and an optional Markdown or HTML preview.",
     "x-instructions": "Bind `source` to the page's data source and name the file with `label`. Set `preview` to `markdown` or `html` to add Preview and Source tabs over the same text. `language` colors the source, and defaults to the preview's language. An HTML preview is a separate document that inherits no Leaf styles. With a preview, each tab scrolls inside a box `--lf-bound` tall, 28rem by default. To start it collapsed, put it inside `details`.",
     "x-name": "label",
     "type": "object",

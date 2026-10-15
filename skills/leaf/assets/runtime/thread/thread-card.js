@@ -164,6 +164,9 @@ function workingMessage(thread, attention, messages) {
   // to-do's line can be user-authored, so it supplies no reply visibility evidence.
   const work = running?.detail ? running : !running && !todo ? stopped : null;
   const progress = !work && (running || (!todo && !stopped)) ? pending.at(-1) : null;
+  // Date the words being shown, rather than another message or the workflow's
+  // liveness condition. A to-do line has no dated source in the thread reading.
+  const timestamp = work?.ts ?? progress?.timestamp ?? null;
   const feedback = work?.input
     ? {
         input_id: work.input,
@@ -178,7 +181,9 @@ function workingMessage(thread, attention, messages) {
         }
       : null;
   return Object.freeze({
-    who: agent || agentMessage?.by || "Agent",
+    who: work?.agent || progress?.by || agent || agentMessage?.by || "Agent",
+    timestamp,
+    age: timestamp ? ago(timestamp) : null,
     words: words.trim().replace(/\.$/, ""),
     feedback,
     live,
@@ -291,9 +296,10 @@ export function threadReading(thread, surface, commands, options) {
 }
 
 // The working message's contents: the step of work in hand, drawn as a message is,
-// with who is working at its head, but dimmed under a passing sheen while the work
-// runs, as a title being generated is. It shows the latest step alone: the earlier
-// ones are superseded, and the answer that folds them offers them behind its own
+// with who is working and when those words were posted at its head, but dimmed under
+// a passing sheen while the work runs, as a title being generated is. It shows the
+// latest step alone: the earlier ones are superseded, and the answer that folds them
+// offers them behind its own
 // disclosure. It is the transcript's last child, so it stands at the conversation's
 // inset on every surface and scrolls with it. Its head wears a message head's face but
 // not its class, since it is no message: a message head's places (a margin's sticky
@@ -302,8 +308,10 @@ function workingView(working) {
   return html`<div class="lf-thread-working-head">
       ${working.who ? html`<b>${working.who}</b>` : nothing}
       ${
-        working.condition
-          ? html`<span class="lf-msg-meta">${working.condition}</span>`
+        working.timestamp || working.condition
+          ? html`<span class="lf-msg-meta">${working.timestamp
+              ? html`<time datetime=${working.timestamp}>${working.age}</time>`
+              : nothing} ${working.condition}</span>`
           : nothing
       }
     </div>

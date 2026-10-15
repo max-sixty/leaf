@@ -889,6 +889,8 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
         thread.locator(":scope > .lf-thread-summary").click()
     line = thread.locator(".lf-thread-working")
     expect(line.locator(".lf-thread-working-head b")).to_have_text("Codex")
+    expect(line.locator("time")).to_have_attribute("datetime", steps[-1]["ts"])
+    expect(line.locator("time")).not_to_be_empty()
     expect(line.locator(".lf-thread-working-words")).to_have_text(
         "Trying a lighter weight"
     )
@@ -960,6 +962,21 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
     expect(
         thread.get_by_role("button", name="Show 3 progress messages", exact=True)
     ).to_be_visible()
+
+    # A second session can post progress after the first session answered. It has
+    # no owed input's workflow, so its own message supplies both author and time.
+    proactive = thread_model.post_reply(
+        serve.page_dir,
+        {"to": root},
+        "Checking the contrast in the dark theme.",
+        ephemeral=True,
+        identity={"agent": "Claude", "session": "claude-thread"},
+    )
+    told(page)
+    expect(line.locator(".lf-thread-working-head b")).to_have_text("Claude")
+    expect(line.locator("time")).to_have_attribute("datetime", proactive["ts"])
+    expect(line.locator("time")).not_to_be_empty()
+    expect(line).not_to_have_attribute("data-lf-live", "")
 
 
 @pytest.mark.watch_shifts

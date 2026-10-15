@@ -5844,6 +5844,7 @@ function workingMessage(thread, attention, messages) {
   const agentMessage = messages.findLast((message) => message.author === "agent");
   const work = running?.detail ? running : !running && !todo ? stopped : null;
   const progress = !work && (running || !todo && !stopped) ? pending.at(-1) : null;
+  const timestamp = work?.ts ?? progress?.timestamp ?? null;
   const feedback = work?.input ? {
     input_id: work.input,
     reply_id: null,
@@ -5854,7 +5855,9 @@ function workingMessage(thread, attention, messages) {
     reply_kind: "progress"
   } : null;
   return Object.freeze({
-    who: agent || agentMessage?.by || "Agent",
+    who: work?.agent || progress?.by || agent || agentMessage?.by || "Agent",
+    timestamp,
+    age: timestamp ? ago(timestamp) : null,
     words: words.trim().replace(/\.$/, ""),
     feedback,
     live: live2,
@@ -5941,7 +5944,7 @@ function threadReading(thread, surface, commands2, options) {
 function workingView(working) {
   return html`<div class="lf-thread-working-head">
       ${working.who ? html`<b>${working.who}</b>` : nothing}
-      ${working.condition ? html`<span class="lf-msg-meta">${working.condition}</span>` : nothing}
+      ${working.timestamp || working.condition ? html`<span class="lf-msg-meta">${working.timestamp ? html`<time datetime=${working.timestamp}>${working.age}</time>` : nothing} ${working.condition}</span>` : nothing}
     </div>
     <div class="lf-thread-working-words">${working.words}</div>`;
 }

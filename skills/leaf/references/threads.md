@@ -158,9 +158,10 @@ its text becomes the **Working** line in the banner, so keep it to one line
 ([conversation loop, "When to write"](conversation-loop.md#when-to-write)). In a
 thread that owes no reply, use `leaf thread reply --ephemeral`.
 
-The thread shows the latest progress as one dim working message above its reply box;
-progress never counts as unread. Your next ordinary reply takes its place, with the
-progress folded behind it. Progress carries only text; asks, to-dos, markup, anchor
+The thread shows the latest progress as one dim working message above its reply box,
+with its author and posting time. Progress never counts as unread. Your next ordinary
+reply takes its place, with the progress folded behind it. Progress carries only text;
+asks, to-dos, markup, anchor
 moves and failure receipts each need a reply of their own.
 
 A widget in a reply's markup whose registry entry declares `x-awaits` is already an

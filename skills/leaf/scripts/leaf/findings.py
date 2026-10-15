@@ -704,11 +704,6 @@ _TEXT = {
             else f"one of {', '.join(v['allowed'])}"
         )
     ),
-    "css-unclosed": lambda at, v: (
-        f"{v['sheet']}: {v['depth']} block(s) left open at end of file — every rule"
-        " after the unclosed brace, this stylesheet's or a later layer's, lands inside"
-        " its scope"
-    ),
     "css-syntax": lambda at, v: (
         f"{v['sheet']} syntax error at {v['row']}:{v['column']}: {v['message']}"
     ),

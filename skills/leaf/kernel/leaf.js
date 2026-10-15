@@ -5970,7 +5970,13 @@ function pageStatus(state, { reach: reach2 = "reached" } = {}) {
       }
     };
   const { publication } = state;
-  if (publication) return { kind: "publication", tone: "", publication };
+  if (publication)
+    return {
+      kind: "publication",
+      tone: "",
+      summary: `${publication.agent} revises your private copy`,
+      publication
+    };
   const { activity, agent } = state;
   const { kind, detail } = activity;
   const facts = activityFacts(state);
@@ -6924,7 +6930,7 @@ var AWAITING_STATE = "Approval waits until this page has read its current state"
 var approvalReading = () => {
   if (!signoff) return null;
   const { text, reason } = approvalWords();
-  return { text, reason };
+  return { text, reason, approved: versionApproved() };
 };
 function presentApproval({ reason, text, title }) {
   render(text, approveWords);
@@ -7498,7 +7504,8 @@ function createFloatingPanel({
     explanationParts: [{ text: "Connecting\u2026", source: null }],
     adds: "",
     addsParts: [],
-    asks: false
+    asks: false,
+    publication: null
   };
   const status = () => statusReading() ?? CONNECTING;
   const statusParts = (parts) => parts.map((part) => {
@@ -8037,7 +8044,10 @@ function createFloatingPanel({
     const groups = Object.keys(GROUPS).filter(
       (group2) => all.some((entry) => groupOf(entry) === group2 && listed(entry))
     );
-    const { tone, summary, summaryParts, adds, addsParts } = status();
+    const { tone, summary, summaryParts, adds, addsParts, publication } = status();
+    const explains = publication ? html`${publication.copy}${publication.examplesUrl ? html`<a href=${publication.examplesUrl}>${publication.examples}</a> ` : nothing}<a href=${publication.installUrl} target="_blank" rel="noopener"
+            >${publication.install}</a
+          >` : adds && addsParts ? statusParts(addsParts) : adds;
     const word2 = TONE_WORDS[tone];
     const part = (name2, text) => (held ? held[name2] : text) ? html`<span
             class="lf-fp-${name2}"
@@ -8073,7 +8083,7 @@ function createFloatingPanel({
         <b>${word2 ?? (summaryParts ? statusParts(summaryParts) : summary)}</b>${part(
       "summary",
       word2 ? summaryParts ? statusParts(summaryParts) : summary : ""
-    )}${part("explain", adds && addsParts ? statusParts(addsParts) : adds)}
+    )}${part("explain", explains)}
       </div>
       ${seats2.map(({ key, draw }) => now.get(key)?.draw(false) ?? draw(true))}`;
   }
@@ -8119,10 +8129,14 @@ function createFloatingPanel({
     </div>`;
   }
   function versionsView() {
-    const { rows: versions, picker, selection } = versionsReading();
+    const { rows: versions, picker, selection, latest } = versionsReading();
     const approval = approvalReading();
-    const approved = approval?.text.startsWith("\u2713");
+    const approved = approval?.approved;
     return html`<div class="lf-fp-list">
+      ${latest.failed ? html`<div class="lf-fp-failed" role="status">
+              <b>${latest.label}</b>
+              <p class="lf-fp-failed-error">${latest.error}</p>
+            </div>` : nothing}
       ${repeat(
       versions,
       (entry) => `${entry.version === null ? "draft" : "version"}:${entry.revision}`,
@@ -8801,11 +8815,25 @@ function createFloatingPanel({
       quick
     );
   }
-  function rowNotice() {
+  function failedSave() {
+    const { latest } = versionsReading();
+    if (!latest.failed) return null;
+    return {
+      says: "Latest edit not shown",
+      tone: "danger",
+      press: {
+        label: "Why",
+        title: latest.error,
+        run: () => open({ view: "versions" }, { reopen: true })
+      }
+    };
+  }
+  function olderVersion() {
     const { latest } = versionsReading();
     if (latest.shown === null) return null;
     return {
       says: latest.shown,
+      tone: "warn",
       press: {
         label: "Latest",
         title: latest.keyTitle,
@@ -8814,19 +8842,48 @@ function createFloatingPanel({
       }
     };
   }
-  function rowNoticeTemplate({ says, press }) {
-    return press ? html`<button
+  function website() {
+    const { publication } = status();
+    if (!publication) return null;
+    return {
+      says: publication.examples ? "Example" : "Leaf page",
+      tone: "accent",
+      press: { label: publication.install, href: publication.installUrl }
+    };
+  }
+  function approvedVersion() {
+    if (!approvalReading()?.approved) return null;
+    return { says: `\u2713 ${versionsReading().picker.token} approved`, tone: "ok" };
+  }
+  const ROW_NOTICES = [failedSave, olderVersion, website, approvedVersion];
+  const rowNotice = () => {
+    for (const read of ROW_NOTICES) {
+      const notice2 = read();
+      if (notice2) return notice2;
+    }
+    return null;
+  };
+  function rowNoticeTemplate({ says, tone, press = null }) {
+    const face2 = html`<span class="lf-fp-row-notice-face" data-tone=${tone}
+      >${says}${press ? html`<span class="lf-fp-row-notice-sep" aria-hidden="true">·</span
+              ><span class="lf-fp-row-notice-act">${press.label}</span>` : nothing}</span
+    >`;
+    if (!press) return face2;
+    return press.href ? html`<a
+          class="lf-fp-chip lf-fp-row-notice-press"
+          href=${press.href}
+          target="_blank"
+          rel="noopener"
+          >${face2}</a
+        >` : html`<button
           type="button"
           class="lf-fp-chip lf-fp-row-notice-press"
-          title=${press.title}
+          title=${press.title ?? nothing}
           ?disabled=${press.disabled}
           @click=${press.run}
         >
-          <span class="lf-fp-row-notice-face"
-            >${says}<span class="lf-fp-row-notice-sep" aria-hidden="true">·</span
-            ><span class="lf-fp-row-notice-act">${press.label}</span></span
-          >
-        </button>` : html`<span class="lf-fp-row-notice-face">${says}</span>`;
+          ${face2}
+        </button>`;
   }
   leaf.addEventListener("click", () => {
     if (host.dataset.rest === "mark") {

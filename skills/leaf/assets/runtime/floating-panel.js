@@ -16,8 +16,9 @@
  *   press on the leaf unfolds it, and it stays as it was left across pages (`rest`).
  * - **The row**: the leaf, the comment field, and marks with counts for On me and
  *   Threads, with at most one small notice beside the marks for a state the user should
- *   not miss, such as reading an older version, and the one press that ends it
- *   (`rowNotice`); the field gives it room, so the marks keep their seats. The empty
+ *   not miss, such as a failed save or reading an older version, tinted by its tone and
+ *   with at most one press (`ROW_NOTICES`); the field gives it room, so the marks keep
+ *   their seats. The empty
  *   field says what the agent is doing or wants, in the banner's own words
  *   (`statusReading`), or what a passing notice says, where a placeholder would say
  *   "Comment"; in a thread it says whose turn it is. A status that reports reads dimmer
@@ -306,6 +307,7 @@ export function createFloatingPanel({
     adds: "",
     addsParts: [],
     asks: false,
+    publication: null,
   };
   const status = () => statusReading() ?? CONNECTING;
   // Only the authored runs carry response identity. Their renderer refs register
@@ -1071,7 +1073,19 @@ export function createFloatingPanel({
     // The state is said once: in a word, over its one line, and under that only what
     // the banner's disclosure adds to the line (`statusModel`, `adds`), since the menu
     // is reached by pointer, key and finger alike.
-    const { tone, summary, summaryParts, adds, addsParts } = status();
+    const { tone, summary, summaryParts, adds, addsParts, publication } = status();
+    // A published page's introduction keeps its links, as the banner's does.
+    const explains = publication
+      ? html`${publication.copy}${
+            publication.examplesUrl
+              ? html`<a href=${publication.examplesUrl}>${publication.examples}</a> `
+              : nothing
+          }<a href=${publication.installUrl} target="_blank" rel="noopener"
+            >${publication.install}</a
+          >`
+      : adds && addsParts
+        ? statusParts(addsParts)
+        : adds;
     const word = TONE_WORDS[tone];
     const part = (name, text) =>
       (held ? held[name] : text)
@@ -1113,7 +1127,7 @@ export function createFloatingPanel({
         <b>${word ?? (summaryParts ? statusParts(summaryParts) : summary)}</b>${part(
           "summary",
           word ? (summaryParts ? statusParts(summaryParts) : summary) : "",
-        )}${part("explain", adds && addsParts ? statusParts(addsParts) : adds)}
+        )}${part("explain", explains)}
       </div>
       ${seats.map(({ key, draw }) => now.get(key)?.draw(false) ?? draw(true))}`;
   }
@@ -1177,16 +1191,26 @@ export function createFloatingPanel({
     </div>`;
   }
 
-  // The versions the picker lists, the one shown marked, each a press that travels
+  // Where the agent's latest save failed its check, first what the check found, which
+  // the row's notice opens this view to say (`failedSave`); then the versions the picker
+  // lists, the one shown marked, each a press that travels
   // there and says the note its stamp gave it after its name, cut to the row and whole
   // on hover, as the bars' picker shows it; with Compare where the picker offers it;
   // then the version's approval, where
   // the page asks for one, with why a press would not approve yet.
   function versionsView() {
-    const { rows: versions, picker, selection } = versionsReading();
+    const { rows: versions, picker, selection, latest } = versionsReading();
     const approval = approvalReading();
-    const approved = approval?.text.startsWith("✓");
+    const approved = approval?.approved;
     return html`<div class="lf-fp-list">
+      ${
+        latest.failed
+          ? html`<div class="lf-fp-failed" role="status">
+              <b>${latest.label}</b>
+              <p class="lf-fp-failed-error">${latest.error}</p>
+            </div>`
+          : nothing
+      }
       ${repeat(
         versions,
         (entry) => `${entry.version === null ? "draft" : "version"}:${entry.revision}`,
@@ -2107,20 +2131,36 @@ export function createFloatingPanel({
   }
 
   // ---------- the row's notice ----------
-  // The one small notice the row shows, beside the marks: what it says, and the press
-  // that ends it, where one does. Reading an older version is its one case: the menu's
-  // row that opens the latest says so too, but only once the menu is open, while the
-  // counts beside it follow the version shown with no word of why.
-  // TODO(2026-10-14): grow this into one general kind of small notice to the user
-  // (notes/floating-panel/GOAL.md, "One general kind of small notice in the row"): what
-  // a notice says, who raises it, the press it offers, and how it ends, and which states
-  // raise one, such as a stale page, being offline, or a page opened from a share link.
-  // Until then each case is a branch here, and the slot shows the first that holds.
-  function rowNotice() {
+  // One small notice beside the marks, for a state the user should not miss while they
+  // read: a few words (`says`), a `tone` that tints it, and at most one `press`, a
+  // button or a link. Leaf's own readings raise each, and a notice ends when the state
+  // it reads does. The slot shows the first that holds, most urgent first, so the
+  // field's room never goes to a stack of them. Each case is a reading below; a new
+  // one joins `ROW_NOTICES` in its place.
+  // The agent's latest save failed its check, so the page shows the last one that
+  // passed; Why opens Versions, which says what the check found.
+  function failedSave() {
+    const { latest } = versionsReading();
+    if (!latest.failed) return null;
+    return {
+      says: "Latest edit not shown",
+      tone: "danger",
+      press: {
+        label: "Why",
+        title: latest.error,
+        run: () => open({ view: "versions" }, { reopen: true }),
+      },
+    };
+  }
+  // The page shows an older version than the latest: the menu's row that opens the
+  // latest says so too, but only once the menu is open, while the counts beside it
+  // follow the version shown with no word of why.
+  function olderVersion() {
     const { latest } = versionsReading();
     if (latest.shown === null) return null;
     return {
       says: latest.shown,
+      tone: "warn",
       press: {
         label: "Latest",
         title: latest.keyTitle,
@@ -2129,21 +2169,57 @@ export function createFloatingPanel({
       },
     };
   }
-  function rowNoticeTemplate({ says, press }) {
-    return press
-      ? html`<button
+  // A copy of a page on Leaf's website: the field says who revises it, and the notice
+  // where Leaf comes from; the menu's head holds the introduction and its links.
+  function website() {
+    const { publication } = status();
+    if (!publication) return null;
+    return {
+      says: publication.examples ? "Example" : "Leaf page",
+      tone: "accent",
+      press: { label: publication.install, href: publication.installUrl },
+    };
+  }
+  // The version shown is approved, until a new version asks again.
+  function approvedVersion() {
+    if (!approvalReading()?.approved) return null;
+    return { says: `✓ ${versionsReading().picker.token} approved`, tone: "ok" };
+  }
+  const ROW_NOTICES = [failedSave, olderVersion, website, approvedVersion];
+  const rowNotice = () => {
+    for (const read of ROW_NOTICES) {
+      const notice = read();
+      if (notice) return notice;
+    }
+    return null;
+  };
+  function rowNoticeTemplate({ says, tone, press = null }) {
+    const face = html`<span class="lf-fp-row-notice-face" data-tone=${tone}
+      >${says}${
+        press
+          ? html`<span class="lf-fp-row-notice-sep" aria-hidden="true">·</span
+              ><span class="lf-fp-row-notice-act">${press.label}</span>`
+          : nothing
+      }</span
+    >`;
+    if (!press) return face;
+    return press.href
+      ? html`<a
+          class="lf-fp-chip lf-fp-row-notice-press"
+          href=${press.href}
+          target="_blank"
+          rel="noopener"
+          >${face}</a
+        >`
+      : html`<button
           type="button"
           class="lf-fp-chip lf-fp-row-notice-press"
-          title=${press.title}
+          title=${press.title ?? nothing}
           ?disabled=${press.disabled}
           @click=${press.run}
         >
-          <span class="lf-fp-row-notice-face"
-            >${says}<span class="lf-fp-row-notice-sep" aria-hidden="true">·</span
-            ><span class="lf-fp-row-notice-act">${press.label}</span></span
-          >
-        </button>`
-      : html`<span class="lf-fp-row-notice-face">${says}</span>`;
+          ${face}
+        </button>`;
   }
 
   // ---------- gestures ----------

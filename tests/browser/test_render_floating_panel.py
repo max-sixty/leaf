@@ -23,7 +23,7 @@ from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from model_folds import leaf_page
 from playwright.sync_api import expect
-from render_cases_interaction import panel_comment
+from render_cases_interaction import LIVE_V1, LIVE_V2, live_url, panel_comment
 from render_harness import (
     LONG_PAGE,
     consume_browser_errors,
@@ -1825,6 +1825,82 @@ def test_an_older_version_says_so_in_the_row_and_one_press_opens_the_latest(
     expect(page).not_to_have_url(re.compile(r"/versions/"))
     expect(page.locator("main")).to_contain_text("Paragraph zero.")
     expect(notice).to_be_hidden()
+
+
+def test_the_row_says_the_version_shown_is_approved(browser, serve):
+    """Once the user approves the version shown, the row says so, quietly and with no
+    press, until Undo takes the approval back."""
+    page = floating(browser, serve(SIGN_OFF))
+    notice = page.locator(".lf-fp-row-notice")
+    expect(notice).to_be_hidden()
+    page.locator(".lf-fp-leaf").click()
+    page.locator(".lf-fp-menu .lf-fp-item", has_text="Versions").click()
+    view = page.locator(".lf-fp-view[data-view=versions]")
+    with sending(page, "the approval"):
+        view.locator(".lf-fp-item", has_text="Approve version").click()
+    expect(notice).to_have_text(re.compile(r"^\s*✓ v1 approved\s*$"))
+    expect(notice.locator("button, a")).to_have_count(0)
+    expect(notice.locator(".lf-fp-row-notice-face")).to_have_attribute(
+        "data-tone", "ok"
+    )
+    page.keyboard.press("Escape")
+    page.locator("body").focus()
+    with sending(page, "the undo"):
+        page.keyboard.press("z")
+    expect(notice).to_be_hidden()
+
+
+def test_the_row_says_when_the_latest_save_failed_and_why(browser, serve):
+    """When the agent's latest save fails its check, the page keeps the last one that
+    passed, and the row says so beside the marks; its Why opens Versions on what the
+    check found. The notice ends with the next valid save."""
+    page = open_page(browser, live_url(serve(LIVE_V1)), init_script=FLOATING)
+    notice = page.locator(".lf-fp-row-notice")
+    expect(notice).to_be_hidden()
+    (serve.page_dir / "index.html").write_text(LIVE_V2.replace("</main>", ""))
+    told(page)
+    expect(notice).to_have_text(re.compile(r"^\s*Latest edit not shown\s*·\s*Why\s*$"))
+    expect(notice.locator(".lf-fp-row-notice-face")).to_have_attribute(
+        "data-tone", "danger"
+    )
+    notice.locator("button").click()
+    failed = page.locator(".lf-fp-view[data-view=versions] .lf-fp-failed")
+    expect(failed).to_contain_text("Latest edit couldn't be shown")
+    expect(failed.locator(".lf-fp-failed-error")).not_to_be_empty()
+    (serve.page_dir / "index.html").write_text(LIVE_V2)
+    told(page)
+    expect(notice).to_be_hidden()
+    expect(failed).to_have_count(0)
+
+
+def test_a_website_copy_says_who_revises_it_and_where_leaf_comes_from(browser, serve):
+    """On Leaf's website the field says who revises the visitor's copy, the row's notice
+    says where Leaf comes from, and the leaf's menu keeps the introduction with its
+    links, as the banner does."""
+    page = floating(
+        browser,
+        serve(
+            leaf_page("Website example", "<h1>Website example</h1>"),
+            website_publication={
+                "kind": "example",
+                "agent": "Leaf guide",
+                "install_url": "/#install",
+            },
+        ),
+    )
+    expect(field(page)).to_have_attribute(
+        "placeholder", re.compile("^Leaf guide revises your private copy")
+    )
+    notice = page.locator(".lf-fp-row-notice a")
+    expect(notice).to_have_text(re.compile(r"^\s*Example\s*·\s*Install Leaf\s*$"))
+    expect(notice).to_have_attribute("href", "/#install")
+    page.locator(".lf-fp-leaf").click()
+    links = page.locator(".lf-fp-menu .lf-fp-state a")
+    expect(links).to_have_count(2)
+    assert links.evaluate_all("as => as.map(a => a.getAttribute('href'))") == [
+        "/examples/",
+        "/#install",
+    ]
 
 
 def test_the_on_me_walk_arrives_at_the_approval_in_the_panel(browser, serve):

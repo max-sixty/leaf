@@ -139,7 +139,7 @@ const AWAITING_STATE = "Approval waits until this page has read its current stat
 export const approvalReading = () => {
   if (!signoff) return null;
   const { text, reason } = approvalWords();
-  return { text, reason };
+  return { text, reason, approved: versionApproved() };
 };
 // Keep a refused press focusable, with its reason available to keyboard and touch.
 function presentApproval({ reason, text, title }) {

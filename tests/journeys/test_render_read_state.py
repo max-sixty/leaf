@@ -23,14 +23,15 @@ from render_harness import (
     Traffic,
     _traffic,
     holding,
+    http_error_console,
     is_problem,
     leaf_page,
     open_page,
     panel_settled,
+    reported_browser_errors,
     round_trip,
     select,
     sending,
-    take_browser_errors,
     told,
     write,
 )
@@ -304,9 +305,16 @@ def test_an_acknowledgement_neither_waits_for_nor_holds_up_a_gesture(browser, se
         "Couldn't send" in text
         for text in page.locator(".lf-notice").all_text_contents()
     )
-    assert all(
-        is_problem(error, "Failed to load") and "/api/event" in error.values["url"]
-        for error in take_browser_errors(page)
+    reported_browser_errors(
+        page,
+        lambda error: (
+            is_problem(error, http_error_console(400))
+            and "/api/event" in error.values["url"]
+        ),
+        lambda error: (
+            is_problem(error, "Failed to load resource: net::ERR_FAILED")
+            and "/api/event" in error.values["url"]
+        ),
     )
 
 

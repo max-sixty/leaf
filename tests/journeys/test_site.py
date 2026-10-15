@@ -59,6 +59,7 @@ from render_harness import (
     expect_banner_control_offered,
     holding,
     http_error_console,
+    is_problem,
     navigate,
     open_page,
     page_comment,
@@ -814,9 +815,12 @@ def test_a_document_on_a_dead_release_asks_for_one_replacement(served_example, b
     page.close()
     consume_browser_errors(
         page,
-        http_error_console(404),
-        "Failed to load resource: net::ERR_FAILED",
-        "error loading",
+        lambda problem: (
+            is_problem(problem, http_error_console(404))
+            and urlsplit(problem.values["url"]).path.endswith(
+                ("/leaf.js", "/registry.json")
+            )
+        ),
     )
 
 

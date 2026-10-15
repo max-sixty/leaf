@@ -432,6 +432,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const label = () => (typeof hint === "function" ? hint() : hint);
     const name = () =>
       typeof accessibleName === "function" ? accessibleName() : accessibleName;
+    // The field can become visible before its first scheduled paint. Give a static
+    // name to the native control in the task that constructs it.
+    const initialName = name();
+    if (initialName) keeps(ta, "aria-label", initialName);
     const sendWord = () => (typeof sends === "function" ? sends() : sends);
     const sendLabel = () => {
       const word = sendWord();

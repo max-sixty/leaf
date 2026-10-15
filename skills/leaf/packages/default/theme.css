@@ -2106,7 +2106,7 @@
         left: var(--sp-4);
         top: var(--lf-banner-h, 0px);
         z-index: 4;
-        width: calc(var(--sidebar-max) - var(--sp-4));
+        width: var(--sp-4);
         box-sizing: border-box;
         pointer-events: none;
         height: var(--lf-view-height);
@@ -2121,6 +2121,14 @@
         --lf-toc-label-opacity: 0;
         pointer-events: none;
         transition: background-color 0.24s ease-out;
+      }
+      :scope:is(lf-toc):is(:hover, [data-lf-focus-within]) .lf-toc-nav {
+        width: calc(var(--sidebar-max) - var(--sp-4));
+      }
+      @scope (body[data-lf-go-to-active] :scope) {
+        :scope:is(lf-toc) .lf-toc-nav {
+          width: calc(var(--sidebar-max) - var(--sp-4));
+        }
       }
       :scope:is(lf-toc) .lf-toc-heading {
         display: none;
@@ -2227,7 +2235,7 @@
         display: -webkit-box;
         top: 0;
         left: 0;
-        width: 100%;
+        width: calc(var(--sidebar-max) - var(--sp-4));
         overflow: hidden;
         max-height: 2.6em;
         padding: 0 2px 2px calc(14px + var(--lf-toc-indent));
@@ -2308,6 +2316,7 @@
       :scope:is(lf-toc)[data-lf-outline] :is(.lf-toc-start, li) a {
         position: relative;
         display: block;
+        width: 100%;
         max-height: none;
         padding: 3px 0;
         transform: none;

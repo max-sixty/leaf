@@ -4,8 +4,8 @@
  * the spine shows the band currently in view. Crowded rows bend that scale just enough
  * to keep every label distinct; markers, labels, and lens share the fitted positions.
  * Pointer entry, keyboard entry, or the go-to sequence fades the labels in without
- * changing any row's box. The map's stable margin rectangle receives the pointer, and
- * its links become ordinary targets immediately rather than waiting for that paint.
+ * changing any row's height. At rest the map's box is its spine; when revealed, its
+ * labeled surface receives the pointer and its links become ordinary targets.
  *
  * The start row repeats the page title in that map, and on paper, where the outline is
  * the one reading of the route and keeps every word the map says; the open outline on
@@ -91,9 +91,8 @@
  * the question is also what leaves an lf-toc written into ordinary prose alone; the
  * posture reaches every box on the page, and only the sidebar's map wants it. */
 @media screen and (hover: hover) and (pointer: fine) {
-  /* The contents map owns one stable margin rectangle whether its labels are hidden or
-   * revealed, so revealing it changes no page geometry. At rest only its spine takes
-   * presses; the rectangle does once the spine is hovered or focused (below). */
+  /* The contents map reserves no document room. At rest its spine is the only box
+   * over the page; the labeled surface opens when the spine is hovered or focused. */
   @container lf-content-frame style(--lf-sidebar-posture: margin) {
     @container style(--lf-sidebar-slot: margin) {
       :scope:is(lf-toc) {
@@ -101,7 +100,9 @@
         left: var(--sp-4);
         top: var(--lf-banner-h, 0px);
         z-index: 4;
-        width: calc(var(--sidebar-max) - var(--sp-4));
+        /* At rest only the spine has a box. The invisible labels keep their full
+         * measure below, without a transparent map lying over document words. */
+        width: var(--sp-4);
         box-sizing: border-box;
         pointer-events: none;
         /* Between the banner and the bottom bar, as every region is: the bar is
@@ -121,6 +122,14 @@
         --lf-toc-label-opacity: 0;
         pointer-events: none;
         transition: background-color 0.24s ease-out;
+      }
+      :scope:is(lf-toc):is(:hover, [data-lf-focus-within]) .lf-toc-nav {
+        width: calc(var(--sidebar-max) - var(--sp-4));
+      }
+      @scope (body[data-lf-go-to-active] :scope) {
+        :scope:is(lf-toc) .lf-toc-nav {
+          width: calc(var(--sidebar-max) - var(--sp-4));
+        }
       }
       :scope:is(lf-toc) .lf-toc-heading {
         display: none;
@@ -239,7 +248,7 @@
         display: -webkit-box;
         top: 0;
         left: 0;
-        width: 100%;
+        width: calc(var(--sidebar-max) - var(--sp-4));
         overflow: hidden;
         max-height: 2.6em;
         padding: 0 2px 2px calc(14px + var(--lf-toc-indent));
@@ -331,6 +340,7 @@
       :scope:is(lf-toc)[data-lf-outline] :is(.lf-toc-start, li) a {
         position: relative;
         display: block;
+        width: 100%;
         max-height: none;
         padding: 3px 0;
         transform: none;

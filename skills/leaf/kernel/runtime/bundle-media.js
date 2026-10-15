@@ -79,6 +79,7 @@ function imageTools() {
     loading = import("/vendor/photoswipe.esm.js").then(
       ({ default: PhotoSwipe, styles }) => {
         const style = document.createElement("style");
+        style.setAttribute("data-controls", "");
         style.textContent = styles;
         mediaViewer.append(style);
         return PhotoSwipe;

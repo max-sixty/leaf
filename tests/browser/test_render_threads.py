@@ -8223,6 +8223,112 @@ def test_a_control_in_a_reply_holds_the_page_s_control_shape(browser, serve):
     )
 
 
+def test_a_thread_on_a_widget_its_reply_brings_is_marked_as_the_reply_lands(
+    browser, serve
+):
+    """A target the panel's preparation materializes is painted in the same pass.
+
+    The reply carrying a widget and a thread anchored on that widget arrive in one
+    reading. The thread presenter reads its targets before the panel prepares the
+    reply, when the widget is not yet in the document, so only its reading after the
+    panel commits finds the target; no later publication comes to paint it."""
+    url = serve(REPLY_TRAVEL_PAGE)
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "tv-decisioned",
+            "author": "user",
+            "revision": 1,
+            "text": "Which store?",
+        },
+    )
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    expect(page.locator("#tv-decision")).to_have_count(0)
+    # Whether the widget is marked in the first frame that shows it. A later
+    # publication, such as the page's own bookkeeping, repaints the targets again and
+    # would hide a pass that left it bare.
+    page.evaluate("""() => {
+      window.markedOnArrival = new Promise((resolve) => {
+        const look = () => {
+          const widget = document.getElementById('tv-decision');
+          if (widget) resolve(widget.classList.contains('lf-mark-el'));
+          else requestAnimationFrame(look);
+        };
+        requestAnimationFrame(look);
+      });
+    }""")
+
+    # One transaction, so the page reads both records in one state answer.
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        for event in (
+            {
+                "kind": "reply",
+                "author": "agent",
+                "parent": "tv-decisioned",
+                "revision": 1,
+                "text": "Depends what you want to keep:",
+                "markup": '<lf-options id="tv-decision">'
+                '<lf-option id="tv-redis">Redis</lf-option></lf-options>',
+            },
+            {
+                "kind": "comment",
+                "id": "tv-on-it",
+                "author": "user",
+                "revision": 1,
+                "text": "Redis, and say why in the patch.",
+                "anchor": {"section": "tv-decision"},
+            },
+        ):
+            transaction._append_record({"attention": True, **event})
+
+    assert page.evaluate("() => window.markedOnArrival"), (
+        "the widget the reply brought showed unmarked, though a thread stands on it"
+    )
+    expect(page.locator('.lf-thread[data-id="tv-on-it"]')).to_have_count(1)
+
+
+def test_a_target_a_reply_widget_redraws_keeps_its_mark(browser, serve):
+    """A widget in a reply that replaces a part another thread stands on, and says its
+    layout changed, has the replacement marked.
+
+    The reply's markup is authored content, though it stands in the runtime's panel, so
+    its layout signal asks for the thread pass that finds the new node. A signal from
+    the panel's own cards asks for none."""
+    url = serve(REPLY_TRAVEL_PAGE)
+    seed_reply(
+        serve.page_dir,
+        '<lf-options id="tv-decision"><lf-option id="tv-redis">Redis</lf-option>'
+        '<lf-option id="tv-cookie">A signed cookie</lf-option></lf-options>',
+        "tv-redis",
+    )
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    marked = re.compile(r"\blf-mark-el\b")
+    expect(page.locator("#tv-redis")).to_have_class(marked)
+
+    # Read once the pass the signal asked for has painted, and before anything else
+    # (the clock's next tick) would paint the targets again.
+    remarked = page.evaluate("""async () => {
+      const { layoutChanged } = await window.__lfWidgetApi();
+      const { whenDocumentPresented } = await window.__lfCheckApi();
+      const old = document.getElementById('tv-redis');
+      const replacement = old.cloneNode(true);
+      replacement.classList.remove('lf-mark-el');
+      old.replaceWith(replacement);
+      await layoutChanged(document.getElementById('tv-decision'));
+      await whenDocumentPresented();
+      await new Promise((resolve) => requestAnimationFrame(() => resolve()));
+      return replacement.classList.contains('lf-mark-el');
+    }""")
+    assert remarked, (
+        "the part the reply widget redrew lost the mark its thread gives it"
+    )
+
+
 def test_a_boxless_widget_in_a_reply_still_shows_the_parts_it_paints(browser, serve):
     """A wrapper that generates no box shows as what its contents paint — in either
     document.

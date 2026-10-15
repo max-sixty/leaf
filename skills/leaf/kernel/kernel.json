@@ -4,7 +4,7 @@
     "runtime/abort.js": "a95360fd44e7614c6faa7d08a527b95a26646a52602d4908c786b97106d7f254",
     "runtime/activity-words.js": "50177429d987fa0aa096ad315dc2ea90c35021d3fcb9542c469ba11b076c381f",
     "runtime/addressable-names.js": "f046860acce0e5826218a814dea904581924b59bcbfdaa36bd59fa88ce68d7b3",
-    "runtime/anchor-controls.js": "0c339afe94a8e5d7d56f507a6915da4e26217576a7890aabef8d6e9cf3cec4d0",
+    "runtime/anchor-controls.js": "48103aea5917e782ddb12a421bdeef1cbbdc72d550b80604915a3e961855eccd",
     "runtime/anchor-coordinate.js": "6dce53e1d9f3b17259a6d2ef8194ab8c62c0bea84a814f6a664274e153dc6959",
     "runtime/anchor-note-view.js": "3729db9f637726cec04e92cf003377575d60b9a6d353664fe88605241a24c7fd",
     "runtime/anchor-placement.js": "d97041829f6115cba65abfc3e4b26d8c491664d3d7f3421281dc63761529c0b6",

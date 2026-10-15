@@ -154,7 +154,7 @@
     "runtime/projection-watch.js": "64058d980ac40dd92b23da913f1bc77f8b9c3143fbbc5192fbd43dd91a8a4641",
     "runtime/projection/authored.js": "f07c3d86604c5ef07ac4c24a19e0cdbefd7d57ee5782adda3a065d715585b09b",
     "runtime/projection/data.js": "64461241290d5401ca3ae767ea4bf5245a16d0e0e3512e992557f66bbb417b3f",
-    "runtime/projection/model.js": "1b66ddbe0aea820d11b629837403f84b93f42240cd600f51d4434a43f6ab0b2b",
+    "runtime/projection/model.js": "4408b0e912f3eb5951d03fd52c53da9a2440e44a2740dc3ed7a02ae6b76476e8",
     "runtime/projection/presentation.js": "7cd2d965bc26dc64700281ab834ab0fe2bd63c69c9385efc1525a4088b7a5d00",
     "runtime/projection/state.js": "c162fe7d64a8333a16259938ee451ee697fc536859b8144841ffae4f69244dea",
     "runtime/protocol.js": "0c99bc3c4be96ab3dce735bba76d4f7e9001ab84668cdeea3c35d73ed7d973b2",

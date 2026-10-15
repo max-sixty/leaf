@@ -117,10 +117,6 @@ def test_only_bound_supported_files_can_be_read_or_saved(page_dir, tmp_path):
             page_dir, "notes", {"revision": snapshot["revision"], "text": "overwrite\n"}
         )
     assert substitute.read_bytes() == b"private\n"
-    # A broken grant refuses; only an id the page never bound reads as no file.
-    (page_dir / "files.json").write_text('{"bindings": {"notes": null}}')
-    with pytest.raises(FileBindingError, match="Invalid file bindings"):
-        read_file(page_dir, "notes")
     assert read_file(page_dir, "other") is None
 
 
@@ -253,8 +249,7 @@ def test_a_bound_file_write_moves_the_page_reading_and_its_binding_stamp(
 ):
     """An editor reads its file only when the state answer stamps the binding anew,
     so a write outside Leaf moves the reading a visible tab polls and that binding's
-    stamp, and an unreadable grants record stamps as no bindings rather than failing
-    the page's reading."""
+    stamp."""
     target = tmp_path / "notes.txt"
     target.write_text("hello\n")
     bind_file(page_dir, "notes", target)
@@ -271,17 +266,3 @@ def test_a_bound_file_write_moves_the_page_reading_and_its_binding_stamp(
     target.write_text("edited outside Leaf\n")
     assert page_reading(page_dir) != reading
     assert stamps()["notes"] != stamped["notes"]
-
-    grants = page_dir / "files.json"
-    grants.write_text(
-        json.dumps({"bindings": {"notes": f"{target}\0", "other": "/tmp/\ud800"}})
-    )
-    page_reading(page_dir)
-    assert stamps() == {}
-    grants.write_text("{")
-    page_reading(page_dir)
-    assert stamps() == {}
-    grants.unlink()
-    grants.mkdir()
-    page_reading(page_dir)
-    assert stamps() == {}

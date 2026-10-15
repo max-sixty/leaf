@@ -458,8 +458,11 @@ function foldWidgetStates(authoredSnapshots, projection) {
     ])
   );
   const place = ({ value: containers, ranks }, unit, detail) => {
-    if (typeof detail.value !== "string" || typeof detail.rank !== "string") return;
-    const destination = containers[detail.value];
+    const { value, rank } = (
+      /** @type {{value: string, rank: string}} */
+      detail
+    );
+    const destination = containers[value];
     if (!destination || !Object.values(containers).some((ids) => ids.includes(unit)))
       return;
     for (const ids of Object.values(containers)) {
@@ -467,7 +470,7 @@ function foldWidgetStates(authoredSnapshots, projection) {
       if (index >= 0) ids.splice(index, 1);
     }
     destination.push(unit);
-    ranks[unit] = detail.rank;
+    ranks[unit] = rank;
   };
   for (const entry of [...projection.desired.values()].sort(compareProjected)) {
     const owner = states.get(entry.e.widget);

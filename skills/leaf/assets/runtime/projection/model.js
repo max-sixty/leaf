@@ -316,10 +316,9 @@ export function foldWidgetStates(authoredSnapshots, projection) {
   );
   /** @param {PositionValue} state @param {string} unit @param {Record<string, unknown>} detail */
   const place = ({ value: containers, ranks }, unit, detail) => {
-    // A malformed unresolved move has no drawable position. Leave the authored
-    // position until admission refuses it rather than failing the publication.
-    if (typeof detail.value !== "string" || typeof detail.rank !== "string") return;
-    const destination = containers[detail.value];
+    const { value, rank } = /** @type {{value: string, rank: string}} */ (detail);
+    const destination = containers[value];
+    // A later revision may remove a moved unit or its destination.
     if (!destination || !Object.values(containers).some((ids) => ids.includes(unit)))
       return;
     for (const ids of Object.values(containers)) {
@@ -327,7 +326,7 @@ export function foldWidgetStates(authoredSnapshots, projection) {
       if (index >= 0) ids.splice(index, 1);
     }
     destination.push(unit);
-    ranks[unit] = detail.rank;
+    ranks[unit] = rank;
   };
 
   for (const entry of [...projection.desired.values()].sort(compareProjected)) {

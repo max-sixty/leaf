@@ -28,6 +28,8 @@ const presentationModel = () =>
     rows,
   });
 export const presentLeaves = () => liveLeavesList.present(presentationModel());
+// How many rows the drawer lists, for a menu row that names the drawer beside its count.
+export const leavesCount = () => rows.length;
 
 // The drawer's own scope. The walk is the drawer's rather than the page's, because the
 // arrows, Home and End anywhere else are the page's own scroll and stay so; Enter is the

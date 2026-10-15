@@ -1880,14 +1880,17 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
 
     page.route("**/api/event", reject)
     change = page.locator('[data-lf-margin-for="bg-replace"]')
-    change.get_by_role(
+    accept = change.get_by_role(
         "button", name=re.compile(r"^Accept the suggested change")
-    ).click()
+    )
+    accept.focus()
+    page.keyboard.press("Enter")
     retry = change.get_by_role("button", name="Retry", exact=True)
     expect(retry).to_be_visible()
     expect(change.get_by_role("button", name="Cancel", exact=True)).to_be_visible()
     expect(change).to_contain_text("Failed")
-    change.get_by_role("button", name="Cancel", exact=True).click()
+    change.get_by_role("button", name="Cancel", exact=True).focus()
+    page.keyboard.press("Enter")
     expect(retry).to_have_count(0)
 
     consume_browser_errors(page, {"code": "failed-load", "status": 400})
@@ -2292,13 +2295,13 @@ def test_the_thread_walk_starts_at_a_fresh_fragment_reading(browser, serve, shad
         layer_registry = {"lf-shadow-reading": declaration}
         layer_widgets = {
             "lf-shadow-reading.js": """
-import { once } from "/runtime/widget-api.js";
+import { once, shadowStage } from "/runtime/widget-api.js";
 customElements.define("lf-shadow-reading", class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
     const paragraph = document.createElement("p");
     paragraph.textContent = this.textContent.trim();
-    this.attachShadow({mode: "open"}).append(paragraph);
+    shadowStage(this, [paragraph]);
   }
 });
 """

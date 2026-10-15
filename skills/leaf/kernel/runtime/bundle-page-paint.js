@@ -3149,6 +3149,8 @@ function layerHeaders(headers = {}) {
     ...headers
   };
 }
+var dataHeaders = (held) => held.version === null ? {} : { "Leaf-Data-Version": held.version };
+var completeData = (state, held) => state && !state.data.sources ? { ...state, data: held } : state;
 var LayerRefused = class extends Error {
 };
 async function requestJson(url2, init, what) {
@@ -3217,7 +3219,7 @@ function observeKey(response) {
   runtime.keyRefused = response.status === KEY_REFUSED;
 }
 var { promise: layerReady, resolve: revealLayer } = Promise.withResolvers();
-var postEvent = async (event) => {
+var postEvent = async (event, held = runtime.data) => {
   if (offlineInteractive)
     throw new Error("no agent or server is available in an interactive export");
   await layerReady;
@@ -3228,7 +3230,8 @@ var postEvent = async (event) => {
     response = await fetch(pageUrl("api/event"), {
       method: "POST",
       headers: layerHeaders({
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        ...dataHeaders(held)
       }),
       body: JSON.stringify(event)
     });
@@ -3542,6 +3545,8 @@ export {
   holdStatus,
   setNoticeContext,
   layerHeaders,
+  dataHeaders,
+  completeData,
   LayerRefused,
   requestJson,
   sameLayer,

@@ -1153,9 +1153,13 @@ def test_api_state_carries_each_sources_current_value(server, page_dir):
     }
     assert data["sources"]["builds"]["contract"] == "build-map"
     assert data["sources"]["builds"]["value"] == {"main": "green"}
+    # A tab naming the version it holds is not sent that version's sources again.
+    holding = {"Leaf-Data-Version": data["version"]}
+    unmoved = json.loads(fetch(f"{server}/api/state", headers=holding)[1])["data"]
+    assert unmoved == {"version": data["version"]}
 
     data_model.cmd_data_set(page_dir, "builds", {"main": "red"})
-    rewritten = json.loads(fetch(f"{server}/api/state")[1])["data"]
+    rewritten = json.loads(fetch(f"{server}/api/state", headers=holding)[1])["data"]
     assert rewritten["sources"]["builds"]["value"] == {"main": "red"}
     assert rewritten["version"] != data["version"]
     assert (

@@ -421,10 +421,18 @@ class PageEndpoint:
         Where the Leaf this server runs is another than the one that vendored the
         page, `leaf` names it, and the banner shows it beside the page's own
         (`AGENTS.md`, "Pages across Leaf updates").
+
+        A tab names the data version it holds in `Leaf-Data-Version`, and an answer
+        whose data is still that version leaves out its sources, which the tab
+        restores from the reading it named (`completeData` in `layer-client.js`).
+        Data moves only when an agent sets it, so without this every gesture's
+        answer would carry back each source value the tab already holds.
         """
         state = self._state_service().page_state(view_revision)
         if not same_leaf(state["layer"].get("producer", {}), self.server.leaf):
             state["leaf"] = self.server.leaf
+        if self.headers.get("Leaf-Data-Version") == state["data"]["version"]:
+            state["data"] = {"version": state["data"]["version"]}
         return state
 
     def page_browser_view(self, view_revision: int, through_seq: int) -> dict:

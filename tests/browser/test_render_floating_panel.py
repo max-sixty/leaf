@@ -19,6 +19,7 @@ from interact_support import (
 from leaf import event_log as events_model
 from leaf import interaction_log as interaction_model
 from leaf import service as service_model
+from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from model_folds import leaf_page
 from playwright.sync_api import expect
@@ -1914,13 +1915,23 @@ def test_the_leaf_s_menu_marks_what_opens_a_list_and_leaves_key_conveniences_out
     assert set(listed.all_inner_texts()) <= {"All pages", "Search page"}
 
 
-def test_all_pages_in_the_menu_counts_the_pages_it_lists(browser, serve, other_leaf):
+def test_all_pages_in_the_menu_counts_the_pages_it_lists(
+    browser, serve, other_leaf, live_leaf
+):
     """The menu's All pages row says how many pages its drawer lists, as the classic
-    control's own count does, this page included."""
+    control's own count does, this page included, and follows the drawer while it
+    stands open: a neighbour that closes leaves the count."""
+    _, closing_dir = live_leaf("closing", "The closing leaf")
     page = floating(browser, serve(LONG_PAGE))
     page.locator(".lf-fp-leaf").click()
     page.locator(".lf-fp-menu .lf-fp-item", has_text="Navigate").click()
     row = page.locator(".lf-fp-view[data-view=group] .lf-fp-item", has_text="All pages")
+    expect(row.locator(".lf-fp-value")).to_have_text("3")
+    cleanup_model.write_json(
+        closing_dir / "status.json",
+        {"state": "idle", "detail": "", "ts": cleanup_model.now_iso()},
+    )
+    told(page)
     expect(row.locator(".lf-fp-value")).to_have_text("2")
 
 

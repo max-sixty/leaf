@@ -6652,7 +6652,7 @@ var presentationModel = () => Object.freeze({
   rows
 });
 var presentLeaves = () => liveLeavesList.present(presentationModel());
-var leavesCount = () => rows.length;
+var leavesCount = () => listedPages(runtime.state).length;
 var othersLinks = () => [...othersPanel.querySelectorAll("a.lf-others-row")];
 function declareLeavesKeys() {
   keys(
@@ -6672,21 +6672,21 @@ var rowAccount = (entry, title, line) => [
   // queued and pending ones.
   activityFacts(entry).owed.join("; ")
 ].filter(Boolean).join("\n");
+var listedPages = (state) => state === null ? [] : [
+  { key: "self", href: null, title: document.title, entry: state },
+  ...state.others.map((entry) => ({
+    key: entry.page_key,
+    href: entry.url,
+    title: entry.title,
+    entry
+  }))
+];
 function paintOthers() {
   const state = runtime.state;
   const offeredBefore = leavesOffered();
   others = state === null ? [] : state.others;
-  const wanted = state ? [
-    { key: "self", href: null, title: document.title, entry: state },
-    ...others.map((entry) => ({
-      key: entry.page_key,
-      href: entry.url,
-      title: entry.title,
-      entry
-    }))
-  ] : [];
   rows = Object.freeze(
-    wanted.map(({ key, href, title, entry }) => {
+    listedPages(state).map(({ key, href, title, entry }) => {
       const { tone, line } = leafRow(entry);
       return Object.freeze({
         key,

@@ -254,8 +254,9 @@ def test_a_background_jobs_server_lives_as_long_as_the_job(
     """A background job runs each sitting on a worker its daemon retires between
     them, so a claim naming that worker's pid takes the page down an hour after
     every turn. The job's record is the lifetime instead: the page stays held
-    and served whatever became of the process that claimed it, and retires when
-    the job is deleted — which takes the record and may leave the directory."""
+    and served whatever became of the process that claimed it, including the
+    SessionEnd Claude Code runs as the worker retires, and retires when the job
+    is deleted — which takes the record and may leave the directory."""
     job = tmp_path / "job"
     job.mkdir()
     cleanup_model.write_json(job / "state.json", {"sessionId": "bg-job"})
@@ -265,6 +266,10 @@ def test_a_background_jobs_server_lives_as_long_as_the_job(
     assert service_model.claim_page(page_dir)
     assert hosting_model.start_server(page_dir, harness=harness_model.session_harness())
     assert files_model.read_json(page_dir / "service.json")["lifetime"] == "session"
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "SessionEnd", "session_id": "bg-job"}
+    )
+    assert cleanup_model.session_record("bg-job")["turn_closed"] is not None
     assert not reaper_retires(page_dir, monkeypatch)
     assert server_model.running_server(page_dir)
     assert service_model.owned_pages("bg-job") == [page_dir.resolve()]

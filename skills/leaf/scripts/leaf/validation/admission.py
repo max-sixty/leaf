@@ -156,10 +156,7 @@ def check_markup(
             else SourceDocument("")
         )
     extra_errors = data_binding_errors(
-        page_dir,
-        registry,
-        events,
-        incoming=[(frag, f"incoming {kind} markup")],
+        page_dir, registry, [(frag, f"incoming {kind} markup")]
     )
     if errors := message_markup_errors(
         page_dir,

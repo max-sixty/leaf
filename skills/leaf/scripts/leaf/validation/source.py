@@ -6,9 +6,9 @@ from typing import NamedTuple
 from leaf.data import read_contracts, read_data
 from leaf.data_contracts import (
     data_document_errors,
+    data_document_readings,
     initial_data_document_readings,
     measurement_lag,
-    working_data_document_readings,
 )
 from leaf.findings import Finding
 from leaf.layer import incompatible_layer
@@ -285,8 +285,10 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
         return SourceCheck(reading, registry, [refusal], [])
     stored_data = read_data(page_dir, registry)
     contracts = read_contracts(page_dir)
+    # A conflicting binding lies within one document, and history holds none
+    # (`data_contracts.data_binding_errors`), so the check reads this one alone.
     readings = (
-        working_data_document_readings(page_dir, registry, events, authored=document)
+        data_document_readings(document, "index.html", registry)
         if registry is not None
         else []
     )

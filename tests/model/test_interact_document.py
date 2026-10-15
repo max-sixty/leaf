@@ -3711,6 +3711,31 @@ def test_held_revision_readings_stay_within_their_source_budget(page_dir, monkey
         assert artifact_model.read_revision(page_dir, revisions[0]) is not readings[0]
 
 
+def test_a_cold_source_check_reads_no_revision_history(page_dir, monkeypatch):
+    """Every new process checks the source before it reads state, and reading
+    each earlier revision for data bindings was most of what that check cost on a
+    long page. A conflicting binding lies within one document, and every revision
+    and logged fragment was refused for one as it entered, so the check reads the
+    candidate's bindings alone."""
+    for edit in range(4):
+        (page_dir / "index.html").write_text(
+            PAGE.replace("</main>", f"<p>edit {edit}</p></main>")
+        )
+        assert revisioning_model.activate_source(page_dir).error is None
+    active = files_model.revision_path(page_dir, files_model.latest_revision(page_dir))
+    parsed = []
+    native = artifact_model.SourceDocument
+    monkeypatch.setattr(
+        artifact_model,
+        "SourceDocument",
+        lambda source: parsed.append(source) or native(source),
+    )
+    with fresh_process():
+        activated = revisioning_model.activate_source(page_dir)
+    assert activated.error is None and not activated.created, activated
+    assert parsed == [active.read_text()]
+
+
 def test_ask_history_survives_parse_eviction_and_new_revisions(page_dir, monkeypatch):
     """A retry or new version reuses completed historical registration work.
 

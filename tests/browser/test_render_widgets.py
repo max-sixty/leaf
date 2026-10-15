@@ -372,12 +372,12 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     # A pane that leaves the document and returns registers its body again, so the cue
     # that the body holds more comes back with it.
     queue_pane.evaluate(
-        """owner => {
+        """owner => lfUnwatched(() => {
           const parent = owner.parentNode;
           const next = owner.nextSibling;
           owner.remove();
           parent.insertBefore(owner, next);
-        }"""
+        })"""
     )
     pane_posture(page, queue_pane, "bounded")
     expect(queue).to_have_attribute("data-lf-more-below", "")
@@ -4773,7 +4773,7 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
     expect(page.locator(".notification-demo-card-status-strip")).to_have_count(2)
     expect(page.locator(".notification-demo-strip-owner")).to_have_count(2)
     assert playground.evaluate(
-        """owner => {
+        """owner => lfUnwatched(() => {
           const parent = owner.parentNode;
           const next = owner.nextSibling;
           const nodes = [...owner.querySelectorAll('*')];
@@ -4782,7 +4782,7 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
           parent.insertBefore(owner, next);
           return values === JSON.stringify(owner.values)
             && nodes.every((node, index) => owner.querySelectorAll('*')[index] === node);
-        }"""
+        })"""
     )
     reattached = page.evaluate(reading)
     assert (reattached["controlsId"], reattached["previewId"]) == (
@@ -8933,13 +8933,13 @@ def test_a_chart_is_drawn_for_the_room_it_has_rather_than_scaled_into_it(
 
     # A retained chart may leave and re-enter during document reconciliation. Its
     # drawing survives the move, and must keep responding to the room it has.
-    page.evaluate("""() => {
+    page.evaluate("""() => lfUnwatched(() => {
         const chart = document.getElementById('c-bars');
         const parent = chart.parentNode;
         const next = chart.nextSibling;
         chart.remove();
         parent.insertBefore(chart, next);
-    }""")
+    })""")
     plant_quiet_word(page, "#c-bars", "")
     notes = "() => document.getElementById('c-bars').querySelectorAll('.lf-ui').length"
     held = page.evaluate(notes)

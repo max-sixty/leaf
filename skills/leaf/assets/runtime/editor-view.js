@@ -184,6 +184,7 @@ export class LeafEditorView extends EditorView {
     this.#selection().setBaseAndExtent(from.node, from.offset, to.node, to.offset);
   }
 
+  // Firefox and WebKit lack ShadowRoot.getSelection; the document holds theirs.
   #selection() {
     return this.root.getSelection?.() ?? this.dom.ownerDocument.getSelection();
   }

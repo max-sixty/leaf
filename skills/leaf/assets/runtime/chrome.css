@@ -3035,11 +3035,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
       display: inline-flex;
     }
   }
-  @supports not (anchor-name: --lf-page) {
-    .lf-page-map-toggle {
-      display: inline-flex;
-    }
-  }
   @media (forced-colors: active) {
     .lf-page-map-dialog {
       border: 1px solid CanvasText;

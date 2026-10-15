@@ -272,9 +272,8 @@ svg[data-lf-icon] { max-width: none; overflow: visible; fill: none; stroke: curr
 }
 @media print {
   /* Paper has no press to open what a page puts behind a gesture, so it prints open:
-     a shut <details>, and whatever a widget folds with `hidden="until-found"`
-     (`HIDDEN`, widget-elements.js), such as an inactive tab or a settled group's
-     cards. Each is hidden by content-visibility, so that is what says otherwise; the
+     a shut <details>, and whatever a widget folds with `hidden="until-found"`,
+     such as an inactive tab or a settled group's cards. Each is hidden by content-visibility, so that is what says otherwise; the
      marker goes because paper has nothing to turn. A page that means a disclosure to
      stay shut on paper says so in its own stylesheet, at a weight this does not
      contest. */

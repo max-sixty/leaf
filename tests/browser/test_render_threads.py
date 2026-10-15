@@ -6859,6 +6859,14 @@ def test_a_fold_frame_by_frame_keeps_the_card_below_on_its_pixel(
         {"kind": "resolve", "author": "user", "parent": source},
     )
     told(page)
+    if not page.evaluate('CSS.supports("block-size", "calc-size(auto, size)")'):
+        # Engines without intrinsic-size interpolation retire the thread in one
+        # paint; there are no frames to step through or hold for inspection.
+        expect(page.locator(f'.lf-going[data-id="{source}"]')).to_have_count(0)
+        assert target_card.evaluate(
+            "el => el.getBoundingClientRect().top"
+        ) == pytest.approx(start, abs=1)
+        return
     expect(page.locator(f'.lf-going[data-id="{source}"]')).to_have_count(1)
     steps = 30
     for step in range(1, steps):

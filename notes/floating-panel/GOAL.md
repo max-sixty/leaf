@@ -250,11 +250,12 @@ shortfall. Add each improvement you make, with its reason. Where an item here an
   when the caret leaves, and the line naming where the words go stays while the field
   holds words. (Replaces the first build's counts on the destination line.)
 - **The line over the field names where the words go only once they hide the
-  placeholder that said it,** in the placeholder's words ("Comment on the page",
-  "Reply in this thread"), and never who reads them: the page has one agent. The
-  thread's own name heads its view.
-- **A short thread reserves its "New reply · Show" slot,** so arriving news moves
-  nothing.
+  placeholder that said it,** in the placeholder's words ("Comment on the page"), and
+  never who reads them: the page has one agent. It shows only with no view open; over
+  a view it repeated the view's head, so the user dropped it there (#2913).
+- **The answer the user waits for grows the thread's view,** up to its height limit,
+  with New reply only past it; other news in an open thread still moves nothing. The
+  user chose growth over a reserved New reply slot on 14 October (#2916).
 - **Answers are the widget's own choices** (a multiple-choice ask shows its options and
   Done), recorded exactly as on the page; the On view has On me / On {agent} / Done.
 - **Messages draw with Leaf's own reader** (the panel is a registered thread

@@ -185,6 +185,9 @@
   };
   // Writes that restate a value for a reason of their own, by the report they make.
   const EXPECTED = [
+    // A repeated live announcement replaces its text node so assistive technology
+    // hears a fresh arrival even when the words match the previous announcement.
+    /^children of div\.lf-ui\.lf-live$/,
     // Lit's keyed repeat moves equivalent marker nodes when a visual action in
     // the group changes identity, while the rendered controls update in place.
     /^children of div\.lf-visual-actions(?:\.|$)/,

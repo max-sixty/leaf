@@ -3006,9 +3006,9 @@ var presentNotice = (message, visible, news = false) => {
   else afterScript(presentAll);
 };
 function announce(msg) {
-  liveEl.replaceChildren();
+  if (liveEl.firstChild) liveEl.replaceChildren();
   setTimeout(() => {
-    liveEl.replaceChildren();
+    if (liveEl.firstChild) liveEl.replaceChildren();
     liveEl.append(msg);
   }, 30);
 }

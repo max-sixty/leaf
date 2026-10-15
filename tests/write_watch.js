@@ -104,14 +104,28 @@
         JSON.stringify(nodes.map((node) => valueAt(node, boundary))),
     };
   };
+  // Detaching an iframe retires its browsing context even if the same element is
+  // reinserted before observer delivery; DOM equality cannot see that change.
+  const hasFrame = (node) =>
+    node instanceof HTMLIFrameElement ||
+    [...node.childNodes].some(hasFrame) ||
+    [...trees].some(
+      (tree) => tree instanceof ShadowRoot && tree.host === node && hasFrame(tree),
+    );
   const renderedChildren = (nodes) =>
     [...nodes].filter((node) => node.nodeType !== Node.COMMENT_NODE);
   const restored = (target, records, readings) => {
-    if (!records.some((record) => renderedChildren(record.removedNodes).length))
+    const frameRecords = new Set(
+      records.filter((record) =>
+        [...record.removedNodes, ...record.addedNodes].some(hasFrame),
+      ),
+    );
+    const ordinary = records.filter((record) => !frameRecords.has(record));
+    if (!ordinary.some((record) => renderedChildren(record.removedNodes).length))
       return false;
     // Preserve the atomic check even when unrelated changes share its delivery.
     if (
-      records.some((record) => {
+      ordinary.some((record) => {
         const removed = renderedChildren(record.removedNodes);
         const position = readings.position(record);
         return (
@@ -137,7 +151,10 @@
     const residents = new Set(renderedChildren(current));
     const pending = new Map();
     for (const record of records) {
-      if ([...record.removedNodes].some((node) => residents.has(node))) {
+      if (
+        !frameRecords.has(record) &&
+        [...record.removedNodes].some((node) => residents.has(node))
+      ) {
         const before = renderedChildren(current);
         if (!pending.has(before.length)) pending.set(before.length, []);
         pending
@@ -151,6 +168,7 @@
       current.splice(at, 0, ...record.addedNodes);
       const after = renderedChildren(current);
       if (
+        !frameRecords.has(record) &&
         (pending.get(after.length) ?? []).includes(
           readings.read(after, readings.position(record) + 1),
         )
@@ -167,6 +185,9 @@
   };
   // Writes that restate a value for a reason of their own, by the report they make.
   const EXPECTED = [
+    // A repeated live announcement replaces its text node so assistive technology
+    // hears a fresh arrival even when the words match the previous announcement.
+    /^children of div\.lf-ui\.lf-live$/,
     // Lit's keyed repeat moves equivalent marker nodes when a visual action in
     // the group changes identity, while the rendered controls update in place.
     /^children of div\.lf-visual-actions(?:\.|$)/,

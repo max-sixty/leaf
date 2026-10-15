@@ -240,10 +240,9 @@ def test_interaction_trace_is_writable_from_a_read_only_page_preview(page_dir):
     )
 
 
-def test_interaction_trace_does_not_change_page_or_presence_readings(page_dir):
+def test_interaction_trace_does_not_change_page_readings(page_dir):
     reading = served_reading.page_reading(page_dir)
     sources = served_reading.source_readings(page_dir)
-    presence_stamp = presence_model._page_stamp(page_dir)
 
     for sequence in range(1, 3):
         interaction_model.append_interactions(
@@ -254,12 +253,10 @@ def test_interaction_trace_does_not_change_page_or_presence_readings(page_dir):
         )
         assert served_reading.page_reading(page_dir) == reading
         assert served_reading.source_readings(page_dir) == sources
-        assert presence_model._page_stamp(page_dir) == presence_stamp
 
     (page_dir / "index.html").write_text(PAGE + "\n<!-- revised -->")
     assert served_reading.page_reading(page_dir) != reading
     assert served_reading.source_readings(page_dir)[0] != sources[0]
-    assert presence_model._page_stamp(page_dir) != presence_stamp
 
 
 @pytest.mark.parametrize(
@@ -280,17 +277,15 @@ def test_a_session_write_does_not_revalidate_the_source(page_dir, monkeypatch, n
     assert revisioning_model.activate_source(page_dir).error is None
 
 
-def test_a_staged_write_moves_neither_the_page_nor_its_presence_reading(page_dir):
+def test_a_staged_write_does_not_move_the_page_reading(page_dir):
     """An atomic write stages its bytes beside the target before the rename, and a
-    look between the two sees a file the page never has. Both readings of the page
-    directory look past it, so the write moves each once, at the rename."""
+    look between the two sees a file the page never has. The page's reading looks
+    past it, so the write moves it once, at the rename."""
     reading = served_reading.page_reading(page_dir)
-    presence_stamp = presence_model._page_stamp(page_dir)
 
     (page_dir / ".0123456789abcdef.tmp").write_text("{}")
 
     assert served_reading.page_reading(page_dir) == reading
-    assert presence_model._page_stamp(page_dir) == presence_stamp
 
 
 def test_samples_use_captured_resources_and_independent_event_logs(server, page_dir):
@@ -2967,15 +2962,20 @@ def test_unchanged_presence_observation_is_shared_and_file_changes_refresh_it(
         return real_other_leaves(directory)
 
     monkeypatch.setattr(presence_model, "other_leaves", counted_other_leaves)
-    first = presence_model.presence_reading(page_dir)
-    assert presence_model.presence_reading(page_dir) == first
+
+    def reading():
+        files = served_reading.page_reading(page_dir)
+        return presence_model.presence_reading(page_dir, files)
+
+    first = reading()
+    assert reading() == first
     assert calls == 1
 
     cleanup_model.write_json(
         page_dir / "status.json",
         {"state": "waiting", "detail": "measuring", "ts": "now"},
     )
-    refreshed = presence_model.presence_reading(page_dir)
+    refreshed = reading()
     assert refreshed == first
     assert calls == 1
 
@@ -3096,12 +3096,12 @@ def test_neighbor_discovery_needs_no_native_subscription(
     page_dir, tmp_path, monkeypatch
 ):
     """A short-lived reader sees new rows even when native watches cannot start."""
-    from leaf import file_changes
+    import watchfiles.main
 
     def no_watcher(*_args, **_kwargs):
         raise RuntimeError("native watch unavailable")
 
-    monkeypatch.setattr(file_changes, "RustNotify", no_watcher)
+    monkeypatch.setattr(watchfiles.main, "RustNotify", no_watcher)
     rows = machine_model.state_home() / "rows"
     assert not rows.exists()
     assert presence_model.neighbor_candidates() == ()
@@ -3138,6 +3138,7 @@ def test_a_reader_retires_rows_no_server_lease_holds(page_dir, tmp_path):
 
 
 def test_native_watcher_failure_reaches_its_owner(tmp_path, monkeypatch):
+    import watchfiles.main
     from leaf import file_changes
     from watchfiles._rust_notify import WatchfilesRustInternalError
 
@@ -3146,7 +3147,7 @@ def test_native_watcher_failure_reaches_its_owner(tmp_path, monkeypatch):
             "Error creating recommended watcher: Too many open files (os error 24)"
         )
 
-    monkeypatch.setattr(file_changes, "RustNotify", exhausted)
+    monkeypatch.setattr(watchfiles.main, "RustNotify", exhausted)
     with pytest.raises(WatchfilesRustInternalError, match="Too many open files"):
         file_changes.FileChanges({tmp_path: False}, lambda _path: True)
 

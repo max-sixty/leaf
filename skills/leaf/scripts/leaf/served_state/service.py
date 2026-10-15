@@ -141,9 +141,9 @@ class LivePage:
     def news(self) -> str:
         """The token, after renewing the user lease: only this explicit attention
         door proves a user is looking."""
+        files = served_reading.page_reading(self.page_dir)
         reading = served_reading.join_reading(
-            served_reading.page_reading(self.page_dir),
-            presence_model.presence_reading(self.page_dir),
+            files, presence_model.presence_reading(self.page_dir, files)
         )
         presence_model.renew_viewed(self.page_dir)
         return reading

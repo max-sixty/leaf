@@ -77,7 +77,9 @@ reading in and redraws, for a "Show new" control, and `release()` lets the next 
 
 To take the user somewhere, call `scrollIntoView(target, {block, behavior})`. It
 reveals the target inside any box that clips it, then places it in each reading region
-around it; `block` defaults to `start`. For a vertical move that keeps the sideways
+around it; `block` defaults to `start`. To bring an item into its own strip or list
+and leave the page where it is, pass that box as `within`: only it and the boxes inside
+it move, each revealing the item nearest. For a vertical move that keeps the sideways
 scroll, use `scrollIntoReadingBand(target, holder, block, behavior)`, where `target` is
 an element or a Range and `holder` the element whose regions contain it. Unlike native
 `Element.scrollIntoView`, both stay inside a live sample. Use them only for a deliberate

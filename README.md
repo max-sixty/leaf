@@ -89,10 +89,10 @@ agent's shell commands do, and a sandbox refuses them what they need: writes to
 Leaf's state in `~/.local/state/leaf`, a port on localhost for the page server, and
 a browser for render checks.
 
-In Claude Code, Leaf's hooks keep a bridge running outside the sandbox, and each
-sandboxed `leaf` command hands itself to the bridge through the sandbox's network
-proxy. The first time in a session, Claude Code asks whether to allow that
-connection. To allow it without asking, add `127.0.0.1` to Claude Code's settings,
+In Claude Code, Leaf's hook starts a bridge outside the sandbox before the first
+`leaf` command, and each sandboxed `leaf` command hands itself to the bridge
+through the sandbox's network proxy. The first time in a session, Claude Code asks
+whether to allow that connection. To allow it without asking, add `127.0.0.1` to Claude Code's settings,
 such as `~/.claude/settings.json`:
 
 ```json

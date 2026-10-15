@@ -3628,16 +3628,16 @@ def test_the_on_panel_shows_each_list_with_its_own_done(browser, serve):
 
     # The answered question joins the user's Done, which stays folded until opened, and
     # a done row arrives at its thread too. The thread's card stands over the panel's
-    # head, so the keyboard opens the fold.
+    # head, so the keyboard opens the fold and activates the covered controls.
     summary = page.locator(".lf-queue-done > summary")
     expect(summary).to_have_text("Done · 1")
     summary.focus()
     page.keyboard.press("Enter")
     done = page.locator(".lf-queue-done .lf-queue-row")
     expect(done).to_have_text([re.compile("Weekly\\?")])
-    tabs.nth(1).click()
+    tabs.nth(1).press("Enter")
     expect(page.locator(".lf-queue-done > summary")).to_have_text("Done · 3")
-    done.filter(has_text="Retitle the release").click()
+    done.filter(has_text="Retitle the release").press("Enter")
     expect(
         page.locator(f'.lf-page-thread[data-thread="{retitle["id"]}"]')
     ).to_be_focused()

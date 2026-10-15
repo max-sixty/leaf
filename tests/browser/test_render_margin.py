@@ -1944,8 +1944,12 @@ def test_a_margin_row_leaves_with_its_target_before_the_next_paint(
         """async () => {
           window.lifetimeRow = lifetimeContribution.control('action', 'margin')
             .closest('.lf-margin-cluster');
+          const destination = document.createElement('div');
+          destination.style.display = 'contents';
+          lifetimeParent.append(destination);
           lifetimeAnchor.remove();
-          lifetimeParent.append(lifetimeAnchor);
+          destination.append(lifetimeAnchor);
+          lifetimeParent = destination;
           await Promise.resolve();
           return lifetimeRow.checkVisibility();
         }"""

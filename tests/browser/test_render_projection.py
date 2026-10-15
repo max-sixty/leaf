@@ -5679,7 +5679,10 @@ customElements.define("lf-owner", class extends LeafElement {
   render() {
     for (const [id, order] of Object.entries(this.state.move.value)) {
       const zone = document.getElementById(id);
-      for (const child of order) zone.append(document.getElementById(child));
+      for (const child of order) {
+        const member = document.getElementById(child);
+        if (member.parentElement !== zone) zone.append(member);
+      }
     }
     return nothing;
   }

@@ -3074,17 +3074,22 @@ function createVersionController({
     return next;
   }
   function activateHead(doc, revision) {
-    for (const node of authoredHeadNodes) node.remove();
-    const next = /* @__PURE__ */ new Set();
-    for (const node of doc.head.children) {
-      if (!versionedHeadNode(node)) continue;
-      const imported = document.importNode(node, true);
-      if (imported.localName === "link" || imported.localName === "style")
-        imported.addEventListener("load", keepPageRulesOffLayer, { once: true });
-      document.head.append(imported);
-      next.add(imported);
+    const source = [...doc.head.children].filter(versionedHeadNode);
+    const current = [...document.head.children].filter(
+      (node) => authoredHeadNodes.has(node)
+    );
+    if (current.length !== authoredHeadNodes.size || current.length !== source.length || current.some((node, index) => !node.isEqualNode(source[index]))) {
+      for (const node of authoredHeadNodes) node.remove();
+      const next = /* @__PURE__ */ new Set();
+      for (const node of source) {
+        const imported = document.importNode(node, true);
+        if (imported.localName === "link" || imported.localName === "style")
+          imported.addEventListener("load", keepPageRulesOffLayer, { once: true });
+        document.head.append(imported);
+        next.add(imported);
+      }
+      authoredHeadNodes = next;
     }
-    authoredHeadNodes = next;
     let marker = document.querySelector('meta[name="lf-revision"][data-lf-runtime]');
     if (!marker) {
       marker = document.createElement("meta");

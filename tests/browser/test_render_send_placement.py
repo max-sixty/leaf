@@ -1092,10 +1092,12 @@ def test_a_quote_surface_follows_scaled_inner_scroll_and_retains_native_editing(
 def test_send_grows_thread_around_the_words(
     browser, serve, size, at, long, touch, again, options
 ):
-    """The draft's words stand where they were typed through Send and its
-    acknowledgement: the comment box and the card share one text column, and the card
-    a scrolled draft opens stands at its end, as the box did. Read inside the editor
-    solely to measure its actual glyphs, without changing its closed-root behavior."""
+    """The card grows out of the comment box, and the draft's words stand where they
+    were typed through Send and its acknowledgement: the box and the card share one text
+    column, and the card a scrolled draft opens stands at its end, as the box did. The
+    growth only clips the card, so the words its layout places are the ones painted.
+    Read inside the editor solely to measure its actual glyphs, without changing its
+    closed-root behavior."""
     context = browser.new_context(has_touch=touch, is_mobile=touch)
     page = open_page(
         browser,
@@ -1170,8 +1172,11 @@ def test_send_grows_thread_around_the_words(
       window.beforeWords = rects(editor);
       window.beforePageScroll = scrollY;
       window.sendFrames = [];
+      window.grew = false;
       const sample = () => {
         const card = document.querySelector('.lf-margin-preview');
+        window.grew ||= Boolean(card?.getAnimations().some(animation =>
+          animation.effect.getKeyframes().some(frame => 'clipPath' in frame)));
         const body = card?.querySelector('.lf-msg-body');
         if (body && card.checkVisibility()) {
           window.sendFrames.push({rects:rects(body), pageScroll:scrollY,
@@ -1200,8 +1205,9 @@ def test_send_grows_thread_around_the_words(
     )
     reading = page.evaluate("""() => {
       cancelAnimationFrame(window.sampling);
-      return {before:beforeWords,pageScroll:beforePageScroll,frames:sendFrames};
+      return {before:beforeWords,pageScroll:beforePageScroll,frames:sendFrames,grew};
     }""")
+    assert reading["grew"], "Send showed the card without growing it out of the box"
     assert reading["frames"]
     for frame in reading["frames"]:
         assert frame["frame"]["left"] >= -0.75

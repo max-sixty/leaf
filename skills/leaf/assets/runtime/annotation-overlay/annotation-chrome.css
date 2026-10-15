@@ -70,17 +70,17 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     z-index: var(--lf-z-margin-raised); }
   /* Placement fits the finished thread before typing. Only the editor paints; the
      transparent header/reply slots neither take document flow nor intercept presses.
-     The frame prefers a useful empty writing measure within its allocated width;
-     its tracks shrink into that frame, including beside attached media. */
+     The frame is at least as wide as the card it becomes (`--thread-card-min`), so
+     Send's growth opens from its field (thread-preview.js, `growOut`); its tracks
+     shrink into that frame, including beside attached media. */
   .lf-fab-bar:not([data-lf-target-only], [data-lf-presentation="inline"]) {
     box-sizing: border-box;
     /* An auto-height positioned box borrows its inset-modified available height.
        Intrinsic sizing keeps that inset from masquerading as content resize. */
     height: max-content;
     --lf-response-display: inline-grid;
-    --lf-comment-frame-inline: calc(var(--lf-comment-inset) + 1px);
     --lf-comment-frame-max-width: min(var(--lf-float-w, calc(100vw - 16px)), var(--thread-card));
-    min-width: min(calc(216px + 2 * var(--lf-comment-frame-inline)), var(--lf-comment-frame-max-width));
+    min-width: min(var(--thread-card-min), var(--lf-comment-frame-max-width));
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(var(--lf-response-height), 1fr);
     grid-auto-rows: auto;
@@ -187,6 +187,18 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     outline: var(--focus-ring); --lf-focus-ring: page-thread;
     outline-offset: calc(-1 * var(--focus-ring-w)); }
   .lf-margin-preview-close { flex: none; }
+  /* A card Send opened grows out of the comment box it replaces (thread-preview.js,
+     `growOut`). The box's frame and the card share their corner, width and height (the
+     box is at least the card's minimum width), so the clip opens from the box's field,
+     which stands the frame's insets inside the card, to the card's edge. The card is
+     whole beneath the clip from the first frame, so no word moves. */
+  .lf-margin-preview[data-lf-grows] {
+    animation: lf-runtime-4f3c2a8d-comment-grow 240ms ease; }
+  @keyframes lf-runtime-4f3c2a8d-comment-grow {
+    from { clip-path: inset(var(--lf-comment-frame-top) var(--lf-comment-frame-inline)
+      var(--lf-comment-frame-bottom) round var(--r)); }
+    to { clip-path: inset(0 round 10px); }
+  }
   /* A floating comment surface is carried by its edge (surface-grip.js): a band
      `--lf-grip-out` outside its box and `--lf-grip-in` inside, cut out of a box over
      the surface by an even-odd clip, which also bounds where it takes a press, so the

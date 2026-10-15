@@ -2541,6 +2541,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   :is(.lf-fab-bar, .lf-margin-preview) {
     --lf-comment-inset: 12px;
+    --lf-comment-frame-inline: calc(var(--lf-comment-inset) + 1px);
     --lf-comment-foot-gap: var(--sp-3);
     --lf-comment-frame-top: calc(1px + var(--lf-comment-inset) + var(--lf-msg-head-height) + var(--lf-msg-body-gap));
     --lf-comment-reply-row: calc(var(--lf-comment-foot-gap) + var(--lf-compose-h) + 2px);

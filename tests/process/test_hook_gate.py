@@ -35,8 +35,7 @@ def test_claude_code_runs_the_whole_hook_once_its_session_claims(page_dir):
     hook("Stop", session)
     assert state_model.session_record(session) is None
 
-    # No CLAUDE_PID, so this hook starts no bridge.
-    hook("PreToolUse", session, CLAUDE_PID="")
+    hook("PreToolUse", session)
     assert state_model.session_record(session)["turn_closed"] is None
     claimed = subprocess.run(
         [LAUNCHER, "page", "claim", str(page_dir)],

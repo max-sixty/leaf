@@ -140,12 +140,9 @@ def page_claim(page_dir: Path) -> dict | None:
 
 
 def claim_is_active(claim: dict | None) -> bool:
-    """Whether a claim still names a live owner: the job record a background
-    job's claim points at, the native source a persisted `chat` stands on, or
-    the process every other claim's pid names (`Harness.lifetime`). The only
-    reading of that rule: cold hooks and the CLI both call it, so a harness that
-    states its lifetime a new way joins here alone, beside the one constructor
-    above that writes what this reads."""
+    """Whether a claim still names a live owner: its session's generation, not
+    ended, with a lifetime that still lives (`lifetime_is_live`). Cold hooks and
+    the CLI both call it."""
     if not claim:
         return False
     record = session_record(claim["id"])
@@ -155,11 +152,21 @@ def claim_is_active(claim: dict | None) -> bool:
         or record["ended"] is not None
     ):
         return False
-    if "job" in claim:
-        return (Path(claim["job"]) / "state.json").is_file()
-    if claim.get("chat") is True:
+    return lifetime_is_live(claim, record)
+
+
+def lifetime_is_live(lifetime: dict, record: dict | None) -> bool:
+    """Whether the owner a `Harness.lifetime` names still lives: the job record a
+    background job's lifetime points at, the native source a persisted `chat`
+    stands on (`record`, the session's), or the process every other lifetime's pid
+    names. The only reading of that rule: a claim and the sandbox bridge's
+    registrations both carry a lifetime, so a harness that states its lifetime a
+    new way joins here alone."""
+    if "job" in lifetime:
+        return (Path(lifetime["job"]) / "state.json").is_file()
+    if lifetime.get("chat") is True:
         return chat_exists(record)
-    return "pid" in claim and pid_alive(claim["pid"])
+    return "pid" in lifetime and pid_alive(lifetime["pid"])
 
 
 def dead_session(claim: dict) -> str:

@@ -86,6 +86,26 @@ def test_a_bridged_command_ends_though_its_stdin_never_does():
         held.stdout.close()
 
 
+def test_a_background_job_keeps_the_bridge_while_the_job_stands(
+    tmp_path, monkeypatch, dead_pid
+):
+    """A background job's next sitting runs on a fresh worker and may run `leaf`
+    from a script, before which no hook runs, so the bridge serves the job for its
+    lifetime rather than the worker's, and lets it go once the job is deleted."""
+    job = tmp_path / "job"
+    job.mkdir()
+    (job / "state.json").write_text('{"sessionId": "bg-job"}')
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "bg-job")
+    monkeypatch.setenv("CLAUDE_PID", str(dead_pid))
+    monkeypatch.setenv("CLAUDE_JOB_DIR", str(job))
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "PreToolUse", "session_id": "bg-job"}
+    )
+    assert bridge_model.live_sessions()
+    (job / "state.json").unlink()
+    assert not bridge_model.live_sessions()
+
+
 def test_a_session_that_runs_no_leaf_command_starts_no_bridge():
     """Claude Code runs Leaf's start and prompt hooks in every session, and only
     the hook before a `leaf` command starts the bridge, so a session that never

@@ -42,7 +42,6 @@ Each harness's registrations name it (`--harness`) and its payload names the
 session; `harness.hook_harness` says why neither comes from the environment."""
 
 import json
-import os
 import time
 
 from .leases import mark_hooks
@@ -76,24 +75,21 @@ def cmd_hook(harness: str, payload: dict) -> None:
     if event == "SessionEnd":
         end_harness_instance(sid)
         return
-    if event == "PreToolUse":
-        # Claude Code runs hooks outside its sandbox and shell commands inside it.
-        # Its registration runs this only before a command naming `leaf`, so a
-        # session that never runs one starts no bridge.
-        if pid := os.environ.get("CLAUDE_PID"):
-            from .bridge import ensure
-
-            ensure(int(pid))
-        if sid and not holds_claims(sid):
-            # The launcher skipped this turn's prompt hook (`state.hook_needed`),
-            # so the turn a claim joins opens here, before the command.
-            prompt_turn(sid)
-        return
     if not sid:
         return
     from .harness import hook_harness
 
     hooked = hook_harness(harness, sid)
+    if event == "PreToolUse":
+        # Hooks run outside the harness's sandbox and shell commands inside it.
+        # Claude Code's registration runs this only before a command naming
+        # `leaf`, so a session that never runs one opens no road out.
+        hooked.escape_sandbox()
+        if not holds_claims(sid):
+            # The launcher skipped this turn's prompt hook (`state.hook_needed`),
+            # so the turn a claim joins opens here, before the command.
+            prompt_turn(sid)
+        return
     turn_id = payload.get("turn_id")
     if event in {"UserPromptSubmit", "TurnStart"}:
         expected = prompt_turn(sid, turn_id)

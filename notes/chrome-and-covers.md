@@ -44,13 +44,13 @@ weight on scrolling, so none of it shipped except the instructions above.
 The original review ran on 29 September 2026 at `5ed41df4b`. On a plain Chrome page
 it found:
 
-| Gesture | Root scroller | Inner page box |
-|---|---|---|
-| PageDown or Space before a click | Scrolled | Stayed still |
-| PageDown after clicking body text | Scrolled | Scrolled |
-| PageDown after clicking the header | Scrolled | Stayed still |
-| Back after `pushState` | Restored position | Kept the later position |
-| Back from another document, or reload | Restored position | Returned to top |
+| Gesture                               | Root scroller     | Inner page box          |
+| ------------------------------------- | ----------------- | ----------------------- |
+| PageDown or Space before a click      | Scrolled          | Stayed still            |
+| PageDown after clicking body text     | Scrolled          | Scrolled                |
+| PageDown after clicking the header    | Scrolled          | Stayed still            |
+| Back after `pushState`                | Restored position | Kept the later position |
+| Back from another document, or reload | Restored position | Returned to top         |
 
 Use `leaf-dev stills` against the merge base for changed first viewports and banner
 states, on a phone too.

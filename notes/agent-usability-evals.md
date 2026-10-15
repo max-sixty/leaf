@@ -33,13 +33,13 @@ or declaration gaps.
 At 387dfed45 with Opus 5.5, three scored runs per case after one pilot that fixed each
 fixture and scorer; $5.85 scored. Every check passed:
 
-| Case | Checks | Result |
-| --- | --- | --- |
-| `cold-report` | skill loaded, page valid, checked, unstamped, no Ask, no sign-off | 3/3 each |
-| `cold-decision` | one Ask with one single-choice group of three options, gesture named | 3/3 each |
-| `near-miss` | skill not loaded, no page | 3/3 |
-| `reading` | seven questions, one per surface | 21/21 |
-| `resume` | date, approach and next step; batch edit in place; pick kept; thread answered; v3 stamped | 3/3 each |
+| Case            | Checks                                                                                    | Result   |
+| --------------- | ----------------------------------------------------------------------------------------- | -------- |
+| `cold-report`   | skill loaded, page valid, checked, unstamped, no Ask, no sign-off                         | 3/3 each |
+| `cold-decision` | one Ask with one single-choice group of three options, gesture named                      | 3/3 each |
+| `near-miss`     | skill not loaded, no page                                                                 | 3/3      |
+| `reading`       | seven questions, one per surface                                                          | 21/21    |
+| `resume`        | date, approach and next step; batch edit in place; pick kept; thread answered; v3 stamped | 3/3 each |
 
 - Reading runs answered from `index.html`, `events.jsonl` and `data/*.json` without
   loading the skill, and read a pick the user made, replaced, then undid.
@@ -55,13 +55,13 @@ fixture and scorer; $5.85 scored. Every check passed:
 At 64186bcb9, three runs each; $5.71 scored. In the live cases the harness played the
 user through the served page.
 
-| Case | What the user does | Checks |
-| --- | --- | --- |
-| `handoff` | asks for a drafted page to be handed over, asks for an edit, then asks a question | 54/54 |
-| `mixed` | sends a comment, a pick, a `shorten` reaction, a card move and its undo, and a page error, in one delivery | 41/42 |
-| `elided` | asks a question whose premise is in the part of a long thread the delivery leaves out | 27/27 |
-| `package` | asks for a widget only the page's own package supplies, without naming it | 22/24 |
-| `shared-source` | asks about, then updates, one of two widgets whose shared data source also holds a look-alike record | 21/24 |
+| Case            | What the user does                                                                                         | Checks |
+| --------------- | ---------------------------------------------------------------------------------------------------------- | ------ |
+| `handoff`       | asks for a drafted page to be handed over, asks for an edit, then asks a question                          | 54/54  |
+| `mixed`         | sends a comment, a pick, a `shorten` reaction, a card move and its undo, and a page error, in one delivery | 41/42  |
+| `elided`        | asks a question whose premise is in the part of a long thread the delivery leaves out                      | 27/27  |
+| `package`       | asks for a widget only the page's own package supplies, without naming it                                  | 22/24  |
+| `shared-source` | asks about, then updates, one of two widgets whose shared data source also holds a look-alike record       | 21/24  |
 
 - The live loop ran as the references describe: every round arrived through the
   prompt hook, every turn re-armed the wait and ended `waiting` with the URL, and
@@ -151,14 +151,14 @@ went unmeasured. The catalog checks the comment's fact in the page's text; only
 Means per sample over the three phases, with the last version's authored CSS and
 script lines:
 
-| Task | Condition | Minutes | Cost | Turns | Input tokens | CSS | Script | Page writes | Renders |
-|---|---|---|---|---|---|---|---|---|---|
-| document | Leaf | 7.1 | $2.40 | 48 | 3.7M | 14 | 0 | 7.0 | 6.7 |
-| document | HTML | 3.9 | $0.88 | 30 | 0.8M | 99 | 69 | 7.7 | 7.3 |
-| queue | Leaf | 6.0 | $2.03 | 45 | 3.2M | 5 | 0 | 6.3 | 7.7 |
-| queue | HTML | 4.6 | $1.01 | 27 | 1.0M | 121 | 240 | 9.0 | 5.3 |
-| configuration | Leaf | 13.5 | $3.72 | 78 | 7.3M | 44 | 132 | 12.3 | 13.7 |
-| configuration | HTML | 5.8 | $1.31 | 31 | 1.2M | 113 | 217 | 9.7 | 5.3 |
+| Task          | Condition | Minutes | Cost  | Turns | Input tokens | CSS | Script | Page writes | Renders |
+| ------------- | --------- | ------- | ----- | ----- | ------------ | --- | ------ | ----------- | ------- |
+| document      | Leaf      | 7.1     | $2.40 | 48    | 3.7M         | 14  | 0      | 7.0         | 6.7     |
+| document      | HTML      | 3.9     | $0.88 | 30    | 0.8M         | 99  | 69     | 7.7         | 7.3     |
+| queue         | Leaf      | 6.0     | $2.03 | 45    | 3.2M         | 5   | 0      | 6.3         | 7.7     |
+| queue         | HTML      | 4.6     | $1.01 | 27    | 1.0M         | 121 | 240    | 9.0         | 5.3     |
+| configuration | Leaf      | 13.5    | $3.72 | 78    | 7.3M         | 44  | 132    | 12.3        | 13.7    |
+| configuration | HTML      | 5.8     | $1.31 | 31    | 1.2M         | 113 | 217    | 9.7         | 5.3     |
 
 Page writes and renders count tool calls that write the page and that run a check or
 a browser on it; repair iterations show as writes beyond the first, and the two

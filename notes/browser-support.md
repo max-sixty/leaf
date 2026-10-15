@@ -526,7 +526,7 @@ document, and the runtime relies on it (next entry).
   which resolves the same `attr()` outside a `::part()` rule, so the runtime writes
   one rule per name. Words alone in a shadow scroller anchor to the start of what it
   holds the same way, through `::part(lf-a7)::before { content: ""; anchor-name:
-  --lf-a7 }`, which anchors and follows the scroller's scroll in all three engines.
+--lf-a7 }`, which anchors and follows the scroller's scroll in all three engines.
 - **Recheck:** attach a shadow root holding a scroller with a `part`-named child,
   declare `#host::part(name) { anchor-name: --x }` in the document, and compare a
   fixed `position-anchor: --x` box's rectangle with the child's after scrolling the
@@ -592,7 +592,7 @@ document, and the runtime relies on it (next entry).
 - **Affected:** a tab strip, contents outline or page map list bringing its item
   into view while the page stays where the user reads.
 - **Observed, 2026-10-14:** `scrollIntoView({block: "nearest", inline: "nearest",
-  container: "nearest"})` on a button in a sideways strip whose foot stands 1 px
+container: "nearest"})` on a button in a sideways strip whose foot stands 1 px
   below its scroller's band scrolls the strip alone in Chromium 153 and WebKit 26.6,
   and the outer scroller by 2 px as well in Firefox 155, whether the outer scroller
   is the root or a nested box. An earlier check on another page also saw WebKit

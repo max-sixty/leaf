@@ -119,7 +119,6 @@ Choose **Leaf** in the tabs at the sample's top, and Minimal or Moderate beside
 them. **Full view** fits the sample to the window. The prototype runs on its own
 2026-10-10 runtime, which is why it is served from that tree rather than this one.
 
-
 Reference images are in `~/.tmp/leaf/floating-controls-reference/`:
 
 - `prototype/`: stills of the approved Leaf arrangement, Minimal and Moderate:

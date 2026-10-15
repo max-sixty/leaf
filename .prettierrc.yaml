@@ -2,3 +2,8 @@
 printWidth: 88
 # Generated sources declare their formatter exemption in their producer's header.
 checkIgnorePragma: true
+overrides:
+  - files: "**/*.md"
+    options:
+      # Keep instruction examples and literal output exactly as their author wrote them.
+      embeddedLanguageFormatting: off

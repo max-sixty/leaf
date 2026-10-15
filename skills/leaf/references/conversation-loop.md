@@ -7,12 +7,12 @@ event's `handling`. A chat response does not change the page.
 
 The user follows your work on the page:
 
-| Surface | What it shows | Written by |
-| --- | --- | --- |
-| Banner | one sentence for the whole page: the line of the item you started last, or what you want back | `leaf task start`, `leaf status <page> waiting "<detail>"` |
+| Surface                   | What it shows                                                                                                   | Written by                                                                |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Banner                    | one sentence for the whole page: the line of the item you started last, or what you want back                   | `leaf task start`, `leaf status <page> waiting "<detail>"`                |
 | Beside a thread or widget | **Working** and your line: the thread's working message above its reply box, or on the control the work answers | `leaf response reply --ephemeral`, `leaf task start <page> <id> "<line>"` |
-| Thread | your answer to the user's message, with the progress before it folded behind it | the response operation named by delivered `handling` |
-| Page | the revised content in place, and a stamp's changelog | saving `index.html`, `leaf page stamp` |
+| Thread                    | your answer to the user's message, with the progress before it folded behind it                                 | the response operation named by delivered `handling`                      |
+| Page                      | the revised content in place, and a stamp's changelog                                                           | saving `index.html`, `leaf page stamp`                                    |
 
 Leaf marks each update **Sent**, **Queued**, and **Picked up** by itself. Your
 harness may add its current step to the banner.
@@ -180,11 +180,11 @@ On me also lists any update of the user's that failed to send. Your own list sho
 press lands where the item is answered; on a widget ask, its numbered actions
 (`1`–`9`) answer it there.
 
-| Request | Register it | What answers it |
-| --- | --- | --- |
-| A decision or input recorded by a widget | Author a decision widget (`authoring-asks.md`); optional `lf-ask` frames its question and evidence | The widget's declared answer; a multiple-choice ask also needs the user's Done |
-| A conversational answer | Open an agent thread with the question, or add `--ask` to a reply (`threads.md`) | The user's next reply there or a settling reaction |
-| Required version sign-off | Declare sign-off and stamp the version (`authoring-asks.md`, "Sign-off") | That version's banner approval |
+| Request                                                                         | Register it                                                                                                     | What answers it                                                                       |
+| ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| A decision or input recorded by a widget                                        | Author a decision widget (`authoring-asks.md`); optional `lf-ask` frames its question and evidence              | The widget's declared answer; a multiple-choice ask also needs the user's Done        |
+| A conversational answer                                                         | Open an agent thread with the question, or add `--ask` to a reply (`threads.md`)                                | The user's next reply there or a settling reaction                                    |
+| Required version sign-off                                                       | Declare sign-off and stamp the version (`authoring-asks.md`, "Sign-off")                                        | That version's banner approval                                                        |
 | An action neither route records, such as trying a build or connecting a browser | `leaf task open <page> <id> "<direct question naming the action>" --on user`, on its widget, section, or `page` | The user's Done; end it yourself when their action is established or no longer needed |
 
 Ask ids are `widget:<widget-id>` for a widget ask, `reply:<message-id>` for a prose

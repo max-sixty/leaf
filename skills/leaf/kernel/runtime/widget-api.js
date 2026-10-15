@@ -173,7 +173,6 @@ import {
   wrote
 } from "./bundle-passage-facts.js";
 import {
-  HIDDEN,
   LAYOUT,
   LayerRefused,
   PAGE_PAINT_ATTRIBUTE,
@@ -1623,7 +1622,6 @@ async function mountSample(frame, options) {
 export {
   CONTRIBUTION_ENTRY_SCHEMA,
   DISCLOSE,
-  HIDDEN,
   HOLDS_WORD,
   HeldReading,
   LAYOUT,

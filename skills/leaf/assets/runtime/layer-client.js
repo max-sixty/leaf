@@ -197,9 +197,7 @@ export function admitResponse(response) {
 // its canonical root; another page or deployment has a separate saved record.
 let sessionMode = release ? "unknown" : "active";
 const sessionChannel =
-  release &&
-  !document.documentElement.lfSample &&
-  typeof window.BroadcastChannel !== "undefined"
+  release && !document.documentElement.lfSample
     ? new window.BroadcastChannel(`leaf-session:${release}:${pageUrl("")}`)
     : null;
 

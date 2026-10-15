@@ -51,15 +51,18 @@ def load_registry(page_dir: Path):
 def _read_layer(page_dir: Path, path: Path) -> dict | None:
     from leaf.layer import protocol_refusal
 
+    # The protocol first, from the file as parsed, since every check of its shape
+    # below is this Leaf's protocol's.
+    try:
+        parsed = read_json(path)
+    except (ValueError, OSError):
+        parsed = None  # `read_registry_declarations` names the fault
+    if refusal := protocol_refusal(page_dir, parsed):
+        raise IncompatibleLayer(refusal)
     try:
         registry = read_registry_declarations(path)
-        if registry is None:
-            return None
-        if refusal := protocol_refusal(page_dir, registry):
-            raise IncompatibleLayer(refusal)
-        check_layer_facts(registry, path)
-    except IncompatibleLayer:
-        raise
+        if registry is not None:
+            check_layer_facts(registry, path)
     except RegistryError as error:
         raise _revendor(page_dir, error) from None
     return registry

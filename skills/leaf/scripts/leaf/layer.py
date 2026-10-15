@@ -528,11 +528,14 @@ def incompatible_layer(page_dir: Path, registry: dict) -> Finding | None:
     return None
 
 
-def protocol_refusal(page_dir: Path, registry: dict) -> Finding | None:
+def protocol_refusal(page_dir: Path, registry: object) -> Finding | None:
     """The half of `incompatible_layer` that reads only the page protocol a registry's
-    `$events` declare, so it may run on a layer before this Leaf validates its shape
-    (`registry.storage.load_registry`): that shape is this Leaf's protocol's, which a
-    layer vendored at another one need not have."""
+    `$events` declare. It takes any parsed JSON, so it may run on a layer before this
+    Leaf validates its shape (`registry.storage.load_registry`): that shape is this
+    Leaf's protocol's, which a layer vendored at another one need not have. A value
+    that is not an object declares nothing to read, and is left to that validation."""
+    if not isinstance(registry, dict):
+        return None
     if (vendored := _foreign_protocol(registry)) is not None:
         if type(vendored) is int and vendored > kernel_protocol():
             return Finding(
@@ -540,9 +543,7 @@ def protocol_refusal(page_dir: Path, registry: dict) -> Finding | None:
                 values={
                     "page": str(page_dir),
                     "vendored": vendored,
-                    "vendored_by": provenance_label(
-                        registry.get("$layer", {}).get("producer", {})
-                    ),
+                    "vendored_by": provenance_label(_producer(registry)),
                     "leaf": str(PLUGIN_ROOT),
                     "protocol": kernel_protocol(),
                 },
@@ -610,10 +611,19 @@ def _retired_keys(registry: dict) -> list[str]:
 def _foreign_protocol(registry: dict) -> int | str | None:
     """The protocol a registry's `$events` declare where this Leaf does not speak
     it, `"none"` where they declare none, or None where it is this Leaf's own."""
-    declared = registry.get("$events", {}).get("protocol")
+    events = registry.get("$events")
+    declared = events.get("protocol") if isinstance(events, dict) else None
     if type(declared) is int and declared == kernel_protocol():
         return None
     return declared if declared is not None else "none"
+
+
+def _producer(registry: dict) -> dict:
+    """The provenance a registry's `$layer` records, or none where a layer of
+    another shape records it elsewhere."""
+    layer = registry.get("$layer")
+    producer = layer.get("producer") if isinstance(layer, dict) else None
+    return producer if isinstance(producer, dict) else {}
 
 
 def payload_provenance(*, include_path: bool = False, root: Path | None = None) -> dict:

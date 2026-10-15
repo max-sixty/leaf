@@ -321,8 +321,16 @@ def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(claimed, 
     assert fetch(f"{server}/api/state")[0] == 200
 
 
-@pytest.mark.parametrize("reshaped", [False, True])
-def test_a_command_leaves_a_page_a_newer_leaf_vendored(claimed, reshaped):
+@pytest.mark.parametrize(
+    "reshape",
+    [
+        None,
+        lambda registry: registry["$events"].pop("handling"),
+        lambda registry: registry.update({"$future": 1}),
+    ],
+    ids=["same-shape", "layer-facts", "declarations"],
+)
+def test_a_command_leaves_a_page_a_newer_leaf_vendored(claimed, reshape):
     """A process the session started before its plugin updated still runs the older
     Leaf, and must not take the page back to it: the newer Leaf's next hook would
     re-vendor it up again, reloading the user's tabs each time. Neither a command
@@ -331,10 +339,10 @@ def test_a_command_leaves_a_page_a_newer_leaf_vendored(claimed, reshaped):
     for a layer whose shape this Leaf's schema rejects, as a newer protocol's may
     be: the protocol is read before the shape."""
     foreign = vendored_at_another_protocol(claimed, newer=True)
-    if reshaped:
+    if reshape:
         path = claimed / "registry.json"
         registry = json.loads(path.read_text())
-        del registry["$events"]["handling"]
+        reshape(registry)
         # Replaced rather than written through: a revision hard-links its files.
         path.unlink()
         path.write_text(json.dumps(registry))

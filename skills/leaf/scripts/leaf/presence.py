@@ -17,11 +17,12 @@ from .files import (
     read_json,
 )
 from .harness import claim_harness
-from .leases import wait_is_live, waiter_lease_path
+from .leases import lock_is_held, wait_is_live, waiter_lease_path
 from .machine import state_home
 from .page_memory import memo
 from .schema import (
     INTERACTIONS_FILE,
+    SERVER_LOCK,
     UNNAMED_AGENT,
     USER_VIEWS_FILE,
     USER_VIEWS_LOCK,
@@ -61,11 +62,13 @@ class _Neighbors:
         self.token = None
 
 
-def _neighbor_reading(page_dir: Path) -> list:
-    """Local page writes do not invalidate a machine's neighbor observation.
+def neighbor_reading(page_dir: Path) -> list:
+    """The page's one reading of its neighbours (`other_leaves`), which its state
+    answer and its news fingerprint both take, so the two never disagree.
 
-    Producer writes invalidate it immediately; kernel lease changes have the same
-    bounded two-second observation interval as the page's other live facts.
+    Local page writes do not invalidate it. Producer writes invalidate it
+    immediately; kernel lease changes have the same bounded two-second observation
+    interval as the page's other live facts.
     """
     candidates = neighbor_candidates()
     own = page_dir.resolve()
@@ -163,13 +166,16 @@ def other_leaves(page_dir: Path) -> list:
     Each candidate costs its server lease/service and one disposable row read.
     Never open another page's log, document, or projection. A row belongs to
     the server incarnation that computed it; absent or older rows stay absent.
+    Nothing else removes a row, so this scan deletes one whose server lease no
+    process holds. A server that takes the lease again republishes its missing
+    row within one look (`RowPublisher.refresh`).
 
     Each entry names its page by `page_key`, the identity the page's own state-home
     records already use, and links it by `url`. The two are separate because a page
     outlives its server: a restart may serve the same page at a new port, which
     changes where the row leads and not which page it is.
     """
-    from .server_rows import read_row
+    from .server_rows import read_row, row_path
 
     others = []
     own = page_dir.resolve()
@@ -183,6 +189,8 @@ def other_leaves(page_dir: Path) -> list:
         try:
             info = running_server(candidate)
             if info is None:
+                if not lock_is_held(candidate / SERVER_LOCK):
+                    row_path(candidate).unlink(missing_ok=True)
                 continue
             row = read_row(candidate, info, record=record)
             if row is not None and row["activity"]["kind"] != "closed":
@@ -362,7 +370,7 @@ def presence_reading(page_dir: Path) -> str:
     reading once the bounded cache interval has elapsed.
     """
     claim = page_claim(page_dir)
-    neighbors = _neighbor_reading(page_dir)
+    neighbors = neighbor_reading(page_dir)
     stamp = (_page_stamp(page_dir, claim), neighbors)
     now = time.monotonic()
     kept = memo(page_dir, _Presence)

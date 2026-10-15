@@ -1141,14 +1141,11 @@ function nameable(el) {
   const authored = getComputedStyle(el).anchorName;
   return !authored || authored === "none";
 }
-var SCOPES = CSS.supports("anchor-scope", "all");
 function outsideScopes(target) {
   let el = target;
-  if (SCOPES) {
-    for (let at = target; at instanceof Element; at = renderedParent(at))
-      if (at.getRootNode() === document && !at.contains(chromeRoot) && getComputedStyle(at).anchorScope === "all")
-        el = renderedParent(at) ?? at;
-  }
+  for (let at = target; at instanceof Element; at = renderedParent(at))
+    if (at.getRootNode() === document && !at.contains(chromeRoot) && getComputedStyle(at).anchorScope === "all")
+      el = renderedParent(at) ?? at;
   return el;
 }
 function anchorElement(target) {

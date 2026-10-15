@@ -149,7 +149,7 @@ class LivePage:
         return reading
 
     def other_pages(self) -> list[dict]:
-        return presence_model.other_leaves(self.page_dir)
+        return presence_model.neighbor_reading(self.page_dir)
 
     @contextmanager
     def state_read(self, *, with_token: bool = False):

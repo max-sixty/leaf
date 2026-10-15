@@ -129,7 +129,7 @@ function geometryClone(source, left, top, property) {
   clone.style.removeProperty("stroke-opacity");
   for (const attribute of [...clone.attributes]) {
     const length = source[attribute.localName];
-    if (attribute.value.includes("%") && typeof SVGAnimatedLength !== "undefined" && length instanceof SVGAnimatedLength)
+    if (attribute.value.includes("%") && length instanceof SVGAnimatedLength)
       clone.setAttribute(attribute.name, String(length.animVal.value));
   }
   clone.setAttribute(

@@ -960,10 +960,15 @@ def test_render_reads_widget_chrome_where_it_stands(
     package = tmp_path / ".leaf"
     add_test_widget(package, "lf-badge", upgrade=True)
     module = package / "widgets" / "lf-badge.js"
+    source = module.read_text()
+    starter = "class extends LeafElement {},"
+    assert source.count(starter) == 1
     module.write_text(
-        module.read_text().replace(
-            "      if (!once(this)) return;",
-            "      if (!once(this)) return;\n" + BADGE_CHROME,
+        source.replace(
+            starter,
+            "class extends LeafElement {\n    setup() {\n"
+            + BADGE_CHROME
+            + "\n    }\n  },",
         )
     )
     narrow = solid_png(400, 300, (235, 215, 205))

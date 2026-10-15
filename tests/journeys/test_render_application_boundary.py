@@ -1504,6 +1504,7 @@ def test_primary_reading_holds_remote_changes_before_package_layout(
     else:
         workspace.get_by_role("button", name=mode, exact=True).click()
     editor = workspace.get_by_role("textbox", name="Reply", exact=True)
+    editor.click()
     write(editor, "Keep this draft while updates wait.")
     assert editor.evaluate("""async editor => {
       const {scrollerFor} = await window.__lfWidgetApi();

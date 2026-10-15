@@ -1667,6 +1667,29 @@ def test_the_panel_folds_to_the_leaf_and_stays_folded(browser, serve):
     expect(page.locator(".lf-thread-panel")).not_to_have_class("open")
 
 
+def test_a_pointer_folds_the_panel_from_its_corner(browser, serve):
+    """A round button on the box's top-right corner folds the panel, shown only while
+    the pointer is over it, so the resting row is the row alone; it takes no Tab stop,
+    since the menu's row and `.` fold from the keyboard."""
+    page = floating(browser, serve(LONG_PAGE, comments=1))
+    minimize = page.locator(".lf-fp-minimize")
+    page.mouse.move(5, 5)
+    expect(minimize).to_be_hidden()
+    expect(minimize).to_have_attribute("tabindex", "-1")
+    page.locator(".lf-fp-row").hover()
+    expect(page.get_by_role("button", name="Fold to the leaf")).to_be_visible()
+    card, button = (
+        page.locator(".lf-fp-card").bounding_box(),
+        minimize.bounding_box(),
+    )
+    # It rides the corner: its centre sits on the box's top-right edge.
+    assert abs(button["x"] + button["width"] / 2 - (card["x"] + card["width"])) <= 2
+    assert abs(button["y"] + button["height"] / 2 - card["y"]) <= 2
+    minimize.click()
+    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-rest", "mark")
+    expect(minimize).to_be_hidden()
+
+
 def test_asks_are_answered_where_they_are_read_on_me(browser, serve):
     """On me lists what waits on the user, and each ask takes its answer there, by the
     widget's own choice: the event is the widget's action. The answered card keeps its

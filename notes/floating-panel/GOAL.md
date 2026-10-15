@@ -56,11 +56,6 @@ icon.
 
 ### Follow-ups the user named
 
-- **A nicer way to fold to the leaf.** "We need a nicer way to 'Fold to the leaf',
-  probably something that appears on hover that looks like a minimize." Today it is a
-  row at the foot of the leaf's menu and the `.` key. The user recalls Codex's panel
-  having one, and the Codex study bears that out: a minimize button its header reveals
-  on hover (`codex-app-study.md`, "Chrome appears only while you engage").
 - **About's contents are orphaned.** The Leaf version and the share link (and, where
   they apply, the session reference and preview diagnostics) "are both a bit
   orphaned": find more that belongs in About, or move them elsewhere and drop the

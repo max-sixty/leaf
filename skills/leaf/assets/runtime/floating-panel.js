@@ -11,8 +11,9 @@
  * setting chooses it:
  * - **Folded**, the leaf alone in the window's corner, coloured by the agent's state,
  *   with a badge counting what waits on the user and a dot for threads with news. The
- *   user folds it from the leaf's menu; a press on the leaf unfolds it, and it stays as
- *   it was left across pages (`rest`).
+ *   user folds it from the leaf's menu or with `.`, or by a pointer with the small round
+ *   button that rides the box's top-right corner while the pointer is over the panel; a
+ *   press on the leaf unfolds it, and it stays as it was left across pages (`rest`).
  * - **The row**: the leaf, the comment field, and marks with counts for On me and
  *   Threads, with at most one small notice beside the marks for a state the user should
  *   not miss, such as reading an older version, and the one press that ends it
@@ -79,7 +80,7 @@
  * travels after the gesture that moved it. */
 import { html, nothing, ref, render, repeat } from "/vendor/browser-runtime.js";
 import { el } from "./widget-elements.js";
-import { iconTemplate } from "./icons.js";
+import { iconElement, iconTemplate } from "./icons.js";
 import { copyControl } from "./copy-control.js";
 import { keeps, keepsHidden, keepsText } from "./keeps.js";
 import {
@@ -255,6 +256,18 @@ export function createFloatingPanel({
   // The menu and the peek stand over the leaf by anchoring to it, which they can only
   // do from after it in the tree.
   host.append(card, menu, badge, newsDot, peek);
+  // The pointer's way to fold, which the user asked for as a minimize shown on hover: a
+  // round button on the box's top-right corner, chosen over one at the row's end on 15
+  // October. The menu's row and `.` are the keyboard's and a finger's ways, so it takes
+  // no Tab stop of its own.
+  const minimize = el("button", "lf-fp-minimize");
+  minimize.type = "button";
+  minimize.tabIndex = -1;
+  minimize.title = "Fold to the leaf";
+  minimize.setAttribute("aria-label", "Fold to the leaf");
+  minimize.append(iconElement("subtract", "lf-fp-minimize-icon"));
+  minimize.addEventListener("click", () => setRest("mark"));
+  host.append(minimize);
   // The row stands over the window's foot as the bottom bar did, so what the page
   // reveals stands clear of it. A view opened above it is itself read, and stands over
   // the page only while it is used, so it leaves the page's room alone; but what it

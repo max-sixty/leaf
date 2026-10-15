@@ -7463,6 +7463,14 @@ function createFloatingPanel({
   inner.append(opened, context, row);
   card.append(inner);
   host.append(card, menu, badge, newsDot, peek);
+  const minimize = el("button", "lf-fp-minimize");
+  minimize.type = "button";
+  minimize.tabIndex = -1;
+  minimize.title = "Fold to the leaf";
+  minimize.setAttribute("aria-label", "Fold to the leaf");
+  minimize.append(iconElement("subtract", "lf-fp-minimize-icon"));
+  minimize.addEventListener("click", () => setRest("mark"));
+  host.append(minimize);
   declareWindowChrome(() => {
     const box = row.getBoundingClientRect();
     return box.width > 0 && box.height > 0 ? [box] : [];

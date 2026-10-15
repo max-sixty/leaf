@@ -370,6 +370,39 @@
       opacity: 0;
     }
   }
+  .lf-fp-minimize {
+    position: absolute;
+    top: -9px;
+    right: -9px;
+    display: grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    min-height: 0;
+    padding: 0;
+    border-radius: 50%;
+    background: var(--lf-fp-surface);
+    box-shadow: 0 0 0 1px var(--lf-fp-ring), var(--raise-1);
+    color: var(--lf-fp-muted);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 120ms, visibility 0s 120ms;
+  }
+  @media (hover: hover) {
+    .lf-floating-panel[data-rest=row]:hover .lf-fp-minimize {
+      opacity: 1;
+      visibility: visible;
+      transition: opacity 120ms;
+    }
+  }
+  .lf-fp-minimize:hover {
+    background: var(--lf-fp-surface);
+    color: var(--ink);
+  }
+  .lf-fp-minimize-icon {
+    width: 12px;
+    height: 12px;
+  }
   .lf-fp-badge,
   .lf-fp-news-dot {
     position: absolute;

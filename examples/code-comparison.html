@@ -14,13 +14,14 @@
         container-type: inline-size;
       }
 
-      /* The controls this element's module builds wear the layer's .lf-ui, and a page
-         rule reaches those only by naming the widget they stand in. */
-      code-reader-comparison :is(.code-comparison-toolbar, .code-candidate-controls) {
-        display: flex;
-        flex-wrap: wrap;
-        gap: var(--sp-2);
-        align-items: center;
+      /* This explicit scope styles the controls this module builds. */
+      @scope (code-reader-comparison) {
+        :scope :is(.code-comparison-toolbar, .code-candidate-controls) {
+          display: flex;
+          flex-wrap: wrap;
+          gap: var(--sp-2);
+          align-items: center;
+        }
       }
 
       .code-comparison-grid {

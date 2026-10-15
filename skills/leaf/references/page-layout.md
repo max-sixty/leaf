@@ -190,9 +190,10 @@ rebuilding the event log in page code.
 
 The page's CSS styles the page's content, not Leaf's banner, panels or the controls
 widgets build: a rule for `button` styles only the page's own buttons. To style Leaf's
-controls on purpose, name the widget or Leaf's class, such as `lf-options button` or
-`lf-board .lf-grip`, or the page's own element for controls a page module builds with
-`offer`. A token such as `--accent` on `:root` changes every surface that reads it. For
+controls on purpose, put their rules in an explicit CSS scope, such as
+`@scope (lf-board) { button { color: teal; } }`. An explicit scope stands as written,
+including its Leaf controls; keep it outside another scope that excludes those controls.
+Use the same route for controls a page module builds with `offer`. A token such as `--accent` on `:root` changes every surface that reads it. For
 a page-specific inset, use the frame declaration in `package-themes.md`, "A theme
 change".
 

@@ -1,114 +1,33 @@
-/* The page's own rules, and a theme package's, keep off the layer's apparatus unless
-   they name it.
+/* Author styles stop at Leaf's chrome and generated controls through native CSS scope.
 
-   A page's stylesheet is unlayered, above every layer the kernel and the packages state
-   their faces in (layer.py, CASCADE_LAYERS), so the page has the last word on its own
-   document. At no specificity that also gave it the last word on the layer's: a page
-   dressing its `button` and `a` is dressing its prose, and that rule took the family,
-   ink, border and padding of every control a widget builds in the page (each wears
-   .lf-ui) and of every button in the chrome. A theme package, one that declares no
-   widgets, styles every page as the page's sheet styles one, from the `lf-theme` tier
-   above the widgets' defaults and the Layouts, so its rules are narrowed the same way.
-   They are the `lf-theme` blocks of the layer's theme sheet, and of the runtime's own
-   sheets only those blocks are read. The copy of a theme's shadow.css that reaches a
-   widget's shadow tree stands as written, since a rule there is written for the
-   widget's insides.
+   Unscoped page and theme-package style rules are placed inside a scope rooted at the
+   document and ending at .lf-chrome and .lf-ui. The browser decides which elements lie
+   inside that boundary; Leaf neither parses selectors nor infers their intent. An
+   authored @scope is explicit authority to style its region, including Leaf controls,
+   and stands as written. A nested scope cannot escape its enclosing scope's limit.
 
-   So each selector the page writes that names no widget and nothing of the layer's — no
-   custom element, no `lf-` class or id, no `data-lf-` attribute, in itself or in a rule
-   or scope it is nested in — is narrowed to leave that apparatus alone. The condition
-   joins its subject inside :where(), weightless, so everywhere the rule still applies it
-   ranks exactly as the page wrote it. A selector that names a widget is the page styling
-   inside it on purpose and stands as written: Leaf's widgets, and the page's own, whose
-   controls wear .lf-ui too when its module builds them with the widget API (`offer`) —
-   rust-sort's `lf-sort-film button`, code-comparison's `code-reader-comparison
-   .code-comparison-toolbar`. A token set on :root needs no naming, since the root is not
-   apparatus. Inheritance is not a selector, so the chrome's root and native .lf-ui-face
-   defaults restate the face they would otherwise inherit from the page (chrome.css,
-   shadow.css). Custom hosts own their face through their component styles.
-
-   Rewritten through the CSSOM, not as text: the browser has parsed the sheet already,
-   `selectorText` hands back its canonical serialization (a legacy `:before` comes back
-   as `::before`), and an assignment it cannot parse leaves the rule as it was rather
-   than dropping it. Each member of a selector list is its own question: `button,
-   lf-board .grip` restyles the board's grip on purpose and every other button by
-   accident, and only the second half is narrowed.
-
-   The sheets read are the ones the delivered document states, the next revision's when
-   it activates, and any a page's script puts in the head later, including sheets they
-   import. A CSS framework that builds its sheet from the classes it finds, such as
-   Tailwind's, writes a `<style>` there and rewrites it as the page changes, and each
-   rewrite is a new sheet, read again. A sheet from another origin the browser does not
-   let a script read stays as written, and so does one a page module constructs and
-   adopts, which it wrote for itself. */
-
-const APPARATUS = ":not(:where(.lf-chrome, .lf-chrome *, .lf-ui, .lf-ui *))";
-
-// A custom element's name, which has a hyphen, standing where a compound starts; an `lf-`
-// class or id; or a `data-lf-` attribute. Strings and the arguments that are names rather
-// than selectors (a language, a state, a part, a highlight) are read out first.
-const NAMES_WIDGET = /(?:^|[\s>+~(,&|])[a-z][\w]*-|[.#]lf-|\[\s*data-lf-/i;
-const NOT_SELECTORS =
-  /"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|:{1,2}(?:lang|dir|state|part|highlight|nth-[a-z-]+)\([^)]*\)/gi;
-const namesWidget = (text) => NAMES_WIDGET.test(text.replace(NOT_SELECTORS, ""));
+   The CSSOM integration remains because authored sheets can arrive through @import,
+   a linked sheet, a revision, or a framework rewriting a style element after boot.
+   Replacing rules in their original sheet preserves relative URL resolution. Scoping
+   each style rule in place preserves grouping rules, layer order, and the positions of
+   explicit scopes. Keyframes and non-selector rules have no element boundary to add.
+   Cross-origin sheets without CSSOM access and module-owned adopted sheets remain
+   under their author's control, as before. */
 
 const narrowed = new WeakSet();
 
-// The top-level members of a selector list, and where in each the pseudo-element starts:
-// outside every parenthesis, bracket and string.
-function members(text) {
-  const found = [];
-  let depth = 0;
-  let quote = null;
-  let start = 0;
-  let pseudo = -1;
-  for (let at = 0; at < text.length; at++) {
-    const ch = text[at];
-    if (quote) {
-      if (ch === "\\") at++;
-      else if (ch === quote) quote = null;
-    } else if (ch === '"' || ch === "'") quote = ch;
-    else if (ch === "\\") at++;
-    else if (ch === "(" || ch === "[") depth++;
-    else if (ch === ")" || ch === "]") depth--;
-    else if (depth === 0 && ch === ",") {
-      found.push([text.slice(start, at), pseudo < 0 ? -1 : pseudo - start]);
-      start = at + 1;
-      pseudo = -1;
-    } else if (depth === 0 && pseudo < 0 && ch === ":" && text[at + 1] === ":")
-      pseudo = at;
-  }
-  found.push([text.slice(start), pseudo < 0 ? -1 : pseudo - start]);
-  return found;
-}
-
-function narrow(member, pseudo) {
-  const selector = pseudo < 0 ? member.trimEnd() : member.slice(0, pseudo);
-  const rest = pseudo < 0 ? "" : member.slice(pseudo);
-  return selector + APPARATUS + rest;
-}
-
-// `named` says an enclosing rule or scope names a widget. A nested rule extends every
-// member of its parent's list, so the parent names one for it only if all of them do.
-function narrowRules(rules, named) {
-  for (const rule of rules) {
-    if (rule instanceof CSSKeyframesRule || rule instanceof CSSImportRule) continue;
-    let within = named;
-    if (rule instanceof CSSScopeRule)
-      within ||= namesWidget(rule.start ?? "") || namesWidget(rule.end ?? "");
+function narrowRules(group) {
+  // Each replacement occupies the same position in its group.
+  for (let at = 0; at < group.cssRules.length; at++) {
+    const rule = group.cssRules[at];
+    if (rule instanceof CSSScopeRule || rule instanceof CSSKeyframesRule) continue;
     if (rule instanceof CSSStyleRule) {
-      const list = members(rule.selectorText);
-      if (!named) {
-        const next = list
-          .map(([member, pseudo]) =>
-            namesWidget(member) ? member : narrow(member, pseudo),
-          )
-          .join(", ");
-        if (next !== rule.selectorText) rule.selectorText = next;
-      }
-      within ||= list.every(([member]) => namesWidget(member));
-    }
-    if (rule.cssRules) narrowRules(rule.cssRules, within);
+      group.insertRule(
+        `@scope (:root) to (.lf-chrome, .lf-ui) { ${rule.cssText} }`,
+        at,
+      );
+      group.deleteRule(at + 1);
+    } else if (rule.cssRules) narrowRules(rule);
   }
 }
 
@@ -125,11 +44,11 @@ function narrowSheet(sheet, runtime) {
     return;
   if (!narrowed.has(sheet)) {
     narrowed.add(sheet);
-    if (!runtime) narrowRules(sheet.cssRules, false);
+    if (!runtime) narrowRules(sheet);
     else
       for (const rule of sheet.cssRules)
         if (rule instanceof CSSLayerBlockRule && rule.name === "lf-theme")
-          narrowRules(rule.cssRules, false);
+          narrowRules(rule);
   }
   for (const rule of sheet.cssRules)
     if (rule instanceof CSSImportRule && rule.styleSheet)

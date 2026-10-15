@@ -450,58 +450,18 @@ function initializeServedDocument() {
 }
 
 // runtime/page-sheets.js
-var APPARATUS = ":not(:where(.lf-chrome, .lf-chrome *, .lf-ui, .lf-ui *))";
-var NAMES_WIDGET = /(?:^|[\s>+~(,&|])[a-z][\w]*-|[.#]lf-|\[\s*data-lf-/i;
-var NOT_SELECTORS = /"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|:{1,2}(?:lang|dir|state|part|highlight|nth-[a-z-]+)\([^)]*\)/gi;
-var namesWidget = (text) => NAMES_WIDGET.test(text.replace(NOT_SELECTORS, ""));
 var narrowed = /* @__PURE__ */ new WeakSet();
-function members(text) {
-  const found = [];
-  let depth = 0;
-  let quote = null;
-  let start = 0;
-  let pseudo = -1;
-  for (let at = 0; at < text.length; at++) {
-    const ch = text[at];
-    if (quote) {
-      if (ch === "\\") at++;
-      else if (ch === quote) quote = null;
-    } else if (ch === '"' || ch === "'") quote = ch;
-    else if (ch === "\\") at++;
-    else if (ch === "(" || ch === "[") depth++;
-    else if (ch === ")" || ch === "]") depth--;
-    else if (depth === 0 && ch === ",") {
-      found.push([text.slice(start, at), pseudo < 0 ? -1 : pseudo - start]);
-      start = at + 1;
-      pseudo = -1;
-    } else if (depth === 0 && pseudo < 0 && ch === ":" && text[at + 1] === ":")
-      pseudo = at;
-  }
-  found.push([text.slice(start), pseudo < 0 ? -1 : pseudo - start]);
-  return found;
-}
-function narrow(member, pseudo) {
-  const selector = pseudo < 0 ? member.trimEnd() : member.slice(0, pseudo);
-  const rest = pseudo < 0 ? "" : member.slice(pseudo);
-  return selector + APPARATUS + rest;
-}
-function narrowRules(rules, named) {
-  for (const rule of rules) {
-    if (rule instanceof CSSKeyframesRule || rule instanceof CSSImportRule) continue;
-    let within = named;
-    if (rule instanceof CSSScopeRule)
-      within ||= namesWidget(rule.start ?? "") || namesWidget(rule.end ?? "");
+function narrowRules(group) {
+  for (let at = 0; at < group.cssRules.length; at++) {
+    const rule = group.cssRules[at];
+    if (rule instanceof CSSScopeRule || rule instanceof CSSKeyframesRule) continue;
     if (rule instanceof CSSStyleRule) {
-      const list = members(rule.selectorText);
-      if (!named) {
-        const next = list.map(
-          ([member, pseudo]) => namesWidget(member) ? member : narrow(member, pseudo)
-        ).join(", ");
-        if (next !== rule.selectorText) rule.selectorText = next;
-      }
-      within ||= list.every(([member]) => namesWidget(member));
-    }
-    if (rule.cssRules) narrowRules(rule.cssRules, within);
+      group.insertRule(
+        `@scope (:root) to (.lf-chrome, .lf-ui) { ${rule.cssText} }`,
+        at
+      );
+      group.deleteRule(at + 1);
+    } else if (rule.cssRules) narrowRules(rule);
   }
 }
 function narrowSheet(sheet2, runtime2) {
@@ -510,11 +470,11 @@ function narrowSheet(sheet2, runtime2) {
     return;
   if (!narrowed.has(sheet2)) {
     narrowed.add(sheet2);
-    if (!runtime2) narrowRules(sheet2.cssRules, false);
+    if (!runtime2) narrowRules(sheet2);
     else
       for (const rule of sheet2.cssRules)
         if (rule instanceof CSSLayerBlockRule && rule.name === "lf-theme")
-          narrowRules(rule.cssRules, false);
+          narrowRules(rule);
   }
   for (const rule of sheet2.cssRules)
     if (rule instanceof CSSImportRule && rule.styleSheet)

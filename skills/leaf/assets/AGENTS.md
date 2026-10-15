@@ -258,7 +258,7 @@ Stylesheets apply in cascade layers, in the order `CASCADE_LAYERS` in `layer.py`
 declares (`../references/packages.md`, "Styles and composition"). Each widget package's
 rules reach only its own widgets (`widget_confinement` in `layer.py`), so a rule several
 packages need belongs in the kernel. Page and theme-package rules skip the chrome and
-every `.lf-ui` control unless they name a widget or the layer's vocabulary
+every `.lf-ui` control unless the author puts them in an explicit CSS `@scope`
 (`runtime/page-sheets.js`).
 `runtime/stylesheets.js` says which sheets the document and shadow roots adopt.
 

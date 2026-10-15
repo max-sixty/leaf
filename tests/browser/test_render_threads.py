@@ -7349,9 +7349,8 @@ def test_a_pages_own_element_rules_leave_the_layers_controls_alone(browser, serv
     """A page dressing its own `button` and `a` is dressing its prose. The controls a
     widget builds and the chrome's own buttons keep Leaf's face instead: a page's
     element rule once took the family and ink of half corpus.html's widget controls,
-    and the family, ink, border and padding of the banner's and thread panel's. A rule
-    that names the widget is the page restyling its controls on purpose, and reaches
-    them; and a face the page sets on its body reaches its prose by inheritance and
+    and the family, ink, border and padding of the banner's and thread panel's. An explicit
+    scope is the page restyling its controls on purpose, and reaches them; and a face the page sets on its body reaches its prose by inheritance and
     stops at the controls and the chrome, which state their own."""
     board = (
         '<h1>t</h1><lf-board id="b"><lf-column id="c1" label="To do">'
@@ -7367,10 +7366,11 @@ def test_a_pages_own_element_rules_leave_the_layers_controls_alone(browser, serv
                 board,
                 # Grouped with a member that names the board, the bare `button` is
                 # still the page's own, member by member.
-                head="<style>button, a, lf-board .lf-absent { font-family: cursive;"
+                head="<style>button:not(lf-board), a, lf-board .lf-absent { font-family: cursive;"
                 " color: rgb(255, 0, 0); }"
                 "body { font-style: italic; letter-spacing: 3px; }"
-                "lf-board button { outline: 3px solid rgb(0, 128, 0); }</style>",
+                "@scope (:nth-child(1 of lf-board)) { @media screen {"
+                "button { outline: 3px solid rgb(0, 128, 0); } } }</style>",
             )
         ),
     )
@@ -7400,7 +7400,7 @@ def test_a_pages_own_element_rules_leave_the_layers_controls_alone(browser, serv
         or face[4] == "3px"
     ]
     assert not reached, reached
-    # The deliberate route: every control the board builds takes the rule naming it.
+    # The explicit native scope selects the board without interpreting nth-child grammar.
     assert {face[5] for face in faces["controls"]} == {"rgb(0, 128, 0)"}, faces[
         "controls"
     ]
@@ -7414,13 +7414,11 @@ def test_a_sheet_a_page_script_writes_later_leaves_the_layers_controls_alone(
     element rules reach the page's prose and stop at Leaf's controls, as the page's
     own stylesheet's do: Tailwind's reset once took the family of every chrome
     button."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "t",
-                '<h1>t</h1><p>See <a id="prose" href="#t">the link</a>.</p>',
-                head="""<script type="module">
+    url = serve(
+        leaf_page(
+            "t",
+            '<h1>t</h1><p>See <a id="prose" href="#t">the link</a>.</p>',
+            head="""<style>@import url("page/author.css");</style><script type="module">
 const sheet = document.createElement("style");
 document.head.append(sheet);
 sheet.textContent = "button, a { font-family: fantasy; }";
@@ -7429,18 +7427,26 @@ setTimeout(() => {
   window.rewritten = true;
 }, 50);
 </script>""",
-            )
         ),
+        page_files={
+            "author.css": "a { border-top: 7px solid red; } button { border-top: 77px solid red; }"
+        },
     )
+    page = open_page(browser, url)
     page.wait_for_function("() => window.rewritten")
     faces = page.evaluate("""() => {
         const family = el => getComputedStyle(el).fontFamily;
         return {
             chrome: [...document.querySelectorAll('.lf-chrome button')].map(family),
             prose: family(document.getElementById('prose')),
+            imported: getComputedStyle(document.getElementById('prose')).borderTopWidth,
+            chromeBorders: [...document.querySelectorAll('.lf-chrome button')].map(
+                el => getComputedStyle(el).borderTopWidth),
         };
     }""")
     assert faces["prose"] == "cursive", faces
+    assert faces["imported"] == "7px", faces
+    assert "77px" not in faces["chromeBorders"], faces
     assert faces["chrome"], "the chrome built no button to read"
     assert not [f for f in faces["chrome"] if f in {"cursive", "fantasy"}], faces
 
@@ -7494,15 +7500,15 @@ def test_a_theme_package_styles_every_page_as_the_pages_own_sheet_does_one(
     every widget package's defaults (layer.py, `lf-theme`), so its `main` padding beats
     the column Layout's and its plain `lf-card` rule beats the board's own
     `:scope:is(lf-card)`. Like the page's own rules, its bare `button` dresses the
-    page's buttons and leaves the controls the board builds alone, and a rule naming
-    the board reaches them (runtime/page-sheets.js)."""
+    page's buttons and leaves the controls the board builds alone. An explicit scope
+    reaches the board controls (runtime/page-sheets.js)."""
     theme = tmp_path / "theme"
     theme.mkdir()
     (theme / "theme.css").write_text(
         "main { padding-top: 11px; }\n"
         "lf-card { padding-left: 13px; }\n"
         "button { font-family: cursive; }\n"
-        "lf-board button { outline: 3px solid rgb(0, 128, 0); }\n"
+        "@scope (lf-board) { button { outline: 3px solid rgb(0, 128, 0); } }\n"
     )
     page = open_page(
         browser,

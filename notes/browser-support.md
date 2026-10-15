@@ -23,6 +23,21 @@ what fails and what still works.
 
 ## Supported APIs checked
 
+
+### Native boundaries for page CSS
+
+- **Owner:** `runtime/page-sheets.js`. Unscoped authored rules use
+  `@scope (:root) to (.lf-chrome, .lf-ui)`; an explicit authored scope chooses its
+  own reach. CSSOM integration handles imported and dynamically rewritten sheets.
+- **Observed 2026-10-14:** installed Playwright Chromium 153.0.8010.12,
+  Firefox 155 and WebKit 26.6 isolate an ordinary button rule from chrome and
+  widget controls, while a sibling explicit widget scope reaches those controls.
+  The native boundary also handles negated widget selectors and `nth-child`'s
+  selector argument without Leaf interpreting selector grammar.
+- **Disposition:** adopted without a fallback; these are installed engine checks,
+  not a survey of every supported stable browser. Scope roots, limits and nesting
+  follow [CSS Cascade 6](https://drafts.csswg.org/css-cascade-6/#scoped-styles).
+
 ### Feedback clearance above a covering thread panel
 
 - **Owner:** `styles/chrome.css`. Native `anchor-size()` reads the panel foot and

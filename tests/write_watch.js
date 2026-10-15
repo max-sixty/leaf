@@ -106,12 +106,14 @@
   };
   // Detaching an iframe retires its browsing context even if the same element is
   // reinserted before observer delivery; DOM equality cannot see that change.
-  const renderedChildren = (nodes) =>
-    [...nodes].filter(
-      (node) =>
-        node.nodeType !== Node.COMMENT_NODE &&
-        !(node instanceof HTMLIFrameElement),
+  const hasFrame = (node) =>
+    node instanceof HTMLIFrameElement ||
+    [...node.childNodes].some(hasFrame) ||
+    [...trees].some(
+      (tree) => tree instanceof ShadowRoot && tree.host === node && hasFrame(tree),
     );
+  const renderedChildren = (nodes) =>
+    [...nodes].filter((node) => node.nodeType !== Node.COMMENT_NODE && !hasFrame(node));
   const restored = (target, records, readings) => {
     if (!records.some((record) => renderedChildren(record.removedNodes).length))
       return false;

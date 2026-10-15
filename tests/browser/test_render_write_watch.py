@@ -19,6 +19,8 @@ def test_child_list_restatements_are_judged_across_one_delivery(browser):
             '<div hidden id="order"><i data-for="a"></i><i data-for="b"></i></div>'
             '<div hidden id="measurement"><i></i></div>'
             '<div hidden id="frame"><iframe></iframe></div>'
+            '<div hidden id="frame-parent"><span><iframe></iframe></span></div>'
+            '<div hidden id="frame-shadow"><span></span></div>'
             '<div hidden id="retained-content"><span title="before">before</span></div>'
             '<div hidden id="nested-roundtrip"><span><i>before</i></span></div>'
             '<div hidden id="before-restore"><span>before</span></div>'
@@ -81,6 +83,15 @@ def test_child_list_restatements_are_judged_across_one_delivery(browser):
       const iframe = frame.firstChild;
       iframe.remove();
       frame.append(iframe);
+      const frameParent = document.getElementById('frame-parent');
+      const enclosing = frameParent.firstChild;
+      enclosing.remove();
+      frameParent.append(enclosing);
+      const frameShadow = document.getElementById('frame-shadow');
+      const frameHost = frameShadow.firstChild;
+      frameHost.attachShadow({mode: 'closed'}).innerHTML = '<iframe></iframe>';
+      frameHost.remove();
+      frameShadow.append(frameHost);
       const markers = document.getElementById('markers');
       markers.firstChild.replaceWith(document.createComment(''));
       markers.lastChild.remove();

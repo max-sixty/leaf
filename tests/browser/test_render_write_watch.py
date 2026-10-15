@@ -23,6 +23,7 @@ def test_child_list_restatements_are_judged_across_one_delivery(browser):
             '<div hidden id="frame-shadow"><span></span></div>'
             '<div hidden id="frame-mixed"><span>same</span><iframe></iframe></div>'
             '<div hidden id="frame-and-restatement"><span>same</span><iframe></iframe></div>'
+            '<div hidden id="frame-between-restatement"><span>same</span><iframe></iframe></div>'
             '<div hidden id="retained-content"><span title="before">before</span></div>'
             '<div hidden id="nested-roundtrip"><span><i>before</i></span></div>'
             '<div hidden id="before-restore"><span>before</span></div>'
@@ -176,6 +177,13 @@ def test_child_list_restatements_are_judged_across_one_delivery(browser):
       sameSpan.remove();
       frameAndRestatement.prepend(sameSpan);
       frameAndRestatement.append(frameAndRestatement.lastChild);
+      const frameBetweenRestatement = document.getElementById('frame-between-restatement');
+      const interleavedSpan = frameBetweenRestatement.firstChild;
+      const interleavedFrame = frameBetweenRestatement.lastChild;
+      interleavedSpan.remove();
+      interleavedFrame.remove();
+      frameBetweenRestatement.append(interleavedFrame);
+      frameBetweenRestatement.prepend(interleavedSpan);
     }""")
     failures = consume_browser_errors(page, {"code": "unchanged-write"})
     assert {
@@ -201,4 +209,5 @@ def test_child_list_restatements_are_judged_across_one_delivery(browser):
         ("children", "div#marker-order"),
         ("children", "div#textual"),
         ("children", "div#frame-and-restatement"),
+        ("children", "div#frame-between-restatement"),
     }

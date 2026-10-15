@@ -148,8 +148,10 @@
     const residents = new Set(renderedChildren(current));
     const pending = new Map();
     for (const record of records) {
-      if (frameRecords.has(record)) pending.clear();
-      else if ([...record.removedNodes].some((node) => residents.has(node))) {
+      if (
+        !frameRecords.has(record) &&
+        [...record.removedNodes].some((node) => residents.has(node))
+      ) {
         const before = renderedChildren(current);
         if (!pending.has(before.length)) pending.set(before.length, []);
         pending

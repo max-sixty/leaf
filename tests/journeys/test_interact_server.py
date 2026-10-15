@@ -709,7 +709,7 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
     """Own file changes, watcher and agent lifetime reach other pages with no tab.
 
     The agent exits normally while the persistent server continues. Releasing the
-    server lease then removes even its still-present cached row immediately.
+    server lease then removes its row from the next reading, which retires the file.
     """
     neighbor = machine_model.state_home() / "pages" / "invisible"
     neighbour_page(neighbor, title="Invisible", dead=True, port=0)
@@ -792,7 +792,7 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
     assert server_model.running_server(neighbor)
     hosting_model.cmd_stop(neighbor)
     assert rows() == []
-    assert server_rows_model.row_path(neighbor).is_file()
+    assert not server_rows_model.row_path(neighbor).exists()
 
 
 def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
@@ -868,10 +868,10 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
 
 
 def test_neighbours_follow_their_servers_and_ignore_deleted_pages(page_dir, tmp_path):
-    """A neighbour appears on the read after its server starts and leaves on the
-    read after it stops, though neither moves a file the candidate set is keyed
-    on. A page whose directory is gone disappears on the next scan, whether it
-    went before the first scan or after one had listed it."""
+    """A neighbour leaves on the read after its server stops, though nothing moves
+    a file the candidate set is keyed on, and that read retires its row until the
+    next server publishes one. A page whose directory is gone disappears on the
+    next scan, whether it went before the first scan or after one had listed it."""
     stopped = tmp_path / "stopped"
     neighbour_page(stopped, title="Starts later", dead=True)
     record_claim(stopped, id="later")
@@ -893,6 +893,8 @@ def test_neighbours_follow_their_servers_and_ignore_deleted_pages(page_dir, tmp_
     lease = leases_model.take_lease(stopped / "server.lock")
     lease.write(files_model.read_json(stopped / "service.json")["server_id"].encode())
     lease.flush()
+    assert titles() == ["Scratch"]
+    server_rows_model.RowPublisher(stopped, "fixture-server").refresh()
     assert titles() == ["Scratch", "Starts later"]
     leases_model.release_lease(lease)
     assert titles() == ["Scratch"]

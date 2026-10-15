@@ -8,7 +8,6 @@
  * Each direct child that is or holds an lf-trace is one view, so a recording may
  * stand in a wrapper such as a <figure>, which shows and hides with it. */
 import {
-  HIDDEN,
   holdFocus,
   el,
   keepView,
@@ -91,7 +90,11 @@ customElements.define(
       // through the shared focus owner once it stands in the visible header.
       const restore = transfer ? holdFocus(this.#header) : null;
       for (const [index, recording] of this.#recordings.entries()) {
-        keeps(this.#views[index], "hidden", index === this.#selected ? null : HIDDEN);
+        keeps(
+          this.#views[index],
+          "hidden",
+          index === this.#selected ? null : "until-found",
+        );
         keeps(recording, "aria-label", recording.getAttribute("label"));
       }
       if (transfer) move(mount, this.#header, null);

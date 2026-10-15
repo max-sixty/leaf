@@ -16,10 +16,7 @@
 import { holdFocus, watchStandingIn } from "./focus.js";
 
 export function move(parent, node, before) {
-  if (
-    node.parentNode === parent &&
-    (before === node || node.nextSibling === before)
-  )
+  if (node.parentNode === parent && (before === node || node.nextSibling === before))
     return node;
   // A retained move can enter another shadow root without a focus event. Subscribe
   // before placement, so connectedMoveCallback and the caller's next move are heard.

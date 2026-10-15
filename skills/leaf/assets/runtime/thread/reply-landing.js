@@ -103,6 +103,10 @@ export function showLatestTurn(transcript) {
   scrollToEnd(transcript);
   const latest = latestTurn(transcript);
   if (!latest) return;
+  // A bounded message text viewport already keeps its long words scrollable. Keep
+  // the message's trailing metadata in view when the outer transcript is shorter.
+  const text = latest.querySelector(".lf-msg-text");
+  if (text && text.scrollHeight > text.clientHeight + 1) return;
   const over =
     transcript.getBoundingClientRect().top +
     transcript.clientTop -

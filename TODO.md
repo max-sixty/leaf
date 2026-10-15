@@ -340,6 +340,27 @@ that changes size after first paint, with its cause.
   startup shifts only as diagnostics, so a marker drawn in the wrong place in its first
   frame and then moved would fail nothing. Read `leaf-dev probe`'s startup readings on
   a page with margin markers at a few widths.
+- **Fold a thread summary without moving the messages it covers.** Folding moves
+  the covered messages into `.lf-summary-originals` (`thread-card.js`), so a text
+  selection inside them is lost in Chromium, Firefox and WebKit, and WebKit, which
+  lacks `moveBefore`, reloads any frame among them: once when the summary arrives
+  and twice when it is retracted. A prototype of a flat transcript, which folds by
+  hiding the covered messages where they stand, kept both in every engine and drew
+  the same picture. It changes how screen readers group the folded messages and how
+  a checkpoint's frame is drawn, so it needs the user's go-ahead. Build it on current
+  `main`, move the tests off `.lf-summary-originals`, and check margin and page
+  captures and a screen reader.
+- **Let the shift watch see the runtime's own scrolls.** `tests/shift_watch.js`
+  measures in layout coordinates, which remove scrolling, so a scroll the runtime
+  makes during a gesture can move the control under the user's aim and fail
+  nothing; #2895's reply box moved 9–14px on a send that way. The proposed rule:
+  only a gesture that takes the user somewhere (the `t` and `q` walks, links,
+  Go-to) may move its control, and every other gesture keeps it still. Declare the
+  exemption on the command, not in a list in the watch. Then fix what it catches,
+  starting with the landings that choose where a gesture's control ends up:
+  `standOnThread`, the Threads list's landing, and `scrollThreadIntoView`. This
+  needs the user's go-ahead, and its per-frame cost measured at 4x CPU throttling
+  (`notes/shift-watch-cost.md`).
 
 ### Queues
 

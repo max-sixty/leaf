@@ -195,6 +195,9 @@
     // width while measuring the same drawing. Its upstream-owned paint is separate
     // from Leaf's adapter, which uses keeps when setting the final natural width.
     /^width on svg#lf-diagram-\d+(?:\.|$)/,
+    // Mermaid's layout pass reapplies the same transform to a label group while
+    // measuring it. The diagram module does not own that SVG write.
+    /^transform on g\.label$/,
     // Mermaid's timeline wraps and measures labels by restating tspan text. Its
     // measurement groups have already detached by the observer's reading.
     /^children of tspan in text in g(?: in g\.timeline-node\.section--?\d+)?$/,

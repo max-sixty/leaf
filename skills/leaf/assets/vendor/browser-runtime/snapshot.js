@@ -65,7 +65,11 @@ function collected   (reading                    , read         )    {
   return value;
 }
 // Run `run` with these collections, putting back the caller's after.
-function collectingInto   (reads              , outside              , run         )    {
+function collectingInto   (
+  reads              ,
+  outside              ,
+  run         ,
+)    {
   const outer = collecting;
   const outerOutside = collectingOutside;
   collecting = reads;
@@ -168,7 +172,10 @@ export function untracked   (run         )    {
 // owner has secured can skip traversal when a publication reuses an existing subtree.
 const secured = new WeakSet        ();
 
-function immutable   (value   , normalized = new WeakMap                ())               {
+function immutable   (
+  value   ,
+  normalized = new WeakMap                (),
+)               {
   if (value !== null && typeof value === "object" && !secured.has(value)) {
     const known = normalized.get(value);
     if (known) return known                ;
@@ -177,9 +184,10 @@ function immutable   (value   , normalized = new WeakMap                ())     
       throw new TypeError("Application snapshots are read-only");
     };
     if (value instanceof Map) {
-      const entries = [...value].map(([key, child]) => [
-        immutable(key, normalized), immutable(child, normalized),
-      ]         );
+      const entries = [...value].map(
+        ([key, child]) =>
+          [immutable(key, normalized), immutable(child, normalized)]         ,
+      );
       const map = Object.isExtensible(value) ? value : new Map();
       map.clear();
       for (const [key, child] of entries) map.set(key, child);
@@ -195,14 +203,16 @@ function immutable   (value   , normalized = new WeakMap                ())     
         Object.defineProperty(set, name, { value: refuse });
       result = set;
     } else {
-      const children = Object.entries(value).map(([key, child]) => [
-        key, child, immutable(child, normalized),
-      ]         );
+      const children = Object.entries(value).map(
+        ([key, child]) => [key, child, immutable(child, normalized)]         ,
+      );
       if (children.some(([, child, next]) => child !== next)) {
         // A frozen collection needs replacement; copy its frozen ancestors only
         // where that replacement cannot be written into the original wrapper.
         const target = Object.isFrozen(value)
-          ? Array.isArray(value) ? [...value] : { ...value }
+          ? Array.isArray(value)
+            ? [...value]
+            : { ...value }
           : value;
         for (const [key, child, next] of children)
           if (child !== next) (target                           )[key] = next;
@@ -246,26 +256,27 @@ export function share   (prior         , next   )    {
       children.every((child, index) => child === prior[index])
     )
       return prior     ;
-    return (children.every((child, index) => child === next[index])
-      ? next
-      : children)     ;
+    return (
+      children.every((child, index) => child === next[index]) ? next : children
+    )     ;
   }
   if (next instanceof Map) {
     if (!(prior instanceof Map)) return next;
     const priorKeys = [...prior.keys()];
-    const entries = [...next].map(([key, child]) => [
-      key,
-      prior.has(key) ? share(prior.get(key), child) : child,
-    ]         );
+    const entries = [...next].map(
+      ([key, child]) =>
+        [key, prior.has(key) ? share(prior.get(key), child) : child]         ,
+    );
     if (
       priorKeys.length === entries.length &&
-      entries.every(([key, child], index) =>
-        key === priorKeys[index] && child === prior.get(key))
+      entries.every(
+        ([key, child], index) => key === priorKeys[index] && child === prior.get(key),
+      )
     )
       return prior     ;
-    return (entries.every(([key, child]) => child === next.get(key))
-      ? next
-      : new Map(entries))     ;
+    return (
+      entries.every(([key, child]) => child === next.get(key)) ? next : new Map(entries)
+    )     ;
   }
   if (next instanceof Set) {
     if (!(prior instanceof Set)) return next;
@@ -278,23 +289,30 @@ export function share   (prior         , next   )    {
       return prior     ;
     return (members.every((child) => next.has(child)) ? next : new Set(members))     ;
   }
-  if (!plain(next) || !plain(prior) || Array.isArray(prior) || prior instanceof Map
-    || prior instanceof Set)
+  if (
+    !plain(next) ||
+    !plain(prior) ||
+    Array.isArray(prior) ||
+    prior instanceof Map ||
+    prior instanceof Set
+  )
     return next;
   const before = prior                           ;
   const after = next                           ;
   const keys = Object.keys(after);
   const children = keys.map((key) =>
-    Object.hasOwn(before, key) ? share(before[key], after[key]) : after[key]);
+    Object.hasOwn(before, key) ? share(before[key], after[key]) : after[key],
+  );
   if (
     keys.length === Object.keys(before).length &&
-    keys.every((key, index) => Object.hasOwn(before, key) && children[index] === before[key])
+    keys.every(
+      (key, index) => Object.hasOwn(before, key) && children[index] === before[key],
+    )
   )
     return prior     ;
   if (keys.every((key, index) => children[index] === after[key])) return next;
-  const copy                          = Object.getPrototypeOf(next) === null
-    ? Object.create(null)
-    : {};
+  const copy                          =
+    Object.getPrototypeOf(next) === null ? Object.create(null) : {};
   // Defined, not assigned: a JSON field named `__proto__` is an own property, and
   // assigning it would set the copy's prototype instead.
   keys.forEach((key, index) =>

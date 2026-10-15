@@ -843,10 +843,9 @@ function immutable(value, normalized = /* @__PURE__ */ new WeakMap()) {
       throw new TypeError("Application snapshots are read-only");
     };
     if (value instanceof Map) {
-      const entries = [...value].map(([key, child]) => [
-        immutable(key, normalized),
-        immutable(child, normalized)
-      ]);
+      const entries = [...value].map(
+        ([key, child]) => [immutable(key, normalized), immutable(child, normalized)]
+      );
       const map = Object.isExtensible(value) ? value : /* @__PURE__ */ new Map();
       map.clear();
       for (const [key, child] of entries) map.set(key, child);
@@ -862,11 +861,9 @@ function immutable(value, normalized = /* @__PURE__ */ new WeakMap()) {
         Object.defineProperty(set, name, { value: refuse });
       result = set;
     } else {
-      const children = Object.entries(value).map(([key, child]) => [
-        key,
-        child,
-        immutable(child, normalized)
-      ]);
+      const children = Object.entries(value).map(
+        ([key, child]) => [key, child, immutable(child, normalized)]
+      );
       if (children.some(([, child, next]) => child !== next)) {
         const target = Object.isFrozen(value) ? Array.isArray(value) ? [...value] : { ...value } : value;
         for (const [key, child, next] of children)
@@ -899,11 +896,12 @@ function share(prior, next) {
   if (next instanceof Map) {
     if (!(prior instanceof Map)) return next;
     const priorKeys = [...prior.keys()];
-    const entries = [...next].map(([key, child]) => [
-      key,
-      prior.has(key) ? share(prior.get(key), child) : child
-    ]);
-    if (priorKeys.length === entries.length && entries.every(([key, child], index) => key === priorKeys[index] && child === prior.get(key)))
+    const entries = [...next].map(
+      ([key, child]) => [key, prior.has(key) ? share(prior.get(key), child) : child]
+    );
+    if (priorKeys.length === entries.length && entries.every(
+      ([key, child], index) => key === priorKeys[index] && child === prior.get(key)
+    ))
       return prior;
     return entries.every(([key, child]) => child === next.get(key)) ? next : new Map(entries);
   }
@@ -920,8 +918,12 @@ function share(prior, next) {
   const before = prior;
   const after = next;
   const keys = Object.keys(after);
-  const children = keys.map((key) => Object.hasOwn(before, key) ? share(before[key], after[key]) : after[key]);
-  if (keys.length === Object.keys(before).length && keys.every((key, index) => Object.hasOwn(before, key) && children[index] === before[key]))
+  const children = keys.map(
+    (key) => Object.hasOwn(before, key) ? share(before[key], after[key]) : after[key]
+  );
+  if (keys.length === Object.keys(before).length && keys.every(
+    (key, index) => Object.hasOwn(before, key) && children[index] === before[key]
+  ))
     return prior;
   if (keys.every((key, index) => children[index] === after[key])) return next;
   const copy = Object.getPrototypeOf(next) === null ? /* @__PURE__ */ Object.create(null) : {};
@@ -1131,7 +1133,11 @@ function createPresentationCoordinator({ reportFailure }) {
     changed();
     let latest = null;
     const present = (value, failSoft) => {
-      const { promise: completion, resolve, reject } = Promise.withResolvers();
+      const {
+        promise: completion,
+        resolve,
+        reject
+      } = Promise.withResolvers();
       const superseded = latest;
       latest = () => queueMicrotask(() => resolve(void 0));
       const ready = (async () => {
@@ -1594,38 +1600,49 @@ var NO_ASKS = {
 function normalizedAsks(view, widgets, document, projection, local) {
   const page = view?.document.asks;
   const thread = view?.thread.asks;
-  const all = [...page?.all ?? [], ...thread?.all ?? []].map(
-    (ask) => {
-      if (ask.source.kind === "approval") {
-        const version = ask.source.version;
-        const undone = new Set(local.flatMap(({ event }) => event.kind === "undo" ? [event.undoes] : []));
-        const approving = local.some(({ event }) => event.kind === "done" && event.version === version);
-        if (approving) return {
+  const all = [...page?.all ?? [], ...thread?.all ?? []].map((ask) => {
+    if (ask.source.kind === "approval") {
+      const version = ask.source.version;
+      const undone = new Set(
+        local.flatMap(({ event }) => event.kind === "undo" ? [event.undoes] : [])
+      );
+      const approving = local.some(
+        ({ event }) => event.kind === "done" && event.version === version
+      );
+      if (approving)
+        return {
           ...ask,
           answer: { value: true, event: null },
           status: "answered",
           next_actor: null
         };
-        if (ask.answer?.event && undone.has(ask.answer.event.id))
-          return { ...ask, answer: null, status: "open", next_actor: "user" };
-        return ask;
-      }
-      if (ask.source.kind !== "widget") return ask;
-      const sourceId = ask.source.id;
-      const widget = widgets.get(sourceId);
-      const declaration = document.descriptors.get(ask.source.id)?.declaration["x-awaits"];
-      const verb = declaration?.value;
-      if (!verb || !widget) return ask;
-      const completed = ask.status === "answered" && !(ask.answer?.event && projection.pendingWithdrawals.has(ask.answer.event.id));
-      const { value, present } = askValue(widget, verb, completed);
-      const pendingValue = widget.entries.some(({ e: e2 }) => e2.action === verb && !Number.isInteger(e2.seq)) || [...projection.pendingWithdrawals.values()].some(({ e: e2 }) => e2.widget === sourceId && (e2.action === verb || e2.id === ask.answer?.event?.id));
-      const answer = present ? { value, event: pendingValue ? null : ask.answer?.event ?? null } : null;
-      return { ...ask, answer };
+      if (ask.answer?.event && undone.has(ask.answer.event.id))
+        return { ...ask, answer: null, status: "open", next_actor: "user" };
+      return ask;
     }
-  );
+    if (ask.source.kind !== "widget") return ask;
+    const sourceId = ask.source.id;
+    const widget = widgets.get(sourceId);
+    const declaration = document.descriptors.get(ask.source.id)?.declaration["x-awaits"];
+    const verb = declaration?.value;
+    if (!verb || !widget) return ask;
+    const completed = ask.status === "answered" && !(ask.answer?.event && projection.pendingWithdrawals.has(ask.answer.event.id));
+    const { value, present } = askValue(widget, verb, completed);
+    const pendingValue = widget.entries.some(
+      ({ e: e2 }) => e2.action === verb && !Number.isInteger(e2.seq)
+    ) || [...projection.pendingWithdrawals.values()].some(
+      ({ e: e2 }) => e2.widget === sourceId && (e2.action === verb || e2.id === ask.answer?.event?.id)
+    );
+    const answer = present ? { value, event: pendingValue ? null : ask.answer?.event ?? null } : null;
+    return { ...ask, answer };
+  });
   const selection = (kind) => {
-    const admitted = new Set([...page?.[kind] ?? [], ...thread?.[kind] ?? []].map((ask) => ask.id));
-    return all.filter((ask) => ask.source.kind === "approval" ? kind === "user" ? ask.next_actor === "user" : ask.status === "open" : admitted.has(ask.id));
+    const admitted = new Set(
+      [...page?.[kind] ?? [], ...thread?.[kind] ?? []].map((ask) => ask.id)
+    );
+    return all.filter(
+      (ask) => ask.source.kind === "approval" ? kind === "user" ? ask.next_actor === "user" : ask.status === "open" : admitted.has(ask.id)
+    );
   };
   return { all, user: selection("user"), unanswered: selection("unanswered") };
 }
@@ -1738,7 +1755,12 @@ function localQueues(served, threads, workflows, todos, asks) {
   const reopened = (item) => item.kind === "ask" ? askOf(item).status === "open" && askOf(item).next_actor === "user" : item.kind === "todo" && open.has(item.id);
   const endedHere = (item) => item.kind === "ask" ? askOf(item).status !== "open" : item.kind === "todo" && ended.has(item.id);
   const current = (item) => item.kind === "ask" ? { ...item, ask: askOf(item) } : item;
-  const asOpen = ({ state: _state, ended: _ended, detail: _detail, ...item }) => current(item);
+  const asOpen = ({
+    state: _state,
+    ended: _ended,
+    detail: _detail,
+    ...item
+  }) => current(item);
   const asDone = (item) => ({
     ...current(item),
     live: false,
@@ -1749,7 +1771,16 @@ function localQueues(served, threads, workflows, todos, asks) {
   const listed = new Set(
     [...served.on_user, ...served.on_agent].map((item) => `${item.kind}:${item.id}`)
   );
-  const resend = (id, subject, thread) => listed.has(`resend:${id}`) ? [] : [{ kind: "resend", id, owner: "user", subject, thread, live: false }];
+  const resend = (id, subject, thread) => listed.has(`resend:${id}`) ? [] : [
+    {
+      kind: "resend",
+      id,
+      owner: "user",
+      subject,
+      thread,
+      live: false
+    }
+  ];
   const reopenedFor = (owner) => served.done.filter((item) => item.owner === owner && reopened(item));
   return {
     on_user: [
@@ -1795,12 +1826,15 @@ function widgetIndex(root) {
   const byWidget = /* @__PURE__ */ new Map();
   const group = (widget) => {
     let entries = byWidget.get(widget);
-    if (!entries) byWidget.set(widget, entries = { classified: [], desired: [], undo: [] });
+    if (!entries)
+      byWidget.set(widget, entries = { classified: [], desired: [], undo: [] });
     return entries;
   };
   for (const entry of projection.classified.values())
-    if (!entry.terminal && entry.e.kind === "action") group(entry.e.widget).classified.push(entry);
-  for (const entry of projection.actions.values()) group(entry.e.widget).desired.push(entry);
+    if (!entry.terminal && entry.e.kind === "action")
+      group(entry.e.widget).classified.push(entry);
+  for (const entry of projection.actions.values())
+    group(entry.e.widget).desired.push(entry);
   for (const { event } of root.effective.view?.undo ?? [])
     if (event.kind === "action" && !projection.pendingWithdrawals.has(event.id))
       group(event.widget).undo.push(event);
@@ -1926,7 +1960,8 @@ function createSemanticApplication({
     const localProjections = local.flatMap((entry2) => {
       const projection2 = entry2.projection;
       if (!projection2) return [];
-      if (projection2.kind !== "undo") return drawsAction(projection2.e) ? [projection2] : [];
+      if (projection2.kind !== "undo")
+        return drawsAction(projection2.e) ? [projection2] : [];
       const { target } = projection2;
       const targetId = admittedId(entry2.undoTarget, unresolved, receipts);
       const pending = !Number.isInteger(target.e.seq);
@@ -1943,7 +1978,11 @@ function createSemanticApplication({
     );
     const folded = foldThreads(view?.thread.threads ?? [], gestures);
     const widgets2 = foldWidgetStates(document.authored, projection);
-    const { parents: widgetParents, memberships } = currentWidgetRelations(document, widgets2, projection);
+    const { parents: widgetParents, memberships } = currentWidgetRelations(
+      document,
+      widgets2,
+      projection
+    );
     const asks = ready ? normalizedAsks(view, widgets2, document, projection, local) : NO_ASKS;
     const todos = ready ? localTodos(state, local) : { open: [], ended: [] };
     const named = threadNames(folded);
@@ -2067,8 +2106,14 @@ function createSemanticApplication({
         // Historical system rows are event narration, never current approval state.
         approvalHistory: [
           ...state?.browser.approval_history ?? [],
-          ...local.flatMap(({ event, localId, timestamp }) => event.kind === "done" ? [{ ...event, id: localId, ts: timestamp }] : [])
-        ].filter((event) => !local.some(({ event: gesture }) => gesture.kind === "undo" && gesture.undoes === event.id)),
+          ...local.flatMap(
+            ({ event, localId, timestamp }) => event.kind === "done" ? [{ ...event, id: localId, ts: timestamp }] : []
+          )
+        ].filter(
+          (event) => !local.some(
+            ({ event: gesture }) => gesture.kind === "undo" && gesture.undoes === event.id
+          )
+        ),
         collection: {
           phase,
           threads: threads.filter(discussed)

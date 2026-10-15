@@ -287,7 +287,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-thread .lf-page-thread { display: grid;
     grid-template-columns: minmax(0, 1fr) max-content;
     grid-template-rows: auto minmax(auto, max-content) minmax(0, max-content)
-      minmax(auto, 1fr);
+      minmax(auto, max-content);
     min-height: 0; min-width: 0; }
   .lf-margin-thread .lf-page-thread > * { grid-column: 1 / -1; }
   .lf-margin-thread .lf-thread-transcript { grid-row: 2;

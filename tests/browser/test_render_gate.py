@@ -1043,14 +1043,16 @@ def test_the_render_gate_requires_a_declared_threads_host_and_a_defined_element(
     registry_path.write_text(json.dumps(registry, indent=2))
     module = package / "widgets" / "lf-callout.js"
     source = module.read_text()
-    runtime_import = 'import { once } from "/runtime/widget-api.js";'
-    once = "      if (!once(this)) return;\n"
-    assert source.count(runtime_import) == 1 and source.count(once) == 1
+    runtime_import = 'import { LeafElement } from "/runtime/widget-api.js";'
+    starter = "class extends LeafElement {},"
+    assert source.count(runtime_import) == 1 and source.count(starter) == 1
     module.write_text(
         source.replace(
-            runtime_import, 'import { threadBox, once } from "/runtime/widget-api.js";'
+            runtime_import,
+            'import { LeafElement, threadBox } from "/runtime/widget-api.js";',
         ).replace(
-            once, '      if (once(this)) this.append(threadBox(this, "Question"));\n'
+            starter,
+            'class extends LeafElement { setup() { this.append(threadBox(this, "Question")); } },',
         )
     )
     page = CUSTOM_WIDGET_PAGE.replace(
@@ -4483,16 +4485,19 @@ def test_an_authored_project_widget_loads_through_the_real_layer(
     )
     module = widgets / "lf-callout.js"
     source = module.read_text()
-    runtime_import = 'import { once } from "/runtime/widget-api.js";'
+    runtime_import = 'import { LeafElement } from "/runtime/widget-api.js";'
     assert source.count(runtime_import) == 1
     source = source.replace(
         runtime_import,
         runtime_import + '\nimport { label } from "./callout-label.js";',
     )
-    once = "      if (!once(this)) return;"
-    assert source.count(once) == 1
+    starter = "class extends LeafElement {},"
+    assert source.count(starter) == 1
     module.write_text(
-        source.replace(once, "      if (once(this)) this.dataset.helper = label;")
+        source.replace(
+            starter,
+            "class extends LeafElement { setup() { this.dataset.helper = label; } },",
+        )
     )
 
     url = serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))

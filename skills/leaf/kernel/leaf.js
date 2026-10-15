@@ -1072,6 +1072,8 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
     hydrate(ta.value);
     const label2 = () => typeof hint === "function" ? hint() : hint;
     const name2 = () => typeof accessibleName === "function" ? accessibleName() : accessibleName;
+    const initialName = name2();
+    if (initialName) keeps(ta, "aria-label", initialName);
     const sendWord = () => typeof sends === "function" ? sends() : sends;
     const sendLabel = () => {
       const word2 = sendWord();

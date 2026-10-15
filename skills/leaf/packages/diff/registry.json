@@ -36,7 +36,7 @@
   },
   "lf-diff": {
     "description": "A unified patch with per-file navigation and commentable source lines.",
-    "x-instructions": "Add collapsed when every file should start closed. Bind source to a page-owned patch feed or files manifest; the bound form keeps an empty pre. With no source, write the exact Git patch in pre at column 0. Keep native file headers and metadata; text hunks need @@ counts matching their lines. Preserve context-line leading spaces; encode a space-only context line as &#32; so HTML parsing keeps it. HTML-escape an inline patch, & before < and >, or entity text in the source will change silently.",
+    "x-instructions": "Without `source`, write the exact Git patch in the `<pre>` at column 0, HTML-escaped (& before < and >), or entity text in the patch will change silently. Keep Git's file headers and metadata, and make each hunk's `@@` counts match its lines. Keep the leading space on context lines, and write a context line that is only a space as `&#32;` so HTML parsing keeps it. With `source`, bind a page-owned patch feed or files manifest and leave the `<pre>` empty. Add `collapsed` to start every file closed.",
     "type": "object",
     "properties": {
       "id": {
@@ -74,8 +74,8 @@
     }
   },
   "lf-call-diff": {
-    "description": "A commentable unified call-tree diff with links to its exact patch evidence.",
-    "x-instructions": "Point diff at the lf-diff holding the exact patch. Supply authentic CallDiff plain-text output as the source’s string value:\n\n```bash\njq -Rs . calldiff.txt | leaf data set \"$PAGE\" <source-id>\n```\n\nKeep unchanged tree items as stable comparison landmarks. Prefer one focused file or entry point per widget for a large repository. Do not transcribe the output into markup, invent attribute reads as calls, or redraw separate before-and-after diagrams.",
+    "description": "A commentable call-tree diff, linked to the `lf-diff` that holds its patch.",
+    "x-instructions": "Set `diff` to the id of the `lf-diff` holding the exact patch. Store CallDiff's plain-text output, unedited, as the source's string value:\n\n```bash\njq -Rs . calldiff.txt | leaf data set \"$PAGE\" <source-id>\n```\n\nKeep the unchanged items in the tree as landmarks. In a large repository, give each widget one file or entry point. Don't copy the output into markup, add attribute reads as calls, or draw separate before and after diagrams.",
     "type": "object",
     "properties": {
       "id": {

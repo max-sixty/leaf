@@ -16,9 +16,9 @@
     }
   },
   "lf-ask": {
-    "description": "Prompt context and an arrival region shared by the independent asks nested within.",
+    "description": "A heading and context for the asks inside it, each answered separately.",
     "x-space": "column",
-    "x-instructions": "Give it a heading that names the shared question or context without relying on surrounding prose, with any eyebrow beside it in an <hgroup>. Include the evidence needed to answer. Each nested widget declaring x-awaits registers its own ask and keeps its source identity and answer. Keep an ordinary semantic section around the context when the document needs a section landmark.",
+    "x-instructions": "Give it a heading that states the shared question or context without leaning on the prose around it, with any eyebrow beside it in an `<hgroup>`. Include the evidence the user needs to answer. Each widget inside that asks for input stays its own ask with its own answer. Wrap the context in a `section` when the document needs a section landmark.",
     "type": "object",
     "properties": {
       "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" }
@@ -56,8 +56,8 @@
     "x-example": "Deploy through a <lf-gloss tip=\"A thin, end-to-end path through the real system.\">walking skeleton</lf-gloss> before parallelizing."
   },
   "lf-num": {
-    "description": "A measured scalar embedded in prose, tied to the snapshot that established it.",
-    "x-instructions": "Write the displayed value with its unit as the element text. Bind source to the repeatable measurement feed and use the run receipt returned by leaf data set. Use via when the source id alone leaves the command or query unclear.",
+    "description": "A measured number in prose, tied to the data run that produced it.",
+    "x-instructions": "Write the value with its unit as the element's text. Bind `source` to the feed that measures it, and set `run` to the receipt `leaf data set` returned. Add `via` when the source id doesn't say which command or query produced it.",
     "type": "object",
     "properties": {
       "id": {
@@ -95,8 +95,8 @@
     "x-example": "The import now takes <lf-num source=\"import-latency\" run=\"a41f103e236c985b\" via=\"uv run bench-import\">184 ms</lf-num> at p95."
   },
   "lf-text-document": {
-    "description": "A file-backed text document with optional syntax coloring and rendered Markdown or HTML previews.",
-    "x-instructions": "Bind source to the page-owned feed. Use label to name the file. Set preview to markdown or html for Preview and Source tabs over the same text; language optionally overrides the source syntax. HTML is a separate document: its provider owns typography, spacing, and responsive CSS; it inherits no Leaf styles. Both readings share a scrollable viewport sized by --lf-bound (28rem by default). Compose ordinary lf-tabs for other kinds of preview. Put it inside details when it should begin collapsed.",
+    "description": "A text file from page data, colored when it has a language, with an optional Markdown or HTML preview.",
+    "x-instructions": "Bind `source` to the page's data source and name the file with `label`. Set `preview` to `markdown` or `html` to add Preview and Source tabs over the same text. `language` colors the source, and defaults to the preview's language. An HTML preview is a separate document that inherits no Leaf styles. With a preview, each tab scrolls inside a box `--lf-bound` tall, 28rem by default. To start it collapsed, put it inside `details`.",
     "x-name": "label",
     "type": "object",
     "properties": {
@@ -135,7 +135,7 @@
   },
   "lf-toc": {
     "description": "An outline of the document’s h2–h6 headings for navigating its sections and showing the reader’s position.",
-    "x-instructions": "Set max-level when deeper headings are local detail rather than navigation destinations; omit it to include h2–h6. Use stable authored section, title-group, or heading ids for links that must keep their target across versions; generated heading ids are not addresses for comments or page state. Write the element empty with a stable id.",
+    "x-instructions": "Write it empty with a stable id. Set `max-level` to leave out deeper headings that are local detail; by default it lists h2 to h6. Give sections or headings ids of your own where a link must keep its target across versions, since the ids Leaf generates aren't stable.",
     "type": "object",
     "properties": {
       "id": {
@@ -344,7 +344,7 @@
   },
   "lf-chart": {
     "description": "An Observable Plot chart authored with Plot’s API and sized to its place in the page.",
-    "x-instructions": "Write a JavaScript expression for Plot.plot's options inside pre, HTML-escaping & before < and >; give the options object rather than calling Plot.plot. Plot and width are the only names in scope, and data stays inline. Use ISO date strings on an explicitly typed time scale; use utc for days and months, and include a timezone on moments, such as 2026-06-01T14:00Z. Supply ariaLabel describing the chart for users who cannot see it. Leave width and height out of the options: use width to adapt ticks, and data-height on the element for a nondefault height. Where page check --render reports overlapping labels, reduce category ticks, choose them by width, or reserve more margin for the axis label. Use var(--series-N) for constant or categorical colors; continuous color scales need a Plot scheme because CSS variables cannot be interpolated. Name the chart in the surrounding heading or prose rather than Plot's title. Label each value the page's argument cites on the chart itself, such as the spikes its prose explains, for example with a text mark beside the point, so the reader sees the evidence without opening a table.",
+    "x-instructions": "Inside a `<pre>`, write a JavaScript expression for the options object you would pass to `Plot.plot`, HTML-escaping & before < and >. `Plot` and `width` are the names in scope, and the data goes inline. The chart requires an `ariaLabel` describing it. Leave `width` and `height` out of the options: read `width` to fit the ticks to the room, and set a height other than the default with `data-height` on the element. Write dates as ISO strings on an explicitly typed time scale, `utc` for days and months, and give moments a time zone, such as 2026-06-01T14:00Z. Use `var(--series-N)` for constant or categorical colors; a continuous color scale needs a Plot scheme. Title the chart in the heading or prose around it rather than with Plot's `title`. Label on the chart each value the page's argument cites, such as a spike the prose explains, with a text mark beside the point. When `page check --render` reports overlapping labels, use fewer category ticks, choose them by `width`, or give the axis label more margin.",
     "type": "object",
     "properties": {
       "id": {
@@ -361,8 +361,8 @@
     "x-example": "<lf-chart id=\"review-latency\"><pre>\n{\n  ariaLabel: \"Hours to first review by week: backend fell from 31 to 12, frontend from 18 to 11\",\n  x: {type: \"utc\", ticks: \"monday\", label: null},\n  y: {grid: true, label: \"hours to first review\"},\n  color: {legend: true, range: [\"var(--series-1)\", \"var(--series-2)\"]},\n  marks: [\n    Plot.lineY(\n      [\n        {week: \"2026-05-04\", team: \"backend\", hours: 31},\n        {week: \"2026-05-11\", team: \"backend\", hours: 26},\n        {week: \"2026-05-18\", team: \"backend\", hours: 12},\n        {week: \"2026-05-04\", team: \"frontend\", hours: 18},\n        {week: \"2026-05-11\", team: \"frontend\", hours: 21},\n        {week: \"2026-05-18\", team: \"frontend\", hours: 11},\n      ],\n      {x: \"week\", y: \"hours\", stroke: \"team\", marker: true},\n    ),\n  ],\n}\n</pre></lf-chart>"
   },
   "lf-shot": {
-    "description": "A before-and-after screenshot pair with an operable divider, optional change outlines and changed-pixel view, and component-owned comparison, overlay, scaling and focus-crop presentation.",
-    "x-instructions": "Use for two versions of an interface, current and proposed. Use served image paths printed by leaf page media for before and after, and describe the pair in alt. Read authoring-evidence.md, Source files and media, for captures, the table that sets captures varying along other axes, and when to use outlines or pixels. Write explanations in surrounding prose rather than element content. When a decision turns on the change, put the pair inside the proposing option, or with the group of an accept-or-reject ask, where it compares both answers.",
+    "description": "A before-and-after pair of screenshots under a draggable divider, with optional outlines of what changed and a view of the changed pixels.",
+    "x-instructions": "Use it for two versions of an interface. Set `before` and `after` to the paths `leaf page media` prints, and describe the pair in `alt`. `authoring-evidence.md`, \"Source files and media\", covers making captures, laying out captures that vary along more than one axis in a table, and when to add `outlines` or `pixels`. Put explanation in the prose around the pair, not inside the element. When a decision turns on the change, put the pair inside the option that proposes it, or, for an accept-or-reject ask, with the group, where it shows both answers.",
     "type": "object",
     "properties": {
       "id": {
@@ -396,7 +396,7 @@
   },
   "lf-board": {
     "description": "Cards grouped into columns for scanning work and status, with movement and reordering available.",
-    "x-instructions": "Use primarily to display grouped work and status. Prefer explicit controls or lf-options when the user needs to make changes or decisions; the board is not the primary interaction surface. When revising, keep each moved card in the column the user chose unless the revision explicitly retracts that decision with restated on the card. Read authoring-revisions.md, Honor user state. A rewrite that invalidates a move restates the card, not the board.",
+    "x-instructions": "Use a board to show grouped work and status. When the user must make changes or decisions, give them explicit controls or `lf-options` rather than relying on moving cards. When revising, keep each card the user moved in the column they chose, unless the revision retracts that move by marking the card, not the board, `restated` (`authoring-revisions.md`, \"Honor user state\").",
     "type": "object",
     "properties": {
       "id": {
@@ -468,8 +468,8 @@
     "x-upgrade": false
   },
   "lf-tabs": {
-    "description": "Several views of one artifact, as page navigation, a local tabbed section, or a side-list queue.",
-    "x-instructions": "Place the first set directly in main for page navigation; other placements make a framed local tabbed section. Put the shared title and lede before page tabs and the primary current view first. Each lf-tab is a self-contained view, while history, Threads, the On panel, versions, and sign-off belong to the whole page. Retire obsolete views once current work no longer depends on them, preserving needed context and passages anchoring open threads or decisions in force in details within the relevant tab. Use list=\"side\" for a queue beside its selected item; it remains framed and its list does not stick.",
+    "description": "Several views shown one at a time: page navigation, a tabbed box, or a queue beside its open item.",
+    "x-instructions": "The first `lf-tabs` written directly in `main` is the page's navigation; any other tab set is a framed box within the page. Put the page's title and lede before page tabs, and the main current view first. Make each `lf-tab` a self-contained view; history, threads, versions and sign-off belong to the whole page. When current work no longer needs a view, remove it. Move any context still needed, and any passage an open thread or an unretracted decision is anchored to, into a `details` in the relevant tab. Use `list=\"side\"` for a queue listed beside the item it opens.",
     "type": "object",
     "properties": {
       "id": {
@@ -490,8 +490,8 @@
     "x-example": "<lf-tabs id=\"views\">\n  <lf-tab id=\"tab-implementation\" label=\"Implementation\">\n    <p id=\"rollout-plan\">Wire the first site this week.</p>\n  </lf-tab>\n  <lf-tab id=\"tab-vision\" label=\"Vision\">\n    <p id=\"product-vision\">Keep the original outcome and constraints in reach.</p>\n  </lf-tab>\n</lf-tabs>"
   },
   "lf-tally": {
-    "description": "A count of the asks a region still holds open, such as a queue's decisions left to make, with an optional control to the next one.",
-    "x-instructions": "Name the region whose asks it counts with for, such as a side-list lf-tabs queue, and place it where the reader looks for the queue's state, such as a workspace header beside its .tag chips. Add next for a Next on me control that steps through the region's asks waiting on the user. Write it empty with a stable id; it counts asks the page already poses, so state no count of them in prose or chips.",
+    "description": "A count of the open asks in one region, such as the decisions left in a queue, with an optional control that goes to the next one.",
+    "x-instructions": "Write it empty with a stable id, and set `for` to the region whose asks it counts, such as a side-list `lf-tabs` queue. Place it where the reader looks for the queue's state, such as a workspace header beside its `.tag` chips. Add `next` for a Next on me control that steps through the asks waiting on the user. Don't also state the count in prose or chips; the tally keeps it current.",
     "type": "object",
     "properties": {
       "id": {

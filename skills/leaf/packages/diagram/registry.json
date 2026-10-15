@@ -1,7 +1,7 @@
 {
   "lf-diagram": {
     "description": "A Mermaid diagram with optional comment targets on its named boxes.",
-    "x-instructions": "Write Mermaid source inside the pre, HTML-escaping & before < and >. Give each diagram an accTitle naming its subject and an accDescr explaining its relationships for a reader who cannot see it. Draw a chain of more than three steps top-down (flowchart TD), since a long horizontal chain scrolls past the page edge. Use Mermaid classes and page CSS with theme tokens where a node needs a distinct tone. Omit parts for one whole-diagram comment target. Set parts=\"all\" to make every named flowchart node/subgraph, state/composite state, sequence participant, class/namespace, and ER entity a comment target. Edges, sequence messages, and chart marks have no stable source id.",
+    "x-instructions": "Write Mermaid source inside the `<pre>`, HTML-escaping & before < and >. Give each diagram an `accTitle` naming its subject and an `accDescr` describing its relationships, for a reader who can't see it. Draw a chain of more than three steps top-down (`flowchart TD`), since a long horizontal chain runs past the page's edge. Give a node that needs its own tone a Mermaid class styled in page CSS with theme tokens. Without `parts`, the whole diagram is one comment target; with `parts=\"all\"`, each named box, such as a flowchart node or a sequence participant, is a target of its own. Edges and messages never are.",
     "type": "object",
     "properties": {
       "id": {

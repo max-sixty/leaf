@@ -1141,7 +1141,10 @@ def test_trace_pointer_annotation_stays_inside_the_panned_image_viewport(
 
 
 def test_trace_comparison_prepaint_shows_only_its_opening_recording(browser, serve):
-    """Holding the chooser module cannot expose a second recording before upgrade."""
+    """Holding the chooser module cannot expose a second recording before upgrade.
+    A recording in a wrapper, here a <figure> with its caption and no id, shows and
+    hides with it, before upgrade, after, and across a reload, which tells the two
+    anonymous wrappers apart by the recording inside."""
     source = ROOT / "tests/fixtures/pages/playwright-paired-results.html"
     url = serve(source, packages=("playwright",))
     user = browser.new_page()
@@ -1150,7 +1153,9 @@ def test_trace_comparison_prepaint_shows_only_its_opening_recording(browser, ser
     with user.expect_request("**/widgets/lf-trace-compare.js"):
         user.goto(url, wait_until="commit")
     workspace = user.locator("lf-trace-compare")
-    user.wait_for_function("() => document.querySelector('lf-trace[data-lf-opening]')")
+    user.wait_for_function(
+        "() => document.querySelector('lf-trace-compare > [data-lf-opening]')"
+    )
     before = workspace.evaluate("""node => ({
         children: [...node.children].map(child => ({
             opening: child.hasAttribute('data-lf-opening'),
@@ -1164,13 +1169,23 @@ def test_trace_comparison_prepaint_shows_only_its_opening_recording(browser, ser
     ]
     assert before["reserved"] >= 44
     assert held
+    user.unroute("**/widgets/lf-trace-compare.js")
     for route in held:
         route.continue_()
     wait_until_ready(user)
     user.locator("lf-trace-compare wa-radio").filter(has_text="After").click()
+    wrapper = user.locator("figure:has(#paired-after)")
+    expect(wrapper.locator("figcaption")).to_be_visible()
     expect(user.locator("#paired-after")).to_be_visible()
     expect(user.locator("#paired-before")).to_be_hidden()
     wait_until_ready(user)
+    # Neither wrapper has an id; a reload reopens the chosen one by its recording.
+    user.reload()
+    wait_until_ready(user)
+    expect(wrapper.locator("figcaption")).to_be_visible()
+    expect(user.locator("#paired-before")).to_be_hidden()
+    user.locator("lf-trace-compare wa-radio").filter(has_text="Before").click()
+    expect(wrapper).to_be_hidden()
 
 
 def test_trace_render_gate_restores_the_zoomed_time_window(browser, serve):

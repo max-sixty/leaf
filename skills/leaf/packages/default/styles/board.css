@@ -157,7 +157,6 @@
                     block-size: var(--lf-grip-block); margin-block-start: -10px; }
   :scope:is(lf-card) > :not(:first-child) { clear: right; }
 }
-:scope:is(lf-card):last-child { margin-bottom: 0; }
 :scope:is(lf-card) > strong { display: block; font-weight: 600; line-height: 1.4; margin: 0 0 2px; }
 /* Enter grabs the grip and arrows move the card. Its type comes from .lf-ui;
    the box and title float read the card's allocation above. A unit line-height

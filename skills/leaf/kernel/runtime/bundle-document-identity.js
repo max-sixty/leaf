@@ -209,7 +209,6 @@ import {
   activityTransitionDue,
   ago,
   chosenSince,
-  clocked,
   containingReadingRegionFor,
   effectiveScroller,
   markStateApplied,
@@ -7475,12 +7474,17 @@ function mountApplication(dependencies) {
     dependencies.annotationCommands.renderPageMapDialog(entries);
     return entries;
   }
-  const renderAnnotations = clocked(document.body, () => {
+  let annotationsDrawn = false;
+  const renderAnnotations = () => {
+    annotationsDrawn = true;
     if (!onPaper.matches) {
       const entries = refreshAnnotationInventory();
       overlay?.paint(entries);
     }
-  });
+  };
+  renderAnnotations.refresh = () => {
+    if (annotationsDrawn) renderAnnotations();
+  };
   const annotationInputs = readPart(annotationSelection);
   const mountAnnotations = () => {
     watchProjection(

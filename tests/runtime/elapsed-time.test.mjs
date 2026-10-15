@@ -1,182 +1,41 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  collectReads,
-  outsideReading,
-} from "../../skills/leaf/assets/vendor/browser-runtime.js";
-import {
-  readApplication,
-  readPart,
-} from "../../skills/leaf/assets/runtime/semantic-state.js";
-import {
   ago,
   shortAgo,
-  clocked,
   clockValue,
   tickClock,
 } from "../../skills/leaf/assets/runtime/presence.js";
-
-// A value outside the publication that a paint reads and follows, one round per change.
-function outside(initial) {
-  let value = initial;
-  const heard = new Set();
-  const reading = outsideReading(
-    () => value,
-    (moved) => {
-      heard.add(moved);
-      return () => heard.delete(moved);
-    },
-  );
-  return {
-    read: () => reading.read(),
-    set(next) {
-      value = next;
-      const round = {};
-      for (const moved of [...heard]) moved(round);
-    },
-  };
-}
+import { watchProjection } from "../../skills/leaf/assets/runtime/projection-watch.js";
 
 const before = (ms) => new Date(Date.now() - ms).toISOString();
 const MINUTE = 60 * 1000;
 
-test("a paint stopped inside its callback stays off the clock until rendered again", async () => {
-  const owner = document.createElement("div");
-  document.body.append(owner);
-  let clock = 0;
-  let calls = 0;
-  const paint = clocked(owner, () => {
-    calls += 1;
-    clockValue(() => clock);
-    if (calls === 2) paint.stop();
-  });
-  paint();
-  paint();
-  clock += 1;
-  await tickClock((message) => {
-    throw new Error(message);
-  });
-  assert.equal(calls, 2);
-  paint();
-  clock += 1;
-  await tickClock((message) => {
-    throw new Error(message);
-  });
-  assert.equal(calls, 4);
-  paint.stop();
-  owner.remove();
-});
-
-test("a clocked paint follows its time and leaves the publication's parts to its caller", async () => {
-  const owner = document.createElement("div");
-  document.body.append(owner);
-  let clock = 0;
-  const phase = readPart((root) => root.phase);
-  let calls = 0;
-  const paint = clocked(owner, (whole) => {
-    calls += 1;
-    clockValue(() => clock);
-    phase();
-    // Called by its caller outside any collection, it may read the root whole.
-    if (whole) readApplication();
-  });
-  paint(true);
-  const { reads } = collectReads(() => paint(false));
-  assert.deepEqual(
-    [...reads.keys()].map((reading) => Boolean(reading.outside)),
-    [false],
-  );
-  clock += 1;
-  await tickClock((message) => {
-    throw new Error(message);
-  });
-  assert.equal(calls, 3);
-  paint.stop();
-  owner.remove();
-});
-
-test("a paint another stops during a tick stays stopped", async () => {
+test("a watcher another stops during a tick stays stopped", async () => {
   const owner = document.createElement("div");
   document.body.append(owner);
   let clock = 0;
   const calls = { first: 0, second: 0 };
   let second;
-  const first = clocked(owner, () => {
+  const first = watchProjection(owner, () => {
     calls.first += 1;
     clockValue(() => clock);
-    if (calls.first > 1) second.stop();
+    if (calls.first > 1) second();
   });
-  second = clocked(owner, () => {
+  second = watchProjection(owner, () => {
     calls.second += 1;
     clockValue(() => clock);
   });
-  first();
-  second();
+  await Promise.resolve();
   for (let round = 0; round < 2; round += 1) {
     clock += 1;
     await tickClock((message) => {
       throw new Error(message);
     });
+    await Promise.resolve();
   }
   assert.deepEqual(calls, { first: 3, second: 1 });
-  first.stop();
-  owner.remove();
-});
-
-test("a clocked paint follows each change of what else it read outside the publication", () => {
-  const owner = document.createElement("div");
-  document.body.append(owner);
-  const held = outside(false);
-  const shown = [];
-  const paint = clocked(owner, () => shown.push(held.read()));
-  paint();
-  held.set(true);
-  held.set(false);
-  assert.deepEqual(shown, [false, true, false]);
-  paint.stop();
-  owner.remove();
-});
-
-test("a clocked paint that moved the time it read paints again at the next tick", async () => {
-  const owner = document.createElement("div");
-  document.body.append(owner);
-  let clock = 0;
-  let calls = 0;
-  const paint = clocked(owner, () => {
-    calls += 1;
-    clockValue(() => clock);
-    if (calls === 1) clock += 1;
-    return calls;
-  });
-  // Never inside its own paint, so its caller waits on the paint it called.
-  assert.equal(paint(), 1);
-  await tickClock((message) => {
-    throw new Error(message);
-  });
-  assert.equal(calls, 2);
-  paint.stop();
-  owner.remove();
-});
-
-test("a clocked paint that moves what it follows does not paint again inside itself", () => {
-  const owner = document.createElement("div");
-  document.body.append(owner);
-  const held = outside(false);
-  let calls = 0;
-  const paint = clocked(owner, () => {
-    calls += 1;
-    held.read();
-    if (calls === 2) held.set(true);
-    return calls;
-  });
-  paint();
-  assert.equal(paint(), 2);
-  assert.equal(calls, 2);
-  // A later round that moves it from what this paint read paints it again.
-  held.set(false);
-  held.set(true);
-  assert.equal(calls, 3);
-  paint.stop();
+  first();
   owner.remove();
 });
 

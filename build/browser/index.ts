@@ -13,7 +13,6 @@ export { unsafeHTML } from "lit/directives/unsafe-html.js";
 export { effect, signal } from "@preact/signals-core";
 export { createSemanticApplication } from "./application.js";
 export {
-  collectOutside,
   collectReads,
   outsideReading,
   share,

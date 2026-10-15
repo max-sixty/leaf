@@ -38,7 +38,6 @@ import {
   wearsLentStop
 } from "./bundle-sample-visibility.js";
 import {
-  collectOutside,
   outsideReading
 } from "./bundle-queued-work.js";
 
@@ -52,72 +51,6 @@ var onTick = (moved) => {
 var serverNow = () => Date.now() + clockSkew;
 var saidNow = () => new Date(serverNow()).toISOString();
 var clockValue = (read) => outsideReading(() => read(serverNow()), onTick).read();
-function clocked(owner, paint) {
-  let args;
-  let painted = false;
-  let reads = /* @__PURE__ */ new Map();
-  let generation = 0;
-  let connected = false;
-  let stopLifetime = null;
-  let following = [];
-  let answered = null;
-  const refresh = () => painted ? render(...args) : void 0;
-  const moved = (round) => {
-    if (answered === round || !owner.isConnected) return void 0;
-    answered = round;
-    return refresh();
-  };
-  let drawing = 0;
-  const follow = () => {
-    for (const stop of following) stop();
-    let subscribing = true;
-    following = connected ? [...reads].map(
-      ([reading, value]) => reading.subscribe(
-        (now, round) => subscribing || drawing || now === value ? void 0 : moved(round)
-      )
-    ) : [];
-    subscribing = false;
-  };
-  const lifetime = () => watchOwner(owner, {
-    connect() {
-      connected = true;
-      follow();
-    },
-    disconnect() {
-      connected = false;
-      follow();
-    }
-  });
-  stopLifetime = lifetime();
-  function render(...next) {
-    const painting = ++generation;
-    args = next;
-    painted = true;
-    drawing += 1;
-    let outcome;
-    try {
-      outcome = collectOutside(() => paint(...args));
-    } finally {
-      drawing -= 1;
-    }
-    if (painting === generation) {
-      reads = outcome.reads;
-      stopLifetime ??= lifetime();
-      follow();
-    }
-    if ("error" in outcome) throw outcome.error;
-    return outcome.value;
-  }
-  render.stop = () => {
-    generation += 1;
-    reads = /* @__PURE__ */ new Map();
-    follow();
-    stopLifetime?.();
-    stopLifetime = null;
-  };
-  render.refresh = refresh;
-  return render;
-}
 function readingPaint(owner, draw) {
   let painted = false;
   let key;
@@ -926,7 +859,6 @@ export {
   serverNow,
   saidNow,
   clockValue,
-  clocked,
   readingPaint,
   tickClock,
   observeServerNow,

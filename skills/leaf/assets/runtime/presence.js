@@ -1,7 +1,7 @@
 // Every timestamp the page renders was written by its server. Keep the browser's one
 // measured offset here, beside the two public readings that depend on it, so no seat can
 // accidentally render against a second clock.
-import { collectOutside, outsideReading } from "/vendor/browser-runtime.js";
+import { outsideReading } from "/vendor/browser-runtime.js";
 import { watchOwner } from "./arrivals.js";
 import { reportPageError } from "./layer-client.js";
 
@@ -26,96 +26,6 @@ export const saidNow = () => new Date(serverNow()).toISOString();
 // milliseconds used by the comparison.
 export const clockValue = (read) =>
   outsideReading(() => read(serverNow()), onTick).read();
-
-// A paint the caller calls itself, where the state it draws changes, rather than one a
-// watcher or a region runs: the margin's annotations (application.js), which the thread
-// presentation and the margin's own geometry also redraw. The caller follows the parts
-// of the publication it read, which go to the caller's own collection where there is one
-// (`collectOutside`); `clocked` follows the rest of what it read, the time it shows, and
-// paints again when that moves. Only calling the returned paint replaces what it
-// follows. What the paint follows pauses while its owner is away (`watchOwner`), and the
-// first tick after its return repaints what aged. `stop()` takes the paint off the clock
-// and retires its lifetime until it paints again. The lifetime is held from
-// construction, so a first paint made while its owner's subscriptions are connecting
-// starts no subscription of its own.
-export function clocked(owner, paint) {
-  let args;
-  let painted = false;
-  let reads = new Map();
-  let generation = 0;
-  let connected = false;
-  let stopLifetime = null;
-  let following = [];
-  // The last round of notifications this paint answered: a paint that read the time in
-  // several places answers each tick once.
-  let answered = null;
-  const refresh = () => (painted ? render(...args) : undefined);
-  // An owner removed before its departure reaches the arrival batch is not painted.
-  const moved = (round) => {
-    if (answered === round || !owner.isConnected) return undefined;
-    answered = round;
-    return refresh();
-  };
-  // A subscription hears its reading at once; that call is not a change this paint
-  // answers. A reading its own paint moved, or that moved while its owner was away,
-  // repaints it at the reading's next round, the clock's next tick, through `refresh`,
-  // never inside its own paint or its owner's return, where its caller is still drawing
-  // or reconnecting its own subscriptions.
-  let drawing = 0;
-  const follow = () => {
-    for (const stop of following) stop();
-    let subscribing = true;
-    following = connected
-      ? [...reads].map(([reading, value]) =>
-          reading.subscribe((now, round) =>
-            subscribing || drawing || now === value ? undefined : moved(round),
-          ),
-        )
-      : [];
-    subscribing = false;
-  };
-  const lifetime = () =>
-    watchOwner(owner, {
-      connect() {
-        connected = true;
-        follow();
-      },
-      disconnect() {
-        connected = false;
-        follow();
-      },
-    });
-  stopLifetime = lifetime();
-  function render(...next) {
-    const painting = ++generation;
-    args = next;
-    painted = true;
-    drawing += 1;
-    let outcome;
-    try {
-      outcome = collectOutside(() => paint(...args));
-    } finally {
-      drawing -= 1;
-    }
-    // A paint rendered again inside its own run keeps the readings of the later one.
-    if (painting === generation) {
-      reads = outcome.reads;
-      stopLifetime ??= lifetime();
-      follow();
-    }
-    if ("error" in outcome) throw outcome.error;
-    return outcome.value;
-  }
-  render.stop = () => {
-    generation += 1;
-    reads = new Map();
-    follow();
-    stopLifetime?.();
-    stopLifetime = null;
-  };
-  render.refresh = refresh;
-  return render;
-}
 
 /** The paint of one reading at a time, kept across the owner's departures, and the one
  * rule for what a returning owner is drawn again and for a draw that fails. Calling

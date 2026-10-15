@@ -13,7 +13,6 @@ export { unsafeHTML } from "./lit.js";
 export { effect, signal } from "./browser-runtime/signals-core.js";
 export { createSemanticApplication } from "./browser-runtime/application.js";
 export {
-  collectOutside,
   collectReads,
   outsideReading,
   share,

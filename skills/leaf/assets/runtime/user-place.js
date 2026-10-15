@@ -124,8 +124,8 @@ export function placeCorrection({
 }
 
 // A synchronous hold inside another hold can correct a transient clamp before the
-// enclosing presentation finishes. Credit the outer hold only for content movement
-// the inner hold actually corrected: another named row may have moved independently.
+// enclosing presentation finishes. Credit the outer hold for the scroll the inner
+// hold applied, so its own reference can still correct any different movement.
 const heldScrollers = new WeakMap();
 const sharedMovement = (moved, paid) =>
   Math.sign(moved) === Math.sign(paid)
@@ -142,23 +142,12 @@ export function placeKeeper(
     owner,
     snapshot: () => ({
       hold: current,
-      positions: new Map(
-        current?.references.map((reference) => {
-          const node = live(reference);
-          return [reference, node ? heldBox(node).top + scroller.scrollTop : null];
-        }) ?? [],
-      ),
+      references: current?.references.filter(live) ?? [],
     }),
-    sync: ({ hold, positions }, paid) => {
+    sync: ({ hold, references }, paid) => {
       if (current !== hold) return;
-      for (const [reference, before] of positions) {
-        const node = live(reference);
-        if (before !== null && node)
-          reference.contentTop += sharedMovement(
-            heldBox(node).top + scroller.scrollTop - before,
-            paid,
-          );
-      }
+      for (const reference of references)
+        if (live(reference)) reference.contentTop += paid;
       hold.at = { scrollTop: scroller.scrollTop, limit: limit() };
     },
   };

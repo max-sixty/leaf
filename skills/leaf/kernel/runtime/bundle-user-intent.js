@@ -329,23 +329,12 @@ function placeKeeper(scroller, { items, identity, active = () => true, preferred
     owner,
     snapshot: () => ({
       hold: current,
-      positions: new Map(
-        current?.references.map((reference) => {
-          const node = live2(reference);
-          return [reference, node ? heldBox(node).top + scroller.scrollTop : null];
-        }) ?? []
-      )
+      references: current?.references.filter(live2) ?? []
     }),
-    sync: ({ hold, positions }, paid) => {
+    sync: ({ hold, references }, paid) => {
       if (current !== hold) return;
-      for (const [reference, before] of positions) {
-        const node = live2(reference);
-        if (before !== null && node)
-          reference.contentTop += sharedMovement(
-            heldBox(node).top + scroller.scrollTop - before,
-            paid
-          );
-      }
+      for (const reference of references)
+        if (live2(reference)) reference.contentTop += paid;
       hold.at = { scrollTop: scroller.scrollTop, limit: limit() };
     }
   };

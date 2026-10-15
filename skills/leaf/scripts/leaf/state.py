@@ -452,17 +452,22 @@ def _end_session(session_id: str) -> None:
 
 
 def end_harness_instance(session_id: str) -> None:
-    """End a process-backed session, or suspend a multiplexed desktop instance.
+    """End a process-backed session, or suspend an instance its owner outlives.
 
     Desktop unloads an idle Codex instance while its chat remains available to
-    resume or receive queued input. Its persisted-chat claims keep their generation
-    while the native source exists; unloading closes only turn and hook observations.
+    resume or receive queued input, and a Claude Code background job's daemon
+    retires the job's worker between sittings and resumes the job on its next
+    prompt. Their claims keep their generation while the native source or job
+    record exists (`service.lifetime_is_live`); the instance's end closes only
+    turn and hook observations.
     """
     if not session_id:
         return
     with flocked(session_lock_path(session_id)):
         record = session_record(session_id)
-        if record and record["lifetime"] == {"chat": True}:
+        if record and (
+            "job" in record["lifetime"] or record["lifetime"] == {"chat": True}
+        ):
             if record["ended"] is None and record["turn_closed"] is None:
                 advance_turn(session_id, record["turn"], running=False)
             for suffix in (HOOKS_SUFFIX, STEP_HOOK_SUFFIX):

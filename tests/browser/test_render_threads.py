@@ -12165,8 +12165,8 @@ def _ring_gaps(page, target):
 
 
 def test_a_rewrite_of_a_comment_just_sent_is_the_reply_box(browser, serve):
-    """A rewrite of a comment just sent is the reply box's own field, its words at
-    their inset.
+    """A rewrite of a comment just sent is as wide as the reply box, its words where
+    the message's stood.
 
     The field's ring, drawn outside it as the reply box's is, lost its left and bottom
     sides to the transcript that scrolls it, which kept no room past its edges; and the
@@ -12200,21 +12200,18 @@ def test_a_rewrite_of_a_comment_just_sent_is_the_reply_box(browser, serve):
     editor = message.locator(".lf-msg-editor")
     expect(editor.locator("leaf-text")).to_be_focused()
     rendered(page)
-    assert message.bounding_box()["y"] == before[0]["y"]
     field = editor.locator(".lf-compose-field")
     reply = card.locator(".lf-thread-reply .lf-compose-field")
     box, reply_box = field.bounding_box(), reply.bounding_box()
     for side in ("x", "width"):
         assert abs(box[side] - reply_box[side]) < 0.5, (side, box, reply_box)
-    # Its words take the reply box's padding, over the lines the comment wrapped to.
-    frame = """el => {
-      const field = getComputedStyle(el), text = getComputedStyle(el.querySelector(":scope > leaf-text"));
-      return [field.borderTopWidth, text.paddingTop, text.paddingBottom, text.paddingLeft];
-    }"""
-    assert field.evaluate(frame) == reply.evaluate(frame)
-    assert (
-        abs(editor.locator("leaf-text").evaluate(FIRST_LINE)[0] - first_line[0]) < 0.5
-    )
+    # Its words keep the lines the comment wrapped to, and the message its height.
+    opened = message.bounding_box()
+    for side in ("y", "height"):
+        assert abs(opened[side] - before[0][side]) < 0.5, (side, opened, before[0])
+    editing_line = editor.locator("leaf-text").evaluate(FIRST_LINE)
+    for at in (0, 1):
+        assert abs(editing_line[at] - first_line[at]) < 0.5, (editing_line, first_line)
     rendered(page)
     assert _ring_gaps(page, field) == []
     save = message.get_by_role("button", name="Save", exact=True)
@@ -12566,7 +12563,10 @@ def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surfac
     own, moved nothing but read as a thinner, narrower field than the reply box beside
     it. The rewrite is now the reply box's own field, at its width and height, with the
     words at their inset under the message's head; Cancel and Save take that head, and
-    every way out steps back up to the reply box, leaving the thread as it was.
+    every way out steps back up to the reply box, leaving the thread as it was. In the
+    margin card the reply box's taller field grew a short message, so the card kept
+    that room under every message of the user's; the rewrite there is now the comment
+    box the card grew from, and opening it moves nothing.
 
     In the margin card each keystroke in the rewrite also threw, from the reply box's
     growth-following reading a reply row the rewrite has none of; the browser fixture
@@ -12596,17 +12596,22 @@ def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surfac
     expect(editor).to_be_focused()
     rendered(page)
     # The message keeps its head's place, and its words their inset, in a box the
-    # reply box's size.
+    # reply box's width and, outside the card, its height. The card's rewrite is the
+    # comment box the card grew from, its frame in the room the words' lines keep, so
+    # there the message keeps its height and the words their line.
     assert abs(message.bounding_box()["y"] - rest["message"]["y"]) < 0.5
     field = message.locator(".lf-msg-editor > .lf-compose-field").bounding_box()
     reply_field = thread.locator(".lf-thread-reply .lf-compose-field").bounding_box()
-    for side in ("x", "width", "height"):
+    for side in ("x", "width") if surface == "card" else ("x", "width", "height"):
         assert abs(field[side] - reply_field[side]) < 0.5, (side, field, reply_field)
     # Feed mode draws its messages at the reply box's edge, not inset in a transcript,
     # so there the words take the reply box's inset instead.
     if surface != "feed":
         editing_line = editor.evaluate(FIRST_LINE)
         assert abs(editing_line[0] - first_line[0]) < 0.5, (editing_line, first_line)
+    if surface == "card":
+        assert abs(editing_line[1] - first_line[1]) < 0.5, (editing_line, first_line)
+        unmoved()
     head = message.locator(".lf-msg-head").bounding_box()
     for name in ("Cancel", "Save"):
         box = message.get_by_role("button", name=name, exact=True).bounding_box()

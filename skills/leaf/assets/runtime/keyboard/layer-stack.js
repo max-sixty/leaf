@@ -93,12 +93,20 @@ function pushNativeLayer(node, source = null) {
   if (existing?.active()) return;
   prune();
   const holding = focused();
+  // `beforetoggle` announces a declarative opening before :popover-open applies.
+  // A synchronous layer read in that interval must not prune its new entry; the
+  // native transition has completed by the next microtask.
+  let opening = !isNativeLayer(node);
+  if (opening)
+    queueMicrotask(() => {
+      opening = false;
+    });
   entries.push({
     root: node,
     get kind() {
       return nativeLayerKind(node);
     },
-    active: () => isNativeLayer(node),
+    active: () => opening || isNativeLayer(node),
     fromNowhere: !holding || holding === document.body,
     opener: holding && holding !== document.body ? holding : null,
     source,

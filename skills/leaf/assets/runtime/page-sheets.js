@@ -2,7 +2,8 @@
 
    Browser-parsed selectors receive a weightless exclusion on their subject. This keeps
    their root/ancestor conditions, pseudo-elements, specificity, scope proximity and
-   cross-sheet order intact. The small scanner below separates CSSOM's canonical
+   cross-sheet order intact. An outer native @scope would change root-selector matching
+   and cascade proximity. The small scanner below separates CSSOM's canonical
    selector-list members and their pseudo-element suffixes; the browser owns selector
    grammar and matching. No selector spelling grants access to Leaf controls.
 

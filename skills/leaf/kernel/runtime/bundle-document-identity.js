@@ -520,10 +520,10 @@ function keepPageRulesOffLayer() {
     );
   if (watching) return;
   watching = true;
-  document.head.addEventListener(
+  document.addEventListener(
     "load",
     (event) => {
-      if (event.target instanceof Element && event.target.matches('link[rel="stylesheet"], style'))
+      if (event.target instanceof Element && event.target.matches('link[rel~="stylesheet" i], style'))
         keepPageRulesOffLayer();
     },
     true
@@ -3072,8 +3072,6 @@ function createVersionController({
       const next = /* @__PURE__ */ new Set();
       for (const node of source) {
         const imported = document.importNode(node, true);
-        if (imported.localName === "link" || imported.localName === "style")
-          imported.addEventListener("load", keepPageRulesOffLayer, { once: true });
         document.head.append(imported);
         next.add(imported);
       }

@@ -21,3 +21,15 @@ def test_the_composed_corpus_carries_each_examples_head_modules():
                 assert script["body"] in composed, source.name
                 carried += 1
     assert carried, "no example has a head script, so nothing was checked"
+
+
+def test_the_composed_corpus_preserves_stylesheet_access():
+    """Each source stylesheet keeps its declarations when the corpus hoists it."""
+    composed = SourceDocument(corpus_model.CORPUS.read_text()).style_blocks
+    for source, _ in corpus_model.TABS:
+        for sheet in SourceDocument(source.read_text()).style_blocks:
+            assert any(
+                item["css"].strip() == sheet["css"].strip()
+                and item["attrs"] == sheet["attrs"]
+                for item in composed
+            ), source.name

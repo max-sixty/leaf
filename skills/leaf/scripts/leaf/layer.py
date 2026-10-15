@@ -245,7 +245,7 @@ def widget_confinement(root: Path) -> tuple[str, str] | None:
     return f":is({listed})", host
 
 
-# A root's own stylesheets, in the order the document's theme.css reads them.
+# Every root's shared sheets, before a theme's optional controls.css.
 ROOT_SHEETS = ("shadow.css", "theme.css")
 
 

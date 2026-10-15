@@ -7362,23 +7362,25 @@ def test_a_pages_own_element_rules_leave_the_layers_controls_alone(browser, serv
     )
     page = open_page(
         browser,
-        serve(
-            leaf_page(
-                "t",
-                board,
-                # A selector naming a widget grants no access. Native scope is also
-                # ordinary CSS, not permission to style generated controls.
-                head="<style>button:not(lf-board), a, lf-board .lf-absent { font-family: cursive;"
-                " color: rgb(255, 0, 0); }"
-                "body { font-style: italic; letter-spacing: 3px; }"
-                "@scope (lf-board) { button { background-color: rgb(255, 0, 0); } }"
-                ":root { --control-access-proof: teal; }"
-                "html[data-lf-interactive] p > a { background-color: rgb(1, 2, 3); }"
-                "p > a::before { content: 'Kept'; }"
-                "p { border-top: 7px solid red; }</style>"
-                "<style data-controls>"
-                ":nth-child(1 of lf-board) button { outline: 3px solid rgb(0, 128, 0); }"
-                "</style>",
+        live_url(
+            serve(
+                leaf_page(
+                    "t",
+                    board,
+                    # A selector naming a widget grants no access. Native scope is also
+                    # ordinary CSS, not permission to style generated controls.
+                    head="<style>button:not(lf-board), a, lf-board .lf-absent { font-family: cursive;"
+                    " color: rgb(255, 0, 0); }"
+                    "body { font-style: italic; letter-spacing: 3px; }"
+                    "@scope (lf-board) { button { background-color: rgb(255, 0, 0); } }"
+                    ":root { --control-access-proof: teal; }"
+                    "html[data-lf-interactive] p > a { background-color: rgb(1, 2, 3); }"
+                    "p > a::before { content: 'Kept'; }"
+                    "p { border-top: 7px solid red; }</style>"
+                    "<style data-controls>"
+                    ":nth-child(1 of lf-board) button { outline: 3px solid rgb(0, 128, 0); }"
+                    "</style>",
+                )
             )
         ),
     )
@@ -7430,11 +7432,19 @@ def test_a_pages_own_element_rules_leave_the_layers_controls_alone(browser, serv
     source = (serve.page_dir / "index.html").read_text()
     stamp_page(
         serve.page_dir,
-        source.replace('<style id="body-controls">', '<style id="body-controls" data-controls>'),
+        source.replace(
+            '<style id="body-controls">', '<style id="body-controls" data-controls>'
+        ),
         "Grant the body stylesheet control access",
     )
     wait_for_revision(page, 2)
-    expect(page.locator('lf-board button.lf-ui').first).to_have_css(
+    expect(page.locator("lf-board button.lf-ui").first).to_have_css(
+        "border-bottom-color", "rgb(51, 102, 153)"
+    )
+
+    stamp_page(serve.page_dir, source, "Withdraw body stylesheet control access")
+    wait_for_revision(page, 3)
+    expect(page.locator("lf-board button.lf-ui").first).not_to_have_css(
         "border-bottom-color", "rgb(51, 102, 153)"
     )
 

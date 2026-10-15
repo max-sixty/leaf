@@ -371,11 +371,6 @@ A queue is one `lf-tabs list="side"` beside its open item (`page-layout.md`, "A
 workspace"). The first real one, a 21-item triage page, showed these. Its list's
 height and where a switch lands wait on the workspace decision under Layout.
 
-- **Start `m` from the open item's ask.** From a row, `m` goes to the queue's first
-  open ask, and `1` then picks for an item the user isn't looking at. The walk
-  measures from focus (`queue-walk.js`), and the row precedes every
-  panel; `t` and `T` measure the same way. A tab could stand at the view it opens for
-  the walks (`standing-target.js`), while `c` on a row still names the row.
 - **Keep the open item's group named on a phone.** In the one-row strip a group's
   label stands before its run's first tab, so opening a later item in a long run
   (`alert-review`'s "Ledger consumer lag" at 390px) scrolls the label out of view. A

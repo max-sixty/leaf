@@ -11,8 +11,9 @@ A fact the page states is read the way Leaf reads it: decisions, asks and
 workflows from `leaf page state`, markup through Leaf's own parse
 (`SourceDocument`, and `SourceReading` for the words an element says). What the
 agent says, in a reply or in prose it wrote onto the page, is judged by meaning
-through native YAML `llm-rubric` assertions over the complete structured trace.
-Command text describes intent; tool results establish whether it happened.
+through native YAML `llm-rubric` assertions over page passages, replies, and the
+complete structured trace. Command text describes intent; tool results establish
+whether it happened.
 Deterministic checks read authored structure and admitted page facts.
 """
 
@@ -29,8 +30,10 @@ from pathlib import Path
 
 from leaf.delivery import opened_input_ids, pickup_receipts
 from leaf.event_log import read_events
+from leaf.gesture_words import element_name
 from leaf.harness import ClaudeCodeHarness
 from leaf.passages import SourceReading, collapse
+from leaf.registry.storage import require_registry
 from leaf.schema import MESSAGE_KINDS
 from leaf.service import requires_agent_attention
 from leaf.structure import SourceDocument
@@ -788,9 +791,9 @@ def score_constructs(run: Run) -> dict:
             if edited is not None
             else (draft["body"] if draft else ""),
             "chart": chart["body"] if chart else "",
+            "latency-summary": said(document.html).get("latency-summary", ""),
         },
         "draft_restated": "release-note" in document.restated,
-        "p95_text": "231" in said(document.html).get("p95-figure", ""),
         "p95_current": state["measurement_lag"] == [],
         # The figure's owner is the markup; its source keeps the measurement.
         "source_kept": (page / "data/checkout-p95.json").read_bytes()
@@ -803,14 +806,16 @@ def score_board(run: Run) -> dict:
     if len(state["versions"]) < 2:
         return {"stamped": False}
     todo = column_cards(document, "col-todo")
+    alerts = document.by_id.get("card-alerts")
     return {
         "stamped": True,
         "doing_order": column_cards(document, "col-doing")
         == FIXTURE_INPUTS["board"]["doing"],
         "todo_kept": todo[:1] == ["card-rotate"] and len(todo) == 2,
         "done_empty": column_cards(document, "col-done") == [],
-        "renamed": "key expiry alerts"
-        in said(document.html).get("card-alerts", "").lower(),
+        "renamed": alerts is not None
+        and element_name(alerts["node"], require_registry(run.work / "page"))
+        == "Key expiry alerts",
         "no_restated": not document.restated,
     }
 
@@ -835,7 +840,7 @@ def score_resume(run: Run) -> dict:
     return {
         "versions": len(state["versions"]),
         "source_valid": not (state.get("source") or {}).get("error"),
-        "batch_200": batch is not None and "200" in batch,
+        "texts": {"batch-size": batch or ""},
         "batch_in_place": batch is not None,
         "pick_taken_in": not pick_owed(state, pick),
         "pick_in_force": any(
@@ -1201,7 +1206,6 @@ CHECKS = {
     "resume": (
         "stamped",
         "source_valid",
-        "batch_200",
         "batch_in_place",
         "pick_taken_in",
         "pick_in_force",
@@ -1211,7 +1215,6 @@ CHECKS = {
     "constructs": (
         "stamped",
         "draft_restated",
-        "p95_text",
         "p95_current",
         "source_kept",
     ),

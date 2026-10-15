@@ -75,8 +75,8 @@ heading. Remove those marks in the next version you hand over.
 
 ## Keep the current page current
 
-The main skill's "Keep the user current" sets the goal: the page the user returns to is
-the one you would write today. Restructuring the page is an ordinary revision; write
+[SOUL.md](../SOUL.md), "Keep the page current and the record trustworthy", sets the
+goal. Restructuring the page is an ordinary revision; write
 `index.html` whole rather than as a series of edits. Threads and user state follow ids
 (`page-authoring.md`, "Stable anchors"), so a passage you keep keeps its id wherever it
 moves, and moving it needs neither a suggestion nor `restated`.

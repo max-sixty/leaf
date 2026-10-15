@@ -400,6 +400,7 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
     from render_harness import (
         consume_browser_errors,
         holding,
+        http_error_console,
         panel_settled,
         scroll_settled,
         stored_draft_text,
@@ -528,7 +529,7 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
     )
     round_trip(page)
     rendered(page)
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(page, http_error_console(400))
     restored = pose()
     for node in pending:
         for edge in pending[node]:

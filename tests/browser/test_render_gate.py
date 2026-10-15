@@ -102,6 +102,7 @@ from render_harness import (
     plant_quiet_word,
     primed,
     reader_state,
+    reported_browser_errors,
     resized,
     root_overflow,
     scroll_followers,
@@ -595,12 +596,34 @@ def test_a_released_entry_that_never_arrives_is_named_like_any_other_file(
     assert stopped.value.finding.values["requesting"] == [entry_path]
 
 
+def test_browser_like_console_words_remain_console_diagnostics(browser):
+    """An authored message cannot establish an HTTP failure by imitating Chrome."""
+    page = browser.new_page()
+    text = (
+        "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    )
+    page.evaluate("text => console.error(text)", text)
+    [problem] = reported_browser_errors(page, text)
+    assert problem.code == "console-error"
+    assert problem.values == {"text": text, "url": ""}
+    assert str(problem) == text
+    page.evaluate(
+        "console.error('ordinary failure')\n//# sourceURL=http://page/author.js"
+    )
+    [problem] = reported_browser_errors(page, "ordinary failure")
+    assert problem.values == {
+        "text": "ordinary failure",
+        "url": "http://page/author.js",
+    }
+    assert str(problem) == "ordinary failure — http://page/author.js"
+
+
 def test_a_refused_document_reports_the_status_beside_the_wait_that_stopped(
     browser, serve, monkeypatch
 ):
     """A server that refuses the document leaves the proof with nothing to wait for
-    and the page with no console message of its own. The status the gate collected is
-    the only thing that says why the wait stopped, so the named wait carries it."""
+    and the page with no authored console message. The browser's native diagnostic
+    explains the refusal, so the named wait retains its complete text and URL."""
     real_proof = render_gate_scheme.start_with_pre_upgrade_proof
 
     def promptly(page, url):
@@ -620,9 +643,12 @@ def test_a_refused_document_reports_the_status_beside_the_wait_that_stopped(
     assert (failure.code, failure.scheme) == ("never-reached", "light")
     assert failure.values["arrival"] == "an authored main"
     assert {
-        "code": "failed-load",
+        "code": "console-error",
         "severity": "error",
-        "values": {"status": 401, "url": refused},
+        "values": {
+            "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+            "url": refused,
+        },
     } in failure.values["console"], failure
 
 

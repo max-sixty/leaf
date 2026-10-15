@@ -91,6 +91,7 @@ from render_harness import (
     expect_asks_answered,
     expect_banner_control_offered,
     holding,
+    http_error_console,
     is_problem,
     leaf_page,
     open_page,
@@ -1318,10 +1319,11 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     page = open_page(browser, url)
     resized(page, 900, 900)
     if quote_anchor:
-        words = page.locator("#source code").evaluate(
-            """code => {
+        # The code box also spans the gutter and blank column; drag on its words.
+        words = page.locator("#source [data-content] [data-line] span").evaluate(
+            """span => {
               const range = document.createRange();
-              range.selectNodeContents(code);
+              range.selectNodeContents(span);
               return range.getBoundingClientRect().toJSON();
             }"""
         )
@@ -6972,7 +6974,7 @@ def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
         )
     expect(page.locator("#tq-logs")).not_to_have_attribute("chosen", "")
     assert actions(serve.page_dir) == []
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(page, http_error_console(400))
     page.unroute("**/api/event")
 
     page.locator("#tq-logs").click()
@@ -7008,7 +7010,7 @@ def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
         ("choose", {"value": ["tq-logs"]}),
         ("answer", {}),
     ]
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(page, http_error_console(400))
 
 
 def test_refusal_restores_queued_recordless_thread_actions_in_order(browser, serve):
@@ -7061,7 +7063,7 @@ def test_refusal_restores_queued_recordless_thread_actions_in_order(browser, ser
     expect(done).not_to_have_attribute("aria-busy", "true")
     expect(done).to_have_attribute("aria-pressed", "false")
     assert actions(serve.page_dir) == []
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(page, http_error_console(400))
 
 
 def test_a_done_press_answers_optimistically_and_only_once(browser, serve):

@@ -784,7 +784,7 @@ def test_a_window_sample_is_a_whole_leaf_window_that_scrolls_inside(browser, ser
     sample.get_by_role("button", name="Full view", exact=True).click()
     assert frame.bounding_box()["height"] > page.viewport_size["height"] * 0.8
     sample.get_by_role("button", name="Return to page", exact=True).click()
-    assert child_frame.evaluate("scrollY") == scroll_before + 300
+    expect(content).to_have_js_property("scrollTop", scroll_before + 300)
     assert frame.bounding_box()["height"] == box["height"]
 
     # A fragment set during startup must not prevent Reset or reload from presenting.

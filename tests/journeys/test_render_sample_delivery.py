@@ -14,6 +14,7 @@ from playwright.sync_api import expect
 from render_harness import (
     consume_browser_errors,
     holding,
+    http_error_console,
     open_page,
     page_comment,
     said,
@@ -449,7 +450,7 @@ def test_sample_release_failure_records_the_retired_allocation(
     assert records[-1]["document"] == next(
         row["document"] for row in records if row["phase"] == "connected"
     )
-    consume_browser_errors(page, {"code": "failed-load", "status": 503})
+    consume_browser_errors(page, http_error_console(503))
 
 
 @pytest.mark.parametrize("status", [404, 200])
@@ -518,7 +519,7 @@ def test_sample_document_without_bootstrap_retires_and_can_reset(
     if status == 404:
         consume_browser_errors(
             page,
-            {"code": "failed-load", "status": 404},
+            http_error_console(404),
             "The sample document did not start Leaf",
         )
 
@@ -652,5 +653,5 @@ def test_sample_native_departure_keeps_destination_and_reset(
         == 404
     )
     consume_browser_errors(
-        page, {"code": "failed-load", "status": 404, "url": previous + "api/state"}
+        page, {"code": "console-error", "url": previous + "api/state"}
     )

@@ -110,7 +110,7 @@ def test_a_finding_is_a_record_its_words_and_json_are_rendered_from():
         Finding("no-such-code")
     # A wait that never ended carries what the console said, as findings of its own.
     console = [
-        Finding("failed-load", values={"status": 401, "url": "http://page/"}),
+        Finding("console-error", values={"text": "refused", "url": "http://page/"}),
         Finding("console-warning", values={"text": "slow"}),
     ]
     stalled = Finding(
@@ -124,7 +124,7 @@ def test_a_finding_is_a_record_its_words_and_json_are_rendered_from():
     )
     assert str(stalled) == (
         "[light] pre-upgrade proof failed: the document never reached an authored"
-        " main; still requesting /page.css — 401 http://page/\nwarning: slow"
+        " main; still requesting /page.css — refused — http://page/\nwarning: slow"
     )
 
 

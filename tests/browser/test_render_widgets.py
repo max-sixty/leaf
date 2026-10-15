@@ -88,6 +88,7 @@ from render_harness import (
     expect_comment_notes,
     fills_the_window,
     holding,
+    http_error_console,
     leaf_page,
     margins_laid_out,
     names,
@@ -6173,7 +6174,7 @@ def test_a_refused_undo_keeps_the_outcome_and_can_be_retried(browser, serve):
     ]
     receipt = row.locator(".lf-margin-receipt")
     expect(receipt).to_have_text("Undo failed · Rejected")
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(page, http_error_console(400))
     assert receipt.evaluate(
         """element => {
           const probe = document.createElement('span');
@@ -6487,7 +6488,7 @@ def test_a_refused_decision_returns_to_pending_with_failure_controls(
     assert logged[0]["attempt"]
     undo(page)
     expect(page.locator("#sug-refill lf-old")).to_be_visible()
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(page, http_error_console(400))
 
 
 def test_an_ambiguous_decision_stays_one_gesture_while_retrying(browser, serve):

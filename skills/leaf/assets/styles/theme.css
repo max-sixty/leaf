@@ -399,10 +399,19 @@
      a pressable, a control's label, a card lifted under the pointer); --raise-2 opens
      over the page (a menu, a popover, a focused chip under the banner, a card in the
      hand); --raise-3 stands over the page for a task of its own (a dialog, the thread
-     card). A surface takes the height its meaning has, never a new value. */
+     card). A surface takes the height its meaning has, never a new value. Each is one
+     layer with no spread, so `filter: drop-shadow(var(--raise-N))` reads it as it
+     stands, for a surface whose silhouette is not its box. */
   --raise-1: 0 2px 8px var(--shade);
   --raise-2: 0 8px 24px var(--shade);
   --raise-3: 0 12px 36px var(--shade);
+  /* A tooltip's face: a control's label, held or hovered, in the inverse ink at
+     --raise-1. Its stylesheets live wherever the control does, often in a shadow tree
+     or a package and on a pseudo-element no shared class reaches, so the face is
+     tokens they name; each keeps its own placement. --tip-font is derived from the
+     ladder, so `.density-working` declares it again. */
+  --tip-bg: var(--ink); --tip-ink: var(--paper); --tip-pad: 4px 7px; --tip-r: 4px;
+  --tip-font: 500 var(--t-6)/1.2 var(--sans);
   /* Inline code's ground is measured against the paper it sits on, not the white code
      canvas: GitHub's #f6f8fa over this ivory is 1.01:1, so the chip vanished and its
      side padding read as double spaces around every span. */
@@ -1036,6 +1045,7 @@ p { margin: 13px 0; }
   --sp-1: 3px; --sp-2: 6px; --sp-3: 10px; --sp-4: 14px;
   --code-size: 12px; --code-line: 17px;
   --lf-key-badge-size: calc(round(var(--t-6) * 1.478 + 2px, 1px));
+  --tip-font: 500 var(--t-6)/1.2 var(--sans);
   --pane-bar-pad: 6px 12px;
   --pane-inset: 12px;
   --h2-start: 18px; --h3-start: 12px; --figure-margin-block: 10px;
@@ -1565,9 +1575,9 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) { padd
   position: absolute; z-index: 3; inset-block-start: calc(100% + 6px);
   inset-inline-end: 0; display: block; width: max-content;
   max-width: min(320px, 100vw - 8px);
-  padding: 4px 7px; border-radius: 4px;
-  background: var(--ink); color: var(--paper);
-  font: 500 var(--t-6)/1.2 var(--sans); white-space: normal; overflow-wrap: anywhere;
+  padding: var(--tip-pad); border-radius: var(--tip-r);
+  background: var(--tip-bg); color: var(--tip-ink);
+  font: var(--tip-font); white-space: normal; overflow-wrap: anywhere;
   box-shadow: var(--raise-1);
   opacity: 0; visibility: hidden; pointer-events: none;
   transform: translateY(-2px);

@@ -117,10 +117,10 @@
   position: absolute;
   z-index: 3;
   inset-block-start: calc(100% + 4px);
-  padding: 4px 7px;
-  border-radius: 4px;
-  background: var(--ink);
-  color: var(--paper);
+  padding: var(--tip-pad);
+  border-radius: var(--tip-r);
+  background: var(--tip-bg);
+  color: var(--tip-ink);
   box-shadow: var(--raise-1);
   white-space: normal;
   overflow-wrap: anywhere;

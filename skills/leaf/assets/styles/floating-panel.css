@@ -65,14 +65,14 @@
   }
 
   /* The surface: a layer over the whole window, cut to the box's outline by the
-     panel's script, with a ring a pixel outside it and one soft shadow around both. */
+     panel's script, with a ring a pixel outside it and one soft shadow around both,
+     cast at the height of what opens over the page. */
   .lf-fp-ground {
     position: fixed;
     inset: 0;
     z-index: calc(var(--lf-z-banner) - 1);
     pointer-events: none;
-    filter: drop-shadow(0 12px 14px color-mix(in srgb, var(--shade) 70%, transparent))
-      drop-shadow(0 1px 1px color-mix(in srgb, var(--shade) 30%, transparent));
+    filter: drop-shadow(var(--raise-2));
   }
   .lf-fp-ring,
   .lf-fp-fill {

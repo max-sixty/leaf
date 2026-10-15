@@ -939,12 +939,12 @@ leaf-text.lf-fab-input,
   translate: -50% 0;
   width: max-content;
   max-width: 220px;
-  padding: 4px 7px;
-  border-radius: 4px;
-  background: var(--ink);
-  color: var(--paper);
+  padding: var(--tip-pad);
+  border-radius: var(--tip-r);
+  background: var(--tip-bg);
+  color: var(--tip-ink);
   box-shadow: var(--raise-1);
-  font: 500 var(--t-6)/1.2 var(--sans);
+  font: var(--tip-font);
   white-space: nowrap;
   pointer-events: none;
 }
@@ -1499,7 +1499,7 @@ button.lf-media-open {
 }
 .lf-page-comment-card,
 .lf-response-control {
-  filter: drop-shadow(0 2px 4px var(--shade));
+  filter: drop-shadow(var(--raise-1));
 }
 .lf-comment-box > .lf-compose-field > leaf-text {
   padding: var(--lf-compose-pad-block) var(--lf-compose-pad-inline-start);

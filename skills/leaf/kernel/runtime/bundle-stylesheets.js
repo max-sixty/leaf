@@ -41,7 +41,8 @@ var chromeSharedClasses = Object.freeze([
   "lf-skip",
   "lf-ui",
   "lf-version-inline",
-  "lf-version-inline-deletion"
+  "lf-version-inline-deletion",
+  "lf-visual-action"
 ]);
 var marksSheet = constructSheet(sheets.marks);
 var annotationMarkSheets = sheets.annotations ? [constructSheet(sheets.annotations.marks)] : [];

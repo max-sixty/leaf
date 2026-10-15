@@ -147,7 +147,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-visual-mark.lf-visual-mark-action:not(.lf-visual-mark-pending,
       .lf-visual-mark-hover, .lf-visual-mark-focus, .lf-visual-mark-here) {
     --lf-shape-stroke: 1px; border-width: 1px; }
-  .lf-visual-mark.lf-shaped { border: 0; border-radius: 0 !important; }
   .lf-visual-mark-shape { display: block; width: 100%; height: 100%; overflow: hidden; }
   .lf-fab-bar:not([data-lf-presentation="inline"]) .lf-composer-media {
     grid-column: 1; grid-row: 1; min-width: 42px; }
@@ -171,7 +170,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     box-sizing: border-box; overflow: hidden; scroll-padding-block: var(--focus-ring-room);
     margin: 0; padding: var(--lf-comment-inset);
     border: 1px solid var(--border-2); border-radius: 10px;
-    background: var(--paper); color: var(--ink); box-shadow: 0 12px 36px var(--shade);
+    background: var(--paper); color: var(--ink); box-shadow: var(--raise-3);
     display: flex; flex-direction: column; }
   /* Open before its first placement lands (thread-preview.js, `placeThreadPreview`),
      the card has no spot yet, so it is not seen or pressed where it happens to lie. */

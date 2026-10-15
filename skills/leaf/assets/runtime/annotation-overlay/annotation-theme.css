@@ -80,7 +80,7 @@
   --lf-pin-edge: var(--paper);
   border: 2px solid var(--lf-pin-edge);
   background: var(--lf-pin-face, var(--pin-fill)); --lf-entry-ink: #fff;
-  box-shadow: 0 1px 2px var(--shade), 0 3px 8px var(--shade); }
+  box-shadow: var(--raise-1); }
 .lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry
   > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
   color: var(--lf-entry-ink); inline-size: 14px; block-size: 14px; }

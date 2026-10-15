@@ -121,7 +121,7 @@
    :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *):has(> lf-option > strong)
     > lf-option:hover {
       transform: translateY(-1px);
-      --lf-lift: 0 3px 10px var(--shade); }
+      --lf-lift: var(--raise-1); }
  }
 }
 /* The mark the upgrade injects is both the keyboard path and the state. On a live card it

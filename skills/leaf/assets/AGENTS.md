@@ -151,6 +151,11 @@ representative desktop viewport.
   dashed line marks a distinct state, such as a draft or a drag placeholder. One
   contour shows one control state, and a segmented group shares one-pixel seams. Avoid
   rounded one-sided borders and reflexive cards, tints, gradients and soft shadows.
+- **A face used twice is a token or a shared rule**, and a rule names it rather than
+  spelling it out. A lift names one of the theme's three heights, `--raise-1` to
+  `--raise-3` (`styles/theme.css`, beside `--shade`); boxes that wear one face, such as
+  the chip a focused skip link and picture proxy show under the banner, share one rule.
+  Check: `test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink`.
 - **Each thread's `unread` and `attention` are computed once**, and every surface that
   paints them uses that value, so the Threads toggle, filters, panel, margin entry and
   Page Map change together. Green marks the user's turn; other thread controls stay

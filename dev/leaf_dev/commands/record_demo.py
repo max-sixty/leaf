@@ -308,7 +308,7 @@ def record(
     page.wait_for_function(
         """() => document.querySelector('.lf-composer').style.display === 'contents'
             && (CSS.highlights.get('lf-pending')?.size ?? 0) > 0
-            && document.getElementById('lf-composer-quote').classList.contains('lf-unseen')"""
+            && document.getElementById('lf-composer-quote').classList.contains('lf-quiet')"""
     )
     shot(2300)
 

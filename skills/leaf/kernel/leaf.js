@@ -5377,7 +5377,7 @@ function createAnchorControls({
     const label2 = open ? labelAnchor(anchor, about) : "";
     keepsText(draftQuote, label2);
     const located = Boolean(resolved && resolved.status !== "outdated");
-    draftQuote.classList.toggle("lf-unseen", !label2 || located && !about);
+    draftQuote.classList.toggle("lf-quiet", !label2 || located && !about);
   }
   function render2({ readings, draft }) {
     const notes = /* @__PURE__ */ new Map();
@@ -8466,6 +8466,7 @@ function createFloatingPanel({
     }
     const openThreads2 = threads().filter((candidate) => !candidate.resolved);
     const at = thread ? openThreads2.indexOf(thread) : -1;
+    const titleClass = top.view === "queue" ? "lf-fp-title lf-quiet" : "lf-fp-title";
     const crumb = top.view === "threads" && searching ? html`<input
             class="lf-fp-search"
             type="search"
@@ -8484,9 +8485,7 @@ function createFloatingPanel({
                     >
                       ${titleOf2(parent)}</button
                     ><span class="lf-fp-sep" aria-hidden="true">/</span>` : nothing}
-            <h2 class="lf-fp-title" ?data-unseen=${top.view === "queue"}>
-              ${titleOf2(top)}
-            </h2>
+            <h2 class=${titleClass}>${titleOf2(top)}</h2>
             ${at >= 0 ? html`<span class="lf-fp-where"
                     >${at + 1} of ${openThreads2.length}</span
                   >` : nothing}`;

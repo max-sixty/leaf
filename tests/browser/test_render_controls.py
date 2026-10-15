@@ -5990,8 +5990,9 @@ def test_the_focus_sweep_distinguishes_stops_inside_a_live_frame(browser):
     assert page.evaluate(RING_NEW_STOP) == "new"
 
 
-# Every declaration in the page's composed layer that lifts a box off the page: a
-# box-shadow with a blur radius. A ring is `0 0 0 Npx` and an inset band is `inset …`, so
+# Every declaration in the page's composed layer that spells a lift: a box-shadow, or a
+# custom property a shadow reads, with a blur radius written out. A ring is `0 0 0 Npx`
+# and an inset band is `inset …`, so
 # the reading asks for a third length that is not nought — which is the one thing that
 # separates elevation from the other two uses of the property, and is decidable from the
 # declaration where "is this a shadow" is not.
@@ -6008,8 +6009,9 @@ ELEVATION_SHADOWS = """() => {
     try { list = sheet.cssRules; } catch { return; }  // a sheet from another origin
     const walk = (from) => {
       for (const rule of from) {
-        for (const property of ['box-shadow', '--lf-lift']) {
-          const value = rule.style?.getPropertyValue(property)?.trim();
+        const named = rule.style ? [...rule.style] : [];
+        for (const property of named.filter((name) => name === 'box-shadow' || name.startsWith('--'))) {
+          const value = rule.style.getPropertyValue(property).trim();
           if (!value || value === 'none') continue;
           // The blur, which is the third length of a layer, past the two offsets. A ring
           // writes `0 0 0 Npx` and has none; an inset band is not a lift at all. Read per
@@ -6018,7 +6020,8 @@ ELEVATION_SHADOWS = """() => {
             if (/(^|\\s)inset(\\s|$)/.test(layer)) return false;
             const lengths = layer.trim().split(/\\s+/)
               .filter((token) => /^-?(\\d*\\.)?\\d+(px)?$/.test(token));
-            return lengths.length >= 3 && parseFloat(lengths[2]) !== 0;
+            return lengths.length >= 3 && parseFloat(lengths[2]) !== 0
+              && lengths.some((token) => token.endsWith('px'));
           });
           if (!lifts.length) continue;
           const own = rule.selectorText;
@@ -6056,36 +6059,43 @@ PAINTED_SHADE = """() => {
 }"""
 
 
-def test_every_shadow_the_layer_lifts_a_box_with_is_cast_in_the_scheme_s_own_ink(
+def test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink(
     browser, serve
 ):
-    """A drop shadow written as rgba(0,0,0,α) can only be right about one ground.
+    """A box stands at one of three heights, and only the theme spells them out.
 
-    At .12 over the light paper a menu lifts its ground by 10 L*. The same declaration
-    over the dark paper lifts it by 1.4, which is a shadow that is in the stylesheet and
-    not on the screen — and nine of the layer's twelve elevation shadows were written that
-    way, each with an alpha of its own between .12 and .24. --shade is the ink, stated once
-    per scheme, and depth is left to the offsets and the blur that were already saying it.
+    Twenty lifts once wrote eight geometries between them, so two menus beside each
+    other stood at different heights for no reason anyone chose, and nothing kept the
+    next one from writing a ninth. The `--raise-*` tokens (theme.css, beside --shade)
+    are now the only declarations that write a blur; every other rule names one, with a
+    hairline or ring beside it where its edge needs one.
+
+    A drop shadow written as rgba(0,0,0,α) can only be right about one ground: at .12
+    over the light paper a menu lifts its ground by 10 L*, and over the dark paper by
+    1.4. So the heights are cast in --shade, the ink stated once per scheme, and the two
+    schemes are then asked for different answers from it.
 
     Asked of the declarations rather than of the paint, because that is where the fault
-    is: on the dark ground the difference between the value that reads and the value that
-    does not is 4 L*, which no screenshot of a blurred edge will tell you about reliably,
-    while "does this name the token" is exact. The two schemes are then asked for
-    different answers from the token itself, which is the whole of what one hard-coded
-    colour could not do.
+    is: "does this name the token" is exact, where a screenshot of a blurred edge is not.
     """
     page = open_page(browser, serve(LONG_PAGE))
     lifted = page.evaluate(ELEVATION_SHADOWS)
-    assert len(lifted) >= 10, (
-        f"the layer declares {len(lifted)} elevation shadows, which is fewer than it "
-        f"ships: this reading has stopped finding them and the assertion below is "
-        f"about nothing"
+    heights = {s["property"] for s in lifted if s["property"].startswith("--raise-")}
+    assert heights == {"--raise-1", "--raise-2", "--raise-3"}, (
+        f"the layer spells the heights {sorted(heights)}, not --raise-1 to --raise-3: "
+        f"this reading has stopped finding them and the assertions below are about "
+        f"nothing"
     )
-    raw = [shadow for shadow in lifted if "var(--shade)" not in shadow["value"]]
+    spelled = [s for s in lifted if not s["property"].startswith("--raise-")]
+    assert not spelled, (
+        f"{len(spelled)} lifts write their own geometry rather than naming a --raise-* "
+        f"height:\n  "
+        + "\n  ".join(f"{s['said']} — {s['property']}: {s['value']}" for s in spelled)
+    )
+    raw = [s for s in lifted if "var(--shade)" not in s["value"]]
     assert not raw, (
-        f"{len(raw)} of the layer's {len(lifted)} elevation shadows are cast in a "
-        f"colour of their own rather than in --shade, so the dark scheme cannot answer "
-        f"for them:\n  "
+        f"{len(raw)} heights are cast in a colour of their own rather than in --shade, "
+        f"so the dark scheme cannot answer for them:\n  "
         + "\n  ".join(f"{s['said']} — {s['property']}: {s['value']}" for s in raw)
     )
     light = page.evaluate(PAINTED_SHADE)

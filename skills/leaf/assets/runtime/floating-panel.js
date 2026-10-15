@@ -1749,6 +1749,9 @@ export function createFloatingPanel({
     }
     const openThreads = threads().filter((candidate) => !candidate.resolved);
     const at = thread ? openThreads.indexOf(thread) : -1;
+    // On's name is its selected tab's, which the tabs beside it already show, so the
+    // heading names the view to assistive tech alone.
+    const titleClass = top.view === "queue" ? "lf-fp-title lf-quiet" : "lf-fp-title";
     const crumb =
       top.view === "threads" && searching
         ? html`<input
@@ -1774,9 +1777,7 @@ export function createFloatingPanel({
                     ><span class="lf-fp-sep" aria-hidden="true">/</span>`
                 : nothing
             }
-            <h2 class="lf-fp-title" ?data-unseen=${top.view === "queue"}>
-              ${titleOf(top)}
-            </h2>
+            <h2 class=${titleClass}>${titleOf(top)}</h2>
             ${
               at >= 0
                 ? html`<span class="lf-fp-where"

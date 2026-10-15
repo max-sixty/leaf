@@ -189,4 +189,4 @@
 /* A held card says so with its contour. The lift's shadow alone does not show on the
    dark paper, which left a card grabbed by keyboard looking exactly like one whose grip
    is merely focused. */
-:scope:is(lf-card).lf-lift { box-shadow: 0 2px 8px var(--shade); border-color: var(--accent); }
+:scope:is(lf-card).lf-lift { box-shadow: var(--raise-1); border-color: var(--accent); }

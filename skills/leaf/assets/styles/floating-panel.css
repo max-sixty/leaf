@@ -536,14 +536,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  /* On's name is its selected tab's, which the tabs beside it already show, so the
-     heading names the view to assistive tech alone. */
-  .lf-fp-title[data-unseen] {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    clip-path: inset(50%);
-  }
   .lf-fp-back {
     flex: none;
     min-height: 0;
@@ -714,7 +706,7 @@
     background: var(--lf-fp-surface);
     box-shadow:
       0 0 0 1px var(--lf-fp-ring),
-      0 4px 10px -6px var(--shade);
+      var(--raise-1);
     color: var(--ink);
     font-size: 12px;
   }
@@ -991,7 +983,7 @@
     background: var(--lf-fp-surface);
     box-shadow:
       0 0 0 1px var(--lf-fp-ring),
-      0 12px 24px -12px var(--shade);
+      var(--raise-2);
   }
   .lf-floating-panel:not([data-menu]) .lf-fp-menu {
     display: none;
@@ -1064,7 +1056,7 @@
     background: var(--lf-fp-surface);
     box-shadow:
       0 0 0 1px var(--lf-fp-ring),
-      0 8px 20px -10px var(--shade);
+      var(--raise-1);
     color: var(--lf-fp-muted);
     font-size: 12px;
     pointer-events: none;

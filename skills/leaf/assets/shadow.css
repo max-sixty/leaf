@@ -943,7 +943,7 @@ leaf-text.lf-fab-input,
   border-radius: 4px;
   background: var(--ink);
   color: var(--paper);
-  box-shadow: 0 2px 8px var(--shade);
+  box-shadow: var(--raise-1);
   font: 500 var(--t-6)/1.2 var(--sans);
   white-space: nowrap;
   pointer-events: none;
@@ -1061,7 +1061,7 @@ svg[data-lf-icon] {
   border: 1px solid var(--border-2);
   border-radius: var(--r);
   background: var(--card);
-  box-shadow: 0 4px 12px var(--shade);
+  box-shadow: var(--raise-2);
 }
 :where(.lf-react-strip > .lf-react-palette:popover-open) > .lf-react {
   box-sizing: border-box;

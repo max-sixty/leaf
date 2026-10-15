@@ -1039,14 +1039,10 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
     declarations["lf-column"]["x-owners"].append("lf-outer-board")
     registry_path.write_text(json.dumps(declarations))
     (tmp_path / ".leaf" / "widgets" / "lf-outer-board.js").write_text(
-        """import { once, widgetController } from "/runtime/widget-api.js";
-customElements.define("lf-outer-board", class extends HTMLElement {
-  #controller = widgetController(this);
-  #stop;
-  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
-  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState(state) {
-    for (const [id, order] of Object.entries(state.move.value)) {
+        """import { LeafElement } from "/runtime/widget-api.js";
+customElements.define("lf-outer-board", class extends LeafElement {
+  render() {
+    for (const [id, order] of Object.entries(this.state.move.value)) {
       const column = document.getElementById(id);
       for (const card of order) column.append(document.getElementById(card));
     }
@@ -1982,8 +1978,8 @@ def test_undo_leaves_a_user_standing_elsewhere_where_they_are(browser, serve):
 def test_a_withdrawal_waits_for_a_widget_that_cannot_take_it_yet(browser, serve):
     """The withdrawal pass has to keep the discipline the replay loop keeps, because
     it is replay: a widget the page has painted ahead of the log gets the next poll
-    rather than being written over. `lf-draft` says so outright — its renderState
-    returns false while an editor stands, so the user's unsent words are not yanked
+    rather than being written over. `lf-draft` says so outright — it defers its
+    presentation while an editor stands, so the user's unsent words are not yanked
     out from under them — and a pass that drops that answer and marks the withdrawal
     answered leaves the tab holding the withdrawn text for the rest of its life, with
     the user-origin reading cleared because the fold agrees the edit is gone. A reload

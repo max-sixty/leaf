@@ -107,7 +107,7 @@ may still withdraw an older gesture it names.
 state. It withdraws rather than deletes: nothing leaves the log, and the folds and
 the thread reading drop the event, so the page is what the revision says plus
 what still stands, the same reading a reload has always made and the one
-`restated` writes from the author's side. `renderState` paints withdrawals and
+`restated` writes from the author's side. A widget's `render()` paints withdrawals and
 forward changes alike, retaining the widget and its independent children. The
 door refuses an `undoes` naming anything but an unwithdrawn gesture of the
 user's own. An exact control may withdraw a forward action before that action's

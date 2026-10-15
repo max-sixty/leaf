@@ -1928,13 +1928,10 @@ def _author_stateful_verbatim_widget(tmp_path):
         "});\n"
     )
     (tmp_path / ".leaf" / "widgets" / "lf-stateful.js").write_text(
-        'import { keepsText, once, widgetController } from "/runtime/widget-api.js";\n'
-        'customElements.define("lf-stateful", class extends HTMLElement {\n'
-        "  controller = widgetController(this);\n"
-        "  stop;\n"
-        "  connectedCallback() { once(this); this.stop ??= this.controller.subscribe(() => {}); }\n"
-        "  disconnectedCallback() { this.stop?.(); this.stop = null; }\n"
-        "  renderState(state) {\n"
+        'import { LeafElement, keepsText } from "/runtime/widget-api.js";\n'
+        'customElements.define("lf-stateful", class extends LeafElement {\n'
+        "  render() {\n"
+        "    const { state } = this;\n"
         '    if (state.change.value === "corrupt" || state.status.value === "corrupt")\n'
         '      keepsText(this.closest("lf-shell")?.querySelector(":scope > p")'
         ' ?? this.querySelector("p"), "State replaced unrelated prose.");\n'

@@ -431,7 +431,7 @@ def test_thread_timestamps_age_without_new_state(browser, serve):
 
 
 def test_an_idle_page_keeps_its_dom_and_data_subscriptions_at_rest(browser, serve):
-    """An unchanged clock must not render state or redeliver an unchanged source.
+    """An unchanged clock must not render state or redraw an unchanged source.
 
     Observe mutations over two actual timer ticks instead of imposing a machine-speed
     budget. Clock aging has its own rendered-word test in the projection suite.
@@ -441,11 +441,13 @@ def test_an_idle_page_keeps_its_dom_and_data_subscriptions_at_rest(browser, serv
     page.evaluate(
         """async () => {
           await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-          const {watchData} = await window.__lfWidgetApi();
+          const feed = document.querySelector('lf-feed');
+          const show = feed.show;
           window.idleDeliveries = 0;
-          window.stopIdleData = watchData(document.querySelector('lf-feed'), 'rows', () => {
+          feed.show = function (snapshot) {
             window.idleDeliveries++;
-          });
+            return show.call(this, snapshot);
+          };
           window.idleMutations = 0;
           window.idleObserver = new MutationObserver(records => window.idleMutations += records.length);
           window.idleObserver.observe(document.documentElement,
@@ -457,10 +459,9 @@ def test_an_idle_page_keeps_its_dom_and_data_subscriptions_at_rest(browser, serv
     assert page.evaluate(
         """() => {
           window.idleObserver.disconnect();
-          window.stopIdleData();
           return {mutations: window.idleMutations, deliveries: window.idleDeliveries};
         }"""
-    ) == {"mutations": 0, "deliveries": 1}
+    ) == {"mutations": 0, "deliveries": 0}
 
 
 def test_failed_clock_paints_do_not_starve_other_widgets_or_restart_polling(

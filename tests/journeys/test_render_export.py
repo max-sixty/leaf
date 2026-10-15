@@ -946,26 +946,13 @@ def test_a_preview_relinquishes_a_service_another_session_claims(
 # ---------- export: the page as one file ----------
 
 OFFLINE_WIDGET = """\
-import { html, render, widgetController } from "/runtime/widget-api.js";
+import { html, LeafElement } from "/runtime/widget-api.js";
 
-customElements.define("lf-offline-test", class extends HTMLElement {
-  controller = widgetController(this);
-  reading = this.controller.read();
-  local = 0;
-  stop = null;
+customElements.define("lf-offline-test", class extends LeafElement {
+  #local = 0;
 
-  connectedCallback() {
-    if (!this.shadowRoot) this.attachShadow({mode: "open"});
-    this.stop ??= this.controller.subscribe(reading => {
-      this.reading = reading;
-      this.paint();
-    });
-    this.paint();
-  }
-
-  disconnectedCallback() {
-    this.stop?.();
-    this.stop = null;
+  createRenderRoot() {
+    return this.attachShadow({mode: "open"});
   }
 
   choose() {
@@ -974,22 +961,22 @@ customElements.define("lf-offline-test", class extends HTMLElement {
     });
   }
 
-  paint() {
-    const choice = this.reading.state.choose?.value ?? this.getAttribute("choice");
-    const action = this.reading.actions.choose;
+  render() {
+    const {state, actions} = this.reading;
+    const action = actions.choose;
     const unavailable = action.unavailable;
-    render(html`
+    return html`
       <style>#local { color: rgb(12, 34, 56); }</style>
-      <button id="local" @click=${() => { this.local += 1; this.paint(); }}>
+      <button id="local" @click=${() => { this.#local += 1; this.requestUpdate(); }}>
         Increment locally
       </button>
-      <output id="local-value">${this.local}</output>
+      <output id="local-value">${this.#local}</output>
       <button id="choose" ?disabled=${!action.available} @click=${this.choose}>
         Choose on host
       </button>
-      <output id="choice">${choice}</output>
+      <output id="choice">${state.choose.value}</output>
       ${unavailable ? html`<p id="unavailable">${unavailable}</p>` : null}
-    `, this.shadowRoot, {host: this});
+    `;
   }
 });
 """

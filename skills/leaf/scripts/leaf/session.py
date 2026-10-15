@@ -36,10 +36,9 @@ from .service import (
     PageTransaction,
     owned_pages,
     read_status,
-    session_claims,
     unacknowledged,
 )
-from .state import SESSION_SUFFIX, session_file, still_named
+from .state import SESSION_SUFFIX, session_claims, session_file, still_named
 
 # How often a watch rechecks a live page's server. It is also the longest a watch goes
 # without a pass on a page whose files have not moved: nothing else a pass reads

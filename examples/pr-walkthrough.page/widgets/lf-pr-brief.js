@@ -30,12 +30,12 @@ customElements.define(
       const snapshot = this.data("request");
       const record = snapshot?.value;
       // The author's description is Markdown. The brief waits for its renderer once a
-      // delivery, holding the widget's presentation; a load that fails draws the
-      // escaped source, and the next delivery tries again.
+      // delivery, the delivery's claim with it; a load that fails draws the escaped
+      // source, and the next delivery tries again.
       const delivery = JSON.stringify([snapshot?.revision, snapshot?.run]);
       if (record && !markdownReady() && this.#loading !== delivery) {
         this.#loading = delivery;
-        this.controller.present(
+        this.drawing(
           loadMarkdown().then(() => {
             this.requestUpdate();
             return this.updateComplete;
@@ -107,8 +107,8 @@ customElements.define(
       );
     }
 
-    // The drawn brief's datum and code highlighting follow each draw; the highlighting
-    // holds the widget's presentation until it lands.
+    // The drawn brief's datum and code highlighting follow each draw; the draw's claim
+    // waits for the highlighting.
     updated(changed) {
       super.updated(changed);
       const snapshot = this.#drawn;
@@ -127,7 +127,7 @@ customElements.define(
         ],
         { snapshot },
       );
-      if (record) this.controller.present(highlightBlocks(this));
+      if (record) this.drawing(highlightBlocks(this));
     }
   },
 );

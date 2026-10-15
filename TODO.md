@@ -113,7 +113,10 @@ has tried; settle that before building it.
   `leaf` with the arguments it is given, have a sandboxed refusal name it, and
   drop the README's Codex rule. Codex asks before each MCP tool call unless the
   user approves the tool or sets the server's `default_tools_approval_mode =
-  "approve"`; find whether a plugin can declare that itself.
+  "approve"`; find whether a plugin can declare that itself. A session that never
+  runs `leaf` should pay nothing for this, as Claude Code's do for the bridge, so
+  find whether Codex starts a plugin's MCP server in every session or only on first
+  use.
 - **Consider a reminder when revising decided content.** An optional `--force`
   acknowledgment could make an agent pause over an existing decision. Revisions
   currently remain unrestricted; decide whether such a reminder helps before
@@ -340,6 +343,27 @@ that changes size after first paint, with its cause.
   startup shifts only as diagnostics, so a marker drawn in the wrong place in its first
   frame and then moved would fail nothing. Read `leaf-dev probe`'s startup readings on
   a page with margin markers at a few widths.
+- **Fold a thread summary without moving the messages it covers.** Folding moves
+  the covered messages into `.lf-summary-originals` (`thread-card.js`), so a text
+  selection inside them is lost in Chromium, Firefox and WebKit, and WebKit, which
+  lacks `moveBefore`, reloads any frame among them: once when the summary arrives
+  and twice when it is retracted. A prototype of a flat transcript, which folds by
+  hiding the covered messages where they stand, kept both in every engine and drew
+  the same picture. It changes how screen readers group the folded messages and how
+  a checkpoint's frame is drawn, so it needs the user's go-ahead. Build it on current
+  `main`, move the tests off `.lf-summary-originals`, and check margin and page
+  captures and a screen reader.
+- **Let the shift watch see the runtime's own scrolls.** `tests/shift_watch.js`
+  measures in layout coordinates, which remove scrolling, so a scroll the runtime
+  makes during a gesture can move the control under the user's aim and fail
+  nothing; #2895's reply box moved 9–14px on a send that way. The proposed rule:
+  only a gesture that takes the user somewhere (the `t` and `q` walks, links,
+  Go-to) may move its control, and every other gesture keeps it still. Declare the
+  exemption on the command, not in a list in the watch. Then fix what it catches,
+  starting with the landings that choose where a gesture's control ends up:
+  `standOnThread`, the Threads list's landing, and `scrollThreadIntoView`. This
+  needs the user's go-ahead, and its per-frame cost measured at 4x CPU throttling
+  (`notes/shift-watch-cost.md`).
 
 ### Queues
 
@@ -458,10 +482,9 @@ on 2026-10-07.
   `build/browser/`, keeping the generated event and protocol declarations under
   their generator. Rebuild the vendored JavaScript in the same change: the
   compiler preserves source formatting, and the build gate compares its bytes.
-- **Format authored JSON and YAML.** Expand Prettier's scope while keeping
-  generated corpus files, media pins, pnpm lockfiles, Tend workflows, test
-  snapshots, and frozen captures under their producers. Verify that regeneration
-  leaves the formatted tree unchanged.
+- **Format authored YAML.** JSON coverage is complete. Expand YAML while keeping
+  pnpm lockfiles, Tend workflows and test snapshots under their producers. Verify
+  that regeneration leaves the formatted tree unchanged.
 - **Set formatter conventions for authored CSS and Markdown.** Review what
   Prettier changes in compact CSS rules and Markdown lists and tables, then
   enable the formats where that layout is useful. Format CSS source entries
@@ -629,6 +652,16 @@ Revisit these when their stated trigger becomes real; they are not an active que
 
 ### Implementation candidates
 
+- **Remove the early-key hold once startup is fast.** Keys pressed before the
+  runtime upgrades or the first saved state lands are queued, a "Page still
+  loading" chip appears after 150 ms, and the keyboard controller replays them
+  (`holdEarlyKeys` in `runtime/bootstrap.js`, `takeHeldKeys` in
+  `keyboard/controller.js`, `INPUT_PENDING` in `keyboard/dispatch.js`, the pending
+  clause of `scopeAvailable` in `keyboard/bindings.js`). It is worth keeping while
+  startup takes up to a couple of seconds. Trigger: a page presents in about 250 ms
+  consistently, measured with `leaf-dev probe`'s startup phases on the examples;
+  then delete the hold, which a 2026-10-14 trial measured at 240 runtime and 540
+  test lines.
 - **Unconfirmed — Let Lit follow what a widget reads.** `LeafElement`
   (`runtime/leaf-element.js`) collects what `render()` reads with Leaf's own
   `collectReads` over Preact signals and outside readings such as the clock, because
@@ -636,10 +669,18 @@ Revisit these when their stated trigger becomes real; they are not an active que
   (`signal-polyfill`). Were the publication and those readings TC39 signals,
   `SignalWatcher` would draw again on a read's move, and the base class would keep
   only Leaf's rules: the presentation claim, `defer()`, drawing nothing while away,
-  and data delivery. Settle first that `SignalWatcher` schedules its own updates
-  outside the coordinator's ordered pass (`notes/browser-reactivity.md`, "LitElement
-  and microtask updates"), and that TC39 signals are still a proposal. Trigger: every
-  widget draws as a `LeafElement`, so the change lands in one class.
+  and data delivery. Every widget draws as a `LeafElement` now, so the change would
+  land in one class, but assessed on 2026-10-14 it is no simplification yet. Ordering
+  no longer stands in the way: `LeafElement.scheduleUpdate` puts every update in the
+  parent-ordered widget queue (`queueWidgetUpdate`), `SignalWatcher`'s included. What
+  does: a move must claim the widget's region inside the publication that made it,
+  which `SignalWatcher`'s watcher gives no hook for, so the base class would keep a
+  watcher of its own; and `collectReads` and `outsideReading` (`snapshot.ts`) also
+  drive `watchProjection` and version paints, so adopting TC39 signals means moving
+  the publication itself (`snapshot.ts`, `presentation.ts`, and the runtime modules
+  importing `signal`/`effect`) off Preact signals, to save the fifteen lines of
+  `#follow`. TC39 signals are also still a proposal. Trigger: the proposal reaches a
+  stage browsers ship, or Lit's signal integration exposes the notify a claim needs.
 - **Consider moving the before/after reading out of the core.** How
   `runtime/image-difference.js` reads a pair (blocks, moves, outlines) is
   experimental and about 500 lines in the core runtime, consumed by `lf-shot`,

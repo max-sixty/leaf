@@ -97,7 +97,6 @@ class LiveLeavesList extends RetainedFace {
   configure(control) {
     if (this.#face) throw new Error("Leaves presentation is already configured");
     this.#face = document.createElement(FACE_TAG);
-    this.#face.style.display = "contents";
     control.append(this.#face);
   }
 

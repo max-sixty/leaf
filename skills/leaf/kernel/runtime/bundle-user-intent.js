@@ -14,7 +14,7 @@ import {
 } from "./bundle-media.js";
 import {
   flashDuration,
-  foldDuration,
+  foldBlock,
   motion,
   scrollBehavior
 } from "./bundle-motion.js";
@@ -5557,20 +5557,7 @@ function foldOut(node, repaintThread) {
   if (running && node.isConnected) return true;
   folding.delete(node);
   running?.played.cancel();
-  const style = getComputedStyle(node);
-  const from = {
-    height: node.getBoundingClientRect().height + "px",
-    minHeight: style.minHeight,
-    marginBottom: style.marginBottom,
-    borderTopWidth: style.borderTopWidth,
-    borderBottomWidth: style.borderBottomWidth,
-    paddingTop: style.paddingTop,
-    paddingBottom: style.paddingBottom,
-    opacity: 1
-  };
-  const to = Object.fromEntries(Object.keys(from).map((key) => [key, "0px"]));
-  to.opacity = 0;
-  const played = motion(node, [from, to], foldDuration());
+  const played = foldBlock(node);
   if (!played) return false;
   const record = { played };
   folding.set(node, record);
@@ -5753,6 +5740,10 @@ var ReplyContinuity = class {
     this.#presenting = [];
     if (!this.#row?.isConnected || this.#owner.localName === "details" && !this.#owner.open)
       return this.release();
+    if (!this.#visible()) {
+      reading?.place.finish(reading.held);
+      return this.release();
+    }
     if (reading != null) {
       const { extent, place: place2, held } = reading;
       const body = this.#owner.localName === "details" ? getComputedStyle(this.#owner, "::details-content") : getComputedStyle(this.#owner);
@@ -5773,7 +5764,9 @@ var ReplyContinuity = class {
   #keep(space) {
     if (space === this.#space) return;
     this.#space = space;
-    this.gap.style.setProperty("--lf-reply-space", layoutPx(space));
+    const value = layoutPx(space);
+    if (this.gap.style.getPropertyValue("--lf-reply-space") !== value)
+      this.gap.style.setProperty("--lf-reply-space", value);
   }
   #retainWriting() {
     const input = this.#row?.querySelector(TEXT_FIELD);
@@ -5807,7 +5800,8 @@ var ReplyContinuity = class {
     this.#departure = null;
     this.#space = 0;
     this.#releaseWriting();
-    this.gap.style.removeProperty("--lf-reply-space");
+    if (this.gap.style.getPropertyValue("--lf-reply-space"))
+      this.gap.style.removeProperty("--lf-reply-space");
   }
 };
 
@@ -6019,15 +6013,6 @@ function paintBoundary(node, kind) {
   );
 }
 var nextViewId = 0;
-var allotMarginControls = (row2) => row2.parentElement?.style.setProperty(
-  "--lf-margin-controls-width",
-  layoutPx(row2.getBoundingClientRect().width)
-);
-var marginControlsSizes = sizeObserver((entries) => {
-  nextRender(() => {
-    for (const { target } of entries) allotMarginControls(target);
-  });
-});
 var replyRowSizes = sizeObserver((entries) => {
   for (const { target, borderBoxSize } of entries)
     target.parentElement?.style.setProperty(
@@ -6067,7 +6052,6 @@ var ThreadView = class {
   #expandedSummaries = /* @__PURE__ */ new Set();
   #quoteExpanded = false;
   #marginControls = null;
-  #marginControlsRow = null;
   #viewId = ++nextViewId;
   // What a thread in the page's flow holds back says so in its control row (held-news.js).
   #news = newsNotice();
@@ -6084,11 +6068,6 @@ var ThreadView = class {
     if (this.#quoteNode) this.#sizes.unobserve(this.#quoteNode);
     this.#quoteNode = node;
     if (node) this.#sizes.observe(node);
-  };
-  #watchMarginControls = (node) => {
-    if (this.#marginControlsRow) marginControlsSizes.unobserve(this.#marginControlsRow);
-    this.#marginControlsRow = node;
-    if (node) marginControlsSizes.observe(node);
   };
   #sizes = sizeObserver(() => {
     this.#retainHeaderSlot();
@@ -6584,12 +6563,7 @@ var ThreadView = class {
             </header>` : nothing}
       ${this.#transcript}
       ${threadActions ? marginControls ? html`${model.news ? html`<div class="lf-margin-thread-news">${news}</div>` : nothing}
-                <div
-                  class="lf-margin-thread-controls"
-                  ${ref(this.#watchMarginControls)}
-                >
-                  ${threadActions}
-                </div>` : html`<div class="lf-thread-controls" data-lf-reflow="text">
+                <div class="lf-margin-thread-controls">${threadActions}</div>` : html`<div class="lf-thread-controls" data-lf-reflow="text">
                 ${news}${threadActions}
               </div>` : nothing}
     `;
@@ -6607,9 +6581,6 @@ var ThreadView = class {
       `,
       this.node
     );
-    const controlsRow = marginControls && this.#marginControlsRow;
-    if (controlsRow?.isConnected)
-      measure(controlsRow, () => allotMarginControls(controlsRow));
     if (!marginControls && model.news)
       measure(this.node, () => this.#retainHeaderSlot());
     else this.#releaseHeaderSlot();
@@ -7064,7 +7035,6 @@ var ThreadView = class {
     this.#sizes.disconnect();
     this.#quoteNode = null;
     this.#releaseHeaderSlot();
-    if (this.#marginControlsRow) marginControlsSizes.unobserve(this.#marginControlsRow);
     this.#heldNews?.dispose();
     this.#continuity?.release();
     this.retire();

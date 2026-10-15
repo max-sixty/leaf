@@ -772,8 +772,8 @@ html { background: var(--paper); }
  * surface's width wherever the page keeps its 320 whole pixels (every width here is whole)
  * and below zero wherever it does not. Where the selected surface states no width — none
  * is selected, or it is the Leaves drawer — the room is nothing. Registered so the runtime
- * reads it as one resolved length; not inherited, so it restyles body alone as an edge
- * moves. */
+ * reads it as one resolved length. Chrome explicitly inherits that reading for its
+ * bottom bar; page content does not inherit it. */
 @property --lf-auxiliary-beside {
   syntax: "<length>";
   inherits: false;
@@ -1224,7 +1224,6 @@ section.panel > :is(h2, h3):first-child { margin: 0 0 10px; }
 :where([data-lf-reading-role="pane"]) > header > :is(h2, h3, h4, h5, h6) {
   font: 600 var(--t-6)/1.3 var(--sans); letter-spacing: .06em;
   text-transform: uppercase; color: var(--muted); }
-section.panel > :last-child { margin-bottom: 0; }
 /* A status a label or a callout carries, in the three tones every status on the page is
    drawn in (a tag or a check's result). The tint is the whole
    of the marking and the ink its text, so a tone never needs a word of its own to be
@@ -1242,11 +1241,9 @@ section.panel > :last-child { margin-bottom: 0; }
 /* A sidebar is page-level supporting material rather than an annotation on one block:
    contents, a facts list, a short aside. In flow it is a block where it was written;
    where a column's sidebar or a sidenote stands in the margin is the column Layout's
-   (layouts.css). Direct-child margins are trimmed because a sidebar is a placement
-   wrapper, not a second rhythm around what it holds. */
-aside.sidebar { display: flow-root; margin: var(--sp-4) 0 30px; }
-aside.sidebar > :first-child { margin-top: 0; }
-aside.sidebar > :last-child { margin-bottom: 0; }
+   (layouts.css). Its edges trim what it holds, drawing nothing, because a sidebar is a
+   placement wrapper, not a second rhythm around what it holds. */
+aside.sidebar { display: flow-root; margin: var(--sp-4) 0 30px; --lf-block-frame: trim; }
 main > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-sidebar-slot: margin; }
 
 /* A sidenote is a small indented block where it was written, and on paper; where it hangs
@@ -1445,7 +1442,10 @@ lf-suggestion:has(> :is(lf-old, lf-new) > :not(a, abbr, area, audio, b, bdi, bdo
  * slot on the page would animate from one palette to the other for a change nobody
  * made. */
 lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
-  background: none; color: inherit; text-decoration: none; padding: 0; }
+  background: none; color: inherit; text-decoration: none; }
+/* The retiring slot keeps its ordinary inset until native fold motion gives it
+   back; restyling it first would change the fold's intrinsic starting box. */
+lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) { padding: 0; }
 /* The visible label becomes transient hover and focus chrome once the runtime's
  * stylesheet arrives. The accessible name comes from the entry reading. */
 .lf-margin-entry > :is(.lf-margin-entry-space, .lf-margin-entry-label) {

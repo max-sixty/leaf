@@ -1,0 +1,2 @@
+{"error": "<tmp>/page.html is a file; a page command takes the page's directory", "findings": []}
+{"error": "<tmp>/missing is not an initialized page; run `leaf page init <tmp>/missing`", "findings": []}

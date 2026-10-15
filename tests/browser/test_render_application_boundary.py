@@ -30,7 +30,6 @@ from render_harness import (
     page_comment,
     panel_settled,
     refuse,
-    reported_browser_errors,
     round_trip,
     said,
     scroll_settled,
@@ -505,36 +504,24 @@ def activation_page(source):
 
 PAGE_WIDGET = """\
 import {
-  html, keeps, layerFact, once, render, widgetController,
+  html, keeps, layerFact, LeafElement, live,
 } from "/runtime/widget-api.js";
 
-customElements.define("lf-local", class extends HTMLElement {
-  controller = widgetController(this);
-  reading = this.controller.read();
-
-  constructor() {
-    super();
-    this.attachShadow({mode: "open"});
+customElements.define("lf-local", class extends LeafElement {
+  createRenderRoot() {
+    return this.attachShadow({mode: "open"});
   }
 
-  connectedCallback() {
-    this.paint();
-    if (!once(this)) return;
+  setup() {
     layerFact("$tones");
     keeps(this, "data-page-widget", "ready");
-    this.controller.subscribe(reading => {
-      this.reading = reading;
-      this.dataset.renderOrder = `${this.dataset.renderOrder || ""}subscribe,`;
-      keeps(this, "data-subscriber-choice", this.dataset.renderedChoice);
-      this.dataset.readings = String(Number(this.dataset.readings || 0) + 1);
-      this.paint();
-    });
     const held = globalThis.__heldLocalPresentations?.get(this.id);
     if (held) this.controller.present(held);
   }
 
+  // The gesture writes its own result into the output, which a deferral holds the
+  // widget's drawing over.
   choose() {
-    keeps(this, "data-render-order", "");
     this.dataset.gestures = String(Number(this.dataset.gestures || 0) + 1);
     const sent = this.controller.dispatch({
       kind: "action",
@@ -542,30 +529,24 @@ customElements.define("lf-local", class extends HTMLElement {
       detail: { value: "chosen" },
     });
     if (!sent) return;
-    this.reading = sent.reading;
+    this.renderRoot.querySelector("output").value = sent.reading.state.choose.value;
     keeps(this, "data-delivery", "pending");
-    this.paint();
     sent.delivery.then(accepted => {
       keeps(this, "data-delivery", accepted ? "accepted" : "refused");
     });
   }
 
-  renderState(state) {
+  render() {
     if (globalThis.__failLocalRender) {
       globalThis.__failedLocalRenders =
         Number(globalThis.__failedLocalRenders || 0) + 1;
       throw new Error("deliberate render failure");
     }
+    const {state, actions} = this.reading;
     keeps(this, "data-rendered-choice", state.choose.value);
-    this.dataset.renderOrder = `${this.dataset.renderOrder || ""}render,`;
-    this.paint();
-  }
-
-  paint() {
-    const choice = this.reading.state.choose?.value ?? this.getAttribute("choice");
-    const available = this.reading.actions.choose?.available ?? false;
-    render(html`<button ?disabled=${!available} @click=${this.choose}>Choose</button>
-      <output>${choice}</output>`, this.shadowRoot, {host: this});
+    this.dataset.readings = String(Number(this.dataset.readings || 0) + 1);
+    return html`<button ?disabled=${!actions.choose.available} @click=${this.choose}>Choose</button>
+      <output .value=${live(state.choose.value)}></output>`;
   }
 });
 """
@@ -601,12 +582,6 @@ def test_current_readiness_releases_a_connected_page_widget(browser, serve):
         ),
     )
 
-    # The order is read in the turn that sends the gesture, where the claim lives: the
-    # widget clears it in `choose`, and the optimistic publication renders the owner and
-    # then runs its subscribers before the click returns. Waiting for it afterwards reads
-    # a state the page passes through, because the delivery outcome, the admitted event,
-    # and the cleared ledger each publish a further reading of their own; the
-    # single-pair window closes as soon as the round trip lands.
     installed = page.evaluate(
         """() => {
           const owner = document.querySelector('#page-local');
@@ -616,23 +591,19 @@ def test_current_readiness_releases_a_connected_page_widget(browser, serve):
             defined: customElements.get('lf-local') === owner.constructor,
             connected: owner.dataset.pageWidget,
             gestures: owner.dataset.gestures,
-            order: owner.dataset.renderOrder,
           };
         }"""
     )
-    assert installed == {
-        "defined": True,
-        "connected": "ready",
-        "gestures": "1",
-        "order": "render,subscribe,",
-    }
+    assert installed == {"defined": True, "connected": "ready", "gestures": "1"}
     expect(page.locator("#page-local").get_by_role("status")).to_have_text("chosen")
     expect(page.locator("#page-local")).to_have_attribute(
-        "data-subscriber-choice", "chosen"
+        "data-rendered-choice", "chosen"
     )
     round_trip(page)
-    order = page.locator("#page-local").get_attribute("data-render-order")
-    assert re.fullmatch(r"(?:render,subscribe,)+", order), order
+    expect(page.locator("#page-local")).to_have_attribute("data-delivery", "accepted")
+    expect(page.locator("#page-local")).to_have_attribute(
+        "data-rendered-choice", "chosen"
+    )
 
 
 def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve):
@@ -951,12 +922,10 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
     expect(page.locator("#page-local").get_by_role("status")).to_have_text("chosen")
 
 
-def test_a_returning_controller_widget_draws_again_only_a_changed_reading(
-    browser, serve
-):
-    """A controller-driven widget follows the return rule data and projection watchers
-    follow: a render that failed stands across a departure and return, so the author
-    is told once, and a return draws nothing again while the reading is unchanged."""
+def test_a_returning_widget_draws_again_only_a_changed_reading(browser, serve):
+    """A widget follows the return rule data and projection watchers follow: a render
+    that failed stands across a departure and return, so the author is told once, and a
+    return draws nothing again while the reading is unchanged."""
     source = LIVE_V1.replace(
         "</main>", '<lf-local id="page-local" choice="idle"></lf-local></main>'
     )
@@ -998,49 +967,13 @@ def test_a_returning_controller_widget_draws_again_only_a_changed_reading(
         "document.querySelector('#page-local').controller.defer()(); true"
     )
     expect(page.locator("#page-local .lf-error")).to_have_text(
-        "<lf-local> failed: <lf-local> renderState threw: deliberate render failure"
+        "<lf-local> failed: deliberate render failure"
     )
     assert page.evaluate(leave_and_return) == {"drawn": 0, "failed": 1, "pending": []}
     errors = take_browser_errors(page)
     assert [said(error) for error in errors] == [
-        (
-            "leaf: paint failed for lf-local#page-local: <lf-local> renderState threw: "
-            "deliberate render failure"
-        )
+        'leaf: <lf-local id="page-local"> failed: deliberate render failure'
     ]
-
-
-def test_a_subscriber_added_after_the_first_render_fails_by_the_paint_rule(
-    browser, serve
-):
-    """A subscriber that joins a drawn reading draws through the widget's paint, so
-    its failure is reported once, as that paint's, and the widget shows its fail-soft
-    box."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Late subscriber",
-                '<h1>Late subscriber</h1><lf-local id="page-local" choice="idle">'
-                "</lf-local>",
-            ),
-            page_files={
-                "registry.json": json.dumps(PAGE_DECLARATION),
-                "widgets/lf-local.js": PAGE_WIDGET,
-            },
-        ),
-    )
-    expect(page.locator("#page-local")).to_have_attribute("data-page-widget", "ready")
-    page.evaluate(
-        "document.querySelector('#page-local').controller.subscribe(() => {"
-        " throw new Error('late subscriber failure'); }); true"
-    )
-    expect(page.locator("#page-local .lf-error")).to_have_text(
-        "<lf-local> failed: late subscriber failure"
-    )
-    reported_browser_errors(
-        page, "leaf: paint failed for lf-local#page-local: late subscriber failure"
-    )
 
 
 @pytest.mark.parametrize("lifetime", ["light", "shadow-child", "shadow-host"])
@@ -1275,31 +1208,22 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
     expect(page.locator("#page-local").get_by_role("status")).to_have_text("idle")
 
     # A synchronous render failure cannot escape the publisher or leave a partial
-    # widget as presentation proof. The coordinator reports it, installs the existing
-    # visible fail-soft body, and settles the region once even with several auxiliary
-    # subscribers on that reading.
+    # widget as presentation proof. The widget reports it once, shows the visible
+    # fail-soft box, and settles its region.
     held_failure = []
     page.route("**/api/event", lambda route: held_failure.append(route))
-    page.evaluate(
-        "pageLocal.controller.subscribe(() => {}); "
-        "pageLocal.controller.subscribe(() => {}); "
-        "window.__failLocalRender = true; true"
-    )
+    page.evaluate("window.__failLocalRender = true; true")
     page.locator("#page-local").get_by_role("button", name="Choose").click()
     holding(page, held_failure, 1, "the failing render's action")
     expect(page.locator("#page-local .lf-error")).to_have_text(
-        "<lf-local> failed: <lf-local> renderState threw: deliberate render failure"
+        "<lf-local> failed: deliberate render failure"
     )
     page.wait_for_function("readLeafPresentation().pending.length === 0")
     assert page.evaluate("window.__failedLocalRenders") == 1
     errors = take_browser_errors(page)
     assert [said(error) for error in errors] == [
-        (
-            "leaf: paint failed for lf-local#page-local: <lf-local> renderState threw: "
-            "deliberate render failure"
-        )
+        'leaf: <lf-local id="page-local"> failed: deliberate render failure'
     ]
-    assert "Caused by: Error: deliberate render failure" in errors[0].values["text"]
 
 
 @pytest.mark.parametrize(

@@ -94,7 +94,12 @@ representative desktop viewport.
   arrival would resize (`heldGrowth`); `newsMoves` in `thread/thread-card.js`;
   `thread/thread-list.js` for the Threads panel's reading place; `keeping` in
   `thread/thread-list-view.js` for a card news would take out of view; and
-  `reading-continuity.js` for a hidden tab.
+  `reading-continuity.js` for a hidden tab. One exception, which the user chose: the
+  answer the user waits for in the floating panel's thread grows that view up to its
+  cap, its head rising while the field stays put (`floating-panel.js`, `fitAnswer`).
+  The shift watch credits exactly that growth: a scrollport declared to stand on its
+  foot (`data-lf-rises`) that rises with its `append` region's growth, by no more than
+  it, carrying its head (`appendGrowth` in `tests/shift_watch.js`).
 - **A turn of the user's own takes them with it.** When the user's reply or Reopen
   moves its card out of the Threads panel's current filter, the panel widens its view
   to keep the thread and the user together. If the server refuses, the view goes back
@@ -302,7 +307,7 @@ the ordered list of this tab's unresolved work into the one state every componen
 | Fact | Authority |
 | --- | --- |
 | authored widget state | the validated source markup, captured before upgrade |
-| external data | the latest page data; `watchData` delivers each bound source |
+| external data | the latest page data; a widget reads each bound source through `this.data` (data.js) |
 | version shown | the revision the delivery prelude names; a newer revision with the same executable identity patches in place, and a different one loads a fresh document |
 | accepted history | the server's event log and its `/api/state` answer, which the publisher adopts whole |
 | unresolved browser work | the publisher's one ordered list |

@@ -1,7 +1,7 @@
 {
   "lf-playground": {
-    "description": "An interactive playground for exploring one configuration in an operable preview and choosing it.",
-    "x-instructions": "Use lf-ask to frame the configuration question and context when they live outside the playground. A page module can add structured values with registerContributor(name, defaultSnapshot, {read, apply}); call the returned notifier after its gestures. Use one optional registerInstructionProvider(values => text) for prose derived from structured or conditional values. Give the page's complete lf-playground declaration an exact action schema for its task-specific values.",
+    "description": "A preview with controls, where the user tunes one configuration and sends it.",
+    "x-instructions": "Frame the question with `lf-ask` when its context lives outside the playground. A page module can add structured values with `registerContributor(name, defaultSnapshot, {read, apply})`, calling the returned notifier after each gesture, and write the instruction from those values with one `registerInstructionProvider(values => text)`. When a page module adds contributor state, redeclare the complete `lf-playground` entry in `page/registry.json` with an exact schema for `detail.values`.",
     "type": "object",
     "properties": {
       "id": {
@@ -20,7 +20,8 @@
     "additionalProperties": false,
     "x-content": "members",
     "x-upgrade": true,
-    "x-awaits": {"value": "choose",
+    "x-awaits": {
+      "value": "choose",
       "answered": {
         "choose": {}
       }
@@ -54,7 +55,7 @@
   },
   "lf-playground-control": {
     "description": "One typed input in a playground.",
-    "x-instructions": "Use a stable name for the submitted field and a label for its control. Author its initial value as a string: a finite number for range, true or false for toggle, one child value for choice, a six-digit hex colour for color, or arbitrary text for text. Range controls need max; min, step, and unit are optional. Only choice controls contain lf-playground-choice children. A control that changes the whole preview, as most do, is a direct child of lf-playground and stands in its rail. Where the preview holds several items that each take their own settings, write each item's controls inside lf-playground-preview beside that item; they stand where they are written.",
+    "x-instructions": "Use a stable `name` for the submitted field and a `label` for the control. Write its initial `value` as a string: a finite number for range, true or false for toggle, one child's value for choice, a six-digit hex color for color, or any text for text. A range needs `max`; `min`, `step` and `unit` are optional. Only a choice control contains lf-playground-choice children. A control that changes the whole preview, as most do, is a direct child of lf-playground and appears in its rail. When the preview holds several items that each take their own settings, write each item's controls inside lf-playground-preview beside that item, where they appear as written.",
     "x-name": "label",
     "type": "object",
     "properties": {
@@ -216,8 +217,8 @@
     "x-upgrade": false
   },
   "lf-playground-preview": {
-    "description": "The operable artifact inside a playground.",
-    "x-instructions": "For an A/B comparison, mount both candidates here and read the playground package's author instructions for driving them from one state. Page CSS can bind the playground's reflected values. A page module can consume its public values and change event, own gestures and computed state, and load vendored or page-media assets from the page's origin.",
+    "description": "The live preview the user operates in a playground, such as the candidates being compared.",
+    "x-instructions": "For an A/B comparison, mount both candidates here and drive them from one state, as the playground package's author instructions describe. Page CSS can read the `--playground-NAME` properties and `data-playground-NAME` attributes. A page module can read `values`, listen for `lf-playground-change`, handle gestures and computed state, and load vendored or page-media assets from the page's origin.",
     "type": "object",
     "properties": {
       "id": {
@@ -261,6 +262,7 @@
       "for": { "tag": "lf-playground-control", "key": "name" }
     },
     "x-owners": ["lf-playground-output"],
+    "x-within": ["lf-playground-output"],
     "x-content": "empty",
     "x-inline": true,
     "x-upgrade": false

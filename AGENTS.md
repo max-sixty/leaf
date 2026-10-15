@@ -5,13 +5,11 @@ comments and actions back. `README.md` describes the product.
 
 ## Leaf's role
 
-The agent is the author; the user is its principal. A Leaf page is how the
-user sees the agent's work and steers it: they read, point at exact
-passages, and act, and the agent answers by revising the page.
-
-The agent decides both a page's content and its presentation. The user's
-word overrides either, whether given in a comment or as a standing preference,
-and Leaf's own defaults yield to both.
+The agent is the author and the user is its principal. A Leaf page is how the
+user sees the agent's work and steers it: they read, point at exact passages and
+act, and the agent answers by revising the page. The agent decides a page's
+content and presentation. The user's word overrides either, in a comment or as a
+standing preference, and Leaf's defaults yield to both.
 
 Leaf's product principles live in `skills/leaf/SKILL.md`, "Core principles".
 Core owns shared state, event, and lifecycle guarantees; packages own domain
@@ -19,188 +17,166 @@ behavior and widget presentation. Judge simplifications by the mechanisms they
 remove and the package compositions they preserve or rule out, rather than by
 use in bundled widgets alone.
 
-Leaf supplies what the agent builds with: primitives, instructions, and
-templates. An agent could instead build a bespoke site for each task, so each
-primitive must give the user something that site would not:
+Leaf supplies primitives, instructions and templates. An agent could instead
+build a bespoke site for each task, so each primitive must give the user
+something that site would not:
 
-- **Difficult code.** Mechanisms too hard to write well each time: anchored
-  threads, widgets whose state survives a revision, and the event log that
-  returns each comment and decision to the agent as a structured event.
-- **Live revisions.** Agents update an open page continuously, with low latency,
-  while the user reads, comments, and interacts.
-- **Contextual threads.** Users read and answer floating threads beside the
-  passages they concern.
-- **Drawing comments.** Users point at visual details with freehand ink as well
-  as text and semantic anchors.
-- **Public website.** Visitors try interactive examples on leaf.page.
-- **Consistency.** One interface across sessions and agents — keybindings,
-  threads, and how a widget answers an action — so the user learns it once.
-- **Trust.** An action records its meaning when taken, so a control does what
-  it says and the record shows what the user decided.
-- **Presentation craft.** Layout, type, and composition that hold at every
-  width and beside every open panel, improved once and inherited by every
-  page. A bespoke site starts from nothing each time.
-- **Self-checks.** `page check` finds what would break a page, such as a widget
-  missing an attribute it needs, so the agent fixes it before the user sees the
-  page.
+- **Difficult code**: anchored threads, widget state that survives a revision,
+  and an event log that returns each comment and decision to the agent as a
+  structured event.
+- **Live revisions**: the agent updates an open page with low latency while the
+  user reads, comments and interacts.
+- **Contextual threads** that float beside the passages they concern.
+- **Drawing comments**: freehand ink on visual details, as well as text and
+  semantic anchors.
+- **Public website**: visitors try interactive examples on leaf.page.
+- **Consistency**: one set of keybindings, threads and ways a widget answers an
+  action across sessions and agents, so the user learns it once.
+- **Trust**: an action records its meaning when taken, so a control does what it
+  says and the record shows what the user decided.
+- **Presentation craft**: layout, type and composition that hold at every width
+  and beside every open panel, improved once and inherited by every page.
+- **Self-checks**: `page check` finds what would break a page, such as a widget
+  missing an attribute it needs, so the agent fixes it before the user sees it.
 
-Leaf standardizes reading, commenting, and actions across sessions and agents.
-Page content and composition remain the agent's and user's choices.
-
-The agent that writes a page, sets its data, or changes Leaf works in a fast loop: it
-reads what fails and tries again. So Leaf lets a failure surface through the parser or
-check already in its path, and spends code preventing one only where the agent could
-not see it, where it would pass silently into what the user relies on, such as an
-admitted event or a stored decision. Every check, option, and special case is a
-permanent cost to every later maintainer, and one that buys nothing the agent's next
-attempt would not is removed.
+An agent that writes a page, sets its data or changes Leaf works in a fast loop:
+it reads what failed and tries again. So Leaf lets a failure surface through the
+parser or check already in the agent's path. It adds code to prevent a failure
+only where nothing in the agent's path would report it, so it would pass
+silently into something the user relies on, such as an admitted event or a
+stored decision. Every check, option and special case costs every later
+maintainer, so remove one that buys nothing the agent's next attempt would not.
 
 ## Stage
 
-Leaf has no users, deployment, database, or persisted state that constrains new
-code. Prefer the simpler interface even when it is incompatible. Spend no code or
-test complexity on backward compatibility with earlier runtimes. Delete and
-regenerate stale state.
+Leaf has no users, deployment, database or persisted state that constrains new
+code. Prefer the simpler interface even when it is incompatible, and spend no
+code or test complexity on compatibility with earlier runtimes. Claims, logs and
+pages from earlier runtimes, and old records in the state home every worktree
+and session on the machine shares, are disposable: regenerate or delete them.
+Add no migration, compatibility shim, old-record validator, fallback read or
+removal promise, and leave old state and recovery instructions out of the
+handoff.
 
-Regenerate or discard claims, logs, and pages from earlier runtimes. Add no
-migration, compatibility shim, old-record validator, fallback read, or removal
-promise. This includes the state home shared by worktrees and sessions: its old
-records are disposable, not inputs a new reader must accommodate. Leave old
-state and recovery instructions out of the handoff.
+Tests should protect behavior a user depends on. Rewriting or deleting one is
+ordinary: check which behavior its assertion protects, change it where that
+makes a better app, and say in the commit which behavior changed.
 
-Tests should protect behavior a user depends on. Treat rewriting or deleting a
-test as an ordinary part of a code change. Check which behavior its assertion
-protects, change it where that produces a better app, and say in the commit
-which behavior changed.
+Written contracts describe the current code and promise no compatibility. Every
+consumer of them is in this tree, so when a different contract makes the code
+simpler, change it and every consumer together, prose included.
 
-Written contracts describe the current code; they impose no compatibility
-obligation. Packages, harnesses, integrations, and consumers of the references are
-all in this tree. When a different contract makes the code simpler, update it
-and every consumer together, including prose that relies on the old shape.
+A restriction Leaf imposes, such as a content security policy, a validator's
+refusal, an import allowlist or a markup limit, doesn't decide whether a feature
+is allowed. When one blocks a feature, don't drop the feature or quietly work
+around it: tell the user what the restriction blocks, what it protects and what
+lifting it would cost. It may guard something the user values, or be a side
+effect nobody chose, so only the user can weigh the feature against it.
 
-A restriction Leaf itself imposes does not decide whether a feature is allowed.
-When a content security policy, a validator's refusal, an import allowlist, or a
-limit on what some markup may carry stands between the user and a feature, raise
-it with the user rather than dropping the feature or working around it quietly.
-Name the restriction, what it blocks, what it protects, and what lifting it
-would cost. It may guard something the user values, or it may be a side effect
-nobody chose, and only the user can weigh the feature against it.
-
-Coherent new features can be tried before every product detail is settled, so
-long as any architectural problem they leave remains easy to fix.
-
-Make improvements that follow from the repository. Ask the user only when the
-choice depends on purpose or intent the code cannot supply.
+Coherent new features can be tried before every product detail is settled, as
+long as any architectural problem they leave stays easy to fix. Make
+improvements that follow from the repository, and ask the user only when the
+choice depends on purpose or intent the code can't supply.
 
 ### Responsiveness
 
-A gesture shows what it settles by itself in the turn the user makes it: a
-message in its thread, a widget's new state, a thread the user resolves. Facts
-derived from the rest of the log, such as whose turn a thread is and which asks
-the user owes, come back with the server's reading of the gesture. The server
-usually runs on the user's machine, so that reading should be on screen within
-100 ms. The browser does not anticipate it: a prediction is a second copy of the
-server's rules, and each gesture and subject it misses shows the wrong state
-until the reading lands. Where the reading cannot reach the screen within 100 ms,
-make that path faster rather than predicting what it will say.
+When the user acts, the page draws what that act decides by itself before the
+browser's next frame, in the task that handles it: the user's message in its
+thread, a widget's new state, a thread they resolved. Facts that depend on the
+rest of the log, such as whose turn a thread is and which asks the user owes,
+arrive with the server's reading of the gesture, which should be on screen within
+100 ms since the server usually runs on the user's machine. The browser doesn't
+predict that reading: a prediction is a second copy of the server's rules, and
+each case it misses shows the wrong state until the reading arrives. Where the
+reading takes longer than 100 ms, make that path faster.
 
 ### Pages across Leaf updates
 
-A page keeps the layer of the Leaf that vendored it, and each later Leaf serves,
-checks and writes it, so the two often differ. Changes cross that gap in two ways:
+A page keeps the copy of Leaf's runtime and registry (its layer) that
+`leaf page init` vendored into it, while each later Leaf serves, checks and
+writes it. A change crosses that gap in one of two ways.
 
-- **A protocol bump** breaks every page vendored before it, and the schema
-  announces it: the kernel registry's `$events.protocol` changes, and a Leaf
-  refuses a page vendored at another number, naming the `leaf page init` that
-  rebuilds it, except that the session holding a page vendored at an older
-  number makes that re-vendor itself on the first command naming the page, or at
-  its first prompt or Stop hook (`vendoring.renew_layer`). A change to what a
-  page's log holds, what its runtime posts, or the reading its server serves,
-  that an earlier page would break on, bumps the number; the browser build holds
-  the event contract to that. The number is Leaf's only version: each record
-  Leaf keeps outside a page, such as a delivery envelope or a browser draft,
-  carries it, and a change one of them needs bumps it too (`layer-registry.md`,
-  "Page protocol"). Bumps are rare, perhaps one in five hundred commits. Once
-  Leaf is released, a bump is the only change allowed to break an existing page.
-- **Drift**, while Leaf is in alpha, may occasionally break an older page without
-  a bump, as when a render check imports a runtime name the page's runtime lacks.
-  Leaf does not detect drift by comparing the page's files with its own: a check
-  that refuses a page over any change to them forces a rebuild on nearly every
-  update. Instead the page's banner names the Leaf that vendored it beside the one
-  serving it, `page check` names it beside the one checking it, each with its
-  date, and the agent judges: a page much older than its Leaf that misbehaves
-  gets re-vendored. A failure drift does cause names the re-vendor, as the render
-  gate's does.
+- **A protocol bump** changes the kernel registry's `$events.protocol`, and every
+  page vendored at another number is refused until it is re-vendored, which the
+  session holding the page does itself on its first command or hook naming the
+  page. Bump it for
+  any change an earlier page would break on. It is Leaf's only version, so records
+  kept outside a page, such as a browser draft, carry it, and a change to one of
+  them bumps it too (`layer-registry.md`, "Page protocol", owns the rules).
+  Bumps are rare, perhaps one in five hundred commits. Once Leaf is released,
+  only a bump may break an existing page.
+- **Drift** may break an older page without a bump while Leaf is in alpha, as
+  when a render check imports a runtime name the page's older runtime lacks. Leaf
+  doesn't detect drift by comparing a page's files with its own, since nearly
+  every update would then force a rebuild. Instead the banner and `page check`
+  name the Leaf that vendored the page beside the one serving or checking it,
+  with dates, and the agent re-vendors a much older page that misbehaves. Where
+  drift does cause a failure, as at the render gate, the failure names the
+  re-vendor.
 
 ## Fix the underlying issue
 
-When packages or runtimes use the same concept, one owner defines its meaning
-through a contract that expresses its different uses. A bug can reveal a
-missing primitive, a misplaced boundary, or an unstated rule shared by several
-packages.
+When packages or runtimes share a concept, one owner defines its meaning in a
+contract that covers each use. Keep one canonical API per capability. Consumers
+select and transform the data it returns themselves; a shared implementation is
+no reason to expose those as new APIs. Add a separate API only for a capability
+or guarantee that composing the existing one can't provide, and extend the
+canonical API when its own responsibility is incomplete.
 
-Keep one canonical API per capability. Consumers own selections and transformations
-of its returned data; sharing an implementation does not justify exposing those as
-new APIs. Add a separate API only for an orthogonal capability or guarantee that
-composing the existing API cannot provide; extend the canonical API when its
-existing responsibility is incomplete.
+Every change and review asks whether the immediate problem is a symptom of a
+deeper one, such as a missing primitive, a misplaced boundary or an unstated rule
+several packages share. Trace the cause up through the layers that produced it
+and fix the highest one that is wrong, just below the first one that is correct
+as designed. If the change can't make that fix, its author or reviewer names and
+proposes it. A passing test for the reported case proves only that case. A
+second special case, a caller repeating its callee's rule, a guard enforcing a
+rule the code never states, or a flag passed down a stack to reach one use
+suggests the shared boundary is still unsettled.
 
-Every change and every review must assess whether the immediate problem is a
-symptom of an underlying problem. Trace the cause upward through each layer
-that produced it. The fix belongs in the highest layer that is wrong, just
-beneath the first one that is correct as designed. If the current change cannot
-make that fix, the author or reviewer names and proposes it. A passing test for
-the reported case establishes only that case. A second special case, a caller
-repeating its callee's rule, a guard restating a rule the code never states, or
-a flag passed through a stack to reach one use suggests the shared boundary
-remains unsettled.
-
-Do not add another patch on top of the ones already there. A change that
-settles the immediate symptom and leaves the code harder to maintain does not
-go in, and filing the real fix behind it does not redeem it: the next change
-has to undo that patch first. Deferring an underlying fix is reasonable only
-when the current change leaves it as easy to make as it was before.
+Don't add another patch on top of existing ones. A change that fixes the symptom
+and leaves the code harder to maintain doesn't go in, even with the real fix
+filed behind it, because the next change has to undo the patch first. Defer an
+underlying fix only when the change leaves it as easy to make as before.
 
 ## Repository map
 
 The repository is the plugin: `.claude-plugin/marketplace.json` and
-`.agents/plugins/marketplace.json` both name `./` as the payload, and
+`.agents/plugins/marketplace.json` name `./` as the payload, and
 `package.json`'s `pi` key makes it a Pi package, so Claude Code, Codex and Pi
-install the tracked tree whole. Read the scoped `AGENTS.md` before changing its area.
+install the tracked tree whole. Read an area's `AGENTS.md` before changing it.
 
-- `bin/leaf`, `pyproject.toml`, and `uv.lock`: the launcher and its uv project;
+- `bin/leaf`, `pyproject.toml`, `uv.lock`: the launcher and its uv project.
 - `skills/leaf/scripts/leaf/`: the CLI, server, event model, validation,
-  projection, vendoring, and export (`skills/leaf/scripts/AGENTS.md`);
-- `skills/leaf/assets/`: the browser runtime, registry, theme, and icon
-  (`skills/leaf/assets/AGENTS.md`, and `skills/leaf/assets/runtime/keyboard/AGENTS.md`
-  for commands, bindings, and scopes);
-- `skills/leaf/packages/`: the bundled packages (`skills/leaf/packages/AGENTS.md`);
-- `skills/leaf/references/`: contracts for page authors, package authors, and harnesses;
-- `.claude/skills/developing-leaf/`: the maintainer workflow and vocabulary;
-- `hooks/`: each harness's registrations of the `leaf hook` entry (`hooks.json`
-  for Claude Code, `codex.json` for Codex) and the scripts they run, and the
-  modules that keep a session's watch between turns: `claude-code.ts`, the opt-in
-  Claude Code hooks module, and `pi.ts`, the Pi extension, which share `watch.ts`;
-- `evals/`: cases a headless agent answers, scoring the shipped instructions;
-- `examples/`: the pages the site publishes, which are also the render corpus
-  (`examples/AGENTS.md`);
-- `tests/`: the suite, with the runtime's folds under `tests/runtime/`, which Node
-  runs without a browser (`tests/AGENTS.md`);
-- `build/`: the browser framework's TypeScript and the builds of every committed
-  browser bundle (`build/AGENTS.md`);
-- `dev/`: the `leaf_dev` package, whose `leaf-dev` commands preview, build, verify,
-  and generate what the repository needs, and probe, screenshot, and compare
-  versions of Leaf (`dev/AGENTS.md`);
-- `worker/`: the Cloudflare Worker behind <https://leaf.page/>, serving published
-  pages at the edge and routing private mutable state to `leaf_website` in
-  per-user containers; `worker/README.md` owns deployment and diagnostics;
-- `docs/`: the site's own pages, each a Leaf source, so changing what the site
-  says is a page edit;
-- `TODO.md`: the ordered priority list;
+  projection, vendoring and export (`skills/leaf/scripts/AGENTS.md`).
+- `skills/leaf/assets/`: the browser runtime, registry, theme and icon
+  (`skills/leaf/assets/AGENTS.md`; `skills/leaf/assets/runtime/keyboard/AGENTS.md`
+  for commands, bindings and scopes).
+- `skills/leaf/packages/`: the bundled packages (`skills/leaf/packages/AGENTS.md`).
+- `skills/leaf/references/`: contracts for page authors, package authors and harnesses.
+- `.claude/skills/developing-leaf/`: the maintainer workflow and vocabulary.
+- `hooks/`: each harness's registration of `leaf hook` (`hooks.json` for Claude
+  Code, `codex.json` for Codex) and the scripts they run, plus the modules that
+  watch a page between turns, `claude-code.ts` (opt-in, Claude Code) and `pi.ts`
+  (the Pi extension), which share `watch.ts`.
+- `evals/`: cases a headless agent answers, scoring the shipped instructions.
+- `examples/`: the pages the site publishes, also the render corpus
+  (`examples/AGENTS.md`).
+- `tests/`: the suite, with the runtime's folds under `tests/runtime/`, which
+  Node runs without a browser (`tests/AGENTS.md`).
+- `build/`: the browser framework's TypeScript and the build of every committed
+  browser bundle (`build/AGENTS.md`).
+- `dev/`: the `leaf_dev` package, whose `leaf-dev` commands preview, build,
+  verify, generate, probe, screenshot and compare versions of Leaf
+  (`dev/AGENTS.md`).
+- `worker/`: the Cloudflare Worker behind <https://leaf.page/>, which serves
+  published pages at the edge and routes private state to `leaf_website` in
+  per-user containers; `worker/README.md` owns deployment and diagnostics.
+- `docs/`: the site's own pages, each a Leaf source.
+- `TODO.md`: the ordered priority list.
 - `notes/`: research and plans for unresolved work. When a design lands, its
-  contract moves beside the code or into a reference, and the note is deleted.
+  contract moves beside the code or into a reference and the note is deleted.
 
-For any work whose subject is Leaf itself, load `/developing-leaf`, including
+Load `/developing-leaf` for any work whose subject is Leaf itself, including
 research and prototypes that change no tracked code. The shipped `/leaf` skill is
 for agents that use Leaf or extend its package interface.
 
@@ -210,226 +186,201 @@ The sections above **Repository map** are the maintainer's direction; change the
 only when the user asks. An `AGENTS.md` holds what an agent needs before changing
 its area: goals, invariants that span modules, who owns what, and the gates to
 run. A contract one module owns goes in that module's header, a helper's in its
-docstring, and how a rule was found in the commit message. A header also records the
-product decisions its module embodies and the alternatives they rejected; a change
-that reverses one rewrites that record and says so in its commit. A workflow for one
-kind of task goes in `/developing-leaf`.
+docstring, and how a rule was found in the commit message. A header also records
+the product decisions its module embodies and the alternatives they rejected; a
+change that reverses one rewrites that record and says so in its commit. A
+workflow for one kind of task goes in `/developing-leaf`.
 
 Don't copy into prose a list the code already keeps, such as the bundles in
-`vendor.mjs`. Point to it instead, so a new member needs no edit. Where the prose
-must list them, a test holds the list to the code's copy (`tests/AGENTS.md`, "Put
+`vendor.mjs`; point to it, so a new member needs no edit. Where the prose must
+list them, a test holds the list to the code's copy (`tests/AGENTS.md`, "Put
 each assertion at the boundary that owns it").
 
 ### Use dependencies
 
-Use maintained dependencies for established capabilities, including prototypes.
-Leaf code owns product-specific behavior and integration. Native platform and
-standard-library implementations count as reuse. Implement a mechanism ourselves
-only when existing implementations cannot meet a concrete requirement. In the
-browser, use the platform's layout, cascade and focus model before writing a
-mechanism of your own (`skills/leaf/assets/AGENTS.md`, "The browser answers
-first").
-
-Build browser dependencies in Leaf's development and release pipeline and ship
-ready assets. Consumers run no browser build.
+Use maintained dependencies, including the platform and standard library, for
+established capabilities, in prototypes too. Leaf code owns product-specific
+behavior and integration, and writes a mechanism itself only when existing ones
+can't meet a concrete requirement. In the browser, use the platform's layout,
+cascade and focus model first (`skills/leaf/assets/AGENTS.md`, "The browser
+answers first"). Build browser dependencies in Leaf's pipeline and ship ready
+assets; consumers run no browser build.
 
 ### The install runs this tree
 
-Consumer installers follow `main`, and pages vendor the browser runtime compiled
-into one kernel, committed in `skills/leaf/kernel/`, while it was built from the
-tree's modules; where a merge has left it stale, they vendor the source modules
-(`leaf.layer.current_kernel`). The leaf.page container, the suite's browser tiers and
-developer previews install a tree whose kernel is compiled again for its own
-modules (`dev/leaf_dev/commands/distribution.py`). Installation, page authoring, custom
-packages, and export require no browser build or npm command.
+An install is the tracked tree copied into a harness's plugin cache. Consumer
+installs follow `main`. Their pages vendor the browser runtime compiled into one
+kernel, committed in `skills/leaf/kernel/`, while that kernel matches the tree's
+modules; where a merge has left it stale, they vendor the source modules
+(`leaf.layer.current_kernel`). The leaf.page container, the suite's browser tiers
+and developer previews compile the kernel again for their own tree
+(`dev/leaf_dev/commands/distribution.py`). Installing, authoring pages, writing
+custom packages and exporting need no browser build or npm.
 
-An install is the tracked tree copied into a harness's plugin cache, and nothing is
-built at install time: `bin/leaf` is `uv run --no-dev` on the tree, so the
-install must be writable, and Leaf writes nothing else there. Point Codex
-at the git source, since a local-directory marketplace copies a checkout's
-`.venv` too. A plugin update may replace the directory wholesale, so what has to
-survive one belongs in the page directory or the state home. Runtime
-dependencies, and those a bundled package script declares, state a floor and no
-cap. The host supplies Chrome and `jq`; leaf never downloads a browser.
+Nothing is built at install time. `bin/leaf` is `uv run --no-dev` on the tree, so
+the install must be writable, and Leaf writes nothing else there. Point Codex at
+the git source, since a local-directory marketplace also copies a checkout's
+`.venv`. A plugin update may replace the directory, so anything that must survive
+one belongs in the page directory or the state home. Runtime dependencies,
+including a bundled package script's, state a minimum version and no maximum. The
+host supplies Chrome and `jq`; Leaf never downloads a browser.
 
-Files under `skills/leaf/assets/vendor/`, each package's `vendor/`, and the kernel
-are generated and committed where their consumer reads them; `build/AGENTS.md` says
-how to regenerate them.
+Files under `skills/leaf/assets/vendor/`, each package's `vendor/`, and the
+kernel are generated and committed; `build/AGENTS.md` says how to regenerate them.
 
-Every tracked byte ships in every install and stays in history, so the tree
-holds no binary files and no large ones other than the kernel, whose `leaf.js` is
-near 500 KB and whose rebuilds add an estimated 5 to 13 MB of history a month. An image a tool in this repository
-reads, such as the demo recording, a catalog preview, an example page's image,
-or an eval case's capture, is published to `max-sixty/leaf-assets` at the path
-its reader looks for it and pinned by `leaf-assets.json`
-(`dev/leaf_dev/leaf_assets.py`). Publishing there belongs to the change that
-needs the images and takes no separate approval: it appends a commit and moves
-only this checkout's pin, so no other branch reads a different image. A new media
-`revision` also carries whatever other branches published since the old one, so a
-conflict there takes the later pin. Where both branches published the same file,
-the later pin holds the later publication's copy, so that file is published again
-from the merged tree. A `thread_snapshots_revision` holds only its own branch's
-reviewed appearance, so a conflict there is accepted again from the merged tree.
-Evidence, such as screenshots, probe
-captures, recordings and raw run output, stays in `.tmp/` and reaches the user
-on a Leaf page; a note keeps the finding and the command that reproduces it,
-not the capture. The suite refuses a binary file, and pre-commit refuses a new
-file over 500 KB outside the generated directories.
+Every tracked byte ships in every install and stays in history, so the tree holds
+no binary files and no large ones except the kernel, whose `leaf.js` is near
+500 KB and whose rebuilds add an estimated 5 to 13 MB of history a month. An image a tool here reads, such as the demo recording
+or an example page's image, lives in `max-sixty/leaf-assets`, pinned by
+`leaf-assets.json`. Publish there as part of the change that needs it, with no
+separate approval, since publishing moves only this checkout's pin; the
+`dev/leaf_dev/leaf_assets.py` header says how to resolve a conflict over the
+pins. Evidence, such as screenshots, probe captures, recordings and raw run
+output, stays in `.tmp/` and reaches the user on a Leaf page; a note keeps the
+finding and the command that reproduces it, not the capture.
 
 ## Cross-runtime invariants
 
 ### The document starts state; the log changes it
 
-Authored markup is a page's initial state. The append-only event log records
-transitions. Every current-state projection starts from the markup and
-applies the events still in force, those not withdrawn. Add no database, derived
-current-state file, widget-specific replay list, or DOM-backed authority beside them.
+A page's authored markup is its initial state, and the append-only event log
+records each change. Every reading of current state starts from the markup and
+applies the events still in force. Add no database, current-state file,
+per-widget replay list, or the DOM as the source of truth for page state.
 
-A later version keeps a user decision unless it explicitly retracts what the
-decision rests on; use `restated` when a rewrite invalidates one. An `undo` event
-names the gesture it withdraws; it never deletes an event or invents a
-counter-event.
+A later version keeps each decision the user made. To withdraw one, because a
+rewrite invalidated what it rests on, mark it `restated`; leaving it out
+retracts nothing. An `undo` event names the gesture it withdraws; it never
+deletes an event or invents a counter-event.
 
-Actions and reports share one registry-declared key: owner widget, fold unit, and
-verb. Admission records the command's declared meaning in the event, so a later
-reader recovers it without the widget. Python derives winners, retractions,
-settlement, asks, threads, and updates in one transaction-consistent browser view.
-JavaScript combines that view with authored initial values and unresolved local
-gestures into complete widget and thread state, and widgets render it, unset and
-undecided values included. Undo never reconstructs widgets or replays baseline
-actions into the DOM. Page-widget state is bounded by document version; widgets
-frozen into thread markup use the thread window.
+The registry keys each widget action and report by its widget, the unit of that
+widget's state it changes, and its verb (`events.md`). From one consistent read
+of the log, Python computes which action wins each key, what was withdrawn, the
+state of each ask and thread, and the user's updates, and serves that to the
+browser.
 
-A forward gesture whose result the page can draw shows that result in the turn that
-sends it, before the log answers; a disabled control, spinner, or other delivery
-status is not that result. The page can draw what its own document settles, such as
-a widget's state or the words of a turn the user adds to a thread. Which asks
-the document still holds, which of them the user owes, and whose turn a thread is
-depend on the whole log, so the browser reads them from the server's state and
-waits for its reading of a gesture ("Responsiveness"). It adds only what it decides
-itself: a required-version approval, a to-do the user ends, a thread it opened, the
-answer a send is owed, and the resend a refused send leaves. A refusal restores the authoritative state.
+In the browser, only `applicationState` (`runtime/semantic-state.js`) combines the
+authored initial values, the server's latest reading and the tab's unresolved
+gestures into current state. It publishes each state as one immutable value that
+components read through selectors and never write. Widgets draw the complete
+state, unset and undecided values included. Undo never rebuilds widgets or
+replays authored actions into the DOM. Renderer nodes, promises and DOM
+attributes stay out of the published state. A page widget's state is bounded by
+the document version; a widget frozen into a thread message is bounded by its
+thread's window instead.
 
-The active document has one immutable application publication. Only its publisher
-combines authored baselines, the complete admitted server reading, and the ordered
-unresolved ledger into current state; browser components consume read-only selections
-from it. Presentation proof is separate: it records whether required renderers have
-committed the active document's current semantic epoch. Renderer nodes, promises, and
-DOM attributes never enter the semantic snapshot.
+When `applicationState` publishes a new state, each renderer repaints only if
+something it read has changed. Renderers read state through selectors, so the
+runtime tracks what each one depends on and nobody has to list it. A renderer
+whose inputs didn't change keeps its last paint. A renderer that also reads
+something outside the state, such as a draft or the page's own nodes, repaints
+only when whoever changes that input calls its `present()`. Code that changes
+what the page shows should publish, then await `whenDocumentPresented()`, which resolves once
+every renderer the change moved has painted. It shouldn't call renderers or
+decide their order. Where one renderer depends on DOM another writes (the thread
+renderer needs the words the projection inserts into the page), the order is set
+once, in `PRESENTATION_ORDER`.
 
-A publication is also what starts a renderer. Each one names, as a selection of the
-root, the parts it draws; a publication that moves one claims its region inside that
-synchronous publication and paints the current root on the pass that follows, and one
-that moves none carries the region's last commit into the new epoch. A caller that
-changes what the page shows publishes and waits for proof rather than naming renderers
-or sequencing them. Where one renderer reads DOM another materializes,
-that order is declared once, beside the coordinator, not repeated at each publisher.
+A gesture's own result shows in the task that sends it, before the server
+answers ("Responsiveness"); a disabled control, spinner or delivery status is
+not that result. Everything that depends on the whole log, such as which asks
+remain, which the user owes and whose turn a thread is, comes from the server's
+reading. The browser adds only what a gesture decides by itself; for example,
+the user's own reply appears before the server answers. Those additions are a
+required-version approval, a to-do the user ends, a thread the user opens, the
+reply a send is owed, and the resend a refused send leaves. A refusal restores
+the server's state.
 
-Focus, scroll, selection, disclosure, draft editing, drag, and layout remain with their
-mechanical browser owners until a gesture becomes a declared application fact. Their
-renderings are not semantic authority, and repainting them does not create a semantic
-epoch. That state also lives exactly as long as the node holding it: the log does not
-record it and no projection returns it, so whatever replaces a node hands it across
-itself, under the identity that replacement already keys on, or the user loses it.
+Focus, scroll, selection, open disclosures, a draft being typed, a drag and
+layout stay with the browser until a gesture makes it part of the page's state.
+Repainting them publishes nothing. The log doesn't record them, so they live
+only as long as their DOM node: code that replaces a node must carry that state
+to the new node, matched by the key the replacement already uses, or the user
+loses it.
 
-Python derives page-wide `activity` and exact-input `workflows` from the agent's
-status declaration, claim and turn identity, watcher lease, delivery, and response
-evidence. The banner describes page activity; each serving page publishes a compact
-canonical activity summary for neighboring rows (`server_rows.py`). The summary is
-disposable delivery output; neighboring readers consult it and server liveness,
-never another page's log or document.
-Messages, thread attention, and margin entries consume the canonical workflows;
-thread attention also retains outstanding asks. Page activity does not imply
-work on every message. JavaScript adds unresolved local sends through the
-application publisher and may schedule a read at `next_transition_at`; it does not
-age or independently reclassify accepted workflow evidence. The stop guard consumes
-the same underlying response obligations.
+Python decides where the agent's work stands: `activity` (`activity.py`) for the
+whole page, read by the banner, and `workflows` (`workflows.py`) for each update
+the user handed over, read by messages, thread attention, margin entries and the
+Stop hook; thread attention also reads the user's outstanding asks. A busy page
+doesn't mean every message is being worked on. The browser adds its own unsent
+gestures but never ages or reclassifies a workflow. Other pages read a page's
+activity only from the row `server_rows.py` writes and whether its server is
+alive, never from its log or document.
 
-The page directory is the durable record and deployment unit: mutable `index.html`,
-immutable revisions, an append-only event log, and one replaceable JSON file per
-external-data source under `data/`. `data.json` records each source's current
-contract; a later document may replace that binding. `skills/leaf/scripts/leaf/page-storage.md`
-defines the complete layout.
+The page directory is the durable record and the unit of deployment
+(`skills/leaf/scripts/leaf/page-storage.md` defines its layout).
 
 ### Validate once and share readings
 
-Validate each input once, at its boundary: every event at the one append door,
-whether the browser posted it or a command wrote it; authored markup at
-`page check`; message markup at `check_markup`. Admission then derives the event's
-server-owned meaning, and downstream code reads those fields directly. Event
-dependencies name declared identities; ordinary detail text is never read as a
-reference.
+Validate each input once, where it enters: every event at
+`event_contracts.append_admitted`, whether the browser posted it or a command
+wrote it; authored markup at `page check`; message markup at `check_markup`.
+Admission writes the event's declared meaning into it, so later readers use
+those fields directly, without the widget. An event names what it depends on by
+declared ids, never by its detail text.
 
-A passage is one sequence of `{node, start, end}` segments, and the file and browser
-readings share its collapse and resolution rules. `says` is visible, pointable text;
-`wrote` is authored text. File capture never accepts an anchor the rendered page
-cannot resolve. Repeated text without unique context detaches rather than falling
-back to order or offsets.
+A passage, the text a comment points at, is a list of `{node, start, end}`
+segments that Python and the browser collapse and resolve by the same rules.
+`says` is visible text; `wrote` is authored text. Python never accepts an anchor
+the rendered page can't resolve. Repeated text with no context to pick one copy
+detaches instead of falling back to order or offsets.
 
 ### Keep the layer open
 
-Content widgets stay anonymous outside their module, so a new family needs only a
-complete registry entry, its module, and theme rules. Runtime, Python, CSS, tests,
-agent queries, and docs read declarations, never tag-name lists. Layer-wide facts
-live under `$` keys; each tag entry is one complete schema.
+No code outside a content widget's module names it, so a new widget family needs
+only a registry entry, its module and theme rules. Everything else reads registry
+declarations, never lists of tag names. Layer-wide facts live under `$` keys;
+each tag's entry is its complete schema.
 
 ## Working on the repository
 
-When the user is to choose among designs, show the candidates side by side and let
-the user select one (`/developing-leaf`, "Explore an open design").
+When the user is to choose among designs, show the candidates side by side and
+let them select one (`/developing-leaf`, "Explore an open design").
 
 Before finishing a feature:
 
-- Give every result a pointer reaches a keyboard route, without spending a
-  page-level binding on each one, and a route a finger can take
-  (`runtime/keyboard/AGENTS.md`, "Touch routes"). The route is owed to the result,
-  not to each gesture: ask what a user could no longer see, reach, or decide
-  without the gesture. Dragging a thread card aside needs no route of its own,
-  since Escape also uncovers the passage beneath it.
-- Follow `examples/AGENTS.md` when adding or changing a feature, and regenerate
-  the derived corpus.
-- If the feature changes what an agent can do or how it should do it, update
-  `skills/leaf/SKILL.md` or the one routed reference that owns the workflow;
-  other references point at that section by name. Shipped instructions set goals
-  for the user's experience and name the surface they read on; they leave
-  format and phrasing to the agent. Where an agent could read the change more
-  than one way, score it with `evals/` before and after (`/developing-leaf`,
-  "Score an instruction change").
+- Give every result a pointer reaches a keyboard route and a touch route
+  (`runtime/keyboard/AGENTS.md`, "Touch routes"), without a page-level binding
+  for each. The route is owed to the result, not each gesture: ask what a user
+  could no longer see, reach or decide without the gesture. Dragging a thread
+  card aside needs no route, since Escape also uncovers the passage beneath it.
+- Follow `examples/AGENTS.md` and regenerate the derived corpus.
+- If the feature changes what an agent can do or how, update
+  `skills/leaf/SKILL.md` or the one reference that owns the workflow, and point
+  other references at that section. Shipped instructions set goals for the user's
+  experience and name the surface they read on, leaving format and phrasing to
+  the agent. Where an agent could read the change more than one way, score it with
+  `evals/` before and after (`/developing-leaf`, "Score an instruction change").
 
-Local compute is often the bottleneck because several sessions share one machine.
-Before handing over, run the tests that hold the behavior the change touches, and
-`pnpm run test:runtime` when it reaches the runtime (`tests/AGENTS.md`, "Run what the
-change needs"). A pull request's `test` job and `wt merge`'s pre-merge run the broad
-selection, `uv run pytest tests`, at landing, and report any failure your selection
-missed. Don't run it by hand before then, nor a whole browser test file or a whole
-later tier (`--run-main`, `--run-nightly`, `tests/browser`, `tests/journeys`): each takes minutes
-to over an hour and slows every session on the shared host, however idle it looks. A
-change to code most of the suite runs through still hands over on the tests that
-exercise what it changed, and leaves finding the rest to the gate. Before widening
-your own selection or raising its parallelism, check current CPU use, memory
-pressure, and other running test suites; on a busy host, favor focused checks and
-avoid redundant overlapping runs.
+Several sessions share one machine, so local compute is often the bottleneck.
+Before handing over, run the tests that cover what the change touches, and
+`pnpm run test:runtime` when it reaches the runtime (`tests/AGENTS.md`, "Run what
+the change needs"). The broad selection, `uv run pytest tests`, runs at landing,
+in a pull request's `test` job and `wt merge`'s pre-merge. Don't run it by hand,
+nor a whole browser test file or later tier (`--run-main`, `--run-nightly`,
+`tests/browser`, `tests/journeys`), even for a change most of the suite runs
+through: each takes minutes to over an hour and slows every session on the host.
+Before widening your selection or its parallelism, check CPU, memory pressure and
+other running suites, and on a busy host keep to focused checks.
 
-Two TypeScript trees, `worker/src/` and `build/browser/`, and the JavaScript lock
-every committed bundle is built from have gates the suite and pre-commit do not reach.
-Both landing paths run all of them: a pull request in its `test` job, and `wt merge`
-in the pre-merge blocks of `.config/wt.toml`. `package.json` owns their shared Node
-gate list in `check`, which compares every committed bundle with a rebuild;
-`pnpm run check` runs them without landing. The website's delivery checks — the site
-build, the Worker's dry-run deploy, and `leaf-dev verify-site website-worker` — run
-on a pull request and in `publish-site` before it deploys, not in `wt merge`.
+The TypeScript in `worker/src/` and `build/browser/`, and the lock every committed
+bundle is built from, have gates the suite and pre-commit don't reach.
+`pnpm run check` runs them (the `check` script in `package.json`), and both
+landing paths run them too. The website's delivery checks (the site build, the
+Worker's dry-run deploy, `leaf-dev verify-site website-worker`) run on a pull
+request and in `publish-site`, but not in `wt merge`.
 
-For a change that can alter browser startup, compare base and candidate at the
-boundary it affects: served previews for a runtime change, and
-`leaf-dev verify-site website-worker` for site delivery, Worker routing, or containers.
-Read the comparison by phase: document receipt, widget upgrade, and authoritative
-presentation. Compare the requests and bytes loaded before presentation directly;
-elapsed time is diagnostic. A change that adds work before presentation states the
-user-visible benefit and why it cannot wait. Bytes off that path, such as a lazily
-loaded module, a vendored file, or the install's size, are not on their own a reason
-for a change.
+For a change that can alter browser startup, compare base and candidate: served
+previews for a runtime change, `leaf-dev verify-site website-worker` for site
+delivery, Worker routing or containers. Read the comparison by phase (the
+document arriving, widgets upgrading, the page first showing the server's
+state), and compare the requests and bytes loaded before that last phase
+directly; elapsed time is only diagnostic. A change that adds work on that path
+says what the user gains and why it can't wait. Bytes off the path, such as a
+lazy module, a vendored file or the install's size, are not alone a reason for a
+change.
 
-Land through a pull request or with `wt merge`, which squash-merges to `main`. For
-now, a failing check the change doesn't cause blocks nothing (`tests/AGENTS.md`, "Run
-what the change needs"). Tend sessions follow **Landing** in
+Land through a pull request or `wt merge`, which squash-merges to `main`. For
+now, a failing check the change doesn't cause blocks nothing (`tests/AGENTS.md`,
+"Run what the change needs"). Tend sessions follow **Landing** in
 `.claude/skills/running-tend/SKILL.md`.

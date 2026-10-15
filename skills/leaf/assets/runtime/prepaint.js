@@ -641,8 +641,8 @@
   // style and layout: it keeps its last reading, and one never read stands as if its
   // holder were the column. Every edge is read before any is written, so the page is
   // laid out once however many breakouts it holds. Read with the column, so a breakout
-  // parsed before first paint is placed before it paints; one inserted, revealed or
-  // moved later is read as it arrives or moves (content-layout.js).
+  // parsed before first paint is placed before it paints; one inserted or
+  // revealed later is read as it arrives (content-layout.js).
   //
   // A breakout grows out of the column only down a chain of block flow: each box from
   // the breakout up to `main` a block-level box its holder lays out one under another.
@@ -715,16 +715,10 @@
     }
     return verdicts.get(holder);
   };
-  // Returns whether any breakout's indent or arrangement changed, every breakout it
-  // answers for, and the holders it measured, each with its content box's width and
-  // the breakouts it holds, for content-layout.js to watch: a class or style that pads
-  // a holder changes its breakouts' room without inserting anything, and a box that
-  // moves moves its breakout. The reading keeps none of them.
+  // Returns whether any breakout's indent or arrangement changed.
   const indents = () => {
-    const holders = new Map();
-    const breakouts = [];
     const main = document.querySelector("body > main");
-    if (!main) return { changed: false, breakouts, holders };
+    if (!main) return { changed: false };
     const grows = document.body.hasAttribute("data-lf-column-shell");
     const readings = [];
     const verdicts = new Map();
@@ -735,7 +729,6 @@
         readings.push([breakout, 0, 0, false]);
         continue;
       }
-      breakouts.push(breakout);
       if (!breakout.checkVisibility()) continue;
       const holder = holderOf(breakout, main);
       if (!inFlow(breakout, holder) || arrangedAbove(holder, main, verdicts)) {
@@ -744,13 +737,6 @@
       }
       column ??= contentEdges(main);
       const edges = contentEdges(holder);
-      const held = holders.get(holder);
-      if (held) held.breakouts.push(breakout);
-      else
-        holders.set(holder, {
-          width: edges.right - edges.left,
-          breakouts: [breakout],
-        });
       const reading = [
         Math.max(0, Math.round(edges.left - column.left)),
         Math.max(0, Math.round(column.right - edges.right)),
@@ -782,7 +768,7 @@
       if (rearranged) setRuntimeRootAttribute(breakout, ARRANGED, arranged ? "" : null);
       changed = true;
     }
-    return { changed, breakouts, holders };
+    return { changed };
   };
   // Whether each track (`--lf-resident: track`, a sidebar page's `aside`, layouts.css)
   // stands beside the body, which it says as `data-lf-beside` so the Layout keeps the
@@ -962,9 +948,12 @@
     const target = document.getElementById(fragmentId(location.hash));
     return target && members.find((member) => member.contains(target));
   };
+  // A member is kept by its own id, or by the first id inside it when it has none, as a
+  // plain <figure> wrapping a recording does, and reopens as the member holding it.
   const kept = (holder, members) => {
     const id = tabStore.get(OPEN_KEY + holder.id);
-    return members.find((member) => member.id === id);
+    const target = id && document.getElementById(id);
+    return target && members.find((member) => member.contains(target));
   };
   const choose = (holder, members) =>
     (reloaded
@@ -1011,7 +1000,7 @@
       return choose(holder, members);
     },
     keep(holder, member) {
-      tabStore.set(OPEN_KEY + holder.id, member.id);
+      tabStore.set(OPEN_KEY + holder.id, member.id || member.querySelector("[id]")?.id);
     },
   };
 })();

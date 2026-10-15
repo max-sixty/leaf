@@ -32,6 +32,10 @@ def resolve_dir(dir_arg: str, must_exist: bool = True, *, renew: bool = True) ->
     page_dir = canonical_path(Path(dir_arg).expanduser())
     if not must_exist:
         return page_dir
+    if page_dir.is_file():
+        raise click.ClickException(
+            f"{page_dir} is a file; a page command takes the page's directory"
+        )
     if not (page_dir / EVENTS_FILE).is_file():
         raise click.ClickException(
             f"{page_dir} is not an initialized page; "
@@ -1267,16 +1271,9 @@ def task_end(dir: str, task_id: str, outcome: str, detail: str | None) -> None:
     TODO may also be a prose ask's id (`reply:<message-id>`): `done` records that
     the user answered it elsewhere, DETAIL saying where, and `dropped` withdraws it.
     Neither records an answer from the user. A widget's ask ends through its
-    declared state or an authored withdrawal.
-
-    Ending a to-do on an element `done` prints a note if that element still shows
-    unfolded on the newest revision (not inside a closed details, a later tab or
-    [hidden]) and nothing on it or inside it is on either list."""
-    from leaf.findings import note
-    from leaf.todos import cmd_end, finished_in_view
+    declared state or an authored withdrawal."""
+    from leaf.todos import cmd_end
 
     page_dir = resolve_dir(dir)
     end = cmd_end(page_dir, task_id, outcome, detail)
     _print_records(end)
-    if advice := finished_in_view(page_dir, end):
-        note(advice)

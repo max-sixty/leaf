@@ -162,6 +162,13 @@ A widget removing an item asks `foldDuration()` each time rather than choosing a
 it reads `--lf-motion-fold` on the document root, where every `--lf-motion-*` duration is
 set, even for an element in a shadow tree.
 
+`foldBlock(element)` animates a block from its ordinary CSS size to zero, including
+its block margins, padding, borders and minimum size. It returns an Animation, or
+`null` for immediate retirement under reduced motion, before presentation, or without
+native intrinsic-size interpolation. Retire the block's state at once; the effect keeps
+its pixels drawn until the fold finishes. Keep its ordinary sizing rules while it
+leaves, and cancel the effect if retirement is reversed. Inline word swaps stay immediate.
+
 `backgroundFlash(element, ms)` gives an element a brief yellow tint that fades to its
 own background.
 

@@ -110,6 +110,10 @@ export class ReplyContinuity {
       (this.#owner.localName === "details" && !this.#owner.open)
     )
       return this.release();
+    if (!this.#visible()) {
+      reading?.place.finish(reading.held);
+      return this.release();
+    }
     if (reading != null) {
       const { extent, place, held } = reading;
       const body =
@@ -135,7 +139,9 @@ export class ReplyContinuity {
   #keep(space) {
     if (space === this.#space) return;
     this.#space = space;
-    this.gap.style.setProperty("--lf-reply-space", layoutPx(space));
+    const value = layoutPx(space);
+    if (this.gap.style.getPropertyValue("--lf-reply-space") !== value)
+      this.gap.style.setProperty("--lf-reply-space", value);
   }
   #retainWriting() {
     const input = this.#row?.querySelector(TEXT_FIELD);
@@ -169,6 +175,7 @@ export class ReplyContinuity {
     this.#departure = null;
     this.#space = 0;
     this.#releaseWriting();
-    this.gap.style.removeProperty("--lf-reply-space");
+    if (this.gap.style.getPropertyValue("--lf-reply-space"))
+      this.gap.style.removeProperty("--lf-reply-space");
   }
 }

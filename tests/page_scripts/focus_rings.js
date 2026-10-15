@@ -17,6 +17,13 @@
     return e;
   }
 
+  // The box a node is laid out and painted inside: its slot where it is slotted, else its
+  // parent, else the host of the shadow tree it is the top of. A control slotted into a
+  // field stands inside the field's own shadow tree, whose frame draws the ring for it
+  // (`::part(base lf-focus-within)`); the DOM parent skips that frame for the host.
+  const flatParent = (n) =>
+    n.assignedSlot ?? n.parentElement ?? n.getRootNode().host ?? null;
+
   // The focus ring where a box casts it as a shadow rather than drawing it as an outline,
   // and how far past its edge that band reaches. Two rules in the layer draw it that way —
   // the anchored response bar, which writes `outline: none` so its states keep one
@@ -117,7 +124,7 @@
     // padding box with the scrollbar's gutter still in it.
     const { shownBand } = await window.__lfCheckApi();
     const holds = (a, b) => {
-      for (let n = b; n; n = n.parentNode || n.host) if (n === a) return true;
+      for (let n = b; n; n = flatParent(n)) if (n === a) return true;
       return false;
     };
     const { accent, mixed } = accentSwatch();
@@ -224,7 +231,7 @@
       // the whole of what this says about them.
       const cuts = [];
       let scrolled = false;
-      const above = (n) => n.parentElement || n.getRootNode().host || null;
+      const above = flatParent;
       // One side, one message, named for the innermost box that took it. A scroll region's
       // edge is often the window's to the pixel — .lf-threads' right edge is .lf-thread-panel's is
       // innerWidth — and one ring reported twice reads as two defects. The innermost box is
@@ -651,11 +658,7 @@
         if (ringed(getComputedStyle(child))) carriers.push([child, null]);
         overlaid(child);
       }
-    for (
-      let el = e.parentElement ?? e.getRootNode().host ?? null;
-      el;
-      el = el.parentElement ?? el.getRootNode().host ?? null
-    ) {
+    for (let el = flatParent(e); el; el = flatParent(el)) {
       const up = getComputedStyle(el);
       if (up.outlineStyle === "auto") return null;
       if (ringed(up)) carriers.push([el, null]);

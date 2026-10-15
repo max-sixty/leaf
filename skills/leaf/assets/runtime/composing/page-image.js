@@ -14,6 +14,12 @@
  * inside it. The image comes back with a warning for each such part instead: an image
  * SnapDOM could not load, or a sample that could not draw itself, whose frame keeps
  * its box and stays empty. A child's warnings join its parent's.
+ *
+ * What a caller excludes is hidden, not removed, so the rest of the page keeps the
+ * geometry it is painted with. SnapDOM's `reconcile` stays off: it measures a copy of
+ * the reconstruction inside this document, where every widget in the copy connects and
+ * runs its setup, reporting page errors and registering regions that never present.
+ * Without it, text in inline and table-cell boxes may wrap differently in the image.
  */
 import { isSampleFrame, sampleFrameImage } from "../sample.js";
 
@@ -25,8 +31,12 @@ const asDataUrl = (blob) =>
     reader.readAsDataURL(blob);
   });
 
+// A caller that reads the crop's geometry at the moment of capture awaits the renderer
+// first, so no download separates that reading from the reconstruction.
+export const pageRenderer = () => import("../../vendor/snapdom.esm.js");
+
 export async function pageImage(clip, { exclude = [] } = {}) {
-  const { snapdom } = await import("../../vendor/snapdom.esm.js");
+  const { snapdom } = await pageRenderer();
   const warnings = new Set();
   // The crop meets the frame's content box in this viewport's coordinates; the
   // child and the substitute's own box read it in the frame's, unscaled.
@@ -74,9 +84,9 @@ export async function pageImage(clip, { exclude = [] } = {}) {
     clip,
     dpr: window.devicePixelRatio,
     exclude,
-    excludeMode: "remove",
+    excludeMode: "hide",
     invalidate: true,
-    reconcile: true,
+    reconcile: false,
     plugins: [
       {
         name: "leaf-sample-frames",

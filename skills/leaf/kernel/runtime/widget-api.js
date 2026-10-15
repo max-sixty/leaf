@@ -1,8 +1,4 @@
 import {
-  dressSamples,
-  wear
-} from "./bundle-dress.js";
-import {
   LeafEditorView,
   askActions,
   askWords,
@@ -32,6 +28,10 @@ import {
   watchProjection,
   wireInput
 } from "./bundle-document-identity.js";
+import {
+  dressSamples,
+  wear
+} from "./bundle-dress.js";
 import {
   CONTRIBUTION_ENTRY_SCHEMA,
   contributionEntry,

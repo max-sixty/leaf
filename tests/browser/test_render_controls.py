@@ -4539,8 +4539,10 @@ def test_the_accessibility_audit_reads_exposed_frames_and_their_names(browser, s
       await loaded;
     }""")
     violations, _ = serious_axe_violations(page)
-    assert [violation["id"] for violation in violations] == ["button-name"]
-    assert len(violations[0]["nodes"]) == 2, "both exposed documents must be audited"
+    assert [violation["id"] for violation in violations] == [
+        "button-name",
+        "button-name",
+    ], "both exposed documents must be audited"
 
     child.locator("button").evaluate("button => button.textContent = 'Continue'")
     child.frame_locator("#nested-frame").locator("button").evaluate(

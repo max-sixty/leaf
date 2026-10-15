@@ -9,16 +9,19 @@ note was condensed; `git log --` on those paths finds them.
 
 ## Current observations
 
-Reconciled on 2026-10-14 against main `fd68e3943`: inline ownership, scoped
-validation and LeafElement are already shared. The remaining repair separates live
-contributor reads from complete restoration, preserves snapshots for late sources,
-removes the empty all-inline rail and wraps long button labels. Undo now follows
-the canonical choice identity, so two equal-valued choices still restore the earlier
-choice instead of leaving a later draft; pending-to-admitted acknowledgement keeps
-the same attempt identity. Duplicate ownership
-and export tests were dropped; the three remaining browser journeys protect distinct
-state, label and short-workspace failures. The historical author comparison below
-has not been rerun on this runtime and establishes no broader quality result.
+Reconciled on 2026-10-15 against main `fd68e3943`: inline ownership, scoped
+validation and LeafElement are already shared. The playground now owns one immutable
+working configuration. Contributors replace their named slices through `get`/`set`
+handles; required views subscribe through LeafElement rather than keeping a parallel
+model and read/apply callbacks. Complete restoration still preserves snapshots for late
+sources. Undo follows the canonical choice identity, so two equal-valued choices
+restore the earlier choice instead of leaving a later draft; pending-to-admitted
+acknowledgement keeps the same attempt identity. The early drawing pass remains.
+The empty all-inline rail is removed and long button labels wrap. Duplicate ownership
+and export tests were dropped; existing browser journeys cover state, labels and the
+short workspace, with one added contrast for a required view that fails to draw.
+The historical author comparison below has not been rerun on this runtime and
+establishes no broader quality result.
 
 These runs establish behavior on particular revisions with few samples, rather than
 a universally preferable page layout. The owner comparison below found a primitive

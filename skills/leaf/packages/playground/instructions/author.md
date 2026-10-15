@@ -173,25 +173,29 @@ Write a preview's script as an inline `<script type="module">`, and put the cand
 in ordinary or custom elements (`references/module-authoring.md`, "What a behavior
 module owes").
 
-Wait for `customElements.whenDefined("lf-playground")` before reading
-`closest("lf-playground").values`. After each change, the playground dispatches a
-bubbling `lf-playground-change` event carrying the values in `detail.values`.
+The playground owns working values. Read its immutable `values` aggregate, or declare
+one named structured slice with `playground.registerContributor(name, defaults)`.
+The returned handle's `get()` reads its immutable current value; `set(next)` replaces
+that slice. Update it on input, so a later control change or submission sees the edit.
+Names are unique and distinct from control names. Retain the handle rather than a
+second configuration object; Reset and Undo replace the values it reads.
 
-To add state of your own to the configuration, call
-`playground.registerContributor(name, defaultSnapshot, {read, apply})`, and call the
-notifier it returns after each gesture that changes that state. The name must be stable,
-unique, and different from every control's name. `read` returns the current JSON-safe
-snapshot. `apply` restores the module's whole state on registration, Reset or a recorded
-choice. Local changes, copy and submission read the sources without restoring them.
-The playground then stores, resets, copies and submits that state along with the
-controls.
+Register slices, one optional `registerInstructionProvider(values => instruction)`,
+and required views during `PAGE_INTERFACE` (`references/module-authoring.md`, "Startup and presentation").
+Join the complete initialization, including synchronous work, with
+`event.detail.present(Promise.resolve().then(initialize))`. Declare a slice and provider
+once per playground lifetime. A view uses `playground.subscribe(values => draw(values))`;
+Its callback paints synchronously: its initial paint and later updates run through
+the playground's LeafElement lifecycle; callback return values are not awaited.
+Use the returned cleanup through `whileConnected` so reconnection restores the view
+without declaring its data again. A preview without structured data only subscribes.
 
-When structured state changes the instruction, register one
-`playground.registerInstructionProvider(values => instruction)` to write the output. The
-instruction it returns describes additions, removals, ordering and relations in readable
-prose, and makes sense without the preview. When a page module adds contributor state,
-redeclare the complete `lf-playground` entry in `page/registry.json` with an exact
-schema for `detail.values`.
+Keep native editors mounted and avoid writing their value when it already matches.
+The playground owns tab persistence, presets, Reset, instruction copying and submission;
+views draw the values they receive. When a page adds contributor state, redeclare the
+complete `lf-playground` entry in `page/registry.json` with an exact schema for
+`detail.values`. An instruction provider describes the configuration as a task that
+makes sense without the preview.
 
 When both candidates draw from shared state, keep dynamic rows under stable keys, apply
 each add, remove, reorder or edit once, and derive both candidates' rows and counts from

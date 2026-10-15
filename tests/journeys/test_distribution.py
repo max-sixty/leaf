@@ -53,7 +53,7 @@ def test_prepared_install_authors_custom_packages_and_exports_without_builds(
     custom = tmp_path / "custom"
     (custom / "runtime/helpers").mkdir()
     (custom / "runtime/helpers/État+v1.mjs").write_text(
-        'export { once } from "/runtime/widget-api.js";\n'
+        'export * from "/runtime/widget-api.js";\n'
     )
     widget = custom / "widgets/lf-risk-note.js"
     widget.write_text(
@@ -128,15 +128,6 @@ def test_prepared_install_authors_custom_packages_and_exports_without_builds(
         )
         choice = tab.locator("#flag-first .lf-pick")
         if target == address:
-            assert playground.evaluate(
-                "host => { let changes = 0; const readings = []; "
-                "host.addEventListener('lf-playground-change', () => changes++); "
-                "const reset = host.querySelector('.lf-playground-reset'); "
-                "reset.click(); readings.push(changes); "
-                "const parent = host.parentNode, next = host.nextSibling; host.remove(); "
-                "reset.click(); readings.push(changes); parent.insertBefore(host, next); "
-                "reset.click(); readings.push(changes); return readings; }"
-            ) == [1, 1, 2]
             with tab.expect_response(
                 lambda response: (
                     response.url.split("?")[0].endswith("/api/event")

@@ -91,6 +91,7 @@ from render_harness import (
     leaf_page,
     margins_laid_out,
     names,
+    nudge,
     open_page,
     page_comment,
     pane_posture,
@@ -2638,27 +2639,20 @@ CONTRIBUTOR_PAGE = leaf_page(
   <lf-playground-output>Implement the selected query.</lf-playground-output>
 </lf-playground></lf-ask>
 <script type="module">
-import {afterPresentation} from "/runtime/widget-api.js";
-afterPresentation(() => {
-  if (sessionStorage.getItem('delay-query-contributors')) return;
-  const playground = document.querySelector('#query-config');
-  const input = document.querySelector('#region-filter');
-  let region = input.value;
-  const applies = [];
-  let notify;
-  input.addEventListener('input', () => { region = input.value; });
-  input.addEventListener('change', () => notify());
-  notify = playground.registerContributor('filters', {region}, {
-    read: () => ({region}),
-    apply: snapshot => {
-      applies.push(snapshot.region);
-      region = snapshot.region;
-      if (input.value !== region) input.value = region;
-    }
-  });
-  playground.registerInstructionProvider(values =>
-    `Implement ${values.stream} alerts for region ${values.filters.region}.`);
-  window.contributorApplies = applies;
+import {PAGE_INTERFACE} from "/runtime/widget-api.js";
+document.addEventListener(PAGE_INTERFACE, event => {
+  event.detail.present(Promise.resolve().then(() => {
+    if (sessionStorage.getItem('delay-query-contributors')) return;
+    const playground = document.querySelector('#query-config');
+    const input = document.querySelector('#region-filter');
+    const filters = playground.registerContributor('filters', {region: input.value});
+    input.addEventListener('input', () => filters.set({region: input.value}));
+    playground.subscribe(values => {
+      if (input.value !== values.filters.region) input.value = values.filters.region;
+    });
+    playground.registerInstructionProvider(values =>
+      `Implement ${values.stream} alerts for region ${values.filters.region}.`);
+  }));
 });
 </script>
 """,
@@ -4648,8 +4642,7 @@ def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
     changes = playground.evaluate(
         """root => {
           window.playgroundChanges = [];
-          root.addEventListener('lf-playground-change', event =>
-            window.playgroundChanges.push(event.detail.values));
+          root.subscribe(values => window.playgroundChanges.push(values));
           return root.values;
         }"""
     )
@@ -4772,29 +4765,32 @@ def test_narrow_playground_keeps_complete_preset_labels_operable(browser, serve)
     expect(page.get_by_role("slider", name="Threshold")).to_have_value("5")
 
 
-def test_playground_adopts_live_sources_without_restoring_their_drafts(browser, serve):
-    """Native change can wait for blur while another control keeps preview focus.
-    That gesture and final consumption read the model; only reset/projection restore it."""
+def test_playground_keeps_contributor_drafts_until_reset_or_a_new_choice(
+    browser, serve
+):
+    """An input edit updates the shared configuration immediately, and reading or
+    acknowledging it never replaces the draft. A new choice or undo does."""
     page = open_page(browser, serve(CONTRIBUTOR_PAGE))
     playground = page.locator("#query-config")
     field = page.get_by_role("textbox", name="Region filter")
     field.fill("us-east-1")
+    expect(playground.locator("lf-playground-output")).to_have_text(
+        "Implement checkout alerts for region us-east-1."
+    )
+    field.press("ArrowLeft")
     playground.get_by_role("radio", name="Billing", exact=True).click()
     expect(field).to_be_focused()
     expect(field).to_have_value("us-east-1")
+    assert field.evaluate("input => input.selectionStart") == len("us-east-")
     assert playground.evaluate("root => root.values.filters.region") == "us-east-1"
-    assert page.evaluate("window.contributorApplies") == ["eu-west-1"]
 
     field.fill("ap-south-1")
     # A later component registers while another component owns an unfinished edit.
     playground.evaluate("""root => {
-      let grouped = false;
-      root.registerContributor('grouped', false, {
-        read: () => grouped, apply: value => { grouped = value; }
-      });
+      root.registerContributor('grouped', false);
     }""")
     expect(field).to_have_value("ap-south-1")
-    assert page.evaluate("window.contributorApplies") == ["eu-west-1"]
+    assert playground.evaluate("root => root.values.filters.region") == "ap-south-1"
 
     field.fill("eu-north-1")
     playground.get_by_role("button", name="Checkout stream").click()
@@ -4808,21 +4804,55 @@ def test_playground_adopts_live_sources_without_restoring_their_drafts(browser, 
 
     playground.get_by_role("button", name="Reset", exact=True).click()
     expect(field).to_have_value("eu-west-1")
-    assert page.evaluate("window.contributorApplies") == ["eu-west-1", "eu-west-1"]
     field.fill("chosen-region")
-    # Programmatic activation leaves the native change notification pending until blur.
-    # The final action must read the source even without that notification.
-    with sending(page, "the query configuration"):
+    # Programmatic activation leaves focus in the field: input alone has committed it.
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    with page.expect_request("**/api/event"):
         playground.get_by_role("button", name="Use these settings").evaluate(
             "button => button.click()"
         )
-    assert events_model.read_events(serve.page_dir)[-1]["detail"]["values"] == {
+    holding(page, held, 1, "the query configuration")
+    field.fill("unsent-region")
+    field.press("ArrowLeft")
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    choice = next(
+        event
+        for event in reversed(events_model.read_events(serve.page_dir))
+        if event.get("widget") == "query-config" and event.get("action") == "choose"
+    )
+    assert choice["detail"]["values"] == {
         "stream": "checkout",
         "filters": {"region": "chosen-region"},
         "grouped": False,
     }
-    field.fill("unsent-region")
-    round_trip(page)
+    expect(field).to_have_value("unsent-region")
+    expect(field).to_be_focused()
+    assert field.evaluate("input => input.selectionStart") == len("unsent-regio")
+    nudge(serve.page_dir)
+    told(page)
+    expect(field).to_have_value("unsent-region")
+    playground.evaluate("""root => lfUnwatched(() => {
+      window.detachedQuery = {root, parent:root.parentNode, next:root.nextSibling};
+      root.remove();
+    })""")
+    page.evaluate("() => new Promise(resolve => requestAnimationFrame(resolve))")
+    consume_browser_errors(
+        page,
+        {
+            "code": "words-left-screen",
+            "words": "unsent-region",
+            "place": "input#region-filter",
+        },
+    )
+    page.evaluate("""() => lfUnwatched(() => {
+      const {root, parent, next} = window.detachedQuery;
+      parent.insertBefore(root, next);
+      delete window.detachedQuery;
+    })""")
+    rendered(page)
     expect(field).to_have_value("unsent-region")
     # Equal values do not make two choices the same gesture. Undoing the second
     # choice restores the first even when a later working edit differs from both.
@@ -4839,28 +4869,53 @@ def test_playground_adopts_live_sources_without_restoring_their_drafts(browser, 
     wait_until_ready(page)
     expect(field).to_have_value("chosen-region")
 
-    # The admitted aggregate can precede every page-module source. Each joining
-    # source restores its slice; an undo replaces the pending snapshot as well.
+    # A refused choice restores the server's accepted slice instead of retaining
+    # the local configuration that the server did not accept.
+    def refuse_choice(route):
+        if route.request.post_data_json.get("action") != "choose":
+            route.continue_()
+            return
+        route.fulfill(
+            status=400,
+            json={"ok": False, "final": True, "error": "refused before append"},
+        )
+
+    page.route("**/api/event", refuse_choice)
+    field.fill("refused-region")
+    with sending(page, "the refused query configuration"):
+        playground.get_by_role("button", name="Use these settings").click()
+    expect(field).to_have_value("chosen-region")
+    # Refusal deliberately restores accepted words; the generic words watch cannot
+    # attribute this asynchronous replacement to the earlier submit gesture.
+    consume_browser_errors(
+        page,
+        {"code": "failed-load", "status": 400},
+        {
+            "code": "words-left-screen",
+            "words": "refused-region",
+            "place": "input#region-filter",
+        },
+    )
+    page.unroute("**/api/event")
+
+    # An admitted aggregate can precede every page-module contributor. Each joining
+    # contributor gets its slice; an undo replaces the pending snapshot as well.
     page.evaluate("sessionStorage.setItem('delay-query-contributors', 'true')")
     page.reload()
     wait_until_ready(page)
     assert playground.evaluate("root => root.values") == {"stream": "checkout"}
     assert (
         playground.evaluate("""root => {
-      let grouped = true;
-      root.registerContributor('grouped', true, {
-        read: () => grouped, apply: value => { grouped = value; }
-      });
-      return grouped;
+      return root.registerContributor('grouped', true).get();
     }""")
         is False
     )
     undo(page)
     playground.evaluate("""root => {
       const input = document.querySelector('#region-filter');
-      root.registerContributor('filters', {region:'eu-west-1'}, {
-        read: () => ({region:input.value}),
-        apply: value => { input.value = value.region; }
+      root.registerContributor('filters', {region:'eu-west-1'});
+      root.subscribe(values => {
+        if (input.value !== values.filters.region) input.value = values.filters.region;
       });
     }""")
     expect(field).to_have_value("eu-west-1")
@@ -4869,6 +4924,35 @@ def test_playground_adopts_live_sources_without_restoring_their_drafts(browser, 
         "filters": {"region": "eu-west-1"},
         "grouped": True,
     }
+
+
+def test_a_playground_reports_a_contributor_view_that_cannot_draw_its_edit(
+    browser, serve
+):
+    """A required view's failed local draw belongs to its playground, just as a
+    failed drawing of a restored choice does."""
+    source = CONTRIBUTOR_PAGE.replace(
+        "playground.subscribe(values => {",
+        """playground.subscribe(values => {
+      if (values.filters.region === 'broken-region')
+        throw new Error('The query preview cannot draw broken-region');""",
+    )
+    page = open_page(browser, serve(source))
+    field = page.get_by_role("textbox", name="Region filter")
+    expect(page.locator("#query-config lf-playground-output")).to_have_text(
+        "Implement checkout alerts for region eu-west-1."
+    )
+    with sending(page, "the playground drawing failure"):
+        field.fill("broken-region")
+    expect(page.locator("#query-config .lf-error")).to_contain_text(
+        "The query preview cannot draw broken-region"
+    )
+    report = '<lf-playground id="query-config"> failed: '
+    assert any(
+        event["kind"] == "error" and event["text"].startswith(report)
+        for event in events_model.read_events(serve.page_dir)
+    )
+    consume_browser_errors(page, report)
 
 
 def test_inline_playground_keeps_evidence_and_long_instruction_reachable_in_a_short_workspace(

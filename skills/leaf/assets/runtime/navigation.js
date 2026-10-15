@@ -121,7 +121,7 @@ function stepThread(dir, destinations, panelIsOpen, narrowing, list) {
         ? stepFrom(threads, focused(), dir, (thread) => thread)
         : stepFrom(
             threads,
-            !panelIsOpen() || narrowing.listedInPageOrder() ? walkOrigin() : null,
+            !panelIsOpen() || narrowing.listedInPageOrder() ? walkOrigin().place : null,
             dir,
             (thread) => threadPlace(thread.dataset.id),
           );

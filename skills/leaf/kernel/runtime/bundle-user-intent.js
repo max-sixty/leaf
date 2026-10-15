@@ -1022,14 +1022,17 @@ function placeOf(node) {
   }
   return inChrome(at) ? null : at;
 }
-function standingPlace() {
+function walkOrigin() {
   for (const node of standingNodes()) {
     const place2 = placeOf(node);
-    if (place2) return place2;
+    if (place2) {
+      const tab = place2.closest('[role="tab"][aria-selected="true"]');
+      const panel = tab?.ariaControlsElements?.[0];
+      return panel ? { place: panel, stands: false } : { place: place2, stands: true };
+    }
   }
-  return null;
+  return { place: pageReadingBlock(), stands: true };
 }
-var walkOrigin = () => standingPlace() ?? pageReadingBlock();
 function stepFrom(list, here, dir, placeOfItem) {
   if (!here) return cycledRow(list, null, dir);
   const reach = list.filter((item) => {

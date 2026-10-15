@@ -23,7 +23,9 @@
    there is; no reader measures from one that does not stand in an ask.
 
    Page walks share `walkOrigin`: focus, then the selection's ends, then the first
-   visible reading block. Every press reads the browser afresh; no walk remembers a
+   visible reading block. A selected tab starts a walk at its controlled panel,
+   where the user is reading, without changing comment targets.
+   Every press reads the browser afresh; no walk remembers a
    destination to use as the user's current place. They step from it by one rule,
    `stepFrom`, in the page's rendered order (`renderedOrder`, shadow-tree.js), so a place
    inside a widget's shadow tree is ordered among the places beside it there rather than
@@ -83,18 +85,19 @@ export function placeOf(node) {
   return inChrome(at) ? null : at;
 }
 
-// Where the user stands now: the first place on the page among where they stand
-// (`standingNodes`, focus.js), focus before a selection's ends.
-function standingPlace() {
+// Where a walk starts and whether the user is already standing there. A tab
+// enters its panel; it has not arrived at an ask the panel itself may represent.
+export function walkOrigin() {
   for (const node of standingNodes()) {
     const place = placeOf(node);
-    if (place) return place;
+    if (place) {
+      const tab = place.closest('[role="tab"][aria-selected="true"]');
+      const panel = tab?.ariaControlsElements?.[0];
+      return panel ? { place: panel, stands: false } : { place, stands: true };
+    }
   }
-  return null;
+  return { place: pageReadingBlock(), stands: true };
 }
-
-// A page walk still has an origin when focus and selection name no page place.
-export const walkOrigin = () => standingPlace() ?? pageReadingBlock();
 
 // The item a walk over `list` steps to in direction `dir` from `here`, a place on the
 // page, and whether it came round an end to reach it. `list` is in page order with its

@@ -170,7 +170,8 @@ export function createQueueWalk({
   // what that holds, since on a page without a heading the head is `main`. Standing in
   // a thread that holds an open ask is not standing on that ask. `here` is the place
   // the step counts from, the user's own unless a caller names another.
-  function standingStop(list, here = walkOrigin()) {
+  function standingStop(list, { place: here, stands } = walkOrigin()) {
+    if (!stands) return null;
     if (focused(document) === approvalTarget())
       return list.find((stop) => stop.kind === "approval") ?? null;
     const held = threadHere();
@@ -202,15 +203,15 @@ export function createQueueWalk({
   // The stop `dir` steps to, and whether it came round an end to reach it: off the one
   // the user stands on, else from their place by the page walks' rule (`stepFrom`,
   // standing-target.js). Within a region, a place outside it enters at the end the step
-  // faces. `stands` false reads the origin as a place the user is at without standing on
-  // it, as the first ask they see in a region is.
-  function step(list, dir, region, origin = walkOrigin(), stands = true) {
+  // faces. `origin.stands` false enters a place without stepping off it, as for a
+  // selected tab's panel or the first ask the user sees in a region.
+  function step(list, dir, region, origin) {
     // Outside the region nothing the user stands on is one of its stops, even where the
     // press sits inside an ask's context.
-    if (region && !under(origin, region)) return cycledRow(list, null, dir);
-    const standing = stands ? standingStop(list, origin) : null;
+    if (region && !under(origin.place, region)) return cycledRow(list, null, dir);
+    const standing = standingStop(list, origin);
     if (standing) return cycledRow(list, standing, dir);
-    return stepFrom(list, origin, dir, (stop) => stop.place);
+    return stepFrom(list, origin.place, dir, (stop) => stop.place);
   }
 
   // A page widget action handed back to the user, or a to-do on an element or the page, has
@@ -260,10 +261,10 @@ export function createQueueWalk({
   }
 
   // Resolves whether it arrived.
-  function walk(dir, region = null, origin = walkOrigin(), stands = true) {
+  function walk(dir, region = null, origin = walkOrigin()) {
     const list = stopsOf(region);
     if (!list.length) return Promise.resolve(false);
-    const { row: next, wrapped } = step(list, dir, region, origin, stands);
+    const { row: next, wrapped } = step(list, dir, region, origin);
     // The walk reads the standing destination, so begin it once the arrival has moved
     // focus. A failed arrival has not arrived and must not register the prior item as
     // this walk's destination.
@@ -420,8 +421,9 @@ export function createQueueWalk({
     const asks = asksIn(within);
     const kept = asks.find((ask) => ask.id === wentTo);
     const toward = dir < 0 ? -1 : 1;
-    if (under(here, within)) return walk(toward, within, here);
-    if (kept) return walk(toward, within, askPlace(kept).source);
+    if (under(here.place, within)) return walk(toward, within, here);
+    if (kept)
+      return walk(toward, within, { place: askPlace(kept).source, stands: true });
     // What the user reads in the region: the first of its asks any of which they see,
     // where they are without standing on it, so a waiting one is the next and an
     // answered one leads to the next after it.
@@ -429,7 +431,9 @@ export function createQueueWalk({
     const shown = asks
       .map((ask) => askPlace(ask).node)
       .find((node) => node && seenRect(node, clips));
-    return shown ? walk(toward, within, shown, false) : walk(toward, within, here);
+    return shown
+      ? walk(toward, within, { place: shown, stands: false })
+      : walk(toward, within, here);
   }
 
   return { mount, arriveAtItem, next, nextWithin };

@@ -64,6 +64,7 @@ import {
   render,
   repeat,
   scrollerFor,
+  scrollIntoView,
   scrollLimit,
   sizeObserver,
   whileConnected,
@@ -412,14 +413,8 @@ customElements.define(
           this.#focusedLink === focused(document) &&
           this.#focusedVisible &&
           this.#nav.getBoundingClientRect().height < this.#navHeight - 1
-        ) {
-          const link = focused(document).getBoundingClientRect();
-          const viewport = this.#nav.getBoundingClientRect();
-          if (link.bottom > viewport.bottom)
-            this.#nav.scrollTop += link.bottom - viewport.bottom;
-          else if (link.top < viewport.top)
-            this.#nav.scrollTop += link.top - viewport.top;
-        }
+        )
+          scrollIntoView(this.#focusedLink, { block: "nearest", within: this.#nav });
         return shifts;
       }
 

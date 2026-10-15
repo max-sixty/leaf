@@ -538,11 +538,11 @@ function scrollIntoReadingBand(where, holder, block, behavior) {
     inner = outer;
   }
 }
-function scrollIntoView(where, { alignment = where, behavior = "auto", block = "start" } = {}) {
+function scrollIntoView(where, { alignment = where, behavior = "auto", block = "start", within: within2 = null } = {}) {
   if (!where) return;
   const holder = placeHolder(alignment);
   if (!holder) return;
-  const targetScroller = scrollersOf(holder).next().value;
+  const targetScroller = within2 ? null : scrollersOf(holder).next().value;
   let inside = true;
   for (let box = placeHolder(where); box instanceof Element; box = renderedParent(box)) {
     if (box === targetScroller) inside = false;
@@ -554,7 +554,8 @@ function scrollIntoView(where, { alignment = where, behavior = "auto", block = "
       const byY = inside ? nearestScrollBy(destination.top, destination.bottom, top, bottom) : 0;
       if (byX || byY) land(box, localScrollBy(box, { x: byX, y: byY }), "instant");
     }
-    if (box === pageScroller || getComputedStyle(box).position === "fixed") break;
+    if (box === within2 || box === pageScroller || getComputedStyle(box).position === "fixed")
+      break;
   }
   if (targetScroller) scrollIntoReadingBand(alignment, holder, block, behavior);
 }

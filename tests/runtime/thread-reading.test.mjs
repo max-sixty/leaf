@@ -421,7 +421,8 @@ test("panel narrowing controllers keep independent intent over shared threads", 
         this.words = words;
       },
     };
-    const listRoot = { scrollTop: 10 };
+    const listRoot = document.createElement("div");
+    listRoot.scrollTop = 10;
     const narrowing = createThreadNarrowing({
       view,
       listRoot,

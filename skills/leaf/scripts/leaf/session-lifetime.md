@@ -229,8 +229,11 @@ or the host:
 - A hook watch under Claude Code with the `hooks_module` option on: the same watch,
   which Leaf's hooks module (`hooks/claude-code.ts`) starts as the session starts and
   as each main-loop turn ends, in place of that Stop hook. A watch that wakes an idle
-  session submits its line as a prompt, whose prompt hook hands the batch over; one
-  that wakes during a turn calls the prompt hook itself and appends its context to
+  session submits its line as a prompt, whose prompt hook hands the batch over. From
+  an Escape until the user next types, Claude Code drops a plugin's prompt (measured
+  at 2.1.300), so for a dropped one the module sends a WakeRefused payload and Leaf
+  nudges the session as admission would (`session.nudge_pending`). A watch that
+  wakes during a turn calls the prompt hook itself and appends its context to
   that turn, which reads it at its next step. An interrupted turn runs no Stop hook,
   but the module still sees it end, so it starts the watch with the Interrupt payload,
   as Pi's extension does. Claude Code prints a Stop hook's context in the user's
@@ -395,7 +398,8 @@ reconnect notice.
 When a watcher stops while its session lives on, browser-event admission asks the
 claimant's harness to nudge the session. Only a watcher the session's own turns start
 can stop that way: a turn interrupted without its Stop hooks starts no watch unless
-Leaf's hooks module keeps it, a watch fails open or reaches its hook's timeout, or a
+Leaf's hooks module keeps it, a watch fails open or reaches its hook's timeout, the
+hooks module's watch wakes the session with a prompt Claude Code drops, or a
 model-run wait is stopped after the turn ends. Input that reaches the page after that
 has no watcher, and a nudge is the one way to reach such a session, which only some
 harnesses offer. Claude Code's is the Unix socket it binds for each session, found by

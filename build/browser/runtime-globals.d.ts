@@ -92,7 +92,10 @@ interface HTMLElement {
   /** Whether this document is still the one the browser shows. */
   lfDocumentLifetime?: { readonly active: boolean };
   /** User inputs since the first script, and a subscription to the next. */
-  lfInputs?: { readonly count: number; observe(read: (event: Event) => void): () => boolean };
+  lfInputs?: {
+    readonly count: number;
+    observe(read: (event: Event) => void): () => boolean;
+  };
   /** The exception behind the first startup fault, kept before modules load. */
   lfStartupException?: { name: string; message: string; stack?: string } | null;
   lfStorage?: {
@@ -159,9 +162,17 @@ interface HTMLElementTagNameMap {
 
 interface WindowEventMap {
   /** A page or module could not start (`prepaint.js`, `fault`). */
-  "lf-startup-failed": CustomEvent<{ reason?: string; error?: unknown; page?: boolean }>;
+  "lf-startup-failed": CustomEvent<{
+    reason?: string;
+    error?: unknown;
+    page?: boolean;
+  }>;
   /** The prepaint's first startup fault, said once (`bootstrap.js`, `recover`). */
-  "lf-startup-fault": CustomEvent<{ reason: string; incomplete: boolean; page: boolean }>;
+  "lf-startup-fault": CustomEvent<{
+    reason: string;
+    incomplete: boolean;
+    page: boolean;
+  }>;
 }
 
 interface DocumentEventMap {

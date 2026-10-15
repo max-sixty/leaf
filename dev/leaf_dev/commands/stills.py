@@ -811,6 +811,13 @@ def contents_by_keyboard(page: Page) -> None:
     page.locator("lf-toc li a").first.focus()
 
 
+def contents_over_reading(page: Page) -> None:
+    """Reveal the margin map over a section, including its title's background."""
+    contents_by_keyboard(page)
+    page.locator("lf-toc li a").first.press("Enter")
+    page.locator("lf-toc .lf-toc-start a").focus()
+
+
 def widget_inline_hints(page: Page) -> None:
     """A standalone command scope with an active inline hint, outside an Ask."""
     page.locator("#bg-widget-shortcut-hints").scroll_into_view_if_needed()
@@ -1176,6 +1183,21 @@ STATES = (
     ),
     State("contents-spine", "developer/feature-gallery", at_rest),
     State("contents-spine-keyboard", "developer/feature-gallery", contents_by_keyboard),
+    State(
+        "contents-over-reading",
+        "developer/feature-gallery",
+        contents_over_reading,
+        viewport=(1100, 900),
+        region=".lf-toc-start a",
+    ),
+    State(
+        "contents-over-reading-dark",
+        "developer/feature-gallery",
+        contents_over_reading,
+        viewport=(1100, 900),
+        scheme="dark",
+        region=".lf-toc-start a",
+    ),
     State(
         "contents-spine-dark",
         "developer/feature-gallery",

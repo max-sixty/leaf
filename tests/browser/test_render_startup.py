@@ -3838,15 +3838,14 @@ def test_a_pending_offline_paint_does_not_block_a_recovery_read(browser, serve):
     page = open_page(browser, serve(LONG_PAGE))
     page.evaluate(
         """async () => {
-          const {clocked, clockValue} = await window.__lfWidgetApi();
+          const {watchProjection, clockValue} = await window.__lfWidgetApi();
           window.probeVersion = 0;
           window.probePaints = 0;
-          const paint = clocked(document.body, () => {
+          watchProjection(document.body, () => {
             clockValue(() => window.probeVersion);
             window.probePaints += 1;
             return new Promise(() => {});
-          });
-          paint();
+          }).refresh();
           window.probeVersion = 1;
         }"""
     )

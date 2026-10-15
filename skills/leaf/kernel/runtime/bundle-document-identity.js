@@ -209,7 +209,6 @@ import {
   activityTransitionDue,
   ago,
   chosenSince,
-  clocked,
   containingReadingRegionFor,
   effectiveScroller,
   markStateApplied,
@@ -452,9 +451,6 @@ function initializeServedDocument() {
 
 // runtime/page-sheets.js
 var APPARATUS = ":not(:where(.lf-chrome, .lf-chrome *, .lf-ui, .lf-ui *))";
-var NAMES_WIDGET = /(?:^|[\s>+~(,&|])[a-z][\w]*-|[.#]lf-|\[\s*data-lf-/i;
-var NOT_SELECTORS = /"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|:{1,2}(?:lang|dir|state|part|highlight|nth-[a-z-]+)\([^)]*\)/gi;
-var namesWidget = (text) => NAMES_WIDGET.test(text.replace(NOT_SELECTORS, ""));
 var narrowed = /* @__PURE__ */ new WeakSet();
 function members(text) {
   const found = [];
@@ -486,36 +482,28 @@ function narrow(member, pseudo) {
   const rest = pseudo < 0 ? "" : member.slice(pseudo);
   return selector + APPARATUS + rest;
 }
-function narrowRules(rules, named) {
+function narrowRules(rules) {
   for (const rule of rules) {
     if (rule instanceof CSSKeyframesRule || rule instanceof CSSImportRule) continue;
-    let within = named;
-    if (rule instanceof CSSScopeRule)
-      within ||= namesWidget(rule.start ?? "") || namesWidget(rule.end ?? "");
     if (rule instanceof CSSStyleRule) {
-      const list = members(rule.selectorText);
-      if (!named) {
-        const next = list.map(
-          ([member, pseudo]) => namesWidget(member) ? member : narrow(member, pseudo)
-        ).join(", ");
-        if (next !== rule.selectorText) rule.selectorText = next;
-      }
-      within ||= list.every(([member]) => namesWidget(member));
+      const next = members(rule.selectorText).map(([member, pseudo]) => narrow(member, pseudo)).join(", ");
+      if (next !== rule.selectorText) rule.selectorText = next;
     }
-    if (rule.cssRules) narrowRules(rule.cssRules, within);
+    if (rule.cssRules) narrowRules(rule.cssRules);
   }
 }
 function narrowSheet(sheet2, runtime2) {
   const owner = sheet2.ownerNode;
+  if (owner?.hasAttribute?.("data-controls")) return;
   if (sheet2.href && new URL(sheet2.href).origin !== window.origin && !owner?.hasAttribute?.("crossorigin"))
     return;
   if (!narrowed.has(sheet2)) {
     narrowed.add(sheet2);
-    if (!runtime2) narrowRules(sheet2.cssRules, false);
+    if (!runtime2) narrowRules(sheet2.cssRules);
     else
       for (const rule of sheet2.cssRules)
         if (rule instanceof CSSLayerBlockRule && rule.name === "lf-theme")
-          narrowRules(rule.cssRules, false);
+          narrowRules(rule.cssRules);
   }
   for (const rule of sheet2.cssRules)
     if (rule instanceof CSSImportRule && rule.styleSheet)
@@ -531,13 +519,15 @@ function keepPageRulesOffLayer() {
     );
   if (watching) return;
   watching = true;
-  new MutationObserver((records) => {
-    for (const record of records)
-      for (const node of record.addedNodes)
-        if (node instanceof HTMLLinkElement)
-          node.addEventListener("load", keepPageRulesOffLayer, { once: true });
-    keepPageRulesOffLayer();
-  }).observe(document.head, {
+  document.addEventListener(
+    "load",
+    (event) => {
+      if (event.target instanceof Element && event.target.matches('link[rel~="stylesheet" i], style'))
+        keepPageRulesOffLayer();
+    },
+    true
+  );
+  new MutationObserver(keepPageRulesOffLayer).observe(document.head, {
     childList: true,
     subtree: true,
     characterData: true
@@ -3081,8 +3071,6 @@ function createVersionController({
       const next = /* @__PURE__ */ new Set();
       for (const node of source) {
         const imported = document.importNode(node, true);
-        if (imported.localName === "link" || imported.localName === "style")
-          imported.addEventListener("load", keepPageRulesOffLayer, { once: true });
         document.head.append(imported);
         next.add(imported);
       }
@@ -7486,15 +7474,20 @@ function mountApplication(dependencies) {
     dependencies.annotationCommands.renderPageMapDialog(entries);
     return entries;
   }
-  const renderAnnotations = clocked(document.body, () => {
+  let annotationsDrawn = false;
+  const renderAnnotations = () => {
+    annotationsDrawn = true;
     if (!onPaper.matches) {
       const entries = refreshAnnotationInventory();
       overlay?.paint(entries);
     }
-  });
+  };
+  renderAnnotations.refresh = () => {
+    if (annotationsDrawn) renderAnnotations();
+  };
   const annotationInputs = readPart(annotationSelection);
   const mountAnnotations = () => {
-    watchProjection(
+    const watching2 = watchProjection(
       document.body,
       () => {
         annotationInputs();
@@ -7504,7 +7497,7 @@ function mountApplication(dependencies) {
     );
     document.addEventListener("lf-comparison", renderAnnotations);
     onPaper.addEventListener("change", () => {
-      if (!onPaper.matches) renderAnnotations.refresh();
+      if (!onPaper.matches) watching2.refresh();
     });
     watchContributions(({ immediate }) => {
       renderAnnotations();

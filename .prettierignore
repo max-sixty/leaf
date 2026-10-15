@@ -1,4 +1,4 @@
-# Format JavaScript, HTML, hooks/Worker TypeScript, and authored JSON and YAML.
+# Format authored JavaScript, TypeScript, HTML, JSON, and YAML.
 # TODO.md, "Development velocity", tracks expansion to other authored sources.
 **/*
 !**/
@@ -8,8 +8,7 @@
 !**/*.htm
 !**/*.html
 !**/*.xhtml
-!hooks/**/*.ts
-!worker/**/*.ts
+!**/*.ts
 !**/*.json
 !**/*.yaml
 !**/*.yml

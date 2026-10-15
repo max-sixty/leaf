@@ -68,7 +68,10 @@ interface PresentationTicket<Proof> {
 }
 
 interface PresentationHandle<Value, Proof> {
-  present(value: Value, failSoft?: (reason: unknown) => Proof): PresentationTicket<Proof>;
+  present(
+    value: Value,
+    failSoft?: (reason: unknown) => Proof,
+  ): PresentationTicket<Proof>;
   disconnect(): void;
 }
 
@@ -362,9 +365,11 @@ export function createPresentationCoordinator<
       value: Value,
       failSoft?: (reason: unknown) => Proof,
     ): PresentationTicket<Proof> => {
-      const { promise: completion, resolve, reject } = Promise.withResolvers<
-        Proof | undefined
-      >();
+      const {
+        promise: completion,
+        resolve,
+        reject,
+      } = Promise.withResolvers<Proof | undefined>();
       const superseded = latest;
       latest = () => queueMicrotask(() => resolve(undefined));
       const ready = (async () => {
@@ -736,10 +741,7 @@ export function createPresentationSchedule(
     order = 0,
   }: {
     attach: () => PresentationHandle<Value, Proof>;
-    paint: (
-      value: Value,
-      current: () => boolean,
-    ) => Proof | PromiseLike<Proof>;
+    paint: (value: Value, current: () => boolean) => Proof | PromiseLike<Proof>;
     failSoft?: (reason: unknown) => Proof;
     order?: number | (() => number);
   }): EpochPresenter<Value> {

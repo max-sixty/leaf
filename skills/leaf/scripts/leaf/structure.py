@@ -318,7 +318,7 @@ class SourceDocument:
         # screenshot that nothing displays.
         self.media_refs = set()
         self.page_resource_refs = set()
-        self.style_blocks = []  # {css, line} per independent <style> sheet
+        self.style_blocks = []  # {css, line, attrs} per independent <style> sheet
         self.inline_styles = []  # {tag, line, style} per style="" declaration list
         # {tag, line, attr, value} per authored allocation: a data-width or data-bound.
         self.authored_allocations = []
@@ -746,7 +746,9 @@ class SourceDocument:
             self._sample_resources(element)
 
         if element.tag == "style":
-            self.style_blocks.append({"css": element.text, "line": line})
+            self.style_blocks.append(
+                {"css": element.text, "line": line, "attrs": attrs}
+            )
         elif element.tag == "title":
             self.title += element.text
 

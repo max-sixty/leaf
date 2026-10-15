@@ -210,11 +210,13 @@ def rebase_document(
                 and inline_stylesheet is not None
                 and (located := page_path(attrs.get("href", ""), "/index.html"))
             ):
+                # Preserve stylesheet declarations, including author access metadata;
+                # only the linked resource's address and fetch mechanism disappear.
                 kept = _attributes(
                     {
                         name: value
                         for name, value in attrs.items()
-                        if name in {"media", "title", "data-lf-runtime", "disabled"}
+                        if name not in {"rel", "href", "crossorigin", "integrity"}
                     }
                 )
                 css = _inline_css(inline_stylesheet(located[0]))

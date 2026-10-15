@@ -40,41 +40,32 @@ interface SnapshotReading<T> {
   readonly outside?: true;
 }
 
-// The readings a caller is collecting, each with the first value it gave: every
-// reading (`collectReads`), and, where a paint inside it collects only what stands
-// outside the publication (`collectOutside`), the readings outside it. A reading records
+// The readings a caller is collecting, each with the first value it gave: the parts
+// of the publication and the readings outside it (`outsideReading`). A reading records
 // itself when read, after its own derivation, whose reads of the root are the
 // selection's rather than the caller's.
 type Reads = Map<SnapshotReading<unknown>, unknown>;
 let collecting: Reads | null = null;
-let collectingOutside: Reads | null = null;
 function collected<T>(reading: SnapshotReading<T>, read: () => T): T {
   const outer = collecting;
-  const outerOutside = collectingOutside;
   collecting = null;
-  collectingOutside = null;
   let value: T;
   try {
     value = read();
   } finally {
     collecting = outer;
-    collectingOutside = outerOutside;
   }
-  const into = reading.outside ? outerOutside : outer;
-  if (into && !into.has(reading)) into.set(reading, value);
+  if (outer && !outer.has(reading)) outer.set(reading, value);
   return value;
 }
-// Run `run` with these collections, putting back the caller's after.
-function collectingInto<T>(reads: Reads | null, outside: Reads | null, run: () => T): T {
+// Run `run` with this collection, putting back the caller's after.
+function collectingInto<T>(reads: Reads | null, run: () => T): T {
   const outer = collecting;
-  const outerOutside = collectingOutside;
   collecting = reads;
-  collectingOutside = outside;
   try {
     return run();
   } finally {
     collecting = outer;
-    collectingOutside = outerOutside;
   }
 }
 
@@ -95,25 +86,7 @@ export function collectReads<T>(
 ): { reads: Reads } & ({ value: T } | { error: unknown }) {
   const reads: Reads = new Map();
   try {
-    return { reads, value: collectingInto(reads, reads, run) };
-  } catch (error) {
-    return { reads, error };
-  }
-}
-
-/**
- * Run `run`, collecting only the readings outside the publication it makes
- * (`outsideReading`), for a paint whose caller follows the publication's parts itself
- * (`clocked`). The parts it reads go on to the collection running around it, if any,
- * as though the caller had read them, and so does the rule against reading the root
- * whole there.
- */
-export function collectOutside<T>(
-  run: () => T,
-): { reads: Reads } & ({ value: T } | { error: unknown }) {
-  const reads: Reads = new Map();
-  try {
-    return { reads, value: collectingInto(collecting, reads, run) };
+    return { reads, value: collectingInto(reads, run) };
   } catch (error) {
     return { reads, error };
   }
@@ -161,14 +134,17 @@ export function outsideReading<T>(
  * nested owner's state, and throw where the owner reads the root whole.
  */
 export function untracked<T>(run: () => T): T {
-  return collectingInto(null, null, run);
+  return collectingInto(null, run);
 }
 
 // Object.freeze says nothing about descendants or Map/Set entries. Only values this
 // owner has secured can skip traversal when a publication reuses an existing subtree.
 const secured = new WeakSet<object>();
 
-function immutable<T>(value: T, normalized = new WeakMap<object, object>()): Immutable<T> {
+function immutable<T>(
+  value: T,
+  normalized = new WeakMap<object, object>(),
+): Immutable<T> {
   if (value !== null && typeof value === "object" && !secured.has(value)) {
     const known = normalized.get(value);
     if (known) return known as Immutable<T>;
@@ -177,9 +153,10 @@ function immutable<T>(value: T, normalized = new WeakMap<object, object>()): Imm
       throw new TypeError("Application snapshots are read-only");
     };
     if (value instanceof Map) {
-      const entries = [...value].map(([key, child]) => [
-        immutable(key, normalized), immutable(child, normalized),
-      ] as const);
+      const entries = [...value].map(
+        ([key, child]) =>
+          [immutable(key, normalized), immutable(child, normalized)] as const,
+      );
       const map = Object.isExtensible(value) ? value : new Map();
       map.clear();
       for (const [key, child] of entries) map.set(key, child);
@@ -195,14 +172,16 @@ function immutable<T>(value: T, normalized = new WeakMap<object, object>()): Imm
         Object.defineProperty(set, name, { value: refuse });
       result = set;
     } else {
-      const children = Object.entries(value).map(([key, child]) => [
-        key, child, immutable(child, normalized),
-      ] as const);
+      const children = Object.entries(value).map(
+        ([key, child]) => [key, child, immutable(child, normalized)] as const,
+      );
       if (children.some(([, child, next]) => child !== next)) {
         // A frozen collection needs replacement; copy its frozen ancestors only
         // where that replacement cannot be written into the original wrapper.
         const target = Object.isFrozen(value)
-          ? Array.isArray(value) ? [...value] : { ...value }
+          ? Array.isArray(value)
+            ? [...value]
+            : { ...value }
           : value;
         for (const [key, child, next] of children)
           if (child !== next) (target as Record<string, unknown>)[key] = next;
@@ -246,26 +225,27 @@ export function share<T>(prior: unknown, next: T): T {
       children.every((child, index) => child === prior[index])
     )
       return prior as T;
-    return (children.every((child, index) => child === next[index])
-      ? next
-      : children) as T;
+    return (
+      children.every((child, index) => child === next[index]) ? next : children
+    ) as T;
   }
   if (next instanceof Map) {
     if (!(prior instanceof Map)) return next;
     const priorKeys = [...prior.keys()];
-    const entries = [...next].map(([key, child]) => [
-      key,
-      prior.has(key) ? share(prior.get(key), child) : child,
-    ] as const);
+    const entries = [...next].map(
+      ([key, child]) =>
+        [key, prior.has(key) ? share(prior.get(key), child) : child] as const,
+    );
     if (
       priorKeys.length === entries.length &&
-      entries.every(([key, child], index) =>
-        key === priorKeys[index] && child === prior.get(key))
+      entries.every(
+        ([key, child], index) => key === priorKeys[index] && child === prior.get(key),
+      )
     )
       return prior as T;
-    return (entries.every(([key, child]) => child === next.get(key))
-      ? next
-      : new Map(entries)) as T;
+    return (
+      entries.every(([key, child]) => child === next.get(key)) ? next : new Map(entries)
+    ) as T;
   }
   if (next instanceof Set) {
     if (!(prior instanceof Set)) return next;
@@ -278,23 +258,30 @@ export function share<T>(prior: unknown, next: T): T {
       return prior as T;
     return (members.every((child) => next.has(child)) ? next : new Set(members)) as T;
   }
-  if (!plain(next) || !plain(prior) || Array.isArray(prior) || prior instanceof Map
-    || prior instanceof Set)
+  if (
+    !plain(next) ||
+    !plain(prior) ||
+    Array.isArray(prior) ||
+    prior instanceof Map ||
+    prior instanceof Set
+  )
     return next;
   const before = prior as Record<string, unknown>;
   const after = next as Record<string, unknown>;
   const keys = Object.keys(after);
   const children = keys.map((key) =>
-    Object.hasOwn(before, key) ? share(before[key], after[key]) : after[key]);
+    Object.hasOwn(before, key) ? share(before[key], after[key]) : after[key],
+  );
   if (
     keys.length === Object.keys(before).length &&
-    keys.every((key, index) => Object.hasOwn(before, key) && children[index] === before[key])
+    keys.every(
+      (key, index) => Object.hasOwn(before, key) && children[index] === before[key],
+    )
   )
     return prior as T;
   if (keys.every((key, index) => children[index] === after[key])) return next;
-  const copy: Record<string, unknown> = Object.getPrototypeOf(next) === null
-    ? Object.create(null)
-    : {};
+  const copy: Record<string, unknown> =
+    Object.getPrototypeOf(next) === null ? Object.create(null) : {};
   // Defined, not assigned: a JSON field named `__proto__` is an own property, and
   // assigning it would set the copy's prototype instead.
   keys.forEach((key, index) =>

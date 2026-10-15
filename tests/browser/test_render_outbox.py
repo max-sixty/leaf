@@ -1044,7 +1044,10 @@ customElements.define("lf-outer-board", class extends LeafElement {
   render() {
     for (const [id, order] of Object.entries(this.state.move.value)) {
       const column = document.getElementById(id);
-      for (const card of order) column.append(document.getElementById(card));
+      for (const id of order) {
+        const card = document.getElementById(id);
+        if (card.parentElement !== column) column.append(card);
+      }
     }
   }
 });

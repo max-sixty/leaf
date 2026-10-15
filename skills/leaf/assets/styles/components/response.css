@@ -416,7 +416,8 @@ button.lf-media-open {
 }
 /* A rewrite in the card is the comment box the card grew from: its words keep the card's
      text column, and its frame and padding stand in the room each line of the message
-     already keeps, so opening it moves no word and changes no height. Rejected: the
+     already keeps, so opening it on plain words moves none of them and changes no
+     height; Markdown still opens as its longer source. Rejected: the
      reply box's taller field, with the message keeping its height from first paint
      (#2985), which made every short card taller than the box it came from for a rewrite
      the user may never open. */

@@ -82,7 +82,7 @@
     "runtime/details-shelf.js": "41d6048ec3d6ce214d87c4758e4f7e0b2cb0cb3dd87a1fe01cde5932c2b0f69b",
     "runtime/document-identity.js": "7b0758d2c38bef54eb5d0549f1633bb7f785138db58908da174bac043fddf64f",
     "runtime/dom-children.js": "5d7973bcf05f12d4dc1fe00bd9b16f7042e16e3b8a2bc2139b93390de27dd5ed",
-    "runtime/dom-move.js": "d61ea96341bc55da4a91205d28cf800d5b4114e2e2b7a18deceff014c43fdf07",
+    "runtime/dom-move.js": "81def719b7176218bf9108b4f5fd566c898b73dc04e0e803a5e5c3460048e762",
     "runtime/drafts.js": "615638c6584d8fe72940ba04c036a20fb34c0852f5735123476d64c01cbd86d6",
     "runtime/drawers.js": "c471faef57a45c1b3bc92e5cefac6fab737b000e3898ed66a50981e09527c2b3",
     "runtime/drawn-edge.js": "3aa2adccc543d8fbb3e8f3a27de37fda8801da2e1366dee846fa230f95ee8a4c",

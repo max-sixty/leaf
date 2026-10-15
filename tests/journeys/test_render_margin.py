@@ -1014,7 +1014,7 @@ def test_continued_margin_draft_grows_below_its_first_line_after_agent_reply(
     browser, serve
 ):
     """News holds the reply row. Typing grows below its first line until the card
-    reaches the window's foot, then the editor takes room upward and scrolls within it."""
+    reaches the window's foot, then the editor scrolls within that room."""
     page, preview, editor = drafting_in_a_short_card(browser, serve, 1000, 600)
     append_carried_log_record(
         serve.page_dir,
@@ -1045,7 +1045,8 @@ def test_continued_margin_draft_grows_below_its_first_line_after_agent_reply(
     bounded = page.evaluate(CARD_AND_REPLY)
     assert bounded["placement"] == before["side"]
     assert bounded["cardBottom"] == pytest.approx(bounded["foot"], abs=0.5), bounded
-    assert bounded["turn"] < bounded["editorTop"] < after["editorTop"], bounded
+    assert bounded["turn"] < bounded["editorTop"], bounded
+    assert bounded["editorTop"] == pytest.approx(after["editorTop"], abs=0.5), bounded
     assert bounded["editorBottom"] <= bounded["cardBottom"], bounded
     assert bounded["editorTop"] <= bounded["send"] <= bounded["cardBottom"], bounded
     assert editor.evaluate("box => box.scrollHeight > box.clientHeight")

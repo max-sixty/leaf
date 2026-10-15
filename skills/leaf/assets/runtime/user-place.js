@@ -43,9 +43,9 @@
    same reflow, and a user's scroll between frames stays theirs. It leaves at that pass
    rather than at the release because renders run back to back: one finishing and the
    next taking its hold in the same script would take the property away and put it back,
-   a write that changes nothing. A hold taken while another stands on the same
-   scroller inherits its reference, because a mutation in flight (a fold) has already
-   moved whatever the pointer would now name.
+   a write that changes nothing. A second spanning hold on the same scroller yields to
+   the first. A synchronous nested hold can correct a temporary clamp and hands the
+   reflow it paid for to the outer hold, so the outer hold does not pay it again.
 
    One synchronous mutation takes its hold with `around(mutate)`, or with
    `take({spans: false})` / `finish` across separate paint steps. It claims nothing,
@@ -123,10 +123,14 @@ export function placeCorrection({
   return now - was - reflowed;
 }
 
-// A scroller has one anchoring authority at a time. A card painting inside a list's
-// presentation can take its own local hold, but the list's enclosing hold already
-// pays for that reflow; two independent keepers would scroll by the same growth twice.
+// A synchronous hold inside another hold can correct a transient clamp before the
+// enclosing presentation finishes. Credit the outer hold for the scroll the inner
+// hold applied, so its own reference can still correct any different movement.
 const heldScrollers = new WeakMap();
+const sharedMovement = (moved, paid) =>
+  Math.sign(moved) === Math.sign(paid)
+    ? Math.sign(paid) * Math.min(Math.abs(moved), Math.abs(paid))
+    : 0;
 
 export function placeKeeper(
   scroller,
@@ -134,6 +138,19 @@ export function placeKeeper(
 ) {
   let current = null;
   const owner = {};
+  const lease = {
+    owner,
+    snapshot: () => ({
+      hold: current,
+      references: current?.references.filter(live) ?? [],
+    }),
+    sync: ({ hold, references }, paid) => {
+      if (current !== hold) return;
+      for (const reference of references)
+        if (live(reference)) reference.contentTop += paid;
+      hold.at = { scrollTop: scroller.scrollTop, limit: limit() };
+    },
+  };
   const limit = () => scrollLimit(scroller);
   // The box a node can hold the place by, or null where it holds nothing.
   const heldBox = (node) => {
@@ -183,7 +200,7 @@ export function placeKeeper(
   function release(hold) {
     if (current !== hold) return;
     current = null;
-    if (heldScrollers.get(scroller) === owner) heldScrollers.delete(scroller);
+    if (heldScrollers.get(scroller)?.owner === owner) heldScrollers.delete(scroller);
     if (hold.spans) claim();
   }
 
@@ -192,8 +209,10 @@ export function placeKeeper(
     const reference = hold.references.find(live);
     if (!reference) return false;
     const now = heldBox(reference.node).top + scroller.scrollTop;
+    const was = reference.contentTop;
+    const scrollWas = scroller.scrollTop;
     const delta = placeCorrection({
-      was: reference.contentTop,
+      was,
       now,
       scrollTop: scroller.scrollTop,
       limit: limit(),
@@ -214,17 +233,26 @@ export function placeKeeper(
       if (node) candidate.contentTop = heldBox(node).top + scroller.scrollTop;
     }
     hold.at = { scrollTop: scroller.scrollTop, limit: limit() };
+    if (hold.borrowed) {
+      hold.borrowed.lease.sync(
+        hold.borrowed.reading,
+        sharedMovement(now - was, scroller.scrollTop - scrollWas),
+      );
+      hold.borrowed.reading = hold.borrowed.lease.snapshot();
+    }
     return true;
   }
 
   function take({ spans = true } = {}) {
-    if (heldScrollers.has(scroller) && heldScrollers.get(scroller) !== owner)
-      return null;
+    const enclosing = heldScrollers.get(scroller);
+    if (enclosing?.owner !== owner && enclosing && spans) return null;
     const prior = current;
     if (prior) correct(prior);
     current = heldPlace(prior, spans);
-    if (current) heldScrollers.set(scroller, owner);
-    else if (heldScrollers.get(scroller) === owner) heldScrollers.delete(scroller);
+    if (current && enclosing?.owner !== owner && enclosing)
+      current.borrowed = { lease: enclosing, reading: enclosing.snapshot() };
+    else if (current) heldScrollers.set(scroller, lease);
+    else if (enclosing?.owner === owner) heldScrollers.delete(scroller);
     if (spans || prior?.spans) claim();
     return current;
   }

@@ -321,9 +321,23 @@ function placeCorrection({
   return now - was - reflowed;
 }
 var heldScrollers = /* @__PURE__ */ new WeakMap();
+var sharedMovement = (moved2, paid) => Math.sign(moved2) === Math.sign(paid) ? Math.sign(paid) * Math.min(Math.abs(moved2), Math.abs(paid)) : 0;
 function placeKeeper(scroller, { items, identity, active = () => true, preferred = () => null }) {
   let current = null;
   const owner = {};
+  const lease = {
+    owner,
+    snapshot: () => ({
+      hold: current,
+      references: current?.references.filter(live2) ?? []
+    }),
+    sync: ({ hold, references }, paid) => {
+      if (current !== hold) return;
+      for (const reference of references)
+        if (live2(reference)) reference.contentTop += paid;
+      hold.at = { scrollTop: scroller.scrollTop, limit: limit() };
+    }
+  };
   const limit = () => scrollLimit(scroller);
   const heldBox = (node) => {
     if (!node?.isConnected || !scroller.contains(node) || !node.matches(items) || !node.checkVisibility())
@@ -356,7 +370,7 @@ function placeKeeper(scroller, { items, identity, active = () => true, preferred
   function release2(hold) {
     if (current !== hold) return;
     current = null;
-    if (heldScrollers.get(scroller) === owner) heldScrollers.delete(scroller);
+    if (heldScrollers.get(scroller)?.owner === owner) heldScrollers.delete(scroller);
     if (hold.spans) claim();
   }
   function correct(hold) {
@@ -364,8 +378,10 @@ function placeKeeper(scroller, { items, identity, active = () => true, preferred
     const reference = hold.references.find(live2);
     if (!reference) return false;
     const now = heldBox(reference.node).top + scroller.scrollTop;
+    const was = reference.contentTop;
+    const scrollWas = scroller.scrollTop;
     const delta = placeCorrection({
-      was: reference.contentTop,
+      was,
       now,
       scrollTop: scroller.scrollTop,
       limit: limit(),
@@ -381,16 +397,25 @@ function placeKeeper(scroller, { items, identity, active = () => true, preferred
       if (node) candidate.contentTop = heldBox(node).top + scroller.scrollTop;
     }
     hold.at = { scrollTop: scroller.scrollTop, limit: limit() };
+    if (hold.borrowed) {
+      hold.borrowed.lease.sync(
+        hold.borrowed.reading,
+        sharedMovement(now - was, scroller.scrollTop - scrollWas)
+      );
+      hold.borrowed.reading = hold.borrowed.lease.snapshot();
+    }
     return true;
   }
   function take({ spans: spans2 = true } = {}) {
-    if (heldScrollers.has(scroller) && heldScrollers.get(scroller) !== owner)
-      return null;
+    const enclosing = heldScrollers.get(scroller);
+    if (enclosing?.owner !== owner && enclosing && spans2) return null;
     const prior = current;
     if (prior) correct(prior);
     current = heldPlace(prior, spans2);
-    if (current) heldScrollers.set(scroller, owner);
-    else if (heldScrollers.get(scroller) === owner) heldScrollers.delete(scroller);
+    if (current && enclosing?.owner !== owner && enclosing)
+      current.borrowed = { lease: enclosing, reading: enclosing.snapshot() };
+    else if (current) heldScrollers.set(scroller, lease);
+    else if (enclosing?.owner === owner) heldScrollers.delete(scroller);
     if (spans2 || prior?.spans) claim();
     return current;
   }

@@ -433,7 +433,7 @@ def composer_long(page: Page) -> None:
 
 
 def composer_sent(page: Page) -> None:
-    """That comment just sent: its card keeps the draft's wrapping while it stands."""
+    """That comment just sent: its card shares the draft's text column and wrapping."""
     composer_long(page)
     if page.evaluate("matchMedia('(pointer: coarse)').matches"):
         page.locator(".lf-fab-bar").get_by_role(
@@ -441,7 +441,7 @@ def composer_sent(page: Page) -> None:
         ).tap()
     else:
         page.keyboard.press("Enter")
-    page.locator(".lf-margin-preview[data-lf-comment-frame]").wait_for()
+    page.locator(".lf-margin-preview").wait_for()
     page.wait_for_function(
         "() => !document.querySelector('.lf-margin-preview [aria-busy=\"true\"]')"
     )
@@ -449,7 +449,7 @@ def composer_sent(page: Page) -> None:
 
 
 def composer_sent_zoomed(page: Page) -> None:
-    """A short sent comment at fractional zoom must keep its one-line viewport."""
+    """A short sent comment at fractional zoom keeps its one line."""
     page.evaluate("document.documentElement.style.zoom = '1.1'")
     page.locator("#plan-lede").click(click_count=3)
     page.locator(".lf-fab-input").click()
@@ -457,7 +457,7 @@ def composer_sent_zoomed(page: Page) -> None:
         "better; is there a way of shortening? or maybe we just remove it??"
     )
     page.keyboard.press("Enter")
-    page.locator(".lf-margin-preview[data-lf-comment-frame]").wait_for()
+    page.locator(".lf-margin-preview").wait_for()
     page.wait_for_function(
         "() => !document.querySelector('.lf-margin-preview [aria-busy=\"true\"]')"
     )
@@ -894,6 +894,15 @@ def trace_comparison(page: Page) -> None:
     )
 
 
+def film_inspector(page: Page) -> None:
+    """Details beside the selected SVG commit in the merge film."""
+    page.get_by_role("button", name="Inspect next element", exact=True).click()
+    expect(page.locator("#merge-film .film-inspect")).to_be_visible()
+    page.locator("#merge-film .film-stage").evaluate(
+        "node => node.scrollIntoView({block: 'center'})"
+    )
+
+
 def trace_timeline_by_keyboard(page: Page) -> None:
     """The timeline focused, after tabbing away from it and back."""
     trace_controls(page)
@@ -968,6 +977,21 @@ STATES = (
         trace_controls,
         viewport=(540, 720),
         region=".lf-trace-toolbar",
+    ),
+    State(
+        "film-inspector",
+        "wt-merge",
+        film_inspector,
+        viewport=(900, 900),
+        region="#merge-film .film-stage",
+    ),
+    State(
+        "film-inspector-phone",
+        "wt-merge",
+        film_inspector,
+        viewport=(390, 844),
+        touch=True,
+        region="#merge-film .film-stage",
     ),
     State(
         "trace-comparison-header",

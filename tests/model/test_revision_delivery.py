@@ -16,6 +16,7 @@ from leaf.revision_artifact import (
     Resource,
     capture_artifact,
     capture_local_resource,
+    read_artifact,
 )
 from leaf.revision_delivery import (
     Delivery,
@@ -443,6 +444,29 @@ const plain = "../helper.js";
         ).data
         == f'.mark {{ mask: url("{ROOT}/icon.svg") }}'.encode()
     )
+
+
+def test_authored_lazy_positioning_import_uses_the_captured_public_provider(page_dir):
+    """Authored imports keep the provider vendored with their immutable revision."""
+    provider = "/vendor/floating-ui.esm.js"
+    module = f'export const position = () => import("{provider}");'
+    (page_dir / "page" / "position.js").write_text(module)
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "</head>",
+            '<script type="module" src="/page/position.js"></script></head>',
+        )
+    )
+    activated = revisioning_model.activate_source(page_dir)
+    assert activated.error is None, activated.error
+    artifact = read_artifact(page_dir, activated.revision)
+    resource = artifact.resources["/page/position.js"]
+    assert resource.dependencies == (provider,)
+    assert provider in json.loads(artifact.manifest)["public_modules"]
+    assert artifact.resources[provider].data == (page_dir / provider[1:]).read_bytes()
+    assert deliver_resource(
+        resource, "/page/position.js", ADDRESS
+    ).data.decode() == module.replace(provider, ROOT + provider)
 
 
 def test_media_has_one_address_wherever_a_page_names_it(tmp_path):

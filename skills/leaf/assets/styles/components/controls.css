@@ -87,9 +87,10 @@
 .lf-react:not(.lf-margin-entry):is([data-lf-held-word], [data-lf-focus])::after {
           content: attr(aria-label); position: absolute; z-index: 5;
           inset-block-end: calc(100% + 6px); inset-inline-start: 50%; translate: -50% 0;
-          width: max-content; max-width: 220px; padding: 4px 7px; border-radius: 4px;
-          background: var(--ink); color: var(--paper); box-shadow: var(--raise-1);
-          font: 500 var(--t-6)/1.2 var(--sans); white-space: nowrap; pointer-events: none; }
+          width: max-content; max-width: 220px;
+          padding: var(--tip-pad); border-radius: var(--tip-r);
+          background: var(--tip-bg); color: var(--tip-ink); box-shadow: var(--raise-1);
+          font: var(--tip-font); white-space: nowrap; pointer-events: none; }
 /* A reaction surface offers one quiet trigger. It disappears when its list opens;
    a token in force remains visible in a closed message strip as the user's receipt
    and eraser. */

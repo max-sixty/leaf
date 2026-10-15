@@ -286,6 +286,7 @@ import {
   keys,
   labelOf,
   landingBand,
+  landingInsets,
   layerHeaders,
   layoutChanged,
   matchesWhen,
@@ -917,16 +918,21 @@ var LeafText = class extends HTMLElement {
           const caret = view.coordsAtPos(view.state.selection.main.head);
           const box = this.getBoundingClientRect();
           const { scaleX, scaleY } = view;
+          const inset = landingInsets(this);
+          const leading = caret ? Math.max(
+            0,
+            (parseFloat(getComputedStyle(this).lineHeight) * scaleY - (caret.bottom - caret.top)) / 2
+          ) : 0;
           return {
             caret,
             scaleX,
             scaleY,
-            top: box.top + this.clientTop * scaleY,
-            left: box.left + this.clientLeft * scaleX,
+            top: box.top + (this.clientTop + inset.top) * scaleY + leading,
+            left: box.left + (this.clientLeft + inset.left) * scaleX,
             // client dimensions round fractional CSS sizes. Keep the trailing
             // edges on the actual box, inset by its native border and scrollbar.
-            bottom: box.bottom - (this.offsetHeight - this.clientTop - this.clientHeight) * scaleY,
-            right: box.right - (this.offsetWidth - this.clientLeft - this.clientWidth) * scaleX
+            bottom: box.bottom - (this.offsetHeight - this.clientTop - this.clientHeight + inset.bottom) * scaleY - leading,
+            right: box.right - (this.offsetWidth - this.clientLeft - this.clientWidth + inset.right) * scaleX
           };
         },
         write: ({ caret, top, left, bottom, right, scaleX, scaleY }) => {
@@ -1156,15 +1162,11 @@ var LeafText = class extends HTMLElement {
     else this.#internals.states.add("placeholder-shown");
   }
   // Where the field holds its action's room now: `every-line`, `last-line` after its
-  // last words, or `none` while its last line is blank. A sent message keeping the
-  // draft's wrapping holds the same.
+  // last words, or `none` while its last line is blank.
   get endRoom() {
     if (parseFloat(getComputedStyle(this.#frame).paddingInlineEnd) > 0)
       return "every-line";
     return lastWithWords(this.#state) ? "last-line" : "none";
-  }
-  get writingEndRoom() {
-    return parseFloat(getComputedStyle(this).getPropertyValue("--lf-field-end-room"));
   }
   get value() {
     return this.#state.doc.toString();
@@ -1196,10 +1198,6 @@ var LeafText = class extends HTMLElement {
   get naturalBlockSize() {
     const host = getComputedStyle(this);
     return parseFloat(getComputedStyle(this.#frame).blockSize) + parseFloat(host.paddingBlockStart) + parseFloat(host.paddingBlockEnd) + parseFloat(host.borderBlockStartWidth) + parseFloat(host.borderBlockEndWidth);
-  }
-  get writingInlineSize() {
-    const frame = getComputedStyle(this.#frame);
-    return parseFloat(frame.inlineSize) + parseFloat(frame.paddingInlineEnd);
   }
   set value(text) {
     text = String(text ?? "").replace(/\r\n?/g, "\n");
@@ -1328,7 +1326,6 @@ function createSelectionComposer({
   reactionAvailable: reactionAvailable2,
   designModeActive,
   openPageThread,
-  threadTransitionOrigin,
   anchorTravelAt,
   bringForward,
   fabAnchorAt,
@@ -1697,7 +1694,7 @@ function createSelectionComposer({
         const suggestion = suggestionMode;
         const about = pendingAbout;
         const drawing = pendingDrawing && sentDrawing(structuredClone(pendingDrawing));
-        const transition = threadTransitionOrigin?.(composerInput, fabFrameAt());
+        const origin = fabFrameAt();
         const point = fabPointAt();
         const epoch = composerEpoch;
         const currentIntent = retainUserIntent();
@@ -1736,7 +1733,7 @@ function createSelectionComposer({
             travel: false,
             flash: false,
             intent: shouldReveal ? restrictUserIntent(currentIntent, revealAvailable) : currentIntent,
-            transition
+            origin
           });
           const thread = destination && closestAcross(destination, THREAD);
           if (shouldReveal && mayReveal() && thread)
@@ -5977,7 +5974,7 @@ function createThreadDestinations({
     flash = true,
     scroll = true,
     intent = retainUserIntent(),
-    transition = null
+    origin = null
   } = {}) {
     if (!intent()) return null;
     const trip = travel2 && scroll;
@@ -6061,7 +6058,7 @@ function createThreadDestinations({
       let opened = null;
       if (preview)
         intent.handoff(() => {
-          opened = preview.open(id, { transition });
+          opened = preview.open(id, { origin });
         });
       if (opened) {
         if (trip) {

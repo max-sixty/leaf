@@ -137,6 +137,9 @@ export function createFloatingResponsePlacement({
       ).toJSON(),
       width,
       placement: fabPlacement.capture(),
+      // How far the words stand above their end: where the user was reading them,
+      // which the card Send opens keeps (thread-preview.js, `showArrival`).
+      fromEnd: fabInput.scrollHeight - fabInput.clientHeight - fabInput.scrollTop,
     };
   };
   // Where the frame's native rows end. Used grid tracks exclude transformed descendant

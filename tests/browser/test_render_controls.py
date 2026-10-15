@@ -5990,8 +5990,9 @@ def test_the_focus_sweep_distinguishes_stops_inside_a_live_frame(browser):
     assert page.evaluate(RING_NEW_STOP) == "new"
 
 
-# Every declaration in the page's composed layer that spells a lift: a box-shadow, or a
-# custom property a shadow reads, with a blur radius written out. A ring is `0 0 0 Npx`
+# Every declaration in the page's composed layer that spells a lift: a box-shadow, a
+# filter's drop-shadow(), or a custom property either reads, with a blur radius written
+# out. A ring is `0 0 0 Npx`
 # and an inset band is `inset …`, so
 # the reading asks for a third length that is not nought — which is the one thing that
 # separates elevation from the other two uses of the property, and is decidable from the
@@ -6000,6 +6001,22 @@ def test_the_focus_sweep_distinguishes_stops_inside_a_live_frame(browser):
 # Flat and condition-blind: nothing re-runs a selector, and a shadow painted only in some
 # other medium is one this reading should say nothing about.
 ELEVATION_SHADOWS = """() => {
+  // A shadow list's layers, or a filter's drop-shadow() arguments, which may hold a
+  // colour function's own parentheses.
+  const layersOf = (property, value) => {
+    if (property !== 'filter') return value.split(/,(?![^(]*\\))/);
+    const layers = [];
+    for (let at = value.indexOf('drop-shadow('); at >= 0;
+         at = value.indexOf('drop-shadow(', at + 1)) {
+      let depth = 0, end = at + 'drop-shadow'.length;
+      for (; end < value.length; end++) {
+        if (value[end] === '(') depth++;
+        else if (value[end] === ')' && --depth === 0) break;
+      }
+      layers.push(value.slice(at + 'drop-shadow('.length, end));
+    }
+    return layers;
+  };
   const found = [];
   const eaten = new Set();
   const eat = (sheet) => {
@@ -6010,13 +6027,14 @@ ELEVATION_SHADOWS = """() => {
     const walk = (from) => {
       for (const rule of from) {
         const named = rule.style ? [...rule.style] : [];
-        for (const property of named.filter((name) => name === 'box-shadow' || name.startsWith('--'))) {
+        const lifted = (name) => ['box-shadow', 'filter'].includes(name) || name.startsWith('--');
+        for (const property of named.filter(lifted)) {
           const value = rule.style.getPropertyValue(property).trim();
           if (!value || value === 'none') continue;
           // The blur, which is the third length of a layer, past the two offsets. A ring
           // writes `0 0 0 Npx` and has none; an inset band is not a lift at all. Read per
           // layer, because a control may state its ring and its lift in one declaration.
-          const lifts = value.split(/,(?![^(]*\\))/).filter((layer) => {
+          const lifts = layersOf(property, value).filter((layer) => {
             if (/(^|\\s)inset(\\s|$)/.test(layer)) return false;
             const lengths = layer.trim().split(/\\s+/)
               .filter((token) => /^-?(\\d*\\.)?\\d+(px)?$/.test(token));
@@ -6064,11 +6082,12 @@ def test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink(
 ):
     """A box stands at one of three heights, and only the theme spells them out.
 
-    Twenty lifts once wrote eight geometries between them, so two menus beside each
-    other stood at different heights for no reason anyone chose, and nothing kept the
-    next one from writing a ninth. The `--raise-*` tokens (theme.css, beside --shade)
-    are now the only declarations that write a blur; every other rule names one, with a
-    hairline or ring beside it where its edge needs one.
+    Twenty-nine lifts once wrote fourteen geometries between them, so two menus beside
+    each other stood at different heights for no reason anyone chose, and nothing kept
+    the next one from writing a fifteenth. The `--raise-*` tokens (theme.css, beside
+    --shade) are now the only declarations that write a blur; every other rule, a
+    filter's drop-shadow() included, names one, with a hairline or ring beside it where
+    its edge needs one.
 
     A drop shadow written as rgba(0,0,0,α) can only be right about one ground: at .12
     over the light paper a menu lifts its ground by 10 L*, and over the dark paper by

@@ -129,6 +129,11 @@
   --raise-1: 0 2px 8px var(--shade);
   --raise-2: 0 8px 24px var(--shade);
   --raise-3: 0 12px 36px var(--shade);
+  --tip-bg: var(--ink);
+  --tip-ink: var(--paper);
+  --tip-pad: 4px 7px;
+  --tip-r: 4px;
+  --tip-font: 500 var(--t-6)/1.2 var(--sans);
   --code-bg: light-dark(#ecebe5, #2b2b29);
   --pre-bg: light-dark(#fff, #1b1b1a);
   --code-chrome: light-dark(#f6f8fa, #222220);
@@ -478,6 +483,7 @@ p {
   --code-size: 12px;
   --code-line: 17px;
   --lf-key-badge-size: calc(round(var(--t-6) * 1.478 + 2px, 1px));
+  --tip-font: 500 var(--t-6)/1.2 var(--sans);
   --pane-bar-pad: 6px 12px;
   --pane-inset: 12px;
   --h2-start: 18px;
@@ -998,11 +1004,11 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   display: block;
   width: max-content;
   max-width: min(320px, 100vw - 8px);
-  padding: 4px 7px;
-  border-radius: 4px;
-  background: var(--ink);
-  color: var(--paper);
-  font: 500 var(--t-6)/1.2 var(--sans);
+  padding: var(--tip-pad);
+  border-radius: var(--tip-r);
+  background: var(--tip-bg);
+  color: var(--tip-ink);
+  font: var(--tip-font);
   white-space: normal;
   overflow-wrap: anywhere;
   box-shadow: var(--raise-1);

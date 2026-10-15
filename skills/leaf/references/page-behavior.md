@@ -7,10 +7,12 @@ script uses.
 Write page behavior in an inline `<script type="module">` or in modules under `page/`,
 referenced as `/page/…`. Load a library that ships only as a classic script with
 `<script defer src>`; Leaf refuses an inline classic script, a parser-blocking one, or an
-`async` one. Relative imports stay within `page/`, and a module may also import
-`/runtime/widget-api.js`. Leaf saves the local files that scripts and stylesheets name
+`async` one. Relative imports stay within `page/`. A module imports Leaf's helpers
+from `/runtime/widget-api.js`. For floating placement that native layout cannot
+express, import the bundled Floating UI library from `/vendor/floating-ui.esm.js`.
+Leaf saves the local files that scripts and stylesheets name
 by a literal path in the same revision as the markup, so import page files by literal
-URL. Leaf refuses unresolved imports, paths outside the page directory, and any
+URL. Leaf refuses unresolved imports, private layer imports, and any
 declaration about the whole document, such as a `<base>`, an http-equiv `<meta>` or an
 import map.
 

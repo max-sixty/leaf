@@ -507,7 +507,6 @@ customElements.define(
       // the page's reading with it.
       const fold = this.#fold(outcome);
       this.#failed = null;
-      this.#deciding = null;
       this.removeAttribute("aria-busy");
       this.#presentedOutcome = outcome;
       keeps(this, "data-lf-state", outcome);

@@ -240,6 +240,28 @@ test("a node the render replaced hands the place across under its identity", asy
   scroller.remove();
 });
 
+test("nested keepers on one scroller correct a reflow once", () => {
+  const { scroller, item, at, scrolled, scrollTo } = laidOut();
+  const [first, later] = [item("first", 1000), item("later", 1200)];
+  scroller.append(first, later);
+  scrollTo(1200);
+  const options = { items: ".item", identity: (node) => node.dataset.id };
+  const list = placeKeeper(scroller, options);
+  const card = placeKeeper(scroller, options);
+  const listHold = list.take();
+  const cardHold = card.take({ spans: false });
+  assert.equal(cardHold, null);
+  at.set(later, 1269);
+  card.finish(cardHold);
+  list.finish(listHold);
+  assert.equal(scrolled(), 1269);
+  // The inner owner can take the next independent change after the list releases it.
+  const next = card.take({ spans: false });
+  assert.ok(next);
+  card.finish(next);
+  scroller.remove();
+});
+
 test("a node with no identity passes the place to the next candidate, not a stranger", () => {
   const { scroller, item, at, scrolled, scrollTo } = laidOut();
   const nodes = ["", "b"].map((id, index) => item(id, 1000 + index * 150));

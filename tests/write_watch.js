@@ -113,13 +113,16 @@
       (tree) => tree instanceof ShadowRoot && tree.host === node && hasFrame(tree),
     );
   const renderedChildren = (nodes) =>
-    [...nodes].filter((node) => node.nodeType !== Node.COMMENT_NODE && !hasFrame(node));
+    [...nodes].filter((node) => node.nodeType !== Node.COMMENT_NODE);
   const restored = (target, records, readings) => {
-    if (!records.some((record) => renderedChildren(record.removedNodes).length))
+    const frameRecords = new Set(records.filter((record) =>
+      [...record.removedNodes, ...record.addedNodes].some(hasFrame)));
+    const ordinary = records.filter((record) => !frameRecords.has(record));
+    if (!ordinary.some((record) => renderedChildren(record.removedNodes).length))
       return false;
     // Preserve the atomic check even when unrelated changes share its delivery.
     if (
-      records.some((record) => {
+      ordinary.some((record) => {
         const removed = renderedChildren(record.removedNodes);
         const position = readings.position(record);
         return (
@@ -145,7 +148,8 @@
     const residents = new Set(renderedChildren(current));
     const pending = new Map();
     for (const record of records) {
-      if ([...record.removedNodes].some((node) => residents.has(node))) {
+      if (frameRecords.has(record)) pending.clear();
+      else if ([...record.removedNodes].some((node) => residents.has(node))) {
         const before = renderedChildren(current);
         if (!pending.has(before.length)) pending.set(before.length, []);
         pending
@@ -159,6 +163,7 @@
       current.splice(at, 0, ...record.addedNodes);
       const after = renderedChildren(current);
       if (
+        !frameRecords.has(record) &&
         (pending.get(after.length) ?? []).includes(
           readings.read(after, readings.position(record) + 1),
         )

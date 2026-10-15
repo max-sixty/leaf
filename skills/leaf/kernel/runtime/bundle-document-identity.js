@@ -7487,7 +7487,7 @@ function mountApplication(dependencies) {
   };
   const annotationInputs = readPart(annotationSelection);
   const mountAnnotations = () => {
-    watchProjection(
+    const watching2 = watchProjection(
       document.body,
       () => {
         annotationInputs();
@@ -7497,7 +7497,7 @@ function mountApplication(dependencies) {
     );
     document.addEventListener("lf-comparison", renderAnnotations);
     onPaper.addEventListener("change", () => {
-      if (!onPaper.matches) renderAnnotations.refresh();
+      if (!onPaper.matches) watching2.refresh();
     });
     watchContributions(({ immediate }) => {
       renderAnnotations();

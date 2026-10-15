@@ -27,7 +27,7 @@
     "runtime/annotation-overlay/thread-preview.js": "1149164ecf8ebfda9ef0d85a030531aadf1dc6cb025eea49f98b58daf0a72b7e",
     "runtime/annotation-overlay/visual-mark-paint.js": "79bfa0da875d52954da0cd24360389a5bbc821711258088cb0bbfff3557ef1cb",
     "runtime/annotation-view.js": "5f688adaa597934cd619388dc4bd4d8d8ca269683323e1a0489471f5c60e5324",
-    "runtime/application.js": "a5ca95397752c3ce964408c5ba6980b49faa56261a8f0dfc18ef66eba20748b4",
+    "runtime/application.js": "0c83221ca8ec5d04b8a026311ab336ce6dac21c655d59e9a96874dd7bf565b85",
     "runtime/arrivals.js": "b832b73860dc2fab1ba1cf76cbe4a64e0c18abba1ee341c36dbec437c2df6504",
     "runtime/asks/answer.js": "d2c645e37c38a85ecbc5a40e178a3ed3a2c7fadb80446cab955cc25a141b2d67",
     "runtime/asks/banner-controls.js": "d34825547317a3e7d29218252ae88006c5b2d94685cc8b11bb8e55facefa5b79",

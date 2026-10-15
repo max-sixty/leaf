@@ -285,7 +285,7 @@ export function mountApplication(dependencies) {
   // proof.
   const annotationInputs = readPart(annotationSelection);
   const mountAnnotations = () => {
-    watchProjection(
+    const watching = watchProjection(
       document.body,
       () => {
         annotationInputs();
@@ -294,8 +294,10 @@ export function mountApplication(dependencies) {
       () => projectionRegionsPresented([]),
     );
     document.addEventListener("lf-comparison", renderAnnotations);
+    // A paint on paper read no ages, so the return to screen paints through the
+    // watcher, which follows them again.
     onPaper.addEventListener("change", () => {
-      if (!onPaper.matches) renderAnnotations.refresh();
+      if (!onPaper.matches) watching.refresh();
     });
     watchContributions(({ immediate }) => {
       renderAnnotations();

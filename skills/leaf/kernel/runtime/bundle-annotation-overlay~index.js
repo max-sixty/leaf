@@ -123,6 +123,7 @@ import "./bundle-initial-render.js";
 import {
   atScrollEnd,
   effectiveScroller,
+  moveScrollerBy,
   readingRegionFor,
   registerReadingRegion,
   scrollToEnd
@@ -444,8 +445,9 @@ function createThreadPreview({
     return preview.getBoundingClientRect().height;
   }
   function showArrival(session) {
-    if (session.sent) scrollToEnd(session.transcript);
-    else showLatestTurn(session.transcript);
+    if (!session.sent) return showLatestTurn(session.transcript);
+    scrollToEnd(session.transcript);
+    moveScrollerBy(session.transcript, -session.sent.fromEnd);
   }
   function measureTranscript() {
     return previewSession.transcript ? parseFloat(getComputedStyle(previewSession.transcript).height) + previewSession.transcript.scrollHeight - previewSession.transcript.clientHeight : 0;
@@ -653,7 +655,8 @@ function createThreadPreview({
       preparing: false,
       latest: null,
       arriving: true,
-      sent: Boolean(origin),
+      // The box Send replaced, whose reading the card keeps (`showArrival`).
+      sent: origin && { fromEnd: origin.fromEnd },
       away: false,
       positionFrame: 0,
       positionResult: null,
@@ -2789,7 +2792,10 @@ function createFloatingResponsePlacement({
         height * scaleY
       ).toJSON(),
       width,
-      placement: fabPlacement.capture()
+      placement: fabPlacement.capture(),
+      // How far the words stand above their end: where the user was reading them,
+      // which the card Send opens keeps (thread-preview.js, `showArrival`).
+      fromEnd: fabInput.scrollHeight - fabInput.clientHeight - fabInput.scrollTop
     };
   };
   const nativeRowEnd = () => {

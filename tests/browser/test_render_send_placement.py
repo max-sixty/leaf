@@ -1081,6 +1081,7 @@ def test_a_quote_surface_follows_scaled_inner_scroll_and_retains_native_editing(
         ((900, 600), 0.85, False, False, False, False),
         ((390, 844), 0.12, False, False, False, False),
         ((900, 600), 0.4, True, False, False, False),
+        ((900, 600), 0.4, "scrolled", False, False, False),
         ((1440, 900), 0.4, "paragraphs", False, False, False),
         ((1440, 900), 0.4, False, False, True, False),
         ((390, 844), 0.4, "passage", True, False, False),
@@ -1094,7 +1095,7 @@ def test_send_grows_thread_around_the_words(
 ):
     """The card grows out of the comment box, and the draft's words stand where they
     were typed through Send and its acknowledgement: the box and the card share one text
-    column, and the card a scrolled draft opens stands at its end, as the box did. The
+    column and foot, and the card stands its words as far above its end as the box did. The
     growth only clips the card, so the words its layout places are the ones painted.
     Read inside the editor solely to measure its actual glyphs, without changing its
     closed-root behavior."""
@@ -1125,12 +1126,16 @@ def test_send_grows_thread_around_the_words(
     on.open(page, touch)
     text = (
         "Keep the runner checkout fixed while the disposable workspace is safely removed. "
-        * (80 if long is True else 2)
+        * (80 if long in (True, "scrolled") else 2)
     )
     if long == "paragraphs":
         text = "First paragraph.\n\nSecond paragraph."
     page.keyboard.insert_text(text)
     rendered(page)
+    if long == "scrolled":
+        # The user reads back to the start of a long draft before sending it.
+        page.locator(".lf-fab-input").evaluate("el => el.scrollTo({top: 0})")
+        rendered(page)
     if options:
         page.keyboard.press("Tab")
         rendered(page)

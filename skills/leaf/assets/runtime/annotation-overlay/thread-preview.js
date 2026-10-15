@@ -31,13 +31,13 @@
 
    Placement changes geometry, never rebuilds contents. Retained state reads hold the
    reader's message and scroll position; another thread opens at its latest message,
-   and the thread a comment's Send opened at its end (`showArrival`).
+   and the thread a comment's Send opened where the box's words stood (`showArrival`).
    A new/growing agent turn follows only at the tail. Landing, Send and stepping may
    move the reading; keepThreadLanding retains their destination through fitting until
    a newer reading gesture ends that authority. Size is fitted before paint, so a sent
    reply does not grow twice. Margin standing and its keyboard ladder own dismissal
    and target landing; the card keeps Send's focus on the thread that received it. */
-import { atScrollEnd, scrollToEnd } from "../scrolling.js";
+import { atScrollEnd, moveScrollerBy, scrollToEnd } from "../scrolling.js";
 import { cancelRender, nextRender } from "../rendering.js";
 import { spokenSubject } from "../contribution-model.js";
 import { labelWords } from "../words.js";
@@ -290,12 +290,14 @@ export function createThreadPreview({
     else if (reading?.end) scrollToEnd(previewSession.transcript);
     return preview.getBoundingClientRect().height;
   }
-  // A card opens on its latest turn, at that turn's start. A card Send opened opens at
-  // its end instead, where the user was writing in the box it replaces, so the words
-  // the box showed stand where it showed them.
+  // A card opens on its latest turn, at that turn's start. A card Send opened stands
+  // its words as far above its end as the box it replaces stood them, which shares
+  // its text column and its foot, so the words the user was reading stay where they
+  // were.
   function showArrival(session) {
-    if (session.sent) scrollToEnd(session.transcript);
-    else showLatestTurn(session.transcript);
+    if (!session.sent) return showLatestTurn(session.transcript);
+    scrollToEnd(session.transcript);
+    moveScrollerBy(session.transcript, -session.sent.fromEnd);
   }
   // The selected transcript's unconstrained extent changes with turns, not editor
   // lines. Keep its fractional local height alongside the native overflow reading;
@@ -587,7 +589,8 @@ export function createThreadPreview({
       preparing: false,
       latest: null,
       arriving: true,
-      sent: Boolean(origin),
+      // The box Send replaced, whose reading the card keeps (`showArrival`).
+      sent: origin && { fromEnd: origin.fromEnd },
       away: false,
       positionFrame: 0,
       positionResult: null,

@@ -17,7 +17,8 @@
    * `data-lf-layout` (revision_delivery.py), since the body is styled before the parser
    * reaches `main`. The column and sidebar page are documents: they set the text measure
    * (`--lf-measure`, read by theme.css) and allocate each block's declared room
-   * (`data-lf-space`). A workspace does neither: its grid sizes its regions. */
+   * (`data-lf-space`), whose rules name the document Layouts in one list (Breakouts,
+   * below). A workspace does neither: its grid sizes its regions. */
   /* The pane role's grammar (theme.css owns its look): which row each child stands in,
    * and a body held to the pane's width. Not a page Layout, but it resets what a widget
    * sets on the box it arranges, so it shares their tier. */
@@ -184,33 +185,8 @@
      * x-space, or the occurrence's `data-width`, painted by delivery (`mark_declared`) so
      * the width is in the first paint; delivery paints `x-space: column` as
      * `data-lf-column` instead. A message's room is withheld by not painting it.
-     * `wide` and `available` each refine the second rule below. Only a document
-     * allocates: every rule but the containment one is held to the column and sidebar
-     * page. A box kept to the measure (`data-lf-column`, theme.css) shares the
-     * arithmetic and has no surplus unless it holds a breakout among its own blocks. */
-    :where(main.layout-column, main.layout-sidebar) :is([data-lf-space], [data-lf-column]) {
-      /* Held to the free room beside the page (--lf-free-l/r) and spent evenly about the
-       * prose axis where both sides have it. A holder standing in from the column, such as
-       * a list item, adds its indent on that side (`--lf-indent-l/r`), so the box keeps
-       * the prose axis rather than its holder's. Neither side goes below zero, so the box
-       * always covers its holder. */
-      --lf-surplus: clamp(0px, calc(var(--lf-reach) - 100%),
-        calc(var(--lf-free-l) + var(--lf-indent-l) + var(--lf-free-r) + var(--lf-indent-r)));
-      --lf-grow-l: clamp(
-        max(0px, calc(var(--lf-surplus) - var(--lf-free-r) - var(--lf-indent-r))),
-        calc((var(--lf-surplus) + var(--lf-indent-l) - var(--lf-indent-r)) / 2),
-        min(var(--lf-surplus), calc(var(--lf-free-l) + var(--lf-indent-l))));
-      --lf-grow-r: calc(var(--lf-surplus) - var(--lf-grow-l));
-    }
-    :where(main.layout-column, main.layout-sidebar) [data-lf-space] {
-      max-width: none;
-      width: calc(100% + var(--lf-surplus));
-      margin-left: calc(-1 * var(--lf-grow-l));
-      margin-right: calc(-1 * var(--lf-grow-r));
-      /* The allocation is the outer width, as the column's is (theme.css). */
-      box-sizing: border-box;
-    }
-    /* A block declaring a wider room than the measure is never as wide as its content,
+     *
+     * A block declaring a wider room than the measure is never as wide as its content,
      * on any page: what it holds scrolls inside it. Size containment keeps its content's
      * minimum out of every shrink-to-fit ancestor (a row-form option, a pane), which
      * would otherwise grow past its own clip. So this rule is held to no Layout. */
@@ -218,22 +194,83 @@
       contain: inline-size;
       --lf-breakout: 1;
     }
-    /* `wide` is one width wherever the block stands: capped at --wide even in a holder
-     * already wider, such as a sidebar page's body; `available` takes everything. A box
-     * kept to the column reaches as far as the widest of its own children (theme.css
-     * widens it there), unless the page arranged that child (`data-lf-arranged`). A box
-     * that draws no frame spends that reach by spanning the block (ask.css); one that
-     * draws a frame keeps the block inside it (`--lf-block-frame`, below). */
-    :where(main.layout-column, main.layout-sidebar) :is([data-lf-space="wide"],
-      [data-lf-column]:where(:has(> [data-lf-space="wide"]:not([data-lf-arranged])))) {
-      --lf-reach: min(var(--wide), var(--lf-room, 0px));
-    }
-    :where(main.layout-column, main.layout-sidebar) :is([data-lf-space="available"],
-      [data-lf-column]:where(:has(> [data-lf-space="available"]:not([data-lf-arranged])))) {
-      --lf-reach: var(--lf-room, 0px);
-    }
-    :where(main.layout-column, main.layout-sidebar) [data-lf-space="wide"] {
-      max-width: var(--wide);
+    /* Only a document allocates. This nesting parent names the document Layouts once, so
+     * a new one joins its list. `:where()` adds no specificity; `@scope` was rejected
+     * because its proximity outranks order, letting these rules beat a later rule of
+     * equal specificity in this layer, such as a tile's margin (`.layout-tiles > *`).
+     * A box kept to the measure (`data-lf-column`, theme.css) shares the arithmetic and
+     * has no surplus unless it holds a breakout among its own blocks. `wide` and
+     * `available` each refine the second rule. */
+    :where(main.layout-column, main.layout-sidebar) {
+      :is([data-lf-space], [data-lf-column]) {
+        /* Held to the free room beside the page (--lf-free-l/r) and spent evenly about
+         * the prose axis where both sides have it. A holder standing in from the column,
+         * such as a list item, adds its indent on that side (`--lf-indent-l/r`), so the
+         * box keeps the prose axis rather than its holder's. Neither side goes below
+         * zero, so the box always covers its holder. */
+        --lf-surplus: clamp(0px, calc(var(--lf-reach) - 100%),
+          calc(var(--lf-free-l) + var(--lf-indent-l) + var(--lf-free-r) + var(--lf-indent-r)));
+        --lf-grow-l: clamp(
+          max(0px, calc(var(--lf-surplus) - var(--lf-free-r) - var(--lf-indent-r))),
+          calc((var(--lf-surplus) + var(--lf-indent-l) - var(--lf-indent-r)) / 2),
+          min(var(--lf-surplus), calc(var(--lf-free-l) + var(--lf-indent-l))));
+        --lf-grow-r: calc(var(--lf-surplus) - var(--lf-grow-l));
+      }
+      [data-lf-space] {
+        max-width: none;
+        width: calc(100% + var(--lf-surplus));
+        margin-left: calc(-1 * var(--lf-grow-l));
+        margin-right: calc(-1 * var(--lf-grow-r));
+        /* The allocation is the outer width, as the column's is (theme.css). */
+        box-sizing: border-box;
+      }
+      /* `wide` is one width wherever the block stands: capped at --wide even in a holder
+       * already wider, such as a sidebar page's body; `available` takes everything. A
+       * box kept to the column reaches as far as the widest of its own children
+       * (theme.css widens it there), unless the page arranged that child
+       * (`data-lf-arranged`). A box that draws no frame spends that reach by spanning the
+       * block (ask.css); one that draws a frame keeps the block inside it
+       * (`--lf-block-frame`, below). */
+      :is([data-lf-space="wide"],
+        [data-lf-column]:where(:has(> [data-lf-space="wide"]:not([data-lf-arranged])))) {
+        --lf-reach: min(var(--wide), var(--lf-room, 0px));
+      }
+      :is([data-lf-space="available"],
+        [data-lf-column]:where(:has(> [data-lf-space="available"]:not([data-lf-arranged])))) {
+        --lf-reach: var(--lf-room, 0px);
+      }
+      [data-lf-space="wide"] {
+        max-width: var(--wide);
+      }
+      /* A breakout inside another, or one the page arranged (`data-lf-arranged`), takes
+       * its holder's width: the room beside it is the page's own. A box kept to the
+       * column is no such holder: a framed one withholds room as any frame does (below),
+       * and an unframed one, such as an Ask, lets a breakout through. */
+      [data-lf-space] :is([data-lf-space], [data-lf-column]),
+      [data-lf-arranged] {
+        --lf-room: 100%;
+      }
+      /* A widget that failed soft shows its message and source (`.lf-error`), which are
+       * prose, so it takes the column; the source's `pre` scrolls inside the message. */
+      :is([data-lf-space], [data-lf-column]):has(> .lf-error) {
+        --lf-room: 0px; }
+      /* A box that draws a frame keeps a wide widget inside it: the room is the page's to
+       * give, and inside a callout or disclosure the page is not what holds the widget. A
+       * box declares it draws one where it draws it (`--lf-block-frame: 1`), and the room
+       * follows from that one declaration. `--lf-room` inherits, so one rule reaches a
+       * widget at any depth, and `--lf-block-frame` resets one level in.
+       *
+       * A box that trims its edges but draws nothing says `trim` (`main`, a page tab's
+       * panel, a command's goal), so the room passes through it. A transparent wrapper
+       * declares nothing. `page check --render` reports a box that draws without
+       * declaring. */
+      @container style(--lf-block-frame: 1) {
+        * { --lf-room: 100%; }
+      }
+      /* When startup is incomplete, undrawn widgets show source in the column. */
+      html[data-lf-startup-error]:not([data-lf-interactive]) & :is([data-lf-space], [data-lf-column]) {
+        --lf-room: 0px;
+      }
     }
     /* A table breakout paints only its columns' rules, so its room is a limit, not a
      * size: its box takes the columns' natural width (`max-content`), at least its
@@ -317,36 +354,6 @@
         max-inline-size: var(--lf-table-span);
       }
     }
-    /* A breakout inside another, or one the page arranged (`data-lf-arranged`), takes its
-     * holder's width: the room beside it is the page's own. A box kept to the column is
-     * no such holder: a framed one withholds room as any frame does (below), and an
-     * unframed one, such as an Ask, lets a breakout through. */
-    :where(main.layout-column, main.layout-sidebar) [data-lf-space] :is([data-lf-space], [data-lf-column]),
-    :where(main.layout-column, main.layout-sidebar) [data-lf-arranged] {
-      --lf-room: 100%;
-    }
-    /* A widget that failed soft shows its message and source (`.lf-error`), which are
-     * prose, so it takes the column; the source's `pre` scrolls inside the message. */
-    :where(main.layout-column, main.layout-sidebar) :is([data-lf-space], [data-lf-column]):has(> .lf-error) {
-      --lf-room: 0px; }
-    /* A box that draws a frame keeps a wide widget inside it: the room is the page's to
-     * give, and inside a callout or disclosure the page is not what holds the widget. A
-     * box declares it draws one where it draws it (`--lf-block-frame: 1`), and the room
-     * follows from that one declaration. `--lf-room` inherits, so one rule reaches a
-     * widget at any depth, and `--lf-block-frame` resets one level in.
-     *
-     * A box that trims its edges but draws nothing says `trim` (`main`, a page tab's
-     * panel, a command's goal), so the room passes through it. A transparent wrapper
-     * declares nothing. `page check --render` reports a box that draws without
-     * declaring. */
-    @container style(--lf-block-frame: 1) {
-      :where(main.layout-column, main.layout-sidebar) * { --lf-room: 100%; }
-    }
-    /* When startup is incomplete, undrawn widgets show source in the column. */
-    html[data-lf-startup-error]:not([data-lf-interactive]) :where(main.layout-column, main.layout-sidebar) :is([data-lf-space], [data-lf-column]) {
-      --lf-room: 0px;
-    }
-
     /* A widget with a stated height (x-height, or `data-height`) has that box from the
      * first paint until its module draws (`lf-rendered`), clipping its source meanwhile,
      * so the drawing lands in room already laid out. Once drawn the box is the drawing's;

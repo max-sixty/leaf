@@ -86,7 +86,7 @@ from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
-from leaf.findings import Finding
+from leaf.findings import Finding, Rejected
 from leaf.registry import contract as registry_contract
 from leaf.registry import layer as registry_layer
 from leaf.registry import page as registry_page
@@ -2520,6 +2520,46 @@ def test_data_binding_inventory_keeps_each_documents_captured_registry(
             ],
         }
     }
+
+
+def test_a_reply_publishing_saved_edits_checks_its_markup_under_their_registry(
+    page_dir,
+):
+    """A reply that publishes saved edits is stored against the revision they make,
+    so its markup is checked under that revision's registry. Checked under the
+    active one, a contract the edits changed let one fragment bind a source under
+    two contracts, and nothing reads it for that again: a conflict lies within one
+    document, so no later check rereads the log's fragments."""
+    declare_data_input(
+        page_dir, "shared", {"type": "array"}, contract="rows", activate=False
+    )
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["lf-test-other"] = deepcopy(registry["lf-test-data"])
+    registry["$data"]["contracts"]["other-rows"] = deepcopy(
+        registry["$data"]["contracts"]["rows"]
+    )
+    registry_path.write_text(json.dumps(registry))
+    (page_dir / "index.html").write_text(PAGE)
+    assert revisioning_model.activate_source(page_dir).error is None
+    # The saved edit moves one widget type to another contract and uses neither.
+    registry["lf-test-other"]["x-data"]["data"]["contract"] = "other-rows"
+    registry_path.write_text(json.dumps(registry))
+    opened = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "Show both."}
+    )
+
+    with pytest.raises(Rejected) as refused:
+        thread_model.post_reply(
+            page_dir,
+            {"to": opened["id"], "for": opened["id"]},
+            "Both views of one feed.",
+            '<lf-test-data id="rows-view" source="shared"></lf-test-data>'
+            '<lf-test-other id="other-view" source="shared"></lf-test-other>',
+            validate_source=True,
+        )
+    assert [finding.code for finding in refused.value.findings] == ["contract-conflict"]
+    assert files_model.list_revisions(page_dir) == [1]
 
 
 @pytest.mark.parametrize("change", ["description", "empty-resources"])

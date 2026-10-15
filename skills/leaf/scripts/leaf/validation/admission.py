@@ -9,6 +9,7 @@ from leaf.data_contracts import data_binding_errors
 from leaf.events import build_threads
 from leaf.files import list_revisions
 from leaf.findings import Finding, Rejected
+from leaf.passages import SourceReading
 from leaf.registry.storage import require_registry
 from leaf.revision_artifact import read_revision
 from leaf.schema import MESSAGE_KINDS
@@ -135,26 +136,32 @@ def check_markup(
     markup: str,
     events: list,
     *,
-    page: SourceDocument | None = None,
+    publication: SourceReading | None = None,
     thread: str | None = None,
 ) -> SourceDocument:
-    """A message's HTML fragment, validated against the vendored registry at post
-    time — the discussion-side `page check`, and the field's one gate: the browser
+    """A message's HTML fragment, validated against the registry it is published
+    with — the discussion-side `page check`, and the field's one gate: the browser
     door refuses `markup` outright, so nothing reaches the log under that name
     unvalidated. Text needs no vocabulary gate — the runtime renders it with every tag
     escaped, so it cannot claim a widget — but its Markdown can still point at a file,
     which `read_text_arg` asks about wherever a body arrives. `thread` is the thread
     a reply joins; a comment opens one whose id is not yet assigned. Refuses with
-    what's wrong."""
-    registry = require_registry(page_dir)
-    frag = SourceDocument(markup)
-    revisions = list_revisions(page_dir)
-    if page is None:
-        page = (
-            read_revision(page_dir, revisions[-1]).document
+    what's wrong.
+
+    `publication` is the document and registry the message is published against:
+    the active revision's by default, or the candidate's where a reply publishes saved
+    edits with it (`thread.post_reply`). No later check reads the fragment for a
+    conflicting binding again (`data_contracts.data_binding_errors`), so it is
+    checked here under the registry it is stored with."""
+    if publication is None:
+        revisions = list_revisions(page_dir)
+        publication = (
+            read_revision(page_dir, revisions[-1])
             if revisions
-            else SourceDocument("")
+            else SourceReading(SourceDocument(""), require_registry(page_dir))
         )
+    registry, page = publication.registry, publication.document
+    frag = SourceDocument(markup)
     extra_errors = data_binding_errors(
         page_dir, registry, [(frag, f"incoming {kind} markup")]
     )

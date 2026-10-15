@@ -640,7 +640,6 @@ def _compose_and_append(
     if detach and (current_thread is None or current_thread["anchor"] is None):
         raise Rejected([Finding("no-anchor", values={"thread": thread_id})])
     reply_revision = None
-    prospective_page = None
     prospective_anchor = None
     source_events = events
     checked = None
@@ -676,7 +675,6 @@ def _compose_and_append(
                     )
                 ]
             )
-        prospective_page = checked.document
         reply_revision = planned_activation(page_dir, checked).revision
         if moving:
             prospective_anchor = _capture_anchor(
@@ -688,13 +686,14 @@ def _compose_and_append(
                 part,
                 reply_revision,
             )
+    publication = checked.reading if checked is not None else None
     fragment = (
         check_markup(
             page_dir,
             "reply",
             markup,
             events,
-            page=prospective_page,
+            publication=publication,
             thread=thread_id,
         )
         if markup
@@ -703,7 +702,11 @@ def _compose_and_append(
     if ask and fragment:
         from leaf.registry.storage import require_registry
 
-        registry = require_registry(page_dir)
+        registry = (
+            publication.registry
+            if publication is not None
+            else require_registry(page_dir)
+        )
         structural = sorted(
             {
                 rec["tag"]

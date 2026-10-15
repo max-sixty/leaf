@@ -1,25 +1,25 @@
-Review a browser journey recorded by Playwright in `lf-trace`, so each comment names
-the exact action, image or saved element it is about. Bind it to an imported
+Show a Playwright recording of a browser journey in `lf-trace`, where each comment names
+the action, image or saved element the user pointed at. Bind it to an imported
 `playwright-trace` source; the contract's `producer` instructions give the import
 command.
 
 Write a caption saying what the recording shows, which outcomes the reader should judge,
 and what the captures establish. Make each of those outcomes reachable with a named
 `lf-trace-bookmark`, preferably at a successful expectation's After checkpoint, reading
-its target from the imported source as the bookmark's entry describes. Label it with
-the result, such as "Settings saved", rather than the browser operation. The viewer has
-its own playback, timeline, keyboard and zoom controls, so the prose explains the
-evidence and its limits, not how to operate the viewer.
+its target from the imported source as the bookmark's entry describes. Label it with the
+result, such as "Settings saved", rather than the browser operation. The viewer has its
+own playback, timeline, keyboard and zoom controls, so the prose explains the evidence
+and its limits, not how to operate the viewer.
 
 State timing only as precisely as the recording does. Playwright records when each call
 starts and ends, but not the moment an input inside it happened or how long a key was
 held. A caption can say what came before or after a capture, but not the instant of a
 click.
 
-Images and saved accessibility trees are separate captures, taken at different times,
-so a saved element's box does not mark an exact spot in the image beside it. A comment
-on an image names that capture. A comment on a saved element names its action phase and
-its path in the accessibility tree, which tells apart two controls with the same name.
+Images and saved accessibility trees are separate captures taken one after another, so
+don't place an element from the tree at a particular spot in an image. A comment on an
+image names that capture. A comment on a saved element names its action phase and its
+path in the accessibility tree, which tells apart two controls with the same name.
 
 Equal elapsed times in two recordings don't mean the application was in the same state.
 To compare recordings, import each under its own source, put their viewers inside one

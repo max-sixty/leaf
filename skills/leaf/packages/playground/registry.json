@@ -1,7 +1,7 @@
 {
   "lf-playground": {
     "description": "A preview with controls, where the user tunes one configuration and sends it.",
-    "x-instructions": "Frame the question with `lf-ask` when its context lives outside the playground. A page module can add structured values with `registerContributor(name, defaultSnapshot, {read, apply})`, calling the returned notifier after each gesture, and write the instruction from those values with one `registerInstructionProvider(values => text)`. To give the task's values an exact schema, redeclare the complete `lf-playground` entry in `page/registry.json`.",
+    "x-instructions": "Frame the question with `lf-ask` when its context lives outside the playground. A page module can add structured values with `registerContributor(name, defaultSnapshot, {read, apply})`, calling the returned notifier after each gesture, and write the instruction from those values with one `registerInstructionProvider(values => text)`. When a page module adds contributor state, redeclare the complete `lf-playground` entry in `page/registry.json` with an exact schema for `detail.values`.",
     "type": "object",
     "properties": {
       "id": {
@@ -217,7 +217,7 @@
     "x-upgrade": false
   },
   "lf-playground-preview": {
-    "description": "The candidates the user operates in a playground.",
+    "description": "The live preview the user operates in a playground, such as the candidates being compared.",
     "x-instructions": "For an A/B comparison, mount both candidates here and drive them from one state, as the playground package's author instructions describe. Page CSS can read the `--playground-NAME` properties and `data-playground-NAME` attributes. A page module can read `values`, listen for `lf-playground-change`, handle gestures and computed state, and load vendored or page-media assets from the page's origin.",
     "type": "object",
     "properties": {

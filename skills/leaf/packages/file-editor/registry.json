@@ -1,6 +1,6 @@
 {
   "lf-file-editor": {
-    "description": "An editor that saves one bound UTF-8 file on the machine serving the page as the user types. The file lives outside Leaf's event log.",
+    "description": "An editor for one bound UTF-8 file on the machine serving the page, saving as the user types.",
     "x-instructions": "Write the element empty, and bind its `binding` to a real file with `leaf file bind PAGE BINDING PATH`. Tell the reader that edits save automatically; the editor reports slow saves, errors and conflicts itself. A page without the local binding shows the editor as unavailable, so use `lf-code` when the reader needs a copy of the file that travels with the page.",
     "type": "object",
     "properties": {

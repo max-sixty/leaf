@@ -95,8 +95,8 @@
     "x-example": "The import now takes <lf-num source=\"import-latency\" run=\"a41f103e236c985b\" via=\"uv run bench-import\">184 ms</lf-num> at p95."
   },
   "lf-text-document": {
-    "description": "A text file from page data, with syntax coloring and an optional Markdown or HTML preview.",
-    "x-instructions": "Bind `source` to the page's data source and name the file with `label`. Set `preview` to `markdown` or `html` to add Preview and Source tabs over the same text. `language` colors the source, and defaults to the preview's language. An HTML preview is a separate document that inherits no Leaf styles. With a preview, each tab scrolls inside a box 28rem tall, or `--lf-bound`. To start it collapsed, put it inside `details`.",
+    "description": "A text file from page data, colored when it has a language, with an optional Markdown or HTML preview.",
+    "x-instructions": "Bind `source` to the page's data source and name the file with `label`. Set `preview` to `markdown` or `html` to add Preview and Source tabs over the same text. `language` colors the source, and defaults to the preview's language. An HTML preview is a separate document that inherits no Leaf styles. With a preview, each tab scrolls inside a box `--lf-bound` tall, 28rem by default. To start it collapsed, put it inside `details`.",
     "x-name": "label",
     "type": "object",
     "properties": {
@@ -362,7 +362,7 @@
   },
   "lf-shot": {
     "description": "A before-and-after pair of screenshots under a draggable divider, with optional outlines of what changed and a view of the changed pixels.",
-    "x-instructions": "Use it for two versions of an interface. Set `before` and `after` to the paths `leaf page media` prints, and describe the pair in `alt`. `authoring-evidence.md`, \"Source files and media\", covers making captures and when to add `outlines` or `pixels`. Put explanation in the prose around the pair, not inside the element. When a decision turns on the change, put the pair inside the option that proposes it, or, for an accept-or-reject ask, with the group, where it shows both answers.",
+    "x-instructions": "Use it for two versions of an interface. Set `before` and `after` to the paths `leaf page media` prints, and describe the pair in `alt`. `authoring-evidence.md`, \"Source files and media\", covers making captures, laying out captures that vary along more than one axis in a table, and when to add `outlines` or `pixels`. Put explanation in the prose around the pair, not inside the element. When a decision turns on the change, put the pair inside the option that proposes it, or, for an accept-or-reject ask, with the group, where it shows both answers.",
     "type": "object",
     "properties": {
       "id": {
@@ -469,7 +469,7 @@
   },
   "lf-tabs": {
     "description": "Several views shown one at a time: page navigation, a tabbed box, or a queue beside its open item.",
-    "x-instructions": "The first `lf-tabs` written directly in `main` is the page's navigation; any other tab set is a framed box within the page. Put the page's title and lede before page tabs, and the main current view first. Make each `lf-tab` a self-contained view; history, threads, versions and sign-off belong to the whole page. When current work no longer needs a view, remove it, keeping any context still needed, and any passage that anchors an open thread or a standing decision, in a `details` inside the relevant tab. Use `list=\"side\"` for a queue listed beside the item it opens.",
+    "x-instructions": "The first `lf-tabs` written directly in `main` is the page's navigation; any other tab set is a framed box within the page. Put the page's title and lede before page tabs, and the main current view first. Make each `lf-tab` a self-contained view; history, threads, versions and sign-off belong to the whole page. When current work no longer needs a view, remove it. Move any context still needed, and any passage an open thread or an unretracted decision is anchored to, into a `details` in the relevant tab. Use `list=\"side\"` for a queue listed beside the item it opens.",
     "type": "object",
     "properties": {
       "id": {

@@ -7,18 +7,18 @@ candidate through the same states or cases goes in that ask too.
 
 Use `lf-playground` when the user needs to tune a configuration before choosing it. A
 playground holds exactly one `lf-playground-preview` and one `lf-playground-output`.
-Frame the question with `lf-ask` when its context lives outside the playground.
-Interactive behavior alone is no reason to write a package: a page module can define
-custom elements, add state to the playground and derive its output
-(`references/packages.md`).
+Frame the question with `lf-ask` when its context lives outside the playground. Keep
+behavior that one page uses in that page's module, which can define custom elements, add
+state to the playground and derive its output. Behavior several pages reuse belongs in a
+package (`references/packages.md`, "Package reach").
 
-Place each control next to what it changes. A control that changes the whole preview, as
-most do, is a direct child of `lf-playground` and appears in the rail beside the
-preview, above the instruction. When the preview holds several items that each take
-their own settings, such as alerts that each need a threshold, write each item's
-controls inside `lf-playground-preview` beside that item, and leave only the settings
-every item shares in the rail. A control in the preview still belongs to the playground:
-its value is submitted, and presets and Reset set it.
+Place each control next to the part of the preview it changes. A control that changes
+the whole preview, as most do, is a direct child of `lf-playground` and appears in the
+rail beside the preview, above the instruction. When the preview holds several items
+that each take their own settings, such as alerts that each need a threshold, write each
+item's controls inside `lf-playground-preview` beside that item, and leave only the
+settings every item shares in the rail. A control in the preview still belongs to the
+playground. Its value is submitted, and presets and Reset set it.
 
 When the preview needs width, such as for two candidates side by side, give the
 `lf-playground` `data-width="available"`. The playground then widens past the column
@@ -28,9 +28,10 @@ playground fills the window. Draw the candidates directly in the preview, withou
 around each.
 
 An A/B comparison mounts both candidates in the preview with the same configuration and
-starting content. Candidates side by side start their names, notes and drawings on
-shared lines across the row, however each wraps, so the user compares them straight
-across; each drawing keeps its own height.
+starting content. When candidates stand side by side, align their names, notes and
+drawings in rows, so each candidate's name starts level with the others' however many
+lines it wraps to. Each drawing keeps its own height. Apply each drag, scroll or edit
+once to the shared state, and draw both candidates from it.
 
 ## Decision fidelity
 
@@ -56,8 +57,8 @@ changing them.
 
 A copy of a component's DOM has its appearance but none of its listeners, state or
 lifecycle. When behavior is part of the comparison, mount the component through its
-production entry point, or serve both builds, rather than wiring substitute handlers
-onto copied DOM.
+production entry point, or build and serve each candidate's source revision, rather than
+wiring substitute handlers onto copied DOM.
 
 ## Controls, samples, and output
 
@@ -186,8 +187,9 @@ copies and submits that state along with the controls.
 When structured state changes the instruction, register one
 `playground.registerInstructionProvider(values => instruction)` to write the output. The
 instruction it returns describes additions, removals, ordering and relations in readable
-prose, and makes sense without the preview. To give `detail.values` an exact schema,
-redeclare the complete `lf-playground` entry in the page's `page/registry.json`.
+prose, and makes sense without the preview. When a page module adds contributor state,
+redeclare the complete `lf-playground` entry in `page/registry.json` with an exact
+schema for `detail.values`.
 
 When both candidates draw from shared state, keep dynamic rows under stable keys, apply
 each add, remove, reorder or edit once, and derive both candidates' rows and counts from
@@ -207,10 +209,10 @@ which need a server.
 ### Data and query explorer
 
 Keep filter rows in one contributor, such as
-`filters: {rows: [{id, field, operator, value}], order: [id]}`. Edit rows by stable id
-through labeled native controls, and derive the result table from the snapshot. The
-instruction turns the rows and their order into a query task. Check where keyboard focus
-lands after adding or removing a row.
+`filters: {rows: [{id, field, operator, value}], order: [id]}`. Add, remove, edit and
+reorder rows by stable id through labeled native controls and buttons, and derive the
+result table from the snapshot. The instruction turns the rows and their order into a
+query task. Check where keyboard focus lands after adding or removing a row.
 
 ### Concept or code map
 
@@ -225,7 +227,8 @@ nodes and relations. To critique a document or source, use Leaf's comments, sugg
 Keep proposed changes under stable ids, with one decision per id, each reachable by
 keyboard. Filtering and ordering change what is shown, never which decisions exist, and
 the output summarizes the accepted, rejected and undecided changes in an order that
-doesn't depend on the display.
+doesn't depend on the display. Verify a decision survives filter, reorder, restore, and
+reset.
 
 Capture any real fixture the playground needs when you build the page, so reopening and
 exporting it need no network.

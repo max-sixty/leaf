@@ -695,10 +695,12 @@
      in above it so what passes under reads as under a layer. The ground runs down to
      the view's edge through the view's padding, which the foot's margin gives back, so
      at the view's end the foot stands where it stuck and the room it takes is the
-     press's alone. */
+     press's alone. A sticky box sticks at its scroller's content edge, inside that
+     padding, so it sticks the padding's depth lower, or what scrolls under it would
+     show through the padding below the press. */
   .lf-fp-foot {
     position: sticky;
-    bottom: 0;
+    bottom: -6px;
     margin: 0 -6px -6px;
     padding: 10px 0 6px;
     background: linear-gradient(transparent, var(--lf-fp-surface) 10px);

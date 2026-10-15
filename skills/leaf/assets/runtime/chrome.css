@@ -587,7 +587,7 @@
   }
   .lf-fp-foot {
     position: sticky;
-    bottom: 0;
+    bottom: -6px;
     margin: 0 -6px -6px;
     padding: 10px 0 6px;
     background: linear-gradient(transparent, var(--lf-fp-surface) 10px);

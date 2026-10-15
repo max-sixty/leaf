@@ -438,6 +438,13 @@ export function createPrimaryReader(
             workflows: message.workflows,
           });
           view.draw();
+          // A reply still streaming at the thread's end grows at its foot as its words
+          // come, as in a thread card (thread-card.js, shift_watch.js).
+          keeps(
+            view.node,
+            "data-lf-append-tail",
+            message.provisional && message === item.thread.msgs.at(-1) ? "" : null,
+          );
         } else {
           keepsHidden(view.node, !replyAvailable(item.thread));
           if (view.notice.node.parentNode !== view.node)

@@ -4072,6 +4072,7 @@ def test_a_page_reading_waits_out_an_append_in_progress(page_dir):
     crossing an in-place append can pair its modification time with the size before
     it, a state the log was never at, so the look waits for the log's lease, which
     every append holds, and then names the finished append as a state answer would."""
+    absence_window = 0.2  # This duration is the subject of the absence assertion.
     with ThreadPoolExecutor(max_workers=1) as executor:
         with cleanup_model.flocked(page_dir / "events.jsonl") as log:
             log.seek(0, os.SEEK_END)
@@ -4079,7 +4080,7 @@ def test_a_page_reading_waits_out_an_append_in_progress(page_dir):
             log.flush()
             look = executor.submit(served_reading.page_reading, page_dir)
             # The window is the subject of an absence assertion, not a deadline.
-            assert not wait_futures([look], timeout=0.2).done, (
+            assert not wait_futures([look], timeout=absence_window).done, (
                 "the look named the log while an append held it"
             )
             log.write(b'lf"}\n')

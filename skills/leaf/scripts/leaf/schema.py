@@ -357,7 +357,7 @@ EXTENSION_SCHEMA = {
                 },
             ]
         },
-        "x-space": {"enum": ["column", "wide", "available"]},
+        "x-space": {"enum": ["wide", "available"]},
         "x-bound": {"enum": ["start", "end"]},
         # A default height in CSS pixels, or `true` for a widget that has none and
         # reserves only what an occurrence's data-height states.
@@ -548,25 +548,21 @@ ATTRIBUTE_KEYS = (
 # one member at a time (x-views). Neither a stylesheet nor the prepaint, which runs
 # before the registry has loaded (`runtime/prepaint.js`), can read the registry, so
 # each is painted where a selector can ask. `authored` is
-# the attribute an occurrence writes to override its tag's or idiom's declaration, and
+# the attribute an occurrence writes to override its tag's declaration, and
 # `authored_on` where that override means something, so elsewhere it is inert:
 # `content`, a block inside `main`, since the room and the bound size a block in the
 # page's flow and on `main` or `body` would size the page itself; `declared`, an element
 # whose tag declares the mark, since a stated height reserves room for a module's
 # drawing and a block no module draws into would be clipped to it for good.
-# `paints` names a value painted as an attribute of its own, with no value, rather than
-# as a value of `paint`: the column is a cap on a box read as lines of text, unlike the
-# room past it that `wide` and `available` grant, so `data-lf-column` marks it and
-# `data-lf-space` means a breakout wherever it stands.
 # `message` says
 # whether the mark holds in a thread's message too:
 # each is the element's own fact wherever it renders, except the room and the margin
 # posture, which are the document's to hand out; a message renders in the panel, whose
 # width bounds it and which has no margin.
-# `idiom` says a selector entry may declare the mark for the elements its selector
-# matches, as `.callout` declares the room: the mark's every reader reads its paint and
-# nothing paints it in a message, so delivery's paint is the whole of it. The others
-# are also read by tag (the asks fold, the render checks, the runtime's descriptors).
+#
+# The room is only ever past the measure: a widget read as lines of text keeps to the
+# measure in its own stylesheet (`max-inline-size: var(--lf-measure)`), so `x-space`
+# names a breakout and nothing else.
 #
 # Delivery paints a page's document from this (`revision_delivery.mark_declared`).
 # Composition stamps it into the vocabulary as `$marks` (`registry.layer.
@@ -578,11 +574,9 @@ DECLARED_MARKS = {
     "x-verbatim": {"paint": "data-lf-verbatim", "message": True},
     "x-space": {
         "paint": "data-lf-space",
-        "paints": {"column": "data-lf-column"},
         "authored": "data-width",
         "authored_on": "content",
         "message": False,
-        "idiom": True,
     },
     "x-inline": {"paint": "data-lf-inline", "message": True},
     "x-exhibit": {"paint": "data-lf-exhibit", "message": True},

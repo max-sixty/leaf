@@ -61,6 +61,9 @@ import { applicationState } from "../semantic-state.js";
 const inputDrafts = new WeakMap();
 
 const MEDIA_SHELF_TAG = "leaf-attached-media-shelf";
+// Another tab's copy of a drawing is a different object holding the same strokes.
+const sameDrawing = (a, b) => a === b || JSON.stringify(a) === JSON.stringify(b);
+let thumbnailVersion = 0;
 
 // What the draft carries beside its words: the drawing a stroke attached, then each attached
 // image. Each shows itself rather than its transport and each comes off with its own
@@ -81,12 +84,24 @@ class AttachedMediaShelf extends LitElement {
     this.removeIcon = iconElement("cross", "lf-action-icon");
     // The picture is rebuilt only when the drawing changes, so a repaint that changes
     // nothing about it leaves its node in place.
-    this.pictured = { drawing: null, node: null };
+    this.pictured = { drawing: null, target: null, node: null };
   }
 
   picture(drawing) {
-    if (drawing !== this.pictured.drawing)
-      this.pictured = { drawing, node: drawingThumbnail(drawing, this.model.target) };
+    if (
+      !sameDrawing(drawing, this.pictured.drawing) ||
+      this.model.target !== this.pictured.target
+    ) {
+      const node = drawingThumbnail(drawing, this.model.target);
+      // A canvas's changed pixels are not reflected in its markup. Give each rebuilt
+      // picture an identity so DOM readers can distinguish its new ink from the old.
+      node.dataset.lfDrawingVersion = String(++thumbnailVersion);
+      this.pictured = {
+        drawing,
+        target: this.model.target,
+        node,
+      };
+    }
     return this.pictured.node;
   }
 
@@ -341,8 +356,6 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // reaches across drafts or takes back another tab's change.
     let shelfSeen = null;
     let arrivals = 0;
-    // Another tab's copy of the same drawing is a different object holding the same one.
-    const sameDrawing = (a, b) => a === b || JSON.stringify(a) === JSON.stringify(b);
     const putDrawing = (drawn) => {
       shelfSeen = { ...shelfSeen, drawing: drawn };
       drawing.replace(drawn);
@@ -419,6 +432,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const label = () => (typeof hint === "function" ? hint() : hint);
     const name = () =>
       typeof accessibleName === "function" ? accessibleName() : accessibleName;
+    // The field can become visible before its first scheduled paint. Give a static
+    // name to the native control in the task that constructs it.
+    const initialName = name();
+    if (initialName) keeps(ta, "aria-label", initialName);
     const sendWord = () => (typeof sends === "function" ? sends() : sends);
     const sendLabel = () => {
       const word = sendWord();

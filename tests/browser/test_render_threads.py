@@ -7350,32 +7350,45 @@ def test_a_pages_own_element_rules_leave_the_layers_controls_alone(browser, serv
     """A page dressing its own `button` and `a` is dressing its prose. The controls a
     widget builds and the chrome's own buttons keep Leaf's face instead: a page's
     element rule once took the family and ink of half corpus.html's widget controls,
-    and the family, ink, border and padding of the banner's and thread panel's. A rule
-    that names the widget is the page restyling its controls on purpose, and reaches
-    them; and a face the page sets on its body reaches its prose by inheritance and
-    stops at the controls and the chrome, which state their own."""
+    and the family, ink, border and padding of the banner's and thread panel's. An
+    explicitly marked stylesheet grants access for deliberate control styling. A face
+    set on body reaches prose by inheritance and stops at controls and chrome, which
+    state their own."""
     board = (
         '<h1>t</h1><lf-board id="b"><lf-column id="c1" label="To do">'
         '<lf-card id="k1">One</lf-card><lf-card id="k2">Two</lf-card></lf-column>'
         '<lf-column id="c2" label="Done"></lf-column></lf-board>'
         '<p>See <a href="#b">the board</a>.</p>'
+        '<style id="body-controls">lf-board button { border-bottom-color: rgb(51, 102, 153); }</style>'
     )
     page = open_page(
         browser,
-        serve(
-            leaf_page(
-                "t",
-                board,
-                # Grouped with a member that names the board, the bare `button` is
-                # still the page's own, member by member.
-                head="<style>button, a, lf-board .lf-absent { font-family: cursive;"
-                " color: rgb(255, 0, 0); }"
-                "body { font-style: italic; letter-spacing: 3px; }"
-                "lf-board button { outline: 3px solid rgb(0, 128, 0); }</style>",
+        live_url(
+            serve(
+                leaf_page(
+                    "t",
+                    board,
+                    # A selector naming a widget grants no access. Native scope is also
+                    # ordinary CSS, not permission to style generated controls.
+                    head="<style>button:not(lf-board), a, lf-board .lf-absent { font-family: cursive;"
+                    " color: rgb(255, 0, 0); }"
+                    "body { font-style: italic; letter-spacing: 3px; }"
+                    "@scope (lf-board) { button { background-color: rgb(255, 0, 0); } }"
+                    ":root { --control-access-proof: teal; }"
+                    "html[data-lf-interactive] p > a { background-color: rgb(1, 2, 3); }"
+                    "p > a::before { content: 'Kept'; }"
+                    "p { border-top: 7px solid red; }</style>"
+                    "<style data-controls>"
+                    ":nth-child(1 of lf-board) button { outline: 3px solid rgb(0, 128, 0); }"
+                    "</style>",
+                )
             )
         ),
     )
     faces = page.evaluate("""() => {
+        const adopted = new CSSStyleSheet();
+        adopted.replaceSync('p { border-top-color: rgb(0, 0, 255); }');
+        document.adoptedStyleSheets = [...document.adoptedStyleSheets, adopted];
         const face = el => { const cs = getComputedStyle(el);
             return [el.className, cs.fontFamily, cs.color, cs.fontStyle, cs.letterSpacing,
                     cs.outlineColor]; };
@@ -7383,8 +7396,20 @@ def test_a_pages_own_element_rules_leave_the_layers_controls_alone(browser, serv
             controls: [...document.querySelectorAll('main button.lf-ui')].map(face),
             chrome: [...document.querySelectorAll('.lf-chrome button')].map(face),
             prose: face(document.querySelector('main p > a')),
+            rootToken: getComputedStyle(document.documentElement)
+                .getPropertyValue('--control-access-proof').trim(),
+            ancestor: getComputedStyle(document.querySelector('main p > a')).backgroundColor,
+            pseudo: getComputedStyle(document.querySelector('main p > a'), '::before').content,
+            adopted: getComputedStyle(document.querySelector('main p')).borderTopColor,
+            controlBackgrounds: [...document.querySelectorAll('main button.lf-ui')].map(
+                el => getComputedStyle(el).backgroundColor),
         };
     }""")
+    assert faces["rootToken"] == "teal", faces
+    assert faces["ancestor"] == "rgb(1, 2, 3)", faces
+    assert faces["pseudo"] == '"Kept"', faces
+    assert faces["adopted"] == "rgb(0, 0, 255)", faces
+    assert "rgb(255, 0, 0)" not in faces["controlBackgrounds"], faces
     # The control: the page's rules reach the page's own link, by selector and by
     # inheritance.
     assert faces["prose"][1:5] == ["cursive", "rgb(255, 0, 0)", "italic", "3px"], faces[
@@ -7401,10 +7426,28 @@ def test_a_pages_own_element_rules_leave_the_layers_controls_alone(browser, serv
         or face[4] == "3px"
     ]
     assert not reached, reached
-    # The deliberate route: every control the board builds takes the rule naming it.
+    # The marked sheet selects the board using native nth-child selector grammar.
     assert {face[5] for face in faces["controls"]} == {"rgb(0, 128, 0)"}, faces[
         "controls"
     ]
+    source = (serve.page_dir / "index.html").read_text()
+    stamp_page(
+        serve.page_dir,
+        source.replace(
+            '<style id="body-controls">', '<style id="body-controls" data-controls>'
+        ),
+        "Grant the body stylesheet control access",
+    )
+    wait_for_revision(page, 2)
+    expect(page.locator("lf-board button.lf-ui").first).to_have_css(
+        "border-bottom-color", "rgb(51, 102, 153)"
+    )
+
+    stamp_page(serve.page_dir, source, "Withdraw body stylesheet control access")
+    wait_for_revision(page, 3)
+    expect(page.locator("lf-board button.lf-ui").first).not_to_have_css(
+        "border-bottom-color", "rgb(51, 102, 153)"
+    )
 
 
 def test_a_sheet_a_page_script_writes_later_leaves_the_layers_controls_alone(
@@ -7415,13 +7458,13 @@ def test_a_sheet_a_page_script_writes_later_leaves_the_layers_controls_alone(
     element rules reach the page's prose and stop at Leaf's controls, as the page's
     own stylesheet's do: Tailwind's reset once took the family of every chrome
     button."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "t",
-                '<h1>t</h1><p>See <a id="prose" href="#t">the link</a>.</p>',
-                head="""<script type="module">
+    url = serve(
+        leaf_page(
+            "t",
+            '<h1>t</h1><p>See <a id="prose" href="#t">the link</a>.</p>',
+            head="""<style>@import url("page/author.css");</style>
+<link rel="stylesheet" data-controls href="page/controls.css">
+<script type="module">
 const sheet = document.createElement("style");
 document.head.append(sheet);
 sheet.textContent = "button, a { font-family: fantasy; }";
@@ -7430,18 +7473,31 @@ setTimeout(() => {
   window.rewritten = true;
 }, 50);
 </script>""",
-            )
         ),
+        page_files={
+            "author.css": "a { border-top: 7px solid red; } button { border-top: 77px solid red; }",
+            "controls.css": '@import url("controls-import.css");',
+            "controls-import.css": ".lf-chrome button { outline-color: rgb(0, 128, 0); }",
+        },
     )
+    page = open_page(browser, url)
     page.wait_for_function("() => window.rewritten")
     faces = page.evaluate("""() => {
         const family = el => getComputedStyle(el).fontFamily;
         return {
             chrome: [...document.querySelectorAll('.lf-chrome button')].map(family),
             prose: family(document.getElementById('prose')),
+            imported: getComputedStyle(document.getElementById('prose')).borderTopWidth,
+            chromeBorders: [...document.querySelectorAll('.lf-chrome button')].map(
+                el => getComputedStyle(el).borderTopWidth),
+            chromeOutlines: [...document.querySelectorAll('.lf-chrome button')].map(
+                el => getComputedStyle(el).outlineColor),
         };
     }""")
+    assert set(faces["chromeOutlines"]) == {"rgb(0, 128, 0)"}, faces
     assert faces["prose"] == "cursive", faces
+    assert faces["imported"] == "7px", faces
+    assert "77px" not in faces["chromeBorders"], faces
     assert faces["chrome"], "the chrome built no button to read"
     assert not [f for f in faces["chrome"] if f in {"cursive", "fantasy"}], faces
 
@@ -7495,14 +7551,16 @@ def test_a_theme_package_styles_every_page_as_the_pages_own_sheet_does_one(
     every widget package's defaults (layer.py, `lf-theme`), so its `main` padding beats
     the column Layout's and its plain `lf-card` rule beats the board's own
     `:scope:is(lf-card)`. Like the page's own rules, its bare `button` dresses the
-    page's buttons and leaves the controls the board builds alone, and a rule naming
-    the board reaches them (runtime/page-sheets.js)."""
+    page's buttons and leaves the controls the board builds alone. A separate controls.css
+    sheet grants deliberate access to board controls (runtime/page-sheets.js)."""
     theme = tmp_path / "theme"
     theme.mkdir()
     (theme / "theme.css").write_text(
         "main { padding-top: 11px; }\n"
         "lf-card { padding-left: 13px; }\n"
         "button { font-family: cursive; }\n"
+    )
+    (theme / "controls.css").write_text(
         "lf-board button { outline: 3px solid rgb(0, 128, 0); }\n"
     )
     page = open_page(
@@ -8165,6 +8223,112 @@ def test_a_control_in_a_reply_holds_the_page_s_control_shape(browser, serve):
     )
 
 
+def test_a_thread_on_a_widget_its_reply_brings_is_marked_as_the_reply_lands(
+    browser, serve
+):
+    """A target the panel's preparation materializes is painted in the same pass.
+
+    The reply carrying a widget and a thread anchored on that widget arrive in one
+    reading. The thread presenter reads its targets before the panel prepares the
+    reply, when the widget is not yet in the document, so only its reading after the
+    panel commits finds the target; no later publication comes to paint it."""
+    url = serve(REPLY_TRAVEL_PAGE)
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "tv-decisioned",
+            "author": "user",
+            "revision": 1,
+            "text": "Which store?",
+        },
+    )
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    expect(page.locator("#tv-decision")).to_have_count(0)
+    # Whether the widget is marked in the first frame that shows it. A later
+    # publication, such as the page's own bookkeeping, repaints the targets again and
+    # would hide a pass that left it bare.
+    page.evaluate("""() => {
+      window.markedOnArrival = new Promise((resolve) => {
+        const look = () => {
+          const widget = document.getElementById('tv-decision');
+          if (widget) resolve(widget.classList.contains('lf-mark-el'));
+          else requestAnimationFrame(look);
+        };
+        requestAnimationFrame(look);
+      });
+    }""")
+
+    # One transaction, so the page reads both records in one state answer.
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        for event in (
+            {
+                "kind": "reply",
+                "author": "agent",
+                "parent": "tv-decisioned",
+                "revision": 1,
+                "text": "Depends what you want to keep:",
+                "markup": '<lf-options id="tv-decision">'
+                '<lf-option id="tv-redis">Redis</lf-option></lf-options>',
+            },
+            {
+                "kind": "comment",
+                "id": "tv-on-it",
+                "author": "user",
+                "revision": 1,
+                "text": "Redis, and say why in the patch.",
+                "anchor": {"section": "tv-decision"},
+            },
+        ):
+            transaction._append_record({"attention": True, **event})
+
+    assert page.evaluate("() => window.markedOnArrival"), (
+        "the widget the reply brought showed unmarked, though a thread stands on it"
+    )
+    expect(page.locator('.lf-thread[data-id="tv-on-it"]')).to_have_count(1)
+
+
+def test_a_target_a_reply_widget_redraws_keeps_its_mark(browser, serve):
+    """A widget in a reply that replaces a part another thread stands on, and says its
+    layout changed, has the replacement marked.
+
+    The reply's markup is authored content, though it stands in the runtime's panel, so
+    its layout signal asks for the thread pass that finds the new node. A signal from
+    the panel's own cards asks for none."""
+    url = serve(REPLY_TRAVEL_PAGE)
+    seed_reply(
+        serve.page_dir,
+        '<lf-options id="tv-decision"><lf-option id="tv-redis">Redis</lf-option>'
+        '<lf-option id="tv-cookie">A signed cookie</lf-option></lf-options>',
+        "tv-redis",
+    )
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    marked = re.compile(r"\blf-mark-el\b")
+    expect(page.locator("#tv-redis")).to_have_class(marked)
+
+    # Read once the pass the signal asked for has painted, and before anything else
+    # (the clock's next tick) would paint the targets again.
+    remarked = page.evaluate("""async () => {
+      const { layoutChanged } = await window.__lfWidgetApi();
+      const { whenDocumentPresented } = await window.__lfCheckApi();
+      const old = document.getElementById('tv-redis');
+      const replacement = old.cloneNode(true);
+      replacement.classList.remove('lf-mark-el');
+      old.replaceWith(replacement);
+      await layoutChanged(document.getElementById('tv-decision'));
+      await whenDocumentPresented();
+      await new Promise((resolve) => requestAnimationFrame(() => resolve()));
+      return replacement.classList.contains('lf-mark-el');
+    }""")
+    assert remarked, (
+        "the part the reply widget redrew lost the mark its thread gives it"
+    )
+
+
 def test_a_boxless_widget_in_a_reply_still_shows_the_parts_it_paints(browser, serve):
     """A wrapper that generates no box shows as what its contents paint — in either
     document.
@@ -8182,7 +8346,7 @@ def test_a_boxless_widget_in_a_reply_still_shows_the_parts_it_paints(browser, se
     unlayered author stylesheet, above the package-scoped widget rules."""
     page_source = REPLY_TRAVEL_PAGE.replace(
         "</head>",
-        "<style>lf-options { display: contents }</style>\n</head>",
+        "<style data-controls>lf-options { display: contents }</style>\n</head>",
     )
     url = serve(page_source, packages=EXAMPLE_PACKAGES)
     # The page's unlayered style puts a reporting group's wrapper in `contents`; the

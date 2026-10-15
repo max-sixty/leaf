@@ -41,7 +41,8 @@ var chromeSharedClasses = Object.freeze([
   "lf-skip",
   "lf-ui",
   "lf-version-inline",
-  "lf-version-inline-deletion"
+  "lf-version-inline-deletion",
+  "lf-visual-action"
 ]);
 var marksSheet = constructSheet(sheets.marks);
 var annotationMarkSheets = sheets.annotations ? [constructSheet(sheets.annotations.marks)] : [];
@@ -265,7 +266,7 @@ function patchChildren(liveParent, beforeParent, afterParent, rules) {
   }
   order(liveParent, placed, rules.generated);
 }
-var atomic = (before, after, live, rules) => rules.declared(before) && !rules.reaches(before, after) || [...tree(before).childNodes].some(
+var atomic = (before, after, live, rules) => before.matches('style, link[rel~="stylesheet" i]') || rules.declared(before) && !rules.reaches(before, after) || [...tree(before).childNodes].some(
   (node) => rules.pairs.get(node)?.parentNode !== tree(live)
 );
 var kept = (before, after, rules) => rules.declared(before) ? rules.unchanged(before, after) : rules.same(before, after);

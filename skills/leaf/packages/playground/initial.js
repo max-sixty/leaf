@@ -273,13 +273,11 @@ function render(host, { tabStore, offer, keeps }) {
     // The rail's controls pane holds the controls written there and the presets; a
     // playground whose every control stands in its preview and that offers no preset
     // has none.
+    if (!railed.length && presetBar)
+      split.append(pane("controls", "Controls", null, presetBar));
     split.append(
       pane("preview", "Preview", null, previewBody),
-      ...(railed.length
-        ? [pane("controls", "Controls", presetBar, panel)]
-        : presetBar
-          ? [pane("controls", "Controls", null, presetBar)]
-          : []),
+      ...(railed.length ? [pane("controls", "Controls", presetBar, panel)] : []),
       pane(
         "instruction",
         "Instruction to agent",

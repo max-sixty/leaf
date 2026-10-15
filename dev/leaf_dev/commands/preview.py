@@ -72,7 +72,11 @@ from leaf.refusals import Refused
 from leaf.schema import BROWSER_DIRS, VENDORED_FILES
 
 from leaf_dev import ROOT
-from leaf_dev.commands.distribution import COMPILER_INPUTS, cached_installation
+from leaf_dev.commands.distribution import (
+    COMPILER_INPUTS,
+    cached_installation,
+    compiler_root,
+)
 from leaf_dev.example_data import named_source, page_files
 from leaf_dev.leaf_assets import CACHE as ASSETS_CACHE
 from leaf_dev.leaf_assets import assets_lock
@@ -551,7 +555,7 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path]) -> Watched:
     layer = {
         *(str(path) for path in package),
         *(str(path) for path in payload_server_inputs(runtime)),
-        *(str(ROOT / path) for path in COMPILER_INPUTS),
+        *(str(compiler_root() / path) for path in COMPILER_INPUTS),
     }
     manifest = source_manifest(source)
     companions = page_files(source)
@@ -861,6 +865,10 @@ def start_preview_worker(source: Path, page: Path, runtime: Path, user: bool) ->
     # the root as this launcher resolved it, rather than reading a relative setting
     # against a directory of its own.
     os.environ["LEAF_PREVIEWS_ROOT"] = str(page.parent)
+    # The selected runtime owns this worker, but an installed payload has no
+    # browser build dependencies. Compile its modules with the checkout that
+    # launched the preview, which also owns the shared compilation cache.
+    os.environ["LEAF_PREVIEW_COMPILER_ROOT"] = str(ROOT)
     if user:
         command.append("--user")
     os.chdir(runtime)

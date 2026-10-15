@@ -113,7 +113,7 @@ has tried; settle that before building it.
   `leaf` with the arguments it is given, have a sandboxed refusal name it, and
   drop the README's Codex rule. Codex asks before each MCP tool call unless the
   user approves the tool or sets the server's `default_tools_approval_mode =
-  "approve"`; find whether a plugin can declare that itself. A session that never
+"approve"`; find whether a plugin can declare that itself. A session that never
   runs `leaf` should pay nothing for this, as Claude Code's do for the bridge, so
   find whether Codex starts a plugin's MCP server in every session or only on first
   use.
@@ -284,6 +284,7 @@ and its chrome coordinate.
   edit reaches every surface, how the matrix stays small enough to run and to read,
   and which measurements become thresholds a test enforces rather than numbers a
   person reads.
+
 - **Offer the Page Map with the first paint.** The margin pass marks where markers are
   pins (`data-lf-pins`), and the banner's Map toggle follows it, so on a phone the
   toggle appears one pass after the banner rather than with it.
@@ -473,14 +474,6 @@ on 2026-10-07.
 
 ### Development velocity
 
-- **Format authored browser-framework TypeScript.** Extend Prettier's scope to
-  `build/browser/`, keeping the generated event and protocol declarations under
-  their generator. Rebuild the vendored JavaScript in the same change: the
-  compiler preserves source formatting, and the build gate compares its bytes.
-- **Set formatter conventions for authored CSS and Markdown.** Review what
-  Prettier changes in compact CSS rules and Markdown lists and tables, then
-  enable the formats where that layout is useful. Format CSS source entries
-  rather than the distribution sheets `build/styles.mjs` generates.
 - **Check what handing over on chosen tests costs.** Since 2026-10-04 a handover runs
   the tests the agent picks for its change, and the broad selection runs only at
   landing (`tests/AGENTS.md`, "Run what the change needs"). Before that, 25 of the
@@ -624,7 +617,7 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **Other harnesses:** add a blocking `leaf wait` route when another agent harness needs
   foreground handoff.
 - **Decide whether an exported page carries its threads.** `leaf page
-  export` writes a file that boots the page's own runtime offline, and that file
+export` writes a file that boots the page's own runtime offline, and that file
   embeds the page's threads in its state reading. The runtime turns the
   thread surface off offline (`threadAvailable: !offlineInteractive`
   in `leaf.js`), so a reader of the file sees no comments or agent replies.

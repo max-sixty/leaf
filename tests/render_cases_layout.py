@@ -1362,12 +1362,7 @@ PANEL_DIFF_MARKUP = WIDE_DIFF_PAGE[
 
 def serious_axe_violations(page):
     """Serious/critical WCAG A/AA findings in accessible documents, with a report."""
-    # The adapter injects only its document. Install axe in child documents too,
-    # then let axe's frame traversal preserve the parent's accessibility boundary
-    # and inspect exposed child documents without auditing hidden placeholders.
     axe = Axe()
-    for frame in page.frames:
-        frame.evaluate(axe.axe_script)
     options = {
         "runOnly": {
             "type": "tag",
@@ -1381,11 +1376,12 @@ def serious_axe_violations(page):
             ],
         },
         "resultTypes": ["violations"],
+        "iframes": False,
     }
-    result = axe.run(page, options=options)
     violations = [
-        {**violation, "document": page.url}
-        for violation in result.response["violations"]
+        {**violation, "document": frame.url}
+        for frame in accessible_documents(page)
+        for violation in axe.run(frame, options=options).response["violations"]
         if violation["impact"] in {"serious", "critical"}
     ]
     report = "\n\n".join(
@@ -1405,6 +1401,30 @@ def serious_axe_violations(page):
         for violation in violations
     )
     return violations, report
+
+
+def accessible_documents(page):
+    """The root and visible child documents Axe must inspect individually.
+
+    Parent-to-child messages warn on sandboxed frames with opaque origins. Running
+    each exposed frame directly reads it without that cross-origin message path.
+    """
+
+    def exposed(frame):
+        yield frame
+        for child in frame.child_frames:
+            element = child.frame_element()
+            if element.is_visible() and element.evaluate(
+                """element => {
+                  for (let current = element; current; current = current.getRootNode().host) {
+                    if (current.closest('[aria-hidden="true"], [inert]')) return false;
+                  }
+                  return true;
+                }"""
+            ):
+                yield from exposed(child)
+
+    yield from exposed(page.main_frame)
 
 
 # The element at an axe target's selector within one document: a list is a chain of
@@ -1445,43 +1465,32 @@ def overlapped_words(page):
 
     Axe answers these as incomplete, not as violations, so a sweep keeping violations
     alone passes words it never measured. A window-sized transparent layer over the
-    first screen hid every word under it this way (#2559). The run is
-    `serious_axe_violations`' frame traversal, so it reads the same exposed documents."""
+    first screen hid every word under it this way (#2559). The run reads the same
+    exposed documents as `serious_axe_violations`."""
     axe = Axe()
-    for frame in page.frames:
-        frame.evaluate(axe.axe_script)
-    result = axe.run(
-        page,
-        options={
-            "runOnly": {"type": "rule", "values": ["color-contrast"]},
-            "resultTypes": ["incomplete"],
-        },
-    )
     unread = []
-    for rule in result.response["incomplete"]:
-        for node in rule["nodes"]:
-            if not any(
-                isinstance(check.get("data"), dict)
-                and check["data"].get("messageKey") == "bgOverlap"
-                for check in node["any"]
-            ):
-                continue
-            # One selector per document, each frame's inside the one before it.
-            *frames, words = node["target"]
-            frame = page.main_frame
-            for hop in frames:
-                frame = (
-                    frame.evaluate_handle(AXE_TARGET, hop).as_element().content_frame()
-                )
-            if frame.evaluate(
-                UNDER_EMPTY_BOXES, frame.evaluate_handle(AXE_TARGET, words)
-            ):
-                unread.append(
-                    " ".join(
-                        sel if isinstance(sel, str) else " >>> ".join(sel)
-                        for sel in node["target"]
-                    )
-                )
+    for frame in accessible_documents(page):
+        result = axe.run(
+            frame,
+            options={
+                "runOnly": {"type": "rule", "values": ["color-contrast"]},
+                "resultTypes": ["incomplete"],
+                "iframes": False,
+            },
+        )
+        for rule in result.response["incomplete"]:
+            for node in rule["nodes"]:
+                if not any(
+                    isinstance(check.get("data"), dict)
+                    and check["data"].get("messageKey") == "bgOverlap"
+                    for check in node["any"]
+                ):
+                    continue
+                words = node["target"]
+                if frame.evaluate(
+                    UNDER_EMPTY_BOXES, frame.evaluate_handle(AXE_TARGET, words)
+                ):
+                    unread.append(f"{frame.url}: {' >>> '.join(words)}")
     return unread
 
 

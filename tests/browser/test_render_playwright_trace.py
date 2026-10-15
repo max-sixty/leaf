@@ -856,10 +856,15 @@ def test_trace_frames_retain_saved_elements_and_disclosure_stays_closable(
         attributes: true, childList: true, characterData: true, subtree: true,
       });
     }""")
+    # Hold playback time while the driver reads the short recording and presses Pause.
+    # A slow driver must not let the film finish before that press is dispatched.
+    user.clock.install()
+    user.clock.pause_at(user.evaluate("Date.now()") / 1000 + 1)
     widget.get_by_role("button", name="Play", exact=True).click()
+    user.clock.run_for(300)
     expect(widget.locator(".lf-trace-input-badge")).to_have_text("Click")
-    user.wait_for_timeout(300)
     widget.get_by_role("button", name="Pause", exact=True).click()
+    user.clock.resume()
     texts = user.evaluate(
         "() => { window.badgeWatch.disconnect(); return window.badgeTexts }"
     )

@@ -31,6 +31,7 @@ from interact_support import (
     state_json,
     suggest,
 )
+from leaf import agent_state as agent_state_model
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import data_contracts as data_contracts_model
@@ -1108,12 +1109,13 @@ def test_check_advises_where_a_users_aim_has_nothing_to_land_on(page_dir):
 def test_a_state_read_never_materializes_a_revision_bundle(page_dir, monkeypatch):
     """One request must not re-read the whole page history to answer.
 
-    `GET /` and `GET /api/state` both activate the source under the page's exclusive
-    lock, and that validation asks every revision in the history what its own
-    document and registry said. A revision bundle holds a couple of hundred resource
-    files, so answering through `read_artifact` made one request cost the revision
-    count times the bundle: seconds per request where the page directory is on a
-    network filesystem, with every other reader queued behind the lock.
+    `GET /api/state` activates the source under the page's exclusive lock and then
+    asks every revision in the history what its own document and registry said, for
+    the ids, asks and data bindings it declared. A revision bundle holds a couple of
+    hundred resource files, so answering through `read_artifact` made one request
+    cost the revision count times the bundle: seconds per request where the page
+    directory is on a network filesystem, with every other reader queued behind the
+    lock.
 
     The active revision is no exception: whether the source is that revision is a
     question for its manifest's digest, not its bundle. So each revision opens the
@@ -1142,10 +1144,10 @@ def test_a_state_read_never_materializes_a_revision_bundle(page_dir, monkeypatch
     monkeypatch.setattr(Path, "open", counted_open)
     # A server started now: it holds none of this test's readings.
     with fresh_process():
-        activated = revisioning_model.activate_source(page_dir)
+        state = agent_state_model.cmd_page_state(page_dir)
     monkeypatch.undo()
-    assert activated.error is None, activated.error
-    assert not activated.created
+    assert state["source"]["error"] is None, state["source"]
+    assert state["active"]["revision"] == revisions[-1]
 
     *history, active = revisions
     for revision in history:

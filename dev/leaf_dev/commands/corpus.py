@@ -213,11 +213,15 @@ def build() -> str:
         stem = source.stem
         text = source.read_text(encoding="utf-8")
         parsed = SourceDocument(text)
-        for sheet in parsed.style_blocks:
+        for sheet in parsed.authoring.style_blocks:
             if sheet["css"].strip():
                 css = "\n".join(line.rstrip() for line in sheet["css"].splitlines())
+                attrs = "".join(
+                    f' {name}="{html.escape(value, quote=True)}"'
+                    for name, value in sheet["attrs"].items()
+                )
                 authored_assets.append(
-                    f"<!-- {source.name} authored styles -->\n<style>{css}</style>"
+                    f"<!-- {source.name} authored styles -->\n<style{attrs}>{css}</style>"
                 )
         authored_assets.extend(
             f"<!-- {source.name} authored script -->\n<script"
@@ -226,7 +230,7 @@ def build() -> str:
                 for name, value in script["attrs"].items()
             )
             + f">{script['body']}</script>"
-            for script in parsed.inline_scripts
+            for script in parsed.authoring.inline_scripts
             # Scripts inside main already travel with its body. Hoisting them
             # as well duplicates identities and the samples' event sources.
             if script["early_head"]

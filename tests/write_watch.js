@@ -195,6 +195,9 @@
     // width while measuring the same drawing. Its upstream-owned paint is separate
     // from Leaf's adapter, which uses keeps when setting the final natural width.
     /^width on svg#lf-diagram-\d+(?:\.|$)/,
+    // Mermaid's layout pass reapplies the same transform to a label group while
+    // measuring it. The diagram module does not own that SVG write.
+    /^transform on g\.label$/,
     // Mermaid's timeline wraps and measures labels by restating tspan text. Its
     // measurement groups have already detached by the observer's reading.
     /^children of tspan in text in g(?: in g\.timeline-node\.section--?\d+)?$/,
@@ -205,8 +208,8 @@
     // when the last line still holds the same words and the class is unchanged.
     /^class on div\.cm-line\.lf-field-last in shadow of leaf-text/,
     // CodeMirror's CompositeTile.sync replaces a line's children while reconciling
-    // editor updates, including equivalent line-break nodes after clearing a field.
-    /^children of div\.cm-line(?:\.[\w-]+)* in shadow of leaf-text(?:[.#]| in |$)/,
+    // editor updates, including equivalent line-break nodes in either editor host.
+    /^children of div\.cm-line(?:\.[\w-]+)* in shadow of /,
     // CodeMirror's GutterElement.setMarkers restates its class as marker sets
     // change, including when the resulting gutter class remains the same.
     /^class on div\.cm-gutterElement(?:\.| in shadow|$)/,

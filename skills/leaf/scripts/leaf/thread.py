@@ -39,6 +39,7 @@ from leaf.validation.admission import (
     check_markup,
     logged_id,
     read_text_arg,
+    revision_publication,
     thread_obligation,
 )
 
@@ -249,7 +250,13 @@ def cmd_comment(
             page_dir, events, quote, section, part, transaction=page
         )
         if markup:
-            check_markup(page_dir, "comment", markup, events)
+            check_markup(
+                page_dir,
+                "comment",
+                markup,
+                events,
+                publication=revision_publication(page_dir, revision),
+            )
         event = {
             "kind": "comment",
             "author": "agent",
@@ -640,7 +647,6 @@ def _compose_and_append(
     if detach and (current_thread is None or current_thread["anchor"] is None):
         raise Rejected([Finding("no-anchor", values={"thread": thread_id})])
     reply_revision = None
-    prospective_page = None
     prospective_anchor = None
     source_events = events
     checked = None
@@ -676,7 +682,6 @@ def _compose_and_append(
                     )
                 ]
             )
-        prospective_page = checked.document
         reply_revision = planned_activation(page_dir, checked).revision
         if moving:
             prospective_anchor = _capture_anchor(
@@ -687,35 +692,6 @@ def _compose_and_append(
                 section,
                 part,
                 reply_revision,
-            )
-    fragment = (
-        check_markup(
-            page_dir,
-            "reply",
-            markup,
-            events,
-            page=prospective_page,
-            thread=thread_id,
-        )
-        if markup
-        else None
-    )
-    if ask and fragment:
-        from leaf.registry.storage import require_registry
-
-        registry = require_registry(page_dir)
-        structural = sorted(
-            {
-                rec["tag"]
-                for rec in fragment.lf_elements
-                if local_ask_entry(registry.get(rec["tag"]) or {})
-                and asking(rec["attrs"], registry[rec["tag"]]["x-awaits"].get("when"))
-                and not quoted_in(rec, registry)
-            }
-        )
-        if structural:
-            raise Rejected(
-                [Finding("widget-ask-markup", values={"tags": list(structural)})]
             )
     if prospective_anchor is not None:
         revision, anchor = reply_revision, prospective_anchor
@@ -733,6 +709,38 @@ def _compose_and_append(
         revision, anchor = reply_revision, None
     else:
         revision, anchor = None, None
+    if relocating or markup:
+        revision = revision or latest_revision(page_dir)
+    if markup:
+        # Every route that publishes saved edits has published or planned them by
+        # now, so the markup is checked under the reading the reply is stored with.
+        publication = (
+            checked.reading
+            if checked is not None
+            else revision_publication(page_dir, revision)
+        )
+        fragment = check_markup(
+            page_dir,
+            "reply",
+            markup,
+            events,
+            publication=publication,
+            thread=thread_id,
+        )
+        registry = publication.registry
+        structural = ask and sorted(
+            {
+                rec["tag"]
+                for rec in fragment.lf_elements
+                if local_ask_entry(registry.get(rec["tag"]) or {})
+                and asking(rec["attrs"], registry[rec["tag"]]["x-awaits"].get("when"))
+                and not quoted_in(rec, registry)
+            }
+        )
+        if structural:
+            raise Rejected(
+                [Finding("widget-ask-markup", values={"tags": list(structural)})]
+            )
     event = {
         "kind": "reply",
         "author": "agent",
@@ -765,7 +773,7 @@ def _compose_and_append(
     if failure is not None:
         event["failure"] = failure
     if relocating or markup:
-        event["revision"] = revision or latest_revision(page_dir)
+        event["revision"] = revision
     if relocating:
         event["anchor"] = anchor
     if title is not None:

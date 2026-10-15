@@ -324,27 +324,23 @@ what fails and what still works.
   `test_a_row_at_a_frame_edge_holds_the_trim_by_declaring_it` hold the required
   wrapper and row behavior. Parser support alone does not establish it.
 
-### Scroll-state containers and table fill
+### Scroll-state containers
 
-- **Disposition: scroll-state is progressive; Firefox's unfilled frames are an
-  accepted visual difference.** A `container-type` naming `scroll-state` is written
-  after the same declaration without it, so an engine without scroll-state keeps the
-  size container. A table in a drawn frame keeps its columns' natural width in
-  Firefox, short of the frame's far edge; every cell stays readable.
+- **Disposition: scroll-state is progressive.** A `container-type` naming
+  `scroll-state` is written after the same declaration without it, so an engine
+  without scroll-state keeps the size container.
 - **Owner:** the table rules in
   [`reading.css`](../skills/leaf/assets/styles/components/reading.css) and the
   granted-room table in [`layouts.css`](../skills/leaf/assets/layouts.css).
 - **Observed, 2026-10-14:** Firefox 157 (a user's page) and Playwright's Firefox and
   WebKit 26.6 drop `container-type: inline-size scroll-state` whole, so the table was
-  no size container and the 100cqi its fill caption reads measured the window: an
-  Ask's two-column table laid its rows out 1728px wide in a 720px column and cut off
-  its second column. Chrome 155 keeps it. Firefox also never widens a table grid to a
-  caption wider than its columns' natural width, whatever the caption's width, so the
-  caption fill does nothing there; Chromium and WebKit spread the columns to it.
+  no size container and the 100cqi a caption read measured the window: an Ask's
+  two-column table laid its rows out 1728px wide in a 720px column and cut off its
+  second column. Chrome 155 keeps it. Firefox also never widens a table grid to a
+  caption wider than its columns' natural width, so Leaf no longer widens a table's
+  columns to its frame in any engine.
 - **Recheck:** `test_a_table_of_prose_wraps_inside_its_box_in_every_engine` holds
-  the size container in all three engines; the Chromium-only
-  `test_a_table_fills_its_declared_allocation_or_frame_and_a_bare_one_keeps_its_content`
-  holds the fill.
+  the size container in all three engines.
 
 ### State-preserving content reordering (review #22)
 
@@ -530,7 +526,7 @@ document, and the runtime relies on it (next entry).
   which resolves the same `attr()` outside a `::part()` rule, so the runtime writes
   one rule per name. Words alone in a shadow scroller anchor to the start of what it
   holds the same way, through `::part(lf-a7)::before { content: ""; anchor-name:
-  --lf-a7 }`, which anchors and follows the scroller's scroll in all three engines.
+--lf-a7 }`, which anchors and follows the scroller's scroll in all three engines.
 - **Recheck:** attach a shadow root holding a scroller with a `part`-named child,
   declare `#host::part(name) { anchor-name: --x }` in the document, and compare a
   fixed `position-anchor: --x` box's rectangle with the child's after scrolling the
@@ -596,7 +592,7 @@ document, and the runtime relies on it (next entry).
 - **Affected:** a tab strip, contents outline or page map list bringing its item
   into view while the page stays where the user reads.
 - **Observed, 2026-10-14:** `scrollIntoView({block: "nearest", inline: "nearest",
-  container: "nearest"})` on a button in a sideways strip whose foot stands 1 px
+container: "nearest"})` on a button in a sideways strip whose foot stands 1 px
   below its scroller's band scrolls the strip alone in Chromium 153 and WebKit 26.6,
   and the outer scroller by 2 px as well in Firefox 155, whether the outer scroller
   is the root or a nested box. An earlier check on another page also saw WebKit

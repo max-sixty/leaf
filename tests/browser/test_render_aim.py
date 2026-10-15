@@ -3160,14 +3160,15 @@ def test_an_aim_follows_a_scroll_inside_a_widgets_shadow_stage(browser, serve):
 SHOWN_PAINT = """(selector) => {
   const paint = document.querySelector(selector);
   let { left, right } = paint.getBoundingClientRect();
-  // A frame cuts across where its clip path's inline inset is zero.
-  const cutsAcross = (frame) =>
-    /^inset\\((\\S+ )?0px\\)$/.test(getComputedStyle(frame).clipPath);
+  // Leaf's zero-size frames extend their clip to the measured band.
   for (let frame = paint.parentElement; frame; frame = frame.parentElement)
-    if (frame.matches('.lf-paint-frame') && cutsAcross(frame)) {
+    if (frame.matches('.lf-paint-frame')) {
+      const inset = /^inset\\((-?[\\d.]+)px (-?[\\d.]+)px (-?[\\d.]+)px (-?[\\d.]+)px\\)$/
+        .exec(getComputedStyle(frame).clipPath);
+      if (!inset) continue;
       const cut = frame.getBoundingClientRect();
-      left = Math.max(left, cut.left);
-      right = Math.min(right, cut.right);
+      left = Math.max(left, cut.left + Number(inset[4]));
+      right = Math.min(right, cut.right - Number(inset[2]));
     }
   return { left, right };
 }"""
@@ -3448,7 +3449,7 @@ def test_a_held_aim_in_a_pane_paints_in_the_frame_its_target_scrolls(browser, se
     <lf-pane id="other-pane" label="Notes"><div><p>Notes.</p></div></lf-pane>
   </div>""",
                 head=regions_side_by_side("aim-split")
-                + f"<style>#pane-target {{ background:{SUBJECT_MARK}; }}"
+                + f"<style data-controls>#pane-target {{ background:{SUBJECT_MARK}; }}"
                 f" .lf-aim {{ outline:6px solid {FOLLOWER_MARK} !important; }}</style>",
                 layout="workspace",
             )
@@ -4282,7 +4283,7 @@ def test_design_paint_in_a_pane_paints_in_the_frame_its_target_scrolls(
         serve(
             DESIGN_PANE_PAGE.replace(
                 "</head>",
-                f"<style>#pane-target {{ background:{SUBJECT_MARK}; }} {follower}"
+                f"<style data-controls>#pane-target {{ background:{SUBJECT_MARK}; }} {follower}"
                 ".lf-legend-tag { display: none; }</style></head>",
             )
         ),

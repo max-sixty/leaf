@@ -47,7 +47,10 @@ def needs_browser(document: SourceDocument, artifact: RevisionArtifact) -> bool:
     code or a data widget's body in a notation only its module parses. A module a
     script imports is reached through that script, and a widget the document never
     places never loads."""
-    scripts = [*document.inline_scripts, *document.external_scripts]
+    scripts = [
+        *document.authoring.inline_scripts,
+        *document.authoring.external_scripts,
+    ]
     if any(script_kind(script["attrs"]) in {"module", "classic"} for script in scripts):
         return True
     registry = artifact.registry

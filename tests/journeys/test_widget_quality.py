@@ -20,6 +20,8 @@ from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from known_widget_findings import KNOWN, PACKAGES
 from leaf import cli as cli_model
+from leaf import layer as layer_model
+from leaf import schema as schema_model
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate.widget_quality import widget_findings
 from model_folds import leaf_page
@@ -33,6 +35,11 @@ def test_bundled_widgets_meet_the_widget_quality_checks(browser, package):
     lists for it: a new finding is a regression to fix, and a listed one that no
     longer occurs was fixed, so its entry goes. The pages it reads are full of the
     shifts the check exists to find, so it reads them unwatched."""
+    # compiled_pages lends the browser tier a prepared kernel as its base layer.
+    # Read its assets there rather than adding the checkout's source assets as a
+    # second package over that kernel.
+    if package == schema_model.ASSETS:
+        package = layer_model.ASSETS
     findings = widget_findings(browser.unwatched, package)
     known = KNOWN.get(package.name, set())
     new = [

@@ -89,12 +89,12 @@ line for each refusal or note, with the words in `error` or `text`.
 
 Pick the contract for the session that owns the page:
 
-| Session | Contract |
-| --- | --- |
-| Claude Code | `references/harness-claude-code.md` |
-| Pi | `references/harness-pi.md` |
+| Session                                                                            | Contract                                 |
+| ---------------------------------------------------------------------------------- | ---------------------------------------- |
+| Claude Code                                                                        | `references/harness-claude-code.md`      |
+| Pi                                                                                 | `references/harness-pi.md`               |
 | Codex with `LEAF_CODEX_APP_SERVER`, or an App Server endpoint supplied by the user | `references/harness-codex-app-server.md` |
-| Other Codex tasks, including the desktop app and IDE | `references/harness-codex.md` |
+| Other Codex tasks, including the desktop app and IDE                               | `references/harness-codex.md`            |
 
 The desktop Codex app's own App Server exposes no endpoint Leaf can use, so its
 pages follow the ordinary Codex contract. Deliveries keep arriving under the

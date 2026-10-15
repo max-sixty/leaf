@@ -92,6 +92,7 @@ from render_harness import (
     leaf_page,
     margins_laid_out,
     names,
+    nudge,
     open_page,
     page_comment,
     pane_posture,
@@ -2067,7 +2068,7 @@ def test_a_release_page_is_wide_and_keeps_the_log_on_its_newest_line(browser, se
     """A sidebar page of body and track: the lede starts at the page's edge and keeps
     the reading measure, as does the status callout, every other region of the body
     shares the body's two edges and every region of the track the track's, and the
-    checks table fills its panel. On a narrow
+    checks table's box fills its panel. On a narrow
     window the track stacks under the body, and the bounded log opens on its newest
     line. Paper shows the log whole."""
     example = Path(__file__).parents[2] / "examples" / "live-progress.html"
@@ -2616,6 +2617,45 @@ PLAYGROUND_PAGE = leaf_page(
     </lf-playground-output>
   </lf-playground>
 </lf-ask>
+""",
+)
+
+
+CONTRIBUTOR_PAGE = leaf_page(
+    "query configuration",
+    """
+<lf-ask id="query-ask"><h1>Choose the alert query</h1>
+<lf-playground id="query-config">
+  <lf-playground-control name="stream" label="Event stream" kind="choice" value="checkout">
+    <lf-playground-choice value="checkout" label="Checkout"></lf-playground-choice>
+    <lf-playground-choice value="billing" label="Billing"></lf-playground-choice>
+  </lf-playground-control>
+  <lf-playground-preset label="Checkout stream">
+    <lf-playground-setting for="stream" value="checkout"></lf-playground-setting>
+  </lf-playground-preset>
+  <lf-playground-preview>
+    <label for="region-filter">Region filter</label>
+    <input id="region-filter" type="text" value="eu-west-1">
+  </lf-playground-preview>
+  <lf-playground-output>Implement the selected query.</lf-playground-output>
+</lf-playground></lf-ask>
+<script type="module">
+import {PAGE_INTERFACE} from "/runtime/widget-api.js";
+document.addEventListener(PAGE_INTERFACE, event => {
+  event.detail.present(Promise.resolve().then(() => {
+    if (sessionStorage.getItem('delay-query-contributors')) return;
+    const playground = document.querySelector('#query-config');
+    const input = document.querySelector('#region-filter');
+    const filters = playground.registerContributor('filters', {region: input.value});
+    input.addEventListener('input', () => filters.set({region: input.value}));
+    playground.subscribe(values => {
+      if (input.value !== values.filters.region) input.value = values.filters.region;
+    });
+    playground.registerInstructionProvider(values =>
+      `Implement ${values.stream} alerts for region ${values.filters.region}.`);
+  }));
+});
+</script>
 """,
 )
 
@@ -4603,8 +4643,7 @@ def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
     changes = playground.evaluate(
         """root => {
           window.playgroundChanges = [];
-          root.addEventListener('lf-playground-change', event =>
-            window.playgroundChanges.push(event.detail.values));
+          root.subscribe(values => window.playgroundChanges.push(values));
           return root.values;
         }"""
     )
@@ -4677,6 +4716,293 @@ def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
     undo(page)
     expect(page.locator("#card-instruction")).to_contain_text("12px radius")
     assert playground.evaluate("root => root.values")["compact"] is False
+
+
+def test_narrow_playground_keeps_complete_preset_labels_operable(browser, serve):
+    label = "Recommended: 6 pages, 1 false, none missed"
+    source = leaf_page(
+        "Complete preset labels",
+        f"""<h1>Tune alert policy</h1>
+<lf-playground id="policy">
+  <lf-playground-preset label="{label}">
+    <lf-playground-setting for="threshold" value="6"></lf-playground-setting>
+  </lf-playground-preset>
+  <lf-playground-preview>
+    <p>Six minutes catches the incident with time to act.</p>
+    <lf-playground-control name="threshold" label="Threshold" kind="range"
+      value="5" min="1" max="10"></lf-playground-control>
+  </lf-playground-preview>
+  <lf-playground-output>Use a <lf-playground-value for="threshold"></lf-playground-value> minute threshold.</lf-playground-output>
+</lf-playground>""",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 390, 844)
+    preset = page.get_by_role("button", name=label, exact=True)
+    reset = page.get_by_role("button", name="Reset", exact=True)
+    for button in (preset, reset):
+        reading = button.evaluate("""button => {
+          const range = document.createRange();
+          range.selectNodeContents(button);
+          return {box: button.getBoundingClientRect().toJSON(),
+                  lines: [...range.getClientRects()].map(line => line.toJSON())};
+        }""")
+        assert reading["lines"]
+        for line in reading["lines"]:
+            assert (
+                reading["box"]["left"]
+                <= line["left"]
+                <= line["right"]
+                <= reading["box"]["right"]
+            )
+            assert (
+                reading["box"]["top"]
+                <= line["top"]
+                <= line["bottom"]
+                <= reading["box"]["bottom"]
+            )
+    preset.click()
+    expect(page.get_by_role("slider", name="Threshold")).to_have_value("6")
+    reset.click()
+    expect(page.get_by_role("slider", name="Threshold")).to_have_value("5")
+
+
+def test_playground_keeps_contributor_drafts_until_reset_or_a_new_choice(
+    browser, serve
+):
+    """An input edit updates the shared configuration immediately, and reading or
+    acknowledging it never replaces the draft. A new choice or undo does."""
+    page = open_page(browser, serve(CONTRIBUTOR_PAGE))
+    playground = page.locator("#query-config")
+    field = page.get_by_role("textbox", name="Region filter")
+    field.fill("us-east-1")
+    expect(playground.locator("lf-playground-output")).to_have_text(
+        "Implement checkout alerts for region us-east-1."
+    )
+    field.press("ArrowLeft")
+    playground.get_by_role("radio", name="Billing", exact=True).click()
+    expect(field).to_be_focused()
+    expect(field).to_have_value("us-east-1")
+    assert field.evaluate("input => input.selectionStart") == len("us-east-")
+    assert playground.evaluate("root => root.values.filters.region") == "us-east-1"
+
+    field.fill("ap-south-1")
+    # A later component registers while another component owns an unfinished edit.
+    playground.evaluate("""root => {
+      root.registerContributor('grouped', false);
+    }""")
+    expect(field).to_have_value("ap-south-1")
+    assert playground.evaluate("root => root.values.filters.region") == "ap-south-1"
+
+    field.fill("eu-north-1")
+    playground.get_by_role("button", name="Checkout stream").click()
+    expect(field).to_be_focused()
+    expect(field).to_have_value("eu-north-1")
+    assert playground.evaluate("root => root.values") == {
+        "stream": "checkout",
+        "filters": {"region": "eu-north-1"},
+        "grouped": False,
+    }
+
+    playground.get_by_role("button", name="Reset", exact=True).click()
+    expect(field).to_have_value("eu-west-1")
+    field.fill("chosen-region")
+    # Programmatic activation leaves focus in the field: input alone has committed it.
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    with page.expect_request("**/api/event"):
+        playground.get_by_role("button", name="Use these settings").evaluate(
+            "button => button.click()"
+        )
+    holding(page, held, 1, "the query configuration")
+    field.fill("unsent-region")
+    field.press("ArrowLeft")
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    choice = next(
+        event
+        for event in reversed(events_model.read_events(serve.page_dir))
+        if event.get("widget") == "query-config" and event.get("action") == "choose"
+    )
+    assert choice["detail"]["values"] == {
+        "stream": "checkout",
+        "filters": {"region": "chosen-region"},
+        "grouped": False,
+    }
+    expect(field).to_have_value("unsent-region")
+    expect(field).to_be_focused()
+    assert field.evaluate("input => input.selectionStart") == len("unsent-region") - 1
+    nudge(serve.page_dir)
+    told(page)
+    expect(field).to_have_value("unsent-region")
+    playground.evaluate("""root => lfUnwatched(() => {
+      window.detachedQuery = {root, parent:root.parentNode, next:root.nextSibling};
+      root.remove();
+    })""")
+    page.evaluate("() => new Promise(resolve => requestAnimationFrame(resolve))")
+    consume_browser_errors(
+        page,
+        {
+            "code": "words-left-screen",
+            "words": "unsent-region",
+            "place": "input#region-filter",
+        },
+    )
+    page.evaluate("""() => lfUnwatched(() => {
+      const {root, parent, next} = window.detachedQuery;
+      parent.insertBefore(root, next);
+      delete window.detachedQuery;
+    })""")
+    rendered(page)
+    expect(field).to_have_value("unsent-region")
+    # Equal values do not make two choices the same gesture. Undoing the second
+    # choice restores the first even when a later working edit differs from both.
+    field.fill("chosen-region")
+    with sending(page, "the query configuration"):
+        playground.get_by_role("button", name="Use these settings").evaluate(
+            "button => button.click()"
+        )
+    field.fill("later-draft")
+    page.keyboard.press("Escape")
+    undo(page)
+    expect(field).to_have_value("chosen-region")
+    page.reload()
+    wait_until_ready(page)
+    expect(field).to_have_value("chosen-region")
+
+    # A refused choice restores the server's accepted slice instead of retaining
+    # the local configuration that the server did not accept.
+    def refuse_choice(route):
+        if route.request.post_data_json.get("action") != "choose":
+            route.continue_()
+            return
+        route.fulfill(
+            status=400,
+            json={"ok": False, "final": True, "error": "refused before append"},
+        )
+
+    page.route("**/api/event", refuse_choice)
+    field.fill("refused-region")
+    with sending(page, "the refused query configuration"):
+        playground.get_by_role("button", name="Use these settings").click()
+    expect(field).to_have_value("chosen-region")
+    # Refusal deliberately restores accepted words; the generic words watch cannot
+    # attribute this asynchronous replacement to the earlier submit gesture.
+    consume_browser_errors(
+        page,
+        http_error_console(400),
+        {
+            "code": "words-left-screen",
+            "words": "refused-region",
+            "place": "input#region-filter",
+        },
+    )
+    page.unroute("**/api/event")
+
+    # An admitted aggregate can precede every page-module contributor. Each joining
+    # contributor gets its slice; an undo replaces the pending snapshot as well.
+    page.evaluate("sessionStorage.setItem('delay-query-contributors', 'true')")
+    page.reload()
+    wait_until_ready(page)
+    assert playground.evaluate("root => root.values") == {"stream": "checkout"}
+    assert (
+        playground.evaluate("""root => {
+      return root.registerContributor('grouped', true).get();
+    }""")
+        is False
+    )
+    undo(page)
+    playground.evaluate("""root => {
+      const input = document.querySelector('#region-filter');
+      root.registerContributor('filters', {region:'eu-west-1'});
+      root.subscribe(values => {
+        if (input.value !== values.filters.region) input.value = values.filters.region;
+      });
+    }""")
+    expect(field).to_have_value("eu-west-1")
+    assert playground.evaluate("root => root.values") == {
+        "stream": "checkout",
+        "filters": {"region": "eu-west-1"},
+        "grouped": True,
+    }
+
+
+def test_a_playground_reports_a_contributor_view_that_cannot_draw_its_edit(
+    browser, serve
+):
+    """A required view's failed local draw belongs to its playground, just as a
+    failed drawing of a restored choice does."""
+    source = CONTRIBUTOR_PAGE.replace(
+        "playground.subscribe(values => {",
+        """playground.subscribe(values => {
+      if (values.filters.region === 'broken-region')
+        throw new Error('The query preview cannot draw broken-region');""",
+    )
+    page = open_page(browser, serve(source))
+    field = page.get_by_role("textbox", name="Region filter")
+    expect(page.locator("#query-config lf-playground-output")).to_have_text(
+        "Implement checkout alerts for region eu-west-1."
+    )
+    with sending(page, "the playground drawing failure"):
+        field.fill("broken-region")
+    expect(page.locator("#query-config .lf-error")).to_contain_text(
+        "The query preview cannot draw broken-region"
+    )
+    report = '<lf-playground id="query-config"> failed: '
+    assert any(
+        event["kind"] == "error" and event["text"].startswith(report)
+        for event in events_model.read_events(serve.page_dir)
+    )
+    consume_browser_errors(page, report)
+
+
+def test_inline_playground_keeps_evidence_and_long_instruction_reachable_in_a_short_workspace(
+    browser, serve
+):
+    source = leaf_page(
+        "Short alert workspace",
+        '<lf-ask id="short-ask"><h1>Tune alert policies</h1>'
+        '<lf-playground id="short-config" data-width="available">'
+        "<lf-playground-preview><h2>Checkout latency</h2>"
+        "<p>The last incident lasted seven minutes. Tune its alert beside this evidence.</p>"
+        '<lf-playground-control name="latency" label="Latency window" kind="range" '
+        'value="5" min="1" max="15" unit="min"></lf-playground-control>'
+        "</lf-playground-preview><lf-playground-output>"
+        + "Include alert evidence, validation, routing and deployment instructions. "
+        * 100
+        + '<span id="instruction-end">Finish with the rollback procedure.</span>'
+        "</lf-playground-output></lf-playground></lf-ask>",
+        layout="workspace",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 900, 500)
+    playground = page.locator("#short-config")
+    preview = playground.locator(".lf-playground-preview-body")
+    instruction = playground.locator("lf-playground-output")
+    expect(playground.locator(".lf-playground-controls-region")).to_have_count(0)
+    split = playground.locator(".lf-playground-split").bounding_box()
+    assert preview.bounding_box()["width"] == pytest.approx(split["width"], abs=1)
+    assert instruction.evaluate("node => node.scrollHeight > node.clientHeight")
+    instruction.evaluate("node => { node.scrollTop = node.scrollHeight; }")
+    body = instruction.bounding_box()
+    last = page.locator("#instruction-end").bounding_box()
+    assert body["y"] <= last["y"] < body["y"] + body["height"]
+    slider = playground.get_by_role("slider", name="Latency window")
+    slider.press("ArrowRight")
+    expect(slider).to_have_value("6")
+    view = preview.bounding_box()
+    field = slider.bounding_box()
+    assert view["y"] <= field["y"] < view["y"] + view["height"]
+    submit = playground.get_by_role("button", name="Use these settings")
+    submit.scroll_into_view_if_needed()
+    action = submit.bounding_box()
+    main = page.locator("main").bounding_box()
+    assert action["y"] + action["height"] <= main["y"] + main["height"]
+    with sending(page, "the short-workspace configuration"):
+        submit.click()
+    assert events_model.read_events(serve.page_dir)[-1]["detail"]["values"] == {
+        "latency": 6
+    }
 
 
 def test_notification_playground_sets_regions_side_by_side_while_its_workspace_is_full_height(
@@ -5028,39 +5354,6 @@ def test_a_playground_switch_and_copy_are_reachable_through_go_to(browser, serve
 
     page.keyboard.type(copy_code)
     assert "12px radius" in page.evaluate("navigator.clipboard.readText()")
-
-
-def test_a_playground_rejects_restored_values_that_do_not_match_its_controls(
-    browser, serve
-):
-    url = serve(PLAYGROUND_PAGE)
-    append_command(
-        serve.page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "card-playground",
-            "action": "choose",
-            "detail": {
-                "values": {
-                    "accent": "#4f766f",
-                    "compact": False,
-                    "radius": 12,
-                    "title": "Field note",
-                    "tone": "quiet",
-                    "unknown": "value",
-                },
-                "instruction": "Use the unknown setting.",
-            },
-        },
-    )
-
-    page = open_page(browser, url)
-    expect(page.locator("#card-playground .lf-error")).to_contain_text(
-        "configuration needs exactly these fields"
-    )
-    consume_browser_errors(page, "configuration needs exactly these fields")
 
 
 def test_a_playground_rejects_range_values_that_do_not_land_on_its_step(browser, serve):
@@ -10244,17 +10537,22 @@ def test_webawesome_chrome_loads_without_optional_controls(browser, serve):
         is True
     )
     control = page.locator(".lf-vr-case-select")
-    # A page rule with no specificity at all. It can outrank the generated sheet's own
-    # `:is(wa-select, …)` mapping only because that sheet sits in @layer lf-vendor.
-    page.add_style_tag(
-        content=":where(wa-select){--wa-color-text-quiet: rgb(1, 2, 3);}"
+    # A page rule granted control access and with no specificity at all can outrank
+    # the generated sheet's `:is(wa-select, …)` mapping in @layer lf-vendor.
+    page.evaluate(
+        """() => {
+          const style = document.createElement('style');
+          style.setAttribute('data-controls', '');
+          style.textContent = ':where(wa-select){--wa-color-text-quiet: rgb(1, 2, 3);}';
+          document.head.append(style);
+        }"""
     )
     assert (
         control.evaluate(
             "el => getComputedStyle(el).getPropertyValue('--wa-color-text-quiet')"
         ).strip()
         == "rgb(1, 2, 3)"
-    ), "the package theme must outrank the lazy vendor defaults"
+    ), "a page rule granted control access must outrank the lazy vendor defaults"
 
 
 def test_webawesome_menu_text_stays_readable_as_the_current_option_moves(

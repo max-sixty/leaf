@@ -101,9 +101,8 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 
 def test_column_width_does_not_clear_a_sidenote(browser, serve):
-    """Column is the ordinary prose measure, so a block allocated it, such as a
-    callout, must not drop below a sidenote that ordinary neighboring paragraphs flow
-    beside."""
+    """A callout keeps the prose measure, as text does, so it must not drop below a
+    sidenote that ordinary neighboring paragraphs flow beside, as a breakout does."""
     source = leaf_page(
         "Column beside sidenote",
         """
@@ -118,7 +117,6 @@ run several lines beside the prose and the callout that follow it.</p></aside>
     page = open_page(browser, serve(source))
     resized(page, 1400, 900)
     expect(page.locator("#note")).to_have_css("float", "right")
-    expect(page.locator("#column")).to_have_attribute("data-lf-column", "")
     at = page.evaluate(
         """() => ({
           column: document.getElementById('column').getBoundingClientRect().top,
@@ -1713,9 +1711,7 @@ def _a_pin_on_a_wide_figure_hides_with_o_while_the_rail_stays(page):
     resized(page, 1440, 900)
     page.locator("#bg-gallery-tabs").get_by_role("tab", name="Page & layout").click()
     margins_laid_out(page)
-    pin = page.locator(
-        '.lf-margin-cluster[data-lf-margin-for="bg-margin-layer-figure"]'
-    )
+    pin = page.locator('.lf-margin-cluster[data-lf-margin-for="bg-margin-layer-table"]')
     expect(pin).to_have_attribute("data-lf-place", "pin")
     rail = page.locator('.lf-margin-cluster[data-lf-place="rail"]:visible')
     assert rail.count() > 0
@@ -9715,7 +9711,7 @@ def test_a_pin_in_a_pane_paints_in_the_frame_its_target_scrolls(browser, serve):
     """Every frame Chrome draws while a pane scrolls shows the pin level with its
     target, since the browser carries both through the same scroll."""
     marks = (
-        f"<style>#pane-top {{ background:{SUBJECT_MARK}; }}"
+        f"<style data-controls>#pane-top {{ background:{SUBJECT_MARK}; }}"
         f' [data-lf-margin-for="pane-top"] {{ outline:6px solid {FOLLOWER_MARK}'
         " !important; }</style></head>"
     )

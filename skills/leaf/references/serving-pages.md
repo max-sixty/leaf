@@ -68,6 +68,9 @@ holds the page. Run it too when you want a newer runtime, theme or package:
 leaf page init <page>
 ```
 
+A page vendored by a newer Leaf than the one you run is refused as well, and `page init`
+won't take it back to an older protocol; the refusal says how to load a newer Leaf.
+
 While Leaf is in alpha, an update can also break an older page without a protocol
 change. `page check` and the page's banner menu name the Leaf that vendored the page and
 the one running, with their dates. If a page misbehaves and its Leaf is much older,

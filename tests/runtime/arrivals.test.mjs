@@ -13,8 +13,7 @@ globalThis.requestAnimationFrame = (callback) => {
 globalThis.cancelAnimationFrame = (id) => frames.delete(id);
 
 const { whileConnected, frameFor } = await import("/runtime/arrivals.js");
-const { clockValue, readingPaint, tickClock } =
-  await import("/runtime/presence.js");
+const { clockValue, readingPaint, tickClock } = await import("/runtime/presence.js");
 const { observeQueuedWork } = await import("/runtime/queued-work.js");
 
 // A second observer acknowledges delivery of the same mutation batch as arrivals.

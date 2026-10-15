@@ -66,45 +66,22 @@ def _bindings(page_dir: Path) -> dict:
     return record["bindings"]
 
 
-def _granted(raw: object) -> Path | None:
-    """A grant's path, or None where the record holds no absolute path the
-    filesystem can name."""
-    if not isinstance(raw, str) or "\0" in raw or not Path(raw).is_absolute():
-        return None
-    try:
-        os.fsencode(raw)
-    except UnicodeEncodeError:
-        return None
-    return Path(raw)
-
-
 def _target(page_dir: Path, binding: str) -> Path | None:
     if not isinstance(binding, str) or not BINDING_ID.fullmatch(binding):
         raise FileBindingError("Invalid file binding id.")
     bindings = _bindings(page_dir)
     if binding not in bindings:
         return None
-    path = _granted(bindings[binding])
-    if path is None:
-        raise FileBindingError("Invalid file bindings; bind the file again.")
-    return path
+    return Path(bindings[binding])
 
 
 def bound_paths(page_dir: Path) -> dict[str, Path]:
     """Each binding's granted path, by binding.
 
-    Read without the page lock, by the page's reading and its watchers. A grants
-    record this version cannot read binds nothing here: the reading must not fail
-    on it, and a read through the binding names the refusal."""
-    try:
-        bindings = _bindings(page_dir)
-    except (FileBindingError, OSError, ValueError):
-        return {}
-    return {
-        binding: path
-        for binding, raw in sorted(bindings.items())
-        if (path := _granted(raw)) is not None
-    }
+    Read without the page lock, by the page's reading and its watchers. The trusted
+    CLI writes canonical paths atomically; an unreadable grants record fails its
+    read rather than disabling freshness tracking."""
+    return {binding: Path(raw) for binding, raw in sorted(_bindings(page_dir).items())}
 
 
 def binding_stamps(page_dir: Path) -> dict[str, str]:

@@ -93,12 +93,10 @@ wa-select::part(combobox) {
 wa-copy-button::part(lf-focus) {
   outline: var(--focus-ring);
   outline-offset: var(--focus-ring-gap);
-  --lf-focus-ring: copy-button;
 }
 wa-comparison::part(lf-focus) {
   outline: var(--focus-ring);
   outline-offset: var(--focus-ring-gap);
-  --lf-focus-ring: comparison-handle;
 }
 
 /* A radio's actual focus owner is its host, rather than a native shadow control.
@@ -109,11 +107,9 @@ wa-radio[appearance="button"][data-lf-focus] { z-index: 2; }
    Their native input/button outlines stay off so a group has one focus carrier. */
 wa-input::part(base lf-focus-within) {
   outline: var(--focus-ring);
-  --lf-focus-ring: text-entry;
 }
 wa-select::part(combobox lf-focus-within) {
   outline: var(--focus-ring);
-  --lf-focus-ring: select;
 }
 
 /* A single slider focuses its rail and paints the thumb; a range slider focuses
@@ -122,7 +118,6 @@ wa-slider:not([range])[data-lf-focus-within]::part(thumb),
 wa-slider[range]::part(lf-focus) {
   outline: var(--focus-ring);
   outline-offset: 0;
-  --lf-focus-ring: slider-thumb;
 }
 wa-slider[range]::part(lf-focus) { z-index: 4; }
 

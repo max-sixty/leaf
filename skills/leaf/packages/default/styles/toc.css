@@ -140,7 +140,7 @@
       :scope:is(lf-toc) li a[aria-current="location"]:not(:hover, [data-lf-focus]) {
         color: var(--ink-2);
       }
-      :scope:is(lf-toc) a[data-lf-focus] { outline: var(--focus-ring); --lf-focus-ring: toc-link;
+      :scope:is(lf-toc) a[data-lf-focus] { outline: var(--focus-ring);
                                outline-offset: calc(-1 * var(--focus-ring-w)); }
       :scope:is(lf-toc):is(:hover, [data-lf-focus-within]) .lf-toc-nav{
         --lf-toc-label-opacity: 1;

@@ -98,7 +98,6 @@
   :where(.lf-floating-panel) :is(button, input, textarea, .lf-fp-on-item):focus-visible {
     outline: var(--focus-ring);
     outline-offset: -2px;
-    --lf-focus-ring: floating-panel;
   }
   .lf-floating-panel .lf-action-icon {
     width: 16px;
@@ -1037,7 +1036,6 @@
   overflow: visible;
   clip-path: none;
   outline: var(--focus-ring);
-  --lf-focus-ring: skip;
   outline-offset: calc(-1 * var(--focus-ring-w));
   border: 1px solid var(--accent);
   border-radius: var(--r);
@@ -1094,7 +1092,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
 }
 [data-lf-ask] {
   outline: var(--lf-ask-ring, var(--focus-ring));
-  --lf-focus-ring: ask;
   outline-offset: var(--focus-ring-gap);
   scroll-margin-block: var(--focus-ring-room);
 }
@@ -1164,7 +1161,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     color: var(--ink);
     box-shadow: 0 8px 24px var(--shade);
     outline: var(--focus-ring);
-    --lf-focus-ring: visual-target;
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
   :scope,
@@ -1423,7 +1419,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-banner > .lf-status-queues[data-lf-focus] {
     outline: var(--focus-ring);
     outline-offset: 2px;
-    --lf-focus-ring: status;
   }
   .lf-status-button:hover {
     color: var(--ink);
@@ -1431,7 +1426,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-status-button[data-lf-focus] {
     outline: var(--focus-ring);
     outline-offset: 2px;
-    --lf-focus-ring: status;
   }
   .lf-status-text {
     color: inherit;
@@ -1464,7 +1458,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-status-detail[data-lf-focus] {
     outline: var(--focus-ring);
     outline-offset: 2px;
-    --lf-focus-ring: status-detail;
   }
   .lf-status-text:has(.lf-publication-install) {
     display: flex;
@@ -1683,7 +1676,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-version-row[data-lf-focus] {
     outline: var(--focus-ring);
-    --lf-focus-ring: version-row;
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
   .lf-version-row[aria-current] .lf-version-num {
@@ -1719,7 +1711,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-version-diff[data-lf-focus] {
     outline: var(--focus-ring);
-    --lf-focus-ring: version-diff;
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
   .lf-version-diff[aria-checked=true] {
@@ -1827,7 +1818,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-others-row[data-lf-focus] {
     outline: var(--focus-ring);
-    --lf-focus-ring: others-row;
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
   .lf-others-head {
@@ -1909,7 +1899,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-queue-row:is([data-lf-focus], [data-lf-ask]),
   .lf-queue-done > summary[data-lf-focus] {
     outline: var(--focus-ring);
-    --lf-focus-ring: queue-row;
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
   .lf-queue-kind {
@@ -2026,7 +2015,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-edge[data-lf-focus] {
     outline: var(--focus-ring);
-    --lf-focus-ring: edge;
     outline-offset: 0;
   }
   .lf-thread-panel-head,
@@ -2200,7 +2188,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-threads-frame:has(> .lf-threads[data-lf-focus])::after {
     outline: var(--focus-ring);
-    --lf-focus-ring: thread-list;
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
   .lf-empty {
@@ -2302,7 +2289,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-thread-summary[data-lf-focus] {
     outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-w));
-    --lf-focus-ring: thread-summary;
   }
   .lf-thread-topic {
     grid-column: 1;
@@ -2507,7 +2493,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-quote[data-lf-focus] {
     outline: var(--focus-ring);
-    --lf-focus-ring: passage-focus;
     outline-offset: 2px;
   }
   .lf-thread-head > .lf-quote:not(.detached)::after {
@@ -2588,7 +2573,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-thread-action[data-lf-focus] {
     outline: var(--focus-ring);
-    --lf-focus-ring: thread-action;
     outline-offset: 2px;
   }
   .lf-general > .lf-composer-media {
@@ -2930,7 +2914,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-command-reference-command[data-lf-focus] {
     outline: var(--focus-ring);
-    --lf-focus-ring: help-command;
     outline-offset: 1px;
   }
   .lf-page-map-toggle {
@@ -2994,7 +2977,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-page-map-action[data-lf-focus] {
     outline: var(--focus-ring);
-    --lf-focus-ring: page-map-action;
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
   .lf-page-map-dialog {
@@ -3245,7 +3227,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-shortcut-more[data-lf-focus] {
     outline: var(--focus-ring);
-    --lf-focus-ring: key-more;
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
   .lf-key-chips > .lf-paint-stand[data-lf-paint-plane=page] {
@@ -3284,7 +3265,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   :is(.lf-target-picker-hints, .lf-go-to-hints) .lf-key-hint.lf-current {
     font-weight: 700;
-    --lf-focus-ring: target-hint;
     box-shadow: var(--focus-shadow);
   }
   .lf-page-search-match {

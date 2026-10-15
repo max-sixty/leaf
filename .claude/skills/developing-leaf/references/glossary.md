@@ -194,7 +194,7 @@ In flow it lists every included heading; where the margin has room it may show t
 | **Unwind** | What one Escape closes: the innermost open step, decided by what is open now rather than how the user got there (`runtime/keyboard/AGENTS.md`, "Escape"). It lands the user on the parent of what it closed |
 | **Landing** | Where a step leaves the user. Closing a box lands on its container, leaving a destination lands on the layer's floor, and closing a surface lands on the document block the user was reading |
 | **Layer stack** | Leaf's ordered record of the popovers and modal dialogs open over the page (`keyboard/layer-stack.js`); a covering auxiliary surface sits beneath it without being an entry |
-| **Focus ring** | The one ring on whatever takes the user's next press: a focused control, a bounded decision, an ask the user is at. It shows standing as well as DOM focus (`--lf-focus-ring` in `theme.css`) |
+| **Focus ring** | The one ring on whatever takes the user's next press: a focused control, a bounded decision, an ask the user is at. It shows standing as well as DOM focus (`--focus-ring` in `theme.css`) |
 | **Key badge** | A keycap-shaped label for a binding or a hint code |
 | **Binding badge** | A key badge showing a command's current binding |
 

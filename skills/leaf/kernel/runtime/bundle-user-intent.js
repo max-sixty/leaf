@@ -2833,6 +2833,11 @@ function mirrorDraft(ta, sync, ctx, {
 
 // runtime/off-flow.js
 var surfaces = /* @__PURE__ */ new Map();
+function offFlowSurfaceOf(node) {
+  for (const [surface, { floats }] of surfaces)
+    if (floats() && under(node, surface)) return surface;
+  return null;
+}
 var unseen = (node, surface) => {
   const box = node.getBoundingClientRect();
   const bounds = surface.getBoundingClientRect();
@@ -5737,12 +5742,12 @@ var ReplyContinuity = class {
     this.#presenting = writing2.filter((node) => node.isConnected).map((node) => ({ node, height: node.getBoundingClientRect().height }));
     const body = this.#owner.localName === "details" ? getComputedStyle(this.#owner, "::details-content") : getComputedStyle(this.#owner);
     const extent = parseFloat(body.blockSize);
-    const place2 = placeKeeper(scrollerFor(this.#owner), {
+    const place2 = offFlowSurfaceOf(this.#owner) ? null : placeKeeper(scrollerFor(this.#owner), {
       items: ".lf-reply-continuity",
       identity: (node) => node.dataset.id,
       preferred: () => this.#owner
     });
-    return { extent, place: place2, held: place2.take({ spans: false }) };
+    return { extent, place: place2, held: place2?.take({ spans: false }) };
   }
   after(reading) {
     this.#row = this.#owner.querySelector(":scope > .lf-thread-reply");
@@ -5751,7 +5756,7 @@ var ReplyContinuity = class {
     if (!this.#row?.isConnected || this.#owner.localName === "details" && !this.#owner.open)
       return this.release();
     if (!this.#visible()) {
-      reading?.place.finish(reading.held);
+      reading?.place?.finish(reading.held);
       return this.release();
     }
     if (reading != null) {
@@ -5764,7 +5769,7 @@ var ReplyContinuity = class {
       this.#keep(
         Math.max(0, this.#space + extent - parseFloat(body.blockSize) + written)
       );
-      place2.finish(held);
+      place2?.finish(held);
     }
     if (!this.#visible()) return this.release();
     this.#retainWriting();

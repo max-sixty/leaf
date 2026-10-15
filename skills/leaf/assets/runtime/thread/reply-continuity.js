@@ -14,6 +14,7 @@ import { TEXT_FIELD } from "../control-selectors.js";
 import { nextRender, sizeObserver } from "../rendering.js";
 import { placeKeeper } from "../user-place.js";
 import { scrollerFor } from "../reading-regions.js";
+import { offFlowSurfaceOf } from "../off-flow.js";
 
 export class ReplyContinuity {
   #owner;
@@ -94,12 +95,16 @@ export class ReplyContinuity {
     const extent = parseFloat(body.blockSize);
     // Natural measurement can briefly clamp a surrounding scroller before the gap
     // settles. Use the shared synchronous place keeper to pay for that reflow only.
-    const place = placeKeeper(scrollerFor(this.#owner), {
-      items: ".lf-reply-continuity",
-      identity: (node) => node.dataset.id,
-      preferred: () => this.#owner,
-    });
-    return { extent, place, held: place.take({ spans: false }) };
+    // A floating surface owns its position; correcting the page scroller for growth
+    // inside it moves the authored page under the reader instead.
+    const place = offFlowSurfaceOf(this.#owner)
+      ? null
+      : placeKeeper(scrollerFor(this.#owner), {
+          items: ".lf-reply-continuity",
+          identity: (node) => node.dataset.id,
+          preferred: () => this.#owner,
+        });
+    return { extent, place, held: place?.take({ spans: false }) };
   }
   after(reading) {
     this.#row = this.#owner.querySelector(":scope > .lf-thread-reply");
@@ -111,7 +116,7 @@ export class ReplyContinuity {
     )
       return this.release();
     if (!this.#visible()) {
-      reading?.place.finish(reading.held);
+      reading?.place?.finish(reading.held);
       return this.release();
     }
     if (reading != null) {
@@ -129,7 +134,7 @@ export class ReplyContinuity {
       this.#keep(
         Math.max(0, this.#space + extent - parseFloat(body.blockSize) + written),
       );
-      place.finish(held);
+      place?.finish(held);
     }
     if (!this.#visible()) return this.release();
     this.#retainWriting();

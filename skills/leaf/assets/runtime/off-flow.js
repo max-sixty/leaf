@@ -35,6 +35,13 @@ import { onStanding } from "./focus.js";
 
 const surfaces = new Map();
 
+// The declared surface that owns a node's placement, if one floats over the page.
+export function offFlowSurfaceOf(node) {
+  for (const [surface, { floats }] of surfaces)
+    if (floats() && under(node, surface)) return surface;
+  return null;
+}
+
 // A pixel's slack, so a card the boundary holds flush under the banner reads as shown.
 const unseen = (node, surface) => {
   const box = node.getBoundingClientRect();

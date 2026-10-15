@@ -7389,6 +7389,7 @@ function createFloatingPanel({
   peek.id = "lf-fp-peek";
   peek.setAttribute("role", "tooltip");
   let peekAsked = false;
+  let overView = false;
   inner.append(opened, context, row);
   card.append(inner);
   host.append(card, menu, badge, newsDot, peek);
@@ -8583,7 +8584,6 @@ function createFloatingPanel({
       folded ? `Unfold Leaf \xB7 ${status().summary}` : `Page menu \xB7 ${status().summary}`
     );
     keeps(leaf, "aria-expanded", folded ? null : String(menuOpen));
-    paintPeek();
     const onUser = onUserCount();
     const news = newCount();
     keepsText(badge, onUser ? String(onUser) : "");
@@ -8661,12 +8661,14 @@ function createFloatingPanel({
     const empty = draftOf(input) === "";
     const notice2 = noticeReading();
     const covered = notice2.visible && (!empty || reading.says === "destination");
+    overView = Boolean(top) && covered && !notice2.news;
     keeps(context, "data-notice", covered ? "" : null);
     keepsText(
       context,
-      covered ? notice2.message : empty ? "" : whereTo(replying ? top.thread : null)
+      top ? "" : covered ? notice2.message : empty ? "" : whereTo(null)
     );
     keepsHidden(context, !context.textContent);
+    paintPeek();
     const standing2 = rowNotice();
     keepsHidden(rowNoticeSeat, !standing2);
     render(standing2 ? rowNoticeTemplate(standing2) : nothing, rowNoticeSeat);
@@ -8768,7 +8770,7 @@ function createFloatingPanel({
   function paintPeek() {
     const folded = host.dataset.rest === "mark";
     const notice2 = noticeReading();
-    const telling = folded && notice2.visible;
+    const telling = notice2.visible && (folded || overView && !menuOpen);
     const reading = status();
     render(
       telling ? notice2.message : statusParts(
@@ -8778,7 +8780,7 @@ function createFloatingPanel({
       ),
       peek
     );
-    keeps(peek, "data-shown", folded && (peekAsked || telling) ? "" : null);
+    keeps(peek, "data-shown", telling || folded && peekAsked ? "" : null);
   }
   const showPeek = (on) => {
     peekAsked = on;

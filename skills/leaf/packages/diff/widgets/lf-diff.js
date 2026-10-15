@@ -508,23 +508,31 @@ const runtimePart = /^lf-(?:a\d+|focus|focus-within)$/;
 const sameLineChildren = (held, wanted) =>
   held.childNodes.length === wanted.childNodes.length &&
   [...held.childNodes].every((child, index) =>
-    sameLineContent(child, wanted.childNodes[index]));
+    sameLineContent(child, wanted.childNodes[index]),
+  );
 function sameLineContent(held, wanted) {
   if (held.nodeType !== wanted.nodeType) return false;
   if (held.nodeType !== Node.ELEMENT_NODE) return held.nodeValue === wanted.nodeValue;
-  const attributes = (node, live) => [...node.attributes]
-    .map(({ name, value }) => [
-      name,
-      live && name === "part"
-        ? value.split(/\s+/).filter((part) => !runtimePart.test(part)).join(" ")
-        : value,
-    ])
-    .filter(([name, value]) =>
-      !(live && isPagePaint(name)) && (name !== "part" || value));
+  const attributes = (node, live) =>
+    [...node.attributes]
+      .map(({ name, value }) => [
+        name,
+        live && name === "part"
+          ? value
+              .split(/\s+/)
+              .filter((part) => !runtimePart.test(part))
+              .join(" ")
+          : value,
+      ])
+      .filter(
+        ([name, value]) => !(live && isPagePaint(name)) && (name !== "part" || value),
+      );
   const left = attributes(held, true);
   const right = attributes(wanted, false);
-  if (left.length !== right.length ||
-      left.some(([name, value]) => right.find(([other]) => other === name)?.[1] !== value))
+  if (
+    left.length !== right.length ||
+    left.some(([name, value]) => right.find(([other]) => other === name)?.[1] !== value)
+  )
     return false;
   return sameLineChildren(held, wanted);
 }
@@ -548,8 +556,11 @@ function replaceFileContent(entry, rendered, pairs, outlets) {
   for (const next of rendered.lines) {
     const previous = prior.get(diffDatumKey(next));
     if (!previous) continue;
-    if (previous.node.innerHTML !== next.node.innerHTML &&
-        !sameLineChildren(previous.node, next.node)) continue;
+    if (
+      previous.node.innerHTML !== next.node.innerHTML &&
+      !sameLineChildren(previous.node, next.node)
+    )
+      continue;
     retained.set(next.node, previous.node);
     const nextGutter = nextPre.querySelector(
       `[data-gutter] [data-line-index="${next.node.dataset.lineIndex}"]`,

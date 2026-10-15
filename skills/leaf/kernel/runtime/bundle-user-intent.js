@@ -5698,6 +5698,8 @@ var ReplyContinuity = class {
   #row = null;
   #departure = null;
   #space = 0;
+  // Growth already deducted from passive space while a refused draft returns.
+  #returningWriting = 0;
   // The writing areas a presentation changes, each with its height before it.
   #presenting = [];
   #writing = null;
@@ -5711,7 +5713,7 @@ var ReplyContinuity = class {
     this.#measure = nextRender(() => {
       this.#measure = null;
       if (this.#writing !== writing2) return;
-      if (!this.#visible()) return this.release();
+      if (!this.#visible()) return this.#releaseSpace();
       writing2.width = atLayoutPrecision(
         parseFloat(getComputedStyle(writing2.input).inlineSize)
       );
@@ -5765,8 +5767,9 @@ var ReplyContinuity = class {
       return this.release();
     if (!this.#visible()) {
       reading?.place?.finish(reading.held);
-      return this.release();
+      return this.#releaseSpace();
     }
+    this.#retainWriting();
     if (reading != null) {
       const { extent, place: place2, held } = reading;
       const body = this.#owner.localName === "details" ? getComputedStyle(this.#owner, "::details-content") : getComputedStyle(this.#owner);
@@ -5774,15 +5777,28 @@ var ReplyContinuity = class {
         (sum, { node, height }) => sum + node.getBoundingClientRect().height - height,
         0
       );
+      const input = this.#row.querySelector(TEXT_FIELD);
+      const context = input && replyDraftContext(input);
+      const returning = this.#writing?.input === input && context && draftHasContent(context) && !this.#owner.querySelector(".lf-msg.user[data-attempt]") ? Math.max(
+        0,
+        parseFloat(this.#writing.room) - input.getBoundingClientRect().height
+      ) : 0;
       this.#keep(
-        Math.max(0, this.#space + extent - parseFloat(body.blockSize) + written)
+        Math.max(
+          0,
+          this.#space + extent - parseFloat(body.blockSize) + written + this.#returningWriting - returning
+        )
       );
+      this.#returningWriting = returning;
       place2?.finish(held);
     }
-    if (!this.#visible()) return this.release();
-    this.#retainWriting();
+    if (!this.#visible()) return this.#releaseSpace();
     this.#departure?.();
-    this.#departure = whenNone([this.#row], growthIsSeen, () => this.release());
+    this.#departure = whenNone([this.#row], growthIsSeen, () => {
+      if (!this.#owner.isConnected || this.#owner.localName === "details" && !this.#owner.open)
+        this.release();
+      else this.#releaseSpace();
+    });
   }
   #keep(space) {
     if (space === this.#space) return;
@@ -5793,7 +5809,16 @@ var ReplyContinuity = class {
   }
   #retainWriting() {
     const input = this.#row?.querySelector(TEXT_FIELD);
-    if (!input?.value) return this.#releaseWriting();
+    if (!input?.value) {
+      const context = input && replyDraftContext(input);
+      if (context && draftHasContent(context) && this.#writing?.context === context) {
+        if (this.#writing.input === input) return;
+        const width = atLayoutPrecision(parseFloat(getComputedStyle(input).inlineSize));
+        if (width === this.#writing.width)
+          return this.#allocateWriting(input, this.#writing.room);
+      }
+      return this.#releaseWriting();
+    }
     if (this.#writing?.input === input) return;
     this.#allocateWriting(input, getComputedStyle(input).blockSize);
   }
@@ -5802,6 +5827,7 @@ var ReplyContinuity = class {
       this.#releaseWriting();
       this.#writing = {
         input,
+        context: replyDraftContext(input),
         width: atLayoutPrecision(parseFloat(getComputedStyle(input).inlineSize)),
         room: null
       };
@@ -5813,18 +5839,23 @@ var ReplyContinuity = class {
   }
   #releaseWriting() {
     if (!this.#writing) return;
+    this.#returningWriting = 0;
     const { input } = this.#writing;
     input.style.removeProperty("--lf-reply-writing-room");
     this.#sizes.unobserve(input);
     this.#writing = null;
   }
-  release() {
+  #releaseSpace() {
     this.#departure?.();
     this.#departure = null;
     this.#space = 0;
-    this.#releaseWriting();
+    this.#returningWriting = 0;
     if (this.gap.style.getPropertyValue("--lf-reply-space"))
       this.gap.style.removeProperty("--lf-reply-space");
+  }
+  release() {
+    this.#releaseSpace();
+    this.#releaseWriting();
   }
 };
 

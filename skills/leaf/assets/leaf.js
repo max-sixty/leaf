@@ -1,6 +1,6 @@
 /* Leaf runtime boot and application composition root. */
 import { registerSampleCommand, onSampleNotice } from "./runtime/sample-child.js";
-import "./vendor/browser-runtime.js";
+import "/vendor/browser-runtime.js";
 import "./runtime/interaction-log.js";
 // Restored panels and the first keyboard gesture share the ordinary synchronous
 // control routes, so their controls must be upgraded before those routes mount.
@@ -28,7 +28,6 @@ import { pagePresented } from "./runtime/page-paint.js";
 import { nextFrame, renderingState, observePreparations } from "./runtime/rendering.js";
 import { observeQueuedWork } from "./runtime/queued-work.js";
 import { mountApplication } from "./runtime/application.js";
-import { approvalBlockingAsks } from "./runtime/asks/model.js";
 import { beginRead } from "./runtime/state-feed.js";
 import {
   applicationState,
@@ -111,12 +110,12 @@ import { createVersionController } from "./runtime/version.js";
 import { versionMenu } from "./runtime/version-picker.js";
 import {
   banner,
+  enterBanner,
   isSignoffDeclared,
   loadIcon,
   mountBanner,
   paintApproval,
   queueCounts,
-  renderStatus,
   setThreadCounts,
   stateSignoff,
   toggleBtn,
@@ -129,7 +128,6 @@ import { overflowMenu } from "./runtime/banner-toolbar.js";
 import {
   leavesOffered,
   presentLeaves,
-  renderOthers,
   declareLeavesKeys,
 } from "./runtime/live-leaves.js";
 import { acceptData, notifyDataSubscribers } from "./runtime/data.js";
@@ -171,7 +169,6 @@ import {
   declareReading,
   focusDestination,
   releaseFocus,
-  tabStops,
   focused,
 } from "./runtime/focus.js";
 import { announce, liveEl, notice } from "./runtime/notifications.js";
@@ -192,7 +189,9 @@ holdArrivingBounds();
 // settled (`renderingState`), and which native layers expose reading and controls.
 // Job lifecycle tracing binds at enqueue without replacing any rendering callback, and
 // widget preparation tracing at each declaration and its settlement.
-const validationEntry = document.querySelector("script[data-lf-entry]");
+const validationEntry = /** @type {HTMLScriptElement | null} */ (
+  document.querySelector("script[data-lf-entry]")
+);
 if (validationEntry) {
   validationEntry.lfReadiness = pageReadiness;
   validationEntry.lfRenderingState = renderingState;
@@ -228,7 +227,6 @@ const narrowing = createThreadNarrowing({
   readThreads: threadList,
   repaint: () => app.presentThread(),
 });
-const paintVersionApproval = () => paintApproval(approvalBlockingAsks());
 let threadPanelController;
 let drawers;
 let layout;
@@ -284,7 +282,7 @@ const navigation = createNavigation({
   coveringAuxiliaryScroller: auxiliarySurfaces.coveringScroller,
   threadDestinations: {
     openPageThread: (...args) => app.threadDestinations.openPageThread(...args),
-    scrollToThread: (...args) => anchorTravel.scrollToThread(...args),
+    scrollToThread: (id, options) => anchorTravel.scrollToThread(id, options),
     threadHere: () => app.threadDestinations.threadHere(),
     threadAtStanding: () => app.threadDestinations.threadAtStanding(),
     threadPlace: (...args) => app.threadDestinations.threadPlace(...args),
@@ -308,7 +306,9 @@ const anchorPaint = annotationRenderer?.createAnchorPaint({
   standingThreadId,
   hoveredPanelThreadId: () => {
     const { x, y } = pointerAt();
-    const thread = document.elementFromPoint(x, y)?.closest(".lf-thread");
+    const thread = /** @type {HTMLElement | null | undefined} */ (
+      document.elementFromPoint(x, y)?.closest(".lf-thread")
+    );
     return thread?.parentElement === threadsBox ? thread.dataset.id : null;
   },
   panelThreadForId: (id) =>
@@ -482,9 +482,7 @@ app = mountApplication({
     acceptData,
     notifyDataSubscribers,
     isSignoffDeclared,
-    renderStatus,
-    stateSignoff: (next) => stateSignoff(next, layout.syncLayout, paintVersionApproval),
-    renderOthers: offlineInteractive ? () => undefined : renderOthers,
+    stateSignoff: (next) => stateSignoff(next, layout.syncLayout),
   },
 });
 app.registerThreadPanel({
@@ -566,6 +564,8 @@ const queue = createQueuePanel({
   actions: app.queueActions,
   next: queueWalk.next,
   announce,
+  agentDoor: queueCounts,
+  observeFeedback: app.read.observeFeedback,
 });
 
 const commandHints = createCommandHints({
@@ -599,6 +599,7 @@ const floatingPanel =
   document.documentElement.lfChrome?.mode === "floating"
     ? createFloatingPanel({
         wireInput: inputs.wireInput,
+        observeFeedback: app.read.observeFeedback,
         threadActions: app.threadActions,
         registerChromeThreadPresentation: app.registerChromeThreadPresentation,
         asks: {
@@ -656,9 +657,7 @@ responseSurface = createResponseSurface({
 reactions = createReactionController({
   marginEntryChoices: app.overlay?.marginEntryChoices,
   marginEntryContextContains: app.overlay?.marginEntryContextContains,
-  foldMarginEntryOptions: app.overlay?.foldMarginEntryOptions,
   openMarginEntryOptions: app.overlay?.openMarginEntryOptions,
-  unfoldedMarginEntries: app.overlay?.unfoldedMarginEntries,
   designModeActive: designMode.active,
   hideComposer: responseSurface.hideComposer,
   syncResponseOptions: responseSurface.syncResponseOptions,
@@ -712,12 +711,10 @@ regionCapture = createRegionCapture({
 });
 
 layout = createChromeLayout({
-  panelIsOpen,
   elements: {
     panel,
     closeBtn,
     panelFoot,
-    threadsBox,
     shortcutBarEl,
     bottomStatusEl,
   },
@@ -782,6 +779,7 @@ if (document.documentElement.lfSample) {
 
 drawers = createDrawers({
   doors: { queue: [queueCounts] },
+  views: { queue: queue.views },
   auxiliarySurfaces,
   closePreview: app.overlay?.closePreview,
   leavesOffered,
@@ -792,6 +790,7 @@ const writingResume = createWritingResume({
   arriveEditor: anchorTravel.arriveEditor,
   revealInThread: (context, intent) =>
     app.threadDestinations.openThreadDraft(context, intent),
+  holdsThreadDraft: (context) => app.threadDestinations.holdsThreadDraft(context),
 });
 goToSequence = createGoToSequence({
   panelIsOpen,
@@ -836,14 +835,10 @@ const standingPainters = {
   paintInputs: inputs.paintInputs,
 };
 
+// Skip to Leaf controls lands where the chrome the reader chose begins: the banner's, or
+// the floating panel's where it stands for the banner.
 const skipToChrome = offer("button", "lf-skip", "Skip to Leaf controls");
-skipToChrome.onclick = () => {
-  for (const control of tabStops(banner)) {
-    focusDestination(control, "move");
-    if (control.matches(":focus")) return;
-  }
-  focusDestination(banner, "move");
-};
+skipToChrome.onclick = floatingPanel?.enter ?? enterBanner;
 
 if (!offlineInteractive) {
   document.adoptedStyleSheets = [
@@ -884,8 +879,8 @@ if (!offlineInteractive) {
   panelElements.mountOverlay();
   version.mount();
   mountBanner({
+    observeFeedback: app.read.observeFeedback,
     approveVersion: () => app.post({ kind: "done", version: runtime.currentStamp }),
-    paintApproval: paintVersionApproval,
   });
   auxiliarySurfaces.mount();
   // Connect the search field before mount awaits its rendered input: Lit does not
@@ -922,7 +917,6 @@ if (!offlineInteractive) {
   layout.mountLayoutObservers();
   goToSequence.mountGoToSequence();
   mountShortcutBar({
-    placeBottomStatus: layout.syncBottomStatus,
     setGoToSequence: goToSequence.setGoToSequence,
     setReact: reactions.setReact,
   });
@@ -1010,7 +1004,7 @@ async function presentPage() {
   auxiliarySurfaces.present();
   presentLeaves();
   paintKeys();
-  paintVersionApproval();
+  paintApproval();
   repaint();
   app.overlay?.flushLayout();
   landFragment();
@@ -1080,5 +1074,5 @@ startPage().catch((error) => {
     new CustomEvent("lf-startup-failed", { detail: { reason, error } }),
   );
   reportPageError(error, "page failed to start");
-  renderStatus(error);
+  applicationState.setReach("broken");
 });

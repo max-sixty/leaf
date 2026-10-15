@@ -9,7 +9,11 @@
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 
-import { addressedElements, revealAddressed } from "/runtime/anchor-resolution.js";
+import {
+  addressedElements,
+  revealAddressed,
+  visualParts,
+} from "/runtime/anchor-resolution.js";
 import { registry } from "/runtime/registry.js";
 import { registerVisualParts } from "/runtime/visual-parts.js";
 
@@ -120,4 +124,18 @@ test("travel settles a visible part before a pending replacement can retire it",
   revealAddressed(source, "frame:one");
   await replacement;
   assert.equal(shown, "one", "the requested destination remains the drawn part");
+});
+
+test("a package inventory rejects bad ids instead of recovering or rewriting them", () => {
+  document.body.innerHTML = "<main></main>";
+  const source = document.createElement("lf-film");
+  let id = "frame:one";
+  const element = document.createElement("span");
+  source.append(element);
+  document.querySelector("main").append(source);
+  registerVisualParts(source, () => [{ id, element, label: "a frame" }]);
+
+  assert.equal(visualParts(source)[0].id, id);
+  for (id of [" frame:one", "frame:one ", "frame:two parts", "", 7, null])
+    assert.throws(() => visualParts(source), /has no single-token id/);
 });

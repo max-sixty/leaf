@@ -2,7 +2,7 @@
 
    The application supplies the neutral annotation inventory and its live target/action
    directory. This renderer selects clusters and controls from those readings; it does
-   not gather Threads, Questions, workflows or contributed actions. Shared contribution
+   not gather Threads, the On lists, workflows or contributed actions. Shared contribution
    controls retain native entries across page and frozen-Thread seats. This renderer's
    Lit view owns direct/disclosed child order; margin-layout.js owns rail/pin posture,
    lanes and packing. Page Map consumes the inventory independently of this renderer.
@@ -16,7 +16,7 @@
 
    thread-preview.js owns the contextual card and its selected conversation's
    lifetime. The margin supplies its anchor control and manages cluster disclosure.
-   A card accompanies the page target the user stands at, an ask included: `q` lands
+   A card accompanies the page target the user stands at, an ask included: `m` lands
    on an ask and its discussion opens beside it, clear of its options. Keeping the card
    shut while the user works an ask was tried and rejected, since the user walks to an
    ask to read its discussion with it. followStanding and the
@@ -127,7 +127,7 @@ import { paintTrace } from "../target-paint.js";
 
 import { allThreads } from "../thread/state.js";
 import { threadNames } from "../thread/model.js";
-import { carryingReply } from "../thread/focus.js";
+import { carryingThreadPlace } from "../thread/focus.js";
 
 import { claimed, revealHeld } from "../thread/surfaces.js";
 
@@ -177,7 +177,7 @@ export function createMarginProjection({
   toolbar.setAttribute("role", "toolbar");
   toolbar.setAttribute(
     "aria-label",
-    "Changes, threads, questions, delivery status, and activity",
+    "Changes, threads, asks, delivery status, and activity",
   );
   nav.append(toolbar);
 
@@ -268,7 +268,7 @@ export function createMarginProjection({
   // temporarily owns focus without ending the document interaction beneath it. Preserve
   // that context so its commands remain true and its owning margin entry can receive
   // focus when the surface closes. A side surface standing beside the page, such as
-  // Questions, is somewhere else the user went.
+  // the On panel, is somewhere else the user went.
   const inRetainedContext = (node) =>
     node instanceof Element &&
     (Boolean(nativeLayerHolding(node)) ||
@@ -678,7 +678,7 @@ export function createMarginProjection({
   // browser would otherwise put it on body. An explicit request still shows what it asks
   // for without bringing the layer back: `t`, a Threads row and a Page Map pick open the
   // card at their target, and an arrival that walks to a target or to one of its row's
-  // controls (`q`, `focusForNavigation`) shows that one row, so what decides the target
+  // controls (`m`, `focusForNavigation`) shows that one row, so what decides the target
   // is in reach, until the user stands somewhere else. Tabbing or pressing onto a target
   // reveals nothing: the layer stays as the user left it.
   let revealed = null;
@@ -986,6 +986,12 @@ export function createMarginProjection({
         preview.parentNode === chromeRoot ? preview : chromeForeground,
       );
     pageInventory = inventory;
+    // A thread gone from the margin takes the reply being written in it out of the card,
+    // open or closed, to where the thread now stands (thread/replies.js): the card can
+    // draw it no more. Before the card closes, so a user writing there goes on in it.
+    card.releaseLeft(
+      new Set(pageInventory.flatMap((entry) => entry.items.map((item) => item.id))),
+    );
     const liveHosts = new Set(
       pageInventory.filter(entryHasMarginHost).map((entry) => entry.key),
     );
@@ -1139,8 +1145,10 @@ export function createMarginProjection({
     // map's existence; each row already asks the narrower question of whether its press
     // works from the current focus. Repeating live geometry in every scope's `when`
     // forced a layout per location when paintKeys reflected them.
-    marginKeysAvailable = pageInventory.length > 0;
-    paintKeys();
+    if (marginKeysAvailable !== pageInventory.length > 0) {
+      marginKeysAvailable = pageInventory.length > 0;
+      paintKeys();
+    }
   }
 
   // One gesture can move the trace's source more than once: a close that clears it and
@@ -1241,15 +1249,16 @@ export function createMarginProjection({
   // Closing the card hands a user who stood in it on (focus.js, `closeLayer`). A close
   // aimed at the card itself, its Close or its Escape, hands them back to the margin
   // entry it hangs from (`landOnEntry`); any other, a mode or a rerender, lets them go.
-  // A reply the thread pass is carrying to where its thread now stands is that pass's to
-  // land (thread/focus.js, `carryingReply`), so the close places no one.
+  // A user the thread pass is carrying with its thread to where it now stands is that
+  // pass's to land (thread/focus.js, `carryingThreadPlace`), so the close places no one.
   const landOnEntry = layerLanding((button) =>
     handBack(button, ...(button?.lfEntry ? mapControlPlaces(button.lfEntry) : [])),
   );
+  /** @param {(control?: HTMLElement) => unknown} [land] */
   function closePreview(land = letGo) {
     const button = card.selection()?.control;
     const at = focused();
-    const heldInside = standingIn(preview) && !carryingReply(at);
+    const heldInside = standingIn(preview) && !carryingThreadPlace(at);
     closeLayer(() => card.close(), heldInside && (() => land(button)));
     paintKeys();
   }
@@ -1534,6 +1543,11 @@ export function createMarginProjection({
   // cluster; a pointer that lands on a control in a commented block asked for that
   // control, and the mark and the marker are its way to the thread.
   const threadIdOf = (entry) => sourceItem(threadReading(entry).items[0]).thread.id;
+  // The thread a margin entry stands for, the one its card shows first, or null.
+  const entryThread = (node) => {
+    const entry = closestAcross(node, ".lf-margin-entry")?.lfEntry;
+    return entry && threadReading(entry) ? threadIdOf(entry) : null;
+  };
   const threadIdsOf = (entry) =>
     threadReading(entry).items.map((item) => sourceItem(item).thread.id);
   // Only a page-owned seat or an exact widget-local placement takes the thread's
@@ -1546,7 +1560,7 @@ export function createMarginProjection({
     ].some((seat) => closestAcross(seat, ".lf-thread-seat[data-lf-thread-seat]"));
   // The innermost target holding the node whose threads the card would show. A thread is
   // about exactly its anchor's target (header), reached from anywhere
-  // inside it and never from outside: after `q` the user stands on the ask element, so
+  // inside it and never from outside: after `m` the user stands on the ask element, so
   // the card shows a thread on the ask but not one on its options or a phrase in its
   // heading. Treating an ask as one target for its threads is a possible refinement. It
   // belongs where a thread's target is decided (anchor-placement), so every
@@ -1849,6 +1863,7 @@ export function createMarginProjection({
     marginEntryKind,
     activateMarginEntry,
     closePreview,
+    entryThread,
     inlineThreadView,
     keyboardRung,
     optionsRung,

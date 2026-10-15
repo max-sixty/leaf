@@ -34,6 +34,14 @@ const modules = [
     code: (schema) => `export const drawingSchema = ${JSON.stringify(schema)};\n`,
   },
   {
+    // The one version Leaf has, which a record kept outside a page's log and document
+    // carries in its `format` as `registry.kernel.record_format` writes it.
+    out: `${assets}/runtime/protocol.js`,
+    from: ["$events", "protocol"],
+    code: (protocol) =>
+      `export const recordFormat = (kind) => \`leaf-\${kind}/${protocol}\`;\n`,
+  },
+  {
     // How the passage reader and the pure folds turn a page into text, synchronous so
     // prepaint and the folds read them without waiting on the registry fetch.
     out: `${assets}/runtime/passage-facts.js`,

@@ -80,7 +80,7 @@
   min-width: 0;
   margin-inline-start: 0;
   overflow: hidden;
-  font-size: var(--t-7);
+  font-size: var(--t-6);
   text-overflow: ellipsis;
 }
 
@@ -146,7 +146,7 @@
   margin-inline-start: var(--sp-4);
   color: var(--code-muted);
   font-family: var(--sans);
-  font-size: var(--t-7);
+  font-size: var(--t-6);
   text-align: end;
   white-space: nowrap;
 }

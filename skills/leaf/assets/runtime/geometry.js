@@ -94,8 +94,13 @@ export const shellRight = () => document.body.getBoundingClientRect().right;
 // coarse pointer arriving deepens the banner's rows, the shortcut bar wraps as its hints
 // change, and a panel opens, shuts or is dragged wider, each with no scroll or resize
 // for a reader to hear.
+//
+// Chrome takes room from the page, not from itself: what stands in the banner or in a
+// bar's elements is in the room its own chrome leaves (`item`), as the floating panel's
+// field stands in the row that bar declares. Such a box is in front of the user wherever
+// it is, so it names no place in the page (`inWindowChrome`).
 let banner = null;
-const windowChrome = new Set();
+const windowChrome = new Map(); // boxes -> the elements they stand
 const chromeSizes = sizeObserver(() => announceRoom(document));
 const watchChrome = (element) => chromeSizes.observe(element, { box: "border-box" });
 export const declareBanner = (element) => {
@@ -103,12 +108,22 @@ export const declareBanner = (element) => {
   watchChrome(element);
 };
 export const declareWindowChrome = (boxes, elements) => {
-  windowChrome.add(boxes);
+  windowChrome.set(boxes, elements);
   elements.forEach(watchChrome);
 };
+const inBanner = (node) => Boolean(node && banner) && under(node, banner);
+const standsIn = (node, elements) =>
+  Boolean(node) && elements.some((element) => under(node, element));
+export const inWindowChrome = (node) =>
+  inBanner(node) ||
+  [...windowChrome.values()].some((elements) => standsIn(node, elements));
 // Every box the declared window chrome stands now, for a reading that keeps clear of
-// them all, as Go-to's chips and a search's marks do.
-export const windowChromeBoxes = () => [...windowChrome].flatMap((boxes) => boxes());
+// them all, as Go-to's chips and a search's marks do; but for the chrome `item` stands
+// in.
+export const windowChromeBoxes = (item = null) =>
+  [...windowChrome]
+    .filter(([, elements]) => !standsIn(item, elements))
+    .flatMap(([boxes]) => boxes());
 export const bannerFoot = () => banner?.getBoundingClientRect().bottom ?? 0;
 // The layout viewport's box, less the scrollbars the root draws at its edges, where
 // nothing the page shows stands: `innerWidth` and `innerHeight` count a classic
@@ -120,7 +135,12 @@ export const layoutWindow = (doc = document) => ({
   right: doc.documentElement.clientWidth,
   bottom: doc.documentElement.clientHeight,
 });
-export function shownWindow({ within = null, gap = 0, viewport = "visual" } = {}) {
+export function shownWindow({
+  within = null,
+  gap = 0,
+  viewport = "visual",
+  item = null,
+} = {}) {
   const layout = layoutWindow();
   const { offsetLeft, offsetTop, width, height } =
     viewport === "visual"
@@ -128,10 +148,11 @@ export function shownWindow({ within = null, gap = 0, viewport = "visual" } = {}
       : { offsetLeft: 0, offsetTop: 0, width: layout.right, height: layout.bottom };
   const left = Math.max(offsetLeft, within?.left ?? -Infinity) + gap;
   const right = Math.min(offsetLeft + width, within?.right ?? Infinity) - gap;
-  let top = Math.max(offsetTop, bannerFoot(), within?.top ?? -Infinity);
+  const head = inBanner(item) ? -Infinity : bannerFoot();
+  let top = Math.max(offsetTop, head, within?.top ?? -Infinity);
   let bottom = Math.min(offsetTop + height, within?.bottom ?? Infinity);
   const middle = offsetTop + height / 2;
-  for (const box of windowChromeBoxes()) {
+  for (const box of windowChromeBoxes(item)) {
     if (!overlapsAcross(box, { left, right })) continue;
     if (box.top + box.bottom < 2 * middle) top = Math.max(top, box.bottom);
     else bottom = Math.min(bottom, box.top);
@@ -205,7 +226,7 @@ export function shownBand(el) {
 // container: `auto` and `scroll`, and `hidden` too, which a script or a landing can
 // scroll though the user cannot, and which is the scroller a sticky box inside it sticks
 // in. The runtime asks it of what a motion scrolls and which boxes scroll what they
-// hold (scroll-motion.js, `scrollsContent`), and of the boxes that hold sticky headers
+// hold (`scrollsContent`), and of the boxes that hold sticky headers
 // (`scrollContainer`). `userScrollport` is the same test without `hidden`: what the
 // user, rather than a script, can scroll, which keyboard stops and edge marks read
 // (reach.js, `paintSlot`), and the render checks asking what a reader can reach.
@@ -217,6 +238,17 @@ const scrolls = (el) => scrollsBy(getComputedStyle(el));
 // A scroll container: the document's own scroller, or a box whose overflow scrolls.
 export const scrollContainer = (box) =>
   box === box.ownerDocument.scrollingElement || scrolls(box);
+// Whether `box` scrolls what it holds: it clips into a scrollport, `hidden` included,
+// which a script or focus can scroll, and holds more than that scrollport shows on that
+// axis. An inline SVG drawing clips what it draws but scrolls none of it.
+export function scrollsContent(box) {
+  if (!(box instanceof Element) || box instanceof SVGElement) return false;
+  const style = getComputedStyle(box);
+  return (
+    (scrollport(style.overflowX) && box.scrollWidth > box.clientWidth) ||
+    (scrollport(style.overflowY) && box.scrollHeight > box.clientHeight)
+  );
+}
 // How far below the top of `scroller`'s band the view of `el` starts, past the sticky
 // headers stuck over it. Each header adds its stated height to `--lf-top` for what it
 // stands over (theme.css), so where the `--lf-top` computed at `el` exceeds the
@@ -262,6 +294,31 @@ export function visibleBand(scroller, item = null) {
   const top = band.top + headerInset(item, scroller);
   const bottom = band.bottom - footerInset(item, scroller);
   return bottom > top ? { ...band, top, bottom } : null;
+}
+// The cuts the declared sticky headers and footers over `item` make, read by the clip
+// walk paint reads its bands from (`paintClips`), so a box passing under them and the
+// paint over `item` agree, a fixed or absolute box escaping the scrollers around it
+// included: one for each box that scrolls `item` where a header stands over its top or
+// a footer over its foot, the document's included, outermost first. Each is
+// `{box, band}`, with `band` cut at the header's foot and the footer's top and open
+// past the box's other edges, so it holds whatever size the box grows to, or null
+// where they cover all of it. A header that is not stuck stands above what it heads,
+// so the cut holds at every scroll. `clips` is the walk's cache, shared by a pass that
+// reads many.
+const OPEN = 100000;
+export function headerCuts(item, clips = new Map()) {
+  return clipWalk(item, clips, false)
+    .cuts.filter(({ covered, footed }) => covered || footed)
+    .reverse()
+    .map(({ box, band, covered, footed }) => ({
+      box,
+      band: band && {
+        left: band.left - OPEN,
+        right: band.right + OPEN,
+        top: covered ? band.top : band.top - OPEN,
+        bottom: footed ? band.bottom : band.bottom + OPEN,
+      },
+    }));
 }
 // The sticky box holding `node` while it is stuck, else null. A stuck box stands at the
 // edge of the scroller it sticks in, or is pushed past it by its holder's end, rather
@@ -445,15 +502,16 @@ export function shownRect(item, clips) {
   return clippedRect(shownBox(item), item, clips);
 }
 // What of an item the user sees: what every box over it lets through, within the room the
-// chrome leaves. `within` keeps a bottom-bar box from cutting the item unless it stands
-// across it. The chrome cuts the item's top and foot only; its sides stay shownRect's, the
+// chrome leaves, but for chrome the item stands in. `within` keeps a bottom-bar box from
+// cutting the item unless it stands across it. The chrome cuts the item's top and foot
+// only; its sides stay shownRect's, the
 // layout viewport's, since a pinch zoom's visual viewport is a pan across the page and not
 // a clip — read with its sides, a message wider than the zoomed view was never seen whole
 // across, and never counted read. Null when none of it shows.
 export function seenRect(item, clips) {
   const shown = shownRect(item, clips);
   if (!shown) return null;
-  const room = shownWindow({ within: shown });
+  const room = shownWindow({ within: shown, item });
   return room.width > 0 && room.height > 0
     ? { left: shown.left, top: room.top, right: shown.right, bottom: room.bottom }
     : null;
@@ -535,6 +593,7 @@ Object.defineProperty(document, WATCH_ROOM, {
 });
 export function watchRoom(callback) {
   const viewport = window.visualViewport;
+  /** @type {[EventTarget, string, boolean?][]} */
   const listening = [
     [window, "resize"],
     [viewport, "scroll"],
@@ -859,6 +918,7 @@ function clipWalk(item, clips, held) {
         axes: c.axes,
         scrolls: c.scrolls,
         covered: c.axes.y && covered > c.band.top,
+        footed: c.axes.y && footed < c.band.bottom,
         band:
           c.axes.y && covered >= footed
             ? null
@@ -925,7 +985,7 @@ export const declareOccluder = (surface) => {
   };
 };
 // Where the surface standing at the window's right edge begins, or Infinity where none
-// stands: the side panel, Threads or Questions, whichever is open (drawers.js). What is
+// stands: the side panel, Threads or On, whichever is open (drawers.js). What is
 // laid out beside the page, as the comment box is, keeps left of it, and a margin row it
 // reaches is one the user has lost (chrome-layout.js).
 export function rightCover() {
@@ -999,6 +1059,9 @@ export const clippedPlace = (where, clips, box = placeBox(where)) =>
 // Where a box stacks among the page's root-level layers: the z-index of its outermost
 // positioned ancestor that sets one, and above all of them in the top layer. Both are
 // read up the tree as rendered, where a slotted box stacks inside its slot's ancestors.
+// For anything in `main` that ancestor is `main`, a stacking context at 0 (theme.css,
+// at the ladder), so a page box reads 0 whatever z-index it or a box around it sets,
+// unless it stands in the top layer.
 export function stackLevel(node) {
   let level = 0;
   for (let a = node; a; a = renderedParent(a)) {

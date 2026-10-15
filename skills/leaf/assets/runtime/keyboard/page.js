@@ -139,7 +139,7 @@ export function declareStanding({ pageState }) {
       {
         id: "navigation.release",
         keys: ["Escape"],
-        description: "Let go of what I'm standing on",
+        description: "Let go of the current item",
         title: "let go",
         when: () => Boolean(standingFloor()),
         run: release,

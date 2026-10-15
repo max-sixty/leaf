@@ -1336,7 +1336,7 @@ def toggle_surface(page, surface, open=True):
 
 
 # The wide page, whose side track the surface stands over, at both widths; the column
-# and the Questions panel at one each.
+# and the On panel at one each.
 @pytest.mark.parametrize(
     ("case", "width"),
     [
@@ -1349,7 +1349,7 @@ def toggle_surface(page, surface, open=True):
 def test_an_auxiliary_surface_stands_over_the_page_and_moves_none_of_it(
     browser, serve, case, width
 ):
-    """Opening Threads or the Questions panel never moves the page: each stands over the
+    """Opening Threads or the On panel never moves the page: each stands over the
     right edge of the window they share, so the reading column keeps its place, its width and its wrapping, a
     wide page's side track stays where its Layout put it, and the document neither grows nor
     scrolls under it. The page beside the surface stays live rather than going inert
@@ -1408,6 +1408,61 @@ def test_the_panel_covers_a_wide_page_where_it_would_leave_no_usable_page(
     )
 
 
+def test_the_page_paints_beneath_leaf_and_rises_only_through_the_top_layer(
+    browser, serve
+):
+    """A box the page writes stacks beneath every surface Leaf lifts over the page,
+    whatever its z-index: `main` is one stacking context at 0, so the open thread panel
+    and the banner paint over a page overlay at the largest z-index there is, and
+    `stackLevel`, which paint, chips and landings ask where a node stacks, reads the
+    overlay beneath the panel. The page's way over Leaf is the top layer: its own modal
+    dialog paints over the panel, and reads above it."""
+    page = open_page(browser, serve(LONG_PAGE))
+    resized(page, 1440, 900)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    stacking = page.evaluate(
+        """async () => {
+          const { stackLevel } = await window.__lfCheckApi();
+          const main = document.querySelector('main');
+          const overlay = main.appendChild(document.createElement('div'));
+          overlay.id = 'page-overlay';
+          overlay.style.cssText = `position: fixed; inset: 0; z-index: 2147483647;
+            background: rgb(255 0 0 / 0.3);`;
+          const panel = document.querySelector('.lf-thread-panel');
+          const banner = document.querySelector('.lf-banner');
+          const at = (el) => {
+            const r = el.getBoundingClientRect();
+            const hit = document.elementFromPoint(
+              r.left + r.width / 2, r.top + r.height / 2);
+            return hit === overlay ? 'page' : el.contains(hit) ? 'leaf' : hit?.localName;
+          };
+          const panelLevel = stackLevel(panel);
+          const read = {
+            panel: at(panel), banner: at(banner),
+            overlayBeneath: stackLevel(overlay) < panelLevel,
+          };
+          overlay.remove();
+          const dialog = main.appendChild(document.createElement('dialog'));
+          dialog.style.cssText = 'width: 100vw; height: 100vh; max-width: none; max-height: none;';
+          dialog.showModal();
+          const hit = document.elementFromPoint(
+            panel.getBoundingClientRect().left + 20, innerHeight / 2);
+          read.dialog = dialog.contains(hit);
+          read.dialogAbove = stackLevel(dialog) > panelLevel;
+          dialog.close();
+          return read;
+        }"""
+    )
+    assert stacking == {
+        "panel": "leaf",
+        "banner": "leaf",
+        "overlayBeneath": True,
+        "dialog": True,
+        "dialogAbove": True,
+    }
+
+
 def test_a_page_map_update_keeps_the_row_the_user_was_on(browser, serve):
     """A state update re-rendering the open Page Map leaves the user's rows in place.
 
@@ -1444,7 +1499,7 @@ def test_a_page_map_update_keeps_the_row_the_user_was_on(browser, serve):
         }"""
     )
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     expect(dialog).to_be_visible()
     row = dialog.get_by_role("button", name="Action 15", exact=True)

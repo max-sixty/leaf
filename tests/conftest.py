@@ -23,7 +23,7 @@ from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf.render_gate import browser as browser_model
 from leaf_dev import LEAF_COMMAND as SOURCE_LEAF_COMMAND
-from leaf_dev.browser import LINUX_FONTCONFIG, require_linux_fonts
+from leaf_dev.browser import shell_executable, use_linux_fonts
 from leaf_dev.page_fixtures import package_selection_args
 from playwright.sync_api import sync_playwright
 
@@ -211,7 +211,7 @@ def compiled_installation():
     Preparation is serialized by content identity, so xdist workers reuse one build.
     Source-only model tests need no compiler; the browser tiers request it lazily.
     """
-    from leaf_dev.distribution import cached_installation
+    from leaf_dev.commands.distribution import cached_installation
 
     return cached_installation()
 
@@ -221,14 +221,17 @@ def compiled_pages(request, monkeypatch, isolated_session):
     """Browser-tier page producers vendor the same kernel the website ships.
 
     In-process commands retain their normal Python contracts and package resolution.
-    Only their kernel input comes from the prepared installation, whose manifest also
-    preserves the private-path protection after the source modules disappear.
-    Model and process tests of source installation keep that build-free boundary.
+    Only their kernel input comes from the prepared installation, whose kernel is
+    current for its modules. In-process model and process tests vendor the source
+    modules whether or not this checkout's committed kernel is current, so their
+    readings of a page's runtime do not depend on when it was last rebuilt.
     """
     if request.path.parent.name not in {"smoke", "browser", "journeys"}:
+        monkeypatch.setattr(layer_model, "KERNEL", request.path.parent / "no-kernel")
         return
     installation = request.getfixturevalue("compiled_installation")
     monkeypatch.setattr(layer_model, "ASSETS", installation / "skills/leaf/assets")
+    monkeypatch.setattr(layer_model, "KERNEL", installation / "skills/leaf/kernel")
     monkeypatch.setattr(layer_model, "PLUGIN_ROOT", installation)
     monkeypatch.setenv("LEAF_HOST_LAUNCHER", str(installation / "bin/leaf"))
     original_command = LEAF_COMMAND[:]
@@ -328,7 +331,7 @@ def pytest_runtest_call(item):
 # first tier, None, runs in every selection: a pull request, `wt merge`, and broad
 # discovery. A `main` test can land without running and runs on each push to main
 # (`--run-main`); a `nightly` one runs only in the daily schedule and a manual
-# dispatch (`--run-nightly`), which run every tier. `leaf_dev.suite_profile.BUDGETS`
+# dispatch (`--run-nightly`), which run every tier. `leaf_dev.commands.suite_profile.BUDGETS`
 # holds what a test in each directory may cost.
 TESTS = Path(__file__).parent
 TIERS = {
@@ -366,7 +369,23 @@ def pytest_collection_modifyitems(config, items):
     the map would have to come from recorded Python and Chrome coverage. Nearly every
     browser test loads the same runtime and server, so a change there, about half of
     recent commits, would select close to the complete suite, and coverage cannot say
-    which CSS rules a test relied on."""
+    which CSS rules a test relied on.
+
+    So the selection misses any later-tier test whose own function is unchanged while
+    something it depends on changed:
+    - the product code it reaches, as above;
+    - a fixture or helper it calls, in a `conftest.py`, `render_harness.py`,
+      `render_cases_*.py`, `interact_support.py` or its own module;
+    - a module-level constant or `pytestmark` it reads, or a list its `parametrize`
+      decorator names from elsewhere;
+    - a page under `fixtures/pages/`, a regtest recording, or a pinned image in
+      `leaf-assets.json`.
+    Accounting for these precisely would need dependency tracking (fixture graphs, call
+    graphs, data references). A coarser rule, such as running every test in a changed
+    module, would catch some of them at the price of selecting far more, and every miss
+    still runs once the change lands, in the push run or the daily one. The user judged (2026-10-14) that catching these before landing is
+    not worth that complication, after a fixture edit let a `browser` test's failure
+    reach `main`."""
     selected = (
         config.getoption("keyword")
         or config.getoption("markexpr")
@@ -501,7 +520,7 @@ def isolated_session(tmp_path_factory, monkeypatch):
     monkeypatch.setenv("CODEX_HOME", str(tmp_path_factory.mktemp("codex")))
     monkeypatch.delenv(codex_model.APP_SERVER_ENV, raising=False)
     monkeypatch.delenv("LEAF_HOST_LAUNCHER", raising=False)
-    for name in harness_model.IDENTITY_VARIABLES:
+    for name in (*harness_model.IDENTITY_VARIABLES, *machine_model.SANDBOX_VARIABLES):
         monkeypatch.delenv(name, raising=False)
     # Claude Code's session registry, where a live turn is read
     # (`harness.claude_code_session_records`): empty, so no session of the developer's
@@ -708,60 +727,10 @@ def headless_shell():
 
     The run is a host, and names its browser the way one does, through
     LEAF_BROWSER_EXECUTABLE, so every leaf it runs draws with the build the `_browser`
-    fixture drives. Left unnamed, each `page check` that runs a page's code or takes
-    `--render` would launch the installed Google Chrome afresh: about three seconds
-    apiece, and on macOS about a second of the keychain daemon's CPU for each new
-    process, where the shell costs neither. A test whose subject is how a host that
-    named no browser gets one clears every variable (`test_render_commands`,
-    `unnamed_browser`).
-
-    Playwright reports where its full Chromium build would be whether or not that
-    build is installed, and the documented setup installs the shell alone
-    (tests/AGENTS.md, "Run what the change needs"). Both sit under one
-    registry root at one build number, so the shell's path follows from Chromium's;
-    where a developer installed the full build instead, that is the browser to hand
-    over and the same tests hold on it. The `chromium-<build>` directory is found by
-    name rather than by depth, because macOS nests the executable inside an app
-    bundle and Linux does not.
-
-    Asked in a subprocess because the answer is a path and the question is not free
-    here: a second `sync_playwright()` inside this process raises where the
-    session's `browser` fixture already holds one open, so which tests had run
-    first would decide whether the fixture worked."""
-    if sys.platform == "linux":
-        require_linux_fonts()
-        os.environ["FONTCONFIG_FILE"] = str(LINUX_FONTCONFIG)
-    read = subprocess.run(
-        [
-            sys.executable,
-            "-c",
-            (
-                "from playwright.sync_api import sync_playwright\n"
-                "with sync_playwright() as p: print(p.chromium.executable_path)"
-            ),
-        ],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    chromium = Path(read.stdout.strip())
-    versioned = next(
-        (p for p in chromium.parents if p.name.startswith("chromium-")), None
-    )
-    if versioned is None:
-        raise AssertionError(f"{chromium} is not under a Playwright chromium build")
-    root, build = versioned.parent, versioned.name.rsplit("-", 1)[1]
-    shell = root / f"chromium_headless_shell-{build}"
-    shell_executables = sorted(shell.glob("*/chrome-headless-shell*")) + sorted(
-        shell.glob("*/headless_shell")
-    )
-    executable = next(
-        (str(c) for c in (*shell_executables, chromium) if c.is_file()), None
-    )
-    if executable is None:
-        raise AssertionError(
-            f"no Playwright Chromium under {root}; run `uv run playwright install "
-            "chromium --only-shell` (tests/AGENTS.md)"
-        )
+    fixture drives (`leaf_dev.browser.shell_executable`). A test whose subject is how
+    a host that named no browser gets one clears every variable
+    (`test_render_commands`, `unnamed_browser`)."""
+    use_linux_fonts()
+    executable = shell_executable()
     os.environ[browser_model.VARIABLE] = executable
     return executable

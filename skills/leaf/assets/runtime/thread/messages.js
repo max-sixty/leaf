@@ -14,7 +14,7 @@
    admission and later descriptor paints never replay the cue.
    The fragment is captured inertly before its first upgrade; panel
    presentation waits for preparation before capturing typed authored state. */
-import { html, render, nothing } from "../../vendor/browser-runtime.js";
+import { html, render, nothing } from "/vendor/browser-runtime.js";
 import {
   loadMarkdown,
   markdownReady,
@@ -255,7 +255,12 @@ export class MessageView {
       // editor then sets its own caret, which clearing the selection after would take. A
       // link keeps its own double click.
       this.node.addEventListener("dblclick", (event) => {
-        if (event.target.closest?.(".lf-msg-editor, a[href]")) return;
+        if (
+          /** @type {Partial<Element>} */ (event.target).closest?.(
+            ".lf-msg-editor, a[href]",
+          )
+        )
+          return;
         if (!this.#model?.editable) return;
         window.getSelection()?.removeAllRanges();
         this.openEdit();

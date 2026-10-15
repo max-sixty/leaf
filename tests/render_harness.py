@@ -77,6 +77,7 @@ from leaf_dev.page_fixtures import (
     example_media,
     prepare_page,
     read_fixture,
+    record_run_context,
 )
 from leaf_dev.thread_snapshot_plugin import (
     image_snapshot,  # noqa: F401 — fixture for comparisons and explicit captures
@@ -489,7 +490,7 @@ TOKEN = "test-page-key"
 
 
 @pytest.fixture
-def serve(tmp_path, monkeypatch, initialized_page):
+def serve(tmp_path, monkeypatch, initialized_page, request):
     """Publish HTML as the newest version of a fresh page directory and serve it,
     as the real server does — vendoring included, so the assets under test are this
     repo's. Markup is one version; an example is every version it ships, stamped
@@ -608,6 +609,13 @@ def serve(tmp_path, monkeypatch, initialized_page):
                 if fixture_media.is_file():
                     (d / "media").mkdir(exist_ok=True)
                     shutil.copy2(fixture_media, d / "media" / fixture_media.name)
+        record_run_context(
+            d,
+            purpose="test",
+            run=tmp_path,
+            authored_source=example,
+            test=request.node.nodeid,
+        )
         for name, content in (page_files or {}).items():
             path = d / "page" / name
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -1664,7 +1672,7 @@ def open_versions(page):
 def banner_control(page, selector):
     """Return a banner control, opening its fixed menu seat when needed.
 
-    Approval, Questions and Threads stand on the row; every secondary control stands in More at
+    Approval, On me and Threads stand on the row; every secondary control stands in More at
     every width, and a gesture's next step stands on the row in their place. A caller
     reaching a gesture step reads it off the row rather than through this, since opening
     More would hide a step that had wrongly been seated there. A caller may already have
@@ -1716,7 +1724,7 @@ def expect_banner_control_offered(control, *, offered=True):
 
 
 # How many of the page's active Asks are answered, as "answered/total": the publisher's
-# own Ask reading, which the Questions panel's Done list and the `q` walk select from. Before
+# own Ask reading, which the On panel's Done list and the `m` walk select from. Before
 # the page has admitted a state answer the reading is empty, which is no count at all.
 _ASKS_ANSWERED = """async () => {
   const { readApplication } = await window.__lfCheckApi();

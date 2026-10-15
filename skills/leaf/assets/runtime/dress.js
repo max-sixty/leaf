@@ -16,6 +16,7 @@ export function registerSampleDress(frame, send) {
   return () => children.delete(frame);
 }
 
+/** @type {LeafInitial["wear"]} */
 export const wear = (...args) => document.documentElement.lfInitial.wear(...args);
 
 export function dressFor(frame) {

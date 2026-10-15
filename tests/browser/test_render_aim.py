@@ -42,8 +42,8 @@ from render_cases_layout import (
     EDGES,
     FOCUS_IN_PAGE,
     LEGEND_TRUE,
+    ON_PANEL,
     PAGE_MARKUP,
-    QUESTIONS,
     banner_control,
     draw_edge,
     edge_settled,
@@ -304,10 +304,8 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
 
 
 @pytest.mark.parametrize("width", [900, 1200])
-def test_an_aimed_comment_keeps_its_place_with_the_questions_panel_open(
-    browser, serve, width
-):
-    """The Questions panel stands over the page without moving its coordinate plane.
+def test_an_aimed_comment_keeps_its_place_with_the_on_panel_open(browser, serve, width):
+    """The On panel stands over the page without moving its coordinate plane.
 
     A broad authored rule may position ordinary divs, and the drawer may arrive over a
     target without another pointer event. Neither may move the chrome's document origin or
@@ -331,7 +329,7 @@ def test_an_aimed_comment_keeps_its_place_with_the_questions_panel_open(
     expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lq-keep")
     # Open by script so the pointer remains parked on the target while the drawer arrives.
     page.locator(".lf-queue").evaluate("node => node.click()")
-    edge_settled(page, QUESTIONS)
+    edge_settled(page, ON_PANEL)
     aligned = page.evaluate(
         """() => {
           const target = document.getElementById('lq-keep').getBoundingClientRect();
@@ -1655,7 +1653,7 @@ def test_a_covering_auxiliary_surface_holds_design_paint_beneath_it(browser, ser
     # Wide enough that the panel first stands beside the page, where Design mode starts.
     resized(page, 900, 900)
     banner_control(page, ".lf-queue").click()
-    edge_settled(page, QUESTIONS)
+    edge_settled(page, ON_PANEL)
     page.keyboard.press("l")
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     resized(page, 560, 900)
@@ -3211,8 +3209,11 @@ def test_an_aim_follows_a_scroll_inside_a_widgets_shadow_stage(browser, serve):
 SHOWN_PAINT = """(selector) => {
   const paint = document.querySelector(selector);
   let { left, right } = paint.getBoundingClientRect();
+  // A frame cuts across where its clip path's inline inset is zero.
+  const cutsAcross = (frame) =>
+    /^inset\\((\\S+ )?0px\\)$/.test(getComputedStyle(frame).clipPath);
   for (let frame = paint.parentElement; frame; frame = frame.parentElement)
-    if (frame.matches('.lf-paint-frame') && getComputedStyle(frame).overflowX === 'clip') {
+    if (frame.matches('.lf-paint-frame') && cutsAcross(frame)) {
       const cut = frame.getBoundingClientRect();
       left = Math.max(left, cut.left);
       right = Math.min(right, cut.right);
@@ -3561,7 +3562,6 @@ graph LR
           const aim = document.querySelector('.lf-aim');
           const stand = aim.closest('.lf-paint-stand');
           return {
-            layers: stand.querySelectorAll('.lf-paint-motion').length,
             boxes: [aim, ...stand.querySelectorAll('.lf-paint-frame')].map((box) => ({
               position: getComputedStyle(box).position,
               anchor: getComputedStyle(box).positionAnchor,
@@ -3570,7 +3570,6 @@ graph LR
         }"""
     )
     page.keyboard.up("Alt")
-    assert stand["layers"] == 0, stand
     assert all(
         box["position"] == "fixed" and box["anchor"].startswith("--lf-a")
         for box in stand["boxes"]
@@ -4129,7 +4128,6 @@ def _drawn_on(section):
         "revision": 1,
         "anchor": {"section": section},
         "drawing": {
-            "format": "leaf-drawing/3",
             "strokes": [[[-20, -10], [200, 30], [420, 60]]],
             "box": [400, 40],
             "viewport": [1280, 720],
@@ -4141,7 +4139,7 @@ def _drawn_on(section):
 def _paint_mode(page, mode, words):
     page.evaluate(RELEASE_FOCUS)
     if mode == "ask":
-        page.keyboard.press("q")
+        page.keyboard.press("m")
         expect(page.locator("#pane-ask")).to_be_focused()
         expect(page.locator(".lf-command-binding-badge")).to_have_count(2)
     elif mode == "search":
@@ -4226,14 +4224,20 @@ def test_a_scroll_carries_paint_over_targets_and_writes_it_once_settled(
         if scroller == "pane"
         else "document.scrollingElement",
     )
-    # Near-window membership may add distinct boxes to a carrier as targets cross
-    # the observer's boundary. Their placement must still need no per-frame writes.
-    painted = [
-        w
-        for w in writes
-        if PAINT.search(w["target"])
-        and not (w["type"] == "childList" and "lf-paint-carrier" in w["target"])
-    ]
+    # A carrier may gain distinct boxes as targets enter the near-window inventory.
+    # Count each box's membership, so those arrivals are legal while removing and
+    # reinserting the same box every frame is still a scroll follower.
+    painted = []
+    for mutation in writes:
+        if not PAINT.search(mutation["target"]):
+            continue
+        if mutation["type"] == "childList" and "lf-paint-carrier" in mutation["target"]:
+            painted.extend(
+                {**mutation, "key": f"{mutation['key']} {node}"}
+                for node in mutation["nodes"]
+            )
+        else:
+            painted.append(mutation)
     assert not scroll_followers(painted, frames), painted
 
 

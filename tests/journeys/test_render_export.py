@@ -22,6 +22,7 @@ from interact_support import (
     STATED_TIMEOUT,
     append_carried_log_record,
     install_payload,
+    neighbour_page,
     wait_for,
 )
 from leaf import cli as cli_model
@@ -32,14 +33,16 @@ from leaf import files as files_model
 from leaf import harness as harness_model
 from leaf import hooks as hooks_model
 from leaf import leases as leases_model
+from leaf import machine as machine_model
 from leaf import server as server_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf.findings import Finding
 from leaf.render_checks import HANDOVER_DEADLINE_MS, wait_until_ready
 from leaf.schema import ELEMENT_ID
+from leaf.served_state.service import PageStateService
 from leaf.structure import SourceDocument
-from leaf_dev import preview as preview_model
+from leaf_dev.commands import preview as preview_model
 from playwright.sync_api import expect
 from render_harness import (
     REPLAYED_PAGE,
@@ -55,6 +58,29 @@ pytestmark = pytest.mark.shifts_unsurveyed
 ROOT = Path(__file__).parents[2]
 # `leaf-dev preview`, run by the interpreter this suite runs on.
 PREVIEW = [sys.executable, "-m", "leaf_dev", "preview"]
+
+
+def test_export_omits_neighboring_pages_and_their_access_key(serve, tmp_path):
+    """Sharing an offline record grants no access to the machine's other pages."""
+    serve(leaf_page("Exported record", "<h1>Exported record</h1>"), packages=())
+    neighbor = machine_model.state_home() / "pages" / "private-neighbor"
+    url = neighbour_page(neighbor, title="Private neighboring page")
+    live = PageStateService(serve.page_dir).page_state(1)
+    assert any(row["url"] == url for row in live["others"])
+
+    output = tmp_path / "offline.html"
+    result = CliRunner().invoke(
+        cli_model.cli,
+        ["page", "export", str(serve.page_dir), "--out", str(output)],
+    )
+    assert result.exit_code == 0, result.output
+    exported = output.read_text(encoding="utf-8")
+    assert server_model.host_key() not in exported
+    assert "Private neighboring page" not in exported
+    assert any(
+        row["url"] == url
+        for row in PageStateService(serve.page_dir).page_state(1)["others"]
+    )
 
 
 @pytest.fixture(name="preview_slot")
@@ -167,7 +193,7 @@ def test_a_second_stop_signal_leaves_preview_cleanup_running(
     worker = tmp_path / "worker.py"
     worker.write_text(
         """import sys
-from leaf_dev import preview
+from leaf_dev.commands import preview
 
 stop = preview.PreviewService.stop
 
@@ -560,6 +586,11 @@ def watching(tmp_path, preview_slot, spawn, user: bool):
     source = tmp_path / "watched.html"
     source.write_text(REPLAYED_PAGE, encoding="utf-8")
     runtime = install_payload(tmp_path / "watched-runtime")
+    # The runtime is a developer checkout for this preview: its compiler uses
+    # the development dependencies installed in the test checkout.
+    (runtime / "node_modules").symlink_to(
+        ROOT / "node_modules", target_is_directory=True
+    )
     slot, directory = preview_slot
     log = tmp_path / "preview.log"
     process, url = start_preview(
@@ -915,26 +946,13 @@ def test_a_preview_relinquishes_a_service_another_session_claims(
 # ---------- export: the page as one file ----------
 
 OFFLINE_WIDGET = """\
-import { html, render, widgetController } from "/runtime/widget-api.js";
+import { html, LeafElement } from "/runtime/widget-api.js";
 
-customElements.define("lf-offline-test", class extends HTMLElement {
-  controller = widgetController(this);
-  reading = this.controller.read();
-  local = 0;
-  stop = null;
+customElements.define("lf-offline-test", class extends LeafElement {
+  #local = 0;
 
-  connectedCallback() {
-    if (!this.shadowRoot) this.attachShadow({mode: "open"});
-    this.stop ??= this.controller.subscribe(reading => {
-      this.reading = reading;
-      this.paint();
-    });
-    this.paint();
-  }
-
-  disconnectedCallback() {
-    this.stop?.();
-    this.stop = null;
+  createRenderRoot() {
+    return this.attachShadow({mode: "open"});
   }
 
   choose() {
@@ -943,22 +961,22 @@ customElements.define("lf-offline-test", class extends HTMLElement {
     });
   }
 
-  paint() {
-    const choice = this.reading.state.choose?.value ?? this.getAttribute("choice");
-    const action = this.reading.actions.choose;
+  render() {
+    const {state, actions} = this.reading;
+    const action = actions.choose;
     const unavailable = action.unavailable;
-    render(html`
+    return html`
       <style>#local { color: rgb(12, 34, 56); }</style>
-      <button id="local" @click=${() => { this.local += 1; this.paint(); }}>
+      <button id="local" @click=${() => { this.#local += 1; this.requestUpdate(); }}>
         Increment locally
       </button>
-      <output id="local-value">${this.local}</output>
+      <output id="local-value">${this.#local}</output>
       <button id="choose" ?disabled=${!action.available} @click=${this.choose}>
         Choose on host
       </button>
-      <output id="choice">${choice}</output>
+      <output id="choice">${state.choose.value}</output>
       ${unavailable ? html`<p id="unavailable">${unavailable}</p>` : null}
-    `, this.shadowRoot, {host: this});
+    `;
   }
 });
 """

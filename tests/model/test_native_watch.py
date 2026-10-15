@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
+import watchfiles.main
 from interact_support import STATED_TIMEOUT, append_carried_log_record, record_claim
 from leaf import event_log as events_model
 from leaf import harness as harness_model
@@ -97,6 +98,59 @@ def test_a_quiet_native_watch_discovers_claim_transfer_and_nested_source_edits(
         assert service_model.claim_records("native-owner") == []
     finally:
         watch.release()
+
+
+def test_a_page_reading_moves_on_exactly_the_writes_its_watchers_wake_on(
+    page_dir, tmp_path
+):
+    """The page's reading, which a tab polls, and its shared subscription, which its
+    row publisher and lifetime supervisor wake on, derive from one declaration of its
+    inputs. A bound file outside the page moves both, as does an authored edit or
+    renaming the folder that holds the bound file; a tab's attention lease,
+    `viewed.json`, which the server renews while a tab looks, moves neither.
+
+    Where the volume ignores letter case, the page and the file are named in a
+    spelling other than the one on disk, which notifications report: both must
+    still wake the watchers."""
+    from leaf.cli import resolve_dir
+    from leaf.file_bindings import bind_file
+    from leaf.file_changes import page_changes
+    from leaf.served_state.reading import page_reading
+
+    def respelled(path):
+        alias = path.with_name(path.name.swapcase())
+        return alias if alias.exists() else path
+
+    folder = tmp_path / "notes"
+    folder.mkdir()
+    target = folder / "notes.txt"
+    target.write_text("hello\n")
+    page = resolve_dir(str(respelled(page_dir)), renew=False)
+    bind_file(page, "notes", respelled(target))
+    changes = page_changes(page)
+    while changes.wait(changes.mark(), DIAGNOSTIC_QUIET_WINDOW_S):
+        pass
+
+    def classified(write, timeout):
+        reading = page_reading(page)
+        mark = changes.mark()
+        write()
+        return changes.wait(mark, timeout), page_reading(page) != reading
+
+    assert classified(
+        lambda: cleanup_model.write_json(page_dir / "viewed.json", {"t": 1.0}),
+        DIAGNOSTIC_QUIET_WINDOW_S,
+    ) == (False, False)
+    assert classified(
+        lambda: (page_dir / "page" / "extra.css").write_text("p {}"), STATED_TIMEOUT
+    ) == (True, True)
+    assert classified(
+        lambda: target.write_text("edited outside Leaf\n"), STATED_TIMEOUT
+    ) == (True, True)
+    assert classified(lambda: folder.rename(tmp_path / "moved"), STATED_TIMEOUT) == (
+        True,
+        True,
+    )
 
 
 def _write_during_native_wait(watch, write, monkeypatch):
@@ -387,7 +441,7 @@ def test_native_subscription_releases_partial_startup_resources(
     real_open, real_thread, real_native = (
         os.open,
         threading.Thread,
-        file_changes.RustNotify,
+        watchfiles.main.RustNotify,
     )
 
     def opening(*args, **kwargs):
@@ -403,17 +457,20 @@ def test_native_subscription_releases_partial_startup_resources(
         return reader
 
     providers = []
+    # Each recursion group installs on its own thread, so which one is refused is
+    # decided under a lock.
+    installing_lock = threading.Lock()
 
     def installing(*args, **kwargs):
-        if failure == "provider" and providers:
-            raise RuntimeError("provider installation refused")
-        provider = real_native(*args, **kwargs)
-        providers.append(provider)
-        return provider
+        with installing_lock:
+            if failure == "provider" and providers:
+                raise RuntimeError("provider installation refused")
+            providers.append(args)
+        return real_native(*args, **kwargs)
 
     monkeypatch.setattr(os, "open", opening)
     monkeypatch.setattr(file_changes.threading, "Thread", thread)
-    monkeypatch.setattr(file_changes, "RustNotify", installing)
+    monkeypatch.setattr(watchfiles.main, "RustNotify", installing)
     with pytest.raises(RuntimeError, match="installation refused"):
         file_changes.FileChanges({shallow: False, tree: True}, lambda _path: True)
     assert opened
@@ -431,18 +488,22 @@ def test_native_subscription_rearms_a_root_replaced_during_installation(
 
     page = tmp_path / "installing"
     page.mkdir()
-    real_native = file_changes.RustNotify
+    real_native = watchfiles.main.RustNotify
     installations = []
+    # Each recursion group installs on its own thread, so the first is decided
+    # under a lock.
+    installing_lock = threading.Lock()
 
     def installing(*args, **kwargs):
-        if not installations:
-            page.rmdir()
-            page.mkdir()
-        installations.append(args)
+        with installing_lock:
+            if not installations:
+                page.rmdir()
+                page.mkdir()
+            installations.append(args)
         return real_native(*args, **kwargs)
 
     owner = file_changes._PageChanges()
-    monkeypatch.setattr(file_changes, "RustNotify", installing)
+    monkeypatch.setattr(watchfiles.main, "RustNotify", installing)
     try:
         initial = owner.connect(page)
         assert not initial.matches(

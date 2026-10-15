@@ -157,8 +157,8 @@ variable; `render_gate/browser.py` owns browser and driver launch diagnostics.
 Every check behind `page check` reports what it finds as a record
 (`findings.py`): a code, the element it names, what it measured, and
 whether it refuses the version or advises. The browser probes return those records
-rather than sentences, and the words are written once, at the command boundary,
-which prints them, or with `--json` prints the records.
+rather than sentences, and the words are written once, in `findings.py`; the command
+prints each record with its words as `text`.
 
 The browser checks that rendering the same complete state twice is idempotent.
 A decision in force may paint over a changed authored baseline; this is the

@@ -18,7 +18,7 @@
      neither names a tag.
    - the internal validation adapter exposes replay winners to the render gate,
      the panel's own folds included: a widget an agent sent folds the way a page widget
-     does and the poll replays it the same way, so the premise that every `renderState`
+     does and the poll replays it the same way, so the premise that every widget's `render()`
      is absolute binds it too.
 
    A module owns only its choreography and semantics that no declaration can express. For
@@ -61,7 +61,9 @@ const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
 // nothing has painted, and paint it did not look past is a change the author never made.
 export const isPagePaint = (name) =>
   PAGE_PAINT_ATTRIBUTES.has(name) ||
-  Object.values(registry.$marks).some((mark) => mark.paint === name);
+  Object.values(registry.$marks).some(
+    (mark) => mark.paint === name || Object.values(mark.paints ?? {}).includes(name),
+  );
 
 // A word for a user listening, silent on screen: real text — the one thing every
 // screen reader announces in every mode — placed after the element's leading title,
@@ -190,6 +192,7 @@ function renderExternalLink(link) {
     };
     externalLinkState.set(link, state);
   } else rememberExternalLinkChanges(link, state);
+  /** @type {SVGElement | null} */
   let mark = link.querySelector(':scope > .lf-external-mark[data-lf-gen="1"]');
   if (!mark) {
     mark = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -332,7 +335,7 @@ export function writePrepaint(root) {
     const declared = registry[tag]["x-prepaint"];
     const markup = document.createElement("template");
     markup.innerHTML = declared.as ? registry[declared.as]["x-prepaint"] : declared;
-    const written = markup.content.firstElementChild;
+    const written = /** @type {HTMLElement} */ (markup.content.firstElementChild);
     written.toggleAttribute("data-lf-prepaint", true);
     written.dataset.lfGen = "1";
     for (const el of elementsIn(root, tag)) el.prepend(written.cloneNode(true));
@@ -430,13 +433,14 @@ export function renderSaid(root) {
 // report, and restatement origins without three writers fighting over the same seat.
 function quietFacts(el) {
   const words = el.hasAttribute(PAGE_PAINT_ATTRIBUTE.restated)
-    ? ["rewritten since I decided"]
+    ? ["rewritten since the decision"]
     : [];
   if (el.hasAttribute(PAGE_PAINT_ATTRIBUTE.userOverride)) words.push("my change");
   if (el.hasAttribute(PAGE_PAINT_ATTRIBUTE.reported)) words.push("reported state");
   return words.join(", ");
 }
 
+/** @param {Element} root @param {Iterable<Element>} [also] */
 export function renderQuiet(root, also = []) {
   const painting = [
     `[${PAGE_PAINT_ATTRIBUTE.restated}]`,

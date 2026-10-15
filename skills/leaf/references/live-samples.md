@@ -1,0 +1,93 @@
+# Live samples
+
+Use `lf-sample` with one direct `template[data-sample]` child to let the user operate a
+complete Leaf page inside the surrounding page. Give both the element and the template
+stable ids, and put the sample page's content and styles directly in the template. The
+sample is a column page unless the template's `class` names another Layout, such as
+`class="layout-workspace density-working"`:
+
+```html
+<lf-sample id="practice" label="practice release note">
+  <template id="practice-page" data-sample>
+    <h1>Weekend service</h1>
+    <p id="service-note">The sample shuttle runs every hour.</p>
+  </template>
+</lf-sample>
+```
+
+Put only the demonstrated page inside the template; labels, your own controls and
+instructions for using the sample go outside it.
+
+The sample uses the parent's layer and has its own event log, so its decisions and
+comments never reach the parent's log or asks. It sits in the parent as a block as tall
+as its content, showing only the Threads row of Leaf's controls. When the sample is
+about the window itself, such as Leaf's banner or drawers, add the boolean `window`
+attribute to show a whole Leaf window at a fixed height. The user can click or Tab into
+the sample and use it fully; Escape returns to the parent. **Full view** shows the
+sample at viewport size, and Reset starts it fresh from the template. A sample's
+history is temporary, so use an ordinary Leaf page when the history must last. A page
+with a live sample can't be exported (`serving-pages.md`, "Exported files").
+
+To give the sample a page-wide setting such as `data-annotations="page"`, put it on the
+template.
+
+A thread message's `--markup` can carry a live sample too. It uses the layer of the
+version showing the message and can load only that version's saved files, so keep its
+code inline in the template. Its `data-sample-threads` can't name the thread the
+message is in.
+
+To start the sample with made-up conversations or decisions, write an inline JSON
+script in the same markup as the template and name its id in `data-sample-events`:
+
+```html
+<script id="service-history" type="application/json">
+[
+  {"id":"service-question","kind":"comment","author":"user",
+   "anchor":{"section":"service-note"},"text":"Does Sunday keep the same timetable?"},
+  {"kind":"reply","author":"agent","parent":"service-question",
+   "text":"Yes, both weekend days use this timetable."}
+]
+</script>
+<lf-sample id="service-window" label="weekend service" window>
+  <template id="service-page" data-sample data-sample-events="service-history">
+    <h1>Weekend service</h1>
+    <p id="service-note">The shuttle runs every hour.</p>
+  </template>
+</lf-sample>
+```
+
+The array holds ordinary event commands, which `page check` checks against the sample.
+Give an event an `id` when a later event refers to it; Leaf fills in other ids and
+timestamps. Several samples can share one script, each with its own copy, and Reset
+restores it. The events never reach the parent's log, so keep the anchors they name
+inside the template, and don't post setup events from a page module.
+
+To start the sample with threads from the parent instead, set `data-sample-threads` on
+the template to their space-separated ids. A thread the parent's log doesn't hold yet is
+skipped, and the content the threads anchor to must exist in the sample. Reset copies
+them again. A template uses either `data-sample-events` or `data-sample-threads`, not
+both.
+
+The sample is a separate, sandboxed document: its styles and scripts apply only to it,
+and neither page can read the other's DOM, storage or functions. A page module drives a
+sample through the element's API:
+
+- `await sample.ready` resolves once the sample is usable, and rejects if it can't load.
+  The parent doesn't wait for samples off screen, so await `ready` rather than the
+  page's presentation.
+- `await sample.reset()` replaces the sample with a fresh copy.
+- The bubbling `lf-sample-ready` event, with `detail.sample`, fires after every load,
+  including Reset and reloads; reapply any view your controls chose there.
+- `await sample.showThread(id)` shows a thread by its root event id, as its marker
+  would; `{surface: "panel"}` shows it in Threads, and the panel also takes
+  `status: "open" | "resolved" | "all"` and `waiting: "user" | "agent" | "all"`. It
+  returns false when a newer selection or Reset replaces it.
+
+Use these rather than clicking the sample's controls or reading its DOM. Write the
+sample's content in the template rather than copying rendered controls from the parent.
+An `lf-sample` without a template is static quoted material.
+
+An ordinary served Leaf page can also appear in a plain `<iframe src="…">`, with its own
+lasting history, but only inside a page of the same origin: the same scheme, hostname
+and port. Leaf refuses to load inside a page from another origin, so no other site can
+put a Leaf control under a misleading interface.

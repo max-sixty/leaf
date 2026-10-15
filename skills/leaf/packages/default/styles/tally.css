@@ -1,5 +1,5 @@
 /* lf-tally: a region's asks still to answer, in the chip face a header's .tag chips wear,
- * with its Next question beside it. The count's room stacks every label the count
+ * with its Next on me beside it. The count's room stacks every label the count
  * can take in one cell, the widest giving the chip its width, so a changing count
  * moves neither the control nor what follows. Until the page's first reading is in,
  * the tally keeps its room and shows nothing; once every ask is answered the chip takes
@@ -20,7 +20,7 @@
 :scope:is(lf-tally) .lf-tally-room { visibility: hidden; }
 :scope:is(lf-tally)[data-lf-done] .lf-tally-count { background: var(--ok-tint);
                                                      color: var(--ok-ink); }
-/* Next question stands in a header row beside the chips at their type size, as tall as
+/* Next on me stands in a header row beside the chips at their type size, as tall as
  * the layer's aim floor, so the row keeps the height its title gives it. */
 :scope:is(lf-tally) .lf-tally-next { font-size: var(--t-6); padding-block: 0;
                                       min-height: var(--aim-floor); }

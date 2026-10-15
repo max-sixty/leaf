@@ -1,6 +1,8 @@
 /* Version travel, comparison, and user continuity.
  *
- * `renderVersions` supplies the immutable picker reading. `prepareActivation` installs
+ * The picker paints its immutable reading from what it reads of the application's
+ * publication (`watchProjection`), and again for each comparison it starts or stops.
+ * `prepareActivation` installs
  * a live revision; `goActive` also returns from a pinned document, while `goVersion`
  * opens a historical `?pin` address. The controller receives application and travel
  * capabilities before mount binds listeners; `installArrival` restores continuity once
@@ -159,6 +161,7 @@ import { pointerAt, restorePointer } from "./pointer.js";
 
 import { reportPageError } from "./layer-client.js";
 import { projectView, readApplication } from "./semantic-state.js";
+import { watchProjection } from "./projection-watch.js";
 
 import { ADDRESSABLE, anchoringIsReady, fragmentTarget } from "./anchor-resolution.js";
 import { scrollToFragment } from "./anchor-travel.js";
@@ -325,6 +328,15 @@ const versionsOffered = () => versionCount() > 0;
 const versionsToWalk = () => versionCount() > 1;
 const behindCurrent = () =>
   runtime.active !== null && runtime.currentRevision !== null && !runtime.showsActive;
+// Which version a page behind the latest shows, in the few words a notice beside the
+// floating panel's marks has room for: the version and the latest one's number, as in
+// "v2 of 3", or a draft the agent has since revised.
+const shownBehind = () =>
+  runtime.currentStamp === null
+    ? "An older draft"
+    : runtime.active.version === null
+      ? `v${runtime.currentStamp}`
+      : `v${runtime.currentStamp} of ${runtime.active.version}`;
 
 let versionsWalkable = false;
 function menuRows(state, notes) {
@@ -374,7 +386,7 @@ function pickerModel(state) {
   return Object.freeze({
     picker: Object.freeze({
       offered,
-      token: `Showing ${currentVersionToken()}`,
+      token: currentVersionToken(),
       compared: diffOn || diffPendingBase !== null,
       news: behind,
       keyTitle: offered
@@ -399,6 +411,7 @@ function pickerModel(state) {
         failed: sourceFailed,
         activeLabel: behind ? runtime.active.label : null,
       }),
+      shown: behind ? shownBehind() : null,
       news: sourceFailed || behind,
     }),
     rows:
@@ -415,24 +428,24 @@ function pickerModel(state) {
   });
 }
 
-function presentPicker(state = runtime.state) {
-  const model = pickerModel(state);
+// The page before its first accepted state has a null `runtime.state`. Version controls
+// read the immutable document revision and the accepted root.
+function paintPicker() {
+  const model = pickerModel(runtime.state);
   versionPicker.present(model);
   showNews(latestChip, model.latest.news);
   repaint();
-  return model;
-}
-
-// `null` is the page before its first accepted state. Version controls read the
-// immutable document revision and the accepted root.
-export function renderVersions(state) {
-  presentPicker(state);
   const walkable = versionsToWalk();
   if (walkable !== versionsWalkable) {
     versionsWalkable = walkable;
     paintKeys();
   }
 }
+let pickerWatch = null;
+const presentPicker = () => pickerWatch?.refresh();
+// The picker's reading for another presentation of the same versions, the floating
+// panel's Versions view, derived where it is read so that paint follows its inputs.
+export const versionsReading = () => pickerModel(runtime.state);
 
 // ---------- version diff ----------
 // "Changes since vN": blocks (paragraphs, list items, Leaf elements) whose text
@@ -617,7 +630,12 @@ function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
   // would show: the event's exact source, never a collapsed comparison value.
   for (const [id, { state, specs }] of baseWidgets)
     for (const [verb, spec] of specs) {
-      if (spec.record?.kind !== "body" || !state[verb].action) continue;
+      // A body record's state is an action's value.
+      if (
+        spec.record?.kind !== "body" ||
+        !(/** @type {{action: string | null}} */ (state[verb]).action)
+      )
+        continue;
       const body = doc.getElementById(id)?.querySelector(":scope > .lf-markdown-body");
       if (body) paintMarkdown(body, state[verb].value);
     }
@@ -676,9 +694,11 @@ function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
         continue;
       // The option now picked is where a pick reads; anything else reads on its
       // widget.
+      // An attribute record's value is the ids it picks.
+      const ids = /** @type {string[]} */ (value);
       const picked =
-        spec.record.kind === "attribute" && value.length === 1
-          ? elementById(value[0])
+        spec.record.kind === "attribute" && ids.length === 1
+          ? elementById(ids[0])
           : null;
       mark(picked ?? widget);
     }
@@ -992,6 +1012,20 @@ function revisionDocument(revision) {
   return revisionDocuments.get(revision.revision);
 }
 
+/** @param {{
+ *   compositionInput: any,
+ *   openThread: any,
+ *   refreshThread: any,
+ *   midComposition: any,
+ *   hasPending: any,
+ *   readAndApply: any,
+ *   retireProjectionCoverage: any,
+ *   syncLayout: any,
+ *   captureRetainedStanding?: () => unknown,
+ *   restoreRetainedStanding?: (standing: unknown) => boolean,
+ *   captureAskStanding?: () => unknown,
+ *   restoreAskStanding?: (standing: unknown) => void,
+ * }} controller */
 export function createVersionController({
   compositionInput,
   openThread,
@@ -1281,18 +1315,28 @@ export function createVersionController({
   // The chrome's sheets are adopted, not head nodes, so they cascade after everything
   // the head holds whatever order it is written in; the authored share goes at the end.
   function activateHead(doc, revision) {
-    for (const node of authoredHeadNodes) node.remove();
-    const next = new Set();
-    for (const node of doc.head.children) {
-      if (!versionedHeadNode(node)) continue;
-      const imported = document.importNode(node, true);
-      // A linked sheet, or one that imports, is complete only once it has loaded.
-      if (imported.localName === "link" || imported.localName === "style")
-        imported.addEventListener("load", keepPageRulesOffLayer, { once: true });
-      document.head.append(imported);
-      next.add(imported);
+    const source = [...doc.head.children].filter(versionedHeadNode);
+    const current = [...document.head.children].filter((node) =>
+      authoredHeadNodes.has(node),
+    );
+    if (
+      current.length !== authoredHeadNodes.size ||
+      current.length !== source.length ||
+      current.some((node, index) => !node.isEqualNode(source[index]))
+    ) {
+      for (const node of authoredHeadNodes) node.remove();
+      const next = new Set();
+      for (const node of source) {
+        const imported = document.importNode(node, true);
+        // A linked sheet, or one that imports, is complete only once it has loaded.
+        if (imported.localName === "link" || imported.localName === "style")
+          imported.addEventListener("load", keepPageRulesOffLayer, { once: true });
+        document.head.append(imported);
+        next.add(imported);
+      }
+      authoredHeadNodes = next;
     }
-    authoredHeadNodes = next;
+    /** @type {HTMLMetaElement | null} */
     let marker = document.querySelector('meta[name="lf-revision"][data-lf-runtime]');
     if (!marker) {
       marker = document.createElement("meta");
@@ -2358,7 +2402,9 @@ export function createVersionController({
     // target a widget generates, hides, or moves (`aimArrival`), and travel to a
     // different authored revision, where a passage is a better landmark than the old
     // document's pixels.
-    const navigationType = performance.getEntriesByType("navigation")[0]?.type;
+    const navigationType = /** @type {PerformanceNavigationTiming | undefined} */ (
+      performance.getEntriesByType("navigation")[0]
+    )?.type;
     const handoff = (() => {
       const serialized = tabStore.get(HANDOFF_KEY);
       tabStore.set(HANDOFF_KEY, null);
@@ -2434,7 +2480,10 @@ export function createVersionController({
   // (`returnToFragment`); both read the same destination and reveal it the same way.
   let aimedAt = null;
   function aimArrival() {
-    const fresh = performance.getEntriesByType("navigation")[0]?.type === "navigate";
+    const fresh =
+      /** @type {PerformanceNavigationTiming | undefined} */ (
+        performance.getEntriesByType("navigation")[0]
+      )?.type === "navigate";
     const arrivedAt = location.hash;
     const currentIntent = retainUserIntent({ since: 0 });
     return function landFragment() {
@@ -2476,7 +2525,8 @@ export function createVersionController({
       ],
       { when: versionsToWalk, ready: savedReadingSettled },
     );
-    renderVersions(null);
+    pickerWatch = watchProjection(document.body, paintPicker);
+    presentPicker();
   }
 
   // The arrival chip's route spans two rows — the picker the page opens and the menu's own

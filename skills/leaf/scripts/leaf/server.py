@@ -79,36 +79,32 @@ def preview_metadata(page_dir: Path) -> dict | None:
     return read_json(page_dir / PREVIEW_FILE)
 
 
-def lifetime_note(page_dir: Path) -> str:
-    """What ends this server, said at the moment it starts.
+def served_lifetime(page_dir: Path) -> str:
+    """What ends this server, said at the moment it starts: `session` or
+    `persistent`.
 
     The two lifetimes are indistinguishable from the terminal — same command,
     same URL — and the difference only shows up hours later, when one process is
-    gone and the other isn't. So the serve states which it is rather than
-    leaving it to be discovered, on the line after the URL, and names the command
-    where that is the only way out.
+    gone and the other isn't. So the serve states which it is beside the URL
+    rather than leaving it to be discovered, and names the command where that is
+    the only way out (`hosting.server_reading`).
 
     Read from service.json, the one place a lifetime is written down. The record
     lands before the URL is printed and survives an explicit stop, so a restart
     restores the same lifetime as well as the same URL."""
     if (read_service(page_dir) or {}).get("lifetime") == "persistent":
-        return "\n".join(
-            (
-                "server   persistent",
-                f"stop     leaf server stop {page_dir}",
-            )
-        )
-    return "server   session (stops with its agent session)"
+        return "persistent"
+    return "session"
 
 
-def loopback_note(page_dir: Path) -> str | None:
-    """Whether the URL just printed leaves this machine, said before it is handed
+def loopback_only(page_dir: Path) -> bool:
+    """Whether the URL just printed stays on this machine, said before it is handed
     over rather than after the user reports a dead link.
 
     A derived address is loopback whenever SSH_CONNECTION is absent, and that is
     not only a session sitting with its user: a scheduler, a daemon, or a
     detached background job is remote from the user without having arrived over
-    SSH, and takes the same branch. Neither the URL nor the lifetime line says
+    SSH, and takes the same branch. Neither the URL nor the lifetime says
     the address is machine-local, so the one user who cannot report it is the
     one who receives it.
 
@@ -118,12 +114,9 @@ def loopback_note(page_dir: Path) -> str | None:
     host binds the wildcard, which is not loopback, and says nothing."""
     bind = (read_service(page_dir) or {}).get("bind")
     try:
-        local = ipaddress.ip_address(bind).is_loopback
+        return ipaddress.ip_address(bind).is_loopback
     except ValueError:
-        return None
-    if not local:
-        return None
-    return "access   loopback only (re-serve with --host NAME for remote users)"
+        return False
 
 
 def stop_when_service_ends(page_dir: Path) -> None:

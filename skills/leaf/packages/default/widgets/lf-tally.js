@@ -8,10 +8,10 @@
  * guess. Until the page's first reading is in, the tally says nothing rather than a
  * count of an inventory it has not seen.
  *
- * With `next`, a Next question control steps to the next ask waiting on the user inside
+ * With `next`, a Next on me control steps to the next ask waiting on the user inside
  * the region (`askActions.next`), from where the user stands, so a press keeps
- * them standing there rather than taking focus onto the control, as the Questions
- * panel's Next question does. It is a native button: Tab and Enter reach it, and a
+ * them standing there rather than taking focus onto the control, as the On
+ * panel's Next on me does. It is a native button: Tab and Enter reach it, and a
  * finger taps it. Pressed by keyboard, focus is on the control outside the region, so
  * the walk counts from the ask the user last went to there, else the first in sight,
  * else the region's start (queue-walk.js says how). With none waiting it is disabled.
@@ -28,8 +28,9 @@ import {
   offer,
   once,
   askActions,
+  readAsks,
   relabel,
-  watchAsks,
+  watchProjection,
 } from "/runtime/widget-api.js";
 
 // The count's words: what remains of the whole, or that nothing does.
@@ -50,7 +51,7 @@ customElements.define(
       if (!once(this)) return;
       const drawing = document.createElement("template");
       drawing.innerHTML = declarationFor(this, "x-prepaint");
-      const face = drawing.content.firstElementChild;
+      const face = /** @type {HTMLElement} */ (drawing.content.firstElementChild);
       face.dataset.lfGen = "1";
       this.#room = face.querySelector(".lf-tally-room");
       this.#words = face.querySelector(".lf-tally-words");
@@ -58,8 +59,8 @@ customElements.define(
       if (this.hasAttribute("next")) {
         this.#next = offer("button", "lf-btn lf-tally-next");
         seat.replaceWith(this.#next);
-        relabel(this.#next, "Next question", { says: false });
-        this.#next.title = "Go to the next question waiting on me here";
+        relabel(this.#next, "Next on me", { says: false });
+        this.#next.title = "Go to the next ask on me here";
         this.#next.setAttribute("aria-controls", this.getAttribute("for"));
         this.#next.addEventListener("mousedown", (event) => event.preventDefault());
         this.#next.addEventListener("click", () => {
@@ -69,7 +70,7 @@ customElements.define(
       } else seat.remove();
       this.querySelector(":scope > [data-lf-prepaint]")?.remove();
       this.append(face);
-      watchAsks(this, (asks) => this.#paint(asks));
+      watchProjection(this, () => this.#paint(readAsks()));
     }
 
     #region() {
@@ -90,7 +91,7 @@ customElements.define(
       keepsText(this.#words, words(open, held.length));
       // Two digits are in the drawing; a longer count widens its room once.
       const digits = "0".repeat(Math.max(2, String(held.length).length));
-      keepsText(this.#room, words(1, 1).replace(/1 of 1/, `${digits} of ${digits}`));
+      keepsText(this.#room, words(digits, digits));
       this.#next?.toggleAttribute("disabled", asksIn(region, asks.user).length === 0);
     }
   },

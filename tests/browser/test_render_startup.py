@@ -26,7 +26,6 @@ from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
-from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf import user_views as user_views_model
@@ -50,7 +49,6 @@ from render_cases_layout import (
 from render_cases_navigation import (
     _CARD,
     DRAFT_EDITED,
-    DRAFT_TEXT,
     FIRST_PRESENTATION,
     JOURNEY_V1,
     JOURNEY_V2,
@@ -61,6 +59,7 @@ from render_cases_navigation import (
     _card_done,
     _draft_says,
     _publish,
+    actions,
     composer_quote,
     data_projection_page,
     live_watcher,
@@ -68,9 +67,6 @@ from render_cases_navigation import (
 )
 from render_cases_widgets import (
     CHART_PAGE,
-    GENERIC_VISUAL_LAYER,
-    GENERIC_VISUAL_PAGE,
-    GENERIC_VISUAL_WIDGETS,
     MANIFEST_DIFF_PAGE,
     MULTI_HUNK_PATCH,
     TYPED_PARTS_PAGE,
@@ -351,7 +347,6 @@ def test_public_startup_reports_upgrade_separately_from_held_state(
     page.evaluate("dispatchEvent(new PageTransitionEvent('pagehide'))")
     assert len(reports) == 1
     reading = reports[0]
-    assert reading["version"] == 2
     assert reading["outcome"] == (
         "presented" if outcome in {"offline", "slow"} else outcome
     )
@@ -1157,7 +1152,7 @@ RESTORED_PROSE = "".join(
 @pytest.mark.parametrize(
     ("saved", "wide", "window", "contained"),
     [
-        # Questions stands on the Threads panel's edge, at the width the user drew it.
+        # The On panel stands on the Threads panel's edge, at the width the user drew it.
         (
             {"lf-auxiliary-surface": "queue", "lf-thread-panel-width": "380"},
             False,
@@ -1172,7 +1167,7 @@ RESTORED_PROSE = "".join(
         ),
         # Where it would leave less than a usable page it covers the page instead.
         ({"lf-auxiliary-surface": "threads"}, True, 700, False),
-        # The Questions panel by the same rule: 420 of a 600px window leaves 180.
+        # The On panel by the same rule: 420 of a 600px window leaves 180.
         ({"lf-auxiliary-surface": "queue"}, False, 600, False),
         # A sample's child page starts without its host's saved chrome. Isolation is
         # one rule whatever the surface and window, so one case asks it.
@@ -1890,7 +1885,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
     suggestion_accept = page.locator("[data-lf-margin-for='sug'] .lf-sug-accept")
     expect(suggestion_accept).to_be_disabled()
     assert suggestion_accept.evaluate(
-        """button => {
+        """button => lfUnwatched(() => {
               const glyph = button.firstElementChild;
               const widget = document.getElementById('sug');
               const parent = widget.parentNode;
@@ -1898,7 +1893,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
               widget.remove();
               parent.insertBefore(widget, next);
               return button.firstElementChild === glyph;
-            }"""
+            })"""
     ), "an unchanged availability paint rebuilt the suggestion control"
     suggestion_accept.dispatch_event("click")
     expect(suggestion_accept).to_be_disabled()
@@ -2011,6 +2006,346 @@ def test_a_broken_optional_page_interface_does_not_withhold_presentation(
     assert len(errors) == 1, errors
 
 
+SAMPLE_DOCUMENT = re.compile(r"/api/samples/([^/]+)/$")
+# A page that does not start Leaf, answered for a sample document to make it fail.
+NOT_LEAF = {"status": 200, "content_type": "text/html", "body": "<p>Unavailable</p>"}
+
+
+def held_sample_page(
+    browser, serve, body, *, head="", hold_first=True, documents=1, **options
+):
+    """A page whose live sample documents wait until `release()`: every sample's when
+    `hold_first`, otherwise all but the first sample a page allocates, so an outer
+    sample presents while the one inside it waits. `documents` is how many are held
+    before this returns. `release(failing)` answers the documents of the samples whose
+    element ids `failing` names with a page that does not start Leaf, and lets the
+    rest through. `options` go to `new_page`. Returns the page and `release`."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900}, **options)
+    watched(page)
+    held = []
+    passing = []
+    # Each sample's allocation: its template, posted, and its document, answered.
+    allocations = []
+    page.on(
+        "response",
+        lambda response: (
+            response.request.method == "POST"
+            and response.url.endswith("/api/samples")
+            and allocations.append(response)
+        ),
+    )
+
+    def route(request_route):
+        sample = SAMPLE_DOCUMENT.search(request_route.request.url).group(1)
+        if not hold_first and (not passing or sample in passing):
+            passing.append(sample)
+            request_route.continue_()
+        else:
+            held.append(request_route)
+
+    page.route(SAMPLE_DOCUMENT, route)
+    page.goto(serve(leaf_page("Sample arrival", body, head=head)), wait_until="commit")
+    holding(page, held, documents, "the samples' documents")
+
+    def release(failing=()):
+        templates = {f"{sample}-source" for sample in failing}
+        broken = {
+            SAMPLE_DOCUMENT.search(allocation.json()["url"]).group(1)
+            for allocation in allocations
+            if allocation.request.post_data_json["template"] in templates
+        }
+        page.unroute(SAMPLE_DOCUMENT)
+        for each in held:
+            if SAMPLE_DOCUMENT.search(each.request.url).group(1) in broken:
+                each.fulfill(**NOT_LEAF)
+            else:
+                each.continue_()
+
+    return page, release
+
+
+def readiness(frame):
+    return frame.evaluate(
+        "document.querySelector('script[data-lf-entry]').lfReadiness(null)"
+    )
+
+
+def live_sample(sample_id, attributes="", content="<p>Practice</p>"):
+    return (
+        f'<lf-sample id="{sample_id}"{attributes}><template id="{sample_id}-source"'
+        f" data-sample>{content}</template></lf-sample>"
+    )
+
+
+# A window sample whose child holds a sample below its own window, so the child
+# presents while the inner sample's document can wait, and a link out of Leaf.
+NESTED = (
+    '<h1>Containing page</h1><lf-sample id="outer" window>'
+    '<template id="outer-source" data-sample><h1>Outer</h1>'
+    '<a href="about:blank" id="leave">Leave</a><div style="height: 300vh"></div>'
+    '<lf-sample id="inner"><template id="inner-source" data-sample>'
+    "<p>Inner</p></template></lf-sample></template></lf-sample>"
+)
+
+
+def test_a_sample_the_reader_would_see_arrive_holds_presentation(browser, serve):
+    """A block sample whose growth the reader would see presents with the page, so
+    the page's first presented frame already holds it at its child's height. A sample
+    whose arrival would not be seen does not hold it
+    (`test_a_sample_reached_while_loading_holds_growth_the_reader_did_not_cause`)."""
+    page, release = held_sample_page(
+        browser, serve, "<h1>Containing page</h1>" + live_sample("practice")
+    )
+    page.evaluate("""() => {
+        window.presentedAtSampleReady = document.querySelector('#practice').ready.then(
+            () => document.body.hasAttribute('data-lf-presented'));
+    }""")
+    release()
+    wait_until_ready(page)
+    assert page.evaluate("presentedAtSampleReady") is False
+
+
+def test_a_sample_reached_while_loading_holds_growth_the_reader_did_not_cause(
+    browser, serve
+):
+    """A block sample below the window starts loading at once, but the page presents
+    and takes keys without it, reading as arriving until it has. A reader who scrolls
+    to it while it loads sees its frame keep its loading height as the child arrives,
+    so what follows stays put. Growth their own gesture in the child causes, such as a
+    disclosure they open, applies at once. Growth the child makes of its own accord
+    while still arriving waits until they press inside it, the frame leaves their
+    sight, or the tab is hidden.
+
+    The inner window sample's document is held throughout, so the child is still
+    arriving at every step."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    held = []
+    passing = set()
+
+    def hold(request_route):
+        if SAMPLE_DOCUMENT.search(request_route.request.url).group(1) in passing:
+            request_route.continue_()
+        else:
+            held.append(request_route)
+
+    page.route(SAMPLE_DOCUMENT, hold)
+    page.goto(
+        serve(
+            leaf_page(
+                "Sample gesture",
+                '<h1>Containing page</h1><div style="height: 300vh"></div>'
+                + live_sample(
+                    "practice",
+                    content='<p id="top">Practice</p><details id="more">'
+                    '<summary>More</summary><div style="height: 400px"></div>'
+                    '</details><div id="room" style="height: 1200px"></div>'
+                    + live_sample("inner", " window", "<p>Inner</p>"),
+                )
+                + "<p><button id=after>After the sample</button></p>"
+                '<div style="height: 300vh"></div>',
+            )
+        ),
+        wait_until="commit",
+    )
+    holding(page, held, 1, "the sample's document")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    assert readiness(page) == "arrived"
+    frame = page.locator("#practice iframe")
+    frame.scroll_into_view_if_needed()
+    loading = frame.bounding_box()["height"]
+    after = page.locator("#after").bounding_box()
+    # The sample's document goes on; the inner sample's, once asked for, waits.
+    first = held.pop(0)
+    passing.add(SAMPLE_DOCUMENT.search(first.request.url).group(1))
+    first.continue_()
+    expect(page.locator("#practice .lf-sample-status")).to_have_text("")
+    holding(page, held, 1, "the inner sample's document")
+    assert frame.bounding_box()["height"] == loading
+    assert page.locator("#after").bounding_box() == after
+
+    child = frame.content_frame
+    child_document = frame.element_handle().content_frame()
+    height = "frame => frame.clientHeight"
+    body = "body => Math.ceil(body.getBoundingClientRect().height)"
+
+    def grows_to(expected):
+        page.wait_for_function(
+            "h => document.querySelector('#practice iframe').clientHeight === h",
+            arg=expected,
+        )
+
+    def child_grows_by_itself(room):
+        # Once the last gesture's rendering has settled, growth comes of nothing the
+        # reader did, and the frame keeps its height.
+        rendered(child_document)
+        before = frame.evaluate(height)
+        child.locator("#room").evaluate(
+            f"room => {{ room.style.height = '{room}px'; }}"
+        )
+        rendered(child_document)
+        rendered(page)
+        assert frame.evaluate(height) == before
+        return before
+
+    child.locator("#more > summary").click()
+    expect(child.locator("#more")).to_have_attribute("open", "")
+    opened = child.locator("body").evaluate(body)
+    grows_to(opened)
+
+    child_grows_by_itself(1400)
+    child.locator("#top").click()
+    grows_to(opened + 200)
+
+    child_grows_by_itself(1600)
+    # Off the frame, so the wheel is the containing page's alone.
+    assert page.evaluate("!document.elementFromPoint(5, 450).closest('lf-sample')")
+    page.mouse.move(5, 450)
+    page.mouse.wheel(0, -20000)
+    grows_to(opened + 400)
+
+    frame.scroll_into_view_if_needed()
+    child_grows_by_itself(1800)
+    page.evaluate("""() => {
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true, get: () => 'hidden',
+      });
+      document.dispatchEvent(new Event('visibilitychange'));
+    }""")
+    grows_to(opened + 600)
+
+
+def test_a_narrow_window_samples_status_keeps_its_row_as_it_arrives_or_fails(
+    browser, serve
+):
+    """A narrow window sample's status row keeps its size whatever it says, so
+    neither the frame nor what follows moves when "Loading sample…" clears or a
+    failure too long for the row replaces it, open or shut. The reader opens the
+    failure to read it whole by Tab and Enter or by a press. At a mouse the row is a
+    line high, so any growth of it shows."""
+    page, release = held_sample_page(
+        browser,
+        serve,
+        "<h1>Containing page</h1>"
+        + live_sample("broken", " window")
+        + live_sample("practice", " window")
+        + "<p><button id=after>After the samples</button></p>",
+        head="<style>#broken, #practice { width: 180px }</style>",
+        documents=2,
+    )
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    expect(page.locator(".lf-sample-status")).to_have_text(["Loading sample…"] * 2)
+    places = """() => ['#broken iframe', '#practice iframe', '#after'].map(selector => {
+        const box = document.querySelector(selector).getBoundingClientRect();
+        return [box.left, box.top + scrollY, box.width, box.height];
+    })"""
+    before = page.evaluate(places)
+    release(failing={"broken"})
+    status = page.locator("#broken .lf-sample-status")
+    summary = status.locator("details > summary")
+    expect(summary).to_have_text("The sample document did not start Leaf")
+    wait_until_ready(page)
+    expect(page.locator("#practice .lf-sample-status")).to_have_text("")
+    assert page.evaluate(places) == before
+    clipped = "summary => summary.scrollWidth > summary.clientWidth"
+    assert summary.evaluate(clipped)
+
+    page.locator("#broken").get_by_role("button", name="Full view").focus()
+    page.keyboard.press("Tab")
+    expect(summary).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(status.locator("details")).to_have_attribute("open", "")
+    assert not summary.evaluate(clipped)
+    assert page.evaluate(places) == before
+
+    summary.click()
+    expect(status.locator("details")).not_to_have_attribute("open", "")
+    summary.click()
+    expect(status.locator("details")).to_have_attribute("open", "")
+    assert not summary.evaluate(clipped)
+    assert page.evaluate(places) == before
+
+
+def test_a_sample_counts_each_document_its_frame_loads(browser, serve):
+    """A sample's child counts as arrived only once its own samples have, so the page
+    holding it reads as arriving until then. A departure to a page that is not Leaf's
+    ends the count of the document that left, whose inner sample never comes. Reset,
+    and a Reset inside the sample's child, each begin a document the page counts as
+    arriving until it, and the samples inside it, have arrived."""
+    page, _ = held_sample_page(browser, serve, NESTED, hold_first=False)
+    page.locator("#outer").evaluate("sample => sample.ready")
+    child = page.locator("#outer iframe").content_frame
+    expect(child.locator("body")).to_have_attribute("data-lf-presented", "1")
+    assert readiness(page) == "arrived"
+    child.locator("#leave").click()
+    wait_until_ready(page)
+
+    # The departed document's inner sample is never answered; from here every sample
+    # document waits until its step releases it. Each new document starts with its
+    # admission: the outer one Reset allocates, or the inner one the inner Reset does.
+    page.unroute(SAMPLE_DOCUMENT)
+    admissions = []
+    page.on(
+        "request",
+        lambda request: request.method == "HEAD" and admissions.append(request),
+    )
+
+    def counts_until_released(reset):
+        held = []
+        page.route(SAMPLE_DOCUMENT, lambda route: held.append(route))
+        admitted = len(admissions)
+        reset.click()
+        holding(page, admissions, admitted + 1, "the new document's sample admission")
+        assert readiness(page) == "arrived"
+        page.unroute(SAMPLE_DOCUMENT)
+        for each in held:
+            each.continue_()
+        wait_until_ready(page)
+
+    counts_until_released(page.locator("#outer").get_by_role("button", name="Reset"))
+    counts_until_released(child.locator("#inner").get_by_role("button", name="Reset"))
+
+
+def test_a_sample_arriving_again_holds_growth_the_reader_did_not_cause(browser, serve):
+    """A Reset inside an arrived sample's child begins its arrival again, and while
+    the new document waits the frame holds growth that came of nothing the reader
+    did, as it did on the first arrival, so what follows the frame stays put."""
+    page, release = held_sample_page(
+        browser,
+        serve,
+        "<h1>Containing page</h1>"
+        + live_sample(
+            "outer",
+            content='<div id="room" style="height: 400px"></div>'
+            + live_sample("inner", " window", "<p>Inner</p>"),
+        )
+        + "<p><button id=after>After the sample</button></p>",
+        hold_first=False,
+    )
+    release()
+    wait_until_ready(page)
+    frame = page.locator("#outer iframe")
+    child = frame.content_frame
+    child_document = frame.element_handle().content_frame()
+    held = []
+    page.route(SAMPLE_DOCUMENT, lambda route: held.append(route))
+    child.locator("#inner").get_by_role("button", name="Reset").click()
+    holding(page, held, 1, "the inner sample's new document")
+    assert readiness(page) == "arrived"
+    rendered(child_document)
+    before = frame.evaluate("frame => frame.clientHeight")
+    after = page.locator("#after").bounding_box()
+    child.locator("#room").evaluate("room => { room.style.height = '700px'; }")
+    rendered(child_document)
+    rendered(page)
+    assert frame.evaluate("frame => frame.clientHeight") == before
+    assert page.locator("#after").bounding_box() == after
+    page.unroute(SAMPLE_DOCUMENT)
+    for each in held:
+        each.continue_()
+    wait_until_ready(page)
+
+
 def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     browser, serve
 ):
@@ -2052,16 +2387,15 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     body = page.locator("body")
     expect(body).to_have_attribute("data-lf-auxiliary-surface", "queue")
     # The door stands on every page, and claims no count before the log has answered.
-    expect(page.locator(".lf-queue")).to_have_text("Questions")
+    expect(page.locator(".lf-queue")).to_have_text("On me")
+
     expect(page.locator(".lf-queue-panel")).to_be_hidden()
     # The stable blanket control claims no action before the first state answer.
     expect(page.locator(".lf-answer-all:visible")).to_have_count(0)
     # Opened by hand, the panel counts nothing yet either.
     page.locator(".lf-queue").click()
-    expect(page.locator(".lf-queue-panel")).to_contain_text(
-        "Loading current questions…"
-    )
-    expect(page.locator(".lf-queue-panel")).not_to_contain_text("Questions · 0")
+    expect(page.locator(".lf-queue-panel")).to_contain_text("Loading…")
+    expect(page.locator(".lf-queue-panel")).not_to_contain_text("On me · 0")
 
     comments = page.locator(".lf-threads-toggle")
     expect(comments).to_be_enabled()
@@ -2076,7 +2410,7 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     wait_until_ready(page)
     expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
     decisions = page.locator(".lf-queue")
-    expect(decisions).to_have_text("Questions: 0")
+    expect(decisions).to_have_text("On me: 0")
     expect_asks_answered(page, "1/1")
     expect(decisions).to_have_attribute("aria-expanded", "false")
     expect(page.locator(".lf-queue-panel")).to_be_hidden()
@@ -2198,83 +2532,27 @@ def test_visual_comments_arrive_with_the_initialized_document(browser, serve):
     assert all(page.evaluate("() => window.__lfVisualActionInsertions"))
 
 
-@pytest.mark.parametrize("phase", ["initial", "history", "ready", "anchored"])
-def test_malformed_visual_inventory_withholds_its_actions_at_each_presentation_phase(
-    browser, serve, phase
-):
-    """A malformed visual cannot offer comment controls at any startup phase."""
+def test_invalid_visual_part_ids_report_the_package_error(browser, serve):
+    """An invalid package inventory fails through the ordinary startup reporter."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    state_ready = phase in {"ready", "anchored"}
-    held = []
-    page.add_init_script(VISUAL_ACTION_TIMING)
-    if phase == "initial":
-        page.add_init_script(
-            """document.addEventListener('lf-page-interface', event => {
-          event.detail.present(new Promise(resolve => window.releaseInterface = resolve));
-        });"""
+    with page.expect_console_message(
+        predicate=lambda message: "page failed to start" in message.text
+    ):
+        page.goto(
+            serve(
+                leaf_page(
+                    "Invalid diagram part identity",
+                    '<h1>Diagram</h1><lf-diagram id="flow" parts="all"><pre>'
+                    "sequenceDiagram\nparticipant User Account\n"
+                    "User Account-&gt;&gt;Server: Submit order\n"
+                    "</pre></lf-diagram>",
+                )
+            ),
+            wait_until="load",
         )
-    page.route("**/api/state*", lambda route: held.append(route))
-    page.goto(
-        serve(
-            GENERIC_VISUAL_PAGE,
-            layer_registry=GENERIC_VISUAL_LAYER,
-            layer_widgets=GENERIC_VISUAL_WIDGETS,
-            events=[
-                {
-                    "id": "visual-comment",
-                    "kind": "comment",
-                    "author": "user",
-                    "revision": 1,
-                    "text": "A comment on this visual part.",
-                    "anchor": {"section": "visual", "visual": "outer"},
-                }
-            ]
-            if phase == "anchored"
-            else [],
-        ),
-        wait_until="load",
-    )
-    page.wait_for_function(
-        "() => document.querySelector('lf-test-visual')?.parts?.length === 3"
-    )
-    if phase != "initial":
-        page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
-        expect(page.locator(".lf-visual-actions")).to_have_count(1)
-    assert held, "the first state read completed before the visual was malformed"
-    if state_ready:
-        held.pop(0).continue_()
-        expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
-    page.locator("lf-test-visual").evaluate(
-        """visual => {
-          visual.validParts = visual.parts;
-          visual.parts = [visual.parts[0], {...visual.parts[0]}, visual.parts[2]];
-        }"""
-    )
-    if phase == "initial":
-        page.evaluate("() => window.releaseInterface()")
-    if state_ready:
-        page.locator("lf-test-visual").evaluate(
-            "visual => visual.visualRegistration.update()"
-        )
-    else:
-        held.pop(0).continue_()
-
-    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
-    expect(page.locator(".lf-visual-actions")).to_have_count(0)
-    if phase == "initial":
-        assert page.evaluate("() => window.__lfVisualActionInsertions") == []
-
-    if phase != "initial":
-        page.locator("lf-test-visual").evaluate(
-            """visual => {
-              visual.parts = visual.validParts;
-              visual.visualRegistration.update();
-            }"""
-        )
-        expect(page.locator(".lf-visual-actions")).to_have_count(1)
-        expect(page.locator(".lf-visual-action")).to_have_count(4)
-    if phase == "anchored":
-        consume_browser_errors(page, "registered part outer twice")
+    expect(page.locator(".lf-status-detail")).to_contain_text("reload")
+    expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+    consume_browser_errors(page, "Visual part 1 has no single-token id")
 
 
 def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):
@@ -2486,7 +2764,7 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
     # and the target keeps the local quiet word.
     expect(page.locator("#draft-ops[data-lf-restated]")).to_have_count(1)
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     rewritten = page.get_by_role(
         "button", name=re.compile(r"^Open rewritten: Rewritten")
     )
@@ -2496,7 +2774,7 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
         page.locator("#draft-ops").evaluate("el => getComputedStyle(el).outlineStyle")
         == "none"
     )
-    assert "rewritten since I decided" in page.locator("#draft-ops").aria_snapshot()
+    assert "rewritten since the decision" in page.locator("#draft-ops").aria_snapshot()
 
 
 def test_user_overrides_identify_state_that_differs_from_authored_inputs(
@@ -2554,17 +2832,34 @@ def test_user_overrides_identify_state_that_differs_from_authored_inputs(
     ), "the user's own honored drag marked as a change"
 
 
-def test_foreign_state_waits_until_a_live_drag_releases_the_page(browser, serve):
-    """A poll may finish while Sortable owns real page nodes. Reconciliation leaves
-    the whole page alone until the pointer releases them, then paints the same logged
-    edit on the next pass."""
-    page = open_page(browser, serve(JOURNEY_V1))
+def test_foreign_state_draws_beside_a_live_drag(browser, serve):
+    """A poll may finish while Sortable owns the dragged card. The board's gesture holds
+    only the board's drawing (`defer`); another widget draws the foreign edit at once,
+    even one above the board that grows, and the card still lands where it is dropped."""
+    draft = JOURNEY_V1.index('<lf-draft id="draft-ops">')
+    draft_end = JOURNEY_V1.index("</lf-draft>", draft) + len("</lf-draft>")
+    board = JOURNEY_V1.index('<lf-board id="board">')
+    html = (
+        JOURNEY_V1[:board]
+        + JOURNEY_V1[draft:draft_end]
+        + "\n"
+        + JOURNEY_V1[board:draft]
+        + JOURNEY_V1[draft_end:]
+    )
+    page = open_page(browser, serve(html))
     grip = page.locator("#card-x .lf-grip").bounding_box()
     page.mouse.move(grip["x"] + grip["width"] / 2, grip["y"] + grip["height"] / 2)
     page.mouse.down()
-    page.mouse.move(grip["x"] + grip["width"] / 2 + 12, grip["y"] + 12, steps=4)
+    done = page.locator("#col-done").bounding_box()
+    page.mouse.move(
+        done["x"] + done["width"] / 2, done["y"] + done["height"] / 2, steps=8
+    )
     page.wait_for_function(DRAG_HELD)
+    before = page.locator("#draft-ops").bounding_box()["height"]
 
+    foreign = "\n\n".join(
+        f"Foreign paragraph {n} held beside the drag." for n in range(6)
+    )
     append_command(
         serve.page_dir,
         {
@@ -2573,20 +2868,25 @@ def test_foreign_state_waits_until_a_live_drag_releases_the_page(browser, serve)
             "revision": 1,
             "widget": "draft-ops",
             "action": "edit",
-            "detail": {"value": "Foreign words held behind the drag."},
+            "detail": {"value": foreign},
         },
     )
     told(page)
-    expect(page.locator("#draft-ops .lf-draft-body")).to_have_text(
-        DRAFT_TEXT, use_inner_text=True
+    expect(page.locator("#draft-ops .lf-draft-body")).to_contain_text(
+        "Foreign paragraph 5"
     )
-    expect(page.locator("body")).to_have_attribute("data-lf-applied", "0")
+    assert page.evaluate(DRAG_HELD), "the foreign edit ended the drag"
+    assert page.locator("#draft-ops").bounding_box()["height"] > before + 50, (
+        "the draft above the board did not grow, so nothing moved under the drag"
+    )
 
     page.mouse.up()
     told(page)
-    expect(page.locator("#draft-ops .lf-draft-body")).to_have_text(
-        "Foreign words held behind the drag."
-    )
+    expect(page.locator("#col-done #card-x")).to_have_count(1)
+    moves = [e for e in actions(serve.page_dir) if e["action"] == "move"]
+    assert [(m["detail"]["unit"], m["detail"]["value"]) for m in moves] == [
+        ("card-x", "col-done")
+    ]
 
 
 def test_the_diff_marks_a_card_the_author_relocated(browser, serve):
@@ -3359,7 +3659,7 @@ def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     second = first.fetch().json()
     with page.expect_request("**/api/state*"):
         first.fulfill(json=second)
-    expect(text).to_have_text(re.compile(r"^\s*Agent is working — second"))
+    expect(text).to_have_text(re.compile(r"^\s*Claude is working — second"))
     assert len(held) == 2
 
     trailing = held[1]
@@ -3369,7 +3669,7 @@ def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     third = trailing.fetch().json()
     trailing.fulfill(json=third)
     told(page)
-    expect(text).to_have_text(re.compile(r"^\s*Agent is working — third"))
+    expect(text).to_have_text(re.compile(r"^\s*Claude is working — third"))
 
 
 def test_a_state_read_timing_out_during_its_body_is_offline(browser, serve):
@@ -3445,6 +3745,91 @@ def test_the_first_read_and_the_user_s_later_ones_are_bounded_apart(browser, ser
     bounds = page.evaluate("() => window.__leafReadBounds")
     assert bounds[0] == 120_000, bounds
     assert 0 < bounds[1] < bounds[0], bounds
+
+
+def test_a_widget_presents_its_authored_state_offline_and_the_log_on_recovery(
+    browser, serve
+):
+    """A first read that fails presents each widget at its authored state, and the
+    read that recovers draws the choice the log holds."""
+    url = serve(
+        leaf_page(
+            "Offline choice",
+            '<h1>Offline choice</h1><lf-ask id="ask"><h2>Which?</h2>'
+            '<lf-options id="options" choose><lf-option id="one">First</lf-option>'
+            '<lf-option id="two">Second</lf-option></lf-options></lf-ask>',
+        )
+    )
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "options",
+            "action": "choose",
+            "detail": {"value": ["two"]},
+        },
+    )
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.route("**/api/state*", refuse)
+    page.goto(url, wait_until="load")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    expect(page.locator(".lf-status-detail")).to_contain_text("Server offline")
+    expect(page.locator("#options .lf-pick")).to_have_count(2)
+    expect(page.locator("#two")).not_to_have_attribute("chosen", "")
+    page.unroute("**/api/state*")
+    told(page)
+    expect(page.locator("#two")).to_have_attribute("chosen", "")
+
+
+def test_a_widget_draws_its_authored_state_while_its_first_read_waits(browser, serve):
+    """Before the first state read answers, a widget's reading is its authored state,
+    whole, so it draws that rather than nothing or a guess; the read draws the log's
+    choice."""
+    url = serve(
+        leaf_page(
+            "Waiting choice",
+            '<h1>Waiting choice</h1><lf-ask id="ask"><h2>Which?</h2>'
+            '<lf-options id="options" choose><lf-option id="one">First</lf-option>'
+            '<lf-option id="two">Second</lf-option></lf-options></lf-ask>',
+        )
+    )
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "options",
+            "action": "choose",
+            "detail": {"value": ["two"]},
+        },
+    )
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    held = []
+    page.route("**/api/state*", lambda route: held.append(route))
+    page.goto(url, wait_until="load")
+    holding(page, held, 1, "the first state read")
+    waiting = page.evaluate(
+        """async () => {
+          const {widgetController} = await window.__lfWidgetApi();
+          const options = document.querySelector('#options');
+          await options.updateComplete;
+          const {state} = widgetController(options).read();
+          return {
+            verbs: Object.keys(state).sort(),
+            chosen: state.choose.value,
+            drawn: [...options.querySelectorAll('lf-option[chosen]')].map((o) => o.id),
+          };
+        }"""
+    )
+    assert waiting == {"verbs": ["add", "answer", "choose"], "chosen": [], "drawn": []}
+    page.unroute("**/api/state*")
+    for route in held:
+        route.continue_()
+    told(page)
+    expect(page.locator("#two")).to_have_attribute("chosen", "")
 
 
 def test_a_pending_offline_paint_does_not_block_a_recovery_read(browser, serve):
@@ -3694,8 +4079,8 @@ def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
 def test_a_thread_says_what_the_agent_is_doing_about_it(
     browser, serve, tmp_path, dead_pid
 ):
-    """The banner says what the agent is doing; an exact message workflow says
-    which user question it is doing it about. A start updates both readings.
+    """An exact message workflow says which user question the agent is working on,
+    beside the banner's account of the page as a whole.
 
     A user with three questions open and no replies under any of them cannot tell a
     question being worked from a question nobody has looked at, and the page holds the
@@ -3751,14 +4136,6 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
     expect(held_workflow).to_have_attribute("data-identity-probe", "kept")
     expect(other_workflow).to_have_text("Sent")
-    expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude picked up my comment and hasn't said what it's doing yet"
-        " (just now). 1 response owed on updates awaiting delivery. Waiting on Claude: 2 replies, 1 to-do"
-        " (Work on the page)."
-    )
-    expect(page.locator(".lf-others-self .lf-others-line")).to_have_text(
-        "Working · 1 response owed on updates awaiting delivery"
-    )
 
     # The agent finishes the earlier task and waits on the user.
     end_work(d)
@@ -3768,10 +4145,6 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     assert latent_waiting.exit_code == 0, latent_waiting.output
     told(page)
     expect(held_workflow).to_have_text("Picked up")
-    expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude picked up my comment and hasn't said what it's doing yet"
-        " (just now). 1 response owed on updates awaiting delivery. Waiting on Claude: 2 replies."
-    )
 
     cleanup_model.close_session_turn("s")
     told(page)
@@ -3780,13 +4153,6 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         "data-lf-agent-workflow", re.compile(".+")
     )
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
-    # The turn ended with both updates still the agent's to answer, so they are overdue
-    # and the remedy is the user's.
-    expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude last checked in just now. Updates are saved. "
-        "Nothing is answering them, so nudge it in the terminal."
-        " Waiting on Claude: 2 replies."
-    )
     cleanup_model.open_session_turn("s")
 
     def start(item, line):
@@ -3860,12 +4226,9 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
 
     # A later start on the page's own task is not an answer to the thread, so the
-    # thread's line stands while the banner takes the newer one.
+    # thread's line stands.
     working(d, "drafting v2")
     told(page)
-    expect(page.locator(".lf-status-detail")).to_have_text(
-        re.compile(r"^\s*Claude is working — drafting v2")
-    )
     expect(held_workflow).to_have_count(1)
     expect(held_workflow).to_have_attribute(
         "title", "Working · reading the reconnect traces"
@@ -3939,98 +4302,29 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(workflows).to_have_count(1)
     record_claim(d, id="s", pid=dead_pid)
     told(page)
-    expect(page.locator(".lf-status-detail")).to_have_text(
-        re.compile(r"^\s*No session holds this page\.")
-    )
     expect(held_thread.locator(".lf-thread-status")).to_have_text("To-do open")
     expect(workflows).to_have_count(1)
 
 
-def test_a_workflow_and_the_banner_share_agent_activity(browser, serve):
-    """Exact delivery keeps its workflow while page work retains the independently
-    declared overall state, then falls back to generic work when that declaration
-    waits. The page's open Ask ends the banner's disclosure, after the activity it
-    shares."""
-    source = LONG_PAGE.replace(
-        "</main>",
-        "<lf-ask id='ship-ask'><h2>Ship now?</h2><lf-options id='ship' choose>"
-        "<lf-option id='ship-now'>Now</lf-option>"
-        "<lf-option id='ship-later'>Later</lf-option></lf-options></lf-ask></main>",
-    )
-    page = open_page(browser, serve(source))
-    page_dir = serve.page_dir
-    comment = append_carried_log_record(
-        page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "Does the banner agree with this workflow?",
-        },
-    )
-    record_claim(page_dir, id="workflow", pid=os.getpid(), agent="Claude")
-    declare_work(page_dir, "Writing the page")
-    with service_model.PageTransaction(page_dir) as transaction:
-        delivery_model.record_pickup(transaction, [comment])
+def test_the_banner_and_the_leaves_row_say_the_served_activity(browser, serve):
+    """The served activity reaches the banner's row, its disclosure and dot, and this
+    page's row in the leaves drawer. What each says for every reading is
+    `tests/runtime/activity-words.test.mjs`'s, and which reading a log and claim come
+    to is `tests/model/test_activity.py`'s."""
+    page = open_page(browser, serve(LONG_PAGE))
+    record_claim(serve.page_dir, id="s", pid=os.getpid(), agent="Claude")
+    declare_work(serve.page_dir, "Writing the page")
     told(page)
-
-    page.keyboard.press("c")
-    workflow = page.locator(
-        f'.lf-thread[data-id="{comment["id"]}"] .lf-msg[data-mid="{comment["id"]}"] > .lf-msg-head .lf-msg-sending'
+    expect(page.locator(".lf-status-text")).to_have_text(
+        "Claude working — Writing the page"
     )
-    expect(workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
-        re.compile(
-            r"^\s*Claude is working — Writing the page \(just now\)\. Waiting on me"
-        )
+        re.compile(r"^\s*Claude is working — Writing the page \(just now\)\.")
     )
-
-    end_work(page_dir)
-    session_model.cmd_waiting(page_dir, "review the page")
-    told(page)
-    expect(workflow).to_have_text("Picked up")
-    expect(page.locator(".lf-status-detail")).to_have_text(
-        re.compile(
-            r"^\s*Claude picked up my comment and hasn't said what it's doing yet"
-            r" \(just now\)\. Waiting on me"
-        )
+    expect(page.locator(".lf-banner .lf-dot")).to_have_class(re.compile(r"\bworking\b"))
+    expect(page.locator(".lf-others-self .lf-others-line")).to_have_text(
+        "Working — Writing the page"
     )
-
-
-def test_ended_pickup_preserves_the_declared_invitation_in_banner_and_leaves(
-    browser, serve
-):
-    page = open_page(browser, serve(LONG_PAGE, comments=1))
-    page_dir = serve.page_dir
-    [comment] = [
-        event
-        for event in events_model.read_events(page_dir)
-        if event["kind"] == "comment"
-    ]
-    claim = record_claim(page_dir, id="s", pid=os.getpid(), agent="Claude")
-
-    with live_watcher(page_dir, page):
-        with service_model.PageTransaction(page_dir) as transaction:
-            delivery_model.record_pickup(transaction, [comment])
-            cleanup_model.close_session_turn(claim["id"])
-        result = CliRunner().invoke(
-            cli_model.cli,
-            ["status", str(page_dir), "waiting", "pick a storage engine"],
-        )
-        assert result.exit_code == 0, result.output
-        told(page)
-
-        # The picked-up comment still owes its reply, which the row counts.
-        expect(page.locator(".lf-status-text")).to_have_text(
-            "Claude awaits — pick a storage engine"
-        )
-        expect(page.locator(".lf-status-queues")).to_have_text("Tasks: 1")
-        expect(page.locator(".lf-status-detail")).to_have_text(
-            "Claude awaits — pick a storage engine. Waiting on Claude: 1 reply."
-        )
-        expect(page.locator(".lf-others-self .lf-others-line")).to_have_text(
-            "Awaits — pick a storage engine"
-        )
 
 
 def test_an_unpicked_move_says_it_is_waiting_after_the_short_grace(browser, serve):
@@ -4210,7 +4504,7 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
     # The page's own line is as fresh as it was, which is the whole case: this is one
     # claim going quiet beside a live one, not a page that has gone quiet all over.
     expect(page.locator(".lf-status-detail")).to_have_text(
-        re.compile(r"^\s*Agent is working — rerunning the failing shard")
+        re.compile(r"^\s*Claude is working — rerunning the failing shard")
     )
     expect(work_line).to_have_text("Update stale")
     expect(work_line).to_have_attribute(
@@ -4516,20 +4810,19 @@ def test_a_comment_on_an_identified_datum_follows_the_subject_across_replacement
         },
     }
     module = """
-import {projectData, watchData, setChildren} from '/runtime/widget-api.js';
-customElements.define('lf-feed', class extends HTMLElement {
-  connectedCallback() {
-    this.stopWatching ??= watchData(this, 'rows', snapshot => {
-      const datums = (snapshot?.value?.rows ?? []).map(row => {
-        const node = document.createElement('p');
-        node.textContent = `${row.label} ${row.updated}`;
-        return {node, key: `${row.id}-${row.updated}`, identity: row.id};
-      });
-      setChildren(this, datums.map(({node}) => node));
-      projectData(this, datums, {snapshot});
+import {LeafElement, nothing, projectData, setChildren} from '/runtime/widget-api.js';
+customElements.define('lf-feed', class extends LeafElement {
+  render() {
+    const snapshot = this.data('rows');
+    const datums = (snapshot?.value?.rows ?? []).map(row => {
+      const node = document.createElement('p');
+      node.textContent = `${row.label} ${row.updated}`;
+      return {node, key: `${row.id}-${row.updated}`, identity: row.id};
     });
+    setChildren(this, datums.map(({node}) => node));
+    projectData(this, datums, {snapshot});
+    return nothing;
   }
-  disconnectedCallback() { this.stopWatching?.(); this.stopWatching = null; }
 });
 """
     url = serve(
@@ -4724,7 +5017,10 @@ customElements.define('lf-test-surface', class extends HTMLElement {
       return this.failure === 'hidden' ? null : placement.datumElement.outlet;
     });
     for (const row of this.children) {
-      if (this.failure === 'moved') document.querySelector('main').append(row.outlet);
+      if (this.failure === 'moved') {
+        const main = document.querySelector('main');
+        if (row.outlet.parentElement !== main) main.append(row.outlet);
+      }
       if (this.failure === 'detached') row.outlet.remove();
     }
     if (this.failure === 'target-removed') {
@@ -4912,7 +5208,8 @@ customElements.define('lf-test-surface', class extends HTMLElement {
         page.keyboard.press("Escape")
         broken.evaluate("""widget => {
             widget.failure = null;
-            for (const row of widget.children) row.append(row.outlet);
+            for (const row of widget.children)
+              if (row.outlet.parentElement !== row) row.append(row.outlet);
         }""")
         append_carried_log_record(
             serve.page_dir,
@@ -5374,18 +5671,21 @@ def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
     expect(timestamp).to_have_text("1h ago")
 
 
-def test_data_subscribers_receive_each_publication_and_recover(browser, serve):
+def test_a_data_widget_draws_each_publication_and_recovers(browser, serve):
     """A same-value rerun reaches a package with its own durable run receipt.
 
     Repeated reads stay quiet; corruption and clearing remove the reading, and a
-    later valid publication restores the same subscription.
+    later valid publication draws again in the same widget.
     """
     page = open_page(browser, data_projection_page(serve))
-    page.evaluate("""async () => {
-      const {watchData} = await window.__lfWidgetApi();
-      window.publications = [];
-      window.stopPublications = watchData(document.querySelector('lf-feed'), 'rows',
-        snapshot => window.publications.push(snapshot));
+    page.evaluate("""() => {
+      const feed = document.querySelector('lf-feed');
+      const show = feed.show;
+      window.publications = [feed.data('rows')];
+      feed.show = function (snapshot) {
+        if (snapshot !== window.publications.at(-1)) window.publications.push(snapshot);
+        return show.call(this, snapshot);
+      };
     }""")
 
     def read():
@@ -5434,7 +5734,6 @@ def test_data_subscribers_receive_each_publication_and_recover(browser, serve):
     assert len(deliveries) == 6, deliveries
     assert deliveries[-1]["revision"] == first["revision"]
     assert deliveries[-1]["run"] not in {first["run"], second["run"], recovered["run"]}
-    page.evaluate("window.stopPublications()")
 
 
 def test_data_consumers_clear_and_recover_across_contract_only_rebindings(
@@ -5443,7 +5742,7 @@ def test_data_consumers_clear_and_recover_across_contract_only_rebindings(
     """Active and frozen consumers keep their declarations as a source is rebound.
 
     A changed contract must reach the browser even with identical value bytes, clear
-    the incompatible consumer, and leave its subscription able to recover.
+    the incompatible consumer, and leave it able to recover.
     """
 
     def entry(tag, contract):
@@ -5463,19 +5762,16 @@ def test_data_consumers_clear_and_recover_across_contract_only_rebindings(
         }
 
     def module(tag):
-        return """import {watchData} from '/runtime/widget-api.js';
-customElements.define(TAG, class extends HTMLElement {
-  connectedCallback() {
-    if (this.started) return;
-    this.started = true;
+        return """import {LeafElement, nothing} from '/runtime/widget-api.js';
+customElements.define(TAG, class extends LeafElement {
+  render() {
+    const snapshot = this.data('data');
     window.dataDeliveries ??= [];
-    this.stop = watchData(this, 'data', snapshot => {
-      window.dataDeliveries.push({id: this.id, snapshot});
-      const text = JSON.stringify(snapshot?.value ?? null);
-      if (this.textContent !== text) this.textContent = text;
-    });
+    window.dataDeliveries.push({id: this.id, snapshot});
+    const text = JSON.stringify(snapshot?.value ?? null);
+    if (this.textContent !== text) this.textContent = text;
+    return nothing;
   }
-  disconnectedCallback() { this.stop?.(); }
 });""".replace("TAG", json.dumps(tag))
 
     authored = leaf_page(
@@ -5524,7 +5820,7 @@ customElements.define(TAG, class extends HTMLElement {
     page.keyboard.press("c")
     expect(page.locator("#page-feed")).to_have_text('["same bytes"]')
     expect(page.locator("#thread-feed")).to_have_text("null")
-    consume_browser_errors(page, "watchData(lf-object-feed, data) requires other-rows")
+    consume_browser_errors(page, "<lf-object-feed> input data requires other-rows")
 
     def read():
         nudge(serve.page_dir)
@@ -5551,7 +5847,7 @@ customElements.define(TAG, class extends HTMLElement {
         == rebound["sources"]["shared"]["revision"]
     )
     assert original["version"] != rebound["version"]
-    consume_browser_errors(page, "watchData(lf-array-feed, data) requires rows")
+    consume_browser_errors(page, "<lf-array-feed> input data requires rows")
 
     calls = page.evaluate("window.dataDeliveries.length")
     read()
@@ -5562,58 +5858,19 @@ customElements.define(TAG, class extends HTMLElement {
     rebind("rows", ["same bytes"])
     expect(page.locator("#page-feed")).to_have_text('["same bytes"]')
     expect(page.locator("#thread-feed")).to_have_text("null")
-    consume_browser_errors(page, "watchData(lf-object-feed, data) requires other-rows")
+    consume_browser_errors(page, "<lf-object-feed> input data requires other-rows")
 
     rebind("other-rows", {"new": "object meaning"})
     expect(page.locator("#page-feed")).to_have_text("null")
     expect(page.locator("#thread-feed")).to_have_text('{"new":"object meaning"}')
-    consume_browser_errors(page, "watchData(lf-array-feed, data) requires rows")
-
-
-def test_a_returning_subscriber_is_repainted_only_where_its_departure_cut_the_paint(
-    browser, serve
-):
-    """A widget abandons its unfinished paint when it leaves, so its return owes that
-    reading again. A finished paint stands, so a refused reading is not refused and
-    reported a second time."""
-    page = open_page(browser, data_projection_page(serve))
-    result = page.evaluate(
-        """async () => {
-          const {watchData} = await window.__lfWidgetApi();
-          const widget = document.querySelector('lf-feed');
-          const leaveAndReturn = async () => {
-            const parent = widget.parentNode;
-            const next = widget.nextSibling;
-            widget.remove();
-            await new Promise((resolve) => setTimeout(resolve));
-            parent.insertBefore(widget, next);
-            await new Promise((resolve) => setTimeout(resolve));
-          };
-          let paints = 0;
-          let finish;
-          const finished = new Promise((resolve) => { finish = resolve; });
-          const stop = watchData(widget, 'rows', () => {
-            paints += 1;
-            return finished;
-          });
-          await leaveAndReturn();
-          const interrupted = paints;
-          finish();
-          await finished;
-          await leaveAndReturn();
-          const kept = paints;
-          stop();
-          return {interrupted, kept};
-        }"""
-    )
-    assert result == {"interrupted": 2, "kept": 2}
+    consume_browser_errors(page, "<lf-array-feed> input data requires rows")
 
 
 def test_a_returning_projection_subscriber_reads_again_only_where_its_departure_cut_the_paint(
     browser, serve
 ):
     """A projection reading that failed stands across a departure and return, so the
-    author is told once, as a data subscriber's is; a paint the departure cut short is
+    author is told once, as a widget's is; a paint the departure cut short is
     owed again."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
     result = page.evaluate(
@@ -5634,13 +5891,14 @@ def test_a_returning_projection_subscriber_reads_again_only_where_its_departure_
           };
           const failed = {};
           const stops = [];
-          for (const name of ['watchAsks', 'watchReports', 'watchHistory']) {
+          for (const name of ['throwing', 'rejecting']) {
             const owner = owned(`failing-${name}`);
             failed[name] = 0;
-            stops.push(api[name](owner, () => {
+            stops.push(api.watchProjection(owner, () => {
               failed[name] += 1;
+              api.readAsks();
               // A paint that fails later is told the same way as one that throws.
-              if (name === 'watchHistory')
+              if (name === 'rejecting')
                 return Promise.reject(new Error(`${name} paint failed`));
               throw new Error(`${name} paint failed`);
             }));
@@ -5651,8 +5909,9 @@ def test_a_returning_projection_subscriber_reads_again_only_where_its_departure_
           let paints = 0;
           let finish;
           const finished = new Promise((resolve) => { finish = resolve; });
-          stops.push(api.watchAsks(owner, () => {
+          stops.push(api.watchProjection(owner, () => {
             paints += 1;
+            api.readAsks();
             return finished;
           }));
           await settle();
@@ -5667,7 +5926,7 @@ def test_a_returning_projection_subscriber_reads_again_only_where_its_departure_
         }"""
     )
     assert result == {
-        "failed": {"watchAsks": 1, "watchReports": 1, "watchHistory": 1},
+        "failed": {"throwing": 1, "rejecting": 1},
         "interrupted": 2,
         "kept": 2,
     }
@@ -5675,7 +5934,7 @@ def test_a_returning_projection_subscriber_reads_again_only_where_its_departure_
     reported = sorted(said(error) for error in errors)
     assert reported == sorted(
         f"leaf: paint failed for div#failing-{name}: {name} paint failed"
-        for name in ["watchAsks", "watchReports", "watchHistory"]
+        for name in ["throwing", "rejecting"]
     )
 
 
@@ -5696,7 +5955,7 @@ def test_a_held_reading_shows_once_unseen_after_its_owner_returns(browser, serve
           let shown = null;
           let watching;
           const held = new api.HeldReading(owner, () => [region], () => watching.refresh());
-          watching = api.watchAsks(owner, () => { shown = held.hold(current); });
+          watching = api.watchProjection(owner, () => { shown = held.hold(current); });
           await settle();
           current = 'second';
           watching.refresh();
@@ -5744,65 +6003,74 @@ def test_a_text_document_projects_its_current_source_provenance(browser, serve):
         expect(projection.locator("code")).to_have_text(text)
 
 
-def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
-    """The data stamp proves that every asynchronous subscriber has settled.
+def test_data_readiness_settles_and_reports_failed_drawings(browser, serve):
+    """The data stamp proves that every drawing a delivery holds has settled.
 
-    A rejected mount and a later failed update are each reported once, at that
-    subscriber's paint. Neither turns every subsequent poll into the same page-wide
-    read failure or prevents the accepted revision becoming ready.
+    A rejected drawing at mount, a rejected drawing on a later delivery, and a draw
+    that throws are each reported once. None turns every subsequent poll into the same
+    page-wide read failure or prevents the accepted revision becoming ready.
     """
     page = open_page(browser, data_projection_page(serve))
     page.evaluate("""async () => {
-      const {watchData} = await window.__lfWidgetApi();
+      const {nothing} = await window.__lfWidgetApi();
       const widget = document.querySelector('lf-feed');
       window.beforeDataVersion = document.body.dataset.lfDataVersion;
       window.mountDeliveries = 0;
-      window.stopMount = watchData(widget, 'rows', () => {
+      widget.render = () => {
+        widget.data('rows');
         mountDeliveries += 1;
-        return Promise.reject(new Error('mount projection failed'));
-      });
+        widget.drawing(Promise.reject(new Error('mount projection failed')));
+        return nothing;
+      };
+      widget.requestUpdate();
     }""")
     for _ in range(2):
         nudge(serve.page_dir)
         told(page)
-    page.evaluate("""async () => {
-      stopMount();
-      window.afterMountDataVersion = document.body.dataset.lfDataVersion;
-      const {watchData} = await window.__lfWidgetApi();
-      const widget = document.querySelector('lf-feed');
-      window.updateDeliveries = 0;
-      window.throwingDeliveries = 0;
-      window.stopUpdate = watchData(widget, 'rows', () => {
-        if (++updateDeliveries > 1)
-          return Promise.reject(new Error('update projection failed'));
-      });
-      window.stopThrowing = watchData(widget, 'rows', () => {
-        if (++throwingDeliveries > 1)
-          throw new Error('synchronous update projection failed');
-      });
-    }""")
-    data_model.cmd_data_set(
-        serve.page_dir, "deployments", [{"key": "api", "value": "Updated"}]
-    )
-    told(page)
+
+    def deliver(value, failure):
+        page.evaluate(
+            """async (failure) => {
+              const {nothing} = await window.__lfWidgetApi();
+              const widget = document.querySelector('lf-feed');
+              window.afterMountDataVersion ??= document.body.dataset.lfDataVersion;
+              window.draws ??= {};
+              widget.render = () => {
+                widget.data('rows');
+                draws[failure] = (draws[failure] ?? 0) + 1;
+                const error = new Error(`${failure} projection failed`);
+                if (failure === 'update') widget.drawing(Promise.reject(error));
+                else throw error;
+                return nothing;
+              };
+            }""",
+            failure,
+        )
+        data_model.cmd_data_set(
+            serve.page_dir, "deployments", [{"key": "api", "value": value}]
+        )
+        told(page)
+
+    deliver("Updated", "update")
+    deliver("Updated again", "synchronous update")
     nudge(serve.page_dir)
     told(page)
-    result = page.evaluate("""() => {
-      stopUpdate(); stopThrowing();
-      return {before: beforeDataVersion, mountDeliveries, throwingDeliveries,
-        afterMount: afterMountDataVersion, afterUpdate: document.body.dataset.lfDataVersion};
-    }""")
+    result = page.evaluate("""() => ({
+      before: beforeDataVersion, mountDeliveries, draws,
+      afterMount: afterMountDataVersion, afterUpdate: document.body.dataset.lfDataVersion,
+    })""")
     result["version"] = page.request.get(urljoin(page.url, "/api/state")).json()[
         "data"
     ]["version"]
     assert result["mountDeliveries"] == 1, result
-    assert result["throwingDeliveries"] == 2, result
+    assert result["draws"] == {"update": 1, "synchronous update": 1}, result
     assert result["afterMount"] == result["before"], result
     assert result["afterUpdate"] == result["version"], result
-    errors = consume_browser_errors(page, "paint failed")
+    errors = consume_browser_errors(page, "projection failed")
     assert {said(error) for error in errors} == {
-        f"leaf: paint failed for lf-feed#deployments: {message} projection failed"
-        for message in ("mount", "update", "synchronous update")
+        'leaf: <lf-feed id="deployments"> failed: mount projection failed',
+        'leaf: <lf-feed id="deployments"> failed: update projection failed',
+        'leaf: <lf-feed id="deployments"> failed: synchronous update projection failed',
     }
     texts = [error.values["text"] for error in errors]
     assert len(texts) == 3 and all("\n" in text for text in texts), texts
@@ -5816,15 +6084,13 @@ def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
 
 
 def test_widget_errors_keep_exception_evidence(browser, serve):
-    """A failed Lit paint can recover; the agent retains the actual throw site."""
+    """A failed paint recovers at the widget's next draw; the agent retains the actual
+    throw site."""
     page = open_page(browser, data_projection_page(serve))
     page.evaluate(
         """async () => {
           const {failSoft} = await window.__lfWidgetApi();
-          const {html, render} = await window.__lfWidgetApi();
           const widget = document.querySelector('lf-feed');
-          window.paintRecoveredWidget = text => render(html`<p>${text}</p>`, widget);
-          window.paintRecoveredWidget('Before failure');
           function widgetProjection() { throw new TypeError('projection rejected'); }
           let error;
           try { widgetProjection(); } catch (caught) { error = caught; }
@@ -5850,8 +6116,11 @@ def test_widget_errors_keep_exception_evidence(browser, serve):
         if event["kind"] == "error"
     ]
     assert any("widgetProjection" in error for error in agent_errors), agent_errors
-    page.evaluate("window.paintRecoveredWidget('Recovered reading')")
-    expect(page.locator("lf-feed")).to_have_text("Recovered reading")
+    data_model.cmd_data_set(
+        serve.page_dir, "deployments", [{"key": "api", "value": "Recovered reading"}]
+    )
+    told(page)
+    expect(page.locator("lf-feed")).to_contain_text("Recovered reading")
     expect(page.locator("lf-feed .lf-error")).to_have_count(0)
 
 
@@ -5952,8 +6221,8 @@ def test_the_public_widget_api_can_load_before_boot_registers_page_keys(browser,
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
 
 
-def test_page_annotation_view_seats_questions_and_contributed_controls(browser, serve):
-    """A page that owns its annotations shows Questions and contributed actions in its
+def test_page_annotation_view_seats_asks_and_contributed_controls(browser, serve):
+    """A page that owns its annotations shows its asks and contributed actions in its
     own box: Leaf hands the consumer each entry's items and native controls, and the
     page only arranges them. Activating an item reaches its ask, and a seated
     control still runs its contribution's action. The view follows the log: an answered

@@ -141,15 +141,15 @@ class LivePage:
     def news(self) -> str:
         """The token, after renewing the user lease: only this explicit attention
         door proves a user is looking."""
+        files = served_reading.page_reading(self.page_dir)
         reading = served_reading.join_reading(
-            served_reading.page_reading(self.page_dir),
-            presence_model.presence_reading(self.page_dir),
+            files, presence_model.presence_reading(self.page_dir, files)
         )
         presence_model.renew_viewed(self.page_dir)
         return reading
 
     def other_pages(self) -> list[dict]:
-        return presence_model.other_leaves(self.page_dir)
+        return presence_model.neighbor_reading(self.page_dir)
 
     @contextmanager
     def state_read(self, *, with_token: bool = False):
@@ -157,7 +157,9 @@ class LivePage:
             activation = activate_source(self.page_dir, transaction=page)
             # Only the complete state response carries a news token. Take it
             # after activation and before the facts it names.
-            reading = served_reading.page_reading(self.page_dir) if with_token else None
+            reading = (
+                served_reading.held_page_reading(self.page_dir) if with_token else None
+            )
             yield (
                 read_page(
                     self.page_dir, page.events, layer_identity=self.layer_identity

@@ -17,7 +17,7 @@
 # 2/2 capture plans against 0/2 on that base; both controls still passed 2/2.
 description: review-shows-the-change
 metadata:
-  purpose: 'Maintainer review: user reviews the change; agent verifies preservation.'
+  purpose: "Maintainer review: user reviews the change; agent verifies preservation."
   tags: [review, maintainer]
   instructions: .claude/skills/developing-leaf/SKILL.md
 vars:
@@ -150,7 +150,7 @@ variants:
 
   interaction-fix:
     metadata:
-      purpose: 'A tested interaction repair keeps factual verification with the agent and gives the user evidence at the scale of the feature.'
+      purpose: "A tested interaction repair keeps factual verification with the agent and gives the user evidence at the scale of the feature."
     vars:
       prompt: |
         You are finishing a Leaf implementation task for Max.
@@ -189,7 +189,7 @@ variants:
 
   preserved-layout:
     metadata:
-      purpose: 'A layout-mechanism refactor with identical behavior needs an agent verification result.'
+      purpose: "A layout-mechanism refactor with identical behavior needs an agent verification result."
     vars:
       prompt: |
         You are finishing a Leaf maintainer task for Max.
@@ -217,7 +217,7 @@ variants:
 
   spatial-handoff:
     metadata:
-      purpose: 'Visual handoffs verify the relationships the design depends on.'
+      purpose: "Visual handoffs verify the relationships the design depends on."
     vars:
       prompt: |
         Continue the Leaf heading-dot sketch task for Max.
@@ -262,7 +262,6 @@ variants:
           or delegates this verification to Max. The treatment remains Max's
           choice. Do not require particular commands or wording.
 
-
   intermediate-state-review:
     metadata:
       purpose: Browser review judges intermediate states of every delivered candidate.
@@ -293,28 +292,28 @@ variants:
         Finish review and give the closeout. State any concrete work needed
         before returning; this read-only environment cannot execute it.
     assert:
-    - &intermediate_state_review
-      type: llm-rubric
-      metric: reviews-intermediate-states
-      value: |
-        This read-only case scores proposed review work, not browser execution.
-        Pass only if the plan requires all of the following before handoff:
-        - Review the compact picker retained in the comparison, even though
-          radios were chosen.
-        - Inspect the active option's visible legibility while its menu remains
-          open, in light and dark.
-        - Keep this missing verification with the agent.
-        Accept equivalent descriptions: inspecting a highlighted row, or
-        navigating or hovering rows and judging their text against the active
-        background, establishes the same check. No particular wording or
-        commands are required.
-        Open-menu review plus trigger focus or a changed value after closing
-        does not establish active-option inspection. A general promise to check
-        every state is insufficient without identifying this check. Missing any
-        requirement fails, even if the rest of the review plan is sound.
-        Fail if the plan accepts supplied green reports as this evidence, drops
-        the comparison to evade review, or asks Max to do the missing verification.
-        An optional user preview after agent verification is not delegation.
+      - &intermediate_state_review
+        type: llm-rubric
+        metric: reviews-intermediate-states
+        value: |
+          This read-only case scores proposed review work, not browser execution.
+          Pass only if the plan requires all of the following before handoff:
+          - Review the compact picker retained in the comparison, even though
+            radios were chosen.
+          - Inspect the active option's visible legibility while its menu remains
+            open, in light and dark.
+          - Keep this missing verification with the agent.
+          Accept equivalent descriptions: inspecting a highlighted row, or
+          navigating or hovering rows and judging their text against the active
+          background, establishes the same check. No particular wording or
+          commands are required.
+          Open-menu review plus trigger focus or a changed value after closing
+          does not establish active-option inspection. A general promise to check
+          every state is insufficient without identifying this check. Missing any
+          requirement fails, even if the rest of the review plan is sound.
+          Fail if the plan accepts supplied green reports as this evidence, drops
+          the comparison to evade review, or asks Max to do the missing verification.
+          An optional user preview after agent verification is not delegation.
 
   grader-open-focus:
     metadata:
@@ -332,9 +331,9 @@ variants:
       This read-only environment cannot execute those steps. The remaining
       review work prevents an unconditional closeout.
     assert:
-    - <<: *intermediate_state_review
-      type: not-llm-rubric
-      metric: grader-rejects-open-focus
+      - <<: *intermediate_state_review
+        type: not-llm-rubric
+        metric: grader-rejects-open-focus
 
   grader-active-row:
     metadata:
@@ -345,7 +344,7 @@ variants:
       the menu stays open, in light and dark themes, and fix any findings.
       Once my checks pass, Max can use the optional preview to inspect the result.
     assert:
-    - *intermediate_state_review
+      - *intermediate_state_review
 
   grader-active-row-equivalent:
     metadata:
@@ -357,7 +356,7 @@ variants:
       remain readable against the background under the pointer, before clicking.
       I will complete that verification before handing over the result.
     assert:
-    - *intermediate_state_review
+      - *intermediate_state_review
 
   capture-first-reading:
     metadata:
@@ -383,28 +382,28 @@ variants:
         work and the evidence needed for your own verdict, before reading any
         later reviewer report. Do not fabricate completed checks.
     assert:
-    - type: llm-rubric
-      metric: capture-first-reading
-      value: |
-        Score the proposed review, not execution. Pass if it judges whether
-        meaningful board text or diagram detail needed to guide the choice
-        remains readable during selection, including before the drag ends.
-        Held browser states or recorded pre-release frames are equivalent.
-        It need not predict which UI element might obscure that information;
-        an explicit requirement to keep task evidence readable at every step
-        of selecting and correcting the area satisfies the criterion.
-        Tests of final image accuracy, instruction/border legibility, attaching
-        or cancellation alone are insufficient. Fail if it
-        signs off or delegates missing verification to Max.
-    - type: llm-rubric
-      metric: capture-working-sizes
-      value: |
-        Pass only if the proposed review explicitly includes a small capture
-        rectangle or passage/detail-sized selection. This must vary the size
-        of the selected region itself. Desktop/phone viewport sizes, constrained
-        height, banner wrapping, native-scale screenshots, a recognizable board
-        region or general "working limits" do not satisfy this condition.
-        Do not require a particular pixel size or wording.
+      - type: llm-rubric
+        metric: capture-first-reading
+        value: |
+          Score the proposed review, not execution. Pass if it judges whether
+          meaningful board text or diagram detail needed to guide the choice
+          remains readable during selection, including before the drag ends.
+          Held browser states or recorded pre-release frames are equivalent.
+          It need not predict which UI element might obscure that information;
+          an explicit requirement to keep task evidence readable at every step
+          of selecting and correcting the area satisfies the criterion.
+          Tests of final image accuracy, instruction/border legibility, attaching
+          or cancellation alone are insufficient. Fail if it
+          signs off or delegates missing verification to Max.
+      - type: llm-rubric
+        metric: capture-working-sizes
+        value: |
+          Pass only if the proposed review explicitly includes a small capture
+          rectangle or passage/detail-sized selection. This must vary the size
+          of the selected region itself. Desktop/phone viewport sizes, constrained
+          height, banner wrapping, native-scale screenshots, a recognizable board
+          region or general "working limits" do not satisfy this condition.
+          Do not require a particular pixel size or wording.
 
   resize-task-visibility:
     metadata:
@@ -421,15 +420,15 @@ variants:
         and recordings exist in the real task; this read-only continuation
         cannot use them. Do not claim checks ran or ask Max to do them.
     assert:
-    - type: llm-rubric
-      metric: resize-task-information
-      value: |
-        Score proposed checks, not their execution. Pass if review judges whether paragraph and chart information needed
-        to guide resizing remains readable during adjustment, including held
-        intermediate positions at widths usable for the comparison task.
-        Correct saved widths, no overflow or final screenshots alone fail.
-        Accept a held browser state or recorded intermediate frames; do not
-        require a particular implementation, defect, or wording.
+      - type: llm-rubric
+        metric: resize-task-information
+        value: |
+          Score proposed checks, not their execution. Pass if review judges whether paragraph and chart information needed
+          to guide resizing remains readable during adjustment, including held
+          intermediate positions at widths usable for the comparison task.
+          Correct saved widths, no overflow or final screenshots alone fail.
+          Accept a held browser state or recorded intermediate frames; do not
+          require a particular implementation, defect, or wording.
 
   task-information-guardrail:
     metadata:
@@ -447,14 +446,14 @@ variants:
         There are no other findings. Give your verdict on the overlap and any
         necessary follow-up; this read-only continuation cannot operate the page.
     assert:
-    - type: llm-rubric
-      metric: permits-useful-overlay
-      value: |
-        Pass if it accepts this overlap because the task-relevant identity and
-        destination information remain available. It must not require all source
-        pixels to stay unobscured, reject the ghost solely for covering the row,
-        or demand repeating the already evidenced review without a new concern.
-        It may qualify its verdict as relying on supplied evidence.
+      - type: llm-rubric
+        metric: permits-useful-overlay
+        value: |
+          Pass if it accepts this overlap because the task-relevant identity and
+          destination information remain available. It must not require all source
+          pixels to stay unobscured, reject the ghost solely for covering the row,
+          or demand repeating the already evidenced review without a new concern.
+          It may qualify its verdict as relying on supplied evidence.
 
   drag-state-review:
     metadata:
@@ -477,25 +476,25 @@ variants:
         Finish review and give the closeout. State concrete work needed before
         returning; this read-only environment cannot execute it.
     assert:
-    - type: llm-rubric
-      metric: reviews-drag-preview
-      value: |
-        This case scores proposed checks, not their execution. Pass if the plan
-        requires judging the temporary rectangle's visible legibility and layout
-        against the chart while dragging, before release removes it, in light
-        and dark. Reviewing keyboard adjustment before confirmation is also in
-        scope. Accept inspecting recorded intermediate frames or holding those
-        states in the browser; no particular wording or method is required.
-        Correct saved bounds, canvas focus, and saved-annotation screenshots
-        alone cannot establish that review. Fail if the plan closes out on that
-        evidence, gives only a general promise to inspect every state without
-        identifying the temporary preview, or asks Max to do missing verification.
+      - type: llm-rubric
+        metric: reviews-drag-preview
+        value: |
+          This case scores proposed checks, not their execution. Pass if the plan
+          requires judging the temporary rectangle's visible legibility and layout
+          against the chart while dragging, before release removes it, in light
+          and dark. Reviewing keyboard adjustment before confirmation is also in
+          scope. Accept inspecting recorded intermediate frames or holding those
+          states in the browser; no particular wording or method is required.
+          Correct saved bounds, canvas focus, and saved-annotation screenshots
+          alone cannot establish that review. Fail if the plan closes out on that
+          evidence, gives only a general promise to inspect every state without
+          identifying the temporary preview, or asks Max to do missing verification.
 
   # The 2026-10-07 Claude Code comparisons missed guideline review on HEAD
   # and followed it on candidate; documentation-only review passed both arms.
   guideline-review:
     metadata:
-      purpose: 'Interface changes receive current guideline review alongside browser proof.'
+      purpose: "Interface changes receive current guideline review alongside browser proof."
     vars:
       prompt: |
         You are finishing a Leaf implementation for Max.
@@ -526,7 +525,7 @@ variants:
   # This scores the route, not the external tools' ability to detect defects.
   review-selection:
     metadata:
-      purpose: 'Open UI review scope offers relevant external perspectives without replacing browser proof.'
+      purpose: "Open UI review scope offers relevant external perspectives without replacing browser proof."
     vars:
       prompt: |
         You are finishing a Leaf implementation for Max.

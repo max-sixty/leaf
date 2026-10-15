@@ -189,9 +189,10 @@ def test_init_restarts_a_served_page_onto_the_replacement_contract(
         stderr=subprocess.PIPE,
         text=True,
     )
-    url = json.loads(old_server.stdout.readline())["url"]
+    reading = json.loads(old_server.stdout.readline())
+    url = reading["url"]
     assert url.startswith("http://127.0.0.1:")
-    assert old_server.stderr.readline().startswith(f"server   {lifetime}")
+    assert reading["lifetime"] == lifetime
     prior_status = service_model.read_status(page_dir)
     prior_owner = service_model.page_claim(page_dir)
 

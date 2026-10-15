@@ -80,6 +80,16 @@ export function walkPosition() {
 // document position.
 const STEPS = Object.freeze(["previous", "next", "first", "last"]);
 const capital = (word) => word[0].toUpperCase() + word.slice(1);
+/** @param {{
+ *   id: string,
+ *   noun: string,
+ *   plural: string,
+ *   rows: () => HTMLElement[],
+ *   position?: () => ReturnType<typeof listWalkPosition>,
+ *   steps?: readonly string[],
+ *   landed?: (row: HTMLElement) => void,
+ *   scroll?: boolean,
+ * }} walk */
 export function rowWalk({
   id,
   noun,

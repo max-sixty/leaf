@@ -33,7 +33,7 @@
    work. Code running inside a sample's child page reports to the child's own
    disposable log, not the page that embeds it. */
 
-import { describeFailure } from "../vendor/browser-runtime.js";
+import { describeFailure } from "/vendor/browser-runtime.js";
 import { countTraffic } from "./traffic.js";
 import { recordInteraction } from "./interaction-log.js";
 import { DELIVERY, offlineInteractive, pageUrl, runtime } from "./context.js";
@@ -158,9 +158,11 @@ export async function requestJson(url, init, what) {
     } catch (error) {
       throw failed(`${what}: HTTP ${response.status}`, error);
     }
+  // `said` is the server's own words for the refusal, where it gave any.
   if (!response.ok)
     throw Object.assign(failed(answer?.error ?? `${what}: HTTP ${response.status}`), {
       current: answer?.current,
+      said: answer?.error,
     });
   return answer;
 }
@@ -195,9 +197,7 @@ export function admitResponse(response) {
 // its canonical root; another page or deployment has a separate saved record.
 let sessionMode = release ? "unknown" : "active";
 const sessionChannel =
-  release &&
-  !document.documentElement.lfSample &&
-  typeof window.BroadcastChannel !== "undefined"
+  release && !document.documentElement.lfSample
     ? new window.BroadcastChannel(`leaf-session:${release}:${pageUrl("")}`)
     : null;
 
@@ -232,6 +232,7 @@ function observeKey(response) {
   runtime.keyRefused = response.status === KEY_REFUSED;
 }
 
+/** @type {PromiseWithResolvers<void>} */
 const { promise: layerReady, resolve: revealLayer } = Promise.withResolvers();
 export { revealLayer };
 

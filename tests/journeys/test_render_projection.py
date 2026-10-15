@@ -747,7 +747,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     assert root_overflow(page) == 0
     widget.get_by_role("radio", name="Compare").click()
     expect(
-        widget.locator(".lf-vr-case:not([hidden]) .lf-shot-frame-label").first
+        widget.locator(".lf-vr-case[data-selected] .lf-shot-frame-label").first
     ).to_be_visible()
     page.emulate_media(media="print")
     expect(first).to_be_visible()
@@ -869,7 +869,7 @@ def test_a_live_revision_preserves_a_reply_after_native_tab(browser, serve):
     expect(send).to_be_focused()
 
     (serve.page_dir / "index.html").write_text(second)
-    expect(page.locator(".lf-queue")).to_have_text("Questions: 1")
+    expect(page.locator(".lf-queue")).to_have_text("On me: 1")
     expect(send).to_be_focused()
 
     third = second.replace('<p id="subject">Work under discussion.</p>', "")
@@ -888,7 +888,7 @@ def test_a_live_revision_preserves_a_reply_after_native_tab(browser, serve):
     expect(editor).to_be_focused()
     editor.press("Escape")
     page.wait_for_function("window.heldReply === undefined")
-    expect(page.locator(".lf-queue")).to_have_text("Questions: 1")
+    expect(page.locator(".lf-queue")).to_have_text("On me: 1")
 
 
 def test_an_old_document_state_request_cannot_update_the_new_revision(browser, serve):
@@ -1385,7 +1385,7 @@ def test_a_moved_card_identifies_its_user_origin_across_tabs(browser, serve):
     # The Page Map names the move once: while the agent owes it an answer, under the
     # row saying the move was sent, which is the user's change as much as its own row.
     second.keyboard.press("g")
-    second.keyboard.press("Shift+m")
+    second.keyboard.press("Shift+p")
     expect(
         second.get_by_role("button", name=re.compile(r"^Open sent: Sent"))
     ).to_be_visible()
@@ -1438,7 +1438,7 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
 ):
     """A settlement is the layer's rendering of the log's decision, never a module
     obligation: the trial's module is the product's starter, which only defines the
-    element — it never subscribes to its controller and supplies no renderState — and
+    element — a `LeafElement` with no `render()` of its own — and
     once its decision replays the holder wears
     data-lf-state, the retired slot is marked and hidden by the theme's one generic
     rule, and the quote anchored in it detaches instead of pointing at words the
@@ -1454,7 +1454,7 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
     monkeypatch.chdir(tmp_path)
     trial_family(tmp_path)
     module = (tmp_path / ".leaf" / "widgets" / "lf-trial.js").read_text()
-    assert "subscribe" not in module, "the holder's module must leave the mark to Leaf"
+    assert "render(" not in module, "the holder's module must leave the mark to Leaf"
 
     url = serve(
         TWO_HOLDER_PAGE,
@@ -1556,31 +1556,11 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
     module = serve.page_dir / "widgets" / "lf-trial.js"
     module.write_text(
         """\
-import {keeps, once, widgetController} from "/runtime/widget-api.js";
-customElements.define("lf-trial", class extends HTMLElement {
-  #controller;
+import {keeps, LeafElement} from "/runtime/widget-api.js";
+customElements.define("lf-trial", class extends LeafElement {
   #presented;
-  #stop;
-  connectedCallback() {
-    this.#controller ??= widgetController(this);
-    if (!once(this)) {
-      this.#subscribe();
-      return;
-    }
-    this.#subscribe();
-  }
-  disconnectedCallback() {
-    this.#stop?.();
-    this.#stop = undefined;
-    this.#presented?.disconnect();
-    this.#presented = undefined;
-  }
-  #subscribe() {
-    this.#stop ??= this.#controller.subscribe(reading => this.#markAfterPresentation(reading));
-    this.#markAfterPresentation(this.#controller.read());
-  }
-  #markAfterPresentation(reading) {
-    if (!reading.state) return;
+  render() {
+    if (!this.reading.state) return;
     if (document.body.dataset.lfPresented === "1") {
       keeps(this, "data-lf-state", "shelve");
       return;
@@ -1801,7 +1781,7 @@ def test_an_arrival_lands_where_the_url_aimed(browser, serve):
 
 def test_a_thread_ask_waits_until_answered(browser, serve):
     """A question in a thread is one of the page's asks — an obligation for the user
-        wherever it stands — and `q` reaches it. A single-answer group
+        wherever it stands — and `m` reaches it. A single-answer group
     is answered by its pick, as on the page; a `multiple` group's toggles each
     reach the agent live, so only its Done press closes it, as an `answer` action
     x-awaits.answered names for a `multiple` group. The thread's own reply box is the words'
@@ -1818,7 +1798,7 @@ def test_a_thread_ask_waits_until_answered(browser, serve):
     page = open_page(browser, url)
     expect_asks_answered(page, "0/2")
 
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     # The arrival stands on the question's own region; its picks are the next Tab stops.
     expect(page.locator("#tq-one-decision")).to_be_focused()
@@ -1937,7 +1917,7 @@ def test_a_thread_ask_waits_until_answered(browser, serve):
     # thread-local reply route explicit.
     page.locator(".lf-thread:has(#tq-one) .lf-thread-summary").click()
     page.locator("#tq-one .lf-pick").first.focus()
-    # The address toggles the panel it names, so from the panel `q` opened the first
+    # The address toggles the panel it names, so from the panel `m` opened the first
     # completion closes it and the second is the arrival on the open thread.
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
@@ -1983,7 +1963,7 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
     draft_control(page, "save", "ledger-cargo").click()
     round_trip(page)
     expect_asks_answered(page, "1/5")
-    expect(page.locator(".lf-queue")).not_to_have_text("Questions: 0")
+    expect(page.locator(".lf-queue")).not_to_have_text("On me: 0")
 
     honoring = re.sub(
         r'<lf-draft id="ledger-cargo" needed>.*?</lf-draft>',
@@ -2006,7 +1986,7 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
     # The saved answer remains in the reviewable ask inventory after the source
     # drops `needed`; it is completed, not newly owed to the user.
     expect_asks_answered(page, "1/5")
-    expect(page.locator(".lf-queue")).not_to_have_text("Questions: 0")
+    expect(page.locator(".lf-queue")).not_to_have_text("On me: 0")
     expect(page.locator("#ledger-cargo")).not_to_have_attribute("needed")
     expect(page.locator("#ledger-cargo")).not_to_have_attribute("data-lf-user-override")
     expect(page.locator("#ledger-fixture")).to_be_visible()

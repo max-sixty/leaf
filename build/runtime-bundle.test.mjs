@@ -1,14 +1,27 @@
-/** Prepared kernels share one state instance with native package modules. */
+/** The committed kernel shares one state instance with native package modules. */
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { test } from "node:test";
 
-import { bundleDistribution } from "./runtime-bundle.mjs";
+import { kernelOutputs } from "./runtime-bundle.mjs";
 
-test("prepared kernels preserve native packages, shared state, and stampable generation", async () => {
+/** The layer a page vendors with the kernel: the source minus what it replaces. */
+async function vendor(layer, kernel, output) {
+  await cp(layer, output, { recursive: true });
+  const record = JSON.parse(kernel.get("kernel.json"));
+  for (const path of record.replaces) await rm(join(output, path));
+  for (const [path, bytes] of kernel) {
+    if (path === "kernel.json") continue;
+    await mkdir(dirname(join(output, path)), { recursive: true });
+    await writeFile(join(output, path), bytes);
+  }
+  return record;
+}
+
+test("the kernel preserves native packages, shared state, and stampable generation", async () => {
   const temporary = await mkdtemp(join(tmpdir(), "leaf-install-bundle-"));
   const layer = join(temporary, "input");
   const output = join(temporary, "output");
@@ -29,9 +42,6 @@ test("prepared kernels preserve native packages, shared state, and stampable gen
     "runtime/annotation-overlay/index.js":
       'import { state } from "../state.js"; export { state }; state.annotations = true; export const vendor = () => import("../../vendor/example.js");',
     "runtime/bootstrap.js": "(() => { window.boot = true; })();",
-    "runtime/prepaint.js": "(() => { window.paint = true; })();",
-    "runtime/offline-delivery.js": "(() => { window.offline = true; })();",
-    "runtime/image-difference.js": "export const compareImages = () => [];",
     "widgets/custom.js":
       'import { state } from "/runtime/widget-api.js"; state.clicks += 1;',
     "vendor/example.js": 'export { state } from "/runtime/vendor-bridge.js";',
@@ -46,16 +56,10 @@ test("prepared kernels preserve native packages, shared state, and stampable gen
       await mkdir(dirname(join(layer, path)), { recursive: true });
       await writeFile(join(layer, path), source);
     }
-    // Preparation copies the tracked tree to the output before bundling it.
-    for (const path of [
-      "vendor/lit.js",
-      "vendor/browser-runtime.js",
-      "vendor/browser-runtime/render.js",
-    ]) {
-      await mkdir(dirname(join(output, path)), { recursive: true });
-      await writeFile(join(output, path), sources[path]);
-    }
-    await bundleDistribution(layer, output);
+    const kernel = await kernelOutputs(layer);
+    // A rebuild of the same modules reproduces the committed bytes.
+    assert.deepEqual(await kernelOutputs(layer), kernel);
+    const record = await vendor(layer, kernel, output);
     await writeFile(join(output, "package.json"), '{"type":"module"}');
 
     const leaf = await import(pathToFileURL(join(output, "leaf.js")));
@@ -78,51 +82,56 @@ test("prepared kernels preserve native packages, shared state, and stampable gen
     api.state.clicks += 1;
     assert.equal(annotations.state.clicks, 1);
 
-    const files = await readdir(output, { recursive: true });
-    assert.equal(
-      files.some((path) => path.startsWith("widgets/")),
-      false,
-    );
-    // The kernel absorbs the framework; upstream vendor modules stay native.
-    assert.deepEqual(
-      files.filter((path) => path.startsWith("vendor/")),
-      ["vendor/lit.js"],
-    );
+    // The kernel is runtime modules and chunks named after their modules; it
+    // absorbs the framework and leaves widgets, upstream vendor modules, and the
+    // generation and classic scripts nothing imports native.
+    assert.deepEqual([...kernel.keys()].sort(), [
+      "kernel.json",
+      "leaf.js",
+      "runtime/annotation-overlay/check-api.js",
+      "runtime/bundle-annotation-overlay~index.js",
+      "runtime/bundle-state.js",
+      "runtime/check-api.js",
+      "runtime/layer-client.js",
+      "runtime/media.js",
+      "runtime/vendor-bridge.js",
+      "runtime/widget-api.js",
+    ]);
+    assert.deepEqual(Object.keys(record.inputs), Object.keys(sources).sort());
+    assert.deepEqual(record.replaces, [
+      "leaf.js",
+      "runtime/annotation-overlay/check-api.js",
+      "runtime/annotation-overlay/index.js",
+      "runtime/check-api.js",
+      "runtime/layer-client.js",
+      "runtime/media.js",
+      "runtime/state.js",
+      "runtime/vendor-bridge.js",
+      "runtime/widget-api.js",
+      "vendor/browser-runtime.js",
+      "vendor/browser-runtime/render.js",
+    ]);
+    assert.match(kernel.get("leaf.js").toString(), /import\("\/widgets\/custom.js"\)/);
     assert.match(
-      await readFile(join(output, "leaf.js"), "utf8"),
-      /import\("\/widgets\/custom.js"\)/,
+      kernel.get("runtime/layer-client.js").toString(),
+      /from "\/runtime\/layer-generation.js"/,
     );
-    assert.match(
-      await readFile(join(output, "runtime/layer-client.js"), "utf8"),
-      /from"\/runtime\/layer-generation.js"/,
-    );
-    for (const path of [
-      "runtime/layer-generation.js",
-      "runtime/bootstrap.js",
-      "runtime/prepaint.js",
-      "runtime/offline-delivery.js",
-      "runtime/image-difference.js",
-    ])
-      assert.equal(await readFile(join(output, path), "utf8"), sources[path]);
-    const javascript = await Promise.all(
-      files
-        .filter((path) => path.endsWith(".js"))
-        .map((path) => readFile(join(output, path), "utf8")),
-    );
-    assert.equal(
-      javascript.join("\n").split('"__LEAF_LAYER_GENERATION__"').length - 1,
-      1,
-    );
+    const javascript = [...kernel]
+      .filter(([path]) => path.endsWith(".js"))
+      .map(([, bytes]) => bytes)
+      .join("\n");
+    assert.equal(javascript.split('"__LEAF_LAYER_GENERATION__"').length - 1, 0);
     // The framework shares the runtime's one state instance and the page's one Lit.
-    assert.equal(javascript.join("\n").split("clicks:0").length - 1, 1);
-    assert.match(javascript.join("\n"), /from"\/vendor\/lit\.js"/);
+    assert.equal(javascript.split("clicks: 0").length - 1, 1);
+    assert.match(javascript, /from "\/vendor\/lit\.js"/);
     // A lazily imported kernel module is a chunk, and its vendor import stays native.
-    assert.match(javascript.join("\n"), /import\("\/vendor\/example\.js"\)/);
-    assert.doesNotMatch(javascript.join("\n"), /browser-runtime/);
+    assert.match(javascript, /import\("\/vendor\/example\.js"\)/);
+    assert.doesNotMatch(javascript, /from "[^"]*browser-runtime|bundle-[A-Z0-9]{8}/);
     // A historical developer arm may predate the optional diagnostic entry.
     await rm(join(layer, "runtime/annotation-overlay/check-api.js"));
     const historical = join(temporary, "historical");
-    await bundleDistribution(layer, historical);
+    await vendor(layer, await kernelOutputs(layer), historical);
+    await writeFile(join(historical, "package.json"), '{"type":"module"}');
     const prior = await import(pathToFileURL(join(historical, "leaf.js")));
     assert.equal(prior.state.annotations, false);
   } finally {

@@ -105,7 +105,7 @@ dense-prose fallback. No replacement policy was implemented or demonstrated.
 
 Proposals first checked against Leaf `486180b51888d8dd46584f6c84e3d2a96f2035cb`,
 then rechecked against `532be8f718f6a2f3bdf1391f936a4778fcf5735f` on October 5.
-IDs match the live report. Existing task starts, the Queue panel's Done list,
+IDs match the live report. Existing task starts, the On panel's Done list,
 persistence, free HTML, general composing, constrained panels and CSS-anchor
 following are the baseline, not proposed additions.
 
@@ -115,17 +115,17 @@ following are the baseline, not proposed additions.
   sends empty user input and a structured `leaf_delivery` tool result. Desktop
   access and rendering remain unverified. Prove agent wake-up and exact
   input/reply identity while keeping automatic user-message text out of chat.
-- **#4 — Make finished task results easy to read.** The Queue panel already
+- **#4 — Make finished task results easy to read.** The On panel already
   lists ended tasks under Done with their outcome. Their detail is in the row's
   native tooltip; show it as visible text or a disclosure usable by a finger.
   Test whether readers find the result after the active count drops. Retain
   navigation to an existing thread where one belongs to the task, including
-  resolved threads. Page and widget tasks may have no thread, so Queue remains
-  their result route. This displays the logged outcome rather than creating
+  resolved threads. Page and widget tasks may have no thread, so the On panel
+  remains their result route. This displays the logged outcome rather than creating
   independent evidence of completion.
 - **#6 — Canonical task selectors and list/board experiment.** Workbench's
   heading-driven board and [Sfora's map](https://www.sfora.ai/features/boards)
-  were operated, without persistence proof. Leaf's Queue already consumes
+  were operated, without persistence proof. Leaf's On panel already consumes
   canonical task readings; expose those through the existing package publication
   API. Prove list and board consume one task outcome without agent-maintained
   duplicate status markup. Preserve arbitrary authored HTML.

@@ -1,6 +1,7 @@
 """Render, shot, and browser-gate command tests."""
 
 import hashlib
+import json
 import os
 import re
 import subprocess
@@ -92,16 +93,20 @@ def test_a_driver_that_never_starts_is_reported_rather_than_raised(serve, tmp_pa
 
     def answered(result, node, reason):
         assert result.returncode == 0, result.stdout + result.stderr
-        assert "· render check: not run, Playwright's driver did not start: " in (
-            result.stderr
-        )
-        assert browser_model.DRIVER_VARIABLE in result.stderr
-        assert str(node) in result.stderr
-        assert reason in result.stderr
-        assert "Traceback" not in result.stderr
-        assert "_playwright" not in result.stderr
-        assert "_output" not in result.stderr
-        assert "Task exception was never retrieved" not in result.stderr
+        report = json.loads(result.stdout)
+        assert report["status"] == 0
+        assert report["browser"]["asked"] == ["render check"]
+        assert report["browser"]["ran"] == []
+        unavailable = report["browser"]["unavailable"]
+        assert "Playwright's driver did not start: " in unavailable
+        assert browser_model.DRIVER_VARIABLE in unavailable
+        assert str(node) in unavailable
+        assert reason in unavailable
+        assert result.stderr == ""
+        assert "Traceback" not in result.stdout
+        assert "_playwright" not in result.stdout
+        assert "_output" not in result.stdout
+        assert "Task exception was never retrieved" not in result.stdout
 
     def ran(node, *command):
         return subprocess.run(
@@ -783,21 +788,23 @@ def test_a_shot_outlines_where_its_images_differ(browser, serve):
     outlines.press("Enter")
     expect(group.locator('[aria-checked="true"]')).to_have_text("Outlines")
 
-    # A pixels-only comparison starts Plain. Selecting Pixels twice keeps it open;
-    # selecting Plain, the picture, or an endpoint returns to the same divider.
+    # A pixels-only comparison starts in Pixels, the dark square painted as what the
+    # after image drew. Selecting Pixels again keeps it open; selecting Plain, the
+    # picture, or an endpoint returns to the same divider.
     shot = page.locator("#shot-pixels")
     views = shot.get_by_role("radiogroup", name="Comparison view")
     expect(views.get_by_role("radio")).to_have_text(["Plain", "Pixels"])
-    expect(views.locator('[aria-checked="true"]')).to_have_text("Plain")
+    expect(views.locator('[aria-checked="true"]')).to_have_text("Pixels")
     pixels = views.get_by_role("radio", name="Pixels", exact=True)
     view = shot.locator(".lf-shotpixels")
-    expect(view).to_have_count(0)
+    expect(view).to_be_visible()
+    for side in ("before", "after"):
+        expect(view.locator(f'[data-lf-shot-side="{side}"]')).to_have_attribute(
+            "style", re.compile("--lf-shot-pixels")
+        )
     comparison = shot.locator(".lf-shotcomparison")
     expect(comparison).to_be_attached()
     before = comparison.get_attribute("position")
-    pixels.click()
-    expect(view).to_be_visible()
-    expect(views.locator('[aria-checked="true"]')).to_have_text("Pixels")
     pixels.press("Enter")
     expect(view).to_be_visible()
     for state in ("before", "after"):
@@ -953,10 +960,15 @@ def test_render_reads_widget_chrome_where_it_stands(
     package = tmp_path / ".leaf"
     add_test_widget(package, "lf-badge", upgrade=True)
     module = package / "widgets" / "lf-badge.js"
+    source = module.read_text()
+    starter = "class extends LeafElement {},"
+    assert source.count(starter) == 1
     module.write_text(
-        module.read_text().replace(
-            "      if (!once(this)) return;",
-            "      if (!once(this)) return;\n" + BADGE_CHROME,
+        source.replace(
+            starter,
+            "class extends LeafElement {\n    setup() {\n"
+            + BADGE_CHROME
+            + "\n    }\n  },",
         )
     )
     narrow = solid_png(400, 300, (235, 215, 205))

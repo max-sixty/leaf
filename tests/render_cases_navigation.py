@@ -974,19 +974,11 @@ DATA_PROJECTION_PAGE = leaf_page(
 )
 
 DATA_PROJECTION_MODULE = """
-import {offer, projectData, watchData, setChildren} from '/runtime/widget-api.js';
-customElements.define('lf-feed', class extends HTMLElement {
-  connectedCallback() {
-    if (!this.stopWatching)
-      this.stopWatching = watchData(
-        this,
-        'rows',
-        snapshot => this.show(snapshot),
-      );
-  }
-  disconnectedCallback() {
-    this.stopWatching?.();
-    this.stopWatching = null;
+import {offer, LeafElement, nothing, projectData, setChildren} from '/runtime/widget-api.js';
+customElements.define('lf-feed', class extends LeafElement {
+  render() {
+    this.show(this.data('rows'));
+    return nothing;
   }
   show(snapshot) {
     const datums = (snapshot?.value ?? []).map(({key, value}, index) => {

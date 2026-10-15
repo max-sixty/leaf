@@ -11,28 +11,16 @@ from pathlib import Path
 
 from .activity import Turn, current_turn, declared_at, takes_input
 from .event_log import read_cursor
-from .files import (
-    entry_stamps,
-    file_stamp,
-    read_json,
-)
+from .files import file_stamp, read_json
 from .harness import claim_harness
-from .leases import wait_is_live, waiter_lease_path
+from .leases import lock_is_held, wait_is_live, waiter_lease_path
 from .machine import state_home
 from .page_memory import memo
-from .schema import (
-    INTERACTIONS_FILE,
-    UNNAMED_AGENT,
-    USER_VIEWS_FILE,
-    USER_VIEWS_LOCK,
-    VIEWED_FILE,
-    WAITER_LOCK,
-)
+from .schema import SERVER_LOCK, UNNAMED_AGENT, VIEWED_FILE
 from .server import running_server
 from .service import (
     PageTransaction,
     claim_is_active,
-    claim_path,
     page_claim,
     read_status,
     unacknowledged,
@@ -61,11 +49,13 @@ class _Neighbors:
         self.token = None
 
 
-def _neighbor_reading(page_dir: Path) -> list:
-    """Local page writes do not invalidate a machine's neighbor observation.
+def neighbor_reading(page_dir: Path) -> list:
+    """The page's one reading of its neighbours (`other_leaves`), which its state
+    answer and its news fingerprint both take, so the two never disagree.
 
-    Producer writes invalidate it immediately; kernel lease changes have the same
-    bounded two-second observation interval as the page's other live facts.
+    Local page writes do not invalidate it. Producer writes invalidate it
+    immediately; kernel lease changes have the same bounded two-second observation
+    interval as the page's other live facts.
     """
     candidates = neighbor_candidates()
     own = page_dir.resolve()
@@ -86,28 +76,8 @@ class _Presence:
 
     def __init__(self) -> None:
         self.lock = threading.RLock()
-        # (page-file stamp, expiry, the token `presence_reading` gave)
+        # (page reading, wait lease and neighbours; expiry; the token given)
         self.token: tuple | None = None
-
-
-def _page_stamp(page_dir: Path, claim: dict | None = None) -> tuple:
-    """The mutable files whose changes can alter a page presence reading.
-
-    `viewed.json` counts here, where the page's own reading leaves it out: whether a
-    tab is looking is part of what presence reports."""
-    entries = tuple(
-        entry_stamps(page_dir, {INTERACTIONS_FILE, USER_VIEWS_FILE, USER_VIEWS_LOCK})
-    )
-    claim_stamp = file_stamp(claim_path(page_dir))
-    if claim and claim.get("id"):
-        # A harness wait lease is outside the page, and its lock state has no file
-        # stamp of its own. Its boolean is checked below on every cache refresh;
-        # including the file here still invalidates a page when the lease is first
-        # created or removed.
-        lease_stamp = file_stamp(waiter_lease_path(None, claim["id"]))
-    else:
-        lease_stamp = file_stamp(page_dir / WAITER_LOCK)
-    return entries + (("$claim", claim_stamp), ("$wait", lease_stamp))
 
 
 def neighbor_candidates() -> tuple:
@@ -163,13 +133,16 @@ def other_leaves(page_dir: Path) -> list:
     Each candidate costs its server lease/service and one disposable row read.
     Never open another page's log, document, or projection. A row belongs to
     the server incarnation that computed it; absent or older rows stay absent.
+    Nothing else removes a row, so this scan deletes one whose server lease no
+    process holds. A server that takes the lease again republishes its missing
+    row within one look (`RowPublisher.refresh`).
 
     Each entry names its page by `page_key`, the identity the page's own state-home
     records already use, and links it by `url`. The two are separate because a page
     outlives its server: a restart may serve the same page at a new port, which
     changes where the row leads and not which page it is.
     """
-    from .server_rows import read_row
+    from .server_rows import read_row, row_path
 
     others = []
     own = page_dir.resolve()
@@ -183,6 +156,8 @@ def other_leaves(page_dir: Path) -> list:
         try:
             info = running_server(candidate)
             if info is None:
+                if not lock_is_held(candidate / SERVER_LOCK):
+                    row_path(candidate).unlink(missing_ok=True)
                 continue
             row = read_row(candidate, info, record=record)
             if row is not None and row["activity"]["kind"] != "closed":
@@ -212,6 +187,29 @@ def live_facts(page_dir: Path, claim: dict | None, *, process: bool = True) -> d
         "session_alive": active is not None if claim else None,
         "live_turn": claim_harness(active).live_turn() if active else None,
     }
+
+
+def page_agent(claim: dict | None, events: list, *, process: bool = True) -> str:
+    """The name the page calls its agent: the claimant's, who reads what the user
+    writes; on a page no session holds now, the voice that last wrote on it, whose
+    words the page shows; and `UNNAMED_AGENT` where neither names one. One name for
+    the agent's side, so a page whose session ended still calls its agent what its
+    messages do.
+
+    A captured publication (`process` false) names none from its log: whoever
+    answers a hosted copy is the host's agent, not the one that wrote the page."""
+    if claim:
+        return claim["agent"]
+    if not process:
+        return UNNAMED_AGENT
+    return next(
+        (
+            event["agent"]
+            for event in reversed(events)
+            if event["author"] == "agent" and event.get("agent")
+        ),
+        UNNAMED_AGENT,
+    )
 
 
 def presence_with_activity(
@@ -257,10 +255,11 @@ def presence_with_activity(
         "pending": sum(
             1 for e in unacknowledged(events, cursor) if e["author"] == "user"
         ),
-        # The claimant's chosen display name. Harness-specific facts stay out of
-        # this reading: it is what a browser seat may know, and the browser has
-        # never had a use for which program is running the agent.
-        "agent": claim["agent"] if claim else UNNAMED_AGENT,
+        # The page's agent, by the name every label naming the agent's side reads
+        # (`page_agent`). Harness-specific facts stay out of this reading: it is what
+        # a browser seat may know, and the browser has never had a use for which
+        # program is running the agent.
+        "agent": page_agent(claim, events, process=process),
         # Which session the turn-closed evidence belongs to. Thread updates carry
         # their posting session too, so a claim another session wrote — the page
         # task's, while a Codex watcher task holds the page — is not declared
@@ -329,17 +328,25 @@ def presence_fingerprint(present: dict, others: list) -> str:
     ).hexdigest()[:8]
 
 
-def presence_reading(page_dir: Path) -> str:
+def presence_reading(page_dir: Path, files: str) -> str:
     """The presence token shared by readers for one bounded freshness interval.
 
-    Page-file stamps invalidate it immediately; process and lock leases are refreshed
-    when the interval expires. The three facts are read the way `presence` and
-    `full_state` read them, so a freshness answer and the state it prompts name the same
-    reading once the bounded cache interval has elapsed.
+    It keys on `files`, the page's own reading (`served_state.reading`), which
+    names every page input, and on the claimant's wait lease, the one input of
+    presence outside them. A move in either invalidates it immediately; process
+    and lock leases are refreshed when the interval expires. The three facts are
+    read the way `presence` and `full_state` read them, so a freshness answer and
+    the state it prompts name the same reading once the bounded cache interval has
+    elapsed.
     """
     claim = page_claim(page_dir)
-    neighbors = _neighbor_reading(page_dir)
-    stamp = (_page_stamp(page_dir, claim), neighbors)
+    # A harness wait lease lives outside the page, and its lock state has no file
+    # stamp of its own: `live_facts` checks it on every refresh, while its stamp
+    # here invalidates the token when the lease is first created or removed. An
+    # unclaimed page's lease is in the page directory, so `files` covers it.
+    lease = file_stamp(waiter_lease_path(None, claim["id"])) if claim else None
+    neighbors = neighbor_reading(page_dir)
+    stamp = (files, lease, neighbors)
     now = time.monotonic()
     kept = memo(page_dir, _Presence)
     with kept.lock:

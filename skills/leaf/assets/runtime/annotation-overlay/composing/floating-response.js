@@ -169,7 +169,6 @@ export function createFloatingResponsePlacement({
   function stopFabPositioning({ reset = false } = {}) {
     carry.placed();
     nativeAttachment = false;
-    if (fabBar.style.height) fabBar.style.removeProperty("height");
     fabPosition.stop();
     cancelRender(fabPositionFrame);
     fabPositionFrame = 0;
@@ -211,7 +210,7 @@ export function createFloatingResponsePlacement({
             update();
           };
           const stopSize = autoUpdate(reference, floating, invalidate, {
-            ancestorScroll: !fabPosition.nativeAvailable(),
+            ancestorScroll: false,
             layoutShift: false,
           });
           let x = reference.getBoundingClientRect().left;
@@ -464,9 +463,6 @@ export function createFloatingResponsePlacement({
         fabPlacement.landed(position);
         editingAttachment = response.open ? attachment : null;
         keeps(fabBar, "data-lf-placement", position.placement);
-        // An auto-height absolute box borrows its inset-modified available height.
-        // Intrinsic sizing keeps moving that inset from masquerading as content resize.
-        fabBar.style.height = response.open ? "max-content" : "";
         fabPosition.stand(position);
         carry.placed();
         nativeAttachment = response.open && fabPosition.follows();
@@ -542,7 +538,6 @@ export function createFloatingResponsePlacement({
     });
   }
   return {
-    holdsHome: fabPosition.holdsHome,
     stands: () => response.open || Boolean(anchorGeometry(response.anchor)),
     place: placeFab,
     stop: stopFabPositioning,

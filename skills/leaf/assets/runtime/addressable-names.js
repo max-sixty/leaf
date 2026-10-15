@@ -46,7 +46,7 @@ export function addressableWord(addressable) {
     const own = addressable.lfWord?.();
     if (own) return own;
   }
-  if (registry[tag]?.["x-ask-context"]) return "question";
+  if (registry[tag]?.["x-ask-context"]) return "ask";
   if (tag.startsWith("lf-")) return tag.slice(3);
   if (tag === "pre")
     return addressable.querySelector(":scope > code") ? "code" : "block";
@@ -95,7 +95,7 @@ export function addressableName(element) {
   return declared || leadingTitle(element);
 }
 
-// What the chrome calls an element away from it: a Questions panel row, a Page Map heading,
+// What the chrome calls an element away from it: a On panel row, a Page Map heading,
 // a thread's anchor, a feed row. The element's name comes first: `addressableName`,
 // else its own caption, the `aria-label` its author gave it, or a control's <label>.
 // An element whose words are its own (a block of prose, anything holding text of its

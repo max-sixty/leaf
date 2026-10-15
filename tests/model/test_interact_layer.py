@@ -33,6 +33,7 @@ from interact_support import (
     install_payload,
     js_facts,
     lock_contention,
+    package_findings,
     publish,
     record_claim,
     registry_refusal,
@@ -40,6 +41,7 @@ from interact_support import (
     vendored_at_another_protocol,
     vendored_before_the_ask_rename,
     wait_for,
+    words,
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -298,20 +300,52 @@ def test_a_page_another_leaf_vendored_at_this_protocol_takes_its_writes(
     assert checked.returncode == 0, checked.stderr
 
 
-def test_response_reply_names_a_page_vendored_at_another_protocol(claimed, server):
+def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(claimed, server):
+    """A reply through a reference names no page, so it is refused on a page an older
+    Leaf vendored, naming the re-vendor. The session's next command naming the page
+    makes that re-vendor itself (`vendoring.renew_layer`), restarting the server at
+    its address, and the reply then goes."""
     replied = _replying_after(claimed, server, vendored_at_another_protocol)
     assert replied.returncode != 0, replied.stdout
     assert f"leaf page init {claimed}" in replied.stderr
+    for command in (["page", "state", str(claimed)], replied.args[len(LEAF_COMMAND) :]):
+        ran = subprocess.run(
+            [*LEAF_COMMAND, *command],
+            capture_output=True,
+            text=True,
+            timeout=STATED_TIMEOUT,
+            check=False,
+        )
+        assert ran.returncode == 0, ran.stderr
+        assert "re-vendor" not in ran.stderr
+    assert fetch(f"{server}/api/state")[0] == 200
 
 
-def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(page_dir):
+def test_a_command_leaves_a_page_a_newer_leaf_vendored(claimed):
+    """A process the session started before its plugin updated still runs the older
+    Leaf, and must not take the page back to it: the newer Leaf's next hook would
+    re-vendor it up again, reloading the user's tabs each time."""
+    foreign = vendored_at_another_protocol(claimed, newer=True)
+    checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(claimed)])
+    assert checked.exit_code != 0
+    assert f"page protocol {foreign}" in checked.output
+    assert (
+        interact_files.read_json(claimed / "registry.json")["$events"]["protocol"]
+        == foreign
+    )
+
+
+def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(claimed):
     """A layer vendored before an x- key was renamed (`x-question-context`, now
     `x-ask-context`) declares nothing under the new name, so this Leaf would quietly
     drop what the key said. The layer still reads, but the one reading every server
     and writer refuses on (`layer.incompatible_layer`) names the re-vendor, and so
-    does `page check`. A layer that lacks a key this Leaf added is refused nothing."""
+    does `page check` from a session that may not make it, as one that does not
+    hold the page. A layer that lacks a key this Leaf added is refused nothing."""
     from leaf.event_contracts import write_refusal
 
+    page_dir = claimed
+    other = {"CLAUDE_CODE_SESSION_ID": "s2"}
     path = page_dir / "registry.json"
 
     def vendored(change):
@@ -327,16 +361,15 @@ def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(page_dir
     revendor = f"leaf page init {page_dir}"
     assert registry_storage.load_registry(page_dir) is not None
     assert write_refusal(page_dir).values["retired"] == ["x-question-context"]
-    checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
-    assert checked.exit_code != 0
-    assert "x-question-context" in checked.output and revendor in checked.output
-    as_json = CliRunner().invoke(
-        cli_model.cli, ["page", "check", "--json", str(page_dir)]
+    checked = CliRunner().invoke(
+        cli_model.cli, ["page", "check", str(page_dir)], env=other
     )
-    report = json.loads(as_json.output)
+    assert checked.exit_code != 0
+    report = json.loads(checked.stdout)
     assert report["status"] == 1 and report["browser"] is None
     [finding] = report["findings"]
-    assert finding["code"] == "retired-layer" and revendor in finding["text"]
+    assert finding["code"] == "retired-layer"
+    assert "x-question-context" in finding["text"] and revendor in finding["text"]
 
     vendored(lambda keys: keys.pop("x-question-context"))
     assert write_refusal(page_dir) is None
@@ -345,18 +378,20 @@ def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(page_dir
 @pytest.mark.parametrize(
     ("vendored", "named"),
     [
-        (vendored_at_another_protocol, "page protocol 999"),
+        (vendored_at_another_protocol, "page protocol"),
         (vendored_before_the_ask_rename, "x-question-context"),
     ],
 )
-def test_page_state_reports_a_layer_this_leaf_cannot_serve(page_dir, vendored, named):
-    """`page state` on a page this Leaf can neither serve nor write still prints its
+def test_page_state_reports_a_layer_this_leaf_cannot_serve(claimed, vendored, named):
+    """`page state` on a page this Leaf can neither serve nor write, from a session
+    that may not re-vendor it since another one holds the page, still prints its
     reading, and says why under `source.error`, naming the re-vendor, from the one
     reading the servers and the append door refuse on (`layer.incompatible_layer`).
     Activation writes no revision under that layer, even for an edited source.
 
     A fresh process, as an agent's is: this one holds the revision `publish`
     captured in memory, under the vocabulary before the change."""
+    page_dir = claimed
     publish(page_dir)
     vendored(page_dir)
     source = page_dir / "index.html"
@@ -369,6 +404,7 @@ def test_page_state_reports_a_layer_this_leaf_cannot_serve(page_dir, vendored, n
         text=True,
         timeout=STATED_TIMEOUT,
         check=False,
+        env={**os.environ, "CLAUDE_CODE_SESSION_ID": "s2"},
     )
     assert result.returncode == 0, result.stderr
     state = json.loads(result.stdout)
@@ -431,8 +467,8 @@ def test_a_layer_stamped_with_its_revision_still_names_the_revendor(page_dir):
         check=False,
     )
     assert checked.returncode != 0
-    assert "x-work" in checked.stderr
-    assert f"leaf page init {page_dir}" in checked.stderr
+    assert "x-work" in words(checked.stdout)
+    assert f"leaf page init {page_dir}" in words(checked.stdout)
 
 
 def test_the_skill_routes_every_reference_it_ships():
@@ -575,6 +611,17 @@ def test_a_harness_entry_argv_no_registration_sends_is_refused_with_its_usage(
     assert result.returncode == 1
     assert result.stdout == ""
     assert result.stderr == f"usage: {usage}\n"
+
+
+def test_a_page_command_names_what_its_path_holds_instead(tmp_path, regtest):
+    """A page command given the page's `index.html`, or a page source elsewhere, is
+    told it was handed a file, and a directory with no log is offered `page init`."""
+    source = tmp_path / "page.html"
+    source.write_text(PAGE)
+    for path in (source, tmp_path / "missing"):
+        result = CliRunner().invoke(cli_model.cli, ["page", "state", str(path)])
+        assert result.exit_code == 1
+        print(result.output.replace(str(tmp_path), "<tmp>"), end="", file=regtest)
 
 
 def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
@@ -768,10 +815,13 @@ def test_shim_dispatches_every_command_through_one_uv_run(tmp_path, monkeypatch,
     # than whatever project the caller's directory sits in. `--no-dev` because
     # the dev group is the suite and the repo's own scripts, neither a harness's to
     # install. The module rather than the `leaf` console script because a long
-    # payload path turns the console script into a `/bin/sh` trampoline.
+    # payload path turns the console script into a `/bin/sh` trampoline. The
+    # checkout's environment exists, so uv skips its cache, which an agent's
+    # sandbox refuses; the hook registration tests run a payload with none.
     assert dispatched == [
         "run",
         "-q",
+        "--no-cache",
         "--no-dev",
         "--project",
         str(PLUGIN_ROOT),
@@ -974,6 +1024,9 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "skills/leaf/references/page-checkpoints.md",
         "skills/leaf/references/packages.md",
         "skills/leaf/references/page-authoring.md",
+        "skills/leaf/references/page-behavior.md",
+        "skills/leaf/references/page-layout.md",
+        "skills/leaf/references/live-samples.md",
         "skills/leaf/references/serving-pages.md",
         "skills/leaf/packages/default/registry.json",
         "skills/leaf/packages/diagram/registry.json",
@@ -1112,6 +1165,22 @@ def test_the_payload_is_text():
         except UnicodeDecodeError:
             binary.append(path.relative_to(PLUGIN_ROOT).as_posix())
     assert binary == [], "binary files in the tree: " + ", ".join(binary)
+
+
+def test_every_skill_file_reads_in_one_command():
+    """An agent reads a skill file with `cat` as often as with Read, and Claude Code
+    hands a Bash output over 30,000 characters back as a 2 KB preview with the rest
+    saved to a file the agent rarely opens. page-authoring.md at 48 KB reached
+    authoring sessions that way until it was split, so each skill's files stay
+    under that cap."""
+    oversized = {
+        path.relative_to(ROOT).as_posix(): size
+        for root in (ROOT / "skills", ROOT / ".claude" / "skills")
+        for path in root.rglob("*.md")
+        if path.name == "SKILL.md" or {"references", "instructions"} & set(path.parts)
+        if (size := len(path.read_text())) > 30_000
+    }
+    assert oversized == {}, oversized
 
 
 def test_claude_and_codex_read_the_same_repository_skills():
@@ -1667,6 +1736,43 @@ def test_layout_style_and_widgets_never_read_each_other():
     assert not typed, "layouts.css sets type:\n" + "\n".join(typed)
 
 
+def test_every_token_a_sheet_reads_is_set_somewhere():
+    """A `var(--name)` with no fallback reads a property something sets: a sheet's
+    declaration or `@property`, or a module or delivery writing it by name. One nothing
+    sets makes its declaration invalid, so the property falls back to what it inherits or
+    its initial value, and the page shows no sign of it: a hover background that never
+    painted, an empty state with no padding, a size the scale has no step for."""
+    # Anything that names a property as a declaration, an `@property` or a string sets
+    # it, a vendored component's sheet included; what is read is Leaf's own sheets.
+    written, prefixes, reads = set(), set(), []
+    for source in sorted(schema_model.ASSETS.parent.rglob("*")):
+        if source.suffix not in (".css", ".js", ".py"):
+            continue
+        text = source.read_text()
+        written |= set(re.findall(r"(--[\w-]+)\s*:", text))
+        written |= set(re.findall(r"@property\s+(--[\w-]+)", text))
+        written |= set(re.findall(r"[\"'`](--[\w-]+)[\"'`]", text))
+        prefixes |= set(re.findall(r"`(--[\w-]+)\$\{", text))
+        if (
+            source.suffix != ".css"
+            or "vendor" in source.parts
+            or text.startswith("/* Generated from ")
+        ):
+            continue
+        for _conditions, _enclosing, selector, declarations in _style_rules(source):
+            reads += [
+                (name, f"{source.relative_to(schema_model.ASSETS.parent)}: {selector}")
+                for _property, value in declarations
+                for name in re.findall(r"var\(\s*(--[\w-]+)\s*\)", value)
+            ]
+    unset = sorted(
+        f"{where} reads {name}"
+        for name, where in set(reads)
+        if name not in written and not name.startswith(tuple(prefixes))
+    )
+    assert not unset, "a token nothing sets:\n" + "\n".join(unset)
+
+
 def _pseudo_arguments(compound, pseudos):
     """Each `pseudo(…)` in the compound, for every pseudo named, as (start, end, argument),
     where `compound[start:end]` is the whole call."""
@@ -2033,8 +2139,11 @@ def test_the_browser_gate_reads_a_page_another_leaf_vendored(tmp_path, monkeypat
     result = runner.invoke(cli_model.cli, ["page", "check", "--render", str(page)])
 
     assert result.exit_code == 0, result.output
-    assert "render checks passed" in result.output
-    assert "Leaf a74b08365870, committed 2026-09-26T09:32:21-07:00" in result.output
+    report = json.loads(result.stdout)
+    assert report["browser"]["ran"] == ["render check"]
+    assert "Leaf a74b08365870, committed 2026-09-26T09:32:21-07:00" in words(
+        result.stdout
+    )
 
 
 def test_the_browser_gate_names_the_re_vendor_when_its_probes_cannot_link(
@@ -2212,14 +2321,12 @@ def test_page_check_names_an_older_leaf_beside_its_own(page_dir):
     stamp = page_dir / "registry.json"
     registry = json.loads(stamp.read_text(encoding="utf-8"))
 
-    def checked(producer, *flags):
+    def checked(producer):
         registry["$layer"]["producer"] = producer
         cleanup_model.write_json(stamp, registry)
-        result = CliRunner().invoke(
-            cli_model.cli, ["page", "check", str(page_dir), *flags]
-        )
+        result = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
         assert result.exit_code == 0, result.output
-        return result.output
+        return json.loads(result.stdout)
 
     older = {
         "commit": "a74b08365870",
@@ -2227,21 +2334,20 @@ def test_page_check_names_an_older_leaf_beside_its_own(page_dir):
         "committed": "2026-09-26T09:32:21-07:00",
     }
     this_leaf = layer_model.provenance_label(layer_model.payload_provenance())
-    assert (
-        "Leaf a74b08365870, committed 2026-09-26T09:32:21-07:00 vendored this page; "
-        f"this is Leaf {this_leaf}." in checked(older)
-    )
-    assert "vendored this page" not in checked(layer_model.payload_provenance())
-    report = json.loads(checked(older, "--json"))
+    report = checked(older)
     assert (report["status"], report["browser"]) == (0, None)
     [finding] = [f for f in report["findings"] if f["code"] == "leaf-version"]
+    assert finding["text"] == (
+        "Leaf a74b08365870, committed 2026-09-26T09:32:21-07:00 vendored this page; "
+        f"this is Leaf {this_leaf}."
+    )
     assert finding["severity"] == "advice"
     assert finding["values"] == {
         "vendored": "a74b08365870, committed 2026-09-26T09:32:21-07:00",
         "running": this_leaf,
         "page": str(page_dir),
     }
-    same = json.loads(checked(layer_model.payload_provenance(), "--json"))
+    same = checked(layer_model.payload_provenance())
     assert {f["code"] for f in same["findings"]} == {"unpointable"}, same
     assert {f["severity"] for f in same["findings"]} == {"advice"}, same
 
@@ -2818,8 +2924,7 @@ def test_page_commands_do_not_mint_the_successful_init_marker(tmp_path):
     result = CliRunner().invoke(cli_model.cli, ["server", "stop", str(page)])
 
     assert result.exit_code != 0
-    assert result.stderr.startswith("Error: ")
-    assert f"leaf page init '{page}'" in result.stderr
+    assert f"leaf page init '{page}'" in json.loads(result.stderr)["error"]
     assert list(page.iterdir()) == []
 
 
@@ -3527,11 +3632,8 @@ def test_package_check_requires_a_non_empty_widget_description(tmp_path, monkeyp
     result = runner.invoke(cli_model.cli, ["package", "check", ".leaf"])
 
     assert result.exit_code != 0
-    # With --json the refusal is the result's one finding, in the words the
-    # command line printed.
-    report = json.loads(
-        runner.invoke(cli_model.cli, ["package", "check", ".leaf", "--json"]).stdout
-    )
+    # The refusal is the result's one finding.
+    report = json.loads(result.stdout)
     assert (report["status"], report["browser"]) == (1, None)
     [refusal] = report["findings"]
     assert (refusal["code"], refusal["at"], refusal["severity"]) == (
@@ -3539,7 +3641,6 @@ def test_package_check_requires_a_non_empty_widget_description(tmp_path, monkeyp
         "<lf-toned-note>",
         "error",
     )
-    assert refusal["text"] in result.output
 
 
 def test_package_check_refuses_a_registry_example_that_violates_its_schema(
@@ -3558,7 +3659,8 @@ def test_package_check_refuses_a_registry_example_that_violates_its_schema(
     entry["required"].append("tone")
     registry_path.write_text(json.dumps(registry))
 
-    refused = command_refusal("package", "check", ".leaf")
+    status, [refused] = package_findings(".leaf")
+    assert status == 1
 
     assert (refused.code, refused.at) == ("invalid-example", "<lf-toned-note>")
     example = Finding.loads(refused.values["finding"])
@@ -4386,7 +4488,7 @@ def test_review_evidence_packages_export_independently(
         source.write_text(source.read_text().replace('diff="patch"', 'diff="title"'))
         checked = runner.invoke(cli_model.cli, ["page", "check", str(page)])
         assert checked.exit_code != 0
-        assert 'diff="title" must name a $diff.widgets widget' in checked.output
+        assert 'diff="title" must name a $diff.widgets widget' in words(checked.output)
 
 
 def test_visual_review_package_composes_its_run_contract(tmp_path, monkeypatch):
@@ -4556,7 +4658,8 @@ def test_package_check_refuses_a_malformed_reaction_token(tmp_path, monkeypatch,
     registry["$reactions"] = {"tokens": {"nod": entry}}
     registry_path.write_text(json.dumps(registry))
 
-    refused = command_refusal("package", "check", ".leaf")
+    status, [refused] = package_findings(".leaf")
+    assert status == 1
 
     assert refused.code == "layer-facts"
     assert refused.values["path"][:3] == ["$reactions", "tokens", "nod"]
@@ -4689,6 +4792,12 @@ def test_a_host_that_names_nothing_is_asked_for_its_path_only_after_chrome(
     hint = browser_model.browser_hint()
     assert "chromium" in hint and "LEAF_BROWSER_EXECUTABLE" in hint
 
+    # Inside an agent's sandbox no browser starts however the host names one, so
+    # the line sends the check outside the sandbox instead.
+    monkeypatch.setenv("CODEX_SANDBOX", "seatbelt")
+    hint = browser_model.browser_hint()
+    assert "CODEX_SANDBOX=seatbelt" in hint and "outside the sandbox" in hint
+
 
 def test_producer_instructions_names_a_package_script_the_run_door_reaches(tmp_path):
     """A reader of `leaf page instructions` with no skill loaded, such as a worker the
@@ -4754,8 +4863,8 @@ def test_an_installed_package_runs_its_own_scripts_by_name(tmp_path, monkeypatch
     assert failed.returncode == 3
     assert json.loads(failed.stdout) == {"args": ["--fail"], "lines": 2}
     assert missing.returncode == 1
-    assert missing.stderr == (
-        "Error: package 'tally' has no script 'total.py'; available: count.py\n"
+    assert json.loads(missing.stderr)["error"] == (
+        "package 'tally' has no script 'total.py'; available: count.py"
     )
     assert unknown.returncode == 1
     assert "unknown package 'tallies'" in unknown.stderr
@@ -4778,11 +4887,13 @@ def test_package_check_refuses_a_script_that_would_run_in_the_callers_project(
     installed = CliRunner().invoke(cli_model.cli, ["package", "install", str(source)])
 
     assert checked.exit_code == 1
-    assert checked.output.startswith(f"Error: {script}")
+    [refused] = json.loads(checked.stdout)["findings"]
+    assert refused["code"] == "package"
+    assert refused["text"].startswith(str(script))
     message = "needs an inline `# /// script` metadata block"
-    assert message in checked.output
+    assert message in refused["text"]
     assert installed.exit_code == 1
-    assert message in installed.output
+    assert message in json.loads(installed.stderr)["error"]
     assert not (machine_model.package_store() / "tally").exists()
 
 

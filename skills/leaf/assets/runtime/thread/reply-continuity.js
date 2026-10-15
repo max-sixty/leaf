@@ -1,44 +1,25 @@
-/* Mechanical continuity of a thread's live response region on every surface.
+/* Natural thread layout with explicit space retained for passive presentation.
 
-   Semantic presentation always draws only current messages. A visible response region
-   keeps the body extent it occupied before that presentation, with flexible free space
-   immediately before the reply row. Removed content becomes space; new content
-   consumes it, with the response foot held by layout rather than a later resize
-   correction. A region is visible while a change of size at its reply row would move
-   what the user sees (geometry.js, `growthIsSeen`), and departs once one would not.
-   The editor retains its allocated room across passive draft replacement, so
-   surviving words and Send stay put; longer replacement text scrolls inside it.
-   A change of inline measure starts a fresh allocation. Native edits resize that
-   room to their intrinsic content. What the user writes is theirs to see grow and
-   shrink: the retained body extent changes by the height change of the box they write
-   in, the reply row or a message they are rewriting (`message-edit.js`), on each native
-   edit and on each presentation that opens, closes or saves a rewrite
-   (`before(writing)`), so the transcript's space never retains deleted lines, and
-   space held for news stays held.
-   A departed or closed region releases that mechanical extent. A floating card
-   bounds that extent by its already allocated body room.
-   No message or delivery state is retained; a short panel card starts at its
-   natural extent, while a long card pins its reply within the list. */
+   Transcript, quote and response size themselves through CSS. A semantic presentation
+   preserves the visible reply's position by converting removed content into a spacer;
+   later content consumes that spacer. Local disclosures and native edits never take
+   an allocation snapshot, so returning to a collapsed shape is ordinary layout.
+   Message rewrites identify their changing boxes at the presentation boundary, so their
+   own height change does not become passive space. The reply editor alone retains its
+   room across mirrored draft replacement; native input returns it to intrinsic size.
+   A departed or closed response releases both mechanical allocations. */
 import { growthIsSeen, whenNone } from "../geometry.js";
 import { atLayoutPrecision, layoutPx } from "../keeps.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 import { nextRender, sizeObserver } from "../rendering.js";
-
-// The box an edit is written in: the thread's reply row, or the message whose rewrite
-// holds the target.
-const writingArea = (row, target) =>
-  row?.contains(target)
-    ? row
-    : (target.closest?.(".lf-msg-editor")?.closest(".lf-msg") ?? null);
+import { placeKeeper } from "../user-place.js";
+import { scrollerFor } from "../reading-regions.js";
 
 export class ReplyContinuity {
   #owner;
   #row = null;
   #departure = null;
-  #extent = null;
-  // The writing area read at an edit's boundary, and its height then.
-  #read = null;
-  #readHeight = 0;
+  #space = 0;
   // The writing areas a presentation changes, each with its height before it.
   #presenting = [];
   #writing = null;
@@ -65,7 +46,6 @@ export class ReplyContinuity {
         parseFloat(getComputedStyle(writing.input).inlineSize),
       );
       this.#allocateWriting(writing.input, layoutPx(writing.input.naturalBlockSize));
-      this.#readArea(this.#row);
     });
   });
   gap = document.createElement("div");
@@ -77,17 +57,19 @@ export class ReplyContinuity {
     owner.addEventListener("toggle", () => {
       if (!this.#visible()) this.release();
     });
-    owner.addEventListener("lf-before-edit", (event) =>
-      this.#readArea(writingArea(this.#row, event.target)),
-    );
-    // Input names a native edit; writing a restored or mirrored draft fires none.
-    // Rebase before the draft's listeners can repaint and retain its former height.
+    // Only native reply edits resize the editor; restored draft values fire no input.
     owner.addEventListener(
       "input",
-      (event) => this.#edited(writingArea(this.#row, event.target)),
+      (event) => {
+        if (!this.#row?.contains(event.target)) return;
+        const input = this.#row.querySelector(TEXT_FIELD);
+        if (input.value) this.#allocateWriting(input, layoutPx(input.naturalBlockSize));
+        else this.#releaseWriting();
+      },
       { capture: true },
     );
   }
+
   #visible() {
     return (
       this.#owner.isConnected &&
@@ -109,59 +91,57 @@ export class ReplyContinuity {
       this.#owner.localName === "details"
         ? getComputedStyle(this.#owner, "::details-content")
         : getComputedStyle(this.#owner);
-    return parseFloat(body.blockSize);
+    const extent = parseFloat(body.blockSize);
+    // Natural measurement can briefly clamp a surrounding scroller before the gap
+    // settles. Use the shared synchronous place keeper to pay for that reflow only.
+    const place = placeKeeper(scrollerFor(this.#owner), {
+      items: ".lf-reply-continuity",
+      identity: (node) => node.dataset.id,
+      preferred: () => this.#owner,
+    });
+    return { extent, place, held: place.take({ spans: false }) };
   }
-  after(extent) {
+  after(reading) {
     this.#row = this.#owner.querySelector(":scope > .lf-thread-reply");
     const presenting = this.#presenting;
     this.#presenting = [];
     if (
-      extent == null ||
       !this.#row?.isConnected ||
       (this.#owner.localName === "details" && !this.#owner.open)
-    ) {
-      this.release();
-      if (this.#visible()) this.#retainWriting();
-      return;
+    )
+      return this.release();
+    if (!this.#visible()) {
+      reading?.place.finish(reading.held);
+      return this.release();
     }
-    // Keep the prior extent before asking layout to read the changed body: scroll
-    // anchoring need not pay a temporary collapse the live response never paints. An
-    // extent already held does that itself, so the one write is the followed extent.
-    if (this.#extent == null) this.#keep(extent);
-    const grown = presenting
-      .filter(({ node }) => node.isConnected)
-      .reduce(
-        (sum, { node, height }) => sum + node.getBoundingClientRect().height - height,
-        0,
+    if (reading != null) {
+      const { extent, place, held } = reading;
+      const body =
+        this.#owner.localName === "details"
+          ? getComputedStyle(this.#owner, "::details-content")
+          : getComputedStyle(this.#owner);
+      const written = presenting
+        .filter(({ node }) => node.isConnected)
+        .reduce(
+          (sum, { node, height }) => sum + node.getBoundingClientRect().height - height,
+          0,
+        );
+      this.#keep(
+        Math.max(0, this.#space + extent - parseFloat(body.blockSize) + written),
       );
-    this.#keep(Math.max(0, extent + grown));
-    this.#readArea(this.#row);
+      place.finish(held);
+    }
+    if (!this.#visible()) return this.release();
     this.#retainWriting();
     this.#departure?.();
     this.#departure = whenNone([this.#row], growthIsSeen, () => this.release());
   }
-  #keep(extent) {
-    if (extent === this.#extent) return;
-    this.#extent = extent;
-    this.#owner.style.setProperty("--lf-thread-body-extent", layoutPx(extent));
-  }
-  #edited(area) {
-    if (!area?.isConnected) return;
-    if (area === this.#row) {
-      const input = this.#row.querySelector(TEXT_FIELD);
-      if (input.value) this.#allocateWriting(input, layoutPx(input.naturalBlockSize));
-      else this.#releaseWriting();
-    }
-    const height = area.getBoundingClientRect().height;
-    if (this.#extent != null && area === this.#read)
-      this.#keep(Math.max(0, this.#extent + height - this.#readHeight));
-    this.#read = area;
-    this.#readHeight = height;
-  }
-  #readArea(area) {
-    if (!area?.isConnected) return;
-    this.#read = area;
-    this.#readHeight = area.getBoundingClientRect().height;
+  #keep(space) {
+    if (space === this.#space) return;
+    this.#space = space;
+    const value = layoutPx(space);
+    if (this.gap.style.getPropertyValue("--lf-reply-space") !== value)
+      this.gap.style.setProperty("--lf-reply-space", value);
   }
   #retainWriting() {
     const input = this.#row?.querySelector(TEXT_FIELD);
@@ -193,8 +173,9 @@ export class ReplyContinuity {
   release() {
     this.#departure?.();
     this.#departure = null;
-    this.#extent = null;
+    this.#space = 0;
     this.#releaseWriting();
-    this.#owner.style.removeProperty("--lf-thread-body-extent");
+    if (this.gap.style.getPropertyValue("--lf-reply-space"))
+      this.gap.style.removeProperty("--lf-reply-space");
   }
 }

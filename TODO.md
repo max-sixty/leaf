@@ -21,7 +21,8 @@
   interaction mechanisms so each new case does not require another fix.
 - **Reduce the burden of tests.** Tests now take long enough to meaningfully
   slow development. Reduce their runtime and the work needed to run them while
-  preserving useful coverage.
+  preserving useful coverage. `notes/shift-watch-cost.md` records what the
+  Stability sensor costs and when a cheaper gate would be worth revisiting.
 
 Priority runs from **Now** to **Next** to **Etc**. Themes group related work within
 each priority; bullets are outcomes, not implementation plans. Linked notes hold the
@@ -69,31 +70,53 @@ has tried; settle that before building it.
   [the comparison finding](notes/comparisons.md#phone-annotation-placement-2026-10-05).
 - **Make the next move and its result apparent.** Play through `review-a-plan`,
   `triage-board`, `pr-walkthrough`, and `ship-review`; fix dead ends and moves whose
-  result is hidden. Decide whether a page needs one progress reading across Questions,
+  result is hidden. Decide whether a page needs one progress reading across On me,
   board work, and version approval. Test a concrete first task before changing the
   public home page's prompt.
 - **#28 — Finish the floating panel.** The opt-in floating panel
   (`?lf-chrome=floating`, off by default) was rebuilt on 12 October to the sketch the
   user configured ([its goal](notes/floating-panel/GOAL.md), "The overhaul"). Work
   through its remaining list (status in the field, opened sizes, the menu's rows, the
-  Questions count, motion) before making it the default or removing the banner,
+  On me count, motion) before making it the default or removing the banner,
   bottom bar, and preference. The phone waits until the desktop design is firm, and
   where a passage thread opens from Threads waits until later.
-- **Consider renaming Questions to On me.** Questions is the one category of
-  everything on the user: asks, to-dos on the user, version approval, and sends to
-  retry. Keep the name Questions until the rename is decided, and keep it one
-  category through any rename. Done may later sit under each of On me and On Agent
-  rather than beside them.
+- **Give "update" one meaning on screen.** It names the user's input ("Undo the
+  latest update", "Stalled update", "1 update to send again", the On panel's
+  Update rows) and, since the floating card's held-news notice, the agent's progress
+  ("1 new update"); the glossary keeps it for the user's input alone. Choose one
+  sense, rename the other surfaces, and update the glossary to match.
+- **Find the labels where cutting at the room misleads.** Since 2026-10-14 a label
+  holding a room (`data-lf-room`, `controls.css`) cuts words past it with an ellipsis
+  rather than widening its control, which had shifted the banner (the user's
+  decision). An ellipsis at the end cuts the count or the later news first, so some
+  cuts lose the fact the label exists for: On me at 100 or more reads "On me: 1…",
+  and the user called that count essential; the agent's On count reads the same way,
+  and a held-news notice that first said "1 new reply" cuts "1 new reply · 1 reaction
+  changed" to "1 new re…". Start with On me, then each room's owner, and give each
+  misleading cut a room that holds it or a shorter form, such as "99+".
 
 ### Agent and author experience
 
 - **Decide whether `page check` should still refuse an `lf-ask` without a leading
-  heading.** The heading is the ask's title in the Questions panel, the banner
-  and the `q` announcement, which all show an empty title without one, and the
+  heading.** The heading is the ask's title in the On panel, the banner
+  and the `m` announcement, which all show an empty title without one, and the
   `lf-ask` instructions already ask for it. Wait until the other narrow checks
   removed in October 2026 have been gone a while; if pages written since still
   carry the heading, remove this check too. It fired in 4 sessions, 2 of them on
   user pages, between 2026-07-22 and 2026-10-11.
+- **Run `leaf` in Codex's sandbox without settings.** Codex's sandbox refuses what a
+  `leaf` command needs and, unlike Claude Code's, leaves a command no route out:
+  with network off it has no proxy, and a direct connection to 127.0.0.1 or a Unix
+  socket is refused (measured at codex-cli 0.160.0), so the bridge Claude Code's
+  sandboxed commands use (`bridge.py`) cannot serve it. A plugin's MCP server runs
+  outside both harnesses' sandboxes (measured on macOS). Ship one whose tool runs
+  `leaf` with the arguments it is given, have a sandboxed refusal name it, and
+  drop the README's Codex rule. Codex asks before each MCP tool call unless the
+  user approves the tool or sets the server's `default_tools_approval_mode =
+  "approve"`; find whether a plugin can declare that itself. A session that never
+  runs `leaf` should pay nothing for this, as Claude Code's do for the bridge, so
+  find whether Codex starts a plugin's MCP server in every session or only on first
+  use.
 - **Consider a reminder when revising decided content.** An optional `--force`
   acknowledgment could make an agent pause over an existing decision. Revisions
   currently remain unrestricted; decide whether such a reminder helps before
@@ -185,7 +208,7 @@ has tried; settle that before building it.
   redesign also settles how focus stays off page content a panel covers (Max,
   2026-10-10). His rule (2026-10-06): the panels dominate focus, so moving focus never
   closes or changes an open panel, and focus never lands on content a panel covers.
-  Tab walked onto page content under Threads, or under the Questions panel that shares
+  Tab walked onto page content under Threads, or under the On panel that shares
   its right edge, at 1440×900 on an example since retired; no surviving page has been
   checked for it. Making covered content inert
   was built and withdrawn: the visible part of a partly covered element went dead to
@@ -211,7 +234,7 @@ and its chrome coordinate.
   it only in the count; give that arrival a visible route while preserving the
   current reading.
 - **Fit `rust-sort`'s stage pane.** At 720px it runs 100px past its region, which
-  `page-authoring.md` asks an author to trim or split
+  `page-layout.md` asks an author to trim or split
   ([why a workspace doesn't scroll](notes/chrome-and-covers.md#decided-a-workspace-is-a-screen)).
 - **Decide whether the desktop bottom bar goes.** Its key hints would move behind `?`
   and its status into the banner; the bar is how a desktop user learns the keys
@@ -320,14 +343,35 @@ that changes size after first paint, with its cause.
   startup shifts only as diagnostics, so a marker drawn in the wrong place in its first
   frame and then moved would fail nothing. Read `leaf-dev probe`'s startup readings on
   a page with margin markers at a few widths.
+- **Fold a thread summary without moving the messages it covers.** Folding moves
+  the covered messages into `.lf-summary-originals` (`thread-card.js`), so a text
+  selection inside them is lost in Chromium, Firefox and WebKit, and WebKit, which
+  lacks `moveBefore`, reloads any frame among them: once when the summary arrives
+  and twice when it is retracted. A prototype of a flat transcript, which folds by
+  hiding the covered messages where they stand, kept both in every engine and drew
+  the same picture. It changes how screen readers group the folded messages and how
+  a checkpoint's frame is drawn, so it needs the user's go-ahead. Build it on current
+  `main`, move the tests off `.lf-summary-originals`, and check margin and page
+  captures and a screen reader.
+- **Let the shift watch see the runtime's own scrolls.** `tests/shift_watch.js`
+  measures in layout coordinates, which remove scrolling, so a scroll the runtime
+  makes during a gesture can move the control under the user's aim and fail
+  nothing; #2895's reply box moved 9–14px on a send that way. The proposed rule:
+  only a gesture that takes the user somewhere (the `t` and `q` walks, links,
+  Go-to) may move its control, and every other gesture keeps it still. Declare the
+  exemption on the command, not in a list in the watch. Then fix what it catches,
+  starting with the landings that choose where a gesture's control ends up:
+  `standOnThread`, the Threads list's landing, and `scrollThreadIntoView`. This
+  needs the user's go-ahead, and its per-frame cost measured at 4x CPU throttling
+  (`notes/shift-watch-cost.md`).
 
 ### Queues
 
-A queue is one `lf-tabs list="side"` beside its open item (`page-authoring.md`, "A
+A queue is one `lf-tabs list="side"` beside its open item (`page-layout.md`, "A
 workspace"). The first real one, a 21-item triage page, showed these. Its list's
 height and where a switch lands wait on the workspace decision under Layout.
 
-- **Start `q` from the open item's ask.** From a row, `q` goes to the queue's first
+- **Start `m` from the open item's ask.** From a row, `m` goes to the queue's first
   open ask, and `1` then picks for an item the user isn't looking at. The walk
   measures from focus (`queue-walk.js`), and the row precedes every
   panel; `t` and `T` measure the same way. A tab could stand at the view it opens for
@@ -340,14 +384,21 @@ height and where a switch lands wait on the workspace decision under Layout.
   bring a tab in clear of a label whose width changes once it sticks.
 - **Close the tally's small gaps.** On a phone the workspace header, tally
   included, scrolls away after Next; Undo's announcement doesn't name what it
-  undid; the `q` help text is ambiguous; and a row's ○ mark has no legend.
-- **Call an ask one thing in the interface.** The Questions panel, "Next question"
-  and "In this question" say question, while a queue row's kind label, the walk
-  announcement ("Ask 2 of 3"), the `q` binding's description and the approval refusal
-  ("Answer every ask before approving") say ask (`queue-panel.js`, `queue-walk.js`,
-  `asks/view.js`, `banner.js`, `contribution-model.js`). The glossary defines the ask
-  record but not the user's word for it; choose one, likely question, as the list is
-  Questions.
+  undid; the `m` help text is ambiguous; and a row's ○ mark has no legend.
+
+### Before/after comparison
+
+- **#29 — Make `lf-shot`'s views one coherent comparison.** A pair now offers
+  Plain, Outlines and Pixels, and Pixels paints one picture: red where only the
+  before image drew, blue where only the after image did, amber where both did. A
+  shot with `pixels` alone opens in Pixels, one with `outlines` in Outlines, and
+  any other in Plain. Settle the details as one design: which view a pair opens
+  in, and whether every pair should offer every view rather than the author
+  choosing them per shot; a key for the three colours; the rail's reading
+  ("identical", "only slight changes", "2 areas changed"), which stands among the
+  view buttons in another voice and reads as a view or a warning, as "identical"
+  does over a pair of pin captures whose pins never moved; and the faint amber
+  halo a moved mark's redrawn shadow leaves in Pixels.
 
 ### Recorded interaction review
 
@@ -427,6 +478,14 @@ on 2026-10-07.
 
 ### Development velocity
 
+- **Format authored browser-framework TypeScript.** Extend Prettier's scope to
+  `build/browser/`, keeping the generated event and protocol declarations under
+  their generator. Rebuild the vendored JavaScript in the same change: the
+  compiler preserves source formatting, and the build gate compares its bytes.
+- **Set formatter conventions for authored CSS and Markdown.** Review what
+  Prettier changes in compact CSS rules and Markdown lists and tables, then
+  enable the formats where that layout is useful. Format CSS source entries
+  rather than the distribution sheets `build/styles.mjs` generates.
 - **Check what handing over on chosen tests costs.** Since 2026-10-04 a handover runs
   the tests the agent picks for its change, and the broad selection runs only at
   landing (`tests/AGENTS.md`, "Run what the change needs"). Before that, 25 of the
@@ -451,7 +510,7 @@ on 2026-10-07.
   drift again, such as `wt merge`'s macOS pre-merge when the thread runtime or theme
   changes.
 - **Guard thread appearance on CI again.** The thread snapshot gate compares images
-  on macOS only (`dev/leaf_dev/thread_snapshots.py`), so a pull request's Linux CI
+  on macOS only (`dev/leaf_dev/commands/thread_snapshots.py`), so a pull request's Linux CI
   checks the delivery journey but not how it looks. Fonts and antialiasing differ by
   OS, so Mac and Linux images never match. A Linux image could only be made on CI's
   own runner, which meant pushing, downloading the run's images and accepting them
@@ -474,21 +533,6 @@ on 2026-10-07.
   into a page by hand. It is an experiment: the alternative is for the command to
   print the samples' rows and leave the chart to the agent writing the page. Keep it
   if it gets used for later readings; otherwise reduce it to the rows.
-- **Choose how installs get the compiled kernel before a proper release.** Installs
-  follow `main` and load about 260 source modules; the website, suite, and developer
-  previews prepare a kernel with `leaf_dev.distribution`. On `pr-walkthrough` (2026-10-11, 8
-  paired runs on a loaded Mac), the kernel's 57 JS requests presented about 755 ms
-  after document receipt, against about 940 ms for source modules; `modulepreload`
-  hints for the 222 statically imported modules recovered only about 35 ms. A
-  CI-built `prepared` branch carried the kernel to installs from #1963 until
-  2026-10-11, when it was dropped to keep installs on `main`. Candidates: CI commits
-  the kernel to `main` after each runtime merge, and installs serve source modules
-  while it is stale; CI publishes each `main` commit to npm, which Claude Code, Codex
-  and Pi accept as a plugin source; or the first run builds it, which adds Node to
-  the host's requirements. Committing the kernel in each pull request conflicts too
-  often: of 25 replayed pairs of consecutive runtime commits, the minified chunks
-  conflicted in 20, and one unminified file per entry conflicted in 3 and merged one
-  more cleanly into bytes that differ from a rebuild.
 
 ## Etc
 
@@ -539,7 +583,7 @@ Revisit these when their stated trigger becomes real; they are not an active que
   ([What needs you](notes/what-needs-you/page.html#task-done)). The shipped
   instructions don't yet say when that is. Trigger: an agent ends a to-do as done that
   the user wanted to see first.
-- **Let the user edit items in the Questions panel.** The user's only edit today is Done
+- **Let the user edit items in the On panel.** The user's only edit today is Done
   on a to-do the agent put on them, so dropping a to-do, renaming it or ending one of the
   agent's means asking in a thread. Editing the row directly in the panel would record the user's change as
   their own move. Trigger: a user writes a comment only to close or adjust an item.
@@ -551,7 +595,7 @@ Revisit these when their stated trigger becomes real; they are not an active que
   building a feed or presence on it.
 - **Show which pane has focus, and move between panes by key.** A terminal marks
   its active pane and one key moves to the next. In a workspace today the arrow keys
-  walk a side list, `q` reaches the next item on Questions, and a pane body that scrolls is a
+  walk a side list, `m` reaches the next item on On me, and a pane body that scrolls is a
   Tab stop, but nothing marks the active pane and no key moves from one pane to the
   next. The runtime already tracks it: `userReadingRegion` (`reading-regions.js`) is the
   pane holding focus, or else the last one pressed, wheeled or touched, and `j`/`k`/`d`/`u`
@@ -605,6 +649,35 @@ Revisit these when their stated trigger becomes real; they are not an active que
 
 ### Implementation candidates
 
+- **Remove the early-key hold once startup is fast.** Keys pressed before the
+  runtime upgrades or the first saved state lands are queued, a "Page still
+  loading" chip appears after 150 ms, and the keyboard controller replays them
+  (`holdEarlyKeys` in `runtime/bootstrap.js`, `takeHeldKeys` in
+  `keyboard/controller.js`, `INPUT_PENDING` in `keyboard/dispatch.js`, the pending
+  clause of `scopeAvailable` in `keyboard/bindings.js`). It is worth keeping while
+  startup takes up to a couple of seconds. Trigger: a page presents in about 250 ms
+  consistently, measured with `leaf-dev probe`'s startup phases on the examples;
+  then delete the hold, which a 2026-10-14 trial measured at 240 runtime and 540
+  test lines.
+- **Unconfirmed — Let Lit follow what a widget reads.** `LeafElement`
+  (`runtime/leaf-element.js`) collects what `render()` reads with Leaf's own
+  `collectReads` over Preact signals and outside readings such as the clock, because
+  Lit's `SignalWatcher` (`@lit-labs/signals`) follows only TC39 signals
+  (`signal-polyfill`). Were the publication and those readings TC39 signals,
+  `SignalWatcher` would draw again on a read's move, and the base class would keep
+  only Leaf's rules: the presentation claim, `defer()`, drawing nothing while away,
+  and data delivery. Every widget draws as a `LeafElement` now, so the change would
+  land in one class, but assessed on 2026-10-14 it is no simplification yet. Ordering
+  no longer stands in the way: `LeafElement.scheduleUpdate` puts every update in the
+  parent-ordered widget queue (`queueWidgetUpdate`), `SignalWatcher`'s included. What
+  does: a move must claim the widget's region inside the publication that made it,
+  which `SignalWatcher`'s watcher gives no hook for, so the base class would keep a
+  watcher of its own; and `collectReads` and `outsideReading` (`snapshot.ts`) also
+  drive `watchProjection` and version paints, so adopting TC39 signals means moving
+  the publication itself (`snapshot.ts`, `presentation.ts`, and the runtime modules
+  importing `signal`/`effect`) off Preact signals, to save the fifteen lines of
+  `#follow`. TC39 signals are also still a proposal. Trigger: the proposal reaches a
+  stage browsers ship, or Lit's signal integration exposes the notify a claim needs.
 - **Consider moving the before/after reading out of the core.** How
   `runtime/image-difference.js` reads a pair (blocks, moves, outlines) is
   experimental and about 500 lines in the core runtime, consumed by `lf-shot`,
@@ -652,6 +725,29 @@ Revisit these when their stated trigger becomes real; they are not an active que
   (pings, sleep, outbound interception) and `standard-1` in place of `basic`.
   Trigger: the policy leaves beta, or leaf.page gains visitors a deploy would
   interrupt.
+- **Push page updates instead of polling.** Each visible tab asks `api/news` every
+  250 ms (`runtime/state-feed.js`). Pages streamed updates until #1589 replaced
+  per-document streams with polling, because the streams used up HTTP/1.1's six
+  connections per host. Measured on 2026-10-13, polling costs about 1% of one core
+  per visible tab locally. On leaf.page each look bills a Worker and a Durable
+  Object request, under $1.20 a month per user at list price and inside the
+  included quotas, and polling accounts for about 1% of container hours. A stopped
+  container stays asleep under polling, since its Durable Object answers `api/news`
+  from the page the container last saved; a stream held in the container would
+  wake it for a passive reader, so push needs an idle path of its own before its
+  cost compares with polling's. Push would show an agent's
+  change sooner: locally the file watcher notices an append in about 90 ms against
+  polling's 125 ms average, and on leaf.page, where a look takes about 370 ms, it
+  would save roughly 250 ms. A sketch of one stream per browser (a leader tab
+  holding it through a Web Lock, relaying over a BroadcastChannel, with samples
+  relayed through their parent) adds about 115 lines more than it deletes; a
+  WebSocket per document avoids the leader and the relay. Either way, first give
+  the server one subscribable change detector per page: the stat token and the
+  watched files already derive from one declaration of page inputs
+  (`served_state/reading.py`), but `api/news` stats on every look while the row
+  publisher and lifetime supervisor wake on the shared subscription
+  (`file_changes.page_changes`), which runs only in a serving process. Trigger:
+  hosted replies visibly lag.
 - **#27 — Runtime fold tests:** add focused Node tests as rules change; extend
   `tests/runtime/dom.mjs` only when a test needs another module.
 - **Claude Code tool observation:** consider a cheap hook for sessions holding

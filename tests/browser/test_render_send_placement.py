@@ -1405,12 +1405,6 @@ def test_native_attachment_measures_solver_and_scroll_origin_together(
               ? captured : range.getBoundingClientRect(),
           };
           const owner = floatingPlacement({floating: box, update: () => {}});
-          window.detachPlacement = () => {
-            const framed = box.parentElement !== document.querySelector('.lf-chrome');
-            box.remove();
-            owner.stop();
-            return framed;
-          };
           if (existing) {
             owner.begin();
             const answer = await owner.position(ui.computePosition, reference,
@@ -1476,55 +1470,60 @@ def test_native_attachment_measures_solver_and_scroll_origin_together(
     assert state["plane"] == "page", state
     assert state["box"]["x"] == pytest.approx(state["quote"]["right"], abs=1), state
     assert state["box"]["y"] == pytest.approx(state["quote"]["top"], abs=1), state
-    # Words alone in their scroller anchor to the start of what it holds, which its
-    # scroll carries, rather than standing in a frame of motion layers.
-    assert not page.evaluate("detachPlacement()"), "the placement stood in a frame"
 
 
-def test_a_comment_box_on_words_in_a_scroller_stands_without_scroll_timelines(
-    browser, serve
+@pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
+def test_a_floating_box_follows_words_alone_in_a_shadow_scroller(
+    request, serve, engine
 ):
-    """Where the browser has neither anchors nor scroll timelines, the comment box for
-    words in a scroller starts below its containing box in the window's plane, then
-    follows the quoted words through observed placement."""
+    """Words alone in a scroller inside a widget's shadow tree anchor to the start of
+    what it holds, which the document names through a part, so a floating box beside
+    them follows the scroller's own scroll, in WebKit too."""
+    browser = request.getfixturevalue(engine)
     page = open_page(
         browser,
         serve(
             leaf_page(
-                "Words in a scroller",
-                '<h1>Comments follow the words</h1><p id="quote">'
-                "The export keeps each tenant in an archive.<br>"
-                + "More lines in this reading region.<br>" * 50
-                + '</p><div style="height:1200px"></div>',
-                head="<style>#quote { height:120px; overflow:auto; }</style>",
+                "Words in a shadow scroller",
+                '<h1 id="t">Words</h1><div id="host"></div><div style="height:2000px"></div>',
             )
         ),
-        init_script="""delete window.ViewTimeline; delete window.ScrollTimeline;
-          const supports = CSS.supports;
-          CSS.supports = (...args) =>
-            !String(args[0]).startsWith('anchor') && supports.apply(CSS, args);""",
     )
-    resized(page, 1200, 700)
-    words = """() => { const r = document.createRange();
-      r.selectNodeContents(document.getElementById('quote').firstChild);
-      return r.getBoundingClientRect().toJSON(); }"""
-    box = page.evaluate(words)
-    select(page, (box["x"] + 2, box["y"] + 8), (box["x"] + 150, box["y"] + 8))
-    page.locator(".lf-fab-input").click()
-    bar = page.locator(".lf-fab-bar")
-    expect(bar).to_have_attribute("data-lf-plane", "window")
-    quote = page.locator("#quote")
-    below = quote.bounding_box()
-    assert bar.bounding_box()["y"] >= below["y"] + below["height"]
-    before, words_before = bar.bounding_box(), page.evaluate(words)
-    page.mouse.move(below["x"] + 50, below["y"] + 50)
-    page.mouse.wheel(0, 30)
-    expect(quote).to_have_js_property("scrollTop", 30)
-    scroll_settled(page, "#quote")
+    page.evaluate(
+        """async () => {
+          const {floatingPlacement, floatingUi} = await window.__lfOverlayApi();
+          const ui = await floatingUi();
+          const root = document.getElementById('host').attachShadow({mode: 'open'});
+          root.innerHTML = '<pre id="s" style="height:60px;overflow:auto;margin:0">'
+            + 'first words\\nsecond\\nthird\\nfourth\\nfifth\\nsixth</pre>';
+          const scroller = root.getElementById('s');
+          const words = document.createRange();
+          words.setStart(scroller.firstChild, 0);
+          words.setEnd(scroller.firstChild, 5);
+          const box = document.createElement('div');
+          box.style = 'position:fixed;width:40px;height:20px';
+          document.querySelector('.lf-chrome').append(box);
+          const owner = floatingPlacement({floating: box, update: () => {}});
+          owner.begin();
+          const reference = {contextNode: scroller.firstChild, contextElement: scroller,
+            getBoundingClientRect: () => words.getBoundingClientRect()};
+          owner.stand(await owner.position(ui.computePosition, reference,
+            {placement: 'right-start', middleware: []}, () => 'page', scroller));
+          window.__shadowWords = {scroller, box, words};
+        }"""
+    )
     rendered(page)
-    assert bar.bounding_box()["y"] - before["y"] == pytest.approx(
-        page.evaluate(words)["y"] - words_before["y"], abs=1
-    )
+    reading = """() => {
+      const {box, words} = window.__shadowWords;
+      return {offset: box.getBoundingClientRect().top - words.getBoundingClientRect().top,
+              plane: box.dataset.lfPlane};
+    }"""
+    before = page.evaluate(reading)
+    page.evaluate("window.__shadowWords.scroller.scrollTop = 20")
+    rendered(page)
+    after = page.evaluate(reading)
+    assert after["plane"] == "page", after
+    assert after["offset"] == pytest.approx(before["offset"], abs=1), (before, after)
 
 
 def test_a_comment_box_on_words_alone_in_a_scroller_paints_in_the_frame_they_scroll(

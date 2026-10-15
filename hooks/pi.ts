@@ -54,159 +54,202 @@ const HOOK_TIMEOUT_MS = 20_000;
 const SESSION_END_TIMEOUT_MS = 3_000;
 const CUSTOM_TYPE = "leaf";
 
-type Payload = { hook_event_name: string; session_id: string; stop_hook_active?: boolean; ended_at?: number };
+type Payload = {
+  hook_event_name: string;
+  session_id: string;
+  stop_hook_active?: boolean;
+  ended_at?: number;
+};
 
 /** Run the launcher with `payload` on stdin, and resolve its stdout, or "" on
  * any failure. */
-function run(args: string[], payload: Payload, timeout?: number): { child: ChildProcess; done: Promise<string> } {
-	const child = spawn(LEAF, args, {
-		stdio: ["pipe", "pipe", "ignore"],
-		timeout,
-	});
-	const done = new Promise<string>((resolve) => {
-		let out = "";
-		child.stdout?.on("data", (chunk) => (out += chunk));
-		child.on("error", () => resolve(""));
-		child.on("close", (code) => resolve(code === 0 ? out : ""));
-	});
-	child.stdin?.on("error", () => {});
-	child.stdin?.end(JSON.stringify(payload));
-	return { child, done };
+function run(
+  args: string[],
+  payload: Payload,
+  timeout?: number,
+): { child: ChildProcess; done: Promise<string> } {
+  const child = spawn(LEAF, args, {
+    stdio: ["pipe", "pipe", "ignore"],
+    timeout,
+  });
+  const done = new Promise<string>((resolve) => {
+    let out = "";
+    child.stdout?.on("data", (chunk) => (out += chunk));
+    child.on("error", () => resolve(""));
+    child.on("close", (code) => resolve(code === 0 ? out : ""));
+  });
+  child.stdin?.on("error", () => {});
+  child.stdin?.end(JSON.stringify(payload));
+  return { child, done };
 }
 
 /** The context a hook's output puts in the turn (`Harness.hook_context`). */
 async function hook(payload: Payload): Promise<string | undefined> {
-	const out = (await run(["hook", "--harness", "pi"], payload, HOOK_TIMEOUT_MS).done).trim();
-	if (!out) return undefined;
-	try {
-		return JSON.parse(out).hookSpecificOutput?.additionalContext || undefined;
-	} catch {
-		return undefined;
-	}
+  const out = (
+    await run(["hook", "--harness", "pi"], payload, HOOK_TIMEOUT_MS).done
+  ).trim();
+  if (!out) return undefined;
+  try {
+    return JSON.parse(out).hookSpecificOutput?.additionalContext || undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export default function leaf(pi: ExtensionAPI) {
-	let session = "";
-	let hasUI = false;
-	const watch = new WatchOwner();
-	// Whether a run is going, from `agent_start` until it settles.
-	let running = false;
-	// Whether the Stop hook has already kept this turn going (`stop_hook_active`).
-	let stopActive = false;
-	// Whether the run settling now went on from `agent_before_settle`, which
-	// asked Pi to continue it; an abort can settle it there instead.
-	let settledByStop = false;
-	// Whether the watch woke during the run, so its next turn's end takes the input.
-	let handOff = false;
+  let session = "";
+  let hasUI = false;
+  const watch = new WatchOwner();
+  // Whether a run is going, from `agent_start` until it settles.
+  let running = false;
+  // Whether the Stop hook has already kept this turn going (`stop_hook_active`).
+  let stopActive = false;
+  // Whether the run settling now went on from `agent_before_settle`, which
+  // asked Pi to continue it; an abort can settle it there instead.
+  let settledByStop = false;
+  // Whether the watch woke during the run, so its next turn's end takes the input.
+  let handOff = false;
 
-	const message = (content: string) => ({ customType: CUSTOM_TYPE, content, display: true });
+  const message = (content: string) => ({
+    customType: CUSTOM_TYPE,
+    content,
+    display: true,
+  });
 
-	/** Pi owns availability, process termination and its notification wake. The
-	 * watch owner serializes replacement and rejects stale completion. */
-	async function ensureWatch(interrupted: boolean) {
-		const ended = Date.now() / 1000;
-		if (!hasUI) return;
-		await watch.ensure(interrupted, () => {
-			const started = run(["hook", "--harness", "pi", "--watch"], {
-				hook_event_name: interrupted ? "Interrupt" : "Stop",
-				session_id: session,
-				ended_at: ended,
-			});
-			return { stop: () => started.child.kill("SIGTERM"), done: started.done };
-		}, wake);
-	}
+  /** Pi owns availability, process termination and its notification wake. The
+   * watch owner serializes replacement and rejects stale completion. */
+  async function ensureWatch(interrupted: boolean) {
+    const ended = Date.now() / 1000;
+    if (!hasUI) return;
+    await watch.ensure(
+      interrupted,
+      () => {
+        const started = run(["hook", "--harness", "pi", "--watch"], {
+          hook_event_name: interrupted ? "Interrupt" : "Stop",
+          session_id: session,
+          ended_at: ended,
+        });
+        return { stop: () => started.child.kill("SIGTERM"), done: started.done };
+      },
+      wake,
+    );
+  }
 
-	function wake(woke: string) {
-		if (!woke.trim()) return;
-		// A notification can be queued or cleared by Pi. Receipt belongs only to
-		// accepted message finalization or a live turn boundary Pi persists.
-		handOff = true;
-		if (running) return;
-		stopActive = false;
-		pi.sendMessage(message(`Leaf: ${woke.trim()}`), { triggerTurn: true, deliverAs: "steer" });
-	}
+  function wake(woke: string) {
+    if (!woke.trim()) return;
+    // A notification can be queued or cleared by Pi. Receipt belongs only to
+    // accepted message finalization or a live turn boundary Pi persists.
+    handOff = true;
+    if (running) return;
+    stopActive = false;
+    pi.sendMessage(message(`Leaf: ${woke.trim()}`), {
+      triggerTurn: true,
+      deliverAs: "steer",
+    });
+  }
 
-	pi.on("session_start", (_event, ctx) => {
-		session = ctx.sessionManager.getSessionId();
-		hasUI = ctx.hasUI;
-		process.env.LEAF = LEAF;
-		process.env.LEAF_PI_PID = String(process.pid);
-		const bin = path.dirname(LEAF);
-		if (!(process.env.PATH ?? "").split(path.delimiter).includes(bin)) {
-			process.env.PATH = [bin, process.env.PATH].filter(Boolean).join(path.delimiter);
-		}
-		void ensureWatch(false);
-	});
+  pi.on("session_start", (_event, ctx) => {
+    session = ctx.sessionManager.getSessionId();
+    hasUI = ctx.hasUI;
+    process.env.LEAF = LEAF;
+    process.env.LEAF_PI_PID = String(process.pid);
+    const bin = path.dirname(LEAF);
+    if (!(process.env.PATH ?? "").split(path.delimiter).includes(bin)) {
+      process.env.PATH = [bin, process.env.PATH].filter(Boolean).join(path.delimiter);
+    }
+    void ensureWatch(false);
+  });
 
-	pi.on("session_shutdown", async (event) => {
-		await watch.close();
-		if (event.reason !== "reload") {
-			await run(["session-end"], { hook_event_name: "SessionEnd", session_id: session }, SESSION_END_TIMEOUT_MS)
-				.done;
-		}
-	});
+  pi.on("session_shutdown", async (event) => {
+    await watch.close();
+    if (event.reason !== "reload") {
+      await run(
+        ["session-end"],
+        { hook_event_name: "SessionEnd", session_id: session },
+        SESSION_END_TIMEOUT_MS,
+      ).done;
+    }
+  });
 
-	pi.on("agent_start", async () => {
-		const first = !running;
-		running = true;
-		settledByStop = false;
-		// Internal continuations keep this run's Stop policy. Only an accepted
-		// new run opens Leaf's turn; prompt preparation accepts no delivery.
-		if (!first) return;
-		stopActive = false;
-		handOff = true;
-		await hook({ hook_event_name: "TurnStart", session_id: session });
-	});
+  pi.on("agent_start", async () => {
+    const first = !running;
+    running = true;
+    settledByStop = false;
+    // Internal continuations keep this run's Stop policy. Only an accepted
+    // new run opens Leaf's turn; prompt preparation accepts no delivery.
+    if (!first) return;
+    stopActive = false;
+    handOff = true;
+    await hook({ hook_event_name: "TurnStart", session_id: session });
+  });
 
-	async function takeInput(ctx: ExtensionContext): Promise<string | undefined> {
-		// Cancelled boundaries cannot receive held input. A receipt started while
-		// live is committed by Pi even if cancellation arrives during the hook.
-		if (!handOff || ctx.signal?.aborted) return undefined;
-		handOff = false;
-		return hook({ hook_event_name: "UserPromptSubmit", session_id: session });
-	}
+  async function takeInput(ctx: ExtensionContext): Promise<string | undefined> {
+    // Cancelled boundaries cannot receive held input. A receipt started while
+    // live is committed by Pi even if cancellation arrives during the hook.
+    if (!handOff || ctx.signal?.aborted) return undefined;
+    handOff = false;
+    return hook({ hook_event_name: "UserPromptSubmit", session_id: session });
+  }
 
-	pi.on("message_end", async (event, ctx) => {
-		const incoming = event.message;
-		if (incoming.role !== "user" && !(incoming.role === "custom" && incoming.customType === CUSTOM_TYPE)) {
-			return undefined;
-		}
-		const context = await takeInput(ctx);
-		if (!context) return undefined;
-		// Pi finalizes this accepted message into both its session and model
-		// context before the first request. Preserve the original user's input.
-		const content = typeof incoming.content === "string" ? [{ type: "text" as const, text: incoming.content }] : incoming.content;
-		return { message: { ...incoming, content: [...content, { type: "text" as const, text: context }] } };
-	});
+  pi.on("message_end", async (event, ctx) => {
+    const incoming = event.message;
+    if (
+      incoming.role !== "user" &&
+      !(incoming.role === "custom" && incoming.customType === CUSTOM_TYPE)
+    ) {
+      return undefined;
+    }
+    const context = await takeInput(ctx);
+    if (!context) return undefined;
+    // Pi finalizes this accepted message into both its session and model
+    // context before the first request. Preserve the original user's input.
+    const content =
+      typeof incoming.content === "string"
+        ? [{ type: "text" as const, text: incoming.content }]
+        : incoming.content;
+    return {
+      message: {
+        ...incoming,
+        content: [...content, { type: "text" as const, text: context }],
+      },
+    };
+  });
 
-	pi.on("turn_end", async (_event, ctx) => {
-		const context = await takeInput(ctx);
-		return context
-			? { entries: [{ type: "custom_message" as const, ...message(context) }], continue: true }
-			: undefined;
-	});
+  pi.on("turn_end", async (_event, ctx) => {
+    const context = await takeInput(ctx);
+    return context
+      ? {
+          entries: [{ type: "custom_message" as const, ...message(context) }],
+          continue: true,
+        }
+      : undefined;
+  });
 
-	pi.on("agent_before_settle", async () => {
-		// The Stop hook hands over whatever is pending.
-		handOff = false;
-		const context = await hook({ hook_event_name: "Stop", session_id: session, stop_hook_active: stopActive });
-		if (!context) {
-			settledByStop = true;
-			return undefined;
-		}
-		stopActive = true;
-		return {
-			entries: [{ type: "custom_message" as const, ...message(context) }],
-			continue: true,
-		};
-	});
+  pi.on("agent_before_settle", async () => {
+    // The Stop hook hands over whatever is pending.
+    handOff = false;
+    const context = await hook({
+      hook_event_name: "Stop",
+      session_id: session,
+      stop_hook_active: stopActive,
+    });
+    if (!context) {
+      settledByStop = true;
+      return undefined;
+    }
+    stopActive = true;
+    return {
+      entries: [{ type: "custom_message" as const, ...message(context) }],
+      continue: true,
+    };
+  });
 
-	pi.on("agent_settled", async () => {
-		const interrupted = running && !settledByStop;
-		running = false;
-		// The queued handoff is gone. The new watch finds input this run never
-		// received; its receipt cursor keeps handed input for the next prompt.
-		handOff = false;
-		await ensureWatch(interrupted);
-	});
+  pi.on("agent_settled", async () => {
+    const interrupted = running && !settledByStop;
+    running = false;
+    // The queued handoff is gone. The new watch finds input this run never
+    // received; its receipt cursor keeps handed input for the next prompt.
+    handOff = false;
+    await ensureWatch(interrupted);
+  });
 }

@@ -92,7 +92,7 @@ def _completed_tasks(
 ) -> list[str]:
     """End only the open widget to-dos explicitly named by ``completes``.
 
-    Removing a target leaves its to-do open on Tasks; a page edit does not
+    Removing a target leaves its to-do open on the agent's list; a page edit does not
     establish that the to-do is complete.
     """
     if len(set(completes)) != len(completes):

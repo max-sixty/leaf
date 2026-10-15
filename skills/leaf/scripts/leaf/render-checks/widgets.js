@@ -116,7 +116,11 @@ export const invalidVisualProviders = (declarations) =>
     .filter((instance) => instance.problems.length);
 export const undeclaredShadowRoots = (registry) => [
   ...new Set(
-    [...document.querySelectorAll("*")]
+    [
+      .../** @type {NodeListOf<HTMLElement | SVGElement>} */ (
+        document.querySelectorAll("*")
+      ),
+    ]
       .filter(
         (el) =>
           el.shadowRoot &&
@@ -140,9 +144,11 @@ export const missingThreads = (declarations) =>
         .map((el) => ({
           code: "missing-thread-seat",
           at: locate(el),
-          hosts: [...el.querySelectorAll(".lf-thread-seat")].filter(
-            (host) => host.dataset.lfThreadSeat === el.id,
-          ).length,
+          hosts: [
+            .../** @type {NodeListOf<HTMLElement>} */ (
+              el.querySelectorAll(".lf-thread-seat")
+            ),
+          ].filter((host) => host.dataset.lfThreadSeat === el.id).length,
         })),
     )
     .filter((instance) => instance.hosts !== 1);
@@ -462,7 +468,7 @@ export function heldScrollers(tags) {
 // Each command in one of `tags`' widgets that declares context keys and no
 // `bindingBadge`. Context keys are the widget's aliases for pressing a control from
 // elsewhere, as an ask forwards its digits; a key the page never shows works only
-// for a user who already knows it (module-authoring.md, "Commands and keyboard
+// for a user who already knows it (module-input.md, "Commands and keyboard
 // routes"). A route without its own `bindingBadge` takes its row's. The reading is the
 // declaration, not the keys reachable now, so a command whose keys depend on state is
 // read the same in every state. A command belongs to the nearest Leaf widget holding

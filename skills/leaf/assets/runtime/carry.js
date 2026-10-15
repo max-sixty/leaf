@@ -31,8 +31,10 @@ import { TEXT_BOX } from "./control-selectors.js";
 import { skipped } from "./geometry.js";
 import { readingRegions } from "./reading-regions.js";
 
+/** @returns {node is HTMLInputElement | HTMLTextAreaElement | HTMLElementTagNameMap["leaf-text"]} */
 const holdsValue = (node) =>
   node.matches(TEXT_BOX) || (node.tagName === "INPUT" && node.type !== "file");
+/** @returns {node is HTMLInputElement} */
 const holdsTick = (node) =>
   node.tagName === "INPUT" && (node.type === "checkbox" || node.type === "radio");
 
@@ -94,7 +96,9 @@ export function restoreCarry(
     const arrived = document.getElementById(record.id);
     if (!arrived || arrived === held.get(record.id)) continue;
     if (arrived.localName !== record.name) continue;
-    if (record.open !== undefined) arrived.open = record.open;
+    // Only a disclosure's record says whether it was open.
+    if (record.open !== undefined)
+      /** @type {HTMLDetailsElement} */ (arrived).open = record.open;
     if (record.value !== undefined && holdsValue(arrived)) arrived.value = record.value;
     if (record.checked !== undefined && holdsTick(arrived))
       arrived.checked = record.checked;

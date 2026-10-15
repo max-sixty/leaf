@@ -4,6 +4,7 @@
 
 /** Resolves, with nothing, once `signal` aborts; at once if it already has. */
 export const aborted = (signal) => {
+  /** @type {PromiseWithResolvers<void>} */
   const { promise, resolve } = Promise.withResolvers();
   if (signal.aborted) resolve();
   else signal.addEventListener("abort", () => resolve(), { once: true });

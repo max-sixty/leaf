@@ -228,6 +228,7 @@ export function keyBadgePlacement() {
       ].map(([x, y]) => {
         const left = start.left + x - corner.left;
         const top = start.top + y - corner.top;
+        /** @type {DOMRect & {held?: boolean}} */
         const place = new DOMRect(
           clamp(left, 0, right - start.width),
           clamp(top, covered, bottom - start.height),

@@ -138,7 +138,7 @@ def test_one_draft_edit_is_what_every_tab_of_the_page_shows(browser, serve, one_
     round_trip(first)
     expect(second_draft.locator("leaf-text")).to_have_count(0)
     # The body the other tab is left looking at is the log's, which is what closing the
-    # box in front of it was for: renderState defers while an editor stands open.
+    # box in front of it was for: lf-draft holds its drawing while an editor is open.
     expect(second_draft.locator(".lf-draft-body")).to_have_text(edited)
     assert stored_draft_settled(second, "edit:draft-ops")
 

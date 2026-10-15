@@ -1,0 +1,552 @@
+"""Time how fast an open Leaf page answers, for BASE_REF's runtime and HEAD's.
+
+    uv run leaf-dev bench-latency [BASE_REF]
+    uv run leaf-dev bench-latency --tree --page corpus --transition comment --runs 3
+
+BASE_REF defaults to the merge base with `main`; each arm is the plugin payload at its
+commit (`leaf_dev.arms.build_pair`), so commit what you want measured. `--tree` times
+only the working tree as it stands, and with one page and transition it takes under
+a minute, cheap enough to run during a change; the full A/B takes many. Each arm
+builds and serves the triage board and the corpus from this checkout's examples, and
+both arms' tabs stay open in one headless shell, taking turns within each run. Each
+run reloads the page, opens the Threads panel, and times five transitions
+(`TRANSITIONS`): a passage comment and a card move, each ended by a key, and an agent
+reply, status, and revision, each by the arm's `leaf`. The agent conversation has
+enough history to scroll, and the reply measurement follows its latest turn with the
+native pinned reply row, so arriving words can paint without moving a short thread's
+controls under the reader.
+
+A gesture's clock starts at its input event's timestamp; an agent write's at the first
+modification of the file it writes, so the command's startup is left out. It stops at
+the first frame that paints the result (an init script samples after each frame's
+paint). A gesture's `sent` time is the first painted frame after its exact attempt
+was admitted and that application reading was presented, and its `answered` time is
+when the last byte of that POST's answer arrived, so `Sent` less `answered` is the
+page waiting for its main thread and applying the reading. Who held the main thread
+until the last goal is read from the long animation frames the page reports, by
+script owner, with the style and layout each forced. Requests and bytes, the
+primary comparison, are the resource entries the page started from then until it has
+stayed quiet for SETTLE_MS, or the whole new document after a reload; request bodies
+carry no entry. Completed finite freshness reads do, while an open SSE connection does
+not. Compare the numbers with the objectives in
+`notes/user-feedback-responsiveness.md`, and read the spread and load average before
+a median. `leaf-dev profile` drives the same transitions (`served`) under a profiler.
+"""
+
+import json
+import statistics
+import subprocess
+import tempfile
+import time
+from collections.abc import Callable
+from contextlib import AbstractContextManager, ExitStack, contextmanager, nullcontext
+from dataclasses import dataclass, field
+from functools import partial
+from pathlib import Path
+
+import click
+from playwright.sync_api import Browser, Page
+from playwright.sync_api import Error as PlaywrightError
+
+from leaf_dev import ROOT
+from leaf_dev.arms import (
+    build_pair,
+    build_source,
+    environment,
+    load_average,
+    run_directory,
+    run_leaf,
+    serving,
+)
+from leaf_dev.browser import DESKTOP, headless_shell
+
+OUT = ROOT / ".tmp" / "bench-latency"
+RUNS = 5
+SOURCES = ("triage-board", "corpus")
+# How long a transition may take before the run records it as never shown.
+DEADLINE_S = 30
+# How long a page must stay quiet before its traffic for a transition is read.
+SETTLE_MS = 250
+# How many owners of the main thread to print per transition.
+OWNERS = 6
+# The triage content both sources carry: the passage the comment and the agent thread
+# stand on, and the cards each run moves one column left (the corpus keeps their ids).
+PASSAGE = "triage-lede"
+QUOTE = "It is the only release blocker."
+LEDE_END = "Move a card if you would ship differently."
+MOVES = (
+    ("card-tz", "col-blocking"),
+    ("card-export", "col-blocking"),
+    ("card-retry", "col-blocking"),
+    ("card-logout", "col-next"),
+    ("card-avatar", "col-next"),
+)
+TRANSITIONS = ("comment", "move", "reply", "status", "revision")
+# A scrollable conversation lets the native pinned reply row absorb arriving turns.
+THREAD_TEXT = "Bench thread.\n\n" + "\n\n".join(
+    f"Earlier conversation paragraph {line + 1}." for line in range(20)
+)
+
+PROBE = Path(__file__).with_suffix(".js")
+
+
+def until(page: Page, script: str, what: str, arg=None):
+    """Poll a page reading until it is truthy, across a reload that may interrupt it."""
+    deadline = time.monotonic() + DEADLINE_S
+    failure = None
+    while True:
+        try:
+            if value := page.evaluate(script, arg):
+                return value
+        except PlaywrightError as error:
+            failure = error  # Usually the document was replaced mid-read.
+        if time.monotonic() > deadline:
+            last = f" (last read failed: {failure.message})" if failure else ""
+            raise click.ClickException(f"{page.url}: {what} within {DEADLINE_S}s{last}")
+        time.sleep(0.02)
+
+
+def first_write(path: Path, command: list[str], env: dict) -> float:
+    """Run `command` and return when it first changed `path`, in epoch milliseconds.
+
+    The modification stamp of the first change the file shows is the write itself,
+    whatever the command spent starting up before it."""
+    before = path.stat().st_mtime_ns
+    process = subprocess.Popen(
+        command, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+    )
+    while True:
+        exited = process.poll() is not None
+        written = path.stat().st_mtime_ns
+        if written != before or exited:
+            break
+        time.sleep(0.0005)
+    output, _ = process.communicate()
+    if process.returncode or written == before:
+        raise click.ClickException(
+            f"{' '.join(command[1:])} exited {process.returncode}, "
+            f"{'unchanged' if written == before else 'changed'} {path.name}:\n{output}"
+        )
+    return written / 1e6
+
+
+def main_thread(frames: list[dict], start: float, end: float) -> dict:
+    """What the long animation frames spent between `start` and `end`: each owner's
+    script time and the style and layout it forced, and the frames' own rendering,
+    each counted for the part of it inside the window. A script's forced work has no
+    place of its own, so it is counted in the same share as the script. Frames under
+    50 ms are not reported, so this is a floor on the main thread's work, not its
+    total."""
+
+    def inside(begin: float, ms: float) -> float:
+        return max(0.0, min(end, begin + ms) - max(start, begin))
+
+    owners: dict[str, list[float]] = {}
+    render = 0.0
+    for frame in frames:
+        render += inside(frame["end"] - frame["render"], frame["render"])
+        for script in frame["scripts"]:
+            if not (ms := inside(script["start"], script["ms"])):
+                continue
+            spent = owners.setdefault(script["owner"], [0.0, 0.0])
+            spent[0] += ms
+            spent[1] += script["forced"] * ms / script["ms"]
+    return {"owners": owners, "render": render}
+
+
+@dataclass
+class Session:
+    """One arm's page, its server, and the tab open on it."""
+
+    arm: str
+    source: str
+    arm_dir: Path
+    state: Path
+    page_dir: Path
+    page: Page
+    url: str
+    thread: str
+    task: str
+    # What runs around a transition, from just before it starts until its first goal
+    # is painted: nothing here, a profiler in `leaf-dev profile`.
+    recording: Callable[[], AbstractContextManager] = nullcontext
+    # When the last byte of each event POST's answer arrived, by its attempt, in epoch
+    # milliseconds. A retry answers the same attempt; its later answer replaces.
+    answers: dict[str, float] = field(default_factory=dict)
+
+    def heard(self, request) -> None:
+        if request.method != "POST" or not request.url.endswith("/api/event"):
+            return
+        attempt = (request.post_data_json or {}).get("attempt")
+        if attempt:
+            timing = request.timing
+            self.answers[attempt] = timing["startTime"] + timing["responseEnd"]
+
+    def command(self, *args: str) -> list[str]:
+        return [str(self.arm_dir / "bin" / "leaf"), *args]
+
+    def open(self) -> None:
+        """Load a fresh document on the passage, with the Threads panel open.
+
+        Through `about:blank`, since a load of the URL the tab already shows is only
+        a scroll to its fragment."""
+        self.page.goto("about:blank")
+        self.page.goto(self.url, wait_until="commit")
+        self.settle()
+        panel = (
+            "() => Boolean(document.querySelector('.lf-thread-panel')"
+            "?.checkVisibility())"
+        )
+        if not self.page.evaluate(panel):
+            self.page.locator(".lf-threads-toggle").click()
+            until(self.page, panel, "the Threads panel never opened")
+        self.settle()
+
+    def settle(self) -> None:
+        """Wait until the page is quiet and has stayed quiet for SETTLE_MS."""
+        quiet = "() => window.__leafBench.quiet()"
+        deadline = time.monotonic() + DEADLINE_S
+        while time.monotonic() < deadline:
+            until(self.page, quiet, "the page never settled")
+            time.sleep(SETTLE_MS / 1000)
+            if self.page.evaluate(quiet):
+                return
+        raise click.ClickException(f"{self.page.url}: the page never stayed quiet")
+
+    def measure(self, transition: str, goals: dict, act) -> dict:
+        """Arm the frame sampler for `goals`, act, and read when each was painted.
+
+        `act` returns the transition's start in epoch milliseconds."""
+        self.page.evaluate(
+            "goals => window.__leafBench.arm(goals)",
+            [
+                {"name": name, "fact": fact, "arg": arg}
+                for name, (fact, arg) in goals.items()
+            ],
+        )
+        try:
+            with self.recording():
+                start = act()
+                watch = until(
+                    self.page,
+                    "() => { const w = window.__leafBench.watch();"
+                    " return w.goals.every(g => g.at !== null) && w; }",
+                    f"{self.arm} {transition} was never shown",
+                )
+            self.settle()
+            traffic = self.page.evaluate("() => window.__leafBench.traffic()")
+            frames = self.page.evaluate("() => window.__leafBench.frames()")
+        finally:
+            self.page.evaluate("() => window.__leafBench.disarm()")
+        end = max(goal["at"] for goal in watch["goals"])
+        # The gesture's own POST: the attempt the probe bound its `delivered` goal to.
+        answered = next(
+            (
+                self.answers[goal["attempt"]]
+                for goal in watch["goals"]
+                if goal.get("attempt") in self.answers
+            ),
+            None,
+        )
+        return {
+            "page": self.source,
+            "arm": self.arm,
+            "transition": transition,
+            **{goal["name"]: goal["at"] - start for goal in watch["goals"]},
+            **({"answered": answered - start} if answered else {}),
+            **main_thread(frames, start, end),
+            **traffic,
+        }
+
+    def gesture(self, transition: str, goals: dict, press) -> dict:
+        def act():
+            press()
+            return until(self.page, "() => window.__leafBench.input()", "no input seen")
+
+        return self.measure(transition, goals, act)
+
+    def comment(self, run: int) -> dict:
+        words = f"Bench comment {run + 1}."
+        box = self.page.locator(f"#{PASSAGE}").bounding_box()
+        y = box["y"] + 10
+        self.page.mouse.move(box["x"] + 2, y)
+        self.page.mouse.down()
+        self.page.mouse.move(box["x"] + 200, y, steps=8)
+        self.page.mouse.up()
+        until(
+            self.page,
+            "() => (CSS.highlights.get('lf-pending')?.size ?? 0) > 0",
+            "the selection was never marked",
+        )
+        self.page.locator(".lf-fab-input").click()
+        field = self.page.locator(".lf-composer leaf-text")
+        field.focus()
+        self.page.keyboard.insert_text(words)
+        return self.gesture(
+            "comment",
+            {
+                "painted": ("message", words),
+                "sent": ("delivered", {"kind": "comment"}),
+            },
+            lambda: self.page.keyboard.press("ControlOrMeta+Enter"),
+        )
+
+    def move(self, run: int) -> dict:
+        card, to = MOVES[run]
+        self.page.locator(f"#{card} > .lf-grip").focus()
+        self.page.keyboard.press("Enter")
+        self.page.keyboard.press("ArrowLeft")
+        return self.gesture(
+            "move",
+            {
+                "painted": ("card", {"card": card, "to": to}),
+                "sent": ("delivered", {"kind": "action", "unit": card}),
+            },
+            lambda: self.page.keyboard.press("Enter"),
+        )
+
+    def written(self, path: str, *args: str):
+        """The start of a command that writes the page file `path`."""
+        env = environment(XDG_STATE_HOME=str(self.state))
+        return lambda: first_write(self.page_dir / path, self.command(*args), env)
+
+    def reply(self, run: int) -> dict:
+        """A reply while the user follows the scrollable agent conversation's tail."""
+        words = f"Bench reply {run + 1}."
+        thread = f'.lf-thread[data-id="{self.thread}"]'
+        message = f"{thread} .lf-msg"
+        opened = "selector => document.querySelector(selector)?.checkVisibility()"
+        if not self.page.evaluate(opened, message):
+            self.page.locator(f"{thread} .lf-thread-summary").click()
+            until(self.page, opened, "the agent thread never opened", message)
+        self.page.locator(f"{thread} .lf-thread-reply leaf-text").focus()
+        self.settle()
+        act = self.written(
+            "events.jsonl",
+            *("thread", "reply", str(self.page_dir)),
+            *(self.thread, "--text", words),
+        )
+        return self.measure("reply", {"painted": ("message", words)}, act)
+
+    def status(self, run: int) -> dict:
+        detail = f"Bench status {run + 1}"
+        act = self.written(
+            "events.jsonl", "task", "start", str(self.page_dir), self.task, detail
+        )
+        return self.measure("status", {"painted": ("status", detail)}, act)
+
+    def revision(self, run: int) -> dict:
+        words = f"Bench revision {run + 1}."
+        index = self.page_dir / "index.html"
+        html = index.read_text(encoding="utf-8")
+        revision = self.page.evaluate("() => window.__leafBench.revision()") + 1
+
+        def act():
+            index.write_text(html.replace(LEDE_END, f"{LEDE_END} {words}"), "utf-8")
+            saved = index.stat().st_mtime_ns / 1e6
+            run_leaf(
+                self.arm_dir, self.state, "page", "stamp", str(self.page_dir),
+                "--text", words, check=True,
+            )  # fmt: skip
+            return saved
+
+        goal = {"revision": revision, "id": PASSAGE, "words": words}
+        return self.measure("revision", {"painted": ("revision", goal)}, act)
+
+
+@contextmanager
+def served(browser: Browser, arm: str, arm_dir: Path, source: str, scratch: Path):
+    """Build `source` into a page with `arm_dir`'s launcher, serve it, and open a tab."""
+    state = scratch / f"{arm}-{source}-state"
+    page_dir = scratch / f"{arm}-{source}" / "page"
+    build_source(arm_dir, state, ROOT / "examples" / f"{source}.html", page_dir)
+    leaf = partial(run_leaf, arm_dir, state, check=True)
+    thread = json.loads(
+        leaf(
+            "thread", "open", str(page_dir), "--section", PASSAGE, "--quote", QUOTE,
+            "--text", THREAD_TEXT,
+        ).stdout
+    )["id"]  # fmt: skip
+    # The status transition starts this task, the page's own item, with a new line.
+    task = json.loads(leaf("task", "open", str(page_dir), "page", "Bench task").stdout)[
+        "id"
+    ]
+    with serving(arm_dir, state, page_dir) as address:
+        context = browser.new_context(
+            viewport={"width": DESKTOP[0], "height": DESKTOP[1]}
+        )
+        try:
+            context.add_init_script(path=PROBE)
+            page = context.new_page()
+            page.goto(address)  # The token sets the page cookie; later loads drop it.
+            origin = address.split("?", 1)[0]
+            url = f"{origin}#{PASSAGE}"
+            session = Session(
+                arm, source, arm_dir, state, page_dir, page, url, thread, task
+            )
+            page.on("requestfinished", session.heard)
+            yield session
+        finally:
+            context.close()
+
+
+def spread(values: list[float]) -> str:
+    if not values:
+        return ""
+    return f"{statistics.median(values):.0f} [{min(values):.0f}-{max(values):.0f}]"
+
+
+def row(source: str, transition: str, arm: str, runs: list[dict]) -> str:
+    painted = spread([r["painted"] for r in runs])
+    answered = spread([r["answered"] for r in runs if "answered" in r])
+    sent = spread([r["sent"] for r in runs if "sent" in r])
+    requests = statistics.median(r["requests"] for r in runs)
+    kb = statistics.median(r["bytes"] for r in runs) / 1000
+    installs = ", ".join(sorted({r["install"] for r in runs}))
+    return (
+        f"{source:13} {transition:10} {arm:4} {painted:>16} {answered:>14} {sent:>16} "
+        f"{requests:>8.0f} {kb:>7.1f}  {installs if transition == 'revision' else ''}"
+    )
+
+
+def owners(runs: list[dict]) -> list[str]:
+    """The owners of the main thread's long frames, by mean script time per run."""
+    total: dict[str, list[float]] = {}
+    for run in runs:
+        for owner, (ms, forced) in run["owners"].items():
+            spent = total.setdefault(owner, [0.0, 0.0])
+            spent[0] += ms
+            spent[1] += forced
+    ranked = sorted(total.items(), key=lambda item: -item[1][0])
+    render = sum(r["render"] for r in runs) / len(runs)
+    return [
+        f"    {ms / len(runs):6.0f} {forced / len(runs):6.0f}  {owner}"
+        for owner, (ms, forced) in ranked[:OWNERS]
+    ] + [f"    {render:6.0f}         style, layout and paint after scripts"]
+
+
+@click.command()
+@click.argument("base_ref", required=False)
+@click.option(
+    "--page",
+    "pages",
+    multiple=True,
+    type=click.Choice(SOURCES),
+    help="Time only this page; repeat for more. Default: all.",
+)
+@click.option(
+    "--transition",
+    "transitions",
+    multiple=True,
+    type=click.Choice(TRANSITIONS),
+    help="Time only this transition; repeat for more. Default: all.",
+)
+@click.option(
+    "--runs",
+    default=RUNS,
+    show_default=True,
+    # Each run moves its own card (`MOVES`).
+    type=click.IntRange(1, len(MOVES)),
+    help="Runs per arm.",
+)
+@click.option(
+    "--tree",
+    is_flag=True,
+    help="Time only this working tree, uncommitted edits included, with no base.",
+)
+def bench_latency(
+    base_ref: str | None,
+    pages: tuple[str, ...],
+    transitions: tuple[str, ...],
+    runs: int,
+    tree: bool,
+) -> None:
+    """Time an open page's answers, base vs HEAD, or this working tree alone.
+
+    Times a page's answer to a gesture, an agent write, and a revision, on two
+    pages, taking turns between BASE_REF's runtime and HEAD's; BASE_REF defaults to
+    the merge base with main. Prints a table of median [min-max] milliseconds
+    to the painted frame, to the gesture's POST answer, and to the painted frame
+    of the server's reading (Sent), with the requests and bytes each caused, then
+    who held the main thread in that time. Every run lands in .tmp/bench-latency/.
+
+    To check a change as you make it, narrow it, for example
+    `--tree --page corpus --transition comment --runs 3`.
+    """
+    if tree and base_ref:
+        raise click.UsageError("--tree times the working tree alone; drop BASE_REF")
+    pages = pages or SOURCES
+    transitions = transitions or TRANSITIONS
+    out = run_directory(OUT)
+    load_before = load_average()
+    results = []
+    with tempfile.TemporaryDirectory(prefix="leaf-bench-") as built:
+        scratch = Path(built)
+        if tree:
+            arms, commits = {"tree": ROOT}, {}
+        else:
+            arms, commits = build_pair(base_ref, scratch)
+        with headless_shell() as browser:
+            for source in pages:
+                with ExitStack() as stack:
+                    sessions = [
+                        stack.enter_context(
+                            served(browser, arm, arm_dir, source, scratch)
+                        )
+                        for arm, arm_dir in arms.items()
+                    ]
+                    for run in range(runs):
+                        # Alternate which arm goes first, so neither always meets
+                        # the machine the other just loaded.
+                        for session in sessions[:: 1 if run % 2 == 0 else -1]:
+                            session.open()
+                            for transition in transitions:
+                                result = getattr(session, transition)(run)
+                                results.append({**result, "run": run})
+                                click.echo(
+                                    f"{source} {session.arm} run {run + 1} "
+                                    f"{transition}: {result['painted']:.0f} ms",
+                                    err=True,
+                                )
+            version = browser.version
+    (out / "results.json").write_text(
+        json.dumps({"commits": commits, "results": results}, indent=1)
+    )
+    compared = (
+        "this working tree"
+        if tree
+        else f"base {commits['base'][:10]} vs head {commits['head'][:10]}"
+    )
+    click.echo(
+        f"{compared}, {runs} runs, Chrome {version}, {DESKTOP[0]}x{DESKTOP[1]}\n"
+        f"load average {load_before} before, {load_average()} after\n"
+        "times are median [min-max] ms from input or write to the painted frame\n"
+        f"{'page':13} {'transition':10} {'arm':4} {'painted':>16} {'answered':>14} "
+        f"{'Sent':>16} {'requests':>8} {'KB':>7}  install"
+    )
+    selected = [
+        (source, transition, arm, by)
+        for source in pages
+        for transition in transitions
+        for arm in arms
+        if (
+            by := [
+                r
+                for r in results
+                if (r["page"], r["transition"], r["arm"]) == (source, transition, arm)
+            ]
+        )
+    ]
+    for source, transition, arm, by in selected:
+        click.echo(row(source, transition, arm, by))
+    click.echo(
+        "\nmain thread in long frames to the last painted goal, mean ms per run:"
+        "\n    script forced  owner"
+    )
+    for source, transition, arm, by in selected:
+        # A transition with no long frame held the main thread for none of its time.
+        if any(r["owners"] or r["render"] for r in by):
+            click.echo(f"  {source} {transition} {arm}")
+            for line in owners(by):
+                click.echo(line)
+    click.echo(f"details: {out / 'results.json'}")

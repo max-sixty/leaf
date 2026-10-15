@@ -43,6 +43,14 @@ def kernel_protocol() -> int:
     return _kernel_events()["protocol"]
 
 
+def record_format(kind: str) -> str:
+    """The `format` a record that each installed Leaf may read carries: its kind and the
+    protocol of the Leaf that wrote it. A Leaf at another protocol leaves the record
+    alone, as it refuses a page vendored at one, so one number versions pages and
+    records alike (`AGENTS.md`, "Pages across Leaf updates")."""
+    return f"leaf-{kind}/{kernel_protocol()}"
+
+
 def kernel_event_ownership() -> dict:
     """Fields derived at admission or discarded at browser ingress."""
     return _kernel_events()["ownership"]

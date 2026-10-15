@@ -6,7 +6,7 @@ import os
 import re
 import sys
 import time
-from collections.abc import Callable, Collection
+from collections.abc import Collection
 from pathlib import Path
 from stat import S_ISDIR, S_ISREG
 
@@ -112,36 +112,6 @@ def entry_stamps(directory: Path, ignored: Collection[str]) -> list[tuple[str, o
         for entry in directory.iterdir()
         if entry.name not in ignored and not STAGED.fullmatch(entry.name)
     )
-
-
-# How often a synchronous reader waiting on page files looks for news:
-# `leaf page events --follow` and `leaf wait`. The look is a re-stat rather than an
-# in-process signal because an append does not have to come from the reader's process —
-# `leaf thread reply` and every other command write these same files from outside a server,
-# and a follower has no server at all — so one mechanism covers a browser's POST and an
-# agent's command alike. The browser chooses its own finite request cadence in
-# `state-feed.js`; the same file stamps name changes at either boundary.
-LOOK_S = 0.05
-
-
-def next_reading[Reading](
-    look: Callable[[], Reading], seen: Reading, timeout: float | None = None
-) -> Reading:
-    """The first reading `look` gives that differs from `seen`, looking every
-    `LOOK_S` — the one wait a synchronous follower of page files makes. With
-    `timeout`, the reading at that many seconds is returned whether or not it moved,
-    for a follower that also owes something to the clock rather than the files.
-
-    `look` is a stamp, never the content: the follower reads what moved only once
-    this says something did, so a quiet page costs stat calls and nothing more."""
-    deadline = None if timeout is None else time.monotonic() + timeout
-    while True:
-        reading = look()
-        if reading != seen:
-            return reading
-        if deadline is not None and time.monotonic() >= deadline:
-            return reading
-        time.sleep(LOOK_S)
 
 
 VERSION_FILE = re.compile(rf"{VERSION_NAME}\.html")

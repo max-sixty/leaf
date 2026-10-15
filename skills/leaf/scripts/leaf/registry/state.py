@@ -64,6 +64,32 @@ def validate_widget_state_relations(
                 raise registry_error(
                     "creates-id", path, tag, verb=verb, child=child_tag
                 )
+            # A creates verb owns id-and-words members, not independent widget
+            # owners. Capabilities read from the authored owner inventory cannot
+            # be supplied by these members. Presentation-only upgrades are allowed.
+            owner_keys = (
+                "x-state",
+                "x-awaits",
+                "x-ask-context",
+                "x-work",
+                "x-history",
+                "x-thread-seat",
+                "x-thread-surface",
+                "x-data",
+                "x-measured",
+            )
+            owned = [key for key in owner_keys if child.get(key)]
+            if isinstance(child.get("x-visual"), dict):
+                owned.append("x-visual")
+            if owned:
+                raise registry_error(
+                    "creates-semantic-owner",
+                    path,
+                    tag,
+                    verb=verb,
+                    child=child_tag,
+                    keys=owned,
+                )
 
     # Each verb's record writes a physical slot of its own. Body and position have
     # one per unit; value and attribute-set are keyed by attr.

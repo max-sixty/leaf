@@ -22,17 +22,19 @@
 .lf-compose-placeholder .lf-key-badge { background: transparent; color: var(--muted); }
 .lf-compose-field > leaf-text:not(.lf-fab-input) { display: block; box-sizing: border-box;
           width: 100%; min-width: 0; min-height: var(--lf-compose-h);
-          padding-inline-end: var(--lf-compose-pad-inline-start);
+          padding-inline-end: var(--lf-compose-pad-inline-start); }
+/* The words keep room at their end for the field's own action where the field holds it.
+   A rewrite's Save stands at its message's head (`submitIn`), so its words take the
+   whole line. */
+.lf-compose-field:where(:has(> .lf-compose-submit)) > leaf-text:not(.lf-fab-input) {
           --lf-field-end-room: calc(var(--lf-icon-action-hit) + 12px
             - var(--lf-compose-pad-inline-start)); }
 .lf-icon-action { box-sizing: border-box; width: var(--lf-icon-action-hit);
           height: var(--lf-icon-action-hit); min-width: var(--lf-icon-action-hit);
           min-height: var(--lf-icon-action-hit); padding: 0; display: grid;
           place-items: center; border-radius: var(--r); }
-.lf-icon-action[hidden] { display: none; }
 .lf-action-icon { position: relative; z-index: 1; inline-size: 16px; block-size: 16px;
-          overflow: visible; pointer-events: none; fill: none; stroke: currentColor; stroke-width: 1.6;
-          stroke-linecap: round; stroke-linejoin: round; }
+          pointer-events: none; }
 /* Closing changes the view; resolving changes durable thread state. */
 .lf-close-action { border: 0; background: transparent;
           color: var(--muted); }
@@ -82,7 +84,6 @@
 .lf-composer-media {
   display: flex; flex: 1 0 100%; gap: 6px; min-width: 0; overflow-x: auto;
   padding: 2px; box-sizing: border-box; }
-.lf-composer-media[hidden] { display: none !important; }
 .lf-composer-media-item { flex: none; display: flex; align-items: stretch;
   box-sizing: border-box; border: 1px solid var(--border-2);
   border-radius: var(--r); background: var(--paper); overflow: hidden; }
@@ -91,7 +92,7 @@
   font: inherit; }
 button.lf-media-open { cursor: zoom-in; }
 .lf-media-open[data-lf-focus] { outline: var(--focus-ring);
-  --lf-focus-ring: media; outline-offset: 2px; }
+  outline-offset: 2px; }
 .lf-composer-media-open { width: 68px; height: 52px; overflow: hidden;
   border: 0; border-radius: 0; align-self: center; }
 .lf-composer-media-open img { display: block; width: 100%; height: 100%;
@@ -111,7 +112,7 @@ button.lf-media-open { cursor: zoom-in; }
   color: var(--ink-2); cursor: pointer; }
 .lf-composer-media-item > button:not(.lf-media-open):hover { color: var(--accent); background: var(--chip); }
 .lf-composer-media-item > button:not(.lf-media-open)[data-lf-focus] {
-  outline: var(--focus-ring); --lf-focus-ring: composer-media;
+  outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w)); }
 .lf-composer-media-item > button:not(.lf-media-open) > svg { inline-size: 14px; block-size: 14px; }
 .lf-composer-media-item > .lf-media-open[data-lf-focus] {
@@ -125,7 +126,7 @@ button.lf-media-open { cursor: zoom-in; }
           border-radius: var(--r); background: var(--card); }
 .lf-comment-box > .lf-compose-field:has(> leaf-text[data-lf-focus]),
 .lf-response-control[data-lf-focus] {
-          outline: var(--focus-ring); --lf-focus-ring: text-box;
+          outline: var(--focus-ring);
           outline-offset: 0; border-color: transparent; }
 /* Floating comment surfaces have one elevation. The page card reserves the ring's
    room inside its scrollport; a filter lets its shadow extend beyond that clip. */
@@ -137,28 +138,15 @@ button.lf-media-open { cursor: zoom-in; }
           max-height: 50vh; overflow-y: auto; }
 .lf-comment-box > .lf-compose-field > leaf-text[data-lf-focus] { outline: none; }
 .lf-thread-reply { display: block; margin-top: var(--sp-3); min-width: 0; }
-:is(.lf-thread-reply, .lf-fab-bar) .lf-compose-field {
+:is(.lf-thread-reply, .lf-fab-bar, .lf-msg-editor) .lf-compose-field {
           --lf-compose-pad-inline-start: calc(var(--lf-thread-text-inset) - 1px); }
-/* A message's rewrite stands where its words did. The words keep their place, size and
-   wrapping: the field around them takes no room, and its box is painted around them,
-   reaching into the message's inset and the room between turns to the reply box's own
-   edges, so opening and closing it moves nothing. Its ring is drawn inside the box,
-   which a margin card's transcript would otherwise clip. Cancel and Save stand at the
-   message's head (`.lf-msg-edit-actions`). */
-.lf-msg-editor { display: block; min-width: 0; font: inherit; }
-.lf-msg-editor > .lf-compose-field { isolation: isolate; }
-.lf-msg-editor > .lf-compose-field::before { content: ""; position: absolute; z-index: -1;
-          inset: -4px 0 -4px calc(-1 * var(--lf-thread-text-inset));
-          border: 1px solid var(--border-2); border-radius: var(--r); background: var(--card);
-          pointer-events: none; }
-.lf-msg-editor > .lf-compose-field:has(> leaf-text[data-lf-focus])::before {
-          outline: var(--focus-ring); --lf-focus-ring: text-box;
-          outline-offset: calc(-1 * var(--focus-ring-w)); border-color: transparent; }
-.lf-msg-editor > .lf-compose-field > leaf-text:not(.lf-fab-input) { display: block;
-          min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 0;
-          background: transparent; color: var(--ink); font: inherit;
-          max-height: none; overflow: visible; --lf-field-end-room: 0px; }
-.lf-msg-editor > .lf-compose-field > leaf-text[data-lf-focus] { outline: none; }
+/* A message's rewrite is a comment box, the field the thread's reply box is, as wide as
+   the reply box: in a transcript, which insets its messages, it reaches back over that
+   inset, so its words keep the message's. Cancel and Save stand at the message's head
+   (`.lf-msg-edit-actions`). */
+.lf-msg-editor { display: block; min-width: 0; }
+.lf-thread-transcript .lf-msg-editor {
+          margin-inline-start: calc(-1 * var(--lf-thread-text-inset)); }
 /* Its foot stands for its last line, whose height a reveal clears above it. */
 .lf-msg-edit-foot { display: block; block-size: 0; scroll-margin-block-start: 1lh; }
 /* Cancel and Save take the message's head while it is open, where its Edit control stood
@@ -203,7 +191,7 @@ button.lf-media-open { cursor: zoom-in; }
     padding-block: var(--lf-compose-pad-block); }
   /* The physical response presentation allocates the field's box. The host is
      the editor's scrollport; its content-sized editor keeps native caret reveals. */
-  leaf-text.lf-fab-input { width: 100%; min-width: 0;
+  leaf-text.lf-fab-input { display: none; width: 100%; min-width: 0;
     padding-inline: var(--lf-compose-pad-inline-start) calc(var(--lf-comment-text-pad-end) - 1px);
     --lf-field-end-room: var(--lf-comment-send-room);
     overflow-y: auto; }
@@ -213,7 +201,6 @@ button.lf-media-open { cursor: zoom-in; }
   .lf-response-action { min-width: max(30px, var(--aim-floor)); padding-inline: 9px;
     display: inline-flex; align-items: center; justify-content: center; gap: 0;
     white-space: nowrap; cursor: pointer; }
-  .lf-response-action[hidden] { display: none; }
   .lf-response-action:hover {
     border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
     background: var(--card); }
@@ -246,18 +233,24 @@ button.lf-media-open { cursor: zoom-in; }
 /* Core may seat its one response bar in a widget's exact-datum Thread outlet. The
    widget supplies only the layout location; these rules carry the canonical composer
    into the same trees as the Thread view around it. */
-.lf-fab-bar { font: var(--t-5)/1.5 var(--sans); }
-.lf-fab-bar[data-lf-presentation="inline"] { display: inline-flex; position: static;
+.lf-composer { display: none; }
+.lf-composer[data-lf-open] { display: contents; }
+.lf-composer[data-lf-open] leaf-text.lf-fab-input { display: block; }
+/* The target-only control and its open composer are the bar's two presentations.
+   Both are local mechanical state; the stylesheet also reads them in widget seats. */
+.lf-fab-bar { display: none; font: var(--t-5)/1.5 var(--sans); }
+.lf-fab-bar:is([data-lf-target-only], :has(> .lf-composer[data-lf-open])) {
+  display: var(--lf-response-display, inline-flex); }
+.lf-fab-bar[data-lf-presentation="inline"] { position: static;
           box-sizing: border-box; align-items: flex-end; gap: 4px; width: 100%;
           max-width: 760px; white-space: nowrap; color: var(--ink); }
 .lf-fab-bar[data-lf-presentation="inline"] *,
 .lf-fab-bar[data-lf-presentation="inline"] *::before,
 .lf-fab-bar[data-lf-presentation="inline"] *::after { box-sizing: inherit; }
-.lf-fab-bar[data-lf-presentation="inline"] .lf-composer { display: contents; }
 .lf-fab-bar[data-lf-presentation="inline"] .lf-composer
           > :not(.lf-compose-field, .lf-composer-media) { display: none !important; }
 .lf-fab-bar[data-lf-presentation="inline"] leaf-text.lf-fab-input {
-  display: block; max-width: none; max-height: 50vh; margin: 0; }
+  max-width: none; max-height: 50vh; margin: 0; }
 .lf-fab-bar[data-lf-presentation="inline"].lf-response-open > .lf-response-options {
   flex-basis: 100%; }
 /* Only a floating box is carried (surface-grip.js), so a seated one shows no grip. */

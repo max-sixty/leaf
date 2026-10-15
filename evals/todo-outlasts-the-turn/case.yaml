@@ -5,10 +5,11 @@
 # Reworded by #2506 (`--task` to `--todo`); at 3fe3eb0af it passed 1/1 on Claude Code.
 description: todo-outlasts-the-turn
 metadata:
-  purpose: 'Conversation loop: work a background worker carries past the turn gets a to-do on the
-    thread it answers, beside the reply, and the to-do is ended once the result lands.'
+  purpose:
+    "Conversation loop: work a background worker carries past the turn gets a to-do on the
+    thread it answers, beside the reply, and the to-do is ended once the result lands."
   tags:
-  - wait-loop
+    - wait-loop
 vars:
   prompt: |
     You are a Claude Code session driving a live Leaf page at
@@ -24,11 +25,11 @@ vars:
     in order, each command you would run on the page in this turn, and then each one
     you would run in the later turn after stamping version 4.
 assert:
-- type: llm-rubric
-  metric: judgment
-  value: |
-    Pass only if, in this turn, the commands answer 7c41d0e2 with `leaf response
-    reply` carrying `--todo "<title>"` for the rebuild; and if, in the later turn,
-    they include `leaf task end` naming that to-do (the reply's id) with outcome
-    `done` and a detail pointing at version 4. Starting the comment or the to-do alongside is fine. Fail if no to-do is
-    opened, if the to-do is opened only in the later turn, or if it is never ended.
+  - type: llm-rubric
+    metric: judgment
+    value: |
+      Pass only if, in this turn, the commands answer 7c41d0e2 with `leaf response
+      reply` carrying `--todo "<title>"` for the rebuild; and if, in the later turn,
+      they include `leaf task end` naming that to-do (the reply's id) with outcome
+      `done` and a detail pointing at version 4. Starting the comment or the to-do alongside is fine. Fail if no to-do is
+      opened, if the to-do is opened only in the later turn, or if it is never ended.

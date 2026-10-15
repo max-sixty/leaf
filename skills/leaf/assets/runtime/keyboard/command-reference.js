@@ -28,7 +28,7 @@ import {
   dismissPopoversOutside,
 } from "./layer-stack.js";
 import { scrollIntoView } from "../landing-scroll.js";
-import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
+import { html, nothing, render, repeat } from "/vendor/browser-runtime.js";
 
 import {
   bindings,
@@ -213,6 +213,7 @@ const EMPTY_CATALOG = Object.freeze({
   entries: Object.freeze([]),
   sections: Object.freeze([]),
 });
+/** @type {ReturnType<typeof captureCommandReferenceCatalog>} */
 let commandReferenceCatalog = EMPTY_CATALOG;
 let commandReferenceState = {
   query: "",
@@ -662,7 +663,7 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
 const headingRow = (id, title, hidden = false) => html`
   <tbody ?hidden=${hidden}>
     <tr role="row">
-      <th role="gridcell" colspan="2"><h3 id=${id}>${title}</h3></th>
+      <th role="gridcell" colspan="2"><h3 class="lf-label" id=${id}>${title}</h3></th>
     </tr>
   </tbody>
 `;
@@ -866,6 +867,7 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
       metaOverride: null,
     };
     presentCommandReference();
+    /** @type {HTMLInputElement} */
     const search = commandReferenceDialog.querySelector(".lf-command-reference-search");
     const results = commandReferenceDialog.querySelector(
       ".lf-command-reference-results",
@@ -873,7 +875,7 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
     // Native editing and scrolling values begin fresh and remain untouched by local Lit
     // renders.
     search.value = "";
-    results.scrollTop = 0;
+    results.scrollTo({ top: 0, behavior: "instant" });
     stopReferenceReading = registerReadingRegion({
       id: "lf-region:command-reference",
       host: commandReferenceDialog,
@@ -897,7 +899,8 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
     closeLayer(
       () => {
         if (commandReferenceDialog.open) closeNativeLayer(commandReferenceDialog);
-        if (standingIn(commandReferenceDialog)) deepFocus()?.blur();
+        if (standingIn(commandReferenceDialog))
+          /** @type {HTMLElement | null} */ (deepFocus())?.blur();
         repaint();
       },
       handingBack && (() => handBack(restore)),
@@ -918,9 +921,11 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
 }
 
 const commandButton = (id) =>
-  [...commandReferenceDialog.querySelectorAll(".lf-command-reference-command")].find(
-    (button) => button.dataset.lfCommand === id,
-  ) ?? null;
+  [
+    .../** @type {NodeListOf<HTMLElement>} */ (
+      commandReferenceDialog.querySelectorAll(".lf-command-reference-command")
+    ),
+  ].find((button) => button.dataset.lfCommand === id) ?? null;
 
 const focusedCommandId = () =>
   focused()?.matches?.(".lf-command-reference-command")

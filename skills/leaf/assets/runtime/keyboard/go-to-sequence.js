@@ -15,8 +15,8 @@
    `g G` glide to the page edges; from a focused thread, `g k` and `g j` place its card at
    an edge of the list; `g p` returns focus to the page while leaving open surfaces
    in place. Uppercase mnemonics remain named
-   global destinations: `g T` Threads, `g Q` Questions, `g L` All pages, `g M` the searchable
-   Page Map and `g V` Versions. A named
+   global destinations: `g T` Threads, `g M` the On panel, `g L` All pages, `g P` the
+   searchable Page Map and `g V` Versions. A named
    panel destination toggles that panel, matching its visible control. Completing one that
    opens a surface leaves the user in that surface, whose own Escape step is the way out
    of it — the same step for a surface the user already had, and none of this sequence's
@@ -52,7 +52,7 @@
    including panel narrowing. A surface covering the document cannot make that promise,
    so its ordinary Escape rung remains the route back.
 
-   A destination declares no way back. `g T`, `g Q` and `g L` may exchange an open
+   A destination declares no way back. `g T`, `g M` and `g L` may exchange an open
    panel or drawer for another, and the surface the user ends in owns the one step that
    takes it off again — the same step whichever door opened it, and the same for a
    surface they already had. Exchanging one for another is lateral, so the one replaced
@@ -68,7 +68,7 @@ import {
   keySequenceTemplate,
   progressStates,
 } from "./key-sequence.js";
-import { html, nothing } from "../../vendor/browser-runtime.js";
+import { html, nothing } from "/vendor/browser-runtime.js";
 import { isExternalPageLink } from "../declared-words.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { el, PRESSABLE } from "../widget-elements.js";
@@ -79,7 +79,7 @@ import { pageParts } from "../passages.js";
 import { addressableSays } from "../addressable-names.js";
 import { announce, notice } from "../notifications.js";
 import { closestAcross, pageQueryAll } from "../passages.js";
-import { currentDrawer, othersBtn, queueBtn } from "../drawers.js";
+import { currentDrawer, doorStands, othersBtn, queueBtn } from "../drawers.js";
 import { mapButton } from "../page-map-dialog.js";
 
 import { claimsEsc, saying } from "./scopes.js";
@@ -180,13 +180,21 @@ export function createGoToSequence({
     },
     {
       id: "navigation.drawer.queue",
-      keys: ["Shift+q"],
+      keys: ["Shift+m"],
+      // Its door is On me's, so where the panel shows the agent's list it turns to
+      // the user's rather than closing.
       description: () =>
-        currentDrawer() === "queue"
-          ? "Close the Questions panel"
-          : "Go to the Questions panel",
+        doorStands("queue", queueBtn)
+          ? "Close the On panel"
+          : currentDrawer() === "queue"
+            ? "Show On me in the On panel"
+            : "Go to the On panel",
       title: () =>
-        currentDrawer() === "queue" ? "close Questions panel" : "Questions panel",
+        doorStands("queue", queueBtn)
+          ? "close On panel"
+          : currentDrawer() === "queue"
+            ? "On me"
+            : "On panel",
       control: () => queueBtn,
       when: () => true,
     },
@@ -204,7 +212,7 @@ export function createGoToSequence({
     },
     {
       id: "navigation.page-map",
-      keys: ["Shift+m"],
+      keys: ["Shift+p"],
       description: "Open the Page Map dialog",
       title: "Page Map dialog",
       control: () => mapButton,

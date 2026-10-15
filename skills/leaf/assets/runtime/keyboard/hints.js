@@ -24,7 +24,7 @@
    than removed. Geometry belongs to each caller and is passed in so this module
    introduces no ownership cycle through the shortcut bar. */
 import { bindingEnabled, spell } from "./bindings.js";
-import { html, render } from "../../vendor/browser-runtime.js";
+import { html, render } from "/vendor/browser-runtime.js";
 import { keySequenceModel, keySequenceTemplate } from "./key-sequence.js";
 import { clamp, overlaps, overlapsAcross } from "../rect.js";
 import { chipSeats } from "./chip-seats.js";
@@ -58,6 +58,7 @@ export function renderKeys() {
   };
 }
 
+/** @returns {{left: number, right: number, top: number, bottom: number, width: number, height: number, held?: boolean}} */
 const movedTo = (box, left, top) => ({
   left,
   right: left + box.width,
@@ -71,6 +72,7 @@ const movedTo = (box, left, top) => ({
 // the seat stands clear of, or nothing where the preferred top is open.
 function nearestOpenTop(box, preferred, barriers, top, bottom, gap) {
   const last = Math.max(top, bottom - box.height);
+  /** @type {{at: number, by: null | "edge" | {held?: boolean}}[]} */
   const seats = [
     { at: preferred, by: null },
     { at: top, by: "edge" },
@@ -101,6 +103,8 @@ function nearestOpenTop(box, preferred, barriers, top, bottom, gap) {
 // each seat stands (chip-seats.js), its `box` a barrier for a following pass.
 // `placement` chooses the corner, below, before, or above the target;
 // outside seats keep the target clear.
+/** @param {any} seats @param {any} hints
+ * @param {{barriers?: object[], lineBox?: DOMRect, viewportTop?: number}} [options] */
 function spreadHints(seats, hints, { barriers = [], lineBox, viewportTop = 0 } = {}) {
   const band =
     parseFloat(
@@ -383,7 +387,13 @@ export function createHintSession({
   function walk(direction) {
     const targets = hinted();
     if (!targets.length) return;
-    at = (at + direction + targets.length) % targets.length;
+    // Nothing heard yet, the walk starts at whichever end it walks from.
+    at =
+      at < 0
+        ? direction > 0
+          ? 0
+          : targets.length - 1
+        : (at + direction + targets.length) % targets.length;
     const target = targets[at];
     beginWalk(walkKey, "Target", () =>
       listWalkPosition(hinted(), hinted()[at], { identity }),

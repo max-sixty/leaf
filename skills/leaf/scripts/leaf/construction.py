@@ -17,9 +17,11 @@ from .projection import (
     StateProjection,
     folded_positions,
     generated_children,
-    recorded_owner,
+    markup_value,
+    record_members,
     retirement_outcomes,
 )
+from .registry.contract import state_specs
 from .structure import SourceDocument
 
 
@@ -121,6 +123,7 @@ def constructed_content(
             prepare(node["content"], identity or parent)
 
     prepare(roots)
+    members = parser.by_id
     # Created child id → its owner, so a record the owner states reaches the children
     # other events created as well as the authored ones.
     created_in = {}
@@ -169,17 +172,30 @@ def constructed_content(
                 owner["attrs"].pop(record["attr"], None)
             else:
                 owner["attrs"][record["attr"]] = value
-        elif kind == "attribute":
-            for identity, node in by_id.items():
-                generated = created_in.get(identity) == unit
-                if (
-                    not generated
-                    and recorded_owner(identity, parser.by_id, spoken, registry) != unit
-                ):
-                    continue
+        elif kind == "position" and event["id"] not in projection.absorbed:
+            owner.setdefault("authored", {})["placement"] = {"parent": parents[unit]}
+            placed[(widget, event["action"])] = record
+
+    # Every attribute-set owner paints its complete state over its current members.
+    # A move can give an unchanged destination baseline a new member to paint.
+    for widget, rec in members.items():
+        for verb, spec in state_specs(registry.get(rec["tag"], {})):
+            record = spec.get("record") or {}
+            if record.get("kind") != "attribute":
+                continue
+            held = projection.desired.get((widget, widget, verb))
+            value = (
+                held[0]["detail"]["value"]
+                if held
+                else markup_value(widget, spec, members, spoken, registry)
+            )
+            for identity in record_members(
+                widget, record, projection, members, registry
+            ):
+                node = by_id[identity]
                 if (record["attr"] in node["attrs"]) == (identity in value):
                     continue
-                if not generated:
+                if identity not in created_in:
                     node.setdefault("authored", {}).setdefault(
                         "attrs", dict(node["attrs"])
                     )
@@ -187,16 +203,14 @@ def constructed_content(
                     node["attrs"][record["attr"]] = None
                 else:
                     node["attrs"].pop(record["attr"], None)
-                node["authority"] = authority
-        elif kind == "position" and event["id"] not in projection.absorbed:
-            owner.setdefault("authored", {})["placement"] = {"parent": parents[unit]}
-            placed[(widget, event["action"])] = record
+                if held:
+                    node["authority"] = event_origin(held[0])
 
     # Each container lists its units in the fold's order, in the slots its authored
     # units held and after them.
     for (widget, verb), record in placed.items():
         order = folded_positions(
-            widget, verb, record, parser.by_id, spoken, registry, projection
+            widget, verb, record, members, spoken, registry, projection
         )
         units = {unit for listed in order.values() for unit in listed}
         for container, listed in order.items():

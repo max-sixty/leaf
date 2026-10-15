@@ -37,6 +37,7 @@ export function createRegionSelector({
   openComposerWithMedia,
   returnTo = null,
 }) {
+  /** @type {PromiseWithResolvers<void>} */
   const { promise: done, resolve: settled } = Promise.withResolvers();
   const standing = focused();
   const origin = standing === document.body ? returnTo : standing;

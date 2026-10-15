@@ -23,19 +23,21 @@
    from where the box landed. In the page's plane the box is
    anchored (CSS anchor positioning) to the element it stands beside, with its spot
    written as insets from that anchor, so the browser carries it through every scroll
-   that moves the anchor, in step with the words. Words standing directly in a box that
-   scrolls them anchor to the nearest element beside them in that box, or to the start
-   of what it holds, which the same scroll carries (`anchorFor`). Where no anchor reaches
-   a scroll, as inside a shadow tree, native ScrollTimeline motion layers carry those
-   remaining axes.
-   One viewport frame holds the surface's native subtree and solver coordinates. Its
-   layer graph stays intact across size solves and moves the subtree, keeping the
-   user's place and caret in it (`move`), only when that graph changes. The frame ignores pointer input;
-   each surface's own CSS retains its interaction policy. Without the needed native
-   capability, the existing observed placement path invalidates on scroll instead.
-   In a region's plane the box is anchored to the region's body, the box whose edges
-   bound it, which the outer scrolls carry and the region's own scroll does not. The containing frame stays fixed,
-   so native focus never scrolls the page under it.
+   that moves the anchor, in step with the words, as every box that follows scrolled
+   content is carried (css-anchors.js). Words standing directly in a box that scrolls
+   them anchor to the nearest element beside them in that box, or to the start of what
+   it holds, which the same scroll carries (`anchorFor`), and words in a widget's shadow
+   tree to their own element, which the document names through a part. The surface is
+   not cut at a scroller's edge, since it reaches past the words it is about, so it
+   stands in no frame. In a region's plane the box is anchored to the region's body, the
+   box whose edges bound it, which the outer scrolls carry and the region's own scroll
+   does not. In the region's and the window's planes the answer depends on where the
+   words stand inside what holds the box in, so each scroll around them solves it again.
+   The box stays fixed, so native focus never scrolls the page under it.
+   Unlike the margin's rows and Copy, the surface stays over the sticky headers a page
+   declares rather than passing under them (css-anchors.js, `headerLevels`): it is where
+   the user is writing or reading a reply, and words scrolled under a stuck toolbar
+   would take the editor with them, out of reach until the user scrolled back.
 
    In either plane the box stands by the edges that hold it, one per axis (`held`). On
    the axis its placement stands it beside something, that is the edge facing it; on the
@@ -55,15 +57,8 @@
 import { afterPresentation } from "../presentation.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import { keeps, layoutPx as px, atLayoutPrecision } from "../keeps.js";
-import { anchorElement, anchorFor, anchorHolder, anchorName } from "../css-anchors.js";
-import { move } from "../dom-move.js";
+import { anchorElement, anchorFor, anchorName } from "../css-anchors.js";
 import { shownBand } from "../geometry.js";
-import {
-  followScroll,
-  scrollFollows,
-  scrollMotions,
-  scrollOrigins,
-} from "../scroll-motion.js";
 import { containingReadingRegionFor } from "../reading-regions.js";
 import { upFrom, renderedParent } from "../shadow.js";
 
@@ -187,83 +182,19 @@ export const floatingSelections = () => [...stood.values()];
 const physicalContext = (context) =>
   context instanceof Element ? context : context?.parentElement;
 
-// A surface anchors to `context` where anchors reach (css-anchors.js, `anchorFor`). A
-// motion layer would carry the same scroll, but Chrome can paint it a frame before or
-// after the words it carries; it stays for a scroll no anchor reaches, as inside a
-// shadow tree.
-
-// A presenter can retain this reading beside its reference rectangle before a
-// module load. The anchor box and scroll origins must describe that same geometry.
+// A surface anchors to `context` (css-anchors.js, `anchorFor`). A presenter can retain
+// this reading beside its reference rectangle before a module load: the anchor boxes
+// must describe the same geometry as that rectangle.
 export function floatingGeometry(contexts) {
   const anchors = new Map();
-  if (CSS.supports("anchor-name", "--lf-anchor"))
-    for (const context of contexts) {
-      const anchor = anchorFor(context);
-      if (anchor) anchors.set(anchor, anchor.getBoundingClientRect());
-    }
-  return { anchors, origins: scrollOrigins(contexts) };
+  for (const context of contexts) {
+    const anchor = anchorFor(context);
+    if (anchor) anchors.set(anchor, anchor.getBoundingClientRect());
+  }
+  return { anchors };
 }
 
 export function floatingPlacement({ floating, update }) {
-  // Native anchors carry all ancestors of their CSS box. Targets inside a shadow host
-  // have additional scroll coordinates. Each missing
-  // source/axis gets one nested compositor layer with a replacement transform. Additive
-  // effects on one node compose a frame late; nested native layers compose in the same
-  // scroll frame. The viewport frame remains the solver's containing block.
-  let frame = floating;
-  let layers = [];
-  let graph = [];
-  function motionFrame(sources) {
-    if (
-      sources.length === graph.length &&
-      sources.every(
-        (motion, i) =>
-          motion.source === graph[i].source && motion.axis === graph[i].axis,
-      )
-    )
-      return;
-    if (frame === floating && sources.length) {
-      frame = document.createElement("div");
-      frame.className = "lf-ui";
-      Object.assign(frame.style, {
-        position: "fixed",
-        display: "grid",
-        width: "max-content",
-        height: "max-content",
-        pointerEvents: "none",
-        zIndex: getComputedStyle(floating).zIndex,
-      });
-      floating.before(frame);
-      Object.assign(floating.style, {
-        position: "relative",
-        left: "auto",
-        right: "auto",
-        top: "auto",
-        bottom: "auto",
-      });
-    }
-    if (frame === floating) return;
-    // Actual graph changes move the native subtree (`move`). Ordinary size/layout
-    // solves keep both its ancestors and caret untouched.
-    const previous = layers;
-    layers = [];
-    let parent = frame;
-    for (let i = 0; i < sources.length; i++) {
-      const layer = document.createElement("div");
-      Object.assign(layer.style, {
-        display: "grid",
-        width: "max-content",
-        height: "max-content",
-        pointerEvents: "none",
-      });
-      parent.append(layer);
-      layers.push(layer);
-      parent = layer;
-    }
-    move(parent, floating, null);
-    for (const layer of previous) layer.remove();
-    graph = sources;
-  }
   let epoch = 0;
   let watched = null;
   let observer = null;
@@ -273,14 +204,14 @@ export function floatingPlacement({ floating, update }) {
   // Writes the held edges' insets and clears the free ones.
   const inset = (insets) => {
     for (const edge of INSETS)
-      if (insets[edge] === undefined) frame.style.removeProperty(edge);
-      else frame.style.setProperty(edge, insets[edge]);
+      if (insets[edge] === undefined) floating.style.removeProperty(edge);
+      else floating.style.setProperty(edge, insets[edge]);
   };
   // Each held edge's inset from the same edge of the box's containing block.
   const placedAt = ({ x, y, middlewareData }) => {
     lastAnchorStand = null;
     const { edges, width, height, block } = middlewareData.held;
-    frame.style.removeProperty("position-anchor");
+    floating.style.removeProperty("position-anchor");
     inset({
       [edges.x]: px(edges.x === "left" ? x : block.width - x - width),
       [edges.y]: px(edges.y === "top" ? y : block.height - y - height),
@@ -304,8 +235,7 @@ export function floatingPlacement({ floating, update }) {
       // Scrolling carries the anchor itself. Re-solving an unchanged offset must
       // not write a new fallback position and repaint the page's highlights.
       if (
-        lastAnchorStand?.frame === frame &&
-        lastAnchorStand.anchor === anchor &&
+        lastAnchorStand?.anchor === anchor &&
         lastAnchorStand.edgeX === edges.x &&
         lastAnchorStand.edgeY === edges.y &&
         lastAnchorStand.lengthX === lengthX &&
@@ -314,7 +244,7 @@ export function floatingPlacement({ floating, update }) {
         return;
       const from = (side, length, fallback) =>
         `calc(anchor(${side}, ${px(fallback)}) + ${px(length)})`;
-      frame.style.positionAnchor = anchorName(anchor);
+      floating.style.positionAnchor = anchorName(anchor);
       inset({
         [edges.x]: from(
           "left",
@@ -324,7 +254,6 @@ export function floatingPlacement({ floating, update }) {
         [edges.y]: from("top", lengthY, edges.y === "top" ? at.y : block.height - at.y),
       });
       lastAnchorStand = {
-        frame,
         anchor,
         edgeX: edges.x,
         edgeY: edges.y,
@@ -333,7 +262,6 @@ export function floatingPlacement({ floating, update }) {
       };
     };
   let stand = placedAt;
-  let scrollAnimations = [];
   let placementProof = null;
   let stopScrollInvalidation = null;
   return {
@@ -379,10 +307,6 @@ export function floatingPlacement({ floating, update }) {
         stopGeometry();
       };
     },
-    holdsHome: (home) =>
-      frame !== floating && frame.parentElement === home && frame.contains(floating),
-    nativeAvailable: () =>
-      CSS.supports("anchor-name", "--lf-anchor") && scrollFollows(),
     follows: () => placementProof?.plane === "page",
     begin: () => ++epoch,
     current: (placement) => placement === epoch,
@@ -396,81 +320,34 @@ export function floatingPlacement({ floating, update }) {
       const placement = epoch;
       const context = reference.contextNode ?? beside;
       const physical = physicalContext(context);
-      const anchoring = CSS.supports("anchor-name", "--lf-anchor");
-      const anchor = anchoring ? anchorFor(context) : null;
+      const anchor = anchorFor(context);
       const client = reference.getBoundingClientRect();
       const geometry = reference.geometry ?? floatingGeometry([context]);
       const anchorBox = geometry.anchors.get(anchor);
-      const { origins } = geometry;
       const { getOverflowAncestors } = await floatingUi();
       if (placement !== epoch) return null;
-      // Solver coordinates, physical attachment and scroll origins are one reading.
-      // Capturing it before asynchronous solving keeps native and observed placements
-      // consistent, regardless of when the solver reads. Retain the synthetic rectangle
-      // itself: placement middleware can refine it and request remeasurement without
-      // reading live DOM again.
+      // Solver coordinates and the anchor's box are one reading. Capturing it before
+      // asynchronous solving keeps the placement consistent, regardless of when the
+      // solver reads. Retain the synthetic rectangle itself: placement middleware can
+      // refine it and request remeasurement without reading live DOM again.
       const measured = {
         contextElement: reference.contextElement ?? beside,
         getBoundingClientRect: () => client,
       };
-      // The scrolls that carry the anchor, a content start's scroller's own among them.
-      const carrying = anchor && anchorHolder(anchor);
-      const carried = new Set(
-        carrying
-          ? [
-              ...(carrying === anchor ? [] : [carrying]),
-              ...getOverflowAncestors(carrying),
-            ]
-          : [],
-      );
-      // Each scroller carries the box it holds next on the way in: the next scroller, or
-      // the element the reference stands in.
-      const sources = context
-        ? getOverflowAncestors(context).filter(
-            (source) => source instanceof Element && !carried.has(source),
-          )
-        : [];
-      // Floating surfaces draw beyond their source's clip. Keep their native
-      // attachment alive until the whole surface can leave the window, rather
-      // than stopping when only the words have left the inner scrollport.
-      const surfaceBox = floating.getBoundingClientRect();
-      const reach =
-        Math.hypot(innerWidth, innerHeight) +
-        Math.hypot(surfaceBox.width, surfaceBox.height);
-      const motions = sources.flatMap((source, i) =>
-        scrollMotions(
-          source,
-          sources[i - 1] ??
-            (source === physical
-              ? {
-                  contextElement: physical,
-                  getBoundingClientRect: measured.getBoundingClientRect,
-                }
-              : physical),
-          reach,
-          origins.get(source),
-        ),
-      );
-      const canFollow = anchor && motions.every((motion) => motion.timeline);
-      motionFrame(canFollow ? motions : []);
-      const answer = await computePosition(measured, frame, {
+      const answer = await computePosition(measured, floating, {
         ...options,
         strategy: "fixed",
         middleware: [...options.middleware, held, anchorAt(measured)],
       });
       if (placement !== epoch) return null;
-      // An unchanged native graph keeps following while a solve is in flight. Retire
-      // its previous effects only when this answer can replace their measurement.
-      const previousAnimations = scrollAnimations;
-      scrollAnimations = [];
       const { offset, scale } = answer.middlewareData.anchorAt;
       const wanted = planeOf(answer);
       const holder =
-        anchoring && offset && physical && typeof wanted === "object"
+        offset && physical && typeof wanted === "object"
           ? holderOf(wanted, physical, getOverflowAncestors(physical))
           : null;
       const plane =
-        wanted === "page" && canFollow && offset
+        wanted === "page" && anchorBox && offset
           ? "page"
           : holder
             ? "region"
@@ -487,8 +364,9 @@ export function floatingPlacement({ floating, update }) {
       stopScrollInvalidation?.();
       stopScrollInvalidation = null;
       if (plane !== "page") {
-        // The existing compute/observe path remains the capability fallback. It also
-        // hears a reference's own inner scroll when its semantic host does not move.
+        // Off the page's plane the answer depends on where the words stand in what holds
+        // the box in, so every scroll around them solves it again, a scroll inside the
+        // tree of a reference whose host does not move included.
         const sources = context ? [...new Set(getOverflowAncestors(context))] : [];
         for (const source of sources)
           source.addEventListener("scroll", update, { passive: true });
@@ -496,12 +374,6 @@ export function floatingPlacement({ floating, update }) {
           for (const source of sources) source.removeEventListener("scroll", update);
         };
       }
-      if (plane === "page")
-        scrollAnimations = motions.map((motion, i) =>
-          followScroll(layers[i], motion, motion.scroll, previousAnimations[i]),
-        );
-      for (const animation of previousAnimations)
-        if (!scrollAnimations.includes(animation)) animation.cancel();
       stand = frameAnchor ? anchoredAt(frameAnchor, at) : placedAt;
       // anchorAt proves the solver's containing block is the window. Other
       // containing blocks have no declared prediction in this selection.
@@ -580,8 +452,6 @@ export function floatingPlacement({ floating, update }) {
     stop() {
       epoch += 1;
       lastAnchorStand = null;
-      for (const animation of scrollAnimations) animation.cancel();
-      scrollAnimations = [];
       stopWatching?.();
       stopScrollInvalidation?.();
       stopScrollInvalidation = null;
@@ -591,14 +461,6 @@ export function floatingPlacement({ floating, update }) {
       tenure = Object.freeze({});
       placementProof = null;
       stood.delete(floating);
-      if (frame !== floating) {
-        if (frame.contains(floating)) move(frame.parentNode, floating, frame);
-        frame.remove();
-        frame = floating;
-        layers = [];
-        graph = [];
-        floating.style.removeProperty("position");
-      }
       delete floating.dataset.lfPlane;
       for (const property of ["position-anchor", ...INSETS])
         floating.style.removeProperty(property);

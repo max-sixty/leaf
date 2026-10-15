@@ -14,7 +14,6 @@ from interact_support import (
 )
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
-from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
@@ -45,6 +44,7 @@ from render_harness import (
     _traffic,
     _until,
     compare_with,
+    consume_browser_errors,
     expect_asks_answered,
     expect_banner_control_offered,
     hold_selection,
@@ -302,7 +302,7 @@ def test_standalone_options_own_their_digit_bindings(browser, serve, cards):
     rendered(page)
     expect(page.locator("#two")).not_to_have_attribute("chosen", "")
     unhinted = done.bounding_box()
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(group).to_be_focused()
     hints = group.locator(".lf-key-badge[data-lf-binding-badge]")
     expect(hints).to_have_text(["1", "2", "3", "4"])
@@ -346,7 +346,7 @@ def test_added_option_numbers_are_not_reused_after_undo(browser, serve):
     group = page.locator("#choices")
     field = group.get_by_role("textbox", name="Another option")
     added = group.locator(":scope > lf-option[data-lf-added]")
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#question")).to_be_focused()
     write(field, "First addition")
     group.get_by_role("button", name="Add and select option").click()
@@ -354,7 +354,7 @@ def test_added_option_numbers_are_not_reused_after_undo(browser, serve):
     expect(added).to_have_count(1)
     first_id = added.get_attribute("id")
     group.get_by_role("button", name=re.compile("^Done:")).focus()
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#question")).to_be_focused()
     expect(added.locator(".lf-pick")).to_have_attribute(
         "aria-keyshortcuts", re.compile(r"(^| )5($| )")
@@ -373,7 +373,7 @@ def test_added_option_numbers_are_not_reused_after_undo(browser, serve):
     expect(added).to_have_count(1)
     assert added.get_attribute("id") != first_id
     group.get_by_role("button", name=re.compile("^Done:")).focus()
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#question")).to_be_focused()
     expect(added.locator(".lf-pick")).to_have_attribute(
         "aria-keyshortcuts", re.compile(r"(^| )6($| )")
@@ -453,6 +453,52 @@ def test_markdown_option_state_change_has_no_inline_text_diff(browser, serve):
     expect(change).not_to_have_attribute("aria-controls", re.compile(".*"))
 
 
+def test_a_failed_draw_keeps_the_options_and_the_next_reading_draws_over_it(
+    browser, serve
+):
+    """A draw that throws shows its failure beside the authored options it paints, so
+    the next reading still has them to draw on."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Failed draw",
+                '<h1>Failed draw</h1><lf-ask id="ask"><h2>Which?</h2>'
+                '<lf-options id="options" choose><lf-option id="one">First</lf-option>'
+                '<lf-option id="two">Second</lf-option></lf-options></lf-ask>',
+            )
+        ),
+    )
+    page.evaluate("""async () => {
+      const options = document.getElementById('options');
+      options.render = function () {
+        this.state;
+        throw new Error('an intentional draw failure');
+      };
+      options.requestUpdate();
+      await options.updateComplete;
+      delete options.render;
+    }""")
+    expect(page.locator("#options .lf-error")).to_have_count(1)
+    # The report names the widget, which is how the agent that wrote it finds it.
+    consume_browser_errors(page, '<lf-options id="options"> failed')
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "options",
+            "action": "choose",
+            "detail": {"value": ["two"]},
+        },
+    )
+    told(page)
+    expect(page.locator("#two")).to_have_attribute("chosen", "")
+    expect(page.locator("#options .lf-error")).to_have_count(0)
+    expect(page.locator("#options .lf-pick")).to_have_count(2)
+
+
 def test_option_controls_hold_presentation_without_replacing_authored_nodes(
     browser, serve
 ):
@@ -516,10 +562,14 @@ def test_option_controls_hold_presentation_without_replacing_authored_nodes(
 
     group.evaluate(
         """holder => {
-          const parent = holder.parentNode;
-          const next = holder.nextSibling;
+          window.optionsReturn = [holder.parentNode, holder.nextSibling];
           holder.remove();
-          parent.insertBefore(holder, next);
+        }"""
+    )
+    page.evaluate(
+        """() => {
+          const [parent, next] = window.optionsReturn;
+          parent.insertBefore(optionGroup, next);
           window.reconnectedOptionsReady = false;
           void whenOptionsPresented().then(() => {
             reconnectedOptionsReady = true;
@@ -534,7 +584,7 @@ def test_option_controls_hold_presentation_without_replacing_authored_nodes(
 def test_ask_addresses_are_screen_only_apparatus(browser, serve):
     """An Ask's key hints stay out of selected page words and off paper."""
     page = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     badges = page.locator("#storage-options > lf-option > .lf-key-badge")
     expect(badges).to_have_text(["1", "2"])
     expect(badges.first).to_be_visible()
@@ -1443,7 +1493,7 @@ def test_only_bound_cards_yield_their_header_state_to_the_ask(browser, serve):
     )
     resized(page, 900, 1200)
 
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#routes > lf-option > .lf-key-badge")).to_have_count(10)
     expect(
         page.locator("#routes > lf-option > .lf-key-badge[data-lf-binding-badge]")
@@ -1491,7 +1541,7 @@ def test_a_nested_asks_commands_belong_only_to_their_own_ask(browser, serve):
     breaks the shortcut bar or lends its answers to the wrong Ask.
     """
     page = open_page(browser, serve(NESTED_ASK_PAGE))
-    page.keyboard.press("q")
+    page.keyboard.press("m")
 
     expect(page.locator("#outer-decision")).to_be_focused()
     outer_hints = page.locator("#outer > lf-option > .lf-key-badge")
@@ -1877,7 +1927,7 @@ def test_multiple_done_can_be_taken_back_after_an_empty_answer(browser, serve):
     page.keyboard.press("Enter")
     round_trip(page)
     expect(done).to_have_attribute("aria-pressed", "false")
-    expect(done).to_have_attribute("aria-label", "Done: my picks here are complete")
+    expect(done).to_have_attribute("aria-label", "Done: these picks are complete")
     expect_asks_answered(page, "0/3")
     events = events_model.read_events(serve.page_dir)
     answers = [event for event in events if event.get("action") == "answer"]
@@ -2054,22 +2104,37 @@ def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve
 
 
 def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_path):
-    """A customization may deliberately give a container member a content seat.
-    The runtime's generated margin entry is still apparatus rather than that member's own
-    gesture: clicking status about an option must not choose the option."""
-    option = json.loads((schema_model.DEFAULT_PACKAGE / "registry.json").read_text())[
-        "lf-option"
-    ]
-    option["x-work"] = True
+    """A work-bearing block inside an option does not turn its margin entry into a pick."""
     layer = tmp_path / ".leaf"
     layer.mkdir()
-    (layer / "registry.json").write_text(json.dumps({"lf-option": option}))
+    (layer / "registry.json").write_text(
+        json.dumps(
+            {
+                "lf-work-point": {
+                    "description": "A block that can hold a local agent task.",
+                    "type": "object",
+                    "properties": {"id": {"type": "string"}},
+                    "required": ["id"],
+                    "additionalProperties": False,
+                    "x-content": "markup",
+                    "x-work": True,
+                    "x-upgrade": False,
+                }
+            }
+        )
+    )
+    page_source = ASK_PAGE.replace(
+        "Replace the <code>M8</code> mounts</lf-option>",
+        '<lf-work-point id="mount-work">Replace the <code>M8</code> mounts</lf-work-point></lf-option>',
+    )
 
-    page = open_page(browser, serve(ASK_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf")))
-    working(serve.page_dir, "checking the mount", subject="job-mounts")
+    page = open_page(
+        browser, serve(page_source, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
+    )
+    working(serve.page_dir, "checking the mount", subject="mount-work")
     told(page)
 
-    work_button = page.locator('[data-lf-margin-for="job-mounts"] > .lf-margin-marker')
+    work_button = page.locator('[data-lf-margin-for="mount-work"] > .lf-margin-marker')
     expect(work_button).to_have_attribute("data-lf-kinds", "activity")
     work_button.click()
 
@@ -2442,7 +2507,7 @@ def test_an_answered_cards_badges_keep_their_seats_beside_a_pin(browser, serve):
         browser, serve(next(p for p in EXAMPLES if p.stem == "alert-review"))
     )
     resized(page, 1440, 900)
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#ar-canary-decision")).to_be_focused()
     page.keyboard.press("2")
     expect(page.locator("#ar-canary-suppress")).to_have_attribute("chosen", "")
@@ -2483,7 +2548,7 @@ def test_an_ask_digit_hangs_off_a_corner_clear_of_its_neighbours(browser, serve)
         browser, serve(next(p for p in EXAMPLES if p.stem == "notification-playground"))
     )
     resized(page, 1024, 768)
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     chip = page.locator(".lf-command-binding-badges .lf-command-binding-badge")
     expect(chip).to_have_count(1)
     reading = chip.evaluate(

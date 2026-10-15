@@ -5,18 +5,20 @@ import {
 } from "/runtime/check-api.js";
 import { at } from "./locate.js";
 
-// The complete renderer must be idempotent. Invoke it directly rather than the
-// reconciler, whose committed-state checkpoint would skip an unchanged value.
-// Compare both id-bearing structure and body records: text is absent from shallowSigs.
+// The complete renderer must be idempotent. Draw each widget's reading again directly,
+// through its `redraw` (leaf-element.js), rather than through its update cycle, which
+// could skip an unchanged value or show a throw as the widget's failure box. Compare
+// both id-bearing structure and body records: text is absent from shallowSigs.
+const drawsWhole = (widget) => typeof widget?.redraw === "function";
 export function relativeReplays() {
-  const rendered = validationWidgetStates().filter((s) => s.widget?.renderState);
+  const rendered = validationWidgetStates().filter((s) => drawsWhole(s.widget));
   if (!rendered.length) return [];
   const found = [];
   const before = shallowSigs(document.body);
   const bodies = rendered.map((s) => JSON.stringify(s.read()));
-  for (const { widget, state } of rendered) {
+  for (const { widget } of rendered) {
     try {
-      widget.renderState(state);
+      widget.redraw();
     } catch (error) {
       found.push({ code: "render-threw", at: at(widget), error: exceptionText(error) });
     }
@@ -29,8 +31,9 @@ export function relativeReplays() {
   };
   for (const id of new Set([...before.keys(), ...now.keys()])) {
     if (before.get(id) === now.get(id)) continue;
+    /** @type {(HTMLElement & {redraw?: unknown}) | null} */
     let widget = document.getElementById(id);
-    while (widget && !widget.renderState) widget = widget.parentElement;
+    while (widget && !drawsWhole(widget)) widget = widget.parentElement;
     note(widget ? at(widget) : `id=${id}`, id);
   }
   rendered.forEach((s, i) => {

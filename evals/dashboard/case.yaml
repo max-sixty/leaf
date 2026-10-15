@@ -4,10 +4,10 @@ metadata:
   purpose: Compose and revise a dashboard; inspect its rendered output against the
     request and, on Leaf, read and preserve a user choice on that page.
   tags:
-  - workflow
+    - workflow
   conditions:
-  - leaf
-  - html
+    - leaf
+    - html
   executor: leaf_dev.arrangement_eval
   scenario: dashboard
 variants:
@@ -17,14 +17,14 @@ variants:
       scenario: constructs
       purpose: Read and revise authored constructs and chart data.
       conditions:
-      - leaf
+        - leaf
   shared-source:
     metadata:
       executor: leaf_dev.usability_eval
       scenario: shared-source
       purpose: Update shared data without rewriting unaffected records.
       conditions:
-      - leaf
+        - leaf
   reader-seeded:
     metadata:
       executor: leaf_dev.reader_eval
@@ -32,9 +32,9 @@ variants:
       purpose: Calibrate the screenshot judge, which should find the triage board's
         seeded count defect.
       conditions:
-      - leaf
+        - leaf
       harnesses:
-      - claude-code
+        - claude-code
   reader-clean:
     metadata:
       executor: leaf_dev.reader_eval
@@ -42,6 +42,6 @@ variants:
       purpose: Calibrate the screenshot judge, which should accept the triage board's
         correct count.
       conditions:
-      - leaf
+        - leaf
       harnesses:
-      - claude-code
+        - claude-code

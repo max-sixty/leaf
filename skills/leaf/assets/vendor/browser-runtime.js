@@ -10,11 +10,18 @@ export { createRef, ref } from "./lit.js";
 export { repeat } from "./lit.js";
 export { styleMap } from "./lit.js";
 export { unsafeHTML } from "./lit.js";
+export { effect, signal } from "./browser-runtime/signals-core.js";
 export { createSemanticApplication } from "./browser-runtime/application.js";
+export {
+  collectOutside,
+  collectReads,
+  outsideReading,
+  share,
+  untracked,
+} from "./browser-runtime/snapshot.js";
 export {
   createPresentationCoordinator,
   createPresentationSchedule,
   describeFailure,
-  PRESENTATION_HELD,
 } from "./browser-runtime/presentation.js";
 // Generated from build/browser/index.ts by build/browser/build.mjs.

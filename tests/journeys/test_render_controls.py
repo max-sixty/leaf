@@ -30,7 +30,6 @@ from render_cases_layout import (
     MANY_ASKS_PAGE,
     NEIGHBOUR,
     NEIGHBOURHOOD,
-    RING_NAMES,
     SHOT_SRC,
     SHOTS,
     banner_control,
@@ -101,7 +100,6 @@ from browser.test_render_controls import (
     RING_SCOPES_STARTING_WITHOUT_PANEL,
     RING_VIEWPORT,
     SAMPLE_STARTUP_FAILURE,
-    SEEN_STOP,
     STATUS_FIT,
     WEBSITE_LINE,
     _each_aim_surface,
@@ -110,6 +108,7 @@ from browser.test_render_controls import (
     _touch_drag,
     fail_sample_startup,
     offered,
+    seen_stop,
 )
 
 
@@ -1607,7 +1606,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
     # The complete real action set, wherever the fold has put each of them: what this is
     # about is the pressure that set puts on the sentence beside it.
     on_the_row = page.evaluate(BANNER_ORDER)
-    for wanted in ("All pages", "Questions", "Accept all", "v1", "Approve version"):
+    for wanted in ("All pages", "On me", "Accept all", "v1", "Approve version"):
         assert any(wanted in name for name in on_the_row), (
             f"{wanted} was not on the row, so the fixture is short of the crowding this "
             f"test is about: {on_the_row}"
@@ -1696,7 +1695,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
         assert read["down"]["shown"] == pytest.approx(read["lineHeight"], abs=1), read
         assert read["down"]["shown"] == read["down"]["needed"], read
         assert read["ellipsis"] == "ellipsis", read
-        assert read["text"] == f"Agent working — {detail}", read
+        assert read["text"] == f"Claude working — {detail}", read
         assert detail.strip() in read["title"], read
         assert read["actions"]["shown"] >= read["actions"]["needed"], read
         expect(door).to_have_attribute("aria-describedby", "lf-status-detail")
@@ -1745,9 +1744,15 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
           const actions = document.querySelector('.lf-banner-actions');
           const menu = document.querySelector('.lf-banner-menu');
           const more = document.querySelector('.lf-banner-more');
-          const words = (control) => ({
-            name: (control.getAttribute('aria-label') || control.textContent).trim(),
-            shown: control.clientWidth, needed: control.scrollWidth});
+          // A room cuts its words inside its own child (controls.css), which the
+          // control's scroll width does not see.
+          const words = (control) => {
+            const inner = control.querySelector('[data-lf-room] > *') ?? control;
+            return {
+              name: (control.getAttribute('aria-label') || control.textContent).trim(),
+              cut: control.scrollWidth > control.clientWidth
+                || inner.scrollWidth > inner.clientWidth};
+          };
           return {
             row: [...actions.children]
               .filter(c => c !== more && c.getClientRects().length).map(words),
@@ -1757,7 +1762,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
     assert crowded["secondary"], (
         f"the fixture registered no secondary controls: {crowded}"
     )
-    clipped = [c for c in crowded["row"] if c["shown"] < c["needed"]]
+    clipped = [c for c in crowded["row"] if c["cut"]]
     assert not clipped, f"the crowded row compressed the controls it kept: {clipped}"
     assert root_overflow(page) == 0, "the crowded row widened the document"
 
@@ -2172,7 +2177,7 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
 
     # At the product's 320px floor the comment sheet has no possible width to move
     # through, so it offers no inert separator. A user standing on the grip lands on
-    # its surviving close control before it disappears. The Questions panel stands on
+    # its surviving close control before it disappears. The On panel stands on
     # the same edge at the same floor, so its grip is gone there too.
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -3193,7 +3198,7 @@ def test_covering_threads_keeps_the_user_inside(browser, serve):
 
 
 def test_a_covering_drawer_uses_the_same_auxiliary_modality_boundary(browser, serve):
-    """The Questions panel gets the covering auxiliary surface contract rather than a drawer-specific
+    """The On panel gets the covering auxiliary surface contract rather than a drawer-specific
     focus trap. Its exact Ask and reading place survive both responsive crossings, its
     reading keys move its own list, and closing returns to its door without moving the
     document behind it."""
@@ -3223,7 +3228,7 @@ def test_a_covering_drawer_uses_the_same_auxiliary_modality_boundary(browser, se
         assert drawer.evaluate(
             "el => document.activeElement === document.body "
             "|| el.closest('dialog').contains(document.activeElement)"
-        ), "Tab reached a control behind the covering Questions panel"
+        ), "Tab reached a control behind the covering On panel"
 
     list_box.evaluate("el => el.scrollTop = 0")
     rows.first.focus()
@@ -3262,7 +3267,7 @@ def test_covering_drawers_have_a_pointer_route_back_to_their_banner_controls(
     Pointer entry starts in the list rather than on its dismissal furniture. The banner
     controls are inert while a drawer covers the document, so they cannot be the only
     pointer route out. Closing either drawer returns focus to the control that opened it,
-    ready to reopen the same drawer: the Questions door on the banner's row, and More for
+    ready to reopen the same drawer: the On me door on the banner's row, and More for
     Leaves, folded behind it.
     """
     page = open_page(browser, serve(MANY_ASKS_PAGE))
@@ -3273,7 +3278,7 @@ def test_covering_drawers_have_a_pointer_route_back_to_their_banner_controls(
     ), "the fixture did not fold Pages behind the banner menu"
 
     for selector, panel, name, first_destination, door_back in (
-        (".lf-queue", ".lf-queue-panel", "questions", ".lf-queue-row", ".lf-queue"),
+        (".lf-queue", ".lf-queue-panel", "the On panel", ".lf-queue-row", ".lf-queue"),
         (
             ".lf-others",
             ".lf-others-panel",
@@ -3298,7 +3303,7 @@ def test_covering_drawers_have_a_pointer_route_back_to_their_banner_controls(
 
 def test_a_keyboard_auxiliary_entry_survives_covering_to_beside(browser, serve):
     """Auxiliary placement does not retire a live return; closing its surface does. The
-    Questions panel is the surface that crosses between covering and beside."""
+    On panel is the surface that crosses between covering and beside."""
     page = open_page(browser, serve(MANY_ASKS_PAGE))
     resized(page, 500, 640)
     origin = page.locator("main .lf-pick").first
@@ -3307,7 +3312,7 @@ def test_a_keyboard_auxiliary_entry_survives_covering_to_beside(browser, serve):
     opened = re.compile(r"\bopen\b")
 
     page.keyboard.press("g")
-    page.keyboard.press("Shift+q")
+    page.keyboard.press("Shift+m")
     expect(drawer).to_have_class(opened)
     assert bool(page.locator("dialog:modal").count())
 
@@ -3322,8 +3327,8 @@ def test_a_keyboard_auxiliary_entry_survives_covering_to_beside(browser, serve):
     assert page.evaluate("() => document.activeElement === document.body")
 
     page.keyboard.press("g")
-    page.keyboard.press("Shift+q")
-    page.get_by_role("button", name="Close questions").click()
+    page.keyboard.press("Shift+m")
+    page.get_by_role("button", name="Close the On panel").click()
     expect(drawer).not_to_have_class(opened)
     page.keyboard.press("Escape")
     assert page.evaluate("() => document.activeElement === document.body"), (
@@ -3377,7 +3382,7 @@ def test_a_walk_down_the_drawer_stops_clear_of_the_shortcut_bar_text(
 
 
 def test_a_walk_down_the_queue_stops_clear_of_the_shortcut_bar_text(browser, serve):
-    """A covering Questions panel keeps the last row above the shortcut bar.
+    """A covering On panel keeps the last row above the shortcut bar.
 
     Beside a live page the bar ends at the panel's edge, so only the covering
     posture exercises the clearance shared with the Pages drawer."""
@@ -3601,7 +3606,7 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
         raise AssertionError("Tab never reached the banner's comments button")
     rendered(page)
 
-    assert page.evaluate(SEEN_STOP) is None, (
+    assert seen_stop(page) is None, (
         "a banner button wearing the layer's own ring reads as a stop nothing draws, so "
         "the sample floor cannot trust this reading"
     )
@@ -3615,7 +3620,7 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
         document.head.append(style);
     }""")
     rendered(page)
-    lost = page.evaluate(SEEN_STOP)
+    lost = seen_stop(page)
     assert lost and "lf-threads-toggle" in lost, (
         "the ring was taken off a focused control and the reading still called it seen "
         f"({lost}), so the sample floor cannot report a missing indication"
@@ -3632,13 +3637,13 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
     page.keyboard.press("Shift+t")
     panel_settled(page)
     expect(page.locator(".lf-threads")).to_be_focused()
-    assert page.evaluate(SEEN_STOP) is None
+    assert seen_stop(page) is None
     page.evaluate("""() => {
         const style = document.createElement('style');
         style.textContent = '.lf-threads-frame::after { outline: none !important; }';
         document.head.append(style);
     }""")
-    lost = page.evaluate(SEEN_STOP)
+    lost = seen_stop(page)
     assert lost and "lf-threads" in lost, (
         "the list's ring was removed and the reading still called its keyboard "
         f"landing seen ({lost})"
@@ -3649,7 +3654,7 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
     page = open_page(browser, serve(ROOT / "tests/fixtures/pages/root-tabs.html"))
     page.keyboard.press("Tab")
     page.locator(".lf-tab-btn").first.focus()
-    assert page.evaluate(SEEN_STOP) is None
+    assert seen_stop(page) is None
     name = page.locator(".lf-tab-name").first
     for property, value in (
         ("display", "none"),
@@ -3660,7 +3665,7 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
             "(node, [property, value]) => node.style.setProperty(property, value)",
             [property, value],
         )
-        lost = page.evaluate(SEEN_STOP)
+        lost = seen_stop(page)
         assert lost and "lf-tab-btn" in lost, (property, lost)
         name.evaluate(
             "(node, property) => node.style.removeProperty(property)", property
@@ -3668,7 +3673,7 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
     page.add_style_tag(
         content=".lf-tab-btn > .lf-tab-name { outline: none !important; }"
     )
-    lost = page.evaluate(SEEN_STOP)
+    lost = seen_stop(page)
     assert lost and "lf-tab-btn" in lost, lost
 
 
@@ -3683,7 +3688,9 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
     `RING_CASES` walks the layer's surfaces by their real keys and stands on a sample in
     each; every ring drawn there is measured, not only the sample's. Which rings get a
     sample is the cases' choice rather than a census of the layer's rules, so a new ring
-    needs no sample of its own; what every ring rule must do is name the ring it draws.
+    needs no sample of its own; what every ring rule must do is draw with the ring's
+    token, so the browser's answer for which rule drew a ring can tell it from a
+    contour (`ring_rules`).
     A second version and a neighbouring leaf provide the two runtime states authored
     examples cannot carry themselves.
     """
@@ -3705,7 +3712,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
     # value its rule declares. The reduced-motion case has a focused test above.
     faults, seen_faults = [], set()
     unseen = set()
-    unnamed, unnamed_rules = set(), set()
+    undrawn = set()
     opened = set()
     stops = 0
     unindicated = []
@@ -3893,11 +3900,10 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                         "node => node.matches(':focus-visible, leaf-text:focus')"
                     ), f"{selector} {where} did not inherit keyboard-visible focus"
                     page_at_rest(page)
-                    if (lost := page.evaluate(SEEN_STOP)) is not None:
+                    if (lost := seen_stop(page)) is not None:
                         unseen.add(f"{where}: {lost}")
-                for ring_name in expected & RING_REMOTE_CARRIER.keys():
-                    carrier_selector = RING_REMOTE_CARRIER[ring_name]
-                    page.locator(carrier_selector).evaluate(
+                for rule in expected & RING_REMOTE_CARRIER.keys():
+                    page.locator(RING_REMOTE_CARRIER[rule]).evaluate(
                         "node => node.setAttribute('data-lf-ring-sample', '')"
                     )
                 drawn = rings_drawn(page)
@@ -3906,8 +3912,13 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                     "node.removeAttribute('data-lf-ring-sample'))"
                 )
                 lit = [ring for ring in drawn if ring["here"]]
-                unnamed.update(ring["who"] for ring in lit if not ring["ring"])
-                found = expected & {ring["ring"] for ring in lit if ring["sample"]}
+                undrawn.update(ring["who"] for ring in lit if not ring["rule"])
+                found = {
+                    rule
+                    for rule in expected
+                    for ring in lit
+                    if ring["sample"] and rule in ring["rule"]
+                }
                 # One lasting defect is one finding, not one per stop: a ring worn by
                 # something the sample is not moving — a decision's mark, a thread's element
                 # mark — is read again at every stop it survives.
@@ -3926,12 +3937,6 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                 resized(page, *RING_VIEWPORT)
                 page_at_rest(page)
 
-        unnamed_rules.update(
-            said
-            for declared in page.evaluate(RING_NAMES)
-            if not declared["name"]
-            for said in declared["said"]
-        )
         page.close()
 
     assert not unindicated, "keyboard stops with no visible indication: " + "; ".join(
@@ -3953,18 +3958,13 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
     assert not faults, "\n  ".join(
         [f"{len(faults)} faults over {stops} samples:"] + faults
     )
-    # Every ring is named by the rule that draws it, said from both sides: the scan reads
-    # a rule no sample paints, and the sweep reads a ring drawn without the layer's token.
-    # The samples above, and every reading that credits a ring an ancestor wears, rest on
-    # the name.
-    assert not unnamed_rules, (
-        f"{len(unnamed_rules)} rules draw the focus ring and name none of them — "
-        "declare --lf-focus-ring in the rule that draws the ring:\n  "
-        + "\n  ".join(sorted(unnamed_rules))
-    )
-    assert not unnamed, (
-        "the corpus paints a focus ring on boxes no rule named, so no reading can say "
-        "which rule drew it: " + ", ".join(sorted(unnamed))
+    # Every ring the corpus paints is drawn by a rule using the ring's token. The samples
+    # above, and every reading that credits a ring an ancestor wears, rest on telling a
+    # ring rule from a contour that paints the same pixels.
+    assert not undrawn, (
+        "the corpus paints a focus ring on boxes no rule draws with --focus-ring or "
+        "--focus-shadow, so no reading can tell it from pointer feedback: "
+        + ", ".join(sorted(undrawn))
     )
 
 

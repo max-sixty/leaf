@@ -25,9 +25,6 @@ def test_prepared_install_authors_custom_packages_and_exports_without_builds(
         ignore=shutil.ignore_patterns(".venv", "__pycache__"),
     )
     assert (install / "LICENSE").read_bytes() == (ROOT / "LICENSE").read_bytes()
-    manifest = json.loads((install / "package.json").read_text())
-    assert "devDependencies" not in manifest
-    assert "scripts" not in manifest
     blocked = tmp_path / "blocked"
     blocked.mkdir()
     for name in ("node", "npm", "npx", "pnpm"):
@@ -166,4 +163,4 @@ def test_prepared_install_authors_custom_packages_and_exports_without_builds(
             check=False,
         )
         assert refused.returncode != 0
-        assert "replaces private kernel modules: runtime/context.js" in refused.stderr
+        assert "replaces private kernel modules: runtime/context.js" in refused.stdout

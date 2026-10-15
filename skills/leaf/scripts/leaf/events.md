@@ -107,7 +107,7 @@ may still withdraw an older gesture it names.
 state. It withdraws rather than deletes: nothing leaves the log, and the folds and
 the thread reading drop the event, so the page is what the revision says plus
 what still stands, the same reading a reload has always made and the one
-`restated` writes from the author's side. `renderState` paints withdrawals and
+`restated` writes from the author's side. A widget's `render()` paints withdrawals and
 forward changes alike, retaining the widget and its independent children. The
 door refuses an `undoes` naming anything but an unwithdrawn gesture of the
 user's own. An exact control may withdraw a forward action before that action's
@@ -244,10 +244,10 @@ lands. A reader drops a field or kind it does not recognise rather than refusing
 record. `seq` is the resume cursor: a reader that restarts with `--after` the last
 seq it printed misses nothing and repeats nothing. SIGINT, SIGTERM, and a closed
 stdout end it with exit 0. A log that is removed, replaced by another file, or
-shorter than what the feed has read ends it with exit 1 and `<log> is gone` on
-stderr, since its positions no longer name that log's lines. The feed wakes on the
-log's file stamp at `LOOK_S` cadence, so an event any
-process appends reaches it the same way.
+shorter than what the feed has read ends it with exit 1, refusing with
+`<log> is gone`, since its positions no longer name that log's lines. The feed wakes on the
+page's native file subscription, so an event any process appends reaches it the same
+way.
 
 The feed carries the log only. External data under `data/` is replaced in place
 with no sequence to resume from, so a reader that needs it reads `leaf page state`
@@ -313,8 +313,8 @@ An open structural ask in an unresolved thread keeps it awaiting the user until
 the user writes after it: their later prose hands the ask to the agent, still open
 and unanswered, until the agent answers that turn. A thread anchored on a page ask
 does the same while the agent owes it a reply (`asks.sections_with_agent`), so
-an ask the user has commented on leaves their Questions while the reply it is owed
-stands on the agent's Tasks. Without an ask, the latest unanswered
+an ask the user has commented on leaves their On me list while the reply it is owed
+stands on the agent's. Without an ask, the latest unanswered
 prose ask determines the obligation. Later agent messages leave it open.
 A user turn answers every ask before it; a reaction whose token declares
 `settles` answers only the ask it names, so an older unanswered ask may
@@ -327,7 +327,7 @@ neither outcome is a user answer.
 `work_reading.WorkReading.all_asks` combines page widgets, frozen widgets and
 prose into one canonical inventory. Every record carries stable `id`, `source`,
 `thread`, `message`, `prompt`, `answer`, `status`, `end` and `next_actor`;
-`questions` owns the statuses, and `end` holds the agent `todo_end` that retired a
+`asks` owns the statuses, and `end` holds the agent `todo_end` that retired a
 prose ask, its detail and event reference, or `null`. A frozen widget's
 `message` names the exact message whose markup owns it, independently of the thread's
 root; a prose ask names its source message. Page widgets and approval have no

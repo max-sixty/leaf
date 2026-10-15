@@ -10,6 +10,7 @@ from pathlib import Path
 from leaf.structure import SourceDocument
 
 from leaf_dev import ROOT
+from leaf_dev.leaf_assets import pinned_copy
 
 TEST_PAGES = ROOT / "tests" / "fixtures" / "pages"
 
@@ -156,9 +157,12 @@ def captured_value(
     file: Path, spec: dict, *, runtime: Path = ROOT, env: dict[str, str] | None = None
 ):
     """One `$captures` entry's value: the file's text, an inclusive `lines` range of
-    it, or, for `"format": "unified-diff"`, the whole patch's file manifest. A
-    patch is captured whole, so a `lines` range beside that format is refused."""
+    it, for `"format": "json"` the JSON value it holds, or, for
+    `"format": "unified-diff"`, the whole patch's file manifest. A patch is captured
+    whole, so a `lines` range beside that format is refused."""
     text = file.read_text(encoding="utf-8")
+    if spec.get("format") == "json":
+        return json.loads(text)
     if spec.get("format") == "unified-diff":
         if "lines" in spec:
             raise ValueError(
@@ -183,6 +187,16 @@ def data_companion(source: Path) -> dict:
     return json.loads(companion.read_text(encoding="utf-8"))
 
 
+def capture_file(source: Path, spec: dict) -> Path:
+    """Where one `$captures` entry's bytes are. `file` names a tracked file beside the
+    source; `asset` names one the same way whose bytes are pinned in leaf-assets
+    (`leaf_dev.leaf_assets`), for evidence too large for the tree, such as an imported
+    Playwright trace."""
+    if "asset" in spec:
+        return pinned_copy(source.parent / spec["asset"])
+    return source.parent / spec["file"]
+
+
 def data_operations(
     source: Path, *, runtime: Path = ROOT, env: dict[str, str] | None = None
 ) -> list[dict]:
@@ -192,7 +206,7 @@ def data_operations(
         {
             "source": name,
             "value": captured_value(
-                source.parent / spec["file"], spec, runtime=runtime, env=env
+                capture_file(source, spec), spec, runtime=runtime, env=env
             ),
         }
         for name, spec in document.pop("$captures", {}).items()

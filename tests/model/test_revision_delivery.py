@@ -605,6 +605,7 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         "lf-plot": {"x-height": 400},
         "lf-meter": {"x-prepaint": '<span class="lf-meter-face">0 left</span>'},
         "lf-gauge": {"x-prepaint": {"as": "lf-meter"}},
+        "lf-face": {"x-prepaint": '<foo_bar class="face">Ready</foo_bar>'},
         ".callout": {"x-space": "column"},
         "table": {"x-space": "wide"},
         "lf-feed.selected": {"x-space": "column"},
@@ -622,6 +623,7 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         '<lf-pair id="pair" before="/media/a.png" after="/media/b.png"></lf-pair>'
         '<lf-meter id="meter" value="3"><p>3 left</p></lf-meter>'
         '<lf-gauge id="gauge"></lf-gauge>'
+        '<lf-face id="face"></lf-face>'
         "<template><lf-zone id=later label=Later><p>x</p></lf-zone>"
         "<lf-meter id=inert></lf-meter></template>"
         "</main></body></html>"
@@ -649,11 +651,11 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     assert marks[("lf-zone", "queue")] == {"data-lf-reading-role": "pane"}
     assert marks[("lf-label", None)] == {"data-lf-inline": ""}
     assert marks[("lf-board", "board")] == {"data-lf-space": "available"}
-    assert marks[("aside", "note")] == {"data-lf-space": "column"}
+    assert marks[("aside", "note")] == {"data-lf-column": ""}
     assert marks[("aside", "chart-note")] == {"data-lf-space": "wide"}
     assert marks[("lf-feed", "feed")] == {
         "data-lf-bound": "end",
-        "data-lf-space": "column",
+        "data-lf-column": "",
     }
     assert marks[("table", "native")] == {"data-lf-space": "wide"}
     assert marks[("section", "wide")] == {"data-lf-space": "wide"}
@@ -675,17 +677,26 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         'class="lf-meter-face">0 left</span></lf-gauge>'
     ) in delivered
     assert "<lf-meter id=inert></lf-meter>" in delivered
+    face = served.tree.find("foo_bar")
+    assert face.attrs == {
+        "data-lf-prepaint": "",
+        "data-lf-gen": "1",
+        "class": ["face"],
+    }
+    assert face.text == "Ready"
     unmarked = delivered.replace(
         '<span data-lf-prepaint data-lf-gen="1" class="lf-meter-face">0 left</span>', ""
+    ).replace(
+        '<foo_bar data-lf-prepaint data-lf-gen="1" class="face">Ready</foo_bar>', ""
     )
     for mark in (
-        ' data-lf-space="column"',
+        ' data-lf-column=""',
         ' data-lf-space="wide"',
         ' data-lf-reading-role="pane"',
         ' data-lf-inline=""',
         ' data-lf-space="available"',
         ' data-lf-bound="end"',
-        ' data-lf-space="column"',
+        ' data-lf-column=""',
         ' data-lf-space="wide"',
         ' data-lf-space="wide"',
         ' data-lf-bound="start"',

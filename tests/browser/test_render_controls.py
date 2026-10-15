@@ -50,6 +50,7 @@ from render_cases_layout import (
     mark_edges,
     page_at_rest,
     ring_faults,
+    ring_rules,
     rings_drawn,
     serious_axe_violations,
     standing_ring,
@@ -550,7 +551,7 @@ def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hin
     expect(result).to_have_text("0")
 
     # The question context forwards the widget's declaration without an Ask allocator.
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#question")).to_be_focused()
     expect(badge).to_be_visible()
     expect(badge).to_have_text("1")
@@ -879,7 +880,7 @@ def test_context_commands_keep_widget_assigned_aliases_and_source_lifetime(
         ),
     )
     result = page.locator("#probe output")
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#question")).to_be_focused()
     expect(
         page.locator('.lf-shortcut-bar [data-lf-command-ids~="probe.action-1"]')
@@ -989,7 +990,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
         ),
     )
     result = page.locator("#probe output")
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#question")).to_be_focused()
     rendered(page)
     routes = page.evaluate(
@@ -1084,7 +1085,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
             )
         page.keyboard.press("Escape")
         if standing == "outside":
-            page.keyboard.press("q")
+            page.keyboard.press("m")
             expect(page.locator("#question")).to_be_focused()
     page.keyboard.press("1")
     expect(result).to_have_text("Applied 1")
@@ -1130,7 +1131,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
         ),
     )
     result = page.locator("#probe output")
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#question")).to_be_focused()
     page.keyboard.press("F8")
     expect(result).to_have_text("Applied 1")
@@ -1273,7 +1274,7 @@ def test_route_corner_hint_overrides_the_rows_face_in_ask_and_widget(browser, se
     chip = page.locator(".lf-command-binding-badges .lf-command-binding-badge")
     result = page.locator("#probe output")
 
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#question")).to_be_focused()
     expect(chip).to_have_text("1")
     expect(chip).to_be_visible()
@@ -1671,7 +1672,7 @@ customElements.define('lf-shadow-focus', class extends HTMLElement {
     )
     paint = """el => { const s = getComputedStyle(el); return {
       style: s.outlineStyle, width: s.outlineWidth, color: s.outlineColor,
-      offset: s.outlineOffset, name: s.getPropertyValue('--lf-focus-ring').trim()
+      offset: s.outlineOffset
     }; }"""
     button = page.locator("#focus-button")
     tab = page.get_by_role("tab", name="First", exact=True)
@@ -1689,10 +1690,10 @@ customElements.define('lf-shadow-focus', class extends HTMLElement {
         expect(control).to_be_focused()
         rendered(page)
         pointer = carrier.evaluate(paint)
-        assert pointer["style"] == "solid" and pointer["name"] != "none", pointer
+        assert pointer["style"] == "solid", pointer
         drawn = rings_drawn(page)
         samples = [ring for ring in drawn if ring["sample"]]
-        assert len(samples) == 1, drawn
+        assert len(samples) == 1 and samples[0]["rule"], drawn
         assert not ring_faults(drawn, "after pointer arrival")
 
         # Return by sequential navigation to cover the tab list's roving stop and
@@ -1703,7 +1704,9 @@ customElements.define('lf-shadow-focus', class extends HTMLElement {
         rendered(page)
         assert carrier.evaluate(paint) == pointer
         drawn = rings_drawn(page)
-        assert len([ring for ring in drawn if ring["sample"]]) == 1, drawn
+        assert [ring["rule"] for ring in drawn if ring["sample"]] == [
+            samples[0]["rule"]
+        ], drawn
         assert not ring_faults(drawn, "after keyboard arrival")
 
     assert page.locator("#focus-shadow").evaluate(paint)["style"] == "none", (
@@ -1816,7 +1819,7 @@ CONTROL_ARCHETYPES = (
         # state while its opposite remains beside it.
         "name": "visual-review-disposition",
         "source": VISUAL_REVIEW_GALLERY,
-        "target": ".lf-vr-case:not([hidden]) .lf-vr-needs-work",
+        "target": ".lf-vr-case[data-selected] .lf-vr-needs-work",
     },
 )
 
@@ -1914,7 +1917,7 @@ def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
 
 @pytest.mark.parametrize("width", [1200, 390])
 def test_required_approval_is_an_ask_until_approved(browser, serve, width):
-    """Sign-off belongs to Questions and leads to the real approval control,
+    """Sign-off belongs to On me and leads to the real approval control,
     including its phone overflow seat. A task's Done cannot substitute for it."""
     html = LONG_PAGE.replace(
         "<title>long</title>",
@@ -1922,10 +1925,8 @@ def test_required_approval_is_an_ask_until_approved(browser, serve, width):
     )
     page = open_page(browser, serve(html))
     page.set_viewport_size({"width": width, "height": 900})
-    questions = page.get_by_role(
-        "button", name="Questions: 1 waiting on me", exact=True, include_hidden=True
-    )
-    expect(questions).to_be_attached()
+    on_me = page.get_by_role("button", name="On me: 1", exact=True, include_hidden=True)
+    expect(on_me).to_be_attached()
     target = page.evaluate("""async () => {
       const {readAsks, askActions} = await window.__lfWidgetApi();
       const ask = readAsks().all.find(q => q.source.kind === 'approval');
@@ -1934,7 +1935,7 @@ def test_required_approval_is_an_ask_until_approved(browser, serve, width):
       return target === document.querySelector('.lf-signoff') && document.activeElement === target;
     }""")
     assert target, "the public ask route did not reach its declared approval target"
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     approval = page.locator(".lf-signoff")
     expect(approval).to_be_visible()
     expect(approval).to_be_focused()
@@ -1943,18 +1944,18 @@ def test_required_approval_is_an_ask_until_approved(browser, serve, width):
     expect(
         page.get_by_role(
             "button",
-            name="Questions: 0 waiting on me",
+            name="On me: 0",
             exact=True,
             include_hidden=True,
         )
     ).to_be_attached()
     page.keyboard.press("z")
     round_trip(page)
-    expect(questions).to_be_attached()
+    expect(on_me).to_be_attached()
     page.keyboard.press("Escape")
     if width < 600:
         page.locator(".lf-banner-more").click()
-    questions.click()
+    on_me.click()
     row = page.locator("button[data-lf-row]").filter(has_text="Approve v1?")
     expect(row).to_be_visible()
     expect(
@@ -1983,15 +1984,13 @@ def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serv
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     history = page.locator(".lf-threads > .lf-system")
-    questions = page.get_by_role(
-        "button", name="Questions: 1 waiting on me", exact=True, include_hidden=True
-    )
+    on_me = page.get_by_role("button", name="On me: 1", exact=True, include_hidden=True)
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     button.click()
     holding(page, held, 1, "the refused approval")
     expect(button).to_have_text("✓ Version approved")
-    expect(questions).to_have_count(0)
+    expect(on_me).to_have_count(0)
     expect(history).to_contain_text("Approved")
     held[0].fulfill(
         json={
@@ -2003,13 +2002,13 @@ def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serv
     )
     round_trip(page)
     expect(button).to_have_text("Approve version")
-    expect(questions).to_be_attached()
+    expect(on_me).to_be_attached()
     expect(history).to_have_count(0)
     held.clear()
     button.click()
     holding(page, held, 1, "the accepted approval")
     expect(button).to_have_text("✓ Version approved")
-    expect(questions).to_have_count(0)
+    expect(on_me).to_have_count(0)
     expect(history).to_contain_text("Approved")
     held[0].continue_()
     page.unroute("**/api/event")
@@ -2020,13 +2019,13 @@ def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serv
     )
 
     expect(history).to_contain_text("Approved")
-    expect(questions).to_have_count(0)
+    expect(on_me).to_have_count(0)
     held.clear()
     page.route("**/api/event", lambda route: held.append(route))
     page.keyboard.press("z")
     holding(page, held, 1, "the refused approval undo")
     expect(button).to_have_text("Approve version")
-    expect(questions).to_be_attached()
+    expect(on_me).to_be_attached()
     expect(history).to_have_count(0)
     held[0].fulfill(
         json={
@@ -2039,14 +2038,14 @@ def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serv
     page.unroute("**/api/event")
     round_trip(page)
     expect(button).to_have_text("✓ Version approved")
-    expect(questions).to_have_count(0)
+    expect(on_me).to_have_count(0)
     expect(history).to_contain_text("Approved")
     held.clear()
     page.route("**/api/event", lambda route: held.append(route))
     page.keyboard.press("z")
     holding(page, held, 1, "the accepted approval undo")
     expect(button).to_have_text("Approve version")
-    expect(questions).to_be_attached()
+    expect(on_me).to_be_attached()
     expect(history).to_have_count(0)
     expect(button).to_be_enabled()
     expect(button).to_have_attribute(
@@ -2056,7 +2055,7 @@ def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serv
     page.unroute("**/api/event")
     round_trip(page)
     expect(button).to_have_text("Approve version")
-    expect(questions).to_be_attached()
+    expect(on_me).to_be_attached()
     expect(history).to_have_count(0)
     kinds = [e["kind"] for e in events_model.read_events(serve.page_dir)]
     assert kinds[-2:] == [
@@ -2071,7 +2070,7 @@ def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serv
     button.click()
     holding(page, held, 1, "the second approval")
     expect(button).to_have_text("✓ Version approved")
-    expect(questions).to_have_count(0)
+    expect(on_me).to_have_count(0)
     expect(history).to_contain_text("Approved")
     held[0].continue_()
     page.unroute("**/api/event")
@@ -2106,7 +2105,7 @@ def test_sign_off_waits_for_the_page_while_comments_stay_live(browser, serve):
 
 
 def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
-    """An informational page offers Comment on the page, Questions, Threads and More
+    """An informational page offers Comment on the page, On me, Threads and More
     without an approval action."""
     page = open_page(browser, serve(LONG_PAGE))
     # The banner is built in one pass, so a control standing in it is what makes the
@@ -2497,7 +2496,7 @@ def test_more_wears_a_dot_while_a_press_would_approve(browser, serve):
     approval = page.locator(".lf-signoff")
     expect(more).to_have_attribute("data-lf-news", "")
     expect(more).to_have_attribute(
-        "aria-label", "More page controls, approval open, questions waiting"
+        "aria-label", "More page controls, approval open, items on me"
     )
     more.click()
     expect(page.locator(".lf-banner-menu > :visible").first).to_have_class(
@@ -3497,7 +3496,10 @@ STATUS_COUNTS = """() => {
   const others = [document.querySelector('.lf-banner-status'),
     ...document.querySelectorAll('.lf-banner-actions > :not([hidden])')];
   const approval = document.querySelector('.lf-banner-actions > .lf-signoff');
-  return {shown: counts.clientWidth, needed: counts.scrollWidth,
+  // A room cuts its words inside its own child (controls.css), which the control's
+  // scroll width does not see.
+  const words = (n) => n.querySelector('[data-lf-room] > *') ?? n;
+  return {shown: words(counts).clientWidth, needed: words(counts).scrollWidth,
           left: box.left, top: box.top, inert: counts.inert,
           statusLeft: document.querySelector('.lf-status-button').getBoundingClientRect().left,
           statusBottom: document.querySelector('.lf-banner-status').getBoundingClientRect().bottom,
@@ -3505,7 +3507,8 @@ STATUS_COUNTS = """() => {
             && box.top >= banner.top && box.bottom <= banner.bottom,
           drawn: box.top < rowsEnd - 0.5 && box.bottom > banner.top + 0.5,
           approval: approval?.checkVisibility()
-            ? {shown: approval.clientWidth, needed: approval.scrollWidth} : null,
+            ? {shown: words(approval).clientWidth, needed: words(approval).scrollWidth}
+            : null,
           overlaps: others.filter((n) => meets(n.getBoundingClientRect()))
             .map((n) => n.className)};
 }"""
@@ -3519,8 +3522,8 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(
     sentence's, not the empty banner's. As the sentence the agent declares grows, the
     press grows rightward into the room the controls leave, and nothing else on the banner
     moves; once that room runs out its words truncate rather than push More. Approval and
-    the agent's Tasks count stay whole throughout. At 390 the status shares the phone's
-    one row with Threads and More, Approval and Questions stand behind More, and the count
+    the agent's On count stay whole throughout. At 390 the status shares the phone's
+    one row with Threads and More, Approval and On me stand behind More, and the count
     gives way to the sentence, which keeps what the two controls leave."""
     html = SUGGESTION_PAGE.replace(
         "<title>suggestions</title>",
@@ -3535,7 +3538,7 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(
         told(page)
         page.wait_for_function(
             "(words) => document.querySelector('.lf-status-text').textContent === words",
-            arg=f"Agent working — {detail}",
+            arg=f"Claude working — {detail}",
         )
         page_at_rest(page)
         return page.evaluate(STATUS_PRESS)
@@ -3547,17 +3550,18 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(
         f"a short status press still spans the banner's free room: {short}"
     )
     # The page's three suggestions and required approval wait on the user in
-    # Questions. The page task waits on the agent, so Tasks stands beside status.
-    expect(page.locator(".lf-queue")).to_have_text("Questions: 4")
-    expect(page.locator(".lf-status-queues")).to_have_text("Tasks: 1")
+    # On me. The page task waits on the agent, so the agent's count stands beside status.
+    expect(page.locator(".lf-queue")).to_have_text("On me: 4")
+    expect(page.locator(".lf-status-queues")).to_have_text("On Claude: 1")
     page.evaluate(DEFINE_BOXES)
     beside = page.evaluate(
         BANNER_WATCH, f":is({NEIGHBOUR}, .lf-status-queues):not(.lf-status-button)"
     )
     assert any("lf-banner-more" in name for name in beside["names"]), beside["names"]
 
-    # Longer, and still inside a phone's room beside Threads and More.
-    longer = say("running tests")
+    # Longer, and still inside a phone's room beside Threads and More, with room to
+    # spare for Linux's wider sans and the agent's name.
+    longer = say("tests again")
     assert longer["shown"] >= longer["needed"], longer
     assert (longer["left"], longer["top"]) == (short["left"], short["top"])
     assert longer["right"] > short["right"], (short, longer)
@@ -3594,7 +3598,7 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(
 
 def test_the_counts_lead_the_second_row_where_the_run_leaves_room(browser, serve):
     """Just wider than a phone held upright, the banner's status sentence has the first
-    row, and the agent's Tasks count leads the second, under the sentence's start, where
+    row, and the agent's On count leads the second, under the sentence's start, where
     the run leaves it room whole. A finger's search steps share that row: the count
     stands whole beside them where the font leaves it room, or gives way to them, never
     cutting a step or being cut itself, and comes back where it stood once the search
@@ -3603,10 +3607,10 @@ def test_the_counts_lead_the_second_row_where_the_run_leaves_room(browser, serve
         viewport={"width": 490, "height": 800}, has_touch=True, is_mobile=True
     )
     url = serve(SUGGESTION_PAGE)
-    # A comment the agent owes a reply, so there is a Tasks count to stand there.
+    # A comment the agent owes a reply, so there is an agent's count to stand there.
     panel_comment(serve.page_dir, "Is the feeder sized right?")
     page = open_page(browser, url, context=context)
-    expect(page.locator(".lf-status-queues")).to_have_text("Tasks: 1")
+    expect(page.locator(".lf-status-queues")).to_have_text("On Claude: 1")
     page_at_rest(page)
     resting = page.evaluate(STATUS_COUNTS)
     assert resting["drawn"] and resting["inBanner"] and not resting["inert"], resting
@@ -3622,7 +3626,7 @@ def test_the_counts_lead_the_second_row_where_the_run_leaves_room(browser, serve
     ).to_be_visible()
     page_at_rest(page)
     searching = page.evaluate(STATUS_COUNTS)
-    # Whether "Tasks: 1" fits beside the steps is the font's to say: macOS's leaves it
+    # Whether "On Claude: 1" fits beside the steps is the font's to say: macOS's leaves it
     # room at this width and Linux's does not. Either way it is drawn whole and live, or
     # gone and out of reach.
     assert searching["drawn"] != searching["inert"], searching
@@ -3757,7 +3761,7 @@ def test_the_banner_uses_the_page_mark_and_puts_each_edge_by_its_panel(
                }"""
         )
 
-    # A phone moves Approval and Questions to the head of More, off the row.
+    # A phone moves Approval and On me to the head of More, off the row.
     desk = ["others", "latest", "version", "signoff", "queue", "comments"]
     phone = ["signoff", "queue", "others", "latest", "version", "comments"]
     for width in (1200, 390, 320):
@@ -4186,7 +4190,7 @@ def test_a_covering_auxiliary_surface_keeps_a_replacement_document_inert(
         "focusInside": True,
     }, f"the updated document escaped its covering auxiliary surface: {state}"
 
-    page.get_by_role("button", name="Close questions").click()
+    page.get_by_role("button", name="Close the On panel").click()
     expect(page.locator(".lf-queue-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     assert not bool(page.locator("dialog:modal").count())
 
@@ -4831,6 +4835,38 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
     )
 
 
+def test_covering_feedback_clears_the_reply_at_every_reading_position(browser, serve):
+    """Feedback keeps one seat above a reply whether that reply is in view or not."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Read this before replying. " * 80)
+    context = browser.new_context(
+        viewport={"width": 400, "height": 700}, reduced_motion="reduce"
+    )
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    write(card.locator("leaf-text"), "One line\nSecond line\nThird line")
+    listing = page.locator(".lf-threads")
+    listing.focus()
+    assert listing.evaluate("n => n.scrollHeight > n.clientHeight")
+    page.evaluate(
+        "async () => (await window.__lfWidgetApi()).notice('Saved this reply', {announce:false})"
+    )
+    status = page.locator(".lf-bottom-status")
+    expect(status).to_be_visible()
+    places = []
+    for end in (False, True):
+        listing.evaluate("(n,end) => {n.scrollTop = end ? n.scrollHeight : 0}", end)
+        rendered(page)
+        places.append(status.bounding_box())
+    assert places[0] == places[1], "scrolling the reply into view moved its feedback"
+    assert (
+        places[-1]["y"] + places[-1]["height"]
+        < card.locator(".lf-thread-reply").bounding_box()["y"]
+    )
+
+
 def test_dynamic_chrome_offsets_keep_the_safe_area_in_their_arithmetic(browser, serve):
     """The bottom bar keeps the inset tokens stated by the stylesheet: it stands on the
     window's foot, grows by the bottom inset, and holds its hints inside the side insets.
@@ -4855,7 +4891,7 @@ def test_dynamic_chrome_offsets_keep_the_safe_area_in_their_arithmetic(browser, 
             return {left: r.left, right: r.right, top: r.top, bottom: r.bottom};
           };
           const bar = document.querySelector('.lf-shortcut-bar');
-          const hints = [...bar.querySelectorAll(".lf-shortcut:not([hidden])")];
+          const hints = [...bar.querySelectorAll(".lf-shortcut:not([data-lf-off-line])")];
           return {shortcut_bar: rect(bar), first: rect(hints[0]),
                   width: innerWidth, height: innerHeight};
         }"""
@@ -4987,12 +5023,12 @@ def test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge(
 def test_the_ring_reading_distinguishes_element_marks_from_focus(browser, serve):
     """The reading ignores element contours and still recognizes the real focus ring.
 
-    A hovered passage deliberately shares the ring's accent and width but has no
-    focus-ring declaration, so its element-feedback role must keep it out of the
-    population of keyboard rings. The named focus state on that same element and an
-    unregistered real ring follow as positive controls; without them a reading that
-    ignored all element contours would pass the first case and prove only that it was
-    silent."""
+    A hovered passage deliberately shares the ring's accent and width but its rule
+    writes the contour out rather than drawing the ring's token, so the browser's
+    answer for which rule drew it keeps it out of the population of keyboard rings. The
+    focus state on that same element, a token ring on a plain box, and a contour on a
+    focused mark follow as positive controls; without them a reading that ignored all
+    element contours would pass the first case and prove only that it was silent."""
     example = next(e for e in EXAMPLES if e.stem == "release-notes")
     url = serve(example, comments=2, seed_log=False)
     page = open_page(browser, url)
@@ -5005,14 +5041,12 @@ def test_the_ring_reading_distinguishes_element_marks_from_focus(browser, serve)
         box.classList.toggle(name, false);
       box.toggleAttribute('data-lf-focus', how === 'focused mark');
       box.style.outline = '';
-      box.style.removeProperty('--lf-focus-ring');
       if (how === 'mark') box.classList.add('lf-mark-el', 'lf-mark-hover');
       if (how === 'focused mark') box.classList.add('lf-mark-el');
       if (how === 'the ring itself') box.style.outline = 'var(--focus-ring)';
-      if (how === 'unregistered focused mark') {
+      if (how === 'contour on a focused mark') {
         box.classList.add('lf-mark-el');
-        box.style.outline = 'var(--focus-ring)';
-        box.style.setProperty('--lf-focus-ring', 'none');
+        box.style.outline = 'var(--focus-ring-w) solid var(--accent)';
         box.tabIndex = -1;
         box.focus();
       }
@@ -5050,8 +5084,8 @@ def test_the_ring_reading_distinguishes_element_marks_from_focus(browser, serve)
 
     _style, _width, colour = page.evaluate(plant, "focused mark")
     focused_claims = claimed()
-    assert [seen["ring"] for seen in focused_claims] == ["passage-focus"], (
-        f"the marked element's named focus ring ({colour}) was not credited: "
+    assert [".lf-mark-el" in seen["rule"] for seen in focused_claims] == [True], (
+        f"the marked element's focus ring ({colour}) was not credited to its rule: "
         f"{focused_claims}"
     )
 
@@ -5062,16 +5096,16 @@ def test_the_ring_reading_distinguishes_element_marks_from_focus(browser, serve)
         "this reading now divides on"
     )
     ring_claims = claimed()
-    assert len(ring_claims) == 1 and not ring_claims[0]["ring"], (
+    assert [seen["rule"] for seen in ring_claims] == ["style attribute"], (
         f"a box wearing the layer's own ring ({ring_paint}) was not counted, so the cases "
         "above prove only that this reading is silent"
     )
 
-    focused_mark_paint = page.evaluate(plant, "unregistered focused mark")
+    focused_mark_paint = page.evaluate(plant, "contour on a focused mark")
     focused_mark_claims = claimed()
-    assert len(focused_mark_claims) == 1 and not focused_mark_claims[0]["ring"], (
-        f"a focused element mark wearing an unregistered ring ({focused_mark_paint}) "
-        f"was not counted: {focused_mark_claims}"
+    assert [seen["rule"] for seen in focused_mark_claims] == [""], (
+        f"a focused element mark wearing a contour no ring rule drew "
+        f"({focused_mark_paint}) was not counted: {focused_mark_claims}"
     )
 
 
@@ -5245,7 +5279,7 @@ def test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across(
     page.keyboard.press("Tab")
     page.keyboard.press("Shift+Tab")
     standing = standing_ring(page)
-    assert standing and standing["ring"] == "edge", (
+    assert standing and ".lf-edge" in standing["rule"], (
         f"the keyboard is not standing on the grip's own ring: {standing}"
     )
 
@@ -5571,9 +5605,10 @@ def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_bo
 # with a second version so the versions menu has a comparison to offer.
 RING_CHROME = "triage-board"
 # A causal sample in each surface the keyboard reaches. Each case names its surface, the
-# real keys that open it, the element whose focus state paints the ring, and the ring it
-# paints. A null selector means the opening keys themselves leave the required
-# non-focusable carrier lit.
+# real keys that open it, the element whose focus state paints the ring, and the rule
+# that paints it, as the part of its matched selector that makes the rule that
+# control's own (`ring_rules`, render_cases_layout.py). A null selector means the
+# opening keys themselves leave the required non-focusable carrier lit.
 RING_CASES = (
     (
         "the page",
@@ -5583,76 +5618,82 @@ RING_CASES = (
             # since every page carries the same chrome and each reading over a large
             # document costs seconds.
             RING_CHROME: (
-                (".lf-skip", "skip"),
-                (".lf-grip", "card-grip"),
-                (".lf-status-button", "status"),
-                (".lf-others", "btn"),
-                (".lf-edge:visible", "edge"),
+                (".lf-skip", ".lf-skip"),
+                (".lf-grip", ".lf-grip"),
+                (".lf-status-button", ".lf-status-button"),
+                (".lf-others", ":is(.lf-btn, .button)"),
+                (".lf-edge:visible", ".lf-edge"),
                 # Before the fields: More stands down while a field takes its key.
-                (".lf-shortcut-more", "key-more"),
-                (".lf-find-box input", "text-entry"),
-                (".lf-thread-panel leaf-text", "text-box"),
+                (".lf-shortcut-more", ".lf-shortcut-more"),
+                (".lf-find-box input", "wa-input::part"),
+                (".lf-thread-panel leaf-text", ".lf-compose-field"),
             ),
             "feature-gallery": (
-                (".lf-tab-btn", "tab-btn"),
-                ("lf-option > .lf-pick", "options-row"),
+                (".lf-tab-btn", ".lf-tab-btn"),
+                ("lf-option > .lf-pick", "lf-option:has(> .lf-pick"),
                 (
                     any_owner_entry("suggestion", "accept") + ":visible",
                     "margin-entry",
                 ),
-                (".lf-draft-edit", "draft-editor"),
+                (".lf-draft-edit", ".lf-draft-edit"),
             ),
-            "heat-loss": ((".lf-visual-action", "visual-target"),),
-            "review-a-plan": (("main details > summary", "focus"),),
+            "heat-loss": ((".lf-visual-action", ".lf-visual-action"),),
+            "review-a-plan": (("main details > summary", ":where([data-lf-focus])"),),
             "pr-walkthrough": (
-                ("lf-gloss:visible > .lf-gloss-mark", "gloss-mark"),
-                (".lf-diff-search input", "text-entry"),
-                ("lf-diff summary", "code-summary"),
-                ("lf-diff code", "code-pre-shadow"),
+                ("lf-gloss:visible > .lf-gloss-mark", ".lf-gloss-mark"),
+                (".lf-diff-search input", "wa-input::part"),
+                ("lf-diff summary", ".lf-diff-file > details > summary"),
+                ("lf-diff code", "code[data-code]"),
             ),
             "release-notes": (
-                ("main p.lf-mark-el", "passage-focus"),
-                ('lf-shot .lf-shotcomparison [part~="handle"]', "comparison-handle"),
-                (".lf-shotcap", "pressable"),
+                ("main p.lf-mark-el", ".lf-mark-el"),
+                (
+                    'lf-shot .lf-shotcomparison [part~="handle"]',
+                    "wa-comparison::part(lf-focus)",
+                ),
+                (".lf-shotcap", "[data-lf-offer]"),
             ),
-            "ship-review": ((".lf-reopen", "thread-action"),),
+            "ship-review": ((".lf-reopen", ".lf-thread-action"),),
             "wt-merge": (
-                ('[data-lf-reading-role="pane"] > [tabindex="0"]', "pane-body"),
+                (
+                    '[data-lf-reading-role="pane"] > [tabindex="0"]',
+                    "[data-lf-reading-role=pane]",
+                ),
             ),
         },
     ),
-    ("a landed diff line", ("]",), {"pr-walkthrough": ((None, "code-line"),)}),
+    ("a landed diff line", ("]",), {"pr-walkthrough": ((None, "[data-line]"),)}),
     (
         "an inline response",
         (),
-        {"pr-walkthrough": (("leaf-text.lf-fab-input", "text-box"),)},
+        {"pr-walkthrough": (("leaf-text.lf-fab-input", ".lf-response-control"),)},
     ),
     # The list holds focus itself only while it shows no thread, so the sample finds
     # nothing and backs out of the find box onto the emptied list.
     (
         "the thread list",
         ("g", "Shift+t", "/", "z", "q", "x", "j", "Escape"),
-        {RING_CHROME: ((None, "thread-list"),)},
+        {RING_CHROME: ((None, ".lf-threads-frame"),)},
     ),
     (
         "a thread title",
         (),
-        {"ship-review": ((".lf-thread-summary:visible", "thread-summary"),)},
+        {"ship-review": ((".lf-thread-summary:visible", ".lf-thread-summary"),)},
     ),
     # The keyboard walk lands on the accordion title, whose inset band also marks
     # its native Tab stop.
     (
         "a walked thread",
         ("g", "Shift+t", "t"),
-        {"ship-review": ((None, "thread-summary"),)},
+        {"ship-review": ((None, ".lf-thread-summary"),)},
     ),
     # The same walk with the panel shut lands in the margin's thread view, on the
     # thread itself rather than a control inside it.
-    ("an inline thread", ("t",), {"ship-review": ((None, "page-thread"),)}),
+    ("an inline thread", ("t",), {"ship-review": ((None, ".lf-page-thread"),)}),
     (
         "passage search",
         ("/",),
-        {RING_CHROME: ((".lf-page-search-box input:visible", "text-entry"),)},
+        {RING_CHROME: ((".lf-page-search-box input:visible", "wa-input::part"),)},
     ),
     # Item hints, and the anchored bar the user answers a chosen item on. Both open the
     # same mode, and both step back and then forward through it, which lands on the last
@@ -5670,13 +5711,13 @@ RING_CASES = (
     (
         "target hints",
         ("Tab", "s", "Shift+Tab", "Tab"),
-        {RING_CHROME: ((None, "target-hint"),)},
+        {RING_CHROME: ((None, ".lf-key-hint.lf-current"),)},
     ),
     # Enter opens Comment on the item the keyboard is browsing and focuses its field.
     (
         "the response bar",
         ("Tab", "s", "Shift+Tab", "Tab", "Enter"),
-        {RING_CHROME: ((".lf-fab-input", "text-box"),)},
+        {RING_CHROME: ((".lf-fab-input", ".lf-response-control"),)},
     ),
     # These controls live behind exact page-owned view states: a settled group's
     # disclosure, and the options it puts away.
@@ -5685,7 +5726,7 @@ RING_CASES = (
         (),
         {
             "current-proposed-comparison": (
-                ("#comparison-policy > .lf-settled", "options-settled"),
+                ("#comparison-policy > .lf-settled", ".lf-settled"),
             )
         },
     ),
@@ -5694,14 +5735,17 @@ RING_CASES = (
         (),
         {
             "current-proposed-comparison": (
-                ("#comparison-policy > lf-option > .lf-pick", "options-pick"),
+                (
+                    "#comparison-policy > lf-option > .lf-pick",
+                    ":is(lf-option) .lf-pick",
+                ),
             )
         },
     ),
     (
         "a contents link",
         (),
-        {"feature-gallery": (("#bg-contents li a:visible", "toc-link"),)},
+        {"feature-gallery": (("#bg-contents li a:visible", ":is(lf-toc) a"),)},
     ),
     # The reaction palette a message's strip opens. Its chips are the last boxes the
     # layer dresses in the chrome's chip face, and they are behind a press: the strip
@@ -5710,11 +5754,15 @@ RING_CASES = (
     (
         "a reaction palette",
         (),
-        {"ship-review": ((".lf-react-palette:popover-open .lf-react", "chip"),)},
+        {
+            "ship-review": (
+                (".lf-react-palette:popover-open .lf-react", ".lf-outline-chip"),
+            )
+        },
     ),
-    ("the Questions panel", (), {"ship-review": ((".lf-queue-row", "queue-row"),)}),
-    ("the pages drawer", ("g", "Shift+l"), {RING_CHROME: ((None, "others-row"),)}),
-    ("page status", (), {RING_CHROME: ((None, "status-detail"),)}),
+    ("the On panel", (), {"ship-review": ((".lf-queue-row", ".lf-queue-row"),)}),
+    ("the pages drawer", ("g", "Shift+l"), {RING_CHROME: ((None, ".lf-others-row"),)}),
+    ("page status", (), {RING_CHROME: ((None, ".lf-status-detail"),)}),
     # The menu's own route after the key that opens it: an open lands on the version being
     # read, which is the first row, and the comparison press beside a row is a Tab forward
     # from the row below it. The walk is clamped, so a second press at the bottom moves
@@ -5724,8 +5772,8 @@ RING_CASES = (
         ("g", "Shift+v", "ArrowDown", "ArrowDown"),
         {
             RING_CHROME: (
-                (".lf-version-row", "version-row"),
-                (".lf-version-diff:visible:not(:disabled)", "version-diff"),
+                (".lf-version-row", ".lf-version-row"),
+                (".lf-version-diff:visible:not(:disabled)", ".lf-version-diff"),
             )
         },
     ),
@@ -5734,8 +5782,8 @@ RING_CASES = (
         ("?", "?"),
         {
             RING_CHROME: (
-                (".lf-command-reference-search input:visible", "text-entry"),
-                (".lf-command-reference-command", "help-command"),
+                (".lf-command-reference-search input:visible", "wa-input::part"),
+                (".lf-command-reference-command", ".lf-command-reference-command"),
             )
         },
     ),
@@ -5746,23 +5794,34 @@ RING_CASES = (
     (
         "a thread card",
         (),
-        {"ship-review": ((".lf-margin-preview .lf-resolve", "thread"),)},
+        {
+            "ship-review": (
+                (
+                    ".lf-margin-preview .lf-resolve",
+                    ".lf-page-thread :is(.lf-btn, summary)",
+                ),
+            )
+        },
     ),
-    ("message media", (), {"feature-gallery": ((".lf-message-media", "media"),)}),
+    (
+        "message media",
+        (),
+        {"feature-gallery": ((".lf-message-media", ".lf-media-open"),)},
+    ),
     # Both controls of a summarized range wear one band: the checkpoint's own button, and
     # the rail that folds the originals back once it has opened them.
     (
         "a summarized range",
         (),
-        {"feature-gallery": ((".lf-summary-expand", "summary-fold"),)},
+        {"feature-gallery": ((".lf-summary-expand", ".lf-thread-disclosure"),)},
     ),
     (
         "the Page Map dialog",
         (),
         {
             RING_CHROME: (
-                (".lf-page-map-action:visible", "page-map-action"),
-                (".lf-page-map-search input:visible", "text-entry"),
+                (".lf-page-map-action:visible", ".lf-page-map-action"),
+                (".lf-page-map-search input:visible", "wa-input::part"),
             )
         },
     ),
@@ -5781,11 +5840,11 @@ RING_EXAMPLE_FILES = {
 }
 # Rings whose carrier is semantic state elsewhere in the page rather than the focused
 # control or one of its ancestors. Mark the exact carrier before reading the composed
-# paint so an unrelated ring with the same name cannot credit the sample.
+# paint so an unrelated ring drawn by the same rule cannot credit the sample.
 RING_REMOTE_CARRIER = {
-    "target-hint": ".lf-target-picker-hint.lf-current",
+    ".lf-key-hint.lf-current": ".lf-target-picker-hint.lf-current",
     # A pane draws its focused body's band inset over the body's cell (theme.css).
-    "pane-body": '[data-lf-reading-role="pane"]:has(> [data-lf-focus])',
+    "[data-lf-reading-role=pane]": '[data-lf-reading-role="pane"]:has(> [data-lf-focus])',
 }
 
 
@@ -5820,7 +5879,7 @@ RING_SCOPE_SURFACE = {
     # frame and shows only for an anchor.
     "target hints": (".lf-target-picker-hint.lf-current", None),
     "the response bar": (".lf-fab-bar .lf-composer[data-lf-open]", None),
-    "the Questions panel": (".lf-queue-panel.open", ".lf-queue"),
+    "the On panel": (".lf-queue-panel.open", ".lf-queue"),
     "the pages drawer": (".lf-others-panel.open", ".lf-others"),
     "the versions menu": (".lf-version-menu:popover-open", None),
     "the command reference": (".lf-command-reference.open", None),
@@ -5829,7 +5888,7 @@ RING_SCOPE_SURFACE = {
 }
 RING_SCOPE_OPENER = {
     "an inline response": "#pr-exact-patch .lf-diff-file-comment",
-    "the Questions panel": ".lf-queue",
+    "the On panel": ".lf-queue",
     "a thread card": '.lf-margin-marker[data-lf-kinds~="comment"]',
     "the Page Map dialog": ".lf-page-map-toggle",
     "a reaction palette": ".lf-react-strip > .lf-react-trigger",
@@ -5874,6 +5933,20 @@ WALKED_STOP = f"""() => {{
 }}"""
 
 
+def seen_stop(page, seen=...):
+    """The focused stop as the user would fail to find it, or None where they can.
+
+    `seen` is a `SEEN_STOP` reading already taken. The rings off the stop itself that
+    it leaves undecided answer only where a ring rule drew them (`ring_rules`)."""
+    if seen is ...:
+        seen = page.evaluate(SEEN_STOP)
+    if seen is None:
+        return None
+    if any(ring_rules(page, [(pseudo, "outline") for pseudo in seen["carriers"]])):
+        return None
+    return seen["lost"]
+
+
 def _tab_stops_without_indication(page, stem):
     """Walk the page's whole ordinary Tab order, Threads open, and name every stop
     that shows nothing of where the keyboard is. The panel is closed again after."""
@@ -5885,7 +5958,8 @@ def _tab_stops_without_indication(page, stem):
     empty = 0
     for _ in range(400):
         page.keyboard.press("Tab")
-        stop, lost = page.evaluate(WALKED_STOP)
+        stop, seen = page.evaluate(WALKED_STOP)
+        lost = seen_stop(page, seen)
         if stop == "seen":
             break
         if stop == "empty":
@@ -5922,9 +5996,8 @@ def test_the_focus_sweep_distinguishes_stops_inside_a_live_frame(browser):
 # separates elevation from the other two uses of the property, and is decidable from the
 # declaration where "is this a shadow" is not.
 #
-# Flat and condition-blind for the reasons RING_NAMES gives next door: nothing re-runs a
-# selector, and a shadow painted only in some other medium is one this reading should say
-# nothing about.
+# Flat and condition-blind: nothing re-runs a selector, and a shadow painted only in some
+# other medium is one this reading should say nothing about.
 ELEVATION_SHADOWS = """() => {
   const found = [];
   const eaten = new Set();

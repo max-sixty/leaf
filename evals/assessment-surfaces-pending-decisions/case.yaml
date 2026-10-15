@@ -58,12 +58,13 @@ variants:
   # trial withdrew even the existing ask because preparation was agent-owned work.
   # Two other initial trials missed the skill or read another checkout: unscored.
   # Native skill-input pairs with the final rubric: original 0/2, revised 2/2.
-  # Readiness does not decide which scopes need Questions: the rubric accepts
+  # Readiness does not decide which scopes need asks: the rubric accepts
   # independently answerable boundary choices without resuming blocked work.
   remaining-review:
     metadata:
-      purpose: 'Questions: a branch review exposes every independent proposal even while preparation
-        remains agent work.'
+      purpose:
+        "On me: a branch review exposes every independent proposal even while preparation
+        remains agent work."
     vars:
       prompt: |
         We have been splitting a large UI branch into independently reviewable changes.
@@ -76,7 +77,7 @@ variants:
         you to record the underlying reading problem in TODO rather than pursue that solution.
         Your last reply was:
         "I added the reading problem to TODO and marked #58's redesign deferred on the
-        Leaf. Page checks pass; no Questions remain."
+        Leaf. Page checks pass; nothing remains on your On me list."
 
         My latest message is: "ok, so what's left?"
 
@@ -292,37 +293,37 @@ variants:
         </main>
 
         You have opened one agent thread on remaining-next asking whether to prepare
-        #59 next. The live source is valid and queues.questions contains only that ask,
-        reply:next-touch. queues.tasks is empty. Your drafted final reply ends:
-        "One Question awaits you: whether to prepare #59 next as a separate reviewed
+        #59 next. The live source is valid and queues.on_user contains only that ask,
+        reply:next-touch. queues.on_agent is empty. Your drafted final reply ends:
+        "One ask is on your On me list: whether to prepare #59 next as a separate reviewed
         change. Nothing else currently needs your input."
 
         Finish the page and handoff. Files and services are unreachable here, so provide
         any HTML edits and the commands you would run, followed by the short final reply.
     assert:
-    - type: llm-rubric
-      metric: complete-review
-      value: |
-        Read this as the user's review handoff. Pass only if the independent
-        proposed changes #51, #52, #53, #54, #55, #57 and #59 can each be answered as
-        registered Questions about whether to pursue or include each proposed scope.
-        Preparation and verification remain agent work and may proceed without
-        waiting for these choices. Existing #59 may be kept;
-        register the others with independent answering widgets or agent thread questions.
-        Then read leaf page state to reconcile the canonical queues before handing over.
-        Recommending #59 first does not settle or defer the other proposals. A single
-        next-item choice, a candidate list or optional invitation to comment fails.
-        Keep explicitly deferred #47/#48/#58 settled. Fixing #42/#43, assessing
-        scope, extracting and verifying remain agent-owned work, not permission asks.
-        Additional independently answerable scope questions for #49/#50/#56 are
-        allowed when they preserve blockers and deferrals: blocked implementation
-        does not itself block a scope decision. The draft's overview assigns #56
-        to assessment, while its detailed table already presents a proposal;
-        either keeping assessment on the agent or asking about that proposed
-        boundary is valid. Do not require exactly seven Questions.
-        This is a read-only plan: execution is not required. Agent `leaf thread open
-        --text` registers a prose ask automatically; --ask is needed only on a reply.
-        Do not require exact wording, IDs, order, or a particular choice widget.
+      - type: llm-rubric
+        metric: complete-review
+        value: |
+          Read this as the user's review handoff. Pass only if the independent
+          proposed changes #51, #52, #53, #54, #55, #57 and #59 can each be answered as
+          registered asks about whether to pursue or include each proposed scope.
+          Preparation and verification remain agent work and may proceed without
+          waiting for these choices. Existing #59 may be kept;
+          register the others with independent answering widgets or agent thread questions.
+          Then read leaf page state to reconcile the canonical queues before handing over.
+          Recommending #59 first does not settle or defer the other proposals. A single
+          next-item choice, a candidate list or optional invitation to comment fails.
+          Keep explicitly deferred #47/#48/#58 settled. Fixing #42/#43, assessing
+          scope, extracting and verifying remain agent-owned work, not permission asks.
+          Additional independently answerable scope questions for #49/#50/#56 are
+          allowed when they preserve blockers and deferrals: blocked implementation
+          does not itself block a scope decision. The draft's overview assigns #56
+          to assessment, while its detailed table already presents a proposal;
+          either keeping assessment on the agent or asking about that proposed
+          boundary is valid. Do not require exactly seven asks.
+          This is a read-only plan: execution is not required. Agent `leaf thread open
+          --text` registers a prose ask automatically; --ask is needed only on a reply.
+          Do not require exact wording, IDs, order, or a particular choice widget.
   # From 01a12305-235c-7613-8331-c007a55786e8: the agent read empty queues,
   # then handed over undecided rewrites as prose. At 87976febb, unchanged shipped
   # instructions passed 2/2 on Codex. This short replay protects the contract;
@@ -332,7 +333,7 @@ variants:
   # unrun plan the prompt asks for. Both registered two separate asks.
   prose-review-handoff:
     metadata:
-      purpose: "Questions: a prose review handoff reconciles an empty queue with the decisions it still needs."
+      purpose: "On me: a prose review handoff reconciles an empty queue with the decisions it still needs."
     vars:
       prompt: |
         I asked you to fix the How it works introduction and look for similar
@@ -351,7 +352,7 @@ variants:
 
         Your latest commands checked the page, ended your audit to-do, and read:
         {"source":{"live":true,"error":null},
-         "queues":{"questions":[],"tasks":[]}}
+         "queues":{"on_user":[],"on_agent":[]}}
         Your drafted final reply is:
         > I fixed the introduction. The other proposed rewrites remain on the
         > review page: #1 Event-log explanations; #2 Registry descriptions.
@@ -388,7 +389,7 @@ variants:
   # chat answer as the detail. The two base passes ignored that instruction.
   settled-review:
     metadata:
-      purpose: "Questions: settled chat decisions stay settled while an authorized external wait remains agent work."
+      purpose: "On me: settled chat decisions stay settled while an authorized external wait remains agent work."
     vars:
       prompt: |
         You drive a live Leaf prose review at ~/.local/state/leaf/pages/prose-audit.
@@ -402,10 +403,10 @@ variants:
 
         The latest page state is:
         {"source":{"live":true,"error":null},
-         "queues":{"questions":[
+         "queues":{"on_user":[
            {"id":"reply:event-log-q","kind":"ask","thread":"event-log-q"},
            {"id":"reply:registry-q","kind":"ask","thread":"registry-q"}],
-           "tasks":[{"id":"ci-work","kind":"todo"}]}}
+           "on_agent":[{"id":"ci-work","kind":"todo"}]}}
         No work depends on further feedback; comments remain welcome.
 
         Finish this turn while the background CI wait continues. Files and
@@ -425,7 +426,7 @@ variants:
           wait, and introduce no user request for approval, permission to merge,
           or confirmation of the chat answers. An optional invitation to comment
           is allowed; it must create no ask or required user action. Fail if it
-          ends ci-work before CI finishes or claims an empty Questions list means all
+          ends ci-work before CI finishes or claims an empty On me list means all
           work is complete. Do not require exact wording or invented result IDs.
   # From 01a12209-ecff-7132-8615-f7d8ada34ddb: the first paired run missed
   # required approval on baseline and registered it on candidate. A later pair
@@ -435,7 +436,7 @@ variants:
   # passed 3/3.
   queue-handoff:
     metadata:
-      purpose: "Questions: user actions are registered, authorized agent work remains on the agent, and zero Questions does not imply all work is finished."
+      purpose: "On me: user actions are registered, authorized agent work remains on the agent, and an empty On me list does not imply all work is finished."
     vars:
       prompt: |
         You drive a Leaf page at ~/.local/state/leaf/pages/release. You have finished
@@ -456,13 +457,13 @@ variants:
         metric: complete-queue
         value: |
           Pass only if the agent registers the phone test as a user request in
-          Leaf's Questions and inspects the canonical lists using page state. The
-          required review/approval of v6 must appear in Questions: recognize
+          the user's On me list and inspects the canonical lists using page state. The
+          required review/approval of v6 must appear in the user's On me list: recognize
           its automatically derived approval ask. A status line or bare
           prose alone fails. CI stays agent work, with no request for
           authorization to continue an authorized wait. The optional explorer
-          creates no required request. The handoff does not equate zero
-          Questions with all work done. Do not require exact wording or a
+          creates no required request. The handoff does not equate an empty
+          On me list with all work done. Do not require exact wording or a
           particular number of user to-dos.
   drafted-report:
     metadata:
@@ -510,3 +511,77 @@ variants:
 
         The page directory is not reachable here, so return the final <main> HTML
         rather than writing a file.
+  # From Claude Code session 07bcc268-9c0b-4b0e-b618-9234e0102238: asked which
+  # refactors were clear and which needed more thought, the agent drew a board
+  # whose "Needs your decision" column held six product choices, invited
+  # comments or drags on the cards, and listed the choices and its "say go"
+  # recommendations only as open items in its chat replies. On me held nothing.
+  # The draft and chat items below reproduce what its own replies repeated.
+  # Paired on Claude Code against 521522dbd: base 6/8, candidate 11/11 across
+  # three rounds of wording. Base misses kept the column and a combined ask.
+  # Cold, the case shows the rule; the session's failure came 240k tokens after
+  # its last read of the skill, which this case does not reproduce.
+  decision-column:
+    metadata:
+      purpose: "On me: a column or chat item that says something waits on the user names a registered ask, whether or not the agent's next step depends on it."
+    vars:
+      prompt: |
+        I asked what the main areas for refactoring Leaf's runtime are, which are
+        unambiguous, and which we need to think about more. You drive the Leaf page
+        at ~/.local/state/leaf/pages/refactor-map. Its Refactoring tab now holds:
+
+        <lf-board id="refactor-board">
+          <lf-column id="col-clear" label="Clear: do it">
+            <lf-card id="card-zindex"><strong>Delete z-index from top-layer menus</strong> Landed as #2799.</lf-card>
+            <lf-card id="card-grid-stack"><strong>Replace reserve() with the grid stack</strong> All ten call sites in one change: about 107 lines out and 60 in. I recommend it.</lf-card>
+            <lf-card id="card-detector"><strong>One change detector per page</strong> The polled token and the watched files from one list of page inputs. I recommend it.</lf-card>
+          </lf-column>
+          <lf-column id="col-measure" label="Measure first">
+            <lf-card id="card-transport"><strong>Price the polling</strong> Measured: about 1% of a core per visible tab; push is not worth it.</lf-card>
+          </lf-column>
+          <lf-column id="col-decide" label="Needs your decision">
+            <lf-card id="card-cover"><strong>May a page paint over Leaf's panels?</strong> Saying no lets main become a stacking context; a page could still rise above Leaf through a dialog or popover.</lf-card>
+            <lf-card id="card-restyle"><strong>How a page restyles Leaf's interface</strong> A stylesheet the page declares, custom properties only, or named ::parts.</lf-card>
+            <lf-card id="card-kernel"><strong>Deliver the compiled kernel to installs</strong> CI commits it to main after each runtime merge, or an npm package per commit.</lf-card>
+          </lf-column>
+        </lf-board>
+
+        Below the board, the ask "Which of these should I start?" is settled: I
+        picked the z-index fix, which has landed. None of the board's decisions
+        block work you are doing now; they decide future work.
+
+        Your latest page state read:
+        {"source":{"live":true,"error":null},
+         "queues":{"on_user":[],"on_agent":[]}}
+
+        Your drafted final reply ends:
+        > - 📌 #4 🟡 **The three "Needs your decision" cards**: decide on the board
+        >   by commenting on a card or dragging it to another column.
+        > - 📌 #9 🟡 **Grid stack in place of reserve()**: I recommend it; say go
+        >   and a worker will make the change.
+        > - 📌 #10 🟡 **One change detector per page**: I recommend it; say go and a
+        >   worker will build it.
+        >
+        > needs input: say which of the recommended refactors to start, and decide the board's open cards
+
+        Finish this turn. Files and services are unreachable here, so write the
+        commands and any HTML edits you would use, followed by the short final reply.
+    assert:
+      - type: llm-rubric
+        metric: decisions-registered
+        value: |
+          Pass only if each of the three "Needs your decision" choices (pages
+          painting over Leaf's panels, how a page restyles Leaf's interface, how
+          installs get the kernel) and each of the two recommended refactors (grid
+          stack, change detector) becomes a registered user ask on the page before
+          handoff. The three choices each need an answering widget, optionally
+          framed by lf-ask, since a reply asking about one would settle a thread
+          question without deciding it; a refactor may also be asked in an agent
+          thread opened with a direct question. Each decision is answerable on its
+          own; one ask that accepts both recommended refactors together passes only
+          if it states why each is clear-cut. The answer reads canonical queues
+          with leaf page state after registering. Fail if any of these stays only
+          a board card, a chat open item, a needs-input line, or an invitation to
+          comment or drag. The landed z-index card and the measured polling card
+          stay informational, with no ask. Do not require exact wording, IDs, or a
+          particular choice widget.

@@ -114,7 +114,7 @@ def test_a_selected_ask_keeps_one_action_context_while_tab_reaches_its_field(
     url = serve(ASK_WITH_CONTEXT_PAGE)
     page = open_page(browser, url)
 
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     mark = page.locator("#storage-evict .lf-pick")
     line = shortcut_bar_text(page)
     # The Ask's own numbered actions are what the line offers, under the one context the
@@ -140,7 +140,7 @@ def test_a_selected_ask_keeps_one_action_context_while_tab_reaches_its_field(
     page.close()
 
     page = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     mark = page.locator("#storage-evict .lf-pick")
     box = page.locator("#storage-options > .lf-another leaf-text")
     page.keyboard.press("Tab")
@@ -183,7 +183,7 @@ def test_a_selected_ask_keeps_one_action_context_while_tab_reaches_its_field(
     page.close()
 
     page = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     page.keyboard.press("Tab")
     mark = page.locator("#storage-evict .lf-pick")
     expect(mark).to_be_focused()
@@ -221,7 +221,7 @@ def test_a_selected_ask_keeps_one_action_context_while_tab_reaches_its_field(
     # make none — under reduced motion `scrollBehavior()` is `instant`, both scrolls land
     # inside the press, and there is no settling frame for the presses below to race.
     page.emulate_media(reduced_motion="reduce")
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     covered = page.evaluate(clearance)
     assert covered < 0, f"the arrival left the add field {covered}px clear of the line"
     for _ in range(3):

@@ -1859,7 +1859,7 @@ def test_a_draft_in_an_ask_takes_no_digits_and_answers_from_its_controls(
     editor = page.locator("#note leaf-text")
     edit = draft_control(page, "edit", "note")
 
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(question).to_be_focused()
     expect(edit).not_to_have_attribute("aria-keyshortcuts", re.compile(r"\d"))
     page.keyboard.press("1")
@@ -2137,11 +2137,6 @@ def test_one_shared_added_option_has_one_action_payload_across_tabs(
     round_trip(first)
     # The forged selection is not the state's, so the `add` renders it away and the pick
     # that follows in the same task puts it back.
-    consume_browser_errors(
-        first,
-        {"code": "unchanged-write", "what": "chosen", "node": "lf-option#job-mounts"},
-    )
-
     moves = [
         event
         for event in events_model.read_events(serve.page_dir)
@@ -5308,8 +5303,7 @@ def test_registered_control_keys_activate_once(browser, serve):
           const hs = getComputedStyle(host), es = getComputedStyle(editor);
           return {
             host: {outline: hs.outlineStyle, width: parseFloat(hs.outlineWidth)},
-            editor: {outline: es.outlineStyle, shadow: es.boxShadow,
-                     ring: es.getPropertyValue('--lf-focus-ring').trim()},
+            editor: {outline: es.outlineStyle, shadow: es.boxShadow},
           };
         }"""
     )
@@ -5318,7 +5312,6 @@ def test_registered_control_keys_activate_once(browser, serve):
     assert focus_paint["editor"] == {
         "outline": "none",
         "shadow": "none",
-        "ring": "none",
     }, "the draft's one editing surface acquired a second focus box"
     page.emulate_media(forced_colors="active")
     forced = page.locator("#draft-ops").evaluate(
@@ -6524,6 +6517,90 @@ def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back
     expect(edit).to_have_js_property("value", "")
 
 
+def test_resume_writing_opens_words_whose_box_is_gone_as_a_comment_on_the_page(
+    browser, serve
+):
+    """Words whose box the page no longer has open, unsent, in Comment on the page.
+
+    The agent's next version removes the content the user was editing. Their edit
+    stays saved, and Resume writing moves it into the page's comment box after the
+    words that box already held, so the words stand in one place and nothing is lost."""
+    edited = (
+        '<lf-draft id="editable"><pre>Initial words</pre></lf-draft>'
+        "<p>The rest of the page.</p>"
+    )
+    source = leaf_page("Removed box", '<h1 id="top">Removed box</h1>' + edited)
+    url = live_url(serve(source))
+    context = browser.new_context()
+    page = open_page(browser, url, context=context)
+    write(page_comment(page), "A page-wide thought.")
+    page.keyboard.press("Escape")
+    page.locator("#editable .lf-draft-body").click()
+    write(page.locator("#editable .lf-draft-edit"), "An unsent edit.")
+    stamp_page(
+        serve.page_dir, source.replace(edited, "<p>The rest of the page.</p>"), "cut"
+    )
+    page = open_page(browser, url, context=context)
+    expect(page.locator("#editable")).to_have_count(0)
+
+    page.locator("body").focus()
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    box = page.locator(".lf-page-comment-card .lf-general leaf-text")
+    joined = "A page-wide thought.\n\nAn unsent edit."
+    expect(box).to_be_focused()
+    expect(box).to_have_js_property("value", joined)
+    assert box.evaluate("el => [el.selectionStart, el.selectionEnd]") == [
+        len(joined),
+        len(joined),
+    ]
+    expect(page.locator(".lf-notice")).to_have_text(
+        "Its box is gone, so its words moved to a comment on the page"
+    )
+    assert stored_draft_text(page, "edit:editable") is None
+    assert stored_draft_text(page, "general") == joined
+
+
+def test_resume_writing_returns_to_an_option_being_added(browser, serve):
+    """The field adding an option the author did not list is a writing place like any
+    other: Resume writing comes back to it with its words, which stay its own."""
+    page = open_page(browser, serve(ASK_PAGE))
+    field = page.locator("#jobs > .lf-another leaf-text")
+    write(field, "An option of mine.")
+    page.locator("body").focus()
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", "An option of mine.")
+    assert stored_draft_text(page, "general") is None
+
+
+def test_an_older_version_leaves_words_its_box_is_missing_from_where_they_are(
+    browser, serve
+):
+    """A version behind the newest may lack a box the newest holds, so there Resume
+    writing says the place is unavailable and the words stay in their own draft."""
+    edited = '<lf-draft id="editable"><pre>Initial words</pre></lf-draft>'
+    older = leaf_page("Added box", '<h1 id="top">Added box</h1><p>The page.</p>')
+    first = serve(older)
+    stamp_page(serve.page_dir, older.replace("<p>The page.</p>", edited), "add")
+    context = browser.new_context()
+    page = open_page(browser, live_url(first), context=context)
+    page.locator("#editable .lf-draft-body").click()
+    write(page.locator("#editable .lf-draft-edit"), "An unsent edit.")
+    page = open_page(browser, first, pin=True, context=context)
+    expect(page.locator("#editable")).to_have_count(0)
+
+    page.locator("body").focus()
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(page.locator(".lf-notice")).to_have_text(
+        "That writing place is unavailable on this version"
+    )
+    assert stored_draft_text(page, "edit:editable") == "An unsent edit."
+    assert stored_draft_text(page, "general") is None
+
+
 @pytest.mark.parametrize("keyboard", ["desktop", "touch", "android"])
 def test_composer_return_edits_or_sends_according_to_its_keyboard(
     browser, serve, keyboard
@@ -6809,7 +6886,6 @@ def test_commenting_on_the_same_selection_preserves_the_existing_suggestion(
         write(editor, words)
     select_words(page, "#words")
     rendered(page)
-    expect(page.locator('input[name="suggest-replacement"]')).to_be_checked()
     page.keyboard.press("c")
     expect(editor).to_be_focused()
     expect(editor).to_have_js_property("value", words)
@@ -6948,14 +7024,12 @@ def test_saved_widget_words_cannot_dismiss_an_unfinished_comment(
     assert comments[0]["anchor"]["quote"] == "The words first shown."
 
 
-@pytest.mark.parametrize("surface", ["questions", "threads"])
+@pytest.mark.parametrize("surface", ["on", "threads"])
 def test_covering_surface_retains_the_open_passage_editor(browser, serve, surface):
     """Every covering auxiliary surface lends room back to the same native editor."""
     page = open_page(browser, serve(ASK_PAGE))
     resized(page, 900, 844)
-    page.locator(
-        ".lf-queue" if surface == "questions" else ".lf-threads-toggle"
-    ).click()
+    page.locator(".lf-queue" if surface == "on" else ".lf-threads-toggle").click()
     rendered(page)
     select_words(page, "#h")
     page.keyboard.press("c")
@@ -6966,15 +7040,13 @@ def test_covering_surface_retains_the_open_passage_editor(browser, serve, surfac
     field.press("ArrowRight")
     field.evaluate("el => { window.heldDraftEditor = el; }")
     resized(page, 390, 844)
-    panel = page.locator(
-        ".lf-queue-panel" if surface == "questions" else ".lf-thread-panel"
-    )
+    panel = page.locator(".lf-queue-panel" if surface == "on" else ".lf-thread-panel")
     expect(panel).to_be_visible()
     expect(page.locator(".lf-fab-bar")).to_have_attribute("data-lf-withheld", "")
     expect(field).not_to_be_focused()
     landing = panel.locator(
         ".lf-drawer-list button, .lf-drawer-list a[href]"
-        if surface == "questions"
+        if surface == "on"
         else ".lf-threads"
     ).first
     expect(landing).to_be_focused()

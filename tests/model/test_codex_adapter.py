@@ -642,8 +642,16 @@ def test_a_new_codex_adapter_observes_ordinary_turns_without_a_prior_hook(
     )
 
 
-@pytest.mark.parametrize("invalid", ["old-format", "incomplete-correction"])
-def test_codex_drops_a_record_whose_delivery_it_cannot_read(page_dir, invalid):
+@pytest.mark.parametrize(
+    ("invalid", "raised", "says"),
+    [
+        ("old-format", Refused, "another page protocol"),
+        ("incomplete-correction", RuntimeError, "invalid envelope"),
+    ],
+)
+def test_codex_drops_a_record_whose_delivery_it_cannot_read(
+    page_dir, invalid, raised, says
+):
     append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "hello"}
     )
@@ -659,7 +667,7 @@ def test_codex_drops_a_record_whose_delivery_it_cannot_read(page_dir, invalid):
     else:
         payload["correction"] = {"delivery": "12345678"}
     cleanup_model.write_json(delivery_model.delivery_path(payload["id"]), payload)
-    with pytest.raises(RuntimeError, match="invalid envelope"):
+    with pytest.raises(raised, match=says):
         delivery_model.read_delivery(payload["id"])
     assert codex_model.delivery_records("handling-test") == []
 
@@ -1421,7 +1429,6 @@ def test_codex_tool_hook_delivers_into_the_running_turn_once(
     # Reading outside the owning task doesn't claim the user's input.
     monkeypatch.delenv("CODEX_THREAD_ID")
     delivery_model.cmd_delivery_read(path.stem)
-    capsys.readouterr()
     assert codex_records("codex-thread")[0][1]["state"] == "hook"
     monkeypatch.setenv("CODEX_THREAD_ID", "codex-thread")
     hooks_model.cmd_hook(
@@ -1434,12 +1441,9 @@ def test_codex_tool_hook_delivers_into_the_running_turn_once(
     )
     assert not capsys.readouterr().out
     assert len(codex_records("codex-thread")) == 1
-    delivery_model.cmd_delivery_read(path.stem)
+    read = delivery_model.cmd_delivery_read(path.stem)
     delivery_model.cmd_delivery_ack(path.stem)
-    assert (
-        json.loads(capsys.readouterr().out)["batches"][0]["events"][0]["id"]
-        == comment["id"]
-    )
+    assert read["batches"][0]["events"][0]["id"] == comment["id"]
     [pickup] = [
         event
         for event in events_model.read_events(page_dir)
@@ -1503,7 +1507,6 @@ def test_codex_hook_pointer_read_cannot_move_its_offer_to_a_newer_turn(
     delivery_model.cmd_delivery_read(path.stem)
     with pytest.raises(delivery_model.ReceiptRefused, match="receiving turn"):
         getattr(delivery_model, acknowledge)(path.stem)
-    capsys.readouterr()
     assert codex_records("codex-thread")[0][1]["state"] == "hook"
     assert not any(e["kind"] == "pickup" for e in events_model.read_events(page_dir))
 
@@ -1621,7 +1624,6 @@ def test_codex_resume_without_input_delivers_in_its_first_hook(
     assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
     delivery_model.cmd_delivery_read(path.stem)
     delivery_model.cmd_delivery_ack(path.stem)
-    capsys.readouterr()
     [pickup] = [e for e in events_model.read_events(page_dir) if e["kind"] == "pickup"]
     assert (pickup["phase"], pickup["turn"], pickup["events"]) == (
         "opened",
@@ -1750,7 +1752,6 @@ def test_a_page_claimed_mid_turn_keeps_its_first_comment_for_the_tool_hook(
     assert (record["state"], record["turn"]) == ("hook", "user-turn")
     delivery_model.cmd_delivery_read(path.stem)
     delivery_model.cmd_delivery_ack(path.stem)
-    capsys.readouterr()
     [pickup] = [
         event
         for event in events_model.read_events(page_dir)
@@ -2044,7 +2045,7 @@ def test_a_codex_tool_step_wins_a_queue_offer_based_on_stale_activity(
 
 @pytest.mark.parametrize("loss", ["transfer", "remove"])
 def test_a_codex_hook_read_survives_page_loss_after_offer(
-    page_dir, codex_loop, capsys, tmp_path, loss
+    page_dir, codex_loop, tmp_path, loss
 ):
     """A lost batch page cannot prevent receipt of the envelope's healthy sibling."""
     sibling = tmp_path / "sibling"
@@ -2073,10 +2074,9 @@ def test_a_codex_hook_read_survives_page_loss_after_offer(
         record_claim(page_dir, id="successor", harness="codex", agent="Codex")
     else:
         shutil.rmtree(page_dir)
-    delivery_model.cmd_delivery_read(path.stem)
+    envelope = delivery_model.cmd_delivery_read(path.stem)
     with pytest.raises(delivery_model.ReceiptRefused, match="no longer owns"):
         delivery_model.cmd_delivery_ack(path.stem)
-    envelope = json.loads(capsys.readouterr().out)
     assert {
         event["id"] for batch in envelope["batches"] for event in batch["events"]
     } == {comment["id"], resolved["id"]}

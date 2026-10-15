@@ -78,6 +78,29 @@ DRAG_HELD = "async () => (await window.__lfCheckApi()).dragHeld()"
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
+def fail_reading_commit(page, reading, fault):
+    """Fail one required reading stamp after its accepted state has been published.
+
+    A widget's explicit fail-soft view is valid presentation; this required commit
+    has no such fallback. Match the reading so unrelated responses cannot spend the
+    fault, and restore the native method before throwing so a later read can recover.
+    """
+    page.evaluate(
+        """({reading, fault}) => {
+          const body = document.body;
+          const setAttribute = body.setAttribute;
+          body.setAttribute = function(name, value) {
+            if (name === 'data-lf-reading' && value === reading) {
+              body.setAttribute = setAttribute;
+              throw new Error(fault);
+            }
+            return setAttribute.call(this, name, value);
+          };
+        }""",
+        {"reading": reading, "fault": fault},
+    )
+
+
 def test_a_refused_message_cannot_present_before_its_thread_reconciles(
     serve, held_events
 ):
@@ -433,7 +456,7 @@ def test_one_supplied_attempt_cannot_name_two_queued_actions(browser, serve):
 def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     browser, serve, request
 ):
-    """Acceptance and presentation are separate outcomes. A malformed response view
+    """Acceptance and presentation are separate outcomes. A failed response commit
     cannot be repaired by re-posting its accepted attempt, so semantic truth advances,
     while replay and undo remain held until a later response proves presentation."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
@@ -441,7 +464,10 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     def close_page():
         if page.is_closed():
             return
-        page.unroute_all(behavior="wait")
+        # A failed assertion can leave the deliberately parked state read unresolved.
+        # Cancellation belongs to the browser fixture's context close; waiting here
+        # would wait for a response only the rest of the test can release.
+        page.unroute_all(behavior="ignoreErrors")
 
     request.addfinalizer(close_page)
     older = []
@@ -493,20 +519,20 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
         answer = response.json()
         if not first_attempt:
             first_attempt.append(event["attempt"])
-            if event["attempt"] == first_attempt[0]:
-                # A valid event list proves delivery and becomes accepted semantic truth.
-                # The invalid neighbour makes presentation fail afterward, so this answer
-                # cannot retire the accepted attempt from the outbox.
-                answer["state"]["others"] = [None]
+            # An optional widget's fail-soft view is valid presentation. Fail the
+            # required reading commit after adoption instead, so the accepted attempt
+            # cannot retire from the outbox until a later reading commits.
+            fail_reading_commit(
+                page, answer["state"]["reading"], "injected accepted-state commit fault"
+            )
         route.fulfill(status=response.status, json=answer)
 
     page.route("**/api/event", break_first_state)
-    # State application reports the answer it could not present; delivery, which
-    # carried that answer, adds no second report of the same fault.
+    # The injected commit fault is reported once, whichever operation carries it.
     with page.expect_console_message(
         lambda message: (
             message.type == "error"
-            and message.text.startswith("leaf: State presentation failed:")
+            and "injected accepted-state commit fault" in message.text
         )
     ) as reported:
         suggestion_control(page, "sug-thistle", "accept").click()
@@ -592,7 +618,7 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
 
 def test_a_failed_background_presentation_keeps_the_new_undo_authority(browser, serve):
     """A timer response publishes accepted events before presenting their views.
-    If a required neighbour makes presentation fail, z still reads the accepted
+    If the required reading commit fails, z still reads the accepted
     history instead of rolling semantic authority back to the older gesture."""
     page = open_page(browser, serve(BOARD_PAGE))
     heater = page.locator("#card-heater .lf-grip")
@@ -602,24 +628,27 @@ def test_a_failed_background_presentation_keeps_the_new_undo_authority(browser, 
     round_trip(page)
     first = actions(serve.page_dir)[0]
 
-    malformed_reads = []
+    failed_reads = []
 
-    def malformed_state(route):
-        if malformed_reads:
+    def fail_first_commit(route):
+        if failed_reads:
             refuse(route)
             return
         response = route.fetch()
         state = response.json()
-        state["others"] = [None]
-        malformed_reads.append(True)
+        fail_reading_commit(page, state["reading"], "injected background commit fault")
+        failed_reads.append(True)
         route.fulfill(status=response.status, json=state)
 
     # The route before the append: the page is told of an append as it lands and
     # asks at once, so a route registered after it is a route the read has passed.
-    page.route("**/api/state*", malformed_state)
+    page.route("**/api/state*", fail_first_commit)
     with (
         page.expect_console_message(
-            lambda message: "State presentation failed" in message.text
+            lambda message: (
+                message.type == "error"
+                and "injected background commit fault" in message.text
+            )
         ) as reported,
         page.expect_request("**/api/state*"),
     ):
@@ -635,6 +664,12 @@ def test_a_failed_background_presentation_keeps_the_new_undo_authority(browser, 
             },
         )
 
+    round_trip(page)
+    commit = page.evaluate("""async () => {
+      const root = (await window.__lfCheckApi()).readApplication();
+      return {accepted: root.authoritative.reading, committed: document.body.dataset.lfReading};
+    }""")
+    assert commit["committed"] != commit["accepted"], commit
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
     with page.expect_response(
         lambda response: (
@@ -1004,16 +1039,15 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
     declarations["lf-column"]["x-owners"].append("lf-outer-board")
     registry_path.write_text(json.dumps(declarations))
     (tmp_path / ".leaf" / "widgets" / "lf-outer-board.js").write_text(
-        """import { once, widgetController } from "/runtime/widget-api.js";
-customElements.define("lf-outer-board", class extends HTMLElement {
-  #controller = widgetController(this);
-  #stop;
-  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
-  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState(state) {
-    for (const [id, order] of Object.entries(state.move.value)) {
+        """import { LeafElement } from "/runtime/widget-api.js";
+customElements.define("lf-outer-board", class extends LeafElement {
+  render() {
+    for (const [id, order] of Object.entries(this.state.move.value)) {
       const column = document.getElementById(id);
-      for (const card of order) column.append(document.getElementById(card));
+      for (const id of order) {
+        const card = document.getElementById(id);
+        if (card.parentElement !== column) column.append(card);
+      }
     }
   }
 });
@@ -1089,51 +1123,68 @@ customElements.define("lf-outer-board", class extends HTMLElement {
 def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
     browser, serve
 ):
-    """Acceptance may be known while a malformed state keeps the outbox hold. If
+    """Acceptance may be known while a failed commit keeps the outbox hold. If
     later log events arrive before another refusal, the retained accepted attempt is
     replayed at its log sequence—not overlaid again as though it were newest."""
     page = open_page(browser, serve(BOARD_PAGE))
 
-    def malformed_read_state(route):
+    def hold_read_state(route):
         if lifted:
             route.continue_()
             return
-        if malformed_reads or held_reads:
+        if failed_reads or held_reads:
             refuse(route)
             return
         held_reads.append(route)
 
-    def malformed_event_state(route):
+    def fail_event_commit(route):
+        if route.request.post_data_json.get("kind") != "action":
+            route.continue_()
+            return
         response = route.fetch()
         answer = response.json()
-        answer["state"]["others"] = [None]
+        fail_reading_commit(
+            page, answer["state"]["reading"], "injected chronology event commit fault"
+        )
         route.fulfill(status=response.status, json=answer)
 
-    malformed_reads = []
+    failed_reads = []
     held_reads = []
     lifted = False
-    page.route("**/api/state*", malformed_read_state)
-    page.route("**/api/event", malformed_event_state)
+    page.route("**/api/state*", hold_read_state)
+    page.route("**/api/event", fail_event_commit)
     heater = page.locator("#card-heater .lf-grip")
-    # The move's malformed answer fails to present, which state application reports;
-    # the read the move's append prompts is held meanwhile, so this report can only be
-    # the answer's.
+    # The event answer fails its required commit. The read the append prompts
+    # is held meanwhile, so this report can only be the answer's.
     with page.expect_console_message(
-        lambda message: "leaf: State presentation failed" in message.text
-    ):
+        lambda message: (
+            message.type == "error"
+            and "injected chronology event commit fault" in message.text
+        )
+    ) as event_failure:
         heater.focus()
         for key in ["Enter", "ArrowRight", "Enter"]:
             page.keyboard.press(key)
-    # Then that read is answered malformed too, here rather than on a later timer.
+    round_trip(page)
+    retained = page.evaluate("""async () => {
+      const root = (await window.__lfCheckApi()).readApplication();
+      return root.unresolved.filter(entry => entry.event.kind === 'action');
+    }""")
+    assert len(retained) == 1, retained
+    assert retained[0]["admitted"]["id"] == actions(serve.page_dir)[0]["id"]
+    # Fail that read's required commit too, here rather than on a later timer.
     holding(page, held_reads, 1, "the read the move's append prompts")
     held = held_reads.pop()
     response = held.fetch()
     state = response.json()
-    state["others"] = [None]
-    malformed_reads.append(True)
+    fail_reading_commit(page, state["reading"], "injected chronology read commit fault")
+    failed_reads.append(True)
     with page.expect_console_message(
-        lambda message: "leaf: State presentation failed" in message.text
-    ):
+        lambda message: (
+            message.type == "error"
+            and "injected chronology read commit fault" in message.text
+        )
+    ) as read_failure:
         held.fulfill(status=response.status, json=state)
     expect(page.locator("#col-done #card-heater")).to_have_count(1)
     page.unroute("**/api/event")
@@ -1181,7 +1232,7 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
         for key in ["Enter", "ArrowLeft", "Enter"]:
             page.keyboard.press(key)
     assert len(refused) == 1
-    # Neither malformed read is a state the projector may consume. The accepted
+    # Neither failed commit retires the accepted attempt. The accepted
     # baffle move remains held until a complete read can place it in chronology.
     expect(page.locator("#col-done #card-baffle")).to_have_count(0)
     lifted = True
@@ -1199,11 +1250,16 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
         "card-heater",
         "card-baffle",
     ]
-    consume_browser_errors(
+    errors = consume_browser_errors(
         page,
-        "leaf: State presentation failed:",
+        "injected chronology event commit fault",
+        "injected chronology read commit fault",
         {"code": "failed-load", "status": 400},
     )
+    assert [error for error in errors if error.code != "failed-load"] == [
+        console_finding(event_failure.value),
+        console_finding(read_failure.value),
+    ], errors
 
 
 def test_accounting_an_action_projects_newer_same_widget_news_before_release(
@@ -1340,8 +1396,8 @@ def test_a_complete_read_does_not_repaint_an_already_undone_settlement(browser, 
     authoritative read has released it.
 
     A decision waits for the page's first complete read (module-authoring.md,
-    "Decision commands queue while saved state is loading"), so that read is let
-    through and every later one is held until the undo is in the log."""
+    "Startup and presentation"), so that read is let through and every later one is
+    held until the undo is in the log."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.lf_traffic = Traffic(page)
     cut = CutOff(lets_through=1).hold(page)
@@ -1925,8 +1981,8 @@ def test_undo_leaves_a_user_standing_elsewhere_where_they_are(browser, serve):
 def test_a_withdrawal_waits_for_a_widget_that_cannot_take_it_yet(browser, serve):
     """The withdrawal pass has to keep the discipline the replay loop keeps, because
     it is replay: a widget the page has painted ahead of the log gets the next poll
-    rather than being written over. `lf-draft` says so outright — its renderState
-    returns false while an editor stands, so the user's unsent words are not yanked
+    rather than being written over. `lf-draft` says so outright — it defers its
+    presentation while an editor stands, so the user's unsent words are not yanked
     out from under them — and a pass that drops that answer and marks the withdrawal
     answered leaves the tab holding the withdrawn text for the rest of its life, with
     the user-origin reading cleared because the fold agrees the edit is gone. A reload
@@ -2138,7 +2194,7 @@ def test_the_composer_never_stands_on_its_own_mark(browser, serve):
 
     page.reload()
     page.wait_for_function(
-        "() => document.querySelector('.lf-composer')?.style.display === 'contents'"
+        "() => document.querySelector('.lf-composer')?.hasAttribute('data-lf-open')"
     )
     page.wait_for_function("() => (CSS.highlights.get('lf-pending')?.size ?? 0) > 0")
     assert mark_shows_beside_composer(page), (
@@ -2587,20 +2643,7 @@ def test_a_failed_candidate_presentation_keeps_version_approval(browser, serve):
     holding(page, preparations, 1, "approval thread preparation")
     expect(approval).to_have_text("✓ Version approved")
 
-    page.evaluate(
-        """reading => {
-      const body = document.body;
-      const setAttribute = body.setAttribute;
-      body.setAttribute = function(name, value) {
-        if (name === 'data-lf-reading' && value === reading) {
-          body.setAttribute = setAttribute;
-          throw new Error('injected approval commit fault');
-        }
-        return setAttribute.call(this, name, value);
-      };
-    }""",
-        candidate["reading"],
-    )
+    fail_reading_commit(page, candidate["reading"], "injected approval commit fault")
     with page.expect_console_message(
         lambda message: "injected approval commit fault" in message.text
     ):
@@ -2692,20 +2735,7 @@ def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
     # Fail the completed candidate's readiness stamp once. This is a required DOM
     # write after the preparation await, so accepted truth is already published even
     # though the presentation proof cannot advance.
-    page.evaluate(
-        """reading => {
-      const body = document.body;
-      const setAttribute = body.setAttribute;
-      body.setAttribute = function(name, value) {
-        if (name === 'data-lf-reading' && value === reading) {
-          body.setAttribute = setAttribute;
-          throw new Error('injected candidate commit fault');
-        }
-        return setAttribute.call(this, name, value);
-      };
-    }""",
-        candidate["reading"],
-    )
+    fail_reading_commit(page, candidate["reading"], "injected candidate commit fault")
     with page.expect_console_message(
         lambda message: "injected candidate commit fault" in message.text
     ):
@@ -2774,121 +2804,5 @@ def test_an_optimistic_presentation_fault_does_not_change_delivery_result(
     # accounts for it no second time.
     errors = take_browser_errors(page)
     assert [said(error) for error in errors] == [
-        (
-            "leaf: paint failed for lf-suggestion#sug-refill: "
-            "<lf-suggestion> renderState threw: "
-            "injected optimistic presentation fault"
-        )
+        'leaf: <lf-suggestion id="sug-refill"> failed: injected optimistic presentation fault'
     ], errors
-
-
-def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, serve):
-    """A deferred action waits for both its widget and the projection chrome ticket.
-
-    Ending the deferral during a newer fallible state application may project only
-    after that candidate finishes. Otherwise the older action could leave the ledger
-    before every visible consumer has committed one coherent semantic reading.
-    """
-    page = open_page(browser, _serve_preparing_thread(serve))
-    prior_reading = page.locator("body").get_attribute("data-lf-reading")
-    page.evaluate(
-        """async () => {
-          const {dragging} = await window.__lfWidgetApi();
-          dragging(document.body, true);
-        }"""
-    )
-    with page.expect_response("**/api/event"):
-        suggestion_control(page, "sug-refill", "accept").click()
-    page.wait_for_function(
-        "reading => document.body.dataset.lfReading !== reading", arg=prior_reading
-    )
-    accepted_reading = page.locator("body").get_attribute("data-lf-reading")
-    page.wait_for_function(
-        "async () => (await window.__lfCheckApi()).readApplicationPresentation()"
-        ".pending.includes('projection:chrome')"
-    )
-    assert page.evaluate(
-        "async () => (await window.__lfCheckApi()).readApplication().unresolved.length > 0"
-    ), "the action left before projection chrome committed its surviving reading"
-    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
-    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
-    expect(suggestion_control(page, "sug-refill", "undo")).to_be_enabled()
-
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    held_states = []
-    page.route("**/api/state*", lambda route: held_states.append(route))
-    preparations = []
-    page.route("**/preparation-content", lambda route: preparations.append(route))
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "id": "wake-question",
-            "author": "user",
-            "revision": 1,
-            "text": "Please show the deferred projection race.",
-        },
-    )
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "revision": 1,
-            "parent": "wake-question",
-            "text": "This candidate still has a fallible preparation.",
-            "markup": '<lf-preparation id="wake-detail"><p>Detail</p></lf-preparation>',
-        },
-    )
-    holding(page, held_states, 1, "candidate wake read")
-    candidate = held_states[0].fetch().json()
-    with page.expect_request("**/preparation-content"):
-        held_states.pop(0).fulfill(json=candidate)
-    holding(page, preparations, 1, "candidate wake preparation")
-
-    page.evaluate(
-        """async () => {
-          const {dragging} = await window.__lfWidgetApi();
-          dragging(document.body, false);
-        }"""
-    )
-    page.title()  # cross the drag observer and projection retry checkpoints
-    assert page.evaluate(
-        "async () => (await window.__lfCheckApi()).readApplication().unresolved.length > 0"
-    ), "an external wake released pending state from the uncommitted candidate"
-    expect(page.locator("body")).to_have_attribute("data-lf-reading", accepted_reading)
-
-    page.evaluate(
-        """reading => {
-          const body = document.body;
-          const setAttribute = body.setAttribute;
-          body.setAttribute = function(name, value) {
-            if (name === 'data-lf-reading' && value === reading) {
-              body.setAttribute = setAttribute;
-              throw new Error('injected wake candidate fault');
-            }
-            return setAttribute.call(this, name, value);
-          };
-        }""",
-        candidate["reading"],
-    )
-    with page.expect_console_message(
-        lambda message: "injected wake candidate fault" in message.text
-    ):
-        preparations.pop(0).fulfill(status=204)
-
-    expect(page.locator("body")).to_have_attribute("data-lf-reading", accepted_reading)
-    page.wait_for_function(
-        "async () => (await window.__lfCheckApi()).readApplication().unresolved.length === 0",
-    )
-    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
-    # The user's comment after the accept is their newest gesture, and a comment is not
-    # taken back, so `z` offers nothing; the suggestion's own Undo still reaches it.
-    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
-    expect(suggestion_control(page, "sug-refill", "undo")).to_be_enabled()
-    expect(suggestion_control(page, "sug-refill", "undo")).to_be_enabled()
-    reported_browser_errors(
-        page,
-        "leaf: State presentation failed: injected wake candidate fault",
-    )

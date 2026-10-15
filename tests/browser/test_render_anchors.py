@@ -209,7 +209,7 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
     )
     page.locator(".lf-fab-input").click()
     page.wait_for_function(
-        "() => document.querySelector('.lf-composer').style.display === 'contents'"
+        "() => document.querySelector('.lf-composer').hasAttribute('data-lf-open')"
     )
     quoted = composer_quote(page)["text"]
     assert quoted.strip("“”") == "In flight"
@@ -1151,7 +1151,7 @@ def test_the_captured_quote_is_prose_a_file_can_hold(browser, serve):
         page.locator(block).click(click_count=3)
         page.locator(".lf-fab-input").click()
         page.wait_for_function(
-            "() => document.querySelector('.lf-composer').style.display === 'contents'"
+            "() => document.querySelector('.lf-composer').hasAttribute('data-lf-open')"
         )
 
     # Read off the composer's description of its own anchor, which is the captured quote
@@ -1231,7 +1231,7 @@ def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
     page.locator("#q").click(click_count=3)
     page.locator(".lf-fab-input").click()
     page.wait_for_function(
-        "() => document.querySelector('.lf-composer').style.display === 'contents'"
+        "() => document.querySelector('.lf-composer').hasAttribute('data-lf-open')"
     )
 
     # The click that selected #q also scrolled it into view. Bring the other passage
@@ -1248,7 +1248,7 @@ def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
     page.locator("#p").click(click_count=3)
     page.locator(".lf-fab-input").click()
     page.wait_for_function(
-        "() => document.querySelector('.lf-composer').style.display === 'contents'"
+        "() => document.querySelector('.lf-composer').hasAttribute('data-lf-open')"
     )
     page.mouse.click(*mark_point(page, "lf-pending"))
     assert not page.locator(".lf-thread-panel").evaluate(
@@ -1335,14 +1335,14 @@ def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
         }).observe(document, {subtree:true, attributes:true,
           attributeFilter:['data-lf-presented']});""",
     )
-    expect(page.locator(".lf-chrome > .lf-code-copy")).to_have_count(2)
+    expect(page.locator(".lf-chrome .lf-code-copy")).to_have_count(2)
     assert page.evaluate("window.copyAtPresentation") == 1
     page.evaluate(
         "window.detachedCodeSource = document.querySelector('#source'); detachedCodeSource.remove()"
     )
-    expect(page.locator(".lf-chrome > .lf-code-copy")).to_have_count(1)
+    expect(page.locator(".lf-chrome .lf-code-copy")).to_have_count(1)
     page.evaluate("document.querySelector('main').append(detachedCodeSource)")
-    expect(page.locator(".lf-chrome > .lf-code-copy")).to_have_count(2)
+    expect(page.locator(".lf-chrome .lf-code-copy")).to_have_count(2)
     page.locator("#source").focus()
     assert "copy code" in shortcut_bar_text(page)
     page.keyboard.press("Tab")
@@ -1380,7 +1380,7 @@ def test_code_copy_reads_sources_before_positioning_many_controls(browser, serve
           });
         })()""",
     )
-    expect(page.locator(".lf-chrome > .lf-code-copy")).to_have_count(60)
+    expect(page.locator(".lf-chrome .lf-code-copy")).to_have_count(60)
     events = page.evaluate("window.copyPlacementEvents")
     assert events.count("read") >= 60
     assert "write" in events
@@ -1406,7 +1406,7 @@ def test_code_copy_leaves_the_window_with_its_hidden_source(browser, serve, hold
     )
     page = open_page(browser, url)
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
-    controls = page.locator(".lf-chrome > .lf-code-copy")
+    controls = page.locator(".lf-chrome .lf-code-copy")
     expect(controls).to_have_count(100)
     control = controls.first
     expect(page.locator("#source")).to_be_hidden()
@@ -1468,7 +1468,7 @@ def test_code_copy_releases_only_its_own_scroll_stop(browser, serve):
         live_url(serve(leaf_page("Code stop", markup))),
     )
     pre = page.locator("#source")
-    control = page.locator(".lf-chrome > .lf-code-copy")
+    control = page.locator(".lf-chrome .lf-code-copy")
     expect(control).to_have_count(1)
     assert pre.evaluate("el => el.scrollWidth > el.clientWidth")
     pre.evaluate("(el, text) => el.replaceChildren(text)", source)
@@ -3663,7 +3663,7 @@ def test_a_changed_block_shows_an_inline_diff_against_the_base_version(browser, 
     # Page Map carries the same provenance on each changed-passage row. The account
     # stays distinct from the versions, and both remain searchable away from the passage.
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     sheet = page.get_by_role("dialog", name="Page Map", exact=True)
     mapped = sheet.locator('[data-lf-map-item^="change:"]').filter(has_text="v1 → v2")
     expect(mapped).to_have_count(5)

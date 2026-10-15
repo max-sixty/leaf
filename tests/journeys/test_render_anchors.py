@@ -345,7 +345,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     expect(page.locator("#draft > .lf-code-copy")).to_have_count(1)
     controls = page.locator(".lf-code-copy:not(#draft > *)")
     expect(controls).to_have_count(3)
-    document_controls = page.locator(".lf-chrome > .lf-code-copy")
+    document_controls = page.locator(".lf-chrome .lf-code-copy")
     expect(document_controls).to_have_count(2)
     expect(page.locator("#colored")).to_have_attribute("tabindex", "0")
     expect(page.locator("#colored")).to_have_attribute("aria-keyshortcuts", "Enter")
@@ -520,7 +520,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     # A finger shows no intent before it lands, so the corner control stays hidden, and
     # out of a press's way, until a tap stands the user on the block: the touch form of
     # hover.
-    touch_control = touch.locator(".lf-chrome > .lf-code-copy")
+    touch_control = touch.locator(".lf-chrome .lf-code-copy")
     touch_button = touch_control.get_by_role("button")
     expect(touch_control).to_have_count(1)
     expect(touch_control).to_have_css("opacity", "0")
@@ -592,7 +592,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
           range.setStart(text, text.length - suffix.length);
           range.setEnd(text, text.length);
           const rect = range.getBoundingClientRect();
-          const copy = document.querySelector('.lf-chrome > .lf-code-copy');
+          const copy = document.querySelector('.lf-chrome .lf-code-copy');
           const hit = document.elementFromPoint(rect.right - 2, rect.top + rect.height / 2);
           return {covered: hit === copy || copy.contains(hit),
                   suffix: range.toString(),

@@ -1,7 +1,13 @@
-# A wait revives its server, reports recovery on stderr, and delivers input.
+# A wait revives its server, notes the recovery, and delivers input.
 # The URL's dynamic port and access token are represented by <served-url>.
 
 exit: 0
 
-stderr: |
-  <page>: server had died; restarted at <served-url>
+stderr:
+  - code: server-restarted
+    severity: advice
+    values:
+      page: <page>
+      url: <served-url>
+    text: >-
+      <page>: server had died; restarted at <served-url>

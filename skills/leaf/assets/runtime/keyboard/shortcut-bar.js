@@ -50,7 +50,7 @@
    are announced because the revealed hint chips themselves remain visual. When there is
    no additional current row, the first activation opens the reference directly. The
    native control also opens it directly. */
-import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
+import { html, nothing, render } from "/vendor/browser-runtime.js";
 
 import {
   activeRows,
@@ -72,7 +72,7 @@ import {
   rowSteps,
 } from "./key-sequence.js";
 import { el } from "../widget-elements.js";
-import { keeps, keepsHidden } from "../keeps.js";
+import { keeps } from "../keeps.js";
 import { lineOwner, shadow, stack, executeCommand } from "./dispatch.js";
 import { scopeIdentity } from "./scopes.js";
 
@@ -142,10 +142,10 @@ const bottomStatusTemplate = (model) => html`
   >
 `;
 
+// Hint cells carry no local state. More keeps its native node after the list, while
+// each cell draws the current command scene regardless of declaration identity.
 const shortcutBarTemplate = (model) =>
-  html`${repeat(
-      model.items,
-      (item) => item.key,
+  html`${model.items.map(
       (item) => html`
         <span
           class=${`lf-shortcut${item.sequenceControl ? " lf-sequence-command" : ""}`}
@@ -177,15 +177,12 @@ const shortcutBarTemplate = (model) =>
     }`;
 
 let bottomStatusContext = EMPTY_STATUS_CONTEXT;
-let placeBottomStatus = null;
 const renderBottomStatus = () => {
   const model = Object.freeze({
     ...bottomStatusContext,
     notice: noticeReading(),
   });
   render(bottomStatusTemplate(model), bottomStatusEl);
-  // Feedback reaches its geometry owner before this turn can paint it.
-  placeBottomStatus?.();
 };
 renderBottomStatus();
 render(shortcutBarTemplate(EMPTY_BAR), shortcutBarEl);
@@ -225,14 +222,6 @@ declareWindowChrome(bottomChromeBoxes, [shortcutBarEl, bottomStatusEl]);
 // page's ordinary digit meaning without hiding the option row's other keys.
 const sourceRows = new WeakMap();
 const sourceRow = (row) => sourceRows.get(row) ?? row;
-const rowPresentationKeys = new WeakMap();
-let nextRowPresentationKey = 1;
-const rowPresentationKey = (row) => {
-  const source = sourceRow(row);
-  if (!rowPresentationKeys.has(source))
-    rowPresentationKeys.set(source, nextRowPresentationKey++);
-  return rowPresentationKeys.get(source);
-};
 const effectiveRow = (row, declared, active) => {
   if (active.length === declared.length) return row;
   const routes = commandRoutes(row).filter((route) => active.includes(route.binding));
@@ -347,7 +336,7 @@ registerBannerControl({
   control: keyboardSettings,
   rank: BANNER_CONTROL_RANK.keyboard,
   seat: "menu",
-  row: { label: "Keyboard shortcuts", shortcut: "?", group: "page" },
+  row: { label: "Keyboard shortcuts", shortcut: ["?"], group: "page" },
 });
 // The first `?` expands the bar where the bar is drawn; where it is not, under the
 // floating panel or a finger, there is nothing to expand, and `?` opens the reference.
@@ -442,7 +431,6 @@ export function renderShortcutBar(goToStatus) {
     const states = inSequence ? progressStates(steps, sequence) : neutralStates(steps);
     const active = bindings(row);
     return Object.freeze({
-      key: rowPresentationKey(row),
       sequenceControl: Boolean(row.sequenceControl),
       sequence: keySequenceModel(steps, states),
       said: lineOf(row),
@@ -495,9 +483,9 @@ export function renderShortcutBar(goToStatus) {
   const [status] = expanded ? [] : fixedStatusBoxes();
   const reserved = status ? status.width + gap : 0;
   // Which rows fit is worked out from widths the line already has, not by showing a row
-  // to see whether it wraps: a row the line leaves keeps its width out of flow
-  // (chrome.css), so every row is measured where it stands and each `hidden` and the
-  // status room are written once, to the value they end at. The line breaks as flex-wrap
+  // to see whether it wraps: a row the line leaves (`data-lf-off-line`) keeps its width
+  // out of flow (chrome.css), so every row is measured where it stands and each row's
+  // place and the status room are written once, to the value they end at. The line breaks as flex-wrap
   // breaks it: a box joins the row while it and the gap before it still fit.
   const outer = (node) => {
     const style = getComputedStyle(node);
@@ -560,20 +548,14 @@ export function renderShortcutBar(goToStatus) {
   const room = reserved && rowsUsed(reserved) > ceiling ? 0 : reserved;
   shortcutBarEl.style.setProperty("--lf-status-room", `${room}px`);
   for (const { presentation, span } of drawn)
-    keepsHidden(span, presentation.hidden || trimmed.has(span));
+    span.toggleAttribute("data-lf-off-line", presentation.hidden || trimmed.has(span));
 }
 
 const shortcutBarExpanded = () => shortcutBarIsExpanded && shortcutHelpAvailable();
 
 // Boot supplies the two transient interactions More closes. The bar renderer and its
 // reference rows never import those command owners to draw their current declarations.
-export function mountShortcutBar({
-  setGoToSequence,
-  setReact,
-  placeBottomStatus: place,
-}) {
-  placeBottomStatus = place;
-  placeBottomStatus();
+export function mountShortcutBar({ setGoToSequence, setReact }) {
   activateShortcutMore = () => {
     setGoToSequence(false);
     setReact(false);

@@ -7,10 +7,10 @@
 # column where an Ask keeps the measure.
 description: sidebar-page-ask-grants-its-evidence-room
 metadata:
-  purpose: 'Asks: on a sidebar page, an Ask holding a table it turns on takes data-width, and one of words alone does not.'
+  purpose: "Asks: on a sidebar page, an Ask holding a table it turns on takes data-width, and one of words alone does not."
   tags:
-  - asks
-  - layout
+    - asks
+    - layout
 vars:
   prompt: |
     You are writing a Leaf release dashboard, `<main class="layout-sidebar">`, that
@@ -35,13 +35,13 @@ vars:
     The page directory is not reachable from here, so reply with the section's HTML
     fragment rather than writing a file.
 assert:
-- type: llm-rubric
-  metric: ask-widths
-  value: |
-    Read the HTML. Pass only if the timing evidence the timeout question turns on (a
-    table or a chart) gets more than the prose's width: data-width="wide" or
-    data-width="available" on the lf-ask about the timeout, or on the table or chart
-    inside that lf-ask. The lf-ask about which team owns the follow-up, and everything
-    in it, carries no data-width. Fail if neither the timeout Ask nor its evidence
-    carries data-width, if the evidence sits outside the Ask without it, or if the width
-    is set through page CSS.
+  - type: llm-rubric
+    metric: ask-widths
+    value: |
+      Read the HTML. Pass only if the timing evidence the timeout question turns on (a
+      table or a chart) gets more than the prose's width: data-width="wide" or
+      data-width="available" on the lf-ask about the timeout, or on the table or chart
+      inside that lf-ask. The lf-ask about which team owns the follow-up, and everything
+      in it, carries no data-width. Fail if neither the timeout Ask nor its evidence
+      carries data-width, if the evidence sits outside the Ask without it, or if the width
+      is set through page CSS.

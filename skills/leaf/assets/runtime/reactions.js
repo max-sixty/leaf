@@ -76,6 +76,8 @@ import { anchorLabel } from "./thread/messages.js";
 import { reactionsAt, tokenChoices } from "./thread/model.js";
 import { allThreads, readThreads } from "./thread/state.js";
 import { watchProjection } from "./projection-watch.js";
+import { annotationSelection } from "./annotation-inventory.js";
+import { readPart } from "./semantic-state.js";
 
 const reactionVocabulary = () => registry.$reactions?.tokens ?? {};
 // The layer's reaction vocabulary, in declared order. The bar, a reply's strip, the
@@ -572,7 +574,15 @@ export function createReactionController({
     document.addEventListener("lf-margin-entry-options-closed", () => {
       if (reactArmed && reactSurface === marginSurface) setReact(false);
     });
+    // The margin's entries are drawn from the threads and the annotation inventory, so a
+    // change to either may retire or move the offer's target. This reads the margin's
+    // nodes, which the watcher cannot track, so it reads those parts itself.
+    const margin = readPart((root) => ({
+      threads: root.effective.thread.all,
+      annotations: annotationSelection(root),
+    }));
     watchProjection(document.body, () => {
+      margin();
       if (
         reactArmed &&
         reactSurface === marginSurface &&
@@ -598,9 +608,7 @@ export function createReactionController({
       `Open reactions — ${reactionTokens()
         .slice(0, 9)
         .map(([name, entry]) => `${entry.glyph} ${name}`)
-        .join(
-          ", ",
-        )} — for the selection, the item I'm standing on, or the reply I'm reading`,
+        .join(", ")} — for the selection, the focused item, or the open reply`,
     title: "reactions",
     // Reachable from a reply in a Threads panel covering the page, as `c` is; under a
     // covering surface the page's own targets are out of reach.
@@ -649,5 +657,5 @@ export const undoSentence = (undoable) => {
   const event = undoable();
   return event?.token
     ? `Undo: ${event.token} reaction on ${reactionPlace(event)}`
-    : "Undo my latest update";
+    : "Undo the latest update";
 };

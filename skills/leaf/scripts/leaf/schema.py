@@ -362,19 +362,6 @@ EXTENSION_SCHEMA = {
         # A default height in CSS pixels, or `true` for a widget that has none and
         # reserves only what an occurrence's data-height states.
         "x-height": {"oneOf": [{"const": True}, {"type": "integer", "minimum": 1}]},
-        # Child selectors, each matched inside the element, for the painted boxes that
-        # draw its own face: a margin pin whose target is the element may stand on them.
-        # Only a light-DOM child by tag and classes, so a malformed selector is refused
-        # here rather than throwing in the browser's layout pass.
-        "x-face": {
-            "type": "array",
-            "items": {
-                "type": "string",
-                "pattern": r"^:scope > (?:[a-z][a-z0-9-]*(?:\.[A-Za-z_][\w-]*)*|(?:\.[A-Za-z_][\w-]*)+)$",
-            },
-            "minItems": 1,
-            "uniqueItems": True,
-        },
         "x-history": {"const": True},
         # A captured classic bundle registering one synchronous DOM producer. Delivery
         # runs it after each occurrence closes; the module adopts its existing nodes.
@@ -567,6 +554,10 @@ ATTRIBUTE_KEYS = (
 # page's flow and on `main` or `body` would size the page itself; `declared`, an element
 # whose tag declares the mark, since a stated height reserves room for a module's
 # drawing and a block no module draws into would be clipped to it for good.
+# `paints` names a value painted as an attribute of its own, with no value, rather than
+# as a value of `paint`: the column is a cap on a box read as lines of text, unlike the
+# room past it that `wide` and `available` grant, so `data-lf-column` marks it and
+# `data-lf-space` means a breakout wherever it stands.
 # `message` says
 # whether the mark holds in a thread's message too:
 # each is the element's own fact wherever it renders, except the room and the margin
@@ -587,6 +578,7 @@ DECLARED_MARKS = {
     "x-verbatim": {"paint": "data-lf-verbatim", "message": True},
     "x-space": {
         "paint": "data-lf-space",
+        "paints": {"column": "data-lf-column"},
         "authored": "data-width",
         "authored_on": "content",
         "message": False,
@@ -614,6 +606,8 @@ DECLARED_MARKS = {
 SKILL_ROOT = Path(__file__).resolve().parent.parent.parent
 PLUGIN_ROOT = SKILL_ROOT.parent.parent
 ASSETS = SKILL_ROOT / "assets"
+# The kernel compiled from ASSETS's modules, committed beside them (`layer.current_kernel`).
+KERNEL = SKILL_ROOT / "kernel"
 BUNDLED_PACKAGES = SKILL_ROOT / "packages"
 DEFAULT_PACKAGE = BUNDLED_PACKAGES / "default"
 VENDORED_FILES = ("leaf.js", "theme.css", "shadow.css", "registry.json", "icon.svg")
@@ -654,7 +648,7 @@ DATA_FILE = "data.json"
 FILE_BINDINGS_FILE = "files.json"
 DATA_DIR = "data"
 # The diagnostic request and interaction trace (`interaction_log.py`).
-INTERACTIONS_FILE = "interactions.jsonl"
+INTERACTIONS_FILE = "observations.jsonl"
 PREVIEW_FILE = "preview.json"
 VIEWED_FILE = "viewed.json"
 USER_VIEWS_FILE = "user-views.json"

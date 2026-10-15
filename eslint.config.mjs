@@ -32,6 +32,7 @@ const browserGlobals = Object.fromEntries(
     "CSS",
     "CSSImportRule",
     "CSSKeyframesRule",
+    "CSSLayerBlockRule",
     "CSSScopeRule",
     "CSSStyleRule",
     "CSSStyleSheet",
@@ -347,7 +348,17 @@ export const semanticStoreOwnershipRule = {
         });
         return false;
       }
-      return /(?:^|\/)vendor\/browser-runtime\.js$/u.test(source.value);
+      if (!/(?:^|\/)vendor\/browser-runtime\.js$/u.test(source.value)) return false;
+      // The type check maps the facade's served path to the framework's source; a
+      // relative path reaches the compiled facade, whose types are blanked, so what a
+      // module imports through it goes unchecked (`build/browser/build.mjs`, `typecheck`).
+      if (source.value.startsWith("."))
+        context.report({
+          node: source,
+          message:
+            "Import the browser framework's facade by its served path, /vendor/browser-runtime.js.",
+        });
+      return true;
     };
     const report = (node) =>
       context.report({
@@ -682,6 +693,38 @@ export const openLayersRule = {
   },
 };
 
+// A script moves a box through the scroll owners: a reveal through landing-scroll.js's
+// `scrollIntoView`, bounded `within` the one box that may move, an end through
+// `scrollToEnd` and a relative move through `moveScrollerBy` (scrolling.js). A sum
+// written into `scrollTop` or `scrollLeft` is how a reveal is hand-rolled, with its own
+// reading of the band and the edge, so the rule refuses every assignment to either; a
+// script that sets an offset outright says so with `scrollTo`, instantly. The option
+// names the files that may still assign one.
+const scrollWritesRule = {
+  meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
+  create(context) {
+    const file = path
+      .relative(repoRoot, context.filename ?? context.getFilename())
+      .split(path.sep)
+      .join("/");
+    if ((context.options[0] ?? []).includes(file)) return {};
+    return {
+      AssignmentExpression({ left }) {
+        if (
+          left.type === "MemberExpression" &&
+          !left.computed &&
+          ["scrollTop", "scrollLeft"].includes(left.property.name)
+        )
+          context.report({
+            node: left,
+            message:
+              "Reveal with scrollIntoView(node, {block, within}) from runtime/landing-scroll.js, or move with scrollToEnd or moveScrollerBy (runtime/scrolling.js), rather than assigning a scroll offset.",
+          });
+      },
+    };
+  },
+};
+
 // A node that already stands somewhere moves through `move(parent, node, before)`
 // (runtime/dom-move.js), or `setChildren` beside it, which keeps the user's focus, caret
 // and native state in it; a plain insertion takes the node out first, which blurs it.
@@ -968,6 +1011,7 @@ const architecturePlugin = {
     "semantic-store-ownership": semanticStoreOwnershipRule,
     "standing-listeners": standingListenersRule,
     placements: placementsRule,
+    "scroll-writes": scrollWritesRule,
     "standing-reads": standingReadsRule,
     "open-layers": openLayersRule,
     moves: movesRule,
@@ -1283,7 +1327,9 @@ export default [
       ".venv/**",
       "examples/corpus.html",
       "skills/leaf/assets/vendor/**",
+      "skills/leaf/kernel/**",
       "skills/leaf/packages/*/vendor/**",
+      "evals/ui-review-detection/fixtures/**",
     ],
   },
   { linterOptions: { noInlineConfig: true } },
@@ -1357,14 +1403,17 @@ export default [
     rules: { "no-undef": "error" },
   },
   {
-    files: ["dev/leaf_dev/startup.js", "dev/leaf_dev/bench_latency.js"],
+    files: ["dev/leaf_dev/startup.js", "dev/leaf_dev/commands/bench_latency.js"],
     languageOptions: { globals: browserGlobals, sourceType: "script" },
     rules: { "no-undef": "error" },
   },
   {
     // Browser diagnostics resolve published runtime entries from the page under
     // test. Those scoped URLs are data rather than static dependency edges.
-    files: ["dev/leaf_dev/verify_site_browser.js", "dev/leaf_dev/bench_latency.js"],
+    files: [
+      "dev/leaf_dev/commands/verify_site_browser.js",
+      "dev/leaf_dev/commands/bench_latency.js",
+    ],
     languageOptions: { globals: browserGlobals, sourceType: "script" },
     rules: {
       "no-undef": "error",
@@ -1460,7 +1509,6 @@ export default [
   },
   {
     files: ["skills/leaf/assets/**/*.js", "skills/leaf/packages/*/**/*.js"],
-    ignores: ["skills/leaf/assets/vendor/**", "skills/leaf/packages/*/vendor/**"],
     languageOptions: { globals: browserGlobals },
     rules: { "no-undef": "error" },
   },
@@ -1468,11 +1516,7 @@ export default [
     // The settled reading answers only for the rendering callbacks and size observers it
     // counts, so the layer and its packages reach both through runtime/rendering.js.
     files: ["skills/leaf/assets/**/*.js", "skills/leaf/packages/*/**/*.js"],
-    ignores: [
-      "skills/leaf/assets/vendor/**",
-      "skills/leaf/packages/*/vendor/**",
-      "skills/leaf/assets/runtime/rendering.js",
-    ],
+    ignores: ["skills/leaf/assets/runtime/rendering.js"],
     rules: {
       "no-restricted-globals": [
         "error",
@@ -1482,7 +1526,6 @@ export default [
   },
   {
     files: ["skills/leaf/assets/**/*.js", "skills/leaf/packages/*/**/*.js"],
-    ignores: ["skills/leaf/assets/vendor/**", "skills/leaf/packages/*/vendor/**"],
     plugins: { architecture: architecturePlugin },
     rules: {
       "architecture/standing-listeners": [
@@ -1521,6 +1564,18 @@ export default [
         [
           // The owner.
           "skills/leaf/assets/runtime/shadow-tree.js",
+        ],
+      ],
+      "architecture/scroll-writes": [
+        "error",
+        [
+          // Restores, each returning a box to an offset it held: a carried node's in
+          // its replacement, the adopted message body's, and CodeMirror's own view.
+          "skills/leaf/assets/runtime/carry.js",
+          "skills/leaf/assets/runtime/annotation-overlay/thread-preview.js",
+          "skills/leaf/packages/file-editor/widgets/editor.js",
+          // The trace's time axis is its scroll offset, which it sets and then expects.
+          "skills/leaf/packages/playwright/widgets/timeline.js",
         ],
       ],
       "architecture/layer-returns": [
@@ -1656,7 +1711,6 @@ export default [
     // block's, so all of them stand in this one list, and the history owners' block
     // below repeats the others.
     files: ["skills/leaf/assets/**/*.js", "skills/leaf/packages/*/**/*.js"],
-    ignores: ["skills/leaf/assets/vendor/**", "skills/leaf/packages/*/vendor/**"],
     rules: {
       "no-restricted-properties": [
         "error",

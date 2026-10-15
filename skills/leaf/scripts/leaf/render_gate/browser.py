@@ -43,6 +43,8 @@ import signal
 from contextlib import contextmanager
 from pathlib import Path
 
+from leaf.machine import sandbox_remedy
+
 VARIABLE = "LEAF_BROWSER_EXECUTABLE"
 VARIABLES = (VARIABLE, "CHROME_PATH", "CHROME_BIN")
 
@@ -223,7 +225,13 @@ def ending(browser):
 
 
 def browser_hint() -> str:
-    """The line the gate appends when the launch failed."""
+    """The line the gate appends when the launch failed.
+
+    Inside an agent's sandbox the browser is not what is missing: Claude Code's
+    macOS sandbox refuses Chrome the Mach service its processes meet at, and Codex's
+    ends it as it starts, so the line says where to run the check instead."""
+    if remedy := sandbox_remedy():
+        return f"The browser cannot start here: {remedy}."
     if named := named_executable():
         name, executable = named
         return f"{name} named {executable}."
@@ -233,6 +241,6 @@ def browser_hint() -> str:
             "launched."
         )
     return (
-        f"This host has no installed Chrome and none of {', '.join(COMMANDS)} on "
-        f"PATH; {' or '.join(VARIABLES)} names one."
+        f"No installed Chrome launched and none of {', '.join(COMMANDS)} is on "
+        f"PATH; {' or '.join(VARIABLES)} names a browser."
     )

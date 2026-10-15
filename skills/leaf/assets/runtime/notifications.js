@@ -25,7 +25,10 @@ let showingBackground = null;
 const waitingBackground = [];
 let userContext = false;
 let userHoldTimer = 0;
-let noticePresentation = Object.freeze({ message: "", visible: false });
+// What the seat says, whether it shows, and whether it is news arriving (`background`)
+// rather than the answer to something the user did.
+/** @type {Readonly<{message: string, visible: boolean, news: boolean}>} */
+let noticePresentation = Object.freeze({ message: "", visible: false, news: false });
 const noticePresenters = new Set();
 
 export const noticeReading = () => noticePresentation;
@@ -46,8 +49,8 @@ export function registerNoticePresentation(invalidate) {
 const presentAll = () => {
   for (const invalidate of noticePresenters) invalidate();
 };
-const presentNotice = (message, visible) => {
-  noticePresentation = Object.freeze({ message, visible });
+const presentNotice = (message, visible, news = false) => {
+  noticePresentation = Object.freeze({ message, visible, news });
   if (visible) presentAll();
   else afterScript(presentAll);
 };
@@ -67,7 +70,7 @@ export function announce(msg) {
 // foot. A sentence that is also a button for four seconds is a target
 // the user cannot learn.
 function showNotice(msg, background = null) {
-  presentNotice(msg, true);
+  presentNotice(msg, true, Boolean(background));
   showingBackground = background;
   clearTimeout(noticeTimer);
   noticeTimer = setTimeout(() => {

@@ -57,7 +57,6 @@ import { shownScheme } from "../color-scheme.js";
 import { pageCommand, pageRung, pageScope } from "../keyboard/register.js";
 import {
   DRAWING_COORDINATE_LIMIT,
-  DRAWING_FORMAT,
   MAX_DRAWING_POINTS,
   MAX_DRAWING_STROKES,
   MAX_DRAWING_SAYS_LENGTH,
@@ -282,7 +281,6 @@ export function createDrawingController({
   function drawingOf(strokes, frame, reference) {
     const { clientWidth, clientHeight } = document.documentElement;
     return {
-      format: DRAWING_FORMAT,
       strokes,
       box: [rounded(frame.width), rounded(frame.height)],
       ...(reference && { frame: reference }),

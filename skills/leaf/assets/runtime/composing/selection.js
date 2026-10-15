@@ -3,8 +3,9 @@
    The selection composer keeps its passage painted after an explicit Comment gesture
    moves focus into the field. Automatic passage selection leaves the native
    selection in place. Its `.lf-composer` wrapper contributes state and draft machinery
-   through `display: contents`; only `.lf-fab-input` draws. `showComposer` states the
-   whole visible outcome from `composerOpen`, `pendingAnchor`, and `fabAnchor`.
+   through `display: contents`; only `.lf-fab-input` draws. `showComposer` states
+   whether it is open through `data-lf-open`; the shared response stylesheet derives
+   its field and bar's visible shape from that and the surface's target-only state.
    Reopening the same passage resumes its words, seed, and modes; omitted modes
    initialize only a new passage, while explicit options restore a stored record.
    `openComposer`'s `focus` option decides focus independently. Outside clicks and
@@ -57,7 +58,8 @@ import { bindQueuedWork } from "../queued-work.js";
 import { closestAcross, elementById, inChrome } from "../passages.js";
 
 import { notice } from "../notifications.js";
-import { sentDrawing, validDrawing } from "./drawing-record.js";
+import { sentDrawing } from "./drawing-record.js";
+import { recordFormat } from "../protocol.js";
 import { commitPoint } from "../pointed-place.js";
 import { beginWalk, listWalkPosition } from "../walk-position.js";
 import { textField } from "./text-field.js";
@@ -109,13 +111,6 @@ composer.id = "lf-composer";
 // without the class it answers that question with itself.
 export const composerQuote = el("blockquote", "lf-ui lf-quote detached");
 composerQuote.id = "lf-composer-quote";
-// Suggestion mode: the box holds replacement text for the quoted passage
-// instead of a remark — Claude accepts it verbatim into the next version.
-const suggestRow = el("label", "lf-suggest-row");
-const suggestCheck = document.createElement("input");
-suggestCheck.type = "checkbox";
-suggestCheck.name = "suggest-replacement";
-suggestRow.append(suggestCheck, document.createTextNode("Suggest replacement text"));
 // The page-anchored composer is the extended Comment control itself. The hidden
 // composer node keeps the draft's controls and quote description, while this field
 // stays in the response bar and never jumps to a second box.
@@ -131,7 +126,7 @@ const composerSend = el("button", "lf-btn", "Comment");
 // field before then reads its words and draft, which it holds unconnected.
 const composerField = document.createDocumentFragment();
 composerField.append(composerInput);
-composer.append(composerQuote, suggestRow, composerSend);
+composer.append(composerQuote, composerSend);
 fabBar.prepend(composer);
 
 export let pendingAnchor = null;
@@ -188,15 +183,19 @@ export function createSelectionComposer({
   // draft follows an identified subject across a data replacement as `sameAnchor` does;
   // reopened on the re-minted anchor, it posts that anchor, the rendering last aimed at.
   const COMPOSER_KEY = "composer:";
+  const DRAFT_FORMAT = recordFormat("draft");
   const composerCtx = (anchor) => COMPOSER_KEY + anchorKey(anchor);
   let syncComposer;
   let pendingRevision = null;
+  // The draft owns its mode; the response action and editor hint present it.
+  let suggestionMode = false;
   const composerDraftValue = (text = syncComposer.value()) =>
     JSON.stringify({
+      format: DRAFT_FORMAT,
       text,
       anchor: pendingAnchor,
       revision: pendingRevision,
-      suggest: suggestCheck.checked,
+      suggest: suggestionMode,
       about: pendingAbout,
       drawing: pendingDrawing,
       touched: Date.now(),
@@ -217,6 +216,9 @@ export function createSelectionComposer({
     try {
       record = JSON.parse(stored);
       if (!Number.isInteger(record?.revision)) record = null;
+      // Another protocol's draft keeps its words, which are only text, and loses its
+      // drawing, whose shape this runtime may not draw.
+      else if (record.format !== DRAFT_FORMAT) record = { ...record, drawing: null };
     } catch {
       record = null;
     }
@@ -226,8 +228,7 @@ export function createSelectionComposer({
   // The drawing a passage's draft holds, whether or not its box is up: putting the box
   // away keeps the draft, strokes included.
   const draftDrawing = (anchor) => {
-    const drawing = composerRecord(composerCtx(anchor))?.drawing;
-    return validDrawing(drawing) ? drawing : null;
+    return composerRecord(composerCtx(anchor))?.drawing ?? null;
   };
   // Every passage's draft that holds a drawing, box up or not: each is ink the user drew
   // and has neither sent nor taken back, so the page shows all of it. `open` says the
@@ -239,7 +240,7 @@ export function createSelectionComposer({
       if (!ctx.startsWith(COMPOSER_KEY)) continue;
       const record = composerRecord(ctx);
       const drawing = ctx === at ? pendingDrawing : record?.drawing;
-      if (!record || !validDrawing(drawing)) continue;
+      if (!record || !drawing) continue;
       held.push({ anchor: record.anchor, drawing, open: composerOpen && ctx === at });
     }
     return held;
@@ -259,7 +260,7 @@ export function createSelectionComposer({
     const record = composerRecord(ctx);
     if (!record) return;
     if (!record.text && !drawing) clearDraft(ctx);
-    else saveDraft(ctx, JSON.stringify({ ...record, drawing }));
+    else saveDraft(ctx, JSON.stringify({ ...record, format: DRAFT_FORMAT, drawing }));
   }
   // News of any passage's draft, whose ink the page shows whether or not its box is up.
   const watchHeldDrawings = (callback) => watchDrafts(COMPOSER_KEY, callback);
@@ -270,10 +271,7 @@ export function createSelectionComposer({
     for (const ctx of draftContexts()) {
       if (!ctx.startsWith(COMPOSER_KEY)) continue;
       const record = composerRecord(ctx);
-      if (
-        (record?.text || validDrawing(record?.drawing)) &&
-        (!best || record.touched > best.touched)
-      )
+      if ((record?.text || record?.drawing) && (!best || record.touched > best.touched))
         best = record;
     }
     return best;
@@ -294,11 +292,7 @@ export function createSelectionComposer({
   // half of it. The placeholder itself is wireInput's to paint, from the box's hint;
   // syncComposer asks for that paint.
   function syncSuggestMode() {
-    // A suggestion is replacement text for a passage of the page; a remark about the
-    // layer proposes no words, whatever it quotes.
-    suggestRow.style.display =
-      pendingAnchor?.quote && !pendingAbout && !pendingDrawing ? "flex" : "none";
-    const suggest = !suggestCheck.checked;
+    const suggest = !suggestionMode;
     responseAction(fabSuggest, {
       icon: suggest ? "edit" : "comment",
       label: suggest ? "Suggest" : "Comment",
@@ -311,16 +305,16 @@ export function createSelectionComposer({
     repaint(); // the submit action says which of the two the box will do
   }
   function setSuggestionMode(suggest) {
-    suggestCheck.checked = Boolean(suggest);
-    if (suggestCheck.checked && syncComposer.hasMedia()) {
-      suggestCheck.checked = false;
+    suggestionMode = Boolean(suggest);
+    if (suggestionMode && syncComposer.hasMedia()) {
+      suggestionMode = false;
       syncSuggestMode();
       notice("Remove attached images before suggesting replacement text");
       focusDestination(composerInput, "return");
       return;
     }
     // Entering suggestion mode seeds the box with the passage to edit in place.
-    if (suggestCheck.checked && !syncComposer.value() && pendingAnchor?.quote)
+    if (suggestionMode && !syncComposer.value() && pendingAnchor?.quote)
       syncComposer.load((seededQuote = pendingAnchor.quote));
     syncSuggestMode();
     saveComposerDraft();
@@ -430,7 +424,6 @@ export function createSelectionComposer({
     composerOpen = open;
     // The wrapper contributes no card or box. Its field is the extended Comment
     // control inside the response bar; the other composer controls stay hidden there.
-    composer.style.display = open ? "contents" : "none";
     composer.toggleAttribute("data-lf-open", open);
     // An explicit Comment gesture focuses the field and drops the native selection, so
     // this mark then becomes the durable pointer to the quoted passage. Automatic passage
@@ -455,8 +448,8 @@ export function createSelectionComposer({
     pendingAnchor = anchor;
     pendingRevision = revision;
     pendingAbout = about ?? null;
-    pendingDrawing = validDrawing(drawing) ? drawing : null;
-    suggestCheck.checked = Boolean(suggest);
+    pendingDrawing = drawing ?? null;
+    suggestionMode = Boolean(suggest);
     return retargeted;
   }
   // A new passage defaults to the mode current at the open — a composer opened in
@@ -502,10 +495,7 @@ export function createSelectionComposer({
       // A drawing marks its own passage, so a draft holding one stays where it is, as
       // its words do with it (`carryComposerToReply` says the same of a reply).
       const carrying =
-        carry &&
-        previousText &&
-        !previousDrawing &&
-        !(record?.text || validDrawing(record?.drawing));
+        carry && previousText && !previousDrawing && !(record?.text || record?.drawing);
       if (carrying) {
         text ||= previousText;
         carriedDraft = true;
@@ -517,7 +507,7 @@ export function createSelectionComposer({
       anchor: anchor || null,
       revision,
       text: text || syncComposer.value(),
-      suggest: suggest === undefined ? suggestCheck.checked : suggest,
+      suggest: suggest === undefined ? suggestionMode : suggest,
       about: about === undefined ? pendingAbout : about,
       drawing: previousCtx !== ctx ? storedDrawing : pendingDrawing,
     });
@@ -530,7 +520,7 @@ export function createSelectionComposer({
     // The box takes up the passage's draft as it stands, and its history starts there; a
     // drawing the gesture brings is a change to that draft, which the history holds.
     if (previousCtx !== ctx) syncComposer.arrive();
-    if (drawingSupplied) pendingDrawing = validDrawing(drawing) ? drawing : null;
+    if (drawingSupplied) pendingDrawing = drawing ?? null;
     // Chromium may collapse the native page Selection before dispatching the field's
     // focus event. Mark the handoff before showing the surface so that an intermediate
     // selectionchange cannot dismiss the durable passage this composer is opening on.
@@ -608,7 +598,7 @@ export function createSelectionComposer({
     composerWatch = null;
     syncComposer.load(""); // the whole draft, so an attached image does not outlive its send
     seededQuote = "";
-    suggestCheck.checked = false;
+    suggestionMode = false;
     pendingAnchor = null;
     pendingRevision = null;
     pendingAbout = null;
@@ -634,7 +624,7 @@ export function createSelectionComposer({
       ctx &&
       text &&
       !loadDraft(ctx) &&
-      !suggestCheck.checked &&
+      !suggestionMode &&
       !pendingAbout &&
       !pendingDrawing &&
       !syncComposer.hasMedia()
@@ -689,17 +679,15 @@ export function createSelectionComposer({
     declareResponseOptionKeys();
     syncComposer = wireInput(composerInput, {
       hint: () =>
-        suggestCheck.checked
+        suggestionMode
           ? "Replacement text"
           : pendingAbout
             ? "About the layer"
             : "Comment…",
-      sends: () => (suggestCheck.checked ? "suggest" : "comment"),
+      sends: () => (suggestionMode ? "suggest" : "comment"),
       sendBtn: composerSend,
       allowsMedia: () =>
-        suggestCheck.checked
-          ? "Images can be added to comments, not replacement text"
-          : true,
+        suggestionMode ? "Images can be added to comments, not replacement text" : true,
       hasContent: holdsContent,
       save: saveComposerDraft,
       drawing: {
@@ -713,7 +701,7 @@ export function createSelectionComposer({
         const anchor = structuredClone(pendingAnchor);
         const revision = pendingRevision;
         const ctx = composerCtx(anchor);
-        const suggestion = suggestCheck.checked;
+        const suggestion = suggestionMode;
         const about = pendingAbout;
         const drawing = pendingDrawing && sentDrawing(structuredClone(pendingDrawing));
         // The accepted comment becomes a thread, drawn as a card beside the passage unless
@@ -787,8 +775,7 @@ export function createSelectionComposer({
         }
       },
     });
-    suggestCheck.onchange = () => setSuggestionMode(suggestCheck.checked);
-    fabSuggest.onclick = () => setSuggestionMode(!suggestCheck.checked);
+    fabSuggest.onclick = () => setSuggestionMode(!suggestionMode);
     onStanding((node) => {
       if (node && responseOptionsOpen && !fabBar.contains(node))
         setResponseOptions(false);

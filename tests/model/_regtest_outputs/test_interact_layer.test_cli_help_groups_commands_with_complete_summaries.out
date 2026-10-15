@@ -19,7 +19,7 @@ Commands:
   response  Reply to an update by the reference its delivery gave.
   server    Start, run, or stop the local server.
   status    Say the page waits on its user, or is done.
-  task      Open or end to-dos, and start work on your Tasks.
+  task      Open or end to-dos, and start work on your list.
   thread    Open, answer, edit, summarize, or resolve a thread.
   wait      Confirm a delivery, if given, then wait for the next batch.
 

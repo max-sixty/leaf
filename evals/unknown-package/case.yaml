@@ -3,8 +3,8 @@ description: Unknown Package
 metadata:
   purpose: Discover an unfamiliar package and use its declared widget interface.
   tags:
-  - workflow
+    - workflow
   conditions:
-  - leaf
+    - leaf
   executor: leaf_dev.usability_eval
   scenario: package

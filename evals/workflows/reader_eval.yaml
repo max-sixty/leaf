@@ -10,19 +10,21 @@ cases:
     inputs:
       total: 8
     assert:
-    - type: not-agent-rubric
-      metric: count-defect-detected
-      value: Open every screenshot the output lists. A region with its own scroll shows only
-        its first screen, so count the cards at a width that shows the whole board. Pass only
-        if the page's displayed total of open defects equals the number of defect cards on the
-        board.
+      - type: not-agent-rubric
+        metric: count-defect-detected
+        value:
+          Open every screenshot the output lists. A region with its own scroll shows only
+          its first screen, so count the cards at a width that shows the whole board. Pass only
+          if the page's displayed total of open defects equals the number of defect cards on the
+          board.
   clean:
     inputs:
       total: 7
     assert:
-    - type: agent-rubric
-      metric: count-control-accepted
-      value: Open every screenshot the output lists. A region with its own scroll shows only
-        its first screen, so count the cards at a width that shows the whole board. Pass only
-        if the page's displayed total of open defects equals the number of defect cards on the
-        board.
+      - type: agent-rubric
+        metric: count-control-accepted
+        value:
+          Open every screenshot the output lists. A region with its own scroll shows only
+          its first screen, so count the cards at a width that shows the whole board. Pass only
+          if the page's displayed total of open defects equals the number of defect cards on the
+          board.

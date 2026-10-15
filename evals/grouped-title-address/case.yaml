@@ -3,7 +3,7 @@
 # rather than relying on a pixel offset or making eyebrow text part of the heading.
 description: grouped-title-address
 metadata:
-  purpose: 'Stable anchors: a title and its eyebrow share one addressed group.'
+  purpose: "Stable anchors: a title and its eyebrow share one addressed group."
   tags:
     - authoring
     - navigation
@@ -34,7 +34,8 @@ variants:
   status-label:
     description: grouped-title-address/status-label
     metadata:
-      purpose: A status and date above a new title uses the shared label idiom without an
+      purpose:
+        A status and date above a new title uses the shared label idiom without an
         explicit class request.
     vars:
       prompt: >-

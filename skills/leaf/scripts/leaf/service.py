@@ -31,7 +31,6 @@ from leaf.machine import pid_alive, sandbox_remedy, state_home
 from leaf.refusals import Refused
 from leaf.schema import STATUS_FILE
 from leaf.state import (
-    CLAIMED_SUFFIX,
     EVENTS_FILE,
     chat_exists,
     ensure_session,
@@ -39,7 +38,7 @@ from leaf.state import (
     fsync_parents,
     now_iso,
     page_key,
-    session_file,
+    session_claims,
     session_lock_path,
     session_record,
     write_json,
@@ -62,11 +61,6 @@ def delivery_reply_attempt(delivery_id: str) -> str:
 def claim_path(page_dir: Path) -> Path:
     """The page's one canonical payload, also written by resident page servers."""
     return state_home().resolve() / "claims" / f"{page_key(page_dir)}.json"
-
-
-def session_claims(session_id: str) -> Path:
-    """This session's discovery locators; payloads remain canonical by page."""
-    return state_home().resolve() / "claims" / session_file(session_id, "claims").stem
 
 
 def publish_claim(page_dir: Path, claim: dict) -> None:
@@ -367,9 +361,6 @@ class PageTransaction:
             previous = self.claim
             yield previous, projected
             publish_claim(self.page_dir, claim)
-            # Lets Codex's tool hook skip a session that never held a page
-            # (`state.hook_needed`).
-            session_file(claim["id"], CLAIMED_SUFFIX).touch()
 
     def restore_claim(self, expected: dict, previous: dict | None) -> None:
         """Roll back one failed claim without erasing a successor's."""

@@ -27,7 +27,6 @@ import {
   createThreadLanding,
   createVersionController,
   declareThreadKeys,
-  fab,
   fabBar,
   fabInput,
   inPageOrder,
@@ -2302,9 +2301,6 @@ function createResponseSurface({
   }
   function paintFab() {
     fabBar.toggleAttribute("data-lf-target-only", Boolean(fabAnchor && !composerOpen));
-    fabBar.style.display = fabAnchor ? "var(--lf-response-display, inline-flex)" : "none";
-    fabInput.style.display = fabAnchor && composerOpen ? "block" : "none";
-    fab.style.display = fabAnchor ? "" : "none";
     composer.syncResponseOptions(fabAnchor);
     if (!fabAnchor) return;
     const label2 = anchorLabel(fabAnchor, pendingAbout).replace(/^§\s*/, "");
@@ -6207,7 +6203,6 @@ var LiveLeavesList = class extends RetainedFace {
   configure(control) {
     if (this.#face) throw new Error("Leaves presentation is already configured");
     this.#face = document.createElement(FACE_TAG);
-    this.#face.style.display = "contents";
     control.append(this.#face);
   }
   commit() {
@@ -7518,8 +7513,6 @@ function createFloatingPanel({
         sent: () => {
           landAtEnd = { key, after: outletOf()?.childElementCount ?? 0 };
           waiting = null;
-          const top = trail.at(-1);
-          if (top?.view === "thread") rooms.delete(routeKey(top));
           queueMicrotask(paint);
         }
       });
@@ -7720,54 +7713,48 @@ function createFloatingPanel({
       coming: keys2.filter(
         (key) => message(key)?.ephemeral || message(key)?.provisional
       ),
-      extent: view.scrollHeight
+      extent: view.scrollHeight,
+      height: view.clientHeight
     };
-    const lastTurn = (drawn2) => drawn2.map(message).findLast((each) => each && !each.ephemeral);
     const answerIn = (drawn2) => {
-      const turn = drawn2.findLastIndex((key) => {
+      const turn2 = drawn2.findLastIndex((key) => {
         const each = message(key);
         return each?.author === "user" && !each.ephemeral;
       });
-      return turn < 0 ? null : { turn: drawn2[turn], keys: drawn2.slice(turn + 1) };
+      return turn2 < 0 ? null : { turn: drawn2[turn2], keys: drawn2.slice(turn2 + 1) };
     };
-    const room = routeKey(top);
-    const fresh = before ? keys2.filter((key) => !before.keys.includes(key)) : [];
     const answer = answerIn(keys2);
     const asked2 = before && answerIn(before.keys);
-    if (answer?.keys.length && asked2?.turn === answer.turn && asked2.keys.every((key) => before.coming.includes(key)) && answer.keys.every((key) => message(key)?.author === "agent") && rooms.has(room)) {
-      if (view.scrollHeight <= before.extent + 0.5) return;
-      const atEnd = view.scrollTop + view.clientHeight >= before.extent - 1;
-      if (!waiting && atEnd && view.scrollHeight - before.extent <= view.clientHeight) {
-        view.scrollTop = view.scrollHeight;
-        return;
-      }
-      const reply = answer.keys.find((key) => !message(key).ephemeral);
-      const next = reply ? { key: top.thread, message: reply, label: "New reply" } : { key: top.thread, message: answer.keys[0], label: "New update" };
-      if (waiting?.message !== next.message) {
-        const extent = !waiting && atEnd ? view.scrollHeight : null;
-        waiting = next;
-        paint();
-        if (extent !== null) {
-          view.scrollTop += view.scrollHeight - extent;
-          placed = view.scrollTop;
-        }
-      }
+    if (!answer?.keys.length || asked2?.turn !== answer.turn || !asked2.keys.every((key) => before.coming.includes(key)) || !answer.keys.every((key) => message(key)?.author === "agent"))
+      return;
+    if (view.scrollHeight <= before.extent + 0.5) return;
+    const atEnd = view.scrollTop + before.height >= before.extent - 1;
+    const turn = outlet.querySelector(
+      `.lf-msg[data-message="${CSS.escape(answer.turn)}"]`
+    );
+    const pad = Number.parseFloat(getComputedStyle(view).paddingTop);
+    const from = () => turn.getBoundingClientRect().top - view.getBoundingClientRect().top - pad;
+    if (!waiting && atEnd && view.scrollHeight - view.scrollTop - from() <= view.clientHeight) {
+      view.scrollTop = view.scrollHeight;
       return;
     }
-    if (fresh.length && !waiting && rooms.delete(room)) {
-      paint();
-      return;
-    }
-    if (lastTurn(keys2)?.author === "user" && !rooms.has(room)) {
-      rooms.set(room, view.offsetHeight);
-      paint();
-    }
+    const reply = answer.keys.find((key) => !message(key).ephemeral);
+    const next = reply ? { key: top.thread, message: reply, label: "New reply" } : { key: top.thread, message: answer.keys[0], label: "New update" };
+    if (waiting?.message === next.message) return;
+    const arriving = !waiting;
+    waiting = next;
+    paint();
+    if (!arriving || !atEnd) return;
+    const foot = view.querySelector(".lf-fp-foot")?.getBoundingClientRect();
+    const below = foot ? turn.getBoundingClientRect().bottom - foot.top : 0;
+    const by = Math.min(Math.max(below, 0), from());
+    if (Math.abs(by) < 0.5) return;
+    view.scrollTop += by;
+    placed = view.scrollTop;
   }
   function showAnswer() {
-    const top = trail.at(-1);
     const answer = waiting;
     waiting = null;
-    if (top) rooms.delete(routeKey(top));
     paint();
     const view = openView();
     if (view) focusDestination(view, "move");
@@ -8195,7 +8182,7 @@ function createFloatingPanel({
     const thread = threadByKey(key);
     if (!thread)
       return html`<p class="lf-fp-empty">This thread is not on the page.</p>`;
-    return html`<div class="lf-fp-messages lf-fp-outlet"></div>
+    return html`<div class="lf-fp-messages lf-fp-outlet" data-lf-reflow="append"></div>
       ${waiting?.key === key ? html`<div class="lf-fp-foot">
               <button type="button" class="lf-fp-new-reply" @click=${showAnswer}>
                 ${iconTemplate("down", "lf-action-icon")}${waiting.label}
@@ -8606,6 +8593,7 @@ function createFloatingPanel({
             data-view=${route.view}
             data-thread=${shows(route) ?? nothing}
             ?data-lf-thread-view=${shows(route) !== null}
+            ?data-lf-rises=${route.view === "thread"}
             ${ref(declareView)}
             style=${rooms.has(routeKey(route)) ? `height: ${rooms.get(routeKey(route))}px` : nothing}
             ?data-leaving=${route === leaving}
@@ -10136,7 +10124,6 @@ var face = (control, initial, room) => {
   owner.room = room;
   owner.model = initial;
   owner.commit();
-  owner.style.display = "contents";
   control.append(owner);
   return owner;
 };
@@ -11497,8 +11484,7 @@ function createDesignMode({
 
 // runtime/chrome-layout.js
 function createChromeLayout({
-  panelIsOpen: panelIsOpen2,
-  elements: { panel: panel2, closeBtn: closeBtn2, panelFoot: panelFoot2, threadsBox: threadsBox2, shortcutBarEl: shortcutBarEl2, bottomStatusEl: bottomStatusEl2 },
+  elements: { panel: panel2, closeBtn: closeBtn2, panelFoot: panelFoot2, shortcutBarEl: shortcutBarEl2, bottomStatusEl: bottomStatusEl2 },
   scheduleThreadPreviewPosition,
   syncAuxiliarySurfaces,
   syncReactLayout,
@@ -11507,7 +11493,6 @@ function createChromeLayout({
   repaint: repaint2,
   repaintPage: repaintPage2
 }) {
-  const panelCovers = () => panelIsOpen2() && !standsBeside();
   function syncLayout() {
     restateEdges();
     layOut();
@@ -11516,10 +11501,6 @@ function createChromeLayout({
     syncLayoutRegion();
     scheduleResidency();
     scheduleThreadPreviewPosition?.();
-    const sideLive = standsBeside() && rightCover() !== Infinity;
-    const panelRoom = (sideLive ? sideEdge.width() : 0) + "px";
-    shortcutBarEl2.style.setProperty("--lf-shortcut-bar-right", panelRoom);
-    bottomStatusEl2.style.setProperty("--lf-shortcut-bar-right", panelRoom);
     const panelLeft = standsBeside() ? rightCover() : Infinity;
     const railCovered = [
       ...document.querySelectorAll(".lf-margin-projection .lf-margin-cluster")
@@ -11527,26 +11508,7 @@ function createChromeLayout({
       (row) => !row.classList.contains("lf-withheld") && row.getBoundingClientRect().right > panelLeft
     );
     panel2.closest(".lf-chrome")?.toggleAttribute("data-lf-rail-covered", railCovered);
-    syncBottomStatus();
     syncFloats();
-  }
-  function syncBottomStatus() {
-    let occupied = panelFoot2.getBoundingClientRect().height;
-    if (panelCovers() && bottomStatusEl2.checkVisibility()) {
-      const list = threadsBox2.getBoundingClientRect();
-      const padding = parseFloat(getComputedStyle(threadsBox2).paddingBottom);
-      for (const reply of threadsBox2.querySelectorAll(
-        ":scope > .lf-thread[open] > .lf-thread-reply"
-      )) {
-        const box = reply.getBoundingClientRect();
-        if (reply.checkVisibility())
-          occupied = Math.max(
-            occupied,
-            layoutWindow().bottom - list.bottom + padding + box.height
-          );
-      }
-    }
-    bottomStatusEl2.style.setProperty("--lf-panel-foot-h", `${occupied}px`);
   }
   function syncFloats() {
     if (syncReactLayout()) return;
@@ -11595,7 +11557,6 @@ function createChromeLayout({
   });
   return {
     syncLayout,
-    syncBottomStatus,
     mountLayoutObservers
   };
 }
@@ -12425,9 +12386,7 @@ var bottomStatusTemplate = (model) => html`
     >${model.notice.message || nothing}</span
   >
 `;
-var shortcutBarTemplate = (model) => html`${repeat(
-  model.items,
-  (item) => item.key,
+var shortcutBarTemplate = (model) => html`${model.items.map(
   (item) => html`
         <span
           class=${`lf-shortcut${item.sequenceControl ? " lf-sequence-command" : ""}`}
@@ -12452,14 +12411,12 @@ var shortcutBarTemplate = (model) => html`${repeat(
             ></span
           >` : nothing}`;
 var bottomStatusContext = EMPTY_STATUS_CONTEXT;
-var placeBottomStatus = null;
 var renderBottomStatus = () => {
   const model = Object.freeze({
     ...bottomStatusContext,
     notice: noticeReading()
   });
   render(bottomStatusTemplate(model), bottomStatusEl);
-  placeBottomStatus?.();
 };
 renderBottomStatus();
 render(shortcutBarTemplate(EMPTY_BAR), shortcutBarEl);
@@ -12482,14 +12439,6 @@ var bottomChromeBoxes = () => [...boxesOf([shortcutBarEl]), ...fixedStatusBoxes(
 declareWindowChrome(bottomChromeBoxes, [shortcutBarEl, bottomStatusEl]);
 var sourceRows = /* @__PURE__ */ new WeakMap();
 var sourceRow = (row) => sourceRows.get(row) ?? row;
-var rowPresentationKeys = /* @__PURE__ */ new WeakMap();
-var nextRowPresentationKey = 1;
-var rowPresentationKey = (row) => {
-  const source = sourceRow(row);
-  if (!rowPresentationKeys.has(source))
-    rowPresentationKeys.set(source, nextRowPresentationKey++);
-  return rowPresentationKeys.get(source);
-};
 var effectiveRow = (row, declared, active) => {
   if (active.length === declared.length) return row;
   const routes = commandRoutes(row).filter((route2) => active.includes(route2.binding));
@@ -12643,7 +12592,6 @@ function renderShortcutBar(goToStatus) {
     const states = inSequence ? progressStates(steps, sequence) : neutralStates(steps);
     const active = bindings(row);
     return Object.freeze({
-      key: rowPresentationKey(row),
       sequenceControl: Boolean(row.sequenceControl),
       sequence: keySequenceModel(steps, states),
       said: lineOf(row),
@@ -12718,13 +12666,7 @@ function renderShortcutBar(goToStatus) {
     span.toggleAttribute("data-lf-off-line", presentation.hidden || trimmed.has(span));
 }
 var shortcutBarExpanded = () => shortcutBarIsExpanded && shortcutHelpAvailable();
-function mountShortcutBar({
-  setGoToSequence,
-  setReact,
-  placeBottomStatus: place2
-}) {
-  placeBottomStatus = place2;
-  placeBottomStatus();
+function mountShortcutBar({ setGoToSequence, setReact }) {
   activateShortcutMore = () => {
     setGoToSequence(false);
     setReact(false);
@@ -13674,12 +13616,10 @@ regionCapture = createRegionCapture({
   openComposerWithMedia: responseSurface.openComposerWithMedia
 });
 layout = createChromeLayout({
-  panelIsOpen,
   elements: {
     panel,
     closeBtn,
     panelFoot,
-    threadsBox,
     shortcutBarEl,
     bottomStatusEl
   },
@@ -13864,7 +13804,6 @@ if (!offlineInteractive) {
   layout.mountLayoutObservers();
   goToSequence.mountGoToSequence();
   mountShortcutBar({
-    placeBottomStatus: layout.syncBottomStatus,
     setGoToSequence: goToSequence.setGoToSequence,
     setReact: reactions.setReact
   });

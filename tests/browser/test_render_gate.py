@@ -1137,10 +1137,9 @@ def test_replay_findings_keep_the_throw_site(browser, serve):
     page = open_page(browser, serve(SHORT_SUGGESTION))
     page.evaluate("""async () => {
       const {validationWidgetStates} = await window.__lfCheckApi();
-      const widget = validationWidgetStates().find(s => s.widget?.renderState).widget;
-      window.restoreReplay = () => { widget.renderState = original; };
-      const original = widget.renderState;
-      widget.renderState = function replayProjection() { throw new TypeError('replay rejected'); };
+      const widget = validationWidgetStates().find(s => s.widget?.redraw).widget;
+      window.restoreReplay = () => { delete widget.render; };
+      widget.render = function replayProjection() { throw new TypeError('replay rejected'); };
     }""")
     try:
         findings = render_checks_model.evaluate_probe(page, "relativeReplays")
@@ -1929,13 +1928,10 @@ def _author_stateful_verbatim_widget(tmp_path):
         "});\n"
     )
     (tmp_path / ".leaf" / "widgets" / "lf-stateful.js").write_text(
-        'import { keepsText, once, widgetController } from "/runtime/widget-api.js";\n'
-        'customElements.define("lf-stateful", class extends HTMLElement {\n'
-        "  controller = widgetController(this);\n"
-        "  stop;\n"
-        "  connectedCallback() { once(this); this.stop ??= this.controller.subscribe(() => {}); }\n"
-        "  disconnectedCallback() { this.stop?.(); this.stop = null; }\n"
-        "  renderState(state) {\n"
+        'import { LeafElement, keepsText } from "/runtime/widget-api.js";\n'
+        'customElements.define("lf-stateful", class extends LeafElement {\n'
+        "  render() {\n"
+        "    const { state } = this;\n"
         '    if (state.change.value === "corrupt" || state.status.value === "corrupt")\n'
         '      keepsText(this.closest("lf-shell")?.querySelector(":scope > p")'
         ' ?? this.querySelector("p"), "State replaced unrelated prose.");\n'

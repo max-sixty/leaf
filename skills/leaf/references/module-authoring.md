@@ -35,8 +35,9 @@ Preact Signals it exports `signal`, for private state a command's `when` reads
 
 ## What a behavior module owes
 
-- Upgrade once with `once()`, and hold each connection's listeners, observers and
-  registrations in `whileConnected` ("Upgrade", "Connection lifetimes").
+- Build once, in a widget's `setup()` or behind `once()` in any other element, and
+  hold each connection's listeners, observers and registrations in `whileConnected`
+  ("Upgrade", "Connection lifetimes").
 - Check `quoted()` before wiring anything that sends input back ("Upgrade").
 - Read the page's words with `says()` or `wrote()`, never `textContent`
   (`module-reading.md`, "Reading the page").
@@ -55,10 +56,13 @@ Preact Signals it exports `signal`, for private state a command's `when` reads
 
 ## Upgrade
 
-Start `connectedCallback` with `if (!once(this)) return;`. `once(this)` is true only on
-the element's first connection, so the widget is never built twice. Use
+A widget extends `LeafElement` and builds itself in `setup()`, which runs once, on the
+element's first connection ("Drawing what a widget reads"). Any other custom element
+starts `connectedCallback` with `if (!once(this)) return;`: `once(this)` is true only on
+the element's first connection, so the element is never built twice. Use
 `disconnectedCallback` only for teardown that must happen at once, such as cancelling a
-grab or removing hoisted UI, and hold everything else in `whileConnected`.
+grab or removing hoisted UI, and hold everything else in `whileConnected`. A
+`LeafElement` that overrides either callback calls the `super` method.
 
 `quoted(element)` is true for a widget inside one the registry marks `x-exhibit`, such
 as `lf-sample`. A quoted widget never takes the user's edits, so
@@ -68,22 +72,21 @@ back. Its presentation and view state still work.
 When an upgrade fails, or one part of it, `failSoft(element, error, source)` replaces
 the widget or part with an error box naming it, shows `source` beneath when given, and
 reports a page error, which fails `page check`. The next `render` into the same
-container, or the next `shadowStage` call, replaces the box. Where the widget shows a
+container, or the next `shadowStage` call, replaces the box; a `LeafElement` shows the
+box beside what it drew, and its next draw takes it away. Where the widget shows a
 failed part its own way and the rest keeps working, as `lf-diff` does for a file whose
 patch it cannot draw, call `reportFailure(element, error)`, which only reports.
 
 ## Connection lifetimes
 
-A revision or a thread can take a widget out of the page and put it back. After
-`once(this)`, register `whileConnected(element, start)` once for what a connection
-holds:
+A revision or a thread can take a widget out of the page and put it back. In
+`setup()`, or after `once(this)`, register `whileConnected(element, start)` once for
+what a connection holds:
 
 ```js
-schedulePaint = frameFor(this, () => this.paint());
+schedulePaint = frameFor(this, () => this.measure());
 
-connectedCallback() {
-  if (!once(this)) return;
-  this.build();
+setup() {
   whileConnected(this, (signal) => {
     window.addEventListener("resize", this.schedulePaint, { signal });
     const sizes = sizeObserver(this.schedulePaint);
@@ -96,22 +99,21 @@ connectedCallback() {
 Leaf calls `start(signal)` now and on each return. When the element leaves, Leaf aborts
 the signal and runs the cleanup `start` returned. If `start` throws, Leaf never calls
 it again. `whileConnected` returns a function that ends the registration for good, for
-an element that no longer needs it, such as one that has failed soft. Register what a
-`watchData` callback uses before calling `watchData`.
+an element that no longer needs it, such as one that has failed soft.
 
 Moving an element within the page doesn't count as leaving, since Leaf only decides
 after reading the whole batch of DOM changes. When a revision replaces a widget, the old
 element's cleanup runs before the new one's `start`, so a registration only one element
 may hold, such as `registerReadingRegion`, passes to the replacement.
 
-The controller's subscriptions, `watchData`, `watchComparison` and the page readings
-pause while the element is away. On its return, Leaf calls a callback again only if its
-reading changed meanwhile, or if the promise the callback returned had not settled when
-the element left. A callback that throws or rejects is reported once and stays
-subscribed. If `renderState` or a controller subscriber throws, the widget also shows its
-fail-soft box. So return the promise of any paint that finishes later, drop unfinished
-work when the element leaves but keep finished nodes, and have `start` restore what its
-cleanup removed.
+A `LeafElement` draws nothing while it is away, and on its return draws again only if
+something it read changed meanwhile or drawing it held with `drawing()` had not landed
+when it left. `watchComparison` and the page readings pause the
+same way: on the return, Leaf calls a callback again only if its reading changed, or if
+the promise the callback returned had not settled when the element left. A callback
+that throws or rejects is reported once and stays subscribed. So return the promise of
+any paint that finishes later, drop unfinished work when the element leaves but keep
+finished nodes, and have `start` restore what its cleanup removed.
 
 For a reading the module computes itself, build `const paint = readingPaint(element,
 draw)` once, before `whileConnected`, and call `paint(key, ...args)` from `start`. It
@@ -190,24 +192,28 @@ same turn. Render only into containers the module generated, never into authored
 children, and once `render` draws into a container, change its children only through
 `render`. `repeat(items, identity, template)` keeps a row's nodes when rows reorder, but
 rebuilds a row that moves to another `repeat`; place nodes you keep yourself as
-"Retained nodes" describes. A widget that extends `HTMLElement` gets its state from
-`widgetController` and keeps no reactive copy.
+"Retained nodes" describes. A widget keeps no reactive copy of its state; it reads it
+again in each `render()`.
 
 Bind a property the user can also change with `live`, as in `.value=${live(value)}`, so
 a refused gesture restores the recorded value even when the template input is
 unchanged. Don't bind an initial default onto a property the browser owns.
 
-### Drawing what a widget reads (experimental)
+### Drawing what a widget reads
 
-`LeafElement` is a `LitElement` base class for a widget that draws everything in one
+A widget extends `LeafElement`, a `LitElement` base class that draws everything in one
 `render()`, into itself or into a generated part `createRenderRoot()` returns, never over
-its authored children. One-time building goes in `setup()`, in place of `once(this)`.
+its authored children. One-time building goes in `setup()`, in place of `once(this)`;
+a `setup()` that throws shows its failure and the widget draws nothing after it.
 `render()` reads through Leaf's readers: `this.reading` and `this.state`,
 `this.data(input)` for a bound source, and page readings such as `readAsks`,
-`reportSequence` or `ago`. The element redraws whenever anything it read changes. Return
-a template, `nothing` when the render places retained nodes itself, or `noChange`.
-`this.controller` is the widget controller. Call `requestUpdate()` after a change Leaf
-can't see, such as revealing held news, and `performUpdate()` to draw at once.
+`reportSequence` or `ago`. The element redraws whenever anything it read changes, in one
+ordered pass after the publication that moved it, parents before children. Return a
+template, `nothing` when the render places retained nodes itself, or `noChange`. Work
+that reads what the render drew goes in `updated()`, and drawing that finishes later in
+`this.drawing(promise)` from there. `this.controller` is the widget controller. Call
+`requestUpdate()` after a change Leaf can't see, such as revealing held news, and
+`performUpdate()` to draw at once.
 
 ### Retained nodes
 

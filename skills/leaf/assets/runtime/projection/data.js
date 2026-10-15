@@ -33,7 +33,7 @@
    what persists through a replacement.
 
    A selection wholly inside a derived datum captures `{section, datum, quote}`. A datum
-   projected from `watchData` also captures `{source, source_revision}`. A datum whose
+   projected from a bound input also captures `{source, source_revision}`. A datum whose
    emitter supplies an identity follows that subject across value replacements, even if
    its rendering key changes. Other keys may name locations within one value, so their
    placements remain pinned to the captured revision. If the original words

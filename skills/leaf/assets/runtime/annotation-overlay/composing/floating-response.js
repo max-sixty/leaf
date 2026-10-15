@@ -169,7 +169,6 @@ export function createFloatingResponsePlacement({
   function stopFabPositioning({ reset = false } = {}) {
     carry.placed();
     nativeAttachment = false;
-    if (fabBar.style.height) fabBar.style.removeProperty("height");
     fabPosition.stop();
     cancelRender(fabPositionFrame);
     fabPositionFrame = 0;
@@ -464,9 +463,6 @@ export function createFloatingResponsePlacement({
         fabPlacement.landed(position);
         editingAttachment = response.open ? attachment : null;
         keeps(fabBar, "data-lf-placement", position.placement);
-        // An auto-height absolute box borrows its inset-modified available height.
-        // Intrinsic sizing keeps moving that inset from masquerading as content resize.
-        fabBar.style.height = response.open ? "max-content" : "";
         fabPosition.stand(position);
         carry.placed();
         nativeAttachment = response.open && fabPosition.follows();

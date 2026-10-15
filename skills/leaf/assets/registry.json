@@ -5,21 +5,26 @@
     "x-instructions": "Copy the current markup verbatim into lf-old and put the proposed markup in lf-new. Both slots replace, lf-new alone inserts, and lf-old alone deletes; a proposed widget change uses complete old and new markup too. Write fresh content directly, and use lf-draft for words the user owns. Suggestions cannot nest, contain a draft, or appear in a reply. Set resolves to the comment whose thread acceptance should resolve. To withdraw an undecided proposal, retain lf-old’s contents and remove both wrappers and lf-new; dropping the wrapper must not silently accept the proposal.",
     "type": "object",
     "properties": {
-      "id":       {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
-      "resolves": {"type": "string", "pattern": "^[a-z0-9]+$"},
-      "restated": {"type": "boolean"}
+      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+      "resolves": { "type": "string", "pattern": "^[a-z0-9]+$" },
+      "restated": { "type": "boolean" }
     },
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "members",
     "x-inline": true,
     "x-upgrade": true,
-    "x-awaits": {"value": "decide", "answered": {"decide": {}}, "all": "accept"},
+    "x-awaits": { "value": "decide", "answered": { "decide": {} }, "all": "accept" },
     "x-withdrawn-as": "reject",
     "x-word": "module",
     "x-state": {
       "decide": {
-        "detail": {"type": "object", "properties": {"outcome": {"enum": ["accept", "reject"]}}, "required": ["outcome"], "additionalProperties": false},
+        "detail": {
+          "type": "object",
+          "properties": { "outcome": { "enum": ["accept", "reject"] } },
+          "required": ["outcome"],
+          "additionalProperties": false
+        },
         "unit": "widget"
       }
     },
@@ -30,7 +35,7 @@
     "x-instructions": "Copy the current markup verbatim, including its ids. Omit this slot for an insertion.",
     "type": "object",
     "properties": {
-      "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}
+      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" }
     },
     "additionalProperties": false,
     "x-owners": ["lf-suggestion"],
@@ -44,7 +49,7 @@
     "x-instructions": "Omit this slot for a deletion.",
     "type": "object",
     "properties": {
-      "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}
+      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" }
     },
     "additionalProperties": false,
     "x-owners": ["lf-suggestion"],
@@ -56,26 +61,76 @@
   "$languages": {
     "description": "The code languages this layer can color, and how a filename maps to one. `names` is the full list: an author may declare only these, validation refuses any other, and build/vendor.mjs builds a grammar for each. A widget marks an attribute as naming a language with x-language, and validation reads this list, so a new tag that takes a language needs only that declaration. `paths` maps a file extension to a language, for widgets with no attribute to name one: a diff spans several files, and a file editor shows one. A file whose extension is not listed shows uncolored.",
     "why-diff-is-not-a-path": "`diff` is in `names` but not in `paths`. Coloring a .patch file inside a diff with the diff grammar would mark additions and deletions a second time, on top of the widget's own tints.",
-    "names": ["bash", "css", "diff", "go", "html", "java", "javascript", "json", "markdown", "python", "rust", "sql", "toml", "typescript", "yaml"],
+    "names": [
+      "bash",
+      "css",
+      "diff",
+      "go",
+      "html",
+      "java",
+      "javascript",
+      "json",
+      "markdown",
+      "python",
+      "rust",
+      "sql",
+      "toml",
+      "typescript",
+      "yaml"
+    ],
     "paths": {
-      "bash": "bash", "cjs": "javascript", "css": "css", "go": "go", "htm": "html",
-      "html": "html", "java": "java", "js": "javascript", "json": "json",
-      "jsx": "javascript", "markdown": "markdown", "md": "markdown", "mjs": "javascript",
-      "py": "python", "rs": "rust", "sh": "bash", "sql": "sql", "toml": "toml",
-      "ts": "typescript", "tsx": "typescript", "yaml": "yaml", "yml": "yaml"
+      "bash": "bash",
+      "cjs": "javascript",
+      "css": "css",
+      "go": "go",
+      "htm": "html",
+      "html": "html",
+      "java": "java",
+      "js": "javascript",
+      "json": "json",
+      "jsx": "javascript",
+      "markdown": "markdown",
+      "md": "markdown",
+      "mjs": "javascript",
+      "py": "python",
+      "rs": "rust",
+      "sh": "bash",
+      "sql": "sql",
+      "toml": "toml",
+      "ts": "typescript",
+      "tsx": "typescript",
+      "yaml": "yaml",
+      "yml": "yaml"
     }
   },
   "$passages": {
     "description": "How Python (`leaf/passages.py`, `leaf/anchor_capture.py`) and the browser (`runtime/passage-facts.js`, generated from this entry by build/registry.mjs) turn a page into text, so `leaf thread open` can confirm any quote the browser captures. Python reads the running Leaf's copy and a page's runtime keeps the one it was vendored with, so a change here bumps `$events.protocol`.",
     "collapse": "\t\n\u000b\f\r \u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff",
     "why-collapse-is-spelled-out": "`collapse` lists the characters both readings fold to one space. JavaScript's \\s and Python's str.isspace() disagree on a few: U+FEFF is whitespace only to JavaScript, U+0085 only to Python. The browser captures every quote, so the list is JavaScript's set.",
-    "blocks": ["p", "li", "h1", "h2", "h3", "h4", "h5", "h6", "td", "th", "pre", "blockquote", "dd", "dt", "figcaption", "summary"],
+    "blocks": [
+      "p",
+      "li",
+      "h1",
+      "h2",
+      "h3",
+      "h4",
+      "h5",
+      "h6",
+      "td",
+      "th",
+      "pre",
+      "blockquote",
+      "dd",
+      "dt",
+      "figcaption",
+      "summary"
+    ],
     "why-blocks": "A text node's block decides spacing: runs of text in different blocks are joined with one space and runs in one block with none, so `<p>a</p><p>b</p>` reads \"a b\" and `set<em>up</em>` reads \"setup\". The browser also treats a block as the unit of prose a reader is in, and a version diff compares blocks.",
     "context": 24,
     "why-context": "How many characters of context a captured anchor keeps on each side of its quote. A quote read from the file must be unique. The browser knows which occurrence the user selected, and widens the context until the shared resolver finds that one."
   },
   "$data": {
-    "description": "Values from outside the markup that widgets display, replaced with `leaf data set`, which validates the whole value first. A named contract declares a value's meaning and JSON Schema; a widget declares its inputs with x-data, and markup binds each to a source id. Values stay out of versions and the event log. Modules subscribe with `watchData` and render records with `projectData`.",
+    "description": "Values from outside the markup that widgets display, replaced with `leaf data set`, which validates the whole value first. A named contract declares a value's meaning and JSON Schema; a widget declares its inputs with x-data, and markup binds each to a source id. Values stay out of versions and the event log. Widgets read them with `this.data(input)` and render records with `projectData`.",
     "contracts": {}
   },
   "$events": {
@@ -89,17 +144,13 @@
       "comment": [
         {
           "when": {
-            "required": [
-              "drawing"
-            ]
+            "required": ["drawing"]
           },
           "text": "The user drew on the page. `drawing.says`, when present, is the page's text inside the ink's bounding box, from its first word to its last, so an arrow across a paragraph gives the whole paragraph; it is absent where the box covers no words, as over a picture. `drawing.strokes` are coordinates in one frame: the comment's target, or the visual inside it that the optional `drawing.frame` names (CSS pixels for HTML, user units for SVG, intrinsic pixels for an image, canvas or video), and `drawing.box` is that frame's size. To see what the mark covers, run `leaf page picture PAGE ID` with the comment's `id`: it prints the path of a PNG of that revision in the user's window size and color scheme, with the ink drawn over it. Any `text` explains the mark; otherwise answer it like any comment."
         },
         {
           "when": {
-            "required": [
-              "text"
-            ],
+            "required": ["text"],
             "properties": {
               "text": {
                 "pattern": "\\]\\(/media/"
@@ -110,9 +161,7 @@
         },
         {
           "when": {
-            "required": [
-              "suggestion"
-            ],
+            "required": ["suggestion"],
             "properties": {
               "suggestion": {
                 "const": true
@@ -123,9 +172,7 @@
         },
         {
           "when": {
-            "required": [
-              "about"
-            ],
+            "required": ["about"],
             "properties": {
               "about": {
                 "const": "design"
@@ -136,15 +183,10 @@
         },
         {
           "when": {
-            "required": [
-              "thread",
-              "answer"
-            ],
+            "required": ["thread", "answer"],
             "properties": {
               "thread": {
-                "required": [
-                  "title"
-                ],
+                "required": ["title"],
                 "properties": {
                   "title": {
                     "type": "null"
@@ -167,9 +209,7 @@
         },
         {
           "when": {
-            "required": [
-              "token"
-            ]
+            "required": ["token"]
           },
           "text": "A reaction is a mark, not a question. Act on the token if it calls for a change; reply only if its meaning is unclear. Once the page reflects it, close it with `leaf thread resolve <page> <event-id>`. It never blocks publishing a version and waits on no answer."
         }
@@ -178,18 +218,14 @@
         {
           "when": {
             "not": {
-              "required": [
-                "token"
-              ]
+              "required": ["token"]
             }
           },
           "text": "The user answered in a thread. The batch's `threads` holds the thread's context, and `leaf page state <page> <thread-id>` reads its full history a page at a time."
         },
         {
           "when": {
-            "required": [
-              "text"
-            ],
+            "required": ["text"],
             "properties": {
               "text": {
                 "pattern": "\\]\\(/media/"
@@ -200,15 +236,10 @@
         },
         {
           "when": {
-            "required": [
-              "thread",
-              "answer"
-            ],
+            "required": ["thread", "answer"],
             "properties": {
               "thread": {
-                "required": [
-                  "title"
-                ],
+                "required": ["title"],
                 "properties": {
                   "title": {
                     "type": "null"
@@ -231,29 +262,21 @@
         },
         {
           "when": {
-            "required": [
-              "thread"
-            ],
+            "required": ["thread"],
             "properties": {
               "thread": {
-                "required": [
-                  "summary_hint"
-                ]
+                "required": ["summary_hint"]
               }
             },
             "not": {
-              "required": [
-                "token"
-              ]
+              "required": ["token"]
             }
           },
           "text": "This thread's entry in the batch's `threads` has a `summary_hint`: an earlier range of messages worth summarizing. As you answer, follow the Leaf skill's `references/threads.md`, \"Summarize a long discussion\". The hint needs no separate answer."
         },
         {
           "when": {
-            "required": [
-              "token"
-            ]
+            "required": ["token"]
           },
           "text": "A reaction to your message. It needs no reply; Leaf already records whether it answers your question."
         }
@@ -263,7 +286,10 @@
           "text": "The user rewrote their message `message`: `text` is the new wording and `was` the old, and the thread shows only the new. Answer it as it now reads. If your earlier answer or work depended on what changed, say what that changes and redo the work; if it didn't, say so. If `message` opens the thread and the title no longer fits, retitle it with `leaf thread edit <page> <message> --title \"<a few words>\"`."
         },
         {
-          "when": {"required": ["suggestion"], "properties": {"suggestion": {"const": true}}},
+          "when": {
+            "required": ["suggestion"],
+            "properties": { "suggestion": { "const": true } }
+          },
           "text": "The message is a suggestion, so `text` is now its exact replacement text. Apply it verbatim, or reply with your reason for declining."
         }
       ],
@@ -296,21 +322,15 @@
             "allOf": [
               {
                 "not": {
-                  "required": [
-                    "answer"
-                  ]
+                  "required": ["answer"]
                 }
               },
               {
                 "not": {
-                  "required": [
-                    "meaning"
-                  ],
+                  "required": ["meaning"],
                   "properties": {
                     "meaning": {
-                      "required": [
-                        "scope"
-                      ],
+                      "required": ["scope"],
                       "properties": {
                         "scope": {
                           "const": "thread"
@@ -328,9 +348,7 @@
           "when": {
             "allOf": [
               {
-                "required": [
-                  "action"
-                ],
+                "required": ["action"],
                 "properties": {
                   "action": {
                     "const": "add"
@@ -339,14 +357,10 @@
               },
               {
                 "not": {
-                  "required": [
-                    "meaning"
-                  ],
+                  "required": ["meaning"],
                   "properties": {
                     "meaning": {
-                      "required": [
-                        "scope"
-                      ],
+                      "required": ["scope"],
                       "properties": {
                         "scope": {
                           "const": "thread"
@@ -362,9 +376,7 @@
         },
         {
           "when": {
-            "required": [
-              "action"
-            ],
+            "required": ["action"],
             "properties": {
               "action": {
                 "const": "decide"
@@ -376,14 +388,10 @@
         {
           "when": {
             "not": {
-              "required": [
-                "meaning"
-              ],
+              "required": ["meaning"],
               "properties": {
                 "meaning": {
-                  "required": [
-                    "scope"
-                  ],
+                  "required": ["scope"],
                   "properties": {
                     "scope": {
                       "const": "thread"
@@ -398,9 +406,7 @@
         {
           "when": {
             "not": {
-              "required": [
-                "answer"
-              ]
+              "required": ["answer"]
             }
           },
           "text": "This action owes no answer of its own: it answers no ask, a later action on the same widget carries the answer, or the answer is not complete yet, as with a pick before the Done its group waits for."
@@ -457,14 +463,10 @@
         },
         {
           "when": {
-            "required": [
-              "meaning"
-            ],
+            "required": ["meaning"],
             "properties": {
               "meaning": {
-                "required": [
-                  "scope"
-                ],
+                "required": ["scope"],
                 "properties": {
                   "scope": {
                     "const": "thread"
@@ -487,34 +489,43 @@
         "record": {
           "type": "object",
           "properties": {
-            "attention": {"type": "boolean"},
-            "id": {"type": "string", "minLength": 1},
-            "ts": {"type": "string", "minLength": 1},
-            "author": {"type": "string", "minLength": 1},
-            "kind": {"const": "comment"},
-            "seq": {"type": "integer", "minimum": 1},
-            "revision": {"type": "integer", "minimum": 1},
-            "text": {"type": "string", "minLength": 1},
-            "token": {"type": "string", "minLength": 1},
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "type": "string", "minLength": 1 },
+            "kind": { "const": "comment" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "revision": { "type": "integer", "minimum": 1 },
+            "text": { "type": "string", "minLength": 1 },
+            "token": { "type": "string", "minLength": 1 },
             "anchor": {
               "type": "object",
               "properties": {
-                "section": {"type": ["string", "null"]},
-                "quote": {"type": "string"},
-                "datum": {"type": "string", "minLength": 1},
-                "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
-                "source_revision": {"type": "string", "pattern": "^[0-9a-f]{16}$"},
-                "identity": {"type": "string", "minLength": 1},
-                "visual": {"type": "string", "minLength": 1},
-                "prefix": {"type": "string"},
-                "suffix": {"type": "string"},
-                "detached": {"const": true},
-                "part": {"type": "string"}
+                "section": { "type": ["string", "null"] },
+                "quote": { "type": "string" },
+                "datum": { "type": "string", "minLength": 1 },
+                "source": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+                "source_revision": { "type": "string", "pattern": "^[0-9a-f]{16}$" },
+                "identity": { "type": "string", "minLength": 1 },
+                "visual": { "type": "string", "minLength": 1 },
+                "prefix": { "type": "string" },
+                "suffix": { "type": "string" },
+                "detached": { "const": true },
+                "part": { "type": "string" }
               },
               "anyOf": [
-                {"required": ["section"], "properties": {"section": {"type": "string", "minLength": 1}}},
-                {"required": ["quote"], "properties": {"quote": {"type": "string", "minLength": 1}}},
-                {"required": ["datum"], "properties": {"datum": {"type": "string", "minLength": 1}}}
+                {
+                  "required": ["section"],
+                  "properties": { "section": { "type": "string", "minLength": 1 } }
+                },
+                {
+                  "required": ["quote"],
+                  "properties": { "quote": { "type": "string", "minLength": 1 } }
+                },
+                {
+                  "required": ["datum"],
+                  "properties": { "datum": { "type": "string", "minLength": 1 } }
+                }
               ],
               "dependentRequired": {
                 "datum": ["section"],
@@ -543,8 +554,8 @@
                       "minItems": 2,
                       "maxItems": 2,
                       "prefixItems": [
-                        {"type": "number", "minimum": -33554432, "maximum": 33554432},
-                        {"type": "number", "minimum": -33554432, "maximum": 33554432}
+                        { "type": "number", "minimum": -33554432, "maximum": 33554432 },
+                        { "type": "number", "minimum": -33554432, "maximum": 33554432 }
                       ],
                       "items": false
                     }
@@ -555,114 +566,170 @@
                   "minItems": 2,
                   "maxItems": 2,
                   "prefixItems": [
-                    {"type": "number", "exclusiveMinimum": 0, "maximum": 33554432},
-                    {"type": "number", "exclusiveMinimum": 0, "maximum": 33554432}
+                    { "type": "number", "exclusiveMinimum": 0, "maximum": 33554432 },
+                    { "type": "number", "exclusiveMinimum": 0, "maximum": 33554432 }
                   ],
                   "items": false
                 },
                 "frame": {
                   "type": "object",
                   "properties": {
-                    "root": {"type": "string", "maxLength": 128, "pattern": "^[A-Za-z][A-Za-z0-9_.:-]*$"},
+                    "root": {
+                      "type": "string",
+                      "maxLength": 128,
+                      "pattern": "^[A-Za-z][A-Za-z0-9_.:-]*$"
+                    },
                     "path": {
-                      "type": "array", "maxItems": 32,
+                      "type": "array",
+                      "maxItems": 32,
                       "items": {
                         "type": "object",
                         "properties": {
-                          "tag": {"type": "string", "maxLength": 128, "pattern": "^[A-Za-z][A-Za-z0-9_.:-]*$"},
-                          "index": {"type": "integer", "minimum": 0, "maximum": 65535},
-                          "siblings": {"type": "integer", "minimum": 1, "maximum": 65536},
-                          "shadow": {"type": "boolean"}
+                          "tag": {
+                            "type": "string",
+                            "maxLength": 128,
+                            "pattern": "^[A-Za-z][A-Za-z0-9_.:-]*$"
+                          },
+                          "index": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 65535
+                          },
+                          "siblings": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 65536
+                          },
+                          "shadow": { "type": "boolean" }
                         },
-                        "required": ["tag", "index", "siblings"], "additionalProperties": false
+                        "required": ["tag", "index", "siblings"],
+                        "additionalProperties": false
                       }
                     }
                   },
-                  "required": ["root", "path"], "additionalProperties": false
+                  "required": ["root", "path"],
+                  "additionalProperties": false
                 },
-                "says": {"type": "string", "minLength": 1, "maxLength": 500},
+                "says": { "type": "string", "minLength": 1, "maxLength": 500 },
                 "viewport": {
                   "type": "array",
                   "minItems": 2,
                   "maxItems": 2,
                   "prefixItems": [
-                    {"type": "number", "exclusiveMinimum": 0, "maximum": 33554432},
-                    {"type": "number", "exclusiveMinimum": 0, "maximum": 33554432}
+                    { "type": "number", "exclusiveMinimum": 0, "maximum": 33554432 },
+                    { "type": "number", "exclusiveMinimum": 0, "maximum": 33554432 }
                   ],
                   "items": false
                 },
-                "scheme": {"enum": ["light", "dark"]}
+                "scheme": { "enum": ["light", "dark"] }
               },
               "required": ["strokes", "box", "viewport", "scheme"],
               "additionalProperties": false
             },
-            "suggestion": {"type": "boolean"},
-            "about": {"const": "design"},
-            "title": {"type": "string", "minLength": 1, "maxLength": 80, "pattern": "\\S", "not": {"pattern": "[\\r\\n]"}},
-            "agent": {"type": "string", "minLength": 1},
-            "session": {"type": "string", "minLength": 1},
-            "markup": {"type": "string", "minLength": 1},
-            "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"},
-            "holds": {"type": "string", "minLength": 1}
+            "suggestion": { "type": "boolean" },
+            "about": { "const": "design" },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "pattern": "\\S",
+              "not": { "pattern": "[\\r\\n]" }
+            },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 },
+            "markup": { "type": "string", "minLength": 1 },
+            "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" },
+            "holds": { "type": "string", "minLength": 1 }
           },
           "required": ["attention", "id", "ts", "author", "kind", "seq", "revision"],
           "additionalProperties": false,
           "oneOf": [
-            {"required": ["text"]},
-            {"required": ["token"]},
-            {"required": ["drawing"], "not": {"required": ["text"]}}
+            { "required": ["text"] },
+            { "required": ["token"] },
+            { "required": ["drawing"], "not": { "required": ["text"] } }
           ],
           "dependentSchemas": {
-            "title": {"properties": {"author": {"const": "agent"}}},
-            "token": {"not": {"anyOf": [{"required": ["suggestion"]}, {"required": ["holds"]}, {"required": ["markup"]}]}},
+            "title": { "properties": { "author": { "const": "agent" } } },
+            "token": {
+              "not": {
+                "anyOf": [
+                  { "required": ["suggestion"] },
+                  { "required": ["holds"] },
+                  { "required": ["markup"] }
+                ]
+              }
+            },
             "drawing": {
               "required": ["anchor"],
               "properties": {
-                "anchor": {"not": {"anyOf": [{"required": ["quote"]}, {"required": ["part"]}]}}
+                "anchor": {
+                  "not": {
+                    "anyOf": [{ "required": ["quote"] }, { "required": ["part"] }]
+                  }
+                }
               },
-              "not": {"anyOf": [{"required": ["suggestion"]}, {"required": ["about"]}, {"required": ["holds"]}, {"required": ["markup"]}]}
+              "not": {
+                "anyOf": [
+                  { "required": ["suggestion"] },
+                  { "required": ["about"] },
+                  { "required": ["holds"] },
+                  { "required": ["markup"] }
+                ]
+              }
             }
           }
         },
         "browser": {
           "required": ["kind", "revision"],
-          "not": {"required": ["markup"]}
+          "not": { "required": ["markup"] }
         }
       },
       "reply": {
         "record": {
           "type": "object",
           "properties": {
-            "attention": {"type": "boolean"},
-            "id": {"type": "string", "minLength": 1},
-            "ts": {"type": "string", "minLength": 1},
-            "author": {"type": "string", "minLength": 1},
-            "kind": {"const": "reply"},
-            "seq": {"type": "integer", "minimum": 1},
-            "parent": {"type": "string", "minLength": 1},
-            "revision": {"type": "integer", "minimum": 1},
-            "publication": {"type": "string", "pattern": "^r[1-9][0-9]*-[a-f0-9]{16}$"},
-            "text": {"type": "string", "minLength": 1},
-            "token": {"type": "string", "minLength": 1},
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "type": "string", "minLength": 1 },
+            "kind": { "const": "reply" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "parent": { "type": "string", "minLength": 1 },
+            "revision": { "type": "integer", "minimum": 1 },
+            "publication": {
+              "type": "string",
+              "pattern": "^r[1-9][0-9]*-[a-f0-9]{16}$"
+            },
+            "text": { "type": "string", "minLength": 1 },
+            "token": { "type": "string", "minLength": 1 },
             "anchor": {
               "type": ["object", "null"],
               "properties": {
-                "section": {"type": ["string", "null"]},
-                "quote": {"type": "string"},
-                "datum": {"type": "string", "minLength": 1},
-                "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
-                "source_revision": {"type": "string", "pattern": "^[0-9a-f]{16}$"},
-                "identity": {"type": "string", "minLength": 1},
-                "visual": {"type": "string", "minLength": 1},
-                "prefix": {"type": "string"},
-                "suffix": {"type": "string"},
-                "detached": {"const": true},
-                "part": {"type": "string"}
+                "section": { "type": ["string", "null"] },
+                "quote": { "type": "string" },
+                "datum": { "type": "string", "minLength": 1 },
+                "source": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+                "source_revision": { "type": "string", "pattern": "^[0-9a-f]{16}$" },
+                "identity": { "type": "string", "minLength": 1 },
+                "visual": { "type": "string", "minLength": 1 },
+                "prefix": { "type": "string" },
+                "suffix": { "type": "string" },
+                "detached": { "const": true },
+                "part": { "type": "string" }
               },
               "anyOf": [
-                {"required": ["section"], "properties": {"section": {"type": "string", "minLength": 1}}},
-                {"required": ["quote"], "properties": {"quote": {"type": "string", "minLength": 1}}},
-                {"required": ["datum"], "properties": {"datum": {"type": "string", "minLength": 1}}}
+                {
+                  "required": ["section"],
+                  "properties": { "section": { "type": "string", "minLength": 1 } }
+                },
+                {
+                  "required": ["quote"],
+                  "properties": { "quote": { "type": "string", "minLength": 1 } }
+                },
+                {
+                  "required": ["datum"],
+                  "properties": { "datum": { "type": "string", "minLength": 1 } }
+                }
               ],
               "dependentRequired": {
                 "datum": ["section"],
@@ -675,104 +742,180 @@
               },
               "additionalProperties": false
             },
-            "title": {"type": "string", "minLength": 1, "maxLength": 80, "pattern": "\\S", "not": {"pattern": "[\\r\\n]"}},
-            "agent": {"type": "string", "minLength": 1},
-            "session": {"type": "string", "minLength": 1},
-            "markup": {"type": "string", "minLength": 1},
-            "ask": {"const": true},
-            "todo": {"type": "string", "minLength": 1, "maxLength": 80, "pattern": "\\S", "not": {"pattern": "[\\r\\n]"}},
-            "ephemeral": {"const": true},
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "pattern": "\\S",
+              "not": { "pattern": "[\\r\\n]" }
+            },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 },
+            "markup": { "type": "string", "minLength": 1 },
+            "ask": { "const": true },
+            "todo": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "pattern": "\\S",
+              "not": { "pattern": "[\\r\\n]" }
+            },
+            "ephemeral": { "const": true },
             "start": {
               "type": "object",
               "properties": {
-                "item": {"type": "string", "minLength": 1},
-                "turn": {"type": "string", "minLength": 1}
+                "item": { "type": "string", "minLength": 1 },
+                "turn": { "type": "string", "minLength": 1 }
               },
               "required": ["item"],
               "additionalProperties": false
             },
-            "failure": {"type": "string", "minLength": 1},
-            "responds": {"type": "string", "minLength": 1},
-            "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
+            "failure": { "type": "string", "minLength": 1 },
+            "responds": { "type": "string", "minLength": 1 },
+            "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" }
           },
           "required": ["attention", "id", "ts", "author", "kind", "seq", "parent"],
           "additionalProperties": false,
-          "oneOf": [{"required": ["text"]}, {"required": ["token"]}],
+          "oneOf": [{ "required": ["text"] }, { "required": ["token"] }],
           "dependentSchemas": {
             "start": {
               "required": ["ephemeral", "text"],
               "properties": {
-                "author": {"const": "agent"},
-                "text": {"pattern": "\\S", "not": {"pattern": "\\S\\s*[\\r\\n]\\s*\\S"}}
+                "author": { "const": "agent" },
+                "text": {
+                  "pattern": "\\S",
+                  "not": { "pattern": "\\S\\s*[\\r\\n]\\s*\\S" }
+                }
               }
             },
-            "title": {"properties": {"author": {"const": "agent"}}},
-            "publication": {"required": ["revision"], "properties": {"author": {"const": "agent"}}},
+            "title": { "properties": { "author": { "const": "agent" } } },
+            "publication": {
+              "required": ["revision"],
+              "properties": { "author": { "const": "agent" } }
+            },
             "ephemeral": {
               "required": ["text"],
-              "properties": {"author": {"const": "agent"}},
-              "not": {"anyOf": [{"required": ["responds"]}, {"required": ["ask"]}, {"required": ["todo"]}, {"required": ["markup"]}, {"required": ["failure"]}, {"required": ["anchor"]}]}
+              "properties": { "author": { "const": "agent" } },
+              "not": {
+                "anyOf": [
+                  { "required": ["responds"] },
+                  { "required": ["ask"] },
+                  { "required": ["todo"] },
+                  { "required": ["markup"] },
+                  { "required": ["failure"] },
+                  { "required": ["anchor"] }
+                ]
+              }
             },
-            "token": {"not": {"required": ["markup"]}},
-            "ask": {"properties": {"author": {"const": "agent"}}},
-            "todo": {"required": ["text"], "properties": {"author": {"const": "agent"}}, "not": {"anyOf": [{"required": ["failure"]}, {"required": ["ask"]}]}},
-            "failure": {"required": ["text", "responds"], "properties": {"author": {"const": "agent"}}},
+            "token": { "not": { "required": ["markup"] } },
+            "ask": { "properties": { "author": { "const": "agent" } } },
+            "todo": {
+              "required": ["text"],
+              "properties": { "author": { "const": "agent" } },
+              "not": { "anyOf": [{ "required": ["failure"] }, { "required": ["ask"] }] }
+            },
+            "failure": {
+              "required": ["text", "responds"],
+              "properties": { "author": { "const": "agent" } }
+            },
             "anchor": {
               "required": ["revision", "text"],
-              "properties": {"author": {"const": "agent"}}
+              "properties": { "author": { "const": "agent" } }
             }
           }
         },
         "browser": {
           "required": ["kind", "parent", "revision"],
-          "not": {"anyOf": [{"required": ["markup"]}, {"required": ["ask"]}, {"required": ["todo"]}, {"required": ["anchor"]}, {"required": ["responds"]}, {"required": ["failure"]}, {"required": ["ephemeral"]}, {"required": ["start"]}, {"required": ["title"]}]}
+          "not": {
+            "anyOf": [
+              { "required": ["markup"] },
+              { "required": ["ask"] },
+              { "required": ["todo"] },
+              { "required": ["anchor"] },
+              { "required": ["responds"] },
+              { "required": ["failure"] },
+              { "required": ["ephemeral"] },
+              { "required": ["start"] },
+              { "required": ["title"] }
+            ]
+          }
         }
       },
       "edit": {
         "record": {
           "type": "object",
           "properties": {
-            "attention": {"type": "boolean"},
-            "id": {"type": "string", "minLength": 1},
-            "ts": {"type": "string", "minLength": 1},
-            "author": {"enum": ["agent", "user"]},
-            "kind": {"const": "edit"},
-            "seq": {"type": "integer", "minimum": 1},
-            "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"},
-            "message": {"type": "string", "minLength": 1},
-            "text": {"type": "string", "minLength": 1},
-            "base": {"type": "string", "minLength": 1},
-            "agent": {"type": "string", "minLength": 1},
-            "session": {"type": "string", "minLength": 1}
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "enum": ["agent", "user"] },
+            "kind": { "const": "edit" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" },
+            "message": { "type": "string", "minLength": 1 },
+            "text": { "type": "string", "minLength": 1 },
+            "base": { "type": "string", "minLength": 1 },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 }
           },
-          "required": ["attention", "id", "ts", "author", "kind", "seq", "message", "text"],
+          "required": [
+            "attention",
+            "id",
+            "ts",
+            "author",
+            "kind",
+            "seq",
+            "message",
+            "text"
+          ],
           "additionalProperties": false,
           "oneOf": [
-            {"properties": {"author": {"const": "agent"}}, "required": ["agent", "session"]},
-            {"properties": {"author": {"const": "user"}}, "not": {"anyOf": [{"required": ["agent"]}, {"required": ["session"]}]}}
+            {
+              "properties": { "author": { "const": "agent" } },
+              "required": ["agent", "session"]
+            },
+            {
+              "properties": { "author": { "const": "user" } },
+              "not": {
+                "anyOf": [{ "required": ["agent"] }, { "required": ["session"] }]
+              }
+            }
           ]
         },
-        "browser": {"required": ["kind", "message", "text", "base"]}
+        "browser": { "required": ["kind", "message", "text", "base"] }
       },
       "summary": {
         "record": {
           "type": "object",
           "properties": {
-            "attention": {"type": "boolean"},
-            "id": {"type": "string", "minLength": 1},
-            "ts": {"type": "string", "minLength": 1},
-            "author": {"const": "agent"},
-            "kind": {"const": "summary"},
-            "seq": {"type": "integer", "minimum": 1},
-            "thread": {"type": "string", "minLength": 1},
-            "from": {"type": "string", "minLength": 1},
-            "through": {"type": "string", "minLength": 1},
-            "text": {"type": "string"},
-            "label": {"type": "string", "minLength": 1},
-            "agent": {"type": "string", "minLength": 1},
-            "session": {"type": "string", "minLength": 1}
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "const": "agent" },
+            "kind": { "const": "summary" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "thread": { "type": "string", "minLength": 1 },
+            "from": { "type": "string", "minLength": 1 },
+            "through": { "type": "string", "minLength": 1 },
+            "text": { "type": "string" },
+            "label": { "type": "string", "minLength": 1 },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 }
           },
-          "required": ["attention", "id", "ts", "author", "kind", "seq", "thread", "from", "through", "text", "agent", "session"],
+          "required": [
+            "attention",
+            "id",
+            "ts",
+            "author",
+            "kind",
+            "seq",
+            "thread",
+            "from",
+            "through",
+            "text",
+            "agent",
+            "session"
+          ],
           "additionalProperties": false
         }
       },
@@ -781,12 +924,12 @@
         "record": {
           "type": "object",
           "properties": {
-            "attention": {"type": "boolean"},
-            "id": {"type": "string", "minLength": 1},
-            "ts": {"type": "string", "minLength": 1},
-            "author": {"const": "user"},
-            "kind": {"const": "read"},
-            "seq": {"type": "integer", "minimum": 1},
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "const": "user" },
+            "kind": { "const": "read" },
+            "seq": { "type": "integer", "minimum": 1 },
             "messages": {
               "type": "array",
               "minItems": 1,
@@ -794,36 +937,53 @@
               "items": {
                 "type": "object",
                 "properties": {
-                  "message": {"type": "string", "minLength": 1},
-                  "version": {"type": "string", "minLength": 1}
+                  "message": { "type": "string", "minLength": 1 },
+                  "version": { "type": "string", "minLength": 1 }
                 },
                 "required": ["message", "version"],
                 "additionalProperties": false
               }
             },
-            "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
+            "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" }
           },
           "required": ["attention", "id", "ts", "author", "kind", "seq", "messages"],
           "additionalProperties": false
         },
-        "browser": {"required": ["kind", "messages"]}
+        "browser": { "required": ["kind", "messages"] }
       },
       "thread_title": {
         "record": {
           "type": "object",
           "properties": {
-            "attention": {"type": "boolean"},
-            "id": {"type": "string", "minLength": 1},
-            "ts": {"type": "string", "minLength": 1},
-            "author": {"const": "agent"},
-            "kind": {"const": "thread_title"},
-            "seq": {"type": "integer", "minimum": 1},
-            "thread": {"type": "string", "minLength": 1},
-            "title": {"type": "string", "minLength": 1, "maxLength": 80, "pattern": "\\S", "not": {"pattern": "[\\r\\n]"}},
-            "agent": {"type": "string", "minLength": 1},
-            "session": {"type": "string", "minLength": 1}
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "const": "agent" },
+            "kind": { "const": "thread_title" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "thread": { "type": "string", "minLength": 1 },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "pattern": "\\S",
+              "not": { "pattern": "[\\r\\n]" }
+            },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 }
           },
-          "required": ["attention", "id", "ts", "author", "kind", "seq", "thread", "title", "agent", "session"],
+          "required": [
+            "attention",
+            "id",
+            "ts",
+            "author",
+            "kind",
+            "seq",
+            "thread",
+            "title",
+            "agent",
+            "session"
+          ],
           "additionalProperties": false
         }
       },
@@ -831,38 +991,54 @@
         "record": {
           "type": "object",
           "properties": {
-            "attention": {"type": "boolean"},
-            "id": {"type": "string", "minLength": 1},
-            "ts": {"type": "string", "minLength": 1},
-            "author": {"const": "agent"},
-            "kind": {"const": "todo"},
-            "seq": {"type": "integer", "minimum": 1},
-            "owner": {"enum": ["agent", "user"]},
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "const": "agent" },
+            "kind": { "const": "todo" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "owner": { "enum": ["agent", "user"] },
             "subject": {
               "oneOf": [
                 {
                   "type": "object",
                   "properties": {
-                    "kind": {"enum": ["widget", "element"]},
-                    "id": {"type": "string", "minLength": 1}
+                    "kind": { "enum": ["widget", "element"] },
+                    "id": { "type": "string", "minLength": 1 }
                   },
                   "required": ["kind", "id"],
                   "additionalProperties": false
                 },
                 {
                   "type": "object",
-                  "properties": {"kind": {"const": "page"}},
+                  "properties": { "kind": { "const": "page" } },
                   "required": ["kind"],
                   "additionalProperties": false
                 }
               ]
             },
-            "revision": {"type": "integer", "minimum": 1},
-            "title": {"type": "string", "minLength": 1, "maxLength": 80, "pattern": "\\S", "not": {"pattern": "[\\r\\n]"}},
-            "agent": {"type": "string", "minLength": 1},
-            "session": {"type": "string", "minLength": 1}
+            "revision": { "type": "integer", "minimum": 1 },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "pattern": "\\S",
+              "not": { "pattern": "[\\r\\n]" }
+            },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 }
           },
-          "required": ["attention", "id", "ts", "author", "kind", "seq", "owner", "subject", "title"],
+          "required": [
+            "attention",
+            "id",
+            "ts",
+            "author",
+            "kind",
+            "seq",
+            "owner",
+            "subject",
+            "title"
+          ],
           "additionalProperties": false
         }
       },
@@ -870,19 +1046,33 @@
         "record": {
           "type": "object",
           "properties": {
-            "attention": {"type": "boolean"},
-            "id": {"type": "string", "minLength": 1},
-            "ts": {"type": "string", "minLength": 1},
-            "author": {"const": "agent"},
-            "kind": {"const": "start"},
-            "seq": {"type": "integer", "minimum": 1},
-            "item": {"type": "string", "minLength": 1},
-            "text": {"type": "string", "minLength": 1, "pattern": "\\S", "not": {"pattern": "[\\r\\n]"}},
-            "turn": {"type": "string", "minLength": 1},
-            "agent": {"type": "string", "minLength": 1},
-            "session": {"type": "string", "minLength": 1}
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "const": "agent" },
+            "kind": { "const": "start" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "item": { "type": "string", "minLength": 1 },
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "\\S",
+              "not": { "pattern": "[\\r\\n]" }
+            },
+            "turn": { "type": "string", "minLength": 1 },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 }
           },
-          "required": ["attention", "id", "ts", "author", "kind", "seq", "item", "text"],
+          "required": [
+            "attention",
+            "id",
+            "ts",
+            "author",
+            "kind",
+            "seq",
+            "item",
+            "text"
+          ],
           "additionalProperties": false
         }
       },
@@ -890,14 +1080,14 @@
         "record": {
           "type": "object",
           "properties": {
-            "attention": {"type": "boolean"},
-            "id": {"type": "string", "minLength": 1},
-            "ts": {"type": "string", "minLength": 1},
-            "author": {"const": "agent"},
-            "kind": {"const": "put_down"},
-            "seq": {"type": "integer", "minimum": 1},
-            "agent": {"type": "string", "minLength": 1},
-            "session": {"type": "string", "minLength": 1}
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "const": "agent" },
+            "kind": { "const": "put_down" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 }
           },
           "required": ["attention", "id", "ts", "author", "kind", "seq"],
           "additionalProperties": false
@@ -907,23 +1097,41 @@
         "record": {
           "type": "object",
           "properties": {
-            "attention": {"type": "boolean"},
-            "id": {"type": "string", "minLength": 1},
-            "ts": {"type": "string", "minLength": 1},
-            "author": {"enum": ["agent", "user"]},
-            "kind": {"const": "todo_end"},
-            "seq": {"type": "integer", "minimum": 1},
-            "todo": {"type": "string", "minLength": 1},
-            "outcome": {"enum": ["done", "failed", "dropped"]},
-            "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"},
-            "detail": {"type": "string", "minLength": 1, "maxLength": 500, "pattern": "\\S"},
-            "agent": {"type": "string", "minLength": 1},
-            "session": {"type": "string", "minLength": 1}
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "enum": ["agent", "user"] },
+            "kind": { "const": "todo_end" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "todo": { "type": "string", "minLength": 1 },
+            "outcome": { "enum": ["done", "failed", "dropped"] },
+            "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" },
+            "detail": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500,
+              "pattern": "\\S"
+            },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 }
           },
-          "required": ["attention", "id", "ts", "author", "kind", "seq", "todo", "outcome"],
+          "required": [
+            "attention",
+            "id",
+            "ts",
+            "author",
+            "kind",
+            "seq",
+            "todo",
+            "outcome"
+          ],
           "additionalProperties": false
         },
-        "browser": {"required": ["kind", "todo", "outcome"], "properties": {"outcome": {"const": "done"}}, "not": {"required": ["detail"]}}
+        "browser": {
+          "required": ["kind", "todo", "outcome"],
+          "properties": { "outcome": { "const": "done" } },
+          "not": { "required": ["detail"] }
+        }
       },
       "reanchor": {
         "bookkeeping": true,
@@ -944,7 +1152,10 @@
             "author": {
               "const": "page"
             },
-            "publication": {"type": "string", "pattern": "^r[1-9][0-9]*-[a-f0-9]{16}$"},
+            "publication": {
+              "type": "string",
+              "pattern": "^r[1-9][0-9]*-[a-f0-9]{16}$"
+            },
             "kind": {
               "const": "reanchor"
             },
@@ -968,9 +1179,7 @@
                   "minLength": 1
                 }
               },
-              "required": [
-                "section"
-              ],
+              "required": ["section"],
               "additionalProperties": false
             }
           },
@@ -992,107 +1201,156 @@
         "record": {
           "type": "object",
           "properties": {
-            "attention": {"type": "boolean"},
-            "id": {"type": "string", "minLength": 1},
-            "ts": {"type": "string", "minLength": 1},
-            "author": {"type": "string", "minLength": 1},
-            "kind": {"const": "resolve"},
-            "seq": {"type": "integer", "minimum": 1},
-            "parent": {"type": "string", "minLength": 1},
-            "agent": {"type": "string", "minLength": 1},
-            "session": {"type": "string", "minLength": 1},
-            "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "type": "string", "minLength": 1 },
+            "kind": { "const": "resolve" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "parent": { "type": "string", "minLength": 1 },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 },
+            "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" }
           },
           "required": ["attention", "id", "ts", "author", "kind", "seq", "parent"],
           "additionalProperties": false
         },
-        "browser": {"required": ["kind", "parent"]}
+        "browser": { "required": ["kind", "parent"] }
       },
       "unresolve": {
         "record": {
           "type": "object",
           "properties": {
-            "attention": {"type": "boolean"},
-            "id": {"type": "string", "minLength": 1},
-            "ts": {"type": "string", "minLength": 1},
-            "author": {"type": "string", "minLength": 1},
-            "kind": {"const": "unresolve"},
-            "seq": {"type": "integer", "minimum": 1},
-            "parent": {"type": "string", "minLength": 1},
-            "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "type": "string", "minLength": 1 },
+            "kind": { "const": "unresolve" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "parent": { "type": "string", "minLength": 1 },
+            "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" }
           },
           "required": ["attention", "id", "ts", "author", "kind", "seq", "parent"],
           "additionalProperties": false
         },
-        "browser": {"required": ["kind", "parent"]}
+        "browser": { "required": ["kind", "parent"] }
       },
       "done": {
         "record": {
           "type": "object",
           "properties": {
-            "attention": {"type": "boolean"},
-            "id": {"type": "string", "minLength": 1},
-            "ts": {"type": "string", "minLength": 1},
-            "author": {"type": "string", "minLength": 1},
-            "kind": {"const": "done"},
-            "seq": {"type": "integer", "minimum": 1},
-            "version": {"type": "integer", "minimum": 1},
-            "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "type": "string", "minLength": 1 },
+            "kind": { "const": "done" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "version": { "type": "integer", "minimum": 1 },
+            "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" }
           },
           "required": ["attention", "id", "ts", "author", "kind", "seq", "version"],
           "additionalProperties": false
         },
-        "browser": {"required": ["kind", "version"]}
+        "browser": { "required": ["kind", "version"] }
       },
       "action": {
         "record": {
           "type": "object",
           "properties": {
-            "attention": {"type": "boolean"},
-            "id": {"type": "string", "minLength": 1},
-            "ts": {"type": "string", "minLength": 1},
-            "author": {"type": "string", "minLength": 1},
-            "kind": {"const": "action"},
-            "seq": {"type": "integer", "minimum": 1},
-            "widget": {"type": "string", "minLength": 1},
-            "action": {"type": "string", "minLength": 1},
-            "detail": {"type": "object"},
-            "meaning": {"type": "object", "properties": {"scope": {"enum": ["page", "thread"]}, "unit": {"type": "string", "minLength": 1}, "depends": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}, "answer": {"type": ["string", "null"], "minLength": 1}, "creates": {"type": "string", "pattern": "^lf-[a-z0-9]+(-[a-z0-9]+)*$"}, "among": {"type": "array", "items": {"type": "string", "minLength": 1}}, "state": {"type": "object", "properties": {"origin": {"type": "string", "pattern": "^lf-[a-z0-9]+(-[a-z0-9]+)*$"}, "unit": {"type": "string", "minLength": 1}, "record": {"type": ["object", "null"]}, "creates": {"type": ["object", "null"]}, "detail": {"type": ["object", "boolean"]}}, "required": ["origin", "unit", "record", "creates", "detail"], "additionalProperties": false}}, "required": ["scope", "unit", "depends"], "additionalProperties": false},
-            "revision": {"type": "integer", "minimum": 1},
-            "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "type": "string", "minLength": 1 },
+            "kind": { "const": "action" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "widget": { "type": "string", "minLength": 1 },
+            "action": { "type": "string", "minLength": 1 },
+            "detail": { "type": "object" },
+            "meaning": {
+              "type": "object",
+              "properties": {
+                "scope": { "enum": ["page", "thread"] },
+                "unit": { "type": "string", "minLength": 1 },
+                "depends": {
+                  "type": "array",
+                  "items": { "type": "string", "minLength": 1 },
+                  "uniqueItems": true
+                },
+                "answer": { "type": ["string", "null"], "minLength": 1 },
+                "creates": {
+                  "type": "string",
+                  "pattern": "^lf-[a-z0-9]+(-[a-z0-9]+)*$"
+                },
+                "among": {
+                  "type": "array",
+                  "items": { "type": "string", "minLength": 1 }
+                },
+                "state": {
+                  "type": "object",
+                  "properties": {
+                    "origin": {
+                      "type": "string",
+                      "pattern": "^lf-[a-z0-9]+(-[a-z0-9]+)*$"
+                    },
+                    "unit": { "type": "string", "minLength": 1 },
+                    "record": { "type": ["object", "null"] },
+                    "creates": { "type": ["object", "null"] },
+                    "detail": { "type": ["object", "boolean"] }
+                  },
+                  "required": ["origin", "unit", "record", "creates", "detail"],
+                  "additionalProperties": false
+                }
+              },
+              "required": ["scope", "unit", "depends"],
+              "additionalProperties": false
+            },
+            "revision": { "type": "integer", "minimum": 1 },
+            "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" }
           },
-          "required": ["attention", "id", "ts", "author", "kind", "seq", "widget", "action", "detail", "revision", "meaning"],
+          "required": [
+            "attention",
+            "id",
+            "ts",
+            "author",
+            "kind",
+            "seq",
+            "widget",
+            "action",
+            "detail",
+            "revision",
+            "meaning"
+          ],
           "additionalProperties": false
         },
-        "browser": {"required": ["kind", "widget", "action", "detail", "revision"]}
+        "browser": { "required": ["kind", "widget", "action", "detail", "revision"] }
       },
       "pickup": {
         "record": {
           "type": "object",
           "properties": {
-            "attention": {"type": "boolean"},
-            "id": {"type": "string", "minLength": 1},
-            "ts": {"type": "string", "minLength": 1},
-            "author": {"const": "page"},
-            "kind": {"const": "pickup"},
-            "seq": {"type": "integer", "minimum": 1},
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "const": "page" },
+            "kind": { "const": "pickup" },
+            "seq": { "type": "integer", "minimum": 1 },
             "events": {
               "type": "array",
-              "items": {"type": "string", "minLength": 1},
+              "items": { "type": "string", "minLength": 1 },
               "minItems": 1,
               "uniqueItems": true
             },
-            "phase": {"enum": ["queued", "opened", "failed"]},
-            "session": {"type": ["string", "null"], "minLength": 1},
-            "turn": {"type": ["string", "null"], "minLength": 1},
-            "failure": {"type": "string", "minLength": 1},
+            "phase": { "enum": ["queued", "opened", "failed"] },
+            "session": { "type": ["string", "null"], "minLength": 1 },
+            "turn": { "type": ["string", "null"], "minLength": 1 },
+            "failure": { "type": "string", "minLength": 1 },
             "refs": {
               "type": "object",
               "additionalProperties": {
                 "type": "object",
                 "properties": {
-                  "ref": {"type": "string", "minLength": 1},
-                  "claim": {"type": ["string", "null"], "minLength": 1}
+                  "ref": { "type": "string", "minLength": 1 },
+                  "claim": { "type": ["string", "null"], "minLength": 1 }
                 },
                 "required": ["ref", "claim"],
                 "additionalProperties": false
@@ -1100,10 +1358,21 @@
               "minProperties": 1
             }
           },
-          "required": ["attention", "id", "ts", "author", "kind", "seq", "events", "phase", "session", "turn"],
-          "if": {"properties": {"phase": {"const": "failed"}}},
-          "then": {"required": ["failure"]},
-          "else": {"not": {"required": ["failure"]}},
+          "required": [
+            "attention",
+            "id",
+            "ts",
+            "author",
+            "kind",
+            "seq",
+            "events",
+            "phase",
+            "session",
+            "turn"
+          ],
+          "if": { "properties": { "phase": { "const": "failed" } } },
+          "then": { "required": ["failure"] },
+          "else": { "not": { "required": ["failure"] } },
           "additionalProperties": false
         }
       },
@@ -1111,39 +1380,79 @@
         "record": {
           "type": "object",
           "properties": {
-            "attention": {"type": "boolean"},
-            "id": {"type": "string", "minLength": 1},
-            "ts": {"type": "string", "minLength": 1},
-            "author": {"type": "string", "minLength": 1},
-            "kind": {"const": "undo"},
-            "seq": {"type": "integer", "minimum": 1},
-            "undoes": {"type": "string", "minLength": 1},
-            "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "type": "string", "minLength": 1 },
+            "kind": { "const": "undo" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "undoes": { "type": "string", "minLength": 1 },
+            "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" }
           },
           "required": ["attention", "id", "ts", "author", "kind", "seq", "undoes"],
           "additionalProperties": false
         },
-        "browser": {"required": ["kind", "undoes"]}
+        "browser": { "required": ["kind", "undoes"] }
       },
       "report": {
         "record": {
           "type": "object",
           "properties": {
-            "attention": {"type": "boolean"},
-            "id": {"type": "string", "minLength": 1},
-            "ts": {"type": "string", "minLength": 1},
-            "author": {"type": "string", "minLength": 1},
-            "kind": {"const": "report"},
-            "seq": {"type": "integer", "minimum": 1},
-            "widget": {"type": "string", "minLength": 1},
-            "action": {"type": "string", "minLength": 1},
-            "detail": {"type": "object"},
-            "meaning": {"type": "object", "properties": {"scope": {"enum": ["page", "thread"]}, "unit": {"type": "string", "minLength": 1}, "depends": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}, "state": {"type": "object", "properties": {"origin": {"type": "string", "pattern": "^lf-[a-z0-9]+(-[a-z0-9]+)*$"}, "unit": {"type": "string", "minLength": 1}, "record": {"type": ["object", "null"]}, "creates": {"type": ["object", "null"]}, "detail": {"type": ["object", "boolean"]}}, "required": ["origin", "unit", "record", "creates", "detail"], "additionalProperties": false}}, "required": ["scope", "unit", "depends"], "additionalProperties": false},
-            "revision": {"type": "integer", "minimum": 1},
-            "agent": {"type": "string", "minLength": 1},
-            "session": {"type": "string", "minLength": 1}
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "type": "string", "minLength": 1 },
+            "kind": { "const": "report" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "widget": { "type": "string", "minLength": 1 },
+            "action": { "type": "string", "minLength": 1 },
+            "detail": { "type": "object" },
+            "meaning": {
+              "type": "object",
+              "properties": {
+                "scope": { "enum": ["page", "thread"] },
+                "unit": { "type": "string", "minLength": 1 },
+                "depends": {
+                  "type": "array",
+                  "items": { "type": "string", "minLength": 1 },
+                  "uniqueItems": true
+                },
+                "state": {
+                  "type": "object",
+                  "properties": {
+                    "origin": {
+                      "type": "string",
+                      "pattern": "^lf-[a-z0-9]+(-[a-z0-9]+)*$"
+                    },
+                    "unit": { "type": "string", "minLength": 1 },
+                    "record": { "type": ["object", "null"] },
+                    "creates": { "type": ["object", "null"] },
+                    "detail": { "type": ["object", "boolean"] }
+                  },
+                  "required": ["origin", "unit", "record", "creates", "detail"],
+                  "additionalProperties": false
+                }
+              },
+              "required": ["scope", "unit", "depends"],
+              "additionalProperties": false
+            },
+            "revision": { "type": "integer", "minimum": 1 },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 }
           },
-          "required": ["attention", "id", "ts", "author", "kind", "seq", "widget", "action", "detail", "revision", "meaning"],
+          "required": [
+            "attention",
+            "id",
+            "ts",
+            "author",
+            "kind",
+            "seq",
+            "widget",
+            "action",
+            "detail",
+            "revision",
+            "meaning"
+          ],
           "additionalProperties": false
         }
       },
@@ -1151,35 +1460,54 @@
         "record": {
           "type": "object",
           "properties": {
-            "attention": {"type": "boolean"},
-            "id": {"type": "string", "minLength": 1},
-            "ts": {"type": "string", "minLength": 1},
-            "author": {"type": "string", "minLength": 1},
-            "kind": {"const": "note"},
-            "seq": {"type": "integer", "minimum": 1},
-            "version": {"type": "integer", "minimum": 1},
-            "revision": {"type": "integer", "minimum": 1},
-            "publication": {"type": "string", "pattern": "^r[1-9][0-9]*-[a-f0-9]{16}$"},
-            "text": {"type": "string", "minLength": 1},
-            "restated": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "type": "string", "minLength": 1 },
+            "kind": { "const": "note" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "version": { "type": "integer", "minimum": 1 },
+            "revision": { "type": "integer", "minimum": 1 },
+            "publication": {
+              "type": "string",
+              "pattern": "^r[1-9][0-9]*-[a-f0-9]{16}$"
+            },
+            "text": { "type": "string", "minLength": 1 },
+            "restated": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            },
             "settles": {
               "type": "array",
               "items": {
                 "type": "object",
                 "properties": {
-                  "kind": {"enum": ["report", "todo"]},
-                  "id": {"type": "string", "minLength": 1}
+                  "kind": { "enum": ["report", "todo"] },
+                  "id": { "type": "string", "minLength": 1 }
                 },
                 "required": ["kind", "id"],
                 "additionalProperties": false
               },
               "uniqueItems": true
             },
-            "agent": {"type": "string", "minLength": 1},
-            "session": {"type": "string", "minLength": 1}
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 }
           },
-          "required": ["attention", "id", "ts", "author", "kind", "seq", "version", "revision", "text"],
-          "dependentSchemas": {"publication": {"properties": {"author": {"const": "agent"}}}},
+          "required": [
+            "attention",
+            "id",
+            "ts",
+            "author",
+            "kind",
+            "seq",
+            "version",
+            "revision",
+            "text"
+          ],
+          "dependentSchemas": {
+            "publication": { "properties": { "author": { "const": "agent" } } }
+          },
           "additionalProperties": false
         }
       },
@@ -1187,19 +1515,19 @@
         "record": {
           "type": "object",
           "properties": {
-            "attention": {"type": "boolean"},
-            "id": {"type": "string", "minLength": 1},
-            "ts": {"type": "string", "minLength": 1},
-            "author": {"type": "string", "minLength": 1},
-            "kind": {"const": "error"},
-            "seq": {"type": "integer", "minimum": 1},
-            "revision": {"type": "integer", "minimum": 1},
-            "text": {"type": "string", "minLength": 1}
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "type": "string", "minLength": 1 },
+            "kind": { "const": "error" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "revision": { "type": "integer", "minimum": 1 },
+            "text": { "type": "string", "minLength": 1 }
           },
           "required": ["attention", "id", "ts", "author", "kind", "seq", "text"],
           "additionalProperties": false
         },
-        "browser": {"required": ["kind", "text"]}
+        "browser": { "required": ["kind", "text"] }
       }
     }
   },
@@ -1209,7 +1537,7 @@
     "x-awaits": "The widget asks the user for input while its authored attributes match `when`. The ask's id is `widget:<source-id>` and never changes. `value` names the x-state verb whose state is the typed answer, and `answered` says when the ask is complete ($awaits); they are separate because a partial value can exist while the ask is open, and an empty value can be a complete answer. `all` names the outcome one banner control can give every ask of this kind at once. Once created, an ask stays answered or withdrawn after `when` stops matching; an element that never matched creates none, and neither does a quoted widget (x-exhibit). A `restated` event asks again. While the agent owes a reply in a thread about the ask, anchored inside the widget, or inside its x-ask-context but no other ask, the agent is its next actor and the ask stays unanswered. A widget in a thread message keeps its ask after the thread closes. Asks and to-dos are separate records, and the user's On me list reads asks directly.",
     "x-thread-seat": "The module puts a thread box (`threadBox`) in each element that matches `when` on authored attributes, not on attributes an x-state record writes. The box shows, as text, the threads anchored exactly to that element; the Threads panel keeps the full view. An element inside thread markup or quoted content gets no box. On a widget that also asks (x-awaits), the box is where the user answers in words: while a thread there waits on the agent, the ask leaves the user's On me list, but it is still unanswered and the widget's controls still work. `hold` labels a second send button whose comment carries `holds`, naming the widget. The widget is held while that thread is open; resolving the thread releases it. Removing the widget removes only the box, not its threads.",
     "x-content": "The required content: `markup` (the author's markup), `members` (only this element's declared member elements), `data` (one <pre> holding text in the notation the description names, with & < > escaped as &amp; &lt; &gt;), or `empty`.",
-    "x-data": "The widget's named external-data inputs. Each input names a `$data.contracts` contract and the string attribute whose authored value is the page's source id, and follows that source's current value; where an optional source attribute is absent, `watchData` delivers null. A document binds each source to one contract, and a later document may rebind it; each document reads the value against its own contract and reports a mismatch as a source error. A module subscribes by widget and input name, never by a source name.",
+    "x-data": "The widget's named external-data inputs. Each input names a `$data.contracts` contract and the string attribute whose authored value is the page's source id, and follows that source's current value; where an optional source attribute is absent, a widget reads null. A document binds each source to one contract, and a later document may rebind it; each document reads the value against its own contract and reports a mismatch as a source error. A module subscribes by widget and input name, never by a source name.",
     "x-example": "Authored markup exhibiting the widget, valid against the merged registry: an agent reads it with the element declaration, writes from it, and the lint refuses one that does not validate.",
     "x-exhibit": "The element shows quoted content: widgets inside it take no input, and their asks stay off the user's On me list. Modules check `quoted(el)` before enabling input.",
     "x-instructions": "Instructions for an author using this widget, read after choosing it and before writing markup. One non-empty string, separate from the short `description` and the schema.",
@@ -1224,7 +1552,7 @@
     "x-retired-when": "On a member: the outcome of its owner's decision that removes it from the page, as `accept` removes a suggestion's `lf-old`. Requires x-owners. The outcome is a value of the `outcome` field on the owner's one deciding verb. Leaf renders the decision itself, including its undo: it writes `data-lf-state=\"<outcome>\"` on the owner and `data-lf-retired` on the removed members, which one theme rule hides. A module may write the same attributes earlier during its own gesture (`renderRetired`), but code that needs the decision reads it from the widget's state, not the attributes. Once the log decides, `page check` lets a revision drop the member's ids, and `page check --render` reports a removed member that still shows words.",
     "x-says": "Attributes whose values show as selectable text: `after` inside the element after its content, `before` at its start, in declaration order. The runtime writes real text nodes, unlike CSS `content: attr()`, so the user can select, quote and comment on the words.",
     "x-shadow": "The module renders the page's words into an open shadow root, and Leaf's passage reading, selection capture and id lookups reach into it. The render check reports a shadow root on an element whose declaration lacks this key.",
-    "x-state": "Declares each verb of a widget that has state: the unit of state it changes, who writes it, and either its record (how the state reads in markup, $state.record) or the schema of its detail. A verb is the user's, sent from the page as `action` events, unless it declares `writer: \"agent\"`; the agent writes it with `leaf page report`, as `report` events. A user verb may create a child element (`creates`). An agent verb with `text: true` requires each report to carry a non-empty `detail.text`, a short note the report feed shows as written. The page marks a reported widget `data-lf-reported` until a version answers the report ($report). For each [widget, unit, verb] key, the latest action not taken back wins, and different verbs on one unit coexist. Leaf combines those actions with the authored values and hands the widget its complete state, keyed by verb, through `renderState`. A past action keeps its key after the widget leaves the page. When an action makes the widget's x-awaits `answered` condition hold, Leaf records `meaning.answer` on it: the thread named by the widget's `resolves` attribute in the document the action came from, which the answer closes, or null. A decision whose outcome is the widget's x-withdrawn-as value also records null, and the page reads as if nothing had been proposed. The detail field `outcome` is reserved for the one user verb that decides which members leave the page (x-retired-when).",
+    "x-state": "Declares each verb of a widget that has state: the unit of state it changes, who writes it, and either its record (how the state reads in markup, $state.record) or the schema of its detail. A verb is the user's, sent from the page as `action` events, unless it declares `writer: \"agent\"`; the agent writes it with `leaf page report`, as `report` events. A user verb may create a child element (`creates`). An agent verb with `text: true` requires each report to carry a non-empty `detail.text`, a short note the report feed shows as written. The page marks a reported widget `data-lf-reported` until a version answers the report ($report). For each [widget, unit, verb] key, the latest action not taken back wins, and different verbs on one unit coexist. Leaf combines those actions with the authored values and hands the widget its complete state, keyed by verb, as `this.state`, which its `render()` reads. A past action keeps its key after the widget leaves the page. When an action makes the widget's x-awaits `answered` condition hold, Leaf records `meaning.answer` on it: the thread named by the widget's `resolves` attribute in the document the action came from, which the answer closes, or null. A decision whose outcome is the widget's x-withdrawn-as value also records null, and the page reads as if nothing had been proposed. The detail field `outcome` is reserved for the one user verb that decides which members leave the page (x-retired-when).",
     "x-thread-surface": "The upgraded widget can show Leaf's comment box and threads inside itself, beside the data items they are about. On each pass, Leaf calls the element's `threadOutlets(targets, {signal, collection, onCommit})` with the targets anchored exactly to its items, in order, and the method returns for each an element to place it in (an outlet), or null. The widget reads its registration with `threadSurface(element)`: `update()` says its outlets changed, and `open(datum)` opens Comment on one item. Leaf still owns anchors, drafts, sending, thread rendering, replies, reactions and focus, and decides placement inside each outlet. An item that isn't shown (not loaded, filtered out, collapsed or outdated) gets no outlet, and its threads stay in the Threads panel and the margin.",
     "x-text-format": "How the element's text is formatted. `inline-markdown` formats its direct text nodes; `markdown` renders its data body as safe block Markdown. A body record keeps the Markdown source, while passages read the visible words. Child elements stay HTML. In a generated child, the user's line breaks are hard breaks.",
     "x-tone": "The attribute that names one of the layer's semantic tints, held to `$tones.names`, which the theme has a rule for.",
@@ -1308,7 +1636,7 @@
     "x-example": "<span class=\"tag\">experimental</span>"
   },
   ".callout": {
-    "description": "An aside set off from the prose in a tinted, bordered box, for something the user must not miss; a note they can skip goes in the margin (aside.sidenote). Add `ok`, `warn` or `danger` when it reports a status, as `class=\"callout warn\"` for a paused release; the tint and title take the tone, and the prose keeps the body's ink. In a flow wider than the column, such as a sidebar page's body, it keeps the prose width; one holding a wide chart or table takes `data-width`.",
+    "description": "An aside set off from the prose in a tinted, bordered box, for something the user must not miss; a note they can skip goes in the margin (aside.sidenote). Add `ok`, `warn` or `danger` when it reports a status, as `class=\"callout warn\"` for a paused release; the tint and the title take the tone, and the prose keeps the body's ink. The title is a `<strong>` written as the callout's first child; one opening a paragraph stays in the body's ink. In a flow wider than the column, such as a sidebar page's body, it keeps the prose width; one holding a wide chart or table takes `data-width`.",
     "x-space": "column",
     "x-example": "<aside class=\"callout\" id=\"rollback-note\">Rollback is one flag flip; the backfill is idempotent.</aside>"
   },

@@ -57,6 +57,8 @@ and work-item lists too:
   user judges; otherwise show the change's effect before and after, with the code
   beside it.
 - For a choice of wording, show each wording as it would appear.
+- For a change the user would neither see nor need to picture, such as a refactor
+  judged by its reasons and cost, give what it gives them in words.
 
 Vary only the treatment in question, and show today's version, or no change, beside
 them as a neutral baseline. Put longer rationale in a disclosure after the ask. The `lf-ask`,

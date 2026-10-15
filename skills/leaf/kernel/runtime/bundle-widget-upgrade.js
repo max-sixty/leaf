@@ -69,11 +69,7 @@ function showFailure(el, text, source) {
     pre.textContent = source;
     box.append(pre);
   }
-  const place = placers.get(el);
-  if (place) {
-    place(box);
-    return;
-  }
+  if (placers.get(el)?.(box)) return;
   if (el.shadowRoot) {
     shadowStage(el, [box]);
     return;

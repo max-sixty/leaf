@@ -711,12 +711,10 @@ regionCapture = createRegionCapture({
 });
 
 layout = createChromeLayout({
-  panelIsOpen,
   elements: {
     panel,
     closeBtn,
     panelFoot,
-    threadsBox,
     shortcutBarEl,
     bottomStatusEl,
   },
@@ -919,7 +917,6 @@ if (!offlineInteractive) {
   layout.mountLayoutObservers();
   goToSequence.mountGoToSequence();
   mountShortcutBar({
-    placeBottomStatus: layout.syncBottomStatus,
     setGoToSequence: goToSequence.setGoToSequence,
     setReact: reactions.setReact,
   });

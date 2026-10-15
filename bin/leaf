@@ -27,9 +27,10 @@
 # this install has an environment. Its canonical cleanup is a standalone stdlib
 # Python 3.9 program; it never imports the managed Leaf package.
 #
-# Codex runs its tool hook after every tool call, so where the environment
-# exists a Codex hook first asks the same standalone program, on that
-# environment's interpreter, whether the session has anything for it
+# Codex runs its tool hook after every tool call, and Claude Code its prompt and
+# Stop hooks in every session the plugin is installed in, so where the environment
+# exists their hooks first ask the same standalone program, on that
+# environment's interpreter, whether the session has anything for them
 # (`state.hook_needed`). That spares uv and the package's imports wherever no
 # page was claimed. Without the environment, or with any answer but "nothing",
 # the hook runs whole.
@@ -62,10 +63,10 @@ fi
 if [ -n "${SANDBOX_RUNTIME:-}" ] && [ -x "$root/.venv/bin/python" ]; then
     exec "$root/.venv/bin/python" -I -m leaf.bridge run "$@"
 fi
-if [ "$#" -eq 3 ] && [ "$1" = hook ] && [ "$2" = --harness ] && [ "$3" = codex ] &&
-    [ -x "$root/.venv/bin/python" ]; then
+if [ "$#" -ge 3 ] && [ "$1" = hook ] && [ "$2" = --harness ] &&
+    { [ "$3" = codex ] || [ "$3" = claude-code ]; } && [ -x "$root/.venv/bin/python" ]; then
     payload=$(cat)
-    printf '%s' "$payload" | "$root/.venv/bin/python" -S "$state" hook-gate
+    printf '%s' "$payload" | "$root/.venv/bin/python" -S "$state" hook-gate "$3"
     [ "$?" -eq 3 ] && exit 0
     exec uv run -q $cache --no-dev --project "$root" python -m leaf "$@" <<EOF
 $payload

@@ -132,6 +132,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
 }
 /* Everything below is private to the chrome: no widget or page class can match it. */
 @scope (.lf-chrome) {
+  lf-ask-banner-face, lf-leaves-banner-face { display: contents; }
   /* Capture paint leaves page hit tests intact; the controller owns its input. */
   .lf-region-capture { position: fixed; inset: 0; z-index: var(--lf-z-region-capture);
     pointer-events: none; overflow: hidden; color: var(--ink); }
@@ -511,7 +512,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      box there would stand over the page for hit-testing readers. */
   .lf-auxiliary-envelope { position: absolute; inset: 0 auto auto 0; width: 0; height: 0;
     max-width: none; max-height: none; margin: 0; padding: 0; border: 0; overflow: visible;
-    background: transparent; color: inherit; pointer-events: none; }
+    background: transparent; color: inherit; pointer-events: none;
+    anchor-scope: --lf-panel-foot, --lf-panel-list, --lf-panel-reply; }
   .lf-auxiliary-envelope::backdrop { background: transparent; }
   .lf-auxiliary-envelope > :is(.lf-drawer-panel, .lf-thread-panel, [popover], dialog) { pointer-events: auto; }
   .lf-auxiliary-scrim { position: fixed; inset: 0;
@@ -719,6 +721,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     display: grid; container-type: size; }
   .lf-threads-frame::after, .lf-threads { grid-area: 1 / 1; min-height: 0; }
   .lf-threads { overflow-y: auto; overscroll-behavior: contain; z-index: 0;
+    anchor-name: --lf-panel-list;
     padding: var(--focus-ring-room) var(--lf-list-inset); --lf-block-frame: 1;
     scroll-padding: var(--focus-ring-room) 0;
     --lf-top-start: calc(-1 * var(--focus-ring-room)); --lf-top: var(--lf-top-start);
@@ -739,9 +742,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-threads > .lf-empty { padding-inline: calc(1px + var(--lf-thread-inset)); }
   /* A thread and the room a resolved one is still giving back (foldOut) are the same
      box, so the fold starts from the box the user was looking at rather than from
-     a second description of it. What .lf-going adds is the clip the fold needs and
-     the outcome said in paint: the box is on its way out and may not also state
-     that in metrics the fold is animating. */
+     a second description of it. The retiring box says the outcome in paint without
+     also stating that in metrics the fold is animating. */
   /* One baseline separates threads without putting boxes back around them. */
   .lf-thread, .lf-going { --lf-thread-pad: 8px; --lf-thread-border: 1px;
     font: var(--t-5)/var(--lf-ui-lh) var(--sans); color: var(--ink); position: relative;
@@ -885,9 +887,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-quote-label { min-width: 0; }
   .lf-anchor-status { margin-inline-start: 7px; color: var(--muted-2);
     font: 500 var(--t-6)/1.25 var(--sans); }
-  /* Clip, not hidden: a scroll container would take the open title's sticky pin from
-     the list, and the title would jump off screen as the fold begins. */
-  .lf-going { overflow: clip; box-sizing: border-box; }
   /* The reply box stands at the card's foot, the edge the fold draws up, so it leaves
      as the fold begins rather than ride that edge. */
   .lf-going > .lf-thread-reply { visibility: hidden; }
@@ -941,10 +940,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
       / 0 0 0 6px; }
   .lf-thread-panel { --lf-thread-inset: 12px; --lf-list-inset: 8px;
     --lf-panel-inset: calc(var(--lf-list-inset) + 1px + var(--lf-thread-inset)); }
-  /* The foot is where page annotations home the response bar, a column of its own so
-     the one box the chrome measures for its lift is the one the user sees standing
-     there. */
-  .lf-thread-panel-foot { display: flex; flex-direction: column; flex: none; }
+  /* Page annotations home the response bar in this column. Feedback clears the
+     actual foot through its native size anchor. */
+  .lf-thread-panel-foot { display: flex; flex-direction: column; flex: none;
+    anchor-name: --lf-panel-foot; }
   /* Every composer gives its field the row; its submit action lives inside that field. */
   .lf-general {
     display: flex; gap: 6px; flex: 1; min-height: 0;
@@ -979,7 +978,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     --lf-comment-reply-row: calc(var(--lf-comment-foot-gap) + var(--lf-compose-h) + 2px);
     --lf-comment-frame-bottom: calc(var(--lf-comment-reply-row) + var(--lf-comment-inset) + 1px);
   }
-  .lf-fab-bar { display: none; }
   /* The ⌥ aim's promise: the item a press would take, whole, drawn in the chrome's layer
      rather than on the element, since no band of a page element is reliably the
      runtime's to paint (a scroller clips outside, a group's cells paint over inside, and
@@ -1008,7 +1006,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   /* Unsent ink whose composer is put away stays on the page, dashed as a draft set
      aside, apart from the drawing the open composer carries. */
   .lf-drawing-mark.lf-drawing-parked path { stroke-dasharray: 7 6; }
-  .lf-composer { display: none; }
   .lf-fab-bar .lf-composer > :not(.lf-compose-field, .lf-composer-media) {
     display: none !important; }
   /* A suggestion renders verbatim — its characters are what the next version
@@ -1194,10 +1191,14 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      upward over the page, then the full reference. Hints are aria-hidden copies of facts
      spoken elsewhere; More is a real control. Transient status (a walk's ordinal or a
      notice) stands at the other end, and a fixed one pads the line's end
-     (--lf-status-room). syncLayout keeps the bar out of the thread panel. The runtime
+     (--lf-status-room). The shell's auxiliary width keeps the bar out of the side panel. The runtime
      trims the hints that would spill past one row (two expanded) from their widths; the
      rows pack to the foot, and overflow is the backstop for one hint wider than the
      window. */
+  /* Only chrome inherits the shell's resolved length. Page widgets keep the
+     registered property's non-inheriting behavior. */
+  :scope { --lf-auxiliary-beside: inherit;
+    --lf-shortcut-bar-right: var(--lf-auxiliary-beside); }
   .lf-shortcut-bar { position: fixed; left: 0; right: var(--lf-shortcut-bar-right, 0px);
     bottom: 0; z-index: var(--lf-z-shortcut-bar); pointer-events: none;
     box-sizing: border-box; min-height: var(--lf-bottom-bar-h);
@@ -1280,13 +1281,21 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   html[data-lf-sample-block] :scope {
     .lf-banner-status, .lf-status-queues, .lf-shortcut-bar { display: none; }
   }
-  /* A covering thread panel stands over the bar's right end, and its foot over the
-     status's seat; notices are live feedback, so the status rises clear of that foot,
-     whose height syncLayout states. A walk's position stays off it: standing there it
+  /* A covering thread panel stands over the bar's right end. Native anchors lift
+     feedback clear of its foot and the selected reply's full height, whatever the
+     list's scroll position; the list keeps all its room. The list opens one chosen
+     row (thread-list-view.js), so there is one reply anchor. A walk's position stays off it: standing there it
      took a strip from the bottom of the thread the user was reading, to say what the
      open card and its pinned title already show. */
   .lf-auxiliary-envelope > .lf-thread-panel[data-lf-covered] ~ .lf-bottom-status {
-    bottom: calc(var(--lf-panel-foot-h, 0px) + 14px + var(--lf-safe-bottom)); translate: none; }
+    bottom: calc(anchor-size(--lf-panel-foot height, 0px) + 14px + var(--lf-safe-bottom)); translate: none; }
+  .lf-threads > .lf-thread[open]:not([hidden]) > .lf-thread-reply {
+    anchor-name: --lf-panel-reply; }
+  .lf-auxiliary-envelope > .lf-thread-panel[data-lf-covered]:has(.lf-thread[open]:not([hidden]) > .lf-thread-reply)
+    ~ .lf-bottom-status {
+    bottom: calc(max(anchor-size(--lf-panel-foot height, 0px),
+      anchor(--lf-panel-list bottom, 0px) + var(--focus-ring-room)
+        + anchor-size(--lf-panel-reply height, 0px)) + 14px + var(--lf-safe-bottom)); }
   .lf-auxiliary-envelope > .lf-thread-panel[data-lf-covered]
     ~ .lf-bottom-status:not(:has(> .lf-go-to-status:not([hidden]), > .lf-notice.show)) {
     display: none; }

@@ -20,7 +20,8 @@
     "additionalProperties": false,
     "x-content": "members",
     "x-upgrade": true,
-    "x-awaits": {"value": "choose",
+    "x-awaits": {
+      "value": "choose",
       "answered": {
         "choose": {}
       }
@@ -261,6 +262,7 @@
       "for": { "tag": "lf-playground-control", "key": "name" }
     },
     "x-owners": ["lf-playground-output"],
+    "x-within": ["lf-playground-output"],
     "x-content": "empty",
     "x-inline": true,
     "x-upgrade": false

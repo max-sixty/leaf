@@ -60,14 +60,6 @@ a `todo_end` of an open to-do; the user ends only a to-do opened on them.
 `TodoReading` reads the log's to-dos, starts and ends, and `WorkReading.page_todos`
 adds their thread and activity readings.
 
-When `leaf task end` ends a to-do on an element `done`, and that element still shows
-unfolded on the newest revision (not inside a closed details, a later tab or
-[hidden]) with nothing on it or inside it on either list, the command advises moving
-it
-(`finished_in_view`), because agents had left pages that were mostly finished work.
-The agent judges whether the element is finished work or the page's current
-content.
-
 Experimental: to-dos and the two lists are new, and their shape is expected to
 change a lot (notes/what-needs-you/). Change them freely; nothing outside this
 repository depends on them.
@@ -473,55 +465,6 @@ def put_down(page) -> dict | None:
         page, {"kind": "put_down", "author": "agent", **message_identity()}
     )
     return record
-
-
-def finished_in_view(page_dir: Path, end: dict) -> Finding | None:
-    """Advice naming the element a `done` end finished, where it still stands among
-    the open work (`work.open_ids`) and nothing on it or inside it, a thread anchored
-    there included, is on either list; else None."""
-    from .event_log import read_events
-    from .served_state.context import read_page
-    from .served_state.page import read_served_page
-    from .work import open_ids
-
-    if end["outcome"] != "done":
-        return None
-    events = read_events(page_dir)
-    subject = next(
-        (
-            todo["subject"]
-            for todo in TodoReading(events).todos
-            if todo["id"] == end["todo"]
-        ),
-        None,
-    )
-    if subject is None or subject["kind"] != "element":
-        return None
-    within = open_ids(page_dir, subject["id"])
-    if within is None:
-        return None
-    served, _, _ = read_served_page(read_page(page_dir, events))
-    view = served["browser"]["views"][str(served["active"]["revision"])]
-    # A thread item stands where its thread is anchored.
-    anchored = {
-        thread["id"]: thread["anchor"].get("section")
-        for thread in view["thread"]["threads"]
-        if thread["anchor"]
-    }
-    if any(
-        (
-            anchored.get(item["subject"]["id"])
-            if item["subject"]["kind"] == "thread"
-            else item["subject"].get("id")
-        )
-        in within
-        for side in ("on_user", "on_agent")
-        for item in view["queues"][side]
-    ):
-        return None
-    return Finding(
-        "finished-in-view", values={"element": subject["id"]}, severity="advice"
-    )
 
 
 def cmd_end(page_dir: Path, todo: str, outcome: str, detail: str | None) -> dict:

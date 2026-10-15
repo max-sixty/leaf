@@ -15,13 +15,11 @@ outlives it. For example, inside a widget whose `save()` method does the work:
 ```js
 import {
   contributionEntry,
-  once,
   registerContribution,
   whileConnected,
 } from "/runtime/widget-api.js";
 
-connectedCallback() {
-  if (!once(this)) return;
+setup() {
   whileConnected(this, () => {
     this.actions = registerContribution({
       key: this.id,

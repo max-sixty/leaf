@@ -562,10 +562,14 @@ def test_option_controls_hold_presentation_without_replacing_authored_nodes(
 
     group.evaluate(
         """holder => {
-          const parent = holder.parentNode;
-          const next = holder.nextSibling;
+          window.optionsReturn = [holder.parentNode, holder.nextSibling];
           holder.remove();
-          parent.insertBefore(holder, next);
+        }"""
+    )
+    page.evaluate(
+        """() => {
+          const [parent, next] = window.optionsReturn;
+          parent.insertBefore(optionGroup, next);
           window.reconnectedOptionsReady = false;
           void whenOptionsPresented().then(() => {
             reconnectedOptionsReady = true;

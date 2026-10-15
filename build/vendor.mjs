@@ -41,10 +41,12 @@ const packageVendor = (name) => `skills/leaf/packages/${name}/vendor`;
 const input = (file) => path.join(root, "build", file);
 
 /** Expose selected installed exports without sharing a broad barrel's unused imports. */
-function selectedExports(source, entry) {
+function selectedExports(source, entries, specifier) {
   const options = { ecmaVersion: "latest", sourceType: "module" };
-  const names = parse(readFileSync(entry, "utf8"), options).body.flatMap((node) =>
-    node.specifiers.map((item) => item.local.name),
+  const names = entries.flatMap((entry) =>
+    parse(readFileSync(entry, "utf8"), options)
+      .body.filter((node) => node.source?.value === specifier)
+      .flatMap((node) => node.specifiers.map((item) => item.local.name)),
   );
   const body = parse(source, options).body;
   const published = body
@@ -511,11 +513,17 @@ const bundles = {
     adapt: [
       {
         file: /@pierre\/diffs\/dist\/index\.js$/,
-        edit: (source) => selectedExports(source, input("pierre/parser.mjs")),
+        edit: (source) =>
+          selectedExports(
+            source,
+            [input("pierre/parser.mjs"), input("pierre/entry.mjs")],
+            "@pierre/diffs",
+          ),
       },
       {
         file: /@pierre\/diffs\/dist\/ssr\/index\.js$/,
-        edit: (source) => selectedExports(source, input("pierre/entry.mjs")),
+        edit: (source) =>
+          selectedExports(source, [input("pierre/entry.mjs")], "@pierre/diffs/ssr"),
       },
       {
         file: /@pierre\/diffs\/dist\/highlighter\/shared_highlighter\.js$/,

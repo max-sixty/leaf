@@ -351,8 +351,8 @@
                           contain: inline-size; }
 .lf-diff-thread-outlet:not(.lf-diff-file-thread-outlet) {
                           box-sizing: border-box; position: sticky;
-                          inset-inline-start: var(--lf-diff-gutter-width);
-                          max-inline-size: var(--lf-diff-thread-width); }
+                          inset-inline-start: var(--diffs-column-number-width);
+                          max-inline-size: var(--diffs-column-content-width); }
 .lf-diff-file-thread-outlet { margin-top: 8px; border: 1px solid var(--rule);
                               border-radius: var(--r); }
 /* The outlet owns the review row's boundary. Shared conversation separators and

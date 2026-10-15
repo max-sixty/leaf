@@ -124,6 +124,9 @@ def test_sort_film_readout_and_narration(browser, serve):
     """Changing step numbers hold their space, and narration renders inline Markdown."""
     example = next(path for path in EXAMPLES if path.stem == "rust-sort")
     page = open_page(browser, serve(example))
+    assert "collapse(): merge when a clause is true" in page.locator(
+        "#sort-film svg[role='img']"
+    ).text_content()
     readings = page.evaluate(
         """async () => {
           const imports = JSON.parse(document.querySelector('script[type="importmap"]').textContent).imports;

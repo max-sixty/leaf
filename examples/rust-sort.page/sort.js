@@ -1102,12 +1102,11 @@ export class Painter {
       });
     }
     if (!k) text(S.x, S.top + 13, "empty", { fill: C.muted, "font-style": "italic" });
-    reconcileChildren(this.stack, g);
-
     // The collapse() clauses, always drawn: idle between checks, and during one each
     // clause says whether it held, or that `||` never reached it.
     const list = step.checks?.list ?? [];
     text(K.x, K.title, "collapse(): merge when a clause is true", { fill: C.muted });
+    reconcileChildren(this.stack, g);
     CLAUSES.forEach((clause, i) => {
       const { lines, top, bottom } = K.rows[i];
       const c = list.find((c) => c.line === `c-${clause.key}`);

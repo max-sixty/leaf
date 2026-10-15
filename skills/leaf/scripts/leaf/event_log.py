@@ -145,7 +145,8 @@ def _append_event_unlocked(
             f.write(b"\n")
     f.seek(0)
     seq = f.read().count(b"\n") + 1
-    f.write((jsonl_line({**event, "context": context}) + "\n").encode())
+    stored = event if context is None else {**event, "context": context}
+    f.write((jsonl_line(stored) + "\n").encode())
     # To the platter before the caller is told it landed: an event is a
     # decision, the sender's 200 (or a CLI exit 0) is the claim it is kept,
     # and events are rare enough that a flush per append costs nothing.

@@ -64,7 +64,7 @@ other page files and the external state listed below.
   and documents, messages, and the runtime all address it there.
 
 - `events.jsonl` — append-only event log; an event's seq is its line number (1-based).
-  Stored rows include private native session `context`. Application readers
+  Stored rows include private native session `context` when available. Application readers
   strip it before admission, projections, delivery or public event output.
   Diagnostic queries read raw events using the current application rules.
 

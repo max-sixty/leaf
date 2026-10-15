@@ -209,7 +209,7 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
     )
     page.locator(".lf-fab-input").click()
     page.wait_for_function(
-        "() => document.querySelector('.lf-composer').style.display === 'contents'"
+        "() => document.querySelector('.lf-composer').hasAttribute('data-lf-open')"
     )
     quoted = composer_quote(page)["text"]
     assert quoted.strip("“”") == "In flight"
@@ -1151,7 +1151,7 @@ def test_the_captured_quote_is_prose_a_file_can_hold(browser, serve):
         page.locator(block).click(click_count=3)
         page.locator(".lf-fab-input").click()
         page.wait_for_function(
-            "() => document.querySelector('.lf-composer').style.display === 'contents'"
+            "() => document.querySelector('.lf-composer').hasAttribute('data-lf-open')"
         )
 
     # Read off the composer's description of its own anchor, which is the captured quote
@@ -1231,7 +1231,7 @@ def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
     page.locator("#q").click(click_count=3)
     page.locator(".lf-fab-input").click()
     page.wait_for_function(
-        "() => document.querySelector('.lf-composer').style.display === 'contents'"
+        "() => document.querySelector('.lf-composer').hasAttribute('data-lf-open')"
     )
 
     # The click that selected #q also scrolled it into view. Bring the other passage
@@ -1248,7 +1248,7 @@ def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
     page.locator("#p").click(click_count=3)
     page.locator(".lf-fab-input").click()
     page.wait_for_function(
-        "() => document.querySelector('.lf-composer').style.display === 'contents'"
+        "() => document.querySelector('.lf-composer').hasAttribute('data-lf-open')"
     )
     page.mouse.click(*mark_point(page, "lf-pending"))
     assert not page.locator(".lf-thread-panel").evaluate(

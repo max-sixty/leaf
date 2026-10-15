@@ -57,7 +57,7 @@
     "runtime/composing/drawing-schema.js": "d997712a7fc8183f4384f926f746056b115a6d877b7e8811b9799460f5b426ba",
     "runtime/composing/drawing.js": "439b1bb1cd685b29d1656c07cf8daa706d6063c92d25f11f45a0114cd4f5a87c",
     "runtime/composing/engagement.js": "20400ec66c7f307e44244c2779a695ba00fdeaf2053d4c49341500bad04164ab",
-    "runtime/composing/input.js": "8685ec261be8155dd65dcdc5669954cecac467a57e3e3238d10cb2c46e2dc5eb",
+    "runtime/composing/input.js": "6e3186ad3e28d9881a1b70d7e6efcc17de6fa3ea3a908bb3116a69b9ad052d47",
     "runtime/composing/page-image.js": "ad0385fbce5e99ceb5c424d2aeef3183d9cb56533f67ee42f8832554d01a3ad3",
     "runtime/composing/region-capture.js": "046ec661a1270f23640c7b17691ee8559928c5c64a13c15fa19cc8164d069905",
     "runtime/composing/region-selector.js": "4b6a34975d39acb7b176071f2e0033d2c5ce971626057b97e5fbe479b81eb555",

@@ -782,6 +782,8 @@ function drawingThumbnail(drawing2, target) {
 // runtime/composing/input.js
 var inputDrafts = /* @__PURE__ */ new WeakMap();
 var MEDIA_SHELF_TAG = "leaf-attached-media-shelf";
+var sameDrawing = (a, b) => a === b || JSON.stringify(a) === JSON.stringify(b);
+var thumbnailVersion = 0;
 var AttachedMediaShelf = class extends LitElement {
   static properties = {
     model: { attribute: false }
@@ -792,11 +794,18 @@ var AttachedMediaShelf = class extends LitElement {
     this.actions = null;
     this.undoIcon = iconElement("undo", "lf-action-icon");
     this.removeIcon = iconElement("cross", "lf-action-icon");
-    this.pictured = { drawing: null, node: null };
+    this.pictured = { drawing: null, target: null, node: null };
   }
   picture(drawing2) {
-    if (drawing2 !== this.pictured.drawing)
-      this.pictured = { drawing: drawing2, node: drawingThumbnail(drawing2, this.model.target) };
+    if (!sameDrawing(drawing2, this.pictured.drawing) || this.model.target !== this.pictured.target) {
+      const node = drawingThumbnail(drawing2, this.model.target);
+      node.dataset.lfDrawingVersion = String(++thumbnailVersion);
+      this.pictured = {
+        drawing: drawing2,
+        target: this.model.target,
+        node
+      };
+    }
     return this.pictured.node;
   }
   createRenderRoot() {
@@ -995,7 +1004,6 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
     };
     let shelfSeen = null;
     let arrivals = 0;
-    const sameDrawing = (a, b) => a === b || JSON.stringify(a) === JSON.stringify(b);
     const putDrawing = (drawn2) => {
       shelfSeen = { ...shelfSeen, drawing: drawn2 };
       drawing2.replace(drawn2);

@@ -16,6 +16,7 @@ from leaf.revision_artifact import (
     Resource,
     capture_artifact,
     capture_local_resource,
+    read_artifact,
 )
 from leaf.revision_delivery import (
     Delivery,
@@ -31,16 +32,6 @@ from leaf.structure import SourceDocument
 PAGE_ROOT = "/p/user"
 ROOT = PAGE_ROOT + "/revisions/r1-0123456789abcdef"
 ADDRESS = DeliveryAddress(PAGE_ROOT, ROOT)
-
-
-@pytest.fixture
-def capture_dir(tmp_path):
-    """A minimal installed kernel exposes its document and public module entries."""
-    runtime = tmp_path / "runtime"
-    runtime.mkdir()
-    (runtime / "widget-api.js").write_text("export {};")
-    (tmp_path / "leaf.js").write_text("export {};")
-    return tmp_path
 
 
 def test_declared_markdown_body_is_delivered_formatted_with_exact_source_retained():
@@ -196,9 +187,9 @@ def test_capture_refuses_a_declared_initial_producer_that_is_absent(tmp_path):
         )
 
 
-def test_capture_follows_deep_and_cyclic_dependencies_once(capture_dir):
+def test_capture_follows_deep_and_cyclic_dependencies_once(tmp_path):
     """A complete authored graph does not depend on Python's recursion limit."""
-    directory = capture_dir / "page"
+    directory = tmp_path / "page"
     directory.mkdir()
     depth = 1200
     for index in range(depth):
@@ -218,15 +209,13 @@ def test_capture_follows_deep_and_cyclic_dependencies_once(capture_dir):
 
     def read_resource(path):
         reads.append(path)
-        return capture_local_resource(capture_dir, path)
+        return capture_local_resource(tmp_path, path)
 
     artifact = capture_artifact(
-        capture_dir, SourceDocument(source), {}, read_resource=read_resource
+        tmp_path, SourceDocument(source), {}, read_resource=read_resource
     )
 
     expected = {f"/page/{index}.js" for index in range(depth)} | {
-        "/leaf.js",
-        "/runtime/widget-api.js",
         "/page/shared.js",
         "/page/first.css",
         "/page/second.css",
@@ -345,7 +334,7 @@ def test_stylesheets_rebase_nested_imports_urls_and_preserve_inert_values():
     )
 
 
-def test_capture_delivery_and_export_read_one_set_of_stylesheet_urls(capture_dir):
+def test_capture_delivery_and_export_read_one_set_of_stylesheet_urls(tmp_path):
     """Capture decides which files a stylesheet needs, delivery re-addresses them, and
     export embeds them, so all three have to find the same URLs in one sheet: a URL
     only capture finds is a file nobody serves, and one only export finds is a file
@@ -356,7 +345,7 @@ def test_capture_delivery_and_export_read_one_set_of_stylesheet_urls(capture_dir
 main { background: image-set("./a.png" 1x, url(./b.png) 2x); }
 @font-face { src: url(/page/f.woff2) format("woff2"); }
 """
-    authored = capture_dir / "page"
+    authored = tmp_path / "page"
     authored.mkdir()
     (authored / "style.css").write_text(sheet)
     for name in ("base.css", "ignored.css", "a.png", "b.png", "f.woff2"):
@@ -366,7 +355,7 @@ main { background: image-set("./a.png" 1x, url(./b.png) 2x); }
     )
     expected = {"/page/base.css", "/page/a.png", "/page/b.png", "/page/f.woff2"}
 
-    artifact = capture_artifact(capture_dir, SourceDocument(source), {})
+    artifact = capture_artifact(tmp_path, SourceDocument(source), {})
     captured = artifact.resources["/page/style.css"]
     assert set(captured.dependencies) == expected
     assert "/page/ignored.css" not in artifact.resources
@@ -457,15 +446,38 @@ const plain = "../helper.js";
     )
 
 
-def test_media_has_one_address_wherever_a_page_names_it(capture_dir):
+def test_authored_lazy_positioning_import_uses_the_captured_public_provider(page_dir):
+    """Authored imports keep the provider vendored with their immutable revision."""
+    provider = "/vendor/floating-ui.esm.js"
+    module = f'export const position = () => import("{provider}");'
+    (page_dir / "page" / "position.js").write_text(module)
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "</head>",
+            '<script type="module" src="/page/position.js"></script></head>',
+        )
+    )
+    activated = revisioning_model.activate_source(page_dir)
+    assert activated.error is None, activated.error
+    artifact = read_artifact(page_dir, activated.revision)
+    resource = artifact.resources["/page/position.js"]
+    assert resource.dependencies == (provider,)
+    assert provider in json.loads(artifact.manifest)["public_modules"]
+    assert artifact.resources[provider].data == (page_dir / provider[1:]).read_bytes()
+    assert deliver_resource(
+        resource, "/page/position.js", ADDRESS
+    ).data.decode() == module.replace(provider, ROOT + provider)
+
+
+def test_media_has_one_address_wherever_a_page_names_it(tmp_path):
     """Media is the page's and shared across revisions, so every host serves it at the
     page root, and the runtime resolves a message's or a widget's media there too. A
     captured document addresses it there in every form capture reads: a resource
     attribute, any attribute naming it whole, a stylesheet, a declarative shadow root,
     and frozen message markup in a state reading. Prose naming it stays as written."""
     media = "/media/0123456789abcdef.png"
-    (capture_dir / "media").mkdir()
-    (capture_dir / "media" / "0123456789abcdef.png").write_bytes(b"\x89PNG")
+    (tmp_path / "media").mkdir()
+    (tmp_path / "media" / "0123456789abcdef.png").write_bytes(b"\x89PNG")
     source = PAGE.replace(
         "</head>", f"<style>main {{ background: url({media}) }}</style></head>"
     ).replace(
@@ -478,7 +490,7 @@ def test_media_has_one_address_wherever_a_page_names_it(capture_dir):
         "</template></div></main>",
     )
 
-    assert media in capture_artifact(capture_dir, SourceDocument(source), {}).entries
+    assert media in capture_artifact(tmp_path, SourceDocument(source), {}).entries
     delivered = rebase_document(source, ADDRESS)
     assert delivered.replace(PAGE_ROOT + media, "").count(media) == 1  # the prose
     assert delivered.count(PAGE_ROOT + media) == 7
@@ -488,8 +500,8 @@ def test_media_has_one_address_wherever_a_page_names_it(capture_dir):
     assert markup["markup"] == f'<p><img src="{PAGE_ROOT}{media}" alt="Shot"></p>'
 
 
-def test_captured_document_entries_resolve_at_every_public_address(capture_dir):
-    authored = capture_dir / "page"
+def test_captured_document_entries_resolve_at_every_public_address(tmp_path):
+    authored = tmp_path / "page"
     authored.mkdir()
     (authored / "app.js").write_text('import "./helper.js";')
     (authored / "helper.js").write_text('document.body.dataset.helper = "ready";')
@@ -508,7 +520,7 @@ def test_captured_document_entries_resolve_at_every_public_address(capture_dir):
         '<img srcset="./page/image.svg 1x, ./page/image-2.svg 2x" '
         'alt="Leaf"></main>',
     )
-    artifact = capture_artifact(capture_dir, SourceDocument(source), {})
+    artifact = capture_artifact(tmp_path, SourceDocument(source), {})
     delivered = SourceDocument(rebase_document(source, ADDRESS))
     entries = [
         delivered.external_scripts[0]["attrs"]["src"],
@@ -617,6 +629,7 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         "lf-plot": {"x-height": 400},
         "lf-meter": {"x-prepaint": '<span class="lf-meter-face">0 left</span>'},
         "lf-gauge": {"x-prepaint": {"as": "lf-meter"}},
+        "lf-face": {"x-prepaint": '<foo_bar class="face">Ready</foo_bar>'},
         ".callout": {"x-space": "column"},
         "table": {"x-space": "wide"},
         "lf-feed.selected": {"x-space": "column"},
@@ -634,6 +647,7 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         '<lf-pair id="pair" before="/media/a.png" after="/media/b.png"></lf-pair>'
         '<lf-meter id="meter" value="3"><p>3 left</p></lf-meter>'
         '<lf-gauge id="gauge"></lf-gauge>'
+        '<lf-face id="face"></lf-face>'
         "<template><lf-zone id=later label=Later><p>x</p></lf-zone>"
         "<lf-meter id=inert></lf-meter></template>"
         "</main></body></html>"
@@ -661,11 +675,11 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     assert marks[("lf-zone", "queue")] == {"data-lf-reading-role": "pane"}
     assert marks[("lf-label", None)] == {"data-lf-inline": ""}
     assert marks[("lf-board", "board")] == {"data-lf-space": "available"}
-    assert marks[("aside", "note")] == {"data-lf-space": "column"}
+    assert marks[("aside", "note")] == {"data-lf-column": ""}
     assert marks[("aside", "chart-note")] == {"data-lf-space": "wide"}
     assert marks[("lf-feed", "feed")] == {
         "data-lf-bound": "end",
-        "data-lf-space": "column",
+        "data-lf-column": "",
     }
     assert marks[("table", "native")] == {"data-lf-space": "wide"}
     assert marks[("section", "wide")] == {"data-lf-space": "wide"}
@@ -687,17 +701,26 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         'class="lf-meter-face">0 left</span></lf-gauge>'
     ) in delivered
     assert "<lf-meter id=inert></lf-meter>" in delivered
+    face = served.tree.find("foo_bar")
+    assert face.attrs == {
+        "data-lf-prepaint": "",
+        "data-lf-gen": "1",
+        "class": ["face"],
+    }
+    assert face.text == "Ready"
     unmarked = delivered.replace(
         '<span data-lf-prepaint data-lf-gen="1" class="lf-meter-face">0 left</span>', ""
+    ).replace(
+        '<foo_bar data-lf-prepaint data-lf-gen="1" class="face">Ready</foo_bar>', ""
     )
     for mark in (
-        ' data-lf-space="column"',
+        ' data-lf-column=""',
         ' data-lf-space="wide"',
         ' data-lf-reading-role="pane"',
         ' data-lf-inline=""',
         ' data-lf-space="available"',
         ' data-lf-bound="end"',
-        ' data-lf-space="column"',
+        ' data-lf-column=""',
         ' data-lf-space="wide"',
         ' data-lf-space="wide"',
         ' data-lf-bound="start"',
@@ -708,10 +731,9 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         unmarked = unmarked.replace(mark, "", 1)
     # Media is addressed at the page root, which is the rebase's change rather than a mark.
     unmarked = unmarked.replace(f"{PAGE_ROOT}/media/", "/media/")
-    authored_main = source[
-        source.index("<main>") : source.index("</main>") + len("</main>")
-    ]
-    assert authored_main in unmarked
+    assert source.removeprefix("<!doctype html><html><head>").split("</head>")[1] in (
+        unmarked
+    )
 
 
 def test_markdown_prepaint_has_task_checkboxes_bare_links_and_literal_html():

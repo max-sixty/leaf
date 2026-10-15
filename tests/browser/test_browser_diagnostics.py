@@ -1,8 +1,8 @@
 """Browser diagnostics retain the evidence available at the reporting boundary."""
 
 import pytest
-from leaf_dev.probe import console_errors
-from leaf_dev.verify_site import observe_startup
+from leaf_dev.commands.probe import console_errors
+from leaf_dev.commands.verify_site import observe_startup
 from playwright.sync_api import Error as PlaywrightError
 from render_harness import (
     consume_browser_errors,

@@ -2,9 +2,9 @@
 
 Each invocation emits records exactly as `/api/state` serves them, folded here
 through `model_folds.served_reading` rather than written by hand, so a Node test starts from
-every field the server sends and cannot omit one the runtime relies on. `thread` and
-`workflow` are one record of each, which `served.mjs` hands out for a test to change
-only the fields the server sends; `gestures` holds an admitted edit, undo, refusal
+every field the server sends and cannot omit one the runtime relies on. `thread`,
+`workflow` and `activity` are one record of each, which `served.mjs` hands out for a
+test to change only the fields the server sends; `gestures` holds an admitted edit, undo, refusal
 and revision sequence shared across runtimes; `ask_values` holds typed values
 folded by Python for comparison with the browser; `state_definitions` holds the
 operation definitions Python records, for the browser's comparison of them; `readings`
@@ -35,8 +35,8 @@ def _served(events: tuple[dict, ...]) -> dict:
 
 
 # Something of every kind on each list: a widget ask, a prose ask, a to-do the agent put
-# on the user, a reply that failed and a page action whose pickup failed are on Questions;
-# a comment owed a reply and a to-do the agent has in hand are on Tasks.
+# on the user, a reply that failed and a page action whose pickup failed are on On me;
+# a comment owed a reply and a to-do the agent has in hand are on On <agent>.
 BOTH_SIDES = (
     {"kind": "comment", "text": "Weekly?"},
     {
@@ -133,9 +133,9 @@ SUGGESTED = (
 
 
 def build() -> dict:
-    """A thread the agent answered and the user has read, which is nobody's turn, and
-    the workflow of a comment still waiting for the agent to pick it up; then the
-    readings named for their case."""
+    """A thread the agent answered and the user has read, which is nobody's turn,
+    the workflow of a comment still waiting for the agent to pick it up, and the
+    activity of a page a session holds; then the readings named for their case."""
     records = _served(
         (
             {"kind": "comment", "text": "Is the second step right?"},
@@ -157,6 +157,8 @@ def build() -> dict:
         "ask_values": ask_value_cases(),
         "thread": threads["e1"],
         "workflow": workflows["e4"],
+        # The page-wide activity of a page a live session holds, owing nothing.
+        "activity": served_reading(PAGE, presence=HELD)["activity"],
         "gestures": gesture_sequence(),
         "ask_item": _served_ask_item(),
         "state_definitions": state_definition_cases(),
@@ -330,11 +332,11 @@ ASK_PAGE = leaf_page(
 
 
 def _served_ask_item() -> dict:
-    """One ask as Questions lists it (`served_state.queues`)."""
+    """One ask as On me lists it (`served_state.queues`)."""
     state = served_reading(ASK_PAGE, BOTH_SIDES)
     return next(
         item
-        for item in state["browser"]["views"]["1"]["queues"]["questions"]
+        for item in state["browser"]["views"]["1"]["queues"]["on_user"]
         if item["kind"] == "ask"
     )
 
@@ -343,7 +345,7 @@ def ask_value_cases():
     """Shared typed-value fixtures: Python's projection reader supplies expected output.
 
     These isolate the state boundary from event admission, pairing authored markup
-    with its browser initial state and standing value actions. Both runtimes fold
+    with its browser initial state and value actions in force. Both runtimes fold
     the same operation specs; no ask-specific store participates.
     """
     cases = []

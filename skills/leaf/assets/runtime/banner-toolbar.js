@@ -16,11 +16,11 @@
  *
  * Three seats partition the run, and measured geometry never changes the partition:
  *
- * - `row`: Threads, and on a desk Approval, Comment on the page and Questions, the
- *   page's standing reading loop: reading it, starting a conversation about it,
+ * - `row`: Threads, and on a desk Approval, Comment on the page and On me, the
+ *   page's own reading loop: reading it, starting a conversation about it,
  *   deciding it.
  * - `menu`: every secondary action, in one stable seat behind More. On a phone
- *   Approval, Comment on the page and Questions join them, so the banner keeps one row:
+ *   Approval, Comment on the page and On me join them, so the banner keeps one row:
  *   the status in words, Threads and More. More wears its news dot while the approval
  *   or a question behind it is still open.
  * - `gesture`: the next step of something the user is doing right now, such as
@@ -39,15 +39,19 @@
  * the banner, so the partition changes only when the window crosses that width.
  *
  * Each contribution also says what it is as one line of a menu (`row`): its `label`,
- * a terse `value` such as a count, the `shortcut` that reaches it from the keyboard, spelled
- * as a key chip spells it, the `group` of controls it belongs with, and the `press` that
- * acts as the control would, given the place the presentation held when the user opened
- * it (history.js, `readPlace`). The floating panel (floating-panel.js) draws
- * the run from these rows rather than from the native nodes, so a control appears
- * there without the panel naming it. `bannerRows` reads the run's rows in order, and
+ * a terse `value` such as a count, the `shortcut` that reaches it from the keyboard as
+ * its steps, each spelled as a key chip spells it (by default the one that reaches its
+ * control, keyboard/control-keys.js), the `group` of controls it belongs with, the text
+ * it copies where it copies one (`copies`), which a presentation shows for the user to
+ * select beside its own copy control (copy-control.js) in place of a press, and the
+ * `press` that acts as the control would, given the place
+ * the presentation held when the user opened it (history.js, `readPlace`). The floating
+ * panel (floating-panel.js) draws the run from these rows rather than from the native
+ * nodes, so a control appears there without the panel naming it. `bannerRows` reads the run's rows in order, and
  * `watchBannerRows` calls back after each change to which stand.
  */
 import { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
+import { controlShortcuts } from "./keyboard/control-keys.js";
 import { isNativeLayer } from "./shadow-tree.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { setChildLists } from "./dom-children.js";
@@ -84,7 +88,7 @@ export const BANNER_CONTROL_RANK = Object.freeze({
   keyboard: 95,
   approval: 100,
   pageComment: 105,
-  // Questions and Threads are the two doors to the one side panel, side by side.
+  // On me and Threads are the two doors to the one side panel, side by side.
   queue: 107,
   threads: 110,
   // The next steps in the mode or picker the user stands in.
@@ -105,8 +109,11 @@ overflowBtn.append(iconElement("more", "lf-action-icon"));
 
 const SEATS = ["row", "menu", "gesture"];
 // What a row is about, which decides where a menu built from rows puts it: on the menu
-// itself (`page`), or behind its Navigate, Annotations or About entry.
-const ROW_GROUPS = Object.freeze(["page", "navigate", "annotate", "about"]);
+// itself (`page`), behind its Navigate, Annotations or About entry, or, for a keyboard's
+// convenience for where the reader stands, such as Resume writing (`keys`), behind
+// Navigate only where no keyboard is there to reach it, so the menu a keyboard user
+// reads stays short and a finger keeps a way to each.
+const ROW_GROUPS = Object.freeze(["page", "navigate", "annotate", "about", "keys"]);
 // The render-blocking theme decides posture once, before the banner arrives.
 const bannerFace = () =>
   getComputedStyle(document.documentElement)
@@ -156,7 +163,7 @@ function paintDoor() {
   keeps(overflowBtn, "aria-label", name);
   keeps(overflowBtn, "title", name);
   overflowBtn.toggleAttribute("data-lf-news", news.length > 0);
-  // Keep the native invoker standing until its open popover has closed. A semantic
+  // Keep the native invoker in place until its open popover has closed. A semantic
   // update can retire the last visible item while the user is inside it; closing then
   // lets paint remove the empty door.
   keepsHidden(overflowBtn, !open && !menu.some(visible));
@@ -172,22 +179,28 @@ function placeRuns() {
 }
 
 const rowListeners = new Set();
-const rowOf = (entry) => {
+const rowOf = (entry, shortcuts) => {
   const read = (value) => (typeof value === "function" ? value() : value);
   return Object.freeze({
     key: entry.key,
     label: read(entry.row.label),
     value: read(entry.row.value) ?? "",
-    shortcut: read(entry.row.shortcut) ?? "",
+    shortcut: read(entry.row.shortcut) ?? shortcuts.get(entry.focusTarget) ?? EMPTY,
     group: entry.row.group,
+    copies: read(entry.row.copies) ?? "",
     urgent: entry.urgent,
     gesture: seatOf(entry) === "gesture",
     disabled: entry.focusTarget.matches(":disabled, [aria-disabled='true']"),
     press: entry.row.press ?? (() => entry.focusTarget.click()),
   });
 };
-/** The run's rows standing now, in the run's order, each read as it reads now. */
-export const bannerRows = () => ordered().filter(onOffer).map(rowOf);
+/** The run's rows present now, in the run's order, each read as it reads now. */
+export const bannerRows = () => {
+  const shortcuts = controlShortcuts();
+  return ordered()
+    .filter(onOffer)
+    .map((entry) => rowOf(entry, shortcuts));
+};
 /** Call `listener` after each change to the run; returns the way to stop. */
 export function watchBannerRows(listener) {
   rowListeners.add(listener);
@@ -300,7 +313,22 @@ function replaceEntry(prior, next) {
   menu = menu.map((entry) => (entry === prior ? next : entry));
 }
 
-/** Register one internal banner contribution and synchronously seat its native node. */
+/**
+ * Register one internal banner contribution and synchronously seat its native node.
+ *
+ * @param {{
+ *   key: string,
+ *   control: HTMLElement,
+ *   focusTarget?: HTMLElement,
+ *   rank: number,
+ *   seat?: string | { desk: string, phone: string },
+ *   conditional?: boolean,
+ *   present?: boolean,
+ *   offered?: boolean,
+ *   urgent?: string | null,
+ *   row: { label: string | (() => string), group: string, [field: string]: any },
+ * }} contribution
+ */
 export function registerBannerControl({
   key,
   control,

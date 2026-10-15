@@ -12,25 +12,22 @@
    Reply continuity begins after commit and runs independently: its selected route may
    itself need this renderer to finish. Its caret follows the actual returned editor;
    its failures reach the page's existing asynchronous error channel. */
-import { clocked } from "../presence.js";
+import { untracked } from "/vendor/browser-runtime.js";
 import { keeps } from "../keeps.js";
 import { reportPageError } from "../layer-client.js";
 import { closestAcross, elementById, inChrome } from "../passages.js";
 import { threadState, readThreads } from "./state.js";
-import { holdReply } from "./focus.js";
+import { holdThreadPlace } from "./focus.js";
 import { holdReplyCompositions } from "./replies.js";
+import { surfaceFocusTarget } from "./surfaces.js";
 import {
   renderSeats,
   beginThreadSeats,
   commitThreadSeats,
   retainThreadSeats,
 } from "./inline.js";
-import {
-  applicationPresenter,
-  applicationState,
-  PRESENTATION_ORDER,
-  readApplication,
-} from "../semantic-state.js";
+import { applicationPresenter, PRESENTATION_ORDER } from "../semantic-state.js";
+import { runtime } from "../context.js";
 
 // Each held element names the thread holding it, decided whole before any is written, so
 // an element that stays held is not cleared and marked again.
@@ -47,6 +44,7 @@ function renderHolds(threads) {
 }
 
 export function createThreadPresentation({
+  available = true,
   inlineView,
   surfaceView,
   anchorPlacement,
@@ -60,69 +58,68 @@ export function createThreadPresentation({
   renderSurfaces,
   openThread,
   continueThread,
+  threadAt,
   read,
 }) {
   const panels = new Set();
   let mounted = false;
   let primary = null;
 
+  // The paint follows what it reads, before it waits for preparation and in the
+  // continuations it resumes after (`renderReading`). The margin this presentation
+  // renders once it commits also draws the Questions and the workflows; its own watcher
+  // follows those (`annotationSelection`).
+  //
+  // Before the page has read the log, an epoch with no thread draws the same line about
+  // waiting, and repainting the margin and the anchors to say it again is work done
+  // ahead of the first paint the user is waiting on, so all of them read as one
+  // unchanging value. A thread the user starts in that window is drawn, and so is its
+  // removal, the refusal of the last send included. A user who opens the panel then
+  // asks for the reading directly, through `present`, and gets it: every phase owes a
+  // reading when asked. A page that draws no thread surface (`available` false, as an
+  // offline export does) owes no reading at all.
   const presenter = applicationPresenter({
     region: "thread",
     order: PRESENTATION_ORDER.thread,
-    // Local threads are a complete reading of known gestures even while the saved
-    // inventory loads. Every phase owes the same cohort's current presentation.
-    current: () => readApplication().effective.thread,
-    paint: async (value, current) => {
-      const phase = readApplication().phase;
-      // A pass reads the latest root. Clock changes claim another pass through the
-      // same presenter, so its current predicate also retires in-flight preparation.
-      if (phase === "ready") await paintCurrent(current);
-      else {
-        paintCurrent.stop();
-        await startRender(current);
-      }
+    reading: () =>
+      !available
+        ? null
+        : runtime.statePhase === "waiting" && !threadState().all.length
+          ? "waiting"
+          : true,
+    // A pass reads the latest root. The time it shows is followed with the rest of what
+    // it reads, so a clock change claims another pass through the same presenter, whose
+    // current predicate also retires in-flight preparation.
+    paint: async (value, current, resume) => {
+      await startRender(current, resume);
       return value;
     },
   });
 
   const present = () => presenter.present();
 
-  // Every epoch owes a fresh generated presentation, because this owner reads more of
-  // the root than its own fold: thread receipts come from canonical activity and the
-  // margin draws the ask rows beside them. The claim registers that obligation inside
-  // the publication that seals membership; the pass paints it.
-  //
-  // Empty startup epochs need no repeated thread paint. Once a local thread is
-  // drawn, its removal still owes a paint, including refusal of the last send.
-  let waitingEmpty = true;
-  applicationState
-    .select((snapshot) => snapshot.semanticEpoch)
-    .subscribe(() => {
-      const snapshot = readApplication();
-      const empty =
-        snapshot.phase === "waiting" && !snapshot.effective.thread.all.length;
-      if (empty && waitingEmpty) return;
-      waitingEmpty = empty;
-      void present();
-    });
-
   let surfaceGeneration = 0;
   let cancelCurrentRender = () => {};
-  const startRender = (presenting) => {
+  const startRender = (presenting, resume = (run) => run) => {
     cancelCurrentRender();
+    /** @type {PromiseWithResolvers<void>} */
     const { promise: cancelled, resolve } = Promise.withResolvers();
     cancelCurrentRender = resolve;
-    return renderReading(cancelled, presenting);
+    return renderReading(cancelled, presenting, resume);
   };
 
-  async function renderReading(cancelled, presenting) {
+  // A continuation the pass resumes joins its reads, of the publication and the clock.
+  async function renderReading(cancelled, presenting, resume) {
     const generation = ++surfaceGeneration;
     read.begin();
     const current = () => generation === surfaceGeneration && presenting();
     const batch = beginThreadSeats();
-    // The reply the user is writing, which this pass may take off the surface drawing it
-    // (thread/focus.js, `holdReply`).
-    const restoreReply = holdReply(openThread);
+    // Where the user stands on a thread, which this pass may take off the surface drawing
+    // it (thread/focus.js, `holdThreadPlace`).
+    const restorePlace = holdThreadPlace(openThread, {
+      threadAt,
+      seated: (id) => Boolean(surfaceFocusTarget(id, { part: "thread" })),
+    });
     let prepared = null;
     const livePanels = [...panels].filter((panel) => panel.threadsBox.isConnected);
     let surfaces = null;
@@ -154,7 +151,7 @@ export function createThreadPresentation({
         if (!current()) return;
         prepared = Promise.all(
           livePanels.map(({ controller, view }) =>
-            controller.renderThreads(collection, view),
+            controller.renderThreads(collection, view, resume),
           ),
         );
         void prepared.catch(() => {});
@@ -173,30 +170,34 @@ export function createThreadPresentation({
             }),
           ]),
           cancelled.then(() => null),
-        ]).then((result) => {
-          if (!result) return;
-          const [, candidates] = result;
-          if (!current()) return;
-          for (const candidate of candidates) candidate?.commit();
-          // Preparation may materialize or retire targets without another publication.
-          // Preserve immediate semantic paint, then refresh the same directory and its
-          // retained decoration before any nominated surface actually moves.
-          readTargets();
-          surfaces.commit();
-          commitThreadSeats(batch);
-          surfaceView.composition.finishPlacement();
-          renderAnnotations();
-          pageGeometry.pageShifted();
-          read.present();
-          // Continuity may reveal a route needing this very presenter. Its work starts
-          // after the cohort commits, and never joins the ticket it is completing.
-          void continueReplies(restoreReply).catch((error) =>
-            reportPageError(error, `Reply continuation failed`),
-          );
-        });
+        ]).then(
+          resume((result) => {
+            if (!result) return;
+            const [, candidates] = result;
+            if (!current()) return;
+            for (const candidate of candidates) candidate?.commit();
+            // Preparation may materialize or retire targets without another publication.
+            // Preserve immediate semantic paint, then refresh the same directory and its
+            // retained decoration before any nominated surface actually moves.
+            readTargets();
+            surfaces.commit();
+            commitThreadSeats(batch);
+            surfaceView.composition.finishPlacement();
+            // The margin is an owner of its own, with its own watcher; this pass only
+            // refreshes it over the targets it moved, so what it reads is not this paint's.
+            untracked(renderAnnotations);
+            pageGeometry.pageShifted();
+            read.present();
+            // Continuity may reveal a route needing this very presenter. Its work starts
+            // after the cohort commits, and never joins the ticket it is completing.
+            void continueReplies(restorePlace).catch((error) =>
+              reportPageError(error, `Reply continuation failed`),
+            );
+          }),
+        );
       };
       await (primaryPreparation?.then
-        ? primaryPreparation.then(paintPrepared)
+        ? primaryPreparation.then(resume(paintPrepared))
         : paintPrepared(primaryPreparation));
     } catch (error) {
       surfaces?.cancel();
@@ -221,8 +222,6 @@ export function createThreadPresentation({
       throw error;
     }
   }
-
-  const paintCurrent = clocked(document.body, startRender, present);
 
   function onReveal({ threadsBox, view }, event) {
     const target = event.detail?.target;

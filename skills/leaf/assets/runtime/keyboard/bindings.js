@@ -66,7 +66,7 @@
      a control, and the row's own `touch` can only be `false`. Every page command
      answers it, `false` where a finger reaches the result directly.
    - A command that enters a layer declares no way back out of it. The layer's own
-     owner declares that step, against the layer standing rather than against the press
+     owner declares that step, against the open layer rather than against the press
      that opened it, so one state has one way out however the user reached it.
    - `native: true` performs `run` without preventing the platform default. Use it when
      Leaf must change state before the browser completes the same press, not to leave an
@@ -110,7 +110,7 @@
    command reference. Call `paintKeys` when a state change moves row liveness so this projection
    and the visible surfaces change together. */
 import { coarsePointer } from "../pointer.js";
-import { readApplication } from "../semantic-state.js";
+import { runtime } from "../context.js";
 
 // Which platform's spelling, and which modifier is the sequence's. Up here rather than beside
 // the text inputs because the spelling table below is the first thing that needs it.
@@ -335,7 +335,7 @@ export const declaredCommandAvailable = (row, route = null) =>
 const scopeReadiness = new WeakMap();
 // Terminal absence is known input too. Availability still comes from the owner's
 // `when` (widget actions require a complete reading); only unfinished input queues.
-export const savedReadingSettled = () => readApplication().phase !== "waiting";
+export const savedReadingSettled = () => runtime.statePhase !== "waiting";
 // A scope supplies a shared input contract without replacing its rows or their identity.
 export function declareCommandReadiness(rows, ready) {
   if (ready !== undefined && typeof ready !== "function")
@@ -568,6 +568,8 @@ const ariaBindings = (binding) => {
       .join("+"),
   );
 };
+/** @param {any} rows @param {boolean} [current] @param {string} [where]
+ * @param {(binding: any, entry: any, row: any) => boolean} [includes] */
 export const ariaShortcuts = (rows, current = true, where, includes = () => true) =>
   [
     ...new Set(
@@ -590,7 +592,7 @@ export const ariaShortcuts = (rows, current = true, where, includes = () => true
 //
 // A letter matches on its lowercase with Shift asked for separately, because caps lock
 // writes an uppercase key out of an unshifted press and reads an unshifted one out of a
-// shifted press. Read off the glyph, `Q` would match the shifted queue walk from a
+// shifted press. Read off the glyph, `M` would match the shifted On me walk from a
 // bare letter under caps lock, and could no longer be reached with the Shift the chip
 // names. Asking
 // for the modifier is what makes the chip true in both directions.
@@ -755,7 +757,7 @@ export const clampedRow = (
   return rows[Math.max(0, Math.min(rows.length - 1, next))];
 };
 
-// The page walks' policy (`t`, `q`, `n`): a step past either end comes round to the
+// The page walks' policy (`t`, `m`, `n`): a step past either end comes round to the
 // other. `wrapped` says it came round, which the landing's ordinal alone does not, so
 // the walk can mark it (walk-position.js, `beginWalk`). Entry from off the list takes
 // the end the step faces and comes round nothing.

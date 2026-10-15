@@ -4,12 +4,15 @@
  * submitting the resulting instruction. */
 import { keepsText, once } from "/runtime/widget-api.js";
 
-export default class extends HTMLElement {
-  connectedCallback() {
-    once(this);
-  }
+customElements.define(
+  "lf-playground-output",
+  class extends HTMLElement {
+    connectedCallback() {
+      once(this);
+    }
 
-  renderInstruction(instruction) {
-    keepsText(this, instruction);
-  }
-}
+    renderInstruction(instruction) {
+      keepsText(this, instruction);
+    }
+  },
+);

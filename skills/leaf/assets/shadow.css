@@ -116,7 +116,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 }
 :where([data-lf-focus]) {
   outline: var(--focus-ring);
-  --lf-focus-ring: focus;
   outline-offset: var(--focus-ring-gap);
 }
 :where(:focus, [data-lf-focus]) {
@@ -140,7 +139,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 }
 [data-lf-offer]:where(:not([data-lf-offer=""]))[data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: pressable;
   outline-offset: var(--focus-ring-gap);
 }
 [data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer=checkbox], [data-lf-offer=radio], .lf-skip)),
@@ -210,7 +208,6 @@ summary {
   pointer-events: none;
   border-radius: inherit;
   outline: var(--focus-ring);
-  --lf-focus-ring: page-thread;
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 @media (forced-colors: active) {
@@ -230,24 +227,17 @@ summary {
   flex: 1;
   min-width: 0;
 }
-.lf-page-thread-resolved {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-2);
-  min-height: max(calc(1lh + 10px), var(--aim-floor));
-}
 .lf-thread-seat > .lf-say {
   margin-top: 0;
 }
-.lf-page-thread + .lf-page-thread {
-  margin-top: calc(2 * var(--sp-3));
+.lf-page-thread + :is(.lf-page-thread, .lf-resolved-threads) {
+  margin-top: var(--sp-3);
 }
-.lf-page-thread + .lf-page-thread::before {
+.lf-page-thread + :is(.lf-page-thread, .lf-resolved-threads)::before {
   content: "";
   position: absolute;
   inset-inline: var(--sp-1);
-  inset-block-start: calc(-1 * var(--sp-3));
+  inset-block-start: calc(-1 * var(--sp-2));
   border-top: 1px solid var(--rule);
   pointer-events: none;
 }
@@ -286,7 +276,7 @@ summary {
 .lf-thread-transcript > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) {
   margin-top: 0;
 }
-.lf-msg-head {
+:is(.lf-msg-head, .lf-thread-working-head) {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
@@ -298,7 +288,7 @@ summary {
   font-size: var(--t-6);
   --lf-msg-name-size: 13px;
 }
-.lf-msg-head .lf-msg-meta {
+:is(.lf-msg-head, .lf-thread-working-head) .lf-msg-meta {
   flex: 0 1 auto;
   overflow: hidden;
 }
@@ -327,8 +317,9 @@ summary {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.lf-msg-head b {
-  flex: 0 1 auto;
+:is(.lf-msg-head, .lf-thread-working-head) b {
+  flex: 0 0 auto;
+  max-inline-size: 40%;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -338,9 +329,6 @@ summary {
 }
 .lf-thread-checkpoint {
   margin-block: 16px;
-}
-.lf-thread-checkpoint[hidden] {
-  display: none;
 }
 .lf-thread-checkpoint[data-expanded=true] {
   position: relative;
@@ -414,15 +402,50 @@ summary {
 .lf-summary-originals {
   min-width: 0;
 }
-.lf-summary-originals[hidden] {
-  display: none;
-}
 .lf-summary-originals > .lf-msg {
   margin-block: 8px;
 }
+.lf-thread-working {
+  margin-top: 16px;
+}
+.lf-thread-working-words {
+  margin-top: var(--lf-msg-body-gap);
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  font: max(var(--entry-floor), var(--t-5))/1.5 var(--sans);
+  color: color-mix(in oklab, var(--muted) 80%, var(--paper));
+}
+.lf-thread-working[data-lf-live] .lf-thread-working-words {
+  animation: lf-sheen 2s ease-in-out infinite alternate;
+}
+@keyframes lf-sheen {
+  from, to {
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    background-image:
+      linear-gradient(
+        110deg,
+        currentColor 42%,
+        var(--ink) 50%,
+        currentColor 58%);
+    background-size: 200% 100%;
+  }
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0% 0;
+  }
+}
+@media (forced-colors: active) {
+  @keyframes lf-sheen {
+    from, to {
+      -webkit-text-fill-color: currentColor;
+    }
+  }
+}
 .lf-thread-disclosure[data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: summary-fold;
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 .lf-msg-head > .lf-held-header-item {
@@ -484,7 +507,7 @@ summary {
 .lf-thread-controls > .lf-thread-news {
   position: absolute;
   inset-inline-start: calc(var(--lf-thread-news-start, 0px) + var(--sp-2));
-  inline-size: var(--lf-reserved-width, max-content);
+  inline-size: max-content;
   max-inline-size: max(0px, min(calc(100% - var(--lf-thread-news-start, 0px) - 2 * var(--sp-2) - var(--lf-thread-action-room) - var(--lf-thread-message-control-room)), calc(var(--lf-thread-news-visible-end, 100%) - var(--lf-thread-news-start, 0px) - var(--sp-2))));
   box-sizing: border-box;
   min-width: 0;
@@ -517,15 +540,11 @@ button.lf-thread-notice {
 }
 button.lf-thread-notice[data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: thread-notice;
   outline-offset: 1px;
 }
 .lf-thread-news {
   flex: none;
   align-self: center;
-}
-.lf-page-thread-resolved > .lf-thread-news {
-  margin-inline-start: auto;
 }
 .lf-seat-news {
   display: flex;
@@ -540,6 +559,10 @@ button.lf-thread-notice[data-lf-focus] {
 }
 .lf-msg-head .lf-msg-failure {
   color: var(--warn-ink);
+  font-weight: 600;
+}
+.lf-msg-head .lf-msg-leaves {
+  color: var(--ink-2);
   font-weight: 600;
 }
 
@@ -616,6 +639,7 @@ button.lf-thread-notice[data-lf-focus] {
 :where(:root, .lf-thread-transcript) table {
   display: block;
   overflow-x: auto;
+  container-type: inline-size;
   container-type: inline-size scroll-state;
   --lf-top: 0px;
   border-collapse: collapse;
@@ -624,10 +648,19 @@ button.lf-thread-notice[data-lf-focus] {
   font-variant-numeric: tabular-nums;
 }
 @property --lf-fills-frame { syntax: "<integer>"; inherits: false; initial-value: 0; }
-:where(:root, .lf-thread-transcript) table:where([data-lf-space], [data-lf-space] *) {
-  --lf-fills-frame: 1;
+@property --lf-granted { syntax: "<integer>"; inherits: true; initial-value: 0; }
+:where([data-lf-space]) {
+  --lf-granted: 1;
 }
-:where(:root, .lf-thread-transcript) table:where([data-lf-space]:not([data-lf-space=column])) {
+:where([data-lf-column]) {
+  --lf-granted: 0;
+}
+@container style(--lf-granted: 1) {
+  :where(:root, .lf-thread-transcript) table {
+    --lf-fills-frame: 1;
+  }
+}
+:where(:root, .lf-thread-transcript) table:where([data-lf-space]) {
   --lf-fills-frame: 0;
 }
 @container style(--lf-block-frame: 1) {
@@ -663,6 +696,11 @@ button.lf-thread-notice[data-lf-focus] {
   vertical-align: top;
   --lf-block-frame: 1;
 }
+@media screen and (max-width: 640px) {
+  :where(:root, .lf-thread-transcript) :is(th, td) {
+    padding-inline: 8px;
+  }
+}
 :where(:root, .lf-thread-transcript) tr > :first-child {
   padding-left: 0;
 }
@@ -681,6 +719,13 @@ button.lf-thread-notice[data-lf-focus] {
 :where(:root, .lf-thread-transcript) th[scope=row] {
   font-weight: 600;
 }
+:where(:root, .lf-thread-transcript) table:has(> * > tr > td > img:only-child, > * > tr > td > a:only-child > img:only-child) > * > tr > :is(th, td) {
+  vertical-align: middle;
+}
+:where(:root, .lf-thread-transcript) table:has(> * > tr > td > img:only-child, > * > tr > td > a:only-child > img:only-child) > * > tr > th:not([scope=row]) {
+  text-align: center;
+  color: var(--ink);
+}
 :where(:root, .lf-thread-transcript) :is(ul, ol) {
   margin: 10px 0;
   padding-inline-start: 24px;
@@ -691,7 +736,7 @@ button.lf-thread-notice[data-lf-focus] {
 :where(:root, .lf-thread-transcript) hr {
   border: none;
   border-top: 1px solid var(--rule);
-  margin: 40px 0;
+  margin: var(--hr-margin-block) 0;
 }
 :is(.lf-thread-transcript, .lf-thread-reply, .lf-general) {
   --quote-inset: 10px;
@@ -706,8 +751,9 @@ leaf-text.lf-fab-input,
   min-width: 0;
   margin: var(--lf-msg-body-gap) 0 0;
   overflow-wrap: anywhere;
+  --lf-measure: var(--col);
 }
-:is(.lf-msg-text, .lf-msg-editor) {
+.lf-msg-text {
   display: block;
   padding-block: var(--lf-thread-text-pad-block, 0px);
 }
@@ -773,37 +819,43 @@ leaf-text.lf-fab-input,
 .lf-page-thread-open {
   margin-top: var(--sp-2);
 }
-.lf-page-thread-resolved {
-  margin-top: var(--sp-2);
-  color: var(--ok);
+.lf-resolved-threads {
+  position: relative;
+  min-width: 0;
 }
-.lf-page-thread-summary {
-  padding: 8px 10px;
-  color: var(--ok);
-  cursor: pointer;
-  font-weight: 600;
+.lf-resolved-threads::details-content {
+  content-visibility: visible;
 }
-.lf-page-thread[open] > .lf-page-thread-summary {
-  margin-bottom: var(--sp-2);
-  border-bottom: 1px solid var(--rule);
-}
-.lf-page-thread > .lf-page-thread-summary[hidden] {
+.lf-resolved-threads:not([open]) > :not(summary) {
   display: none;
+}
+.lf-resolved-summary {
+  border-radius: var(--r);
+  cursor: pointer;
+  padding: max(var(--sp-1), (var(--aim-floor) - 1lh) / 2) var(--sp-1);
+  color: var(--muted);
+  font: var(--t-6)/var(--lf-ui-lh) var(--sans);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lf-resolved-summary:hover {
+  color: var(--ink-2);
 }
 .lf-page-thread .lf-btn {
   font: inherit;
 }
-.lf-page-thread :is(.lf-btn, summary)[data-lf-focus] {
+:is(.lf-page-thread :is(.lf-btn, summary), .lf-resolved-summary)[data-lf-focus] {
   outline: var(--focus-ring);
   outline-offset: 1px;
-  --lf-focus-ring: thread;
 }
 @media print {
   .lf-page-thread,
-  .lf-page-thread :is(.lf-msg, .lf-page-thread-resolved) {
+  .lf-resolved-threads,
+  .lf-page-thread .lf-msg {
     display: block !important;
   }
-  .lf-page-thread :is(.lf-thread-reply, .lf-say, button, .lf-msg-sending) {
+  .lf-page-thread :is(button, .lf-msg-sending) {
     display: none !important;
   }
 }
@@ -835,7 +887,6 @@ leaf-text.lf-fab-input,
 }
 .lf-outline-chip[data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: chip;
   outline-offset: 1px;
 }
 .lf-msg-control {
@@ -889,12 +940,12 @@ leaf-text.lf-fab-input,
   translate: -50% 0;
   width: max-content;
   max-width: 220px;
-  padding: 4px 7px;
-  border-radius: 4px;
-  background: var(--ink);
-  color: var(--paper);
-  box-shadow: 0 2px 8px var(--shade);
-  font: 500 var(--t-6)/1.2 var(--sans);
+  padding: var(--tip-pad);
+  border-radius: var(--tip-r);
+  background: var(--tip-bg);
+  color: var(--tip-ink);
+  box-shadow: var(--raise-1);
+  font: var(--tip-font);
   white-space: nowrap;
   pointer-events: none;
 }
@@ -951,15 +1002,18 @@ leaf-text.lf-fab-input,
   opacity: 0;
   cursor: pointer;
 }
-.lf-msg-control-icon {
-  inline-size: 16px;
-  block-size: 16px;
+svg[data-lf-icon] {
+  max-width: none;
   overflow: visible;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.6;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+.lf-msg-control-icon {
+  inline-size: 16px;
+  block-size: 16px;
 }
 .lf-msg:is(:hover, [data-lf-focus-within]) .lf-msg-control,
 .lf-msg-control[data-lf-focus] {
@@ -1008,7 +1062,7 @@ leaf-text.lf-fab-input,
   border: 1px solid var(--border-2);
   border-radius: var(--r);
   background: var(--card);
-  box-shadow: 0 4px 12px var(--shade);
+  box-shadow: var(--raise-2);
 }
 :where(.lf-react-strip > .lf-react-palette:popover-open) > .lf-react {
   box-sizing: border-box;
@@ -1036,7 +1090,6 @@ leaf-text.lf-fab-input,
 }
 .lf-msg-sending {
   color: var(--muted);
-  font-weight: 600;
   white-space: nowrap;
 }
 .lf-msg-sending::before {
@@ -1102,7 +1155,8 @@ leaf-text.lf-fab-input,
   }
 }
 @media print {
-  details:not([open])::details-content {
+  details:not([open])::details-content,
+  [hidden=until-found] {
     content-visibility: visible;
   }
   details > summary {
@@ -1113,7 +1167,6 @@ leaf-text.lf-fab-input,
   }
 }
 :is(.lf-btn, .button) {
-  width: var(--lf-reserved-width, auto);
   padding: max(4px, (var(--aim-floor) - 1lh) / 2 - 1px) 10px;
   border: 1px solid var(--border-2);
   border-radius: 6px;
@@ -1122,8 +1175,25 @@ leaf-text.lf-fab-input,
   color: var(--ink);
   display: inline-block;
 }
-:is(.lf-btn, .button)[hidden]:not([hidden=until-found]) {
-  display: none;
+:where([data-lf-room]) {
+  display: inline-block;
+  max-inline-size: 100%;
+}
+[data-lf-room]::before {
+  content: attr(data-lf-room);
+  display: block;
+  block-size: 0;
+  overflow: hidden;
+  visibility: hidden;
+  white-space: pre-line;
+}
+[data-lf-room] > * {
+  display: block;
+  inline-size: 0;
+  min-inline-size: 100%;
+  overflow: clip;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 :is(.lf-btn, .button):not(:disabled, [aria-disabled=true]):hover {
   background: var(--chip);
@@ -1148,7 +1218,6 @@ leaf-text.lf-fab-input,
 }
 :is(.lf-btn, .button)[data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: btn;
   outline-offset: 2px;
 }
 
@@ -1202,6 +1271,8 @@ leaf-text.lf-fab-input,
   min-width: 0;
   min-height: var(--lf-compose-h);
   padding-inline-end: var(--lf-compose-pad-inline-start);
+}
+.lf-compose-field:where(:has(> .lf-compose-submit)) > leaf-text:not(.lf-fab-input) {
   --lf-field-end-room: calc(var(--lf-icon-action-hit) + 12px - var(--lf-compose-pad-inline-start));
 }
 .lf-icon-action {
@@ -1215,21 +1286,12 @@ leaf-text.lf-fab-input,
   place-items: center;
   border-radius: var(--r);
 }
-.lf-icon-action[hidden] {
-  display: none;
-}
 .lf-action-icon {
   position: relative;
   z-index: 1;
   inline-size: 16px;
   block-size: 16px;
-  overflow: visible;
   pointer-events: none;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
 }
 .lf-close-action {
   border: 0;
@@ -1331,9 +1393,6 @@ leaf-text.lf-fab-input,
   padding: 2px;
   box-sizing: border-box;
 }
-.lf-composer-media[hidden] {
-  display: none !important;
-}
 .lf-composer-media-item {
   flex: none;
   display: flex;
@@ -1360,7 +1419,6 @@ button.lf-media-open {
 }
 .lf-media-open[data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: media;
   outline-offset: 2px;
 }
 .lf-composer-media-open {
@@ -1417,7 +1475,6 @@ button.lf-media-open {
 }
 .lf-composer-media-item > button:not(.lf-media-open)[data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: composer-media;
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 .lf-composer-media-item > button:not(.lf-media-open) > svg {
@@ -1436,13 +1493,12 @@ button.lf-media-open {
 .lf-comment-box > .lf-compose-field:has(> leaf-text[data-lf-focus]),
 .lf-response-control[data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: text-box;
   outline-offset: 0;
   border-color: transparent;
 }
 .lf-page-comment-card,
 .lf-response-control {
-  filter: drop-shadow(0 2px 4px var(--shade));
+  filter: drop-shadow(var(--raise-1));
 }
 .lf-comment-box > .lf-compose-field > leaf-text {
   padding: var(--lf-compose-pad-block) var(--lf-compose-pad-inline-start);
@@ -1462,49 +1518,15 @@ button.lf-media-open {
   margin-top: var(--sp-3);
   min-width: 0;
 }
-:is(.lf-thread-reply, .lf-fab-bar) .lf-compose-field {
+:is(.lf-thread-reply, .lf-fab-bar, .lf-msg-editor) .lf-compose-field {
   --lf-compose-pad-inline-start: calc(var(--lf-thread-text-inset) - 1px);
 }
 .lf-msg-editor {
   display: block;
   min-width: 0;
-  font: inherit;
 }
-.lf-msg-editor > .lf-compose-field {
-  isolation: isolate;
-}
-.lf-msg-editor > .lf-compose-field::before {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  inset: -4px 0 -4px calc(-1 * var(--lf-thread-text-inset));
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--card);
-  pointer-events: none;
-}
-.lf-msg-editor > .lf-compose-field:has(> leaf-text[data-lf-focus])::before {
-  outline: var(--focus-ring);
-  --lf-focus-ring: text-box;
-  outline-offset: calc(-1 * var(--focus-ring-w));
-  border-color: transparent;
-}
-.lf-msg-editor > .lf-compose-field > leaf-text:not(.lf-fab-input) {
-  display: block;
-  min-width: 0;
-  min-height: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--ink);
-  font: inherit;
-  max-height: none;
-  overflow: visible;
-  --lf-field-end-room: 0px;
-}
-.lf-msg-editor > .lf-compose-field > leaf-text[data-lf-focus] {
-  outline: none;
+.lf-thread-transcript .lf-msg-editor {
+  margin-inline-start: calc(-1 * var(--lf-thread-text-inset));
 }
 .lf-msg-edit-foot {
   display: block;
@@ -1547,9 +1569,11 @@ button.lf-media-open {
 }
 :is(.lf-fab-bar, .lf-margin-preview) {
   --lf-thread-text-pad-block: calc((var(--lf-response-height) - 1lh) / 2);
-  --lf-comment-text-pad-end: var(--lf-thread-text-inset);
   --lf-comment-send-inset: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2);
-  --lf-comment-send-room: calc(var(--lf-icon-action-hit) + var(--lf-comment-send-inset) - var(--lf-comment-text-pad-end));
+  --lf-comment-text-end: calc(var(--lf-icon-action-hit) + var(--lf-comment-send-inset));
+}
+.lf-margin-preview .lf-msg-text {
+  padding-inline-end: var(--lf-comment-text-end);
 }
 .lf-fab-bar .lf-compose-field,
 .lf-response-control {
@@ -1563,11 +1587,14 @@ button.lf-media-open {
   line-height: inherit;
   padding-block: var(--lf-compose-pad-block);
 }
+leaf-text.lf-response-control {
+  scroll-padding-block: var(--lf-compose-pad-block);
+}
 leaf-text.lf-fab-input {
+  display: none;
   width: 100%;
   min-width: 0;
-  padding-inline: var(--lf-compose-pad-inline-start) calc(var(--lf-comment-text-pad-end) - 1px);
-  --lf-field-end-room: var(--lf-comment-send-room);
+  padding-inline: var(--lf-compose-pad-inline-start) calc(var(--lf-comment-text-end) - 1px);
   overflow-y: auto;
 }
 .lf-fab-bar :is(.lf-compose-submit, .lf-compose-dictate) {
@@ -1583,9 +1610,6 @@ leaf-text.lf-fab-input {
   gap: 0;
   white-space: nowrap;
   cursor: pointer;
-}
-.lf-response-action[hidden] {
-  display: none;
 }
 .lf-response-action:hover {
   border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
@@ -1626,11 +1650,23 @@ leaf-text.lf-fab-input {
   min-width: 0;
   flex-wrap: wrap;
 }
+.lf-composer {
+  display: none;
+}
+.lf-composer[data-lf-open] {
+  display: contents;
+}
+.lf-composer[data-lf-open] leaf-text.lf-fab-input {
+  display: block;
+}
 .lf-fab-bar {
+  display: none;
   font: var(--t-5)/1.5 var(--sans);
 }
+.lf-fab-bar:is([data-lf-target-only], :has(> .lf-composer[data-lf-open])) {
+  display: var(--lf-response-display, inline-flex);
+}
 .lf-fab-bar[data-lf-presentation=inline] {
-  display: inline-flex;
   position: static;
   box-sizing: border-box;
   align-items: flex-end;
@@ -1645,14 +1681,10 @@ leaf-text.lf-fab-input {
 .lf-fab-bar[data-lf-presentation=inline] *::after {
   box-sizing: inherit;
 }
-.lf-fab-bar[data-lf-presentation=inline] .lf-composer {
-  display: contents;
-}
 .lf-fab-bar[data-lf-presentation=inline] .lf-composer > :not(.lf-compose-field, .lf-composer-media) {
   display: none !important;
 }
 .lf-fab-bar[data-lf-presentation=inline] leaf-text.lf-fab-input {
-  display: block;
   max-width: none;
   max-height: 50vh;
   margin: 0;
@@ -1705,12 +1737,17 @@ leaf-text.lf-fab-input {
   color: var(--accent);
   background: var(--chip);
 }
-:host-context(html[data-lf-draw-mode]):host-context(main) * {
-  cursor: crosshair !important;
+html[data-lf-draw-mode] main {
+  --lf-draw-mode: on;
 }
-:host-context(html[data-lf-draw-mode]):host-context(main) [data-lf-runtime],
-:host-context(html[data-lf-draw-mode]):host-context(main) [data-lf-runtime] * {
-  cursor: auto !important;
+@container style(--lf-draw-mode: on) {
+  :host * {
+    cursor: crosshair !important;
+  }
+  :host [data-lf-runtime],
+  :host [data-lf-runtime] * {
+    cursor: auto !important;
+  }
 }
 :root {
   --lf-code-copy-size: max(32px, var(--aim-floor));
@@ -1731,6 +1768,13 @@ leaf-text.lf-fab-input {
 }
 .lf-code-copy.lf-code-copy-away {
   display: none;
+}
+.lf-code-copy-cut {
+  pointer-events: none;
+  z-index: 1;
+}
+.lf-code-copy-cut > .lf-code-copy {
+  position: fixed;
 }
 :not(.lf-chrome):is(:hover, [data-lf-focus-within]) > .lf-code-copy,
 .lf-code-copy-hover,
@@ -1755,12 +1799,6 @@ leaf-text.lf-fab-input {
 }
 .lf-code-copy::part(lf-focus) {
   outline: var(--focus-ring);
-  --lf-focus-ring: code-copy;
-}
-@media print {
-  .lf-code-copy {
-    display: none;
-  }
 }
 .lf-msg-body a.detached {
   color: var(--muted-2);
@@ -1781,11 +1819,13 @@ leaf-text.lf-fab-input {
 .lf-reply-continuity:not(details) {
   display: flex;
   flex-direction: column;
-  min-block-size: var(--lf-thread-body-extent, 0px);
+  min-block-size: 0;
 }
 .lf-reply-space {
-  flex: 1 0 0;
+  flex: 0 1 auto;
+  block-size: var(--lf-reply-space, 0px);
   min-block-size: 0;
+  max-block-size: 100%;
 }
 .lf-reply-continuity > .lf-thread-reply leaf-text:not(:state(placeholder-shown)) {
   block-size: var(--lf-reply-writing-room, auto);

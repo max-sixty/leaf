@@ -167,7 +167,7 @@ export function createCommandHints({ presentedControl }) {
     for (const bindingBadge of [...wornBindingBadges.keys()])
       if (!kept.has(bindingBadge)) restoreBindingBadge(bindingBadge);
   }
-  // A chip per control, kept across passes, so a pass that finds the same chips standing
+  // A chip per control, kept across passes, so a pass that finds the same chips in place
   // where they stood writes nothing.
   const bindingChips = new Map();
   // Withdraw the routes' scope from every control but the ones still routed.

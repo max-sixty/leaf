@@ -150,7 +150,8 @@ def test_folds_without_summary_prose_keep_corrected_originals():
 
 
 def test_ephemeral_updates_wait_for_an_answer_and_preserve_user_interjections():
-    """Only marked progress folds, including one-message runs split by the user."""
+    """Only marked progress folds, including one-message runs split by the user, and
+    no progress is unread, pending or folded."""
     identity = {"author": "agent", "agent": "Codex", "session": "session-1"}
     messages = (
         {"kind": "comment", "text": "Check the schedule."},
@@ -172,7 +173,7 @@ def test_ephemeral_updates_wait_for_an_answer_and_preserve_user_interjections():
     )
     pending = model.threads(model.reading(HUB, messages))["e1"]
     assert pending["summaries"] == []
-    assert pending["unread"] == [{"message": "e4", "version": "e4"}]
+    assert pending["unread"] == []
 
     answer = {"kind": "reply", **identity, "parent": "e1", "text": "Both fit."}
     later_progress = {
@@ -200,10 +201,7 @@ def test_ephemeral_updates_wait_for_an_answer_and_preserve_user_interjections():
         "Both fit.",
         "Checking the next week.",
     ]
-    assert completed["unread"] == [
-        {"message": "e5", "version": "e5"},
-        {"message": "e6", "version": "e6"},
-    ]
+    assert completed["unread"] == [{"message": "e5", "version": "e5"}]
 
 
 def test_explicit_summaries_own_progress_overlap_and_progress_edits_keep_the_fold():
@@ -286,9 +284,7 @@ def test_only_a_main_reply_in_the_same_thread_supersedes_progress():
     )
     pending = model.threads(model.reading(HUB, messages))["e1"]
     assert pending["summaries"] == []
-    assert pending["unread"] == [
-        {"message": identity, "version": identity} for identity in ("e2", "e4", "e5")
-    ]
+    assert pending["unread"] == [{"message": "e4", "version": "e4"}]
 
     completed = (*messages, {**reply, "text": "Both mounts fit."})
     thread = model.threads(model.reading(HUB, completed))["e1"]
@@ -319,7 +315,7 @@ def test_a_decision_on_any_message_settles_the_thread_it_belongs_to():
     `resolve` names a parent, and the parent a user has under the pointer is
     whichever message they are reading — an agent's reply, usually, since that is
     what closes a question. A fold that took the parent for the root would leave
-    every thread resolved on a reply standing open: the panel would keep asking,
+    every thread resolved on a reply left open: the panel would keep asking,
     and a command page reading the thread's `holds` would go on calling settled
     work outstanding.
     """

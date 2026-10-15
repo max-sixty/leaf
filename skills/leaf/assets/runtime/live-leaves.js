@@ -1,15 +1,17 @@
 /* This module derives the machine's immutable Leaves presentation and owns its walk. */
-import { clocked } from "./presence.js";
+import { watchProjection } from "./projection-watch.js";
+import { runtime } from "./context.js";
 import { pagePresented } from "./page-paint.js";
 import { liveLeavesList, drawerIsOpen, othersPanel } from "./drawers.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
-import { activityFacts } from "./banner.js";
+import { activityFacts, leafRow } from "./activity-words.js";
 import { rowWalk } from "./walk-position.js";
 
+/** @type {readonly any[]} */
 let others = [];
 let rows = Object.freeze([]);
 
-// The drawer's one offer: something to show, or the drawer already standing — the key that
+// The drawer's one offer: something to show, or the drawer already open — the key that
 // opened it must still close it, and its button must still be pressable. The button's
 // visibility and the key both ask the drawer's own predicate, so the two surfaces cannot
 // disagree about whether there is a drawer to open. A pages drawer of one — the page the
@@ -44,42 +46,6 @@ export function declareLeavesKeys() {
   );
 }
 
-// A row's whole account of a page: the dot's tone and one line of words, from an
-// canonical activity computed by each serving page. The wording is the seat's.
-function rowPresence(entry) {
-  const { kind, counts, detail } = entry.activity;
-  const facts = activityFacts(entry);
-  // The same join for both kinds that have words of their own. The user opens this
-  // panel to find which page needs them, so a bare `Awaits` beside a neighbour's
-  // `Working — recording the demo` said least about the one row they are here to act
-  // on: three pages waiting rendered as three identical rows, and which to go to
-  // first is the whole question the panel was opened to answer.
-  const stated = (word) => word + (detail ? " — " + detail : "");
-  // The banner's two silences, dated the same way and worded for a row.
-  const silence = `${facts.left ? "Left" : "Quiet"}${facts.silentSince ? ` (${facts.silentSince})` : ""}`;
-  const work = facts.work.replace(/^./, (letter) => letter.toUpperCase());
-  const primary =
-    kind === "working"
-      ? stated(work)
-      : kind === "listening"
-        ? facts.listening
-          ? stated("Listening")
-          : stated("Awaits")
-        : kind === "stalled"
-          ? stated(silence)
-          : kind === "away"
-            ? counts.overdue
-              ? silence
-              : "Away"
-            : kind === "unheld"
-              ? "No session"
-              : "Closed";
-  const line = facts.waiting.length
-    ? `${primary} · ${facts.waiting.join(" · ")}`
-    : primary;
-  return { tone: facts.tone, line };
-}
-
 // The whole of what the drawer knows about one page, for its hover. Everything drawn
 // on a row is cut to the panel's fixed width — the title ellipsizes, the line
 // ellipsizes — and the fact that tells two rows apart is not drawn at all: where the
@@ -106,7 +72,8 @@ const rowAccount = (entry, title, line) =>
     .filter(Boolean)
     .join("\n");
 
-function renderOthersNow(state) {
+function paintOthers() {
+  const state = runtime.state;
   const offeredBefore = leavesOffered();
   // Null is the explicit pre-read state. It has no self presence to draw, and recovery
   // from a refused first reading must remove every row that candidate introduced.
@@ -128,7 +95,7 @@ function renderOthersNow(state) {
     : [];
   rows = Object.freeze(
     wanted.map(({ key, href, title, entry }) => {
-      const { tone, line } = rowPresence(entry);
+      const { tone, line } = leafRow(entry);
       return Object.freeze({
         key,
         self: key === "self",
@@ -144,7 +111,8 @@ function renderOthersNow(state) {
   return presentLeaves();
 }
 
-// Clocked on the list rather than on the body: the body never leaves, so a clock owned
-// by it would go on repainting a drawer that has, and the owner argument is exactly the
-// question of whose departure ends the paint.
-export const renderOthers = clocked(liveLeavesList, renderOthersNow);
+// Owned by the list rather than the body: the body never leaves, so a clock owned by it
+// would go on repainting a drawer that has, and the owner argument is exactly the
+// question of whose departure ends the paint. An offline page never mounts the list,
+// so it draws no rows.
+watchProjection(liveLeavesList, paintOthers);

@@ -16,6 +16,9 @@ import {
   commandAvailable,
   commandEntries,
   commandReady,
+  answers as bindingAnswers,
+  canonicalBinding,
+  decisionControls,
   savedReadingSettled,
   setQuickShortcuts,
 } from "../../skills/leaf/assets/runtime/keyboard/bindings.js";
@@ -1250,4 +1253,162 @@ test("template scopes follow current rows and retire without removing projected 
   render(nothing, root);
   assert.equal(commandsWithin(root).length, 0);
   root.remove();
+});
+
+// Titles describe a declared action, so validating them needs no rendered browser.
+test("decision rows and routes reject computed titles with their command identity", () => {
+  const source = document.createElement("section");
+  const control = document.createElement("button");
+  source.append(control);
+  for (const row of [
+    {
+      id: "test.invalid-row-name",
+      keys: [],
+      control,
+      decision: true,
+      title: () => true,
+    },
+    {
+      id: "test.route-family",
+      keys: ["ArrowLeft"],
+      title: "Inspect",
+      control,
+      routes: [
+        {
+          id: "test.invalid-route-name",
+          binding: "ArrowLeft",
+          decision: true,
+          title: () => true,
+        },
+      ],
+    },
+  ]) {
+    const id = row.routes?.[0].id ?? row.id;
+    assert.throws(
+      () => decisionControls([{ source, row }], "the test Ask"),
+      (error) => error.message.includes(id) && error.message.includes("title"),
+    );
+  }
+});
+
+test("command declarations reject malformed identity, labels, and bindings at their owner", () => {
+  const control = document.createElement("button");
+  document.body.append(control);
+  const invalid = [
+    [{ keys: ["F5"], title: "Anonymous" }, /not a stable command id/],
+    [
+      { id: "Sentence shaped identity", keys: ["F5"], title: "Named badly" },
+      /not a stable command id/,
+    ],
+    [
+      { id: "test.noncanonical", keys: ["Shift+Mod+x"], title: "Work" },
+      /write the canonical Mod\+Shift\+x/,
+    ],
+    [
+      { id: "test.named-space", keys: ["Space"], title: "Work" },
+      /write the canonical " "/,
+    ],
+    [
+      { id: "test.bad-context", contextKeys: ["Ctrl+1"], title: "Work" },
+      /Ctrl is no modifier/,
+    ],
+    [
+      { id: "test.bad-description", keys: ["F6"], title: "Work", description: true },
+      /description/,
+    ],
+    [
+      {
+        id: "test.invalid-decision",
+        keys: [],
+        control,
+        decision: "Invalid",
+        title: "Work",
+      },
+      /decision/i,
+    ],
+    [
+      {
+        id: "test.invalid-decision-family",
+        keys: ["ArrowLeft"],
+        control,
+        title: "Work",
+        routes: [
+          {
+            id: "test.invalid-decision-route",
+            binding: "ArrowLeft",
+            decision: "Invalid",
+            title: "Work",
+          },
+        ],
+      },
+      /decision/i,
+    ],
+    [
+      { id: "test.empty-decision", keys: [], control, decision: true, title: "  " },
+      /title/i,
+    ],
+    [{ id: "test.invisible-command", keys: [] }, /title/i],
+    [{ id: "test.empty-label", keys: [], label: "  ", title: "" }, /title/i],
+  ];
+  try {
+    for (const [row, error] of invalid)
+      assert.throws(() => keys(control, "Invalid declaration", [row]), error);
+    assert.throws(
+      () =>
+        keys(control, "Duplicate declaration", [
+          { id: "test.same", keys: ["F5"], title: "First" },
+          { id: "test.same", keys: ["F6"], title: "Second" },
+        ]),
+      /declares test.same twice/,
+    );
+  } finally {
+    control.remove();
+  }
+});
+
+test("command aliases conflict by their canonical meaning while shifted Space stays distinct", () => {
+  for (const [keys, meaning] of [
+    [["Mod+Shift+x", "Shift+Mod+x"], "Shift+Mod+x"],
+    [["a", "A"], "A"],
+    [["?", "Shift+?"], "Shift+?"],
+  ]) {
+    assert.throws(
+      () =>
+        activeRows(
+          keys.map((key, index) => ({
+            keys: [key],
+            title: `Meaning ${index}`,
+          })),
+          "Alias meanings",
+        ),
+      (error) => error.message.includes(`two live meanings for ${meaning}`),
+    );
+  }
+  assert.equal(
+    activeRows([
+      { keys: [" "], title: "Read down" },
+      { keys: ["Shift+ "], title: "Read up" },
+    ]).length,
+    2,
+  );
+  assert.deepEqual(
+    [canonicalBinding(" "), canonicalBinding("Shift+ ")],
+    [" ", "Shift+ "],
+  );
+  for (const [binding, shiftKey, expected] of [
+    [" ", false, true],
+    [" ", true, false],
+    ["Shift+ ", true, true],
+    ["Shift+ ", false, false],
+  ])
+    assert.equal(
+      bindingAnswers(binding, {
+        key: " ",
+        metaKey: false,
+        ctrlKey: false,
+        altKey: false,
+        shiftKey,
+      }),
+      expected,
+    );
 });

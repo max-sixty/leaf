@@ -2,40 +2,51 @@
  * source delivery, safe Markdown, the shared clock and identity-aware comments. */
 import {
   ago,
-  clocked,
   highlightBlocks,
   html,
   keyed,
+  LeafElement,
   loadMarkdown,
-  once,
+  markdownReady,
+  noChange,
   projectData,
-  render,
   renderMarkdown,
   repeat,
   unsafeHTML,
-  watchData,
 } from "/runtime/widget-api.js";
 
-export default class extends HTMLElement {
-  connectedCallback() {
-    if (!once(this)) return;
-    const paint = clocked(this, (snapshot) => this.show(snapshot));
-    let deliveries = 0;
-    watchData(this, "request", async (snapshot) => {
-      const delivery = ++deliveries;
-      if (snapshot?.value) await loadMarkdown();
-      if (delivery !== deliveries || !this.isConnected) return;
-      paint(snapshot);
-      if (snapshot?.value) await highlightBlocks(this);
-    });
-  }
+const identityOf = (record) =>
+  record ? `${record.repository}#${record.number}` : "unavailable";
 
-  show(snapshot) {
-    const record = snapshot?.value;
-    this.classList.toggle("lf-rendered", Boolean(record));
-    const identity = record ? `${record.repository}#${record.number}` : "unavailable";
-    render(
-      keyed(
+customElements.define(
+  "lf-pr-brief",
+  class extends LeafElement {
+    // The revision whose Markdown load the brief last waited on, and the delivery it
+    // drew.
+    #loading = null;
+    #drawn;
+
+    render() {
+      const snapshot = this.data("request");
+      const record = snapshot?.value;
+      // The author's description is Markdown. The brief waits for its renderer once a
+      // delivery, the delivery's claim with it; a load that fails draws the escaped
+      // source, and the next delivery tries again.
+      const delivery = JSON.stringify([snapshot?.revision, snapshot?.run]);
+      if (record && !markdownReady() && this.#loading !== delivery) {
+        this.#loading = delivery;
+        this.drawing(
+          loadMarkdown().then(() => {
+            this.requestUpdate();
+            return this.updateComplete;
+          }),
+        );
+        return noChange;
+      }
+      this.#drawn = snapshot;
+      this.classList.toggle("lf-rendered", Boolean(record));
+      const identity = identityOf(record);
+      return keyed(
         identity,
         record
           ? html` <article
@@ -93,19 +104,30 @@ export default class extends HTMLElement {
               </p>
             </article>`
           : html`<p>Waiting for pull request data.</p>`,
-      ),
-      this,
-    );
-    projectData(
-      this,
-      [
-        {
-          node: this.firstElementChild,
-          key: identity,
-          ...(record ? { identity } : {}),
-        },
-      ],
-      { snapshot },
-    );
-  }
-}
+      );
+    }
+
+    // The drawn brief's datum and code highlighting follow each draw; the draw's claim
+    // waits for the highlighting.
+    updated(changed) {
+      super.updated(changed);
+      const snapshot = this.#drawn;
+      if (snapshot === undefined) return;
+      this.#drawn = undefined;
+      const record = snapshot?.value;
+      const identity = identityOf(record);
+      projectData(
+        this,
+        [
+          {
+            node: this.firstElementChild,
+            key: identity,
+            ...(record ? { identity } : {}),
+          },
+        ],
+        { snapshot },
+      );
+      if (record) this.drawing(highlightBlocks(this));
+    }
+  },
+);

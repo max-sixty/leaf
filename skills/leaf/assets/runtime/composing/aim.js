@@ -33,7 +33,7 @@ export function createAim({
 }) {
   let aiming = false;
   // The explicit target picker selects inside Design mode too: its shared target map
-  // owns the pointer until a choice opens a comment in the standing mode. Without that
+  // owns the pointer until a choice opens a comment in the current mode. Without that
   // map, Design owns its own presses. Draw keeps the page for ink in either case.
   const aimIsAvailable = () =>
     !drawModeActive() && (!designMode.active() || targetPicker.active());
@@ -163,7 +163,7 @@ export function createAim({
     "dblclick",
   ];
   // The press Design mode or the armed page has taken until the next one starts. An open
-  // picker owns the choice inside the standing mode; otherwise Design owns its presses.
+  // picker owns the choice inside the current mode; otherwise Design owns its presses.
   // A claimed press stays claimed when target resolution finds
   // nothing: that gap cannot turn back into an activation underneath the mode, and the
   // picker stays open for the next press.

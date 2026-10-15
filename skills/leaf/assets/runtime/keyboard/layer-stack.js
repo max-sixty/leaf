@@ -3,7 +3,7 @@
    One ordered list holds every popover and modal dialog standing over the page, oldest at
    the bottom. Each pushes an entry as it opens, so their order against each other is
    recorded when it happens rather than inferred from focus ancestry and open state at
-   every read. `kind` reads the standing native mode (`popover` or `modal`); the dispatcher tiers the scopes over them
+   every read. `kind` reads each open layer's native mode (`popover` or `modal`); the dispatcher tiers the scopes over them
    and makes a modal a floor.
 
    A layer may open through a prototype method or through declarative popover activation,
@@ -27,6 +27,13 @@
    wherever it sits, so a dialog closed by script beneath another layer cannot linger as
    a false floor. Modal entry dismisses auto and hint popovers through the platform
    contract; a later opening joins as a new layer rather than preserving a hidden entry.
+   The platform spares the popovers a modal dialog stands in, reading that nesting from
+   the tree where a popover's comes from its `source`. So a modal opened from a control
+   in a popover within the modal's home joins it for that opening (`showNativeLayer`'s
+   `source`), and the popover, with any draft written in it, still stands when the
+   modal closes; the dialog returns to its home as it closes, or as the popover does.
+   While a modal stands over an owner, the page beneath is inert, so no press then is
+   one away from that owner (`nativeModalAdmits`).
    An owner that reads where the user stands before its modal opens dismisses those same
    popovers first (`dismissPopoversOutside`), so the reading finds the user already handed
    back from them.
@@ -61,8 +68,9 @@ import {
   handBack,
   canPlaceFocus,
 } from "../focus.js";
+import { move } from "../dom-move.js";
 import { renderedUnder } from "../shadow.js";
-import { isNativeLayer, nativeLayerKind } from "../shadow-tree.js";
+import { isNativeLayer, nativeLayerHolding, nativeLayerKind } from "../shadow-tree.js";
 
 const entries = [];
 const watchedRoots = new WeakSet();
@@ -75,14 +83,14 @@ function prune() {
   }
 }
 
-// A standing entry is left alone wherever it sits, and not merely where it is already on
+// An open entry is left alone wherever it sits, and not merely where it is already on
 // top: `toggle` is queued rather than synchronous, so moving a layer on that last
 // declaration would make it the newest thing on the stack after something else opened over
 // it. A closed entry is pruned and an actual reopening joins at the top.
 function pushNativeLayer(node, source = null) {
   const at = entries.findIndex((entry) => entry.root === node);
-  const standing = at < 0 ? null : entries[at];
-  if (standing?.active()) return;
+  const existing = at < 0 ? null : entries[at];
+  if (existing?.active()) return;
   prune();
   const holding = focused();
   entries.push({
@@ -105,9 +113,15 @@ function pushNativeLayer(node, source = null) {
 // page behind it inert, so a let-go there lands no one and only takes the body's stop
 // and gives it back; the modal's owner lands the user as it closes it (the Page Map's
 // cancellation returns to its opener or reading position; the command reference closes).
+// A modal standing in a closing popover (`seatModal`) goes with it, as the popover's own
+// nested popovers do, rather than stay modal inside a box no longer shown.
 function closing(event) {
   if (event.newState !== "closed") return;
   const entry = entries.find((candidate) => candidate.root === event.target);
+  if (entry?.kind === "popover")
+    for (const layer of nativeLayers().toReversed())
+      if (layer.kind === "modal" && renderedUnder(layer.root, event.target))
+        closeNativeLayer(layer.root);
   if (
     entry?.kind === "popover" &&
     entry.fromNowhere &&
@@ -137,17 +151,41 @@ HTMLElement.prototype.showPopover = function (options) {
 // through focusDestination, which prevents native scrolling. Restoring the layer
 // afterward moves no focus. Authored
 // scripts keep the native methods; this is the runtime's navigation contract.
+/** @param {HTMLElement} layer @param {{source?: HTMLElement, modal?: boolean}} [options] */
 export function showNativeLayer(layer, { source, modal = true } = {}) {
   const withholdFocus = Boolean(document.documentElement.lfSample) && !layer.inert;
   if (withholdFocus) layer.inert = true;
   try {
     if (layer instanceof HTMLDialogElement) {
-      if (modal) layer.showModal();
-      else layer.show();
+      if (modal) {
+        if (source) seatModal(layer, source);
+        layer.showModal();
+      } else layer.show();
     } else layer.showPopover(source ? { source } : undefined);
   } finally {
     if (withholdFocus) layer.inert = false;
   }
+}
+
+// A modal dialog stands in the popover holding the control it opened from, where that
+// popover stands within the dialog's home, so the dialog keeps the styles scoped to it,
+// and otherwise at its home: where it stood when first seated, which it returns to as it
+// closes.
+const modalHomes = new WeakMap();
+function seatModal(dialog, source) {
+  let home = modalHomes.get(dialog);
+  if (!home) {
+    modalHomes.set(dialog, (home = dialog.parentNode));
+    dialog.addEventListener("close", () => {
+      if (!dialog.open && dialog.parentNode !== home) move(home, dialog);
+    });
+  }
+  const holder = nativeLayerHolding(source);
+  const seat =
+    nativeLayerKind(holder) === "popover" && renderedUnder(holder, home)
+      ? holder
+      : home;
+  if (dialog.parentNode !== seat) move(seat, dialog);
 }
 
 // Closing a native layer may return focus to a remembered opener, including one
@@ -225,7 +263,7 @@ export function nativeLayers() {
 
 // Same-origin embedded pages consult the native owner of the document holding their
 // frame. The bridge exposes the owner's reading, never a second stack. An ordinary
-// host without Leaf cannot supply opening order: require containment in every standing
+// host without Leaf cannot supply opening order: require containment in every open
 // modal there, so an unobserved layer never becomes evidence that a child was shown.
 const NATIVE_LAYERS = Symbol.for("leaf.nativeLayers");
 Object.defineProperty(document, NATIVE_LAYERS, { value: nativeLayers });
@@ -241,7 +279,7 @@ export function nativeModalAdmits(node) {
     .every((modal) => renderedUnder(node, modal));
 }
 
-// Raising a native ancestor appends it above its standing descendants. Re-seat those
+// Raising a native ancestor appends it above its open descendants. Re-seat those
 // same layers after its transition, in their native order and from the sources they
 // opened from; their owners and retained nodes keep the reading and the eventual return.
 // The browser state changes in one turn, before any queued close event can see a

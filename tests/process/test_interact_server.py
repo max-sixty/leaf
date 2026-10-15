@@ -19,6 +19,7 @@ import time
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import wait as wait_futures
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -53,6 +54,7 @@ from interact_support import (
     response_reference,
     retire_test_services,
     running_http_server,
+    said,
     spawn_probe,
     vendored_at_another_protocol,
     vendored_before_the_ask_rename,
@@ -103,14 +105,28 @@ from leaf_dev.example_data import patch_manifest
 from leaf_dev.page_fixtures import example_media
 
 
+def browser_observation(kind, sequence=1, **fields):
+    """A browser observation whose wall clock is deliberately ahead of the host."""
+    return {
+        "type": kind,
+        "observed_at": "2099-01-01T00:00:00Z",
+        "sequence": sequence,
+        "monotonic_ms": sequence * 10,
+        "visibility": "visible",
+        **fields,
+    }
+
+
 def test_interaction_trace_records_browser_entries_and_every_request_outcome(
     server, page_dir
 ):
     payload = {
         "session": "tab-1",
         "entries": [
-            {"type": "click", "target": "#approve", "source": "forged"},
-            {"type": "input", "value": "draft"},
+            browser_observation(
+                "click", target="#approve", source="forged", ts="forged"
+            ),
+            browser_observation("input", 2, value="draft"),
         ],
     }
     assert fetch(f"{server}/api/interaction", data=json.dumps(payload).encode()) == (
@@ -121,11 +137,14 @@ def test_interaction_trace_records_browser_entries_and_every_request_outcome(
         fetch(f"{server}/api/interaction", data=b'{"session":"tab-1","entries":[]}')[0]
         == 400
     )
-    for entry in (
-        {"type": "interaction_part", "sequence": 1},
-        {"type": "keydown", "ts": 42},
-        {"type": "focusin", "target": [{}]},
+    for invalid in (
+        {"type": ""},
+        {"observed_at": "2026-10-14T12:00:00"},
+        {"sequence": True},
+        {"monotonic_ms": -1},
+        {"visibility": "unknown"},
     ):
+        entry = browser_observation("keydown", **invalid)
         assert (
             fetch(
                 f"{server}/api/interaction",
@@ -133,24 +152,21 @@ def test_interaction_trace_records_browser_entries_and_every_request_outcome(
             )[0]
             == 400
         )
+    missing_time = browser_observation("click")
+    del missing_time["observed_at"]
+    assert (
+        fetch(
+            f"{server}/api/interaction",
+            data=json.dumps({"session": "missing", "entries": [missing_time]}).encode(),
+        )[0]
+        == 400
+    )
     assert (
         fetch(
             f"{server}/api/interaction", data=json.dumps(payload).encode(), token=None
         )[0]
         == 401
     )
-    for entry in (
-        {"type": "keydown", "sequence": True},
-        {"type": "interaction_part", "sequence": 1},
-        {"type": "focusin", "target": [{}]},
-    ):
-        assert (
-            fetch(
-                f"{server}/api/interaction",
-                data=json.dumps({"session": "bad", "entries": [entry]}).encode(),
-            )[0]
-            == 400
-        )
     assert fetch(f"{server}/missing")[0] == 404
 
     rows = [
@@ -166,7 +182,9 @@ def test_interaction_trace_records_browser_entries_and_every_request_outcome(
         ("tab-1", "input"),
     ]
     assert client[0]["source"] == "client"
-    assert all(row["received"] for row in client)
+    assert all(row["observed_at"] == "2099-01-01T00:00:00Z" for row in client)
+    assert all(datetime.fromisoformat(row["ts"]).year != 2099 for row in client)
+    assert all("received" not in row for row in client)
     server_rows = [row for row in rows if row["source"] == "server"]
     assert {(row["method"], row["path"], row["status"]) for row in server_rows} >= {
         ("POST", "/api/interaction", 204),
@@ -175,7 +193,7 @@ def test_interaction_trace_records_browser_entries_and_every_request_outcome(
         ("GET", "/missing", 404),
     }
     assert all("?" not in row["path"] and row["durationMs"] >= 0 for row in server_rows)
-    assert fetch(f"{server}/interactions.jsonl")[0] == 404
+    assert fetch(f"{server}/observations.jsonl")[0] == 404
 
 
 def test_diagnostic_write_failure_does_not_change_the_http_answer(
@@ -206,7 +224,9 @@ def test_interaction_trace_is_writable_from_a_read_only_page_preview(page_dir):
     ) as preview:
         status, body = fetch(
             f"{preview.origin}/api/interaction",
-            data=b'{"session":"preview","entries":[{"type":"click"}]}',
+            data=json.dumps(
+                {"session": "preview", "entries": [browser_observation("click")]}
+            ).encode(),
         )
         assert (status, body) == (204, b"")
         assert fetch(f"{preview.origin}/api/event", data=b"{}")[0] == 403
@@ -220,23 +240,23 @@ def test_interaction_trace_is_writable_from_a_read_only_page_preview(page_dir):
     )
 
 
-def test_interaction_trace_does_not_change_page_or_presence_readings(page_dir):
+def test_interaction_trace_does_not_change_page_readings(page_dir):
     reading = served_reading.page_reading(page_dir)
     sources = served_reading.source_readings(page_dir)
-    presence_stamp = presence_model._page_stamp(page_dir)
 
-    for sequence in range(2):
+    for sequence in range(1, 3):
         interaction_model.append_interactions(
-            page_dir, [{"source": "client", "sequence": sequence}]
+            page_dir,
+            interaction_model.client_records(
+                "tab-1", "/", [browser_observation("click", sequence)]
+            ),
         )
         assert served_reading.page_reading(page_dir) == reading
         assert served_reading.source_readings(page_dir) == sources
-        assert presence_model._page_stamp(page_dir) == presence_stamp
 
     (page_dir / "index.html").write_text(PAGE + "\n<!-- revised -->")
     assert served_reading.page_reading(page_dir) != reading
     assert served_reading.source_readings(page_dir)[0] != sources[0]
-    assert presence_model._page_stamp(page_dir) != presence_stamp
 
 
 @pytest.mark.parametrize(
@@ -257,17 +277,15 @@ def test_a_session_write_does_not_revalidate_the_source(page_dir, monkeypatch, n
     assert revisioning_model.activate_source(page_dir).error is None
 
 
-def test_a_staged_write_moves_neither_the_page_nor_its_presence_reading(page_dir):
+def test_a_staged_write_does_not_move_the_page_reading(page_dir):
     """An atomic write stages its bytes beside the target before the rename, and a
-    look between the two sees a file the page never has. Both readings of the page
-    directory look past it, so the write moves each once, at the rename."""
+    look between the two sees a file the page never has. The page's reading looks
+    past it, so the write moves it once, at the rename."""
     reading = served_reading.page_reading(page_dir)
-    presence_stamp = presence_model._page_stamp(page_dir)
 
     (page_dir / ".0123456789abcdef.tmp").write_text("{}")
 
     assert served_reading.page_reading(page_dir) == reading
-    assert presence_model._page_stamp(page_dir) == presence_stamp
 
 
 def test_samples_use_captured_resources_and_independent_event_logs(server, page_dir):
@@ -318,13 +336,14 @@ def test_samples_use_captured_resources_and_independent_event_logs(server, page_
     assert fetch(child + "/api/news", token=None)[0] == 200
     assert fetch(child + "/theme.css", token=None) == (200, captured_theme)
     assert trace.read_bytes() == before_housekeeping
-
     status, raw = fetch(child + "/api/state")
     assert status == 200, raw
     assert json.loads(raw)["events"] == []
     assert fetch(
         child + "/api/interaction",
-        data=b'{"session":"child-tab","entries":[{"type":"click"}]}',
+        data=json.dumps(
+            {"session": "child-tab", "entries": [browser_observation("click")]}
+        ).encode(),
     ) == (204, b"")
     status, answer = fetch(
         child + "/api/event",
@@ -383,10 +402,10 @@ def test_sample_allocations_share_no_parent_lock_and_keep_one_log_reading(
     release = threading.Event()
     original = samples_model.Samples.create
 
-    def held_allocation(self, *args, **kwargs):
+    def held_allocation(self, *args):
         allocating.wait(timeout=STATED_TIMEOUT)
         assert release.wait(STATED_TIMEOUT)
-        return original(self, *args, **kwargs)
+        return original(self, *args)
 
     monkeypatch.setattr(samples_model.Samples, "create", held_allocation)
     with ThreadPoolExecutor(max_workers=2) as executor:
@@ -432,7 +451,7 @@ def test_samples_seed_only_the_declared_threads_and_reset_by_recreation(
         PAGE.replace("</main>", template + unseeded + "</main>")
     )
     publish(page_dir)
-    # The declaration selects from the standing log rather than requiring it, so a
+    # The declaration selects from the current log rather than requiring it, so a
     # page whose log holds none of it yet — a first version, or a copy made from the
     # source alone — still opens its samples. What a child may not do is name a
     # thread it does not have, and the ordinary child-document check says so
@@ -644,7 +663,10 @@ def test_sample_capability_authorizes_only_its_live_descendants(page_dir, routed
                 first + "/api/interaction",
                 token=None,
                 data=json.dumps(
-                    {"session": "routed-sample", "entries": [{"type": "checkpoint"}]}
+                    {
+                        "session": "routed-sample",
+                        "entries": [browser_observation("checkpoint")],
+                    }
                 ).encode(),
             )[0]
             == 204
@@ -669,7 +691,10 @@ def test_sample_capability_authorizes_only_its_live_descendants(page_dir, routed
                 nested + "/api/interaction",
                 token=None,
                 data=json.dumps(
-                    {"session": "nested-sample", "entries": [{"type": "checkpoint"}]}
+                    {
+                        "session": "nested-sample",
+                        "entries": [browser_observation("checkpoint")],
+                    }
                 ).encode(),
             )[0]
             == 204
@@ -731,17 +756,6 @@ def test_frozen_preview_samples_use_snapshot_inputs_without_parent_writes(
             "text": "Frozen seed",
         },
     )
-    reply = append_carried_log_record(
-        page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "revision": 1,
-            "parent": "aabb0011",
-            "text": "Frozen widget",
-            "markup": '<lf-code id="frozen-sample-code" language="python"><pre>held</pre></lf-code>',
-        },
-    )
     data_model.cmd_data_set(page_dir, "builds", ["checked"])
     template = '<template id="practice" data-sample data-sample-threads="aabb0011"><h1>Frozen child</h1></template>'
     document = structure_model.SourceDocument(
@@ -749,12 +763,6 @@ def test_frozen_preview_samples_use_snapshot_inputs_without_parent_writes(
     )
     # The checked candidate is r2, absent from the mutable page's revision files.
     snapshot = page_snapshot_model.capture_page_snapshot(page_dir, document, 2, url="/")
-    marker = files_model.revision_path(page_dir, 1)
-    # The preview already holds the revision inventory and bundle. Removing only
-    # the mutable directory's marker makes a fresh disk inventory omit r1 while
-    # leaving the captured resources readable for the child allocation.
-    marker.unlink()
-    assert files_model.list_revisions(page_dir) == []
     append_carried_log_record(
         page_dir,
         {
@@ -795,16 +803,7 @@ def test_frozen_preview_samples_use_snapshot_inputs_without_parent_writes(
             == snapshot.context.stored_data()["sources"]["builds"]
         )
         assert state["data"]["sources"]["builds"]["value"] == ["checked"]
-        assert [event["text"] for event in state["events"]] == [
-            "Frozen seed",
-            "Frozen widget",
-        ]
-        assert (
-            next(event for event in state["events"] if event["id"] == reply["id"])[
-                "markup"
-            ]
-            == reply["markup"]
-        )
+        assert [event["text"] for event in state["events"]] == ["Frozen seed"]
         for path in ("/api/event", "/api/media"):
             assert fetch(preview.origin + path, data=b"{}")[0] == 403
         assert (
@@ -816,7 +815,7 @@ def test_frozen_preview_samples_use_snapshot_inputs_without_parent_writes(
         )
     assert event_model.read_events(page_dir) == parent_events
     assert read_page_data(page_dir)["sources"]["builds"]["value"] == ["later"]
-    assert files_model.list_revisions(page_dir) == []
+    assert files_model.list_revisions(page_dir) == [1]
 
 
 def test_an_event_from_another_layer_is_not_interpreted_or_appended(server, page_dir):
@@ -970,12 +969,12 @@ def test_the_browser_media_door_refuses_untrusted_or_unbounded_bytes(server, pag
     assert not any((page_dir / "media").iterdir())
 
 
-def test_a_visual_comment_must_name_an_authored_part(server, page_dir):
-    parted = FLOW_PAGE.replace(
-        '<lf-diagram id="flow">',
-        '<lf-diagram id="flow" parts="node:A node:B">',
+def test_a_visual_comment_requires_its_sections_inventory(server, page_dir):
+    (page_dir / "index.html").write_text(
+        FLOW_PAGE.replace(
+            '<lf-diagram id="flow">', '<lf-diagram id="flow" parts="all">'
+        )
     )
-    (page_dir / "index.html").write_text(parted)
     publish(page_dir)
 
     valid = {
@@ -996,16 +995,14 @@ def test_a_visual_comment_must_name_an_authored_part(server, page_dir):
         assert status == 400
         assert refused_on(body).code == "visual-with-passage"
 
-    invalid = {
-        **valid,
-        "text": "unknown target",
-        "anchor": {"section": "flow", "visual": "node:Missing"},
-    }
+    (page_dir / "index.html").write_text(FLOW_PAGE)
+    publish(page_dir)
+    invalid = {**valid, "revision": 2, "text": "no opted-in inventory"}
     status, body = fetch(f"{server}/api/event", data=json.dumps(invalid).encode())
     assert status == 400
     undeclared = refused_on(body)
     assert undeclared.code == "undeclared-visual"
-    assert undeclared.values["declared"]["tokens"] == ["node:A", "node:B"]
+    assert undeclared.values["declared"] == {"prefixes": [], "all": False}
 
 
 def test_a_datum_comment_names_the_source_revision_its_section_displayed(
@@ -1277,7 +1274,7 @@ def test_deferred_data_sends_a_manifest_then_serves_one_exact_payload(server, pa
     assert f"no longer holds revision {held!r}" in json.loads(body)["error"]
 
 
-def test_historical_deferred_reads_keep_the_document_contract_with_current_kernel(
+def test_historical_deferred_reads_keep_the_document_revision_and_layer(
     server, page_dir
 ):
     """A pinned document reads current data through its captured data contract."""
@@ -1325,11 +1322,7 @@ def test_historical_deferred_reads_keep_the_document_contract_with_current_kerne
     )
     historical = json.loads(body)
     assert status == 200
-    assert historical["layer"]["generation"] == second_layer
-    assert (
-        historical["browser"]["views"][str(first.revision)]["basis"]["revision"]
-        == first.revision
-    )
+    assert historical["layer"]["generation"] == first_layer
     assert (
         "patch"
         not in historical["data"]["sources"]["review-patch"]["value"]["files"][0]
@@ -1346,37 +1339,11 @@ def test_historical_deferred_reads_keep_the_document_contract_with_current_kerne
     )
     response = connection.getresponse()
     deferred = json.loads(response.read())
-    deferred_status = response.status
-    deferred_layer = response.getheader("Leaf-Layer")
-    comment = {
-        "kind": "comment",
-        "revision": first.revision,
-        "text": "Historical passage, current transport.",
-        "anchor": {"section": "flow"},
-    }
-    status, raw = fetch(
-        f"{server}/api/event",
-        data=json.dumps(comment).encode(),
-        layer=second_layer,
-        headers={"Leaf-View-Revision": str(first.revision)},
-    )
-    assert status == 200
-    assert json.loads(raw)["state"]["events"][-1]["text"] == comment["text"]
-    connection.request(
-        "GET",
-        f"/api/view?revision={first.revision}&through_seq={historical['events'][-1]['seq']}&t="
-        + TOKEN,
-    )
-    response = connection.getresponse()
-    comparison = json.loads(response.read())
     connection.close()
 
-    assert deferred_status == 200
-    assert deferred_layer == second_layer
-    assert deferred["value"] == patch
     assert response.status == 200
-    assert response.getheader("Leaf-Layer") == second_layer
-    assert set(comparison["browser"]["views"]) == {str(first.revision)}
+    assert response.getheader("Leaf-Layer") == first_layer
+    assert deferred["value"] == patch
 
 
 def test_a_bad_source_save_keeps_the_last_revision_live_and_reports_the_error(
@@ -2180,7 +2147,7 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
         }
 
 
-def test_undo_candidates_keep_only_standing_user_gestures():
+def test_undo_candidates_keep_only_user_gestures_in_force():
     """The browser undo list follows the event fold for speech, marks, and closures."""
     events = [
         {"id": "c1", "kind": "comment", "author": "user", "text": "question"},
@@ -2258,7 +2225,7 @@ def test_undo_walk_ends_at_the_users_newest_gesture():
         )
         return [(item["event"]["id"], item.get("newest", False)) for item in candidates]
 
-    # c2 was said after r1 and r2 is withdrawn: the newest standing gesture is c2.
+    # c2 was said after r1 and r2 is withdrawn: the newest gesture in force is c2.
     assert walk(events) == [("r1", False)]
     # Without c2, the read and the withdrawn r2 leave r1 the newest gesture.
     assert walk([e for e in events if e["id"] != "c2"]) == [("r1", True)]
@@ -2509,7 +2476,7 @@ def test_an_accepted_retry_releases_the_page_before_scanning_neighbours(
         return []
 
     monkeypatch.setattr(served_page, "read_served_page", own_state)
-    monkeypatch.setattr(presence_model, "other_leaves", neighbours)
+    monkeypatch.setattr(presence_model, "neighbor_reading", neighbours)
     status, body = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
 
     assert status == 200, body
@@ -2899,7 +2866,7 @@ def test_event_ids_are_unique_within_the_log_whatever_the_mint_returns(
 def test_a_stated_host_restates_the_address_and_nothing_else(page_dir):
     """--host is the recovery for an unroutable name, and the record's other
     facts restate nothing: dropping them re-derived the exact port an open tab
-    polls and demoted the standing lifetime to the recovering session's."""
+    polls and demoted the persistent lifetime to the recovering session's."""
     cleanup_model.write_json(
         page_dir / "service.json",
         {
@@ -2907,13 +2874,13 @@ def test_a_stated_host_restates_the_address_and_nothing_else(page_dir):
             "bind": "10.0.0.5",
             "port": 41234,
             "enabled": False,
-            "lifetime": "standing",
+            "lifetime": "persistent",
         },
     )
     access = server_model.page_access(page_dir, "box.tailnet.example")
     assert access["host"] == "box.tailnet.example" and access["bind"] == "::"
     assert access["port"] == 41234
-    assert access["lifetime"] == "standing"
+    assert access["lifetime"] == "persistent"
 
 
 def test_the_page_reports_its_own_errors_to_the_watcher(server, page_dir, sessionless):
@@ -2995,15 +2962,20 @@ def test_unchanged_presence_observation_is_shared_and_file_changes_refresh_it(
         return real_other_leaves(directory)
 
     monkeypatch.setattr(presence_model, "other_leaves", counted_other_leaves)
-    first = presence_model.presence_reading(page_dir)
-    assert presence_model.presence_reading(page_dir) == first
+
+    def reading():
+        files = served_reading.page_reading(page_dir)
+        return presence_model.presence_reading(page_dir, files)
+
+    first = reading()
+    assert reading() == first
     assert calls == 1
 
     cleanup_model.write_json(
         page_dir / "status.json",
         {"state": "waiting", "detail": "measuring", "ts": "now"},
     )
-    refreshed = presence_model.presence_reading(page_dir)
+    refreshed = reading()
     assert refreshed == first
     assert calls == 1
 
@@ -3027,8 +2999,9 @@ def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
     )
     publisher = server_rows_model.RowPublisher(neighbor, "fixture-server")
     publisher.refresh()
-    expected = page_state(neighbor)["activity"]
-    expected.pop("obligations")
+    activity = page_state(neighbor)["activity"]
+    assert activity["detail_source"] is not None
+    expected = server_rows_model.compact_activity(activity)
     reads = []
     read_json = files_model.read_json
 
@@ -3050,6 +3023,8 @@ def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
     monkeypatch.setattr(event_model, "read_events", no_fold)
     [row] = presence_model.other_leaves(page_dir)
     assert row["activity"] == expected
+    assert "detail_source" not in row["activity"]
+    assert "obligations" not in row["activity"]
     assert row["activity"]["counts"]["pending"] == 1
     assert row["session_cwd"] == "/work/neighbor"
     assert reads == [neighbor / "service.json"]
@@ -3092,7 +3067,7 @@ def test_a_pages_own_row_publications_do_not_rescan_its_neighbors(
         return read(page)
 
     monkeypatch.setattr(presence_model, "other_leaves", observe)
-    presence_model._neighbor_reading(page_dir)
+    presence_model.neighbor_reading(page_dir)
     for n in range(20):
         cleanup_model.write_json(
             page_dir / "status.json",
@@ -3105,40 +3080,76 @@ def test_a_pages_own_row_publications_do_not_rescan_its_neighbors(
         cleanup_model.write_json(
             own.path, {**record, "row": {**record["row"], "title": f"Own {n}"}}
         )
-        presence_model._neighbor_reading(page_dir)
+        presence_model.neighbor_reading(page_dir)
     assert len(calls) == 1
     changed = server_rows_model.row_path(neighbor)
     record = files_model.read_json(changed)
     cleanup_model.write_json(
         changed, {**record, "row": {**record["row"], "title": "Changed neighbor"}}
     )
-    [row] = presence_model._neighbor_reading(page_dir)
+    [row] = presence_model.neighbor_reading(page_dir)
     assert row["title"] == "Changed neighbor"
     assert len(calls) == 2
 
 
-def test_neighbor_subscription_follows_a_row_directory_created_after_startup(
-    page_dir, tmp_path
+def test_neighbor_discovery_needs_no_native_subscription(
+    page_dir, tmp_path, monkeypatch
 ):
-    """A missing rows/ starts with its parent subscription, then subscribes rows/.
+    """A short-lived reader sees new rows even when native watches cannot start."""
+    import watchfiles.main
 
-    The second publication's exact path proves delivery from the new directory,
-    rather than the synchronous stamp fallback finding it during a later read.
-    """
+    def no_watcher(*_args, **_kwargs):
+        raise RuntimeError("native watch unavailable")
+
+    monkeypatch.setattr(watchfiles.main, "RustNotify", no_watcher)
     rows = machine_model.state_home() / "rows"
     assert not rows.exists()
     assert presence_model.neighbor_candidates() == ()
     neighbor = tmp_path / "new-neighbor"
     neighbour_page(neighbor, title="New neighbor")
     assert presence_model.neighbor_candidates()
-    published = rows / "second.json"
-    cleanup_model.write_json(published, {"page": str(tmp_path / "second")})
-    paths = set()
-    wait_for(
-        lambda: paths.update(presence_model._row_subscription.batch(0)) or paths,
-        lambda delivered: str(published) in delivered,
-        failure="the rows subscription did not receive the second publication",
+    second = tmp_path / "second"
+    cleanup_model.write_json(rows / "second.json", {"page": str(second)})
+    assert second in [page for page, _record in presence_model.neighbor_candidates()]
+
+
+def test_a_reader_retires_rows_no_server_lease_holds(page_dir, tmp_path):
+    """Only a reader removes a row: one whose server lease no process holds,
+    whether or not its page remains. A held lease keeps its row even while it
+    names no live service, as a revival's private reservation does."""
+    live = tmp_path / "live"
+    neighbour_page(live, title="Live")
+    reserved = tmp_path / "reserved"
+    neighbour_page(reserved, title="Reserved")
+    service = files_model.read_json(reserved / "service.json")
+    cleanup_model.write_json(
+        reserved / "service.json", {**service, "server_id": "successor"}
     )
+    stopped = tmp_path / "stopped"
+    neighbour_page(stopped, title="Stopped", dead=True)
+    deleted = tmp_path / "deleted"
+    neighbour_page(deleted, title="Deleted", dead=True)
+    shutil.rmtree(deleted)
+    assert [row["title"] for row in presence_model.other_leaves(page_dir)] == ["Live"]
+    assert server_rows_model.row_path(live).is_file()
+    assert server_rows_model.row_path(reserved).is_file()
+    assert not server_rows_model.row_path(stopped).exists()
+    assert not server_rows_model.row_path(deleted).exists()
+
+
+def test_native_watcher_failure_reaches_its_owner(tmp_path, monkeypatch):
+    import watchfiles.main
+    from leaf import file_changes
+    from watchfiles._rust_notify import WatchfilesRustInternalError
+
+    def exhausted(*_args, **_kwargs):
+        raise WatchfilesRustInternalError(
+            "Error creating recommended watcher: Too many open files (os error 24)"
+        )
+
+    monkeypatch.setattr(watchfiles.main, "RustNotify", exhausted)
+    with pytest.raises(WatchfilesRustInternalError, match="Too many open files"):
+        file_changes.FileChanges({tmp_path: False}, lambda _path: True)
 
 
 def test_a_row_ages_at_the_canonical_deadline_and_recovers_after_cache_loss(
@@ -3198,24 +3209,29 @@ def test_a_row_ages_at_the_canonical_deadline_and_recovers_after_cache_loss(
 def test_a_row_read_cannot_block_server_stop(page_dir, spawn, tmp_path):
     """A row producer waiting on a page writer cannot hold service retirement.
 
-    The process probe announces entry to the real row transaction, so the stop
-    runs after the producer is blocked rather than winning a scheduling race.
+    The process probe announces the producer's reading of the log, its first wait
+    on a writer, so the stop runs after the producer is blocked rather than winning
+    a scheduling race.
     """
     entered = tmp_path / "row-entered"
     child = spawn_probe(
         spawn,
         page_dir,
         """
+from contextlib import contextmanager
 from leaf import hosting
-from leaf.served_state import service
+from leaf.served_state import reading
 
-class AnnouncedTransaction(service.PageTransaction):
-    def __enter__(self):
-        Path(os.environ["ENTERED"]).write_text("reading")
-        return super().__enter__()
+leased = reading.flocked
 
-service.PageTransaction = AnnouncedTransaction
-hosting.cmd_serve(Path(os.environ["PAGE"]), standing=True, harness=None)
+@contextmanager
+def announced(path, **options):
+    Path(os.environ["ENTERED"]).write_text("reading")
+    with leased(path, **options) as log:
+        yield log
+
+reading.flocked = announced
+hosting.cmd_serve(Path(os.environ["PAGE"]), persistent=True, harness=None)
 """,
         ENTERED=entered,
     )
@@ -3254,7 +3270,7 @@ def test_a_failed_row_producer_retires_and_revives_with_its_service(page_dir):
     """
     neighbor = machine_model.state_home() / "pages" / "broken-row"
     neighbour_page(neighbor, title="Repairable", dead=True, port=0)
-    hosting_model.start_server(neighbor, standing=True, harness=None)
+    hosting_model.start_server(neighbor, persistent=True, harness=None)
     wait_for(
         lambda: server_rows_model.read_row(
             neighbor, server_model.running_server(neighbor)
@@ -3276,7 +3292,7 @@ def test_a_failed_row_producer_retires_and_revives_with_its_service(page_dir):
         {"state": "waiting", "detail": "", "ts": cleanup_model.now_iso()},
     )
     declare_work(neighbor, "repaired", ts=cleanup_model.now_iso())
-    hosting_model.start_server(neighbor, standing=True, revive=True, harness=None)
+    hosting_model.start_server(neighbor, persistent=True, revive=True, harness=None)
     renewed = server_model.running_server(neighbor)["server_id"]
     assert renewed != original
     [row] = wait_for(
@@ -4009,7 +4025,7 @@ def test_comparison_revision_reads_stay_inside_the_page_transaction(
 
     monkeypatch.setattr(read_context, "read_revision", held_revision)
     monkeypatch.setattr(read_context, "read_data", unrelated_read)
-    monkeypatch.setattr(served_reading, "page_reading", unrelated_read)
+    monkeypatch.setattr(served_reading, "held_page_reading", unrelated_read)
     status, body = fetch(f"{server}/api/view?revision=1&through_seq={latest}")
     assert status == 200, body
     assert set(observed) == {1, 2}
@@ -4049,6 +4065,28 @@ def test_a_page_reading_moves_for_a_second_write_in_one_clock_tick(
     written(value)
     assert json.loads(value.read_text()) == {"n": 2}
     assert served_reading.page_reading(page_dir) != before
+
+
+def test_a_page_reading_waits_out_an_append_in_progress(page_dir):
+    """A look names the log before an append or after it, never mid-write. A stat
+    crossing an in-place append can pair its modification time with the size before
+    it, a state the log was never at, so the look waits for the log's lease, which
+    every append holds, and then names the finished append as a state answer would."""
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        with cleanup_model.flocked(page_dir / "events.jsonl") as log:
+            log.seek(0, os.SEEK_END)
+            log.write(b'{"kind": "comment", "author": "user", "text": "ha')
+            log.flush()
+            look = executor.submit(served_reading.page_reading, page_dir)
+            # The window is the subject of an absence assertion, not a deadline.
+            assert not wait_futures([look], timeout=0.2).done, (
+                "the look named the log while an append held it"
+            )
+            log.write(b'lf"}\n')
+            log.flush()
+        named = look.result(timeout=STATED_TIMEOUT)
+    assert named == served_reading.page_reading(page_dir)
+    assert event_model.read_events(page_dir)[-1]["text"] == "half"
 
 
 def test_neighbour_discovery_sees_a_row_made_in_one_clock_tick(page_dir, monkeypatch):
@@ -4177,7 +4215,7 @@ def test_a_preview_uses_the_validated_module_graph_after_a_later_edit(page_dir):
     checked = check_source(page_dir, event_model.read_events(page_dir))
     assert checked.errors == []
     module.write_text('document.title = "Changed after checking";')
-    revision = checked.revision.candidate
+    revision = (files_model.latest_revision(page_dir) or 0) + 1
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
         checked.document,
@@ -4267,12 +4305,12 @@ def test_a_loopback_serve_says_the_url_opens_only_on_this_machine(
     monkeypatch.delenv("SSH_CONNECTION", raising=False)
     runner = CliRunner()
     started = runner.invoke(
-        cli_model.cli, ["server", "start", "--standing", str(page_dir)]
+        cli_model.cli, ["server", "start", "--persistent", str(page_dir)]
     )
     try:
         assert started.exit_code == 0, started.output
-        assert "access   loopback only" in started.output
-        assert "--host NAME" in started.output
+        assert [note["code"] for note in said(started.stderr)] == ["loopback-only"]
+        assert "--host NAME" in started.stderr
     finally:
         stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
         assert stopped.exit_code == 0, stopped.output
@@ -4283,70 +4321,56 @@ def test_a_stated_host_serve_says_nothing_about_loopback(page_dir, monkeypatch):
     runner = CliRunner()
     started = runner.invoke(
         cli_model.cli,
-        ["server", "start", "--standing", "--host", "localhost", str(page_dir)],
+        ["server", "start", "--persistent", "--host", "localhost", str(page_dir)],
     )
     try:
         assert started.exit_code == 0, started.output
-        assert "access   loopback" not in started.output
+        assert started.stderr == ""
     finally:
         stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
         assert stopped.exit_code == 0, stopped.output
-
-
-def test_the_loopback_line_follows_the_lifetime_line(page_dir):
-    """`interact_support` reads one line of a served subprocess's stderr and
-    expects the lifetime there, so the loopback line lands after it."""
-    cleanup_model.write_json(
-        page_dir / "service.json",
-        {
-            "host": "::1",
-            "bind": "::1",
-            "port": 41234,
-            "enabled": False,
-            "lifetime": "standing",
-        },
-    )
-
-    lines = hosting_model.startup_note(page_dir).splitlines()
-
-    assert lines[:3] == [
-        "server   standing",
-        f"stop     leaf server stop {page_dir}",
-        "access   loopback only (re-serve with --host NAME for remote users)",
-    ]
 
 
 def test_server_start_names_the_page_layer_and_running_payload(page_dir):
     runner = CliRunner()
     started = runner.invoke(
-        cli_model.cli, ["server", "start", "--standing", str(page_dir)]
+        cli_model.cli, ["server", "start", "--persistent", str(page_dir)]
     )
     try:
         assert started.exit_code == 0, started.output
         identity = registry_storage.layer_metadata(page_dir)
-        assert f"page     {page_dir}" in started.output
-        assert f"layer    {identity['fingerprint']}" in started.output
-        assert f"runtime  {schema_model.PLUGIN_ROOT}" in started.output
+        reading = json.loads(started.stdout)
+        assert (reading["page"], reading["lifetime"]) == (str(page_dir), "persistent")
+        assert reading["stop"] == f"leaf server stop {page_dir}"
+        assert reading["layer"] == {
+            "fingerprint": identity["fingerprint"],
+            "leaf": identity["producer"],
+        }
+        assert reading["runtime"]["path"] == str(schema_model.PLUGIN_ROOT)
 
         state = runner.invoke(cli_model.cli, ["page", "state", str(page_dir)])
         assert state.exit_code == 0, state.output
         server = json.loads(state.output)["server"]
         assert server["runtime"]["path"] == str(schema_model.PLUGIN_ROOT)
-        assert server["url"] in started.output
+        assert server["url"] == reading["url"]
     finally:
         stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
         assert stopped.exit_code == 0, stopped.output
 
 
-def test_a_server_refuses_a_page_another_leaf_vendored_until_it_is_re_vendored(
-    page_dir,
-):
+def test_a_server_start_re_vendors_an_older_page_and_refuses_a_newer_one(page_dir):
     """A server speaks the contract of the Leaf that started it, and the page speaks
     the one its last `page init` copied in. Served across the two, the page breaks in
-    the browser on every read, so the start is refused before it claims the page or
-    records a service, and the refusal names the re-vendor that ends it."""
+    the browser on every read. A page an older Leaf vendored the start re-vendors
+    first, as the plugin update that left it there calls for. One a newer Leaf
+    vendored, which this Leaf does not take back, is refused before the start claims
+    the page or records a service, and the refusal names the re-vendor that ends it.
+    A server already running over such a page is refused the same way rather than
+    handed out as this Leaf's."""
+    from leaf.event_contracts import write_refusal
+
     runner = CliRunner()
-    foreign = vendored_at_another_protocol(page_dir)
+    foreign = vendored_at_another_protocol(page_dir, newer=True)
 
     refused = runner.invoke(cli_model.cli, ["server", "start", str(page_dir)])
 
@@ -4359,10 +4383,17 @@ def test_a_server_refuses_a_page_another_leaf_vendored_until_it_is_re_vendored(
 
     reinitialized = runner.invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert reinitialized.exit_code == 0, reinitialized.output
+    vendored_at_another_protocol(page_dir)
     started = runner.invoke(cli_model.cli, ["server", "start", str(page_dir)])
     try:
         assert started.exit_code == 0, started.output
         assert server_model.running_server(page_dir)
+        assert write_refusal(page_dir) is None
+        foreign = vendored_at_another_protocol(page_dir, newer=True)
+        reused = runner.invoke(cli_model.cli, ["server", "start", str(page_dir)])
+        assert reused.exit_code != 0, reused.output
+        assert f"page protocol {foreign}" in reused.output
+        assert f"leaf page init {page_dir}" in reused.output
     finally:
         stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
         assert stopped.exit_code == 0, stopped.output
@@ -4370,7 +4401,7 @@ def test_a_server_refuses_a_page_another_leaf_vendored_until_it_is_re_vendored(
 
 def test_a_revision_saved_before_a_re_vendor_neither_opens_nor_takes_input(page_dir):
     """A re-vendor across a protocol bump leaves the revisions the page saved before
-    it standing, each with the runtime it was saved with. Served, that runtime would
+    it in place, each with the runtime it was saved with. Served, that runtime would
     talk to this Leaf's server across the bump, so its address refuses, as does an
     event made against it, a widget to-do opened on it as the newest included, while
     the revision saved since serves and admits. An event made against no document,
@@ -4476,40 +4507,10 @@ def test_a_revision_saved_before_a_key_was_renamed_neither_opens_nor_takes_input
     page = PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>\n" + framed)
     (page_dir / "index.html").write_text(page)
     revisioning_model.activate_source(page_dir)
-    parent = append_command(
-        page_dir,
-        {"kind": "comment", "author": "user", "revision": 1, "text": "Another route?"},
-    )
-    frozen = append_command(
-        page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "agent": "Agent",
-            "revision": 1,
-            "parent": parent["id"],
-            "responds": parent["id"],
-            "text": "The earlier choice remains here.",
-            "markup": framed.replace("route", "frozen-route"),
-        },
-    )
     vendored_before_the_ask_rename(page_dir)
     # Read as the next process does, which holds nothing of the revision saved above.
     with fresh_process():
         _serve_after_the_ask_rename(page_dir, page)
-        state = page_state(page_dir)
-        view = state["browser"]["views"][str(state["active"]["revision"])]
-        [old_ask] = view["thread"]["asks"]["all"]
-        assert old_ask["source"]["id"] == "frozen-route"
-        thread = next(
-            thread
-            for thread in view["thread"]["threads"]
-            if thread["id"] == parent["id"]
-        )
-        [reply] = [
-            message for message in thread["msgs"] if message["id"] == frozen["id"]
-        ]
-        assert reply["markup"] == frozen["markup"]
 
 
 def _serve_after_the_ask_rename(page_dir, page):
@@ -4569,19 +4570,11 @@ def test_an_unidentified_old_service_is_not_mislabeled_as_the_calling_leaf(page_
             "bind": "127.0.0.1",
             "port": 41234,
             "enabled": False,
-            "lifetime": "standing",
+            "lifetime": "persistent",
         },
     )
 
-    note = hosting_model.startup_note(page_dir)
-
-    # The runtime line is the only one that claims a source, and reading the
-    # whole note for the calling payload's path reads the wrong lines too: the
-    # page and stop lines name the page directory, which may legitimately sit
-    # under the checkout — as it does whenever a run is given a `--basetemp`
-    # there. Equality on that one line says what the absence was reaching for.
-    runtime = next(line for line in note.splitlines() if line.startswith("runtime"))
-    assert runtime == "runtime  unknown payload (unknown source)"
+    assert hosting_model.server_reading(page_dir)["runtime"] is None
 
 
 def test_a_stated_host_binds_every_interface_without_recording_before_serve(
@@ -4599,7 +4592,7 @@ def test_a_stated_host_binds_every_interface_without_recording_before_serve(
         **stated,
         "port": 41234,
         "enabled": False,
-        "lifetime": "standing",
+        "lifetime": "persistent",
     }
     cleanup_model.write_json(page_dir / "service.json", service)
     assert server_model.page_access(page_dir) == service
@@ -4614,7 +4607,7 @@ def test_a_start_waits_for_uncommitted_preparation_before_reusing(page_dir, spaw
             "server",
             "_serve",
             str(page_dir),
-            "--standing",
+            "--persistent",
             "--harness",
             "null",
             "--handshake",
@@ -4632,7 +4625,7 @@ def test_a_start_waits_for_uncommitted_preparation_before_reusing(page_dir, spaw
     def start():
         attempting.set()
         successor.append(
-            hosting_model.start_server(page_dir, standing=True, harness=None)
+            hosting_model.start_server(page_dir, persistent=True, harness=None)
         )
 
     starting = threading.Thread(target=start, daemon=True)
@@ -4672,7 +4665,7 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
     neighbor = machine_model.state_home() / "pages" / "private-revival"
     neighbour_page(neighbor, title="Private revival", dead=True, port=0)
     record_claim(neighbor, id="private-revival")
-    hosting_model.start_server(neighbor, standing=True, harness=None)
+    hosting_model.start_server(neighbor, persistent=True, harness=None)
     previous = server_model.running_server(neighbor)
     wait_for(
         lambda: server_rows_model.read_row(neighbor, previous),
@@ -4682,8 +4675,10 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
     hosting_model.cmd_stop(neighbor)
     desired = {**files_model.read_json(neighbor / "service.json"), "enabled": True}
     cleanup_model.write_json(neighbor / "service.json", desired)
-    row_before = server_rows_model.row_path(neighbor).read_bytes()
     assert presence_model.other_leaves(page_dir) == []
+    # The stopped incarnation's row is retired by that reading, so a row present
+    # later is one the reservation published.
+    assert not server_rows_model.row_path(neighbor).exists()
     caller, end = socket.socketpair()
     child = spawn(
         [
@@ -4691,7 +4686,7 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
             "server",
             "_serve",
             str(neighbor),
-            "--standing",
+            "--persistent",
             "--revive",
             "--harness",
             "null",
@@ -4709,7 +4704,7 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
             assert json.loads(announcements.readline())["url"] == previous["url"]
             assert leases_model.lock_is_held(neighbor / "server.lock")
             assert files_model.read_json(neighbor / "service.json") == desired
-            assert server_rows_model.row_path(neighbor).read_bytes() == row_before
+            assert not server_rows_model.row_path(neighbor).exists()
             assert server_model.running_server(neighbor) is None
             assert presence_model.other_leaves(page_dir) == []
             if accepted:
@@ -4733,7 +4728,7 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
             caller.close()
             assert child.wait(timeout=STATED_TIMEOUT) == 0
             assert files_model.read_json(neighbor / "service.json") == desired
-            assert server_rows_model.row_path(neighbor).read_bytes() == row_before
+            assert not server_rows_model.row_path(neighbor).exists()
             assert presence_model.other_leaves(page_dir) == []
     finally:
         caller.close()
@@ -4745,7 +4740,7 @@ def test_failed_row_preparation_preserves_the_previous_desired_service(
     page_dir, monkeypatch
 ):
     """A producer constructor failure publishes neither service nor acquisition."""
-    hosting_model.start_server(page_dir, standing=True, harness=None)
+    hosting_model.start_server(page_dir, persistent=True, harness=None)
     previous = server_model.running_server(page_dir)
     wait_for(
         lambda: server_rows_model.read_row(page_dir, previous),
@@ -4763,11 +4758,42 @@ def test_failed_row_preparation_preserves_the_previous_desired_service(
 
     monkeypatch.setattr(server_rows_model, "RowPublisher", failed_constructor)
     with pytest.raises(RuntimeError, match="row producer cannot be prepared"):
-        hosting_model.cmd_serve(page_dir, standing=True, revive=True, harness=None)
+        hosting_model.cmd_serve(page_dir, persistent=True, revive=True, harness=None)
     assert files_model.read_json(page_dir / "service.json") == desired
     assert server_rows_model.row_path(page_dir).read_bytes() == row_before
     assert not leases_model.lock_is_held(page_dir / "server.lock")
     assert server_model.running_server(page_dir) is None
+
+
+def test_a_private_lease_is_not_reported_as_a_serving_server(page_dir, monkeypatch):
+    """A listener awaiting acceptance holds a lease but has no service record."""
+    lease = leases_model.take_lease(page_dir / "server.lock")
+    assert lease is not None
+    entered = threading.Event()
+    proceed = threading.Event()
+    take_lease = hosting_model.take_lease
+
+    def observe_stop(path):
+        entered.set()
+        assert proceed.wait(STATED_TIMEOUT)
+        return take_lease(path)
+
+    monkeypatch.setattr(hosting_model, "take_lease", observe_stop)
+    stopped = []
+    stopping = threading.Thread(
+        target=lambda: stopped.append(hosting_model.cmd_stop(page_dir)),
+        daemon=True,
+    )
+    try:
+        stopping.start()
+        assert entered.wait(STATED_TIMEOUT), "stop never checked the held lease"
+        assert files_model.read_json(page_dir / "service.json") is None
+    finally:
+        leases_model.release_lease(lease)
+        proceed.set()
+    stopping.join(timeout=STATED_TIMEOUT)
+    assert not stopping.is_alive(), "server stop never returned"
+    assert stopped == [False]
 
 
 def test_a_stop_waits_for_private_preparation_before_disabling(page_dir, spawn):
@@ -4778,7 +4804,7 @@ def test_a_stop_waits_for_private_preparation_before_disabling(page_dir, spawn):
             "server",
             "_serve",
             str(page_dir),
-            "--standing",
+            "--persistent",
             "--harness",
             "null",
             "--handshake",
@@ -4845,7 +4871,7 @@ def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
     """Explicit stops retire a later start; owner cleanup yields to a successor."""
     assert service_model.claim_page(page_dir)
     owner = service_model.page_claim(page_dir) if owned else None
-    assert hosting_model.start_server(page_dir, standing=True, harness=None)
+    assert hosting_model.start_server(page_dir, persistent=True, harness=None)
     transitioned = threading.Event()
     resume = threading.Event()
     original_page_locked = hosting_model.page_locked
@@ -4882,7 +4908,7 @@ def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
                     if same_session
                     else harness_model.ClaudeCodeHarness("successor", "Claude")
                 )
-        assert hosting_model.start_server(page_dir, standing=True, harness=None)
+        assert hosting_model.start_server(page_dir, persistent=True, harness=None)
         resume.set()
         stopping.join(timeout=STATED_TIMEOUT)
         assert not stopping.is_alive(), "the stop never returned once resumed"
@@ -5174,7 +5200,7 @@ def test_start_server_forwards_its_flags_to_the_serving_child(page_dir, monkeypa
     started = hosting_model.start_server(
         page_dir,
         host="page.example",
-        standing=True,
+        persistent=True,
         revive=True,
         harness=None,
     )
@@ -5187,7 +5213,7 @@ def test_start_server_forwards_its_flags_to_the_serving_child(page_dir, monkeypa
             str(page_dir),
             "--host",
             "page.example",
-            "--standing",
+            "--persistent",
             "--revive",
             "--harness",
             "null",
@@ -5219,8 +5245,8 @@ while json.loads((page / "service.json").read_text())["enabled"]:
 """
 
 
-def hold_standing(page: Path, start) -> subprocess.Popen:
-    """A standing page with its lease held, as `server run --standing` leaves one."""
+def hold_persistent(page: Path, start) -> subprocess.Popen:
+    """A persistent page with its lease held, as `server run --persistent` leaves one."""
     page.mkdir(parents=True)
     cleanup_model.write_json(
         page / "service.json",
@@ -5229,8 +5255,8 @@ def hold_standing(page: Path, start) -> subprocess.Popen:
             "bind": "127.0.0.1",
             "port": 1,
             "enabled": True,
-            "lifetime": "standing",
-            "server_id": "fixture-standing",
+            "lifetime": "persistent",
+            "server_id": "fixture-persistent",
         },
     )
     holder = start(
@@ -5240,19 +5266,19 @@ def hold_standing(page: Path, start) -> subprocess.Popen:
     return holder
 
 
-def test_a_page_left_standing_is_the_sweeps_to_stop():
-    """The forgotten server, on purpose: a standing page under the run's state
+def test_a_page_left_running_is_the_sweeps_to_stop():
+    """The forgotten server, on purpose: a persistent page under the run's state
     home, its lease held, and nothing here to stop it. `_no_page_outlives_its_test`
     ends it, and `test_a_run_ends_only_the_servers_it_started` runs this test to
     watch that happen. Not `spawn`, whose teardown would end the holder before
     the sweep reached it."""
-    hold_standing(machine_model.state_home() / "pages" / "left", subprocess.Popen)
+    hold_persistent(machine_model.state_home() / "pages" / "left", subprocess.Popen)
 
 
 def test_a_run_ends_only_the_servers_it_started(tmp_path, spawn):
     """The sweep reads the run's own state home, and does read it.
 
-    A standing server under the machine's `~/.local/state/leaf/pages` looks to
+    A persistent server under the machine's `~/.local/state/leaf/pages` looks to
     the sweep exactly like a page a test forgot: a held lease under an enabled
     service. The sweep once took its root from the environment before
     `isolated_session` had moved it, and stopped every such server on the
@@ -5264,7 +5290,7 @@ def test_a_run_ends_only_the_servers_it_started(tmp_path, spawn):
     its own home must have been stopped — or the sweep proves nothing."""
     home = tmp_path / "state"
     review = home / "leaf" / "pages" / "review"
-    holder = hold_standing(review, spawn)
+    holder = hold_persistent(review, spawn)
     planted = sorted(path.relative_to(home) for path in home.rglob("*"))
     nested = tmp_path / "nested"
 
@@ -5278,7 +5304,7 @@ def test_a_run_ends_only_the_servers_it_started(tmp_path, spawn):
             f"--basetemp={nested}",
             "-o",
             f"cache_dir={tmp_path / 'cache'}",
-            f"{__file__}::test_a_page_left_standing_is_the_sweeps_to_stop",
+            f"{__file__}::test_a_page_left_running_is_the_sweeps_to_stop",
         ],
         env=os.environ | {"XDG_STATE_HOME": str(home)},
         capture_output=True,

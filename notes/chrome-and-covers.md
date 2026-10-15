@@ -5,14 +5,14 @@ The banner has a stated height, sticky headers stack through `--lf-top`, and the
 workspace row rule applies to pane grids without squeezing a widget's own rows.
 These contracts live in [layouts.css](../skills/leaf/assets/layouts.css),
 [theme.css](../skills/leaf/assets/theme.css), and the
-[module reading-region contract](../skills/leaf/references/module-authoring.md#reading-regions).
+[module reading-region contract](../skills/leaf/references/module-scroll-and-motion.md#reading-regions).
 
 ## Decided: a workspace is a screen
 
 A full-height workspace stays a screen whose regions hold their own overflow. Some
 pages behave like a TUI or a dashboard rather than a document, and the workspace
 Layout exists for them; a long read beside a panel kept in view is a `layout-sidebar`
-document whose aside sticks (`page-authoring.md`, A workspace).
+document whose aside sticks (`page-layout.md`, A workspace).
 
 Option E, a workspace whose main region flows with the root while its other regions
 stick, is rejected. It kept native page scrolling at the cost of reworking the
@@ -20,7 +20,7 @@ full-height widgets, footers, margin lanes and phone stacking, all to make works
 scroll better, which is not what they are for.
 
 The aim is pages that need little scrolling, composed simply, rather than better
-scrolling inside regions. page-authoring.md asks an author to trim or split a pane
+scrolling inside regions. page-layout.md asks an author to trim or split a pane
 whose body runs past its region, and no check enforces it.
 
 A branch that made a side list (`lf-tabs list="side"`) a screen was built and

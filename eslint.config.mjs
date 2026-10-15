@@ -32,6 +32,7 @@ const browserGlobals = Object.fromEntries(
     "CSS",
     "CSSImportRule",
     "CSSKeyframesRule",
+    "CSSLayerBlockRule",
     "CSSScopeRule",
     "CSSStyleRule",
     "CSSStyleSheet",
@@ -347,7 +348,17 @@ export const semanticStoreOwnershipRule = {
         });
         return false;
       }
-      return /(?:^|\/)vendor\/browser-runtime\.js$/u.test(source.value);
+      if (!/(?:^|\/)vendor\/browser-runtime\.js$/u.test(source.value)) return false;
+      // The type check maps the facade's served path to the framework's source; a
+      // relative path reaches the compiled facade, whose types are blanked, so what a
+      // module imports through it goes unchecked (`build/browser/build.mjs`, `typecheck`).
+      if (source.value.startsWith("."))
+        context.report({
+          node: source,
+          message:
+            "Import the browser framework's facade by its served path, /vendor/browser-runtime.js.",
+        });
+      return true;
     };
     const report = (node) =>
       context.report({
@@ -411,7 +422,7 @@ export const semanticStoreOwnershipRule = {
 // or `blur`, and the window's, which is the system's focus, are other questions. The option names,
 // by path from the repository root, the files that may still name a focus event, each
 // with the reason in the config that grants it.
-const standingRepoRoot = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.dirname(fileURLToPath(import.meta.url));
 const STANDING_MESSAGE =
   "Read where the user stands from onStanding (runtime/focus.js): a focusin or focusout listener misses moves inside a shadow tree beneath it and guesses its own cause.";
 const standingListenersRule = {
@@ -421,7 +432,7 @@ const standingListenersRule = {
   },
   create(context) {
     const file = path
-      .relative(standingRepoRoot, context.filename ?? context.getFilename())
+      .relative(repoRoot, context.filename ?? context.getFilename())
       .split(path.sep)
       .join("/");
     const allowed = new Set(context.options[0]?.[file] ?? []);
@@ -487,7 +498,7 @@ const placementsRule = {
   meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
   create(context) {
     const file = path
-      .relative(standingRepoRoot, context.filename ?? context.getFilename())
+      .relative(repoRoot, context.filename ?? context.getFilename())
       .split(path.sep)
       .join("/");
     const owner = (context.options[0] ?? []).includes(file);
@@ -592,7 +603,7 @@ export const standingReadsRule = {
   meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
   create(context) {
     const file = path
-      .relative(standingRepoRoot, context.filename ?? context.getFilename())
+      .relative(repoRoot, context.filename ?? context.getFilename())
       .split(path.sep)
       .join("/");
     if ((context.options[0] ?? []).includes(file)) return {};
@@ -650,7 +661,7 @@ export const openLayersRule = {
   meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
   create(context) {
     const file = path
-      .relative(standingRepoRoot, context.filename ?? context.getFilename())
+      .relative(repoRoot, context.filename ?? context.getFilename())
       .split(path.sep)
       .join("/");
     if ((context.options[0] ?? []).includes(file)) return {};
@@ -676,6 +687,38 @@ export const openLayersRule = {
             node,
             message:
               "Ask shadow-tree.js whether a node is an open layer or stands in one (nativeLayerKind, isNativeLayer, nativeLayerHolding) rather than selecting the open state.",
+          });
+      },
+    };
+  },
+};
+
+// A script moves a box through the scroll owners: a reveal through landing-scroll.js's
+// `scrollIntoView`, bounded `within` the one box that may move, an end through
+// `scrollToEnd` and a relative move through `moveScrollerBy` (scrolling.js). A sum
+// written into `scrollTop` or `scrollLeft` is how a reveal is hand-rolled, with its own
+// reading of the band and the edge, so the rule refuses every assignment to either; a
+// script that sets an offset outright says so with `scrollTo`, instantly. The option
+// names the files that may still assign one.
+const scrollWritesRule = {
+  meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
+  create(context) {
+    const file = path
+      .relative(repoRoot, context.filename ?? context.getFilename())
+      .split(path.sep)
+      .join("/");
+    if ((context.options[0] ?? []).includes(file)) return {};
+    return {
+      AssignmentExpression({ left }) {
+        if (
+          left.type === "MemberExpression" &&
+          !left.computed &&
+          ["scrollTop", "scrollLeft"].includes(left.property.name)
+        )
+          context.report({
+            node: left,
+            message:
+              "Reveal with scrollIntoView(node, {block, within}) from runtime/landing-scroll.js, or move with scrollToEnd or moveScrollerBy (runtime/scrolling.js), rather than assigning a scroll offset.",
           });
       },
     };
@@ -712,7 +755,7 @@ const INSERTS = new Set([
   "replaceChildren",
   "replaceWith",
 ]);
-const STANDING = new Set([
+const PLACEMENT = new Set([
   "parentNode",
   "parentElement",
   "nextSibling",
@@ -724,7 +767,7 @@ export const movesRule = {
   meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
   create(context) {
     const file = path
-      .relative(standingRepoRoot, context.filename ?? context.getFilename())
+      .relative(repoRoot, context.filename ?? context.getFilename())
       .split(path.sep)
       .join("/");
     if ((context.options[0] ?? []).includes(file)) return {};
@@ -733,18 +776,18 @@ export const movesRule = {
       node.callee.type === "MemberExpression" && !node.callee.computed
         ? node.callee.property.name
         : null;
-    const standingOf = (node) =>
+    const placementOf = (node) =>
       node.type === "MemberExpression" &&
       !node.computed &&
-      STANDING.has(node.property.name);
+      PLACEMENT.has(node.property.name);
     // Whether `test` asks where one of `names` stands.
     const asksWhere = (test, names) => {
       if (!test || typeof test.type !== "string") return false;
-      if (standingOf(test) && names.has(text(test.object))) return true;
+      if (placementOf(test) && names.has(text(test.object))) return true;
       if (
         test.type === "BinaryExpression" &&
         [test.left, test.right].some((side) => names.has(text(side))) &&
-        [test.left, test.right].some(standingOf)
+        [test.left, test.right].some(placementOf)
       )
         return true;
       if (
@@ -876,7 +919,7 @@ export const layerReturnsRule = {
   meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
   create(context) {
     const file = path
-      .relative(standingRepoRoot, context.filename ?? context.getFilename())
+      .relative(repoRoot, context.filename ?? context.getFilename())
       .split(path.sep)
       .join("/");
     if ((context.options[0] ?? []).includes(file)) return {};
@@ -968,6 +1011,7 @@ const architecturePlugin = {
     "semantic-store-ownership": semanticStoreOwnershipRule,
     "standing-listeners": standingListenersRule,
     placements: placementsRule,
+    "scroll-writes": scrollWritesRule,
     "standing-reads": standingReadsRule,
     "open-layers": openLayersRule,
     moves: movesRule,
@@ -978,7 +1022,7 @@ const architecturePlugin = {
         const file = runtimeName(context.filename ?? context.getFilename());
         // The bootstrap and the prepaint run before the module graph and write only
         // what the first paint needs, before any authored revision has replaced the
-        // root's attributes. root-state.js is the sole standing mutation boundary.
+        // root's attributes. root-state.js is the sole mutation boundary after that.
         if (["bootstrap.js", "prepaint.js", "root-state.js"].includes(file)) return {};
         const source = context.sourceCode ?? context.getSourceCode();
         const pagePaintAttributes = pagePaintAttributesFrom(
@@ -1283,7 +1327,9 @@ export default [
       ".venv/**",
       "examples/corpus.html",
       "skills/leaf/assets/vendor/**",
+      "skills/leaf/kernel/**",
       "skills/leaf/packages/*/vendor/**",
+      "evals/ui-review-detection/fixtures/**",
     ],
   },
   { linterOptions: { noInlineConfig: true } },
@@ -1357,14 +1403,17 @@ export default [
     rules: { "no-undef": "error" },
   },
   {
-    files: ["dev/leaf_dev/startup.js", "dev/leaf_dev/bench_latency.js"],
+    files: ["dev/leaf_dev/startup.js", "dev/leaf_dev/commands/bench_latency.js"],
     languageOptions: { globals: browserGlobals, sourceType: "script" },
     rules: { "no-undef": "error" },
   },
   {
     // Browser diagnostics resolve published runtime entries from the page under
     // test. Those scoped URLs are data rather than static dependency edges.
-    files: ["dev/leaf_dev/verify_site_browser.js", "dev/leaf_dev/bench_latency.js"],
+    files: [
+      "dev/leaf_dev/commands/verify_site_browser.js",
+      "dev/leaf_dev/commands/bench_latency.js",
+    ],
     languageOptions: { globals: browserGlobals, sourceType: "script" },
     rules: {
       "no-undef": "error",
@@ -1460,7 +1509,6 @@ export default [
   },
   {
     files: ["skills/leaf/assets/**/*.js", "skills/leaf/packages/*/**/*.js"],
-    ignores: ["skills/leaf/assets/vendor/**", "skills/leaf/packages/*/vendor/**"],
     languageOptions: { globals: browserGlobals },
     rules: { "no-undef": "error" },
   },
@@ -1468,11 +1516,7 @@ export default [
     // The settled reading answers only for the rendering callbacks and size observers it
     // counts, so the layer and its packages reach both through runtime/rendering.js.
     files: ["skills/leaf/assets/**/*.js", "skills/leaf/packages/*/**/*.js"],
-    ignores: [
-      "skills/leaf/assets/vendor/**",
-      "skills/leaf/packages/*/vendor/**",
-      "skills/leaf/assets/runtime/rendering.js",
-    ],
+    ignores: ["skills/leaf/assets/runtime/rendering.js"],
     rules: {
       "no-restricted-globals": [
         "error",
@@ -1482,7 +1526,6 @@ export default [
   },
   {
     files: ["skills/leaf/assets/**/*.js", "skills/leaf/packages/*/**/*.js"],
-    ignores: ["skills/leaf/assets/vendor/**", "skills/leaf/packages/*/vendor/**"],
     plugins: { architecture: architecturePlugin },
     rules: {
       "architecture/standing-listeners": [
@@ -1521,6 +1564,18 @@ export default [
         [
           // The owner.
           "skills/leaf/assets/runtime/shadow-tree.js",
+        ],
+      ],
+      "architecture/scroll-writes": [
+        "error",
+        [
+          // Restores, each returning a box to an offset it held: a carried node's in
+          // its replacement, the adopted message body's, and CodeMirror's own view.
+          "skills/leaf/assets/runtime/carry.js",
+          "skills/leaf/assets/runtime/annotation-overlay/thread-preview.js",
+          "skills/leaf/packages/file-editor/widgets/editor.js",
+          // The trace's time axis is its scroll offset, which it sets and then expects.
+          "skills/leaf/packages/playwright/widgets/timeline.js",
         ],
       ],
       "architecture/layer-returns": [
@@ -1562,7 +1617,7 @@ export default [
   {
     // This is the boundary that loads authored/package modules, whose paths are
     // data rather than runtime dependencies. Literal imports still enter the graph.
-    files: ["skills/leaf/assets/runtime/widget-vocabularies.js"],
+    files: ["skills/leaf/assets/runtime/widget-loader.js"],
     rules: {
       "no-restricted-syntax": [
         "error",
@@ -1656,7 +1711,6 @@ export default [
     // block's, so all of them stand in this one list, and the history owners' block
     // below repeats the others.
     files: ["skills/leaf/assets/**/*.js", "skills/leaf/packages/*/**/*.js"],
-    ignores: ["skills/leaf/assets/vendor/**", "skills/leaf/packages/*/vendor/**"],
     rules: {
       "no-restricted-properties": [
         "error",

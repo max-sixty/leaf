@@ -404,15 +404,19 @@ limit](https://developers.cloudflare.com/workers/platform/limits/#log-size).
 `worker/src/interactions.ts` lists exactly which fields a record keeps.
 
 A record carries the session `reference`, page `route`, site `release`, tab `session`,
-and the ordered interaction metadata: event type, time, sequence, pointer coordinates,
-element tags and positions, per-tab node ids, command ids and bindings, and response
-kinds and statuses. Sample lifecycle entries keep their phase, host, allocation and
+and the ordered interaction metadata: event type, browser `observed_at` and
+`monotonic_ms`, sequence, visibility, pointer coordinates, element tags and positions,
+per-tab node ids, command ids and bindings, and response kinds and statuses. The
+Cloudflare record supplies receipt time. Timing entries retain generated input/reply
+identities, command attempts, presentation kind and surface without message text.
+Sample lifecycle entries keep their phase, host, allocation and
 revisions, elapsed time, admission status, reload flag, retirement reason, release
 operation, and error name and status. The Worker drops element ids and names, labels,
 typed, pasted and selected text, URL details, template ids, exception messages, stacks,
-response bodies, and fields it does not recognize. An entry too large to log keeps its
-type and part numbers without its raw JSON; the page's `events.jsonl` and local
-interaction trace keep the raw content.
+response bodies, and fields it does not recognize. An observation over 40 KB becomes one
+`interaction_omitted` entry with its original type, byte count and reason. No
+transport or reader splits or reconstructs diagnostic observations; the page's
+`events.jsonl` owns admitted message content.
 
 A live sample, an embedded child page, sends its batches to its container first, which
 checks the sample's capability. The Worker logs the batch only after the container
@@ -477,7 +481,7 @@ Codex falling back from its WebSocket probe to HTTP.
 
 When a hosted turn cannot answer, the user's update gets a failure receipt: a reply
 carrying `failure` in its thread for a message, or a failed pickup for an answer to an
-ask, which leaves the answer standing and lets the user answer again
+ask, which leaves the answer in force and lets the user answer again
 (`fail_answer` in `skills/leaf/scripts/leaf/thread.py`). The receipt's `failure` field holds one of three codes, and
 `worker/leaf_website/__init__.py` declares the words the user reads for each in
 `FAILURE_RECEIPTS`:

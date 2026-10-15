@@ -209,6 +209,13 @@ function sweep(root) {
   // The x-shadow trees the walk enters, which it reaches through their hosts, so a
   // host in skipped content leaves its tree unasked too.
   const trees = new Set(shadowRootsIn(root));
+  // Every box is read before any is marked. A mark written between two reads made the
+  // next read restyle what the mark invalidated, once for each scroller, which on a
+  // long diff was most of the sweep. No mark changes a reading the sweep takes:
+  // `data-lf-holds` positions only its own box, read before it is marked, and
+  // `data-lf-scrolls` moves only its descendants' `--lf-top`, of which `paintSlot`
+  // asks only whether `top` is "auto".
+  const read = [];
   const walk = (scope) => {
     const walker = document.createTreeWalker(scope, NodeFilter.SHOW_ELEMENT, (el) => {
       if (!skipped(el)) return NodeFilter.FILTER_ACCEPT;
@@ -219,17 +226,24 @@ function sweep(root) {
     // is its own scroller.
     let el = scope.nodeType === Node.ELEMENT_NODE ? scope : walker.nextNode();
     for (; el; el = walker.nextNode()) {
-      // Swept from the size observer's own callback too, when a waiting box is drawn,
-      // so its observation is dropped only once nothing is left to watch: dropping and
-      // taking it again inside the callback is a fresh observation the same delivery
-      // cannot reach, which the browser reports as a ResizeObserver loop.
-      const waited = waiting.delete(el);
-      classify(el);
-      if (waited) release(el);
+      const style = getComputedStyle(el);
+      const { overflowX, overflowY, position, containerType } = style;
+      // An inset's resolved value can need layout, so only a sticking box's is read.
+      const top = position === "sticky" ? style.top : "auto";
+      read.push([el, { overflowX, overflowY, position, top, containerType }]);
       if (trees.has(el.shadowRoot)) walk(el.shadowRoot);
     }
   };
   walk(root);
+  for (const [el, style] of read) {
+    // Swept from the size observer's own callback too, when a waiting box is drawn,
+    // so its observation is dropped only once nothing is left to watch: dropping and
+    // taking it again inside the callback is a fresh observation the same delivery
+    // cannot reach, which the browser reports as a ResizeObserver loop.
+    const waited = waiting.delete(el);
+    classify(el, style);
+    if (waited) release(el);
+  }
 }
 
 // And a box that scrolls is the scroller for whatever sticks inside it, so it starts the
@@ -266,9 +280,8 @@ function paintSlot(el, style) {
   el.toggleAttribute(PAGE_PAINT_ATTRIBUTE.sticks, sticks && style.top !== "auto");
 }
 
-function classify(el) {
+function classify(el, style) {
   asked.add(el);
-  const style = getComputedStyle(el);
   noteQueries(el, style);
   paintSlot(el, style);
   // The rest is for a box the user can scroll. One that no longer is gives back the
@@ -329,7 +342,8 @@ const childLists = new MutationObserver((records) => {
     for (const node of removedNodes)
       if (node.nodeType === Node.ELEMENT_NODE) release(node);
     for (const node of addedNodes)
-      if (node.nodeType === Node.ELEMENT_NODE) reachSizes.observe(node);
+      if (node.nodeType === Node.ELEMENT_NODE)
+        reachSizes.observe(/** @type {Element} */ (node));
   }
 });
 function watchReach(el) {
@@ -572,7 +586,7 @@ const reached = (el) => {
   return false;
 };
 document.addEventListener(LAYOUT, (event) => {
-  const [changed] = event.composedPath();
+  const [changed] = /** @type {Node[]} */ (event.composedPath());
   if (changed?.nodeType === Node.ELEMENT_NODE && reached(changed)) reread(changed);
   paintReach();
 });

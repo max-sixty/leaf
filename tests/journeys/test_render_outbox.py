@@ -99,7 +99,7 @@ def test_a_withdrawal_restores_what_still_stands_not_what_stood_then(browser, se
     about while the other has already moved the same card past it, and the door takes
     it, recency not being a thing an event can be checked for.
 
-    The tab that hears it then paints the older reading over the standing move. Which
+    The tab that hears it then paints the older reading over the move in force. Which
     tab shows the damage is the part worth arranging: the tab that *made* the later
     move painted it itself, so replay never marked it applied and the next poll lays
     it down again, healing the page by luck. A tab that got that move through replay
@@ -128,13 +128,13 @@ def test_a_withdrawal_restores_what_still_stands_not_what_stood_then(browser, se
     for key in ["Enter", "ArrowLeft", "ArrowUp", "Enter"]:
         mover.keyboard.press(key)
     round_trip(mover)
-    standing = ["card-baffle", "card-heater"]
-    assert mover.eval_on_selector_all(*order) == standing
+    in_force = ["card-baffle", "card-heater"]
+    assert mover.eval_on_selector_all(*order) == in_force
 
     # The tab the damage shows in: it reads the second move off the log rather than
     # making it, so replay has it marked applied and will not lay it down twice.
     heard = open_page(browser, url)
-    assert heard.eval_on_selector_all(*order) == standing
+    assert heard.eval_on_selector_all(*order) == in_force
 
     # Not undo(): the helper ends in round_trip, and this tab's polls are stopped, so
     # what it sends can never come back to it. The offer the helper waits on first is
@@ -148,12 +148,12 @@ def test_a_withdrawal_restores_what_still_stands_not_what_stood_then(browser, se
     told(heard)
     told(heard)
 
-    assert heard.eval_on_selector_all(*order) == standing, (
+    assert heard.eval_on_selector_all(*order) == in_force, (
         "a tab that heard the undo painted the state that stood before the move it "
         "named, over the move that still stands"
     )
     fresh = open_page(browser, url)
-    assert fresh.eval_on_selector_all(*order) == standing, (
+    assert fresh.eval_on_selector_all(*order) == in_force, (
         "a tab reading the log fresh disagrees with the tab that heard the undo"
     )
 
@@ -199,7 +199,7 @@ def test_a_draft_that_outlives_its_passage_returns_with_that_passage(browser, se
     )
 
     # Through the page's own readiness rather than the paragraph's arrival in markup:
-    # the restore of a standing draft is part of presenting the page, and a gesture made
+    # the restore of an open draft is part of presenting the page, and a gesture made
     # before that is a gesture the user could not have made.
     navigate(page, url)
     page.locator("#p").click(click_count=3)

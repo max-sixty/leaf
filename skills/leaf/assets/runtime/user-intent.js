@@ -39,6 +39,14 @@ const displaced = (source, at) => {
 // The source is held weakly: an intent can be kept long after its gesture, as a reading
 // place keeps one, and a source the document has since dropped can neither hold focus
 // nor be what focus was carried from, so it answers nothing a held node would.
+/**
+ * @param {{
+ *   source?: unknown,
+ *   available?: () => boolean,
+ *   fallback?: Element | null,
+ *   since?: number,
+ * }} [options]
+ */
 export function retainUserIntent({
   source = focused(),
   available = () => true,
@@ -75,7 +83,7 @@ export function retainUserIntent({
   return current;
 }
 
-// A nested destination may stop standing while the original gesture waits. Restrict
+// A nested destination may stop being available while the original gesture waits. Restrict
 // that same capability; taking a new intent would authorize stale work with newer input.
 // Refine a retained gesture's availability without recapturing its generation. The
 // same admission guards readiness and the actual focus/scroll handoff.

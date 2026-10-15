@@ -1,7 +1,7 @@
-/* `runtime/widget-api.js` and `references/module-authoring.md` describe one surface.
+/* `runtime/widget-api.js` and the `references/module-*.md` files describe one surface.
 
-   The module is the helper surface package behavior modules import; the reference is
-   that surface's documentation for package authors. Every export is one of two kinds,
+   The module is the helper surface package behavior modules import; the references,
+   read below as one text, are that surface's documentation for package authors. Every export is one of two kinds,
    read from the module's own source: an export below the module's `// Internal:`
    comment serves Leaf's bundled packages and kernel widgets alone, and every other
    export is the authoring API, which the reference documents. So:
@@ -59,7 +59,11 @@ function surface() {
 
 // The reference's code: inline spans outside code blocks, and the code blocks.
 function referenceCode() {
-  const text = read(join(SKILL, "references/module-authoring.md"));
+  const references = join(SKILL, "references");
+  const text = readdirSync(references)
+    .filter((name) => /^module-.*\.md$/.test(name))
+    .map((name) => read(join(references, name)))
+    .join("\n");
   const blocks = text.match(/^```.*?^```/gms) ?? [];
   const prose = blocks.reduce((rest, block) => rest.replace(block, ""), text);
   const spans = (prose.match(/`[^`]+`/g) ?? []).map((span) =>
@@ -164,7 +168,7 @@ function runtimeNames() {
   return { exports, members };
 }
 
-test("every authoring export is documented in module-authoring.md", () => {
+test("every authoring export is documented in the module references", () => {
   const names = documented(referenceCode());
   const missing = [...surface()]
     .filter(([name, internal]) => !internal && !names.has(name))
@@ -172,7 +176,7 @@ test("every authoring export is documented in module-authoring.md", () => {
   assert.deepEqual(
     missing,
     [],
-    "document these in module-authoring.md, or move them below widget-api.js's " +
+    "document these in a module-*.md reference, or move them below widget-api.js's " +
       "`// Internal:` comment if only Leaf's bundled packages use them",
   );
 });
@@ -218,7 +222,7 @@ test("every name a behavior module imports is exported", () => {
   );
 });
 
-test("every helper module-authoring.md calls is exported", () => {
+test("every helper the module references call is exported", () => {
   const exported = surface();
   const reference = referenceCode();
   const runtime = runtimeNames();
@@ -234,11 +238,11 @@ test("every helper module-authoring.md calls is exported", () => {
   assert.deepEqual(
     [...called].filter((name) => !exported.has(name) && !member(name)),
     [],
-    "module-authoring.md calls these, and widget-api.js does not export them",
+    "the module references call these, and widget-api.js does not export them",
   );
   assert.deepEqual(
     [...reference.imported].filter((name) => !exported.has(name)),
     [],
-    "module-authoring.md's examples import these from widget-api.js, which does not export them",
+    "the module references' examples import these from widget-api.js, which does not export them",
   );
 });

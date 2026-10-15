@@ -41,10 +41,12 @@ const packageVendor = (name) => `skills/leaf/packages/${name}/vendor`;
 const input = (file) => path.join(root, "build", file);
 
 /** Expose selected installed exports without sharing a broad barrel's unused imports. */
-function selectedExports(source, entry) {
+function selectedExports(source, entries, specifier) {
   const options = { ecmaVersion: "latest", sourceType: "module" };
-  const names = parse(readFileSync(entry, "utf8"), options).body.flatMap((node) =>
-    node.specifiers.map((item) => item.local.name),
+  const names = entries.flatMap((entry) =>
+    parse(readFileSync(entry, "utf8"), options)
+      .body.filter((node) => node.source?.value === specifier)
+      .flatMap((node) => node.specifiers.map((item) => item.local.name)),
   );
   const body = parse(source, options).body;
   const published = body
@@ -115,13 +117,12 @@ export function adapt(adaptations) {
   return {
     name: "leaf-adapt",
     setup(builder) {
-      adaptations.forEach(({ file, edit, loader = "js" }, index) =>
+      adaptations.forEach(({ file, edit }, index) =>
         builder.onLoad({ filter: file }, async ({ path: at }) => {
           used.add(index);
           return {
             contents: await edit(await readFile(at, "utf8"), at),
             resolveDir: path.dirname(at),
-            loader,
           };
         }),
       );
@@ -150,14 +151,6 @@ const bindTo = (filter, target) => ({
  * file as it stands instead, and may `finish` it.
  */
 const bundles = {
-  "scoped-registry": () => ({
-    out: `${assets}/vendor/scoped-registry.js`,
-    // The published stand-in drops connectedMoveCallback, turning native retained
-    // moves into disconnect/connect and bypassing editors' caret restoration.
-    entry:
-      'import "@webcomponents/scoped-custom-element-registry/src/scoped-custom-element-registry.ts";',
-    adapt: [{ ...patches("scoped-registry-native-move.patch"), loader: "ts" }],
-  }),
   // Browser-native DOM rasterization, loaded only when capturing a page region.
   //
   // After a capture, SnapDOM counts each later mutation against the target's
@@ -322,7 +315,7 @@ const bundles = {
       "export { markdownLanguage, insertNewlineContinueMarkup }" +
       ' from "@codemirror/lang-markdown";\n' +
       'export { ChangeSet, EditorSelection, Prec, Transaction, Annotation, Facet, RangeSet, RangeSetBuilder, StateField, Text, codePointAt, codePointSize, fromCodePoint, combineConfig, MapMode, RangeValue, CharCategory } from "@codemirror/state";\n' +
-      'export { drawSelection, lineNumbers, highlightActiveLineGutter, highlightActiveLine, dropCursor, rectangularSelection, crosshairCursor, GutterMarker, gutter, WidgetType, logException, Direction, showTooltip, getTooltip } from "@codemirror/view";\n' +
+      'export { drawSelection, lineNumbers, highlightActiveLineGutter, highlightActiveLine, dropCursor, rectangularSelection, crosshairCursor, GutterMarker, gutter, WidgetType, logException, Direction, showTooltip, getTooltip, placeholder } from "@codemirror/view";\n' +
       'export { defaultKeymap } from "@codemirror/commands";\n' +
       'export { HighlightStyle, syntaxHighlighting, indentOnInput, bracketMatching, syntaxTree, indentUnit, language, highlightingFor } from "@codemirror/language";\n' +
       'export { tags, highlightTree } from "@lezer/highlight";\n',
@@ -509,22 +502,31 @@ const bundles = {
   // `syntax.esm.js`, and Pierre's theme registry binds to Leaf's theme shim.
   // The unused WASM import carries no binary or separate module.
   pierre: () => ({
-    out: `${packageVendor("diff")}/pierre-diffs.esm.js`,
+    out: `${packageVendor("default")}/pierre-diffs.esm.js`,
     entryPoints: {
       "pierre-diffs.esm": input("pierre/entry.mjs"),
       "pierre-parser.esm": input("pierre/parser.mjs"),
     },
-    outdir: packageVendor("diff"),
+    outdir: packageVendor("default"),
+    place: {
+      [`${packageVendor("default")}/pierre-parser.esm.js`]: `${packageVendor("diff")}/pierre-parser.esm.js`,
+    },
     splitting: true,
     chunkNames: "pierre/[name]-[hash]",
     adapt: [
       {
         file: /@pierre\/diffs\/dist\/index\.js$/,
-        edit: (source) => selectedExports(source, input("pierre/parser.mjs")),
+        edit: (source) =>
+          selectedExports(
+            source,
+            [input("pierre/parser.mjs"), input("pierre/entry.mjs")],
+            "@pierre/diffs",
+          ),
       },
       {
         file: /@pierre\/diffs\/dist\/ssr\/index\.js$/,
-        edit: (source) => selectedExports(source, input("pierre/entry.mjs")),
+        edit: (source) =>
+          selectedExports(source, [input("pierre/entry.mjs")], "@pierre/diffs/ssr"),
       },
       {
         file: /@pierre\/diffs\/dist\/highlighter\/shared_highlighter\.js$/,

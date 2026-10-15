@@ -16,6 +16,7 @@ from leaf.projection import (
     with_action,
 )
 from leaf.registry.contract import state_definition
+from leaf.thread_context import thread_structure
 
 
 class AdmissionReadings:
@@ -45,8 +46,6 @@ class AdmissionReadings:
             self.events,
             self.registry,
             self.page(revisions[-1]) if revisions else None,
-            registry_for_revision=self.view.registry,
-            available_revisions=revisions,
             thread=self.thread,
             log=self.log,
         )
@@ -54,21 +53,20 @@ class AdmissionReadings:
     @cached_property
     def thread(self):
         return frozen_thread_reading(
-            self.events,
-            self.view.registry,
-            available_revisions=self.view.revisions,
-            withdrawn=self.log.withdrawn,
+            self.events, self.registry, withdrawn=self.log.withdrawn
         )
 
     def page(self, revision: int):
         if revision not in self._pages:
             self._pages[revision] = page_reading(
-                self.view.reading(revision),
+                self.view.reading(revision, self.registry),
                 self.events,
                 revision,
                 withdrawn=self.log.withdrawn,
                 revisions=self.view.revisions,
-                revision_reader=self.view.reading,
+                revision_reader=lambda previous: self.view.reading(
+                    previous, self.view.registry(previous)
+                ),
             )
         return self._pages[revision]
 
@@ -113,7 +111,7 @@ def answer_meaning(
     """Whether this admitted action answers its widget's ask, and the thread it closes.
 
     The answering action is the one whose admission makes the ask's declared state
-    condition hold, so it is read with the candidate standing in the fold of its own
+    condition hold, so it is read with the candidate in force in the fold of its own
     document. The thread it closes is the widget's authored `resolves`, read from the
     immutable document that sent it rather than carried in the command. A decision
     whose outcome is the widget's `x-withdrawn-as` leaves the page as if nothing had
@@ -166,11 +164,11 @@ def admit_widget_event(sender, event: dict, readings: AdmissionReadings) -> dict
     """Stamp server-owned meaning after command validation, under the append lock.
 
     `sender` is the authored document of the revision the command names."""
-    registry = readings.registry
+    events, registry = readings.events, readings.registry
     record = sender.by_id.get(event["widget"])
     scope = "page"
     if record is None:
-        record = readings.thread.by_id[event["widget"]]
+        record = thread_structure(events).by_id[event["widget"]]
         scope = "thread"
     entry = registry[record["tag"]]
     admitted = dict(event)

@@ -15,10 +15,7 @@ from render_harness import open_page, told
 def test_deferred_notice_describes_only_the_current_message_version(browser, serve):
     url = serve(PANEL_PAGE)
     page = open_page(browser, url)
-    page.evaluate("""async () => {
-      const {setNoticeContext} = await window.__lfRuntimeImport('/runtime/notifications.js');
-      setNoticeContext(true);
-    }""")
+    page.keyboard.press("g")
 
     original = thread_model.cmd_comment(
         serve.page_dir, None, None, None, "Initial note.", None
@@ -28,10 +25,7 @@ def test_deferred_notice_describes_only_the_current_message_version(browser, ser
     thread_model.cmd_edit(serve.page_dir, original["id"], "Current note.")
     told(page)
 
-    page.evaluate("""async () => {
-      const {setNoticeContext} = await window.__lfRuntimeImport('/runtime/notifications.js');
-      setNoticeContext(false);
-    }""")
+    page.keyboard.press("Escape")
     expect(page.locator(".lf-notice")).to_have_text(re.compile(r".+ updated a comment"))
 
 

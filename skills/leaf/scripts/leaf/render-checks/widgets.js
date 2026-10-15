@@ -10,7 +10,6 @@ import {
   commandDeclarationsWithin,
   commandRoutes,
   pageDocument,
-  unrevealedVisualParts,
   upFrom,
   userScrollport,
   visualPartProblems,
@@ -104,25 +103,24 @@ export const missingUpgrades = (declarations) =>
     .map(([tag]) => tag);
 // visual-parts.js reads each declaration, so a part the gate accepts is one the page
 // can anchor and travel to.
-const visualProviderProblems = (declarations, check) =>
+export const invalidVisualProviders = (declarations) =>
   Object.entries(declarations)
     .filter(([, entry]) => entry["x-visual"])
     .flatMap(([tag, entry]) =>
       [...document.querySelectorAll(tag)].map((el) => ({
         code: "visual-parts",
         at: locate(el),
-        problems: check(el, entry["x-visual"]),
+        problems: visualPartProblems(el, entry["x-visual"]),
       })),
     )
     .filter((instance) => instance.problems.length);
-export const invalidVisualProviders = (declarations) =>
-  visualProviderProblems(declarations, visualPartProblems);
-// Moves each visual it reveals off the state the page opened in: the gate's last reading.
-export const unrevealedVisualProviders = (declarations) =>
-  visualProviderProblems(declarations, unrevealedVisualParts);
 export const undeclaredShadowRoots = (registry) => [
   ...new Set(
-    [...document.querySelectorAll("*")]
+    [
+      .../** @type {NodeListOf<HTMLElement | SVGElement>} */ (
+        document.querySelectorAll("*")
+      ),
+    ]
       .filter(
         (el) =>
           el.shadowRoot &&
@@ -146,14 +144,16 @@ export const missingThreads = (declarations) =>
         .map((el) => ({
           code: "missing-thread-seat",
           at: locate(el),
-          hosts: [...el.querySelectorAll(".lf-thread-seat")].filter(
-            (host) => host.dataset.lfThreadSeat === el.id,
-          ).length,
+          hosts: [
+            .../** @type {NodeListOf<HTMLElement>} */ (
+              el.querySelectorAll(".lf-thread-seat")
+            ),
+          ].filter((host) => host.dataset.lfThreadSeat === el.id).length,
         })),
     )
     .filter((instance) => instance.hosts !== 1);
 
-// Attributes standing on a widget that its entry never declared. The schema is the
+// Attributes on a widget that its entry never declared. The schema is the
 // whole of the author's namespace — `additionalProperties: false` on every tag — and
 // the static lint holds an authored document to it. What no source reading can see is the
 // other writer: a module, which upgrades the element and may leave anything it likes on
@@ -468,7 +468,7 @@ export function heldScrollers(tags) {
 // Each command in one of `tags`' widgets that declares context keys and no
 // `bindingBadge`. Context keys are the widget's aliases for pressing a control from
 // elsewhere, as an ask forwards its digits; a key the page never shows works only
-// for a user who already knows it (module-authoring.md, "Commands and keyboard
+// for a user who already knows it (module-input.md, "Commands and keyboard
 // routes"). A route without its own `bindingBadge` takes its row's. The reading is the
 // declaration, not the keys reachable now, so a command whose keys depend on state is
 // read the same in every state. A command belongs to the nearest Leaf widget holding

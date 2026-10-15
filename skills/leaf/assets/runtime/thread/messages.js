@@ -14,7 +14,7 @@
    admission and later descriptor paints never replay the cue.
    The fragment is captured inertly before its first upgrade; panel
    presentation waits for preparation before capturing typed authored state. */
-import { html, render, nothing } from "../../vendor/browser-runtime.js";
+import { html, render, nothing } from "/vendor/browser-runtime.js";
 import {
   loadMarkdown,
   markdownReady,
@@ -31,7 +31,7 @@ import {
   releaseMessageEdit,
   watchRewrite,
 } from "./message-edit.js";
-import { reactionVocabulary } from "../registry.js";
+import { tokenEntry } from "../registry.js";
 import { readAttachedMedia, writeAttachedMedia } from "../media.js";
 import {
   rememberAuthoredParents,
@@ -97,7 +97,7 @@ function proseReading(message) {
 /** @param {import("../../../../../build/browser/domain.ts").Message | Extract<import("../../../../../build/browser/domain.ts").Command, {kind: "comment" | "reply"}>} message @returns {string} */
 export function messageText(message) {
   if (message.token) {
-    const token = reactionVocabulary()[message.token];
+    const token = tokenEntry(message.token);
     return `${token?.glyph ?? ""} ${message.token}`.trim();
   }
   return message.suggestion ? (message.text ?? "") : proseReading(message).plainText;
@@ -106,16 +106,16 @@ export function messageText(message) {
 // A rollback can withdraw an authored island, but neither retry nor a prose edit
 // may instantiate it twice. Its native identity is independent of the prose cache.
 const authoredMessages = new Map();
-export function prepareAuthoredMessage(message, thread, context) {
+export function prepareAuthoredMessage(message, thread) {
   const key = message.attempt ?? message.id;
   if (typeof thread !== "string" || !thread)
     throw new TypeError("an authored message needs its thread's id");
   if (!authoredMessages.has(key)) {
-    const template = { content: context.prepare(message.markup ?? "") };
+    const template = document.createElement("template");
+    template.innerHTML = message.markup ?? "";
     rememberAuthoredParents(template.content);
     const descriptors = stageWidgetDescriptors(template.content, {
       kind: "thread",
-      revision: message.revision,
       thread,
       message: message.id,
     });
@@ -128,7 +128,7 @@ export function prepareAuthoredMessage(message, thread, context) {
       message: message.id,
       body: {
         text,
-        document: { thread, message: message.id, revision: message.revision },
+        document: { thread, message: message.id },
       },
       authored,
       descriptors,
@@ -140,8 +140,7 @@ export function prepareAuthoredMessage(message, thread, context) {
   for (const descriptor of prepared.descriptors.descriptors.values())
     if (
       descriptor.document.thread !== thread ||
-      descriptor.document.message !== message.id ||
-      descriptor.document.revision !== message.revision
+      descriptor.document.message !== message.id
     )
       throw new TypeError("an authored message changed its frozen document identity");
   return prepared;
@@ -155,10 +154,10 @@ const authoredMessage = (message) => {
 const FAILURE_LABEL = "Not answered";
 export function messageReading(
   message,
-  { panel, nativeAuthored = false, reactions, workflows },
+  { panel, nativeAuthored = false, reactions, workflows, leaves = null },
 ) {
   const workflow = strongestWorkflow(workflows);
-  const token = isReaction(message) ? reactionVocabulary()[message.token] : null;
+  const token = isReaction(message) ? tokenEntry(message.token) : null;
   const kind = isReaction(message)
     ? "reaction"
     : message.suggestion
@@ -168,9 +167,14 @@ export function messageReading(
   return Object.freeze({
     key: messageKey(message),
     id: message.id,
-    revision: message.revision,
     // A reply still streaming, which the answer it stands for completes in place.
     provisional: Boolean(message.provisional),
+    // The agent's progress message (`ephemeral`): a step of work in hand, which the
+    // thread shows as its working message until an answer folds it (thread-card.js).
+    progress: Boolean(message.ephemeral),
+    // What an answer leaves standing, while it stands: "Waiting on me" for the prose ask the
+    // user owes, "To-do open" for work it promised and has not ended (thread-card.js).
+    leaves,
     version: message.content_version,
     seq: moved(message).seq,
     unread: message.unread,
@@ -236,6 +240,9 @@ export class MessageView {
     // makes of the node is written once, on the first presentation.
     if (!prior) {
       this.node.classList.add("lf-msg");
+      // Which message a node draws, for a presentation handing the user's place in a
+      // thread to another, as the floating panel does to a page's own reader.
+      this.node.dataset.message = model.key;
       this.#header.className = "lf-msg-head";
       if (panel) this.node.tabIndex = -1;
       else {
@@ -248,7 +255,12 @@ export class MessageView {
       // editor then sets its own caret, which clearing the selection after would take. A
       // link keeps its own double click.
       this.node.addEventListener("dblclick", (event) => {
-        if (event.target.closest?.(".lf-msg-editor, a[href]")) return;
+        if (
+          /** @type {Partial<Element>} */ (event.target).closest?.(
+            ".lf-msg-editor, a[href]",
+          )
+        )
+          return;
         if (!this.#model?.editable) return;
         window.getSelection()?.removeAllRanges();
         this.openEdit();
@@ -314,6 +326,11 @@ export class MessageView {
         ><span class="lf-msg-meta"
           ><time datetime=${model.timestamp}>${model.age}</time> ${receipt}
           ${
+            model.leaves
+              ? html`<span class="lf-msg-leaves">${model.leaves}</span>`
+              : nothing
+          }
+          ${
             model.failure
               ? html`<span class="lf-msg-failure">${FAILURE_LABEL}</span>`
               : nothing
@@ -364,7 +381,6 @@ export class MessageView {
         ${this.#header}
         <div
           class=${`lf-msg-body${model.body.kind === "suggestion" ? " lf-suggest-body" : ""}`}
-          data-lf-vocabulary=${model.nativeAuthored && model.body.authored ? model.revision : nothing}
         >
           ${editing ? this.#editor.node : this.#body(model.body)}
           ${

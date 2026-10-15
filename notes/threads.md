@@ -7,9 +7,9 @@ summary. Users can unfold the original messages, and the agent can replace an
 overlapping summary as the discussion grows. Their contracts live in
 [threads](../skills/leaf/references/threads.md),
 [session lifetime](../skills/leaf/scripts/leaf/session-lifetime.md), and
-[the module Thread API](../skills/leaf/references/module-authoring.md#widget-local-thread-placement).
+[the module Thread API](../skills/leaf/references/module-annotations.md#widget-local-thread-placement).
 
-## Current standing
+## Current status
 
 Summary checkpoints condense historical ranges; they do not provide a continuously
 current reading of what is decided and what remains open. Try an agent-maintained

@@ -368,7 +368,7 @@ test("zoom clearance reaches the solver through the floating driver", async () =
           contextNode: null,
           extent: clear,
           row: clear.top,
-          geometry: { anchors: new Map(), origins: new Map() },
+          geometry: { anchors: new Map() },
         },
         reference,
       ),

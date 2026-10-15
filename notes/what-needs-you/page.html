@@ -4,7 +4,7 @@
     <title>What needs you</title>
     <meta
       name="description"
-      content="What needs you in Leaf: Questions, the user's list of asks and to-dos, and Tasks, the agent's list of owed answers and to-dos, where a to-do is explicit work held open until it is ended with an outcome."
+      content="What needs you in Leaf: On me, the user's list of asks and to-dos, and On Claude, the agent's list of owed answers and to-dos, where a to-do is explicit work held open until it is ended with an outcome."
     />
     <style>
       #task-record th code,
@@ -248,8 +248,8 @@
         <p class="eyebrow">design</p>
         <h1>What needs you: asks and to-dos</h1>
         <p class="lede">
-          Each side has a list: <em>Questions</em>, what waits on you, and
-          <em>Tasks</em>, what the agent owes you. Either side can put items on the
+          Each side has a list: <em>On me</em>, what waits on you, and
+          <em>On Claude</em>, what the agent owes you. Either side can put items on the
           other's. A <em>to-do</em> is explicit work on either list, and it stays open
           until it is ended, so a reply, a Resolve or the end of a session can no longer
           settle work nobody did. An <em>ask</em>, a request for your input, is a record
@@ -261,10 +261,10 @@
       <lf-tabs id="page-tabs">
         <lf-tab id="tab-now" label="Where we are">
           <section id="status">
-            <h2>Steps 1 to 5 and the Questions panel are on main</h2>
+            <h2>Steps 1 to 5 and the On panel are on main</h2>
             <p id="direction">
               The code for the lists and to-dos is marked experimental, so later agents
-              change it freely. The top bar and the keys now treat Questions and Threads
+              change it freely. The top bar and the keys now treat On me and Threads
               alike (<a href="#bar-built">Top bar and keys</a>), on main since
               <a href="https://github.com/max-sixty/leaf/pull/2051">#2051</a>. Step 7 is
               next, and step 6 isn't needed for now.
@@ -303,11 +303,12 @@
                   </td>
                 </tr>
                 <tr>
-                  <th scope="row">3. <kbd>q</kbd> pages through your queue</th>
+                  <th scope="row">3. <kbd>m</kbd> pages through your queue</th>
                   <td>
                     Each press goes to the next item on you in page order: an open ask,
                     a to-do the agent put on you, or a resend. It was <kbd>a</kbd> until
-                    the top bar change.
+                    the top bar change, then <kbd>q</kbd> until the lists were named On
+                    me and On Claude.
                   </td>
                   <td>
                     On main (<a href="https://github.com/max-sixty/leaf/pull/1745"
@@ -316,11 +317,11 @@
                   </td>
                 </tr>
                 <tr>
-                  <th scope="row">The Questions panel</th>
+                  <th scope="row">The On panel</th>
                   <td>
-                    Replaces the Asks drawer: your Questions, Claude's Tasks, and what's
-                    done, folded at the foot. Called the Queue panel until the top bar
-                    change.
+                    Replaces the Asks drawer: On me, On Claude, and what's done, folded
+                    at the foot. Called the Queue panel until the top bar change, and
+                    Questions, with Claude's list Tasks, until the lists were renamed.
                   </td>
                   <td>
                     On main (<a href="https://github.com/max-sixty/leaf/pull/1789"
@@ -367,7 +368,7 @@
                 <tr>
                   <th scope="row">7. Items outlive their session</th>
                   <td>
-                    A to-do whose session ended without an outcome stays on Tasks,
+                    A to-do whose session ended without an outcome stays on On Claude,
                     marked as having no session behind it, and the next session on the
                     page picks it up. A dispatched session's to-do links back to the one
                     that dispatched it.
@@ -377,12 +378,11 @@
               </tbody>
             </table>
             <p id="try-it">
-              <strong>Try it here:</strong> <kbd>q</kbd> and <kbd>Shift</kbd>+<kbd
-                >q</kbd
+              <strong>Try it here:</strong> <kbd>m</kbd> and <kbd>Shift</kbd>+<kbd
+                >m</kbd
               >
-              walk your questions. The Questions door beside Threads, or
-              <kbd>g</kbd> then <kbd>Shift</kbd>+<kbd>Q</kbd>, opens the Questions
-              panel.
+              walk what's on you. The On me door beside Threads, or
+              <kbd>g</kbd> then <kbd>Shift</kbd>+<kbd>M</kbd>, opens the On panel.
             </p>
           </section>
 
@@ -407,7 +407,7 @@
 
         <lf-tab id="tab-bar" label="Top bar and keys">
           <section id="bar-built">
-            <h2>Questions and Threads now share the right edge</h2>
+            <h2>On me and Threads now share the right edge</h2>
             <p>
               <strong
                 >You picked matching doors with both panels on the right, and it is on
@@ -417,36 +417,38 @@
             </p>
             <ul>
               <li>
-                The banner ends with <em>Questions: 3</em> beside <em>Threads: 3</em>,
-                two doors in one face: tinted and underlined while open, and a
-                <kbd>g</kbd> chip when you press <kbd>g</kbd>. <em>Tasks: 2</em>, what's
-                on Claude, follows the status sentence and opens the same panel.
+                The banner ends with <em>On me: 3</em> beside <em>Threads: 3</em>, two
+                doors in one face: tinted and underlined while open, and a
+                <kbd>g</kbd> chip when you press <kbd>g</kbd>. <em>On Claude: 2</em>,
+                what's on Claude, follows the status sentence and opens the same panel.
               </li>
               <li>
-                The Questions panel opens on the right edge, at the Threads panel's
-                width and by its handle, and pressing the other door swaps one panel for
-                the other. The Pages drawer keeps the left edge.
+                The On panel opens on the right edge, at the Threads panel's width and
+                by its handle, and pressing the other door swaps one panel for the
+                other. The Pages drawer keeps the left edge.
               </li>
               <li>
-                The panel lists <em>Questions</em>, then <em>Tasks</em>, then
+                The panel lists <em>On me</em>, then <em>On Claude</em>, then
                 <em>Done</em>. A row says what it is: a widget ask by its widget's word
                 or Ask, a prose ask as Thread, a version's sign-off as Approval, a to-do
                 on either side as To-do, and a send to retry as Resend.
               </li>
               <li>
-                <kbd>q</kbd> and <kbd>Shift</kbd>+<kbd>q</kbd> walk your questions, as
-                <kbd>t</kbd> walks threads, and <kbd>g</kbd> <kbd>Q</kbd> opens the
+                <kbd>m</kbd> and <kbd>Shift</kbd>+<kbd>m</kbd> walk what's on you, as
+                <kbd>t</kbd> walks threads, and <kbd>g</kbd> <kbd>M</kbd> opens the
                 panel, as <kbd>g</kbd> <kbd>T</kbd> opens Threads. The panel's head has
-                Next question, as Threads' has Next unread.
+                Next on me, as Threads' has Next unread.
               </li>
               <li>
                 <kbd>↑</kbd> and <kbd>↓</kbd> now step through thread titles in the
-                Threads panel, as they step through rows in Questions.
+                Threads panel, as they step through rows in the On panel.
               </li>
             </ul>
             <p>
-              Your side is called Questions rather than Decisions because
-              <kbd>d</kbd> already pages down, and <kbd>q</kbd> was free.
+              Your side is called On me, and its walk takes <kbd>m</kbd> (<a
+                href="#bar-names"
+                >A name for each side</a
+              >).
             </p>
           </section>
 
@@ -535,16 +537,18 @@
             <h2>A name for each side, since whose it is matters most</h2>
             <p id="names-decided">
               <strong
-                >You picked <em>Questions</em> for what's on you and <em>Tasks</em> for
-                what's on Claude.</strong
+                >The lists are named by whose move it is, in your voice:
+                <em>On me</em> for what's on you and <em>On Claude</em> for what's on
+                Claude.</strong
               >
-              The door reads “Questions: 3”, and Task on the page always means work
-              Claude owes. You first picked Decisions, but <kbd>d</kbd> pages down, so
-              its walk could not have the name's letter; <kbd>q</kbd> was free. The
-              record both sides share took its own name, <em>to-do</em> (<a
-                href="#internal-name"
-                >below</a
-              >).
+              The door reads “On me: 3”, the agent's count “On Claude: 2”, and the panel
+              holding both is titled On. You first picked Decisions, but
+              <kbd>d</kbd> pages down, so its walk could not have the name's letter;
+              then Questions and Tasks, though Questions also held to-dos and resends
+              and Tasks the replies Claude owed. The walk is <kbd>m</kbd>, and the Page
+              Map moved to <kbd>g</kbd> <kbd>P</kbd> to leave <kbd>g</kbd>
+              <kbd>M</kbd> to the panel. The record both sides share took its own name,
+              <em>to-do</em> (<a href="#internal-name">below</a>).
             </p>
             <p>
               “Tasks: 3” didn't say whether the three were on you or on Claude. What the
@@ -566,9 +570,9 @@
             </ul>
             <p>
               Two kinds on your side aren't questions: a to-do, such as trying a build,
-              and a resend. Claude can ask for the first as a question (“Does the build
-              work on your phone?”), and a To-do and a Resend keep their own rows under
-              Questions. The other pairs weighed were
+              and a resend, which is why Questions fell short. Claude can ask for the
+              first as a question (“Does the build work on your phone?”), and a To-do
+              and a Resend keep their own rows under On me. The other pairs weighed were
               <em>Needs you</em> (a phrase, which reads poorly as a heading),
               <em>To do</em> and <em>Waiting for</em> (near synonyms of task), and
               <em>Your turn</em> and <em>Claude's turn</em> (an odd thing to count).
@@ -579,7 +583,7 @@
             <h2>A name for the shared record</h2>
             <p id="internal-decided">
               <strong
-                ><em>Tasks</em> on the page means Claude's list, and the record both
+                ><em>On Claude</em> on the page means Claude's list, and the record both
                 sides share is a <em>to-do</em> (<a
                   href="https://github.com/max-sixty/leaf/pull/2506"
                   >#2506</a
@@ -612,7 +616,7 @@
               <h3 id="bar-pick-heading">Which top bar?</h3>
               <p>
                 Each sketch shows the top bar with the queue panel open. The sketches
-                name it Decisions, the first name you picked; it is Questions now. The
+                name it Decisions, the first name you picked; it is On me now. The
                 Threads door and panel stay as they are today in every option.
               </p>
               <lf-options id="bar-pick-options" choose>
@@ -957,7 +961,7 @@
                   <code>owner: "user"</code>, and <code>page state</code> listed every
                   task with its owner in place of a separate <code>asks</code> list.
                   <em
-                    >Now: <code>queues.questions</code> holds items of kind
+                    >Now: <code>queues.on_user</code> holds items of kind
                     <code>ask</code>, <code>todo</code> and <code>resend</code>, and
                     <code>page state</code> lists <code>asks</code> and
                     <code>todos</code> apart.</em
@@ -983,23 +987,22 @@
           <section id="queues">
             <h2>Two lists, and every item on either is an ask, a to-do or an update</h2>
             <p>
-              This is the model as built. Questions holds what waits on you, and Tasks
+              This is the model as built. On me holds what waits on you, and On Claude
               what waits on the agent. An ask is a request for your input, a record of
               its own that its answer ends. A to-do is explicit work with an
               <code>owner</code> and a subject (a thread, a widget, any element or the
-              page), open until it is ended. <kbd>q</kbd> pages through Questions. The
+              page), open until it is ended. <kbd>m</kbd> pages through On me. The
               contracts live in the code: <code>asks.py</code> owns asks,
               <code>todos.py</code> to-dos and starts, and
               <code>served_state/queues.py</code> the two lists. The agent's
-              instructions are in <code>conversation-loop.md</code>, “Questions and
-              Tasks”.
+              instructions are in <code>conversation-loop.md</code>, “The On lists”.
             </p>
             <table id="direction-items">
               <thead>
                 <tr>
                   <th scope="col">Put there by</th>
-                  <th scope="col">On Questions</th>
-                  <th scope="col">On Tasks</th>
+                  <th scope="col">On me</th>
+                  <th scope="col">On Claude</th>
                 </tr>
               </thead>
               <tbody>
@@ -1024,8 +1027,8 @@
               </tbody>
             </table>
             <p id="queue-kinds">
-              An item's <code>kind</code> on Questions is <code>ask</code>,
-              <code>todo</code> or <code>resend</code>. On Tasks it is
+              An item's <code>kind</code> on On me is <code>ask</code>,
+              <code>todo</code> or <code>resend</code>. On On Claude it is
               <code>answer</code>, an update of yours the agent owes an answer to;
               <code>work</code>, an update it has in hand; or <code>todo</code>. That
               set isn't a contract. From <code>leaf page state</code> on a scratch page
@@ -1035,7 +1038,7 @@
             <lf-code id="queues-example" language="json">
               <pre>
 {
-  "questions": [
+  "on_user": [
     {"kind": "ask", "id": "widget:ship-day-pick",
      "owner": "user",
      "subject": {"kind": "widget",
@@ -1052,7 +1055,7 @@
                  "id": "banner-sec"},
      "title": "Check the banner on your phone"}
   ],
-  "tasks": [
+  "on_agent": [
     {"kind": "todo", "id": "00753dfa",
      "owner": "agent",
      "subject": {"kind": "element",
@@ -1086,8 +1089,8 @@ leaf task end PAGE TODO done "Version 4"
                 <tr>
                   <th scope="row"><code>owner</code></th>
                   <td>
-                    Whose list it is on: <code>agent</code>, Tasks, or
-                    <code>user</code>, Questions
+                    Whose list it is on: <code>agent</code>, On Claude, or
+                    <code>user</code>, On me
                   </td>
                   <td><code>agent</code></td>
                 </tr>
@@ -1152,7 +1155,7 @@ leaf task end PAGE TODO done "Version 4"
                     the page
                   </td>
                   <td>
-                    Your Done, on its row or with <kbd>x</kbd> where <kbd>q</kbd> lands,
+                    Your Done, on its row or with <kbd>x</kbd> where <kbd>m</kbd> lands,
                     or the agent's <code>task end</code>. <kbd>z</kbd> undoes your Done
                   </td>
                 </tr>
@@ -1199,11 +1202,11 @@ leaf task end PAGE TODO done "Version 4"
               The append door holds the rules. Only the agent opens a to-do, and you end
               only one the agent put on you. A to-do ends once; a reply, a Resolve,
               another version and the end of the session all leave the agent's open.
-              While it is open, its thread reads waiting on the agent, it counts on
-              Tasks, and the banner names it. An ended to-do stays on the page: the
-              Questions panel lists it under Done, beside answered and withdrawn asks.
+              While it is open, its thread reads waiting on the agent, it counts on On
+              Claude, and the banner names it. An ended to-do stays on the page: the On
+              panel lists it under Done, beside answered and withdrawn asks.
             </p>
-            <lf-diagram id="task-states" parts="node:Open node:Ended node:Unobserved">
+            <lf-diagram id="task-states" parts="all">
               <pre>
 stateDiagram-v2
   state "Open, on the agent" as Open
@@ -1219,7 +1222,7 @@ stateDiagram-v2
           </section>
 
           <section id="working-on">
-            <h2>Working always names an item on Tasks</h2>
+            <h2>Working always names an item on On Claude</h2>
             <p id="working-on-result">
               <code>leaf task start PAGE ITEM "line"</code> writes a
               <code>start</code> event naming the item in hand, either an update of
@@ -1279,7 +1282,7 @@ stateDiagram-v2
                   <th scope="row">Waiting for your answer</th>
                   <td>
                     None: <code>status waiting</code> puts down what was started, and
-                    the item is on Questions
+                    the item is on On me
                   </td>
                 </tr>
               </tbody>
@@ -1444,8 +1447,8 @@ stateDiagram-v2
                 <strong>A to-do and the message it came from.</strong> Your message
                 opens an owed answer. The agent's reply settles it, and a to-do it opens
                 carries the work on; a reply with <code>--todo</code> does both in one
-                write. Nothing records which message a to-do answers, beyond both
-                standing on one thread.
+                write. Nothing records which message a to-do answers, beyond both being
+                on one thread.
               </li>
               <li>
                 <strong>A prose ask answered.</strong> Your reply answers the ask and
@@ -1454,8 +1457,8 @@ stateDiagram-v2
               <li>
                 <strong>A to-do inside a widget ask.</strong> “Show me a sketch first”
                 in the widget's thread opens an owed answer, and the agent may open a
-                to-do there. While that thread waits on the agent, the ask leaves
-                Questions, and it comes back when the agent answers.
+                to-do there. While that thread waits on the agent, the ask leaves On me,
+                and it comes back when the agent answers.
               </li>
               <li>
                 <strong>A widget ask answered in prose.</strong> Your message opens an
@@ -1568,8 +1571,8 @@ stateDiagram-v2
                 </li>
               </ul>
               <p>
-                Either goes on Questions, so <kbd>q</kbd> reaches it. The to-do stays
-                open on Tasks while it waits, and the agent ends it once you answer. So
+                Either goes on On me, so <kbd>m</kbd> reaches it. The to-do stays open
+                on On Claude while it waits, and the agent ends it once you answer. So
                 there is no separate "to review" item, and no rule about whether reading
                 something accepts it. What's left is the agent's instructions, which
                 should say when to ask before ending.
@@ -1596,8 +1599,9 @@ stateDiagram-v2
             <p>
               Left open on purpose. The lists collect whatever is open and owed, under a
               <code>kind</code>: <code>ask</code>, <code>todo</code> and
-              <code>resend</code> on Questions, and <code>answer</code>,
-              <code>work</code> and <code>todo</code> on Tasks (<a href="#queue-kinds"
+              <code>resend</code> on On me, and <code>answer</code>,
+              <code>work</code> and <code>todo</code> on On Claude (<a
+                href="#queue-kinds"
                 >How it works</a
               >). Which kinds deserve their own rules gets decided once we've used the
               lists.
@@ -1800,7 +1804,7 @@ stateDiagram-v2
             </ul>
             <p id="pi-fit">
               Your model fits Pi's. A Pi task has an owner and waits on whatever it
-              needs, so an ask is the agent's work waiting on you, and Questions is
+              needs, so an ask is the agent's work waiting on you, and On me is
               everything waiting on you. Pi differs in two places, neither a conflict. A
               message is input that starts or steers the agent's work rather than an
               item of its own, so putting an item on the agent's queue is your message

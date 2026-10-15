@@ -12,7 +12,7 @@ import shutil
 import sys
 
 import pytest
-from leaf_dev.thread_snapshots import COMPARED
+from leaf_dev.commands.thread_snapshots import COMPARED
 from render_harness import leaf_page, open_page
 
 
@@ -89,8 +89,9 @@ def test_accept_publishes_only_a_successful_unchanged_capture(
 ):
     """Publication consumes reviewed bytes; a partial or changed capture cannot publish."""
     from click.testing import CliRunner
-    from leaf_dev import leaf_assets, thread_snapshots
-    from leaf_dev.thread_snapshots import accept, capture_files, render_profile
+    from leaf_dev import leaf_assets
+    from leaf_dev.commands import thread_snapshots
+    from leaf_dev.commands.thread_snapshots import accept, capture_files, render_profile
 
     profile = render_profile(browser.version)
     directory = tmp_path / "capture"

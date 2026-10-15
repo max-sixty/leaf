@@ -2,14 +2,17 @@
 
 import json
 import re
+from datetime import UTC, datetime
 from itertools import pairwise
 
 import pytest
 from interact_support import append_carried_log_record, append_command
 from leaf import event_log as events_model
 from leaf import interaction_log as interaction_model
+from leaf import thread as thread_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.schema import ELEMENT_ID
+from leaf_dev.commands.response_times import page_timings
 from playwright.sync_api import expect
 from render_cases_interaction import (
     LIVE_READING,
@@ -27,7 +30,6 @@ from render_harness import (
     page_comment,
     panel_settled,
     refuse,
-    reported_browser_errors,
     round_trip,
     said,
     scroll_settled,
@@ -37,23 +39,24 @@ from render_harness import (
     write,
 )
 
-THREAD_READER = """
-import {keepsText, watchThreads, readThreads, threadSummary, threadTurns} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+THREAD_READER = r"""
+import {keepsText, watchProjection, readThreads, threadSummary, threadTurns} from '/runtime/widget-api.js';
+customElements.define('lf-thread-reader', class extends HTMLElement {
   connectedCallback() {
     this.output = document.createElement('pre');
     this.append(this.output);
-    this.stop = watchThreads(this, collection => {
+    this.stop = watchProjection(this, () => {
+      const collection = readThreads();
       this.reading = collection;
       this.sameReading = collection === readThreads();
       keepsText(this.output, collection.threads.map(thread =>
-        threadTurns(thread).map(message => message.body.text).join('\\n')
-      ).join('\\n'));
+        threadTurns(thread).map(message => message.body.text).join('\n')
+      ).join('\n'));
       this.topic = collection.threads[0] && threadSummary(collection.threads[0]).topic;
     });
   }
   disconnectedCallback() { this.stop(); }
-};
+});
 """
 
 THREAD_READER_DECLARATION = {
@@ -67,9 +70,9 @@ THREAD_READER_DECLARATION = {
     "x-example": '<lf-thread-reader id="reader-example"></lf-thread-reader>',
 }
 
-THREAD_FILTER = """
-import {keepsText, threadActions, readThreads, threadSummary, watchThreads} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+THREAD_FILTER = r"""
+import {keepsText, threadActions, readThreads, threadSummary, watchProjection} from '/runtime/widget-api.js';
+customElements.define('lf-thread-filter', class extends HTMLElement {
   connectedCallback() {
     if (!this.input) {
       this.input = document.createElement('input');
@@ -79,7 +82,8 @@ export default class extends HTMLElement {
       this.input.addEventListener('input', () => this.paint());
       this.append(this.input, this.list);
     }
-    this.stop ??= watchThreads(this, collection => {
+    this.stop ??= watchProjection(this, () => {
+      const collection = readThreads();
       this.reading = collection;
       this.sameReading = collection === readThreads();
       this.updates = (this.updates ?? 0) + 1;
@@ -109,7 +113,7 @@ export default class extends HTMLElement {
     this.stop?.();
     this.stop = null;
   }
-};
+});
 """
 
 THREAD_FILTER_DECLARATION = {
@@ -126,9 +130,9 @@ THREAD_FILTER_DECLARATION = {
     "x-example": '<lf-thread-filter id="example"></lf-thread-filter>',
 }
 
-THREAD_MIRROR = """
+THREAD_MIRROR = r"""
 import {keeps, mountThreadViews, threadSummary} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-thread-mirror', class extends HTMLElement {
   connectedCallback() {
     if (!this.outlet) {
       this.input = document.createElement('input');
@@ -155,7 +159,7 @@ export default class extends HTMLElement {
     this.consumer?.unregister();
     this.consumer = null;
   }
-};
+});
 """
 
 THREAD_MIRROR_DECLARATION = {
@@ -198,8 +202,10 @@ def test_browser_interactions_are_recorded_beside_server_requests(browser, serve
     page.locator("h1").click()
     with page.expect_response(lambda response: contains(response, "command")):
         page.keyboard.press("?")
-    with page.expect_response(lambda response: contains(response, "interaction_part")):
-        page.locator("#trace-input").fill("x" * 50_000)
+    with page.expect_response(
+        lambda response: contains(response, "interaction_omitted")
+    ):
+        page.locator("#trace-input").fill("é" * 25_000)
 
     rows = [
         json.loads(line)
@@ -210,7 +216,7 @@ def test_browser_interactions_are_recorded_beside_server_requests(browser, serve
     inputs = [row for row in rows if row.get("type") == "input"]
     clicks = [row for row in rows if row.get("type") == "click"]
     commands = [row for row in rows if row.get("type") == "command"]
-    parts = [row for row in rows if row.get("type") == "interaction_part"]
+    omitted = [row for row in rows if row.get("type") == "interaction_omitted"]
     assert any(
         row["value"] == "hello"
         and any("input#trace-input" in part for part in row["target"])
@@ -225,18 +231,123 @@ def test_browser_interactions_are_recorded_beside_server_requests(browser, serve
     assert reference["focus"]["target"] == "body"
     assert reference["scroll"] == [0, 0]
     assert len({row["session"] for row in inputs + clicks + commands}) == 1
-    grouped = [row for row in parts if row["partOf"] == parts[0]["partOf"]]
-    reconstructed = json.loads(
-        "".join(row["json"] for row in sorted(grouped, key=lambda row: row["part"]))
+    assert omitted
+    assert all(
+        row["originalType"] in {"beforeinput", "input"}
+        and row["reason"] == "record_exceeds_limit"
+        and row["bytes"] > 40_000
+        and row["monotonic_ms"] >= 0
+        and row["visibility"] == "visible"
+        and row["observed_at"]
+        for row in omitted
     )
-    assert reconstructed["type"] in {"beforeinput", "input"}
-    assert "x" * 50_000 in {reconstructed.get("value"), reconstructed.get("data")}
+    assert "é" * 25_000 not in json.dumps(rows, ensure_ascii=False)
     assert any(
         row.get("source") == "server"
         and row["method"] == "POST"
         and row["path"] == "/api/interaction"
         and row["status"] == 204
         for row in rows
+    )
+
+
+def test_reply_timing_records_send_and_words_when_the_panel_opens(browser, serve):
+    """The diagnostic's one browser clock spans local Send and actual reply words.
+
+    A reply behind the closed panel has no visible words. Opening the panel records
+    them once, without message text, linked by its admitted ID and the send's attempt.
+    """
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Timing feedback",
+                "<h1>Timing feedback</h1>"
+                '<lf-local id="timing-local" choice="idle"></lf-local>',
+            ),
+            page_files={
+                "registry.json": json.dumps(PAGE_DECLARATION),
+                "widgets/lf-local.js": PAGE_WIDGET,
+            },
+        ),
+    )
+    write(page_comment(page), "Which job comes first?")
+    with sending(page, "the timing question"):
+        page.locator(".lf-general .lf-compose-submit").click()
+    question = next(
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment" and event["author"] == "user"
+    )
+    answer = thread_model.post_reply(
+        serve.page_dir,
+        {"to": question["id"], "for": question["id"]},
+        "The roof comes first.",
+    )
+    told(page)
+
+    def trace_has(response, kind):
+        return (
+            response.url.endswith("/api/interaction")
+            and response.ok
+            and any(
+                entry["type"] == kind
+                for entry in response.request.post_data_json["entries"]
+            )
+        )
+
+    # A real diagnostic flush is the completion edge for the absence: all earlier
+    # queued rows are persisted before this later user gesture's row is acknowledged.
+    with page.expect_response(lambda response: trace_has(response, "click")):
+        page.locator("h1").click()
+    trace = interaction_model.read_interactions(serve.page_dir)
+    assert not any(row.get("type") == "reply_visible" for row in trace)
+
+    # Unrelated preparation prevents global presentation proof, while the reply's
+    # own rendered words are already visible. Feedback telemetry must not wait on it.
+    page.evaluate("""() => {
+      const held = Promise.withResolvers();
+      window.releaseTimingPreparation = held.resolve;
+      document.querySelector('#timing-local').controller.present(held.promise);
+    }""")
+    with page.expect_response(lambda response: trace_has(response, "reply_visible")):
+        page.locator(".lf-threads-toggle").click()
+        expect(page.locator(".lf-thread .lf-msg.agent .lf-msg-text")).to_have_text(
+            "The roof comes first."
+        )
+    assert page.evaluate("""async () => (await window.__lfCheckApi())
+        .readApplicationPresentation().pending.includes('widget:timing-local:preparation')""")
+    page.evaluate("releaseTimingPreparation()")
+    rendered(page)
+    trace = interaction_model.read_interactions(serve.page_dir)
+    submitted = next(
+        row
+        for row in trace
+        if row.get("type") == "event_submit" and row["attempt"] == question["attempt"]
+    )
+    visible = [row for row in trace if row.get("type") == "reply_visible"]
+    assert len(visible) == 1
+    shown = visible[0]
+    assert shown["reply_id"] == answer["id"]
+    assert shown["presentation_kind"] == "message_words"
+    assert shown["reply_kind"] == "answer"
+    assert shown["session"] == submitted["session"]
+    assert shown["monotonic_ms"] >= submitted["monotonic_ms"]
+    assert shown["visibility"] == submitted["visibility"] == "visible"
+    assert "text" not in shown and "text" not in submitted
+    sample = next(
+        sample
+        for sample in page_timings(serve.page_dir, since=None, until=datetime.now(UTC))[
+            "samples"
+        ]
+        if sample["input_id"] == question["id"]
+    )
+    measured = sample["milestones"]["send_to_visible"]
+    assert measured["event_id"] == answer["id"]
+    assert measured["session"] == shown["session"]
+    assert (
+        measured["elapsed_s"]
+        == (shown["monotonic_ms"] - submitted["monotonic_ms"]) / 1000
     )
 
 
@@ -393,36 +504,24 @@ def activation_page(source):
 
 PAGE_WIDGET = """\
 import {
-  html, keeps, layerFact, once, render, widgetController,
+  html, keeps, layerFact, LeafElement, live,
 } from "/runtime/widget-api.js";
 
-export default class extends HTMLElement {
-  controller = widgetController(this);
-  reading = this.controller.read();
-
-  constructor() {
-    super();
-    this.attachShadow({mode: "open"});
+customElements.define("lf-local", class extends LeafElement {
+  createRenderRoot() {
+    return this.attachShadow({mode: "open"});
   }
 
-  connectedCallback() {
-    this.paint();
-    if (!once(this)) return;
-    layerFact(this, "$tones");
+  setup() {
+    layerFact("$tones");
     keeps(this, "data-page-widget", "ready");
-    this.controller.subscribe(reading => {
-      this.reading = reading;
-      this.dataset.renderOrder = `${this.dataset.renderOrder || ""}subscribe,`;
-      keeps(this, "data-subscriber-choice", this.dataset.renderedChoice);
-      this.dataset.readings = String(Number(this.dataset.readings || 0) + 1);
-      this.paint();
-    });
     const held = globalThis.__heldLocalPresentations?.get(this.id);
     if (held) this.controller.present(held);
   }
 
+  // The gesture writes its own result into the output, which a deferral holds the
+  // widget's drawing over.
   choose() {
-    keeps(this, "data-render-order", "");
     this.dataset.gestures = String(Number(this.dataset.gestures || 0) + 1);
     const sent = this.controller.dispatch({
       kind: "action",
@@ -430,32 +529,26 @@ export default class extends HTMLElement {
       detail: { value: "chosen" },
     });
     if (!sent) return;
-    this.reading = sent.reading;
+    this.renderRoot.querySelector("output").value = sent.reading.state.choose.value;
     keeps(this, "data-delivery", "pending");
-    this.paint();
     sent.delivery.then(accepted => {
       keeps(this, "data-delivery", accepted ? "accepted" : "refused");
     });
   }
 
-  renderState(state) {
+  render() {
     if (globalThis.__failLocalRender) {
       globalThis.__failedLocalRenders =
         Number(globalThis.__failedLocalRenders || 0) + 1;
       throw new Error("deliberate render failure");
     }
+    const {state, actions} = this.reading;
     keeps(this, "data-rendered-choice", state.choose.value);
-    this.dataset.renderOrder = `${this.dataset.renderOrder || ""}render,`;
-    this.paint();
+    this.dataset.readings = String(Number(this.dataset.readings || 0) + 1);
+    return html`<button ?disabled=${!actions.choose.available} @click=${this.choose}>Choose</button>
+      <output .value=${live(state.choose.value)}></output>`;
   }
-
-  paint() {
-    const choice = this.reading.state.choose?.value ?? this.getAttribute("choice");
-    const available = this.reading.actions.choose?.available ?? false;
-    render(html`<button ?disabled=${!available} @click=${this.choose}>Choose</button>
-      <output>${choice}</output>`, this.shadowRoot, {host: this});
-  }
-};
+});
 """
 
 STARTUP_PROJECTION_WIDGET = PAGE_WIDGET.replace(
@@ -489,36 +582,28 @@ def test_current_readiness_releases_a_connected_page_widget(browser, serve):
         ),
     )
 
-    # The order is read in the turn that sends the gesture, where the claim lives: the
-    # widget clears it in `choose`, and the optimistic publication renders the owner and
-    # then runs its subscribers before the click returns. Waiting for it afterwards reads
-    # a state the page passes through, because the delivery outcome, the admitted event,
-    # and the cleared ledger each publish a further reading of their own; the
-    # single-pair window closes as soon as the round trip lands.
     installed = page.evaluate(
         """() => {
           const owner = document.querySelector('#page-local');
           const control = owner.shadowRoot.querySelector('button');
           control.click();
           return {
+            defined: customElements.get('lf-local') === owner.constructor,
             connected: owner.dataset.pageWidget,
             gestures: owner.dataset.gestures,
-            order: owner.dataset.renderOrder,
           };
         }"""
     )
-    assert installed == {
-        "connected": "ready",
-        "gestures": "1",
-        "order": "render,subscribe,",
-    }
+    assert installed == {"defined": True, "connected": "ready", "gestures": "1"}
     expect(page.locator("#page-local").get_by_role("status")).to_have_text("chosen")
     expect(page.locator("#page-local")).to_have_attribute(
-        "data-subscriber-choice", "chosen"
+        "data-rendered-choice", "chosen"
     )
     round_trip(page)
-    order = page.locator("#page-local").get_attribute("data-render-order")
-    assert re.fullmatch(r"(?:render,subscribe,)+", order), order
+    expect(page.locator("#page-local")).to_have_attribute("data-delivery", "accepted")
+    expect(page.locator("#page-local")).to_have_attribute(
+        "data-rendered-choice", "chosen"
+    )
 
 
 def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve):
@@ -550,7 +635,7 @@ def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve
     expect(page.locator("#page-local").get_by_role("status")).to_have_text("idle")
     waiting = page.evaluate(
         """async () => {
-              const runtime = await window.__lfRuntimeImport('/runtime/semantic-state.js');
+              const runtime = await window.__lfCheckApi();
               window.readStartupApplication = runtime.readApplication;
               window.readStartupPresentation = runtime.readApplicationPresentation;
               const application = runtime.readApplication();
@@ -837,12 +922,10 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
     expect(page.locator("#page-local").get_by_role("status")).to_have_text("chosen")
 
 
-def test_a_returning_controller_widget_draws_again_only_a_changed_reading(
-    browser, serve
-):
-    """A controller-driven widget follows the return rule data and projection watchers
-    follow: a render that failed stands across a departure and return, so the author
-    is told once, and a return draws nothing again while the reading is unchanged."""
+def test_a_returning_widget_draws_again_only_a_changed_reading(browser, serve):
+    """A widget follows the return rule data and projection watchers follow: a render
+    that failed stands across a departure and return, so the author is told once, and a
+    return draws nothing again while the reading is unchanged."""
     source = LIVE_V1.replace(
         "</main>", '<lf-local id="page-local" choice="idle"></lf-local></main>'
     )
@@ -862,7 +945,7 @@ def test_a_returning_controller_widget_draws_again_only_a_changed_reading(
     leave_and_return = """async () => {
       const settle = () => new Promise((resolve) => setTimeout(resolve));
       const {readApplicationPresentation} =
-        await window.__lfRuntimeImport('/runtime/semantic-state.js');
+        await window.__lfCheckApi();
       const owner = document.querySelector('#page-local');
       const parent = owner.parentNode;
       const readings = Number(owner.dataset.readings);
@@ -884,49 +967,13 @@ def test_a_returning_controller_widget_draws_again_only_a_changed_reading(
         "document.querySelector('#page-local').controller.defer()(); true"
     )
     expect(page.locator("#page-local .lf-error")).to_have_text(
-        "<lf-local> failed: <lf-local> renderState threw: deliberate render failure"
+        "<lf-local> failed: deliberate render failure"
     )
     assert page.evaluate(leave_and_return) == {"drawn": 0, "failed": 1, "pending": []}
     errors = take_browser_errors(page)
     assert [said(error) for error in errors] == [
-        (
-            "leaf: paint failed for lf-local#page-local: <lf-local> renderState threw: "
-            "deliberate render failure"
-        )
+        'leaf: <lf-local id="page-local"> failed: deliberate render failure'
     ]
-
-
-def test_a_subscriber_added_after_the_first_render_fails_by_the_paint_rule(
-    browser, serve
-):
-    """A subscriber that joins a drawn reading draws through the widget's paint, so
-    its failure is reported once, as that paint's, and the widget shows its fail-soft
-    box."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Late subscriber",
-                '<h1>Late subscriber</h1><lf-local id="page-local" choice="idle">'
-                "</lf-local>",
-            ),
-            page_files={
-                "registry.json": json.dumps(PAGE_DECLARATION),
-                "widgets/lf-local.js": PAGE_WIDGET,
-            },
-        ),
-    )
-    expect(page.locator("#page-local")).to_have_attribute("data-page-widget", "ready")
-    page.evaluate(
-        "document.querySelector('#page-local').controller.subscribe(() => {"
-        " throw new Error('late subscriber failure'); }); true"
-    )
-    expect(page.locator("#page-local .lf-error")).to_have_text(
-        "<lf-local> failed: late subscriber failure"
-    )
-    reported_browser_errors(
-        page, "leaf: paint failed for lf-local#page-local: late subscriber failure"
-    )
 
 
 @pytest.mark.parametrize("lifetime", ["light", "shadow-child", "shadow-host"])
@@ -957,12 +1004,11 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
                 "x-example": '<lf-controller-stage id="stage-example"><p id="stage-words">Words</p></lf-controller-stage>',
             },
         }
-        modules[
-            "widgets/lf-controller-stage.js"
-        ] = """import { once, shadowStage } from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+        modules["widgets/lf-controller-stage.js"] = """\
+import { once, shadowStage } from '/runtime/widget-api.js';
+customElements.define('lf-controller-stage', class extends HTMLElement {
   connectedCallback() { if (once(this)) shadowStage(this, [...this.children]); }
-};
+});
 """
     source = LIVE_V1.replace(
         "</main>",
@@ -983,9 +1029,7 @@ export default class extends HTMLElement {
     page.locator("#page-local").evaluate("node => { window.pageLocal = node; }")
     page.evaluate(
         """async () => {
-          const presentation = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js'
-          );
+          const presentation = await window.__lfCheckApi();
           window.whenLeafPresented = presentation.whenApplicationPresented;
           window.whenLeafRegionsPresented =
             presentation.whenApplicationRegionsPresented;
@@ -1032,36 +1076,14 @@ export default class extends HTMLElement {
     held_events = []
     page.route("**/api/event", lambda route: held_events.append(route))
     before = int(page.locator("#page-local").get_attribute("data-readings"))
-    page.evaluate(
-        """async () => {
-          const {dragging} = await window.__lfRuntimeImport(
-            '/runtime/widget-elements.js');
-          dragging(document.body, true);
-          window.resumeLocal = pageLocal.controller.defer();
-        }"""
-    )
+    page.evaluate("() => { window.resumeLocal = pageLocal.controller.defer(); }")
     page.locator("#page-local").get_by_role("button", name="Choose").click()
     expect(page.locator("#page-local").get_by_role("status")).to_have_text("chosen")
     assert page.evaluate("Number(pageLocal.dataset.readings)") == before
-    assert page.evaluate("readLeafPresentation().pending") == [
-        "widget:page-local:render",
-        "projection:chrome",
-    ]
-    page.evaluate(
-        """async () => {
-          const {dragging} = await window.__lfRuntimeImport(
-            '/runtime/widget-elements.js');
-          projectionReady = false;
-          whenLeafRegionsPresented(['projection:chrome'], () => true)
-            .then(() => { projectionReady = true; });
-          dragging(document.body, false);
-        }"""
+    page.wait_for_function(
+        "readLeafPresentation().pending.join() === 'widget:page-local:render'"
     )
-    page.wait_for_function("projectionReady")
-    assert page.evaluate("readLeafPresentation().pending") == [
-        "widget:page-local:render"
-    ]
-    holding(page, held_events, 1, "the choose deferred under the drag")
+    holding(page, held_events, 1, "the deferred choose")
     attempt = held_events[0].request.post_data_json["attempt"]
     held_events[0].fulfill(
         status=200,
@@ -1186,31 +1208,22 @@ export default class extends HTMLElement {
     expect(page.locator("#page-local").get_by_role("status")).to_have_text("idle")
 
     # A synchronous render failure cannot escape the publisher or leave a partial
-    # widget as presentation proof. The coordinator reports it, installs the existing
-    # visible fail-soft body, and settles the region once even with several auxiliary
-    # subscribers on that reading.
+    # widget as presentation proof. The widget reports it once, shows the visible
+    # fail-soft box, and settles its region.
     held_failure = []
     page.route("**/api/event", lambda route: held_failure.append(route))
-    page.evaluate(
-        "pageLocal.controller.subscribe(() => {}); "
-        "pageLocal.controller.subscribe(() => {}); "
-        "window.__failLocalRender = true; true"
-    )
+    page.evaluate("window.__failLocalRender = true; true")
     page.locator("#page-local").get_by_role("button", name="Choose").click()
     holding(page, held_failure, 1, "the failing render's action")
     expect(page.locator("#page-local .lf-error")).to_have_text(
-        "<lf-local> failed: <lf-local> renderState threw: deliberate render failure"
+        "<lf-local> failed: deliberate render failure"
     )
     page.wait_for_function("readLeafPresentation().pending.length === 0")
     assert page.evaluate("window.__failedLocalRenders") == 1
     errors = take_browser_errors(page)
     assert [said(error) for error in errors] == [
-        (
-            "leaf: paint failed for lf-local#page-local: <lf-local> renderState threw: "
-            "deliberate render failure"
-        )
+        'leaf: <lf-local id="page-local"> failed: deliberate render failure'
     ]
-    assert "Caused by: Error: deliberate render failure" in errors[0].values["text"]
 
 
 @pytest.mark.parametrize(
@@ -1322,9 +1335,7 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
     )
     page.evaluate(
         """async () => {
-          const presentation = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js'
-          );
+          const presentation = await window.__lfCheckApi();
           const held = () => {
             let release, reject;
             const promise = new Promise((resolve, fail) => {
@@ -1592,6 +1603,13 @@ def test_an_unavailable_list_preserves_the_selected_conversation(browser, serve)
         """async () => {
           const list = document.querySelector('leaf-thread-list');
           const available = window.availableThreadReading;
+          const partial = {...available,
+            rows: [available.rows.find(row => row.kind === 'thread'),
+              {kind: 'empty', key: 'unavailable', text: 'Threads unavailable.'}],
+            count: null,
+          };
+          await list.present(partial);
+          list.commit(partial);
           await list.present(available);
           list.commit(available);
         }"""
@@ -1601,13 +1619,13 @@ def test_an_unavailable_list_preserves_the_selected_conversation(browser, serve)
 
 
 def test_thread_readiness_waits_for_the_keyed_thread_list(browser, serve):
-    """Readiness includes the real Lit paint, preserving the standing editor."""
+    """Readiness includes the real Lit paint, preserving the existing editor."""
     url = serve(LIVE_V1)
     append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
-            "id": "standing-thread",
+            "id": "kept-thread",
             "author": "user",
             "revision": 1,
             "text": "Keep this draft and its exact card.",
@@ -1616,14 +1634,14 @@ def test_thread_readiness_waits_for_the_keyed_thread_list(browser, serve):
     page = open_page(browser, live_url(url))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    page.locator('.lf-thread[data-id="standing-thread"] .lf-thread-summary').click()
-    reply = page.locator('.lf-thread[data-id="standing-thread"] leaf-text')
+    page.locator('.lf-thread[data-id="kept-thread"] .lf-thread-summary').click()
+    reply = page.locator('.lf-thread[data-id="kept-thread"] leaf-text')
     write(reply, "half a thought")
     reply.evaluate("input => input.setSelectionRange(4, 4)")
-    standing = page.locator('.lf-thread[data-id="standing-thread"]').element_handle()
+    card = page.locator('.lf-thread[data-id="kept-thread"]').element_handle()
 
     def assert_draft_retained():
-        assert standing.evaluate("node => node.isConnected"), "the card was replaced"
+        assert card.evaluate("node => node.isConnected"), "the card was replaced"
         expect(reply).to_be_focused()
         expect(reply).to_have_js_property("value", "half a thought")
         assert reply.evaluate(
@@ -1634,7 +1652,7 @@ def test_thread_readiness_waits_for_the_keyed_thread_list(browser, serve):
     page.route("**/api/event", lambda route: held_events.append(route))
     page.evaluate(
         """async () => {
-          const application = await window.__lfRuntimeImport('/runtime/application.js');
+          const application = await window.__lfWidgetApi();
           const list = document.querySelector('leaf-thread-list');
           const schedule = list.scheduleUpdate.bind(list);
           const perform = list.performUpdate.bind(list);
@@ -1686,16 +1704,16 @@ def test_thread_readiness_waits_for_the_keyed_thread_list(browser, serve):
     round_trip(page)
 
 
-THREAD_ACTIONS = """
-import {keeps, threadActions, watchThreads} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+THREAD_ACTIONS = r"""
+import {keeps, readThreads, threadActions, watchProjection} from '/runtime/widget-api.js';
+customElements.define('lf-thread-actions', class extends HTMLElement {
   connectedCallback() {
     this.innerHTML = '<input aria-label="Package reply"><button>Reply</button>' +
       '<button>Resolve</button><button>Reopen</button><button>React</button>';
-    this.stop = watchThreads(this, collection => {
-      this.thread = collection.threads[0];
+    this.stop = watchProjection(this, () => {
+      this.thread = readThreads().threads[0];
       keeps(this, 'data-resolved', Boolean(this.thread?.resolved));
-      keeps(this, 'data-reacted', Boolean(this.thread?.msgs.find(msg => msg.author === 'agent')?.reactions?.choices.find(choice => choice.name === 'keep')?.standing));
+      keeps(this, 'data-reacted', Boolean(this.thread?.msgs.find(msg => msg.author === 'agent')?.reactions?.choices.find(choice => choice.name === 'keep')?.inForce));
     });
     this.querySelectorAll('button').forEach(button => button.onclick = () => {
       const key = this.thread.key;
@@ -1706,12 +1724,12 @@ export default class extends HTMLElement {
           ? threadActions.resolve(key)
           : button.textContent === 'Reopen'
             ? threadActions.reopen(key)
-            : threadActions.setReaction(key, agent.key, 'keep', !agent.reactions.choices.find(choice => choice.name === 'keep').standing);
+            : threadActions.setReaction(key, agent.key, 'keep', !agent.reactions.choices.find(choice => choice.name === 'keep').inForce);
       keeps(this, 'data-accepted', this.last !== null);
     });
   }
   disconnectedCallback() { this.stop(); }
-};
+});
 """
 
 THREAD_ACTIONS_DECLARATION = {
@@ -1788,7 +1806,7 @@ def test_frozen_ask_reveals_its_exact_message_in_a_selective_primary(
     """A message-only primary materializes the widget's turn, including later replies."""
     module = """
     import {registerThreadPresentation, threadTurns} from '/runtime/widget-api.js';
-    export default class extends HTMLElement {
+    customElements.define('lf-message-reader', class extends HTMLElement {
       connectedCallback() {
         this.outlet = document.createElement('section');
         this.append(this.outlet);
@@ -1804,7 +1822,7 @@ def test_frozen_ask_reveals_its_exact_message_in_a_selective_primary(
         });
       }
       disconnectedCallback() { this.presentation.unregister(); }
-    };
+    });
     """
     url = serve(
         leaf_page(
@@ -1841,7 +1859,7 @@ def test_frozen_ask_reveals_its_exact_message_in_a_selective_primary(
     if owner == "middle":
         expect(reader.locator("#channel")).to_have_count(0)
     assert page.evaluate("""async () => {
-      const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const api = await window.__lfWidgetApi();
       return await api.askActions.open('widget:channel');
     }""")
     assert reader.evaluate("node => node.message") == f"key-{owner}"
@@ -1941,28 +1959,26 @@ def test_package_answer_summary_waits_for_widget_completion(browser, serve):
     expect(counts).to_have_text("2 asks on me")
     with sending(page, "complete the selected extras"):
         workspace.locator("#extras").get_by_role(
-            "button", name="Done: my picks here are complete", exact=True
+            "button", name="Done: these picks are complete", exact=True
         ).click()
     expect(counts).to_have_text("1 asks on me · 1 answered · Chat")
 
 
 def test_public_queue_commands_recheck_membership_and_restore_refusals(browser, serve):
     page = open_page(browser, package_workspace(serve))
-    page.evaluate(
-        "async () => { window.api = await window.__lfRuntimeImport('/runtime/widget-api.js'); }"
-    )
+    page.evaluate("async () => { window.api = await window.__lfWidgetApi(); }")
     key = page.evaluate(
-        "api.queueItemKey(api.readQueues().questions.find(item => item.id === 'proofread'))"
+        "api.queueItemKey(api.readQueues().on_user.find(item => item.id === 'proofread'))"
     )
     assert page.evaluate(
-        "api.queueActions.done(api.queueItemKey(api.readQueues().questions.find(item => item.ask?.source.kind === 'widget'))) === null"
+        "api.queueActions.done(api.queueItemKey(api.readQueues().on_user.find(item => item.ask?.source.kind === 'widget'))) === null"
     )
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     page.evaluate("key => { window.doneDelivery = api.queueActions.done(key); }", key)
     holding(page, held, 1, "a package Done awaiting admission")
     assert page.evaluate(
-        "!api.readQueues().questions.some(item => item.id === 'proofread')"
+        "!api.readQueues().on_user.some(item => item.id === 'proofread')"
     )
     assert page.evaluate("api.readQueues().done.some(item => item.id === 'proofread')")
     assert page.evaluate("key => api.queueActions.done(key) === null", key)
@@ -1982,7 +1998,7 @@ def test_public_queue_commands_recheck_membership_and_restore_refusals(browser, 
     assert page.evaluate("doneDelivery") is None
     round_trip(page)
     assert page.evaluate(
-        "api.readQueues().questions.some(item => item.id === 'proofread')"
+        "api.readQueues().on_user.some(item => item.id === 'proofread')"
     )
     with sending(page, "a current package Done"):
         page.locator("#workspace").get_by_role(
@@ -2087,11 +2103,9 @@ def test_queue_ask_arrival_selects_the_primary_reader(browser, serve):
     page = open_page(browser, package_workspace(serve))
     workspace = page.locator("#workspace")
     workspace.get_by_role("button", name="Keep it concise.", exact=True).click()
-    page.evaluate(
-        "async () => { window.api = await window.__lfRuntimeImport('/runtime/widget-api.js'); }"
-    )
+    page.evaluate("async () => { window.api = await window.__lfWidgetApi(); }")
     assert page.evaluate(
-        "async () => { const item = api.readQueues().questions.find(item => item.ask?.source.kind === 'widget'); return await api.queueActions.open(api.queueItemKey(item)); }"
+        "async () => { const item = api.readQueues().on_user.find(item => item.ask?.source.kind === 'widget'); return await api.queueActions.open(api.queueItemKey(item)); }"
     )
     expect(workspace.locator("lf-option#email")).to_be_visible()
     assert page.evaluate(
@@ -2106,30 +2120,9 @@ def test_cancelled_primary_travel_adds_no_return_checkpoint(browser, serve):
     """A newer Tab keeps its focus and history while a primary layout completes, and
     superseding a navigation completes its promise even when a renderer is blocked."""
     page = open_page(browser, package_workspace(serve))
-    assert page.evaluate("""async () => {
-      const {createThreadDestinations} = await window.__lfRuntimeImport('/runtime/thread/destination.js');
-      const workspace = document.querySelector('#workspace');
-      const reached = Promise.withResolvers();
-      const blocked = Promise.withResolvers();
-      const router = createThreadDestinations({
-        panelIsOpen: () => true, showThread: () => null,
-      });
-      let calls = 0;
-      const unregister = router.register(workspace, () => {}, {
-        update: () => ++calls === 1 ? (reached.resolve(), blocked.promise) : Promise.resolve(),
-        destination: () => null,
-      });
-      window.firstNavigation = router.openPageThread('opening', {focus:false});
-      await reached.promise;
-      await router.openPageThread('opening', {focus:false});
-      const result = await firstNavigation;
-      blocked.resolve();
-      unregister();
-      return result === null;
-    }""")
     entries = page.evaluate("history.length")
     page.evaluate("""async () => {
-      const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const api = await window.__lfWidgetApi();
       const workspace = document.querySelector('#workspace');
       const present = workspace.present.bind(workspace);
       const reached = Promise.withResolvers();
@@ -2159,48 +2152,6 @@ def test_cancelled_primary_travel_adds_no_return_checkpoint(browser, serve):
       while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
       return active === newerTabTarget;
     }""")
-
-
-@pytest.mark.parametrize("earlier_release", [False, True])
-def test_prepared_thread_reading_consumes_only_its_own_release(
-    browser, serve, earlier_release
-):
-    """A paint awaiting widget proof cannot consume a later request to show news."""
-    page = open_page(browser, package_workspace(serve))
-    assert page.evaluate(
-        """async earlier => {
-      const {HeldNews} = await window.__lfRuntimeImport('/runtime/thread/held-news.js');
-      const {readThreads} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-      const base = readThreads().threads.find(thread => thread.id === 'opening');
-      const reading = text => {
-        const source = {...base, msgs: base.msgs.map(message =>
-          ({...message, text, body:{...message.body, text}}))};
-        source.root = source.msgs[0];
-        const descriptor = source => ({
-          id: source.id, key: source.key, source, messages: source.msgs,
-          resolved: source.resolved, summaries: source.summaries, reread: descriptor,
-        });
-        return {threads: [descriptor(source)]};
-      };
-      const owner = document.querySelector('#workspace');
-      const held = new HeldNews(owner, () => ({node:owner, newsMoves:()=>true}), () => {});
-      const options = {row:false};
-      held.hold(reading('old'), options);
-      if (earlier) held.release();
-      const pending = held.prepare(reading('new'), options);
-      held.release();
-      pending.commit();
-      const replacement = held.prepare(reading('new'), options);
-      const opened = replacement.reading.threads[0].source.msgs[0].text === 'new';
-      replacement.commit();
-      const next = held.prepare(reading('later'), options);
-      const holdingAgain = next.reading.threads[0].source.msgs[0].text === 'new' &&
-        Boolean(next.reading.threads[0].news);
-      held.dispose();
-      return opened && holdingAgain;
-    }""",
-        earlier_release,
-    )
 
 
 @pytest.mark.parametrize("edit_again", [False, True])
@@ -2258,7 +2209,7 @@ def test_keyed_shadow_row_restores_replaced_slotted_editor_and_caret(browser, se
         layer_widgets={
             "lf-keyed-slot-list.js": """
             import {holdFocus, shadowStage} from '/runtime/widget-api.js';
-            export default class extends HTMLElement {
+            customElements.define('lf-keyed-slot-list', class extends HTMLElement {
               connectedCallback() {
                 this.scope = document.createElement('section');
                 this.row = document.createElement('div');
@@ -2286,7 +2237,7 @@ def test_keyed_shadow_row_restores_replaced_slotted_editor_and_caret(browser, se
                 this.editor = editor;
                 return restore();
               }
-            };
+            });
             """
         },
     )

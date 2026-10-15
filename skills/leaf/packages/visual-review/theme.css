@@ -28,12 +28,6 @@
 .lf-vr-progress {
   margin: 0;
 }
-.lf-vr-case-position {
-  color: var(--muted);
-  font: 600 var(--t-6) / 1.35 var(--sans);
-  letter-spacing: .055em;
-  text-transform: uppercase;
-}
 .lf-vr-title {
   margin-top: 2px;
   font: 700 var(--t-3) / 1.2 var(--sans);
@@ -135,12 +129,6 @@
     isolation: isolate;
   }
 }
-.lf-vr-inspector[hidden] {
-  display: none;
-}
-.lf-vr-inspector-group[hidden] {
-  display: none;
-}
 .lf-vr-inspector-group {
   min-width: 0;
 }
@@ -154,10 +142,6 @@
 }
 .lf-vr-inspector-label {
   margin-right: var(--sp-2);
-  color: var(--muted);
-  font: 600 var(--t-6) / 1.3 var(--sans);
-  letter-spacing: .04em;
-  text-transform: uppercase;
   white-space: nowrap;
 }
 .lf-vr-opacity-control {
@@ -201,8 +185,10 @@
   min-width: 0;
   padding: var(--sp-2) var(--sp-3);
 }
-.lf-vr-case[hidden] {
-  display: none;
+@media screen {
+  .lf-vr-case:not([data-selected]) {
+    display: none;
+  }
 }
 .lf-vr-case-head {
   min-width: 0;
@@ -310,7 +296,7 @@
   color: var(--muted);
   font: var(--t-6) / 1.4 var(--sans);
 }
-.lf-vr-detail:not([hidden]) {
+.lf-vr-detail {
   display: grid;
   align-content: start;
   gap: 1px;
@@ -374,7 +360,7 @@
 }
 .lf-vr-empty {
   margin: 0;
-  padding: var(--sp-5);
+  padding: var(--sp-4);
   color: var(--muted);
   font: var(--t-5) var(--sans);
   text-align: center;
@@ -428,9 +414,6 @@
   .lf-vr-queue,
   .lf-vr-inspection {
     display: none !important;
-  }
-  .lf-vr-case[hidden] {
-    display: grid !important;
   }
   .lf-vr-case + .lf-vr-case {
     border-top: 1px solid var(--rule);

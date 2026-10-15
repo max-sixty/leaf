@@ -18,7 +18,7 @@ from .files import (
     version_descriptors,
 )
 from .passages import SourceReading
-from .presence import other_leaves, presence_fingerprint, presence_with_activity
+from .presence import neighbor_reading, presence_fingerprint, presence_with_activity
 from .registry.storage import read_page_registry
 from .revision_artifact import (
     Resource,
@@ -32,7 +32,6 @@ from .revision_artifact import (
 )
 from .served_state.context import PageRead
 from .served_state.reading import join_reading
-from .served_state.service import SampleInputs
 from .service import PageTransaction
 from .state import now_iso
 from .structure import SourceDocument
@@ -90,16 +89,8 @@ class PageSnapshot:
         active = self.context.active
         return self.artifacts[active["revision"]], active["revision"], active["version"]
 
-    def sample_inputs(self, revision: int) -> SampleInputs:
-        return SampleInputs(
-            revision,
-            self.artifacts[revision],
-            list(self.context.events),
-            self.context.data,
-            self.context.revisions,
-            self.artifacts,
-            {item: self.context.revision(item) for item in self.context.revisions},
-        )
+    def sample_inputs(self, revision: int) -> tuple[RevisionArtifact, list, dict]:
+        return self.artifacts[revision], list(self.context.events), self.context.data
 
     def user_views(self) -> dict:
         # Captured render previews are instruments, not the user's reading.
@@ -209,7 +200,7 @@ def capture_page_snapshot(
         present, live_stream = presence_with_activity(
             page_dir, list(events), process=process
         )
-        others = tuple(copy.deepcopy(other_leaves(page_dir))) if process else ()
+        others = tuple(copy.deepcopy(neighbor_reading(page_dir))) if process else ()
         observed_at = now_iso()
         snapshot_active = document_descriptor(
             revision,

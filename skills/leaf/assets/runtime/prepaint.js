@@ -5,6 +5,23 @@
 // document when it runs, and before the bootstrap and the theme (`compose_document`).
 (() => {
   const root = document.documentElement;
+  // A cross-document swap commits departure before Chrome rejects its aborted
+  // fetches. Those rejections belong to the old document, not its replacement.
+  // beforeunload is cancelable and therefore cannot end this lifetime; pageshow
+  // reopens it when the browser restores the same realm from its page cache.
+  let documentActive = true;
+  root.lfDocumentLifetime = Object.freeze({
+    get active() {
+      return documentActive;
+    },
+  });
+  for (const type of ["pageswap", "pagehide"])
+    window.addEventListener(type, () => {
+      documentActive = false;
+    });
+  window.addEventListener("pageshow", () => {
+    documentActive = true;
+  });
   // The runtime will run here and upgrade the page's widgets, so the themes give each
   // widget the box its module will draw it at (`html[data-lf-interactive]`). A reading
   // with no runtime, a source file or a page with scripts off, keeps the readable
@@ -52,6 +69,7 @@
   // mark off where it is incomplete. The first is the earliest evidence and a later one
   // is often its consequence; the bootstrap's report keeps the first as well.
   const fault = (reason, incomplete, error = null, page = false) => {
+    if (!documentActive) return;
     if (incomplete) root.toggleAttribute("data-lf-interactive", false);
     if (root.hasAttribute("data-lf-startup-error")) return;
     root.dataset.lfStartupError = reason;
@@ -112,7 +130,9 @@
   // addresses. "" where that root is the origin's own, so a server serving one page
   // keeps every key unprefixed; an export, which has no server and no link, is its own
   // address. The runtime's stores read it from here (storage.js).
-  const canonical = document.querySelector('link[rel="canonical"][data-lf-runtime]');
+  const canonical = /** @type {HTMLLinkElement | null} */ (
+    document.querySelector('link[rel="canonical"][data-lf-runtime]')
+  );
   const rootPath = canonical ? new URL(canonical.href).pathname : location.pathname;
   const scope = rootPath === "/" ? "" : rootPath;
   root.dataset.lfPageScope = scope;
@@ -412,7 +432,14 @@
   const failedPlacements = new WeakMap();
   const authoredSheets = () =>
     [...document.styleSheets]
-      .filter((sheet) => !sheet.ownerNode?.hasAttribute("data-lf-runtime"))
+      .filter(
+        (sheet) =>
+          !(
+            /** @type {Element | null} */ (sheet.ownerNode)?.hasAttribute(
+              "data-lf-runtime",
+            )
+          ),
+      )
       .flatMap((sheet) => {
         let rules;
         try {
@@ -523,13 +550,13 @@
       currentInputs.every((input, at) => input === priorFailure[at]);
     const allocate = (room, movable) => {
       const taken = { left: 0, right: 0 };
-      const standing = [];
+      const granted = [];
       if (
         (document.body.dataset.annotations ?? "overlay") === "overlay" &&
         document.body.getAttribute("data-rail") !== "none" &&
         room.right >= need("--rail")
       ) {
-        standing.push("rail");
+        granted.push("rail");
         taken.right = need("--rail");
       }
       for (const postures of preferences)
@@ -539,7 +566,7 @@
           if (wants.left + wants.right > room.left + room.right + 0.5) continue;
           if (!movable && (wants.left > room.left || wants.right > room.right))
             continue;
-          standing.push(posture);
+          granted.push(posture);
           Object.assign(taken, wants);
           break;
         }
@@ -553,7 +580,7 @@
       // Auto margins can centre the column only while its track still holds it.
       const reach = Math.max(0, (shell.width - column.width) / 2);
       const shift = movable ? Math.max(-reach, Math.min(reach, requested)) : 0;
-      return { taken, standing, shift };
+      return { taken, granted, shift };
     };
     let allocation = allocate(
       sameFailure
@@ -588,8 +615,8 @@
     } else if (!sameFailure) {
       failedPlacements.delete(main);
     }
-    const { shift, standing } = allocation;
-    const tokens = standing.join(" ");
+    const { shift, granted } = allocation;
+    const tokens = granted.join(" ");
     const seated = (main.getAttribute("data-lf-margin") ?? "") !== tokens;
     if (!seated && shift === shellWritten) return shellChanged;
     // Source copies keep the authored shell before initial geometry writes to it;
@@ -614,8 +641,8 @@
   // style and layout: it keeps its last reading, and one never read stands as if its
   // holder were the column. Every edge is read before any is written, so the page is
   // laid out once however many breakouts it holds. Read with the column, so a breakout
-  // parsed before first paint is placed before it paints; one inserted, revealed or
-  // moved later is read as it arrives or moves (content-layout.js).
+  // parsed before first paint is placed before it paints; one inserted or
+  // revealed later is read as it arrives (content-layout.js).
   //
   // A breakout grows out of the column only down a chain of block flow: each box from
   // the breakout up to `main` a block-level box its holder lays out one under another.
@@ -638,7 +665,7 @@
         box.right - parseFloat(style.borderRightWidth) - parseFloat(style.paddingRight),
     };
   };
-  const BREAKOUT = '[data-lf-space]:not([data-lf-space="column"])';
+  const BREAKOUT = "[data-lf-space]";
   const ARRANGED = "data-lf-arranged";
   // The box a breakout is laid out in: its slot's where a widget slots it, past any
   // ancestor that draws no box of its own (shadow-tree.js, `renderedParent`), and past
@@ -688,16 +715,10 @@
     }
     return verdicts.get(holder);
   };
-  // Returns whether any breakout's indent or arrangement changed, every breakout it
-  // answers for, and the holders it measured, each with its content box's width and
-  // the breakouts it holds, for content-layout.js to watch: a class or style that pads
-  // a holder changes its breakouts' room without inserting anything, and a box that
-  // moves moves its breakout. The reading keeps none of them.
+  // Returns whether any breakout's indent or arrangement changed.
   const indents = () => {
-    const holders = new Map();
-    const breakouts = [];
     const main = document.querySelector("body > main");
-    if (!main) return { changed: false, breakouts, holders };
+    if (!main) return { changed: false };
     const grows = document.body.hasAttribute("data-lf-column-shell");
     const readings = [];
     const verdicts = new Map();
@@ -708,7 +729,6 @@
         readings.push([breakout, 0, 0, false]);
         continue;
       }
-      breakouts.push(breakout);
       if (!breakout.checkVisibility()) continue;
       const holder = holderOf(breakout, main);
       if (!inFlow(breakout, holder) || arrangedAbove(holder, main, verdicts)) {
@@ -717,19 +737,17 @@
       }
       column ??= contentEdges(main);
       const edges = contentEdges(holder);
-      const held = holders.get(holder);
-      if (held) held.breakouts.push(breakout);
-      else
-        holders.set(holder, {
-          width: edges.right - edges.left,
-          breakouts: [breakout],
-        });
-      readings.push([
-        breakout,
+      const reading = [
         Math.max(0, Math.round(edges.left - column.left)),
         Math.max(0, Math.round(column.right - edges.right)),
-        false,
-      ]);
+      ];
+      readings.push([breakout, ...reading, false]);
+      // A holder kept to the column can span the breakout it holds, as an Ask does
+      // (the default package's ask.css), and its padding keeps its content box where
+      // its own holder's is, so it stands in from the column as far: it takes the same
+      // reading, and grows as far each way as the block does.
+      if (holder.matches("[data-lf-column]"))
+        readings.push([holder, ...reading, false]);
     }
     let changed = false;
     for (const [breakout, left, right, arranged] of readings) {
@@ -750,7 +768,7 @@
       if (rearranged) setRuntimeRootAttribute(breakout, ARRANGED, arranged ? "" : null);
       changed = true;
     }
-    return { changed, breakouts, holders };
+    return { changed };
   };
   // Whether each track (`--lf-resident: track`, a sidebar page's `aside`, layouts.css)
   // stands beside the body, which it says as `data-lf-beside` so the Layout keeps the
@@ -798,7 +816,7 @@
     const own = laid.filter((item) => !item.track);
     const readings = tracks.map((track) => {
       const line = laid.find((item) => item.element === track);
-      return [
+      return /** @type {[Element, boolean]} */ ([
         track,
         line !== undefined &&
           own.some(
@@ -808,7 +826,7 @@
               box.bottom > line.top + 0.5 &&
               (box.right <= line.left + 0.5 || box.left >= line.right - 0.5),
           ),
-      ];
+      ]);
     });
     let changed = false;
     for (const [track, beside] of readings) {
@@ -853,25 +871,22 @@
     indents,
     skipped,
     register(tag, render) {
-      const revision = document.currentScript.dataset.lfVocabulary;
-      const key = `${revision}:${tag}`;
-      if (producers.has(key))
-        throw new Error(
-          `initial renderer for <${tag}> in r${revision} is already registered`,
-        );
-      producers.set(key, render);
+      // The widget loader imports unregistered producers for later revisions and
+      // thread markup that were absent from the initially delivered document.
+      if (!producers.has(tag)) producers.set(tag, render);
     },
-    has(tag, revision) {
-      return producers.has(`${revision}:${tag}`);
+    has(tag) {
+      return producers.has(tag);
     },
-    paint(host, revision = host.closest("[data-lf-vocabulary]").dataset.lfVocabulary) {
+    paint(host) {
       if (drawings.has(host)) return drawings.get(host);
-      const render = producers.get(`${revision}:${host.localName}`);
+      const render = producers.get(host.localName);
       if (!render) throw new Error(`no initial renderer for <${host.localName}>`);
       for (const node of [host, ...host.querySelectorAll("*")])
         if (!parents.has(node)) parents.set(node, node.parentElement);
       rememberSource(authoredCopy(host));
-      for (let node = host; node; node = node.parentNode) sourceScopes.add(node);
+      for (let node = /** @type {Node} */ (host); node; node = node.parentNode)
+        sourceScopes.add(node);
       const drawing = render(host, {
         tabStore,
         offer,
@@ -892,17 +907,12 @@
       // no frame can show an unfinished or uninitialized instance.
       template.replaceWith(host);
       for (const node of [host, ...host.querySelectorAll("*")].reverse())
-        if (
-          this.has(
-            node.localName,
-            node.closest("[data-lf-vocabulary]").dataset.lfVocabulary,
-          )
-        )
-          this.paint(node);
+        if (producers.has(node.localName))
+          this.paint(/** @type {HTMLElement} */ (node));
     },
     restoreSource(root) {
       for (const template of root.querySelectorAll("template[data-lf-initial-source]"))
-        template.replaceWith(template.content);
+        template.replaceWith(/** @type {HTMLTemplateElement} */ (template).content);
       for (const delivery of root.querySelectorAll("script[data-lf-initial]"))
         delivery.remove();
       for (const placeholder of root.querySelectorAll("[data-lf-prepaint]"))
@@ -929,15 +939,21 @@
   // last shown first, because the address need not have followed what was shown: a set
   // below the page's own tab strip changes its member and leaves the fragment.
   const OPEN_KEY = "lf-open:";
-  const reloaded = performance.getEntriesByType("navigation")[0]?.type === "reload";
+  const reloaded =
+    /** @type {PerformanceNavigationTiming | undefined} */ (
+      performance.getEntriesByType("navigation")[0]
+    )?.type === "reload";
   const named = (members) => {
     if (!location.hash) return null;
     const target = document.getElementById(fragmentId(location.hash));
     return target && members.find((member) => member.contains(target));
   };
+  // A member is kept by its own id, or by the first id inside it when it has none, as a
+  // plain <figure> wrapping a recording does, and reopens as the member holding it.
   const kept = (holder, members) => {
     const id = tabStore.get(OPEN_KEY + holder.id);
-    return members.find((member) => member.id === id);
+    const target = id && document.getElementById(id);
+    return target && members.find((member) => member.contains(target));
   };
   const choose = (holder, members) =>
     (reloaded
@@ -984,7 +1000,7 @@
       return choose(holder, members);
     },
     keep(holder, member) {
-      tabStore.set(OPEN_KEY + holder.id, member.id);
+      tabStore.set(OPEN_KEY + holder.id, member.id || member.querySelector("[id]")?.id);
     },
   };
 })();

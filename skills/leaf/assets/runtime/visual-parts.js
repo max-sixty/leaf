@@ -5,16 +5,17 @@
  * and a rendered hit resolves to the nearest registered part. `surface` is the native
  * element whose paint Leaf should follow; it defaults to the semantic element, while a
  * package may name one descendant to exclude decorative paint from a compound part.
+ * Invalid inventories throw at the read that consumes them; live readers do not
+ * replace a package error with an empty inventory.
  *
  * A visual that draws its parts over time (a timeline, an animation, a stepper) does not
  * hold every declared part at every moment. Its registration names `reveal(id)`, which
  * synchronously settles the visual on a state whose inventory holds that part,
  * including cancelling a pending replacement of an already visible destination. A declared
  * part missing from the current inventory then stands in for the whole visual until
- * travel or the render gate asks for it, rather than detaching. A label reader can
+ * travel asks for it, rather than detaching. A label reader can
  * name an absent part in Threads without changing the visual's state. */
 
-import { exceptionText } from "./layer-client.js";
 import { under, upFrom } from "./shadow.js";
 import { layoutChanged } from "./widget-elements.js";
 
@@ -46,30 +47,14 @@ export function registerVisualParts(
   return { update: () => layoutChanged(source) };
 }
 
-const hasVisualParts = (source) => registrations.has(source);
-
-/** How one visual's `x-visual` declaration admits the part ids its module registers.
- *
- * `declared` is the ids authored in its `parts` attribute, which the registration must
- * be able to show; `prefixes` declares kinds rather than ids, so it names none. `rank(id)`
- * is an id's place in the declaration, which orders the visual's targets: its authored
- * token's index, 0 for a prefixed id or an `all` sentinel admitting the complete
- * inventory so those keep registration order, and -1 for an id it does not admit. Null for a
- * declaration that names no parts (`whole`, or none). Only an admitted id becomes a
- * durable coordinate; the `registered…` readers below report the whole inventory. */
+/** The part ids admitted by a whole-inventory opt-in or generated-id prefixes.
+ * Registered inventory order is also the order of the visual's targets. */
 export function visualPartAdmission(visual, declaration) {
   if (!declaration || typeof declaration !== "object") return null;
   const { prefixes } = declaration;
   if (prefixes)
-    return {
-      declared: [],
-      rank: (id) => (prefixes.some((p) => id !== p && id.startsWith(p)) ? 0 : -1),
-    };
-  const value = visual.getAttribute(declaration.parts)?.trim();
-  if (declaration.all && value === declaration.all)
-    return { declared: [], rank: (id) => (id && !/\s/.test(id) ? 0 : -1) };
-  const declared = value?.split(/\s+/).filter(Boolean) ?? [];
-  return { declared, rank: (id) => declared.indexOf(id) };
+    return (id) => prefixes.some((prefix) => id !== prefix && id.startsWith(prefix));
+  return visual.hasAttribute(declaration.parts) ? () => true : null;
 }
 
 /** Whether a part absent from the current inventory can still be drawn on request. */
@@ -83,52 +68,16 @@ export function revealRegisteredVisualPart(source, id) {
   return registeredVisualPart(source, id);
 }
 
-/** Why one source's registration breaks its `x-visual` declaration, as records of a
- * `kind` and the `parts` or `error` it concerns (`findings.py` words them):
- * an authored part it does not register, and under `prefixes` a registered id no
- * prefix admits. Under
- * `parts` the module may register more than the author named unless the declaration
- * requires a complete list. The current state's inventory is read; a declared part it lacks
- * is a problem only when the visual cannot reveal it, and `unrevealedVisualParts` asks
- * the reveal once nothing else needs the state the page opened in. */
+/** Invalid registrations or ids outside a provider's declared prefixes. */
 export function visualPartProblems(source, declaration) {
+  if (!declaration || typeof declaration !== "object") return [];
+  if (!registrations.has(source)) return [{ kind: "unregistered" }];
+  const parts = registeredVisualParts(source);
   const admission = visualPartAdmission(source, declaration);
-  if (!admission) return [];
-  if (!hasVisualParts(source)) return [{ kind: "unregistered" }];
-  try {
-    const ids = registeredVisualParts(source).map((part) => part.id);
-    const missing = revealsVisualParts(source)
-      ? []
-      : admission.declared.filter((id) => !ids.includes(id));
-    const outside = declaration.prefixes
-      ? ids.filter((id) => admission.rank(id) < 0)
-      : [];
-    const unlisted =
-      declaration.complete && admission.declared.length
-        ? ids.filter((id) => admission.rank(id) < 0)
-        : [];
-    return [
-      ["unregistered-parts", missing],
-      ["unadmitted-parts", outside],
-      ["unlisted-parts", unlisted],
-    ]
-      .filter(([, parts]) => parts.length)
-      .map(([kind, parts]) => ({ kind, parts }));
-  } catch (error) {
-    return [{ kind: "unreadable", error: exceptionText(error) }];
-  }
-}
-
-// Settle each declared part. This moves the visual off the
-// state it opened in, so a caller asks it last.
-export function unrevealedVisualParts(source, declaration) {
-  const declared = visualPartAdmission(source, declaration)?.declared ?? [];
-  try {
-    const missing = declared.filter((id) => !revealRegisteredVisualPart(source, id));
-    return missing.length ? [{ kind: "unrevealed-parts", parts: missing }] : [];
-  } catch (error) {
-    return [{ kind: "unrevealable", error: exceptionText(error) }];
-  }
+  const outside = declaration.prefixes
+    ? parts.filter((part) => !admission(part.id)).map((part) => part.id)
+    : [];
+  return outside.length ? [{ kind: "unadmitted-parts", parts: outside }] : [];
 }
 
 export function registeredVisualParts(source) {
@@ -139,11 +88,11 @@ export function registeredVisualParts(source) {
   const seenSurfaces = new Set();
   return [...read()].map((part, index) => {
     const number = index + 1;
-    const id = words(part?.id);
-    const element = part?.element;
-    const label = words(part?.label);
-    const surface = part?.surface ?? element;
-    if (!id || /\s/.test(id))
+    const id = part.id;
+    const element = part.element;
+    const label = words(part.label);
+    const surface = part.surface ?? element;
+    if (typeof id !== "string" || !id || /\s/.test(id))
       throw new TypeError(`Visual part ${number} has no single-token id`);
     if (!(element instanceof Element) || element === source || !under(element, source))
       throw new TypeError(`Visual part ${id} has no descendant Element`);
@@ -173,6 +122,7 @@ export const registeredVisualPartLabel = (source, id) => {
   return words(label) || null;
 };
 
+/** @param {(part: any) => boolean} [admits] */
 export function registeredVisualPartAt(source, target, admits = () => true) {
   const byElement = new Map(
     registeredVisualParts(source)

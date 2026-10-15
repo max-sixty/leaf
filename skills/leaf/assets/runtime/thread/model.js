@@ -39,7 +39,7 @@ const threadOffers = (thread) => ({
 });
 
 // The publisher supplies the vocabulary; controls and commands read these same
-// choices, including the exact standing reaction an explicit removal withdraws.
+// choices, including the exact reaction in force an explicit removal withdraws.
 /** @template {Pick<Message, "id" | "author" | "parent" | "token" | "addressable" | "agent"> & {key: string}} T
  * @param {{key: string, resolved: Thread["resolved"], msgs: T[]}} thread
  * @param {T} message
@@ -56,7 +56,7 @@ function reactionChoices(thread, message, tokens) {
   const latest = thread.msgs.findLast(
     (item) => item.author === "agent" && isAddressable(item),
   );
-  const standing = thread.msgs.filter(
+  const inForce = thread.msgs.filter(
     (item) => isReaction(item) && item.author === "user" && item.parent === message.id,
   );
   return {
@@ -64,27 +64,27 @@ function reactionChoices(thread, message, tokens) {
     message: message.key,
     latest: latest?.id === message.id,
     agent: message.agent,
-    choices: tokenChoices(tokens, standing),
+    choices: tokenChoices(tokens, inForce),
   };
 }
 
-// The declared reaction tokens as choices on one target, each with the standing reaction
+// The declared reaction tokens as choices on one target, each with the reaction in force
 // a press takes back. The bar, a reply's strip and the margin form render these; each
 // surface keeps its own face, and the token names the control on all of them.
 /** @template {{token?: string}} S
  * @param {Record<string, {glyph: string}>} tokens
- * @param {S[]} standing
+ * @param {S[]} inForce
  */
-export const tokenChoices = (tokens, standing) =>
+export const tokenChoices = (tokens, inForce) =>
   Object.entries(tokens).map(([name, entry]) => ({
     name,
     glyph: entry.glyph,
     label: name,
-    standing: standing.find((item) => item.token === name) ?? null,
+    inForce: inForce.find((item) => item.token === name) ?? null,
   }));
 /** @param {Thread} thread */
 const spoken = (thread) => thread.msgs.filter((message) => !isReaction(message));
-/** @template {{id: string, token?: string}} T @param {{msgs: T[], root: {id: string}}} thread */
+/** @template {{id: string, token?: string, [field: string]: unknown}} T @param {{msgs: readonly T[], root: {id: string}}} thread */
 export const turns = (thread) =>
   thread.msgs.filter(
     (message) => message.id === thread.root.id || !isReaction(message),
@@ -94,7 +94,7 @@ export const turns = (thread) =>
 // that has to outlive that transition with the user standing in it — a reply draft, a
 // margin row — keys itself by this rather than by the id, which changes when the log
 // answers.
-/** @param {Thread} thread */
+/** @param {{id: string, root: {attempt?: string}}} thread */
 export const threadKey = (thread) => thread.root.attempt ?? thread.id;
 // The name a message is drawn under, which the log's answer does not change: the
 // server's `key` where it names one, as it does for an agent's answer to an input and
@@ -106,9 +106,10 @@ export const messageKey = (message) => message.key ?? message.attempt ?? message
 // Every name that reaches a thread: its own id, the id of each message in it, which a
 // reply or settlement names as its `parent`, and the pending id a message this tab sent
 // went by before the log named it.
-/** @param {Thread[]} threads */
+/** @template {{id: string, msgs: readonly {id: string, attempt?: string}[]}} T
+ * @param {readonly T[]} threads */
 export function threadNames(threads) {
-  /** @type {Map<string, Thread>} */
+  /** @type {Map<string, T>} */
   const byName = new Map();
   for (const thread of threads) {
     byName.set(thread.id, thread);
@@ -122,7 +123,7 @@ export function threadNames(threads) {
 
 // A message whose words the user may rewrite: one of their own that the log holds, with
 // words to revise. A reaction or a bare drawing has none (`event_contracts._edit_error`).
-/** @param {Message} message */
+/** @param {{author?: string, pending?: boolean, token?: string, text?: string}} message */
 export const editable = (message) =>
   message.author === "user" &&
   !message.pending &&
@@ -153,7 +154,7 @@ const pendingSeat = (message) =>
 // rather than a second store beside it.
 //
 // The fold draws only what a gesture settles by itself. Whose turn a served thread is
-// depends on what the rest of the log leaves standing, so it keeps the attention the
+// depends on what the rest of the log leaves in force, so it keeps the attention the
 // server read until the log answers the gesture. A thread the user opened with words has
 // no log beyond the gesture: it waits on the agent for its send, under the pending id its
 // local workflow shares, and asks nothing yet.
@@ -209,6 +210,7 @@ export function foldThreads(threads, gestures) {
         summaries: [],
         unread: [],
         attention: reaction ? null : sending(gesture),
+        todos: [],
       };
       opened.push(thread);
       byName.set(gesture.id, thread);
@@ -262,10 +264,12 @@ export function foldThreads(threads, gestures) {
   return [...copies, ...opened];
 }
 
-// The bare reactions standing on exactly this anchor — the bar's own question, asked
+// The bare reactions in force on exactly this anchor — the bar's own question, asked
 // so its chips can say which tokens are already there. Anchors are compared as
 // records, the way the file compares them.
-/** @param {Thread[]} threads @param {Anchor} anchor */
+/** @template {Pick<Thread, "bare_reaction" | "resolved" | "anchor"> & {root: unknown}} T
+ * @param {readonly T[]} threads @param {Anchor} anchor
+ * @returns {T["root"][]} */
 export const reactionsAt = (threads, anchor) =>
   threads
     .filter(
@@ -294,7 +298,7 @@ export const moved = (message) => ({
 });
 
 // When a thread last moved: the latest move of any of its turns.
-/** @param {{msgs: {id: string, token?: string, edited?: {seq?: number, ts: string}, seq?: number, ts?: string}[], root: {id: string}}} thread */
+/** @param {{msgs: readonly {id: string, token?: string, edited?: {seq?: number, ts: string}, seq?: number, ts?: string}[], root: {id: string}}} thread */
 function lastMovedAt(thread) {
   let latest = null;
   for (const message of turns(thread)) {
@@ -305,7 +309,7 @@ function lastMovedAt(thread) {
   return latest;
 }
 
-/** @param {ReturnType<typeof readThreadRecords>[number]} thread */
+/** @param {{title: string | null, root: {id: string, body: {text: string}}} & Parameters<typeof lastMovedAt>[0]} thread */
 export const threadSummary = (thread) => ({
   topic: thread.title ?? thread.root.body.text.trim(),
   latest: lastMovedAt(thread),
@@ -422,6 +426,7 @@ export function readThreadRecords(
       settling: thread.settling ?? null,
       user_prompt: thread.user_prompt,
       attention: thread.attention,
+      todos: thread.todos,
       workflows: workflows.filter((workflow) => workflow.thread === thread.id),
       bare_reaction: thread.bare_reaction,
       seat: thread.seat,

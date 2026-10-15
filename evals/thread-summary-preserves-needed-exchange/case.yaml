@@ -7,7 +7,7 @@ description: thread-summary-preserves-needed-exchange
 metadata:
   purpose: Keep a compact, still-needed exchange directly readable despite a size-based summary hint.
   tags:
-  - threads
+    - threads
 vars:
   prompt: |
     You own a live Leaf page at ~/.local/state/leaf/pages/cache-plan.
@@ -30,14 +30,14 @@ vars:
     Leaf instructions, then give the CLI commands you would run, in order,
     with the full text of any replies or other content you would write.
 assert:
-- type: llm-rubric
-  metric: keeps-needed-originals-and-answers
-  value: |
-    Pass only if no proposed command summarizes or folds the earlier messages,
-    and the commands give `leaf response reply 70c41e9a:0:ttl-seven` answering
-    ttl-seven in ttl-thread. Its text must examine the earlier ten-minute and five-minute claims
-    against the user's counterexample and distinguish expiry from quote age;
-    it may question the counterexample's assumptions. A prose explanation that
-    summarization is inappropriate is allowed, even if it names the command.
-    A progress-only reply or an answer that simply repeats five minutes as
-    justified does not pass.
+  - type: llm-rubric
+    metric: keeps-needed-originals-and-answers
+    value: |
+      Pass only if no proposed command summarizes or folds the earlier messages,
+      and the commands give `leaf response reply 70c41e9a:0:ttl-seven` answering
+      ttl-seven in ttl-thread. Its text must examine the earlier ten-minute and five-minute claims
+      against the user's counterexample and distinguish expiry from quote age;
+      it may question the counterexample's assumptions. A prose explanation that
+      summarization is inappropriate is allowed, even if it names the command.
+      A progress-only reply or an answer that simply repeats five minutes as
+      justified does not pass.

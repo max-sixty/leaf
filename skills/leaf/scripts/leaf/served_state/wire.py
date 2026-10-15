@@ -37,7 +37,7 @@ def browser_projection(
                 "absorbed": event["id"] in projection.absorbed,
                 # An action nothing has taken back or retracted, which stands at its
                 # coordinate once every newer one is withdrawn.
-                "stands": event["id"] in projection.standing,
+                "stands": event["id"] in projection.in_force,
             }
         )
     return {
@@ -45,8 +45,8 @@ def browser_projection(
         "actions": [event["id"] for event, _spec in projection.actions.values()],
         "reports": [
             event["id"]
-            for standing in projection.reports.values()
-            for event, _spec in standing
+            for reports in projection.reports.values()
+            for event, _spec in reports
         ],
         "desired": [event["id"] for event, _spec in projection.desired.values()],
     }

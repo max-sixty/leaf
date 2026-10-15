@@ -116,15 +116,15 @@ export function mountSample(
   { template, window: asWindow = false, chrome = undefined },
 ) {
   if (!template) throw new Error("a sample needs an authored template id");
-  // A template belongs to its widget's captured publication, including a
-  // message shown beside an older document.
+  // A template is declared in its revision's document or in a message's frozen
+  // markup, which the server reads from the log beside the current revision.
   let revision = runtime.currentRevision;
   let message;
   for (let owner = frame.parentElement; owner; owner = owner.parentElement) {
     const descriptor = widgetDescriptor(owner);
     if (!descriptor) continue;
-    revision = descriptor.document.revision;
-    if (descriptor.document.kind === "thread") message = descriptor.document.message;
+    if (descriptor.document.kind === "page") revision = descriptor.document.revision;
+    else message = descriptor.document.message;
     break;
   }
   let current = null;
@@ -294,7 +294,9 @@ export function mountSample(
     const pair = new MessageChannel();
     const port = pair.port1;
     // Publish this private document endpoint at the existing diagnostic seam.
-    document.querySelector("script[data-lf-entry]").lfDocumentPort = port;
+    /** @type {HTMLScriptElement} */ (
+      document.querySelector("script[data-lf-entry]")
+    ).lfDocumentPort = port;
     candidates.add(port);
     port.onmessage = ({ data }) => {
       if (data.type === "connected") {

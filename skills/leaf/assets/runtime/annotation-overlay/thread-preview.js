@@ -2,7 +2,8 @@
 
    One Floating UI driver follows this card across conversation changes and stops
    when the card closes. Each selected conversation owns its originating control,
-   reading region, held edge, pending placement/focus, and reveal motion. Replacing
+   reading region, held edge, pending placement/focus, and growth out of the comment
+   box Send replaced (`growOut`). Replacing
    it retires that work before margin preparation can synchronously render again.
    A retained refresh preserves the selection's reading and draft continuity.
    Margin disclosure remains the margin's; selection records only whether a walk
@@ -17,21 +18,26 @@
    the card: it leaves with its target and comes back with it. A target hidden by the
    document withholds the card's native draft and focus until it is drawn again.
 
-   A selection holds its placement side and one edge. Reading and draft growth hold
-   the top; a turn joining while drafting/sending holds the reply's foot, as does a
-   card above its target. Another selection chooses afresh. Floating UI supplies room
-   at that edge; native grid tracks share it between transcript and reply, growing to
-   their words before scrolling. Reply continuity retains removed turns as flexible
+   A selection holds its placement side, its width and one edge. The width is the one
+   the card first stood at, or was carried at, so a longer line arriving wraps inside it
+   rather than carrying the controls at its far edge; only a narrower room narrows it.
+   Reading and draft growth hold the top; a turn joining while drafting/sending holds
+   the reply's foot, as does a card above its target; what a press in the card shows
+   in its transcript keeps the pressed spot still, until the user's next input or a
+   change they did not make. Another selection chooses afresh. Floating UI supplies
+   room at that edge; native grid tracks share it between transcript and reply, growing
+   to their words before scrolling. Reply continuity retains removed turns as flexible
    space and lets the transcript yield writing room without losing the visible lines.
 
    Placement changes geometry, never rebuilds contents. Retained state reads hold the
-   reader's message and scroll position; another thread opens at its latest message.
+   reader's message and scroll position; another thread opens at its latest message,
+   and the thread a comment's Send opened where the box's words stood (`showArrival`).
    A new/growing agent turn follows only at the tail. Landing, Send and stepping may
    move the reading; keepThreadLanding retains their destination through fitting until
    a newer reading gesture ends that authority. Size is fitted before paint, so a sent
    reply does not grow twice. Margin standing and its keyboard ladder own dismissal
    and target landing; the card keeps Send's focus on the thread that received it. */
-import { atScrollEnd, scrollToEnd } from "../scrolling.js";
+import { atScrollEnd, moveScrollerBy, scrollToEnd } from "../scrolling.js";
 import { cancelRender, nextRender } from "../rendering.js";
 import { spokenSubject } from "../contribution-model.js";
 import { labelWords } from "../words.js";
@@ -40,9 +46,10 @@ import { mapButton } from "../page-map-dialog.js";
 import {
   focusDestination,
   holdFocus,
+  inputCount,
   onStanding,
+  onUserInput,
   focused,
-  standingIn,
 } from "../focus.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 import { closeControl, el, offer } from "../widget-elements.js";
@@ -52,7 +59,7 @@ import { move } from "../dom-move.js";
 import { effectiveScroller, registerReadingRegion } from "../reading-regions.js";
 import { declareOffFlowSurface } from "../off-flow.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
-import { motion } from "../motion.js";
+import { reducedMotion } from "../motion.js";
 import { closestAcross } from "../passages.js";
 import { allThreads } from "../thread/state.js";
 import { threadNames, turns } from "../thread/model.js";
@@ -77,8 +84,11 @@ import { placeKeeper } from "../user-place.js";
 import { under } from "../shadow.js";
 import { retainUserIntent } from "../user-intent.js";
 import { threadFocusDestination } from "../thread/focus.js";
+import { claimSeatReplies } from "../thread/inline.js";
+import { releaseReplies } from "../thread/replies.js";
 import { keepThreadLanding, showLatestTurn } from "../thread/reply-landing.js";
 import { strongestWorkflow } from "../thread/workflow.js";
+import { writingIn } from "../thread/replies.js";
 
 // A margin card's reply box.
 const REPLY_BOX = `.lf-thread-reply ${TEXT_FIELD}`;
@@ -132,7 +142,7 @@ export function createThreadPreview({
       const session = previewSession;
       if (!session) return;
       if (box) {
-        session.carried = box.width;
+        session.width = box.width;
         session.side.adopt({
           box,
           placement: { ...session.side.capture(), moved: true },
@@ -142,6 +152,32 @@ export function createThreadPreview({
     },
   });
   preview.append(carry.grip, previewList);
+  // A press in the card changes what it shows from where the user pressed, so the
+  // placement that change causes keeps the pressed spot still (`holding`'s `pressed`)
+  // until the user's next input. The press, by pointer, touch or key, is read at the input
+  // edge, before its handlers change the card: each element on its path, from the
+  // card's top, so a control the press removes, as its notice is, gives way to the
+  // nearest one still drawn.
+  onUserInput((event) => {
+    // A tap counts its `touchstart` after its `pointerdown`, so it is read again there.
+    if (
+      !previewSession ||
+      !["pointerdown", "touchstart", "keydown"].includes(event.type)
+    )
+      return;
+    const path = event.composedPath();
+    if (!path.includes(preview)) return;
+    const top = preview.getBoundingClientRect().top;
+    previewSession.pressed = {
+      input: inputCount(),
+      path: path
+        .filter(
+          (node) =>
+            node instanceof Element && node !== preview && preview.contains(node),
+        )
+        .map((node) => ({ node, offset: node.getBoundingClientRect().top - top })),
+    };
+  });
   let previewRegionMounted = false;
   // The card's transcript is re-rendered on every reading of its thread; a message holds
   // the user's place in it under the event id it is rendered with (user-place.js).
@@ -170,96 +206,6 @@ export function createThreadPreview({
     update: () => scheduleThreadPreviewPosition(),
   });
 
-  // The submitted composer and a developer replay describe the same starting box; the
-  // transition owns that geometry contract instead of making either caller duplicate it.
-  function threadTransitionOrigin(element, frame) {
-    if (!frame) return null;
-    const box = element.getBoundingClientRect();
-    const style = getComputedStyle(element);
-    return {
-      frame,
-      left: box.left,
-      top: box.top,
-      width: box.width,
-      height: box.height,
-      messageMeasure: element.writingInlineSize,
-      // A clipped editor owns a reading viewport to carry through Send. A fitting
-      // editor's height is only its current wrapping, which a new card width may
-      // change; imposing that old height would make short words scroll needlessly.
-      messageHeight:
-        element.scrollHeight > element.clientHeight ? parseFloat(style.height) : null,
-      endRoom: element.endRoom ?? "none",
-      writingEndRoom: element.writingEndRoom,
-      scroll: element.scrollTop,
-    };
-  }
-
-  // The real message is legible from the first frame; only its surrounding frame
-  // grows. No copied words, translation, scaling, or second placement at motion's end.
-  function transitionThread(origin) {
-    const target = preview.getBoundingClientRect();
-    const style = getComputedStyle(preview);
-    const scale = {
-      x: target.width / parseFloat(style.width),
-      y: target.height / parseFloat(style.height),
-    };
-    const inset = [
-      (origin.top - target.top) / scale.y,
-      (target.right - origin.left - origin.width) / scale.x,
-      (target.bottom - origin.top - origin.height) / scale.y,
-      (origin.left - target.left) / scale.x,
-    ];
-    return motion(
-      preview,
-      [
-        { clipPath: `inset(${inset.map(layoutPx).join(" ")} round 6px)` },
-        { clipPath: preview.style.clipPath || "inset(0px round 10px)" },
-      ],
-      240,
-    );
-  }
-
-  function revealThread(origin, positioned) {
-    const session = previewSession;
-    session.transition?.motion?.cancel();
-    const transition = { motion: null };
-    session.transition = transition;
-    return positioned.then((placed) => {
-      if (!placed || previewSession !== session || session.transition !== transition)
-        return false;
-      transition.motion = transitionThread(origin);
-      return true;
-    });
-  }
-
-  function carryCommentFrame(origin) {
-    previewSession.messageViewport?.stopRegion?.();
-    previewSession.messageViewport = origin && {
-      scroll: origin.scroll,
-      body: null,
-      stopRegion: null,
-    };
-    keeps(
-      preview,
-      "data-lf-comment-frame",
-      previewSession.messageViewport && origin.endRoom,
-    );
-    const properties = {
-      "--lf-comment-width": previewSession.messageViewport && `${origin.frame.width}px`,
-      "--lf-comment-message-measure":
-        previewSession.messageViewport && `${origin.messageMeasure}px`,
-      "--lf-comment-message-height":
-        previewSession.messageViewport && origin.messageHeight !== null
-          ? `${origin.messageHeight}px`
-          : null,
-      "--lf-comment-send-room":
-        previewSession.messageViewport && `${origin.writingEndRoom}px`,
-    };
-    for (const [name, value] of Object.entries(properties))
-      if (value) preview.style.setProperty(name, value);
-      else preview.style.removeProperty(name);
-  }
-
   // A placement lands in the microtasks after it starts, before the frame paints. One
   // that cannot land yet — its owner not connected, no room — is answered by a later
   // placement, or by the close that abandons it.
@@ -287,8 +233,7 @@ export function createThreadPreview({
     carry.placed();
     const session = previewSession;
     if (!session) return;
-    carryCommentFrame(null);
-    session.transition?.motion?.cancel();
+    keeps(preview, "data-lf-grows", null);
     session.positionResult?.resolve(false);
     cancelRender(session.positionFrame);
     placementDriver.supersede();
@@ -341,9 +286,18 @@ export function createThreadPreview({
     ].some((box) => box && box.scrollHeight > box.clientHeight + 0.5);
     if (!(worn >= 0) || cap < height - 0.5 || (overflow && cap > height + 0.5))
       preview.style.setProperty("--lf-thread-max-height", layoutPx(cap));
-    if (reading?.latest) showLatestTurn(previewSession.transcript);
+    if (reading?.latest) showArrival(previewSession);
     else if (reading?.end) scrollToEnd(previewSession.transcript);
     return preview.getBoundingClientRect().height;
+  }
+  // A card opens on its latest turn, at that turn's start. A card Send opened stands
+  // its words as far above its end as the box it replaces stood them, which shares
+  // its text column and its foot, so the words the user was reading stay where they
+  // were.
+  function showArrival(session) {
+    if (!session.sent) return showLatestTurn(session.transcript);
+    scrollToEnd(session.transcript);
+    moveScrollerBy(session.transcript, -session.sent.fromEnd);
   }
   // The selected transcript's unconstrained extent changes with turns, not editor
   // lines. Keep its fractional local height alongside the native overflow reading;
@@ -447,12 +401,7 @@ export function createThreadPreview({
     const sending =
       latest?.author === "user" &&
       strongestWorkflow(latest.workflows)?.stage === "sending";
-    const drafting = Boolean(
-      replyEditor?.checkVisibility() &&
-      (standingIn(replyEditor.closest(".lf-thread-reply")) ||
-        replyEditor.value !== "" ||
-        sending),
-    );
+    const drafting = writingIn(replyEditor, sending);
     const boundary = commentBoundary({ region: place.region });
     session.region = place.region;
     if (!boundary.width || !boundary.height) {
@@ -469,6 +418,10 @@ export function createThreadPreview({
       scroller,
       coarse: coarsePointer.matches,
     });
+    const pressed =
+      session.pressed?.input === inputCount()
+        ? session.pressed.path.find(({ node }) => node.checkVisibility())
+        : null;
     const held = session.side.holding({
       fresh,
       hold,
@@ -476,6 +429,15 @@ export function createThreadPreview({
       drafting,
       latest,
       draftText: replyEditor?.value ?? "",
+      pressed: pressed && {
+        input: session.pressed.input,
+        moved:
+          Math.abs(
+            pressed.node.getBoundingClientRect().top -
+              preview.getBoundingClientRect().top -
+              pressed.offset,
+          ) > 0.5,
+      },
     });
     void floatingUi()
       .then((ui) => {
@@ -496,15 +458,17 @@ export function createThreadPreview({
               end: !fresh && atScrollEnd(session.transcript),
               latest: session.arriving,
             };
-            if (fresh) session.carried = null;
+            if (fresh) session.width = null;
+            // A card that has stood keeps its width (`session.width`): its floor and
+            // cap are that width, or the room where the room is narrower.
             const room = Math.min(
               cardMeasure(),
               width,
-              (session.carried ?? Infinity) / scale.x,
+              (session.width ?? Infinity) / scale.x,
             );
             preview.style.setProperty(
               "--lf-thread-min-width",
-              layoutPx(Math.min(cardMinimum(), room)),
+              layoutPx(session.width === null ? Math.min(cardMinimum(), room) : room),
             );
             // Choosing its spot, the card is capped by the boundary alone, and slides
             // inside it rather than shrinking. Held, it has the room from its held edge
@@ -538,28 +502,12 @@ export function createThreadPreview({
       .then((position) => {
         if (!position || !stillCurrent()) return;
         session.arriving = false;
-        if (session.messageViewport) {
-          const body = previewList.querySelector(
-            ".lf-msg > .lf-msg-body > .lf-msg-text",
-          );
-          if (body && body !== session.messageViewport.body) {
-            session.messageViewport.stopRegion?.();
-            body.scrollTop = session.messageViewport.scroll;
-            session.messageViewport.body = body;
-            // Adoption retains the editor's viewport inside the transcript. It is
-            // a reading region of its own while that inner viewport stands.
-            session.messageViewport.stopRegion = registerReadingRegion({
-              id: `${THREAD_CARD}:submitted`,
-              host: body,
-              body,
-            });
-          }
-        }
         // The spot the rule stood the card at before the boundary shifted it in, so a
         // card opened low in the window rises back to it once a scroll gives it room.
         const { scale } = session.side.landed(position);
         // An unchanged declaration is the browser's own no-op, and `keeps` is the rest's.
         placementDriver.stand(position);
+        session.width ??= preview.getBoundingClientRect().width;
         carry.placed();
         preview.style.removeProperty("visibility");
         session.withheldFocus?.();
@@ -612,6 +560,15 @@ export function createThreadPreview({
     if (carry) focusDestination(button, "return");
   }
 
+  /** @param {{
+   *   entry: any,
+   *   threadItem: string,
+   *   control: any,
+   *   origin?: any,
+   *   accompanies: any,
+   *   forced?: boolean,
+   *   disclosed?: boolean,
+   * }} chosen */
   function select({
     entry,
     threadItem,
@@ -632,22 +589,25 @@ export function createThreadPreview({
       preparing: false,
       latest: null,
       arriving: true,
+      // The box Send replaced, whose reading the card keeps (`showArrival`).
+      sent: origin && { fromEnd: origin.fromEnd },
       away: false,
       positionFrame: 0,
       positionResult: null,
       focusPending: null,
       withheldFocus: null,
-      transition: null,
-      messageViewport: null,
       transcript: null,
       place: null,
       stopRegion: null,
       side: commentPlacement(),
-      carried: null,
+      // The width the card stands at for this selection, in client pixels: the one it
+      // first stood at, or was carried at (`placeThreadPreview`).
+      width: null,
       region: null,
+      // The user's latest press in the card, while it is their latest input (`holding`).
+      pressed: null,
     };
-    carryCommentFrame(origin);
-    if (origin) previewSession.side.adopt(origin.frame);
+    if (origin) previewSession.side.adopt(origin);
     return previewSession;
   }
 
@@ -706,7 +666,11 @@ export function createThreadPreview({
       keepsText(previewPosition, `${selectedIndex + 1}/${threadItems.length}`);
       previewPrevious.toggleAttribute("disabled", selectedIndex === 0);
       previewNext.toggleAttribute("disabled", selectedIndex === threadItems.length - 1);
-      setChildren(previewList, selected ? [previewItemNode(selected)] : []);
+      const item = selected ? previewItemNode(selected) : null;
+      setChildren(previewList, item ? [item] : []);
+      // The thread renders before the card shows it, and takes the reply being written
+      // in it once it stands in the document (thread/inline.js, `claimSeatReplies`).
+      if (item) claimSeatReplies(item.querySelector(":scope > .lf-margin-thread-body"));
       syncPreviewTranscript();
       // The list holds the one thread the card shows, so a user whose place in a thread
       // the rebuild took lands on that thread; a step button it hid hands them to Close.
@@ -719,7 +683,7 @@ export function createThreadPreview({
     else {
       present();
       session.arriving = Boolean(session.transcript);
-      if (session.arriving) showLatestTurn(session.transcript);
+      if (session.arriving) showArrival(session);
     }
     session.latest = latest && { id: latest.id, text: latest.text };
     if (follow) scrollToEnd(session.transcript);
@@ -754,6 +718,8 @@ export function createThreadPreview({
       {
         nav: previewNav.hidden ? null : previewNav,
         close: previewClose,
+        // The edge news would grow the card from (comment-placement.js, `edgeFor`).
+        heldEdge: (turn) => previewSession?.side.edgeFor(turn) ?? "top",
         // A resolved thread with no draft has no margin card, so resolving closes it and
         // hands the user to its target, and a resolve that no longer stands opens the
         // card on the thread again, while the margin is still where threads open.
@@ -785,6 +751,14 @@ export function createThreadPreview({
     keeps(node, "data-lf-margin-entry", item.id);
     node.lfMarginItem = item.id;
     return node;
+  }
+
+  // The card's threads the margin no longer holds give up the reply being written in
+  // them, whether the card is open or closed (thread/replies.js, `releaseReplies`). A
+  // thread still in the margin keeps it, for the card to show again.
+  function releaseLeft(items) {
+    for (const node of previewList.children)
+      if (!items.has(node.lfMarginItem)) releaseReplies(node);
   }
 
   function selection() {
@@ -843,8 +817,21 @@ export function createThreadPreview({
     keepsHidden(preview, false);
     buildThreadCard(entry, selected.id);
     const positioned = placedThreadPreview();
-    return origin ? revealThread(origin, positioned) : positioned;
+    return session.sent ? growOut(session, positioned) : positioned;
   }
+
+  // A card Send opened grows out of the comment box it replaces, once it stands
+  // (`data-lf-grows`, annotation-chrome.css).
+  function growOut(session, positioned) {
+    return positioned.then((placed) => {
+      if (placed && previewSession === session && !reducedMotion())
+        keeps(preview, "data-lf-grows", "");
+      return placed;
+    });
+  }
+  preview.addEventListener("animationend", (event) => {
+    if (event.target === preview) keeps(preview, "data-lf-grows", null);
+  });
 
   function refresh(entry, control, carry = focused() === previewSession?.control) {
     if (!previewSession || previewSession.preparing) return;
@@ -913,6 +900,7 @@ export function createThreadPreview({
     selection,
     show,
     refresh,
+    releaseLeft,
     close,
     focusThread,
     focusTarget,
@@ -922,7 +910,6 @@ export function createThreadPreview({
         ? previewList.querySelector(".lf-page-thread")
         : null,
     closeFocused: () => focused() === previewClose,
-    threadTransitionOrigin,
     place: placeThreadPreview,
     schedulePosition: scheduleThreadPreviewPosition,
     mount,

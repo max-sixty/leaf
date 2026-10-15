@@ -160,12 +160,12 @@ def test_pinned_document_uses_unrequested_intermediate_history_for_registration(
         assert (ask["id"], ask["status"]) == ("widget:choice", "withdrawn")
 
 
-@pytest.mark.parametrize("captured_revision", [1, 2])
-def test_frozen_thread_asks_keep_their_captured_vocabulary_in_every_view(
-    captured_revision,
-):
-    """Old and new messages retain their admitted decisions, asks and attention
-    when another page vocabulary displays them."""
+def test_a_pinned_view_reads_its_frozen_threads_under_its_own_registry():
+    """A revision captured its thread widgets under its own registry, so a view
+    pinned to it classifies their decisions there. A decision whose operation that
+    registry defines otherwise is none in that view: the ask it answers stays open
+    and the thread the user's, while the active view reads it answered and the
+    thread waiting on the agent to pick it up."""
 
     def registry(attr):
         layer = deepcopy(model.model_layer())
@@ -194,24 +194,22 @@ def test_frozen_thread_asks_keep_their_captured_vocabulary_in_every_view(
     earlier, later = registry("value"), registry("chosen")
     document = model.leaf_page("Value", '<p id="p">Notes.</p>')
     events = model.served_reading(
-        {1: document, 2: document},
+        document,
         [
             {
                 "kind": "comment",
-                "revision": captured_revision,
                 "author": "agent",
                 "text": "Ship it?",
                 "markup": '<lf-value-ask id="typed" active></lf-value-ask>',
             },
             {
                 "kind": "action",
-                "revision": captured_revision,
                 "widget": "typed",
                 "action": "set",
                 "detail": {"value": True},
             },
         ],
-        registry={1: earlier, 2: later}[captured_revision],
+        registry=later,
     )["events"]
     parsed = SourceDocument(document)
     state, _ = browser_state(
@@ -230,19 +228,23 @@ def test_frozen_thread_asks_keep_their_captured_vocabulary_in_every_view(
         [ask] = view["thread"]["asks"]["all"]
         return (
             [entry["event"]["id"] for entry in view["thread"]["projection"]["entries"]],
-            (ask["id"], ask["status"], ask["next_actor"], ask["answer"]["value"]),
+            (ask["id"], ask["status"]),
             thread["attention"],
-            [item["id"] for item in view["queues"]["questions"]],
+            [item["id"] for item in view["queues"]["on_user"]],
         )
 
-    assert events[0]["revision"] == events[1]["revision"] == captured_revision
-    for revision in (1, 2):
-        assert read(revision) == (
-            [events[1]["id"]],
-            ("widget:typed", "answered", None, True),
-            {"kind": "waiting", "reason": "workflow", "workflow": events[1]["id"]},
-            [],
-        )
+    assert read(2) == (
+        [events[1]["id"]],
+        ("widget:typed", "answered"),
+        {"kind": "waiting", "reason": "workflow", "workflow": events[1]["id"]},
+        [],
+    )
+    assert read(1) == (
+        [],
+        ("widget:typed", "open"),
+        {"kind": "needs_user", "reason": "ask", "workflow": None},
+        ["widget:typed"],
+    )
 
 
 @pytest.mark.parametrize("value", [False, 0])
@@ -328,13 +330,13 @@ def test_display_only_widget_does_not_suppress_a_prose_ask():
 
 
 def lists(state) -> tuple[list, list, list]:
-    """Questions and Tasks as served, and the open asks whose next move is the
+    """On me and On <agent> as served, and the open asks whose next move is the
     agent's."""
     queues = state["views"]["1"]["queues"]
     asks = [*page_asks(state)["all"], *state["views"]["1"]["thread"]["asks"]["all"]]
     return (
-        sorted(item["id"] for item in queues["questions"]),
-        sorted(item["id"] for item in queues["tasks"]),
+        sorted(item["id"] for item in queues["on_user"]),
+        sorted(item["id"] for item in queues["on_agent"]),
         sorted(
             ask["id"]
             for ask in asks
@@ -365,7 +367,7 @@ FRAMED = model.leaf_page(
 )
 def test_a_comment_on_an_ask_is_the_agents_turn_until_the_agent_replies(anchor, held):
     """The user's comment about an open ask hands it to the agent without answering
-    it: the ask leaves Questions while the comment's answer stands on Tasks, and comes
+    it: the ask leaves On me while the comment's answer stands on On <agent>, and comes
     back once the agent replies. A comment on one ask leaves its framed sibling with
     the user, one on the frame's heading or on a widget there that asks nothing is
     about both, and one elsewhere about none."""
@@ -586,13 +588,7 @@ def test_historical_conditional_registration_reuses_work_and_tracks_event_change
         )
         collecting = True
         try:
-            return WorkReading(
-                log,
-                registry,
-                page,
-                registry_for_revision=lambda revision: readings[revision].registry,
-                available_revisions=readings,
-            ).document.asks
+            return WorkReading(log, registry, page).document.asks
         finally:
             collecting = False
 

@@ -31,6 +31,7 @@
 
 // Attribute writes also exist before modules run. Adopt that initial writer, whose
 // null/string comparison governs both initial producers and later renderers.
+/** @type {LeafInitial["keepsAttribute"]} */
 export const keeps = (...args) =>
   document.documentElement.lfInitial.keepsAttribute(...args);
 

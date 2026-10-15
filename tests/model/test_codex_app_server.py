@@ -4137,6 +4137,10 @@ def test_an_invalid_automatic_final_delivers_one_exact_correction(
         with service_model.PageTransaction(page_dir) as page:
             page.take_claim(harness)
             replacement = page.active_claim
+        assert (
+            codex_model.prepare_codex_delivery(page_dir, harness).payload == correction
+        )
+        assert service_model.same_claim(service_model.page_claim(page_dir), replacement)
         monkeypatch.setattr(
             connection,
             "_resume_task",

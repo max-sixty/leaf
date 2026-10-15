@@ -19,7 +19,7 @@
    widget's shadow tree included: the ring, the line, and a box's focus hint all answer
    it. A chrome placement that puts the user back where they stood publishes nothing:
    the margin moves a row between lanes when its target's scroller changes, and
-   answering that as a move would paint the standing chrome, whose layout pass asks for
+   answering that as a move would paint the fixed chrome, whose layout pass asks for
    the next placement. */
 
 import { onStanding } from "./focus.js";

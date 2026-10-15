@@ -36,11 +36,9 @@ def state_home_path() -> Path:
 
 
 # A session's files that end with it: hook capability and turn observations,
-# whether it has claimed a page, and its page servers' log of the thread titles
-# they asked for.
+# and its page servers' log of the thread titles they asked for.
 HOOKS_SUFFIX = "hooks"
 STEP_HOOK_SUFFIX = "step-hook"
-CLAIMED_SUFFIX = "claimed"
 SESSION_SUFFIX = "lifecycle"
 TITLES_SUFFIX = "titles.log"
 
@@ -449,7 +447,7 @@ def _end_session(session_id: str) -> None:
     record = session_record(session_id) or new_session(session_id, {})
     ended = now_iso()
     write_session({**record, "ended": ended, "turn_closed": ended})
-    for suffix in (HOOKS_SUFFIX, STEP_HOOK_SUFFIX, CLAIMED_SUFFIX, TITLES_SUFFIX):
+    for suffix in (HOOKS_SUFFIX, STEP_HOOK_SUFFIX, TITLES_SUFFIX):
         session_file(session_id, suffix).unlink(missing_ok=True)
 
 
@@ -473,28 +471,31 @@ def end_harness_instance(session_id: str) -> None:
         _end_session(session_id)
 
 
-def hook_needed(payload: dict) -> bool:
-    """Whether a Codex hook has anything to do for its payload. Every hook but
-    the tool hook does. The tool hook offers input between steps, which only a
-    session that has claimed a page this generation can have; the mark
-    (`service.PageTransaction.publishing_claim`) stands until the generation ends, a
-    superset of the sessions holding one now.
-
-    Codex runs the hook synchronously after every tool call of every task the
-    plugin is installed in, and most hold no page, so `bin/leaf` asks this
-    before starting uv and importing the package: about 50 ms of CPU a call in
-    place of about 75 (measured on macOS)."""
+def session_claims(session_id: str) -> Path:
+    """This session's discovery locators; payloads remain canonical by page."""
     return (
-        payload.get("hook_event_name") != "PostToolUse"
-        or session_file(payload.get("session_id") or "", CLAIMED_SUFFIX).exists()
+        state_home_path().resolve() / "claims" / session_file(session_id, "claims").stem
     )
+
+
+def holds_claims(session_id: str) -> bool:
+    """Whether the session holds a claim, in this generation or a kept one from
+    before: a page it claimed that no other session has claimed since."""
+    try:
+        with os.scandir(session_claims(session_id)) as entries:
+            return next(entries, None) is not None
+    except FileNotFoundError:
+        return False
 
 
 def main() -> None:
     payload = json.load(sys.stdin)
-    if sys.argv[1:] == ["hook-gate"]:
-        # 3 alone says "nothing to do": a failure here must not skip the hook.
-        sys.exit(0 if hook_needed(payload) else 3)
+    if sys.argv[1:2] == ["hook-gate"]:
+        # `bin/leaf` asks this before starting uv for a hook registered
+        # `--if-claimed`, and a hook it skips takes about 25 ms in place of about
+        # 70 (measured on macOS). 3 alone says "nothing to do": a failure here
+        # must not skip the hook.
+        sys.exit(0 if holds_claims(payload.get("session_id") or "") else 3)
     if payload.get("hook_event_name") == "SessionEnd":
         end_harness_instance(payload.get("session_id") or "")
 

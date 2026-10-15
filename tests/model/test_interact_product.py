@@ -33,6 +33,7 @@ from interact_support import (
     response_reference,
     served_thread,
     state_json,
+    words,
 )
 from leaf import cli as cli_model
 from leaf import event_log as events_model
@@ -123,7 +124,7 @@ def test_later_events_do_not_veto_source_readings(page_dir):
     assert live.error is None and live.revision == 1
     live = revisioning_model.activate_source(page_dir)
 
-    # The source is the active revision, so an append leaves the answer standing.
+    # The source is the active revision, so an append leaves the answer in force.
     append_carried_log_record(
         page_dir,
         {
@@ -250,7 +251,7 @@ def test_choose_requires_an_id(page_dir):
         '<lf-options choose><lf-option id="o1"><strong>A</strong></lf-option></lf-options>',
         registry,
     )
-    assert found(errs, "attribute-schema", keyword="dependentRequired")
+    assert [finding.code for finding in errs] == ["needs-id"]
 
 
 def test_sample_admits_interactive_widgets(page_dir):
@@ -302,29 +303,21 @@ def test_ask_context_frames_any_number_of_independent_sources(page_dir):
     )
     assert fragment_errors(with_evidence, registry) == []
 
-    untitled = fragment_errors(
-        f'<lf-ask id="decision-untitled"><p>Context.</p>{first}</lf-ask>',
-        registry,
-    )
-    assert found(untitled, "ask-context-headings", headings=[])
+    # The ask's title is what the shared name rule reads, so a heading in an
+    # hgroup after its eyebrow, a subheading, or context before the heading all
+    # name the ask. A frame whose leading title is not a heading is refused.
+    for titled in (
+        f'<lf-ask id="d"><hgroup><p class="eyebrow">#5</p><h2>Choose</h2></hgroup>{first}</lf-ask>',
+        f'<lf-ask id="d"><p class="eyebrow">#5</p><h2>Choose</h2>{first}</lf-ask>',
+        f'<lf-ask id="d"><h2>Choose</h2><h3>Again</h3>{first}<p>After.</p></lf-ask>',
+    ):
+        assert fragment_errors(titled, registry) == []
 
-    retitled = fragment_errors(
-        f'<lf-ask id="decision-retitled"><h2>Choose</h2><h3>Again</h3>{first}</lf-ask>',
-        registry,
-    )
-    assert found(retitled, "ask-context-headings", headings=["h2", "h3"])
-
-    context_first = fragment_errors(
-        f'<lf-ask id="decision-context-first"><p>Context.</p><h2>Choose</h2>{first}</lf-ask>',
-        registry,
-    )
-    assert found(context_first, "ask-context-heading-first", first="p")
-
-    control_first = fragment_errors(
-        f'<lf-ask id="decision-control-first">{first}<h2>Choose</h2></lf-ask>',
-        registry,
-    )
-    assert found(control_first, "ask-context-heading-first", first="lf-options")
+    for untitled in (
+        f'<lf-ask id="d"><p>Context.</p>{first}</lf-ask>',
+        f'<lf-ask id="d"><strong>Choose</strong>{first}</lf-ask>',
+    ):
+        assert found(fragment_errors(untitled, registry), "ask-context-title")
 
     # A context framing no live source would show a question the banner never
     # counts. A retired source still counts: settling a decision keeps its context.
@@ -615,42 +608,6 @@ def test_a_playground_control_value_fits_its_kind_at_the_markup_boundary():
     ]
 
 
-def test_scoped_names_require_their_owner_even_with_a_different_direct_owner():
-    """Direct membership and a wider key scope can compose: a row owns a cell's
-    grammar while the table owns the cell's unique name."""
-    registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
-    for tag, content in [("lf-test-table", "markup"), ("lf-test-row", "members")]:
-        registry[tag] = {
-            "type": "object",
-            "properties": {},
-            "additionalProperties": False,
-            "x-content": content,
-            "x-upgrade": False,
-        }
-    registry["lf-test-cell"] = {
-        "type": "object",
-        "properties": {"name": {"type": "string"}},
-        "required": ["name"],
-        "additionalProperties": False,
-        "x-owners": ["lf-test-row"],
-        "x-unique": {"name": "lf-test-table"},
-        "x-content": "empty",
-        "x-upgrade": False,
-    }
-    cell = '<lf-test-cell name="one"></lf-test-cell>'
-    row = f"<lf-test-row>{cell}</lf-test-row>"
-    assert [error.code for error in fragment_errors(row, registry)] == ["missing-owner"]
-    assert [error.code for error in fragment_errors(cell, registry)] == ["not-member"]
-    table = f"<lf-test-table>{row}</lf-test-table>"
-    assert fragment_errors(table + table, registry) == []
-    assert [
-        error.code
-        for error in fragment_errors(
-            f"<lf-test-table>{row}{row}</lf-test-table>", registry
-        )
-    ] == ["repeated-key"]
-
-
 def test_a_playground_names_its_controls_within_itself(tmp_path, initialized_page):
     """A preset's setting and an instruction's value slot name a control of their
     own playground by `name` (a keyed x-refers), and names, choice values and a
@@ -708,19 +665,10 @@ def test_a_playground_names_its_controls_within_itself(tmp_path, initialized_pag
             "scope": "lf-playground",
         }
 
-    assert reply(playground("a", tone, preset("tone"), slot("tone"))) == []
-    inline = playground("a", "", preset("tone"), slot("tone")).replace(
-        "<p>Preview</p>", f"<article><p>Evidence for this tone.</p>{tone}</article>"
-    )
-    assert reply(inline) == []
-    # A nested playground owns its names independently; the outer output cannot
-    # borrow a control that exists only in that inner scope.
-    nested = playground("outer", "", output=slot("size")).replace(
-        "<p>Preview</p>", playground("inner", size)
-    )
-    assert found(reply(nested), "unmatched-member", **unmatched("size"))
-    assert found(
-        reply(tone), "missing-owner", "<lf-playground-control>", scope="lf-playground"
+    # A value slot may stand inside the output's prose, as within a <strong>.
+    assert (
+        reply(playground("a", tone, preset("tone"), f"<strong>{slot('tone')}</strong>"))
+        == []
     )
     assert found(
         reply(playground("a", tone, preset("tine"))),
@@ -771,9 +719,106 @@ def test_a_playground_names_its_controls_within_itself(tmp_path, initialized_pag
     )
 
 
+def test_a_playground_control_stands_in_the_rail_or_inside_its_preview():
+    """A control may stand at any depth in the preview beside the item it changes
+    (x-within) and still belongs to its playground: its name is unique there and a
+    preset's setting names it. One outside every playground, or inside the
+    instruction it would be read into, is refused, naming where it may stand."""
+    registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
+    tone = (
+        '<lf-playground-control name="{name}" label="Tone" kind="choice" value="quiet">'
+        '<lf-playground-choice value="quiet" label="Quiet"></lf-playground-choice>'
+        '<lf-playground-choice value="bold" label="Bold"></lf-playground-choice>'
+        "</lf-playground-control>"
+    )
+
+    def errors(rail, beside_item, before="", in_output=""):
+        return fragment_errors(
+            f'<lf-ask id="placed-ask"><h2>Which tone?</h2>{before}'
+            f'<lf-playground id="placed-playground">{rail}'
+            '<lf-playground-preset label="Bold">'
+            '<lf-playground-setting for="item-tone" value="bold">'
+            "</lf-playground-setting></lf-playground-preset>"
+            '<lf-playground-preview><div class="item"><p>Item</p>'
+            f'<section class="item-settings">{beside_item}</section></div>'
+            "</lf-playground-preview>"
+            f"<lf-playground-output>Use these tones.{in_output}</lf-playground-output>"
+            "</lf-playground></lf-ask>",
+            registry,
+        )
+
+    assert not errors(tone.format(name="page-tone"), tone.format(name="item-tone"))
+    assert not errors("", tone.format(name="item-tone"))
+    assert [
+        (e.code, e.values["key"])
+        for e in errors(tone.format(name="item-tone"), tone.format(name="item-tone"))
+    ] == [("repeated-key", "name")]
+    (stray,) = errors(
+        tone.format(name="page-tone"),
+        tone.format(name="item-tone"),
+        before=tone.format(name="stray"),
+    )
+    assert (stray.code, stray.values["within"]) == (
+        "not-member",
+        ["lf-playground-preview"],
+    )
+    (read_out,) = errors(
+        tone.format(name="page-tone"),
+        tone.format(name="item-tone"),
+        in_output=tone.format(name="output-tone"),
+    )
+    assert read_out.code == "not-member"
+    # Inside a nested playground's instruction, the outer preview around it is not
+    # the control's own: its nearest playground is the inner one.
+    inner = (
+        '<lf-playground id="inner-playground">'
+        '<lf-playground-control name="inner-tone" label="Tone" kind="toggle" '
+        'value="false"></lf-playground-control>'
+        "<lf-playground-preview><p>Inner</p></lf-playground-preview>"
+        "<lf-playground-output>Use it."
+        + tone.format(name="lost-tone")
+        + "</lf-playground-output></lf-playground>"
+    )
+    (nested,) = errors(tone.format(name="page-tone"), inner)
+    assert nested.code == "not-member"
+
+    # A quotation cannot supply a control to the surrounding playground, even if
+    # its preview surrounds the quotation. Its names neither collide nor resolve.
+    quoted = (
+        '<lf-sample id="quoted-control" label="Control example">'
+        + tone.format(name="item-tone")
+        + "</lf-sample>"
+    )
+    assert [e.code for e in fragment_errors(quoted, registry)] == ["not-member"]
+    assert [e.code for e in errors(tone.format(name="page-tone"), quoted)] == [
+        "not-member"
+    ]
+    quoted_records = SourceDocument(
+        f'<lf-playground id="quoted-member-scope">{quoted}'
+        '<lf-playground-output><lf-playground-value for="item-tone">'
+        "</lf-playground-value></lf-playground-output></lf-playground>"
+    ).lf_elements
+    assert [e.code for e in reference_errors(quoted_records, registry, set(), {})] == [
+        "unmatched-member"
+    ]
+    assert [
+        e.code
+        for e in errors(
+            tone.format(name="item-tone"), tone.format(name="page-tone") + quoted
+        )
+    ] == ["not-member"]
+    # The quoted playground itself still owns the controls written inside it.
+    assert not errors(
+        tone.format(name="item-tone"),
+        '<lf-sample id="quoted-playground" label="Playground example">'
+        + inner.replace(tone.format(name="lost-tone"), "")
+        + "</lf-sample>",
+    )
+
+
 def test_corpus_is_generated_from_the_examples():
     """examples/corpus.html is derived; a commit that lets it drift fails here."""
-    from leaf_dev import corpus
+    from leaf_dev.commands import corpus
 
     committed = (Path(__file__).parents[2] / "examples" / "corpus.html").read_text()
     assert corpus.build() == committed, "examples changed — rerun leaf-dev corpus"
@@ -803,6 +848,15 @@ def test_corpus_is_generated_from_the_examples():
 
 
 def test_reply_validates_widget_markup(page_dir):
+    """The current layer checks replies; older layers do not constrain their markup."""
+    path = page_dir / "registry.json"
+    current = path.read_text()
+    earlier = json.loads(current)
+    del earlier["lf-diagram"]
+    path.write_text(json.dumps(earlier))
+    publish(page_dir)
+    path.write_text(current)
+    publish(page_dir)
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
@@ -867,7 +921,7 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
 
     swapped = reply('<lf-test-plan id="quoted" readings="goal"></lf-test-plan>')
     assert swapped.exit_code != 0
-    assert 'where role="readings"' in swapped.output
+    assert 'where role="readings"' in words(swapped.output)
 
     borrowed = reply('<lf-test-plan id="quoted" readings="seat"></lf-test-plan>')
     assert borrowed.exit_code != 0
@@ -1018,7 +1072,9 @@ def test_agent_messages_preserve_a_single_space(page_dir):
         cli_model.cli, ["thread", "open", str(page_dir), "--text", ""]
     )
     assert empty.exit_code != 0
-    assert empty.output == "Error: empty text (pass --text or pipe via stdin)\n"
+    assert json.loads(empty.stderr)["error"] == (
+        "empty text (pass --text or pipe via stdin)"
+    )
 
     opened = comment(page_dir, "--text", " ")
     assert opened.exit_code == 0, opened.output
@@ -1266,7 +1322,6 @@ def test_an_agent_reply_records_only_an_ask_it_leaves_with_the_user(page_dir):
                 "</lf-options></lf-ask>"
             ),
             "--ask",
-            "--json",
         ],
     )
     aggregate = CliRunner().invoke(
@@ -1289,7 +1344,7 @@ def test_an_agent_reply_records_only_an_ask_it_leaves_with_the_user(page_dir):
     assert answered.exit_code == 0, answered.output
     assert asking.exit_code == 0, asking.output
     assert duplicate.exit_code == 1
-    assert refused_on(duplicate.stdout).values["tags"] == ["lf-options"]
+    assert refused_on(duplicate.stderr).values["tags"] == ["lf-options"]
     assert aggregate.exit_code == 0, aggregate.output
     replies = [e for e in events_model.read_events(page_dir) if e["kind"] == "reply"]
     assert "ask" not in replies[0]
@@ -1481,11 +1536,11 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
 
     def owed_answers():
         state = state_json(page_dir)
-        standing = set(state["activity"]["obligations"])
+        owed = set(state["activity"]["obligations"])
         return [
             (item["input"], item["message"], item["answer"])
             for item in state["workflows"]
-            if item["id"] in standing
+            if item["id"] in owed
         ]
 
     asked = append_command(
@@ -1744,7 +1799,7 @@ def test_export_prints_threads_and_versions(page_dir):
         FLOW_PAGE.replace("<title>t</title>", "<title>Cutoff &amp; backfill</title>")
         .replace(
             '<lf-diagram id="flow">',
-            '<lf-diagram id="flow" parts="node:A node:B">',
+            '<lf-diagram id="flow" parts="all">',
         )
         .replace("<lf-options>", '<lf-options id="plan-options">')
     )
@@ -1771,7 +1826,6 @@ def test_export_prints_threads_and_versions(page_dir):
             "author": "agent",
             "agent": "Claude",
             "parent": "c1",
-            "revision": 1,
             "text": "reversibility",
             "markup": '<lf-diagram id="why"><pre>graph LR\n  A --> B</pre></lf-diagram>',
         },
@@ -1892,83 +1946,36 @@ def test_export_prints_threads_and_versions(page_dir):
     assert "…" in head and len(head) < len(long_quote) / 2, head
 
 
-def test_new_replies_require_a_complete_candidate_publication(
-    page_dir,
-):
-    """New answers capture a complete publication; markup's local asks use
-    those declarations and cannot also be declared by a prose flag."""
+@pytest.mark.parametrize(
+    "markup", ["", '<lf-diagram id="f"><pre>graph LR\n  A --> B</pre></lf-diagram>']
+)
+def test_reply_refuses_a_missing_current_layer(page_dir, markup):
+    """An addressed reply validates current source, even when its text needs no widget."""
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
-    registry = page_dir / "registry.json"
-    declarations = registry.read_bytes()
-    registry.unlink()
+    (page_dir / "registry.json").unlink()
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
-    answer = [
-        "response",
-        "reply",
-        "--done",
-        response_reference(page_dir, "c1"),
-        "--text",
-        "plain answer, x < y",
-    ]
-    diagram = '<lf-diagram id="f"><pre>graph LR\n  A --> B</pre></lf-diagram>'
+    reference = response_reference(page_dir, "c1")
     before = events_model.read_events(page_dir)
-    for arguments in (answer, [*answer, "--markup", diagram]):
-        refused = CliRunner().invoke(cli_model.cli, [*arguments, "--json"])
-        assert refused.exit_code == 1, refused.output
-        refusal = refused_on(refused.stdout)
-        assert refusal.code == "invalid-source"
-        assert refusal.values["operation"] == "reply"
-        assert events_model.read_events(page_dir) == before
-        assert files_model.list_revisions(page_dir) == [1]
-    registry.write_bytes(declarations)
-    plain = CliRunner().invoke(cli_model.cli, answer)
-    assert plain.exit_code == 0, plain.output
-    markup = (
-        '<lf-ask id="captured-question"><h2>Which store?</h2>'
-        '<lf-options id="captured-options" choose>'
-        '<lf-option id="captured-a">A</lf-option>'
-        "</lf-options></lf-ask>"
-    )
-    before = events_model.read_events(page_dir)
-    revisions = files_model.list_revisions(page_dir)
-    duplicate = CliRunner().invoke(
+    result = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(page_dir),
-            "c1",
-            "--text",
-            "Choose one.",
-            "--markup",
-            markup,
-            "--ask",
-            "--json",
-        ],
-    )
-    assert duplicate.exit_code == 1, duplicate.output
-    refusal = refused_on(duplicate.stdout)
-    assert refusal.code == "widget-ask-markup"
-    assert refusal.values == {"tags": ["lf-options"]}
-    assert events_model.read_events(page_dir) == before
-    assert files_model.list_revisions(page_dir) == revisions
-    with_markup = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "thread",
-            "reply",
-            str(page_dir),
-            "c1",
+            "--done",
+            reference,
             "--text",
             "See:",
             "--markup",
-            diagram,
+            markup,
         ],
     )
-    assert with_markup.exit_code == 0, with_markup.output
+    assert result.exit_code != 0, result.output
+    assert "registry.json missing" in result.output
+    assert "run `leaf page init`" in result.output
+    assert events_model.read_events(page_dir) == before
 
 
 def test_comment_requires_the_registry_its_runtime_reads(page_dir):
@@ -2085,7 +2092,7 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
 
 
 def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
-    """`page state` lists every standing reaction, beside threads that
+    """`page state` lists every reaction in force, beside threads that
     leave a bare one out — paint on the page is not a thread — and takes a
     reaction back in once someone answers it, as the panel does. The transcript
     prints one as the user's mark rather than a turn. Its durable token is enough;

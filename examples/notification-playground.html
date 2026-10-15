@@ -172,7 +172,6 @@
     </style>
     <script type="module">
       import {
-        afterPresentation,
         keeps,
         keepsText,
         layoutChanged,
@@ -305,23 +304,22 @@
             this.append(candidates);
           }
 
-          #connect(signal) {
-            return afterPresentation(() => {
-              if (signal.aborted) return;
-              const playground = this.closest("lf-playground");
-              if (!playground) return;
-              playground.addEventListener(
-                "lf-playground-change",
-                (event) => {
-                  if (event.target !== playground) return;
-                  this.#values = event.detail.values;
-                  this.#render();
-                },
-                { signal },
-              );
-              this.#values = playground.values;
-              this.#render();
-            });
+          async #connect(signal) {
+            await customElements.whenDefined("lf-playground");
+            if (signal.aborted) return;
+            const playground = this.closest("lf-playground");
+            if (!playground) return;
+            playground.addEventListener(
+              "lf-playground-change",
+              (event) => {
+                if (event.target !== playground) return;
+                this.#values = event.detail.values;
+                this.#render();
+              },
+              { signal },
+            );
+            this.#values = playground.values;
+            this.#render();
           }
 
           #render() {
@@ -340,7 +338,7 @@
               this.#values.format === "status strip",
             );
             // The cards read only the event count, the first title and the owner line;
-            // a colour or a radius leaves them standing.
+            // a colour or a radius leaves them unchanged.
             const cards = JSON.stringify([
               this.#values.events,
               this.#values.title,

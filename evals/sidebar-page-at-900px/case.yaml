@@ -7,24 +7,26 @@
 # scrolling-policy comparison: both wordings passed those choices on both harnesses.
 description: sidebar-page-at-900px
 metadata:
-  purpose: Author a completed rollout record, render and repair it, then revise it for the user's 900px
+  purpose:
+    Author a completed rollout record, render and repair it, then revise it for the user's 900px
     reading window. Score the log and checklist as the reader sees them, including a short window.
   tags:
-  - layout
-  - workflow
+    - layout
+    - workflow
   executor: leaf_dev.arrangement_eval
   scenario: sidebar-page-at-900px
   conditions:
-  - leaf
+    - leaf
 variants:
   instructions:
     description: sidebar-page-at-900px/instructions
     metadata:
-      purpose: 'A sidebar page read at 900px: the Layout already keeps its track beside the body there
+      purpose:
+        "A sidebar page read at 900px: the Layout already keeps its track beside the body there
         and keeps the one block it holds in view as the body scrolls, so the page puts the checklist
-        in that block and leaves the Layout''s widths and sticking alone.'
+        in that block and leaves the Layout's widths and sticking alone."
       tags:
-      - layout
+        - layout
       executor: null
       scenario: null
     vars:
@@ -40,28 +42,29 @@ variants:
         The page directory is not reachable from here, so reply with the complete
         `index.html`, rather than writing a file.
     assert:
-    - type: llm-rubric
-      metric: judgment
-      value: |
-        Read the HTML and its `<style>`. Pass only if all of these hold. `main` has class
-        `layout-sidebar` and the checklist is in its track. The page's own CSS leaves the
-        Layout's widths alone: fail if it sets `flex`, `flex-basis`, `grid-template-columns`
-        or `display` on `main`, the body or the track, or adds a media or container query to
-        keep them side by side. The checklist is in one block, the track's only child
-        element, which the Layout keeps in view as the log scrolls, so the page's CSS leaves
-        that alone too: fail if it makes the track or a block inside it `position: sticky`, or
-        sets the `top`, `height`, `max-height` or `overflow` of the track or its block.
-    - type: llm-rubric
-      metric: completed-log-in-document-flow
-      value: |
-        The completed rollout's forty-entry event log is read in the document's own
-        scroll. Fail if its listing or a containing box uses data-bound, a vertically
-        scrolling pane, or CSS height/max-height with overflow-y auto/scroll to bound
-        it. Disclosure is allowed if opening it lets the log grow in document flow.
+      - type: llm-rubric
+        metric: judgment
+        value: |
+          Read the HTML and its `<style>`. Pass only if all of these hold. `main` has class
+          `layout-sidebar` and the checklist is in its track. The page's own CSS leaves the
+          Layout's widths alone: fail if it sets `flex`, `flex-basis`, `grid-template-columns`
+          or `display` on `main`, the body or the track, or adds a media or container query to
+          keep them side by side. The checklist is in one block, the track's only child
+          element, which the Layout keeps in view as the log scrolls, so the page's CSS leaves
+          that alone too: fail if it makes the track or a block inside it `position: sticky`, or
+          sets the `top`, `height`, `max-height` or `overflow` of the track or its block.
+      - type: llm-rubric
+        metric: completed-log-in-document-flow
+        value: |
+          The completed rollout's forty-entry event log is read in the document's own
+          scroll. Fail if its listing or a containing box uses data-bound, a vertically
+          scrolling pane, or CSS height/max-height with overflow-y auto/scroll to bound
+          it. Disclosure is allowed if opening it lets the log grow in document flow.
   live:
     description: sidebar-page-at-900px/live
     metadata:
-      purpose: A bounded live stream can still follow incoming output while preserving a reader's earlier
+      purpose:
+        A bounded live stream can still follow incoming output while preserving a reader's earlier
         position.
       executor: null
       scenario: null
@@ -77,11 +80,11 @@ variants:
         The page directory is not reachable here, so reply with the complete
         index.html rather than writing a file.
     assert:
-    - type: llm-rubric
-      metric: live-log-uses-shared-reading
-      value: |
-        The run log uses Leaf's bounded reading region, `data-bound="end"` on the
-        log's element, which follows new output while the reader is at the end and
-        holds their place when they scroll back. Fail if the log is unbounded, bound
-        from the start, or bounded by a page-local CSS scroller or custom scroll
-        handlers.
+      - type: llm-rubric
+        metric: live-log-uses-shared-reading
+        value: |
+          The run log uses Leaf's bounded reading region, `data-bound="end"` on the
+          log's element, which follows new output while the reader is at the end and
+          holds their place when they scroll back. Fail if the log is unbounded, bound
+          from the start, or bounded by a page-local CSS scroller or custom scroll
+          handlers.

@@ -15,13 +15,12 @@ here knows the page's structure. Two moves cover what the user does there:
   page offered to copy. The tab records every clipboard write and copy, so what a
   copy button put on the clipboard is read exactly rather than from the agent.
 
-`reveal` is shared with the screenshots, which open the commented item before the
-judge sees the final version.
 The simulated user's prompt lives in `evals/workflows/eval_user.yaml`.
 """
 
 import json
 import re
+import shlex
 import shutil
 import socket
 import subprocess
@@ -40,7 +39,7 @@ from leaf_dev.arms import (
     trace_result,
     trace_summary,
 )
-from leaf_dev.browser import BESIDE, DESKTOP, chrome, load, settle, tab
+from leaf_dev.browser import BESIDE, DESKTOP, headless_shell, load, settle, tab
 from leaf_dev.eval_cases import definition
 
 # Elements a reader clicks to open what a list or a disclosure holds.
@@ -191,7 +190,7 @@ def comment_on_passage(
     context anchors, opening `target` first where none is drawn, or otherwise
     on the page whole with `fallback`. Return the route, the quote, and the
     `attempt` key that finds the admitted comment in the log."""
-    with chrome() as browser, tab(browser, viewport=DESKTOP) as view:
+    with headless_shell() as browser, tab(browser, viewport=DESKTOP) as view:
         load(view, url)
         quote = view.evaluate(SELECT, list(quotes))
         opened = None
@@ -230,17 +229,22 @@ def comment_on_passage(
 DECIDING_LIMIT = 30 * 60
 COMMAND_LIMIT = 120
 
-USER = definition("eval_user")["prompt"]
+DEFINITION = definition("eval_user")
+USER = DEFINITION["prompt"]
+REPORT = DEFINITION["output_schema"]
 
 
-def cli() -> str:
-    """The host's `playwright-cli`, which the user agent drives the tab with."""
-    if (found := shutil.which("playwright-cli")) is None:
+def cli() -> list[str]:
+    """The browser CLI supplied by Leaf's pinned Playwright development dependency."""
+    from leaf_dev import ROOT
+
+    node = shutil.which("node")
+    script = ROOT / "node_modules/playwright/cli.js"
+    if node is None or not script.is_file():
         raise click.ClickException(
-            "Deciding on a page needs playwright-cli; install it with "
-            "`npm install -g @playwright/cli`"
+            "Browser agents need Node and eval dependencies; run pnpm install --frozen-lockfile"
         )
-    return found
+    return [str(Path(node).resolve()), str(script), "cli"]
 
 
 def decide(url: str, task: str, evidence: Path) -> dict:
@@ -252,7 +256,7 @@ def decide(url: str, task: str, evidence: Path) -> dict:
         probe.bind(("127.0.0.1", 0))
         port = probe.getsockname()[1]
     with (
-        chrome(args=[f"--remote-debugging-port={port}"]) as browser,
+        headless_shell(args=[f"--remote-debugging-port={port}"]) as browser,
         tab(browser, viewport=BESIDE, motion="no-preference") as view,
         scratch() as cwd,
         tempfile.TemporaryDirectory(prefix="leaf-pw-", dir="/tmp") as sockets,
@@ -268,7 +272,7 @@ def decide(url: str, task: str, evidence: Path) -> dict:
 
         def playwright(*args: str) -> subprocess.CompletedProcess:
             return subprocess.run(
-                [cli(), f"-s={session}", *args],
+                [*cli(), f"-s={session}", *args],
                 cwd=cwd,
                 env=env,
                 capture_output=True,
@@ -282,7 +286,7 @@ def decide(url: str, task: str, evidence: Path) -> dict:
             raise click.ClickException(
                 f"playwright-cli could not attach: {attached.stdout}{attached.stderr}"
             )
-        prompt = USER.format(session=session, task=task)
+        prompt = USER.format(cli=shlex.join(cli()), session=session, task=task)
         (evidence / "prompt.txt").write_text(prompt)
         try:
             trace = run_agent(
@@ -290,6 +294,8 @@ def decide(url: str, task: str, evidence: Path) -> dict:
                 prompt,
                 "--tools",
                 "Bash",
+                "--json-schema",
+                json.dumps(REPORT),
                 out=evidence / "stream.jsonl",
                 err=evidence / "err.txt",
                 env={"PWTEST_SOCKETS_DIR": sockets},
@@ -300,11 +306,7 @@ def decide(url: str, task: str, evidence: Path) -> dict:
             copies = view.evaluate("() => globalThis.__leafEvalCopies ?? []")
         finally:
             playwright("detach")
-    match = re.search(r"\{.*\}", trace_result(trace).get("result", ""), re.DOTALL)
-    try:
-        reported = json.loads(match[0]) if match else {}
-    except json.JSONDecodeError:
-        reported = {}
+    reported = trace_result(trace).get("structured_output") or {}
     return {
         "made": reported.get("made") is True,
         "copied": reported.get("copied") or None,

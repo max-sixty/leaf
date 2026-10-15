@@ -17,7 +17,8 @@ from render_harness import (
 def test_diff_filter_has_one_frame_and_clears_with_its_count_inside(
     browser, serve, width, scheme
 ):
-    """The canonical search owns the frame, count, and Clear; filtering owns the rows."""
+    """The canonical search owns the frame, count, and Clear; filtering owns the rows,
+    and narrows them without pulling what follows the diff up into the window."""
     patch = "".join(
         f"diff --git a/src/file-{index}.py b/src/file-{index}.py\n"
         f"--- a/src/file-{index}.py\n+++ b/src/file-{index}.py\n"
@@ -32,7 +33,8 @@ def test_diff_filter_has_one_frame_and_clears_with_its_count_inside(
         serve(
             leaf_page(
                 "Changed files",
-                f'<h1>Changed files</h1><lf-diff id="patch"><pre>{escape(patch)}</pre></lf-diff>',
+                f'<h1>Changed files</h1><lf-diff id="patch"><pre>{escape(patch)}</pre></lf-diff>'
+                '<p id="after">After the diff.</p>',
             )
         ),
         context=context,
@@ -55,6 +57,8 @@ def test_diff_filter_has_one_frame_and_clears_with_its_count_inside(
     frame = field.bounding_box()
     assert diff.locator(".lf-diff-tools").bounding_box() == frame
     count_box = count.bounding_box()
+    after = page.locator("#after")
+    below = after.bounding_box()
     assert (
         frame["x"]
         <= count_box["x"]
@@ -67,12 +71,14 @@ def test_diff_filter_has_one_frame_and_clears_with_its_count_inside(
         expect(count).to_have_text(f"{matches} of 12")
         expect(field.get_by_role("button", name="Clear")).to_be_visible()
         assert field.bounding_box() == frame
+        assert after.bounding_box()["y"] >= min(below["y"], 844)
     field.get_by_role("button", name="Clear").click()
     expect(editor).to_have_value("")
     expect(editor).to_be_focused()
     expect(rows).to_have_count(12)
     expect(count).to_have_text("12 files")
     assert field.bounding_box() == frame
+    assert after.bounding_box() == below
     editor.fill("file-0")
     expect(rows).to_have_count(1)
     editor.press("ControlOrMeta+A")
@@ -207,8 +213,7 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
             head="""<style id="response-inset-override">
               :is(.lf-fab-bar, .lf-margin-preview) {
                 --lf-thread-text-pad-block: 12px !important;
-                --lf-comment-text-pad-end: 19px !important;
-                --lf-comment-send-room: 41px !important;
+                --lf-comment-text-end: 60px !important;
               }
             </style>""",
         )
@@ -264,13 +269,7 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
     expect(floating).to_be_focused()
     physical_face = face(floating)
     assert float(physical_face["padding-top"].removesuffix("px")) + 1 == 12
-    assert float(physical_face["padding-right"].removesuffix("px")) + 1 == 19
-    assert (
-        floating.evaluate(
-            "node => getComputedStyle(node).getPropertyValue('--lf-field-end-room').trim()"
-        )
-        == "41px"
-    )
+    assert float(physical_face["padding-right"].removesuffix("px")) + 1 == 60
     page.emulate_media(forced_colors="active")
     forced = floating.evaluate(
         "node => [getComputedStyle(node).outlineWidth, "
@@ -284,14 +283,10 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
     sent_insets = page.locator(".lf-margin-preview .lf-msg-text").first.evaluate(
         """node => {
           const style = getComputedStyle(node);
-          return {block: style.paddingTop, end: style.paddingInlineEnd,
-            last: getComputedStyle(node.lastElementChild, '::after').width};
+          return {block: style.paddingTop, end: style.paddingInlineEnd};
         }"""
     )
-    assert sent_insets["block"] == "12px"
-    assert sent_insets["end"] == ("60px" if touch else "19px")
-    if not touch:
-        assert sent_insets["last"] == "41px"
+    assert sent_insets == {"block": "12px", "end": "60px"}
     page.keyboard.press("Escape")
     diff = page.locator("#patch")
     # An author can dress a declared tree too. Install the same inputs before

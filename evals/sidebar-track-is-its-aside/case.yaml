@@ -5,11 +5,12 @@
 # a track holds, it fails a page that writes its own sticking instead.
 description: sidebar-track-is-its-aside
 metadata:
-  purpose: 'A sidebar page: its track is the Layout''s `aside`, written where a reader of the stacked
-    page needs it, so a code review''s verdict and the list of what it covers come before the body on
-    a phone.'
+  purpose:
+    "A sidebar page: its track is the Layout's `aside`, written where a reader of the stacked
+    page needs it, so a code review's verdict and the list of what it covers come before the body on
+    a phone."
   tags:
-  - layout
+    - layout
 vars:
   prompt: |
     Write a Leaf page for the user: your review of pull request #412, which moves web
@@ -26,16 +27,16 @@ vars:
     The page directory is not reachable from here, so reply with the complete
     `index.html`, rather than writing a file.
 assert:
-- type: llm-rubric
-  metric: judgment
-  value: |
-    Read the HTML. Pass only if all of these hold. `main` has class `layout-sidebar`.
-    The verdict and the list of areas stand together in an `aside` that is a direct
-    child of `main`, and that `aside` comes before the element holding the six areas in
-    the document's order, so a phone, which stacks the two, shows the verdict and the
-    list first. The page's own CSS does not rebuild the arrangement: fail if it declares
-    a grid or flex layout for `main`, or moves the verdict with `order`. The verdict and
-    the list are in one block, the `aside`'s only child element, which the Layout keeps in
-    view beside the areas; fail if the page's CSS makes the `aside` or a block inside it
-    `position: sticky`, or sets the `top`, `height`, `max-height` or `overflow` of the
-    `aside` or its block.
+  - type: llm-rubric
+    metric: judgment
+    value: |
+      Read the HTML. Pass only if all of these hold. `main` has class `layout-sidebar`.
+      The verdict and the list of areas stand together in an `aside` that is a direct
+      child of `main`, and that `aside` comes before the element holding the six areas in
+      the document's order, so a phone, which stacks the two, shows the verdict and the
+      list first. The page's own CSS does not rebuild the arrangement: fail if it declares
+      a grid or flex layout for `main`, or moves the verdict with `order`. The verdict and
+      the list are in one block, the `aside`'s only child element, which the Layout keeps in
+      view beside the areas; fail if the page's CSS makes the `aside` or a block inside it
+      `position: sticky`, or sets the `top`, `height`, `max-height` or `overflow` of the
+      `aside` or its block.

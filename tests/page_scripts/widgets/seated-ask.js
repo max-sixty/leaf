@@ -4,50 +4,42 @@ import {
   keepsText,
   threadBox,
   offer,
-  once,
-  widgetController,
+  LeafElement,
+  nothing,
 } from "/runtime/widget-api.js";
 
-export default class extends HTMLElement {
-  #controller;
-  #stop = null;
+export function defineSeatedAsk() {
+  customElements.define(
+    "lf-verdict",
+    class extends LeafElement {
+      setup() {
+        this.press = offer("button", "lf-settle", "Accept");
+        this.press.onclick = () => {
+          this.settled();
+          this.controller.dispatch({
+            kind: "action",
+            verb: "settle",
+            detail: { answer: "yes" },
+          });
+        };
+        this.append(this.press);
+        const seat = threadBox(this, "Say something about this");
+        if (seat) this.append(seat);
+      }
 
-  connectedCallback() {
-    this.#controller ??= widgetController(this);
-    if (!once(this)) {
-      this.#stop ??= this.#controller.subscribe(() => {});
-      return;
-    }
-    this.press = offer("button", "lf-settle", "Accept");
-    this.press.onclick = () => {
-      this.settled();
-      this.#controller.dispatch({
-        kind: "action",
-        verb: "settle",
-        detail: { answer: "yes" },
-      });
-    };
-    this.append(this.press);
-    const seat = threadBox(this, "Say something about this");
-    if (seat) this.append(seat);
-    this.#stop ??= this.#controller.subscribe(() => {});
-  }
+      settled() {
+        keepsText(this.press, "Accepted");
+        keeps(this.press, "aria-pressed", true);
+      }
 
-  disconnectedCallback() {
-    this.#stop?.();
-    this.#stop = null;
-  }
-
-  settled() {
-    keepsText(this.press, "Accepted");
-    keeps(this.press, "aria-pressed", true);
-  }
-
-  renderState(state) {
-    if (state.settle.value) this.settled();
-    else {
-      keepsText(this.press, "Accept");
-      keeps(this.press, "aria-pressed", false);
-    }
-  }
+      render() {
+        if (this.state.settle.value) this.settled();
+        else {
+          keepsText(this.press, "Accept");
+          keeps(this.press, "aria-pressed", false);
+        }
+        return nothing;
+      }
+    },
+  );
 }

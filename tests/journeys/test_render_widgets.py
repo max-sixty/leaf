@@ -295,9 +295,9 @@ def test_an_ordinary_two_part_ask_retains_document_flow(browser, serve):
     )
     assert ask.evaluate(
         """async node => {
-          const leaf = await window.__lfRuntimeImport('/runtime/reading-regions.js');
+          const leaf = await window.__lfWidgetApi();
           return leaf.readingPosture(node) === 'flow'
-            && leaf.effectiveScroller(node) === document.scrollingElement;
+            && leaf.scrollerFor(node) === document.scrollingElement;
         }"""
     )
     page.close()
@@ -939,7 +939,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     expect(start).to_have_css("outline-width", "2px")
     expect(start).to_have_css("outline-offset", "-2px")
 
-    # The Questions panel stands over the map and changes nothing about it.
+    # The On panel stands over the map and changes nothing about it.
     page.evaluate(RELEASE_FOCUS)
     toggle_queue(page)
     expect(toc).to_have_css("position", "fixed")
@@ -1080,7 +1080,7 @@ def test_board_moves_preserve_live_sample_and_control_state(browser, serve, rout
     else:
         grip.scroll_into_view_if_needed()
         page.evaluate("""async () => {
-          const {default: Sortable} = await import('/vendor/sortable.esm.js');
+          const {default: Sortable} = await window.__lfVendorImport("sortable.esm.js");
           window.previewAllocations = 0;
           for (const column of document.querySelectorAll('#sprint > lf-column')) {
             const owner = Sortable.get(column), produce = owner.option('cloneElement');

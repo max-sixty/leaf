@@ -240,7 +240,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
         text=True,
     )
     # The fake Codex wrapper models one shell command, while a real task's Codex
-    # ancestor remains alive. Keep that already-proven lifetime standing so this
+    # ancestor remains alive. Keep that already-proven lifetime in place so this
     # test can isolate the adapter after its starting shell is gone.
     # Transfer the claim while that ancestor is still alive.
     wait_for(
@@ -456,13 +456,13 @@ raise SystemExit(codex_adapter_model.run_adapter(os.environ["CODEX_PATH"]))
     )
 
     subprocess.run([*LEAF_COMMAND, "page", "init", second], check=True)
-    standing = subprocess.run(
-        [*LEAF_COMMAND, "server", "start", second, "--standing"],
+    persistent = subprocess.run(
+        [*LEAF_COMMAND, "server", "start", second, "--persistent"],
         capture_output=True,
         text=True,
         check=True,
     )
-    assert json.loads(standing.stdout)["url"].startswith("http://127.0.0.1:")
+    assert json.loads(persistent.stdout)["url"].startswith("http://127.0.0.1:")
     session_model.cmd_waiting(second, "second page")
     starter = None
     finished = tmp_path / "second-start-finished"

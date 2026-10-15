@@ -1,21 +1,14 @@
 /* A page-owned worktree adapter preserves the source record's stable identity
  * and provenance. Native details owns disclosure; Leaf owns datum comments. */
-import { html, once, projectData, render, watchData } from "/runtime/widget-api.js";
-export default class extends HTMLElement {
-  pending = false;
-  connectedCallback() {
-    if (!once(this)) return;
-    watchData(this, "worktrees", (snapshot) => this.show(snapshot));
-  }
-  show(snapshot) {
-    this.snapshot = snapshot;
-    const next = JSON.stringify(snapshot ?? null);
-    const shown = next;
-    const view = JSON.parse(shown);
-    const present = Object.hasOwn(view?.value ?? {}, this.id);
-    const record = present ? view.value[this.id] : null;
-    render(
-      html`<details class="atlas-tree">
+import { html, LeafElement, projectData } from "/runtime/widget-api.js";
+customElements.define(
+  "lf-test-tree",
+  class extends LeafElement {
+    render() {
+      const view = (this.snapshot = this.data("worktrees"));
+      const present = Object.hasOwn(view?.value ?? {}, this.id);
+      const record = present ? view.value[this.id] : null;
+      return html`<details class="atlas-tree">
         <summary>Worktree evidence</summary>
         ${
           record
@@ -42,26 +35,26 @@ export default class extends HTMLElement {
                 <pre>${record.diff ?? "No diff recorded."}</pre>`
             : html`<p>No worktree snapshot.</p>`
         }
-      </details>`,
-      this,
-    );
-    projectData(
-      this,
-      [
-        {
-          node: this.firstElementChild,
-          key: this.id,
-          ...(present ? { identity: this.id } : {}),
-          origin: view
-            ? { ...view.origin, ...(present ? { path: [this.id] } : {}) }
-            : null,
-        },
-      ],
-      { snapshot: view },
-    );
-    if (this.pending !== (next !== shown)) {
-      this.pending = next !== shown;
-      this.dispatchEvent(new CustomEvent("atlas-reading", { bubbles: true }));
+      </details>`;
     }
-  }
-}
+    updated(changed) {
+      super.updated(changed);
+      const view = this.snapshot;
+      const present = Object.hasOwn(view?.value ?? {}, this.id);
+      projectData(
+        this,
+        [
+          {
+            node: this.firstElementChild,
+            key: this.id,
+            ...(present ? { identity: this.id } : {}),
+            origin: view
+              ? { ...view.origin, ...(present ? { path: [this.id] } : {}) }
+              : null,
+          },
+        ],
+        { snapshot: view },
+      );
+    }
+  },
+);

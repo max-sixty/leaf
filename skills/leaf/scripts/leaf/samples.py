@@ -19,13 +19,13 @@ from threading import Lock
 
 from .data import source_file
 from .page_memory import PageMemory, memory_of
-from .revision_artifact import Disposable, write_artifact
+from .revision_artifact import Disposable, RevisionArtifact
 from .revisioning import activate_source
-from .sample_content import initial_sample_history, page_sample_history
+from .sample_content import initial_sample_events
 from .schema import DATA_DIR, DATA_FILE
-from .served_state.service import SampleInputs
 from .state import now_iso, write_json
-from .thread_context import thread_structure, widget_messages
+from .structure import SourceDocument
+from .thread_context import thread_structure
 
 
 @dataclass
@@ -37,6 +37,10 @@ class Sample:
     # Held for the sample's life, so the sample keeps its readings however many
     # sibling samples push it out of the process's recent pages (`page_memory`).
     memory: PageMemory
+    # The parent's, held for the same life: a page serving samples is being read, and
+    # its own samples are what would otherwise push it out, so every state answer it
+    # gave would check and capture its whole source again.
+    parent_memory: PageMemory
     lock: Lock = field(default_factory=Lock)
     closed: bool = False
 
@@ -60,15 +64,14 @@ class Samples:
     def create(
         self,
         parent: Path,
-        inputs: SampleInputs,
+        artifact: RevisionArtifact,
+        document: SourceDocument,
+        events: list,
+        data: dict,
         template_id: str,
         message: str | None,
         asset_root: str | None,
     ) -> str:
-        artifact = inputs.artifact
-        document = inputs.readings[inputs.revision].document
-        events = inputs.events
-        data = inputs.data
         """Allocate a child from `template_id` as declared in `document`, or in the
         frozen markup of `message`, a message in `events`."""
         holder = (
@@ -91,18 +94,15 @@ class Samples:
                 f"unknown sample template {template_id!r}"
                 + (f" in message {message!r}" if message is not None else "")
             )
-        parent_history = page_sample_history(
-            document, events, inputs.available_revisions
-        )
-        seeded = initial_sample_history(
+        seeded = initial_sample_events(
             parent,
             document,
-            parent_history,
+            events,
             holder,
             template,
             artifact.registry,
             {name: reading["contract"] for name, reading in data["sources"].items()},
-        ).events
+        )
         source = template["document"].data
         temporary = TemporaryDirectory(prefix="leaf-sample-")
         child = Path(temporary.name)
@@ -135,39 +135,6 @@ class Samples:
                         source_file(child, name),
                         {key: reading[key] for key in ("run", "updated", "value")},
                     )
-            frozen = widget_messages(thread_structure(seeded))
-            revisions = (
-                []
-                if "data-sample-events" in template["attrs"]
-                else sorted(
-                    {
-                        event["revision"]
-                        for event in seeded
-                        if event.get("markup")
-                        and event["revision"] in inputs.available_revisions
-                    }
-                )
-            )
-            revision_map = {
-                revision: index for index, revision in enumerate(revisions, 1)
-            }
-            for revision, copied in revision_map.items():
-                write_artifact(
-                    child,
-                    copied,
-                    inputs.artifacts[revision],
-                    inputs.readings[revision],
-                )
-            current_revision = len(revisions) + 1
-            for event in seeded:
-                if "revision" not in event:
-                    continue
-                event["revision"] = (
-                    revision_map[event["revision"]]
-                    if revisions
-                    and (event.get("markup") or event.get("widget") in frozen)
-                    else current_revision
-                )
             (child / "index.html").write_bytes(source)
             (child / "events.jsonl").write_text(
                 "".join(json.dumps(event) + "\n" for event in seeded),
@@ -191,6 +158,7 @@ class Samples:
                 artifact.registry["$layer"],
                 asset_root,
                 memory,
+                memory_of(parent),
             )
         return identity
 

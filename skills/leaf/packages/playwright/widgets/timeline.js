@@ -97,6 +97,7 @@ export class RecordingTimeline {
   #labels = { input: [], moments: [] };
   #callRows = 1;
   #callRowOf = new Map();
+  #tipAnchor = null;
 
   /**
    * `host` receives the timeline. `options`: `onSeek(time, final)`, `onPick(lane,
@@ -232,8 +233,12 @@ export class RecordingTimeline {
 
   #maxZoom() {
     // The narrowest window spans 10 ms of recording, within the widest box
-    // Chrome lays out (33.5M px).
-    const width = Math.max(1, this.scroller?.clientWidth ?? 1);
+    // Chrome lays out (33.5M px). The width is the one the size observer last
+    // reported (`#resized`), so asking whether the timeline can zoom in, as its
+    // command's liveness does, forces no layout. A timeline not yet laid out with a
+    // width, such as one in a closed disclosure, is bounded by its recording alone
+    // until the observer's first report clamps the zoom to its box.
+    const width = Math.max(1, this.#width);
     return Math.max(1, Math.min((this.#model?.duration ?? 0) / 10, 16e6 / width));
   }
   #trackWidth() {
@@ -859,18 +864,16 @@ export class RecordingTimeline {
     const tip = this.#host.querySelector(".lf-trace-tip");
     // A time keeps its unit on its line.
     keepsText(tip, pick.dataset.tip.replace(/(\d) s\b/g, "$1\u00a0s"));
+    if (this.#tipAnchor !== pick) {
+      if (this.#tipAnchor) keeps(this.#tipAnchor, "data-lf-trace-tip-anchor", null);
+      this.#tipAnchor = pick;
+      keeps(pick, "data-lf-trace-tip-anchor", "");
+    }
     keepsHidden(tip, false);
-    const host = this.#host.getBoundingClientRect();
-    const box = pick.getBoundingClientRect();
-    const width = tip.offsetWidth;
-    keepVar(
-      tip,
-      "left",
-      layoutPx(Math.max(0, Math.min(host.width - width, box.left - host.left))),
-    );
-    keepVar(tip, "top", layoutPx(box.top - host.top - tip.offsetHeight - 4));
   }
   #hideTip() {
+    if (this.#tipAnchor) keeps(this.#tipAnchor, "data-lf-trace-tip-anchor", null);
+    this.#tipAnchor = null;
     const tip = this.#host.querySelector(".lf-trace-tip");
     if (tip) keepsHidden(tip, true);
   }

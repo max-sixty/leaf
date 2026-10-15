@@ -1,7 +1,6 @@
 """Package authoring commands and filesystem safety gates."""
 
 import contextlib
-import json
 import os
 import re
 import secrets
@@ -105,8 +104,8 @@ def rollback_package_files(created: list) -> None:
     """Remove only members that are still the exact files this transaction created."""
     for path, device, inode in reversed(created):
         try:
-            standing = path.stat(follow_symlinks=False)
-            if (standing.st_dev, standing.st_ino) == (device, inode):
+            current = path.stat(follow_symlinks=False)
+            if (current.st_dev, current.st_ino) == (device, inode):
                 path.unlink()
         except FileNotFoundError:
             pass
@@ -143,20 +142,20 @@ def starter_element_declaration(tag: str) -> dict:
     }
 
 
-def starter_widget_module() -> bytes:
-    """The default constructor and one-shot upgrade shared by behavioral widgets.
+def starter_widget_module(tag: str) -> bytes:
+    """The registration shared by behavioral widgets: a `LeafElement`
+    (module-authoring.md, "Drawing what a widget reads").
 
     The layer paints what the declaration alone determines, settlement included, with
-    no help from the module. A module that adds a `renderState` subscribes to its
-    `widgetController`, which is what calls it."""
+    no help from the module. A module that draws state adds `render()`, which reads
+    `this.state` and is drawn again whenever it changes."""
     return (
-        b'import { once } from "/runtime/widget-api.js";\n\n'
-        b"export default class extends HTMLElement {\n"
-        b"  connectedCallback() {\n"
-        b"    if (!once(this)) return;\n"
-        b"  }\n"
-        b"}\n"
-    )
+        'import { LeafElement } from "/runtime/widget-api.js";\n\n'
+        "customElements.define(\n"
+        f'  "{tag}",\n'
+        "  class extends LeafElement {},\n"
+        ");\n"
+    ).encode()
 
 
 def protected_package_paths(package: Path) -> list:
@@ -373,7 +372,7 @@ def init_starter_widget(
     registry[widget] = starter_element_declaration(widget)
     files = {
         "registry.json": json_bytes(registry, indent=2),
-        f"widgets/{module_name}": starter_widget_module(),
+        f"widgets/{module_name}": starter_widget_module(widget),
     }
     validate_starter_candidate(package, files)
     refuse_package_overlap(
@@ -395,13 +394,12 @@ def init_starter_widget(
         raise
 
 
-def cmd_package_init(package: Path, widget: str | None = None) -> Path:
+def cmd_package_init(package: Path, widget: str | None = None) -> dict:
     with package_write_lock(package):
         package, protected, composition = check_package(package, require_exists=False)
         if widget is not None:
             init_starter_widget(package, protected, composition, widget)
-            print(json.dumps({"package": str(package), "widget": widget}))
-            return package
+            return {"package": str(package), "widget": widget}
 
         refuse_package_overlap(
             [package, *(package / name for name in (*VENDORED_FILES, *PACKAGE_DIRS))],
@@ -421,59 +419,43 @@ def cmd_package_init(package: Path, widget: str | None = None) -> Path:
             if not ((package / name).exists() or (package / name).is_symlink())
         ]
         create_package_files(package, creates)
-        print(json.dumps({"package": str(package)}))
-        return package
+        return {"package": str(package)}
 
 
-def cmd_package_check(
-    package: Path, render: bool = False, as_json: bool = False
-) -> int:
+def cmd_package_check(package: Path, render: bool = False) -> dict:
     """Check the package, and with `render` its widgets' worked examples in the
-    host's browser. With `as_json`, print one object in `page check --json`'s shape:
-    `status`, the exit status; `findings`, each finding as a record: the findings a
-    refusal carries, such as a registry's, any other refusal as one `package`
-    record, or the widget quality findings; and `browser`, what
-    the browser gate ran in or why none could, null where none was asked for or the
-    package check refused."""
+    host's browser, and report one object in `page check`'s shape: `status`, the exit
+    status; `findings`, each finding as a record: the findings a refusal carries, such
+    as a registry's, any other refusal as one `package` record, or the widget quality
+    findings; and `browser`, what the browser gate ran in or why none could, null
+    where none was asked for or the package check refused."""
     from .findings import Finding, Rejected
 
     def reported(status, findings=(), browser=None):
-        print(
-            json.dumps(
-                {
-                    "status": status,
-                    "findings": [finding.json() for finding in findings],
-                    "browser": browser,
-                },
-                ensure_ascii=False,
-            )
-        )
-        return status
+        return {
+            "status": status,
+            "findings": [finding.json() for finding in findings],
+            "browser": browser,
+        }
 
     try:
         package, _, _ = check_package(package, require_exists=True)
     except Refused as error:
-        if not as_json:
-            raise
         found = (
             error.findings
             if isinstance(error, Rejected)
             else [Finding("package", values={"text": str(error)})]
         )
         return reported(1, found)
-    if not as_json:
-        print(f"checked {package}", flush=True)
     if not render:
-        return reported(0) if as_json else 0
-    from .render_gate.command import print_widget_quality, widget_quality
+        return reported(0)
+    from .render_gate.command import widget_quality
 
     check = widget_quality(package)
-    if not as_json:
-        return print_widget_quality(check)
     return reported(check.status, check.findings, check.json())
 
 
-def cmd_package_install(source: Path) -> Path:
+def cmd_package_install(source: Path) -> dict:
     """Publish a checked immutable snapshot under its source directory's name.
 
     The lexical name changes atomically after all copied bytes validate. Existing
@@ -514,8 +496,7 @@ def cmd_package_install(source: Path) -> Path:
             destination = names / name
             os.replace(pointer, destination)
             fsync_parents([published, destination])
-        print(json.dumps({"package": str(published)}))
-        return published
+        return {"package": str(published)}
 
 
 def cmd_package_run(name: str, script: str, arguments: tuple[str, ...]) -> None:

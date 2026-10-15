@@ -6,7 +6,7 @@ directly. That shell launcher owns uv; no Leaf Python process starts an
 environment manager.
 
 This supervisor calls `bin/leaf` with its own arguments, which the registration
-states (`hook --harness claude-code --watch`). Claude's asyncRewake registration
+states (`hook --harness claude-code --if-claimed --watch`). Claude's asyncRewake registration
 wakes on exit 2, a status uv can also use for startup failures, so only a clean
 Leaf return with a nonempty result becomes stderr and exit 2 here. Failures keep
 the child's stderr and become nonblocking exit 1; cancellation stays quiet.

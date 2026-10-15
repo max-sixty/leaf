@@ -38,7 +38,7 @@ def test_compare_follows_shared_source_and_stops_both_arms(
             [
                 sys.executable,
                 "-m",
-                "leaf_dev.compare",
+                "leaf_dev.commands.compare",
                 "--base",
                 "HEAD",
                 "--source",

@@ -35,7 +35,7 @@
    rows stand before the general text-entry claim, which stands before ancestor widgets.
 
    A page command that a covering surface should not drop says so with `covering`, and
-   gates its own liveness on what it can reach there, rather than standing as a copy in
+   gates its own liveness on what it can reach there, rather than living as a copy in
    the surface's scope. `c` answers that way from a covering Threads panel, reading the
    one comment destination the page reads. `activeCommandLabel` projects the
    dispatcher's live result into the destination composition box's placeholder. Each

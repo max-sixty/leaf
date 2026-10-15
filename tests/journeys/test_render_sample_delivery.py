@@ -41,7 +41,6 @@ def test_sample_upgrade_does_not_wait_for_child_saved_state(
         </script>""",
     )
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    page.set_default_timeout(15_000)
     held = []
     route_pattern = re.compile(r"/api/samples/[^/]+/api/state")
     page.route(route_pattern, lambda route: held.append(route))
@@ -85,16 +84,16 @@ def test_sample_upgrade_does_not_wait_for_child_saved_state(
         inner_box = page_comment(child)
         child_words = "A newer child draft owns this view"
         write(inner_box, child_words)
-    expect(outer_box).to_have_js_property("value", "Parent draft", timeout=5_000)
-    expect(inner_box).to_have_js_property("value", child_words, timeout=5_000)
+    expect(outer_box).to_have_js_property("value", "Parent draft")
+    expect(inner_box).to_have_js_property("value", child_words)
     page.unroute(route_pattern)
     for route in held:
         route.continue_()
-    page.wait_for_function("window.sampleSelected", timeout=15_000)
+    page.wait_for_function("window.sampleSelected")
     assert page.evaluate("window.sampleSelectionResult") is (not newer_input)
     expect(child.locator("body")).to_have_attribute("data-lf-presented", "1")
-    expect(outer_box).to_have_js_property("value", "Parent draft", timeout=5_000)
-    expect(inner_box).to_have_js_property("value", child_words, timeout=5_000)
+    expect(outer_box).to_have_js_property("value", "Parent draft")
+    expect(inner_box).to_have_js_property("value", child_words)
     if newer_input:
         expect(child.locator(".lf-thread-panel")).not_to_have_class(
             re.compile(r"\bopen\b")
@@ -124,7 +123,7 @@ def interaction_records(page, page_dir, *, document=None):
     ):
         (document or page).evaluate(
             """async checkpoint => {
-              const {recordInteraction} = await __lfRuntimeImport('/runtime/interaction-log.js');
+              const {recordInteraction} = await window.__lfCheckApi();
               recordInteraction('test-checkpoint', {checkpoint});
             }""",
             checkpoint,
@@ -312,7 +311,7 @@ document.querySelector('#popup').addEventListener('click', () => {
         "document"
     ] == documents[-1]["document"]
     child.evaluate("""async () => {
-      const {registerSampleCommand} = await __lfRuntimeImport('/runtime/sample-child.js');
+      const {registerSampleCommand} = await window.__lfCheckApi();
       registerSampleCommand('thread', function rejectSampleCommand() {
         throw new RangeError('Sample command failed');
       });
@@ -330,6 +329,83 @@ document.querySelector('#popup').addEventListener('click', () => {
     assert destroyed[-1]["reason"] == "destroyed"
     persisted = interaction_records(page, serve.page_dir)
     assert any(row.get("page") == grandchild_page for row in persisted)
+
+
+def test_reload_swap_retires_pending_sample_faults(browser, serve):
+    """A swap cancels old startup work without retiring the replacement allocation."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Reload during startup",
+                '<h1>Parent</h1><lf-sample id="practice" window>'
+                '<template id="practice-source" data-sample><h1>Practice</h1></template>'
+                "</lf-sample>",
+            )
+        ),
+    )
+    sample = page.locator("#practice")
+    sample.evaluate("async sample => await sample.ready")
+    child = sample.locator("iframe").element_handle().content_frame()
+    document_url = child.url
+    icons = []
+    icon_pattern = re.compile(
+        re.escape(urlsplit(document_url).path) + r"revisions/[^/]+/icon.svg$"
+    )
+    page.route(icon_pattern, lambda route: icons.append(route))
+    with child.expect_navigation(wait_until="commit"):
+        child.evaluate("location.reload()")
+    holding(page, icons, 1, "the middle document's pending icon fetch")
+    page.unroute(icon_pattern)
+    destination = []
+    page.route(document_url, lambda route: destination.append(route))
+    child.evaluate("location.reload()")
+    holding(page, destination, 1, "the replacement before its document swap")
+    # The old realm remains alive while the server holds the destination. A native
+    # task checkpoint cannot be mistaken for the document's actual departure.
+    assert child.evaluate(
+        "() => new Promise(resolve => setTimeout(() => resolve(document.body.isConnected), 0))"
+    )
+    assert sample.evaluate("sample => sample.isConnected")
+    assert not [row for row in sample_records(page, serve) if row["phase"] == "failed"]
+    with child.expect_navigation(wait_until="domcontentloaded"):
+        destination[0].continue_()
+    page.unroute(document_url)
+    sample.evaluate("async sample => await sample.ready")
+    expect(child.locator("body")).to_have_attribute("data-lf-presented", "1")
+    expect(child.get_by_role("heading", name="Practice", exact=True)).to_be_visible()
+    records = sample_records(page, serve)
+    assert {row["allocation"] for row in records} == {1}
+    assert not [row for row in records if row["phase"] in {"failed", "retired"}]
+    assert len([row for row in records if row["phase"] == "departed"]) == 2
+    assert len([row for row in records if row["phase"] == "connected"]) == 3
+    assert take_browser_errors(page) == []
+
+
+def test_canceled_native_departure_keeps_fault_reporting(browser, serve):
+    """Canceling beforeunload leaves genuine faults owned by the live document."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Canceled departure",
+                '<h1>Still here</h1><button id="activate">Activate</button>'
+                '<button id="fail">Report a fault</button>',
+            )
+        ),
+    )
+    page.locator("#activate").click()
+    page.evaluate("""() => {
+      window.addEventListener('beforeunload', event => { event.preventDefault(); event.returnValue = ''; });
+      document.querySelector('#fail').onclick = () => { throw new Error('live fault after canceled departure'); };
+    }""")
+    page.once("dialog", lambda dialog: dialog.dismiss())
+    with page.expect_event("dialog") as dialog:
+        page.evaluate("location.reload()")
+    assert dialog.value.type == "beforeunload"
+    expect(page.get_by_role("heading", name="Still here")).to_be_visible()
+    page.locator("#fail").click()
+    consume_browser_errors(page, "live fault after canceled departure")
 
 
 @pytest.mark.parametrize("response_type", ["json", "html"])
@@ -482,7 +558,7 @@ def test_sample_native_departure_keeps_destination_and_reset(
     child = sample.locator("iframe").element_handle().content_frame()
     previous = child.url
     child.evaluate("""async () => {
-      const {registerSampleCommand} = await __lfRuntimeImport('/runtime/sample-child.js');
+      const {registerSampleCommand} = await window.__lfCheckApi();
       registerSampleCommand('thread', () => {
         window.waitingCommand = true;
         return new Promise(() => {});

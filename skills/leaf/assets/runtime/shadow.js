@@ -1,7 +1,6 @@
 /* This module owns declared shadow roots, the shadow.css rules they render under, and
  * the shared highlight rules. */
-import { vocabularyFor } from "./widget-contexts.js";
-import { registryFor, tagsDeclaring } from "./registry.js";
+import { registry, tagsDeclaring } from "./registry.js";
 import {
   byRenderedOrder,
   composedParentNode,
@@ -42,7 +41,7 @@ export const refuseShadowRoot = (root) => refusedRoots.add(root);
 // The declared root `host` holds the page's words in, or null.
 export const declaredRoot = (host) =>
   host.shadowRoot &&
-  registryFor(host)[host.localName]?.["x-shadow"] &&
+  registry[host.localName]?.["x-shadow"] &&
   !refusedRoots.has(host.shadowRoot)
     ? host.shadowRoot
     : null;
@@ -55,7 +54,7 @@ export const shadowRootsIn = (root) =>
     .map(declaredRoot)
     .filter(Boolean);
 export const pageShadowRoots = () => shadowRootsIn(document);
-// Explicit inertness excludes a node through its composed ancestry. A standing native
+// Explicit inertness excludes a node through its composed ancestry. An open native
 // modal escapes inherited inertness outside itself, but an inert modal or descendant
 // remains excluded. Read node kind rather than realm-specific Element: a sample asks
 // this of the frame its containing document holds too.
@@ -129,21 +128,35 @@ export const inUi = (node) =>
 // followed by semantic state.css (layer.py's `composed_sheets`). Read from the layer
 // rather than written here so a project override travels with the widget, and fetched
 // during upgrade so the stage below stays synchronous for its callers.
-
-// Every legitimate page shadow tree is built here, so repeat the generated-interface
-// boundary and transition suppression inside it. The shadow's ordinary contents paint
+export let shadowRules = "";
+// Every legitimate page shadow tree is built here, so repeat the theme's leading layer
+// inside it: `hidden` hiding whatever display a rule states (theme.css), the
+// generated-interface boundary, and transition suppression. The shadow's ordinary contents paint
 // immediately and its generated interface paints after upgrade, on the same boundaries
-// as authored and generated light DOM.
-export const SHADOW_STARTUP_CSS = `
+// as authored and generated light DOM. A selector in the tree cannot see body's stamps,
+// so the theme states each boundary as an inherited property these rules query with
+// `@container style()`, which Chrome, Firefox and Safari support; `:host-context()`,
+// which reads the stamps directly, has no Firefox or Safari support. The anonymous
+// layer leads the tree's sheets, so these important declarations outrank every later
+// layer.
+export const SHADOW_LEADING_CSS = `
 @layer {
+  [hidden]:not([hidden="until-found"]),
+  :host([hidden]:not([hidden="until-found"])) {
+    display: none !important;
+  }
   @media screen {
-    :host-context(body:not([data-lf-presented])) *,
-    :host-context(body:not([data-lf-presented])) *::before,
-    :host-context(body:not([data-lf-presented])) *::after {
-      transition: none !important;
+    @container style(--lf-before-presentation: 1) {
+      *,
+      *::before,
+      *::after {
+        transition: none !important;
+      }
     }
-    :host-context(body:not([data-lf-upgraded])) .lf-ui {
-      visibility: hidden !important;
+    @container style(--lf-before-upgrade: 1) {
+      .lf-ui {
+        visibility: hidden !important;
+      }
     }
   }
 }`;
@@ -152,15 +165,15 @@ export const SHADOW_STARTUP_CSS = `
 // arrive at any of them — in the document, in a later version, or in an agent's reply —
 // so the ask is repeated and the answer is not. Sharing the promise rather than the text
 // also holds a second caller behind the first read instead of starting another.
-export function loadShadowRules(scope) {
-  const context = vocabularyFor(scope);
-  context.shadowRules.loading ??= readShadowRules(context);
-  return context.shadowRules.loading;
+let loading = null;
+export function loadShadowRules() {
+  loading ??= readShadowRules();
+  return loading;
 }
-async function readShadowRules(context) {
-  const response = await fetch(context.resource("/shadow.css"));
+async function readShadowRules() {
+  const { runtimeResource } = await import("./context.js");
+  const response = await fetch(runtimeResource("/shadow.css"));
   if (!response.ok)
     throw new Error(`leaf: shadow.css failed to load (${response.status})`);
-  context.shadowRules.text = await response.text();
+  shadowRules = await response.text();
 }
-export const shadowRulesFor = (host) => vocabularyFor(host).shadowRules.text;

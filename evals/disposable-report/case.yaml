@@ -3,8 +3,8 @@ description: Disposable Report
 metadata:
   purpose: Create a temporary report without permanent-record ceremony.
   tags:
-  - workflow
+    - workflow
   conditions:
-  - leaf
+    - leaf
   executor: leaf_dev.usability_eval
   scenario: cold-report

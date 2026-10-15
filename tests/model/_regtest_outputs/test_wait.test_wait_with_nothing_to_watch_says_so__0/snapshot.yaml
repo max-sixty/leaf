@@ -4,5 +4,10 @@ exit: 2
 
 stdout: ''
 
-stderr: |
-  nothing to watch: no page named and none claimed by this session
+stderr:
+  - code: nothing-to-watch
+    severity: error
+    values:
+      page: null
+    text: >-
+      nothing to watch: no page named and none claimed by this session

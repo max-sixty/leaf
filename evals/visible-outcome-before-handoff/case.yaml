@@ -30,17 +30,17 @@ vars:
     Write the next action you would take and the acceptance evidence for it.
     The implementation remains with another agent; do not change it here.
 assert:
-- type: llm-rubric
-  metric: proves-visible-navigation
-  value: |
-    Pass only if completion remains unproven and the agent explicitly tests direct
-    range activation with Moments already open and a different moment selected.
-    Both masking conditions must be stated. Judge the visible effect of range
-    activation separately from a later row selection: disclosure and focus alone
-    do not prove a jump, and the reader's Enter/list route does not prove a range
-    click. Allow a clearly communicated chooser whose member destinations are
-    verified; do not require automatic selection or a particular redesign.
-    A generic request to test each member does not cover direct range activation.
+  - type: llm-rubric
+    metric: proves-visible-navigation
+    value: |
+      Pass only if completion remains unproven and the agent explicitly tests direct
+      range activation with Moments already open and a different moment selected.
+      Both masking conditions must be stated. Judge the visible effect of range
+      activation separately from a later row selection: disclosure and focus alone
+      do not prove a jump, and the reader's Enter/list route does not prove a range
+      click. Allow a clearly communicated chooser whose member destinations are
+      verified; do not require automatic selection or a particular redesign.
+      A generic request to test each member does not cover direct range activation.
 
 variants:
   shared-identity:
@@ -62,14 +62,14 @@ variants:
         What is the next action and the acceptance evidence for handing this over?
         The implementation remains with another agent; do not change it here.
     assert:
-    - type: llm-rubric
-      metric: proves-visible-identity
-      value: |
-        Pass only if completion is left unproven until a fresh reader can associate
-        the timeline's visible marks with the named moments before selecting them.
-        Identify that successful navigation by the tested route does not establish
-        that count/diamond and names communicate their relationship. Do not require
-        numbered badges, a legend, or any specific design.
+      - type: llm-rubric
+        metric: proves-visible-identity
+        value: |
+          Pass only if completion is left unproven until a fresh reader can associate
+          the timeline's visible marks with the named moments before selecting them.
+          Identify that successful navigation by the tested route does not establish
+          that count/diamond and names communicate their relationship. Do not require
+          numbered badges, a legend, or any specific design.
   intentional-disclosure:
     metadata: {}
     vars:
@@ -89,10 +89,10 @@ variants:
         Give the handoff verdict in a short reply. The implementation remains with
         another agent; do not change it here.
     assert:
-    - type: llm-rubric
-      metric: respects-intended-disclosure
-      value: |
-        Pass if the verdict accepts the supported user contract and does not require
-        group activation to select a recording, change the image, or add repeated
-        checks already established by the supplied evidence. Asking for a
-        user-visible outcome does not mean every control must navigate.
+      - type: llm-rubric
+        metric: respects-intended-disclosure
+        value: |
+          Pass if the verdict accepts the supported user contract and does not require
+          group activation to select a recording, change the image, or add repeated
+          checks already established by the supplied evidence. Asking for a
+          user-visible outcome does not mean every control must navigate.

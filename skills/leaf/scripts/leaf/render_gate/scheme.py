@@ -201,7 +201,7 @@ def start_with_pre_upgrade_proof(page, url: str) -> list[Finding]:
 
     def hold_entry(route):
         # Only the first is held. A later one is passed through rather than left
-        # standing, because this handler has to outlive the entry it holds and a
+        # held, because this handler has to outlive the entry it holds and a
         # second hold nothing releases would be a wait with no end.
         if held:
             route.continue_()
@@ -354,19 +354,7 @@ def _render_scheme(
     # the page). The readings get data rather than fetching it, so most of them
     # are plain synchronous DOM walks with nothing in them to await or hang in.
     try:
-        state = served_here("/api/state").json()
-        markup = served_here(urlsplit(url).path).text()
-        here = rendered_revision(url, state)
-        captured_registries = {}
-
-        def registry_for_revision(revision):
-            if revision not in captured_registries:
-                captured_registries[revision] = served_here(
-                    state["vocabularies"][str(revision)] + "/registry.json"
-                ).json()
-            return captured_registries[revision]
-
-        registry = registry_for_revision(here)
+        registry = served_here("/registry.json").json()
         # The readings in the page consume element declarations, so they are handed
         # only those:
         # $keys spells its members in the x- keys' own names, and a sweep over
@@ -386,6 +374,12 @@ def _render_scheme(
                 resize_notices,
                 complete=True,
             )
+        state = served_here("/api/state").json()
+        markup = served_here(urlsplit(url).path).text()
+        # Every replay check is bounded by immutable revision.
+        # A stamped URL resolves through the stamp map; an exact source preview
+        # uses the synthetic active revision exposed only by its preview server.
+        here = rendered_revision(url, state)
     except PlaywrightTimeout as e:
         # The first line only: the rest is playwright's call log, which says
         # nothing about the page that a reader of this failure needs.
@@ -423,7 +417,6 @@ def _render_scheme(
         light=scheme == "light",
         errors=[*errors, *pre_upgrade],
         registry=registry,
-        registry_for_revision=registry_for_revision,
         declarations=declarations,
         state=state,
         markup=markup,
@@ -435,9 +428,4 @@ def _render_scheme(
     found = _scheme_findings(context)
     if then is not None:
         then(page, registry)
-    # Revealing a part moves its visual off the state every reading above checked, so
-    # the reveals come last, on a page nothing reads again.
-    found += map(
-        Finding.read, evaluate_probe(page, "unrevealedVisualProviders", declarations)
-    )
     return ended(found, resize_notices, complete=True)

@@ -21,11 +21,11 @@ from functools import partial
 from typing import NamedTuple
 
 from leaf.events import (
+    approvals_in_force,
     awaits_agent,
     conversation_turns,
     is_reaction,
     retractions,
-    standing_approvals,
     taken_back,
     unanswered_agent_turn,
 )
@@ -38,8 +38,10 @@ from leaf.projection import (
     ask_value,
     enclosing_widgets,
     folded_value,
+    frozen_thread_reading,
     markup_value,
     page_reading,
+    projected_action_holders,
     state_projection,
 )
 from leaf.read_state import content_version
@@ -89,7 +91,7 @@ def ask_registrations(document, registry: dict) -> dict[str, AskRegistration]:
 
 def settles(reaction: dict, turn: str, tokens: dict) -> bool:
     """Whether a message is the user's reaction on the agent's `turn` with a token
-    the registry declares `settles` (`$reactions`), which answers the ask that
+    the registry declares `settles` (`$reactions`), which answers the question that
     turn asks as a reply would. `tokens` is `$reactions.tokens`."""
     return (
         is_reaction(reaction)
@@ -101,7 +103,7 @@ def settles(reaction: dict, turn: str, tokens: dict) -> bool:
 
 @dataclass(frozen=True)
 class ThreadAsks:
-    """Prose asks and their settlement from one standing thread.
+    """Prose asks and their settlement from one current thread.
 
     Each record retains its source message, content version, state and settling
     event. Widget asks have their own reading and never become prose asks.
@@ -151,7 +153,7 @@ def collection(records: list[dict]) -> dict:
 def approval_ask(document, revision: int, events: list) -> dict | None:
     """Sign-off for an exact public stamp as one canonical ask.
 
-    Draft revisions owe none. Only a standing done event for this public version
+    Draft revisions owe none. Only a done event in force for this public version
     supplies the typed answer; an undo makes the same ask open again.
     Approval admission counts widget asks alone, so this record cannot
     block its own answer.
@@ -162,7 +164,7 @@ def approval_ask(document, revision: int, events: list) -> dict | None:
     approved = next(
         (
             event
-            for event in reversed(standing_approvals(events))
+            for event in reversed(approvals_in_force(events))
             if event["version"] == version
         ),
         None,
@@ -186,7 +188,7 @@ def thread_asks(
     thread_id: str,
     thread: dict,
     registry: dict,
-    reading: FrozenThreadReading,
+    structure,
     open_widget_threads: set[str],
     ends: dict[str, dict],
 ) -> ThreadAsks:
@@ -207,14 +209,11 @@ def thread_asks(
     for message in turns:
         if message["author"] != "agent":
             continue
-        fragment = reading.structure.fragments.get(message["id"])
-        vocabulary = (
-            reading.registry_for_message(message["id"]) if fragment else registry
-        )
+        fragment = structure.fragments.get(message["id"])
         if any(
-            local_ask_entry(vocabulary.get(rec["tag"]) or {})
-            and asking(rec["attrs"], vocabulary[rec["tag"]]["x-awaits"].get("when"))
-            and not quoted_in(rec, vocabulary)
+            local_ask_entry(registry.get(rec["tag"]) or {})
+            and asking(rec["attrs"], registry[rec["tag"]]["x-awaits"].get("when"))
+            and not quoted_in(rec, registry)
             for rec in (fragment.lf_elements if fragment else [])
         ):
             continue
@@ -299,7 +298,7 @@ def asking(attrs: dict, when: dict) -> bool:
 
 
 def replayed_attrs(rec: dict, projection: StateProjection) -> dict:
-    """An element's attributes under the declared standing projection: authored
+    """An element's attributes under the declared current projection: authored
     markup overlaid with every surviving value record; independent verbs coexist."""
     attrs = rec["attrs"]
     unit = attrs.get("id")
@@ -339,7 +338,7 @@ def previously_requested(
         effect = spec.get("record") or {}
         if (
             coordinate[:2] != (unit, unit)
-            or (event["kind"] == "action" and event["id"] not in projection.standing)
+            or (event["kind"] == "action" and event["id"] not in projection.in_force)
             or (revision is not None and event["revision"] != revision)
             or effect.get("kind") != "value"
             or effect["attr"] not in when
@@ -362,7 +361,7 @@ def previously_requested(
 
 
 def answer_verbs(entry: dict) -> dict:
-    """Each x-state verb whose standing state answers this widget's local ask,
+    """Each x-state verb whose current state answers this widget's local ask,
     mapped to the condition that state has to meet (x-awaits.answered)."""
     return (entry.get("x-awaits") or {}).get("answered") or {}
 
@@ -379,7 +378,7 @@ def verb_answers(
 ) -> bool:
     """Whether one answering verb's declared condition holds for this widget now.
 
-    The condition reads standing state and nothing else. `empty` asks the projected
+    The condition reads current state and nothing else. `empty` asks the projected
     containment the verb's position records leave; an attribute or value record reads
     through authored markup as well as the fold, so a version that honors the answer
     keeps it answered and a cleared value opens the ask again; any other verb answers
@@ -391,7 +390,7 @@ def verb_answers(
     if empty := condition.get("empty"):
         return container_empty(rec, empty, byid, registry, holders)
     # A condition without `empty` names a widget-unit verb (registry validation), so
-    # its standing action is the one at the widget's own coordinate for the verb.
+    # its action in force is the one at the widget's own coordinate for the verb.
     unit = rec["attrs"].get("id")
     held = projection.actions.get((unit, unit, verb))
     spec = entry["x-state"][verb]
@@ -490,27 +489,6 @@ def quoted_in(rec: dict, registry: dict) -> bool:
     )
 
 
-def projected_action_holders(
-    projection: StateProjection, byid: dict, registry: dict
-) -> dict[str, dict]:
-    """Unit id → its enclosing vocabulary widget after standing position records
-    no later revision has absorbed; an absorbed move leaves its unit where the
-    markup has it."""
-    holders = {}
-    for (_owner, unit, _verb), (event, spec) in projection.desired.items():
-        record = spec.get("record") or {}
-        if record.get("kind") != "position" or event["id"] in projection.absorbed:
-            continue
-        target = byid.get(event["detail"]["value"])
-        unit_rec = byid.get(unit)
-        if target and unit_rec:
-            holder = target if target["tag"] in registry else target.get("holder")
-            permitted = (registry.get(unit_rec["tag"]) or {}).get("x-owners", [])
-            if holder and holder["tag"] in permitted:
-                holders[unit] = holder
-    return holders
-
-
 def container_empty(
     owner: dict,
     empty: dict,
@@ -567,7 +545,7 @@ def answering_action(
     *,
     registered: bool = False,
 ) -> bool:
-    """Whether an action of `verb`, standing in `projection`, answers its widget's
+    """Whether an action of `verb`, in force in `projection`, answers its widget's
     ask: the instance asks or retains an earlier registration, and the verb's
     own condition holds with it in place. Editable answers retain user provenance
     after the author suppresses the request. Admission stamps `meaning.answer` on
@@ -883,32 +861,26 @@ def page_ask_readings(
 
 def thread_ask_readings(
     events: list,
+    registry: dict,
     threads: dict,
     *,
-    reading: FrozenThreadReading,
+    reading: FrozenThreadReading | None = None,
 ) -> dict:
-    """Read frozen asks under each message's admitted publication.
-
-    Closing a thread retains its inventory with no next actor. While it is open,
-    a user turn after the message that asks hands the ask to the agent until the
-    agent answers that turn, as a thread anchored on a page ask does
-    (`sections_with_agent`)."""
-    records = []
-    for publication in reading.publications.values():
-        reducer = _AskReducer(
-            publication.structure,
-            publication.projection,
-            publication.structure.by_id,
-            publication.spoken,
-            publication.registry,
-            set(),
-            events=events,
-        )
-        records.extend(reducer.inventory(set()))
-    # Publication groups share a vocabulary, not a position in the conversation.
-    # Preserve message and authored widget order when composing their inventories.
-    order = {widget: index for index, widget in enumerate(reading.by_id)}
-    records.sort(key=lambda record: order[record["source"]["id"]])
+    """Frozen widget asks retain inventory when their containing thread closes,
+    with no next actor. While the thread is open, a user turn after the message
+    that asks hands the ask to the agent until the agent answers that turn, as a
+    thread anchored on a page ask does (`sections_with_agent`)."""
+    reading = reading or frozen_thread_reading(events, registry)
+    reducer = _AskReducer(
+        reading.structure,
+        reading.projection,
+        reading.by_id,
+        reading.spoken,
+        registry,
+        set(),
+        events=events,
+    )
+    records = reducer.inventory(set())
     message_by_widget = widget_messages(reading.structure)
     for record in records:
         source = record["source"]["id"]

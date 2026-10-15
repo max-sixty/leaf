@@ -1,7 +1,7 @@
 """Latency goals consume admission and presentation of the gesture being measured."""
 
 from leaf.render_checks import rendered
-from leaf_dev.bench_latency import PROBE
+from leaf_dev.commands.bench_latency import PROBE
 from playwright.sync_api import expect
 from render_harness import (
     BOARD_PAGE,

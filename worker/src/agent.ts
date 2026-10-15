@@ -104,10 +104,7 @@ async function askContainer(
   return (await response.json()) as AgentResult;
 }
 
-async function runAgentTask(
-  env: Env,
-  params: AgentTaskParams,
-): Promise<AgentResult> {
+async function runAgentTask(env: Env, params: AgentTaskParams): Promise<AgentResult> {
   const allowed = await measuredAgentOperation(
     "capacity_reservation",
     params,

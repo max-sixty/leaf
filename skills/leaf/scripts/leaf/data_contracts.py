@@ -23,7 +23,7 @@ from .registry.schema import (
 from .revision_artifact import read_revision
 from .schema import DATA_SOURCE_NAME, DIR_FILES, MEDIA_DIR
 from .structure import SourceDocument
-from .thread_context import effective_thread_events, logged_fragment
+from .thread_context import logged_fragment
 
 
 class DataError(Refused):
@@ -187,9 +187,9 @@ def page_data_document_readings(
 ) -> list[tuple[list, str, dict]]:
     """Read each historical data consumer with its captured registry.
 
-    Thread markup uses its admitted revision's registry. An unavailable captured
-    publication contributes no authored island, while historical producers and
-    inventories remain available without restricting later documents' bindings.
+    Thread markup uses its admitted revision's registry; seeded markup on a page
+    without revisions uses the initial registry. These readings permit historical
+    producers and inventories without restricting later documents' bindings.
     """
     documents = []
     registries = {}
@@ -203,13 +203,14 @@ def page_data_document_readings(
             ]
         )
     active_document = documents.pop() if documents else None
-    for event in effective_thread_events(events, registries):
+    for event in events:
         if event.get("markup"):
+            revision = event.get("revision") or max(registries, default=None)
             documents.append(
                 data_document_readings(
                     logged_fragment(event),
                     f"event {event['id']!r} markup",
-                    registries[event["revision"]],
+                    registries[revision] if registries else registry,
                 )
             )
     # The active document owns current bindings ahead of older thread markup.

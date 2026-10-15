@@ -315,7 +315,6 @@ def test_server_round_trip(server, page_dir):
     )
     assert "> “Remove” · grip" in transcript.output
     drawing = {
-        "format": "leaf-drawing/3",
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],
         "box": [640.5, 96],
         "frame": {
@@ -419,7 +418,6 @@ def test_server_round_trip(server, page_dir):
             "text": "x",
             "anchor": {"section": "feeder-board"},
             "drawing": {
-                "format": "leaf-drawing/3",
                 "strokes": [[[10, 60]]],
             },
         },
@@ -429,7 +427,6 @@ def test_server_round_trip(server, page_dir):
             "text": "x",
             "anchor": {"section": "feeder-board"},
             "drawing": {
-                "format": "leaf-drawing/3",
                 "strokes": [[[10], [50, 20]]],
             },
         },
@@ -439,7 +436,6 @@ def test_server_round_trip(server, page_dir):
             "text": "x",
             "anchor": {"section": "feeder-board"},
             "drawing": {
-                "format": "leaf-drawing/3",
                 "strokes": [[[10, 60], [33554433, 20]]],
             },
         },
@@ -581,6 +577,7 @@ def test_server_round_trip(server, page_dir):
     assert json.loads(body) == {
         "ok": False,
         "error": "invalid JSON",
+        "findings": [],
         "final": True,
     }
 
@@ -634,7 +631,7 @@ def test_server_admits_an_action_using_its_captured_vocabulary_after_revendoring
         json.dumps({"lf-local-draft": shipped["lf-draft"]})
     )
     (overlay / "widgets" / "lf-local-draft.js").write_text(
-        """export default class extends HTMLElement {};"""
+        "customElements.define('lf-local-draft', class extends HTMLElement {});"
     )
     assert (
         CliRunner()
@@ -711,8 +708,8 @@ def test_server_admits_an_action_using_its_captured_vocabulary_after_revendoring
 def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
     """Own file changes, watcher and agent lifetime reach other pages with no tab.
 
-    The agent exits normally while the standing server continues. Releasing the
-    server lease then removes even its still-present cached row immediately.
+    The agent exits normally while the persistent server continues. Releasing the
+    server lease then removes its row from the next reading, which retires the file.
     """
     neighbor = machine_model.state_home() / "pages" / "invisible"
     neighbour_page(neighbor, title="Invisible", dead=True, port=0)
@@ -728,7 +725,7 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
         {"state": "waiting", "detail": "", "ts": cleanup_model.now_iso()},
     )
     declare_work(neighbor, "measuring", ts=cleanup_model.now_iso())
-    hosting_model.start_server(neighbor, standing=True, harness=None)
+    hosting_model.start_server(neighbor, persistent=True, harness=None)
 
     def rows():
         return presence_model.other_leaves(page_dir)
@@ -795,7 +792,7 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
     assert server_model.running_server(neighbor)
     hosting_model.cmd_stop(neighbor)
     assert rows() == []
-    assert server_rows_model.row_path(neighbor).is_file()
+    assert not server_rows_model.row_path(neighbor).exists()
 
 
 def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
@@ -871,10 +868,10 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
 
 
 def test_neighbours_follow_their_servers_and_ignore_deleted_pages(page_dir, tmp_path):
-    """A neighbour appears on the read after its server starts and leaves on the
-    read after it stops, though neither moves a file the candidate set is keyed
-    on. A page whose directory is gone disappears on the next scan, whether it
-    went before the first scan or after one had listed it."""
+    """A neighbour leaves on the read after its server stops, though nothing moves
+    a file the candidate set is keyed on, and that read retires its row until the
+    next server publishes one. A page whose directory is gone disappears on the
+    next scan, whether it went before the first scan or after one had listed it."""
     stopped = tmp_path / "stopped"
     neighbour_page(stopped, title="Starts later", dead=True)
     record_claim(stopped, id="later")
@@ -896,6 +893,8 @@ def test_neighbours_follow_their_servers_and_ignore_deleted_pages(page_dir, tmp_
     lease = leases_model.take_lease(stopped / "server.lock")
     lease.write(files_model.read_json(stopped / "service.json")["server_id"].encode())
     lease.flush()
+    assert titles() == ["Scratch"]
+    server_rows_model.RowPublisher(stopped, "fixture-server").refresh()
     assert titles() == ["Scratch", "Starts later"]
     leases_model.release_lease(lease)
     assert titles() == ["Scratch"]

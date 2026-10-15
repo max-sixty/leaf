@@ -1,67 +1,64 @@
-"""To-dos, the one kind of item on both lists, and the item the agent has in hand.
+"""To-dos, the one kind of item on both lists, and the item the agent is working on.
 
-A to-do is explicit work someone owes, and its `owner` says who: the agent, whose
-to-dos are on Tasks, or the user, whose to-dos are on Questions. How it ends follows
-from its owner and what it stands on, so no field records it.
+A to-do is work someone owes. Its `owner` is the agent, whose to-dos are on its
+On <agent> list, or the user, whose to-dos are on their On me list. How a to-do ends
+follows from its owner and what it is on, so no field records that.
 
-An item on the agent's Tasks is either an update it owes an answer, whose id is the
-update's event id (`workflows`), or a to-do it opened. Working always names one of
-them: `leaf task start` writes a `start` event naming the item with the line the
-banner shows, and the item is in hand, running, from then on. An ephemeral reply to
-an update the agent owes writes the same start, its text the line (`take_in_hand`),
-so the words the user reads in the thread and the Working line are one write.
+An item on the agent's list is either an update it owes an answer, whose id is the
+update's event id (`workflows`), or a to-do it opened. `leaf task start` writes a
+`start` event naming one item and the line the banner shows as Working, and the
+item is in hand from then on. An ephemeral reply to an owed update writes the same
+start, with its text as the line (`take_in_hand`), so the thread and the Working
+line show the same words.
 
-The agent's to-do is work it owes on a thread, a page widget, an element of the
-page, or the page as a whole. `leaf task open` writes a `todo` event, and a reply
-that promises work it does not deliver carries the to-do's title as `todo`, opening
-it on the reply's thread under the reply's id (`todo_reading`): the message is
-answered and the work stays on the agent in one write. Either stands until a
-`todo_end` gives it one outcome, `done`, `failed` or `dropped`, with a detail saying
-where the result is or why there is none, or until a stamped version that names its
-widget with `--completes` ends it `done`, the note citing that version. A reply, a
-resolution, another version, or the end of the session that opened it leaves it
-open: that is what a to-do adds over an update, which its answer settles. Work that
-outlasts the turn that took it on, such as a worker's build, a CI wait, or a change
-promised for the next version, so stays on the agent's side: an open to-do holds its
-thread `waiting` (`served_state.browser`), counts under `queues.tasks` in `page
-state`, and is named in the banner. Work no update asked for, such as writing or
-revising the page on the agent's own initiative, is a to-do the agent opens on the
-page or the widget or section it concerns; housekeeping, such as re-vendoring or
-restarting the server, owes the user nothing and is no item.
+The agent's to-do is on a thread, a page widget, an element, or the whole page.
+`leaf task open` writes a `todo` event. A reply that promises work it doesn't
+deliver carries the to-do's title as `todo`, which opens a to-do on the reply's
+thread under the reply's id (`todo_reading`), so one write answers the message and
+keeps the work on the agent. The to-do stays open until a `todo_end` gives it an
+outcome, `done`, `failed` or `dropped`, with a detail saying where the result is or
+why there is none, or until a stamped version naming its widget with `--completes`
+ends it `done`. A reply, a resolution, another version, or the end of the session
+that opened it leaves it open; that is what a to-do adds over an update, which its
+answer settles. An open to-do keeps its thread `waiting` (`served_state.browser`),
+counts under `queues.on_agent` in `page state`, and shows in the banner.
+`../../references/conversation-loop.md` tells the agent which work gets a to-do.
 
-To-dos on the user are `todo` events opened with `--on user`, ending at Done or an
-agent end. Asks are separate canonical records (`asks`), selected directly by
-the lists, never synthesized into to-dos. The agent's `todo_end` can also retire
-an open prose ask by its ask id: `done` when the user answered it on another
-surface, `dropped` when it no longer applies, and never `failed`, which says
-nothing about the ask; neither records a user answer (`asks.thread_asks`).
-A stamped document declaring `lf-review=sign-off` adds an
-approval ask for that exact public version; only its unwithdrawn approval answers
-it.
+A to-do on the user is a `todo` event opened with `--on user`, ended by the user's
+Done or by the agent. Asks are separate records (`asks`) that the lists read
+directly, never turned into to-dos. The agent's `todo_end` can also close an open
+prose ask by its ask id: `done` when the user answered it elsewhere, `dropped` when
+it no longer applies, never `failed`. Neither records an answer from the user
+(`asks.thread_asks`). A stamped version declaring `lf-review=sign-off` adds an
+approval ask for that version, which only an approval the user has not withdrawn
+answers.
 
-A start lasts until its item ends: a to-do's end, or for an update the reply or
-stamped version that answers it (`workflows.canonical_workflows`), and it holds its
-item only for the turn that wrote it. It names that turn, and once the turn ends
-with the item still running, the activity fold reads it stalled (`activity`). A
-later start on the same item replaces it, which is how the next turn takes the item
-in hand again. A `waiting` or `idle` declaration puts down every start written
-before it: the updates those started are no longer in hand, and the to-dos stay
-open with nothing running on them. The put-down is a `put_down` event in the log,
-which `leaf status` writes ahead of the declaration whenever a start stands
-(`put_down`), so admission, which reads only the document and the log, sees it as
-every other reader does. A start on a page declared `idle` reopens the page with a
-bare `waiting` after it, which writes no `put_down`.
+A start lasts until its item ends: the to-do's end, or for an update, the reply or
+stamped version that answers it (`workflows.canonical_workflows`). It names the turn
+that wrote it and holds its item only for that turn; once that turn ends with the
+item still running, `activity` shows it stalled. A later start on the same item
+replaces it, which is how the next turn takes the item up again. `leaf status
+waiting` and `idle` first write a `put_down` event when any start is in force
+(`put_down`). The `put_down` ends every earlier start, leaving their to-dos open
+with nothing running. It is an event so that admission, which reads only the
+document and the log, sees it. A start on a page declared `idle` reopens the page with a plain
+`waiting` after it, which writes no `put_down`.
 
-The door admits the agent's `todo` event on a live page widget that declares
-`x-work` or holds an unsettled action (`work.widget_seat_error`), on any element of
-the page, or on the page, and a to-do on the user on any of those, a widget needing
-no seat; a start on an open to-do of the agent's or an update the agent owes; and an
-end of an open to-do, the user's only of one the agent opened on them
-(`todo_error`). `TodoReading` holds the log's to-dos, starts and endings for one
-event basis, and `WorkReading.page_todos` attaches thread and activity readings to
-to-dos.
+Only the session that wrote an agent to-do's latest start can end it, by `todo_end`
+or a stamp's `--completes` (`TodoReading.completion_error`), and a later start from
+another session moves that right. Putting work down changes activity, not this
+right: neither a turn ending nor a change of claim gives it back to an earlier
+session, and the same session can still end the to-do in a later turn. Before any
+start, any agent session can end it. Commands run outside a harness all share one
+empty session identity, so Leaf can't tell them apart.
 
-Not yet: a to-do whose session has ended reads open until another session ends it.
+Admission (`todo_error`) accepts an agent's `todo` on the page, on any element, or
+on a live widget that declares `x-work` or holds an unsettled action
+(`work.widget_seat_error`), and a to-do on the user on any element or on a widget
+with no open ask. It accepts a `start` on an open agent to-do or an owed update, and
+a `todo_end` of an open to-do; the user ends only a to-do opened on them.
+`TodoReading` reads the log's to-dos, starts and ends, and `WorkReading.page_todos`
+adds their thread and activity readings.
 
 Experimental: to-dos and the two lists are new, and their shape is expected to
 change a lot (notes/what-needs-you/). Change them freely; nothing outside this
@@ -113,7 +110,7 @@ def start_reading(event: dict) -> dict | None:
 
 
 def item_starts(events: list) -> dict[str, dict]:
-    """The start standing on each item, by the item's id: the newest naming it, unless
+    """The start in force on each item, by the item's id: the newest naming it, unless
     a `put_down` came after it."""
     starts: dict[str, dict] = {}
     for event in events:
@@ -191,8 +188,36 @@ class TodoReading:
             if todo["state"] == "open" and todo["owner"] == "agent"
         ]
 
+    def completion_error(self, event: dict, todo: dict) -> Finding | None:
+        """Whether the writer can end this agent to-do under its latest start.
 
-def _todos(events: list, withdrawn: set, standing: dict) -> list[dict]:
+        Read the log rather than `starts`, whose in-hand reading a `put_down`
+        clears. Admission alone checks authority; projections consume admitted
+        endings without reclassifying them against later activity or claims.
+        """
+        if todo["owner"] != "agent":
+            return None
+        latest = next(
+            (
+                start
+                for logged in reversed(self.events)
+                if (start := start_reading(logged)) and start["item"] == todo["id"]
+            ),
+            None,
+        )
+        if latest is not None and latest.get("session") != event.get("session"):
+            return Finding(
+                "todo-execution",
+                values={
+                    "todo": todo["id"],
+                    "start": latest["id"],
+                    "session": latest.get("session"),
+                },
+            )
+        return None
+
+
+def _todos(events: list, withdrawn: set, starts: dict) -> list[dict]:
     todos: dict[str, dict] = {}
 
     def end(todo: dict, state: str, event: dict, detail: str | None) -> None:
@@ -229,8 +254,8 @@ def _todos(events: list, withdrawn: set, standing: dict) -> list[dict]:
                 if todo is not None and todo["state"] == "open":
                     end(todo, "done", event, f"v{event['version']}")
     for todo in todos.values():
-        if todo["state"] == "open" and todo["id"] in standing:
-            todo["running"] = running(standing[todo["id"]])
+        if todo["state"] == "open" and todo["id"] in starts:
+            todo["running"] = running(starts[todo["id"]])
     return list(todos.values())
 
 
@@ -261,12 +286,13 @@ def todo_error(
     todos,
     asks,
 ) -> Finding | None:
-    """Why the append door refuses a to-do, start or end event, or None.
+    """Why the append door refuses a to-do, start or completion, or None.
 
     A to-do stands on an admitted widget, page element or page; a to-do on a
     thread is opened by the reply that promises it (`todo_reading`), which the
     schema keeps off a `todo` event. A start names an open agent to-do or an owed
-    update. Either side can end a to-do within its ownership rules. An agent end may
+    update. Both completion carriers share `TodoReading.completion_error`.
+    Either side can end a to-do within its ownership rules. An agent end may
     also withdraw an open prose ask by canonical id or source message id, while
     widget asks remain owned by their declared state.
     """
@@ -287,6 +313,12 @@ def todo_error(
         if item in owed or any(todo["id"] == item for todo in log.owed):
             return None
         return Finding("unowed-start", values={"item": item})
+    if kind == "note":
+        completed = note_settlements(event, "todo")
+        for todo in log.owed:
+            if todo["id"] in completed and (error := log.completion_error(event, todo)):
+                return error
+        return None
     if kind != "todo_end":
         return None
     identity = event["todo"]
@@ -319,7 +351,7 @@ def todo_error(
         return Finding("ended-todo", values={**named, "state": todo["state"]})
     if event["author"] == "user" and todo["owner"] != "user":
         return Finding("agents-todo", values=named)
-    return None
+    return log.completion_error(event, todo)
 
 
 def cmd_open(page_dir: Path, subject: str, title: str, owner: str) -> dict:
@@ -421,7 +453,7 @@ def cmd_start(page_dir: Path, item: str, text: str) -> dict:
 
 
 def put_down(page) -> dict | None:
-    """Put down every start standing on the page `page`, an open
+    """Put down every start in force on the page `page`, an open
     `service.PageTransaction`, as `leaf status waiting` and `idle` do; the record, or
     None when no start stands and the log has nothing to add."""
     from .event_contracts import append_admitted
@@ -441,11 +473,13 @@ def cmd_end(page_dir: Path, todo: str, outcome: str, detail: str | None) -> dict
     from .event_contracts import append_admitted
     from .harness import message_identity
     from .leases import contract_writer
+    from .revisioning import activate_source
     from .service import PageTransaction
 
     @contract_writer
     def write(page_dir: Path) -> dict:
         with PageTransaction(page_dir) as page:
+            activate_source(page_dir, transaction=page)
             record, _ = append_admitted(
                 page,
                 {

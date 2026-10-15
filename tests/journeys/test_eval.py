@@ -61,7 +61,7 @@ def test_authoring_repetitions_isolate_tools_and_grade_the_saved_page(
         observed.append((cwd, state, url))
         if len(observed) == 1:
             started = run_leaf(
-                ROOT, state, "server", "start", str(page), "--standing", check=True
+                ROOT, state, "server", "start", str(page), "--persistent", check=True
             )
             servers.append(urlsplit(json.loads(started.stdout)["url"]))
         if fail_model:

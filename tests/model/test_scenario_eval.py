@@ -10,7 +10,6 @@ from leaf_dev.delivery_eval import expected_checks, grade, score
 
 
 def test_partial_native_traces_do_not_report_zero_elapsed_minutes(tmp_path):
-    from leaf_dev import usability_eval
     from leaf_dev.arms import trace_summary
 
     stream = tmp_path / "stream.jsonl"
@@ -21,7 +20,6 @@ def test_partial_native_traces_do_not_report_zero_elapsed_minutes(tmp_path):
     ):
         stream.write_text("".join(json.dumps(record) + "\n" for record in trace))
         assert trace_summary(trace)["minutes"] == minutes
-        assert usability_eval.trace_scores(trace)["minutes"] == minutes
 
 
 def test_delivery_requires_every_comment_and_a_completed_session():
@@ -155,7 +153,8 @@ def test_delivery_reads_admitted_progress_and_exact_answers(tmp_path):
 
 def test_success_readers_require_the_same_exact_agent_answer(tmp_path):
     from leaf.thread import answered_by_reply, successful_replies
-    from leaf_dev import journey, review_scenario
+    from leaf_dev import review_scenario
+    from leaf_dev.commands import journey
 
     comment = {
         "kind": "comment",
@@ -279,7 +278,7 @@ def test_settled_requires_context_entry_even_with_a_reply_and_closed_turn(
 
 
 def test_journey_timing_reports_context_entry_after_queue_acceptance():
-    from leaf_dev.journey import User
+    from leaf_dev.commands.journey import User
 
     comment = {
         "kind": "comment",

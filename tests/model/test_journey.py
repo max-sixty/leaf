@@ -14,12 +14,32 @@ from types import SimpleNamespace
 
 import pytest
 from interact_support import STATED_TIMEOUT
-from leaf_dev import journey, journey_claude_code, journey_pi
+from leaf.interaction_log import read_interactions
+from leaf_dev import journey_claude_code, journey_pi
+from leaf_dev.commands import journey, journey_chart
+from leaf_dev.page_fixtures import record_run_context
 from leaf_dev.review_scenario import SLEEP
 
 
 def at(seconds: float) -> str:
     return f"2026-10-08T09:00:{seconds:06.3f}+00:00"
+
+
+def test_journey_declares_automation_after_a_user_preview_starts(
+    page_dir, tmp_path, monkeypatch
+):
+    """Preview intent cannot make the journey's following synthetic input human."""
+    record_run_context(page_dir, purpose="user-review", run=page_dir)
+    evidence = tmp_path / "run-evidence"
+    evidence.mkdir()
+    place = journey.Isolation(
+        tmp_path, tmp_path, tmp_path, page_dir, tmp_path, evidence
+    )
+    monkeypatch.setattr(journey, "running_server", lambda page: {"url": "http://page/"})
+    with journey.user_at(None, place, journey.Terminal(), time.monotonic()):
+        contexts = read_interactions(page_dir, types=("run_context",))
+        assert [row["purpose"] for row in contexts] == ["user-review", "automated"]
+        assert contexts[-1]["run"] == str(evidence)
 
 
 def test_release_publication_requires_the_marker_in_board_markup():
@@ -208,7 +228,7 @@ def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(end):
         "target": "claude-code",
         "comment": {**sample["comment"], "approved": []},
     }
-    rows = journey.chart_rows(
+    rows = journey_chart.chart_rows(
         [prompted, later, {**later, "comment": sample["comment"]}]
     )
     # The latest version is chosen before rows split by prompt, so a prompted run of
@@ -443,14 +463,14 @@ def test_a_harness_journey_over_http_starts_no_browser(monkeypatch):
     launched = []
 
     @contextmanager
-    def chrome():
+    def headless_shell():
         launched.append(True)
-        yield "chrome"
+        yield "browser"
 
     entered = []
 
     @contextmanager
-    def target_session(browser, target, release, *, hooks_module, preview):
+    def target_session(browser, target, release, *, hooks_module, sandbox, preview):
         entered.append(browser)
         end = (
             journey.HttpEnd("http://127.0.0.1:1/?t=t", Path("page"), time.sleep)
@@ -462,7 +482,7 @@ def test_a_harness_journey_over_http_starts_no_browser(monkeypatch):
         end.close = lambda: None
         yield journey.User(end, "v"), {"target": target}, lambda: None
 
-    monkeypatch.setattr(journey, "chrome", chrome)
+    monkeypatch.setattr(journey, "headless_shell", headless_shell)
     monkeypatch.setattr(journey, "target_session", target_session)
     monkeypatch.setattr(journey, "samples_path", lambda: Path(os.devnull))
     runner = CliRunner()
@@ -472,5 +492,5 @@ def test_a_harness_journey_over_http_starts_no_browser(monkeypatch):
     assert json.loads(result.stdout)["userEnd"] == "http"
     result = runner.invoke(journey.journey, ["claude-code", "--browser"])
     assert result.exit_code == 0, result.output
-    assert (launched, entered) == ([True], [None, "chrome"])
+    assert (launched, entered) == ([True], [None, "browser"])
     assert json.loads(result.stdout)["userEnd"] == "browser"

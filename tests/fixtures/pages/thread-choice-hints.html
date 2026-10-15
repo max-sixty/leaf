@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>A discussion over choice hints</title>
+  </head>
+  <body>
+    <main class="layout-column">
+      <h1 id="heading">Heating the bird bath</h1>
+      <lf-ask id="heating-decision">
+        <h2>Which heater should we use?</h2>
+        <p>
+          The bath froze eleven mornings last winter. Both heaters would keep it usable,
+          but the cable takes more work to fit around the basin.
+        </p>
+        <table id="comparison">
+          <thead>
+            <tr>
+              <th>Requirement</th>
+              <th>Immersion heater</th>
+              <th>Heated cable</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th>Installation</th>
+              <td>Drop into the water.</td>
+              <td>Wrap around the basin.</td>
+            </tr>
+            <tr>
+              <th>Maintenance</th>
+              <td>Lift out to clean.</td>
+              <td>Leave fitted while cleaning.</td>
+            </tr>
+            <tr>
+              <th>When spring arrives</th>
+              <td>Store indoors.</td>
+              <td>Disconnect the power.</td>
+            </tr>
+          </tbody>
+        </table>
+        <lf-options id="heaters" choose>
+          <lf-option id="immersion"
+            ><strong>Fit an immersion heater</strong>
+            <p>
+              This is the simpler installation. It drops into the water and can be
+              lifted out for cleaning or stored indoors when spring arrives.
+            </p></lf-option
+          >
+          <lf-option id="cable"
+            ><strong>Wrap a heated cable around the basin</strong>
+            <p>
+              The cable can stay in place through the year. It takes more work to fit
+              but keeps the basin clear for the birds.
+            </p></lf-option
+          >
+        </lf-options>
+      </lf-ask>
+      <h2 id="next">Next question</h2>
+      <p>Continue after reading the discussion.</p>
+    </main>
+  </body>
+</html>

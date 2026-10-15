@@ -22,12 +22,12 @@
    what the reader reads, is held out of what the widget is handed (`HeldArrivals`,
    held-news.js): its target stays out of the batch, so the selected annotation
    presentation notices it, and `revealHeld` is how the margin's marker shows it. */
-import { registryFor } from "../registry.js";
 import { aborted } from "../abort.js";
 import { reportPageError } from "../layer-client.js";
 import { aimTargetAt, datumAimTarget } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
 import { closestAcross } from "../passages.js";
+import { tagsDeclaring } from "../registry.js";
 import { watchArrivals } from "../arrivals.js";
 import { renderThreadSurface, clearThreadSurface } from "./inline.js";
 import { allThreads, readThreads } from "./state.js";
@@ -52,22 +52,22 @@ function update(registration) {
 }
 
 export function watchThreadSurfaces(commands) {
-  // Later revisions and frozen messages can introduce a capability the startup
-  // vocabulary did not declare. Decide it from each arrival's own publication.
-  watchArrivals("*", [], {
+  const tags = tagsDeclaring((entry) => entry["x-thread-surface"] === true);
+  if (!tags.length) return;
+  watchArrivals(tags.join(","), [], {
     arrive(owner) {
-      if (
-        registrations.has(owner) ||
-        !registryFor(owner)[owner.localName]?.["x-thread-surface"]
-      )
-        return;
+      if (registrations.has(owner)) return;
       // Every door that brings a tag in imports its module before connecting its
       // markup (`widget-loader.js`), and this watch starts after startup's upgrade, so
       // an undefined owner failed to upgrade, which its module's failure reports.
       if (!owner.matches(":defined")) return;
       register(
         owner,
-        (targets, context) => owner.threadOutlets(targets, context),
+        // A tag declaring `x-thread-surface` implements `threadOutlets`.
+        (targets, context) =>
+          /** @type {Element & {threadOutlets: (targets, context) => unknown}} */ (
+            owner
+          ).threadOutlets(targets, context),
         commands,
         "widget",
       );
@@ -252,7 +252,7 @@ export function renderSurfaces(collection, placements, commands) {
     // Registration order cannot confer source ownership: the selected page owner
     // runs after the widgets establish their held-arrival admission in this pass.
     const ordered = [...registrations.values()].sort(
-      (a, b) => (a.kind === "page") - (b.kind === "page"),
+      (a, b) => Number(a.kind === "page") - Number(b.kind === "page"),
     );
     for (const registration of ordered) {
       const { render, owner } = registration;

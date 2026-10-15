@@ -7,6 +7,7 @@ import re
 import struct
 import zlib
 from types import SimpleNamespace
+from weakref import WeakKeyDictionary
 
 from axe_playwright_python.sync_playwright import Axe
 from browser_sources import browser_function
@@ -103,10 +104,10 @@ def arrival_findings(browser, url):
     write and cannot fix.
 
     What it reads: a fresh context holds nothing, so every other reading in the suite
-    is of a first visit — the thread panel shut, no drawer standing, design mode off —
+    is of a first visit — the thread panel shut, no drawer open, design mode off —
     and each of those is something a user turns on once and gets back on every load
     afterwards. That left the restores as the one road onto a page with nothing
-    watching it, and a drawer someone had left standing came up as a ReferenceError
+    watching it, and a drawer someone had left open came up as a ReferenceError
     instead of a page: it was put up by code running while the runtime was still
     evaluating, which could reach almost nothing. It reached the user, who reported
     it.
@@ -505,7 +506,7 @@ DRAWING_CONTROL_LAYER = {
 DRAWING_CONTROL_WIDGETS = {
     "lf-test-drawing-control.js": """
 import { once, offer } from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-test-drawing-control', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
     const control = offer('button', 'drawing-control', 'Inspect');
@@ -513,7 +514,7 @@ export default class extends HTMLElement {
     control.style.width = '100%';
     this.append(control);
   }
-};
+});
 """
 }
 # A scroller the page wrote and did not position, beside one it did. The commented
@@ -581,8 +582,8 @@ SCROLLED_CONTAINER = LONG_PAGE.replace(
 # `drawnEdge` is that the two are one piece of furniture reflected — a reading written
 # for the panel alone would go on passing on the day the drawer's edge stopped working,
 # and the drawer's edge exists precisely because the panel's did not have to be written
-# a second time. The right edge holds Threads and Questions, one side panel at one width
-# (`QUESTIONS`); the left holds the Leaves drawer, which needs a neighbour to list.
+# a second time. The right edge holds Threads and the On panel, one side panel at one width
+# (`ON_PANEL`); the left holds the Leaves drawer, which needs a neighbour to list.
 #
 # `html` is a call rather than the markup, because a parametrize list is read at import.
 # `squeeze` is the window that has no room for what the user chose and the width the
@@ -614,9 +615,9 @@ EDGES = [
     ),
 ]
 EDGE_IDS = [edge.name for edge in EDGES]
-# The Questions panel, which stands on the Threads panel's edge at its width.
-QUESTIONS = SimpleNamespace(
-    name="questions",
+# The On panel, which stands on the Threads panel's edge at its width.
+ON_PANEL = SimpleNamespace(
+    name="on",
     html=lambda: ASKS_PAGE,
     comments=0,
     fixtures=(),
@@ -634,7 +635,7 @@ def edge_world(request, edge):
         request.getfixturevalue(name)
 
 
-# One Ask, so a page offers the Questions panel.
+# One Ask, so a page offers the On panel.
 ONE_ASK = (
     '<lf-ask id="go-decision"><h2>Ship it?</h2>'
     '<lf-options id="go" choose>'
@@ -653,7 +654,7 @@ def with_one_ask(html):
 
 
 def toggle_queue(page, open=True):
-    """Open or close the Questions panel from its banner control and wait for it to stand."""
+    """Open or close the On panel from its banner control and wait for it to stand."""
     banner_control(page, ".lf-queue").click()
     drawer = expect(page.locator(".lf-queue-panel"))
     opened = re.compile(r"\bopen\b")
@@ -902,7 +903,7 @@ BANNER_ORDER = r"""() => {
       // The version's age ticks with the clock between two readings; the order does not.
       .replace(/ · \S+ ago$/, '')
       // The queue's population does not change the control's place in that order.
-      .replace(/^Questions: \d+ waiting on me$/, 'Questions'));
+      .replace(/^On me: \d+$/, 'On me'));
 }"""
 
 
@@ -1591,9 +1592,6 @@ def in_threads_scrollport(page, selector):
     )
 
 
-RING_NAMES = browser_function("focus_rings.js", "ringNames", using="control_name.js")
-
-
 RINGS_DRAWN = browser_function("focus_rings.js", "ringsDrawn", using="control_name.js")
 
 
@@ -1608,9 +1606,137 @@ COVERED_TOP = """() => {
 }"""
 
 
+# Which focus ring a box wears is which rule drew it, and the browser says so: the
+# DevTools protocol's matched styles for a node already resolve nesting, `@scope`,
+# shadow trees, adopted sheets and pseudo-elements, the cases a test re-matching the
+# layer's selectors got wrong one after another. So a rule draws a ring and names none,
+# and a test asks the browser which rule drew the one it sees. Chromium only.
+#
+# A ring is identified by its winning rule's selector as matched: the one selector of
+# the rule's list that matched the box, under the nesting and `@scope` it sits in.
+# That survives what leaves the ring alone (another declaration, a reordered sheet,
+# another selector added to the list, the rule moving file) and changes when what
+# selects the ring does. Tests assert on the part of it that makes the rule the
+# control's own, such as `.lf-skip`, rather than on the whole text.
+#
+# Only a declaration that draws with the ring's own token is a ring rule: `--focus-ring`
+# for an outline, `--focus-shadow` for the band cast as a shadow. A contour written out
+# as `2px solid var(--accent)`, such as an element mark's pointer feedback, paints the
+# same pixels and is not one.
+RING_CARRIERS = {
+    "outline": ("outline", "outline-style"),
+    "box-shadow": ("box-shadow",),
+}
+RING_TOKEN = {
+    "outline": re.compile(r"--focus-ring(?![\w-])"),
+    "box-shadow": re.compile(r"--focus-shadow(?![\w-])"),
+}
+_ring_sessions = WeakKeyDictionary()
+
+
+def _ring_session(page):
+    cdp = _ring_sessions.get(page)
+    if cdp is None:
+        cdp = _ring_sessions[page] = page.context.new_cdp_session(page)
+        cdp.send("DOM.enable")
+        cdp.send("CSS.enable")
+    return cdp
+
+
+def _matched_selector(match):
+    rule = match["rule"]
+    if rule["origin"] == "inline":
+        return "style attribute"
+    selectors = rule["selectorList"]["selectors"]
+    said = ", ".join(selectors[i]["text"] for i in match["matchingSelectors"])
+    context = [f"@scope {scope['text']}" for scope in rule.get("scopes", [])]
+    context += reversed(rule.get("nestingSelectors", []))
+    return " { ".join([*context, said])
+
+
+def _winning_declaration(matches, carrier):
+    """The match and value of the declaration that wins `carrier` among `matches`,
+    which the protocol lists in cascade order. Important beats normal; within each,
+    the later wins. Important declarations in different cascade layers would reverse
+    that order, which no ring rule in the layer meets."""
+    won = {}
+    for match in matches:
+        for prop in match["rule"]["style"]["cssProperties"]:
+            # The longhands the protocol expands a shorthand into carry no source text.
+            if (
+                "text" in prop
+                and prop["name"] in RING_CARRIERS[carrier]
+                and not prop.get("disabled")
+                and prop.get("parsedOk", True)
+            ):
+                won[bool(prop.get("important"))] = (match, prop["value"])
+    return won.get(True) or won.get(False)
+
+
+def ring_rules(page, wants):
+    """For each box the last probe stashed (`stash`, focus_rings.js), the selector of
+    the rule that drew its ring with the ring's token, or "" where none did.
+
+    `wants` holds one `(pseudo, carrier)` pair per box: the pseudo-element the ring is
+    on, if any, and whether it is an outline or a box shadow."""
+    if not wants:
+        return []
+    cdp = _ring_session(page)
+    cdp.send("DOM.getDocument", {"depth": 0})
+    group = {"objectGroup": "lf-rings"}
+    boxes = cdp.send(
+        "Runtime.evaluate", {"expression": "globalThis.__lfRingBoxes", **group}
+    )["result"]["objectId"]
+    cdp.send("Runtime.evaluate", {"expression": "delete globalThis.__lfRingBoxes"})
+    listed = cdp.send(
+        "Runtime.getProperties", {"objectId": boxes, "ownProperties": True}
+    )["result"]
+    ids = {
+        int(p["name"]): p["value"]["objectId"] for p in listed if p["name"].isdigit()
+    }
+    rules = []
+    for index, (pseudo, carrier) in enumerate(wants):
+        node = cdp.send("DOM.requestNode", {"objectId": ids[index]})["nodeId"]
+        styles = cdp.send("CSS.getMatchedStylesForNode", {"nodeId": node})
+        if pseudo:
+            matches = next(
+                entry["matches"]
+                for entry in styles["pseudoElements"]
+                if entry["pseudoType"] == pseudo
+            )
+        else:
+            matches = list(styles["matchedCSSRules"])
+            if inline := styles.get("inlineStyle"):
+                matches.append({"rule": {"origin": "inline", "style": inline}})
+        won = _winning_declaration(matches, carrier)
+        drew = won and RING_TOKEN[carrier].search(won[1])
+        rules.append(_matched_selector(won[0]) if drew else "")
+    cdp.send("Runtime.releaseObjectGroup", group)
+    return rules
+
+
+def ring_rule(target, pseudo=None, carrier="outline"):
+    """The selector of the rule drawing the ring on `target`, a locator, as
+    `ring_rules` reads it."""
+    target.evaluate("(box) => { globalThis.__lfRingBoxes = [box]; }")
+    return ring_rules(target.page, [(pseudo, carrier)])[0]
+
+
 def rings_drawn(page):
-    """Every focus ring the page is drawing, each with what is wrong with it."""
-    return page.evaluate(RINGS_DRAWN)
+    """Every focus ring the page is drawing, each with the rule that drew it (`rule`,
+    as `ring_rules` reads it) and what is wrong with it.
+
+    A non-focused element mark painting the band with no ring rule behind it is the
+    pointer's feedback contour rather than a ring, so it is left out."""
+    answers = page.evaluate(RINGS_DRAWN)
+    rules = ring_rules(page, [(seen["pseudo"], seen["carrier"]) for seen in answers])
+    drawn = []
+    for seen, rule in zip(answers, rules, strict=True):
+        if seen.pop("mark") and not seen["focused"] and not rule:
+            continue
+        seen["rule"] = rule
+        drawn.append(seen)
+    return drawn
 
 
 def standing_ring(page):

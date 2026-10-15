@@ -3,10 +3,10 @@
 # this measures the exception rather than reproducing the long-session omission.
 description: brief-document-needs-no-outline
 metadata:
-  purpose: 'Contents navigation: omit an outline for a short document readable at a glance.'
+  purpose: "Contents navigation: omit an outline for a short document readable at a glance."
   tags:
-  - layout
-  - navigation
+    - layout
+    - navigation
 vars:
   prompt: |
     Write a brief Leaf update, around 150 words, from these notes. Use two sections:
@@ -18,11 +18,11 @@ vars:
     The page directory is not reachable from here, so reply with the complete
     `index.html`, rather than writing a file.
 assert:
-- type: llm-rubric
-  metric: judgment
-  value: |
-    Pass if the page remains a brief update with the two requested sections and
-    accurately preserves the successful build, passed unit tests, pending browser
-    verification, and open release approval. Fail if it adds a contents outline
-    (an `lf-toc`, even an empty one), a custom section-navigation list, tabs, or
-    controls asking the user for a decision.
+  - type: llm-rubric
+    metric: judgment
+    value: |
+      Pass if the page remains a brief update with the two requested sections and
+      accurately preserves the successful build, passed unit tests, pending browser
+      verification, and open release approval. Fail if it adds a contents outline
+      (an `lf-toc`, even an empty one), a custom section-navigation list, tabs, or
+      controls asking the user for a decision.

@@ -7,7 +7,7 @@ from urllib.parse import urlsplit
 
 import pytest
 from interact_support import append_carried_log_record as append_event
-from leaf.files import replace_files, revision_path
+from leaf.files import revision_path
 from leaf.hosting import TemporaryPageServer
 from leaf.live_shell import write_live_shell
 from leaf.revision_artifact import RESOURCE_TYPES
@@ -27,7 +27,7 @@ def test_a_browser_executes_the_published_capture_with_live_api_routes(
         "window.widgetLoads = (window.widgetLoads || 0) + 1; "
         "export const moduleUrl = import.meta.url; "
         'export const prose = "import.meta.url"; '
-        "export default class extends HTMLElement {};"
+        'customElements.define("lf-options", class extends HTMLElement {});'
     )
     (authored / "app.js").write_text(
         'import { value } from "./nested/value.js"; '
@@ -63,30 +63,6 @@ def test_a_browser_executes_the_published_capture_with_live_api_routes(
             "text": "Published",
         },
     )
-    # The document and its modules remain r1 while every document uses r2's kernel.
-    (authored / "nested" / "value.js").write_text('export const value = "Current";')
-    replace_files(
-        [
-            (
-                page_dir / "leaf.js",
-                (page_dir / "leaf.js").read_bytes()
-                + b"\ndocument.documentElement.dataset.kernelPublication = 'latest';\n",
-                False,
-            )
-        ]
-    )
-    current = activate_source(page_dir)
-    assert current.error is None and current.revision == 2
-    append_event(
-        page_dir,
-        {
-            "kind": "note",
-            "author": "agent",
-            "version": 2,
-            "revision": current.revision,
-            "text": "Current publication",
-        },
-    )
     destination = tmp_path / "public"
     with TemporaryPageServer(page_dir) as server, browser.new_context() as context:
         write_live_shell(
@@ -95,12 +71,7 @@ def test_a_browser_executes_the_published_capture_with_live_api_routes(
             server_id=server.httpd.server_id,
         )
         root = "/revisions/" + revision_path(page_dir, activation.revision).stem
-        kernel = "/revisions/" + revision_path(page_dir, current.revision).stem
         if bundled:
-            (destination / "_leaf").mkdir()
-            (destination / "_leaf/site.json").write_text(
-                json.dumps({"pages": {"/": {"assets": ""}}})
-            )
             bundler = Path(__file__).parents[2] / "worker" / "bundle-runtime.mjs"
             subprocess.run(
                 [
@@ -108,10 +79,11 @@ def test_a_browser_executes_the_published_capture_with_live_api_routes(
                     "--input-type=module",
                     "-e",
                     (
-                        f"import {{ bundleSite }} from {json.dumps(bundler.as_uri())}; "
-                        "await bundleSite(process.argv[1]);"
+                        f"import {{ bundleLayer }} from {json.dumps(bundler.as_uri())}; "
+                        "await bundleLayer(process.argv[1], process.argv[2]);"
                     ),
-                    str(destination),
+                    str(destination / root.lstrip("/")),
+                    root,
                 ],
                 check=True,
             )
@@ -140,11 +112,6 @@ def test_a_browser_executes_the_published_capture_with_live_api_routes(
             context=context,
             pin=True,
         )
-        expect(page.locator("html")).to_have_attribute(
-            "data-kernel-publication", "latest"
-        )
-        assert kernel + "/leaf.js" in loaded
-        assert root + "/leaf.js" not in loaded
         button = page.get_by_role("button", name="Read captured value")
         button.click()
         expect(page.locator("#result")).to_have_text("Captured")
@@ -167,5 +134,5 @@ def test_a_browser_executes_the_published_capture_with_live_api_routes(
             """async root =>
               (await import('/runtime/widget-api.js')) ===
               (await import(`${root}/runtime/widget-api.js`))""",
-            kernel,
+            root,
         )

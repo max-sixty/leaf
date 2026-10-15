@@ -1,10 +1,10 @@
-/* The response bar's reaction row and the standing tokens a strip or circle wears.
+/* The response bar's reaction row and the tokens in force a strip or circle wears.
 
    An open anchored composer owns its general response disclosure: reactions only
    contribute declared actions to it, and `e` opens that local group focused on its
    first reaction. With no composer open, `e` contributes the reaction margin entries to the
    selected element's existing margin cluster. While that explicit mode stands, its
-   contribution owns all six margin entries; standing readings and unrelated actions remain
+   contribution owns all six margin entries; readings in force and unrelated actions remain
    in Page Map and return when the mode closes. Those temporary margin entries unfold the
    cluster where it stands, in the rail or as a pin, and claim no permanent rail width. A thread-local `e` opens
    the thread-owned row on the latest agent message. `REACT` claims the keyboard
@@ -25,7 +25,7 @@
    Thread reactions remain in their thread-owned strip. The event still
    carries its durable authored anchor, while
    the temporary addressable resolves selected text to the first rendered block, matching the
-   target where replay later seats its standing reaction.
+   target where replay later seats its reaction in force.
 
    Putting a reaction on or taking it back ends the response gesture synchronously,
    after admission to the local ledger. Its durable answer never closes a newer composer
@@ -41,13 +41,12 @@ import { clipsPastSurfaces, seenRect, whenNone } from "./geometry.js";
 import { scrollIntoReadingBand } from "./landing-scroll.js";
 import { registerContribution } from "./contributions.js";
 import { runtime } from "./context.js";
-import { reactionVocabulary } from "./registry.js";
+import { registry } from "./registry.js";
 import { composerOpen, fabBar, fabOptions } from "./composing/selection.js";
 import { pageSelection } from "./composing/capture.js";
 import { el, offer, responseAction } from "./widget-elements.js";
 import { HOLDS_WORD } from "./held-word.js";
 import { keeps } from "./keeps.js";
-import { move } from "./dom-move.js";
 
 import { elementById } from "./passages.js";
 import { addressableWord } from "./addressable-names.js";
@@ -77,14 +76,17 @@ import { anchorLabel } from "./thread/messages.js";
 import { reactionsAt, tokenChoices } from "./thread/model.js";
 import { allThreads, readThreads } from "./thread/state.js";
 import { watchProjection } from "./projection-watch.js";
+import { annotationSelection } from "./annotation-inventory.js";
+import { readPart } from "./semantic-state.js";
 
+const reactionVocabulary = () => registry.$reactions?.tokens ?? {};
 // The layer's reaction vocabulary, in declared order. The bar, a reply's strip, the
 // page row and the keyboard accelerators all read this one list, so a layer that
 // renames, adds or removes a token moves every surface at once, and core never learns
-// a token's name. Empty until the document is captured: the register checks every core
+// a token's name. Empty until the registry has arrived: the register checks every core
 // row's bindings as the module evaluates, before the vocabulary is known.
 export const reactionTokens = () => Object.entries(reactionVocabulary());
-// A toggle needs the saved standing reaction, including proof that none stands.
+// A toggle needs the saved reaction in force, including proof that none stands.
 export const reactionAvailable = () => readThreads().phase === "ready";
 // The choices on one anchor, from the threads' current reading.
 const anchorChoices = (anchor) =>
@@ -119,24 +121,22 @@ function reactionChip({ name, glyph, label }, pressed) {
   return chip;
 }
 
-// The bar's chips wear the reactions standing on its anchor, as a reply's strip does:
+// The bar's chips wear the reactions in force on its anchor, as a reply's strip does:
 // pressed where one stands, busy while it is still being sent. A press on a pressed chip
 // takes that reaction back (reactHere).
 export function paintBarReactions(anchor) {
   const by = new Map(anchorChoices(anchor).map((choice) => [choice.name, choice]));
   for (const chip of fabBar.querySelectorAll(".lf-react-palette > .lf-react")) {
-    const standing = by.get(chip.dataset.token)?.standing;
-    keeps(chip, "aria-pressed", String(Boolean(standing)));
-    keeps(chip, "aria-busy", String(Boolean(standing?.pending)));
+    const inForce = by.get(chip.dataset.token)?.inForce;
+    keeps(chip, "aria-pressed", String(Boolean(inForce)));
+    keeps(chip, "aria-busy", String(Boolean(inForce?.pending)));
   }
 }
 
 export function createReactionController({
   marginEntryChoices,
   marginEntryContextContains,
-  foldMarginEntryOptions,
   openMarginEntryOptions,
-  unfoldedMarginEntries,
   designModeActive,
   hideComposer,
   syncResponseOptions,
@@ -156,8 +156,6 @@ export function createReactionController({
   let marginTarget = null;
   let marginAnchor = null;
   let pageCommands = null;
-  let palette = null;
-  let paletteVocabulary = null;
   const marginReactionKey = (name, ordinal) =>
     `reaction:${String(ordinal).padStart(4, "0")}:${name}`;
   function registerReactSurface(surface, { palette, target, trigger }) {
@@ -172,32 +170,12 @@ export function createReactionController({
 
   function buildReactBar(commands) {
     pageCommands = commands;
-    palette = el("span", "lf-react-palette");
+    const palette = el("span", "lf-react-palette");
     palette.setAttribute("role", "group");
     palette.setAttribute("aria-label", "Reactions for this selection or element");
+    for (const choice of tokenChoices(reactionVocabulary(), []))
+      palette.append(reactionChip(choice, (token) => reactHere(token, commands)));
     fabOptions.append(palette);
-    paintReactBar();
-  }
-
-  function paintReactBar() {
-    const vocabulary = reactionVocabulary();
-    if (!palette || vocabulary === paletteVocabulary) return;
-    paletteVocabulary = vocabulary;
-    const retained = new Map(
-      [...palette.children].map((chip) => [chip.dataset.token, chip]),
-    );
-    let before = palette.firstChild;
-    for (const choice of tokenChoices(vocabulary, [])) {
-      const chip =
-        retained.get(choice.name) ??
-        reactionChip(choice, (token) => reactHere(token, pageCommands));
-      retained.delete(choice.name);
-      responseAction(chip, { glyph: choice.glyph, label: choice.name, collapse: true });
-      if (chip !== before) move(palette, chip, before);
-      before = chip.nextSibling;
-    }
-    for (const chip of retained.values()) chip.remove();
-    paintBarReactions(fabAnchorAt());
     syncResponseOptions();
   }
 
@@ -213,15 +191,15 @@ export function createReactionController({
   async function reactHere(name, commands, anchor = fabAnchorAt()) {
     const choice = anchorChoices(anchor).find((choice) => choice.name === name);
     if (!choice) return;
-    const { standing } = choice;
-    // Read before the bar goes, because the reading is about the bar that is standing.
+    const { inForce } = choice;
+    // Read before the bar goes, because the reading is about the bar that is open.
     // The bar owns what that answer is. `setReact(false)` runs after the bar goes and the
     // palette makes a return of its own, so the user lands once, when everything has
     // settled, rather than once as the bar goes and again after the palette.
     const returnTo = fabReturnPlaces();
     if (!anchor) return;
     let sent;
-    if (standing) sent = commands.withdrawReaction(standing);
+    if (inForce) sent = commands.withdrawReaction(inForce);
     else {
       const event = {
         kind: "comment",
@@ -250,10 +228,9 @@ export function createReactionController({
   // command exists, so dispatch cannot advertise a reaction before its target.
   let reactArmed = false;
   let reactRaised = false;
-  // Whether this raise is what unfolded the target's cluster, and so whether putting the
-  // choices away has a fold of its own to put back. A user who pressed `…` themselves
-  // and then `e` opened that layer before the raise found it, and it is theirs to keep.
-  let marginUnfolded = false;
+  // The margin lends reaction mode its disclosure and returns a release that restores
+  // the user's previous fold only while this mode still owns it.
+  let releaseMarginOptions = null;
   // React mode's opener (focus.js, `openLayer`): the control the user stood on as the
   // press armed it, which the close hands them back to.
   const reactLayer = {};
@@ -285,7 +262,6 @@ export function createReactionController({
     // `e` is an explicit reaction mode. Comment remains on `c`, so this temporary
     // contribution contains reactions alone.
     fabBar.dataset.lfMarginRaised = "1";
-    const standing = unfoldedMarginEntries?.()?.lfTarget === target;
     marginAnchor = structuredClone(anchor);
     marginOffer = registerContribution({
       key: "responses",
@@ -299,15 +275,16 @@ export function createReactionController({
           label: choice.label,
           rank: "secondary",
           className: `lf-react ${HOLDS_WORD}`,
-          pressed: Boolean(choice.standing),
+          pressed: Boolean(choice.inForce),
         })),
         readings: [],
       }),
       activate: (name) => reactHere(name, pageCommands, marginAnchor),
     });
     marginTarget = target;
-    if (openMarginEntryOptions(target, "responses")) {
-      marginUnfolded = !standing;
+    const release = openMarginEntryOptions(target, "responses");
+    if (release) {
+      releaseMarginOptions = release;
       return true;
     }
     marginOffer.unregister();
@@ -318,19 +295,14 @@ export function createReactionController({
   }
 
   function lowerMarginSurface() {
+    // Release before removing the choices so the repaint sees the restored fold.
+    releaseMarginOptions?.();
+    releaseMarginOptions = null;
     marginOffer?.unregister();
     marginOffer = null;
     marginTarget = null;
     marginAnchor = null;
     delete fabBar.dataset.lfMarginRaised;
-    // A raise that unfolded the target's margin entries to stand these choices in puts that fold
-    // back, so cancelling leaves the cluster as the press found it rather than an empty
-    // fold the user has to close themselves. Only that raise: this runs on every
-    // disarm, including one whose surface was a reply strip and which never raised the
-    // margin at all, and including one over a fold the user had already opened for
-    // themselves — folding either takes away a layer the gesture never put on.
-    if (marginUnfolded) foldMarginEntryOptions();
-    marginUnfolded = false;
   }
 
   function closeSurface(surface) {
@@ -602,8 +574,15 @@ export function createReactionController({
     document.addEventListener("lf-margin-entry-options-closed", () => {
       if (reactArmed && reactSurface === marginSurface) setReact(false);
     });
+    // The margin's entries are drawn from the threads and the annotation inventory, so a
+    // change to either may retire or move the offer's target. This reads the margin's
+    // nodes, which the watcher cannot track, so it reads those parts itself.
+    const margin = readPart((root) => ({
+      threads: root.effective.thread.all,
+      annotations: annotationSelection(root),
+    }));
     watchProjection(document.body, () => {
-      paintReactBar();
+      margin();
       if (
         reactArmed &&
         reactSurface === marginSurface &&
@@ -629,9 +608,7 @@ export function createReactionController({
       `Open reactions — ${reactionTokens()
         .slice(0, 9)
         .map(([name, entry]) => `${entry.glyph} ${name}`)
-        .join(
-          ", ",
-        )} — for the selection, the item I'm standing on, or the reply I'm reading`,
+        .join(", ")} — for the selection, the focused item, or the open reply`,
     title: "reactions",
     // Reachable from a reply in a Threads panel covering the page, as `c` is; under a
     // covering surface the page's own targets are out of reach.
@@ -680,5 +657,5 @@ export const undoSentence = (undoable) => {
   const event = undoable();
   return event?.token
     ? `Undo: ${event.token} reaction on ${reactionPlace(event)}`
-    : "Undo my latest update";
+    : "Undo the latest update";
 };

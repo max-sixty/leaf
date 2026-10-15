@@ -42,8 +42,8 @@ from render_cases_layout import (
     EDGES,
     FOCUS_IN_PAGE,
     LEGEND_TRUE,
+    ON_PANEL,
     PAGE_MARKUP,
-    QUESTIONS,
     banner_control,
     draw_edge,
     edge_settled,
@@ -134,7 +134,7 @@ AIM_PRESS_CASES = (
     (
         "ship-review",
         next(p for p in EXAMPLES if p.stem == "ship-review"),
-        frozenset({"option click", "standing mark"}),
+        frozenset({"option click", "existing mark"}),
     ),
 )
 
@@ -202,8 +202,7 @@ def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
 def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve):
     """A compact comment keeps its writing face as Send opens its target's thread.
 
-    A pending margin repaint still carries the submitted field's frame into the real
-    card. The send-placement cases check each word through the motion.
+    A pending margin repaint still opens the real card.
     """
     page = open_page(browser, serve(LONG_PAGE), init_script=HOLD_MOTION)
     resized(page, 1440, 900)
@@ -217,7 +216,6 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
     )
     assert field.bounding_box()["height"] == 32
     write(field, "Carry this comment into its thread.")
-    source = field.bounding_box()
     hold_pending_thread_presentation(page)
     page.evaluate(
         """() => {
@@ -253,61 +251,12 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
         "size: getComputedStyle(node).fontSize})"
     )
     assert compact == full
-    assert preview.get_attribute("data-lf-comment-frame") is not None
-    motion = preview.evaluate(
-        """card => {
-          const played = window.__lfHeld.find(animation =>
-            animation.effect.target === card &&
-            animation.effect.getKeyframes().some(frame => 'clipPath' in frame));
-          if (!played) return null;
-          const [start, end] = played.effect.getKeyframes();
-          // Chrome serializes equal right and left inset values as a three-value
-          // shorthand. Read only the inset sides, before the separate round radius.
-          const sides = start.clipPath.match(/^inset\\(([^)]*?)(?: round|\\))/)[1]
-            .trim().split(/\\s+/).map(value => Number.parseFloat(value));
-          const inset = sides.length === 1
-            ? [sides[0], sides[0], sides[0], sides[0]]
-            : sides.length === 2
-              ? [sides[0], sides[1], sides[0], sides[1]]
-              : sides.length === 3
-                ? [sides[0], sides[1], sides[2], sides[1]]
-                : sides;
-          const box = card.getBoundingClientRect();
-          const style = getComputedStyle(card);
-          const scaleX = box.width / Number.parseFloat(style.width);
-          const scaleY = box.height / Number.parseFloat(style.height);
-          return {
-            source: {
-              x: box.left + inset[3] * scaleX,
-              y: box.top + inset[0] * scaleY,
-              width: box.width - (inset[1] + inset[3]) * scaleX,
-              height: box.height - (inset[0] + inset[2]) * scaleY,
-            },
-            card: box.toJSON(),
-            end: end.clipPath,
-          };
-        }"""
-    )
-    assert motion is not None
-    for dimension in ("x", "y", "width", "height"):
-        assert motion["source"][dimension] == pytest.approx(source[dimension], abs=1), (
-            motion
-        )
-    assert motion["end"] == "inset(0px round 10px)", motion
-    page.evaluate(
-        "() => window.__lfHeld.slice().forEach(animation => animation.finish())"
-    )
-    settled = preview.bounding_box()
-    for dimension in ("x", "y", "width", "height"):
-        assert settled[dimension] == pytest.approx(motion["card"][dimension], abs=1)
     expect(message).to_have_text("Carry this comment into its thread.")
 
 
 @pytest.mark.parametrize("width", [900, 1200])
-def test_an_aimed_comment_keeps_its_place_with_the_questions_panel_open(
-    browser, serve, width
-):
-    """The Questions panel stands over the page without moving its coordinate plane.
+def test_an_aimed_comment_keeps_its_place_with_the_on_panel_open(browser, serve, width):
+    """The On panel stands over the page without moving its coordinate plane.
 
     A broad authored rule may position ordinary divs, and the drawer may arrive over a
     target without another pointer event. Neither may move the chrome's document origin or
@@ -331,7 +280,7 @@ def test_an_aimed_comment_keeps_its_place_with_the_questions_panel_open(
     expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lq-keep")
     # Open by script so the pointer remains parked on the target while the drawer arrives.
     page.locator(".lf-queue").evaluate("node => node.click()")
-    edge_settled(page, QUESTIONS)
+    edge_settled(page, ON_PANEL)
     aligned = page.evaluate(
         """() => {
           const target = document.getElementById('lq-keep').getBoundingClientRect();
@@ -769,7 +718,7 @@ def test_a_side_comment_at_the_window_s_foot_rises_only_as_far_as_it_must(
     assert bar.get_attribute("data-lf-placement") == "right-start"
     resting = page.evaluate(SIDE_COMMENT)
     foot = page.evaluate(
-        """async () => (await window.__lfRuntimeImport('/runtime/geometry.js'))
+        """async () => (await window.__lfWidgetApi())
           .shownWindow({gap: 8}).bottom"""
     )
     assert resting["bottom"] < foot - 20, (resting, foot)
@@ -814,7 +763,7 @@ def test_a_comment_near_the_bottom_grows_up_before_it_scrolls(browser, serve):
     compact_target = target.bounding_box()
     placement = bar.get_attribute("data-lf-placement")
     ceiling = page.evaluate(
-        """async () => (await window.__lfRuntimeImport('/runtime/geometry.js'))
+        """async () => (await window.__lfWidgetApi())
           .shownWindow({gap: 8}).top"""
     )
     assert compact["y"] > ceiling + 20, compact
@@ -1550,11 +1499,10 @@ def test_a_comment_rechooses_its_side_after_vertical_target_motion(browser, serv
     # its window posture rather than choosing another side of an invisible target.
     target.evaluate(
         """async (node, up) => {
-          const {commentBoundary, COMMENT_GAP} =
-            await window.__lfRuntimeImport('/runtime/annotation-overlay/comment-placement.js');
-          const boundary = commentBoundary(), box = node.getBoundingClientRect();
-          const top = up ? boundary.top + COMMENT_GAP
-            : boundary.bottom - box.height - COMMENT_GAP;
+          const {shownWindow} = await window.__lfWidgetApi();
+          const boundary = shownWindow({gap: 8}), box = node.getBoundingClientRect();
+          const top = up ? boundary.top + 8
+            : boundary.bottom - box.height - 8;
           node.style.transform = `translateY(${top - box.top}px)`;
         }""",
         over,
@@ -1647,7 +1595,7 @@ def test_a_covering_auxiliary_surface_holds_design_paint_beneath_it(browser, ser
     """A covering auxiliary surface owns its pixels, and in Design mode stays Leaf's.
 
     Covered page content is inert, so neither the aim nor a design comment reaches it
-    through the visible remainder, and the page's standing design legend paints beneath
+    through the visible remainder, and the page's fixed design legend paints beneath
     the sheet. The sheet itself is Leaf's chrome, which the mode leaves working: nothing
     on it is a design target, and a press on its scrim puts it away as it would outside
     the mode, which is how a phone the sheet covers gets back to its page.
@@ -1656,7 +1604,7 @@ def test_a_covering_auxiliary_surface_holds_design_paint_beneath_it(browser, ser
     # Wide enough that the panel first stands beside the page, where Design mode starts.
     resized(page, 900, 900)
     banner_control(page, ".lf-queue").click()
-    edge_settled(page, QUESTIONS)
+    edge_settled(page, ON_PANEL)
     page.keyboard.press("l")
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     resized(page, 560, 900)
@@ -2064,9 +2012,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
         "draw",
     ],
 )
-def test_target_picker_selects_in_the_standing_comment_mode(
-    browser, serve, mode, route
-):
+def test_target_picker_selects_in_the_current_comment_mode(browser, serve, mode, route):
     """Target selection nests inside Design; Draw retains the page for ink."""
     page = open_page(
         browser,
@@ -2235,7 +2181,7 @@ def test_repeated_design_control_names_keep_context_without_inventing_identity(
     )
     if generated:
         page.evaluate("""async () => {
-          const {offer} = await import('/runtime/widget-api.js');
+          const {offer} = await window.__lfWidgetApi();
           for (const row of document.querySelectorAll('#rows p')) {
             const button = offer('button', '', 'Remove');
             button.setAttribute('aria-label', 'Delete row');
@@ -2245,7 +2191,7 @@ def test_repeated_design_control_names_keep_context_without_inventing_identity(
     page.keyboard.press("l")
     page.keyboard.press("s")
     inventory = page.evaluate("""async () => {
-      const {aimTargets, resolveAnchor} = await import('/runtime/anchor-resolution.js');
+      const {aimTargets, resolveAnchor} = await window.__lfCheckApi();
       return aimTargets({design: true}).filter(t => t.anchor.section === 'rows' && t.anchor.part).map(t => t.capture ? t.capture() : t).map(t => ({
         anchor: t.anchor, label: t.label, resolution: (() => { const resolved = resolveAnchor(t.anchor); return {exact: resolved?.exact, status: resolved?.status}; })()
       }));
@@ -2309,7 +2255,7 @@ def test_repeated_design_control_names_keep_context_without_inventing_identity(
         ).to_have_count(1)
         resolution = page.evaluate(
             """async anchor => {
-          const {resolveAnchor} = await import('/runtime/anchor-resolution.js');
+          const {resolveAnchor} = await window.__lfCheckApi();
           const result = resolveAnchor(anchor);
           return {exact: result.exact, status: result.status, owner: result.element.id};
         }""",
@@ -2358,7 +2304,7 @@ def test_design_control_context_must_resolve_to_visible_words(
     page.keyboard.press("l")
     page.keyboard.press("s")
     inventory = page.evaluate("""async () => {
-      const {aimTargets} = await import('/runtime/anchor-resolution.js');
+      const {aimTargets} = await window.__lfCheckApi();
       return aimTargets({design:true}).filter(t => t.anchor.part).map(t => t.anchor);
     }""")
     assert len(inventory) == (3 if kind == "button" else 2)
@@ -2417,12 +2363,12 @@ def test_design_label_and_input_are_one_control(browser, serve, route):
     page.keyboard.press("l")
     page.keyboard.press("s")
     inventory = page.evaluate("""async () => {
-      const {aimTargets} = await import('/runtime/anchor-resolution.js');
+      const {aimTargets} = await window.__lfCheckApi();
       return aimTargets({design:true}).filter(t => t.anchor.part === 'A').map(t => t.anchor);
     }""")
     assert inventory == [{"section": "options", "part": "A"}]
     captured = page.evaluate("""async () => {
-      const {aimTargetAt} = await import('/runtime/anchor-resolution.js');
+      const {aimTargetAt} = await window.__lfCheckApi();
       return aimTargetAt(document.querySelector('#options input'),{design:true}).anchor;
     }""")
     assert captured["quote"] == "A"
@@ -2498,11 +2444,11 @@ def test_design_mode_leaves_the_chrome_working(browser, serve):
     expect(panel).to_be_visible()
     expect(composer).to_be_hidden()
 
-    standing = geometry(page, edge)
+    resting = geometry(page, edge)
     draw_edge(page, edge, 160)
     held = geometry(page, edge)
-    assert held["width"] > standing["width"] and held["chosen"], (
-        f"the mode took the edge rather than drawing it: {standing} then {held}"
+    assert held["width"] > resting["width"] and held["chosen"], (
+        f"the mode took the edge rather than drawing it: {resting} then {held}"
     )
     expect(composer).to_be_hidden()
 
@@ -2880,33 +2826,6 @@ def test_a_generic_package_gets_nested_hits_and_can_narrow_a_paint_surface(
     page.keyboard.up("Alt")
 
 
-def test_an_undeclared_nested_part_does_not_shadow_its_declared_parent(browser, serve):
-    """Authored tokens bound hit-testing, not only the event after it has chosen a hit.
-
-    The package may register more parts than this instance exposes. A hit inside one of
-    those parts still belongs to the nearest declared ancestor rather than widening to
-    the visual as a whole.
-    """
-    page = open_page(
-        browser,
-        serve(
-            GENERIC_VISUAL_PAGE.replace(
-                'parts="outer inner html"', 'parts="outer html"'
-            ),
-            layer_registry=GENERIC_VISUAL_LAYER,
-            layer_widgets=GENERIC_VISUAL_WIDGETS,
-        ),
-    )
-
-    page.locator("#inner path").hover()
-    page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "outer")
-    assert page.eval_on_selector_all(
-        ".lf-aim-shape > g > *", "nodes => nodes.map(node => node.localName)"
-    ) == ["rect"]
-    page.keyboard.up("Alt")
-
-
 def test_a_registered_visual_rebuilds_same_bounds_geometry_on_update(browser, serve):
     """The package's update signal rebuilds a contour even when its box does not move.
 
@@ -3241,8 +3160,11 @@ def test_an_aim_follows_a_scroll_inside_a_widgets_shadow_stage(browser, serve):
 SHOWN_PAINT = """(selector) => {
   const paint = document.querySelector(selector);
   let { left, right } = paint.getBoundingClientRect();
+  // A frame cuts across where its clip path's inline inset is zero.
+  const cutsAcross = (frame) =>
+    /^inset\\((\\S+ )?0px\\)$/.test(getComputedStyle(frame).clipPath);
   for (let frame = paint.parentElement; frame; frame = frame.parentElement)
-    if (frame.matches('.lf-paint-frame') && getComputedStyle(frame).overflowX === 'clip') {
+    if (frame.matches('.lf-paint-frame') && cutsAcross(frame)) {
       const cut = frame.getBoundingClientRect();
       left = Math.max(left, cut.left);
       right = Math.min(right, cut.right);
@@ -3380,18 +3302,12 @@ def test_a_rounded_diagram_part_aim_has_room_to_cover_the_shape_edge(browser, se
 def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, serve):
     """The authored Mermaid id, rather than its generated SVG id, is the anchor.
 
-    An unlisted node is the control: it still takes the whole diagram. A listed node
-    outlines only its current SVG group, while the diagram holds the accessible note
-    and the panel place. Reloading makes Mermaid generate the SVG again and proves the
+    A named node outlines only its current SVG group, while the diagram holds the
+    accessible note and the panel place. Reloading makes Mermaid generate the SVG again and proves the
     stable token resolves to that new box.
     """
     page = open_page(browser, live_url(serve(PART_DIAGRAM_PAGE)))
     diagram = page.locator("#flow")
-
-    unlisted = diagram.locator('g[data-id="U"]')
-    unlisted.click(modifiers=["Alt"])
-    expect(diagram).to_have_class(re.compile(r"\blf-mark-el\b.*\blf-pending\b"))
-    page.keyboard.press("Escape")
 
     start = diagram.locator('g[data-id="S"]')
     start.click(modifiers=["Alt"])
@@ -3460,7 +3376,7 @@ def test_a_sequence_actor_is_an_addressable_visual_part(browser, serve):
         "sequence diagram parts",
         """
 <h1 id="t">Exchange</h1>
-<lf-diagram id="exchange" parts="node:A"><pre>
+<lf-diagram id="exchange" parts="all"><pre>
 sequenceDiagram
   participant A as User
   participant B as Server
@@ -3567,7 +3483,7 @@ def test_an_aim_in_a_pane_stands_anchored_to_what_it_outlines(browser, serve, su
       <div>
         <div style="height: 200px"></div>
         <p id="pane-words">The first finding, aimed at.</p>
-        <lf-diagram id="flow" parts="node:S"><pre>
+        <lf-diagram id="flow" parts="all"><pre>
 graph LR
   S[Start request] --> H[Handle request]
 </pre></lf-diagram>
@@ -3597,7 +3513,6 @@ graph LR
           const aim = document.querySelector('.lf-aim');
           const stand = aim.closest('.lf-paint-stand');
           return {
-            layers: stand.querySelectorAll('.lf-paint-motion').length,
             boxes: [aim, ...stand.querySelectorAll('.lf-paint-frame')].map((box) => ({
               position: getComputedStyle(box).position,
               anchor: getComputedStyle(box).positionAnchor,
@@ -3606,7 +3521,6 @@ graph LR
         }"""
     )
     page.keyboard.up("Alt")
-    assert stand["layers"] == 0, stand
     assert all(
         box["position"] == "fixed" and box["anchor"].startswith("--lf-a")
         for box in stand["boxes"]
@@ -4069,10 +3983,10 @@ def test_a_withheld_draft_observes_visibility_without_a_layout_change(
         words = "A reply with the same visibility owner."
         write(field, words)
     page.locator("#ordinary").evaluate("el => el.style.visibility='hidden'")
-    expect(field).not_to_be_visible(timeout=10_000)
+    expect(field).not_to_be_visible()
     page.locator("#ordinary").evaluate("el => el.style.visibility='visible'")
-    expect(field).to_be_visible(timeout=10_000)
-    expect(field).to_be_focused(timeout=10_000)
+    expect(field).to_be_visible()
+    expect(field).to_be_focused()
     assert _draft_in_view(page, words, field)
 
 
@@ -4088,24 +4002,23 @@ def test_a_display_contents_comment_editor_observes_visibility_without_layout(
         layout=None,
     )
     page = open_page(browser, serve(source))
-    page.set_default_timeout(10_000)
     rendered(page)
     page.locator("#pair span").first.click(modifiers=["Alt"])
     field = page.locator(".lf-fab-input")
-    expect(field).to_be_visible(timeout=10_000)
-    expect(field).to_be_focused(timeout=10_000)
+    expect(field).to_be_visible()
+    expect(field).to_be_focused()
     words = "An unfinished comment remains with its display contents target."
     write(field, words)
-    expect(field).to_have_js_property("value", words, timeout=10_000)
+    expect(field).to_have_js_property("value", words)
 
     parts = page.locator("#pair > p")
     expect(parts).to_have_count(2)
     parts.evaluate_all("els => els.forEach(el => el.style.visibility='hidden')")
-    expect(field).not_to_be_visible(timeout=10_000)
+    expect(field).not_to_be_visible()
     parts.evaluate_all("els => els.forEach(el => el.style.visibility='visible')")
-    expect(field).to_be_visible(timeout=10_000)
-    expect(field).to_be_focused(timeout=10_000)
-    expect(field).to_have_js_property("value", words, timeout=10_000)
+    expect(field).to_be_visible()
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", words)
 
 
 DESIGN_PANE_PAGE = leaf_page(
@@ -4166,7 +4079,6 @@ def _drawn_on(section):
         "revision": 1,
         "anchor": {"section": section},
         "drawing": {
-            "format": "leaf-drawing/3",
             "strokes": [[[-20, -10], [200, 30], [420, 60]]],
             "box": [400, 40],
             "viewport": [1280, 720],
@@ -4178,7 +4090,7 @@ def _drawn_on(section):
 def _paint_mode(page, mode, words):
     page.evaluate(RELEASE_FOCUS)
     if mode == "ask":
-        page.keyboard.press("q")
+        page.keyboard.press("m")
         expect(page.locator("#pane-ask")).to_be_focused()
         expect(page.locator(".lf-command-binding-badge")).to_have_count(2)
     elif mode == "search":
@@ -4263,7 +4175,20 @@ def test_a_scroll_carries_paint_over_targets_and_writes_it_once_settled(
         if scroller == "pane"
         else "document.scrollingElement",
     )
-    painted = [w for w in writes if PAINT.search(w["target"])]
+    # A carrier may gain distinct boxes as targets enter the near-window inventory.
+    # Count each box's membership, so those arrivals are legal while removing and
+    # reinserting the same box every frame is still a scroll follower.
+    painted = []
+    for mutation in writes:
+        if not PAINT.search(mutation["target"]):
+            continue
+        if mutation["type"] == "childList" and "lf-paint-carrier" in mutation["target"]:
+            painted.extend(
+                {**mutation, "key": f"{mutation['key']} {node}"}
+                for node in mutation["nodes"]
+            )
+        else:
+            painted.append(mutation)
     assert not scroll_followers(painted, frames), painted
 
 
@@ -4476,8 +4401,8 @@ def test_selected_words_grow_context_until_the_exact_span_resolves(
     )
     page = open_page(browser, serve(markup))
     captured = page.evaluate("""async () => {
-      const A = await import('/runtime/anchor-resolution.js');
-      const P = await import('/runtime/passages.js');
+      const A = await window.__lfCheckApi();
+      const P = {...await window.__lfCheckApi(), ...await window.__lfWidgetApi()};
       const text = document.querySelectorAll('#runs p')[1].firstChild;
       const start = text.data.indexOf('passed');
       const range = document.createRange();
@@ -4507,7 +4432,7 @@ def test_a_wordless_range_captures_its_element_without_detached_quote(browser, s
         ),
     )
     captured = page.evaluate("""async () => {
-      const A = await import('/runtime/anchor-resolution.js');
+      const A = await window.__lfCheckApi();
       const element = document.querySelector('#icon');
       const range = document.createRange();range.selectNodeContents(element);
       return A.anchorForRange(range);
@@ -4534,8 +4459,8 @@ def test_a_detached_selection_still_has_a_live_writable_composer(
     errors = []
     collect_page_exceptions(page, errors)
     anchor = page.evaluate("""async () => {
-      const P = await import('/runtime/passages.js');
-      const A = await import('/runtime/anchor-resolution.js');
+      const P = {...await window.__lfCheckApi(), ...await window.__lfWidgetApi()};
+      const A = await window.__lfCheckApi();
       const owner = document.querySelector('#runs');
       P.fencePassageParts(owner);
       const text = owner.querySelectorAll('p')[1].firstChild;
@@ -4561,7 +4486,7 @@ def test_a_detached_selection_still_has_a_live_writable_composer(
     page.evaluate("window.scrollTo(0, 500)")
     expect(field).not_to_be_in_viewport()
     page.evaluate("""async () => {
-      const {bringBackSurfaceOf} = await import('/runtime/off-flow.js');
+      const {bringBackSurfaceOf} = await window.__lfCheckApi();
       bringBackSurfaceOf(document.querySelector('.lf-fab-input'), 'instant');
     }""")
     expect(field).to_be_in_viewport()
@@ -4578,7 +4503,7 @@ def test_a_detached_selection_still_has_a_live_writable_composer(
     elif change:
         before = page.evaluate(
             """async change => {
-          const {bringBackSurfaceOf} = await import('/runtime/off-flow.js');
+          const {bringBackSurfaceOf} = await window.__lfCheckApi();
           window.scrollTo(0, 500);
           const paragraph = document.querySelectorAll('#runs p')[1];
           if (change === 'text') paragraph.firstChild.data = 'Repeated failed text.';
@@ -4598,8 +4523,8 @@ def test_a_detached_selection_still_has_a_live_writable_composer(
         assert before["after"] == before["before"]
         assert page.evaluate(
             """async anchor => {
-          const A = await import('/runtime/anchor-resolution.js');
-          const P = await import('/runtime/passages.js');
+          const A = await window.__lfCheckApi();
+          const P = {...await window.__lfCheckApi(), ...await window.__lfWidgetApi()};
           return A.resolveAnchor(anchor) === null;
         }""",
             anchor,
@@ -4622,7 +4547,7 @@ def test_a_detached_selection_still_has_a_live_writable_composer(
     assert event["anchor"] == anchor
     assert page.evaluate(
         """async anchor => {
-      const {resolveAnchor} = await import('/runtime/anchor-resolution.js');
+      const {resolveAnchor} = await window.__lfCheckApi();
       return resolveAnchor(anchor) === null;
     }""",
         anchor,
@@ -4740,8 +4665,8 @@ def test_design_captures_a_repeated_controls_real_associated_label(
     page.keyboard.press("l")
     page.keyboard.press("s")
     inventory = page.evaluate("""async () => {
-      const A = await import('/runtime/anchor-resolution.js');
-      const P = await import('/runtime/passages.js');
+      const A = await window.__lfCheckApi();
+      const P = {...await window.__lfCheckApi(), ...await window.__lfWidgetApi()};
       return A.aimTargets({design:true}).filter(t => t.anchor.part).map(t => t.capture()).map(t => ({anchor:t.anchor, label:t.label, exact:A.resolveAnchor(t.anchor)?.exact}));
     }""")
     assert len(inventory) == 2
@@ -4791,8 +4716,8 @@ def test_design_spoken_context_does_not_borrow_a_neighbours_face(browser, serve)
         ),
     )
     labels = page.evaluate("""async () => {
-      const {aimTargets} = await import('/runtime/anchor-resolution.js');
-      const {anchorLabel} = await import('/runtime/thread/messages.js');
+      const {aimTargets} = await window.__lfCheckApi();
+      const {anchorLabel} = await window.__lfWidgetApi();
       return aimTargets({design:true}).filter(t => t.anchor.part).map(t => ({hint:t.label, ordinary:anchorLabel(t.anchor), design:anchorLabel(t.anchor,'design')}));
     }""")
     assert "×" not in labels[0]["hint"]
@@ -4851,8 +4776,8 @@ def test_design_can_comment_on_a_generated_tab_with_a_repeated_summary(browser, 
     ).to_contain_text("Clarify this summary.")
     assert page.evaluate(
         """async anchor => {
-      const A=await import('/runtime/anchor-resolution.js');
-      const P=await import('/runtime/passages.js');
+      const A=await window.__lfCheckApi();
+      const P={...await window.__lfCheckApi(),...await window.__lfWidgetApi()};
       const target=A.resolveAnchor(anchor);
       return target.exact===false && target.status==='fallback';
     }""",
@@ -4868,8 +4793,8 @@ def test_design_can_comment_on_a_generated_tab_with_a_repeated_summary(browser, 
     wait_for_revision(page, stamp["revision"])
     assert page.evaluate(
         """async anchor => {
-      const A=await import('/runtime/anchor-resolution.js');
-      const P=await import('/runtime/passages.js');
+      const A=await window.__lfCheckApi();
+      const P={...await window.__lfCheckApi(),...await window.__lfWidgetApi()};
       const target=A.resolveAnchor(anchor);
       return target.exact===false && target.status==='fallback';
     }""",
@@ -4916,7 +4841,7 @@ def test_design_control_speech_uses_its_captured_context_and_visible_label(
     page.keyboard.press("l")
     page.keyboard.press("s")
     inventory = page.evaluate("""async () => {
-      const A=await import('/runtime/anchor-resolution.js');const P=await import('/runtime/passages.js');
+      const A=await window.__lfCheckApi();const P={...await window.__lfCheckApi(),...await window.__lfWidgetApi()};
       return A.aimTargets({design:true}).filter(t=>t.anchor.part).map(t=>t.capture()).map(t=>({anchor:t.anchor, label:t.label, exact:A.resolveAnchor(t.anchor)?.exact}));
     }""")
     assert len(inventory) == 2
@@ -4976,7 +4901,7 @@ def test_a_unique_anonymous_control_captures_its_visible_face(browser, serve, ro
     page.keyboard.press("l")
     control = page.get_by_role("radio", name="Choice B")
     target = page.evaluate("""async () => {
-      const A=await import('/runtime/anchor-resolution.js');const P=await import('/runtime/passages.js');
+      const A=await window.__lfCheckApi();const P={...await window.__lfCheckApi(),...await window.__lfWidgetApi()};
       const target=A.aimTargetAt(document.querySelector('[aria-label="Choice B"]'),{design:true});
       const resolved=A.resolveAnchor(target.anchor);
       return {anchor:target.anchor,label:target.label,exact:resolved.exact};
@@ -5063,8 +4988,8 @@ def test_design_regions_keep_distinct_comments_and_ordinary_interaction(
     page.locator("h1").click()
     page.keyboard.press("l")
     targets = page.evaluate("""async () => {
-      const A=await import('/runtime/anchor-resolution.js');
-      const P=await import('/runtime/passages.js');
+      const A=await window.__lfCheckApi();
+      const P={...await window.__lfCheckApi(),...await window.__lfWidgetApi()};
       const inventory=A.aimTargets({design:true});
       return [...document.querySelectorAll('#drafts > div')].map(el=>{
         const t=A.aimTargetAt(el,{design:true});
@@ -5132,8 +5057,8 @@ def test_design_regions_keep_distinct_comments_and_ordinary_interaction(
     wait_for_revision(page, stamp["revision"])
     resolved = page.evaluate(
         """async anchor=>{
-      const A=await import('/runtime/anchor-resolution.js');
-      const P=await import('/runtime/passages.js');
+      const A=await window.__lfCheckApi();
+      const P={...await window.__lfCheckApi(),...await window.__lfWidgetApi()};
       const r=A.resolveAnchor(anchor);
       return {exact:r.exact,status:r.status};
     }""",
@@ -5171,8 +5096,8 @@ def test_automatic_design_capture_never_borrows_mutable_editor_context(
     editor.press("End")
     editor.press_sequentially(" plus my notes")
     reading = page.evaluate("""async()=>{
-      const A=await import('/runtime/anchor-resolution.js');
-      const P=await import('/runtime/passages.js');
+      const A=await window.__lfCheckApi();
+      const P={...await window.__lfCheckApi(),...await window.__lfWidgetApi()};
       return [...document.querySelectorAll('#controls > *')].map(el=>{
         const t=A.aimTargetAt(el,{design:true});
         return {anchor:t.anchor,exact:A.resolveAnchor(t.anchor).exact};
@@ -5227,7 +5152,7 @@ def test_design_regions_quote_their_own_words_without_nested_controls(browser, s
     )
     page = open_page(browser, live_url(serve(markup)))
     targets = page.evaluate("""async()=>{
-      const A=await import('/runtime/anchor-resolution.js');
+      const A=await window.__lfCheckApi();
       return [...document.querySelectorAll('#regions > div')].map(el=>A.aimTargetAt(el,{design:true}).anchor);
     }""")
     assert targets[0]["part"] == "Scroller"
@@ -5253,7 +5178,7 @@ def test_design_named_pictures_share_pointer_and_picker_identity(browser, serve,
     page = open_page(browser, live_url(serve(markup)))
     page.keyboard.press("l")
     targets = page.evaluate("""async()=>{
-      const A=await import('/runtime/anchor-resolution.js');
+      const A=await window.__lfCheckApi();
       const inv=A.aimTargets({design:true});
       return [...document.querySelectorAll('#pictures svg, #pictures img')].map(el=>{
         const t=A.aimTargetAt(el,{design:true});
@@ -5331,7 +5256,7 @@ def test_native_editing_cells_share_file_and_browser_passage_fences(
     ]
     browser_found = page.evaluate(
         """async quotes=>{
-      const P=await import('/runtime/passages.js');
+      const P={...await window.__lfCheckApi(),...await window.__lfWidgetApi()};
       return quotes.map(quote=>P.findQuote(P.pageText(),quote,{section:'cells'},document.querySelector('#cells')).length>0);
     }""",
         quotes,
@@ -5354,7 +5279,7 @@ def test_native_editing_cells_share_file_and_browser_passage_fences(
         "el=>el.setAttribute('contenteditable','false')"
     )
     assert page.evaluate("""async()=>{
-      const P=await import('/runtime/passages.js');
+      const P={...await window.__lfCheckApi(),...await window.__lfWidgetApi()};
       return P.findQuote(P.pageText(),'Before Editable',{section:'cells'},document.querySelector('#cells')).length>0;
     }""")
 
@@ -5378,8 +5303,8 @@ def test_a_native_cross_cell_selection_sends_its_quote_without_claiming_location
     field = page.locator(".lf-fab-input")
     expect(field).to_be_visible()
     observed = page.evaluate("""async()=>{
-      const A=await import('/runtime/anchor-resolution.js');
-      const P=await import('/runtime/passages.js');
+      const A=await window.__lfCheckApi();
+      const P={...await window.__lfCheckApi(),...await window.__lfWidgetApi()};
       return A.anchorForRange(P.pageRange(getSelection()));
     }""")
     assert observed["quote"] == "Before field Editor words After field."
@@ -5398,8 +5323,8 @@ def test_a_native_cross_cell_selection_sends_its_quote_without_claiming_location
     assert anchor_capture_model.resolve_quote(passages, event["anchor"]) is None
     assert page.evaluate(
         """async anchor=>{
-      const A=await import('/runtime/anchor-resolution.js');
-      const P=await import('/runtime/passages.js');
+      const A=await window.__lfCheckApi();
+      const P={...await window.__lfCheckApi(),...await window.__lfWidgetApi()};
       return A.resolveAnchor(anchor) === null;
     }""",
         event["anchor"],
@@ -5431,7 +5356,7 @@ def test_borrowed_scroll_stops_leave_code_selection_and_marks_with_their_owners(
     else:
         expect(code).not_to_have_attribute("data-lf-lent-reach-stop", "")
     assert code.evaluate("""async el=>{
-      const {WORKS}=await import('/runtime/control-selectors.js');
+      const {WORKS}=await window.__lfCheckApi();
       return el.matches(WORKS);
     }""") is (not borrowed)
     if borrowed:
@@ -5465,7 +5390,7 @@ def test_borrowed_scroll_stops_leave_code_selection_and_marks_with_their_owners(
       el.style.overflow='visible';
       const words=el.querySelector('code');
       words.replaceWith(...words.childNodes);
-      const {reachScrollers}=await import('/runtime/reach.js');
+      const {reachScrollers}=await window.__lfCheckApi();
       reachScrollers(el);
     }""")
     expect(code).not_to_have_attribute("data-lf-lent-reach-stop", "")
@@ -5483,7 +5408,7 @@ def test_releasing_a_claimed_stop_keeps_another_owners_focus_value(browser, serv
     page = open_page(browser, live_url(serve(markup)))
     expect(page.locator("#code")).to_have_attribute("data-lf-lent-reach-stop", "")
     transferred = page.locator("#code").evaluate("""async el=>{
-      const {releaseReachStop}=await import('/runtime/reach.js');
+      const {releaseReachStop}=await window.__lfCheckApi();
       el.setAttribute('tabindex','5');
       releaseReachStop(el);
       return {value:el.getAttribute('tabindex'),borrowed:el.hasAttribute('data-lf-lent-reach-stop')};
@@ -5505,8 +5430,8 @@ def test_native_textarea_defaults_never_supply_design_passage_context(browser, s
 
     def capture():
         return page.evaluate("""async()=>{
-          const A=await import('/runtime/anchor-resolution.js');
-          const P=await import('/runtime/passages.js');
+          const A=await window.__lfCheckApi();
+          const P={...await window.__lfCheckApi(),...await window.__lfWidgetApi()};
           return {
             fields:[...document.querySelectorAll('textarea')].map(el=>{
               const target=A.aimTargetAt(el,{design:true});

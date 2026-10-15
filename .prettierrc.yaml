@@ -1,2 +1,2 @@
-# Ruff's default width, so the repo's Python and JS wrap at the same place.
+# Ruff's default width, so Python and Prettier use the same line length.
 printWidth: 88

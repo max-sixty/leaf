@@ -2,9 +2,10 @@
  * port; documents, DOM nodes, functions and browser owners remain in this realm.
  * `ready` announces the usable, upgraded interface, independently of saved state.
  * Commands that need history wait at their owning child capability. */
-import { canPlaceFocus, focusDestination, onStanding } from "./focus.js";
-import { pageUpgraded } from "./page-paint.js";
-import { sizeObserver } from "./rendering.js";
+import { canPlaceFocus, focusDestination, onStanding, onUserInput } from "./focus.js";
+import { pagePresented, pageUpgraded } from "./page-paint.js";
+import { whenArrived, whenArriving } from "./presentation.js";
+import { afterSettling, sizeObserver } from "./rendering.js";
 const child = document.documentElement.lfSample;
 const commands = new Map();
 const observers = new Map();
@@ -40,6 +41,7 @@ if (child)
 
 if (child) {
   let upgraded = false;
+  let arriving = false;
   let height = null;
   // A parent cannot inspect focus in this opaque document. Report whether a
   // control holds it, and retain its node while a parent control borrows focus.
@@ -48,6 +50,24 @@ if (child) {
     if (node && node !== document.body) standing = node;
     sampleNotice("standing", { focused: Boolean(node && node !== document.body) });
   });
+  // The reader's own input here, a press, a key or a wheel, is theirs to move the
+  // frame with, so the containing page applies a size it held while they read. So is
+  // what that input sets going, until its rendering settles (rendering.js,
+  // `afterSettling`): a height measured meanwhile, such as a disclosure the press
+  // opened, says it came of a gesture, and the page applies it though it holds a
+  // height that came of nothing the reader did. The inputs are the document's one
+  // reading of them (focus.js, `onUserInput`). Activation is input of its own, since a
+  // click, by pointer or by Enter or Space, lands after the press that began it has
+  // settled.
+  let gestures = 0;
+  const input = (event) => {
+    if (!event.isTrusted || event.type === "blur") return;
+    gestures++;
+    afterSettling(() => gestures--);
+    sampleNotice("input");
+  };
+  onUserInput(input);
+  window.addEventListener("click", input, { capture: true, passive: true });
   registerSampleCommand("restore-standing", () => {
     if (!standing?.isConnected || !canPlaceFocus()) return false;
     focusDestination(standing, "return");
@@ -58,7 +78,7 @@ if (child) {
     const next = Math.ceil(document.body.getBoundingClientRect().height);
     if (next !== height) {
       height = next;
-      sampleNotice("height", { height });
+      sampleNotice("height", { height, gesture: gestures > 0 });
     }
   };
   // The containing page's image shows this part of the viewport where the frame stands.
@@ -83,6 +103,23 @@ if (child) {
         "error",
         document.documentElement.lfStartupException ?? { message: error },
       );
+    // Presentation is not this document's whole arrival: work it deferred, its own
+    // samples' children included, lands later, and the containing page reads as
+    // arriving until it has. Arrival can begin again, as when one of its samples is
+    // Reset, and the containing page reads as arriving again until it lands.
+    if (upgraded && !arriving && pagePresented()) {
+      arriving = true;
+      void (async () => {
+        await whenArrived();
+        sampleNotice("arrived");
+        for (;;) {
+          await whenArriving();
+          sampleNotice("arriving");
+          await whenArrived();
+          sampleNotice("arrived");
+        }
+      })();
+    }
     if (upgraded || !(document.body && pageUpgraded())) return;
     upgraded = true;
     child.present();
@@ -92,13 +129,14 @@ if (child) {
       height,
       block: document.documentElement.hasAttribute("data-lf-sample-block"),
     });
+    inspect();
   };
   const observer = new MutationObserver(inspect);
   observer.observe(document, {
     childList: true,
     subtree: true,
     attributes: true,
-    attributeFilter: ["data-lf-upgraded", "data-lf-startup-error"],
+    attributeFilter: ["data-lf-upgraded", "data-lf-presented", "data-lf-startup-error"],
   });
   inspect();
 }

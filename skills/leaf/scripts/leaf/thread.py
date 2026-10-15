@@ -130,7 +130,7 @@ def delivery_reply_reserved(session_id: str, delivery_id: str, target: dict) -> 
     """Whether this delivery's reservation of its reply address still stands."""
     try:
         with PageTransaction(Path(target["page"])) as page:
-            reservation = page.standing_reply_reservation(target["responds"])
+            reservation = page.open_reply_reservation(target["responds"])
             return bool(
                 reservation is not None
                 and reservation["session"] == session_id
@@ -172,7 +172,9 @@ def current_anchor(
         revision = require_revision(page_dir)
     if not (quote or section or part):
         return revision, None
-    reading = read_revision(page_dir, revision)
+    from leaf.registry.storage import require_registry
+
+    reading = read_revision(page_dir, revision).under(require_registry(page_dir))
     return revision, _capture_anchor(
         page_dir, events, reading, quote, section, part, revision
     )
@@ -549,9 +551,9 @@ def _resolve_obligation(
                 )
         elif ephemeral:
             in_hand = for_event
-        # The standing reply reservation decides who may write, whatever the
+        # The open reply reservation decides who may write, whatever the
         # captured `writer` hint or a caller-supplied retry key says.
-        reserved = page.standing_reply_reservation(for_event)
+        reserved = page.open_reply_reservation(for_event)
         if reserved is not None:
             if isinstance(settlement, ProviderFinal):
                 if (session, settlement.reservation) != (
@@ -575,15 +577,15 @@ def _resolve_obligation(
                     ]
                 )
     else:
-        standing = thread_obligation(events, responses, thread_id)
-        if standing is not None:
+        owed = thread_obligation(events, responses, thread_id)
+        if owed is not None:
             raise Rejected(
                 [
                     Finding(
                         "owed-response",
                         values={
                             "thread": thread_id,
-                            "answer": answer_command(standing, page_dir),
+                            "answer": answer_command(owed, page_dir),
                         },
                     )
                 ]
@@ -617,8 +619,8 @@ def _compose_and_append(
     title: str | None,
 ) -> dict:
     """Check the reply's content against the page, compose its event and append it
-    at `obligation`, publishing the complete saved publication first for source
-    validation, detach, or a markup-bearing reply."""
+    at `obligation`, publishing saved page edits first where `validate_source` or a
+    detach reads them."""
     page_dir, events = page.page_dir, page.events
     to, thread_id, responds, in_hand = obligation
     opening = _messages(events)[thread_id]
@@ -638,14 +640,11 @@ def _compose_and_append(
     if detach and (current_thread is None or current_thread["anchor"] is None):
         raise Rejected([Finding("no-anchor", values={"thread": thread_id})])
     reply_revision = None
-    prospective_reading = None
+    prospective_page = None
     prospective_anchor = None
     source_events = events
     checked = None
-    if validate_source or detach or markup:
-        active = latest_revision(page_dir)
-        # A reply freezes the complete publication, including widget modules.
-        # HTML equality cannot decide whether that vocabulary changed.
+    if validate_source or detach:
         if relocating:
             source_events = [
                 *events,
@@ -661,6 +660,7 @@ def _compose_and_append(
                     **({"responds": responds} if responds is not None else {}),
                 },
             ]
+        from leaf.revisioning import planned_activation
         from leaf.validation.source import check_source
 
         checked = check_source(page_dir, source_events)
@@ -670,24 +670,23 @@ def _compose_and_append(
                     Finding(
                         "invalid-source",
                         values={
-                            "operation": "reply"
-                            if validate_source or markup
-                            else "detach",
+                            "operation": "reply" if validate_source else "detach",
                             "error": "; ".join(map(str, checked.errors)),
                         },
                     )
                 ]
             )
-        prospective_reading = checked.reading
+        prospective_page = checked.document
+        reply_revision = planned_activation(page_dir, checked).revision
         if moving:
             prospective_anchor = _capture_anchor(
                 page_dir,
                 events,
-                prospective_reading,
+                checked.reading,
                 quote,
                 section,
                 part,
-                (active or 0) + 1,
+                reply_revision,
             )
     fragment = (
         check_markup(
@@ -695,14 +694,16 @@ def _compose_and_append(
             "reply",
             markup,
             events,
-            reading=prospective_reading,
+            page=prospective_page,
             thread=thread_id,
         )
         if markup
         else None
     )
     if ask and fragment:
-        registry = prospective_reading.registry
+        from leaf.registry.storage import require_registry
+
+        registry = require_registry(page_dir)
         structural = sorted(
             {
                 rec["tag"]
@@ -716,10 +717,6 @@ def _compose_and_append(
             raise Rejected(
                 [Finding("widget-ask-markup", values={"tags": list(structural)})]
             )
-    if checked is not None:
-        from leaf.revisioning import planned_activation
-
-        reply_revision = planned_activation(page_dir, checked).revision
     if prospective_anchor is not None:
         revision, anchor = reply_revision, prospective_anchor
     elif moving:
@@ -768,7 +765,7 @@ def _compose_and_append(
     if failure is not None:
         event["failure"] = failure
     if relocating or markup:
-        event["revision"] = revision or reply_revision or latest_revision(page_dir)
+        event["revision"] = revision or latest_revision(page_dir)
     if relocating:
         event["anchor"] = anchor
     if title is not None:
@@ -848,7 +845,7 @@ def fail_answer(
     never left owed with nobody to answer it:
 
     - a `reply` answer takes a reply carrying `failure` in its thread, which
-      the user resends into; a standing reply reservation refuses it until its
+      the user resends into; an open reply reservation refuses it until its
       turn gives the reply up;
     - a `markup` answer takes a failed pickup: the user's answer to the ask stands in the
       log, and answering again sends a new answer.

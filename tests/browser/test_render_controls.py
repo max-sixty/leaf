@@ -3,6 +3,7 @@
 import io
 import os
 import re
+from datetime import datetime, timedelta
 
 import pytest
 from browser_sources import browser_function
@@ -49,6 +50,7 @@ from render_cases_layout import (
     mark_edges,
     page_at_rest,
     ring_faults,
+    ring_rules,
     rings_drawn,
     serious_axe_violations,
     standing_ring,
@@ -421,9 +423,10 @@ KEYBOARD_HINT_REGISTRY = {
     }
 }
 
-KEYBOARD_HINT_MODULE = """import {commandScope, commands, keeps, keepsText, offer, paintKeys} from '/runtime/widget-api.js';
+KEYBOARD_HINT_MODULE = """\
+import {commandScope, commands, keeps, keepsText, offer, paintKeys} from '/runtime/widget-api.js';
 
-export default class extends HTMLElement {
+customElements.define('lf-keyboard-probe', class extends HTMLElement {
   connectedCallback() {
     this.count = 0;
     this.allowed = true;
@@ -486,7 +489,7 @@ export default class extends HTMLElement {
     this.badge.style.cssText = 'right: calc(100% + 4px); top: 0';
     this.seat.append(this.badge, this.control);
   }
-};
+});
 """
 
 
@@ -548,7 +551,7 @@ def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hin
     expect(result).to_have_text("0")
 
     # The question context forwards the widget's declaration without an Ask allocator.
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#question")).to_be_focused()
     expect(badge).to_be_visible()
     expect(badge).to_have_text("1")
@@ -715,9 +718,10 @@ def test_widget_context_keys_work_without_an_ask(browser, serve, annotation_mode
     expect(badge).to_be_hidden()
 
 
-KEYBOARD_ROUTE_MODULE = """import {commands, keepsText, offer} from '/runtime/widget-api.js';
+KEYBOARD_ROUTE_MODULE = """\
+import {commands, keepsText, offer} from '/runtime/widget-api.js';
 
-export default class extends HTMLElement {
+customElements.define('lf-keyboard-probe', class extends HTMLElement {
   connectedCallback() {
     const first = offer('button', '', 'First action');
     const second = offer('button', '', 'Second action');
@@ -751,7 +755,7 @@ export default class extends HTMLElement {
       run: () => keepsText(result, 'Outer applied'),
     }]);
   }
-};
+});
 """
 
 
@@ -826,9 +830,10 @@ def test_disabled_command_route_keeps_its_key_and_enabled_sibling(
     ).to_have_count(0)
 
 
-CONTEXT_COMMAND_MODULE = """import {commands, keepsText, offer, paintKeys} from '/runtime/widget-api.js';
+CONTEXT_COMMAND_MODULE = """\
+import {commands, keepsText, offer, paintKeys} from '/runtime/widget-api.js';
 
-export default class extends HTMLElement {
+customElements.define('lf-keyboard-probe', class extends HTMLElement {
   connectedCallback() {
     const result = offer('output', '', 'No action');
     const rows = [];
@@ -850,7 +855,7 @@ export default class extends HTMLElement {
     };
     this.append(replace);
   }
-};
+});
 """
 
 
@@ -875,7 +880,7 @@ def test_context_commands_keep_widget_assigned_aliases_and_source_lifetime(
         ),
     )
     result = page.locator("#probe output")
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#question")).to_be_focused()
     expect(
         page.locator('.lf-shortcut-bar [data-lf-command-ids~="probe.action-1"]')
@@ -940,8 +945,8 @@ def test_restoring_ask_focus_can_execute_its_command_in_the_same_turn(browser, s
     rendered(page)
     immediate = page.evaluate(
         """async () => {
-          const {focusDestination} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const {executeCommand} = await window.__lfRuntimeImport('/runtime/keyboard/dispatch.js');
+          const {focusDestination} = await window.__lfWidgetApi();
+          const {executeCommand} = await window.__lfCheckApi();
           focusDestination(document.getElementById('question'), 'move');
           const executed = executeCommand('probe.action-10');
           return {executed, held: document.activeElement.id,
@@ -957,9 +962,10 @@ def test_restoring_ask_focus_can_execute_its_command_in_the_same_turn(browser, s
 
 def test_contextual_escape_agrees_across_dispatch_hints_and_reference(browser, serve):
     """Escape forwarding stays live when its context scope is read more than once."""
-    module = """import {commands, keepsText, offer} from '/runtime/widget-api.js';
+    module = """\
+import {commands, keepsText, offer} from '/runtime/widget-api.js';
 
-export default class extends HTMLElement {
+customElements.define('lf-keyboard-probe', class extends HTMLElement {
   connectedCallback() {
     const control = offer('button', '', 'Apply operation');
     const result = offer('output', '', 'No action');
@@ -969,7 +975,7 @@ export default class extends HTMLElement {
       keys: ['x'], contextKeys: ['Escape'], control, bindingBadge: null,
       run: () => keepsText(result, `Applied ${++count}`)}]);
   }
-};
+});
 """
     page = open_page(
         browser,
@@ -984,13 +990,13 @@ export default class extends HTMLElement {
         ),
     )
     result = page.locator("#probe output")
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#question")).to_be_focused()
     rendered(page)
     routes = page.evaluate(
         """async () => {
-          const {availableCommandRoutes} = await window.__lfRuntimeImport('/runtime/keyboard/dispatch.js');
-          const {commandEntries} = await window.__lfRuntimeImport('/runtime/keyboard/bindings.js');
+          const {availableCommandRoutes} = await window.__lfCheckApi();
+          const {commandEntries} = await window.__lfCheckApi();
           return [...availableCommandRoutes()].flatMap(([row, bindings]) =>
             commandEntries(row, [...bindings]).filter(entry => entry.id === 'probe.escape')
               .map(entry => entry.binding));
@@ -1027,9 +1033,10 @@ export default class extends HTMLElement {
 
 def test_context_aliases_do_not_collide_with_authored_command_ids(browser, serve):
     """A contextual projection keeps both commands when an authored id ends in .context."""
-    module = """import {commands, keepsText, offer} from '/runtime/widget-api.js';
+    module = """\
+import {commands, keepsText, offer} from '/runtime/widget-api.js';
 
-export default class extends HTMLElement {
+customElements.define('lf-keyboard-probe', class extends HTMLElement {
   connectedCallback() {
     const control = offer('button', '', 'Apply operation');
     const neighbour = offer('button', '', 'Neighbour operation');
@@ -1043,7 +1050,7 @@ export default class extends HTMLElement {
         control: neighbour, run: () => keepsText(result, 'Neighbour applied')},
     ]);
   }
-};
+});
 """
     page = open_page(
         browser,
@@ -1078,7 +1085,7 @@ export default class extends HTMLElement {
             )
         page.keyboard.press("Escape")
         if standing == "outside":
-            page.keyboard.press("q")
+            page.keyboard.press("m")
             expect(page.locator("#question")).to_be_focused()
     page.keyboard.press("1")
     expect(result).to_have_text("Applied 1")
@@ -1097,9 +1104,10 @@ export default class extends HTMLElement {
 
 def test_context_forwarding_preserves_reference_activation_opt_out(browser, serve):
     """A contextual alias cannot turn a reading-only reference row into an action."""
-    module = """import {commands, keepsText, offer} from '/runtime/widget-api.js';
+    module = """\
+import {commands, keepsText, offer} from '/runtime/widget-api.js';
 
-export default class extends HTMLElement {
+customElements.define('lf-keyboard-probe', class extends HTMLElement {
   connectedCallback() {
     const result = offer('output', '', 'No action');
     let count = 0;
@@ -1108,7 +1116,7 @@ export default class extends HTMLElement {
       contextKeys: ['F8'], runFromCommandReference: false,
       run: () => keepsText(result, `Applied ${++count}`)}]);
   }
-};
+});
 """
     page = open_page(
         browser,
@@ -1123,7 +1131,7 @@ export default class extends HTMLElement {
         ),
     )
     result = page.locator("#probe output")
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#question")).to_be_focused()
     page.keyboard.press("F8")
     expect(result).to_have_text("Applied 1")
@@ -1211,9 +1219,10 @@ def test_context_keys_follow_an_ask_into_its_associated_thread(
         expect(result).to_have_text("Action 10 applied")
 
 
-ROUTE_HINT_OVERRIDE_MODULE = """import {commands, keepsText, offer} from '/runtime/widget-api.js';
+ROUTE_HINT_OVERRIDE_MODULE = """\
+import {commands, keepsText, offer} from '/runtime/widget-api.js';
 
-export default class extends HTMLElement {
+customElements.define('lf-verdict', class extends HTMLElement {
   connectedCallback() {
     const control = offer('button', '', 'Inspect');
     const inheritedHint = offer('kbd', 'lf-key-badge');
@@ -1231,7 +1240,7 @@ export default class extends HTMLElement {
       run: binding => keepsText(result, `${binding}:${++count}`),
     }]);
   }
-};
+});
 """
 
 
@@ -1265,7 +1274,7 @@ def test_route_corner_hint_overrides_the_rows_face_in_ask_and_widget(browser, se
     chip = page.locator(".lf-command-binding-badges .lf-command-binding-badge")
     result = page.locator("#probe output")
 
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#question")).to_be_focused()
     expect(chip).to_have_text("1")
     expect(chip).to_be_visible()
@@ -1390,7 +1399,7 @@ def test_tab_walks_into_and_out_of_a_full_view_sample(browser, serve):
     expect(sample.get_by_role("button", name="Full view", exact=True)).to_be_focused()
     child.evaluate(
         """async () => {
-          const { tabStops } = await import("/runtime/focus.js");
+          const { tabStops } = await window.__lfCheckApi();
           tabStops(document.body).at(-1).focus();
         }"""
     )
@@ -1641,7 +1650,7 @@ def test_controls_share_pointer_and_keyboard_focus_rings(browser, serve):
                 "lf-shadow-focus.js": """
 import {once, shadowStage} from '/runtime/widget-api.js';
 import '/vendor/webawesome.esm.js';
-export default class extends HTMLElement {
+customElements.define('lf-shadow-focus', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
     const select = document.createElement('wa-select');
@@ -1656,14 +1665,14 @@ export default class extends HTMLElement {
     }
     shadowStage(this, [...this.childNodes, select]);
   }
-}
+});
 """
             },
         ),
     )
     paint = """el => { const s = getComputedStyle(el); return {
       style: s.outlineStyle, width: s.outlineWidth, color: s.outlineColor,
-      offset: s.outlineOffset, name: s.getPropertyValue('--lf-focus-ring').trim()
+      offset: s.outlineOffset
     }; }"""
     button = page.locator("#focus-button")
     tab = page.get_by_role("tab", name="First", exact=True)
@@ -1681,10 +1690,10 @@ export default class extends HTMLElement {
         expect(control).to_be_focused()
         rendered(page)
         pointer = carrier.evaluate(paint)
-        assert pointer["style"] == "solid" and pointer["name"] != "none", pointer
+        assert pointer["style"] == "solid", pointer
         drawn = rings_drawn(page)
         samples = [ring for ring in drawn if ring["sample"]]
-        assert len(samples) == 1, drawn
+        assert len(samples) == 1 and samples[0]["rule"], drawn
         assert not ring_faults(drawn, "after pointer arrival")
 
         # Return by sequential navigation to cover the tab list's roving stop and
@@ -1695,7 +1704,9 @@ export default class extends HTMLElement {
         rendered(page)
         assert carrier.evaluate(paint) == pointer
         drawn = rings_drawn(page)
-        assert len([ring for ring in drawn if ring["sample"]]) == 1, drawn
+        assert [ring["rule"] for ring in drawn if ring["sample"]] == [
+            samples[0]["rule"]
+        ], drawn
         assert not ring_faults(drawn, "after keyboard arrival")
 
     assert page.locator("#focus-shadow").evaluate(paint)["style"] == "none", (
@@ -1808,7 +1819,7 @@ CONTROL_ARCHETYPES = (
         # state while its opposite remains beside it.
         "name": "visual-review-disposition",
         "source": VISUAL_REVIEW_GALLERY,
-        "target": ".lf-vr-case:not([hidden]) .lf-vr-needs-work",
+        "target": ".lf-vr-case[data-selected] .lf-vr-needs-work",
     },
 )
 
@@ -1906,7 +1917,7 @@ def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
 
 @pytest.mark.parametrize("width", [1200, 390])
 def test_required_approval_is_an_ask_until_approved(browser, serve, width):
-    """Sign-off belongs to Questions and leads to the real approval control,
+    """Sign-off belongs to On me and leads to the real approval control,
     including its phone overflow seat. A task's Done cannot substitute for it."""
     html = LONG_PAGE.replace(
         "<title>long</title>",
@@ -1914,19 +1925,17 @@ def test_required_approval_is_an_ask_until_approved(browser, serve, width):
     )
     page = open_page(browser, serve(html))
     page.set_viewport_size({"width": width, "height": 900})
-    questions = page.get_by_role(
-        "button", name="Questions: 1 waiting on me", exact=True, include_hidden=True
-    )
-    expect(questions).to_be_attached()
+    on_me = page.get_by_role("button", name="On me: 1", exact=True, include_hidden=True)
+    expect(on_me).to_be_attached()
     target = page.evaluate("""async () => {
-      const {readAsks, askActions} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const {readAsks, askActions} = await window.__lfWidgetApi();
       const ask = readAsks().all.find(q => q.source.kind === 'approval');
       const target = document.getElementById(ask.prompt.target);
       await askActions.open(ask.id);
       return target === document.querySelector('.lf-signoff') && document.activeElement === target;
     }""")
     assert target, "the public ask route did not reach its declared approval target"
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     approval = page.locator(".lf-signoff")
     expect(approval).to_be_visible()
     expect(approval).to_be_focused()
@@ -1935,18 +1944,18 @@ def test_required_approval_is_an_ask_until_approved(browser, serve, width):
     expect(
         page.get_by_role(
             "button",
-            name="Questions: 0 waiting on me",
+            name="On me: 0",
             exact=True,
             include_hidden=True,
         )
     ).to_be_attached()
     page.keyboard.press("z")
     round_trip(page)
-    expect(questions).to_be_attached()
+    expect(on_me).to_be_attached()
     page.keyboard.press("Escape")
     if width < 600:
         page.locator(".lf-banner-more").click()
-    questions.click()
+    on_me.click()
     row = page.locator("button[data-lf-row]").filter(has_text="Approve v1?")
     expect(row).to_be_visible()
     expect(
@@ -1975,15 +1984,13 @@ def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serv
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     history = page.locator(".lf-threads > .lf-system")
-    questions = page.get_by_role(
-        "button", name="Questions: 1 waiting on me", exact=True, include_hidden=True
-    )
+    on_me = page.get_by_role("button", name="On me: 1", exact=True, include_hidden=True)
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     button.click()
     holding(page, held, 1, "the refused approval")
     expect(button).to_have_text("✓ Version approved")
-    expect(questions).to_have_count(0)
+    expect(on_me).to_have_count(0)
     expect(history).to_contain_text("Approved")
     held[0].fulfill(
         json={
@@ -1995,13 +2002,13 @@ def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serv
     )
     round_trip(page)
     expect(button).to_have_text("Approve version")
-    expect(questions).to_be_attached()
+    expect(on_me).to_be_attached()
     expect(history).to_have_count(0)
     held.clear()
     button.click()
     holding(page, held, 1, "the accepted approval")
     expect(button).to_have_text("✓ Version approved")
-    expect(questions).to_have_count(0)
+    expect(on_me).to_have_count(0)
     expect(history).to_contain_text("Approved")
     held[0].continue_()
     page.unroute("**/api/event")
@@ -2012,13 +2019,13 @@ def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serv
     )
 
     expect(history).to_contain_text("Approved")
-    expect(questions).to_have_count(0)
+    expect(on_me).to_have_count(0)
     held.clear()
     page.route("**/api/event", lambda route: held.append(route))
     page.keyboard.press("z")
     holding(page, held, 1, "the refused approval undo")
     expect(button).to_have_text("Approve version")
-    expect(questions).to_be_attached()
+    expect(on_me).to_be_attached()
     expect(history).to_have_count(0)
     held[0].fulfill(
         json={
@@ -2031,14 +2038,14 @@ def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serv
     page.unroute("**/api/event")
     round_trip(page)
     expect(button).to_have_text("✓ Version approved")
-    expect(questions).to_have_count(0)
+    expect(on_me).to_have_count(0)
     expect(history).to_contain_text("Approved")
     held.clear()
     page.route("**/api/event", lambda route: held.append(route))
     page.keyboard.press("z")
     holding(page, held, 1, "the accepted approval undo")
     expect(button).to_have_text("Approve version")
-    expect(questions).to_be_attached()
+    expect(on_me).to_be_attached()
     expect(history).to_have_count(0)
     expect(button).to_be_enabled()
     expect(button).to_have_attribute(
@@ -2048,7 +2055,7 @@ def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serv
     page.unroute("**/api/event")
     round_trip(page)
     expect(button).to_have_text("Approve version")
-    expect(questions).to_be_attached()
+    expect(on_me).to_be_attached()
     expect(history).to_have_count(0)
     kinds = [e["kind"] for e in events_model.read_events(serve.page_dir)]
     assert kinds[-2:] == [
@@ -2063,7 +2070,7 @@ def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serv
     button.click()
     holding(page, held, 1, "the second approval")
     expect(button).to_have_text("✓ Version approved")
-    expect(questions).to_have_count(0)
+    expect(on_me).to_have_count(0)
     expect(history).to_contain_text("Approved")
     held[0].continue_()
     page.unroute("**/api/event")
@@ -2098,7 +2105,7 @@ def test_sign_off_waits_for_the_page_while_comments_stay_live(browser, serve):
 
 
 def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
-    """An informational page offers Comment on the page, Questions, Threads and More
+    """An informational page offers Comment on the page, On me, Threads and More
     without an approval action."""
     page = open_page(browser, serve(LONG_PAGE))
     # The banner is built in one pass, so a control standing in it is what makes the
@@ -2489,7 +2496,7 @@ def test_more_wears_a_dot_while_a_press_would_approve(browser, serve):
     approval = page.locator(".lf-signoff")
     expect(more).to_have_attribute("data-lf-news", "")
     expect(more).to_have_attribute(
-        "aria-label", "More page controls, approval open, questions waiting"
+        "aria-label", "More page controls, approval open, items on me"
     )
     more.click()
     expect(page.locator(".lf-banner-menu > :visible").first).to_have_class(
@@ -2617,7 +2624,7 @@ def test_stylesheet_motion_inputs_drive_css_and_web_animations(browser, serve):
     context = browser.new_context(reduced_motion="no-preference")
     page = open_page(browser, serve(source), context=context)
     result = page.evaluate("""async () => {
-      const owner = await __lfRuntimeImport('/runtime/motion.js');
+      const owner = await window.__lfWidgetApi();
       const chrome = document.querySelector('.lf-chrome');
       const cue = document.createElement('div');
       cue.className = 'lf-msg flash';
@@ -2628,13 +2635,13 @@ def test_stylesheet_motion_inputs_drive_css_and_web_animations(browser, serve):
       const cssFlash = getComputedStyle(cue).animationDuration;
       const cssArrival = getComputedStyle(arrival).animationDuration;
       const cssFold = getComputedStyle(document.querySelector('lf-old')).transitionDuration;
-      const animation = owner.backgroundFlash(document.querySelector('#subject'),
-        owner.flashDuration());
+      const {flashDuration, agentArrivalDuration} = await window.__lfCheckApi();
+      const animation = owner.backgroundFlash(document.querySelector('#subject'), flashDuration());
       const played = animation.effect.getTiming().duration;
       animation.finish();
       cue.remove(); arrival.remove();
       return {cssFlash, cssArrival, cssFold, played,
-        fold: owner.foldDuration(), agent: owner.agentArrivalDuration()};
+        fold: owner.foldDuration(), agent: agentArrivalDuration()};
     }""")
     assert result == {
         "cssFlash": "0.73s",
@@ -2733,9 +2740,9 @@ def test_open_banner_menu_holds_seats_until_the_next_opening(browser, serve):
     """Passive removals and arrivals keep the reading and its keyboard destinations."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
     page.evaluate("""async () => {
-      window.toolbar = await window.__lfRuntimeImport('/runtime/banner-toolbar.js');
+      window.toolbar = await window.__lfCheckApi();
       for (const [key, rank, offered] of [
-        ['retiring', -30, true], ['arriving', -25, false], ['standing', -20, true],
+        ['retiring', -30, true], ['arriving', -25, false], ['staying', -20, true],
         ['returning', -15, false],
       ]) {
         const control = document.createElement('button');
@@ -2748,11 +2755,11 @@ def test_open_banner_menu_holds_seats_until_the_next_opening(browser, serve):
     more.focus()
     page.keyboard.press("Enter")
     retiring = page.locator(".test-retiring")
-    standing = page.locator(".test-standing")
+    staying = page.locator(".test-staying")
     arriving = page.locator(".test-arriving")
     retiring.focus()
     expect(retiring).to_be_focused()
-    before = standing.bounding_box()
+    before = staying.bounding_box()
     page.evaluate("""() => {
       toolbar.showNews(document.querySelector('.test-retiring'), false);
       toolbar.showNews(document.querySelector('.test-arriving'), true);
@@ -2760,9 +2767,9 @@ def test_open_banner_menu_holds_seats_until_the_next_opening(browser, serve):
     }""")
     expect(retiring).to_be_hidden()
     assert arriving.is_hidden()
-    expect(standing).to_be_focused()
+    expect(staying).to_be_focused()
     expect(more).to_have_attribute("aria-label", re.compile("new action"))
-    assert standing.bounding_box() == before
+    assert staying.bounding_box() == before
     assert retiring.evaluate("node => node.offsetHeight") > 0
     page.keyboard.press("Tab")
     expect(arriving).not_to_be_focused()
@@ -2775,7 +2782,7 @@ def test_open_banner_menu_holds_seats_until_the_next_opening(browser, serve):
     # Explicit travel can reveal a newly offered destination in the held menu.
     # Both the shared reveal route and a nested layer's return use that same owner.
     page.evaluate("""async () => {
-      const {reveal} = await window.__lfRuntimeImport('/runtime/widget-elements.js');
+      const {reveal} = await window.__lfCheckApi();
       const target = document.querySelector('.test-retiring');
       document.querySelector('.test-arriving').onclick = () => reveal(target, () => true);
       toolbar.showNews(target, true);
@@ -2830,7 +2837,7 @@ def test_ask_banner_controls_keep_identity_and_focus_in_the_fixed_menu(
 
     page.evaluate(
         """async () => {
-          const toolbar = await window.__lfRuntimeImport('/runtime/banner-toolbar.js');
+          const toolbar = await window.__lfCheckApi();
           for (let i = 0; i < 3; i++) {
             const control = document.createElement('button');
             control.className = `lf-ui lf-btn lf-focus-candidate-${i}`;
@@ -2850,7 +2857,7 @@ def test_ask_banner_controls_keep_identity_and_focus_in_the_fixed_menu(
     retiring.focus()
     page.evaluate(
         """async control => {
-          const toolbar = await window.__lfRuntimeImport('/runtime/banner-toolbar.js');
+          const toolbar = await window.__lfCheckApi();
           toolbar.showBannerControl(control, false);
         }""",
         retiring.element_handle(),
@@ -2863,7 +2870,7 @@ def test_ask_banner_controls_keep_identity_and_focus_in_the_fixed_menu(
     answer_all.focus()
     page.evaluate(
         """async button => {
-          const toolbar = await window.__lfRuntimeImport('/runtime/banner-toolbar.js');
+          const toolbar = await window.__lfCheckApi();
           toolbar.showNews(button, false);
         }""",
         answer_all.element_handle(),
@@ -2973,7 +2980,7 @@ def test_the_keyboard_reference_is_a_modal_tab_loop_and_returns_to_its_door(
 def test_motion_preference_changes_are_heard_without_reloading(browser, serve):
     """The JS motion contract follows a live media preference, like the CSS does."""
     page = open_page(browser, serve(LONG_PAGE))
-    reading = """() => window.__lfRuntimeImport('/runtime/motion.js').then(
+    reading = """() => window.__lfWidgetApi().then(
       motion => ({reduced: motion.reducedMotion(), scroll: motion.scrollBehavior()}))"""
     assert page.evaluate(reading) == {"reduced": False, "scroll": "smooth"}
 
@@ -3109,7 +3116,7 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
     actions = page.locator(".lf-banner-actions")
     page.evaluate(
         """async () => {
-              const toolbar = await window.__lfRuntimeImport('/runtime/banner-toolbar.js');
+              const toolbar = await window.__lfCheckApi();
               for (let i = 0; i < 3; i++) {
                 const button = document.createElement('button');
                 button.className = 'lf-ui lf-btn';
@@ -3489,7 +3496,10 @@ STATUS_COUNTS = """() => {
   const others = [document.querySelector('.lf-banner-status'),
     ...document.querySelectorAll('.lf-banner-actions > :not([hidden])')];
   const approval = document.querySelector('.lf-banner-actions > .lf-signoff');
-  return {shown: counts.clientWidth, needed: counts.scrollWidth,
+  // A room cuts its words inside its own child (controls.css), which the control's
+  // scroll width does not see.
+  const words = (n) => n.querySelector('[data-lf-room] > *') ?? n;
+  return {shown: words(counts).clientWidth, needed: words(counts).scrollWidth,
           left: box.left, top: box.top, inert: counts.inert,
           statusLeft: document.querySelector('.lf-status-button').getBoundingClientRect().left,
           statusBottom: document.querySelector('.lf-banner-status').getBoundingClientRect().bottom,
@@ -3497,7 +3507,8 @@ STATUS_COUNTS = """() => {
             && box.top >= banner.top && box.bottom <= banner.bottom,
           drawn: box.top < rowsEnd - 0.5 && box.bottom > banner.top + 0.5,
           approval: approval?.checkVisibility()
-            ? {shown: approval.clientWidth, needed: approval.scrollWidth} : null,
+            ? {shown: words(approval).clientWidth, needed: words(approval).scrollWidth}
+            : null,
           overlaps: others.filter((n) => meets(n.getBoundingClientRect()))
             .map((n) => n.className)};
 }"""
@@ -3511,8 +3522,8 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(
     sentence's, not the empty banner's. As the sentence the agent declares grows, the
     press grows rightward into the room the controls leave, and nothing else on the banner
     moves; once that room runs out its words truncate rather than push More. Approval and
-    the agent's Tasks count stay whole throughout. At 390 the status shares the phone's
-    one row with Threads and More, Approval and Questions stand behind More, and the count
+    the agent's On count stay whole throughout. At 390 the status shares the phone's
+    one row with Threads and More, Approval and On me stand behind More, and the count
     gives way to the sentence, which keeps what the two controls leave."""
     html = SUGGESTION_PAGE.replace(
         "<title>suggestions</title>",
@@ -3527,7 +3538,7 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(
         told(page)
         page.wait_for_function(
             "(words) => document.querySelector('.lf-status-text').textContent === words",
-            arg=f"Agent working — {detail}",
+            arg=f"Claude working — {detail}",
         )
         page_at_rest(page)
         return page.evaluate(STATUS_PRESS)
@@ -3539,17 +3550,18 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(
         f"a short status press still spans the banner's free room: {short}"
     )
     # The page's three suggestions and required approval wait on the user in
-    # Questions. The page task waits on the agent, so Tasks stands beside status.
-    expect(page.locator(".lf-queue")).to_have_text("Questions: 4")
-    expect(page.locator(".lf-status-queues")).to_have_text("Tasks: 1")
+    # On me. The page task waits on the agent, so the agent's count stands beside status.
+    expect(page.locator(".lf-queue")).to_have_text("On me: 4")
+    expect(page.locator(".lf-status-queues")).to_have_text("On Claude: 1")
     page.evaluate(DEFINE_BOXES)
     beside = page.evaluate(
         BANNER_WATCH, f":is({NEIGHBOUR}, .lf-status-queues):not(.lf-status-button)"
     )
     assert any("lf-banner-more" in name for name in beside["names"]), beside["names"]
 
-    # Longer, and still inside a phone's room beside Threads and More.
-    longer = say("running tests")
+    # Longer, and still inside a phone's room beside Threads and More, with room to
+    # spare for Linux's wider sans and the agent's name.
+    longer = say("tests again")
     assert longer["shown"] >= longer["needed"], longer
     assert (longer["left"], longer["top"]) == (short["left"], short["top"])
     assert longer["right"] > short["right"], (short, longer)
@@ -3586,19 +3598,19 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(
 
 def test_the_counts_lead_the_second_row_where_the_run_leaves_room(browser, serve):
     """Just wider than a phone held upright, the banner's status sentence has the first
-    row, and the agent's Tasks count leads the second, under the sentence's start, where
+    row, and the agent's On count leads the second, under the sentence's start, where
     the run leaves it room whole. A finger's search steps share that row: the count
     stands whole beside them where the font leaves it room, or gives way to them, never
-    cutting a step or standing cut itself, and comes back where it stood once the search
+    cutting a step or being cut itself, and comes back where it stood once the search
     closes."""
     context = browser.new_context(
         viewport={"width": 490, "height": 800}, has_touch=True, is_mobile=True
     )
     url = serve(SUGGESTION_PAGE)
-    # A comment the agent owes a reply, so there is a Tasks count to stand there.
+    # A comment the agent owes a reply, so there is an agent's count to stand there.
     panel_comment(serve.page_dir, "Is the feeder sized right?")
     page = open_page(browser, url, context=context)
-    expect(page.locator(".lf-status-queues")).to_have_text("Tasks: 1")
+    expect(page.locator(".lf-status-queues")).to_have_text("On Claude: 1")
     page_at_rest(page)
     resting = page.evaluate(STATUS_COUNTS)
     assert resting["drawn"] and resting["inBanner"] and not resting["inert"], resting
@@ -3614,7 +3626,7 @@ def test_the_counts_lead_the_second_row_where_the_run_leaves_room(browser, serve
     ).to_be_visible()
     page_at_rest(page)
     searching = page.evaluate(STATUS_COUNTS)
-    # Whether "Tasks: 1" fits beside the steps is the font's to say: macOS's leaves it
+    # Whether "On Claude: 1" fits beside the steps is the font's to say: macOS's leaves it
     # room at this width and Linux's does not. Either way it is drawn whole and live, or
     # gone and out of reach.
     assert searching["drawn"] != searching["inert"], searching
@@ -3749,7 +3761,7 @@ def test_the_banner_uses_the_page_mark_and_puts_each_edge_by_its_panel(
                }"""
         )
 
-    # A phone moves Approval and Questions to the head of More, off the row.
+    # A phone moves Approval and On me to the head of More, off the row.
     desk = ["others", "latest", "version", "signoff", "queue", "comments"]
     phone = ["signoff", "queue", "others", "latest", "version", "comments"]
     for width in (1200, 390, 320):
@@ -3823,7 +3835,7 @@ def test_a_panel_row_follows_its_pages_status_live(
 
 def test_a_closed_leaf_clears_itself_off_the_drawer(browser, serve, other_leaf):
     """A closed leaf leaves the drawer on the poll that says so. Its server stays
-    up — a standing one for good — so the row would otherwise stand forever and the
+    up — a persistent one for good — so the row would otherwise stand forever and the
     count a user glances at to find who needs them would become a tally of
     everything that has ever run here. This page's own row never drops — a user
     looking at a closed page is still looking at it — so a drawer with nothing live
@@ -3910,24 +3922,29 @@ def test_a_leaves_clock_change_reopens_only_its_same_epoch_presentation(
     browser, serve, other_leaf
 ):
     """A time-only Leaves repaint repairs presentation at the current epoch."""
-    page = open_page(browser, serve(LONG_PAGE))
+    now = datetime.now().astimezone()
+    page = browser.new_page()
+
+    def quiet_neighbor(route):
+        answer = route.fetch()
+        state = answer.json()
+        for neighbor in state["others"]:
+            activity = neighbor["activity"]
+            activity.update(kind="away", dropped=False, ts=now.isoformat())
+            activity["counts"]["overdue"] = 1
+        route.fulfill(response=answer, json=state)
+
+    # The test's neighbor arrives through the real state boundary. Its clock alone
+    # changes afterward; no second runtime reading is mutated beside the publisher.
+    page.route("**/api/state*", quiet_neighbor)
+    page.goto(serve(LONG_PAGE), wait_until="load")
+    wait_until_ready(page)
+    told(page, until=lambda state: bool(state["others"]))
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
     before = page.evaluate(
         """async () => {
-          const context = await window.__lfRuntimeImport('/runtime/context.js');
-          const leaves = await window.__lfRuntimeImport('/runtime/live-leaves.js');
-          const presence = await window.__lfRuntimeImport('/runtime/presence.js');
-          const presentation = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js'
-          );
-          const state = structuredClone(context.runtime.state);
-          state.others[0].activity.kind = 'away';
-          state.others[0].activity.counts.overdue = 1;
-          state.others[0].activity.dropped = false;
-          state.others[0].activity.ts = new Date().toISOString();
-          presence.observeServerNow(new Date().toISOString());
-          await leaves.renderOthers(state);
+          const presentation = await window.__lfCheckApi();
           const list = document.querySelector('lf-leaves-list');
           const schedule = list.scheduleUpdate.bind(list);
           let release;
@@ -3936,11 +3953,11 @@ def test_a_leaves_clock_change_reopens_only_its_same_epoch_presentation(
           list.scheduleUpdate = () => {
             if (!armed) return schedule();
             armed = false;
+            window.leavesClockHeld = true;
             return held.then(schedule);
           };
           window.releaseLeavesClock = release;
           window.leavesPresentation = presentation;
-          window.leavesPresence = presence;
           const reading = presentation.readApplicationPresentation();
           return {
             semanticEpoch: reading.semanticEpoch,
@@ -3951,12 +3968,12 @@ def test_a_leaves_clock_change_reopens_only_its_same_epoch_presentation(
     expect(page.locator("a.lf-others-row .lf-others-line")).to_have_text(
         "Quiet (just now)"
     )
+    page.unroute("**/api/state*", quiet_neighbor)
+    page.route("**/api/state*", refuse)
+    page.clock.set_fixed_time(now + timedelta(minutes=1))
+    page.wait_for_function("window.leavesClockHeld")
     held = page.evaluate(
         """() => {
-          leavesPresence.observeServerNow(
-            new Date(Date.now() + 60_000).toISOString()
-          );
-          window.leavesClockTick = leavesPresence.tickClock(() => {});
           window.leavesReady = false;
           leavesPresentation.whenApplicationPresented().then(() => {
             window.leavesReady = true;
@@ -3978,7 +3995,6 @@ def test_a_leaves_clock_change_reopens_only_its_same_epoch_presentation(
     }
     page.evaluate("releaseLeavesClock()")
     page.wait_for_function("window.leavesReady")
-    page.evaluate("leavesClockTick")
     expect(page.locator("a.lf-others-row .lf-others-line")).to_have_text(
         "Quiet (1m ago)"
     )
@@ -4009,7 +4025,7 @@ def test_a_press_on_the_pages_words_is_a_newer_word_than_a_waiting_hold(browser,
     page.locator("#d > summary").focus()
     page.evaluate(
         """async () => {
-          const { holdFocus } = await window.__lfRuntimeImport('/runtime/focus.js');
+          const { holdFocus } = await window.__lfWidgetApi();
           window.__restore = holdFocus(document.querySelector('main'));
         }"""
     )
@@ -4022,7 +4038,7 @@ def test_a_press_on_the_pages_words_is_a_newer_word_than_a_waiting_hold(browser,
     assert (
         page.evaluate(
             """async () => {
-          const { holdFocus } = await window.__lfRuntimeImport('/runtime/focus.js');
+          const { holdFocus } = await window.__lfWidgetApi();
           const details = document.querySelector('#d');
           details.remove();
           return holdFocus(details) !== null;
@@ -4174,7 +4190,7 @@ def test_a_covering_auxiliary_surface_keeps_a_replacement_document_inert(
         "focusInside": True,
     }, f"the updated document escaped its covering auxiliary surface: {state}"
 
-    page.get_by_role("button", name="Close questions").click()
+    page.get_by_role("button", name="Close the On panel").click()
     expect(page.locator(".lf-queue-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     assert not bool(page.locator("dialog:modal").count())
 
@@ -4819,6 +4835,38 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
     )
 
 
+def test_covering_feedback_clears_the_reply_at_every_reading_position(browser, serve):
+    """Feedback keeps one seat above a reply whether that reply is in view or not."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Read this before replying. " * 80)
+    context = browser.new_context(
+        viewport={"width": 400, "height": 700}, reduced_motion="reduce"
+    )
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    write(card.locator("leaf-text"), "One line\nSecond line\nThird line")
+    listing = page.locator(".lf-threads")
+    listing.focus()
+    assert listing.evaluate("n => n.scrollHeight > n.clientHeight")
+    page.evaluate(
+        "async () => (await window.__lfWidgetApi()).notice('Saved this reply', {announce:false})"
+    )
+    status = page.locator(".lf-bottom-status")
+    expect(status).to_be_visible()
+    places = []
+    for end in (False, True):
+        listing.evaluate("(n,end) => {n.scrollTop = end ? n.scrollHeight : 0}", end)
+        rendered(page)
+        places.append(status.bounding_box())
+    assert places[0] == places[1], "scrolling the reply into view moved its feedback"
+    assert (
+        places[-1]["y"] + places[-1]["height"]
+        < card.locator(".lf-thread-reply").bounding_box()["y"]
+    )
+
+
 def test_dynamic_chrome_offsets_keep_the_safe_area_in_their_arithmetic(browser, serve):
     """The bottom bar keeps the inset tokens stated by the stylesheet: it stands on the
     window's foot, grows by the bottom inset, and holds its hints inside the side insets.
@@ -4843,7 +4891,7 @@ def test_dynamic_chrome_offsets_keep_the_safe_area_in_their_arithmetic(browser, 
             return {left: r.left, right: r.right, top: r.top, bottom: r.bottom};
           };
           const bar = document.querySelector('.lf-shortcut-bar');
-          const hints = [...bar.querySelectorAll(".lf-shortcut:not([hidden])")];
+          const hints = [...bar.querySelectorAll(".lf-shortcut:not([data-lf-off-line])")];
           return {shortcut_bar: rect(bar), first: rect(hints[0]),
                   width: innerWidth, height: innerHeight};
         }"""
@@ -4975,12 +5023,12 @@ def test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge(
 def test_the_ring_reading_distinguishes_element_marks_from_focus(browser, serve):
     """The reading ignores element contours and still recognizes the real focus ring.
 
-    A hovered passage deliberately shares the ring's accent and width but has no
-    focus-ring declaration, so its element-feedback role must keep it out of the
-    population of keyboard rings. The named focus state on that same element and an
-    unregistered real ring follow as positive controls; without them a reading that
-    ignored all element contours would pass the first case and prove only that it was
-    silent."""
+    A hovered passage deliberately shares the ring's accent and width but its rule
+    writes the contour out rather than drawing the ring's token, so the browser's
+    answer for which rule drew it keeps it out of the population of keyboard rings. The
+    focus state on that same element, a token ring on a plain box, and a contour on a
+    focused mark follow as positive controls; without them a reading that ignored all
+    element contours would pass the first case and prove only that it was silent."""
     example = next(e for e in EXAMPLES if e.stem == "release-notes")
     url = serve(example, comments=2, seed_log=False)
     page = open_page(browser, url)
@@ -4993,14 +5041,12 @@ def test_the_ring_reading_distinguishes_element_marks_from_focus(browser, serve)
         box.classList.toggle(name, false);
       box.toggleAttribute('data-lf-focus', how === 'focused mark');
       box.style.outline = '';
-      box.style.removeProperty('--lf-focus-ring');
       if (how === 'mark') box.classList.add('lf-mark-el', 'lf-mark-hover');
       if (how === 'focused mark') box.classList.add('lf-mark-el');
       if (how === 'the ring itself') box.style.outline = 'var(--focus-ring)';
-      if (how === 'unregistered focused mark') {
+      if (how === 'contour on a focused mark') {
         box.classList.add('lf-mark-el');
-        box.style.outline = 'var(--focus-ring)';
-        box.style.setProperty('--lf-focus-ring', 'none');
+        box.style.outline = 'var(--focus-ring-w) solid var(--accent)';
         box.tabIndex = -1;
         box.focus();
       }
@@ -5038,8 +5084,8 @@ def test_the_ring_reading_distinguishes_element_marks_from_focus(browser, serve)
 
     _style, _width, colour = page.evaluate(plant, "focused mark")
     focused_claims = claimed()
-    assert [seen["ring"] for seen in focused_claims] == ["passage-focus"], (
-        f"the marked element's named focus ring ({colour}) was not credited: "
+    assert [".lf-mark-el" in seen["rule"] for seen in focused_claims] == [True], (
+        f"the marked element's focus ring ({colour}) was not credited to its rule: "
         f"{focused_claims}"
     )
 
@@ -5050,16 +5096,16 @@ def test_the_ring_reading_distinguishes_element_marks_from_focus(browser, serve)
         "this reading now divides on"
     )
     ring_claims = claimed()
-    assert len(ring_claims) == 1 and not ring_claims[0]["ring"], (
+    assert [seen["rule"] for seen in ring_claims] == ["style attribute"], (
         f"a box wearing the layer's own ring ({ring_paint}) was not counted, so the cases "
         "above prove only that this reading is silent"
     )
 
-    focused_mark_paint = page.evaluate(plant, "unregistered focused mark")
+    focused_mark_paint = page.evaluate(plant, "contour on a focused mark")
     focused_mark_claims = claimed()
-    assert len(focused_mark_claims) == 1 and not focused_mark_claims[0]["ring"], (
-        f"a focused element mark wearing an unregistered ring ({focused_mark_paint}) "
-        f"was not counted: {focused_mark_claims}"
+    assert [seen["rule"] for seen in focused_mark_claims] == [""], (
+        f"a focused element mark wearing a contour no ring rule drew "
+        f"({focused_mark_paint}) was not counted: {focused_mark_claims}"
     )
 
 
@@ -5233,7 +5279,7 @@ def test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across(
     page.keyboard.press("Tab")
     page.keyboard.press("Shift+Tab")
     standing = standing_ring(page)
-    assert standing and standing["ring"] == "edge", (
+    assert standing and ".lf-edge" in standing["rule"], (
         f"the keyboard is not standing on the grip's own ring: {standing}"
     )
 
@@ -5559,9 +5605,10 @@ def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_bo
 # with a second version so the versions menu has a comparison to offer.
 RING_CHROME = "triage-board"
 # A causal sample in each surface the keyboard reaches. Each case names its surface, the
-# real keys that open it, the element whose focus state paints the ring, and the ring it
-# paints. A null selector means the opening keys themselves leave the required
-# non-focusable carrier lit.
+# real keys that open it, the element whose focus state paints the ring, and the rule
+# that paints it, as the part of its matched selector that makes the rule that
+# control's own (`ring_rules`, render_cases_layout.py). A null selector means the
+# opening keys themselves leave the required non-focusable carrier lit.
 RING_CASES = (
     (
         "the page",
@@ -5571,76 +5618,82 @@ RING_CASES = (
             # since every page carries the same chrome and each reading over a large
             # document costs seconds.
             RING_CHROME: (
-                (".lf-skip", "skip"),
-                (".lf-grip", "card-grip"),
-                (".lf-status-button", "status"),
-                (".lf-others", "btn"),
-                (".lf-edge:visible", "edge"),
+                (".lf-skip", ".lf-skip"),
+                (".lf-grip", ".lf-grip"),
+                (".lf-status-button", ".lf-status-button"),
+                (".lf-others", ":is(.lf-btn, .button)"),
+                (".lf-edge:visible", ".lf-edge"),
                 # Before the fields: More stands down while a field takes its key.
-                (".lf-shortcut-more", "key-more"),
-                (".lf-find-box input", "text-entry"),
-                (".lf-thread-panel leaf-text", "text-box"),
+                (".lf-shortcut-more", ".lf-shortcut-more"),
+                (".lf-find-box input", "wa-input::part"),
+                (".lf-thread-panel leaf-text", ".lf-compose-field"),
             ),
             "feature-gallery": (
-                (".lf-tab-btn", "tab-btn"),
-                ("lf-option > .lf-pick", "options-row"),
+                (".lf-tab-btn", ".lf-tab-btn"),
+                ("lf-option > .lf-pick", "lf-option:has(> .lf-pick"),
                 (
                     any_owner_entry("suggestion", "accept") + ":visible",
                     "margin-entry",
                 ),
-                (".lf-draft-edit", "draft-editor"),
+                (".lf-draft-edit", ".lf-draft-edit"),
             ),
-            "heat-loss": ((".lf-visual-action", "visual-target"),),
-            "review-a-plan": (("main details > summary", "focus"),),
+            "heat-loss": ((".lf-visual-action", ".lf-visual-action"),),
+            "review-a-plan": (("main details > summary", ":where([data-lf-focus])"),),
             "pr-walkthrough": (
-                ("lf-gloss:visible > .lf-gloss-mark", "gloss-mark"),
-                (".lf-diff-search input", "text-entry"),
-                ("lf-diff summary", "code-summary"),
-                ("lf-diff code", "code-pre-shadow"),
+                ("lf-gloss:visible > .lf-gloss-mark", ".lf-gloss-mark"),
+                (".lf-diff-search input", "wa-input::part"),
+                ("lf-diff summary", ".lf-diff-file > details > summary"),
+                ("lf-diff code", "code[data-code]"),
             ),
             "release-notes": (
-                ("main p.lf-mark-el", "passage-focus"),
-                ('lf-shot .lf-shotcomparison [part~="handle"]', "comparison-handle"),
-                (".lf-shotcap", "pressable"),
+                ("main p.lf-mark-el", ".lf-mark-el"),
+                (
+                    'lf-shot .lf-shotcomparison [part~="handle"]',
+                    "wa-comparison::part(lf-focus)",
+                ),
+                (".lf-shotcap", "[data-lf-offer]"),
             ),
-            "ship-review": ((".lf-reopen", "thread-action"),),
+            "ship-review": ((".lf-reopen", ".lf-thread-action"),),
             "wt-merge": (
-                ('[data-lf-reading-role="pane"] > [tabindex="0"]', "pane-body"),
+                (
+                    '[data-lf-reading-role="pane"] > [tabindex="0"]',
+                    "[data-lf-reading-role=pane]",
+                ),
             ),
         },
     ),
-    ("a landed diff line", ("]",), {"pr-walkthrough": ((None, "code-line"),)}),
+    ("a landed diff line", ("]",), {"pr-walkthrough": ((None, "[data-line]"),)}),
     (
         "an inline response",
         (),
-        {"pr-walkthrough": (("leaf-text.lf-fab-input", "text-box"),)},
+        {"pr-walkthrough": (("leaf-text.lf-fab-input", ".lf-response-control"),)},
     ),
     # The list holds focus itself only while it shows no thread, so the sample finds
     # nothing and backs out of the find box onto the emptied list.
     (
         "the thread list",
         ("g", "Shift+t", "/", "z", "q", "x", "j", "Escape"),
-        {RING_CHROME: ((None, "thread-list"),)},
+        {RING_CHROME: ((None, ".lf-threads-frame"),)},
     ),
     (
         "a thread title",
         (),
-        {"ship-review": ((".lf-thread-summary:visible", "thread-summary"),)},
+        {"ship-review": ((".lf-thread-summary:visible", ".lf-thread-summary"),)},
     ),
     # The keyboard walk lands on the accordion title, whose inset band also marks
     # its native Tab stop.
     (
         "a walked thread",
         ("g", "Shift+t", "t"),
-        {"ship-review": ((None, "thread-summary"),)},
+        {"ship-review": ((None, ".lf-thread-summary"),)},
     ),
     # The same walk with the panel shut lands in the margin's thread view, on the
     # thread itself rather than a control inside it.
-    ("an inline thread", ("t",), {"ship-review": ((None, "page-thread"),)}),
+    ("an inline thread", ("t",), {"ship-review": ((None, ".lf-page-thread"),)}),
     (
         "passage search",
         ("/",),
-        {RING_CHROME: ((".lf-page-search-box input:visible", "text-entry"),)},
+        {RING_CHROME: ((".lf-page-search-box input:visible", "wa-input::part"),)},
     ),
     # Item hints, and the anchored bar the user answers a chosen item on. Both open the
     # same mode, and both step back and then forward through it, which lands on the last
@@ -5658,13 +5711,13 @@ RING_CASES = (
     (
         "target hints",
         ("Tab", "s", "Shift+Tab", "Tab"),
-        {RING_CHROME: ((None, "target-hint"),)},
+        {RING_CHROME: ((None, ".lf-key-hint.lf-current"),)},
     ),
     # Enter opens Comment on the item the keyboard is browsing and focuses its field.
     (
         "the response bar",
         ("Tab", "s", "Shift+Tab", "Tab", "Enter"),
-        {RING_CHROME: ((".lf-fab-input", "text-box"),)},
+        {RING_CHROME: ((".lf-fab-input", ".lf-response-control"),)},
     ),
     # These controls live behind exact page-owned view states: a settled group's
     # disclosure, and the options it puts away.
@@ -5673,7 +5726,7 @@ RING_CASES = (
         (),
         {
             "current-proposed-comparison": (
-                ("#comparison-policy > .lf-settled", "options-settled"),
+                ("#comparison-policy > .lf-settled", ".lf-settled"),
             )
         },
     ),
@@ -5682,14 +5735,17 @@ RING_CASES = (
         (),
         {
             "current-proposed-comparison": (
-                ("#comparison-policy > lf-option > .lf-pick", "options-pick"),
+                (
+                    "#comparison-policy > lf-option > .lf-pick",
+                    ":is(lf-option) .lf-pick",
+                ),
             )
         },
     ),
     (
         "a contents link",
         (),
-        {"feature-gallery": (("#bg-contents li a:visible", "toc-link"),)},
+        {"feature-gallery": (("#bg-contents li a:visible", ":is(lf-toc) a"),)},
     ),
     # The reaction palette a message's strip opens. Its chips are the last boxes the
     # layer dresses in the chrome's chip face, and they are behind a press: the strip
@@ -5698,11 +5754,15 @@ RING_CASES = (
     (
         "a reaction palette",
         (),
-        {"ship-review": ((".lf-react-palette:popover-open .lf-react", "chip"),)},
+        {
+            "ship-review": (
+                (".lf-react-palette:popover-open .lf-react", ".lf-outline-chip"),
+            )
+        },
     ),
-    ("the Questions panel", (), {"ship-review": ((".lf-queue-row", "queue-row"),)}),
-    ("the pages drawer", ("g", "Shift+l"), {RING_CHROME: ((None, "others-row"),)}),
-    ("page status", (), {RING_CHROME: ((None, "status-detail"),)}),
+    ("the On panel", (), {"ship-review": ((".lf-queue-row", ".lf-queue-row"),)}),
+    ("the pages drawer", ("g", "Shift+l"), {RING_CHROME: ((None, ".lf-others-row"),)}),
+    ("page status", (), {RING_CHROME: ((None, ".lf-status-detail"),)}),
     # The menu's own route after the key that opens it: an open lands on the version being
     # read, which is the first row, and the comparison press beside a row is a Tab forward
     # from the row below it. The walk is clamped, so a second press at the bottom moves
@@ -5712,8 +5772,8 @@ RING_CASES = (
         ("g", "Shift+v", "ArrowDown", "ArrowDown"),
         {
             RING_CHROME: (
-                (".lf-version-row", "version-row"),
-                (".lf-version-diff:visible:not(:disabled)", "version-diff"),
+                (".lf-version-row", ".lf-version-row"),
+                (".lf-version-diff:visible:not(:disabled)", ".lf-version-diff"),
             )
         },
     ),
@@ -5722,8 +5782,8 @@ RING_CASES = (
         ("?", "?"),
         {
             RING_CHROME: (
-                (".lf-command-reference-search input:visible", "text-entry"),
-                (".lf-command-reference-command", "help-command"),
+                (".lf-command-reference-search input:visible", "wa-input::part"),
+                (".lf-command-reference-command", ".lf-command-reference-command"),
             )
         },
     ),
@@ -5734,23 +5794,34 @@ RING_CASES = (
     (
         "a thread card",
         (),
-        {"ship-review": ((".lf-margin-preview .lf-resolve", "thread"),)},
+        {
+            "ship-review": (
+                (
+                    ".lf-margin-preview .lf-resolve",
+                    ".lf-page-thread :is(.lf-btn, summary)",
+                ),
+            )
+        },
     ),
-    ("message media", (), {"feature-gallery": ((".lf-message-media", "media"),)}),
+    (
+        "message media",
+        (),
+        {"feature-gallery": ((".lf-message-media", ".lf-media-open"),)},
+    ),
     # Both controls of a summarized range wear one band: the checkpoint's own button, and
     # the rail that folds the originals back once it has opened them.
     (
         "a summarized range",
         (),
-        {"feature-gallery": ((".lf-summary-expand", "summary-fold"),)},
+        {"feature-gallery": ((".lf-summary-expand", ".lf-thread-disclosure"),)},
     ),
     (
         "the Page Map dialog",
         (),
         {
             RING_CHROME: (
-                (".lf-page-map-action:visible", "page-map-action"),
-                (".lf-page-map-search input:visible", "text-entry"),
+                (".lf-page-map-action:visible", ".lf-page-map-action"),
+                (".lf-page-map-search input:visible", "wa-input::part"),
             )
         },
     ),
@@ -5769,11 +5840,11 @@ RING_EXAMPLE_FILES = {
 }
 # Rings whose carrier is semantic state elsewhere in the page rather than the focused
 # control or one of its ancestors. Mark the exact carrier before reading the composed
-# paint so an unrelated ring with the same name cannot credit the sample.
+# paint so an unrelated ring drawn by the same rule cannot credit the sample.
 RING_REMOTE_CARRIER = {
-    "target-hint": ".lf-target-picker-hint.lf-current",
+    ".lf-key-hint.lf-current": ".lf-target-picker-hint.lf-current",
     # A pane draws its focused body's band inset over the body's cell (theme.css).
-    "pane-body": '[data-lf-reading-role="pane"]:has(> [data-lf-focus])',
+    "[data-lf-reading-role=pane]": '[data-lf-reading-role="pane"]:has(> [data-lf-focus])',
 }
 
 
@@ -5808,7 +5879,7 @@ RING_SCOPE_SURFACE = {
     # frame and shows only for an anchor.
     "target hints": (".lf-target-picker-hint.lf-current", None),
     "the response bar": (".lf-fab-bar .lf-composer[data-lf-open]", None),
-    "the Questions panel": (".lf-queue-panel.open", ".lf-queue"),
+    "the On panel": (".lf-queue-panel.open", ".lf-queue"),
     "the pages drawer": (".lf-others-panel.open", ".lf-others"),
     "the versions menu": (".lf-version-menu:popover-open", None),
     "the command reference": (".lf-command-reference.open", None),
@@ -5817,7 +5888,7 @@ RING_SCOPE_SURFACE = {
 }
 RING_SCOPE_OPENER = {
     "an inline response": "#pr-exact-patch .lf-diff-file-comment",
-    "the Questions panel": ".lf-queue",
+    "the On panel": ".lf-queue",
     "a thread card": '.lf-margin-marker[data-lf-kinds~="comment"]',
     "the Page Map dialog": ".lf-page-map-toggle",
     "a reaction palette": ".lf-react-strip > .lf-react-trigger",
@@ -5862,6 +5933,20 @@ WALKED_STOP = f"""() => {{
 }}"""
 
 
+def seen_stop(page, seen=...):
+    """The focused stop as the user would fail to find it, or None where they can.
+
+    `seen` is a `SEEN_STOP` reading already taken. The rings off the stop itself that
+    it leaves undecided answer only where a ring rule drew them (`ring_rules`)."""
+    if seen is ...:
+        seen = page.evaluate(SEEN_STOP)
+    if seen is None:
+        return None
+    if any(ring_rules(page, [(pseudo, "outline") for pseudo in seen["carriers"]])):
+        return None
+    return seen["lost"]
+
+
 def _tab_stops_without_indication(page, stem):
     """Walk the page's whole ordinary Tab order, Threads open, and name every stop
     that shows nothing of where the keyboard is. The panel is closed again after."""
@@ -5873,7 +5958,8 @@ def _tab_stops_without_indication(page, stem):
     empty = 0
     for _ in range(400):
         page.keyboard.press("Tab")
-        stop, lost = page.evaluate(WALKED_STOP)
+        stop, seen = page.evaluate(WALKED_STOP)
+        lost = seen_stop(page, seen)
         if stop == "seen":
             break
         if stop == "empty":
@@ -5904,16 +5990,33 @@ def test_the_focus_sweep_distinguishes_stops_inside_a_live_frame(browser):
     assert page.evaluate(RING_NEW_STOP) == "new"
 
 
-# Every declaration in the page's composed layer that lifts a box off the page: a
-# box-shadow with a blur radius. A ring is `0 0 0 Npx` and an inset band is `inset …`, so
+# Every declaration in the page's composed layer that spells a lift: a box-shadow, a
+# filter's drop-shadow(), or a custom property either reads, with a blur radius written
+# out. A ring is `0 0 0 Npx`
+# and an inset band is `inset …`, so
 # the reading asks for a third length that is not nought — which is the one thing that
 # separates elevation from the other two uses of the property, and is decidable from the
 # declaration where "is this a shadow" is not.
 #
-# Flat and condition-blind for the reasons RING_NAMES gives next door: nothing re-runs a
-# selector, and a shadow painted only in some other medium is one this reading should say
-# nothing about.
+# Flat and condition-blind: nothing re-runs a selector, and a shadow painted only in some
+# other medium is one this reading should say nothing about.
 ELEVATION_SHADOWS = """() => {
+  // A shadow list's layers, or a filter's drop-shadow() arguments, which may hold a
+  // colour function's own parentheses.
+  const layersOf = (property, value) => {
+    if (property !== 'filter') return value.split(/,(?![^(]*\\))/);
+    const layers = [];
+    for (let at = value.indexOf('drop-shadow('); at >= 0;
+         at = value.indexOf('drop-shadow(', at + 1)) {
+      let depth = 0, end = at + 'drop-shadow'.length;
+      for (; end < value.length; end++) {
+        if (value[end] === '(') depth++;
+        else if (value[end] === ')' && --depth === 0) break;
+      }
+      layers.push(value.slice(at + 'drop-shadow('.length, end));
+    }
+    return layers;
+  };
   const found = [];
   const eaten = new Set();
   const eat = (sheet) => {
@@ -5923,17 +6026,20 @@ ELEVATION_SHADOWS = """() => {
     try { list = sheet.cssRules; } catch { return; }  // a sheet from another origin
     const walk = (from) => {
       for (const rule of from) {
-        for (const property of ['box-shadow', '--lf-lift']) {
-          const value = rule.style?.getPropertyValue(property)?.trim();
+        const named = rule.style ? [...rule.style] : [];
+        const lifted = (name) => ['box-shadow', 'filter'].includes(name) || name.startsWith('--');
+        for (const property of named.filter(lifted)) {
+          const value = rule.style.getPropertyValue(property).trim();
           if (!value || value === 'none') continue;
           // The blur, which is the third length of a layer, past the two offsets. A ring
           // writes `0 0 0 Npx` and has none; an inset band is not a lift at all. Read per
           // layer, because a control may state its ring and its lift in one declaration.
-          const lifts = value.split(/,(?![^(]*\\))/).filter((layer) => {
+          const lifts = layersOf(property, value).filter((layer) => {
             if (/(^|\\s)inset(\\s|$)/.test(layer)) return false;
             const lengths = layer.trim().split(/\\s+/)
               .filter((token) => /^-?(\\d*\\.)?\\d+(px)?$/.test(token));
-            return lengths.length >= 3 && parseFloat(lengths[2]) !== 0;
+            return lengths.length >= 3 && parseFloat(lengths[2]) !== 0
+              && lengths.some((token) => token.endsWith('px'));
           });
           if (!lifts.length) continue;
           const own = rule.selectorText;
@@ -5971,36 +6077,44 @@ PAINTED_SHADE = """() => {
 }"""
 
 
-def test_every_shadow_the_layer_lifts_a_box_with_is_cast_in_the_scheme_s_own_ink(
+def test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink(
     browser, serve
 ):
-    """A drop shadow written as rgba(0,0,0,α) can only be right about one ground.
+    """A box stands at one of three heights, and only the theme spells them out.
 
-    At .12 over the light paper a menu lifts its ground by 10 L*. The same declaration
-    over the dark paper lifts it by 1.4, which is a shadow that is in the stylesheet and
-    not on the screen — and nine of the layer's twelve elevation shadows were written that
-    way, each with an alpha of its own between .12 and .24. --shade is the ink, stated once
-    per scheme, and depth is left to the offsets and the blur that were already saying it.
+    Twenty-nine lifts once wrote fourteen geometries between them, so two menus beside
+    each other stood at different heights for no reason anyone chose, and nothing kept
+    the next one from writing a fifteenth. The `--raise-*` tokens (theme.css, beside
+    --shade) are now the only declarations that write a blur; every other rule, a
+    filter's drop-shadow() included, names one, with a hairline or ring beside it where
+    its edge needs one.
+
+    A drop shadow written as rgba(0,0,0,α) can only be right about one ground: at .12
+    over the light paper a menu lifts its ground by 10 L*, and over the dark paper by
+    1.4. So the heights are cast in --shade, the ink stated once per scheme, and the two
+    schemes are then asked for different answers from it.
 
     Asked of the declarations rather than of the paint, because that is where the fault
-    is: on the dark ground the difference between the value that reads and the value that
-    does not is 4 L*, which no screenshot of a blurred edge will tell you about reliably,
-    while "does this name the token" is exact. The two schemes are then asked for
-    different answers from the token itself, which is the whole of what one hard-coded
-    colour could not do.
+    is: "does this name the token" is exact, where a screenshot of a blurred edge is not.
     """
     page = open_page(browser, serve(LONG_PAGE))
     lifted = page.evaluate(ELEVATION_SHADOWS)
-    assert len(lifted) >= 10, (
-        f"the layer declares {len(lifted)} elevation shadows, which is fewer than it "
-        f"ships: this reading has stopped finding them and the assertion below is "
-        f"about nothing"
+    heights = {s["property"] for s in lifted if s["property"].startswith("--raise-")}
+    assert heights == {"--raise-1", "--raise-2", "--raise-3"}, (
+        f"the layer spells the heights {sorted(heights)}, not --raise-1 to --raise-3: "
+        f"this reading has stopped finding them and the assertions below are about "
+        f"nothing"
     )
-    raw = [shadow for shadow in lifted if "var(--shade)" not in shadow["value"]]
+    spelled = [s for s in lifted if not s["property"].startswith("--raise-")]
+    assert not spelled, (
+        f"{len(spelled)} lifts write their own geometry rather than naming a --raise-* "
+        f"height:\n  "
+        + "\n  ".join(f"{s['said']} — {s['property']}: {s['value']}" for s in spelled)
+    )
+    raw = [s for s in lifted if "var(--shade)" not in s["value"]]
     assert not raw, (
-        f"{len(raw)} of the layer's {len(lifted)} elevation shadows are cast in a "
-        f"colour of their own rather than in --shade, so the dark scheme cannot answer "
-        f"for them:\n  "
+        f"{len(raw)} heights are cast in a colour of their own rather than in --shade, "
+        f"so the dark scheme cannot answer for them:\n  "
         + "\n  ".join(f"{s['said']} — {s['property']}: {s['value']}" for s in raw)
     )
     light = page.evaluate(PAINTED_SHADE)
@@ -6113,9 +6227,10 @@ def _each_aim_surface(page, page_dir):
     yield
     page.keyboard.press("Escape")
 
-    # Twice: the first press expands the shortcut bar, the second opens the reference.
+    # The first press can open the reference or expand the shortcut bar.
     page.keyboard.press("?")
-    page.keyboard.press("?")
+    if not page.locator(".lf-command-reference").is_visible():
+        page.keyboard.press("?")
     expect(page.locator(".lf-command-reference-command").first).to_be_visible()
     yield
 
@@ -6183,7 +6298,7 @@ def test_a_control_tab_skips_leaves_a_scrolling_box_its_own_stop(browser, serve)
     # A box a script builds is swept when its builder asks, as a module's would be.
     boxes = page.evaluate(
         """async () => {
-          const {reachScrollers} = await window.__lfRuntimeImport('/runtime/reach.js');
+          const {reachScrollers} = await window.__lfCheckApi();
           const ids = ["out", "in"].map((order) => {
           const box = document.createElement("div");
           box.id = `box-${order}`;
@@ -6208,7 +6323,7 @@ def test_a_control_tab_skips_leaves_a_scrolling_box_its_own_stop(browser, serve)
 # the button they stand on, and hiding it drops their focus. `shut` is a hidden button
 # and `open` a shown one, both at the end of `main`.
 HAND_BACK = """async (step) => {
-  const {handBack} = await window.__lfRuntimeImport('/runtime/focus.js');
+  const {handBack} = await window.__lfWidgetApi();
   const frame = () => new Promise((done) => requestAnimationFrame(() => done()));
   const main = document.querySelector('main');
   const made = (tag, id, parent = main, hidden = false) => {
@@ -6309,7 +6424,7 @@ def test_a_reaction_withdrawal_does_not_take_back_a_newer_place(
     append_carried_log_record(
         serve.page_dir,
         {
-            "id": "standing-reaction",
+            "id": "reaction-in-force",
             "kind": "comment",
             "author": "user",
             "revision": 1,
@@ -6343,7 +6458,7 @@ def test_a_reaction_withdrawal_does_not_take_back_a_newer_place(
     withdrawn = events_model.read_events(serve.page_dir)[-1]
     assert (withdrawn["kind"], withdrawn["undoes"]) == (
         "undo",
-        "standing-reaction",
+        "reaction-in-force",
     )
 
 
@@ -6412,9 +6527,9 @@ def test_retained_moves_keep_native_editor_and_frame_state(
     )
     page.evaluate(
         """async ([nativeMove, renderer]) => {
-      const {render, repeat} = await window.__lfRuntimeImport('/vendor/browser-runtime.js');
-      const {orderChildren} = await window.__lfRuntimeImport('/runtime/dom-children.js');
-      const {move} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const {render, repeat} = await window.__lfWidgetApi();
+      const {setChildren: orderChildren} = await window.__lfWidgetApi();
+      const {move} = await window.__lfWidgetApi();
       const rows = document.querySelector('#rows');
       if (!nativeMove) Element.prototype.moveBefore = undefined;
       const nodes = ['a', 'b', 'c'].map(id => {
@@ -6472,46 +6587,6 @@ def test_retained_moves_keep_native_editor_and_frame_state(
             )
         else:
             assert page.evaluate("window.blurs") > 0
-
-
-def test_scoped_native_moves_keep_the_registered_lifecycle(browser, serve):
-    page = open_page(browser, serve(leaf_page("Scoped moves", "<h1>Scoped moves</h1>")))
-    phases = page.evaluate("""() => {
-      const heard = [];
-      const registry = new CustomElementRegistry();
-      class Moving extends HTMLElement {
-        connectedCallback() { heard.push('moving connected'); }
-        disconnectedCallback() { heard.push('moving disconnected'); }
-        connectedMoveCallback() { heard.push('moving moved'); }
-      }
-      class Ordinary extends HTMLElement {
-        connectedCallback() { heard.push('ordinary connected'); }
-        disconnectedCallback() { heard.push('ordinary disconnected'); }
-      }
-      registry.define('lf-moving', Moving);
-      registry.define('lf-ordinary', Ordinary);
-      // Registration captures callbacks, just as the native registry does.
-      Moving.prototype.connectedMoveCallback = () => heard.push('late callback');
-      const host = document.createElement('div');
-      const root = host.attachShadow({mode:'open', customElements:registry});
-      root.innerHTML = '<div id="first"><lf-moving></lf-moving><lf-ordinary></lf-ordinary></div><div id="second"></div>';
-      document.body.append(host);
-      const phases = {connected: heard.splice(0)};
-      const first = root.querySelector('#first');
-      root.querySelector('#second').moveBefore(first, null);
-      phases.moved = heard.splice(0);
-      first.remove();
-      phases.disconnected = heard.splice(0);
-      root.append(first);
-      phases.reconnected = heard.splice(0);
-      return phases;
-    }""")
-    assert phases == {
-        "connected": ["moving connected", "ordinary connected"],
-        "moved": ["moving moved", "ordinary disconnected", "ordinary connected"],
-        "disconnected": ["moving disconnected", "ordinary disconnected"],
-        "reconnected": ["moving connected", "ordinary connected"],
-    }
 
 
 def test_unfocused_editor_move_leaves_later_selection_alone(browser, serve):

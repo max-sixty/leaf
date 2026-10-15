@@ -9,10 +9,10 @@
 # the preset/control duplication in the recorded draft.
 description: playground-choice-has-one-surface
 metadata:
-  purpose: 'Playground: each design decision has one selection surface; presets
-    compose independently adjustable parameters.'
+  purpose: "Playground: each design decision has one selection surface; presets
+    compose independently adjustable parameters."
   tags:
-  - playground
+    - playground
 vars:
   prompt: |
     The user asks: "Where we have our before and after, consider ways to make it
@@ -66,25 +66,25 @@ vars:
     The page directory is not reachable here, so reply with the HTML and any
     page module needed for the choice and implementation request.
 assert:
-- type: llm-rubric
-  metric: one-selection-surface
-  value: |
-    Read the authored HTML and page module. Pass only if the user has one
-    selection surface for which treatment to build. Selectable candidates,
-    one group of choice options, or one group of presets are each acceptable.
-    Fail if presets, a choice control, or buttons on the candidates duplicate
-    the same treatment selection in two or more places, even with different
-    labels. Inspection controls for Before/Both/After and the final submission
-    button do not duplicate the treatment choice.
-- type: llm-rubric
-  metric: usable-comparison
-  value: |
-    Pass only if all four candidates remain available together for comparison,
-    the user can inspect Before/Both/After, and each visible candidate offers
-    its own selection action recording which treatment to implement. The
-    candidates themselves are the choice, so trying and choosing a candidate
-    happen in the same place. The inspection state is separate
-    from that design choice, and the implementation request identifies the
-    chosen treatment and lf-shot. Placeholders for live child templates are fine.
-    Fail if simplifying the selection removes comparison, inspection, or the
-    user's ability to submit a concrete implementation request.
+  - type: llm-rubric
+    metric: one-selection-surface
+    value: |
+      Read the authored HTML and page module. Pass only if the user has one
+      selection surface for which treatment to build. Selectable candidates,
+      one group of choice options, or one group of presets are each acceptable.
+      Fail if presets, a choice control, or buttons on the candidates duplicate
+      the same treatment selection in two or more places, even with different
+      labels. Inspection controls for Before/Both/After and the final submission
+      button do not duplicate the treatment choice.
+  - type: llm-rubric
+    metric: usable-comparison
+    value: |
+      Pass only if all four candidates remain available together for comparison,
+      the user can inspect Before/Both/After, and each visible candidate offers
+      its own selection action recording which treatment to implement. The
+      candidates themselves are the choice, so trying and choosing a candidate
+      happen in the same place. The inspection state is separate
+      from that design choice, and the implementation request identifies the
+      chosen treatment and lf-shot. Placeholders for live child templates are fine.
+      Fail if simplifying the selection removes comparison, inspection, or the
+      user's ability to submit a concrete implementation request.

@@ -69,7 +69,7 @@ def media_url(source: Path) -> str:
 
 def catalog_preview(assets: Path, name: str) -> Path:
     """Where an asset tree holds one example's catalog preview
-    (`leaf_dev.example_previews`)."""
+    (`leaf_dev.commands.refresh_previews`)."""
     return assets / "examples" / f"example-{name}.jpg"
 
 
@@ -91,7 +91,7 @@ def site_nav(current: str) -> list[str]:
 
 
 def markup_record(verb_state: dict) -> str:
-    """What a verb's standing state reads as in markup."""
+    """What a verb's current state reads as in markup."""
     if "creates" in verb_state:
         return f"creates an <code>{verb_state['creates']['child']}</code>"
     shape = verb_state.get("record")

@@ -4,9 +4,10 @@
    the ledger publishes the command synchronously. */
 import { actionForWidget, isThreadEvent } from "./model.js";
 import { createPendingLedger } from "./state.js";
-import { applicationState } from "../semantic-state.js";
+import { applicationState, readApplication } from "../semantic-state.js";
 import { randomId } from "../ids.js";
 import { saidNow } from "../presence.js";
+import { recordInteraction } from "../interaction-log.js";
 import { messageText } from "../thread/messages.js";
 
 /** @typedef {import("../../../../../build/browser/domain.ts").PendingCommand} PendingCommand */
@@ -24,14 +25,22 @@ import { messageText } from "../thread/messages.js";
  * onCollision: (attempt: string | undefined) => void,
  * }} DispatchDependencies */
 export function createCommandDispatch() {
+  const submitted = new Set();
   const ledger = createPendingLedger({
     newAttempt: randomId,
-    enqueue: (event) =>
-      applicationState.enqueue(
+    enqueue: (event) => {
+      // Capture local Send before publication or a prior transport can delay it.
+      // Retrying the same attempt does not begin another response-time interval.
+      if (!submitted.has(event.attempt)) {
+        submitted.add(event.attempt);
+        recordInteraction("event_submit", { kind: event.kind, attempt: event.attempt });
+      }
+      return applicationState.enqueue(
         event,
         saidNow(),
         isThreadEvent(event) ? messageText(event) : undefined,
-      ),
+      );
+    },
   });
   /** @type {DispatchDependencies | null} */
   let dependencies = null;
@@ -66,7 +75,7 @@ export function createCommandDispatch() {
         );
       return candidate ? withdraw(candidate) : null;
     }
-    const revision = descriptor.document.revision;
+    const revision = readApplication().document.revision;
     if (revision === null) return null;
     // An adopted document lists every verb the user sends from this widget; any other,
     // a misspelling or an agent's verb, would otherwise be dropped without a word.

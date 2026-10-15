@@ -252,7 +252,7 @@ def test_input_after_a_settled_response_batch_does_not_revive_older_inputs(page_
     ]
 
 
-def test_unrelated_agent_update_does_not_clear_a_standing_user_ask(page_dir):
+def test_unrelated_agent_update_does_not_clear_an_open_user_ask(page_dir):
     publish(page_dir)
     root = append_carried_log_record(
         page_dir,
@@ -426,7 +426,6 @@ def test_a_frozen_move_that_answers_no_ask_keeps_a_receipt_and_owes_nothing(
     append_carried_log_record(
         page_dir,
         {
-            "revision": 1,
             "kind": "reply",
             "author": "agent",
             "parent": asked["id"],
@@ -586,9 +585,7 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
         ),
     ]
     # Only which thread the board widget stands in matters here.
-    frozen = projection_model.FrozenThreadReading(
-        None, {}, {}, {"board": "root"}, None, {}, {}
-    )
+    frozen = projection_model.FrozenThreadReading(None, {}, {}, {"board": "root"}, None)
     todos = [
         {
             "id": "t1",
@@ -668,7 +665,7 @@ def test_served_workflows_list_the_strongest_first():
             ["back", "working"],
         ),
     ]
-    frozen = projection_model.FrozenThreadReading(None, {}, {}, {}, None, {}, {})
+    frozen = projection_model.FrozenThreadReading(None, {}, {}, {}, None)
     for workflows, expected in cases:
         served = work_served_model.served_workflows(workflows, frozen)
         assert [item["id"] for item in served] == expected

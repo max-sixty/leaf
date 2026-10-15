@@ -10,14 +10,14 @@ What a module exports, and what each module reads from others, come from its par
 interfaces included. A module reads a name it imports or re-exports, names in a type
 `import("…").Name`, TypeScript's or a JSDoc comment's, or takes from a module
 namespace, each resolved to the module that exports it; `imports` says how. A read
-through `export * from` reaches the modules re-exported. A committed bundle exports
-nothing this checks, since its source is checked, but its imports are readers: what
-it left external is what it reads from the tree. A read of a bundle compiled from one
+through `export * from` reaches the modules re-exported. A committed bundle, the kernel
+included, exports nothing this checks, since its source is checked, but its imports
+are readers: what it left external is what it reads from the tree. A read of a bundle compiled from one
 module here, such as `vendor/browser-runtime.js`, is a read of that module.
 
 The readers that are not JavaScript are found by word, and only in the files that hold
 them: a Python test that imports runtime modules inside a string
-(`__lfRuntimeImport('/runtime/…')`) or a render gate that calls probes by name, a
+through the widget or diagnostic entry, or a render gate that calls probes by name, a
 page's inline script, and a contract's prose. A name counts as read where one of
 those files names it as a word, so a name that collides with another word there can
 still hide an unused export.
@@ -28,8 +28,8 @@ export of the Worker's entry (`worker/wrangler.toml`'s `main`) by name, as
 
 A default export has no name of its own: its readers import the module, or a tool
 loads it by path, as eslint loads `eslint.config.mjs` and Pi loads `hooks/pi.ts`.
-So it counts as read where a module imports it, another file names the module's
-file name, or a registry declares an upgraded widget that loads its constructor.
+So it counts as read where a module imports it, or another file names the module's
+file name.
 """
 
 import json
@@ -38,11 +38,10 @@ import tomllib
 from pathlib import PurePosixPath
 
 from interact_support import PLUGIN_ROOT, js_facts, shipped_payload
-from leaf.registry.contract import element_declarations
 
 SOURCES = (".js", ".mjs", ".ts")
 WORDED = (".py", ".html", ".md")
-VENDORED = re.compile(r"(^|/)vendor/")
+BUNDLED = re.compile(r"(^|/)vendor/|^skills/leaf/kernel/")
 # A third-party bundle's own input under `build/` exports the surface of the package
 # it stands in for, which the bundled dependency reads and this tree never names
 # (`build/AGENTS.md`). Its own imports are still readers. `protocol-contract.d.ts` is
@@ -54,32 +53,6 @@ UNCHECKED = re.compile(
 # An escape is consumed whole, so `"\ndefine(…)"` in a Python string reads `define`.
 WORD = re.compile(r"\\[a-z]|([A-Za-z_$][\w$]*)")
 WORKER = "worker/wrangler.toml"
-
-
-def widget_default_readers(texts):
-    """Registry-owned constructor imports consumed by publicationVocabulary.load."""
-    return {
-        (PurePosixPath(relative).parent / "widgets" / f"{tag}.js").as_posix()
-        for relative, text in texts.items()
-        if PurePosixPath(relative).name == "registry.json"
-        for tag, entry in element_declarations(json.loads(text)).items()
-        if entry.get("x-upgrade")
-    }
-
-
-def test_dynamic_default_readers_require_an_upgraded_element_declaration():
-    texts = {
-        "page/registry.json": json.dumps(
-            {
-                "lf-loaded": {"x-upgrade": True},
-                "lf-static": {"x-upgrade": False},
-                "lf-selector.selected": {"x-upgrade": True},
-            }
-        ),
-        "reader.js": 'import value from "./ordinary.js";',
-        "other/widgets/lf-loaded.js": "export default class {}",
-    }
-    assert widget_default_readers(texts) == {"page/widgets/lf-loaded.js"}
 
 
 def test_every_export_has_a_reader_in_another_file():
@@ -96,7 +69,7 @@ def test_every_export_has_a_reader_in_another_file():
     modules = [
         relative
         for relative in sources
-        if not VENDORED.search(relative) and not UNCHECKED.search(relative)
+        if not BUNDLED.search(relative) and not UNCHECKED.search(relative)
     ]
     exported = json.loads(js_facts("exports", modules))
     imported = json.loads(js_facts("imports", sources))
@@ -126,8 +99,6 @@ def test_every_export_has_a_reader_in_another_file():
             for target in exporters.get(name, ()) if module is None else (module,):
                 if target != reader:
                     mark(target, name)
-    for module in widget_default_readers(texts):
-        mark(module, "default")
     worker = PurePosixPath(WORKER).parent
     mark(str(worker / tomllib.loads(texts[WORKER])["main"]), "*")
 
@@ -153,7 +124,7 @@ def test_every_export_has_a_reader_in_another_file():
             and not any(
                 PurePosixPath(module).name in text
                 for relative, text in texts.items()
-                if relative != module and not VENDORED.search(relative)
+                if relative != module and not BUNDLED.search(relative)
             )
         ]
     )

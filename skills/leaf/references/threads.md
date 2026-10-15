@@ -11,6 +11,9 @@ leaf thread open <page> --section <diagram-id> --part node:<source-id> --text "â
 leaf thread open <page> --text "â€¦"
 ```
 
+For a diagram source id with spaces, use its percent-encoded form in the part token:
+`node:Line%20Item` names the source id `Line Item`.
+
 `leaf thread open` anchors in the active revision as the user sees it. Quote exact
 words from the page's HTML that the user can see, within one widget part. The
 command refuses a quote that matches more than one place, or is retired, replaced,

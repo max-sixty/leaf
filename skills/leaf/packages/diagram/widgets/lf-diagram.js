@@ -164,7 +164,10 @@ customElements.define(
           keeps(element, "data-id", part.id);
           const label =
             part.label || element.textContent.replace(/\s+/g, " ").trim() || part.id;
-          this.visualParts.set(`node:${part.id}`, { element, label });
+          this.visualParts.set(`node:${encodeURIComponent(part.id)}`, {
+            element,
+            label,
+          });
         }
         this.classList.add("lf-rendered");
         this.visualPartRegistration.update();

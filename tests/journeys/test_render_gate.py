@@ -572,6 +572,12 @@ classDiagram
         )
         == "Jobs"
     )
+    assert (
+        drawn.locator("#er-quoted-name").evaluate(
+            "e => e.visualParts.get('node:Line%20Item').label"
+        )
+        == "Line Item"
+    )
 
 
 def test_the_readiness_wait_names_the_stage_a_page_still_owes(browser, serve):

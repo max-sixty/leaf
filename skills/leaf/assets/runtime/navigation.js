@@ -108,8 +108,9 @@ function stepThread(dir, destinations, panelIsOpen, narrowing, list) {
   const { threadsBox } = list;
   const { threadHere, threadAtStanding, threadPlace } = destinations;
   const { threads } = threadWalk(panelIsOpen, list);
+  const origin = walkOrigin();
   const current = currentThread(threads, threadHere);
-  const targetId = !current && threadAtStanding();
+  const targetId = !current && origin.kind === "standing" && threadAtStanding();
   const atTarget = targetId && threads.find((thread) => thread.dataset.id === targetId);
   // Focus on a list row the walk does not count, such as a withdrawn thread's notice.
   const atRow = panelIsOpen() && focused() !== threadsBox && standingIn(threadsBox);
@@ -118,10 +119,17 @@ function stepThread(dir, destinations, panelIsOpen, narrowing, list) {
     : atTarget
       ? { row: atTarget, wrapped: false }
       : atRow
-        ? stepFrom(threads, focused(), dir, (thread) => thread)
+        ? stepFrom(
+            threads,
+            { place: focused(), kind: "standing" },
+            dir,
+            (thread) => thread,
+          )
         : stepFrom(
             threads,
-            !panelIsOpen() || narrowing.listedInPageOrder() ? walkOrigin() : null,
+            !panelIsOpen() || narrowing.listedInPageOrder()
+              ? origin
+              : { place: null, kind: "enter" },
             dir,
             (thread) => threadPlace(thread.dataset.id),
           );

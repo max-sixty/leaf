@@ -1,43 +1,15 @@
 # leaf
 
-Leaf is a page an agent hands to a user and the loop that carries anchored
-comments and actions back. `README.md` describes the product.
+Read [SOUL.md](SOUL.md) for Leaf's purpose and product principles. It is
+human-curated; change it only at the user's direction. `README.md` describes the
+product and installation.
 
 ## Leaf's role
 
-The agent is the author and the user is its principal. A Leaf page is how the
-user sees the agent's work and steers it: they read, point at exact passages and
-act, and the agent answers by revising the page. The agent decides a page's
-content and presentation. The user's word overrides either, in a comment or as a
-standing preference, and Leaf's defaults yield to both.
-
-Leaf's product principles live in `skills/leaf/SKILL.md`, "Core principles".
 Core owns shared state, event, and lifecycle guarantees; packages own domain
 behavior and widget presentation. Judge simplifications by the mechanisms they
 remove and the package compositions they preserve or rule out, rather than by
 use in bundled widgets alone.
-
-Leaf supplies primitives, instructions and templates. An agent could instead
-build a bespoke site for each task, so each primitive must give the user
-something that site would not:
-
-- **Difficult code**: anchored threads, widget state that survives a revision,
-  and an event log that returns each comment and decision to the agent as a
-  structured event.
-- **Live revisions**: the agent updates an open page with low latency while the
-  user reads, comments and interacts.
-- **Contextual threads** that float beside the passages they concern.
-- **Drawing comments**: freehand ink on visual details, as well as text and
-  semantic anchors.
-- **Public website**: visitors try interactive examples on leaf.page.
-- **Consistency**: one set of keybindings, threads and ways a widget answers an
-  action across sessions and agents, so the user learns it once.
-- **Trust**: an action records its meaning when taken, so a control does what it
-  says and the record shows what the user decided.
-- **Presentation craft**: layout, type and composition that hold at every width
-  and beside every open panel, improved once and inherited by every page.
-- **Self-checks**: `page check` finds what would break a page, such as a widget
-  missing an attribute it needs, so the agent fixes it before the user sees it.
 
 An agent that writes a page, sets its data or changes Leaf works in a fast loop:
 it reads what failed and tries again. So Leaf lets a failure surface through the

@@ -75,6 +75,7 @@ from render_harness import (
     example_media,
     held_frames,
     holding,
+    http_error_console,
     leaf_page,
     margins_laid_out,
     open_page,
@@ -1858,7 +1859,7 @@ def test_a_margin_entry_carries_a_suggestion_through_its_whole_lifecycle(
         workflow.get_by_role("button", name=re.compile(r"^Undo accepting"))
     ).to_have_count(1)
 
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(page, http_error_console(400))
 
 
 @pytest.mark.watch_shifts

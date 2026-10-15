@@ -74,6 +74,7 @@ from render_harness import (
     held_frames,
     hold_pending_thread_presentation,
     holding,
+    http_error_console,
     judge_watches,
     leaf_page,
     nudge,
@@ -2860,7 +2861,7 @@ def test_a_sent_page_comment_closes_and_a_refusal_restores_its_draft(browser, se
         "Couldn't send — refused before append"
     )
     page.unroute("**/api/event", hold)
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(page, http_error_console(400))
 
     with sending(page, "the retried comment with its image"):
         page.keyboard.press("ControlOrMeta+Enter")
@@ -3059,7 +3060,7 @@ def test_comment_on_the_page_starts_a_thread_from_a_card_under_the_banner(
     expect(box).to_have_js_property("value", "Kept for later")
     assert card.evaluate(is_open)
     page.unroute("**/api/event")
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(page, http_error_console(400))
     page.keyboard.press("Escape")
 
     # With Threads open, the card is still where a page thread starts: it hangs over
@@ -3106,7 +3107,7 @@ def test_a_refused_page_comment_respects_newer_reading_input(browser, serve):
     expect(card).to_be_hidden()
     expect(page.locator(".lf-page-comment")).to_be_focused()
     page.unroute("**/api/event", hold)
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(page, http_error_console(400))
     page.keyboard.press("c")
     expect(box).to_be_focused()
 
@@ -11172,7 +11173,7 @@ def _refused_file(serve, page):
     )
     told(page)
     expect(page.locator("lf-diff .lf-error")).to_contain_text("unavailable")
-    consume_browser_errors(page, {"code": "failed-load", "status": 500})
+    consume_browser_errors(page, http_error_console(500))
 
 
 def _refused_patch(serve, page):
@@ -13153,7 +13154,7 @@ def test_a_second_rewrite_over_a_refused_first_goes_with_it(browser, serve):
     assert not [e for e in events_model.read_events(d) if e["kind"] == "edit"]
     expect(message.locator(".lf-msg-text")).to_have_text("Fit the north bracket.")
     assert stored_draft_text(page, f"rewrite:{mine['id']}") == "Third."
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(page, http_error_console(400))
     page.unroute_all(behavior="wait")
 
 
@@ -13904,7 +13905,8 @@ def test_a_long_quote_of_replaced_data_has_a_local_reading(browser, serve):
     )
     data_model.cmd_data_set(serve.page_dir, "document", old)
     page = open_page(browser, live_url(url))
-    select_words(page, "#source code")
+    # The code box's first child is the gutter; triple-click the rendered words.
+    select_words(page, "#source [data-content] [data-line] span")
     write(page.locator(".lf-composer leaf-text"), "Does the manual review still apply?")
     with sending(page, "the earlier data comment"):
         page.keyboard.press("ControlOrMeta+Enter")

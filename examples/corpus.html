@@ -7164,14 +7164,17 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
         remain distinct.
       </p>
       <lf-trace-compare id="matched-results"
-        ><lf-trace id="paired-before" label="Before" source="release-journey"
-          ><lf-trace-bookmark
-            label="Reviewed result"
-            key="reviewed"
-            target="trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-phase-trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-call-4e380b5061c4982e-after"
-          ></lf-trace-bookmark
-        ></lf-trace>
-        <figure id="paired-after-figure">
+        ><figure>
+          <lf-trace id="paired-before" label="Before" source="release-journey"
+            ><lf-trace-bookmark
+              label="Reviewed result"
+              key="reviewed"
+              target="trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-phase-trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-call-4e380b5061c4982e-after"
+            ></lf-trace-bookmark
+          ></lf-trace>
+          <figcaption>Before the fix.</figcaption>
+        </figure>
+        <figure>
           <lf-trace id="paired-after" label="After" source="release-journey"
             ><lf-trace-bookmark
               label="Reviewed result"

@@ -642,9 +642,6 @@ section.panel > :is(h2, h3):first-child,
   text-transform: uppercase;
   color: var(--muted);
 }
-section.panel > :last-child {
-  margin-bottom: 0;
-}
 .tag.ok,
 .callout.ok {
   --lf-tone-tint: var(--ok-tint);
@@ -674,12 +671,7 @@ section.panel > :last-child {
 aside.sidebar {
   display: flow-root;
   margin: var(--sp-4) 0 30px;
-}
-aside.sidebar > :first-child {
-  margin-top: 0;
-}
-aside.sidebar > :last-child {
-  margin-bottom: 0;
+  --lf-block-frame: trim;
 }
 main > aside.sidebar:nth-child(1 of aside.sidebar) {
   --lf-sidebar-slot: margin;

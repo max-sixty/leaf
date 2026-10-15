@@ -962,9 +962,12 @@
     const target = document.getElementById(fragmentId(location.hash));
     return target && members.find((member) => member.contains(target));
   };
+  // A member is kept by its own id, or by the first id inside it when it has none, as a
+  // plain <figure> wrapping a recording does, and reopens as the member holding it.
   const kept = (holder, members) => {
     const id = tabStore.get(OPEN_KEY + holder.id);
-    return members.find((member) => member.id === id);
+    const target = id && document.getElementById(id);
+    return target && members.find((member) => member.contains(target));
   };
   const choose = (holder, members) =>
     (reloaded
@@ -1011,7 +1014,7 @@
       return choose(holder, members);
     },
     keep(holder, member) {
-      tabStore.set(OPEN_KEY + holder.id, member.id);
+      tabStore.set(OPEN_KEY + holder.id, member.id || member.querySelector("[id]")?.id);
     },
   };
 })();

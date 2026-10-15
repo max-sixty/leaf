@@ -213,8 +213,7 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
             head="""<style id="response-inset-override">
               :is(.lf-fab-bar, .lf-margin-preview) {
                 --lf-thread-text-pad-block: 12px !important;
-                --lf-comment-text-pad-end: 19px !important;
-                --lf-comment-send-room: 41px !important;
+                --lf-comment-text-end: 60px !important;
               }
             </style>""",
         )
@@ -270,13 +269,7 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
     expect(floating).to_be_focused()
     physical_face = face(floating)
     assert float(physical_face["padding-top"].removesuffix("px")) + 1 == 12
-    assert float(physical_face["padding-right"].removesuffix("px")) + 1 == 19
-    assert (
-        floating.evaluate(
-            "node => getComputedStyle(node).getPropertyValue('--lf-field-end-room').trim()"
-        )
-        == "41px"
-    )
+    assert float(physical_face["padding-right"].removesuffix("px")) + 1 == 60
     page.emulate_media(forced_colors="active")
     forced = floating.evaluate(
         "node => [getComputedStyle(node).outlineWidth, "
@@ -290,14 +283,10 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
     sent_insets = page.locator(".lf-margin-preview .lf-msg-text").first.evaluate(
         """node => {
           const style = getComputedStyle(node);
-          return {block: style.paddingTop, end: style.paddingInlineEnd,
-            last: getComputedStyle(node.lastElementChild, '::after').width};
+          return {block: style.paddingTop, end: style.paddingInlineEnd};
         }"""
     )
-    assert sent_insets["block"] == "12px"
-    assert sent_insets["end"] == ("60px" if touch else "19px")
-    if not touch:
-        assert sent_insets["last"] == "41px"
+    assert sent_insets == {"block": "12px", "end": "60px"}
     page.keyboard.press("Escape")
     diff = page.locator("#patch")
     # An author can dress a declared tree too. Install the same inputs before

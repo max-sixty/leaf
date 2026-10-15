@@ -186,49 +186,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-preview:has(.lf-page-thread[data-lf-focus]) {
     outline: var(--focus-ring); --lf-focus-ring: page-thread;
     outline-offset: calc(-1 * var(--focus-ring-w)); }
-  /* A newly submitted message keeps its editor's wrapping measure and, when its
-     words scrolled, its clipped viewport. Receipt updates preserve these mechanical
-     dimensions until the card is put away. */
-  .lf-margin-preview[data-lf-comment-frame] {
-    width: min(var(--lf-comment-width), var(--lf-thread-width));
-  }
-  .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type {
-    grid-template-rows: auto minmax(0, 1fr); max-height: 100%;
-  }
-  /* Pictures keep their complete image in the transcript's ordinary reading flow.
-     Their extent can scroll there; the editor's cap still belongs only to its words. */
-  .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type:has(.lf-msg-media) {
-    max-height: none;
-  }
-  .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body {
-    display: flex; flex-direction: column; min-height: 0;
-  }
-  /* A rewrite of those words is the thread's comment box, as wide as its reply box. */
-  .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body:not(:has(> .lf-msg-editor)) {
-    box-sizing: border-box; width: min(100%, calc(var(--lf-comment-message-measure) + var(--lf-comment-text-pad-end)));
-  }
-  /* Only the submitted words inherit a clipped editor viewport. Message metadata,
-     such as the drawing reference, is added after Send and keeps its own room.
-     The viewport shrinks with its transcript track when the card loses room. */
-  .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body > :not(.lf-msg-text) {
-    flex: none;
-  }
-  .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body > .lf-msg-text {
-    box-sizing: border-box; min-height: 0;
-    max-height: var(--lf-comment-message-height); overflow-y: auto;
-    padding-inline: 0 var(--lf-comment-text-pad-end);
-  }
-  /* The editor's room for Send, held where the editor held it when the words were sent
-     (text-field.js, `endRoom`): on every line, after the last words only — the last
-     paragraph of words, before any pasted images, or a suggestion's text — or, where
-     the draft ended on a blank line, nowhere. */
-  .lf-margin-preview[data-lf-comment-frame="every-line"] .lf-msg:first-of-type > .lf-msg-body
-    > .lf-msg-text {
-    padding-inline-end: calc(var(--lf-comment-text-pad-end) + var(--lf-comment-send-room)); }
-  .lf-margin-preview[data-lf-comment-frame="last-line"] .lf-msg:first-of-type > .lf-msg-body > .lf-msg-text
-    > p:is(:last-child, :has(+ p > .lf-message-media:only-child)):not(:has(> .lf-message-media:only-child))::after,
-  .lf-margin-preview[data-lf-comment-frame="last-line"] .lf-msg:first-of-type > .lf-suggest-body > .lf-msg-text::after {
-    content: ""; display: inline-block; inline-size: var(--lf-comment-send-room); }
   .lf-margin-preview-close { flex: none; }
   /* A floating comment surface is carried by its edge (surface-grip.js): a band
      `--lf-grip-out` outside its box and `--lf-grip-in` inside, cut out of a box over

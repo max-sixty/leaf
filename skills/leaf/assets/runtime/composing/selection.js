@@ -150,7 +150,6 @@ export function createSelectionComposer({
   reactionAvailable,
   designModeActive,
   openPageThread,
-  threadTransitionOrigin,
   anchorTravelAt,
   bringForward,
   fabAnchorAt,
@@ -705,9 +704,8 @@ export function createSelectionComposer({
         const about = pendingAbout;
         const drawing = pendingDrawing && sentDrawing(structuredClone(pendingDrawing));
         // The accepted comment becomes a thread, drawn as a card beside the passage unless
-        // Threads is open. Carry the submitted field's geometry into the new card, which
-        // stands where the field did: by the row a pointing gesture named.
-        const transition = threadTransitionOrigin?.(composerInput, fabFrameAt());
+        // Threads is open. The new card stands where the field did (`origin`).
+        const origin = fabFrameAt();
         const point = fabPointAt();
         const epoch = composerEpoch;
         const currentIntent = retainUserIntent();
@@ -767,7 +765,7 @@ export function createSelectionComposer({
             intent: shouldReveal
               ? restrictUserIntent(currentIntent, revealAvailable)
               : currentIntent,
-            transition,
+            origin,
           });
           const thread = destination && closestAcross(destination, THREAD);
           if (shouldReveal && mayReveal() && thread)

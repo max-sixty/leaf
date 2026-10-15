@@ -77,9 +77,7 @@ import {
 } from "./bundle-user-intent.js";
 import "./bundle-widget-upgrade.js";
 import "./bundle-media.js";
-import {
-  motion
-} from "./bundle-motion.js";
+import "./bundle-motion.js";
 import {
   THREAD_CARD,
   cardMeasure,
@@ -380,82 +378,6 @@ function createThreadPreview({
     floating: preview,
     update: () => scheduleThreadPreviewPosition()
   });
-  function threadTransitionOrigin(element, frame) {
-    if (!frame) return null;
-    const box = element.getBoundingClientRect();
-    const style = getComputedStyle(element);
-    return {
-      frame,
-      left: box.left,
-      top: box.top,
-      width: box.width,
-      height: box.height,
-      messageMeasure: element.writingInlineSize,
-      // A clipped editor owns a reading viewport to carry through Send. A fitting
-      // editor's height is only its current wrapping, which a new card width may
-      // change; imposing that old height would make short words scroll needlessly.
-      messageHeight: element.scrollHeight > element.clientHeight ? parseFloat(style.height) : null,
-      endRoom: element.endRoom ?? "none",
-      writingEndRoom: element.writingEndRoom,
-      scroll: element.scrollTop
-    };
-  }
-  function transitionThread(origin) {
-    const target = preview.getBoundingClientRect();
-    const style = getComputedStyle(preview);
-    const scale = {
-      x: target.width / parseFloat(style.width),
-      y: target.height / parseFloat(style.height)
-    };
-    const inset = [
-      (origin.top - target.top) / scale.y,
-      (target.right - origin.left - origin.width) / scale.x,
-      (target.bottom - origin.top - origin.height) / scale.y,
-      (origin.left - target.left) / scale.x
-    ];
-    return motion(
-      preview,
-      [
-        { clipPath: `inset(${inset.map(layoutPx).join(" ")} round 6px)` },
-        { clipPath: preview.style.clipPath || "inset(0px round 10px)" }
-      ],
-      240
-    );
-  }
-  function revealThread(origin, positioned) {
-    const session = previewSession;
-    session.transition?.motion?.cancel();
-    const transition = { motion: null };
-    session.transition = transition;
-    return positioned.then((placed) => {
-      if (!placed || previewSession !== session || session.transition !== transition)
-        return false;
-      transition.motion = transitionThread(origin);
-      return true;
-    });
-  }
-  function carryCommentFrame(origin) {
-    previewSession.messageViewport?.stopRegion?.();
-    previewSession.messageViewport = origin && {
-      scroll: origin.scroll,
-      body: null,
-      stopRegion: null
-    };
-    keeps(
-      preview,
-      "data-lf-comment-frame",
-      previewSession.messageViewport && origin.endRoom
-    );
-    const properties = {
-      "--lf-comment-width": previewSession.messageViewport && `${origin.frame.width}px`,
-      "--lf-comment-message-measure": previewSession.messageViewport && `${origin.messageMeasure}px`,
-      "--lf-comment-message-height": previewSession.messageViewport && origin.messageHeight !== null ? `${origin.messageHeight}px` : null,
-      "--lf-comment-send-room": previewSession.messageViewport && `${origin.writingEndRoom}px`
-    };
-    for (const [name, value] of Object.entries(properties))
-      if (value) preview.style.setProperty(name, value);
-      else preview.style.removeProperty(name);
-  }
   const placedThreadPreview = () => {
     previewSession.positionResult ??= Promise.withResolvers();
     cancelRender(previewSession.positionFrame);
@@ -474,8 +396,6 @@ function createThreadPreview({
     carry.placed();
     const session = previewSession;
     if (!session) return;
-    carryCommentFrame(null);
-    session.transition?.motion?.cancel();
     session.positionResult?.resolve(false);
     cancelRender(session.positionFrame);
     placementDriver.supersede();
@@ -516,9 +436,13 @@ function createThreadPreview({
     ].some((box) => box && box.scrollHeight > box.clientHeight + 0.5);
     if (!(worn >= 0) || cap < height - 0.5 || overflow && cap > height + 0.5)
       preview.style.setProperty("--lf-thread-max-height", layoutPx(cap));
-    if (reading?.latest) showLatestTurn(previewSession.transcript);
+    if (reading?.latest) showArrival(previewSession);
     else if (reading?.end) scrollToEnd(previewSession.transcript);
     return preview.getBoundingClientRect().height;
+  }
+  function showArrival(session) {
+    if (session.sent) scrollToEnd(session.transcript);
+    else showLatestTurn(session.transcript);
   }
   function measureTranscript() {
     return previewSession.transcript ? parseFloat(getComputedStyle(previewSession.transcript).height) + previewSession.transcript.scrollHeight - previewSession.transcript.clientHeight : 0;
@@ -661,21 +585,6 @@ function createThreadPreview({
     }).then((position) => {
       if (!position || !stillCurrent()) return;
       session.arriving = false;
-      if (session.messageViewport) {
-        const body = previewList.querySelector(
-          ".lf-msg > .lf-msg-body > .lf-msg-text"
-        );
-        if (body && body !== session.messageViewport.body) {
-          session.messageViewport.stopRegion?.();
-          body.scrollTop = session.messageViewport.scroll;
-          session.messageViewport.body = body;
-          session.messageViewport.stopRegion = registerReadingRegion({
-            id: `${THREAD_CARD}:submitted`,
-            host: body,
-            body
-          });
-        }
-      }
       const { scale } = session.side.landed(position);
       placementDriver.stand(position);
       session.width ??= preview.getBoundingClientRect().width;
@@ -741,13 +650,12 @@ function createThreadPreview({
       preparing: false,
       latest: null,
       arriving: true,
+      sent: Boolean(origin),
       away: false,
       positionFrame: 0,
       positionResult: null,
       focusPending: null,
       withheldFocus: null,
-      transition: null,
-      messageViewport: null,
       transcript: null,
       place: null,
       stopRegion: null,
@@ -759,8 +667,7 @@ function createThreadPreview({
       // The user's latest press in the card, while it is their latest input (`holding`).
       pressed: null
     };
-    carryCommentFrame(origin);
-    if (origin) previewSession.side.adopt(origin.frame);
+    if (origin) previewSession.side.adopt(origin);
     return previewSession;
   }
   function buildThreadCard(entry, requestedItem = null) {
@@ -808,7 +715,7 @@ function createThreadPreview({
     else {
       present();
       session.arriving = Boolean(session.transcript);
-      if (session.arriving) showLatestTurn(session.transcript);
+      if (session.arriving) showArrival(session);
     }
     session.latest = latest && { id: latest.id, text: latest.text };
     if (follow) scrollToEnd(session.transcript);
@@ -925,8 +832,7 @@ function createThreadPreview({
     }
     keepsHidden(preview, false);
     buildThreadCard(entry, selected.id);
-    const positioned = placedThreadPreview();
-    return origin ? revealThread(origin, positioned) : positioned;
+    return placedThreadPreview();
   }
   function refresh(entry, control, carry2 = focused() === previewSession?.control) {
     if (!previewSession || previewSession.preparing) return;
@@ -993,7 +899,6 @@ function createThreadPreview({
     thread: () => previewList.querySelector(".lf-page-thread"),
     accompanied: () => previewSession && !previewSession.away ? previewList.querySelector(".lf-page-thread") : null,
     closeFocused: () => focused() === previewClose,
-    threadTransitionOrigin,
     place: placeThreadPreview,
     schedulePosition: scheduleThreadPreviewPosition,
     mount
@@ -2202,7 +2107,7 @@ function createMarginProjection({
     }
     togglePinned(entry, button);
   }
-  function openInlineThread(id, { transition = null, unfold = true } = {}) {
+  function openInlineThread(id, { origin = null, unfold = true } = {}) {
     const itemId = marginThreadItem(threadNames(allThreads()).get(id));
     const entry = pageInventory.find(
       (candidate) => candidate.items.some((item) => item.id === itemId)
@@ -2216,7 +2121,7 @@ function createMarginProjection({
     if (!unfold && !marker && !shown(host)) return null;
     const button = marker ?? threadMarginEntry(entry);
     const positioned = showPreview(entry, button, itemId, {
-      origin: transition,
+      origin,
       accompanies: !unfold,
       forced: true
     });
@@ -2441,7 +2346,6 @@ function createMarginProjection({
     targetFor,
     paint: renderNow,
     flushLayout: layoutMarginRows,
-    threadTransitionOrigin: card.threadTransitionOrigin,
     scheduleThreadPreviewPosition: card.schedulePosition,
     marginTargetAt,
     marginEntryContextContains,

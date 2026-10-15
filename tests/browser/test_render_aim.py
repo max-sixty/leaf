@@ -202,8 +202,7 @@ def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
 def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve):
     """A compact comment keeps its writing face as Send opens its target's thread.
 
-    A pending margin repaint still carries the submitted field's frame into the real
-    card. The send-placement cases check each word through the motion.
+    A pending margin repaint still opens the real card.
     """
     page = open_page(browser, serve(LONG_PAGE), init_script=HOLD_MOTION)
     resized(page, 1440, 900)
@@ -217,7 +216,6 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
     )
     assert field.bounding_box()["height"] == 32
     write(field, "Carry this comment into its thread.")
-    source = field.bounding_box()
     hold_pending_thread_presentation(page)
     page.evaluate(
         """() => {
@@ -253,53 +251,6 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
         "size: getComputedStyle(node).fontSize})"
     )
     assert compact == full
-    assert preview.get_attribute("data-lf-comment-frame") is not None
-    motion = preview.evaluate(
-        """card => {
-          const played = window.__lfHeld.find(animation =>
-            animation.effect.target === card &&
-            animation.effect.getKeyframes().some(frame => 'clipPath' in frame));
-          if (!played) return null;
-          const [start, end] = played.effect.getKeyframes();
-          // Chrome serializes equal right and left inset values as a three-value
-          // shorthand. Read only the inset sides, before the separate round radius.
-          const sides = start.clipPath.match(/^inset\\(([^)]*?)(?: round|\\))/)[1]
-            .trim().split(/\\s+/).map(value => Number.parseFloat(value));
-          const inset = sides.length === 1
-            ? [sides[0], sides[0], sides[0], sides[0]]
-            : sides.length === 2
-              ? [sides[0], sides[1], sides[0], sides[1]]
-              : sides.length === 3
-                ? [sides[0], sides[1], sides[2], sides[1]]
-                : sides;
-          const box = card.getBoundingClientRect();
-          const style = getComputedStyle(card);
-          const scaleX = box.width / Number.parseFloat(style.width);
-          const scaleY = box.height / Number.parseFloat(style.height);
-          return {
-            source: {
-              x: box.left + inset[3] * scaleX,
-              y: box.top + inset[0] * scaleY,
-              width: box.width - (inset[1] + inset[3]) * scaleX,
-              height: box.height - (inset[0] + inset[2]) * scaleY,
-            },
-            card: box.toJSON(),
-            end: end.clipPath,
-          };
-        }"""
-    )
-    assert motion is not None
-    for dimension in ("x", "y", "width", "height"):
-        assert motion["source"][dimension] == pytest.approx(source[dimension], abs=1), (
-            motion
-        )
-    assert motion["end"] == "inset(0px round 10px)", motion
-    page.evaluate(
-        "() => window.__lfHeld.slice().forEach(animation => animation.finish())"
-    )
-    settled = preview.bounding_box()
-    for dimension in ("x", "y", "width", "height"):
-        assert settled[dimension] == pytest.approx(motion["card"][dimension], abs=1)
     expect(message).to_have_text("Carry this comment into its thread.")
 
 

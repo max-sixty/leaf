@@ -1581,9 +1581,11 @@ button.lf-media-open {
 }
 :is(.lf-fab-bar, .lf-margin-preview) {
   --lf-thread-text-pad-block: calc((var(--lf-response-height) - 1lh) / 2);
-  --lf-comment-text-pad-end: var(--lf-thread-text-inset);
   --lf-comment-send-inset: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2);
-  --lf-comment-send-room: calc(var(--lf-icon-action-hit) + var(--lf-comment-send-inset) - var(--lf-comment-text-pad-end));
+  --lf-comment-text-end: calc(var(--lf-icon-action-hit) + var(--lf-comment-send-inset));
+}
+.lf-margin-preview .lf-msg-text {
+  padding-inline-end: var(--lf-comment-text-end);
 }
 .lf-fab-bar .lf-compose-field,
 .lf-response-control {
@@ -1597,12 +1599,14 @@ button.lf-media-open {
   line-height: inherit;
   padding-block: var(--lf-compose-pad-block);
 }
+leaf-text.lf-response-control {
+  scroll-padding-block: var(--lf-compose-pad-block);
+}
 leaf-text.lf-fab-input {
   display: none;
   width: 100%;
   min-width: 0;
-  padding-inline: var(--lf-compose-pad-inline-start) calc(var(--lf-comment-text-pad-end) - 1px);
-  --lf-field-end-room: var(--lf-comment-send-room);
+  padding-inline: var(--lf-compose-pad-inline-start) calc(var(--lf-comment-text-end) - 1px);
   overflow-y: auto;
 }
 .lf-fab-bar :is(.lf-compose-submit, .lf-compose-dictate) {

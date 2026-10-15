@@ -1092,8 +1092,9 @@ def test_a_quote_surface_follows_scaled_inner_scroll_and_retains_native_editing(
 def test_send_grows_thread_around_the_words(
     browser, serve, size, at, long, touch, again, options
 ):
-    """The real draft's words keep their position/wrapping/scroll through Send,
-    including the decoration animation and acknowledgement. Read inside the editor
+    """The draft's words stand where they were typed through Send and its
+    acknowledgement: the comment box and the card share one text column, and the card
+    a scrolled draft opens stands at its end, as the box did. Read inside the editor
     solely to measure its actual glyphs, without changing its closed-root behavior."""
     context = browser.new_context(has_touch=touch, is_mobile=touch)
     page = open_page(
@@ -1126,7 +1127,6 @@ def test_send_grows_thread_around_the_words(
     )
     if long == "paragraphs":
         text = "First paragraph.\n\nSecond paragraph."
-    field = page.locator(".lf-fab-input")
     page.keyboard.insert_text(text)
     rendered(page)
     if options:
@@ -1168,24 +1168,19 @@ def test_send_grows_thread_around_the_words(
       };
       const editor = window.editorRoots.get(input).querySelector('.cm-content');
       window.beforeWords = rects(editor);
-      window.beforeScroll = input.scrollTop;
       window.beforePageScroll = scrollY;
       window.sendFrames = [];
       const sample = () => {
         const card = document.querySelector('.lf-margin-preview');
         const body = card?.querySelector('.lf-msg-body');
         if (body && card.checkVisibility()) {
-          window.sendFrames.push({rects:rects(body), scroll:body.querySelector('.lf-msg-text').scrollTop, pageScroll:scrollY,
+          window.sendFrames.push({rects:rects(body), pageScroll:scrollY,
             frame:card.getBoundingClientRect().toJSON()});
         }
         window.sampling = requestAnimationFrame(sample);
       };
       window.sampling = requestAnimationFrame(sample);
     }""")
-    # Send's room stands beside every line under a finger and in a scrolled draft,
-    # and after the last words otherwise; the sent message holds it where the draft did.
-    held = field.evaluate("el => el.endRoom")
-    assert held == ("every-line" if touch or long is True else "last-line")
     with sending(page, "comment"):
         if touch:
             page.locator(".lf-fab-bar").get_by_role(
@@ -1194,7 +1189,7 @@ def test_send_grows_thread_around_the_words(
         else:
             page.keyboard.press("Enter")
     card = page.locator(".lf-margin-preview")
-    expect(card).to_have_attribute("data-lf-comment-frame", held)
+    expect(card).to_be_visible()
     rendered(page)
     wait_for(
         lambda: page.evaluate(
@@ -1205,7 +1200,7 @@ def test_send_grows_thread_around_the_words(
     )
     reading = page.evaluate("""() => {
       cancelAnimationFrame(window.sampling);
-      return {before:beforeWords,scroll:beforeScroll,pageScroll:beforePageScroll,frames:sendFrames};
+      return {before:beforeWords,pageScroll:beforePageScroll,frames:sendFrames};
     }""")
     assert reading["frames"]
     for frame in reading["frames"]:
@@ -1216,24 +1211,12 @@ def test_send_grows_thread_around_the_words(
         assert [v for r in frame["rects"] for v in r] == pytest.approx(
             [v for r in reading["before"] for v in r], abs=0.75
         ), reading
-        assert frame["scroll"] == pytest.approx(reading["scroll"], abs=1), reading
         assert frame["pageScroll"] == reading["pageScroll"], reading
     expect(
         card.get_by_role("button", name="Resolve thread", exact=True)
     ).to_be_visible()
     expect(card.locator('leaf-text[name="reply"]')).to_be_visible()
 
-    if long is True:
-        body = card.locator(".lf-msg-text").first
-        body.hover()
-        page.mouse.wheel(0, -300)
-        expect(body).not_to_have_js_property("scrollTop", reading["scroll"])
-        scroll_settled(page)
-        retained = body.evaluate("el => el.scrollTop")
-        resized(page, size[0] + 1, size[1])
-        rendered(page)
-        assert body.evaluate("el => el.scrollTop") == pytest.approx(retained, abs=1)
-        expect(card).to_have_attribute("data-lf-comment-frame", held)
     if not long and not touch and not again:
         card.locator('leaf-text[name="reply"]').click()
         page.keyboard.insert_text("The same placement works for a reply.")

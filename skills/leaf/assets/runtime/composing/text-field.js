@@ -35,9 +35,6 @@
  * the clipboard's text, including text carried beside a picture.
  * `naturalBlockSize` reads the field's intrinsic border-box block size in CSS pixels,
  * before the host's block size or its minimum and maximum constrain the writing room.
- * `writingInlineSize` reads the editor's allocated writing measure, including room
- * reserved for its trailing action, in CSS pixels. `writingEndRoom` reads that room's
- * exact width so a sent message can keep the same writing measure.
  *
  * The placeholder is a layer under the words, shown while the field is empty. It reads
  * the `placeholder` attribute, and a child in slot `placeholder` stands in its place when
@@ -85,6 +82,7 @@
  * reading pane the user scrolled away from it.
  */
 import { scrollIntoView } from "../landing-scroll.js";
+import { landingInsets } from "../geometry.js";
 import {
   EditorView,
   EditorState,
@@ -347,20 +345,34 @@ class LeafText extends HTMLElement {
           const caret = view.coordsAtPos(view.state.selection.main.head);
           const box = this.getBoundingClientRect();
           const { scaleX, scaleY } = view;
+          // The caret's whole line, its leading as well as the caret, lands inside
+          // the host's `scroll-padding`, as a landing does.
+          const inset = landingInsets(this);
+          const leading = caret
+            ? Math.max(
+                0,
+                (parseFloat(getComputedStyle(this).lineHeight) * scaleY -
+                  (caret.bottom - caret.top)) /
+                  2,
+              )
+            : 0;
           return {
             caret,
             scaleX,
             scaleY,
-            top: box.top + this.clientTop * scaleY,
-            left: box.left + this.clientLeft * scaleX,
+            top: box.top + (this.clientTop + inset.top) * scaleY + leading,
+            left: box.left + (this.clientLeft + inset.left) * scaleX,
             // client dimensions round fractional CSS sizes. Keep the trailing
             // edges on the actual box, inset by its native border and scrollbar.
             bottom:
               box.bottom -
-              (this.offsetHeight - this.clientTop - this.clientHeight) * scaleY,
+              (this.offsetHeight - this.clientTop - this.clientHeight + inset.bottom) *
+                scaleY -
+              leading,
             right:
               box.right -
-              (this.offsetWidth - this.clientLeft - this.clientWidth) * scaleX,
+              (this.offsetWidth - this.clientLeft - this.clientWidth + inset.right) *
+                scaleX,
           };
         },
         write: ({ caret, top, left, bottom, right, scaleX, scaleY }) => {
@@ -627,16 +639,11 @@ class LeafText extends HTMLElement {
   }
 
   // Where the field holds its action's room now: `every-line`, `last-line` after its
-  // last words, or `none` while its last line is blank. A sent message keeping the
-  // draft's wrapping holds the same.
+  // last words, or `none` while its last line is blank.
   get endRoom() {
     if (parseFloat(getComputedStyle(this.#frame).paddingInlineEnd) > 0)
       return "every-line";
     return lastWithWords(this.#state) ? "last-line" : "none";
-  }
-
-  get writingEndRoom() {
-    return parseFloat(getComputedStyle(this).getPropertyValue("--lf-field-end-room"));
   }
 
   get value() {
@@ -679,11 +686,6 @@ class LeafText extends HTMLElement {
       parseFloat(host.borderBlockStartWidth) +
       parseFloat(host.borderBlockEndWidth)
     );
-  }
-
-  get writingInlineSize() {
-    const frame = getComputedStyle(this.#frame);
-    return parseFloat(frame.inlineSize) + parseFloat(frame.paddingInlineEnd);
   }
 
   set value(text) {

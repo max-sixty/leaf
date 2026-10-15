@@ -7175,7 +7175,7 @@ def send_anchored_comment(page, text):
     ids=["short-zoomed", "long"],
 )
 def test_a_sent_comment_keeps_its_text_viewport(browser, serve, text, zoom):
-    """Carrying the editor's measure leaves the sent words inside their scrollport."""
+    """Sharing the editor's measure, the card holds the sent words inside its scrollport."""
     page = open_page(browser, serve(ASK_PAGE), init_script=MARGIN_EDITOR_ROOTS)
     resized(page, 1200, 900)
     page.evaluate("zoom => document.documentElement.style.zoom = zoom", zoom)

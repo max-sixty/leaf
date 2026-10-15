@@ -10228,9 +10228,6 @@ def test_contextual_messages_share_text_spacing_through_send_and_reopen(
     with sending(page, "the opening comment"):
         page.keyboard.press("ControlOrMeta+Enter")
     preview = page.locator(".lf-margin-preview")
-    expect(preview).to_have_attribute(
-        "data-lf-comment-frame", "every-line" if touch else "last-line"
-    )
     reply = preview.get_by_role("textbox", name="Reply", exact=True)
     write(reply, text)
     with sending(page, "the follow-up reply"):
@@ -11933,7 +11930,7 @@ def test_a_zoomed_floating_draft_and_sent_comment_fit_a_narrow_window(
     with sending(page, "the zoomed narrow-window comment"):
         page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
-    card = page.locator(".lf-margin-preview[data-lf-comment-frame]")
+    card = page.locator(".lf-margin-preview")
     expect(card).to_be_visible()
     expect(card.locator(".lf-msg-text").first).to_contain_text(content)
     bounds = card.bounding_box()
@@ -11976,10 +11973,8 @@ def _ring_gaps(page, target):
 
 
 def test_a_rewrite_of_a_comment_just_sent_is_the_reply_box(browser, serve):
-    """The card holding a comment just sent keeps its words in the room the draft had,
-    clear of Send (`data-lf-comment-frame`). A rewrite opened there kept that narrow
-    room too, a box shorter and narrower than the reply box under it; it is now the
-    reply box's own field, its words at their inset.
+    """A rewrite of a comment just sent is the reply box's own field, its words at
+    their inset.
 
     The field's ring, drawn outside it as the reply box's is, lost its left and bottom
     sides to the transcript that scrolls it, which kept no room past its edges; and the
@@ -12001,9 +11996,6 @@ def test_a_rewrite_of_a_comment_just_sent_is_the_reply_box(browser, serve):
         page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     card = page.locator(".lf-margin-preview")
-    expect(card).to_have_attribute(
-        "data-lf-comment-frame", "every-line" if touch else "last-line"
-    )
     message = card.locator(".lf-msg").first
     words = message.locator(".lf-msg-text")
     rendered(page)

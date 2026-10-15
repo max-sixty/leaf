@@ -1,6 +1,7 @@
 """Preview and offline export tests."""
 
 import base64
+import contextlib
 import json
 import os
 import re
@@ -584,7 +585,7 @@ class Watched(NamedTuple):
     log: Path
 
 
-def watching(tmp_path, preview_slot, spawn, user: bool):
+def watching(tmp_path, preview_slot, spawn, user: bool, *, env=None):
     source = tmp_path / "watched.html"
     source.write_text(REPLAYED_PAGE, encoding="utf-8")
     runtime = install_payload(tmp_path / "watched-runtime")
@@ -608,6 +609,7 @@ def watching(tmp_path, preview_slot, spawn, user: bool):
             *(["--user"] if user else []),
         ],
         log,
+        **({"env": env} if env is not None else {}),
     )
     return Watched(source, runtime, directory, process, url, log)
 
@@ -781,20 +783,51 @@ def test_preview_adds_immutable_media_before_stamping_source(watched_preview):
     assert (directory / "media" / image.name).read_bytes() == expected
 
 
-def test_terminating_a_preview_mid_update_leaves_no_service(served_preview):
-    """A SIGTERM during an update's stopped-service interval suppresses its restart."""
-    source, runtime, directory, process, _, _ = served_preview
-    # Real page-transaction contention pauses init after the watcher stops the service.
-    with cleanup_model.flocked(directory / "events.jsonl"):
+def test_terminating_a_preview_mid_update_leaves_no_service(
+    tmp_path, preview_slot, spawn
+):
+    """A SIGTERM after re-vendor stops the service leaves no restarted service."""
+    (tmp_path / "hold_update.py").write_text(
+        "import json, os, socket\n"
+        "def pause(page):\n"
+        "    record = page.page_dir / 'service.json'\n"
+        "    if not record.exists():\n"
+        "        return\n"
+        "    service = json.loads(record.read_text())\n"
+        "    theme = (page.page_dir / 'theme.css').read_text()\n"
+        "    if service.get('restart') and 'h1 { color: navy; }' in theme:\n"
+        "        port = int(os.environ['LEAF_TEST_UPDATE_BARRIER'])\n"
+        "        with socket.create_connection(('127.0.0.1', port)) as peer:\n"
+        "            if peer.recv(1) != b'x':\n"
+        "                os._exit(1)\n"
+    )
+    env = os.environ | {
+        "PYTHONPATH": os.pathsep.join(
+            filter(None, (str(tmp_path), os.environ.get("PYTHONPATH")))
+        ),
+        "LEAF_PAGE_COMMIT": "hold_update:pause",
+    }
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        listener.listen(1)
+        listener.settimeout(STATED_TIMEOUT)
+        env["LEAF_TEST_UPDATE_BARRIER"] = str(listener.getsockname()[1])
+        source, runtime, directory, process, _, log = watching(
+            tmp_path, preview_slot, spawn, user=True, env=env
+        )
         theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
         with theme.open("a", encoding="utf-8") as stream:
             stream.write("\nh1 { color: navy; }\n")
-        wait_for(
-            lambda: json.loads((directory / "service.json").read_text())["enabled"],
-            lambda enabled: not enabled,
-            failure="watcher did not begin the update",
-        )
-        os.killpg(process.pid, signal.SIGTERM)
+        try:
+            peer, _ = listener.accept()
+        except TimeoutError:
+            pytest.fail(f"watcher did not commit the updated layer: {log.read_text()}")
+        with peer:
+            assert "h1 { color: navy; }" in (directory / "theme.css").read_text()
+            assert not files_model.read_json(directory / "service.json")["enabled"]
+            os.killpg(process.pid, signal.SIGTERM)
+            with contextlib.suppress(BrokenPipeError, ConnectionResetError):
+                peer.sendall(b"x")
     process.wait(timeout=STATED_TIMEOUT)
     assert server_model.running_server(directory) is None
     assert (directory / "events.jsonl").is_file()

@@ -2,43 +2,34 @@
  * recording preserves the workspace's scroll position and each child's local
  * image view. Explicit bookmark keys pair results; this container supplies the
  * comparison identity, never inferring correspondence from labels or clocks.
- * Its one sticky source chooser declares its measured extent to the children,
- * so their inspection stages use the room below it. Measurement commits in the
- * rendering pass: changing a child's extent during observer delivery would
- * resize ancestors the browser has already visited in that delivery.
+ * Its single source chooser moves into the selected recording's permanent
+ * header mount. Chooser and transport share one sticky box and the stage's
+ * intrinsic viewport allocation, including while a recording has not arrived.
  * Each direct child that is or holds an lf-trace is one view, so a recording may
  * stand in a wrapper such as a <figure>, which shows and hides with it. */
 import {
   HIDDEN,
+  holdFocus,
   el,
-  frameFor,
   keepView,
   keeps,
   layoutChanged,
-  layoutPx,
   once,
+  move,
   offer,
   openingView,
   quoted,
-  sizeObserver,
-  whileConnected,
 } from "/runtime/widget-api.js";
-await import("/vendor/webawesome.esm.js");
+import "./lf-trace.js";
 
 customElements.define(
   "lf-trace-compare",
   class extends HTMLElement {
     #choices = null;
+    #header = null;
     #views = [];
     #recordings = [];
     #selected = 0;
-    #measureHead = frameFor(this, () => {
-      this.style.setProperty(
-        "--lf-trace-compare-head",
-        layoutPx(this.firstElementChild.getBoundingClientRect().height),
-      );
-      layoutChanged(this);
-    });
 
     connectedCallback() {
       if (!once(this)) return;
@@ -51,7 +42,7 @@ customElements.define(
         this.#recordings.push(recording);
       }
       this.#selected = this.#views.indexOf(openingView(this, this.#views));
-      const header = el("div", "lf-trace-compare-controls");
+      const header = (this.#header = el("div", "lf-trace-compare-controls"));
       header.dataset.lfGen = "1";
       this.#choices = offer("wa-radio-group", "lf-trace-sources lf-label-hidden");
       this.#choices.label = "Recording";
@@ -87,20 +78,25 @@ customElements.define(
         this.#draw();
       });
       header.append(this.#choices);
-      this.prepend(header);
-      whileConnected(this, () => {
-        const resize = sizeObserver(this.#measureHead);
-        resize.observe(this.firstElementChild);
-        this.#draw();
-        return () => resize.disconnect();
-      });
+      this.#draw();
     }
 
     #draw() {
+      const selected = this.#recordings[this.#selected];
+      const mount = selected?.querySelector(
+        ":scope > .lf-trace-view .lf-trace-comparison",
+      );
+      const transfer = mount && this.#header.parentElement !== mount;
+      // Hiding its old view drops native focus before the chooser moves. Restore
+      // through the shared focus owner once it stands in the visible header.
+      const restore = transfer ? holdFocus(this.#header) : null;
       for (const [index, recording] of this.#recordings.entries()) {
         keeps(this.#views[index], "hidden", index === this.#selected ? null : HIDDEN);
         keeps(recording, "aria-label", recording.getAttribute("label"));
       }
+      if (transfer) move(mount, this.#header, null);
+      restore?.();
+
       if (this.#views[this.#selected]) keepView(this, this.#views[this.#selected]);
       return layoutChanged(this);
     }

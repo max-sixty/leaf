@@ -51,7 +51,7 @@ from leaf.registry.contract import element_declarations
 from leaf.structure import SourceDocument
 from leaf.thread_context import thread_digest
 from leaf.validation import composition as validation_model
-from leaf.validation.admission import check_markup
+from leaf.validation.admission import check_markup, revision_publication
 from leaf.validation.instances import reference_errors
 from leaf_dev.example_data import regression_sources
 from leaf_dev.page_fixtures import prepare_page, read_fixture
@@ -651,7 +651,15 @@ def test_a_playground_names_its_controls_within_itself(tmp_path, initialized_pag
     def reply(*playgrounds):
         markup = f'<lf-ask id="ask"><h2>Which?</h2>{"".join(playgrounds)}</lf-ask>'
         try:
-            check_markup(page_dir, "reply", markup, [])
+            check_markup(
+                page_dir,
+                "reply",
+                markup,
+                [],
+                publication=revision_publication(
+                    page_dir, files_model.latest_revision(page_dir)
+                ),
+            )
         except Rejected as refused:
             return refused.findings
         return []

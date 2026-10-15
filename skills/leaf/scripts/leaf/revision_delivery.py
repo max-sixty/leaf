@@ -691,7 +691,10 @@ def delivery_prelude(
     """
     viewport = (
         ""
-        if any(meta["name"].lower() == "viewport" for meta in document.named_metas)
+        if any(
+            meta["name"].lower() == "viewport"
+            for meta in document.authoring.named_metas
+        )
         else '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
     )
     return (
@@ -774,7 +777,7 @@ def compose_document(
         inline_stylesheet=delivery.inline_stylesheet,
     )
     document = SourceDocument(source)
-    if "head" not in document.wrapper_tags:
+    if "head" not in document.authoring.wrapper_tags:
         raise ValueError("document has no explicit <head>")
     theme = (
         f"<style data-lf-runtime>{_inline_css(delivery.inline_stylesheet('/theme.css'))}</style>"
@@ -828,7 +831,7 @@ def compose_document(
             else ""
         )
     )
-    head_start, head_end = document.wrapper_tags["head"]
+    head_start, head_end = document.authoring.wrapper_tags["head"]
     insertions = [(head_end, head)]
     if delivery.runtime is not None:
         # A classic parser checkpoint waits for every preceding stylesheet, including
@@ -837,7 +840,7 @@ def compose_document(
         # later task. It shares the same residency computation used after upgrade.
         insertions.append(
             (
-                document.wrapper_tags["body"][1],
+                document.authoring.wrapper_tags["body"][1],
                 "<script data-lf-runtime>document.documentElement.lfInitial.residency()</script>",
             )
         )
@@ -849,8 +852,8 @@ def compose_document(
     if root:
         attributes = _attributes(root)
         insertions.append(
-            (document.wrapper_tags["html"][1] - 1, attributes)
-            if "html" in document.wrapper_tags
+            (document.authoring.wrapper_tags["html"][1] - 1, attributes)
+            if "html" in document.authoring.wrapper_tags
             # A source may leave <html> implicit; the tag is then written where the
             # parser would have implied it, before the head.
             else (head_start, f"<html{attributes}>")
@@ -858,7 +861,7 @@ def compose_document(
     if delivery.body_attributes:
         insertions.append(
             (
-                document.wrapper_tags["body"][1] - 1,
+                document.authoring.wrapper_tags["body"][1] - 1,
                 _attributes(delivery.body_attributes),
             )
         )

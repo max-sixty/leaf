@@ -603,7 +603,7 @@ def serve(tmp_path, monkeypatch, initialized_page, request):
         if not fixture:
             html = source
             (d / "index.html").write_text(html)
-            references = structure_model.SourceDocument(html).media_refs
+            references = structure_model.SourceDocument(html).authoring.media_refs
             for reference in references:
                 fixture_media = example_media() / reference.removeprefix("/media/")
                 if fixture_media.is_file():

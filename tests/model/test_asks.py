@@ -797,7 +797,7 @@ def test_an_element_is_named_as_the_browser_names_it(case):
     """An ask's prompt is its element's name, read off the document by the rule
     the browser's `addressableName` reads off the live page."""
     document = SourceDocument(model.leaf_page("Names", case["markup"]))
-    node = _element(document.content, "it")
+    node = _element(document.authoring.content, "it")
     assert element_name(node, case.get("registry", {})) == case["name"]
 
 

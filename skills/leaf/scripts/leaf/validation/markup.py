@@ -32,7 +32,7 @@ def reserved_marker_errors(parser) -> list[Finding]:
     data-lf-gen words become cells the file-side reading has no fence for."""
     return [
         Finding("reserved-markers", element_at(tag), {"line": line, "markers": markers})
-        for tag, line, markers in parser.reserved_markers
+        for tag, line, markers in parser.authoring.reserved_markers
     ]
 
 
@@ -82,7 +82,7 @@ def unpointable_blocks(parser: SourceDocument) -> list[Finding]:
     stays quiet. Undercounting is the right error for advice: a miss costs one
     aim landing wide, noise costs the register its authority."""
     found = []
-    for block in parser.bare_blocks:
+    for block in parser.authoring.bare_blocks:
         under = block["under"]
         if block["tag"] in ("section", "article"):
             found.append(found_at("unpointable-section", block))
@@ -95,9 +95,11 @@ def unpointable_blocks(parser: SourceDocument) -> list[Finding]:
 
 def structure_errors(parser: SourceDocument) -> list[Finding]:
     """Structural complaints and source elements missing a required end tag."""
-    errors = list(parser.errors)
-    if parser.unclosed:
-        elements = [{"tag": tag, "line": line} for tag, line in parser.unclosed]
+    errors = list(parser.authoring.errors)
+    if parser.authoring.unclosed:
+        elements = [
+            {"tag": tag, "line": line} for tag, line in parser.authoring.unclosed
+        ]
         errors.append(Finding("unclosed", values={"elements": elements}))
     return errors
 
@@ -108,47 +110,52 @@ def document_declaration_errors(parser: SourceDocument) -> list[Finding]:
     or in a message quoted into one, sends those requests elsewhere, navigates the page,
     or leaves its modules unable to resolve, and a message does so in every revision."""
     return [
-        found_at("document-declaration", item) for item in parser.document_declarations
+        found_at("document-declaration", item)
+        for item in parser.authoring.document_declarations
     ]
 
 
 def page_boundary_errors(parser: SourceDocument) -> list[Finding]:
     """Authored content lies under the page's one main content boundary."""
     errors = []
-    direct_heads = [line for line, is_direct in parser.head_elements if is_direct]
+    direct_heads = [
+        line for line, is_direct in parser.authoring.head_elements if is_direct
+    ]
     if (
-        len(parser.head_lines) != 1
-        or len(parser.head_elements) != 1
+        len(parser.authoring.head_lines) != 1
+        or len(parser.authoring.head_elements) != 1
         or len(direct_heads) != 1
     ):
         errors.append(
             Finding(
                 "head-count",
                 values={
-                    "tags": len(parser.head_lines),
-                    "parsed": len(parser.head_elements),
+                    "tags": len(parser.authoring.head_lines),
+                    "parsed": len(parser.authoring.head_elements),
                     "direct": len(direct_heads),
                 },
             )
         )
-    direct = [line for line, is_direct in parser.main_elements if is_direct]
+    direct = [line for line, is_direct in parser.authoring.main_elements if is_direct]
     if (
-        len(parser.body_lines) != 1
-        or len(parser.main_elements) != 1
+        len(parser.authoring.body_lines) != 1
+        or len(parser.authoring.main_elements) != 1
         or len(direct) != 1
     ):
         errors.append(
             Finding(
                 "main-count",
                 values={
-                    "bodies": len(parser.body_lines),
-                    "mains": len(parser.main_elements),
+                    "bodies": len(parser.authoring.body_lines),
+                    "mains": len(parser.authoring.main_elements),
                     "direct": len(direct),
                 },
             )
         )
-    if parser.outside_main:
-        errors.append(Finding("outside-main", values={"content": parser.outside_main}))
+    if parser.authoring.outside_main:
+        errors.append(
+            Finding("outside-main", values={"content": parser.authoring.outside_main})
+        )
     return errors
 
 
@@ -163,7 +170,7 @@ def authored_allocation_errors(parser: SourceDocument) -> list[Finding]:
             value=item["value"],
             allowed=list(values) if isinstance(values, tuple) else None,
         )
-        for item in parser.authored_allocations
+        for item in parser.authoring.authored_allocations
         if not allocation_valid(item["attr"], item["value"])
         for values in [AUTHORED_ALLOCATIONS[item["attr"]]]
     ]
@@ -185,9 +192,9 @@ def fragment_style_errors(parser: SourceDocument) -> list[Finding]:
     of a message's own has nowhere honest to sit, because the message is not the
     page and its markup is frozen in the log where no version can revise it."""
     errors = []
-    if any(sheet["css"].strip() for sheet in parser.style_blocks):
+    if any(sheet["css"].strip() for sheet in parser.authoring.style_blocks):
         errors.append(Finding("message-style", "<style>"))
-    if links_with_rel(parser.links, "stylesheet"):
+    if links_with_rel(parser.authoring.links, "stylesheet"):
         errors.append(Finding("message-stylesheet", "<link>"))
     return errors + authored_allocation_errors(parser)
 
@@ -207,7 +214,7 @@ def media_errors(parser: SourceDocument, page_dir: Path) -> list[Finding]:
 
     Asked at each door rather than in the vocabulary contract, for the reason
     `check_markup` gives where that choice is made."""
-    return _unanswered_media(parser.media_refs, page_dir)
+    return _unanswered_media(parser.authoring.media_refs, page_dir)
 
 
 def text_media_errors(text: str, page_dir: Path) -> list[Finding]:

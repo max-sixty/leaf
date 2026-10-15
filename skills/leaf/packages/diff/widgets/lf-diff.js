@@ -33,6 +33,7 @@ import {
   focusDestination,
   holdFocus,
   html,
+  nothing,
   keyed,
   render,
   inChrome,
@@ -49,7 +50,7 @@ import {
   move,
   nextRender,
   offer,
-  once,
+  LeafElement,
   paintKeys,
   projectData,
   projectedDatum,
@@ -64,8 +65,6 @@ import {
   setChildren,
   shadowStage,
   sizeObserver,
-  widgetController,
-  watchData,
   whileConnected,
   scrollIntoView,
   layoutPx,
@@ -961,15 +960,20 @@ function deferredError(details, error, retry) {
 
 customElements.define(
   "lf-diff",
-  class extends HTMLElement {
-    controller = widgetController(this);
+  class extends LeafElement {
     revealPassage = ({ detail }) => {
       const entry = this.fileEntries?.find(({ node }) => node.contains(detail.target));
       if (entry?.filtered) this.clearFilter();
     };
 
-    connectedCallback() {
-      if (!once(this)) return;
+    // The bound delivery the last render read, and the one whose rendering last
+    // started; a departure that cuts a rendering short forgets it, so the return draws
+    // it again.
+    #delivered;
+    #shown;
+    #showing = false;
+
+    setup() {
       commands(
         this,
         "In a diff review",
@@ -1069,7 +1073,7 @@ customElements.define(
       const paintInline = bound
         ? null
         : readingPaint(this, () => {
-            const rendering = (this.sourceRendering = this.render(this.inlineSource));
+            const rendering = (this.sourceRendering = this.show(this.inlineSource));
             this.present(rendering);
             return rendering;
           });
@@ -1080,6 +1084,7 @@ customElements.define(
         // which declares no such edge. The theme cannot ask that question from inside a shadow tree, so
         // the module answers it once with the layer's own predicate and paints the answer.
         this.toggleAttribute("data-lf-diff-pinned", !inChrome(this));
+        if (bound && this.#shown === undefined && this.hasUpdated) this.requestUpdate();
         if (paintInline) {
           // Not bodyText: a diff's trailing whitespace is content — a hunk's last line
           // can be a lone space, the context line for a blank source line — so only the
@@ -1091,6 +1096,7 @@ customElements.define(
         }
         return () => {
           this.rendering = (this.rendering ?? 0) + 1;
+          if (this.#showing) this.#shown = undefined;
           // Leaf retires this surface when it leaves, after this cleanup, and puts
           // core's views back, so every outlet goes.
           if (this.threadSeats) {
@@ -1102,17 +1108,32 @@ customElements.define(
           this.threadPairs = null;
         };
       });
-      if (bound)
-        watchData(this, "document", (snapshot) => {
-          const rendering = this.render(snapshot?.value ?? null, snapshot);
-          this.sourceRendering = rendering;
-          return rendering;
-        });
+    }
+
+    render() {
+      if (this.hasAttribute("source")) this.#delivered = this.data("document");
+      return nothing;
+    }
+
+    // A bound patch renders each delivery once, after the draw that read it, whose
+    // claim waits for the rendering.
+    updated(changed) {
+      super.updated(changed);
+      if (!this.hasAttribute("source") || this.#delivered === this.#shown) return;
+      const snapshot = (this.#shown = this.#delivered);
+      this.#showing = true;
+      const rendering = this.show(snapshot?.value ?? null, snapshot);
+      this.sourceRendering = rendering;
+      this.drawing(
+        rendering.finally(() => {
+          if (this.sourceRendering === rendering) this.#showing = false;
+        }),
+      );
     }
 
     // `snapshot` is the bound delivery, null when a bound source has no value, and
     // undefined for an inline patch.
-    async render(source, snapshot) {
+    async show(source, snapshot) {
       const rendering = (this.rendering ?? 0) + 1;
       this.rendering = rendering;
       try {
@@ -1873,10 +1894,6 @@ customElements.define(
         this.fileEntries?.find(({ node }) => here && node.contains(here)) ?? null;
       if (focusedEntry) return focusedEntry;
       return this.fileEntries?.includes(this.fileCursor) ? this.fileCursor : null;
-    }
-
-    renderState() {
-      this.refreshDiffTools();
     }
   },
 );

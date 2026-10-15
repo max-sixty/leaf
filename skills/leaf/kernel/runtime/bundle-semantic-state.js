@@ -338,7 +338,6 @@ export {
   projectView,
   selectWidgets,
   attachApplicationPresentation,
-  widgetRegions,
   attachWidgetPresentation,
   queueWidgetUpdate,
   PRESENTATION_ORDER,

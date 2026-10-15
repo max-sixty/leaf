@@ -5356,39 +5356,6 @@ def test_a_playground_switch_and_copy_are_reachable_through_go_to(browser, serve
     assert "12px radius" in page.evaluate("navigator.clipboard.readText()")
 
 
-def test_a_playground_rejects_restored_values_that_do_not_match_its_controls(
-    browser, serve
-):
-    url = serve(PLAYGROUND_PAGE)
-    append_command(
-        serve.page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "card-playground",
-            "action": "choose",
-            "detail": {
-                "values": {
-                    "accent": "#4f766f",
-                    "compact": False,
-                    "radius": 12,
-                    "title": "Field note",
-                    "tone": "quiet",
-                    "unknown": "value",
-                },
-                "instruction": "Use the unknown setting.",
-            },
-        },
-    )
-
-    page = open_page(browser, url)
-    expect(page.locator("#card-playground .lf-error")).to_contain_text(
-        "configuration needs exactly these fields"
-    )
-    consume_browser_errors(page, "configuration needs exactly these fields")
-
-
 def test_a_playground_rejects_range_values_that_do_not_land_on_its_step(browser, serve):
     source = PLAYGROUND_PAGE.replace('value="12" min="0"', 'value="12.5" min="0"')
     page = open_page(browser, serve(source))

@@ -3783,6 +3783,55 @@ def test_a_widget_presents_its_authored_state_offline_and_the_log_on_recovery(
     expect(page.locator("#two")).to_have_attribute("chosen", "")
 
 
+def test_a_widget_draws_its_authored_state_while_its_first_read_waits(browser, serve):
+    """Before the first state read answers, a widget's reading is its authored state,
+    whole, so it draws that rather than nothing or a guess; the read draws the log's
+    choice."""
+    url = serve(
+        leaf_page(
+            "Waiting choice",
+            '<h1>Waiting choice</h1><lf-ask id="ask"><h2>Which?</h2>'
+            '<lf-options id="options" choose><lf-option id="one">First</lf-option>'
+            '<lf-option id="two">Second</lf-option></lf-options></lf-ask>',
+        )
+    )
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "options",
+            "action": "choose",
+            "detail": {"value": ["two"]},
+        },
+    )
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    held = []
+    page.route("**/api/state*", lambda route: held.append(route))
+    page.goto(url, wait_until="load")
+    holding(page, held, 1, "the first state read")
+    waiting = page.evaluate(
+        """async () => {
+          const {widgetController} = await window.__lfWidgetApi();
+          const options = document.querySelector('#options');
+          await options.updateComplete;
+          const {state} = widgetController(options).read();
+          return {
+            verbs: Object.keys(state).sort(),
+            chosen: state.choose.value,
+            drawn: [...options.querySelectorAll('lf-option[chosen]')].map((o) => o.id),
+          };
+        }"""
+    )
+    assert waiting == {"verbs": ["add", "answer", "choose"], "chosen": [], "drawn": []}
+    page.unroute("**/api/state*")
+    for route in held:
+        route.continue_()
+    told(page)
+    expect(page.locator("#two")).to_have_attribute("chosen", "")
+
+
 def test_a_pending_offline_paint_does_not_block_a_recovery_read(browser, serve):
     """The network slot ends with the read, not an unbounded package repaint."""
     page = open_page(browser, serve(LONG_PAGE))

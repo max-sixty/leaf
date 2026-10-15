@@ -33,11 +33,12 @@
    nothing while away, so a draw queued as it left, or one whose drawing had not landed,
    is owed to its return; a return draws again only where that is owed or something it
    read moved meanwhile, and claims its region either way, so a returning widget never
-   leaves its epoch waiting. A widget whose reading lacks a declared verb, as at startup
-   before the log is read, draws nothing until it has them all; its claim settles with
-   nothing drawn. While its controller's `defer()` holds it, its claim stays open; the
-   release draws the newest reading at once, changed or not, since the gesture may have
-   rewritten its nodes. An element whose tag declares `x-data` holds the page's data
+   leaves its epoch waiting. A widget whose reading lacks a declared verb, as a revision's
+   replacement does before its document is adopted, draws nothing until it has them all
+   (before the first state read, the authored state supplies every verb); its claim
+   settles with nothing drawn. While its controller's `defer()` holds it, its claim stays
+   open; the release draws the newest reading at once, changed or not, since the gesture
+   may have rewritten its nodes. An element whose tag declares `x-data` holds the page's data
    version while it stands, until it has drawn what was delivered, and any drawing that
    draw held it for (`drawing()`), such as highlighting or a loading frame, has landed.
    `setup()` runs once, on the first connection, before the first render. */

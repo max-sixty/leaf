@@ -4,9 +4,11 @@ behind one of them.
 A harness is the program an agent session runs in, such as Claude Code or Codex, as
 Leaf meets it. `Harness` collects everything that
 differs between them — session lifetime, watcher and transports, the hook's remedies,
-the way to reach a session with nothing watching — so that every module below
-this one dispatches on what a harness declares rather than on which harness it
-is. `session_harness` reads the one running this command out of the
+the way out of its sandbox, the way to reach a session with nothing watching — so
+that every module below this one dispatches on what a harness declares rather than
+on which harness it is: behaviour one harness needs is a method here, which the
+others answer by default, and no module outside this one compares a harness's name
+or reads its environment variables. `session_harness` reads the one running this command out of the
 environment; `claim_harness` rebuilds the one a page's claim recorded.
 
 The machine facts a harness rests on live elsewhere: `machine` reads the
@@ -112,6 +114,13 @@ class Harness:
         ORPHAN_GRACE_SECS after it (`stop_when_service_ends`). `claim_is_active`
         consumes these fields without knowing which harness wrote them."""
         raise NotImplementedError
+
+    def escape_sandbox(self) -> None:
+        """Open the road out of this harness's sandbox that this session's `leaf`
+        commands take, for as long as the session lives (`lifetime`). The hook
+        before a command naming `leaf` calls it, outside the sandbox. A harness
+        whose sandbox leaves no road out, as Codex's does, opens none
+        (`TODO.md`)."""
 
     def watcher_live(self, *, listening: bool) -> bool:
         """Whether this session's watcher can still take the page's input into a
@@ -341,6 +350,12 @@ class ClaudeCodeHarness(EnvironmentHarness):
     @classmethod
     def process_pid(cls) -> int | None:
         return int(pid) if (pid := os.environ.get("CLAUDE_PID")) else None
+
+    def escape_sandbox(self) -> None:
+        """Leaf's bridge (`bridge.py`), which Claude Code's network proxy reaches."""
+        from .bridge import ensure
+
+        ensure(self.session, self.lifetime())
 
     @classmethod
     def from_claim(cls, claim: dict) -> ClaudeCodeHarness:

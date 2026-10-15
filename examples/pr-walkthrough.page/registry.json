@@ -39,12 +39,7 @@
               "minLength": 1
             },
             "status": {
-              "enum": [
-                "draft",
-                "open",
-                "merged",
-                "closed"
-              ]
+              "enum": ["draft", "open", "merged", "closed"]
             },
             "description": {
               "type": "string",
@@ -74,12 +69,7 @@
                   "minimum": 0
                 }
               },
-              "required": [
-                "files",
-                "additions",
-                "deletions",
-                "commits"
-              ],
+              "required": ["files", "additions", "deletions", "commits"],
               "additionalProperties": false
             },
             "checks": {
@@ -132,10 +122,7 @@
         "pattern": "^[a-z][a-z0-9-]*$"
       }
     },
-    "required": [
-      "id",
-      "source"
-    ],
+    "required": ["id", "source"],
     "additionalProperties": false,
     "x-content": "empty",
     "x-data": {

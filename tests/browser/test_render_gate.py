@@ -1137,10 +1137,9 @@ def test_replay_findings_keep_the_throw_site(browser, serve):
     page = open_page(browser, serve(SHORT_SUGGESTION))
     page.evaluate("""async () => {
       const {validationWidgetStates} = await window.__lfCheckApi();
-      const widget = validationWidgetStates().find(s => s.widget?.renderState).widget;
-      window.restoreReplay = () => { widget.renderState = original; };
-      const original = widget.renderState;
-      widget.renderState = function replayProjection() { throw new TypeError('replay rejected'); };
+      const widget = validationWidgetStates().find(s => s.widget?.redraw).widget;
+      window.restoreReplay = () => { delete widget.render; };
+      widget.render = function replayProjection() { throw new TypeError('replay rejected'); };
     }""")
     try:
         findings = render_checks_model.evaluate_probe(page, "relativeReplays")
@@ -1929,13 +1928,10 @@ def _author_stateful_verbatim_widget(tmp_path):
         "});\n"
     )
     (tmp_path / ".leaf" / "widgets" / "lf-stateful.js").write_text(
-        'import { keepsText, once, widgetController } from "/runtime/widget-api.js";\n'
-        'customElements.define("lf-stateful", class extends HTMLElement {\n'
-        "  controller = widgetController(this);\n"
-        "  stop;\n"
-        "  connectedCallback() { once(this); this.stop ??= this.controller.subscribe(() => {}); }\n"
-        "  disconnectedCallback() { this.stop?.(); this.stop = null; }\n"
-        "  renderState(state) {\n"
+        'import { LeafElement, keepsText } from "/runtime/widget-api.js";\n'
+        'customElements.define("lf-stateful", class extends LeafElement {\n'
+        "  render() {\n"
+        "    const { state } = this;\n"
         '    if (state.change.value === "corrupt" || state.status.value === "corrupt")\n'
         '      keepsText(this.closest("lf-shell")?.querySelector(":scope > p")'
         ' ?? this.querySelector("p"), "State replaced unrelated prose.");\n'
@@ -3552,7 +3548,23 @@ FRAMED_TABLES_PAGE = leaf_page(
 <table id="allocated" data-width="wide"><tr><th>Session</th><td>9:00</td></tr></table>
 <figure data-width="available">
 <table id="figure-table"><tr><th>Session</th><td>9:00</td></tr></table>
+<lf-ask id="figure-asked">
+<h2>Which session ends?</h2>
+<table id="figure-asked-table"><tr><th>Session</th><td>17:00</td></tr></table>
+<lf-options id="figure-asked-choice" choose>
+<lf-option id="figure-asked-early"><strong>Early</strong> End it at 16:00.</lf-option>
+<lf-option id="figure-asked-late"><strong>Late</strong> End it at 18:00.</lf-option>
+</lf-options>
+</lf-ask>
 </figure>
+<lf-ask id="asked">
+<h2>Which session moves?</h2>
+<table id="asked-table"><tr><th>Session</th><td>9:00</td></tr></table>
+<lf-options id="asked-choice" choose>
+<lf-option id="asked-early"><strong>Early</strong> Move it to 8:00.</lf-option>
+<lf-option id="asked-late"><strong>Late</strong> Move it to 10:00.</lf-option>
+</lf-options>
+</lf-ask>
 <section class="panel" id="checks">
 <h2>Checks</h2>
 <table id="framed"><thead><tr><th>Check</th><th>Observed</th></tr></thead>

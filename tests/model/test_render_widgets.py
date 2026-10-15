@@ -1,13 +1,13 @@
 """Board, suggestion, ask, and widget composition tests."""
 
 from leaf.structure import SourceDocument
-from leaf_dev import corpus as corpus_model
+from leaf_dev.commands import corpus as corpus_model
 
 
 def test_the_composed_corpus_carries_each_examples_head_modules():
     """A playground whose head module draws its samples, as the notification
     playground's does, runs inside the composed corpus because the corpus hoists every
-    example's early head script into its own head (`leaf_dev.corpus`). Each example's
+    example's early head script into its own head (`leaf_dev.commands.corpus`). Each example's
     own page test runs the module; this holds the composition to carrying it."""
     composed = {
         script["body"]

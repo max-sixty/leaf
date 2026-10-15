@@ -360,6 +360,7 @@ class PageEndpoint:
                     [
                         {
                             "source": "server",
+                            "type": "request",
                             "ts": now_iso(),
                             "method": self.method,
                             "path": self.path,

@@ -33,10 +33,50 @@ from interact_support import (
 )
 from leaf import cli as cli_model
 from leaf import codex_adapter, leases, server, service, session
+from leaf.interaction_log import read_interactions
 from leaf.media import media_name
 from leaf.structure import SourceDocument
-from leaf_dev import arms, page_fixtures, preview
+from leaf_dev import arms, page_fixtures
+from leaf_dev.commands import preview
 from leaf_dev.page_fixtures import prepare_page, read_fixture
+
+
+def test_automated_page_producers_record_the_run_before_input(tmp_path, serve, request):
+    """A served test and an isolated developer arm declare their actual provenance."""
+    source = tmp_path / "reading.html"
+    source.write_text(
+        "<!doctype html><html><head><title>Reading</title></head>"
+        "<body><main><h1>Reading</h1></main></body></html>"
+    )
+    (tmp_path / "layer.json").write_text("[]")
+    serve(source)
+    [context] = [
+        row
+        for row in read_interactions(serve.page_dir)
+        if row.get("type") == "run_context"
+    ]
+    assert context | {"ts": "clock"} == {
+        "source": "developer",
+        "type": "run_context",
+        "ts": "clock",
+        "purpose": "test",
+        "run": str(tmp_path),
+        "authored_source": str(source),
+        "test": request.node.nodeid,
+    }
+
+    state = tmp_path / "isolated-state"
+    page = tmp_path / "arm-page"
+    arms.build_source(ROOT, state, source, page)
+    [context] = read_interactions(page)
+    assert context | {"ts": "clock"} == {
+        "source": "developer",
+        "type": "run_context",
+        "ts": "clock",
+        "purpose": "automated",
+        "run": str(state),
+        "authored_source": str(source),
+    }
 
 
 @pytest.mark.parametrize("evidence", ["missing", "deleted", "other-chat"])
@@ -517,7 +557,7 @@ from leaf.service import page_claim
 from leaf.state import end_session, write_json
 from leaf.harness import session_harness
 from leaf.hosting import cmd_stop
-from leaf_dev.preview import PreviewService
+from leaf_dev.commands.preview import PreviewService
 
 page, ready, done = map(Path, sys.argv[1:4])
 handoff = sys.argv[4]

@@ -23,7 +23,12 @@ that names no turn can state when the turn ended (`ended_at`, in POSIX seconds),
 as the Interrupt from Pi's extension or Leaf's Claude Code hooks module does, and
 then leaves a turn opened or renewed since open.
 
-Hooks with no retained claim avoid page reading, and import the harness
+Most sessions with the plugin installed never claim a page, so in a session
+holding no claim the launcher answers Codex's tool hook, and every Claude Code
+hook but PreToolUse, without starting uv (`state.hook_needed`). Claude Code's
+PreToolUse runs before each `leaf` command, and in such a session opens the turn
+the skipped prompt hook would have, so a claim that command makes joins it. Hooks
+that do run with no retained claim avoid page reading, and import the harness
 declarations only once the payload names a session. Page-owning prompt and Stop
 hooks reach `hook_transport`; Codex's tool and Stop hooks reach its delivery
 records in `codex`; a second Claude Code Stop hook watches between turns (`cmd_watch`). The
@@ -48,6 +53,7 @@ from .state import (
     close_session_turn,
     end_harness_instance,
     flocked,
+    holds_claims,
     prompt_turn,
     session_lock_path,
     session_record,
@@ -70,15 +76,19 @@ def cmd_hook(harness: str, payload: dict) -> None:
     if event == "SessionEnd":
         end_harness_instance(sid)
         return
-    if (
-        harness == "claude-code"
-        and event in {"SessionStart", "UserPromptSubmit"}
-        and (pid := os.environ.get("CLAUDE_PID"))
-    ):
+    if event == "PreToolUse":
         # Claude Code runs hooks outside its sandbox and shell commands inside it.
-        from .bridge import ensure
+        # Its registration runs this only before a command naming `leaf`, so a
+        # session that never runs one starts no bridge.
+        if pid := os.environ.get("CLAUDE_PID"):
+            from .bridge import ensure
 
-        ensure(int(pid))
+            ensure(int(pid))
+        if sid and not holds_claims(sid):
+            # The launcher skipped this turn's prompt hook (`state.hook_needed`),
+            # so the turn a claim joins opens here, before the command.
+            prompt_turn(sid)
+        return
     if not sid:
         return
     from .harness import hook_harness

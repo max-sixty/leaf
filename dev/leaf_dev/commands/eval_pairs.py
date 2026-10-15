@@ -126,7 +126,7 @@ def by_column(verdict: dict | None, columns: dict[str, str]) -> dict | None:
     }
 
 
-@click.command("eval-pairs")
+@click.command()
 @click.argument(
     "runs",
     nargs=-1,

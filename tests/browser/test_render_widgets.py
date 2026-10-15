@@ -17,8 +17,8 @@ from leaf import exporting as exporting_model
 from leaf import render_checks as render_checks_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.schema import ELEMENT_ID
+from leaf_dev.commands.stills import visual_review_menu
 from leaf_dev.example_data import patch_manifest
-from leaf_dev.stills import visual_review_menu
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ALL_ASKS_IN_ORDER,
@@ -4359,16 +4359,16 @@ def test_a_board_at_its_floor_scrolls_rather_than_breaking_a_card_s_words(
                         broken.push(m[0]);
                 }
         }
+        const card = board.querySelector('lf-card');
+        const style = getComputedStyle(card), box = card.getBoundingClientRect();
+        const measure = box.width - parseFloat(style.paddingLeft)
+            - parseFloat(style.paddingRight) - parseFloat(style.borderLeftWidth)
+            - parseFloat(style.borderRightWidth);
         return { broken,
                  scrolls: board.scrollWidth - board.clientWidth,
                  widths: columns.map((c) => c.getBoundingClientRect().width),
-                 measure: (() => {
-                     const card = board.querySelector('lf-card');
-                     const s = getComputedStyle(card), b = card.getBoundingClientRect();
-                     return b.width - parseFloat(s.paddingLeft)
-                          - parseFloat(s.paddingRight) - parseFloat(s.borderLeftWidth)
-                          - parseFloat(s.borderRightWidth);
-                 })() };
+                 measure,
+                 titleMeasure: measure - parseFloat(getComputedStyle(card, '::before').width) };
     }"""
     )
     # The premise, read off the layout rather than off the property behind it: a grid of
@@ -4378,6 +4378,10 @@ def test_a_board_at_its_floor_scrolls_rather_than_breaking_a_card_s_words(
     assert measured["scrolls"] > 1 and len(set(measured["widths"])) == 1, (
         f"this board is not at its floor, so its words prove nothing: {measured}"
     )
+    # The default board promises 136px for title words beside the grip. Check that
+    # available line measure directly: a particular long word may exceed it in
+    # another platform's font even when the allocation is correct.
+    assert measured["titleMeasure"] >= 136 - 1, measured
     assert measured["broken"] == [], (
         f"a board at its floor gave each card {measured['measure']:.0f}px of measure "
         f"and broke {', '.join(sorted(set(measured['broken'])))} across two lines"
@@ -5974,6 +5978,23 @@ def test_a_decided_change_folds_away_rather_than_vanishing(browser, serve):
     assert after.evaluate("el => el.getBoundingClientRect().top") < below, (
         "the page never gave back the room the retired paragraph was holding"
     )
+
+    # Undo during a later fold returns the same ordinary box, with no filled effect
+    # or temporary sizing style keeping the retired presentation alive.
+    round_trip(page)
+    undo(page)
+    expect(old).to_be_visible()
+    page.locator("[data-lf-margin-for='sug'] .lf-sug-accept").click()
+    round_trip(page)
+    page.evaluate(
+        "() => { const m = window.__lfHeld.at(-1);"
+        " m.currentTime = m.effect.getTiming().duration / 2; }"
+    )
+    assert 0 < page.evaluate(at) < tall
+    undo(page)
+    expect(old).to_be_visible()
+    assert page.evaluate(at) == pytest.approx(tall, abs=1)
+    assert old.evaluate("el => el.getAnimations().length") == 0
 
 
 def test_a_user_who_asked_for_less_motion_gets_the_collapse_at_once(browser, serve):

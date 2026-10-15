@@ -64,7 +64,8 @@ from leaf.state import flocked, open_session_turn, session_record, start_session
 from leaf.structure import SourceDocument
 from leaf.thread import cmd_resolve, post_reply
 from leaf.vendoring import cmd_init
-from leaf_dev import example_previews, journey, startup, verify_site
+from leaf_dev import startup
+from leaf_dev.commands import journey, journey_chart, refresh_previews, verify_site
 from websockets.exceptions import ConnectionClosedError
 
 ROOT = Path(__file__).parents[2]
@@ -1948,11 +1949,11 @@ def test_the_journey_chart_draws_each_targets_latest_version_from_kept_samples()
     path = journey.samples_path()
     path.parent.mkdir(parents=True)
     path.write_text("".join(json.dumps(s) + "\n" for s in [*samples, unstepped]))
-    result = CliRunner().invoke(journey.journey_chart)
+    result = CliRunner().invoke(journey_chart.journey_chart)
     assert result.exit_code == 0, result.output
     markup = result.stdout
     assert markup.startswith('<lf-chart id="journey-signs"')
-    rows = journey.chart_rows([*samples, unstepped])
+    rows = journey_chart.chart_rows([*samples, unstepped])
     assert {r["row"] for r in rows} == {
         "Claude Code at bbbbbbbb+working-tree",
         "Claude Code with the hooks module at aaaaaaaa",
@@ -4612,7 +4613,7 @@ def test_the_preview_generator_uses_the_live_website_route(page_dir, tmp_path):
     shutil.copytree(page_dir, published)
     write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
 
-    with example_previews.serve_examples(site) as root:
+    with refresh_previews.serve_examples(site) as root:
         state = json.loads(get(f"{root}/examples/decision/api/state")[0])
 
     assert state["publication"] == {

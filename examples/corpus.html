@@ -5368,6 +5368,100 @@ index b856171b57..cfa4f0448e 100644
       </div>
 </lf-tab>
 
+<lf-tab id="corpus-review-a-fix" label="Fix recordings">
+<h1 id="fix-title">A comment now survives opening its screenshot</h1>
+      <p class="lede" id="fix-lede">
+        Pressing Escape on a screenshot's preview used to close the page comment it was
+        attached to. I recorded one journey before and after the fix. Choose a moment,
+        then switch recordings to see the same step in the other.
+      </p>
+
+      <section id="fix-recordings">
+        <lf-trace-compare id="fix-compare"
+          ><figure id="fix-before-figure">
+            <lf-trace id="fix-before" label="Before the fix" source="draft-image-before"
+              ><lf-trace-bookmark
+                label="Screenshot attached"
+                key="attached"
+                target="trace-2d131afa2b4c0f0b270d4151aa38c41d0fe1e0d7eb5ec06b38738d0ef9c4af48-phase-trace-2d131afa2b4c0f0b270d4151aa38c41d0fe1e0d7eb5ec06b38738d0ef9c4af48-stream-fb486352db3c8a4a-call-7381d4920886e8e7-after"
+              ></lf-trace-bookmark
+              ><lf-trace-bookmark
+                label="Preview open"
+                key="preview"
+                target="trace-2d131afa2b4c0f0b270d4151aa38c41d0fe1e0d7eb5ec06b38738d0ef9c4af48-phase-trace-2d131afa2b4c0f0b270d4151aa38c41d0fe1e0d7eb5ec06b38738d0ef9c4af48-stream-fb486352db3c8a4a-call-4bf0c2b85c239da4-after"
+              ></lf-trace-bookmark
+              ><lf-trace-bookmark
+                label="Back from the preview: the comment is gone"
+                key="closed"
+                target="trace-2d131afa2b4c0f0b270d4151aa38c41d0fe1e0d7eb5ec06b38738d0ef9c4af48-phase-trace-2d131afa2b4c0f0b270d4151aa38c41d0fe1e0d7eb5ec06b38738d0ef9c4af48-stream-fb486352db3c8a4a-call-abe9cf9bf3c4bf2e-after"
+              ></lf-trace-bookmark
+            ></lf-trace>
+            <figcaption>Leaf with the fix reverted.</figcaption>
+          </figure>
+          <figure id="fix-after-figure">
+            <lf-trace id="fix-after" label="After the fix" source="draft-image-after"
+              ><lf-trace-bookmark
+                label="Screenshot attached"
+                key="attached"
+                target="trace-215fbb37d871d88b1072aa3904fd9acc94d15818a455b162b8ce63b2fec3d575-phase-trace-215fbb37d871d88b1072aa3904fd9acc94d15818a455b162b8ce63b2fec3d575-stream-fb486352db3c8a4a-call-eeb575e3c75e317f-after"
+              ></lf-trace-bookmark
+              ><lf-trace-bookmark
+                label="Preview open"
+                key="preview"
+                target="trace-215fbb37d871d88b1072aa3904fd9acc94d15818a455b162b8ce63b2fec3d575-phase-trace-215fbb37d871d88b1072aa3904fd9acc94d15818a455b162b8ce63b2fec3d575-stream-fb486352db3c8a4a-call-8aa54362b1994f28-after"
+              ></lf-trace-bookmark
+              ><lf-trace-bookmark
+                label="Back from the preview: the comment is back"
+                key="closed"
+                target="trace-215fbb37d871d88b1072aa3904fd9acc94d15818a455b162b8ce63b2fec3d575-phase-trace-215fbb37d871d88b1072aa3904fd9acc94d15818a455b162b8ce63b2fec3d575-stream-fb486352db3c8a4a-call-c7579a9a67f18b3b-after"
+              ></lf-trace-bookmark
+            ></lf-trace>
+            <figcaption>Leaf with the fix.</figcaption>
+          </figure></lf-trace-compare
+        >
+      </section>
+
+      <lf-ask id="fix-ship-ask">
+        <h2>Ship the fix?</h2>
+        <p id="fix-ship-basis">
+          The recordings part at Back from the preview. Before the fix the comment is
+          gone and focus is on the page; after it the comment is back with its words and
+          screenshot, and the thumbnail holds focus.
+        </p>
+        <p id="fix-ship-coverage">
+          The recordings show Escape in Chrome. The regression test also closes the
+          preview with its close button and with a press outside it, in the page comment
+          and in a thread reply in the floating panel, and fails on each without the
+          fix.
+        </p>
+        <lf-options id="fix-ship" choose>
+          <lf-option id="fix-ship-now">
+            <small class="tag ok">recommended</small>
+            <strong>Ship it</strong>
+            <p>The comment and its focus come back however the preview closes.</p>
+          </lf-option>
+          <lf-option id="fix-ship-hold">
+            <strong>Record the floating panel first</strong>
+            <p>
+              Add a pair of recordings of a thread reply, whose view closed for a
+              different reason, and ship after you have watched them.
+            </p>
+          </lf-option>
+        </lf-options>
+      </lf-ask>
+
+      <details id="fix-cause">
+        <summary>Why the comment closed</summary>
+        <p>
+          The page comment card is an auto popover, and opening a modal dialog closes
+          every auto popover the dialog does not stand in. The image preview is a modal
+          dialog, so opening it closed the card, and closing it left focus on the page.
+          The preview now stands inside the open card while it is shown and returns to
+          its usual place when it closes.
+        </p>
+      </details>
+</lf-tab>
+
 <lf-tab id="corpus-wt-merge" label="Merge film">
 <header>
         <h1>Explain how <code>wt merge</code> works</h1>
@@ -7164,19 +7258,27 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
         remain distinct.
       </p>
       <lf-trace-compare id="matched-results"
-        ><lf-trace id="paired-before" label="Before" source="release-journey"
-          ><lf-trace-bookmark
-            label="Reviewed result"
-            key="reviewed"
-            target="trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-phase-trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-call-4e380b5061c4982e-after"
-          ></lf-trace-bookmark></lf-trace
-        ><lf-trace id="paired-after" label="After" source="release-journey"
-          ><lf-trace-bookmark
-            label="Reviewed result"
-            key="reviewed"
-            target="trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-phase-trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-call-0684e283ed722175-after"
-          ></lf-trace-bookmark></lf-trace
-      ></lf-trace-compare>
+        ><figure>
+          <lf-trace id="paired-before" label="Before" source="release-journey"
+            ><lf-trace-bookmark
+              label="Reviewed result"
+              key="reviewed"
+              target="trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-phase-trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-call-4e380b5061c4982e-after"
+            ></lf-trace-bookmark
+          ></lf-trace>
+          <figcaption>Before the fix.</figcaption>
+        </figure>
+        <figure>
+          <lf-trace id="paired-after" label="After" source="release-journey"
+            ><lf-trace-bookmark
+              label="Reviewed result"
+              key="reviewed"
+              target="trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-phase-trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-call-0684e283ed722175-after"
+            ></lf-trace-bookmark
+          ></lf-trace>
+          <figcaption>After the fix, recorded from the same journey.</figcaption>
+        </figure></lf-trace-compare
+      >
 </lf-tab>
 
 <lf-tab id="corpus-review-queue" label="Review Queue">
@@ -9033,10 +9135,12 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 Choose “Progress messages” in the practice page, then use “Show 2
                 progress messages” beside the answer’s timestamp with a press or Enter.
                 Expanded progress runs have an inset border and ordinary message headers
-                on the page’s normal background. User replies separate the groups. The
-                later room check has no answer yet, so it stands as a dim working
-                message above the reply box rather than as a reply, and counts nothing
-                unread.
+                on the page’s normal background. User replies separate the groups.
+                “Hide” returns the space to the page instead of leaving a gap above the
+                reply box. Disclosures inside interactive replies return their room the
+                same way. The later room check has no answer yet, so it stands as a dim
+                working message above the reply box rather than as a reply, and counts
+                nothing unread.
               </p>
               <p id="bg-thread-unread">
                 <strong>Unread replies.</strong> The seeded agent replies start unread,

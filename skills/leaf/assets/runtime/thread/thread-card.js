@@ -160,9 +160,27 @@ function workingMessage(thread, attention, messages) {
         : [said, false, null, null];
   if (!words || (!pending.length && !live && !condition)) return null;
   const agentMessage = messages.findLast((message) => message.author === "agent");
+  // A workflow's detail is explicit agent work text linked to its exact input. A
+  // to-do's line can be user-authored, so it supplies no reply visibility evidence.
+  const work = running?.detail ? running : !running && !todo ? stopped : null;
+  const progress = !work && (running || (!todo && !stopped)) ? pending.at(-1) : null;
+  const feedback = work?.input
+    ? {
+        input_id: work.input,
+        reply_id: null,
+        reply_kind: "work",
+      }
+    : progress
+      ? {
+          reply_id: progress.id,
+          attempt: progress.attempt,
+          reply_kind: "progress",
+        }
+      : null;
   return Object.freeze({
     who: agent || agentMessage?.by || "Agent",
     words: words.trim().replace(/\.$/, ""),
+    feedback,
     live,
     condition,
   });
@@ -388,26 +406,6 @@ function paintBoundary(node, kind) {
 }
 
 let nextViewId = 0;
-// The margin card's controls stand over its transcript, so each message's head keeps
-// their width clear and its words end before them. A held-news notice is not among
-// them: it comes with news, which must not rewrap a head, so it stands beside them over
-// the head's end (`.lf-margin-thread-news`) until it is pressed. A render that changes
-// the controls writes the allocation in its own pass (`present`), so the heads it
-// rewraps move with the render that moved them. Any other change of the controls' size
-// writes it in the next rendering pass: applying it can wrap a header and resize the
-// controls' ancestors, which ResizeObserver cannot deliver again in the controls' own
-// delivery.
-const allotMarginControls = (row) =>
-  row.parentElement?.style.setProperty(
-    "--lf-margin-controls-width",
-    layoutPx(row.getBoundingClientRect().width),
-  );
-const marginControlsSizes = sizeObserver((entries) => {
-  nextRender(() => {
-    for (const { target } of entries) allotMarginControls(target);
-  });
-});
-
 // A panel card's reply row is pinned over the turns above it at the list's foot, so the
 // card states the row's height and a landing in those turns stops above it (chrome.css).
 // The row grows with its draft, so the height is read rather than a token.
@@ -441,6 +439,7 @@ export class ThreadView {
   #actions = document.createElement("span");
   #transcript = document.createElement("div");
   #working = document.createElement("div");
+  #stopWorkingExposure = null;
   // Each pending progress range's covered message ids, as last drawn, so a fold that
   // takes the range over can take its disclosure state with it.
   #pendingCovers = new Map();
@@ -450,7 +449,6 @@ export class ThreadView {
   #expandedSummaries = new Set();
   #quoteExpanded = false;
   #marginControls = null;
-  #marginControlsRow = null;
   #viewId = ++nextViewId;
   // What a thread in the page's flow holds back says so in its control row (held-news.js).
   #news = newsNotice();
@@ -468,11 +466,6 @@ export class ThreadView {
     this.#quoteNode = node;
     if (node) this.#sizes.observe(node);
   };
-  #watchMarginControls = (node) => {
-    if (this.#marginControlsRow) marginControlsSizes.unobserve(this.#marginControlsRow);
-    this.#marginControlsRow = node;
-    if (node) marginControlsSizes.observe(node);
-  };
   #sizes = sizeObserver(() => {
     this.#retainHeaderSlot();
     this.#measureQuote();
@@ -488,7 +481,7 @@ export class ThreadView {
         (this.#model?.messages ?? []).flatMap(
           ({ key }) => this.#messages.get(key) ?? [],
         ),
-      paint: (message) => this.repaint({ writing: message }),
+      paint: () => this.repaint(),
       send: (id, text, options) =>
         this.#speak(
           () => commands.reply.actions.edit(this.#model.key, id, text, options),
@@ -593,8 +586,8 @@ export class ThreadView {
 
   // Local disclosure and draft changes repaint the complete received descriptor,
   // never feed a held presentation back into the news owner's input.
-  repaint(options) {
-    this.present(this.#received, options);
+  repaint() {
+    this.#paint(this.#received);
   }
 
   // What holds the card folded away: its own closed disclosure, a panel card's, or the
@@ -808,7 +801,13 @@ export class ThreadView {
 
   #drawnWith = null;
 
-  present(model, { retaining = false, viewChanged = false, writing = null } = {}) {
+  present(model, options = {}) {
+    return this.#paint(model, options, true);
+  }
+
+  // The caller knows whether this is a publication or a local repaint. Only a
+  // publication allocates passive space; disclosures and editors stay intrinsic.
+  #paint(model, { retaining = false, viewChanged = false } = {}, published = false) {
     this.#received = model;
     this.#drawnWith = this.#outside(model);
     const prior = this.#model;
@@ -846,16 +845,10 @@ export class ThreadView {
     // Capture the current words only when news starts waiting, before its update
     // removes a receipt. This allocation lives with the held view, not its reading.
     if (model.news && !prior?.news) this.#retainHeaderSlot({ observe: false });
-    // The messages being rewritten, whose own changes of height the held extent follows
-    // (ReplyContinuity): the one a rewrite gesture names, and every one whose rewrite
-    // stands open, a save closing it among them.
-    const rewritten = new Set(
-      [...this.#messages.values()]
-        .filter((view) => view.editing)
-        .map(({ node }) => node),
-    );
-    if (writing) rewritten.add(writing);
-    const bodyPlace = this.#continuity?.before([...rewritten]);
+    const rewritten = [...this.#messages.values()]
+      .filter((view) => view.editing)
+      .map(({ node }) => node);
+    const bodyPlace = published ? this.#continuity?.before(rewritten) : null;
     const restoreFocus = holdFocus(this.node);
     const standing = focused();
     const priorSummaries = new Set(prior?.summaries.map(({ id }) => id) ?? []);
@@ -1090,6 +1083,17 @@ export class ThreadView {
       render(workingView(model.working), this.#working);
       transcript.push(this.#working);
     }
+    this.#stopWorkingExposure?.();
+    this.#stopWorkingExposure = model.working?.feedback
+      ? this.#commands.read.observeFeedback(
+          this.#working.querySelector(".lf-thread-working-words"),
+          {
+            ...model.working.feedback,
+            presentation_kind: "working_words",
+            surface: model.surface,
+          },
+        )
+      : null;
     this.#checkpoints = checkpoints;
     this.#markers = markers;
     keeps(
@@ -1158,12 +1162,7 @@ export class ThreadView {
                     ? html`<div class="lf-margin-thread-news">${news}</div>`
                     : nothing
                 }
-                <div
-                  class="lf-margin-thread-controls"
-                  ${ref(this.#watchMarginControls)}
-                >
-                  ${threadActions}
-                </div>`
+                <div class="lf-margin-thread-controls">${threadActions}</div>`
             : html`<div class="lf-thread-controls" data-lf-reflow="text">
                 ${news}${threadActions}
               </div>`
@@ -1192,9 +1191,6 @@ export class ThreadView {
       `,
       this.node,
     );
-    const controlsRow = marginControls && this.#marginControlsRow;
-    if (controlsRow?.isConnected)
-      measure(controlsRow, () => allotMarginControls(controlsRow));
     if (!marginControls && model.news)
       measure(this.node, () => this.#retainHeaderSlot());
     else this.#releaseHeaderSlot();
@@ -1745,6 +1741,8 @@ export class ThreadView {
   }
 
   retire() {
+    this.#stopWorkingExposure?.();
+    this.#stopWorkingExposure = null;
     this.#reply?.cancelDictation();
     for (const view of this.#messages.values()) view.retire();
   }
@@ -1753,7 +1751,6 @@ export class ThreadView {
     this.#sizes.disconnect();
     this.#quoteNode = null;
     this.#releaseHeaderSlot();
-    if (this.#marginControlsRow) marginControlsSizes.unobserve(this.#marginControlsRow);
     this.#heldNews?.dispose();
     this.#continuity?.release();
     this.retire();

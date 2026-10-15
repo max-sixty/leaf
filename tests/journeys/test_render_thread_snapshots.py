@@ -13,8 +13,8 @@ import pytest
 from leaf import event_log
 from leaf.served_state import context as served_context
 from leaf_dev import ROOT
+from leaf_dev.commands.thread_snapshots import CASES, COMPARED, SnapshotRun
 from leaf_dev.thread_journey import NEXT_WORDS, WORDS, delivery_journey
-from leaf_dev.thread_snapshots import CASES, COMPARED, SnapshotRun
 from render_harness import consume_browser_errors, open_page
 
 

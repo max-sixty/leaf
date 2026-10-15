@@ -2,38 +2,25 @@
 
    Leaf captures identity and declarations before upgrade. This controller exposes only
    immutable publisher selections and commands validated against the newest selection;
-   the owner DOM is never a semantic store. Its semantic render and asynchronous
-   preparation are two stable widget-id regions: neither can supersede the other's
-   proof. Subscriptions belong to the owner; removal pauses them, and reconnecting
-   restores preparation and draws the reading by the rule every returning paint follows
-   (`readingPaint` in presence.js): only a reading that changed while away draws
-   again, and a render that failed is reported once, by that paint, and shows the
-   fail-soft box its presentation falls back to. Time readings in the render
-   claim a fresh draw through the same publication. Registered preparation also holds full
-   rendering readiness until completion or removal; queued updates can independently
-   settle while it waits. Local editing defers the render
-   region at its newest unpublished reading, without painting a detached owner. */
+   the owner DOM is never a semantic store. A widget draws as a `LeafElement`
+   (leaf-element.js), which owns the widget's render region; the controller owns its
+   asynchronous preparation region (`present`), which removal pauses and reconnection
+   restores. Registered preparation also holds full rendering readiness until
+   completion or removal. Local editing holds the widget's drawing (`defer`) until the
+   gesture releases it. */
 import { untracked } from "/vendor/browser-runtime.js";
-import {
-  applicationState,
-  attachWidgetPresentation,
-  queueWidgetUpdate,
-} from "./semantic-state.js";
+import { applicationState, attachWidgetPresentation } from "./semantic-state.js";
 import { dispatchWidget, invalidateDom } from "./application.js";
 import { descriptorStillMatches, widgetDescriptor } from "./widget-descriptors.js";
 import { failSoftUnreported } from "./widget-upgrade.js";
 import { watchOwner } from "./arrivals.js";
-import { readingPaint } from "./presence.js";
 import { holdRendering } from "./rendering.js";
-import { paintKeysWithin } from "./keyboard/scopes.js";
 
 const controllers = new WeakMap();
-const lifecycles = new WeakMap();
 const ancestorRefreshes = new Set();
 let ancestorRefreshQueued = false;
 // Owners that draw themselves (`LeafElement`, leaf-element.js), each with the hold its
-// gestures defer: such an owner subscribes to nothing here, and `defer` holds its paint.
-// An ancestor's remount refreshes it as it refreshes a subscribed controller.
+// gestures defer and the refresh an ancestor's remount asks of it.
 const selfDrawn = new WeakMap();
 export const drawsItself = (owner, drawing) => selfDrawn.set(owner, drawing);
 
@@ -46,20 +33,18 @@ export const drawsItself = (owner, drawing) => selfDrawn.set(owner, drawing);
 // its units exist; state application coalesces the request.
 export function widgetMounted(owner, descriptor, parentChanged) {
   if (parentChanged && applicationState.read().document.authored.has(descriptor.id))
-    refreshAncestorControllers(owner);
+    refreshAncestors(owner);
   invalidateDom();
 }
 
-function refreshAncestorControllers(owner) {
+function refreshAncestors(owner) {
   for (
     let ancestor = owner.parentElement;
     ancestor;
     ancestor = ancestor.parentElement
   ) {
-    const lifecycle = lifecycles.get(ancestor);
-    if (lifecycle) {
-      ancestorRefreshes.add(lifecycle);
-    }
+    const drawing = selfDrawn.get(ancestor);
+    if (drawing) ancestorRefreshes.add(drawing);
   }
   if (!ancestorRefreshes.size || ancestorRefreshQueued) return;
   ancestorRefreshQueued = true;
@@ -67,13 +52,8 @@ function refreshAncestorControllers(owner) {
     ancestorRefreshQueued = false;
     const pending = [...ancestorRefreshes];
     ancestorRefreshes.clear();
-    for (const lifecycle of pending) lifecycle.refresh();
+    for (const drawing of pending) drawing.refresh();
   });
-}
-
-function watchLifetime(owner, lifecycle) {
-  lifecycles.set(owner, lifecycle);
-  watchOwner(owner, lifecycle);
 }
 
 const immutable = (value) => {
@@ -102,32 +82,16 @@ function createWidgetController(owner) {
       `leaf: <${owner.localName}>#${owner.id || "(missing id)"} has no captured widget descriptor`,
     );
   const selected = applicationState.selectWidget(descriptor);
-  const stateDeclaration = descriptor.declaration["x-state"] ?? {};
-  const stateVerbs = new Set(Object.keys(stateDeclaration));
-  const subscriptions = new Set();
   let deferred = false;
-  let deferredReading = null;
-  let stopSelection = null;
-  let renderHandle = null;
-  let renderTicket = null;
-  // Whether the current reading's total render and every subscriber completed.
-  let drawn = false;
   let preparationHandle = null;
   const pendingPreparations = new Map();
   let preparation = null;
   let preparationBatch = null;
-  let connectedParent = null;
 
   const read = () =>
     descriptorStillMatches(owner, descriptor)
       ? selected.read()
       : unavailable(selected.read());
-
-  const render = () => {
-    if (!renderHandle && owner.isConnected)
-      renderHandle = attachWidgetPresentation(descriptor.id, "render", owner);
-    return renderHandle;
-  };
 
   const prepared = () => {
     if (!preparationHandle && owner.isConnected)
@@ -157,189 +121,54 @@ function createWidgetController(owner) {
       .present(value, (reason) => failSoftUnreported(owner, reason))
       .resolve(completion);
 
-  const notify = (reading) => {
-    const failures = [];
-    for (const subscription of subscriptions) {
-      try {
-        subscription(reading);
-      } catch (error) {
-        failures.push(error);
-      }
-    }
-    return failures;
-  };
-
-  const failed = (failures) => {
-    if (failures.length > 1)
-      throw new AggregateError(failures, "widget presentation failed");
-    if (failures.length) throw failures[0];
-  };
-
-  // The total render, then its subscribers. Auxiliary subscribers may read DOM the
-  // total render established, so if it failed, the one fail-soft owns this reading
-  // instead of running callbacks against a partial view. An incomplete startup reading
-  // has no DOM to present; its subscribers first run when the publisher supplies every
-  // declared verb.
-  const paint = readingPaint(
-    owner,
-    (reading) => {
-      drawn = false;
-      if (![...stateVerbs].every((verb) => verb in reading.state)) return;
-      try {
-        owner.renderState?.(reading.state);
-      } catch (error) {
-        throw new Error(
-          `<${owner.localName}> renderState threw: ${error?.message ?? error}`,
-          { cause: error },
-        );
-      }
-      failed(notify(reading));
-      drawn = true;
-      // The render may have changed what this widget's commands read from its nodes.
-      paintKeysWithin(owner);
-    },
-    () => refresh(),
-  );
-
-  // Each presentation commits its ticket, so a reading that draws nothing, as on a
-  // return to an unchanged reading, still settles the region. A failed draw settles it
-  // with the fail-soft box; the paint has already reported the failure.
-  const presentRender = (reading) => {
-    if (!owner.isConnected) return;
-    const ticket = render().present(reading, (reason) =>
-      failSoftUnreported(owner, reason),
-    );
-    renderTicket = ticket;
-    queueWidgetUpdate(descriptor.id, () => {
-      if (ticket !== renderTicket || deferred) return;
-      try {
-        ticket.resolve(paint(reading, reading));
-      } catch (error) {
-        ticket.reject(error);
-      }
-      return ticket.ready;
-    });
-  };
-
-  // A held reading leaves its ticket open; the next presentation or the handle's
-  // disconnect releases it.
-  const holdRender = (reading) => {
-    deferredReading = reading;
-    renderTicket = render()?.present(reading);
-  };
-
   // The controller is an owner of its own: a paint that mounts its widget connects it,
-  // and what it reads to draw is its selection's to follow, never that paint's.
-  const publish = () =>
+  // and what it reads to connect is its own, never that paint's.
+  const connect = () =>
     untracked(() => {
-      const reading = read();
-      if (deferred) holdRender(reading);
-      else presentRender(reading);
+      if (!owner.isConnected) return;
+      for (const promise of pendingPreparations.keys()) holdPreparation(promise);
+      if (preparation && !preparationHandle) {
+        const handle = prepared();
+        if (handle) presentPreparation(handle, preparation);
+      }
     });
-
-  const connect = () => untracked(connectOwner);
-  const connectOwner = () => {
-    if (!owner.isConnected) return;
-    for (const promise of pendingPreparations.keys()) holdPreparation(promise);
-    if (subscriptions.size && !stopSelection) {
-      const parentChanged = connectedParent !== owner.parentElement;
-      connectedParent = owner.parentElement;
-      render();
-      stopSelection = selected.subscribe(publish);
-      widgetMounted(owner, descriptor, parentChanged);
-    }
-    if (preparation && !preparationHandle) {
-      const handle = prepared();
-      if (handle) presentPreparation(handle, preparation);
-    }
-  };
 
   const disconnect = () => {
-    stopSelection?.();
-    stopSelection = null;
-    renderHandle?.disconnect();
-    renderHandle = null;
-    renderTicket = null;
     preparationHandle?.disconnect();
     preparationHandle = null;
     for (const [promise, release] of pendingPreparations) {
       release?.("cancel");
       pendingPreparations.set(promise, null);
     }
-    deferredReading = null;
   };
 
-  const refresh = () => {
-    if (!owner.isConnected || !stopSelection) return;
-    paint.forget();
-    publish();
-  };
-
-  watchLifetime(owner, {
-    connect,
-    disconnect,
-    refresh: () => (selfDrawn.get(owner)?.refresh ?? refresh)(),
-  });
+  watchOwner(owner, { connect, disconnect });
 
   return Object.freeze({
     read,
-    subscribe(callback) {
-      subscriptions.add(callback);
-      if (!stopSelection) connect();
-      // A reading already drawn draws again, with the new subscriber, by the paint
-      // every draw goes through; a reading still owed draws it when it paints.
-      else if (drawn) refresh();
-      return () => {
-        subscriptions.delete(callback);
-        if (!subscriptions.size) {
-          stopSelection?.();
-          stopSelection = null;
-          renderHandle?.disconnect();
-          renderHandle = null;
-          renderTicket = null;
-          deferredReading = null;
-          paint.forget();
-        }
-      };
-    },
     dispatch(command) {
       if (!descriptorStillMatches(owner, descriptor)) return null;
       const delivery = dispatchWidget(descriptor, command);
       if (!delivery) return null;
       return immutable({ reading: read(), delivery });
     },
+    // Hold the widget's drawing through a gesture that rewrites its nodes; the release
+    // draws the newest reading at once and returns it.
     defer() {
+      const drawing = selfDrawn.get(owner);
+      if (!drawing)
+        throw new Error(`<${owner.localName}> defers only a LeafElement's drawing`);
       if (deferred) throw new Error("Widget presentation is already deferred");
       deferred = true;
-      const drawing = selfDrawn.get(owner);
-      if (drawing) {
-        const release = drawing.hold();
-        let released = false;
-        return () => {
-          if (released) return read();
-          released = true;
-          deferred = false;
-          release();
-          invalidateDom();
-          return read();
-        };
-      }
-      // The gesture may mutate the live DOM without changing semantic identity. Resume
-      // must therefore run the total renderer even when the publisher reading is the
-      // same object that preceded the gesture.
-      paint.forget();
-      let resumed = false;
+      const release = drawing.hold();
+      let released = false;
       return () => {
-        if (resumed) return read();
-        resumed = true;
+        if (released) return read();
+        released = true;
         deferred = false;
-        const latest = deferredReading ?? read();
-        deferredReading = null;
-        if (subscriptions.size) presentRender(latest);
-        // The gesture rewrote this widget's nodes, which its commands may read.
-        paintKeysWithin(owner);
+        release();
         invalidateDom();
-        return latest;
+        return read();
       };
     },
     present(promise) {
@@ -359,8 +188,8 @@ function createWidgetController(owner) {
         if (preparationBatch?.completion === completion) preparationBatch = null;
       };
       completion.then(clear, clear);
-      // Package code may await the concrete renderer result (lf-diff does); the
-      // coordinator's aggregate is mechanical bookkeeping, not a replacement value.
+      // Package code may await the concrete renderer result; the coordinator's
+      // aggregate is mechanical bookkeeping, not a replacement value.
       return promise;
     },
   });
@@ -377,7 +206,7 @@ export function widgetController(owner) {
     const resolve = () => (implementation ??= createWidgetController(owner));
     controller = Object.freeze(
       Object.fromEntries(
-        ["read", "subscribe", "dispatch", "defer", "present"].map((method) => [
+        ["read", "dispatch", "defer", "present"].map((method) => [
           method,
           (...args) => resolve()[method](...args),
         ]),

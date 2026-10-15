@@ -29,7 +29,6 @@ import {
   threadBox,
   threadInput,
   watchComparison,
-  watchData,
   watchProjection,
   wireInput
 } from "./bundle-document-identity.js";
@@ -109,6 +108,7 @@ import {
 } from "./bundle-media.js";
 import {
   backgroundFlash,
+  foldBlock,
   foldDuration,
   motion,
   onMotionPreferenceChange,
@@ -234,8 +234,7 @@ import {
   queueWidgetUpdate,
   readPart,
   readsProof,
-  revisionLabel,
-  widgetRegions
+  revisionLabel
 } from "./bundle-semantic-state.js";
 import {
   TEXT_BOX,
@@ -294,22 +293,19 @@ import "./bundle-__export.js";
 
 // runtime/widget-controller.js
 var controllers = /* @__PURE__ */ new WeakMap();
-var lifecycles = /* @__PURE__ */ new WeakMap();
 var ancestorRefreshes = /* @__PURE__ */ new Set();
 var ancestorRefreshQueued = false;
 var selfDrawn = /* @__PURE__ */ new WeakMap();
 var drawsItself = (owner, drawing) => selfDrawn.set(owner, drawing);
 function widgetMounted(owner, descriptor, parentChanged) {
   if (parentChanged && applicationState.read().document.authored.has(descriptor.id))
-    refreshAncestorControllers(owner);
+    refreshAncestors(owner);
   invalidateDom();
 }
-function refreshAncestorControllers(owner) {
+function refreshAncestors(owner) {
   for (let ancestor = owner.parentElement; ancestor; ancestor = ancestor.parentElement) {
-    const lifecycle = lifecycles.get(ancestor);
-    if (lifecycle) {
-      ancestorRefreshes.add(lifecycle);
-    }
+    const drawing = selfDrawn.get(ancestor);
+    if (drawing) ancestorRefreshes.add(drawing);
   }
   if (!ancestorRefreshes.size || ancestorRefreshQueued) return;
   ancestorRefreshQueued = true;
@@ -317,12 +313,8 @@ function refreshAncestorControllers(owner) {
     ancestorRefreshQueued = false;
     const pending = [...ancestorRefreshes];
     ancestorRefreshes.clear();
-    for (const lifecycle of pending) lifecycle.refresh();
+    for (const drawing of pending) drawing.refresh();
   });
-}
-function watchLifetime(owner, lifecycle) {
-  lifecycles.set(owner, lifecycle);
-  watchOwner(owner, lifecycle);
 }
 var immutable = (value) => {
   if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
@@ -347,26 +339,12 @@ function createWidgetController(owner) {
       `leaf: <${owner.localName}>#${owner.id || "(missing id)"} has no captured widget descriptor`
     );
   const selected = applicationState.selectWidget(descriptor);
-  const stateDeclaration = descriptor.declaration["x-state"] ?? {};
-  const stateVerbs = new Set(Object.keys(stateDeclaration));
-  const subscriptions = /* @__PURE__ */ new Set();
   let deferred = false;
-  let deferredReading = null;
-  let stopSelection = null;
-  let renderHandle = null;
-  let renderTicket = null;
-  let drawn = false;
   let preparationHandle = null;
   const pendingPreparations = /* @__PURE__ */ new Map();
   let preparation = null;
   let preparationBatch = null;
-  let connectedParent = null;
   const read = () => descriptorStillMatches(owner, descriptor) ? selected.read() : unavailable(selected.read());
-  const render2 = () => {
-    if (!renderHandle && owner.isConnected)
-      renderHandle = attachWidgetPresentation(descriptor.id, "render", owner);
-    return renderHandle;
-  };
   const prepared = () => {
     if (!preparationHandle && owner.isConnected)
       preparationHandle = attachWidgetPresentation(descriptor.id, "preparation", owner);
@@ -386,160 +364,48 @@ function createWidgetController(owner) {
     Promise.resolve(promise).then(settled, settled);
   };
   const presentPreparation = (handle, { value, completion }) => handle.present(value, (reason) => failSoftUnreported(owner, reason)).resolve(completion);
-  const notify = (reading) => {
-    const failures = [];
-    for (const subscription of subscriptions) {
-      try {
-        subscription(reading);
-      } catch (error) {
-        failures.push(error);
-      }
-    }
-    return failures;
-  };
-  const failed = (failures) => {
-    if (failures.length > 1)
-      throw new AggregateError(failures, "widget presentation failed");
-    if (failures.length) throw failures[0];
-  };
-  const paint = readingPaint(
-    owner,
-    (reading) => {
-      drawn = false;
-      if (![...stateVerbs].every((verb) => verb in reading.state)) return;
-      try {
-        owner.renderState?.(reading.state);
-      } catch (error) {
-        throw new Error(
-          `<${owner.localName}> renderState threw: ${error?.message ?? error}`,
-          { cause: error }
-        );
-      }
-      failed(notify(reading));
-      drawn = true;
-      paintKeysWithin(owner);
-    },
-    () => refresh()
-  );
-  const presentRender = (reading) => {
-    if (!owner.isConnected) return;
-    const ticket = render2().present(
-      reading,
-      (reason) => failSoftUnreported(owner, reason)
-    );
-    renderTicket = ticket;
-    queueWidgetUpdate(descriptor.id, () => {
-      if (ticket !== renderTicket || deferred) return;
-      try {
-        ticket.resolve(paint(reading, reading));
-      } catch (error) {
-        ticket.reject(error);
-      }
-      return ticket.ready;
-    });
-  };
-  const holdRender = (reading) => {
-    deferredReading = reading;
-    renderTicket = render2()?.present(reading);
-  };
-  const publish = () => untracked(() => {
-    const reading = read();
-    if (deferred) holdRender(reading);
-    else presentRender(reading);
-  });
-  const connect = () => untracked(connectOwner);
-  const connectOwner = () => {
+  const connect = () => untracked(() => {
     if (!owner.isConnected) return;
     for (const promise of pendingPreparations.keys()) holdPreparation(promise);
-    if (subscriptions.size && !stopSelection) {
-      const parentChanged = connectedParent !== owner.parentElement;
-      connectedParent = owner.parentElement;
-      render2();
-      stopSelection = selected.subscribe(publish);
-      widgetMounted(owner, descriptor, parentChanged);
-    }
     if (preparation && !preparationHandle) {
       const handle = prepared();
       if (handle) presentPreparation(handle, preparation);
     }
-  };
+  });
   const disconnect = () => {
-    stopSelection?.();
-    stopSelection = null;
-    renderHandle?.disconnect();
-    renderHandle = null;
-    renderTicket = null;
     preparationHandle?.disconnect();
     preparationHandle = null;
     for (const [promise, release] of pendingPreparations) {
       release?.("cancel");
       pendingPreparations.set(promise, null);
     }
-    deferredReading = null;
   };
-  const refresh = () => {
-    if (!owner.isConnected || !stopSelection) return;
-    paint.forget();
-    publish();
-  };
-  watchLifetime(owner, {
-    connect,
-    disconnect,
-    refresh: () => (selfDrawn.get(owner)?.refresh ?? refresh)()
-  });
+  watchOwner(owner, { connect, disconnect });
   return Object.freeze({
     read,
-    subscribe(callback) {
-      subscriptions.add(callback);
-      if (!stopSelection) connect();
-      else if (drawn) refresh();
-      return () => {
-        subscriptions.delete(callback);
-        if (!subscriptions.size) {
-          stopSelection?.();
-          stopSelection = null;
-          renderHandle?.disconnect();
-          renderHandle = null;
-          renderTicket = null;
-          deferredReading = null;
-          paint.forget();
-        }
-      };
-    },
     dispatch(command) {
       if (!descriptorStillMatches(owner, descriptor)) return null;
       const delivery = dispatchWidget(descriptor, command);
       if (!delivery) return null;
       return immutable({ reading: read(), delivery });
     },
+    // Hold the widget's drawing through a gesture that rewrites its nodes; the release
+    // draws the newest reading at once and returns it.
     defer() {
+      const drawing = selfDrawn.get(owner);
+      if (!drawing)
+        throw new Error(`<${owner.localName}> defers only a LeafElement's drawing`);
       if (deferred) throw new Error("Widget presentation is already deferred");
       deferred = true;
-      const drawing = selfDrawn.get(owner);
-      if (drawing) {
-        const release = drawing.hold();
-        let released = false;
-        return () => {
-          if (released) return read();
-          released = true;
-          deferred = false;
-          release();
-          invalidateDom();
-          return read();
-        };
-      }
-      paint.forget();
-      let resumed = false;
+      const release = drawing.hold();
+      let released = false;
       return () => {
-        if (resumed) return read();
-        resumed = true;
+        if (released) return read();
+        released = true;
         deferred = false;
-        const latest = deferredReading ?? read();
-        deferredReading = null;
-        if (subscriptions.size) presentRender(latest);
-        paintKeysWithin(owner);
+        release();
         invalidateDom();
-        return latest;
+        return read();
       };
     },
     present(promise) {
@@ -570,7 +436,7 @@ function widgetController(owner) {
     const resolve2 = () => implementation ??= createWidgetController(owner);
     controller = Object.freeze(
       Object.fromEntries(
-        ["read", "subscribe", "dispatch", "defer", "present"].map((method) => [
+        ["read", "dispatch", "defer", "present"].map((method) => [
           method,
           (...args) => resolve2()[method](...args)
         ])
@@ -606,6 +472,11 @@ var LeafElement = class extends LitElement {
   #broken = false;
   // The claim the update under way draws, settled once `updated` has run too.
   #drawing = null;
+  // The drawing that follows the update under way, which its claim waits for.
+  #work = null;
+  // The last update's drawing until it lands, which a later update replaces; a departure
+  // before then owes a draw.
+  #unfinished = null;
   #data = /* @__PURE__ */ new Map();
   #leaveData = null;
   #scheduled = null;
@@ -641,9 +512,14 @@ var LeafElement = class extends LitElement {
     }
     this.#regionName = this.#descriptor ? null : `element:${this.localName}#${this.id}:${++regions}`;
     placesFailure(this, (box2) => {
+      const root = this.renderRoot ?? this;
+      if (root === this && this.shadowRoot) return false;
+      if (this.#box?.parentNode === root && this.#box.textContent === box2.textContent)
+        return true;
       this.#box?.remove();
       this.#box = box2;
-      (this.renderRoot ?? this.shadowRoot ?? this).prepend(box2);
+      root.append(box2);
+      return true;
     });
     try {
       this.setup();
@@ -672,7 +548,7 @@ var LeafElement = class extends LitElement {
   get controller() {
     return this.#controller;
   }
-  /** The bound source of a declared `x-data` input, as `watchData` delivers it. */
+  /** The bound source of a declared `x-data` input, one copy a delivery (data.js). */
   data(input) {
     let read = this.#data.get(input);
     if (!read) this.#data.set(input, read = dataReader(this, input));
@@ -729,16 +605,42 @@ var LeafElement = class extends LitElement {
   // claim of its own, its failure is the enclosing claimed update's.
   performUpdate() {
     const outer = this.#drawing;
+    let outerWork = this.#work;
     this.#drawing = null;
+    this.#work = null;
     try {
       super.performUpdate();
-      this.#drawing?.resolve();
+      const work = this.#work;
+      if (work && !this.#drawing) {
+        if (outer) outerWork = outerWork ? Promise.all([outerWork, work]) : work;
+        else if (this.#region) this.#drawing = this.#claim();
+      }
+      this.#unfinished = work;
+      if (work) {
+        const landed = () => {
+          if (this.#unfinished === work) this.#unfinished = null;
+        };
+        work.then(landed, landed);
+      }
+      this.#drawing?.resolve(work ?? void 0);
     } catch (error) {
       if (outer && !this.#drawing) throw error;
       this.#failed(error, this.#drawing);
     } finally {
       this.#drawing = outer;
+      this.#work = outerWork;
     }
+  }
+  /** Hold the update under way's claim until `work`, drawing that follows the render
+   *  asynchronously, lands: highlighting a document, say. An update no move claimed
+   *  claims the region for it. The widget's presentation, and the data version a
+   *  delivery it draws holds, wait for it. Call it from `render()` or `updated()`. */
+  drawing(work) {
+    const named = Promise.resolve(work).catch((error) => {
+      reportFailure(this, error);
+      throw error;
+    });
+    this.#work = this.#work ? Promise.all([this.#work, named]) : named;
   }
   /** The render drawn again at once, outside any claim and Lit's own schedule, with a
    *  failure thrown rather than shown: the render check's replay
@@ -779,23 +681,24 @@ var LeafElement = class extends LitElement {
     }
     this.#present();
   }
-  // Claim the region for a reading that draws later, leaving the claim open.
-  #stage() {
-    if (!this.#connected || this.#ticket || !this.#region) return;
-    this.#ticket = this.#region.present(
+  // A claim on the region for the reading as it stands, which a failure settles with
+  // the fail-soft box.
+  #claim() {
+    return this.#region.present(
       untracked(() => this.#controller?.read() ?? {}),
       (reason) => failSoftUnreported(this, reason)
     );
+  }
+  // Claim the region for a reading that draws later, leaving the claim open.
+  #stage() {
+    if (!this.#connected || this.#ticket || !this.#region) return;
+    this.#ticket = this.#claim();
   }
   // Claim the region for the reading as it stands, and draw it on the next update; a
   // claim the next update cannot draw stays open until one does.
   #present({ now = false } = {}) {
     if (!this.#region) return;
-    const value = untracked(() => this.#controller ? this.#controller.read() : {});
-    this.#ticket = this.#region.present(
-      value,
-      (reason) => failSoftUnreported(this, reason)
-    );
+    this.#ticket = this.#claim();
     if (this.#held) return;
     this.requestUpdate();
     if (now) {
@@ -814,9 +717,8 @@ var LeafElement = class extends LitElement {
     this.#connectedParent = this.parentElement;
     if (registry[this.localName]?.["x-data"])
       this.#leaveData = joinDataDelivery(
-        this.#descriptor ? widgetRegions(this.#descriptor.id) : [this.#regionName]
+        this.#descriptor ? `widget:${this.#descriptor.id}:render` : this.#regionName
       );
-    this.#follow();
     const moved = untracked(
       () => [...this.#gateReads, ...this.#renderReads].some(
         ([reading, seen]) => reading.read() !== seen
@@ -827,10 +729,12 @@ var LeafElement = class extends LitElement {
       this.#present();
     } else
       this.#region.present(untracked(() => this.#controller?.read() ?? {})).resolve();
+    this.#follow();
     if (this.#descriptor) widgetMounted(this, this.#descriptor, parentChanged);
   }
   #disconnect() {
     this.#connected = false;
+    if (this.#unfinished) this.#owed = true;
     this.#follow();
     this.#leaveData?.();
     this.#leaveData = null;
@@ -1789,6 +1693,7 @@ export {
   failSoft,
   focusDestination,
   focused,
+  foldBlock,
   foldDuration,
   fragmentTarget,
   frameFor,
@@ -1944,7 +1849,6 @@ export {
   under,
   unsafeHTML,
   watchComparison,
-  watchData,
   watchDraft,
   watchProjection,
   watchReadingRegionTransitions,

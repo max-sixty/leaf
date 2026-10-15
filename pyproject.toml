@@ -134,7 +134,7 @@ extend-exclude = [
 # runner sets its count in ci.yaml.
 # `-n0` to debug a single test.
 [tool.pytest.ini_options]
-addopts = "-n 2 --dist loadgroup --regtest-consider-line-endings --image-snapshot-save-diff -p leaf_dev.thread_snapshot_plugin -p leaf_dev.suite_profile"
+addopts = "-n 2 --dist loadgroup --regtest-consider-line-endings --image-snapshot-save-diff -p leaf_dev.thread_snapshot_plugin -p leaf_dev.commands.suite_profile"
 markers = [
   "network: requires external network access after development setup",
   "shifts_unsurveyed: its browser tests await a shift survey, so they do not reject unsolicited layout shifts",

@@ -19,7 +19,8 @@ const at = (el) => (el === pageScroller ? "<root scrollport>" : element(el));
 // A box the theme lets stand past its holder, which says so where it lets it
 // (`--lf-breakout`, layouts.css): a block granted a wider room than the measure, and an
 // Ask spanning such a block (ask.css). Every other box keeps to the column, as text
-// does. The theme lets only a box it allocates room break out.
+// does. The theme lets only a box it allocates room (`data-lf-space`) or keeps to the
+// column (`data-lf-column`) break out.
 const breaksOut = (el) =>
   getComputedStyle(el).getPropertyValue("--lf-breakout").trim() === "1";
 
@@ -299,7 +300,7 @@ export function misplacedBoxes() {
     el.checkVisibility({ opacityProperty: true, visibilityProperty: true });
   const { isResident, left, residents, right } = marginReading(main);
   const wides = new Set(
-    [...main.querySelectorAll("[data-lf-space]")].filter(breaksOut),
+    [...main.querySelectorAll("[data-lf-space], [data-lf-column]")].filter(breaksOut),
   );
   // A widget the registry declares wide is answered for out here, the way an
   // absolutely-positioned resident is: standing past the column is what it was

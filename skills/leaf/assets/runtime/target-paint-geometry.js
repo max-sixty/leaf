@@ -17,6 +17,7 @@ import {
   scrollsWith,
 } from "./css-anchors.js";
 import {
+  headerCuts,
   nearObserver,
   nearWindow,
   paintClips,
@@ -274,9 +275,11 @@ export function standOver(stand, placed, borderRadius) {
 // (`placement`), anchored to it where the anchor reaches (`anchoredBy`), the boxes the
 // same frames cut sharing a stand, so no scroll writes any of them. A box not `cut`, as
 // a chip hung off its target's corner wherever the room around it seats it, or ink
-// still being drawn past its target's edge, stands in no frame where it is anchored,
-// and hides once its target is scrolled out of sight (`position-visibility:
-// anchors-visible`). A box with no target stands where the window holds it.
+// still being drawn past its target's edge, is cut by no scroller's edge where it is
+// anchored, and hides once its target is scrolled out of sight (`position-visibility:
+// anchors-visible`); it still passes under the sticky headers declared over its target
+// (geometry.js, `headerCuts`), as every box following scrolled content does. A box
+// with no target stands where the window holds it.
 //
 // Only a box whose target is near (geometry.js, `nearWindow`) is in the document.
 // `onNear` hears where that changed, once the boxes come near are seated.
@@ -402,8 +405,17 @@ export function paintSet(root, { onNear = () => {} } = {}) {
           : anchor && anchorReaches(anchor, root)
             ? anchor
             : null;
-      // A box no frame cuts is carried by its anchor alone.
-      if (!framed) placed = { ...placed, levels: [] };
+      // A box no scroller's edge cuts is carried by its anchor alone, under the frames
+      // its target's headers cut.
+      if (!framed)
+        placed = {
+          ...placed,
+          levels: headerCuts(target, clips).map(({ box, band }) => ({
+            holder: box === box.ownerDocument.scrollingElement ? null : box,
+            band: band ?? { left: 0, top: 0, right: 0, bottom: 0 },
+            axes: { x: false, y: true },
+          })),
+        };
       // Each level's band from its holder's corner (`from`), which no scroll moves.
       for (const { holder } of placed.levels)
         if (holder && !holders.has(holder))

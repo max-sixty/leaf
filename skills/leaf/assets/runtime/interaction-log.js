@@ -1,5 +1,8 @@
 /* One diagnostic record of this tab's browser input. The page event log remains the
-   authority for decisions; this stream explains the gestures that led to them. */
+   authority for decisions; this stream explains the gestures that led to them.
+   Every observation is bounded; oversized content records an omission. Rows carry
+   the document's monotonic clock and visibility. A session names
+   one document lifetime, so only rows in that session share a browser clock. */
 import { TEXT_BOX } from "./control-selectors.js";
 import { PAGE_ROOT } from "./context.js";
 import { focused } from "./focus.js";
@@ -186,83 +189,45 @@ function schedule() {
   }, 250);
 }
 
-function groupEnd(start) {
-  const row = queue[start];
-  if (row.type !== "interaction_part") return start + 1;
-  let end = start + 1;
-  while (end < queue.length && queue[end].partOf === row.partOf) end++;
-  return end;
-}
-
-function evictableGroup(repetitiveOnly) {
-  let start = 0;
-  while (start < queue.length) {
-    const end = groupEnd(start);
-    if (
-      start >= inFlightCount &&
-      (!repetitiveOnly ||
-        repetitive.has(queue[start].originalType ?? queue[start].type))
-    )
-      return [start, end];
-    start = end;
+function append(row) {
+  if (queue.length >= MAX_PENDING_ENTRIES) {
+    let evict = queue.findIndex(
+      (entry, index) =>
+        index >= inFlightCount && repetitive.has(entry.originalType ?? entry.type),
+    );
+    if (evict < 0) {
+      if (repetitive.has(row.originalType ?? row.type)) return;
+      evict = inFlightCount;
+      if (evict >= queue.length) return;
+    }
+    queue.splice(evict, 1);
   }
-  return null;
-}
-
-function append(rows) {
-  if (rows.length > MAX_PENDING_ENTRIES) return;
-  const repetitiveIncoming = repetitive.has(rows[0].originalType ?? rows[0].type);
-  while (queue.length + rows.length > MAX_PENDING_ENTRIES) {
-    const group =
-      evictableGroup(true) ?? (!repetitiveIncoming && evictableGroup(false));
-    if (!group) return;
-    queue.splice(group[0], group[1] - group[0]);
-  }
-  queue.push(...rows);
+  queue.push(row);
 }
 
 function enqueue(entry) {
   if (!enabled) return;
-  const ts = timestamp();
-  const row = { ...entry, ts, sequence: nextSequence + 1 };
-  const serialized = JSON.stringify(row);
-  if (encoder.encode(serialized).length <= 40_000) {
-    nextSequence++;
-    append([row]);
-  } else {
-    // Split large pastes and drafts into pieces that fit a pagehide request and
-    // the hosted Worker's record limit, subject to the tab's backlog bound.
-    const partOf = nextSequence + 1;
-    const parts = Math.ceil(serialized.length / 8_000);
-    if (parts > MAX_PENDING_ENTRIES) {
-      nextSequence += parts;
-      append([
-        {
+  const common = {
+    observed_at: timestamp(),
+    monotonic_ms: performance.now(),
+    visibility: document.visibilityState,
+    sequence: ++nextSequence,
+  };
+  const row = { ...entry, ...common };
+  const bytes = encoder.encode(JSON.stringify(row)).length;
+  // Diagnostics are bounded observations. Large drafts stay with the editor and
+  // semantic event log; this stream records their omission without duplicating them.
+  append(
+    bytes <= 40_000
+      ? row
+      : {
+          ...common,
           type: "interaction_omitted",
           originalType: entry.type,
-          ts,
-          sequence: ++nextSequence,
-          reason: "record_exceeds_backlog",
-          characters: serialized.length,
+          bytes,
+          reason: "record_exceeds_limit",
         },
-      ]);
-      schedule();
-      return;
-    }
-    const rows = [];
-    for (let part = 0; part < parts; part++)
-      rows.push({
-        type: "interaction_part",
-        originalType: entry.type,
-        ts,
-        sequence: ++nextSequence,
-        partOf,
-        part,
-        parts,
-        json: serialized.slice(part * 8_000, (part + 1) * 8_000),
-      });
-    append(rows);
-  }
+  );
   schedule();
 }
 

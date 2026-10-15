@@ -8,19 +8,12 @@
         "pattern": "^[a-z0-9][a-z0-9-]*$"
       }
     },
-    "required": [
-      "id"
-    ],
+    "required": ["id"],
     "additionalProperties": false,
     "x-content": "empty",
     "x-upgrade": true,
     "x-visual": {
-      "prefixes": [
-        "commit:",
-        "ref:",
-        "tree:",
-        "hook:"
-      ]
+      "prefixes": ["commit:", "ref:", "tree:", "hook:"]
     },
     "x-space": "available"
   },
@@ -37,10 +30,7 @@
         "pattern": "^[a-z0-9][a-z0-9-]*$"
       }
     },
-    "required": [
-      "id",
-      "for"
-    ],
+    "required": ["id", "for"],
     "additionalProperties": false,
     "x-content": "markup",
     "x-refers": {

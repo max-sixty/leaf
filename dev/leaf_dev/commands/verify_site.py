@@ -58,12 +58,12 @@ from leaf_dev.arms import (
     run_directory,
 )
 from leaf_dev.browser import headless_shell
-from leaf_dev.site import asset_site, install_tree
+from leaf_dev.commands.site import asset_site, install_tree
 from leaf_dev.startup import observe_startup as record_startup
 from leaf_dev.startup import startup_reading
 
 MANIFEST = ROOT / ".tmp" / "site" / "_leaf" / "site.json"
-# The site build, run from ROOT, which writes ROOT/.tmp/site (`leaf_dev.site`).
+# The site build, run from ROOT, which writes ROOT/.tmp/site (`leaf_dev.commands.site`).
 BUILD_SITE = [sys.executable, "-m", "leaf_dev", "site"]
 VERIFIER_SCRIPT = Path(__file__).with_name("verify_site_browser.js")
 PAGES = (

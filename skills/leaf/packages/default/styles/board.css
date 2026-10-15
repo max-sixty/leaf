@@ -33,7 +33,7 @@
  * `--lf-box-cap`. So a phone or a box narrower
  * than the minimum scrolls the board rather than the page. Screen only: a sheet has no room
  * beside the column to give, so on paper the board is the column's width. */
-:scope:is(lf-board) { --lf-board-columns: 1; }
+:scope:is(lf-board) { --lf-board-columns: 1; --lf-grip-room: 0px; --lf-grip-block: 0px; }
 @media screen {
   :scope:is(lf-board) { min-inline-size: min(calc(var(--lf-board-columns)
                * var(--lf-reading-column-floor) + (var(--lf-board-columns) - 1) * var(--sp-2)),
@@ -134,12 +134,12 @@
    where the grip does, 2px under the card's edge and so 10px above its 12px padding,
    and its width keeps the card's inset between the words and the grip.
 
-   The module measures its own grip's box and states both sides of it (--lf-grip-room,
-   --lf-grip-block; lf-board.js), the same answer the pick column already is, so the
-   ladder moving or a platform substituting a different glyph re-measures itself. No
-   module, no var, no room, so paper and quoted boards, neither of which grows a grip,
-   keep none; paper keeps the vars in the style attribute, which is why the rule asks
-   the medium too. The float is generated rather than the grip itself floated, which
+   The board declares the grip's box once, for its column floor, hit target and float.
+   A grip gets one font-em across plus its padding, bounded by the touch target.
+   Interactive documents reserve the eventual grip before upgrade, so its arrival
+   reflows nothing; scriptless copies retain the full reading width.
+   The shared exhibit mark excludes quoted boards; paper keeps no grip room.
+   The float is generated rather than the grip itself floated, which
    would have to come first in the card and so be read before its title.
 
    Under a finger the grip is the aim floor tall and reaches past a one-line title. The
@@ -149,20 +149,21 @@
    block after the card's first child clears the grip: it starts under the grip's box
    and takes the card's width. An inline child ignores `clear`. */
 @media screen {
-  :scope:is(lf-card)::before { content: ""; float: right; inline-size: var(--lf-grip-room, 0px);
-                    block-size: var(--lf-grip-block, 0px); margin-block-start: -10px; }
+  html[data-lf-interactive] :scope:is(lf-board):not(:where([data-lf-exhibit]) *) {
+    --lf-grip-room: max(var(--aim-floor), calc(var(--t-5) + 20px));
+    --lf-grip-block: max(var(--aim-floor), calc(var(--t-5) + 16px));
+  }
+  html[data-lf-interactive] :scope:is(lf-card):not(:where([data-lf-exhibit]) *)::before { content: ""; float: right; inline-size: var(--lf-grip-room);
+                    block-size: var(--lf-grip-block); margin-block-start: -10px; }
   :scope:is(lf-card) > :not(:first-child) { clear: right; }
 }
-:scope:is(lf-card):last-child { margin-bottom: 0; }
 :scope:is(lf-card) > strong { display: block; font-weight: 600; line-height: 1.4; margin: 0 0 2px; }
-/* The grip is a press, so the keyboard reaches it: Enter grabs, arrows move. It says no
-   size, because `offer` builds it wearing .lf-ui and the runtime's own rule sets that
-   face's size once for every control in the layer — the 14px stated here was --t-5
-   written out a second time, under a selector specific enough to win, so the chrome's
-   size would have moved everywhere but on a card's grip. `line-height: 1` stays: .lf-ui
-   sets a line of its own, and this glyph wants none. */
+/* Enter grabs the grip and arrows move the card. Its type comes from .lf-ui;
+   the box and title float read the card's allocation above. A unit line-height
+   gives the glyph one font-em of block room. */
 :scope:is(lf-card) .lf-grip { position: absolute; top: 2px; right: 0; color: var(--muted);
           padding: 8px 10px; cursor: grab;
+          box-sizing: border-box; inline-size: var(--lf-grip-room); block-size: var(--lf-grip-block);
           min-height: var(--aim-floor); min-width: var(--aim-floor);
           border-radius: 4px; user-select: none;
           -webkit-user-select: none; line-height: 1;

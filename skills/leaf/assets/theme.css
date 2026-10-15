@@ -405,17 +405,17 @@ main {
 @property --sidebar { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --note { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @media screen {
-  :where(p, li, dt, dd, blockquote, figcaption, h1, h2, h3, h4, h5, h6, [data-lf-space=column]) {
+  :where(p, li, dt, dd, blockquote, figcaption, h1, h2, h3, h4, h5, h6, [data-lf-column]) {
     max-inline-size: var(--lf-measure);
   }
-  :where([data-lf-space=column]) {
+  :where([data-lf-column]) {
     box-sizing: border-box;
     --lf-reach: min(var(--lf-measure), var(--lf-room, 0px));
   }
-  :where([data-lf-space=column]:has(> [data-lf-space=wide])) {
+  :where([data-lf-column]:has(> [data-lf-space=wide])) {
     max-inline-size: max(var(--lf-measure), var(--wide));
   }
-  :where([data-lf-space=column]:has(> [data-lf-space=available])) {
+  :where([data-lf-column]:has(> [data-lf-space=available])) {
     max-inline-size: none;
   }
   [data-lf-bound] {
@@ -642,9 +642,6 @@ section.panel > :is(h2, h3):first-child,
   text-transform: uppercase;
   color: var(--muted);
 }
-section.panel > :last-child {
-  margin-bottom: 0;
-}
 .tag.ok,
 .callout.ok {
   --lf-tone-tint: var(--ok-tint);
@@ -674,12 +671,7 @@ section.panel > :last-child {
 aside.sidebar {
   display: flow-root;
   margin: var(--sp-4) 0 30px;
-}
-aside.sidebar > :first-child {
-  margin-top: 0;
-}
-aside.sidebar > :last-child {
-  margin-bottom: 0;
+  --lf-block-frame: trim;
 }
 main > aside.sidebar:nth-child(1 of aside.sidebar) {
   --lf-sidebar-slot: margin;
@@ -867,6 +859,8 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
   background: none;
   color: inherit;
   text-decoration: none;
+}
+lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   padding: 0;
 }
 .lf-margin-entry > :is(.lf-margin-entry-space, .lf-margin-entry-label) {

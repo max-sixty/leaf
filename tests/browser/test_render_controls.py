@@ -4832,6 +4832,38 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
     )
 
 
+def test_covering_feedback_clears_the_reply_at_every_reading_position(browser, serve):
+    """Feedback keeps one seat above a reply whether that reply is in view or not."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Read this before replying. " * 80)
+    context = browser.new_context(
+        viewport={"width": 400, "height": 700}, reduced_motion="reduce"
+    )
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    write(card.locator("leaf-text"), "One line\nSecond line\nThird line")
+    listing = page.locator(".lf-threads")
+    listing.focus()
+    assert listing.evaluate("n => n.scrollHeight > n.clientHeight")
+    page.evaluate(
+        "async () => (await window.__lfWidgetApi()).notice('Saved this reply', {announce:false})"
+    )
+    status = page.locator(".lf-bottom-status")
+    expect(status).to_be_visible()
+    places = []
+    for end in (False, True):
+        listing.evaluate("(n,end) => {n.scrollTop = end ? n.scrollHeight : 0}", end)
+        rendered(page)
+        places.append(status.bounding_box())
+    assert places[0] == places[1], "scrolling the reply into view moved its feedback"
+    assert (
+        places[-1]["y"] + places[-1]["height"]
+        < card.locator(".lf-thread-reply").bounding_box()["y"]
+    )
+
+
 def test_dynamic_chrome_offsets_keep_the_safe_area_in_their_arithmetic(browser, serve):
     """The bottom bar keeps the inset tokens stated by the stylesheet: it stands on the
     window's foot, grows by the bottom inset, and holds its hints inside the side insets.

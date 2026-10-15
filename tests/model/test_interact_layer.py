@@ -324,15 +324,19 @@ def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(claimed, 
 def test_a_command_leaves_a_page_a_newer_leaf_vendored(claimed):
     """A process the session started before its plugin updated still runs the older
     Leaf, and must not take the page back to it: the newer Leaf's next hook would
-    re-vendor it up again, reloading the user's tabs each time."""
+    re-vendor it up again, reloading the user's tabs each time. Neither a command
+    naming the page nor an explicit `page init` re-vendors it down, and each names
+    the newer Leaf as the repair rather than the re-vendor it refuses."""
     foreign = vendored_at_another_protocol(claimed, newer=True)
-    checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(claimed)])
-    assert checked.exit_code != 0
-    assert f"page protocol {foreign}" in checked.output
-    assert (
-        interact_files.read_json(claimed / "registry.json")["$events"]["protocol"]
-        == foreign
-    )
+    for command in (["page", "check"], ["page", "init"]):
+        refused = CliRunner().invoke(cli_model.cli, [*command, str(claimed)])
+        assert refused.exit_code != 0
+        assert f"Use a Leaf at protocol {foreign} or later" in refused.output
+        assert "leaf page init" not in refused.output
+        assert (
+            interact_files.read_json(claimed / "registry.json")["$events"]["protocol"]
+            == foreign
+        )
 
 
 def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(claimed):

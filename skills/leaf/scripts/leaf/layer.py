@@ -485,17 +485,19 @@ def incompatible_layer(page_dir: Path, registry: dict) -> Finding | None:
 
     A Leaf serves and writes any page vendored at its own number, whichever Leaf
     vendored it, so a plugin update leaves open pages working. A page vendored before
-    the number was declared names none, and is refused too. A key renamed or removed
-    since the page was vendored is the same kind of fact: this Leaf would read the
-    key's new name, find nothing, and drop what the page's layer declares under the
-    old one, so the page is refused rather than misread. The check is one-sided: a
-    key this Leaf added and an older layer lacks refuses nothing. Every page server,
-    the gate's and the website's included (`http.page_endpoint`,
-    `leaf_website.page_binding`), the one append door and the writers that ask it
-    first (`event_contracts.write_refusal`), and `page check` refuse on this one
-    reading, each naming the re-vendor that repairs the page; for a page vendored at an
-    older number, the holding session's prompt and Stop hooks, and each of its
-    commands that names the page, make that re-vendor first
+    the number was declared names none, and is refused too. A page vendored at a
+    higher number is refused as `newer-layer`, naming the Leaf that vendored it,
+    since its repair is a newer Leaf: this one does not re-vendor it down
+    (`vendoring._plan_page`). A key renamed or removed since the page was vendored
+    is the same kind of fact: this Leaf would read the key's new name, find nothing,
+    and drop what the page's layer declares under the old one, so the page is
+    refused rather than misread. The check is one-sided: a key this Leaf added and
+    an older layer lacks refuses nothing. Every page server, the gate's and the
+    website's included (`http.page_endpoint`, `leaf_website.page_binding`), the one
+    append door and the writers that ask it first (`event_contracts.write_refusal`),
+    and `page check` refuse on this one reading, each naming its repair. For a page
+    vendored at an older number, the holding session's prompt and Stop hooks, and
+    each of its commands that names the page, make that re-vendor first
     (`vendoring.renew_layer`). So does the source
     check (`validation.source.check_source`), so activation writes no revision under
     the layer and `page state` reports the refusal as `source.error`. A revision the
@@ -503,6 +505,19 @@ def incompatible_layer(page_dir: Path, registry: dict) -> Finding | None:
     (`incompatible_revision`).
     """
     if (vendored := _foreign_protocol(registry)) is not None:
+        if type(vendored) is int and vendored > kernel_protocol():
+            return Finding(
+                "newer-layer",
+                values={
+                    "page": str(page_dir),
+                    "vendored": vendored,
+                    "vendored_by": provenance_label(
+                        registry.get("$layer", {}).get("producer", {})
+                    ),
+                    "leaf": str(PLUGIN_ROOT),
+                    "protocol": kernel_protocol(),
+                },
+            )
         return Finding(
             "foreign-layer",
             values={

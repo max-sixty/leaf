@@ -73,7 +73,9 @@ the server relies on. The page carries the number in the `$events` it was vendor
 with, which no layer can change, and every page server — durable, temporary, the
 gate's ephemeral one, and the website's — and the one append door compare it with
 the running Leaf's own when they bind the page or admit an event
-(`layer.incompatible_layer`), refusing another number and naming `leaf page init`.
+(`layer.incompatible_layer`), refusing another number. For a lower number the refusal
+names `leaf page init`; for a higher one it names the newer Leaf that vendored the page,
+since this Leaf does not re-vendor a page down.
 The same reading refuses a layer whose `$keys` document an x- key this Leaf no longer
 admits, since this Leaf would read the key's new name and drop what the page declares
 under the old one; a key this Leaf added and the layer lacks refuses nothing.

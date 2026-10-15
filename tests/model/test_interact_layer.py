@@ -613,6 +613,17 @@ def test_a_harness_entry_argv_no_registration_sends_is_refused_with_its_usage(
     assert result.stderr == f"usage: {usage}\n"
 
 
+def test_a_page_command_names_what_its_path_holds_instead(tmp_path, regtest):
+    """A page command given the page's `index.html`, or a page source elsewhere, is
+    told it was handed a file, and a directory with no log is offered `page init`."""
+    source = tmp_path / "page.html"
+    source.write_text(PAGE)
+    for path in (source, tmp_path / "missing"):
+        result = CliRunner().invoke(cli_model.cli, ["page", "state", str(path)])
+        assert result.exit_code == 1
+        print(result.output.replace(str(tmp_path), "<tmp>"), end="", file=regtest)
+
+
 def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     """Silence cannot tell an agent a no-op from a call that landed, and a sentence
     leaves it to guess at the id it needs next.

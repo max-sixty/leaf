@@ -65,6 +65,14 @@ def at_rest(page: Page) -> None:
     """The page as it loads."""
 
 
+def captured_source(page: Page) -> None:
+    """The gallery's captured source file, with its numbered syntax presentation."""
+    page.locator("#bg-gallery-tabs").get_by_role(
+        "tab", name="Data & work", exact=True
+    ).click()
+    page.locator("#bg-source-captures").scroll_into_view_if_needed()
+
+
 def tab_by_keyboard(page: Page) -> None:
     """The selected tab's focus beside its persistent selection mark."""
     page.keyboard.press("Tab")
@@ -872,6 +880,20 @@ def trace_controls(page: Page) -> None:
     )
 
 
+def trace_comparison(page: Page) -> None:
+    """Recording choice, transport and saved moments in the shared workspace."""
+    page.get_by_role("radio", name="Before the fix", exact=True).click()
+    page.locator("#fix-before").get_by_role(
+        "button", name="Screenshot attached", exact=False
+    ).click()
+    page.wait_for_function(
+        "() => !!document.querySelector('#fix-before .lf-trace-action')?.textContent"
+    )
+    page.locator("#fix-compare").evaluate(
+        "node => node.scrollIntoView({block: 'start'})"
+    )
+
+
 def trace_timeline_by_keyboard(page: Page) -> None:
     """The timeline focused, after tabbing away from it and back."""
     trace_controls(page)
@@ -897,6 +919,12 @@ class State:
 
 
 STATES = (
+    State(
+        "captured-source",
+        "developer/feature-gallery",
+        captured_source,
+        region="#bg-source-captures",
+    ),
     State(
         "banner-more",
         "developer/feature-gallery",
@@ -940,6 +968,21 @@ STATES = (
         trace_controls,
         viewport=(540, 720),
         region=".lf-trace-toolbar",
+    ),
+    State(
+        "trace-comparison-header",
+        "review-a-fix",
+        trace_comparison,
+        viewport=(900, 900),
+        region="#fix-before",
+    ),
+    State(
+        "trace-comparison-header-phone",
+        "review-a-fix",
+        trace_comparison,
+        viewport=(390, 844),
+        touch=True,
+        region="#fix-before",
     ),
     State(
         "drawing-photo-comment",

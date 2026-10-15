@@ -394,19 +394,18 @@ customElements.define(
     // From a mark, arrows walk the options and Space toggles. The group owns stable
     // numbered commands; the ask view forwards those same declarations.
     #keys() {
-      for (const bindingBadge of this.querySelectorAll(
-        ":scope > lf-option > .lf-key-badge",
-      ))
-        bindingBadge.remove();
       const marks = this.#marks();
       const answerRows = [];
       for (const mark of marks) {
         const option = mark.parentElement;
         // The widget declares the number and its local face; the shared keyboard
         // presenter paints whichever declared binding currently reaches this action.
-        const bindingBadge = offer("span", "lf-key-badge");
-        bindingBadge.setAttribute("aria-hidden", "true");
-        option.prepend(bindingBadge);
+        let bindingBadge = option.querySelector(":scope > .lf-key-badge");
+        if (!bindingBadge) {
+          bindingBadge = offer("span", "lf-key-badge");
+          bindingBadge.setAttribute("aria-hidden", "true");
+          option.prepend(bindingBadge);
+        }
         answerRows.push({
           id: `option.choose-${option.id}`,
           contextKeys: this.#contextKeys(`choose:${option.id}`),

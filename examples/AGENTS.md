@@ -58,7 +58,9 @@ An example's markup is its current version. Beside it may sit:
 - `<stem>.jsonl`, seeded events for what markup can't describe: a thread, a user
   decision, or a widget in a message;
 - `<stem>.data.json`, each page-owned data source's current value, given literally or
-  as a `$captures` entry naming a sibling file (`example_data.py`).
+  as a `$captures` entry naming a sibling file, or with `asset` a file pinned in
+  `max-sixty/leaf-assets` at that path, such as an imported Playwright trace
+  (`example_data.py`).
 
 `prepare_page` in `dev/leaf_dev/page_fixtures.py` builds a page directory from an
 example.

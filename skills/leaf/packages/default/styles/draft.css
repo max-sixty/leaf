@@ -16,8 +16,7 @@
 }
 .lf-draft-edit.lf-ui { display: block; width: auto; padding: 0; border: 0; background: none;
   font: inherit; min-height: 0; max-height: none; overflow: hidden; }
-.lf-draft-edit.lf-ui[data-lf-focus] { outline: none; box-shadow: none;
-  --lf-focus-ring: none; }
+.lf-draft-edit.lf-ui[data-lf-focus] { outline: none; box-shadow: none; }
 .lf-draft-footer { display: none; }
 @media screen {
   @scope (html[data-lf-interactive] :scope) {
@@ -36,7 +35,6 @@
   }
   :scope:is(lf-draft):has(.lf-draft-edit) { border-color: var(--muted); }
   :scope:is(lf-draft):has(.lf-draft-edit[data-lf-focus]) { outline: var(--focus-ring);
-    --lf-focus-ring: draft-editor;
     outline-offset: calc(-1 * (var(--focus-ring-w) + var(--focus-ring-gap))); }
   :scope:is(lf-draft):has(.lf-draft-edit:state(ready)) > .lf-draft-body { display: none; }
   .lf-draft-footer { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 8px 12px;

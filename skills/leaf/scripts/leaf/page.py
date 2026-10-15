@@ -7,7 +7,6 @@ Vocabulary entries have one reader, the author; data contracts and packages keep
 separate audiences for the different responsibilities they actually declare.
 """
 
-import json
 from collections.abc import Collection
 from pathlib import Path
 
@@ -100,17 +99,3 @@ def page_instructions(
         audience: "\n\n".join(sections).rstrip() + "\n"
         for audience, sections in sorted(parts.items())
     }
-
-
-def cmd_instructions(
-    page_dir: Path,
-    *,
-    entries: Collection[str] = (),
-    contracts: Collection[str] = (),
-) -> None:
-    print(
-        json.dumps(
-            page_instructions(page_dir, entries=entries, contracts=contracts),
-            ensure_ascii=False,
-        )
-    )

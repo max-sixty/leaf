@@ -8,10 +8,11 @@
 # its full JSON input; asking for the commands, base passed 0 of 3, the change 3 of 3.
 description: handoff-leaves-the-watch-to-leaf
 metadata:
-  purpose: 'Claude Code reference: a handoff ends the turn with the URL and starts no `leaf wait`, since
-    Leaf''s Stop hook watches between turns.'
+  purpose:
+    "Claude Code reference: a handoff ends the turn with the URL and starts no `leaf wait`, since
+    Leaf's Stop hook watches between turns."
   tags:
-  - wait-loop
+    - wait-loop
 vars:
   prompt: |
     You are a Claude Code session, and the user asked for your plan for the session
@@ -24,10 +25,10 @@ vars:
     order, each command you would run before your closing message, then give the
     closing message itself.
 assert:
-- type: llm-rubric
-  metric: judgment
-  value: |
-    Pass only if the reply hands the page over without starting any `leaf wait`
-    (foreground or background, named or not) and its closing message gives the URL
-    http://127.0.0.1:8123/?t=abc. Writing a `leaf status` is fine. Fail if any
-    written-out command runs `leaf wait`.
+  - type: llm-rubric
+    metric: judgment
+    value: |
+      Pass only if the reply hands the page over without starting any `leaf wait`
+      (foreground or background, named or not) and its closing message gives the URL
+      http://127.0.0.1:8123/?t=abc. Writing a `leaf status` is fine. Fail if any
+      written-out command runs `leaf wait`.

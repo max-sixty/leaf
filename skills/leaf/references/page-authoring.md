@@ -29,8 +29,14 @@ have to picture from a description, and put that thing on the page in its own fo
 
 Pages that decide, plan or review show their subject the same way: a work item that
 fixes a visible fault shows the fault, and an ask's options show what each answer gives
-the user (`authoring-asks.md`). A table or list whose rows name places, sizes or
-connections should be a drawing.
+the user (`authoring-asks.md`). A table or list whose rows say where things sit, how
+large they are or what connects to what should be a drawing.
+
+A drawing or chart makes its point through its geometry: where its marks sit, their
+sizes, and what contains or links them. One that only restates the words or numbers
+beside it, as boxes holding its sentences or a mark or bar per counted item, shows
+nothing. When the user has nothing to picture, as when they weigh a refactor's reasons
+and cost, leave the case in words and draw nothing.
 
 Use a table for looking up values, for mixed units that can't share an axis, or for
 comparisons with text-heavy cells. Use native sections for a few alternatives read as

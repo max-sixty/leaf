@@ -364,14 +364,7 @@ export function createPageMapDialog({
       ? entries.findIndex((candidate) => candidate.key === entry.key)
       : -1;
     const group = index < 0 ? null : dialogList.children[index];
-    if (group) {
-      const listBox = dialogList.getBoundingClientRect();
-      const groupBox = group.getBoundingClientRect();
-      if (groupBox.top < listBox.top)
-        dialogList.scrollTop -= listBox.top - groupBox.top;
-      else if (groupBox.bottom > listBox.bottom)
-        dialogList.scrollTop += groupBox.bottom - listBox.bottom;
-    }
+    if (group) scrollIntoView(group, { block: "nearest", within: dialogList });
     const spilled = focusSpill ? openedFrom?.lfFirstSpilledOption : null;
     const spilledAction = focusSpill
       ? groups[index]?.actions.find(

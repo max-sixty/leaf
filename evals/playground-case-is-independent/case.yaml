@@ -10,10 +10,10 @@
 # instructions and measured nothing about that routing change.
 description: playground-case-is-independent
 metadata:
-  purpose: 'Playground: switch test cases independently of the configuration being
-    chosen.'
+  purpose: "Playground: switch test cases independently of the configuration being
+    chosen."
   tags:
-  - playground
+    - playground
 vars:
   prompt: |
     The user asked: "Threads in the threads panel and the threads anchored on the
@@ -41,24 +41,24 @@ vars:
     directory. Reply with the HTML and page module; the page directory is not
     reachable here. You can use placeholders for the live sample bodies.
 assert:
-- type: llm-rubric
-  metric: independent-case
-  value: |
-    Pass only if the resulting authored UI and behavior separate the conversation
-    case selector from the design configuration controls, changing the case
-    preserves the selected design, and choosing a design preset preserves the
-    current case. Both candidates receive the same selected conversation.
-    The selected conversation is absent from the configuration's submitted values
-    and build instruction. A labeled native selector with page-local state is fine.
-    Fail if the conversation remains an lf-playground-control or a registered
-    contributor in the submitted configuration, if only prose promises separation,
-    or if fixture selection is removed altogether.
-- type: llm-rubric
-  metric: shared-control-face
-  value: |
-    Pass only if page-local case and inspection controls use Leaf's shared control
-    styling: the .field class on a native select or text field, .button on native
-    buttons, or the equivalent controls built with offer(). Page CSS may arrange
-    their row. Fail if native controls are left with the browser's default face,
-    or if page CSS duplicates the layer's typography, borders, fills and focus
-    treatment instead of using its existing control styling.
+  - type: llm-rubric
+    metric: independent-case
+    value: |
+      Pass only if the resulting authored UI and behavior separate the conversation
+      case selector from the design configuration controls, changing the case
+      preserves the selected design, and choosing a design preset preserves the
+      current case. Both candidates receive the same selected conversation.
+      The selected conversation is absent from the configuration's submitted values
+      and build instruction. A labeled native selector with page-local state is fine.
+      Fail if the conversation remains an lf-playground-control or a registered
+      contributor in the submitted configuration, if only prose promises separation,
+      or if fixture selection is removed altogether.
+  - type: llm-rubric
+    metric: shared-control-face
+    value: |
+      Pass only if page-local case and inspection controls use Leaf's shared control
+      styling: the .field class on a native select or text field, .button on native
+      buttons, or the equivalent controls built with offer(). Page CSS may arrange
+      their row. Fail if native controls are left with the browser's default face,
+      or if page CSS duplicates the layer's typography, borders, fills and focus
+      treatment instead of using its existing control styling.

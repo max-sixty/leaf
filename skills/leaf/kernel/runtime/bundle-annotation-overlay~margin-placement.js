@@ -1041,6 +1041,12 @@ function layoutMarginRows() {
       lastLane = root;
     }
     const cursors = /* @__PURE__ */ new Map([[lane, lane.firstElementChild]]);
+    const place = (holder, node, before) => {
+      const oldHome = node.parentElement;
+      if (oldHome && cursors.get(oldHome) === node)
+        cursors.set(oldHome, node.nextElementSibling);
+      move(holder, node, before);
+    };
     const runs = /* @__PURE__ */ new Map();
     const cutRuns = /* @__PURE__ */ new Map();
     const kept = new Set(
@@ -1082,7 +1088,7 @@ function layoutMarginRows() {
         let at = cursors.get(holder);
         if (at && at.parentElement !== holder) at = null;
         if (at === outer) cursors.set(holder, outer.nextElementSibling);
-        else move(holder, outer, at);
+        else place(holder, outer, at);
         cursors.set(box, box.firstElementChild);
       };
       if (container !== lane) seat(lane, container, outerFrame.get(container));
@@ -1093,7 +1099,7 @@ function layoutMarginRows() {
         cursors.set(home, row.nextElementSibling);
         continue;
       }
-      move(home, row, before);
+      place(home, row, before);
       cursors.set(home, before);
     }
   }

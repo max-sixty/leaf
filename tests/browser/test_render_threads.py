@@ -55,6 +55,7 @@ from render_cases_layout import (
     in_threads_scrollport,
     page_at_rest,
     ring_faults,
+    ring_rule,
     rings_drawn,
     token_colour,
 )
@@ -889,6 +890,8 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
         thread.locator(":scope > .lf-thread-summary").click()
     line = thread.locator(".lf-thread-working")
     expect(line.locator(".lf-thread-working-head b")).to_have_text("Codex")
+    expect(line.locator("time")).to_have_attribute("datetime", steps[-1]["ts"])
+    expect(line.locator("time")).not_to_be_empty()
     expect(line.locator(".lf-thread-working-words")).to_have_text(
         "Trying a lighter weight"
     )
@@ -960,6 +963,21 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
     expect(
         thread.get_by_role("button", name="Show 3 progress messages", exact=True)
     ).to_be_visible()
+
+    # A second session can post progress after the first session answered. It has
+    # no owed input's workflow, so its own message supplies both author and time.
+    proactive = thread_model.post_reply(
+        serve.page_dir,
+        {"to": root},
+        "Checking the contrast in the dark theme.",
+        ephemeral=True,
+        identity={"agent": "Claude", "session": "claude-thread"},
+    )
+    told(page)
+    expect(line.locator(".lf-thread-working-head b")).to_have_text("Claude")
+    expect(line.locator("time")).to_have_attribute("datetime", proactive["ts"])
+    expect(line.locator("time")).not_to_be_empty()
+    expect(line).not_to_have_attribute("data-lf-live", "")
 
 
 @pytest.mark.watch_shifts
@@ -6841,6 +6859,14 @@ def test_a_fold_frame_by_frame_keeps_the_card_below_on_its_pixel(
         {"kind": "resolve", "author": "user", "parent": source},
     )
     told(page)
+    if not page.evaluate('CSS.supports("block-size", "calc-size(auto, size)")'):
+        # Engines without intrinsic-size interpolation retire the thread in one
+        # paint; there are no frames to step through or hold for inspection.
+        expect(page.locator(f'.lf-going[data-id="{source}"]')).to_have_count(0)
+        assert target_card.evaluate(
+            "el => el.getBoundingClientRect().top"
+        ) == pytest.approx(start, abs=1)
+        return
     expect(page.locator(f'.lf-going[data-id="{source}"]')).to_have_count(1)
     steps = 30
     for step in range(1, steps):
@@ -8260,7 +8286,6 @@ def test_an_empty_thread_list_wears_its_ring_whole(browser, serve):
                 outline: current.outlineStyle,
                 width: current.outlineWidth,
                 offset: current.outlineOffset,
-                ringName: current.getPropertyValue('--lf-focus-ring').trim(),
                 ground: [list.backgroundColor, list.backgroundImage],
                 sameBox: ['left', 'top', 'right', 'bottom'].every(
                   edge => ringBox[edge] === listBox[edge]
@@ -8273,7 +8298,9 @@ def test_an_empty_thread_list_wears_its_ring_whole(browser, serve):
     assert paint["outline"] == "solid"
     assert paint["width"] == "2px"
     assert paint["offset"] == "-2px"
-    assert paint["ringName"] == "thread-list"
+    assert ".lf-threads-frame" in ring_rule(
+        page.locator(".lf-threads-frame"), pseudo="after"
+    )
     assert paint["sameBox"]
     assert paint["reachesFloor"], (
         "the focused list ended above the panel's floor and left an ownerless strip "

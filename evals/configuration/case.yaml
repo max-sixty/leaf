@@ -5,9 +5,9 @@ metadata:
   purpose: Compose a configuration page, revise it, and apply a user comment;
     inspect its rendered output against the request.
   tags:
-  - workflow
+    - workflow
   conditions:
-  - leaf
-  - html
+    - leaf
+    - html
   executor: leaf_dev.arrangement_eval
   scenario: configuration

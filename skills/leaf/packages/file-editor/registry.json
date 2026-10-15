@@ -1,7 +1,7 @@
 {
   "lf-file-editor": {
-    "description": "An automatically saved editor for one explicitly bound UTF-8 file on the serving machine. CodeMirror owns editing and inline conflict comparison; the file is external state, outside Leaf's action log.",
-    "x-instructions": "Author an empty element and bind its binding id to a real file with leaf file bind PAGE BINDING PATH. Tell the reader that edits save automatically. Ordinary typing is visually quiet; delayed saves, errors and external conflicts explain themselves. A page without a local binding shows an unavailable diagnostic: use lf-code when the reader should see a portable snapshot instead.",
+    "description": "An editor for one bound UTF-8 file on the machine serving the page, saving as the user types.",
+    "x-instructions": "Write the element empty, and bind its `binding` to a real file with `leaf file bind PAGE BINDING PATH`. Tell the reader that edits save automatically; the editor reports slow saves, errors and conflicts itself. A page without the local binding shows the editor as unavailable, so use `lf-code` when the reader needs a copy of the file that travels with the page.",
     "type": "object",
     "properties": {
       "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },

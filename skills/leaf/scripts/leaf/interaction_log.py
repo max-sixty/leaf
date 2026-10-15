@@ -1,15 +1,13 @@
-"""Diagnostic browser and HTTP activity for one page.
+"""Raw page diagnostics, with native session context captured at writing.
 
-This append-only stream explains how a reader reached a decision. It is not
-semantic state: page projections and acknowledgement never read it. A single
-locked append keeps batches from concurrent server processes together, while
-leaving event-log transactions and their durability rules untouched.
+Application readers strip private session context before projecting or exposing
+events. The developer response-time query interprets events through the current
+application readers. Browser gestures, request timings and run context use
+observations.jsonl.
 
-The browser transport is validated once at admission. Each bounded observation
-has one sequence; oversized payloads are explicitly omitted by the producer.
-The reader trusts admitted rows, skips torn append lines, deduplicates retries
-and reports sequence gaps. Stored `ts` always belongs to the host clock; the
-browser wall clock is `observed_at`, and its duration clock is `monotonic_ms`.
+Browser transport is validated at admission. The reader skips malformed lines,
+deduplicates retries and reports sequence gaps before selection. Stored ts belongs
+to the host clock; observed_at and monotonic_ms belong to one browser tab.
 
 TODO(privacy): Define retention, export, and deletion before pages are shared
 with other users. Client traces can contain draft text and entered values;
@@ -26,30 +24,29 @@ from pathlib import Path
 
 from .event_log import jsonl_line
 from .schema import INTERACTIONS_FILE
-from .state import now_iso
+from .state import now_iso, session_record
 
 
-def append_interactions(page_dir: Path, records: list[dict]) -> None:
+def append_interactions(page_dir: Path, records: list[dict]) -> list[dict]:
     """Append a complete batch without interleaving other processes' lines.
 
     Diagnostics are best effort across a process crash; unlike admitted user
     decisions they do not claim disk durability in the HTTP response.
     """
+    stamp = now_iso()
+    records = [{"ts": stamp, **record} for record in records]
     data = "".join(jsonl_line(record) + "\n" for record in records).encode()
-    fd = os.open(
+    descriptor = os.open(
         page_dir / INTERACTIONS_FILE, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600
     )
-    with os.fdopen(fd, "wb") as stream:
+    with os.fdopen(descriptor, "wb") as stream:
         fcntl.flock(stream.fileno(), fcntl.LOCK_EX)
-        try:
-            stream.write(data)
-            stream.flush()
-        finally:
-            fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
+        stream.write(data)
+    return records
 
 
 def client_records(session: str, page: str, entries: list[dict]) -> list[dict]:
-    """Validate browser observations and add one canonical host timestamp.
+    """Validate browser observations and attach their host-owned identity.
 
     The browser's wall clock stays `observed_at`; stored `ts` is host receipt
     time for every source. Duration calculations use the browser's monotonic
@@ -57,11 +54,37 @@ def client_records(session: str, page: str, entries: list[dict]) -> list[dict]:
     """
     for entry in entries:
         validate_client_entry(entry)
-    stamp = now_iso()
     return [
-        {**entry, "source": "client", "ts": stamp, "session": session, "page": page}
+        {
+            **{key: value for key, value in entry.items() if key != "ts"},
+            "source": "client",
+            "session": session,
+            "page": page,
+        }
         for entry in entries
     ]
+
+
+def session_context(session: str | None, claim: dict | None = None) -> dict | None:
+    """Capture native session metadata as it stands at the write boundary."""
+    if session is None:
+        return None
+    from .harness import session_harness
+
+    owner = claim if claim and claim["id"] == session else None
+    writer = session_harness() if owner is None else None
+    lifecycle = session_record(session)
+    return {
+        "harness": owner["harness"]
+        if owner
+        else writer.name
+        if writer and writer.session == session
+        else None,
+        "cwd": owner.get("cwd") if owner else None,
+        "transcript_path": lifecycle.get("transcript_path") if lifecycle else None,
+        "turn": lifecycle["turn"] if lifecycle else None,
+        "provider": lifecycle["provider"] if lifecycle else None,
+    }
 
 
 def interaction_time(value: str) -> datetime:
@@ -106,24 +129,30 @@ def read_interactions(
     filter; an unsent tail leaves no evidence. Server/developer records have
     no browser session association.
     """
-    path = page_dir / INTERACTIONS_FILE
-    if not path.exists():
-        return []
-    with path.open() as stream:
-        fcntl.flock(stream.fileno(), fcntl.LOCK_SH)
-        try:
-            lines = stream.readlines()
-        finally:
-            fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
+    lines = []
+    for path in (page_dir / "events.jsonl", page_dir / INTERACTIONS_FILE):
+        if not path.exists():
+            continue
+        for seq, line in enumerate(path.read_bytes().split(b"\n"), 1):
+            try:
+                row = json.loads(line)
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                continue
+            if path.name == "events.jsonl":
+                context = row.pop("context", None)
+                row = {
+                    "source": "semantic",
+                    "type": "event",
+                    "context": context,
+                    "ts": row["ts"],
+                    "event": row,
+                    "event_seq": seq,
+                }
+            lines.append(row)
     records = []
     seen = set()
     sessions = defaultdict(list)
-    for line in lines:
-        try:
-            row = json.loads(line)
-        except json.JSONDecodeError:
-            # An interrupted append can leave a torn line.
-            continue
+    for row in lines:
         stamp = interaction_time(row["ts"])
         if until is not None and stamp >= until:
             continue

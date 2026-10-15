@@ -717,7 +717,6 @@ customElements.define(
         const before = Number((100 - position).toFixed(2));
         keeps(handle, "aria-label", `Before and after — ${this.#alt}`);
         keeps(handle, "aria-valuetext", `Before ${before}%, after ${position}%`);
-        handle.style.setProperty("--lf-focus-ring", "shot");
       }
       const pixelsShown = this.#view === "pixels";
       const chromeState = pixelsShown

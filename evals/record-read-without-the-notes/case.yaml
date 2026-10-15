@@ -9,13 +9,15 @@
 # The contents review also tests navigation from the opening at desktop and phone widths.
 description: record-read-without-the-notes
 metadata:
-  purpose: Before handover, a record page is read by a subagent given only the user's request and the
+  purpose:
+    Before handover, a record page is read by a subagent given only the user's request and the
     screens.
   tags:
-  - review
-  - handover
+    - review
+    - handover
 vars:
-  prompt: "You're partway through a Leaf task. The user asked: \"review all outstanding tend\nitems, with\
+  prompt:
+    "You're partway through a Leaf task. The user asked: \"review all outstanding tend\nitems, with\
     \ enough info on each that I can whizz through them, in a /leaf\". You\nsent five research subagents\
     \ out, one per batch of items, and wrote the page from\ntheir reports: a 21-item queue, one Ask per\
     \ item, with header chips summarising the\ncounts and a section on the shared Codex blocker. It's\
@@ -28,20 +30,20 @@ vars:
     \ phone\n\nThe page includes a contents outline and a full review-history section.\n\nThe research reports are still in your context. Say what you do between this check\nand\
     \ handing the URL to the user, step by step, and who does each step.\n"
 assert:
-- type: llm-rubric
-  metric: reader-without-the-notes
-  value: |
-    Pass only if the reply hands a reading of the page to a separate reader, such as a
-    subagent, that is given the user's request and the saved screens (or the rendered
-    page) and is deliberately not given the author's research reports or notes, and
-    has it report what it could not follow; and the author then fixes what it reports
-    before handing over. Fail if the only reading is the author's own, or if the
-    reader is handed the research reports or the author's notes.
-- type: llm-rubric
-  metric: opening-navigation
-  value: |
-    Pass only if the author tests the contents navigation from the page's opening at
-    both desktop and phone widths, reaching a later section before scrolling through
-    the article to find the navigation. The test may be delegated to the independent
-    reader. A generic instruction to test navigation, inspect screenshots, or press
-    `a` through the Asks does not establish this opening-view check.
+  - type: llm-rubric
+    metric: reader-without-the-notes
+    value: |
+      Pass only if the reply hands a reading of the page to a separate reader, such as a
+      subagent, that is given the user's request and the saved screens (or the rendered
+      page) and is deliberately not given the author's research reports or notes, and
+      has it report what it could not follow; and the author then fixes what it reports
+      before handing over. Fail if the only reading is the author's own, or if the
+      reader is handed the research reports or the author's notes.
+  - type: llm-rubric
+    metric: opening-navigation
+    value: |
+      Pass only if the author tests the contents navigation from the page's opening at
+      both desktop and phone widths, reaching a later section before scrolling through
+      the article to find the navigation. The test may be delegated to the independent
+      reader. A generic instruction to test navigation, inspect screenshots, or press
+      `a` through the Asks does not establish this opening-view check.

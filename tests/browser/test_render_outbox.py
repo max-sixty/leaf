@@ -1044,7 +1044,10 @@ customElements.define("lf-outer-board", class extends LeafElement {
   render() {
     for (const [id, order] of Object.entries(this.state.move.value)) {
       const column = document.getElementById(id);
-      for (const card of order) column.append(document.getElementById(card));
+      for (const id of order) {
+        const card = document.getElementById(id);
+        if (card.parentElement !== column) column.append(card);
+      }
     }
   }
 });
@@ -2191,7 +2194,7 @@ def test_the_composer_never_stands_on_its_own_mark(browser, serve):
 
     page.reload()
     page.wait_for_function(
-        "() => document.querySelector('.lf-composer')?.style.display === 'contents'"
+        "() => document.querySelector('.lf-composer')?.hasAttribute('data-lf-open')"
     )
     page.wait_for_function("() => (CSS.highlights.get('lf-pending')?.size ?? 0) > 0")
     assert mark_shows_beside_composer(page), (

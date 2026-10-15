@@ -26,19 +26,21 @@ hook's `if` rules (`hooks/hooks.json`) have Claude Code start it only before a
 command it reads as running `leaf` by name or by path, or one whose commands it
 cannot read.
 
-One bridge serves an install while any Claude Code process a hook registered for
-it is alive. A hook writes its pid before it looks at the bridge's lock, and a
-retiring bridge lets the lock go before it reads the registrations again, so a
-session that registers meanwhile either keeps this bridge serving or has started
-the next one. A client counts a bridge up only once it accepts the request, so one
-that reaches a retiring bridge tries again. A client that falls silent before its
+One bridge serves an install while any session a hook registered for it lives,
+by the lifetime its claims would record (`Harness.lifetime`): a background job
+outlives the worker hosting its current sitting, and its next sitting may run
+`leaf` from a script, before which no hook runs. The running bridge holds the
+install's lease (`leases.take_lease`). A hook registers its session before it
+tries the lease, and a retiring bridge releases the lease before it reads the
+registrations again, so a session that registers meanwhile either keeps this
+bridge serving or has started the next one. A client counts a bridge up only once
+it accepts the request, so one that reaches a retiring bridge tries again. A client that falls silent before its
 command's exit status, as when Claude Code times the command out, ends the
 command's process group.
 """
 
 import base64
 import contextlib
-import fcntl
 import hashlib
 import json
 import os
@@ -56,6 +58,7 @@ import time
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
+from .leases import release_lease, take_lease
 from .state import state_home_path, write_json
 
 # One bridge per installed tree: a plugin update is a new tree, whose sessions
@@ -107,48 +110,49 @@ def bridge_path(suffix: str) -> Path:
     return state_home_path() / "bridge" / f"{KEY}.{suffix}"
 
 
-def ensure(pid: int) -> None:
-    """Register Claude Code's process `pid` with this install's bridge, and start
-    the bridge if none holds its lock. The started bridge inherits the lock."""
+def ensure(session: str, lifetime: dict) -> None:
+    """Register `session`, which lives as `lifetime` says, with this install's
+    bridge, and start the bridge if none holds its lease. The started bridge
+    inherits the lease."""
     # Only the user reads the bridge's directory, and with it the token.
     sessions = bridge_path("sessions")
     sessions.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     sessions.mkdir(exist_ok=True)
-    (sessions / str(pid)).touch()
-    lock = os.open(bridge_path("lock"), os.O_RDWR | os.O_CREAT, 0o600)
-    try:
-        try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            return
-        with open(bridge_path("log"), "ab") as log:
-            subprocess.Popen(
-                [sys.executable, "-I", "-m", "leaf.bridge", "serve", str(lock)],
-                stdin=subprocess.DEVNULL,
-                stdout=log,
-                stderr=log,
-                start_new_session=True,
-                pass_fds=(lock,),
-            )
-    finally:
-        os.close(lock)
+    key = hashlib.sha256(session.encode()).hexdigest()[:32]
+    write_json(sessions / f"{key}.json", {"id": session, **lifetime})
+    if (lease := take_lease(bridge_path("lock"))) is None:
+        return
+    # Closing this copy leaves the lease held by the bridge's.
+    with lease, open(bridge_path("log"), "ab") as log:
+        subprocess.Popen(
+            [sys.executable, "-I", "-m", "leaf.bridge", "serve", str(lease.fileno())],
+            stdin=subprocess.DEVNULL,
+            stdout=log,
+            stderr=log,
+            start_new_session=True,
+            pass_fds=(lease.fileno(),),
+        )
 
 
 def live_sessions() -> bool:
-    """Whether a registered Claude Code process is alive; forgets the rest."""
-    from .machine import pid_alive
+    """Whether a registered session still lives; forgets the rest."""
+    from .files import read_json
+    from .service import lifetime_is_live
+    from .state import session_record
 
-    sessions = bridge_path("sessions")
     alive = False
-    for entry in sessions.iterdir() if sessions.is_dir() else ():
-        if pid_alive(int(entry.name)):
+    for entry in bridge_path("sessions").glob("*.json"):
+        if (record := read_json(entry)) and lifetime_is_live(
+            record, session_record(record["id"])
+        ):
             alive = True
         else:
             entry.unlink(missing_ok=True)
     return alive
 
 
-def serve(lock: int) -> None:
+def serve(lease_fd: int) -> None:
+    lease = open(lease_fd, "rb")  # noqa: SIM115 - held until the bridge retires
     token = secrets.token_urlsafe(32)
     running: set[int] = set()
 
@@ -240,21 +244,19 @@ def serve(lock: int) -> None:
         {"port": server.server_address[1], "token": token, "pid": os.getpid()},
     )
 
-    def retire() -> None:
+    def retire(lease) -> None:
         while True:
             time.sleep(SWEEP_SECONDS)
             if running or live_sessions():
                 continue
-            fcntl.flock(lock, fcntl.LOCK_UN)
+            release_lease(lease)
             if not live_sessions():
                 break
-            try:
-                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError:
+            if (lease := take_lease(bridge_path("lock"))) is None:
                 break  # a session registered and started the next bridge
         server.shutdown()
 
-    threading.Thread(target=retire, daemon=True).start()
+    threading.Thread(target=retire, args=(lease,), daemon=True).start()
     server.serve_forever()
     server.server_close()
 

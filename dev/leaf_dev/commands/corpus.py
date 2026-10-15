@@ -48,6 +48,7 @@ PUBLIC_TABS = [
     ("live-progress", "Live"),
     ("alert-review", "Alerts"),
     ("pr-walkthrough", "PR"),
+    ("review-a-fix", "Fix recordings"),
     ("wt-merge", "Merge film"),
     ("rust-sort", "Sort film"),
     ("security-boundary", "Security"),
@@ -116,11 +117,13 @@ def build_data() -> dict:
             continue
         document = json.loads(companion.read_text(encoding="utf-8"))
         for name, spec in document.pop("$captures", {}).items():
-            capture_file = (source.parent / spec["file"]).resolve()
+            # `file` and `asset` both name a path beside the source (example_data).
+            key = "asset" if "asset" in spec else "file"
+            capture_file = (source.parent / spec[key]).resolve()
             relative_file = capture_file.relative_to(
                 EXAMPLES_DIR.resolve(), walk_up=True
             )
-            corpus_spec = {**spec, "file": relative_file.as_posix()}
+            corpus_spec = {**spec, key: relative_file.as_posix()}
             if name in captures:
                 if captures[name] != corpus_spec:
                     sys.exit(

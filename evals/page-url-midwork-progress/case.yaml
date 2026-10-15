@@ -4,9 +4,9 @@
 # Claude Code.
 description: page-url-midwork-progress
 metadata:
-  purpose: 'Handoff: a progress message while checks run does not repeat the page URL.'
+  purpose: "Handoff: a progress message while checks run does not repeat the page URL."
   tags:
-  - handoff
+    - handoff
 vars:
   prompt: |
     You are a Claude Code session fixing an interaction in a handed-over Leaf page.
@@ -24,13 +24,13 @@ vars:
     Use the leaf skill for the page workflow. Read whatever instructions you need.
     Only Skill and Read run here; write the requested chat message itself in your reply.
 assert:
-- type: not-regex
-  metric: page-url
-  value: http://127\.0\.0\.1:8123/
-- type: llm-rubric
-  metric: progress-message
-  value: |
-    Pass only if the reply gives an intermediate progress message about the selection fix
-    and the checks that are still running. It must not claim all work is
-    complete, refuse the task, or replace the message with an explanation of the
-    instructions.
+  - type: not-regex
+    metric: page-url
+    value: http://127\.0\.0\.1:8123/
+  - type: llm-rubric
+    metric: progress-message
+    value: |
+      Pass only if the reply gives an intermediate progress message about the selection fix
+      and the checks that are still running. It must not claim all work is
+      complete, refuse the task, or replace the message with an explanation of the
+      instructions.

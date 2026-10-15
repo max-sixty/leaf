@@ -6,12 +6,14 @@
 # what readers are asked to review or comment on, passed 10 of 10.
 description: review-plan-stays-open
 metadata:
-  purpose: 'Reading cost: what a review asks its readers to weigh and comment on, a proposed plan included,
-    stands open; only what they can skip goes under a disclosure.'
+  purpose:
+    "Reading cost: what a review asks its readers to weigh and comment on, a proposed plan included,
+    stands open; only what they can skip goes under a disclosure."
   tags:
-  - reading-cost
+    - reading-cost
 vars:
-  prompt: "Write this up as a page for me. It's the review I'll send to the platform team before\nThursday's\
+  prompt:
+    "Write this up as a page for me. It's the review I'll send to the platform team before\nThursday's\
     \ decision; they read it top to bottom and reply with comments.\n\n## Working notes\n\n**Question.**\
     \ Should we move web sessions off the Redis cluster `sess-redis-prod` and,\nif so, onto what? The\
     \ cluster's memory is at 81% of its 64 GB, the vendor contract for\nthe managed Redis renews on 1\
@@ -49,14 +51,14 @@ vars:
     The page directory is not reachable from here, so reply with the complete `<main>`\nelement, and any\
     \ `<style>` the page needs, rather than writing a file.\n"
 assert:
-- type: llm-rubric
-  metric: judgment
-  value: |
-    Read the HTML as a reader who goes top to bottom without opening anything. Content
-    is hidden if it sits inside a `<details>` without the `open` attribute, inside an
-    element carrying `collapsed` or `hidden`, or in an `lf-tabs` panel other than the
-    one shown first. Pass only if none of these is hidden: the recommendation
-    (Postgres), each of the three options and what tells them apart, the risks, and
-    the five steps of the Postgres migration plan. Raw measurements, such as the daily
-    latency series, the full measurement list, or method notes, may be hidden. Fail if
-    the plan's steps, or any of the options or risks, are hidden.
+  - type: llm-rubric
+    metric: judgment
+    value: |
+      Read the HTML as a reader who goes top to bottom without opening anything. Content
+      is hidden if it sits inside a `<details>` without the `open` attribute, inside an
+      element carrying `collapsed` or `hidden`, or in an `lf-tabs` panel other than the
+      one shown first. Pass only if none of these is hidden: the recommendation
+      (Postgres), each of the three options and what tells them apart, the risks, and
+      the five steps of the Postgres migration plan. Raw measurements, such as the daily
+      latency series, the full measurement list, or method notes, may be hidden. Fail if
+      the plan's steps, or any of the options or risks, are hidden.

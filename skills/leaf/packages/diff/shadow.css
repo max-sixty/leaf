@@ -259,17 +259,14 @@
 }
 .lf-diff-comment[data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: diff-tools;
   outline-offset: 1px;
 }
 :scope:host(.lf-rendered) .lf-diff-file > details > summary[data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: code-summary;
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 :scope:host(.lf-rendered) [data-content] > [data-line][data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: code-line;
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 @media screen {
@@ -362,7 +359,6 @@
 }
 :scope:host(.lf-rendered) code[data-code][data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: code-pre-shadow;
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 .lf-diff-thread-outlet,
@@ -382,8 +378,8 @@
 .lf-diff-thread-outlet:not(.lf-diff-file-thread-outlet) {
   box-sizing: border-box;
   position: sticky;
-  inset-inline-start: var(--lf-diff-gutter-width);
-  max-inline-size: var(--lf-diff-thread-width);
+  inset-inline-start: var(--diffs-column-number-width);
+  max-inline-size: var(--diffs-column-content-width);
 }
 .lf-diff-file-thread-outlet {
   margin-top: 8px;

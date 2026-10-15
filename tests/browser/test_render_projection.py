@@ -438,7 +438,7 @@ def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve):
         page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
         assert held, "the positive control did not hold the lazy Markdown import"
         page.evaluate(
-            """() => {
+            """() => lfUnwatched(() => {
               const element = document.getElementById('reviewed-pr');
               window.detachedPr = element;
               window.detachedPrMarkup = element.innerHTML;
@@ -447,7 +447,7 @@ def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve):
               const parent = moved.parentElement;
               moved.remove();
               parent.append(moved);
-            }"""
+            })"""
         )
         held.pop(0).continue_()
         page.evaluate(
@@ -853,14 +853,14 @@ def test_visual_review_controls_keep_keyboard_navigation_local(browser, serve):
     selector = widget.locator(".lf-vr-case-select")
     initial = selector.evaluate("node => node.value")
     assert widget.evaluate(
-        """owner => {
+        """owner => lfUnwatched(() => {
           const parent = owner.parentNode;
           const next = owner.nextSibling;
           const nodes = [...owner.querySelectorAll('*')];
           owner.remove();
           parent.insertBefore(owner, next);
           return nodes.every((node, index) => owner.querySelectorAll('*')[index] === node);
-        }"""
+        })"""
     )
     widget.get_by_text("Inspect comparison", exact=True).click()
     widget.get_by_role("radio", name="Compare").click()
@@ -5679,7 +5679,10 @@ customElements.define("lf-owner", class extends LeafElement {
   render() {
     for (const [id, order] of Object.entries(this.state.move.value)) {
       const zone = document.getElementById(id);
-      for (const child of order) zone.append(document.getElementById(child));
+      for (const child of order) {
+        const member = document.getElementById(child);
+        if (member.parentElement !== zone) zone.append(member);
+      }
     }
     return nothing;
   }

@@ -4,10 +4,10 @@ metadata:
   purpose: Compose and revise a queue; inspect its rendered output against the
     request and, on Leaf, read and preserve a user choice on that page.
   tags:
-  - workflow
+    - workflow
   conditions:
-  - leaf
-  - html
+    - leaf
+    - html
   executor: leaf_dev.arrangement_eval
   scenario: queue
 variants:
@@ -17,11 +17,11 @@ variants:
       scenario: board
       purpose: Read moves and undo before revising a board.
       conditions:
-      - leaf
+        - leaf
   mixed:
     metadata:
       executor: leaf_dev.usability_eval
       scenario: mixed
       purpose: Answer mixed comments, choices, moves, undo and errors.
       conditions:
-      - leaf
+        - leaf

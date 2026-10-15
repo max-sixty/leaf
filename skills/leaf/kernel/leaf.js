@@ -269,6 +269,7 @@ import {
 import {
   JUST_NOW,
   PRESENTATION,
+  SCROLL_SLACK,
   UPGRADE,
   afterPresentation,
   ago,
@@ -277,6 +278,7 @@ import {
   effectiveScroller,
   markPagePresented,
   markPageUpgraded,
+  moveScrollerBy,
   pageReadiness,
   pageScroller,
   reachScrollers,
@@ -284,6 +286,7 @@ import {
   registerReadingRegion,
   scrollChainOf,
   scrollLimit,
+  scrollToEnd,
   scrollerFor,
   scrollersOf,
   settlePageInterface,
@@ -1995,7 +1998,7 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
       ".lf-command-reference-results"
     );
     search.value = "";
-    results.scrollTop = 0;
+    results.scrollTo({ top: 0, behavior: "instant" });
     stopReferenceReading = registerReadingRegion({
       id: "lf-region:command-reference",
       host: commandReferenceDialog,
@@ -7712,7 +7715,7 @@ function createFloatingPanel({
         (key) => message(key)?.ephemeral || message(key)?.provisional
       ),
       extent: view.scrollHeight,
-      height: view.clientHeight
+      limit: scrollLimit(view)
     };
     const answerIn = (drawn2) => {
       const turn2 = drawn2.findLastIndex((key) => {
@@ -7726,14 +7729,14 @@ function createFloatingPanel({
     if (!answer?.keys.length || asked2?.turn !== answer.turn || !asked2.keys.every((key) => before.coming.includes(key)) || !answer.keys.every((key) => message(key)?.author === "agent"))
       return;
     if (view.scrollHeight <= before.extent + 0.5) return;
-    const atEnd = view.scrollTop + before.height >= before.extent - 1;
+    const atEnd = before.limit - view.scrollTop <= SCROLL_SLACK;
     const turn = outlet.querySelector(
       `.lf-msg[data-message="${CSS.escape(answer.turn)}"]`
     );
     const pad = Number.parseFloat(getComputedStyle(view).paddingTop);
     const from = () => turn.getBoundingClientRect().top - view.getBoundingClientRect().top - pad;
     if (!waiting && atEnd && view.scrollHeight - view.scrollTop - from() <= view.clientHeight) {
-      view.scrollTop = view.scrollHeight;
+      scrollToEnd(view);
       return;
     }
     const reply = answer.keys.find((key) => !message(key).ephemeral);
@@ -7747,7 +7750,7 @@ function createFloatingPanel({
     const below = foot ? turn.getBoundingClientRect().bottom - foot.top : 0;
     const by = Math.min(Math.max(below, 0), from());
     if (Math.abs(by) < 0.5) return;
-    view.scrollTop += by;
+    moveScrollerBy(view, by);
     placed = view.scrollTop;
   }
   function showAnswer() {
@@ -8554,7 +8557,7 @@ function createFloatingPanel({
     );
     if (!view || (outletOf()?.childElementCount ?? 0) <= landAtEnd.after) return;
     landAtEnd = null;
-    view.scrollTop = view.scrollHeight;
+    scrollToEnd(view);
   }
   function paintNow() {
     const top = trail.at(-1) ?? null;
@@ -9146,7 +9149,7 @@ function createThreadNarrowing({ view, listRoot, readThreads: readThreads2, repa
     const ticket = repaint2();
     void ticket.then(
       () => {
-        if (mayReset()) listRoot.scrollTop = 0;
+        if (mayReset()) listRoot.scrollTo({ top: 0, behavior: "instant" });
       },
       () => {
       }

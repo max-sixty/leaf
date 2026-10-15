@@ -7,11 +7,12 @@
 # Reworded by #2506 (to-dos and asks); at 3fe3eb0af it passed 1/1 on Claude Code.
 description: todo-on-the-user
 metadata:
-  purpose: 'Conversation loop: work the agent needs the user to do outside the page, with no
-    choice to make, goes on the user''s On me list as a to-do on them, about the section it
-    concerns, rather than only into a reply.'
+  purpose:
+    "Conversation loop: work the agent needs the user to do outside the page, with no
+    choice to make, goes on the user's On me list as a to-do on them, about the section it
+    concerns, rather than only into a reply."
   tags:
-  - wait-loop
+    - wait-loop
 vars:
   prompt: |
     You are a Claude Code session driving a live Leaf page at
@@ -24,12 +25,12 @@ vars:
     Read whatever instructions you need. Only Skill and Read run here, so write out,
     in order, each command you would run on the page to hand it back.
 assert:
-- type: llm-rubric
-  metric: judgment
-  value: |
-    Pass only if the commands put a to-do on the user for trying the install steps:
-    a `leaf task open` on the page that names the `install` section (or the page) and
-    marks the to-do as the user's rather than the agent's, with a title saying what to
-    try. A thread message beside it is fine. Fail if the request reaches the user only
-    as prose, such as a reply, a new thread, or a waiting status line, with no to-do on
-    them, or if the to-do opened is the agent's own.
+  - type: llm-rubric
+    metric: judgment
+    value: |
+      Pass only if the commands put a to-do on the user for trying the install steps:
+      a `leaf task open` on the page that names the `install` section (or the page) and
+      marks the to-do as the user's rather than the agent's, with a title saying what to
+      try. A thread message beside it is fine. Fail if the request reaches the user only
+      as prose, such as a reply, a new thread, or a waiting status line, with no to-do on
+      them, or if the to-do opened is the agent's own.

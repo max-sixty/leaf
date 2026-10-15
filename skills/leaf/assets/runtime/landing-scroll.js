@@ -12,8 +12,12 @@
  * readings of the same clearance, never added twice. A nearest landing takes its
  * bottom margin too, which clears a pinned foot such as a long thread's reply row.
  * Full placement first reveals inner overflow. Both operations stop at this
- * document, so a sample never scrolls its containing page. End alignment reveals
- * a tall destination's closing edge through enclosing reading regions.
+ * document, so a sample never scrolls its containing page, and a reveal bounded
+ * `within` one box stops there. End alignment reveals a tall destination's closing
+ * edge through enclosing reading regions. Every script reveal comes through here, a
+ * reveal bounded to one box included: a hand-rolled `scrollTop` sum is one more
+ * reading of the band that can disagree with this one (eslint.config.mjs,
+ * "architecture/scroll-writes").
  *
  * Room and being shown are this module's too, so a landing that asks whether to move
  * reads the same arithmetic the move then does. A destination's room (`landingRoom`) is
@@ -192,15 +196,19 @@ export function scrollIntoReadingBand(where, holder, block, behavior) {
 // or nearest. An explicit alignment lets a passage prepare its inner overflow
 // before its enclosing context lands in the reading band. A destination in a
 // fixed layer, such as a modal's list, has no reading region: its boxes reveal it
-// nearest, out to that layer.
+// nearest, out to that layer. `within` ends the walk at that box, so only it and the
+// boxes inside it move, each revealing the destination nearest: an item comes into
+// its own strip or list while the page around it stays where the user reads. Native
+// `scrollIntoView({container: "nearest"})` is no substitute: Firefox still scrolls the
+// boxes around it (notes/browser-support.md, "Native reveal bounded to its scroller").
 export function scrollIntoView(
   where,
-  { alignment = where, behavior = "auto", block = "start" } = {},
+  { alignment = where, behavior = "auto", block = "start", within = null } = {},
 ) {
   if (!where) return;
   const holder = placeHolder(alignment);
   if (!holder) return;
-  const targetScroller = scrollersOf(holder).next().value;
+  const targetScroller = within ? null : scrollersOf(holder).next().value;
   // Horizontal inspection can belong to any ancestor, the owning region included.
   // Only inner scrollports prepare Y; the region and its outers glide below.
   let inside = true;
@@ -220,7 +228,12 @@ export function scrollIntoView(
         : 0;
       if (byX || byY) land(box, localScrollBy(box, { x: byX, y: byY }), "instant");
     }
-    if (box === pageScroller || getComputedStyle(box).position === "fixed") break;
+    if (
+      box === within ||
+      box === pageScroller ||
+      getComputedStyle(box).position === "fixed"
+    )
+      break;
   }
   if (targetScroller) scrollIntoReadingBand(alignment, holder, block, behavior);
 }

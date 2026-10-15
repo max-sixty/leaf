@@ -38,7 +38,7 @@
 .lf-tabstrip .lf-tab-btn[data-lf-focus] {
                outline: none; }
 .lf-tabstrip .lf-tab-btn[data-lf-focus] > .lf-tab-name {
-               outline: var(--focus-ring); --lf-focus-ring: tab-btn;
+               outline: var(--focus-ring);
                outline-offset: var(--lf-tab-focus-gap); }
 /* Every name reserves the same square face; selection paints it without changing any
  * control's measure. */

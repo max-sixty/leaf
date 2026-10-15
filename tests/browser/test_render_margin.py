@@ -1678,7 +1678,7 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
         '[data-lf-margin-for="bg-margin-controls-samples"]'
     ).get_by_role("button", name="Inspect projection", exact=True)
     expect(projection).to_be_visible()
-    projection.hover()
+    projection.focus()
     expect(projection.locator(".lf-margin-entry-label-word")).to_have_text(
         "Inspect projection…"
     )
@@ -1944,8 +1944,12 @@ def test_a_margin_row_leaves_with_its_target_before_the_next_paint(
         """async () => {
           window.lifetimeRow = lifetimeContribution.control('action', 'margin')
             .closest('.lf-margin-cluster');
+          const destination = document.createElement('div');
+          destination.style.display = 'contents';
+          lifetimeParent.append(destination);
           lifetimeAnchor.remove();
-          lifetimeParent.append(lifetimeAnchor);
+          destination.append(lifetimeAnchor);
+          lifetimeParent = destination;
           await Promise.resolve();
           return lifetimeRow.checkVisibility();
         }"""
@@ -5624,9 +5628,16 @@ def test_the_margin_reply_outside_the_transcript_shows_its_whole_ring(
     assert header.bounding_box()["y"] == pytest.approx(
         transcript.bounding_box()["y"], abs=0.5
     )
-    assert (
-        row.bounding_box()["y"]
-        >= transcript.bounding_box()["y"] + transcript.bounding_box()["height"] - 0.5
+    # The scrollport extends under the reply by its bottom padding so a rewrite's
+    # outside focus ring stays visible; the scrolling turns stop above the row.
+    ring_room = transcript.evaluate(
+        "list => parseFloat(getComputedStyle(list).paddingBottom)"
+    )
+    assert row.bounding_box()["y"] >= (
+        transcript.bounding_box()["y"]
+        + transcript.bounding_box()["height"]
+        - ring_room
+        - 0.5
     )
 
     reply = preview.get_by_role("textbox", name="Reply", exact=True)
@@ -5636,7 +5647,7 @@ def test_the_margin_reply_outside_the_transcript_shows_its_whole_ring(
     [ring] = [
         ring
         for ring in rings_drawn(page)
-        if ring["sample"] and ring["ring"] == "text-box"
+        if ring["sample"] and ".lf-compose-field" in ring["rule"]
     ]
     assert ring["cuts"] == []
 
@@ -5661,8 +5672,9 @@ def test_a_margin_card_is_one_frame_that_rings_for_its_thread(browser, serve):
     assert thread.evaluate("node => node.matches(':focus-visible')")
     rendered(page)
     drawn = rings_drawn(page)
-    worn = [(seen["ring"], seen["who"].split(" ")[0]) for seen in drawn if seen["here"]]
-    assert worn == [("page-thread", "aside.lf-ui.lf-margin-preview")], drawn
+    worn = [(seen["who"].split(" ")[0], seen["rule"]) for seen in drawn if seen["here"]]
+    assert [who for who, _rule in worn] == ["aside.lf-ui.lf-margin-preview"], drawn
+    assert ".lf-page-thread" in worn[0][1], drawn
     assert not (faults := ring_faults(drawn, "on a card the keyboard opened")), (
         "\n".join(faults)
     )
@@ -7561,7 +7573,7 @@ def test_a_row_arriving_takes_the_room_below_the_markers_already_seated(browser,
 
 
 def test_an_agent_reply_leaves_the_reply_being_typed_where_it_stands(browser, serve):
-    """News arriving without a gesture moves no control the user is working in."""
+    """An agent answer waits behind a notice while the user writes in the card."""
     # The short card, where an arrival has the least room to take.
     size = (800, 520)
     page, preview, editor = drafting_in_a_short_card(browser, serve, *size)
@@ -7579,7 +7591,10 @@ def test_an_agent_reply_leaves_the_reply_being_typed_where_it_stands(browser, se
         },
     )
     told(page)
-    expect(preview).to_contain_text("An agent answer arriving while the user types.")
+    expect(preview.locator(".lf-thread-notice-news")).to_have_text("1 new reply")
+    expect(preview).not_to_contain_text(
+        "An agent answer arriving while the user types."
+    )
     rendered(page)
     expect(editor).to_be_focused()
     assert preview.evaluate(DRAFTING_CARD) == before

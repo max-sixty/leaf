@@ -7,12 +7,14 @@
 # the final paragraph. These score authored strings, not animation behavior.
 description: playground-candidates-use-product-copy
 metadata:
-  purpose: 'Playground: candidates use realistic product content; exploration commentary stays around
-    the interface.'
+  purpose:
+    "Playground: candidates use realistic product content; exploration commentary stays around
+    the interface."
   tags:
-  - playground
+    - playground
 vars:
-  prompt: "The user asks:\n\"Can you try playing with an animation where, when we submit a comment box,\n\
+  prompt:
+    "The user asks:\n\"Can you try playing with an animation where, when we submit a comment box,\n\
     instead of transitioning (with a bit of a jump often), we build / grow the\nsurrounding UI around\
     \ the message in the comment box, a bit like some Factorio\nanimations where something grows? The\
     \ idea is to reduce the jitter in the text\nin the comment box while allowing it to start small but\
@@ -49,19 +51,19 @@ vars:
     \ or operate it. The page directory is\nnot reachable here, so reply with the revised playground HTML\
     \ and the relevant\nscript handlers. You can omit the unchanged animation implementation and CSS.\n"
 assert:
-- type: llm-rubric
-  metric: judgment
-  value: |
-    Read the complete authored HTML and any strings the script renders. Pass only
-    if both hold:
-    1. Inside the simulated composer and thread, control labels and status text,
-       including accessible names and dynamically set strings, use product copy
-       without describing the artifact's sketch/demo/mock status. A surrounding
-       title, candidate label, measurement, or explanation outside the simulated
-       interface is fine. Ordinary product states such as Draft or Resolved are
-       fine. Conversation messages and quoted passages may discuss the interface
-       or animation being explored; those are not authoring-status labels.
-    2. The user can send a message, compare the two motions, slow them down, and
-       replay them through controls with meaningful labels. The copy rule must
-       not remove useful exploration controls around the simulated interface.
-    Fail if either does not hold.
+  - type: llm-rubric
+    metric: judgment
+    value: |
+      Read the complete authored HTML and any strings the script renders. Pass only
+      if both hold:
+      1. Inside the simulated composer and thread, control labels and status text,
+         including accessible names and dynamically set strings, use product copy
+         without describing the artifact's sketch/demo/mock status. A surrounding
+         title, candidate label, measurement, or explanation outside the simulated
+         interface is fine. Ordinary product states such as Draft or Resolved are
+         fine. Conversation messages and quoted passages may discuss the interface
+         or animation being explored; those are not authoring-status labels.
+      2. The user can send a message, compare the two motions, slow them down, and
+         replay them through controls with meaningful labels. The copy rule must
+         not remove useful exploration controls around the simulated interface.
+      Fail if either does not hold.

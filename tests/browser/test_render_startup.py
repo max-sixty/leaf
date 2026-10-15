@@ -1885,7 +1885,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
     suggestion_accept = page.locator("[data-lf-margin-for='sug'] .lf-sug-accept")
     expect(suggestion_accept).to_be_disabled()
     assert suggestion_accept.evaluate(
-        """button => {
+        """button => lfUnwatched(() => {
               const glyph = button.firstElementChild;
               const widget = document.getElementById('sug');
               const parent = widget.parentNode;
@@ -1893,7 +1893,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
               widget.remove();
               parent.insertBefore(widget, next);
               return button.firstElementChild === glyph;
-            }"""
+            })"""
     ), "an unchanged availability paint rebuilt the suggestion control"
     suggestion_accept.dispatch_event("click")
     expect(suggestion_accept).to_be_disabled()
@@ -5017,7 +5017,10 @@ customElements.define('lf-test-surface', class extends HTMLElement {
       return this.failure === 'hidden' ? null : placement.datumElement.outlet;
     });
     for (const row of this.children) {
-      if (this.failure === 'moved') document.querySelector('main').append(row.outlet);
+      if (this.failure === 'moved') {
+        const main = document.querySelector('main');
+        if (row.outlet.parentElement !== main) main.append(row.outlet);
+      }
       if (this.failure === 'detached') row.outlet.remove();
     }
     if (this.failure === 'target-removed') {
@@ -5205,7 +5208,8 @@ customElements.define('lf-test-surface', class extends HTMLElement {
         page.keyboard.press("Escape")
         broken.evaluate("""widget => {
             widget.failure = null;
-            for (const row of widget.children) row.append(row.outlet);
+            for (const row of widget.children)
+              if (row.outlet.parentElement !== row) row.append(row.outlet);
         }""")
         append_carried_log_record(
             serve.page_dir,

@@ -6,8 +6,8 @@ description: package-text-widget-keeps-the-measure
 metadata:
   purpose: A package's text-like widget declares the column allocation in its registry entry.
   tags:
-  - packages
-  - layout
+    - packages
+    - layout
 vars:
   prompt: |
     I'm writing a Leaf package for release runbooks. It declares lf-checklist, which
@@ -20,9 +20,9 @@ vars:
     and lf-check, with a sentence on each declaration you chose. Return JSON in your
     reply.
 assert:
-- type: llm-rubric
-  metric: checklist-keeps-the-measure
-  value: |
-    Pass only if the lf-checklist entry declares "x-space": "column", so the list
-    keeps the prose's reading measure on a wide page. Fail if it declares no x-space,
-    or declares "wide" or "available".
+  - type: llm-rubric
+    metric: checklist-keeps-the-measure
+    value: |
+      Pass only if the lf-checklist entry declares "x-space": "column", so the list
+      keeps the prose's reading measure on a wide page. Fail if it declares no x-space,
+      or declares "wide" or "available".

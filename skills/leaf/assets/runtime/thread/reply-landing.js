@@ -107,7 +107,11 @@ export function showLatestTurn(transcript) {
     transcript.getBoundingClientRect().top +
     transcript.clientTop -
     latest.getBoundingClientRect().top;
-  if (over > 0) moveScrollerBy(transcript, -over);
+  // A turn only a little taller than its room still shows its head at the end.
+  // Keep its trailing reference and metadata there; align to the head only when
+  // scrolling to the end would hide that head altogether.
+  const headHeight = latest.firstElementChild?.getBoundingClientRect().height ?? 0;
+  if (over > headHeight) moveScrollerBy(transcript, -over);
 }
 
 function landThread(held, control, behavior, block) {

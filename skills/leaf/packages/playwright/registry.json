@@ -418,8 +418,8 @@
     "x-prepaint": "<p class=\"lf-trace-waiting\">Waiting for a Playwright recording.</p>"
   },
   "lf-trace-bookmark": {
-    "description": "An authored, labeled jump to an exact captured image or action phase in its trace.",
-    "x-instructions": "Set target to an existing trace visual coordinate: trace-ARCHIVE_SHA256-image-IMAGE_ID or trace-ARCHIVE_SHA256-phase-ACTION_ID-PHASE. Read those ids from the imported source; phase is before, action, after, start or end. The widget derives elapsed time from the capture. A target absent from the recording is shown as unavailable. A key explicitly pairs this semantic result with bookmarks in the owner’s compare group; elapsed times and label text are never used to infer correspondence.",
+    "description": "A labeled link to one captured image or action phase in its trace.",
+    "x-instructions": "Set `target` to a capture in the trace: `trace-ARCHIVE_SHA256-image-IMAGE_ID` or `trace-ARCHIVE_SHA256-phase-ACTION_ID-PHASE`, where PHASE is before, action, after, start or end. Read the ids from the imported source. A target the recording lacks shows as unavailable. In an `lf-trace-compare`, give the bookmarks for the same result in each recording the same `key`; Leaf never pairs them by time or label.",
     "type": "object",
     "properties": {
       "label": {
@@ -444,8 +444,8 @@
     "x-upgrade": false
   },
   "lf-trace-compare": {
-    "description": "One shared inspection workspace for recordings with explicitly paired named results.",
-    "x-instructions": "Put independent lf-trace viewers inside this container, each with a label naming the recording. Give corresponding lf-trace-bookmark members the same key. Selecting a keyed result chooses each recording’s own captured target; switching the Recording chooser retains the shared inspection position and each image view. Manual seeking remains independent.",
+    "description": "Several Playwright recordings inspected together, with their results paired by key.",
+    "x-instructions": "Put one `lf-trace` per recording inside it, each with a `label` naming its recording, and give the bookmarks for the same result the same `key`. Choosing a keyed result then shows each recording's own capture of it; seeking by hand moves each recording separately.",
     "type": "object",
     "properties": {
       "id": {

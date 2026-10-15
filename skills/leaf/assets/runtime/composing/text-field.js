@@ -572,7 +572,7 @@ class LeafText extends HTMLElement {
 
   #describe() {
     const content = this.#view?.contentDOM;
-    if (!content || !("ariaDescribedByElements" in content)) return;
+    if (!content) return;
     const root = /** @type {Document | ShadowRoot} */ (this.getRootNode());
     content.ariaDescribedByElements = (this.getAttribute("aria-describedby") ?? "")
       .split(/\s+/)

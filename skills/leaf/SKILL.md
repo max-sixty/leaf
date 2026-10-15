@@ -79,8 +79,9 @@ line for each refusal or note, with the words in `error` or `text`.
    drawings, captures, charts or the thing running. Put the picture in the view
    that needs it; one on another page or in another section shows the user
    nothing while they judge this view. A draft of only prose, tables, lists and
-   code is describing what it should show, unless the user is judging the words
-   or exact values themselves, as in a text edit, a message or a lookup table.
+   code is describing what it should show, unless the user is judging the words,
+   exact values or reasons themselves, as in a text edit, a message, a lookup table
+   or the case for a refactor.
    Write `<page>/index.html` in the registry's vocabulary. Each valid save
    becomes the live immutable revision. An invalid save leaves the last valid one
    live and reports the error in page state and the browser. You write

@@ -15,7 +15,6 @@ import {
 import {
   nextFrame,
   nextRender,
-  sizeObserver,
   under,
   upFrom
 } from "./bundle-sample-visibility.js";
@@ -35,9 +34,7 @@ function residencyPass(time) {
   readResidency();
 }
 function readResidency() {
-  const { changed, breakouts, holders } = document.documentElement.lfInitial.residency();
-  watchHolders(holders);
-  watchMoves(breakouts);
+  const { changed } = document.documentElement.lfInitial.residency();
   if (changed) layoutChanged(pageDocument());
   readFinished?.(changed);
   if (changed) repaintPage();
@@ -50,102 +47,8 @@ function settleResidency() {
 }
 var BREAKOUT = "[data-lf-space]";
 var bringsBreakout = (node) => node.nodeType === Node.ELEMENT_NODE && (node.matches(BREAKOUT) || node.querySelector(BREAKOUT) !== null);
-var watched = /* @__PURE__ */ new Map();
-var holderSizes = sizeObserver((entries) => {
-  let widened = false;
-  for (const { target, contentBoxSize } of entries) {
-    const holder = watched.get(target);
-    if (!holder) continue;
-    const width = contentBoxSize[0].inlineSize;
-    if (Math.abs(width - holder.width) > 0.5) widened = true;
-    holder.width = width;
-  }
-  if (widened) readIndents();
-});
-var unwatch = (holder) => {
-  watched.delete(holder);
-  holderSizes.unobserve(holder);
-};
-function watchHolders(holders) {
-  for (const holder of watched.keys()) if (!holders.has(holder)) unwatch(holder);
-  for (const [holder, { width, breakouts }] of holders) {
-    if (watched.has(holder)) watched.get(holder).breakouts = breakouts;
-    else {
-      watched.set(holder, { width, breakouts });
-      holderSizes.observe(holder);
-    }
-  }
-}
-function releaseHolders() {
-  for (const [holder, record] of watched) {
-    record.breakouts = record.breakouts.filter((breakout) => breakout.isConnected);
-    if (!holder.isConnected || !record.breakouts.length) unwatch(holder);
-  }
-  for (const breakout of moves.keys()) if (!breakout.isConnected) unwatchMove(breakout);
-}
-var moves = /* @__PURE__ */ new Map();
-var AROUND = 1e6;
-var unwatchMove = (breakout) => {
-  moves.get(breakout).observer.disconnect();
-  moves.delete(breakout);
-};
-var movePending = false;
-var moved = () => {
-  if (movePending) return;
-  movePending = true;
-  queueMicrotask(() => {
-    movePending = false;
-    readIndents();
-  });
-};
-function observeMove(breakout, watch, threshold, settled = false) {
-  const { root, left, right } = watch;
-  let first = !settled;
-  watch.observer?.disconnect();
-  watch.observer = new IntersectionObserver(
-    (entries) => {
-      const ratio = entries.at(-1).intersectionRatio;
-      const start = first;
-      first = false;
-      if (ratio === threshold) return;
-      if (start && ratio > 0) observeMove(breakout, watch, ratio, true);
-      else moved();
-    },
-    {
-      root,
-      rootMargin: `${AROUND}px ${right}px ${AROUND}px ${left}px`,
-      threshold: threshold ? [0, threshold] : [0]
-    }
-  );
-  watch.observer.observe(breakout);
-}
-function watchMoves(breakouts) {
-  const answered = new Set(breakouts);
-  for (const breakout of moves.keys())
-    if (!answered.has(breakout)) unwatchMove(breakout);
-  const root = pageDocument();
-  if (!root) return;
-  let frame = null;
-  for (const breakout of breakouts) {
-    let left = AROUND;
-    let right = AROUND;
-    if (breakout.checkVisibility()) {
-      const box = breakout.getBoundingClientRect();
-      frame ??= root.getBoundingClientRect();
-      left = Math.ceil(frame.left - box.left);
-      right = Math.ceil(box.right - frame.right);
-    }
-    const watch = moves.get(breakout);
-    if (watch?.root === root && watch.left === left && watch.right === right) continue;
-    const next = { root, left, right, observer: watch?.observer };
-    moves.set(breakout, next);
-    observeMove(breakout, next, left === AROUND ? 0 : 1);
-  }
-}
 function readIndents() {
-  const { changed, breakouts, holders } = document.documentElement.lfInitial.indents();
-  watchHolders(holders);
-  watchMoves(breakouts);
+  const { changed } = document.documentElement.lfInitial.indents();
   if (!changed) return;
   layoutChanged(pageDocument());
   repaintPage();
@@ -162,8 +65,6 @@ function openResidency({ onRead }) {
         (record) => record.type === "attributes" ? bringsBreakout(record.target) : [...record.addedNodes].some(bringsBreakout)
       ))
         readIndents();
-      else if (records.some((record) => [...record.removedNodes].some(bringsBreakout)))
-        releaseHolders();
     }).observe(main, {
       childList: true,
       subtree: true,

@@ -49,7 +49,7 @@ from .validation.source import check_source
 
 def cmd_init(
     page_dir: Path, selected: tuple[str, ...] | None = None, *, dry_run: bool = False
-) -> None:
+) -> dict:
     """Create a page, or re-vendor one inside a restart of its service.
 
     Everything that can refuse a re-vendor is decided first, in a dry run with the
@@ -79,13 +79,11 @@ def cmd_init(
         if dry_run:
             with page_locked(page_dir):
                 plan = _plan_page(page_dir, selected, fresh=False)
-            print(json.dumps({"page": str(page_dir), "changed": plan.changed}))
-            return
+            return {"page": str(page_dir), "changed": plan.changed}
         unready = _unready(page_dir, _revendor(page_dir, selected, session_harness()))
-        print(json.dumps({"page": str(page_dir)}))
         if unready:
             note(unready)
-        return
+        return {"page": str(page_dir)}
     if dry_run:
         raise Refused(f"{page_dir} is not initialized")
     with restarting_server(page_dir, session_harness()), page_locked(page_dir):
@@ -95,7 +93,7 @@ def cmd_init(
             if made and not any(page_dir.iterdir()):
                 page_dir.rmdir()
             raise
-    print(json.dumps({"page": str(page_dir)}))
+    return {"page": str(page_dir)}
 
 
 def renew_layer(page_dir: Path, harness: Harness | None) -> Finding | None:

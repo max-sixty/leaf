@@ -49,6 +49,7 @@ from render_cases_interaction import (
 )
 from render_cases_layout import (
     banner_control,
+    rings_drawn,
     unfolded_button,
 )
 from render_cases_navigation import (
@@ -372,12 +373,12 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     # A pane that leaves the document and returns registers its body again, so the cue
     # that the body holds more comes back with it.
     queue_pane.evaluate(
-        """owner => {
+        """owner => lfUnwatched(() => {
           const parent = owner.parentNode;
           const next = owner.nextSibling;
           owner.remove();
           parent.insertBefore(owner, next);
-        }"""
+        })"""
     )
     pane_posture(page, queue_pane, "bounded")
     expect(queue).to_have_attribute("data-lf-more-below", "")
@@ -2628,9 +2629,9 @@ def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, ser
         "third-change",
     ]
     page.locator("#first-change").evaluate(
-        "el => { const parent = el.parentNode; const next = el.nextSibling;"
+        "el => lfUnwatched(() => { const parent = el.parentNode; const next = el.nextSibling;"
         "        el.remove();"
-        "        parent.insertBefore(el, next); }"
+        "        parent.insertBefore(el, next); })"
     )
     assert rows.evaluate_all("rows => rows.map(row => row.dataset.lfMarginFor)") == [
         "first-change",
@@ -2639,14 +2640,14 @@ def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, ser
     ], "reconnecting the first suggestion moved its controls after later source rows"
     first_accept = page.locator("[data-lf-margin-for='first-change'] .lf-sug-accept")
     first_accept.evaluate(
-        """control => {
+        """control => lfUnwatched(() => {
           control.disabled = true;
           const widget = document.getElementById('first-change');
           const parent = widget.parentNode;
           const next = widget.nextSibling;
           widget.remove();
           parent.insertBefore(widget, next);
-        }"""
+        })"""
     )
     expect(first_accept).to_be_enabled()
     page.locator("[data-lf-margin-for='first-change'] .lf-sug-accept").focus()
@@ -4773,7 +4774,7 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
     expect(page.locator(".notification-demo-card-status-strip")).to_have_count(2)
     expect(page.locator(".notification-demo-strip-owner")).to_have_count(2)
     assert playground.evaluate(
-        """owner => {
+        """owner => lfUnwatched(() => {
           const parent = owner.parentNode;
           const next = owner.nextSibling;
           const nodes = [...owner.querySelectorAll('*')];
@@ -4782,7 +4783,7 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
           parent.insertBefore(owner, next);
           return values === JSON.stringify(owner.values)
             && nodes.every((node, index) => owner.querySelectorAll('*')[index] === node);
-        }"""
+        })"""
     )
     reattached = page.evaluate(reading)
     assert (reattached["controlsId"], reattached["previewId"]) == (
@@ -8933,13 +8934,13 @@ def test_a_chart_is_drawn_for_the_room_it_has_rather_than_scaled_into_it(
 
     # A retained chart may leave and re-enter during document reconciliation. Its
     # drawing survives the move, and must keep responding to the room it has.
-    page.evaluate("""() => {
+    page.evaluate("""() => lfUnwatched(() => {
         const chart = document.getElementById('c-bars');
         const parent = chart.parentNode;
         const next = chart.nextSibling;
         chart.remove();
         parent.insertBefore(chart, next);
-    }""")
+    })""")
     plant_quiet_word(page, "#c-bars", "")
     notes = "() => document.getElementById('c-bars').querySelectorAll('.lf-ui').length"
     held = page.evaluate(notes)
@@ -9549,7 +9550,7 @@ def test_a_markdown_document_switches_between_rendered_content_and_exact_source(
 ):
     """Preview and source are two readings of one feed, reachable by press and key."""
     text = (
-        "# A rendered document\n\n"
+        "# A rendered document\r\n\r"
         "Read [the details](https://example.com/details).\n\n"
         "- First item\n- Second item\n\n"
         "| Name | Value |\n| --- | --- |\n| Outcome | **Ready** |\n"
@@ -9579,6 +9580,19 @@ def test_a_markdown_document_switches_between_rendered_content_and_exact_source(
     expect(source).to_have_attribute("aria-selected", "true")
     expect(document.locator("pre")).to_be_visible()
     assert document.locator("code").text_content() == text
+    # Numbering stays in its own visible column and outside the exact source text.
+    gutter = document.locator("[data-gutter]")
+    content = document.locator("[data-content]")
+    assert gutter.bounding_box()["width"] > 0
+    assert gutter.evaluate(
+        "el => el.getBoundingClientRect().right"
+    ) <= content.evaluate("el => el.getBoundingClientRect().left")
+    assert (
+        document.locator("[data-line-number-content]").first.evaluate(
+            "el => getComputedStyle(el, '::before').content"
+        )
+        == '"1"'
+    )
     source.press("ArrowLeft")
     expect(preview).to_be_focused()
     expect(preview).to_have_attribute("aria-selected", "true")
@@ -11071,16 +11085,9 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
     mark.focus()
     page.keyboard.press("Shift+Tab")
     page.keyboard.press("Tab")
-    ring = page.evaluate(
-        """() => { const on = document.activeElement.closest('lf-option')
-                          ?? document.activeElement;
-             const cs = getComputedStyle(on);
-             return [cs.outlineStyle, cs.outlineWidth,
-                     cs.getPropertyValue('--focus-ring-w').trim(),
-                     cs.getPropertyValue('--lf-focus-ring').trim()]; }"""
-    )
-    assert ring[0] == "solid" and ring[1] == ring[2] and ring[3] != "none", (
-        f"nothing draws a named focus ring where the keyboard is standing: {ring}"
+    drawn = rings_drawn(page)
+    assert any(ring["here"] and ring["sample"] and ring["rule"] for ring in drawn), (
+        f"no ring rule draws a focus ring where the keyboard is standing: {drawn}"
     )
 
 

@@ -715,11 +715,9 @@ export const pageQueryAll = (selector) =>
 // from the page's prose into a widget's shadow is exactly what the fences already refuse.
 export function pageRange(sel) {
   const plain = sel.getRangeAt(0);
-  if (typeof sel.getComposedRanges !== "function") return plain;
   const shadowRoots = pageShadowRoots();
   if (!shadowRoots.length) return plain;
   const [composed] = sel.getComposedRanges({ shadowRoots });
-  if (!composed) return plain;
   const { startContainer, startOffset, endContainer, endOffset } = composed;
   if (startContainer.getRootNode() !== endContainer.getRootNode()) return plain;
   const range = document.createRange();

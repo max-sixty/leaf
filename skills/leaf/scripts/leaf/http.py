@@ -70,7 +70,6 @@ from .schema import (
 )
 from .served_state.service import LivePage, PageSource, PageStateService
 from .server import preview_metadata
-from .state import now_iso
 from .structure import FRAME_ANCESTORS_CSP
 from .user_views import observe_user_view
 
@@ -361,7 +360,6 @@ class PageEndpoint:
                         {
                             "source": "server",
                             "type": "request",
-                            "ts": now_iso(),
                             "method": self.method,
                             "path": self.path,
                             "status": answer.status_code,

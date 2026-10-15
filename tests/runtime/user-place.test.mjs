@@ -250,7 +250,7 @@ test("nested keepers on one scroller correct a reflow once", () => {
   const card = placeKeeper(scroller, options);
   const listHold = list.take();
   const cardHold = card.take({ spans: false });
-  assert.equal(cardHold, null);
+  assert.ok(cardHold);
   at.set(later, 1269);
   card.finish(cardHold);
   list.finish(listHold);

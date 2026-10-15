@@ -324,6 +324,27 @@ var heldScrollers = /* @__PURE__ */ new WeakMap();
 function placeKeeper(scroller, { items, identity, active = () => true, preferred = () => null }) {
   let current = null;
   const owner = {};
+  const lease = {
+    owner,
+    snapshot: () => ({
+      hold: current,
+      positions: new Map(
+        current?.references.map((reference) => {
+          const node = live2(reference);
+          return [reference, node ? heldBox(node).top + scroller.scrollTop : null];
+        }) ?? []
+      )
+    }),
+    sync: ({ hold, positions }) => {
+      if (current !== hold) return;
+      for (const [reference, before] of positions) {
+        const node = live2(reference);
+        if (before !== null && node)
+          reference.contentTop += heldBox(node).top + scroller.scrollTop - before;
+      }
+      hold.at = { scrollTop: scroller.scrollTop, limit: limit() };
+    }
+  };
   const limit = () => scrollLimit(scroller);
   const heldBox = (node) => {
     if (!node?.isConnected || !scroller.contains(node) || !node.matches(items) || !node.checkVisibility())
@@ -356,7 +377,7 @@ function placeKeeper(scroller, { items, identity, active = () => true, preferred
   function release2(hold) {
     if (current !== hold) return;
     current = null;
-    if (heldScrollers.get(scroller) === owner) heldScrollers.delete(scroller);
+    if (heldScrollers.get(scroller)?.owner === owner) heldScrollers.delete(scroller);
     if (hold.spans) claim();
   }
   function correct(hold) {
@@ -381,16 +402,22 @@ function placeKeeper(scroller, { items, identity, active = () => true, preferred
       if (node) candidate.contentTop = heldBox(node).top + scroller.scrollTop;
     }
     hold.at = { scrollTop: scroller.scrollTop, limit: limit() };
+    if (hold.borrowed) {
+      hold.borrowed.lease.sync(hold.borrowed.reading);
+      hold.borrowed.reading = hold.borrowed.lease.snapshot();
+    }
     return true;
   }
   function take({ spans: spans2 = true } = {}) {
-    if (heldScrollers.has(scroller) && heldScrollers.get(scroller) !== owner)
-      return null;
+    const enclosing = heldScrollers.get(scroller);
+    if (enclosing?.owner !== owner && enclosing && spans2) return null;
     const prior = current;
     if (prior) correct(prior);
     current = heldPlace(prior, spans2);
-    if (current) heldScrollers.set(scroller, owner);
-    else if (heldScrollers.get(scroller) === owner) heldScrollers.delete(scroller);
+    if (current && enclosing?.owner !== owner && enclosing)
+      current.borrowed = { lease: enclosing, reading: enclosing.snapshot() };
+    else if (current) heldScrollers.set(scroller, lease);
+    else if (enclosing?.owner === owner) heldScrollers.delete(scroller);
     if (spans2 || prior?.spans) claim();
     return current;
   }

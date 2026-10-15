@@ -306,9 +306,8 @@ def record(
     field.focus()
     page.keyboard.insert_text("Can the backfill stay online?")
     page.wait_for_function(
-        """() => document.querySelector('.lf-composer').style.display === 'contents'
-            && (CSS.highlights.get('lf-pending')?.size ?? 0) > 0
-            && document.getElementById('lf-composer-quote').classList.contains('lf-quiet')"""
+        """() => document.querySelector('.lf-composer')?.hasAttribute('data-lf-open')
+            && (CSS.highlights.get('lf-pending')?.size ?? 0) > 0"""
     )
     shot(2300)
 

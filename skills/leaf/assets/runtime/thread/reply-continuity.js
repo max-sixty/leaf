@@ -147,7 +147,7 @@ export class ReplyContinuity {
         this.#writing?.input === input &&
         context &&
         draftHasContent(context) &&
-        !this.#owner.querySelector('.lf-msg.user[data-attempt]')
+        !this.#owner.querySelector(".lf-msg.user[data-attempt]")
           ? Math.max(
               0,
               parseFloat(this.#writing.room) - input.getBoundingClientRect().height,

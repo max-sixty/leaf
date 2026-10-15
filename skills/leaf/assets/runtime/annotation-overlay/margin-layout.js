@@ -1355,6 +1355,14 @@ export function layoutMarginRows() {
     // in the lane where its run of rows comes, and each carrier's, which stands in the
     // lane or those frames where its run comes.
     const cursors = new Map([[lane, lane.firstElementChild]]);
+    // A row can leave this lane for a cut or carrier before we reach the next
+    // row in it. Advance its cursor while the departing row still has a sibling.
+    const place = (holder, node, before) => {
+      const oldHome = node.parentElement;
+      if (oldHome && cursors.get(oldHome) === node)
+        cursors.set(oldHome, node.nextElementSibling);
+      move(holder, node, before);
+    };
     const runs = new Map();
     const cutRuns = new Map();
     // A withheld row keeps its carrier and frames where they stand, so a shown row
@@ -1406,7 +1414,7 @@ export function layoutMarginRows() {
         let at = cursors.get(holder);
         if (at && at.parentElement !== holder) at = null;
         if (at === outer) cursors.set(holder, outer.nextElementSibling);
-        else move(holder, outer, at);
+        else place(holder, outer, at);
         cursors.set(box, box.firstElementChild);
       };
       if (container !== lane) seat(lane, container, outerFrame.get(container));
@@ -1418,7 +1426,7 @@ export function layoutMarginRows() {
         cursors.set(home, row.nextElementSibling);
         continue;
       }
-      move(home, row, before);
+      place(home, row, before);
       cursors.set(home, before);
     }
   }

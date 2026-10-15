@@ -27,7 +27,6 @@ import {
   createThreadLanding,
   createVersionController,
   declareThreadKeys,
-  fab,
   fabBar,
   fabInput,
   inPageOrder,
@@ -2302,9 +2301,6 @@ function createResponseSurface({
   }
   function paintFab() {
     fabBar.toggleAttribute("data-lf-target-only", Boolean(fabAnchor && !composerOpen));
-    fabBar.style.display = fabAnchor ? "var(--lf-response-display, inline-flex)" : "none";
-    fabInput.style.display = fabAnchor && composerOpen ? "block" : "none";
-    fab.style.display = fabAnchor ? "" : "none";
     composer.syncResponseOptions(fabAnchor);
     if (!fabAnchor) return;
     const label2 = anchorLabel(fabAnchor, pendingAbout).replace(/^§\s*/, "");
@@ -6207,7 +6203,6 @@ var LiveLeavesList = class extends RetainedFace {
   configure(control) {
     if (this.#face) throw new Error("Leaves presentation is already configured");
     this.#face = document.createElement(FACE_TAG);
-    this.#face.style.display = "contents";
     control.append(this.#face);
   }
   commit() {
@@ -10129,7 +10124,6 @@ var face = (control, initial, room) => {
   owner.room = room;
   owner.model = initial;
   owner.commit();
-  owner.style.display = "contents";
   control.append(owner);
   return owner;
 };
@@ -11490,8 +11484,7 @@ function createDesignMode({
 
 // runtime/chrome-layout.js
 function createChromeLayout({
-  panelIsOpen: panelIsOpen2,
-  elements: { panel: panel2, closeBtn: closeBtn2, panelFoot: panelFoot2, threadsBox: threadsBox2, shortcutBarEl: shortcutBarEl2, bottomStatusEl: bottomStatusEl2 },
+  elements: { panel: panel2, closeBtn: closeBtn2, panelFoot: panelFoot2, shortcutBarEl: shortcutBarEl2, bottomStatusEl: bottomStatusEl2 },
   scheduleThreadPreviewPosition,
   syncAuxiliarySurfaces,
   syncReactLayout,
@@ -11500,7 +11493,6 @@ function createChromeLayout({
   repaint: repaint2,
   repaintPage: repaintPage2
 }) {
-  const panelCovers = () => panelIsOpen2() && !standsBeside();
   function syncLayout() {
     restateEdges();
     layOut();
@@ -11509,10 +11501,6 @@ function createChromeLayout({
     syncLayoutRegion();
     scheduleResidency();
     scheduleThreadPreviewPosition?.();
-    const sideLive = standsBeside() && rightCover() !== Infinity;
-    const panelRoom = (sideLive ? sideEdge.width() : 0) + "px";
-    shortcutBarEl2.style.setProperty("--lf-shortcut-bar-right", panelRoom);
-    bottomStatusEl2.style.setProperty("--lf-shortcut-bar-right", panelRoom);
     const panelLeft = standsBeside() ? rightCover() : Infinity;
     const railCovered = [
       ...document.querySelectorAll(".lf-margin-projection .lf-margin-cluster")
@@ -11520,26 +11508,7 @@ function createChromeLayout({
       (row) => !row.classList.contains("lf-withheld") && row.getBoundingClientRect().right > panelLeft
     );
     panel2.closest(".lf-chrome")?.toggleAttribute("data-lf-rail-covered", railCovered);
-    syncBottomStatus();
     syncFloats();
-  }
-  function syncBottomStatus() {
-    let occupied = panelFoot2.getBoundingClientRect().height;
-    if (panelCovers() && bottomStatusEl2.checkVisibility()) {
-      const list = threadsBox2.getBoundingClientRect();
-      const padding = parseFloat(getComputedStyle(threadsBox2).paddingBottom);
-      for (const reply of threadsBox2.querySelectorAll(
-        ":scope > .lf-thread[open] > .lf-thread-reply"
-      )) {
-        const box = reply.getBoundingClientRect();
-        if (reply.checkVisibility())
-          occupied = Math.max(
-            occupied,
-            layoutWindow().bottom - list.bottom + padding + box.height
-          );
-      }
-    }
-    bottomStatusEl2.style.setProperty("--lf-panel-foot-h", `${occupied}px`);
   }
   function syncFloats() {
     if (syncReactLayout()) return;
@@ -11588,7 +11557,6 @@ function createChromeLayout({
   });
   return {
     syncLayout,
-    syncBottomStatus,
     mountLayoutObservers
   };
 }
@@ -12418,9 +12386,7 @@ var bottomStatusTemplate = (model) => html`
     >${model.notice.message || nothing}</span
   >
 `;
-var shortcutBarTemplate = (model) => html`${repeat(
-  model.items,
-  (item) => item.key,
+var shortcutBarTemplate = (model) => html`${model.items.map(
   (item) => html`
         <span
           class=${`lf-shortcut${item.sequenceControl ? " lf-sequence-command" : ""}`}
@@ -12445,14 +12411,12 @@ var shortcutBarTemplate = (model) => html`${repeat(
             ></span
           >` : nothing}`;
 var bottomStatusContext = EMPTY_STATUS_CONTEXT;
-var placeBottomStatus = null;
 var renderBottomStatus = () => {
   const model = Object.freeze({
     ...bottomStatusContext,
     notice: noticeReading()
   });
   render(bottomStatusTemplate(model), bottomStatusEl);
-  placeBottomStatus?.();
 };
 renderBottomStatus();
 render(shortcutBarTemplate(EMPTY_BAR), shortcutBarEl);
@@ -12475,14 +12439,6 @@ var bottomChromeBoxes = () => [...boxesOf([shortcutBarEl]), ...fixedStatusBoxes(
 declareWindowChrome(bottomChromeBoxes, [shortcutBarEl, bottomStatusEl]);
 var sourceRows = /* @__PURE__ */ new WeakMap();
 var sourceRow = (row) => sourceRows.get(row) ?? row;
-var rowPresentationKeys = /* @__PURE__ */ new WeakMap();
-var nextRowPresentationKey = 1;
-var rowPresentationKey = (row) => {
-  const source = sourceRow(row);
-  if (!rowPresentationKeys.has(source))
-    rowPresentationKeys.set(source, nextRowPresentationKey++);
-  return rowPresentationKeys.get(source);
-};
 var effectiveRow = (row, declared, active) => {
   if (active.length === declared.length) return row;
   const routes = commandRoutes(row).filter((route2) => active.includes(route2.binding));
@@ -12636,7 +12592,6 @@ function renderShortcutBar(goToStatus) {
     const states = inSequence ? progressStates(steps, sequence) : neutralStates(steps);
     const active = bindings(row);
     return Object.freeze({
-      key: rowPresentationKey(row),
       sequenceControl: Boolean(row.sequenceControl),
       sequence: keySequenceModel(steps, states),
       said: lineOf(row),
@@ -12711,13 +12666,7 @@ function renderShortcutBar(goToStatus) {
     span.toggleAttribute("data-lf-off-line", presentation.hidden || trimmed.has(span));
 }
 var shortcutBarExpanded = () => shortcutBarIsExpanded && shortcutHelpAvailable();
-function mountShortcutBar({
-  setGoToSequence,
-  setReact,
-  placeBottomStatus: place2
-}) {
-  placeBottomStatus = place2;
-  placeBottomStatus();
+function mountShortcutBar({ setGoToSequence, setReact }) {
   activateShortcutMore = () => {
     setGoToSequence(false);
     setReact(false);
@@ -13667,12 +13616,10 @@ regionCapture = createRegionCapture({
   openComposerWithMedia: responseSurface.openComposerWithMedia
 });
 layout = createChromeLayout({
-  panelIsOpen,
   elements: {
     panel,
     closeBtn,
     panelFoot,
-    threadsBox,
     shortcutBarEl,
     bottomStatusEl
   },
@@ -13857,7 +13804,6 @@ if (!offlineInteractive) {
   layout.mountLayoutObservers();
   goToSequence.mountGoToSequence();
   mountShortcutBar({
-    placeBottomStatus: layout.syncBottomStatus,
     setGoToSequence: goToSequence.setGoToSequence,
     setReact: reactions.setReact
   });

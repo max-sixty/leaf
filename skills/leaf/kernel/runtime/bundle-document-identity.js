@@ -1304,17 +1304,12 @@ var composer = el("div", "lf-ui lf-composer");
 composer.id = "lf-composer";
 var composerQuote = el("blockquote", "lf-ui lf-quote detached");
 composerQuote.id = "lf-composer-quote";
-var suggestRow = el("label", "lf-suggest-row");
-var suggestCheck = document.createElement("input");
-suggestCheck.type = "checkbox";
-suggestCheck.name = "suggest-replacement";
-suggestRow.append(suggestCheck, document.createTextNode("Suggest replacement text"));
 var composerInput = fabInput;
 composerInput.setAttribute("aria-describedby", composerQuote.id);
 var composerSend = el("button", "lf-btn", "Comment");
 var composerField = document.createDocumentFragment();
 composerField.append(composerInput);
-composer.append(composerQuote, suggestRow, composerSend);
+composer.append(composerQuote, composerSend);
 fabBar.prepend(composer);
 var pendingAnchor = null;
 var pendingAbout = null;
@@ -1357,12 +1352,13 @@ function createSelectionComposer({
   const composerCtx = (anchor) => COMPOSER_KEY + anchorKey(anchor);
   let syncComposer;
   let pendingRevision = null;
+  let suggestionMode = false;
   const composerDraftValue = (text = syncComposer.value()) => JSON.stringify({
     format: DRAFT_FORMAT,
     text,
     anchor: pendingAnchor,
     revision: pendingRevision,
-    suggest: suggestCheck.checked,
+    suggest: suggestionMode,
     about: pendingAbout,
     drawing: pendingDrawing,
     touched: Date.now()
@@ -1427,8 +1423,7 @@ function createSelectionComposer({
   const holdsContent = (draft) => Boolean(draft || pendingDrawing);
   const composerHolds = () => holdsContent(syncComposer.value());
   function syncSuggestMode() {
-    suggestRow.style.display = pendingAnchor?.quote && !pendingAbout && !pendingDrawing ? "flex" : "none";
-    const suggest = !suggestCheck.checked;
+    const suggest = !suggestionMode;
     responseAction(fabSuggest, {
       icon: suggest ? "edit" : "comment",
       label: suggest ? "Suggest" : "Comment",
@@ -1441,15 +1436,15 @@ function createSelectionComposer({
     repaint();
   }
   function setSuggestionMode(suggest) {
-    suggestCheck.checked = Boolean(suggest);
-    if (suggestCheck.checked && syncComposer.hasMedia()) {
-      suggestCheck.checked = false;
+    suggestionMode = Boolean(suggest);
+    if (suggestionMode && syncComposer.hasMedia()) {
+      suggestionMode = false;
       syncSuggestMode();
       notice("Remove attached images before suggesting replacement text");
       focusDestination(composerInput, "return");
       return;
     }
-    if (suggestCheck.checked && !syncComposer.value() && pendingAnchor?.quote)
+    if (suggestionMode && !syncComposer.value() && pendingAnchor?.quote)
       syncComposer.load(seededQuote = pendingAnchor.quote);
     syncSuggestMode();
     saveComposerDraft();
@@ -1518,7 +1513,6 @@ function createSelectionComposer({
     if (composerOpen && !open && composerHolds())
       notice("Draft kept \u2014 g i resumes writing");
     composerOpen = open;
-    composer.style.display = open ? "contents" : "none";
     composer.toggleAttribute("data-lf-open", open);
     refreshThread();
     repaint();
@@ -1534,7 +1528,7 @@ function createSelectionComposer({
     pendingRevision = revision;
     pendingAbout = about ?? null;
     pendingDrawing = drawing ?? null;
-    suggestCheck.checked = Boolean(suggest);
+    suggestionMode = Boolean(suggest);
     return retargeted;
   }
   function openComposer(anchor, text, {
@@ -1575,7 +1569,7 @@ function createSelectionComposer({
       anchor: anchor || null,
       revision,
       text: text || syncComposer.value(),
-      suggest: suggest === void 0 ? suggestCheck.checked : suggest,
+      suggest: suggest === void 0 ? suggestionMode : suggest,
       about: about === void 0 ? pendingAbout : about,
       drawing: previousCtx !== ctx ? storedDrawing : pendingDrawing
     });
@@ -1634,7 +1628,7 @@ function createSelectionComposer({
     composerWatch = null;
     syncComposer.load("");
     seededQuote = "";
-    suggestCheck.checked = false;
+    suggestionMode = false;
     pendingAnchor = null;
     pendingRevision = null;
     pendingAbout = null;
@@ -1650,7 +1644,7 @@ function createSelectionComposer({
   function carryComposerToReply(ctx) {
     if (!pendingAnchor) return;
     const text = syncComposer.value();
-    if (ctx && text && !loadDraft(ctx) && !suggestCheck.checked && !pendingAbout && !pendingDrawing && !syncComposer.hasMedia())
+    if (ctx && text && !loadDraft(ctx) && !suggestionMode && !pendingAbout && !pendingDrawing && !syncComposer.hasMedia())
       transferDraft(composerCtx(pendingAnchor), ctx, text);
     detachComposer();
     showFab(null);
@@ -1683,10 +1677,10 @@ function createSelectionComposer({
   function mount() {
     declareResponseOptionKeys();
     syncComposer = wireInput2(composerInput, {
-      hint: () => suggestCheck.checked ? "Replacement text" : pendingAbout ? "About the layer" : "Comment\u2026",
-      sends: () => suggestCheck.checked ? "suggest" : "comment",
+      hint: () => suggestionMode ? "Replacement text" : pendingAbout ? "About the layer" : "Comment\u2026",
+      sends: () => suggestionMode ? "suggest" : "comment",
       sendBtn: composerSend,
-      allowsMedia: () => suggestCheck.checked ? "Images can be added to comments, not replacement text" : true,
+      allowsMedia: () => suggestionMode ? "Images can be added to comments, not replacement text" : true,
       hasContent: holdsContent,
       save: saveComposerDraft,
       drawing: {
@@ -1700,7 +1694,7 @@ function createSelectionComposer({
         const anchor = structuredClone(pendingAnchor);
         const revision = pendingRevision;
         const ctx = composerCtx(anchor);
-        const suggestion = suggestCheck.checked;
+        const suggestion = suggestionMode;
         const about = pendingAbout;
         const drawing = pendingDrawing && sentDrawing(structuredClone(pendingDrawing));
         const transition = threadTransitionOrigin?.(composerInput, fabFrameAt());
@@ -1750,8 +1744,7 @@ function createSelectionComposer({
         }
       }
     });
-    suggestCheck.onchange = () => setSuggestionMode(suggestCheck.checked);
-    fabSuggest.onclick = () => setSuggestionMode(!suggestCheck.checked);
+    fabSuggest.onclick = () => setSuggestionMode(!suggestionMode);
     onStanding((node) => {
       if (node && responseOptionsOpen && !fabBar.contains(node))
         setResponseOptions(false);
@@ -8461,7 +8454,6 @@ export {
   textField,
   fabBar,
   fabInput,
-  fab,
   composerQuote,
   pendingAnchor,
   pendingAbout,

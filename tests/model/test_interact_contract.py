@@ -3859,9 +3859,7 @@ def test_the_events_reference_names_the_fields_each_kind_declares():
     assert {name for name in described_once if f"`{name}`" not in opening} == set()
 
     listed, rows = [], {}
-    for kind, _author, _door, cell, _meaning in itertools.batched(
-        cells[5:], 5, strict=True
-    ):
+    for kind, _author, _door, cell, _meaning in itertools.batched(cells[5:], 5):
         while (bare := re.sub(r"\([^()]*\)", "", cell)) != cell:
             cell = bare
         listed.append(kind.strip("`"))

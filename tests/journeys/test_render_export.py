@@ -353,10 +353,11 @@ def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
     )
     prefix, default = preview_slot
     installed = install_payload(tmp_path / "other-runtime")
-    runtime_marker = "/* preview runtime marker */"
+    runtime_marker = "selected-preview-runtime"
     installed_runtime = installed / "skills" / "leaf" / "assets" / "leaf.js"
     installed_runtime.write_text(
-        installed_runtime.read_text(encoding="utf-8") + f"\n{runtime_marker}\n",
+        installed_runtime.read_text(encoding="utf-8")
+        + f"\nglobalThis.__previewRuntimeMarker = {json.dumps(runtime_marker)};\n",
         encoding="utf-8",
     )
     slots = [f"{prefix}-before", f"{prefix}-after"]
@@ -388,12 +389,13 @@ def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
     assert all(
         page.joinpath("index.html").read_text() == source.read_text() for page in pages
     )
-    assert runtime_marker not in pages[0].joinpath("leaf.js").read_text()
-    assert runtime_marker in pages[1].joinpath("leaf.js").read_text()
-
-    for url, runtime in zip(urls, runtimes, strict=True):
+    for url, runtime, expected_marker in zip(
+        urls, runtimes, [None, runtime_marker], strict=True
+    ):
         page = browser.new_page(viewport={"width": 1200, "height": 900})
         page.goto(url, wait_until="load")
+        wait_until_ready(page)
+        assert page.evaluate("globalThis.__previewRuntimeMarker") == expected_marker
         expect(page.locator(".lf-preview")).to_contain_text(f"Preview · {runtime.name}")
         expect(
             page.get_by_role("heading", name="Shared runtime comparison")

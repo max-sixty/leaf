@@ -240,7 +240,7 @@
     "runtime/user-view.js": "bfbb8c68b48bd8da794309949f890d788b7859ff1c1c285a5be04eae55c32bd4",
     "runtime/validation.js": "5d24831b842b0f40fa722e7f5dc5074819c1de61aff8a2d22f571b42d21703a0",
     "runtime/version-picker.js": "8951bcd3ac3712eb6701e34e11977138a15fca2945a23a70042d9ec4e8c11b89",
-    "runtime/version.js": "82fc539456e81166a6e56727a351383eb6147eb8758ddbba5d1fd29a919d346d",
+    "runtime/version.js": "2b12b62db44e0aa7fb381ffdd6a4ab8f99413622661ec898761579beb08ba625",
     "runtime/visible-target-parts.js": "c22e7cecd6407854ed4e63e0bcf0c8962cc9cc1075cdb30726d3e1aa2dd0e70b",
     "runtime/visual-parts.js": "5c7d8ebee59ea72fdfc5de099114ee6707fadd67310e7c623153b8f5ca4582b5",
     "runtime/walk-position.js": "783e4b31bebdc8fbcc260293bae3646779c4b056383c548508d5616c51138b0e",

@@ -2137,11 +2137,6 @@ def test_one_shared_added_option_has_one_action_payload_across_tabs(
     round_trip(first)
     # The forged selection is not the state's, so the `add` renders it away and the pick
     # that follows in the same task puts it back.
-    consume_browser_errors(
-        first,
-        {"code": "unchanged-write", "what": "chosen", "node": "lf-option#job-mounts"},
-    )
-
     moves = [
         event
         for event in events_model.read_events(serve.page_dir)

@@ -13,10 +13,10 @@ from .activity import Turn, current_turn, declared_at, takes_input
 from .event_log import read_cursor
 from .files import file_stamp, read_json
 from .harness import claim_harness
-from .leases import wait_is_live, waiter_lease_path
+from .leases import lock_is_held, wait_is_live, waiter_lease_path
 from .machine import state_home
 from .page_memory import memo
-from .schema import UNNAMED_AGENT, VIEWED_FILE
+from .schema import SERVER_LOCK, UNNAMED_AGENT, VIEWED_FILE
 from .server import running_server
 from .service import (
     PageTransaction,
@@ -49,11 +49,13 @@ class _Neighbors:
         self.token = None
 
 
-def _neighbor_reading(page_dir: Path) -> list:
-    """Local page writes do not invalidate a machine's neighbor observation.
+def neighbor_reading(page_dir: Path) -> list:
+    """The page's one reading of its neighbours (`other_leaves`), which its state
+    answer and its news fingerprint both take, so the two never disagree.
 
-    Producer writes invalidate it immediately; kernel lease changes have the same
-    bounded two-second observation interval as the page's other live facts.
+    Local page writes do not invalidate it. Producer writes invalidate it
+    immediately; kernel lease changes have the same bounded two-second observation
+    interval as the page's other live facts.
     """
     candidates = neighbor_candidates()
     own = page_dir.resolve()
@@ -131,13 +133,16 @@ def other_leaves(page_dir: Path) -> list:
     Each candidate costs its server lease/service and one disposable row read.
     Never open another page's log, document, or projection. A row belongs to
     the server incarnation that computed it; absent or older rows stay absent.
+    Nothing else removes a row, so this scan deletes one whose server lease no
+    process holds. A server that takes the lease again republishes its missing
+    row within one look (`RowPublisher.refresh`).
 
     Each entry names its page by `page_key`, the identity the page's own state-home
     records already use, and links it by `url`. The two are separate because a page
     outlives its server: a restart may serve the same page at a new port, which
     changes where the row leads and not which page it is.
     """
-    from .server_rows import read_row
+    from .server_rows import read_row, row_path
 
     others = []
     own = page_dir.resolve()
@@ -151,6 +156,8 @@ def other_leaves(page_dir: Path) -> list:
         try:
             info = running_server(candidate)
             if info is None:
+                if not lock_is_held(candidate / SERVER_LOCK):
+                    row_path(candidate).unlink(missing_ok=True)
                 continue
             row = read_row(candidate, info, record=record)
             if row is not None and row["activity"]["kind"] != "closed":
@@ -338,7 +345,7 @@ def presence_reading(page_dir: Path, files: str) -> str:
     # here invalidates the token when the lease is first created or removed. An
     # unclaimed page's lease is in the page directory, so `files` covers it.
     lease = file_stamp(waiter_lease_path(None, claim["id"])) if claim else None
-    neighbors = _neighbor_reading(page_dir)
+    neighbors = neighbor_reading(page_dir)
     stamp = (files, lease, neighbors)
     now = time.monotonic()
     kept = memo(page_dir, _Presence)

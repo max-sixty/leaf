@@ -325,28 +325,30 @@ test("a returning owner draws a reading again only where its paint did not finis
   }
 });
 
-test("a reading paint's clock repaint fails by the same rule, reported once", async () => {
+test("a watcher's clock repaint fails by the reading paint's rule, reported once", async () => {
   const { reportCarried } = await import("/runtime/layer-client.js");
+  const { watchProjection } = await import("/runtime/projection-watch.js");
   const owner = document.createElement("section");
   owner.id = "clocked";
   await mutate(() => document.body.append(owner));
   let clock = 0;
-  const paint = readingPaint(owner, () => {
+  const stop = watchProjection(owner, () => {
     if (clockValue(() => clock)) throw new Error("clock refused");
   });
   const reports = [];
   const consoleError = console.error;
   console.error = (line) => reports.push(line.split("\n")[0]);
   try {
-    paint("reading");
+    await Promise.resolve();
     clock = 1;
     await tickClock(reportCarried);
+    await Promise.resolve();
     assert.deepEqual(reports, [
       "leaf: paint failed for section#clocked: clock refused",
     ]);
   } finally {
     console.error = consoleError;
-    paint.stop();
+    stop();
     owner.remove();
   }
 });

@@ -179,7 +179,6 @@ export { alignText } from "./text-alignment.js";
 export { inChrome, says, wrote } from "./passages.js";
 export {
   ago,
-  clocked,
   clockValue,
   quietSince,
   readingPaint,

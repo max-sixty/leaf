@@ -320,8 +320,10 @@ function placeCorrection({
   const reflowed = withinTask || limit < held.limit && held.scrollTop > limit && scrollTop === limit ? scrollTop - held.scrollTop : 0;
   return now - was - reflowed;
 }
+var heldScrollers = /* @__PURE__ */ new WeakMap();
 function placeKeeper(scroller, { items, identity, active = () => true, preferred = () => null }) {
   let current = null;
+  const owner = {};
   const limit = () => scrollLimit(scroller);
   const heldBox = (node) => {
     if (!node?.isConnected || !scroller.contains(node) || !node.matches(items) || !node.checkVisibility())
@@ -347,12 +349,14 @@ function placeKeeper(scroller, { items, identity, active = () => true, preferred
     } else if (!returning && scroller.style.getPropertyValue("overflow-anchor"))
       returning = nextRender(() => {
         returning = 0;
-        if (!current?.spans) scroller.style.removeProperty("overflow-anchor");
+        if (!heldScrollers.has(scroller))
+          scroller.style.removeProperty("overflow-anchor");
       });
   }
   function release2(hold) {
     if (current !== hold) return;
     current = null;
+    if (heldScrollers.get(scroller) === owner) heldScrollers.delete(scroller);
     if (hold.spans) claim();
   }
   function correct(hold) {
@@ -380,9 +384,13 @@ function placeKeeper(scroller, { items, identity, active = () => true, preferred
     return true;
   }
   function take({ spans: spans2 = true } = {}) {
+    if (heldScrollers.has(scroller) && heldScrollers.get(scroller) !== owner)
+      return null;
     const prior = current;
     if (prior) correct(prior);
     current = heldPlace(prior, spans2);
+    if (current) heldScrollers.set(scroller, owner);
+    else if (heldScrollers.get(scroller) === owner) heldScrollers.delete(scroller);
     if (spans2 || prior?.spans) claim();
     return current;
   }

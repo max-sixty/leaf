@@ -123,11 +123,17 @@ export function placeCorrection({
   return now - was - reflowed;
 }
 
+// A scroller has one anchoring authority at a time. A card painting inside a list's
+// presentation can take its own local hold, but the list's enclosing hold already
+// pays for that reflow; two independent keepers would scroll by the same growth twice.
+const heldScrollers = new WeakMap();
+
 export function placeKeeper(
   scroller,
   { items, identity, active = () => true, preferred = () => null },
 ) {
   let current = null;
+  const owner = {};
   const limit = () => scrollLimit(scroller);
   // The box a node can hold the place by, or null where it holds nothing.
   const heldBox = (node) => {
@@ -169,13 +175,15 @@ export function placeKeeper(
     } else if (!returning && scroller.style.getPropertyValue("overflow-anchor"))
       returning = nextRender(() => {
         returning = 0;
-        if (!current?.spans) scroller.style.removeProperty("overflow-anchor");
+        if (!heldScrollers.has(scroller))
+          scroller.style.removeProperty("overflow-anchor");
       });
   }
 
   function release(hold) {
     if (current !== hold) return;
     current = null;
+    if (heldScrollers.get(scroller) === owner) heldScrollers.delete(scroller);
     if (hold.spans) claim();
   }
 
@@ -210,9 +218,13 @@ export function placeKeeper(
   }
 
   function take({ spans = true } = {}) {
+    if (heldScrollers.has(scroller) && heldScrollers.get(scroller) !== owner)
+      return null;
     const prior = current;
     if (prior) correct(prior);
     current = heldPlace(prior, spans);
+    if (current) heldScrollers.set(scroller, owner);
+    else if (heldScrollers.get(scroller) === owner) heldScrollers.delete(scroller);
     if (spans || prior?.spans) claim();
     return current;
   }

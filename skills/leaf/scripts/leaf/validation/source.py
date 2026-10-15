@@ -146,7 +146,7 @@ def _instance_errors(
     """Validate authored instances against their document's event and id namespace."""
     if registry is None:
         return []
-    errors = instance_errors(parser.lf_elements, registry)
+    errors = instance_errors(parser, registry)
     errors.extend(
         reference_errors(parser.lf_elements, registry, parser.ids, parser.by_id)
     )

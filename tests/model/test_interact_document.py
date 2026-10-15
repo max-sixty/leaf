@@ -53,6 +53,7 @@ from interact_support import (
     state_json,
     write_revision,
 )
+from leaf import agent_state as agent_state_model
 from leaf import anchor_capture as anchor_capture_model
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -3734,6 +3735,38 @@ def test_a_cold_source_check_reads_no_revision_history(page_dir, monkeypatch):
         activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and not activated.created, activated
     assert parsed == [active.read_text()]
+
+
+def test_a_cold_page_state_reads_only_the_element_index_of_history(
+    page_dir, monkeypatch
+):
+    """A new process scans every revision for the ids, asks and data bindings it
+    declared, and building each one's authoring indexes, which only a check reads,
+    was most of what a command on a long page cost. A document builds its element
+    index as it is read and the rest on first use, so only the candidate and the
+    active revision are read whole. The withdrawn ask is the control: it is known
+    only from the revision that asked."""
+    source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    for edit in range(4):
+        (page_dir / "index.html").write_text(
+            (source if edit == 0 else source.replace(" choose", "")).replace(
+                "</main>", f"<p>edit {edit}</p></main>"
+            )
+        )
+        activated = revisioning_model.activate_source(page_dir)
+        assert activated.error is None, activated.error
+    active = files_model.revision_path(page_dir, files_model.latest_revision(page_dir))
+    authored = []
+    native = structure_model._Authoring
+    monkeypatch.setattr(
+        structure_model,
+        "_Authoring",
+        lambda document: authored.append(document.html) or native(document),
+    )
+    with fresh_process():
+        state = agent_state_model.cmd_page_state(page_dir)
+    assert [ask["status"] for ask in state["asks"]] == ["withdrawn"]
+    assert set(authored) == {active.read_text()}
 
 
 def test_ask_history_survives_parse_eviction_and_new_revisions(page_dir, monkeypatch):

@@ -208,7 +208,7 @@ def unasked(rec: dict, entry: dict) -> dict:
     }
 
 
-def ask_context_errors(lf_elements: list, registry: dict) -> list[Finding]:
+def ask_context_errors(document: SourceDocument, registry: dict) -> list[Finding]:
     """A context supplies a leading title and arrival region for nested asks.
 
     Context never owns ask identity or registration. Any number of sources
@@ -228,6 +228,7 @@ def ask_context_errors(lf_elements: list, registry: dict) -> list[Finding]:
             None,
         )
 
+    lf_elements = document.lf_elements
     regions = [
         rec for rec in lf_elements if registry.get(rec["tag"], {}).get("x-ask-context")
     ]
@@ -255,7 +256,7 @@ def ask_context_errors(lf_elements: list, registry: dict) -> list[Finding]:
         # The ask's title is what the shared name rule reads, so this asks that rule
         # rather than restating a shape it accepts. It must be a heading as well, the
         # question's place in the outline and in heading navigation.
-        title = leading_title_node(region["node"])
+        title = leading_title_node(document.node_of(region))
         if not title or title["tag"] not in {f"h{n}" for n in range(1, 7)}:
             errors.append(found_at("ask-context-title", region))
     return errors
@@ -518,14 +519,15 @@ def suggestion_errors(
     return errors
 
 
-def instance_errors(lf_elements: list, registry: dict) -> list[Finding]:
+def instance_errors(document: SourceDocument, registry: dict) -> list[Finding]:
     """Every instance check that needs only the registry, no id namespace, so a new
     check of that kind reaches page source and message markup alike."""
+    lf_elements = document.lf_elements
     return (
         widget_errors(lf_elements, registry)
         + layout_errors(lf_elements, registry)
         + addressable_instance_errors(lf_elements, registry)
-        + ask_context_errors(lf_elements, registry)
+        + ask_context_errors(document, registry)
         + declared_word_errors(lf_elements, registry)
         + unique_errors(lf_elements, registry)
     )
@@ -538,4 +540,4 @@ def fragment_errors(parser: SourceDocument, registry: dict) -> list[Finding]:
     <lf-code language=…> is colored by the same tokenizer a version's is, and its chips
     are tinted by the same theme, and nothing else would now refuse either a word its
     layer doesn't know."""
-    return structure_errors(parser) + instance_errors(parser.lf_elements, registry)
+    return structure_errors(parser) + instance_errors(parser, registry)

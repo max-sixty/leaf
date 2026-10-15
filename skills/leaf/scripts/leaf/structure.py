@@ -2,6 +2,8 @@
 
 import hashlib
 import re
+import threading
+from functools import cached_property
 from html import escape
 from urllib.parse import urlsplit
 
@@ -197,6 +199,12 @@ def source_index(source: str):
     return lambda line, column: lines[line - 1] + column
 
 
+def _start(element) -> tuple[int, int]:
+    """Where a source element's start tag begins: its identity across walks."""
+    start = element.source_location.start_tag
+    return (start.start_line, start.start_col)
+
+
 def element_attrs(element) -> dict:
     """An element's attributes as its source spells them, a token list joined."""
     return {
@@ -275,17 +283,283 @@ class SourceDocument:
     tree-building grammar, and it keeps foreign SVG as exact source rather than
     reconstructing it.
 
+    Construction reads only the element index: ids and their holders, the lf-*
+    records and the live samples. A scan of a page's whole revision history reads
+    nothing else of each revision, and the rest cost twenty times the tree's parse.
+    Everything else (`AUTHORING`) is read in one more walk the first time any of it
+    is asked for, under a lock, and published whole, so no reader sees a partial
+    index. An lf-* record's `node` is filled by that walk; `node_of` reads it.
+
     Registry examples are fragments, so `fragment=True` parses in template context:
     table rows, cells and select options survive without a surrounding document.
     """
+
+    # The indexes the authoring walk publishes on first use (`_Authoring`).
+    AUTHORING = frozenset(
+        {
+            "errors",
+            "unclosed",
+            "external_scripts",
+            "inline_scripts",
+            "links",
+            "document_declarations",
+            "named_metas",
+            "body_lines",
+            "head_lines",
+            "head_elements",
+            "main_elements",
+            "outside_main",
+            "media_refs",
+            "page_resource_refs",
+            "style_blocks",
+            "inline_styles",
+            "authored_allocations",
+            "title",
+            "bare_blocks",
+            "reserved_markers",
+            "content",
+            "nodes",
+            "wrapper_tags",
+        }
+    )
 
     def __init__(self, source: str, *, fragment: bool = False):
         self.html = source
         self.data = source.encode("utf-8")
         self.digest = f"sha256:{hashlib.sha256(self.data).hexdigest()}"
+        self.all_ids = []
+        # {tag, line, attrs, parent, direct, children, text, body, holder, node}
+        self.lf_elements = []
+        self.samples = []
+        # id → the record of the innermost lf-* element standing around it, an
+        # element's own id standing in itself. Where an id lives is structure; which of
+        # those elements is a slot a decision retires and which widget holds it is the
+        # registry's word, read by whoever has one, so this parse need not know a widget
+        # by name. Containment as enclosing ids, which liveness reads, is
+        # `passages.enclosing_ids`.
+        self.holders = {}
+        self._source = source
+        # The record of each lf-* element, by where its start tag begins, for the
+        # authoring walk: the parser hands out a new object per visit of an element.
+        self._records = {}
+        self._authoring = threading.Lock()
+        self.tree = (
+            turbohtml.parse_fragment(
+                source, context="template", scripting=True, source_locations=True
+            ).parent
+            if fragment
+            else turbohtml.parse(source, scripting=True, source_locations=True)
+        )
+        for child in self.tree.children:
+            if isinstance(child, turbohtml.Element):
+                self._index(child, holder=None, in_svg=False)
+
+    def __getattr__(self, name: str):
+        """Read the authoring indexes on first use of any of them."""
+        if name not in SourceDocument.AUTHORING:
+            raise AttributeError(name)
+        with self._authoring:
+            if name not in vars(self):
+                vars(self).update(vars(_Authoring(self)))
+        return vars(self)[name]
+
+    @cached_property
+    def _source_index(self):
+        return source_index(self._source)
+
+    def node_of(self, record: dict) -> dict | None:
+        """The content node of one of this document's lf-* records, or None for
+        one inside SVG, which keeps its exact source rather than a tree."""
+        self.content  # noqa: B018 - the authoring walk links each record's node
+        return record["node"]
+
+    @staticmethod
+    def _position(element) -> tuple[int, int]:
+        current = element
+        while current is not None:
+            if current.position is not None:
+                return current.position
+            current = current.parent
+        return (1, 0)
+
+    def offsets(self, span) -> tuple[int, int]:
+        """Where one of the parser's source spans starts and ends in this source, so
+        a caller can splice the source at an element's own tags."""
+        return (
+            self._source_index(span.start_line, span.start_col),
+            self._source_index(span.end_line, span.end_col),
+        )
+
+    def _span_source(self, span) -> str:
+        start, end = self.offsets(span)
+        return self._source[start:end]
+
+    @staticmethod
+    def _source_element(element) -> bool:
+        return element.source_location is not None
+
+    def _index(self, element, *, holder: dict | None, in_svg: bool) -> None:
+        """Record ids, their holders, lf-* elements and live samples: all a history
+        scan reads, so the one walk construction takes."""
+        tag = element.tag
+        located = element.source_location is not None
+        record = None
+        if located and (tag.startswith("lf-") or element.attrs.get("id")):
+            attrs = element_attrs(element)
+            identity = attrs.get("id")
+            if identity:
+                self.all_ids.append(identity)
+                self.holders[identity] = holder
+            if tag.startswith("lf-"):
+                parent = element.parent
+                record = {
+                    "tag": tag,
+                    "line": self._position(element)[0],
+                    "attrs": attrs,
+                    "parent": parent.tag
+                    if isinstance(parent, turbohtml.Element)
+                    else None,
+                    "direct": [],
+                    "children": [],
+                    "text": False,
+                    "body": "",
+                    "holder": holder,
+                    "node": None,
+                }
+                self.lf_elements.append(record)
+                self._records[_start(element)] = record
+                if identity:
+                    self.holders[identity] = record
+
+        if in_svg or (located and tag == "svg"):
+            for child in element.children:
+                if isinstance(child, turbohtml.Element):
+                    self._index(child, holder=holder, in_svg=True)
+            return
+
+        if record is not None:
+            self._record_direct_contents(record, element)
+        for child in element.children:
+            if isinstance(child, turbohtml.Element):
+                self._index(child, holder=record or holder, in_svg=False)
+
+        if tag == "template" and "data-sample" in element.attrs:
+            self._sample_resources(element)
+
+    @staticmethod
+    def _record_direct_contents(record: dict, element) -> None:
+        for child in element.children:
+            if isinstance(child, turbohtml.Element):
+                record["children"].append(child.tag)
+                record["direct"].append(child.tag)
+            elif isinstance(child, turbohtml.Text) and child.data.strip():
+                record["text"] = True
+                record["direct"].append("#text")
+        if (body := pre_body(element)) is not None:
+            record["body"] = body
+
+    def _sample_resources(self, template) -> None:
+        """Read the complete child document without merging its identity space.
+
+        The template owns the child's body declarations; their values are validated
+        once on that synthesized body by the ordinary child document reader.
+        """
+        attrs = element_attrs(template)
+        location = template.source_location
+        content_start = self._source_index(
+            location.start_tag.end_line, location.start_tag.end_col
+        )
+        content_end = (
+            self._source_index(location.end_tag.start_line, location.end_tag.start_col)
+            if location.end_tag
+            else len(self._source)
+        )
+        body = "".join(
+            f' {name}="{escape(value)}"'
+            for name, value in attrs.items()
+            if name in PAGE_ALLOCATIONS
+        )
+        source = (
+            '<!doctype html><html lang="en"><head>'
+            '<meta name="viewport" content="width=device-width, initial-scale=1">'
+            f"<title>{escape(attrs.get('id', 'Sample'))}</title></head>"
+            # The template is the child's content, not its frame. The child is a column
+            # page unless the template names its `main`'s classes, as a workspace's
+            # `layout-workspace` does, since a document's Layout is not every page's.
+            f'<body{body}><main class="{escape(attrs.get("class") or "layout-column")}">'
+            # Preserve authored lines, including multiline tags in nested samples.
+            + "\n" * (location.start_tag.end_line - 1)
+            + self._source[content_start:content_end]
+            + "</main></body></html>"
+        )
+        self.samples.append(
+            {
+                "attrs": attrs,
+                "document": SourceDocument(source),
+            }
+        )
+
+    @property
+    def ids(self) -> set:
+        return set(self.all_ids)
+
+    @property
+    def by_id(self) -> dict:
+        """id → its element record, for every id-bearing lf-* element."""
+        return {r["attrs"]["id"]: r for r in self.lf_elements if r["attrs"].get("id")}
+
+    @property
+    def restated(self) -> set:
+        """Ids this version declares it has rewritten, retracting whatever the
+        user had recorded on them."""
+        return {
+            rec["attrs"]["id"]
+            for rec in self.lf_elements
+            if rec["attrs"].get("id") and "restated" in rec["attrs"]
+        }
+
+    @property
+    def overruled(self) -> set:
+        """Ids this version declares it keeps its own state on, over a worker's
+        report in force — the agent writer's mirror of `restated`."""
+        return {
+            rec["attrs"]["id"]
+            for rec in self.lf_elements
+            if rec["attrs"].get("id") and "overruled" in rec["attrs"]
+        }
+
+    @property
+    def duplicate_ids(self) -> list:
+        seen, dupes = set(), set()
+        for i in self.all_ids:
+            (dupes if i in seen else seen).add(i)
+        return sorted(dupes)
+
+    @property
+    def reserved_ids(self) -> list:
+        """Ids that trespass on the runtime's own namespace (see id_errors)."""
+        return sorted({i for i in self.all_ids if i.startswith("lf-")})
+
+    @property
+    def event_shaped_ids(self) -> list:
+        """Ids in the log's own event-id shape (see id_errors)."""
+        return sorted({i for i in self.all_ids if re.fullmatch(EVENT_ID, i)})
+
+    @property
+    def spaced_ids(self) -> list:
+        """Ids holding ASCII whitespace, which HTML forbids in one (see id_errors)."""
+        return sorted({i for i in self.all_ids if not ASCII_WHITESPACE.isdisjoint(i)})
+
+
+class _Authoring:
+    """The indexes a check reads of a `SourceDocument` beyond its element index,
+    read in one walk of the document's tree. Its attributes are exactly
+    `SourceDocument.AUTHORING`, which the document publishes whole."""
+
+    def __init__(self, document: SourceDocument):
+        self._document = document
         self.errors = []
         self.unclosed = []  # source elements whose required end tag is absent
-        self.all_ids = []
         # {attrs, parent, position, early_head} per external asset. Applicability and
         # placement belong to the asset record: parallel lists made one fact several
         # representations and let a later parser edit silently misalign them.
@@ -323,16 +597,6 @@ class SourceDocument:
         # {tag, line, attr, value} per authored allocation: a data-width or data-bound.
         self.authored_allocations = []
         self.title = ""  # what <title> says, for the transcript's heading
-        # {tag, line, attrs, parent, direct, children, text, body, holder}
-        self.lf_elements = []
-        self.samples = []
-        # id → the record of the innermost lf-* element standing around it, an
-        # element's own id standing in itself. Where an id lives is structure; which of
-        # those elements is a slot a decision retires and which widget holds it is the
-        # registry's word, read by whoever has one, so this parse need not know a widget
-        # by name. Containment as enclosing ids, which liveness reads, is
-        # `passages.enclosing_ids`.
-        self.holders = {}
         # {tag, line, under} per id-less pointable block, where under is the nearest
         # ancestor carrying an id. This is where a user's aim would otherwise land.
         self.bare_blocks = []
@@ -344,42 +608,19 @@ class SourceDocument:
         # tree, with no reconstructed HTML or parent objects.
         self.content = []
         self.nodes = []
-        self.tree = None
-        self._source = source
-        self._source_index = source_index(source)
-        self._first_body_position = None
         # (start, end) of the first html, head, and body start tag the source spells:
         # where delivery writes into the document.
         self.wrapper_tags = {}
-        self._finish(fragment=fragment)
-
-    @staticmethod
-    def _position(element) -> tuple[int, int]:
-        current = element
-        while current is not None:
-            if current.position is not None:
-                return current.position
-            current = current.parent
-        return (1, 0)
-
-    def offsets(self, span) -> tuple[int, int]:
-        """Where one of the parser's source spans starts and ends in this source, so
-        a caller can splice the source at an element's own tags."""
-        return (
-            self._source_index(span.start_line, span.start_col),
-            self._source_index(span.end_line, span.end_col),
-        )
-
-    def _span_source(self, span) -> str:
-        start, end = self.offsets(span)
-        return self._source[start:end]
-
-    @staticmethod
-    def _source_element(element) -> bool:
-        return element.source_location is not None
+        self._first_body_position = None
+        self._source_errors()
+        for child in document.tree.children:
+            if isinstance(child, turbohtml.Element):
+                self._visit(child, self.content)
+        del self._document, self._first_body_position
 
     def _source_errors(self) -> None:
-        tokens = list(turbohtml.tokenize(self._source, capture_source=True))
+        document = self._document
+        tokens = list(turbohtml.tokenize(document._source, capture_source=True))
         body_starts = [
             token
             for token in tokens
@@ -401,7 +642,7 @@ class SourceDocument:
                 "head",
                 "body",
             }:
-                start = self._source_index(token.line, token.col)
+                start = document._source_index(token.line, token.col)
                 self.wrapper_tags.setdefault(
                     token.tag, (start, start + len(token.source))
                 )
@@ -410,20 +651,20 @@ class SourceDocument:
             for token in tokens
             if token.type is turbohtml.TokenType.START_TAG
         }
-        for element in self.tree.descendants:
+        for element in document.tree.descendants:
             if not isinstance(element, turbohtml.Element):
                 continue
             location = element.source_location
             if location is None or location.end_tag is not None:
                 continue
-            start_source = self._span_source(location.start_tag).rstrip()
+            start_source = document._span_source(location.start_tag).rstrip()
             if (
                 element.tag not in VOID_TAGS | OPTIONAL_END
                 and not start_source.endswith("/>")
             ):
                 self.unclosed.append((element.tag, element.source_line))
 
-        for error in self.tree.errors:
+        for error in document.tree.errors:
             if error.code == "non-void-html-element-start-tag-with-trailing-solidus":
                 token = starts.get((error.line, error.col))
                 tag = token.tag if token is not None else "element"
@@ -438,10 +679,9 @@ class SourceDocument:
         *,
         parent_tag: str | None,
         ancestors: tuple,
-        holder: dict | None,
-    ) -> dict | None:
+    ) -> None:
         tag = element.tag
-        line, column = self._position(element)
+        line, column = SourceDocument._position(element)
         before_body = (
             self._first_body_position is None
             or (
@@ -450,11 +690,6 @@ class SourceDocument:
             )
             < self._first_body_position
         )
-        identity = attrs.get("id")
-        if identity:
-            self.all_ids.append(identity)
-            self.holders[identity] = holder
-
         in_head = "head" in ancestors
         in_main = "main" in ancestors
         if tag == "script":
@@ -535,139 +770,55 @@ class SourceDocument:
         ):
             self.outside_main.append({"tag": tag, "line": line, "text": False})
 
-        if tag.startswith("lf-"):
-            record = {
-                "tag": tag,
-                "line": line,
-                "attrs": attrs,
-                "parent": parent_tag,
-                "direct": [],
-                "children": [],
-                "text": False,
-                "body": "",
-                "holder": holder,
-                "node": None,
-            }
-            self.lf_elements.append(record)
-            if identity:
-                self.holders[identity] = record
-            return record
-        return None
-
-    @staticmethod
-    def _record_direct_contents(record: dict, element) -> None:
-        for child in element.children:
-            if isinstance(child, turbohtml.Element):
-                record["children"].append(child.tag)
-                record["direct"].append(child.tag)
-            elif isinstance(child, turbohtml.Text) and child.data.strip():
-                record["text"] = True
-                record["direct"].append("#text")
-        if (body := pre_body(element)) is not None:
-            record["body"] = body
-
-    def _sample_resources(self, template) -> None:
-        """Read the complete child document without merging its identity space.
-
-        The template owns the child's body declarations; their values are validated
-        once on that synthesized body by the ordinary child document reader.
-        """
-        attrs = element_attrs(template)
-        location = template.source_location
-        content_start = self._source_index(
-            location.start_tag.end_line, location.start_tag.end_col
-        )
-        content_end = (
-            self._source_index(location.end_tag.start_line, location.end_tag.start_col)
-            if location.end_tag
-            else len(self._source)
-        )
-        if not attrs.get("id"):
-            line, _ = self._position(template)
-            self.errors.append(Finding("unnamed-sample", "<template>", {"line": line}))
-        body = "".join(
-            f' {name}="{escape(value)}"'
-            for name, value in attrs.items()
-            if name in PAGE_ALLOCATIONS
-        )
-        source = (
-            '<!doctype html><html lang="en"><head>'
-            '<meta name="viewport" content="width=device-width, initial-scale=1">'
-            f"<title>{escape(attrs.get('id', 'Sample'))}</title></head>"
-            # The template is the child's content, not its frame. The child is a column
-            # page unless the template names its `main`'s classes, as a workspace's
-            # `layout-workspace` does, since a document's Layout is not every page's.
-            f'<body{body}><main class="{escape(attrs.get("class") or "layout-column")}">'
-            # Preserve authored lines, including multiline tags in nested samples.
-            + "\n" * (location.start_tag.end_line - 1)
-            + self._source[content_start:content_end]
-            + "</main></body></html>"
-        )
-        self.samples.append(
-            {
-                "attrs": attrs,
-                "document": SourceDocument(source),
-            }
-        )
-
     def _visit(
         self,
         element,
         output: list,
         *,
         ancestors: tuple = (),
-        holder: dict | None = None,
         in_svg: bool = False,
     ) -> None:
-        source_element = self._source_element(element)
+        document = self._document
+        source_element = document._source_element(element)
         skip_implied = not source_element
         parent = element.parent
         parent_tag = parent.tag if isinstance(parent, turbohtml.Element) else None
-        attrs = element_attrs(element)
-        line, column = self._position(element)
+        record = document._records.get(_start(element)) if source_element else None
+        # A record and its node share one attribute dict, as they share one element.
+        attrs = record["attrs"] if record is not None else element_attrs(element)
+        line, column = document._position(element)
 
-        record = None
         if source_element:
-            record = self._record_element(
-                element,
-                attrs,
-                parent_tag=parent_tag,
-                ancestors=ancestors,
-                holder=holder,
+            self._record_element(
+                element, attrs, parent_tag=parent_tag, ancestors=ancestors
             )
 
         if source_element and not in_svg:
             if element.tag == "head":
                 direct = isinstance(parent, turbohtml.Element) and parent.tag == "html"
                 self.head_elements.append(
-                    (line, direct and self._source_element(parent))
+                    (line, direct and document._source_element(parent))
                 )
             elif element.tag == "main":
                 direct = isinstance(parent, turbohtml.Element) and parent.tag == "body"
                 self.main_elements.append(
-                    (line, direct and self._source_element(parent))
+                    (line, direct and document._source_element(parent))
                 )
 
         next_ancestors = (*ancestors, element.tag)
         if in_svg:
             for child in element.children:
                 if isinstance(child, turbohtml.Element):
-                    self._visit(
-                        child,
-                        output,
-                        ancestors=next_ancestors,
-                        holder=holder,
-                        in_svg=True,
-                    )
+                    self._visit(child, output, ancestors=next_ancestors, in_svg=True)
             return
 
         if source_element and element.tag == "svg":
             location = element.source_location
             end = location.end_tag or location.start_tag
-            markup = self._source[
-                self._source_index(
+            markup = document._source[
+                document._source_index(
                     location.start_tag.start_line, location.start_tag.start_col
-                ) : self._source_index(end.end_line, end.end_col)
+                ) : document._source_index(end.end_line, end.end_col)
             ]
             node = {
                 "tag": element.tag,
@@ -681,13 +832,7 @@ class SourceDocument:
             self.nodes.append(node)
             for child in element.children:
                 if isinstance(child, turbohtml.Element):
-                    self._visit(
-                        child,
-                        output,
-                        ancestors=next_ancestors,
-                        holder=holder,
-                        in_svg=True,
-                    )
+                    self._visit(child, output, ancestors=next_ancestors, in_svg=True)
             return
 
         child_output = output
@@ -719,18 +864,9 @@ class SourceDocument:
                     {"tag": element.tag, "line": line, "under": under}
                 )
 
-        next_holder = record or holder
-        if record is not None:
-            self._record_direct_contents(record, element)
-
         for child in element.children:
             if isinstance(child, turbohtml.Element):
-                self._visit(
-                    child,
-                    child_output,
-                    ancestors=next_ancestors,
-                    holder=next_holder,
-                )
+                self._visit(child, child_output, ancestors=next_ancestors)
             elif isinstance(child, turbohtml.Text):
                 child_output.append(child.data)
                 if (
@@ -742,8 +878,8 @@ class SourceDocument:
                         {"tag": element.tag, "line": line, "text": True}
                     )
 
-        if element.tag == "template" and "data-sample" in attrs:
-            self._sample_resources(element)
+        if element.tag == "template" and "data-sample" in attrs and not attrs.get("id"):
+            self.errors.append(Finding("unnamed-sample", "<template>", {"line": line}))
 
         if element.tag == "style":
             self.style_blocks.append(
@@ -751,73 +887,6 @@ class SourceDocument:
             )
         elif element.tag == "title":
             self.title += element.text
-
-    def _finish(self, *, fragment: bool):
-        self.tree = (
-            turbohtml.parse_fragment(
-                self._source,
-                context="template",
-                scripting=True,
-                source_locations=True,
-            ).parent
-            if fragment
-            else turbohtml.parse(self._source, scripting=True, source_locations=True)
-        )
-        self._source_errors()
-        for child in self.tree.children:
-            if isinstance(child, turbohtml.Element):
-                self._visit(child, self.content)
-
-    @property
-    def ids(self) -> set:
-        return set(self.all_ids)
-
-    @property
-    def by_id(self) -> dict:
-        """id → its element record, for every id-bearing lf-* element."""
-        return {r["attrs"]["id"]: r for r in self.lf_elements if r["attrs"].get("id")}
-
-    @property
-    def restated(self) -> set:
-        """Ids this version declares it has rewritten, retracting whatever the
-        user had recorded on them."""
-        return {
-            rec["attrs"]["id"]
-            for rec in self.lf_elements
-            if rec["attrs"].get("id") and "restated" in rec["attrs"]
-        }
-
-    @property
-    def overruled(self) -> set:
-        """Ids this version declares it keeps its own state on, over a worker's
-        report in force — the agent writer's mirror of `restated`."""
-        return {
-            rec["attrs"]["id"]
-            for rec in self.lf_elements
-            if rec["attrs"].get("id") and "overruled" in rec["attrs"]
-        }
-
-    @property
-    def duplicate_ids(self) -> list:
-        seen, dupes = set(), set()
-        for i in self.all_ids:
-            (dupes if i in seen else seen).add(i)
-        return sorted(dupes)
-
-    @property
-    def reserved_ids(self) -> list:
-        """Ids that trespass on the runtime's own namespace (see id_errors)."""
-        return sorted({i for i in self.all_ids if i.startswith("lf-")})
-
-    @property
-    def event_shaped_ids(self) -> list:
-        """Ids in the log's own event-id shape (see id_errors)."""
-        return sorted({i for i in self.all_ids if re.fullmatch(EVENT_ID, i)})
-
-    @property
-    def spaced_ids(self) -> list:
-        """Ids holding ASCII whitespace, which HTML forbids in one (see id_errors)."""
-        return sorted({i for i in self.all_ids if not ASCII_WHITESPACE.isdisjoint(i)})
 
 
 def rel_tokens(attrs: dict) -> frozenset[str]:

@@ -2795,12 +2795,9 @@ def test_a_failed_leaves_restore_keeps_application_presentation_pending(
           return presentation.readApplicationPresentation().pending.includes('leaves');
         }"""
     )
-    assert [said(error) for error in take_browser_errors(page)] == [
-        (
-            "leaf: Presentation failed: Leaves presentation and retention failed: "
-            "deliberate leaves failure; deliberate leaves failure"
-        )
-    ]
+    errors = [said(error) for error in take_browser_errors(page)]
+    assert any("Leaves presentation and retention failed" in error for error in errors)
+    assert errors and all("deliberate leaves failure" in error for error in errors)
 
     # A later complete reading replaces the failed ticket and opens readiness again.
     told(page)

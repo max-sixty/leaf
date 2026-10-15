@@ -131,7 +131,7 @@ Every composition writes these facts the browser reads instead of deriving
   event records, which the browser compares a recorded definition with;
 - `$marks`, each declaration a stylesheet reads, with the attribute it is painted as,
   the attribute an occurrence overrides it with, and whether it holds in a thread
-  message, and whether an idiom may declare it (`schema.DECLARED_MARKS`).
+  message (`schema.DECLARED_MARKS`).
 
 `page init` stamps them into the layer, and a page's composition stamps them again
 over its own declarations, overwriting any declared `$decisions`, `$states` or

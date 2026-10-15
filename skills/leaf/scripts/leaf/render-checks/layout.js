@@ -20,7 +20,7 @@ const at = (el) => (el === pageScroller ? "<root scrollport>" : element(el));
 // (`--lf-breakout`, layouts.css): a block granted a wider room than the measure, and an
 // Ask spanning such a block (ask.css). Every other box keeps to the column, as text
 // does. The theme lets only a box it allocates room (`data-lf-space`) or a widget
-// holding authored blocks (`data-lf-content`) break out.
+// holding authored blocks (`data-lf-content="markup"`) break out.
 const breaksOut = (el) =>
   getComputedStyle(el).getPropertyValue("--lf-breakout").trim() === "1";
 
@@ -300,7 +300,9 @@ export function misplacedBoxes() {
     el.checkVisibility({ opacityProperty: true, visibilityProperty: true });
   const { isResident, left, residents, right } = marginReading(main);
   const wides = new Set(
-    [...main.querySelectorAll("[data-lf-space], [data-lf-content]")].filter(breaksOut),
+    [...main.querySelectorAll(`[data-lf-space], [data-lf-content="markup"]`)].filter(
+      breaksOut,
+    ),
   );
   // A widget the registry declares wide is answered for out here, the way an
   // absolutely-positioned resident is: standing past the column is what it was
@@ -441,7 +443,7 @@ export function misplacedBoxes() {
     // somewhere else, off the prose axis, while every bound above still holds. The
     // computed margins are the ones the theme set, however the box's own width
     // over-constrains them. Only growth the margins made counts: a positioned box is
-    // not grown (prepaint.js, `indents`), and a table is placed by its translation
+    // not grown (prepaint.js, `breakouts`), and a table is placed by its translation
     // (layouts.css), so its margins do not say where its room is. Only a box the user
     // can see is read.
     if (!el.checkVisibility({ opacityProperty: true, visibilityProperty: true }))

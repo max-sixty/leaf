@@ -30,9 +30,9 @@ also declares `--lf-block-frame: 1`. Leaf then trims the first child's top margi
 last child's bottom margin and keeps wide content inside the frame. A box that keeps its
 children's margins in but draws nothing, such as a page tab's panel or a box that
 contains floats, declares `--lf-block-frame: trim`: its edge margins are trimmed, but
-wide content may take the page's width. The trim reaches through a plain wrapper at the edge, which declares
-nothing. A flex row or grid declares `--lf-holds-edge: 1` to stop the trim, which would
-otherwise take its first item's margin and not its neighbours'.
+wide content may take the page's width. The trim reaches through a plain wrapper at the
+edge, which declares nothing. A flex row or grid declares `--lf-holds-edge: 1` to stop
+the trim, which would otherwise take its first item's margin and not its neighbours'.
 
 Shared CSS selects widgets by what their registry entries declare, which delivery
 writes onto each element as `[data-lf-space]`, `[data-lf-bound]`, `[data-lf-height]`,
@@ -46,8 +46,8 @@ The page decides how wide it is and how its blocks are arranged (`page-layout.md
 reading measure, such as a board or a diagram, declares it in `x-space`: `wide` or
 `available`. One read as lines of text, such as a list of choices, keeps the prose's line
 length on a wide page with `max-inline-size: var(--lf-measure)` in its own stylesheet,
-under `@media screen`. Only the column and sidebar Layouts apply `x-space` and state a
-measure; in a workspace every element fills its region.
+under `@media screen`. Only the column and sidebar Layouts apply `x-space`. A workspace
+states no measure, so there every element fills its region.
 
 A widget that needs a minimum width, such as a board whose columns must stay readable,
 caps it by the space it is in: `min-inline-size: min(<floor>, 100%, 100cqi,

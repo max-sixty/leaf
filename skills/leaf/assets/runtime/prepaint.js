@@ -640,14 +640,13 @@
   //
   // - a holder standing in from the column, however it got there: a list item, a
   //   quotation, a page's own indented block;
-  // - a holder the page arranged, such as a grid track or a flex item, which stands
-  //   narrower than the column beside the page's other boxes: grown, a wide block in a
-  //   grid cell stood over the other cell's words, and a table widened its own track and
-  //   crushed the other to 30px;
-  // - a breakout its holder does not lay out in block flow, one under another: an item
-  //   of a grid, a flex line or a table, an inline block, one that floats or is
-  //   positioned, and one in a holder's columns, where it stood over the first column's
-  //   words.
+  // - a breakout the page arranged, or one inside a box the page arranged, however wide:
+  //   one its holder does not lay out in block flow, one under another, as an item of a
+  //   grid, a flex line or a table, an inline block, one that floats or is positioned,
+  //   and one in a holder's columns. The room beside it is the page's own, such as a
+  //   sibling track's text: grown into it, a wide block in a grid cell stood over the
+  //   other cell's words, a table widened its own track and crushed the other to 30px,
+  //   and a block in a holder's second column stood over the first's words.
   //
   // A link or other inline around a block is no holder, since the browser sets the
   // block in its own holder's flow (`holderOf`). A breakout the browser is not drawing,
@@ -703,12 +702,26 @@
       style.position !== "fixed"
     );
   };
+  // Whether the page arranged `holder` or a box above it, once per holder a reading
+  // meets however many breakouts it holds.
+  const arrangedAbove = (holder, main, verdicts) => {
+    if (holder === main) return false;
+    if (!verdicts.has(holder)) {
+      const above = holderOf(holder, main);
+      verdicts.set(
+        holder,
+        !inFlow(holder, above) || arrangedAbove(above, main, verdicts),
+      );
+    }
+    return verdicts.get(holder);
+  };
   // Returns whether any breakout's reading changed.
   const breakouts = () => {
     const main = document.querySelector("body > main");
     if (!main) return { changed: false };
     const grows = document.body.hasAttribute("data-lf-column-shell");
     const readings = [];
+    const verdicts = new Map();
     let column = null;
     for (const breakout of main.querySelectorAll(BREAKOUT)) {
       if (breakout.parentElement.closest(BREAKOUT)) continue;
@@ -723,6 +736,7 @@
       readings.push([
         breakout,
         !inFlow(breakout, holder) ||
+          arrangedAbove(holder, main, verdicts) ||
           Math.abs(edges.left - column.left) > 0.5 ||
           Math.abs(edges.right - column.right) > 0.5,
       ]);

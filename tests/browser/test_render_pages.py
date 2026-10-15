@@ -1511,7 +1511,7 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
         at
     )
     assert at["tracked"]["width"] == 350, at
-    # An Ask kept to the column inside a breakout takes its holder's room, as any block
+    # An Ask inside a breakout takes its holder's room, as any block
     # there does, however much room its own block asks for.
     assert at["wrapped"] == at["wrapper"], at
     # An Ask that spans its block is a breakout the theme grows, so the gate reads it as
@@ -1914,7 +1914,9 @@ def test_a_breakout_grows_only_from_a_holder_that_spans_the_column(
         assert control["holder"][edge] == pytest.approx(prose[edge], abs=1), at
     for name in ("control", "nested", "steps", "plain", "inset"):
         holder = at[name]
-        assert holder["narrow"][start] == pytest.approx(holder["holder"][start], abs=1), (
+        assert holder["narrow"][start] == pytest.approx(
+            holder["holder"][start], abs=1
+        ), (
             name,
             at,
         )

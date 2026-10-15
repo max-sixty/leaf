@@ -368,7 +368,9 @@ def mark_declared(
         location = element.source_location
         if location is None or element.closest("template") is not None:
             continue
-        declaration = registry.get(element.tag, {}) if is_element_name(element.tag) else {}
+        declaration = (
+            registry.get(element.tag, {}) if is_element_name(element.tag) else {}
+        )
         attrs = element_attrs(element)
         content = element.tag not in {"html", "body", "main"} and (
             element.closest("main") is not None

@@ -2886,10 +2886,9 @@ function showLatestTurn(transcript) {
   scrollToEnd(transcript);
   const latest = latestTurn(transcript);
   if (!latest) return;
-  const text = latest.querySelector(".lf-msg-text");
-  if (text && text.scrollHeight > text.clientHeight + 1) return;
   const over = transcript.getBoundingClientRect().top + transcript.clientTop - latest.getBoundingClientRect().top;
-  if (over > 0) moveScrollerBy(transcript, -over);
+  const headHeight = latest.firstElementChild?.getBoundingClientRect().height ?? 0;
+  if (over > headHeight) moveScrollerBy(transcript, -over);
 }
 function landThread(held, control, behavior, block) {
   bringBackSurfaceOf(held, behavior);

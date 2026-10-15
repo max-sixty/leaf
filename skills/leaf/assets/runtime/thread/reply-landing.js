@@ -103,15 +103,15 @@ export function showLatestTurn(transcript) {
   scrollToEnd(transcript);
   const latest = latestTurn(transcript);
   if (!latest) return;
-  // A bounded message text viewport already keeps its long words scrollable. Keep
-  // the message's trailing metadata in view when the outer transcript is shorter.
-  const text = latest.querySelector(".lf-msg-text");
-  if (text && text.scrollHeight > text.clientHeight + 1) return;
   const over =
     transcript.getBoundingClientRect().top +
     transcript.clientTop -
     latest.getBoundingClientRect().top;
-  if (over > 0) moveScrollerBy(transcript, -over);
+  // A turn only a little taller than its room still shows its head at the end.
+  // Keep its trailing reference and metadata there; align to the head only when
+  // scrolling to the end would hide that head altogether.
+  const headHeight = latest.firstElementChild?.getBoundingClientRect().height ?? 0;
+  if (over > headHeight) moveScrollerBy(transcript, -over);
 }
 
 function landThread(held, control, behavior, block) {

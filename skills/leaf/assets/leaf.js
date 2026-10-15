@@ -648,7 +648,6 @@ responseSurface = createResponseSurface({
   revealResponseHome: overlaySelected
     ? null
     : () => threadPanelController.setPanel(true),
-  threadTransitionOrigin: app.overlay?.threadTransitionOrigin,
   createComment: (command) => app.threadActions.create(command)?.delivery ?? null,
   landSent: landing.landSent,
   wireInput: inputs.wireInput,

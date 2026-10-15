@@ -186,6 +186,20 @@ def registry_error(code: str, registry=None, tag: str = "", /, **values):
 
 def read_registry_declarations(path: Path):
     """Read the top-level declarations one registry layer contributes."""
+    registry = read_registry_object(path)
+    if registry is None:
+        return None
+    non_objects = [
+        name for name, entry in registry.items() if not isinstance(entry, dict)
+    ]
+    if non_objects:
+        raise registry_error("declaration-not-object", path, names=non_objects)
+    return registry
+
+
+def read_registry_object(path: Path) -> dict | None:
+    """Read a registry file as the JSON object it must be, before any check of what
+    its entries hold, or None where there is no file."""
     if (path.exists() or path.is_symlink()) and not path.is_file():
         raise registry_error("registry-not-file", path)
     try:
@@ -202,11 +216,6 @@ def read_registry_declarations(path: Path):
         raise registry_error("registry-not-object", path)
     if not isinstance(registry, dict):
         raise registry_error("registry-not-object", path)
-    non_objects = [
-        name for name, entry in registry.items() if not isinstance(entry, dict)
-    ]
-    if non_objects:
-        raise registry_error("declaration-not-object", path, names=non_objects)
     return registry
 
 

@@ -3105,6 +3105,7 @@ RELOCATE_ADOPTED = """async () => {
     const order = [...document.styleSheets].map((sheet) => sheet.cssRules[0])
         .find((rule) => rule instanceof CSSLayerStatementRule);
     const style = document.createElement('style');
+    style.setAttribute('data-controls', '');
     style.textContent = [order, ...rules].map((rule) => rule.cssText).join('\\n');
     // A copy: adoptedStyleSheets is a live array, so the assignment below would empty
     // the saved reference along with it.
@@ -4574,6 +4575,7 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
         """() => {
              const s = document.createElement('style');
              s.id = 'trap';
+             s.setAttribute('data-controls', '');
              s.textContent =
                '.lf-thread { padding-top: 8px !important }'
                + '.lf-thread > .lf-thread-summary { margin-block-start: 9px !important }';

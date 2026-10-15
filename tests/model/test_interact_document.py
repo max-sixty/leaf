@@ -53,6 +53,7 @@ from interact_support import (
     state_json,
     write_revision,
 )
+from leaf import agent_state as agent_state_model
 from leaf import anchor_capture as anchor_capture_model
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -610,7 +611,7 @@ def test_file_readings_follow_browser_tree_recovery():
     )
 
     parsed = structure_model.SourceDocument(html)
-    [main] = parsed.content
+    [main] = parsed.authoring.content
     assert [node["tag"] for node in main["content"]] == ["p", "table", "p"]
     assert [node["tag"] for node in main["content"][1]["content"]] == ["tr"]
 
@@ -641,9 +642,9 @@ def test_file_readings_follow_browser_tree_recovery():
 )
 def test_example_fragments_retain_context_sensitive_elements(fragment, tags, ids):
     parsed = structure_model.SourceDocument(fragment, fragment=True)
-    assert [node["tag"] for node in parsed.nodes] == tags
+    assert [node["tag"] for node in parsed.authoring.nodes] == tags
     assert parsed.ids == ids
-    assert parsed.errors == [] and parsed.unclosed == []
+    assert parsed.authoring.errors == [] and parsed.authoring.unclosed == []
 
 
 def test_option_passages_read_rendered_markdown_words():
@@ -708,25 +709,26 @@ def test_markdown_body_passages_preserve_source_state_and_read_visible_words():
 
 def test_structural_errors_distinguish_recovery_from_ambiguous_source():
     optional = structure_model.SourceDocument("<main><p>First<div>Second</div></main>")
-    assert optional.errors == [] and optional.unclosed == []
+    assert optional.authoring.errors == []
+    assert optional.authoring.unclosed == []
 
     unclosed = structure_model.SourceDocument("<main><section>Text</main>")
-    assert unclosed.unclosed == [("section", 1)]
+    assert unclosed.authoring.unclosed == [("section", 1)]
 
     caption = structure_model.SourceDocument(
         "<main><table><caption>Title<tbody><tr><td>Cell</table></main>"
     )
-    assert caption.unclosed == []
+    assert caption.authoring.unclosed == []
 
     svg = structure_model.SourceDocument(
         '<main><svg id="plot"><circle cx="5" cy="5" r="4"/></main>'
     )
-    assert svg.unclosed == [("svg", 1)]
+    assert svg.authoring.unclosed == [("svg", 1)]
 
     duplicate_body = structure_model.SourceDocument(
         "<body><main>Text</main></body><body></body>"
     )
-    assert duplicate_body.body_lines == [1, 1]
+    assert duplicate_body.authoring.body_lines == [1, 1]
 
 
 def construction_nodes(content):
@@ -3711,6 +3713,63 @@ def test_held_revision_readings_stay_within_their_source_budget(page_dir, monkey
         assert artifact_model.read_revision(page_dir, revisions[0]) is not readings[0]
 
 
+def test_a_cold_source_check_reads_no_revision_history(page_dir, monkeypatch):
+    """Every new process checks the source before it reads state, and reading
+    each earlier revision for data bindings was most of what that check cost on a
+    long page. A conflicting binding lies within one document, and every revision
+    and logged fragment was refused for one as it entered, so the check reads the
+    candidate's bindings alone."""
+    for edit in range(4):
+        (page_dir / "index.html").write_text(
+            PAGE.replace("</main>", f"<p>edit {edit}</p></main>")
+        )
+        assert revisioning_model.activate_source(page_dir).error is None
+    active = files_model.revision_path(page_dir, files_model.latest_revision(page_dir))
+    parsed = []
+    native = artifact_model.SourceDocument
+    monkeypatch.setattr(
+        artifact_model,
+        "SourceDocument",
+        lambda source: parsed.append(source) or native(source),
+    )
+    with fresh_process():
+        activated = revisioning_model.activate_source(page_dir)
+    assert activated.error is None and not activated.created, activated
+    assert parsed == [active.read_text()]
+
+
+def test_a_cold_page_state_reads_only_the_element_index_of_history(
+    page_dir, monkeypatch
+):
+    """A new process scans every revision for the ids, asks and data bindings it
+    declared, and building each one's authoring indexes, which those inventory
+    scans never read, was most of what a command on a long page cost. A document
+    builds its element index as it is read and the rest on first use, so here only
+    the candidate and the active revision are read whole. The withdrawn ask is the
+    control: it is known only from the revision that asked."""
+    source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    for edit in range(4):
+        (page_dir / "index.html").write_text(
+            (source if edit == 0 else source.replace(" choose", "")).replace(
+                "</main>", f"<p>edit {edit}</p></main>"
+            )
+        )
+        activated = revisioning_model.activate_source(page_dir)
+        assert activated.error is None, activated.error
+    active = files_model.revision_path(page_dir, files_model.latest_revision(page_dir))
+    authored = []
+    native = structure_model.Authoring
+    monkeypatch.setattr(
+        structure_model,
+        "Authoring",
+        lambda document: authored.append(document.html) or native(document),
+    )
+    with fresh_process():
+        state = agent_state_model.cmd_page_state(page_dir)
+    assert [ask["status"] for ask in state["asks"]] == ["withdrawn"]
+    assert set(authored) == {active.read_text()}
+
+
 def test_ask_history_survives_parse_eviction_and_new_revisions(page_dir, monkeypatch):
     """A retry or new version reuses completed historical registration work.
 
@@ -3901,7 +3960,7 @@ def test_a_process_keeps_the_pages_it_read_most_recently(page_dir):
             artifact_model.read_revision(other, revision)
         gc.collect()
         assert kept() is None
-        assert artifact_model.read_revision(page_dir, revision).document.title
+        assert artifact_model.read_revision(page_dir, revision).document.authoring.title
         assert artifact_model.read_revision(held_page, revision) is sample_reading
         assert page_memory_model.memory_of(held_page) is holder
 

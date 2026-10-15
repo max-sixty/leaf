@@ -9,6 +9,7 @@ from leaf.data_contracts import data_binding_errors
 from leaf.events import build_threads
 from leaf.files import list_revisions
 from leaf.findings import Finding, Rejected
+from leaf.passages import SourceReading
 from leaf.registry.storage import require_registry
 from leaf.revision_artifact import read_revision
 from leaf.schema import MESSAGE_KINDS
@@ -129,37 +130,42 @@ def version_ids(page_dir: Path) -> set:
     return ids
 
 
+def revision_publication(page_dir: Path, revision: int | None) -> SourceReading:
+    """What a message stored at `revision` is published against: that revision, or
+    before the page has one, the candidate's vocabulary over an empty document."""
+    if revision is not None:
+        return read_revision(page_dir, revision)
+    return SourceReading(SourceDocument(""), require_registry(page_dir))
+
+
 def check_markup(
     page_dir: Path,
     kind: str,
     markup: str,
     events: list,
     *,
-    page: SourceDocument | None = None,
+    publication: SourceReading,
     thread: str | None = None,
 ) -> SourceDocument:
-    """A message's HTML fragment, validated against the vendored registry at post
-    time — the discussion-side `page check`, and the field's one gate: the browser
+    """A message's HTML fragment, validated against the registry it is published
+    with — the discussion-side `page check`, and the field's one gate: the browser
     door refuses `markup` outright, so nothing reaches the log under that name
     unvalidated. Text needs no vocabulary gate — the runtime renders it with every tag
     escaped, so it cannot claim a widget — but its Markdown can still point at a file,
     which `read_text_arg` asks about wherever a body arrives. `thread` is the thread
     a reply joins; a comment opens one whose id is not yet assigned. Refuses with
-    what's wrong."""
-    registry = require_registry(page_dir)
+    what's wrong.
+
+    `publication` is the document and registry the message is stored with, which
+    its writer decides before the check: the revision it names
+    (`revision_publication`), or the candidate where a reply publishes saved edits
+    it has checked (`thread.post_reply`). No later check reads the fragment for a
+    conflicting binding again (`data_contracts.data_binding_errors`), so it is
+    checked here under the registry it is stored with."""
+    registry, page = publication.registry, publication.document
     frag = SourceDocument(markup)
-    revisions = list_revisions(page_dir)
-    if page is None:
-        page = (
-            read_revision(page_dir, revisions[-1]).document
-            if revisions
-            else SourceDocument("")
-        )
     extra_errors = data_binding_errors(
-        page_dir,
-        registry,
-        events,
-        incoming=[(frag, f"incoming {kind} markup")],
+        page_dir, registry, [(frag, f"incoming {kind} markup")]
     )
     if errors := message_markup_errors(
         page_dir,

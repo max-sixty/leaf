@@ -86,7 +86,7 @@ from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
-from leaf.findings import Finding
+from leaf.findings import Finding, Rejected
 from leaf.registry import contract as registry_contract
 from leaf.registry import layer as registry_layer
 from leaf.registry import page as registry_page
@@ -2522,6 +2522,54 @@ def test_data_binding_inventory_keeps_each_documents_captured_registry(
     }
 
 
+@pytest.mark.parametrize(
+    "publishing",
+    [{"validate_source": True}, {"section": "plan"}],
+    ids=["check", "move"],
+)
+def test_a_reply_publishing_saved_edits_checks_its_markup_under_their_registry(
+    page_dir, publishing
+):
+    """A reply that publishes saved edits, whether it checks them first or moves
+    its thread onto them, is stored against the revision they make, so its markup is
+    checked under that revision's registry. Checked under the active one, a contract
+    the edits changed let one fragment bind a source under two contracts, and
+    nothing reads it for that again: a conflict lies within one document, so no
+    later check rereads the log's fragments."""
+    declare_data_input(
+        page_dir, "shared", {"type": "array"}, contract="rows", activate=False
+    )
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["lf-test-other"] = deepcopy(registry["lf-test-data"])
+    registry["$data"]["contracts"]["other-rows"] = deepcopy(
+        registry["$data"]["contracts"]["rows"]
+    )
+    registry_path.write_text(json.dumps(registry))
+    (page_dir / "index.html").write_text(PAGE)
+    assert revisioning_model.activate_source(page_dir).error is None
+    # The saved edit moves one widget type to another contract and uses neither.
+    registry["lf-test-other"]["x-data"]["data"]["contract"] = "other-rows"
+    registry_path.write_text(json.dumps(registry))
+    opened = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "Show both."}
+    )
+
+    with pytest.raises(Rejected) as refused:
+        thread_model.post_reply(
+            page_dir,
+            {"to": opened["id"], "for": opened["id"]},
+            "Both views of one feed.",
+            '<lf-test-data id="rows-view" source="shared"></lf-test-data>'
+            '<lf-test-other id="other-view" source="shared"></lf-test-other>',
+            **publishing,
+        )
+    assert [finding.code for finding in refused.value.findings] == ["contract-conflict"]
+    assert not any(
+        event["kind"] == "reply" for event in events_model.read_events(page_dir)
+    )
+
+
 @pytest.mark.parametrize("change", ["description", "empty-resources"])
 def test_page_owned_data_contract_can_change_without_changing_source_meaning(
     page_dir, change
@@ -4706,7 +4754,7 @@ def test_source_reading_preserves_foreign_graphics_as_exact_markup():
     )
     html = "<main>Préface\r\n" + graphic + '<p id="after">After</p></main>'
     parser = structure_model.SourceDocument(html)
-    [main] = parser.content
+    [main] = parser.authoring.content
     _, image, after = main["content"]
     assert image["markup"] == graphic
     assert image["content"] == []
@@ -4726,13 +4774,13 @@ def test_source_reading_keeps_a_sample_out_of_its_parent_identity_space():
     )
     parser = structure_model.SourceDocument(html)
 
-    assert parser.errors == []
+    assert parser.authoring.errors == []
     assert parser.lf_elements == []
     assert "nested-options" not in parser.by_id
     assert passages_model.page_passages(parser).text == "Visible words."
     [sample] = parser.samples
     assert "nested-options" in sample["document"].by_id
-    assert sample["document"].main_elements == [(1, True)]
+    assert sample["document"].authoring.main_elements == [(1, True)]
     assert structure_model.page_layout(sample["document"]) == "column"
 
 

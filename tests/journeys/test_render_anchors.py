@@ -111,7 +111,7 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
         };
         // The composer's field joins the page at its first open.
         const commentField = () => document.querySelector('.lf-fab-input');
-        const commentOffered = () => commentField()?.checkVisibility();
+        const commentOffered = () => commentField()?.checkVisibility({visibilityProperty: true});
         const speaks = el => {
             const near = el.closest('.lf-ui, [data-lf-said]');
             return !near || near.matches('[data-lf-said]');

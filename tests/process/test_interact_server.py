@@ -2481,7 +2481,7 @@ def test_an_accepted_retry_releases_the_page_before_scanning_neighbours(
         return []
 
     monkeypatch.setattr(served_page, "read_served_page", own_state)
-    monkeypatch.setattr(presence_model, "other_leaves", neighbours)
+    monkeypatch.setattr(presence_model, "neighbor_reading", neighbours)
     status, body = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
 
     assert status == 200, body
@@ -3067,7 +3067,7 @@ def test_a_pages_own_row_publications_do_not_rescan_its_neighbors(
         return read(page)
 
     monkeypatch.setattr(presence_model, "other_leaves", observe)
-    presence_model._neighbor_reading(page_dir)
+    presence_model.neighbor_reading(page_dir)
     for n in range(20):
         cleanup_model.write_json(
             page_dir / "status.json",
@@ -3080,14 +3080,14 @@ def test_a_pages_own_row_publications_do_not_rescan_its_neighbors(
         cleanup_model.write_json(
             own.path, {**record, "row": {**record["row"], "title": f"Own {n}"}}
         )
-        presence_model._neighbor_reading(page_dir)
+        presence_model.neighbor_reading(page_dir)
     assert len(calls) == 1
     changed = server_rows_model.row_path(neighbor)
     record = files_model.read_json(changed)
     cleanup_model.write_json(
         changed, {**record, "row": {**record["row"], "title": "Changed neighbor"}}
     )
-    [row] = presence_model._neighbor_reading(page_dir)
+    [row] = presence_model.neighbor_reading(page_dir)
     assert row["title"] == "Changed neighbor"
     assert len(calls) == 2
 
@@ -3111,6 +3111,30 @@ def test_neighbor_discovery_needs_no_native_subscription(
     second = tmp_path / "second"
     cleanup_model.write_json(rows / "second.json", {"page": str(second)})
     assert second in [page for page, _record in presence_model.neighbor_candidates()]
+
+
+def test_a_reader_retires_rows_no_server_lease_holds(page_dir, tmp_path):
+    """Only a reader removes a row: one whose server lease no process holds,
+    whether or not its page remains. A held lease keeps its row even while it
+    names no live service, as a revival's private reservation does."""
+    live = tmp_path / "live"
+    neighbour_page(live, title="Live")
+    reserved = tmp_path / "reserved"
+    neighbour_page(reserved, title="Reserved")
+    service = files_model.read_json(reserved / "service.json")
+    cleanup_model.write_json(
+        reserved / "service.json", {**service, "server_id": "successor"}
+    )
+    stopped = tmp_path / "stopped"
+    neighbour_page(stopped, title="Stopped", dead=True)
+    deleted = tmp_path / "deleted"
+    neighbour_page(deleted, title="Deleted", dead=True)
+    shutil.rmtree(deleted)
+    assert [row["title"] for row in presence_model.other_leaves(page_dir)] == ["Live"]
+    assert server_rows_model.row_path(live).is_file()
+    assert server_rows_model.row_path(reserved).is_file()
+    assert not server_rows_model.row_path(stopped).exists()
+    assert not server_rows_model.row_path(deleted).exists()
 
 
 def test_native_watcher_failure_reaches_its_owner(tmp_path, monkeypatch):
@@ -4650,8 +4674,10 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
     hosting_model.cmd_stop(neighbor)
     desired = {**files_model.read_json(neighbor / "service.json"), "enabled": True}
     cleanup_model.write_json(neighbor / "service.json", desired)
-    row_before = server_rows_model.row_path(neighbor).read_bytes()
     assert presence_model.other_leaves(page_dir) == []
+    # The stopped incarnation's row is retired by that reading, so a row present
+    # later is one the reservation published.
+    assert not server_rows_model.row_path(neighbor).exists()
     caller, end = socket.socketpair()
     child = spawn(
         [
@@ -4677,7 +4703,7 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
             assert json.loads(announcements.readline())["url"] == previous["url"]
             assert leases_model.lock_is_held(neighbor / "server.lock")
             assert files_model.read_json(neighbor / "service.json") == desired
-            assert server_rows_model.row_path(neighbor).read_bytes() == row_before
+            assert not server_rows_model.row_path(neighbor).exists()
             assert server_model.running_server(neighbor) is None
             assert presence_model.other_leaves(page_dir) == []
             if accepted:
@@ -4701,7 +4727,7 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
             caller.close()
             assert child.wait(timeout=STATED_TIMEOUT) == 0
             assert files_model.read_json(neighbor / "service.json") == desired
-            assert server_rows_model.row_path(neighbor).read_bytes() == row_before
+            assert not server_rows_model.row_path(neighbor).exists()
             assert presence_model.other_leaves(page_dir) == []
     finally:
         caller.close()

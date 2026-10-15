@@ -208,8 +208,8 @@
     // when the last line still holds the same words and the class is unchanged.
     /^class on div\.cm-line\.lf-field-last in shadow of leaf-text/,
     // CodeMirror's CompositeTile.sync replaces a line's children while reconciling
-    // editor updates, including equivalent line-break nodes after clearing a field.
-    /^children of div\.cm-line(?:\.[\w-]+)* in shadow of leaf-text(?:[.#]| in |$)/,
+    // editor updates, including equivalent line-break nodes in either editor host.
+    /^children of div\.cm-line(?:\.[\w-]+)* in shadow of /,
     // CodeMirror's GutterElement.setMarkers restates its class as marker sets
     // change, including when the resulting gutter class remains the same.
     /^class on div\.cm-gutterElement(?:\.| in shadow|$)/,

@@ -424,10 +424,14 @@ export function createAnchorControls({
   }
 
   const onLayoutInvalidated = (event) => {
-    // A page visual's parts can move without its nodes moving, and their registration
-    // says so with this signal (visual-parts.js, `update`).
-    if (!inChrome(event.target)) plannedFor = null;
     invalidatePageGeometry();
+    // A page visual's parts can move without its nodes moving, and their registration
+    // says so with this signal (visual-parts.js, `update`), so the thread pass plans
+    // the visual actions again. The runtime's chrome holds no page visual, and the
+    // marks a pass paints there are classes that a layout change leaves standing, so a
+    // Threads card opening or closing asks for no thread pass.
+    if (inChrome(event.target)) return;
+    plannedFor = null;
     queueInvalidation();
   };
 

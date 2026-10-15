@@ -5429,8 +5429,9 @@ function createAnchorControls({
     });
   }
   const onLayoutInvalidated = (event) => {
-    if (!inChrome(event.target)) plannedFor = null;
     invalidatePageGeometry();
+    if (inChrome(event.target)) return;
+    plannedFor = null;
     queueInvalidation();
   };
   const onMessageReference = (event) => {

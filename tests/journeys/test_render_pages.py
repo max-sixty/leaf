@@ -742,7 +742,9 @@ lf-roomy > section { min-height: 80px; border: 1px solid currentColor; }
         room: (() => {
           const probe = document.createElement('i');
           probe.style.cssText = 'position:fixed;visibility:hidden;width:var(--lf-room)';
-          el.append(probe);
+          // Children of a breakout reset --lf-room to 100%; read its parent's
+          // allocation, which is the room the breakout itself received.
+          el.parentElement.append(probe);
           const width = probe.getBoundingClientRect().width;
           probe.remove();
           return width;

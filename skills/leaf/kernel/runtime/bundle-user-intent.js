@@ -5944,7 +5944,10 @@ function threadReading(thread, surface, commands2, options) {
 function workingView(working) {
   return html`<div class="lf-thread-working-head">
       ${working.who ? html`<b>${working.who}</b>` : nothing}
-      ${working.timestamp || working.condition ? html`<span class="lf-msg-meta">${working.timestamp ? html`<time datetime=${working.timestamp}>${working.age}</time>` : nothing} ${working.condition}</span>` : nothing}
+      ${working.timestamp || working.condition ? html`<span class="lf-msg-meta"
+              >${working.timestamp ? html`<time datetime=${working.timestamp}>${working.age}</time>` : nothing}
+              ${working.condition}</span
+            >` : nothing}
     </div>
     <div class="lf-thread-working-words">${working.words}</div>`;
 }

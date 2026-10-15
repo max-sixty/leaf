@@ -309,9 +309,14 @@ function workingView(working) {
       ${working.who ? html`<b>${working.who}</b>` : nothing}
       ${
         working.timestamp || working.condition
-          ? html`<span class="lf-msg-meta">${working.timestamp
-              ? html`<time datetime=${working.timestamp}>${working.age}</time>`
-              : nothing} ${working.condition}</span>`
+          ? html`<span class="lf-msg-meta"
+              >${
+                working.timestamp
+                  ? html`<time datetime=${working.timestamp}>${working.age}</time>`
+                  : nothing
+              }
+              ${working.condition}</span
+            >`
           : nothing
       }
     </div>

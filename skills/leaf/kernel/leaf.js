@@ -1,4 +1,9 @@
 import {
+  pageImage,
+  pageRenderer
+} from "./runtime/bundle-composing~page-image-2.js";
+import "./runtime/bundle-sample-2.js";
+import {
   aimLayer,
   createPageMapDialog,
   mapButton,
@@ -58,6 +63,7 @@ import {
   watchProjection,
   wireThreadLanding
 } from "./runtime/bundle-document-identity.js";
+import "./runtime/bundle-dress.js";
 import {
   closeVersionMenu,
   latestChip,
@@ -307,6 +313,7 @@ import {
 } from "./runtime/bundle-stylesheets.js";
 import {
   COLLAPSE,
+  LEAF_SURFACE,
   TEXT_BLOCK,
   blockAt,
   closestAcross,
@@ -402,7 +409,6 @@ import {
   overlapsAcross,
   pagePresented,
   pageUpgraded,
-  paintClips,
   paintKeys,
   paintKeysWithin,
   pointerAt,
@@ -514,7 +520,6 @@ import {
   release,
   releaseFocus,
   renderedOrder,
-  renderedParent,
   renderedUnder,
   renderingState,
   rove,
@@ -614,43 +619,6 @@ function drawingGeometry(drawing2, target) {
 var CONTEXT_PAD = 24;
 var PREVIEW_WIDTH = 2048;
 var PREVIEW_HEIGHT = 1536;
-function contextSource(target, region) {
-  const fits = (box) => box.left <= region.left && box.top <= region.top && box.right >= region.right && box.bottom >= region.bottom;
-  let root = target;
-  while (root !== document.body && !fits(elementBorderFrame(root).box)) {
-    if (["fixed", "sticky"].includes(getComputedStyle(root).position)) break;
-    root = renderedParent(root) ?? document.body;
-  }
-  const { bands } = paintClips(target, region, /* @__PURE__ */ new Map(), false);
-  for (const { box, band, axes } of bands) {
-    if (band && under(root, box) && (axes.x && (region.left < band.left || region.right > band.right) || axes.y && (region.top < band.top || region.bottom > band.bottom)))
-      root = box;
-  }
-  for (let owner = renderedParent(root); owner; owner = renderedParent(owner)) {
-    const style = getComputedStyle(owner);
-    if (style.backgroundImage !== "none") {
-      root = owner;
-      break;
-    }
-    if (style.backgroundColor !== "rgba(0, 0, 0, 0)" && style.backgroundColor !== "transparent")
-      break;
-  }
-  return root;
-}
-function backingColors(source) {
-  const colors = [];
-  for (let node = renderedParent(source); node; node = renderedParent(node))
-    colors.push(getComputedStyle(node).backgroundColor);
-  return colors.reverse();
-}
-function paintBacking(canvas, colors) {
-  const ctx = canvas.getContext("2d");
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  for (const color of colors) {
-    ctx.fillStyle = color;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-  }
-}
 function readPicture(drawing2, target) {
   const geometry = target && drawingGeometry(drawing2, target);
   const strokes = geometry?.strokes ?? drawing2.strokes;
@@ -704,63 +672,24 @@ function drawingThumbnail(drawing2, target) {
   nextRender(() => {
     if (canvas.isConnected) paintInk();
   });
-  import("/vendor/drawing-context.esm.js").then(async ({ domToCanvas }) => {
+  pageRenderer().then(async () => {
     if (!target?.isConnected) throw new Error("the drawing's subject is absent");
     picture = readPicture(drawing2, target);
     if (!picture.box) throw new Error("the drawing's subject is absent");
     sizeCanvas();
     canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
     paintInk();
-    const { box, left, top, width, height, scale } = picture;
-    const region = {
-      left: box.left + left,
-      top: box.top + top,
-      right: box.left + left + width,
-      bottom: box.top + top + height
-    };
-    const source = contextSource(picture.target, region);
-    const frame = elementBorderFrame(source);
-    const matrix = frame.matrix;
-    const colors = backingColors(source);
-    const image = await domToCanvas(source, {
-      width,
-      height,
-      scale,
-      style: {
-        width: `${frame.width}px`,
-        height: `${frame.height}px`,
-        // The crop is a new containing block. Its dimensions must not reapply
-        // responsive constraints to the root whose painted size we just froze.
-        minWidth: "0",
-        minHeight: "0",
-        maxWidth: "none",
-        maxHeight: "none",
-        minInlineSize: "0",
-        minBlockSize: "0",
-        maxInlineSize: "none",
-        maxBlockSize: "none",
-        boxSizing: "border-box",
-        position: "relative",
-        left: "auto",
-        right: "auto",
-        top: "auto",
-        bottom: "auto",
-        margin: "0",
-        rotate: "none",
-        scale: "none",
-        translate: "none",
-        zoom: "1",
-        transformOrigin: "0 0",
-        transform: `matrix(${matrix.a},${matrix.b},${matrix.c},${matrix.d},${matrix.e - region.left},${matrix.f - region.top})`
-      },
-      filter: (node) => !leafSurface(node),
-      features: { restoreScrollPosition: true }
-    });
-    if (canvas.width !== image.width) canvas.width = image.width;
-    if (canvas.height !== image.height) canvas.height = image.height;
-    paintBacking(canvas, colors);
-    canvas.getContext("2d").drawImage(image, 0, 0);
+    const { box, left, top, width, height } = picture;
+    const { blob, warnings } = await pageImage(
+      { x: scrollX + box.left + left, y: scrollY + box.top + top, width, height },
+      { exclude: [LEAF_SURFACE] }
+    );
+    const image = await window.createImageBitmap(blob);
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
     paintInk();
+    if (warnings.length) canvas.title = warnings.join(" ");
     canvas.dataset.lfDrawingContext = "ready";
   }).catch((error) => {
     canvas.dataset.lfDrawingContext = "unavailable";

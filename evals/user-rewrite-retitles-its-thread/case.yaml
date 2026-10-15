@@ -29,19 +29,19 @@ vars:
     each command you would run, with the full text of any thread reply you would post.
     Then end your answer.
 assert:
-- type: llm-rubric
-  metric: answers-the-edit
-  value: |
-    Pass only if the agent answers the rewrite with an ordinary `leaf response reply`
-    (not `--ephemeral`) naming the edit's reference `e7f1a2c3:0:edit-a`. A progress
-    message before it is fine. Any spelling of the launcher passes.
-- type: llm-rubric
-  metric: judgment
-  value: |
-    Pass only if the agent renames the thread with `leaf thread edit` and `--title`
-    to a few words about the rollback plan (the rewritten request), not the owner,
-    and its reply to the rewrite is about adding the rollback plan to the risks
-    section. Fail if the thread keeps a title about the owner or the opening.
+  - type: llm-rubric
+    metric: answers-the-edit
+    value: |
+      Pass only if the agent answers the rewrite with an ordinary `leaf response reply`
+      (not `--ephemeral`) naming the edit's reference `e7f1a2c3:0:edit-a`. A progress
+      message before it is fine. Any spelling of the launcher passes.
+  - type: llm-rubric
+    metric: judgment
+    value: |
+      Pass only if the agent renames the thread with `leaf thread edit` and `--title`
+      to a few words about the rollback plan (the rewritten request), not the owner,
+      and its reply to the rewrite is about adding the rollback plan to the risks
+      section. Fail if the thread keeps a title about the owner or the opening.
 variants:
   mid-session:
     metadata:

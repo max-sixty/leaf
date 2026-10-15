@@ -5,11 +5,12 @@
 # diagnostic output is the guardrail against treating every preformatted block as code.
 description: source-code-readable
 metadata:
-  purpose: Source snippets declare their language and keep the code structure readable; literal output
+  purpose:
+    Source snippets declare their language and keep the code structure readable; literal output
     remains literal.
   tags:
-  - authoring
-  - code
+    - authoring
+    - code
 vars:
   prompt: |
     Use the leaf:leaf skill and read `references/page-authoring.md` inside its
@@ -39,17 +40,17 @@ vars:
     The page directory is not reachable from here, so reply with the revised HTML
     section rather than writing a file.
 assert:
-- type: llm-rubric
-  metric: readable-source
-  value: |
-    The JavaScript source is displayed in a syntax-highlighted Leaf code block:
-    either a native pre/code with class="language-javascript" or a lf-code with
-    language="javascript". Object fields and closing braces are broken onto
-    consistently indented lines so each action's fields can be read individually.
-    All the original command fields and behavior remain in the snippet. Fail if
-    source stays uncolored or keeps several distinct object fields crammed onto
-    each line. The diagnostic output remains uncolored and preserves its lines
-    and exact values; it must not be mistaken for source code or rewritten.
+  - type: llm-rubric
+    metric: readable-source
+    value: |
+      The JavaScript source is displayed in a syntax-highlighted Leaf code block:
+      either a native pre/code with class="language-javascript" or a lf-code with
+      language="javascript". Object fields and closing braces are broken onto
+      consistently indented lines so each action's fields can be read individually.
+      All the original command fields and behavior remain in the snippet. Fail if
+      source stays uncolored or keeps several distinct object fields crammed onto
+      each line. The diagnostic output remains uncolored and preserves its lines
+      and exact values; it must not be mistaken for source code or rewritten.
 
 # Text-edit reconstruction: source chat 01a122c3-94c8-71a3-84df-9bf04006bc08,
 # report revision r8. Original guidance passed 1/2; clarifying its existing diff
@@ -71,22 +72,23 @@ variants:
         section and the shell commands you would run to supply and later refresh
         its evidence. Do not invent source contents.
     assert:
-    - type: llm-rubric
-      metric: refreshable-patch
-      value: |
-        The section briefly explains the behavior change and includes a
-        source-bound lf-diff. Commands select the whole branch's work including
-        uncommitted edits, using wt step diff or an equivalent comparison, and
-        supply the patch to leaf data set for the widget's source, either as a
-        JSON string (for example via jq -Rs .) or through the optional
-        leaf package run diff patch_manifest.py file-manifest producer.
-        Refresh repeats capture into the same source id. Fail if the answer invents or transcribes patch contents,
-        captures only the latest commit or only uncommitted edits, or requires
-        rewriting the page's HTML for each refresh. Launcher spelling may be
-        leaf, a resolved launcher path, or $LEAF.
+      - type: llm-rubric
+        metric: refreshable-patch
+        value: |
+          The section briefly explains the behavior change and includes a
+          source-bound lf-diff. Commands select the whole branch's work including
+          uncommitted edits, using wt step diff or an equivalent comparison, and
+          supply the patch to leaf data set for the widget's source, either as a
+          JSON string (for example via jq -Rs .) or through the optional
+          leaf package run diff patch_manifest.py file-manifest producer.
+          Refresh repeats capture into the same source id. Fail if the answer invents or transcribes patch contents,
+          captures only the latest commit or only uncommitted edits, or requires
+          rewriting the page's HTML for each refresh. Launcher spelling may be
+          leaf, a resolved launcher path, or $LEAF.
   text-edit:
     metadata:
-      purpose: A report reviewing a wording change lets the reader see and comment on the exact
+      purpose:
+        A report reviewing a wording change lets the reader see and comment on the exact
         edit.
     vars:
       prompt: |
@@ -114,10 +116,11 @@ variants:
 
         The page directory is unavailable here. Reply with the final section HTML and any page setup commands it needs.
     assert:
-    - type: llm-rubric
-      metric: exact-edit
-      value: The report presents the change to tests/AGENTS.md as an exact unified patch through
-        a source-bound lf-diff with commands supplying the patch. It captures the real Git diff
-        for that file or supplies the exact removed and added text. A short explanation
-        accompanies the evidence. Fail if it only displays two full paragraphs, invents a different
-        edit, or adds an approval request not in the task.
+      - type: llm-rubric
+        metric: exact-edit
+        value:
+          The report presents the change to tests/AGENTS.md as an exact unified patch through
+          a source-bound lf-diff with commands supplying the patch. It captures the real Git diff
+          for that file or supplies the exact removed and added text. A short explanation
+          accompanies the evidence. Fail if it only displays two full paragraphs, invents a different
+          edit, or adds an approval request not in the task.

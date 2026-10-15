@@ -6,12 +6,13 @@
 # a sidebar must keep navigation available at the opening, including when stacked.
 description: long-read-beside-a-panel-is-a-document
 metadata:
-  purpose: 'A long read beside a panel the reader keeps in view is a `layout-sidebar` page whose aside
+  purpose:
+    "A long read beside a panel the reader keeps in view is a `layout-sidebar` page whose aside
     keeps the verdict and navigation available, including before the body on a phone;
-    supporting history does not postpone that navigation.'
+    supporting history does not postpone that navigation."
   tags:
-  - layout
-  - navigation
+    - layout
+    - navigation
 vars:
   prompt: |
     Write a Leaf page for the user to review the design document for a new rate limiter
@@ -29,20 +30,20 @@ vars:
     directory is not reachable from here, so reply with the complete `index.html`,
     rather than writing a file.
 assert:
-- type: llm-rubric
-  metric: judgment
-  value: |
-    Read the HTML. Pass only if all of these hold. `main` is a `layout-sidebar` page, not
-    a `layout-workspace`, and the eight sections are its body, read in the page's own
-    scroll rather than in a pane or other box that scrolls on its own. The verdict, the
-    two changes and the three questions are in one block, the `aside`'s only child
-    element, which the Layout keeps in view as the body scrolls: fail if the page's CSS
-    makes the `aside` or a block inside it `position: sticky`, or sets the `top`,
-    `height`, `max-height` or `overflow` of the `aside` or its block.
-    The document includes an empty lf-toc with a stable id. Its contents navigation is
-    available at the desktop opening and stays available while reading. The requested
-    twelve-entry history is present as supporting evidence and does not push the contents
-    below the opening. On a phone where
-    the tracks stack, the contents appear before the eight
-    substantive sections. Determine this from source order and any page CSS that changes
-    that order. The history may follow the body or be disclosed separately.
+  - type: llm-rubric
+    metric: judgment
+    value: |
+      Read the HTML. Pass only if all of these hold. `main` is a `layout-sidebar` page, not
+      a `layout-workspace`, and the eight sections are its body, read in the page's own
+      scroll rather than in a pane or other box that scrolls on its own. The verdict, the
+      two changes and the three questions are in one block, the `aside`'s only child
+      element, which the Layout keeps in view as the body scrolls: fail if the page's CSS
+      makes the `aside` or a block inside it `position: sticky`, or sets the `top`,
+      `height`, `max-height` or `overflow` of the `aside` or its block.
+      The document includes an empty lf-toc with a stable id. Its contents navigation is
+      available at the desktop opening and stays available while reading. The requested
+      twelve-entry history is present as supporting evidence and does not push the contents
+      below the opening. On a phone where
+      the tracks stack, the contents appear before the eight
+      substantive sections. Determine this from source order and any page CSS that changes
+      that order. The history may follow the body or be disclosed separately.

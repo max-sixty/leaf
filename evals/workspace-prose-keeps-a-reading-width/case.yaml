@@ -4,10 +4,11 @@
 # run on the base, whose Layout capped the prose for the page.
 description: workspace-prose-keeps-a-reading-width
 metadata:
-  purpose: 'Writing a workspace whose selected item reads as paragraphs: the page keeps that prose
-    at a readable width on a large screen, by the region''s grid track or a cap in its own style.'
+  purpose:
+    "Writing a workspace whose selected item reads as paragraphs: the page keeps that prose
+    at a readable width on a large screen, by the region's grid track or a cap in its own style."
   tags:
-  - layout
+    - layout
 vars:
   prompt: |
     Write a Leaf page for the user as a workspace for triaging six production incidents
@@ -19,12 +20,12 @@ vars:
     The page directory is not reachable from here, so reply with the complete
     `index.html`, rather than writing a file.
 assert:
-- type: llm-rubric
-  metric: judgment
-  value: |
-    Read the HTML. Pass only if `main` has class `layout-workspace` and the incident
-    write-up's paragraphs cannot run wider than about 1100px on a 2560px-wide window:
-    the page's own stylesheet caps them or a box holding them (a `max-inline-size`,
-    `max-width`, `ch`-based width, or `var(--wide)`), or its grid gives the region that
-    holds them a track that cannot grow past that width. Fail if nothing in the page
-    keeps those paragraphs from spanning the window beside the list.
+  - type: llm-rubric
+    metric: judgment
+    value: |
+      Read the HTML. Pass only if `main` has class `layout-workspace` and the incident
+      write-up's paragraphs cannot run wider than about 1100px on a 2560px-wide window:
+      the page's own stylesheet caps them or a box holding them (a `max-inline-size`,
+      `max-width`, `ch`-based width, or `var(--wide)`), or its grid gives the region that
+      holds them a track that cannot grow past that width. Fail if nothing in the page
+      keeps those paragraphs from spanning the window beside the list.

@@ -36,31 +36,31 @@ vars:
     each command you would run, with the full text of any thread reply you would post.
     Then end your answer.
 assert:
-- type: llm-rubric
-  metric: answers-the-edit
-  value: |
-    Pass only if the agent answers the rewrite with an ordinary `leaf response reply`
-    (not `--ephemeral`) naming the edit's reference `e7f1a2c3:0:edit-a`. A progress
-    message before it is fine. Any spelling of the launcher passes. Fail if a
-    non-ephemeral reply answers the original message comment-a (a reference ending in `:comment-a`, or a
-    `leaf thread reply` to comment-a) as though the rewrite were the old request.
-- type: llm-rubric
-  metric: keeps-the-title
-  value: |
-    The rewrite keeps the thread's subject, so its title "Revising the opening"
-    still fits. Pass only if no command retitles the thread: no `--title` on a
-    `leaf thread edit`, `leaf thread reply` or `leaf response reply`.
-- type: llm-rubric
-  metric: judgment
-  value: |
-    Pass only if the work the agent describes adds the launch date to the opening
-    (the part the rewrite added, beyond the owner it already named), and the reply
-    it would post tells the user what changed for the rewritten request, such as the
-    launch date now standing in the opening. The envelope gives no date, so an
-    answer to the edit that asks the user which launch date to add also passes, as
-    does one that drafts the addition with a placeholder. Fail if the agent treats
-    the rewrite as already answered, replies only about the owner, or asks the user
-    to resend it.
+  - type: llm-rubric
+    metric: answers-the-edit
+    value: |
+      Pass only if the agent answers the rewrite with an ordinary `leaf response reply`
+      (not `--ephemeral`) naming the edit's reference `e7f1a2c3:0:edit-a`. A progress
+      message before it is fine. Any spelling of the launcher passes. Fail if a
+      non-ephemeral reply answers the original message comment-a (a reference ending in `:comment-a`, or a
+      `leaf thread reply` to comment-a) as though the rewrite were the old request.
+  - type: llm-rubric
+    metric: keeps-the-title
+    value: |
+      The rewrite keeps the thread's subject, so its title "Revising the opening"
+      still fits. Pass only if no command retitles the thread: no `--title` on a
+      `leaf thread edit`, `leaf thread reply` or `leaf response reply`.
+  - type: llm-rubric
+    metric: judgment
+    value: |
+      Pass only if the work the agent describes adds the launch date to the opening
+      (the part the rewrite added, beyond the owner it already named), and the reply
+      it would post tells the user what changed for the rewritten request, such as the
+      launch date now standing in the opening. The envelope gives no date, so an
+      answer to the edit that asks the user which launch date to add also passes, as
+      does one that drafts the addition with a placeholder. Fail if the agent treats
+      the rewrite as already answered, replies only about the owner, or asks the user
+      to resend it.
 variants:
   mid-session:
     metadata:

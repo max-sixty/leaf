@@ -10,8 +10,7 @@
 # code-as-effect rule, over four wordings, in 12 of 17, the committed wording 4 of 4.
 description: findings-page-shows-its-subject
 metadata:
-  purpose:
-    "Show the subject: a findings page whose request names no form shows what its
+  purpose: "Show the subject: a findings page whose request names no form shows what its
     findings are about in a picture on the page, not only in prose, tables and code."
   authoring: true
   tags:

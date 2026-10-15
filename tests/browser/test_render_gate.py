@@ -1311,7 +1311,7 @@ flowchart TD
 
     assert page.locator("#identities").evaluate("e => [...e.visualParts.keys()]") == [
         "node:123",
-        "node:Ω",
+        "node:%CE%A9",
     ]
 
 

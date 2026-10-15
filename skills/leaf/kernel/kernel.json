@@ -172,7 +172,7 @@
     "runtime/reading-regions.js": "e99d1159a622593e989255f49a9036ee77ae872ce0b71c8c5b9fbb6062862d42",
     "runtime/rect.js": "e644db75c699b4dd9d39562198ffdfb0fdf7c3106d66a5a813fcfb5b619c619f",
     "runtime/registry-contract.js": "bf2c808d85fcadf6d9cdd85c3e29175a8ed067fdfe8c4fc473f119c5ca4ac7b7",
-    "runtime/registry.js": "e7c6f7dcd9916cf1777f78e389ce4682e2510182e2c335b8d5634efca14ad5ba",
+    "runtime/registry.js": "2ae9a27fb43a103f28310fa49947062eaee53158a677378b0f9302a8b75d4b47",
     "runtime/rendering.js": "630c371360daf40dd1e68d77bed121b43fe1cf667a883a332735590ec022e3ba",
     "runtime/repaint.js": "8ec32f98286f9f17949328cbea690429c659cfac76a23ea9d3649f23373edf35",
     "runtime/reports.js": "2b9ab33269996066cdb4f2764d5de75a953315878cddce2589a36ee4fd4512a5",

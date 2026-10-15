@@ -3742,11 +3742,11 @@ def test_a_cold_page_state_reads_only_the_element_index_of_history(
     page_dir, monkeypatch
 ):
     """A new process scans every revision for the ids, asks and data bindings it
-    declared, and building each one's authoring indexes, which only a check reads,
-    was most of what a command on a long page cost. A document builds its element
-    index as it is read and the rest on first use, so only the candidate and the
-    active revision are read whole. The withdrawn ask is the control: it is known
-    only from the revision that asked."""
+    declared, and building each one's authoring indexes, which those inventory
+    scans never read, was most of what a command on a long page cost. A document
+    builds its element index as it is read and the rest on first use, so here only
+    the candidate and the active revision are read whole. The withdrawn ask is the
+    control: it is known only from the revision that asked."""
     source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
     for edit in range(4):
         (page_dir / "index.html").write_text(

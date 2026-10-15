@@ -130,13 +130,21 @@ def version_ids(page_dir: Path) -> set:
     return ids
 
 
+def revision_publication(page_dir: Path, revision: int | None) -> SourceReading:
+    """What a message stored at `revision` is published against: that revision, or
+    before the page has one, the candidate's vocabulary over an empty document."""
+    if revision is not None:
+        return read_revision(page_dir, revision)
+    return SourceReading(SourceDocument(""), require_registry(page_dir))
+
+
 def check_markup(
     page_dir: Path,
     kind: str,
     markup: str,
     events: list,
     *,
-    publication: SourceReading | None = None,
+    publication: SourceReading,
     thread: str | None = None,
 ) -> SourceDocument:
     """A message's HTML fragment, validated against the registry it is published
@@ -148,18 +156,12 @@ def check_markup(
     a reply joins; a comment opens one whose id is not yet assigned. Refuses with
     what's wrong.
 
-    `publication` is the document and registry the message is published against:
-    the active revision's by default, or the candidate's where a reply publishes saved
-    edits with it (`thread.post_reply`). No later check reads the fragment for a
+    `publication` is the document and registry the message is stored with, which
+    its writer decides before the check: the revision it names
+    (`revision_publication`), or the candidate where a reply publishes saved edits
+    it has checked (`thread.post_reply`). No later check reads the fragment for a
     conflicting binding again (`data_contracts.data_binding_errors`), so it is
     checked here under the registry it is stored with."""
-    if publication is None:
-        revisions = list_revisions(page_dir)
-        publication = (
-            read_revision(page_dir, revisions[-1])
-            if revisions
-            else SourceReading(SourceDocument(""), require_registry(page_dir))
-        )
     registry, page = publication.registry, publication.document
     frag = SourceDocument(markup)
     extra_errors = data_binding_errors(

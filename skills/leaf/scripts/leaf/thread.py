@@ -39,6 +39,7 @@ from leaf.validation.admission import (
     check_markup,
     logged_id,
     read_text_arg,
+    revision_publication,
     thread_obligation,
 )
 
@@ -249,7 +250,13 @@ def cmd_comment(
             page_dir, events, quote, section, part, transaction=page
         )
         if markup:
-            check_markup(page_dir, "comment", markup, events)
+            check_markup(
+                page_dir,
+                "comment",
+                markup,
+                events,
+                publication=revision_publication(page_dir, revision),
+            )
         event = {
             "kind": "comment",
             "author": "agent",
@@ -686,40 +693,6 @@ def _compose_and_append(
                 part,
                 reply_revision,
             )
-    publication = checked.reading if checked is not None else None
-    fragment = (
-        check_markup(
-            page_dir,
-            "reply",
-            markup,
-            events,
-            publication=publication,
-            thread=thread_id,
-        )
-        if markup
-        else None
-    )
-    if ask and fragment:
-        from leaf.registry.storage import require_registry
-
-        registry = (
-            publication.registry
-            if publication is not None
-            else require_registry(page_dir)
-        )
-        structural = sorted(
-            {
-                rec["tag"]
-                for rec in fragment.lf_elements
-                if local_ask_entry(registry.get(rec["tag"]) or {})
-                and asking(rec["attrs"], registry[rec["tag"]]["x-awaits"].get("when"))
-                and not quoted_in(rec, registry)
-            }
-        )
-        if structural:
-            raise Rejected(
-                [Finding("widget-ask-markup", values={"tags": list(structural)})]
-            )
     if prospective_anchor is not None:
         revision, anchor = reply_revision, prospective_anchor
     elif moving:
@@ -736,6 +709,38 @@ def _compose_and_append(
         revision, anchor = reply_revision, None
     else:
         revision, anchor = None, None
+    if relocating or markup:
+        revision = revision or latest_revision(page_dir)
+    if markup:
+        # Every route that publishes saved edits has published or planned them by
+        # now, so the markup is checked under the reading the reply is stored with.
+        publication = (
+            checked.reading
+            if checked is not None
+            else revision_publication(page_dir, revision)
+        )
+        fragment = check_markup(
+            page_dir,
+            "reply",
+            markup,
+            events,
+            publication=publication,
+            thread=thread_id,
+        )
+        registry = publication.registry
+        structural = ask and sorted(
+            {
+                rec["tag"]
+                for rec in fragment.lf_elements
+                if local_ask_entry(registry.get(rec["tag"]) or {})
+                and asking(rec["attrs"], registry[rec["tag"]]["x-awaits"].get("when"))
+                and not quoted_in(rec, registry)
+            }
+        )
+        if structural:
+            raise Rejected(
+                [Finding("widget-ask-markup", values={"tags": list(structural)})]
+            )
     event = {
         "kind": "reply",
         "author": "agent",
@@ -768,7 +773,7 @@ def _compose_and_append(
     if failure is not None:
         event["failure"] = failure
     if relocating or markup:
-        event["revision"] = revision or latest_revision(page_dir)
+        event["revision"] = revision
     if relocating:
         event["anchor"] = anchor
     if title is not None:

@@ -357,8 +357,8 @@ class SourceDocument:
         return element.source_location is not None
 
     def _index(self, element, *, holder: dict | None, in_svg: bool) -> None:
-        """Record ids, their holders, lf-* elements and live samples: all a history
-        scan reads, so the one walk construction takes."""
+        """Record ids, their holders, lf-* elements and live samples: all a
+        revision inventory scan reads, so the one walk construction takes."""
         tag = element.tag
         located = element.source_location is not None
         record = None

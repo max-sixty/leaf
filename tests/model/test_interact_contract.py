@@ -2522,14 +2522,20 @@ def test_data_binding_inventory_keeps_each_documents_captured_registry(
     }
 
 
+@pytest.mark.parametrize(
+    "publishing",
+    [{"validate_source": True}, {"section": "plan"}],
+    ids=["check", "move"],
+)
 def test_a_reply_publishing_saved_edits_checks_its_markup_under_their_registry(
-    page_dir,
+    page_dir, publishing
 ):
-    """A reply that publishes saved edits is stored against the revision they make,
-    so its markup is checked under that revision's registry. Checked under the
-    active one, a contract the edits changed let one fragment bind a source under
-    two contracts, and nothing reads it for that again: a conflict lies within one
-    document, so no later check rereads the log's fragments."""
+    """A reply that publishes saved edits, whether it checks them first or moves
+    its thread onto them, is stored against the revision they make, so its markup is
+    checked under that revision's registry. Checked under the active one, a contract
+    the edits changed let one fragment bind a source under two contracts, and
+    nothing reads it for that again: a conflict lies within one document, so no
+    later check rereads the log's fragments."""
     declare_data_input(
         page_dir, "shared", {"type": "array"}, contract="rows", activate=False
     )
@@ -2556,10 +2562,12 @@ def test_a_reply_publishing_saved_edits_checks_its_markup_under_their_registry(
             "Both views of one feed.",
             '<lf-test-data id="rows-view" source="shared"></lf-test-data>'
             '<lf-test-other id="other-view" source="shared"></lf-test-other>',
-            validate_source=True,
+            **publishing,
         )
     assert [finding.code for finding in refused.value.findings] == ["contract-conflict"]
-    assert files_model.list_revisions(page_dir) == [1]
+    assert not any(
+        event["kind"] == "reply" for event in events_model.read_events(page_dir)
+    )
 
 
 @pytest.mark.parametrize("change", ["description", "empty-resources"])

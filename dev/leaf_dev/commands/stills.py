@@ -813,11 +813,8 @@ def contents_by_keyboard(page: Page) -> None:
 
 def contents_over_reading(page: Page) -> None:
     """Reveal the margin map over a section, including its title's background."""
-    page.locator("#security-deep-record > summary").click()
-    link = page.locator('lf-toc a[href="#security-concepts"]')
-    link.focus()
-    link.press("Enter")
-    expect(page).to_have_url(re.compile(r"#security-concepts$"))
+    contents_by_keyboard(page)
+    page.locator("lf-toc li a").first.press("Enter")
     page.locator("lf-toc .lf-toc-start a").focus()
 
 
@@ -1187,12 +1184,19 @@ STATES = (
     State("contents-spine", "developer/feature-gallery", at_rest),
     State("contents-spine-keyboard", "developer/feature-gallery", contents_by_keyboard),
     State(
-        "contents-over-reading", "security-boundary", contents_over_reading,
-        viewport=BESIDE, region=".lf-toc-start a",
+        "contents-over-reading",
+        "developer/feature-gallery",
+        contents_over_reading,
+        viewport=(1100, 900),
+        region=".lf-toc-start a",
     ),
     State(
-        "contents-over-reading-dark", "security-boundary", contents_over_reading,
-        viewport=BESIDE, scheme="dark", region=".lf-toc-start a",
+        "contents-over-reading-dark",
+        "developer/feature-gallery",
+        contents_over_reading,
+        viewport=(1100, 900),
+        scheme="dark",
+        region=".lf-toc-start a",
     ),
     State(
         "contents-spine-dark",

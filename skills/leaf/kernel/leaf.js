@@ -10570,8 +10570,8 @@ function createQueueWalk({
     return stops().filter((stop) => stop.kind === "ask" && held.has(stop.id));
   }
   const stopsOf = (region) => region ? stopsWithin(region) : stops();
-  function standingStop(list, { place: here, stands } = walkOrigin()) {
-    if (!stands) return null;
+  function standingStop(list, { place: here, kind } = walkOrigin()) {
+    if (kind !== "standing") return null;
     if (focused(document) === approvalTarget())
       return list.find((stop) => stop.kind === "approval") ?? null;
     const held = threadHere();
@@ -10754,10 +10754,10 @@ function createQueueWalk({
     const toward = dir < 0 ? -1 : 1;
     if (under(here.place, within)) return walk(toward, within, here);
     if (kept)
-      return walk(toward, within, { place: askPlace(kept).source, stands: true });
+      return walk(toward, within, { place: askPlace(kept).source, kind: "standing" });
     const clips = /* @__PURE__ */ new Map();
     const shown = asks2.map((ask) => askPlace(ask).node).find((node) => node && seenRect(node, clips));
-    return shown ? walk(toward, within, { place: shown, stands: false }) : walk(toward, within, here);
+    return shown ? walk(toward, within, { place: shown, kind: "at" }) : walk(toward, within, here);
   }
   return { mount, arriveAtItem, next, nextWithin };
 }
@@ -12893,13 +12893,19 @@ function stepThread(dir, destinations, panelIsOpen2, narrowing2, list) {
   const { threadsBox: threadsBox2 } = list;
   const { threadHere, threadAtStanding, threadPlace } = destinations;
   const { threads } = threadWalk(panelIsOpen2, list);
+  const origin = walkOrigin();
   const current = currentThread(threads, threadHere);
-  const targetId = !current && threadAtStanding();
+  const targetId = !current && origin.kind === "standing" && threadAtStanding();
   const atTarget = targetId && threads.find((thread) => thread.dataset.id === targetId);
   const atRow = panelIsOpen2() && focused() !== threadsBox2 && standingIn(threadsBox2);
-  const { row: next, wrapped } = current ? cycledRow(threads, current, dir) : atTarget ? { row: atTarget, wrapped: false } : atRow ? stepFrom(threads, { place: focused(), stands: true }, dir, (thread) => thread) : stepFrom(
+  const { row: next, wrapped } = current ? cycledRow(threads, current, dir) : atTarget ? { row: atTarget, wrapped: false } : atRow ? stepFrom(
     threads,
-    !panelIsOpen2() || narrowing2.listedInPageOrder() ? walkOrigin() : { place: null, stands: false },
+    { place: focused(), kind: "standing" },
+    dir,
+    (thread) => thread
+  ) : stepFrom(
+    threads,
+    !panelIsOpen2() || narrowing2.listedInPageOrder() ? origin : { place: null, kind: "enter" },
     dir,
     (thread) => threadPlace(thread.dataset.id)
   );

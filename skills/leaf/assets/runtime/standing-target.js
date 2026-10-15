@@ -85,18 +85,19 @@ export function placeOf(node) {
   return inChrome(at) ? null : at;
 }
 
-// Where a walk starts and whether the user is already standing there. A tab
-// enters its panel; it has not arrived at an ask the panel itself may represent.
+// A standing origin can step off its current stop. An `at` origin arrives at
+// its place; an `enter` origin starts inside its region, from either direction.
+// A selected tab enters its panel instead of standing on an ask it may hold.
 export function walkOrigin() {
   for (const node of standingNodes()) {
     const place = placeOf(node);
     if (place) {
       const tab = place.closest('[role="tab"][aria-selected="true"]');
       const panel = tab?.ariaControlsElements?.[0];
-      return panel ? { place: panel, stands: false } : { place, stands: true };
+      return panel ? { place: panel, kind: "enter" } : { place, kind: "standing" };
     }
   }
-  return { place: pageReadingBlock(), stands: true };
+  return { place: pageReadingBlock(), kind: "standing" };
 }
 
 // The item a walk over `list` steps to in direction `dir` from `here`, a place on the
@@ -107,11 +108,11 @@ export function walkOrigin() {
 // either way: the user is at it without standing on it, so the press arrives there. An
 // item with no place stands after every placed one, so it is ahead of any place. A
 // caller whose user stands on an item steps off it with `cycledRow` instead; with no
-// `here` the walk enters at the end it faces. An origin not yet stood at enters
-// its contained stops first, from the end the direction faces, before leaving it.
-export function stepFrom(list, { place: here, stands }, dir, placeOfItem) {
+// `here` the walk enters at the end it faces. An `enter` origin reaches its
+// contained stops first, from the end the direction faces, before leaving it.
+export function stepFrom(list, { place: here, kind }, dir, placeOfItem) {
   if (!here) return cycledRow(list, null, dir);
-  if (!stands) {
+  if (kind === "enter") {
     const inside = list.filter((item) => {
       const place = placeOfItem(item);
       return place && renderedUnder(place, here);

@@ -170,8 +170,8 @@ export function createQueueWalk({
   // what that holds, since on a page without a heading the head is `main`. Standing in
   // a thread that holds an open ask is not standing on that ask. `here` is the place
   // the step counts from, the user's own unless a caller names another.
-  function standingStop(list, { place: here, stands } = walkOrigin()) {
-    if (!stands) return null;
+  function standingStop(list, { place: here, kind } = walkOrigin()) {
+    if (kind !== "standing") return null;
     if (focused(document) === approvalTarget())
       return list.find((stop) => stop.kind === "approval") ?? null;
     const held = threadHere();
@@ -203,8 +203,8 @@ export function createQueueWalk({
   // The stop `dir` steps to, and whether it came round an end to reach it: off the one
   // the user stands on, else from their place by the page walks' rule (`stepFrom`,
   // standing-target.js). Within a region, a place outside it enters at the end the step
-  // faces. `origin.stands` false enters a place without stepping off it, as for a
-  // selected tab's panel or the first ask the user sees in a region.
+  // faces. `enter` starts inside a selected tab's panel; `at` starts at a visible ask
+  // without stepping off it.
   function step(list, dir, region, origin) {
     // Outside the region nothing the user stands on is one of its stops, even where the
     // press sits inside an ask's context.
@@ -423,7 +423,7 @@ export function createQueueWalk({
     const toward = dir < 0 ? -1 : 1;
     if (under(here.place, within)) return walk(toward, within, here);
     if (kept)
-      return walk(toward, within, { place: askPlace(kept).source, stands: true });
+      return walk(toward, within, { place: askPlace(kept).source, kind: "standing" });
     // What the user reads in the region: the first of its asks any of which they see,
     // where they are without standing on it, so a waiting one is the next and an
     // answered one leads to the next after it.
@@ -432,7 +432,7 @@ export function createQueueWalk({
       .map((ask) => askPlace(ask).node)
       .find((node) => node && seenRect(node, clips));
     return shown
-      ? walk(toward, within, { place: shown, stands: false })
+      ? walk(toward, within, { place: shown, kind: "at" })
       : walk(toward, within, here);
   }
 

@@ -2396,16 +2396,18 @@ def test_thread_walks_start_at_the_selected_tabs_panel(browser, serve, key):
     url = serve(
         leaf_page(
             "Discussions in tabs",
-            '<h1>Discussions</h1><lf-tabs id="tabs" list="side">'
+            '<h1>Discussions</h1><section id="wrap"><p>Intro words</p>'
+            '<lf-tabs id="tabs" list="side">'
             + "".join(
                 f'<lf-tab id="panel-{name.lower()}" label="{name}">'
                 f'<p id="{name}">{name} discussion</p></lf-tab>'
                 for name in ("First", "Second", "Third")
             )
-            + "</lf-tabs>",
+            + "</lf-tabs></section>",
         ),
         anchored=[
-            (name, f"{name} discussion") for name in ("First", "Second", "Third")
+            ("wrap", "Intro words"),
+            *((name, f"{name} discussion") for name in ("First", "Second", "Third")),
         ],
     )
     roots = [
@@ -2417,7 +2419,7 @@ def test_thread_walks_start_at_the_selected_tabs_panel(browser, serve, key):
     page.get_by_role("tab", name="Second", exact=True).click()
     page.keyboard.press(key)
     expect(
-        page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{roots[1]}"]')
+        page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{roots[2]}"]')
     ).to_be_focused()
 
 

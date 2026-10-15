@@ -5899,7 +5899,13 @@ function pageStatus(state, { reach: reach2 = "reached" } = {}) {
       }
     };
   const { publication } = state;
-  if (publication) return { kind: "publication", tone: "", publication };
+  if (publication)
+    return {
+      kind: "publication",
+      tone: "",
+      summary: `${publication.agent} revises your private copy`,
+      publication
+    };
   const { activity, agent } = state;
   const { kind, detail } = activity;
   const facts = activityFacts(state);
@@ -6853,7 +6859,7 @@ var AWAITING_STATE = "Approval waits until this page has read its current state"
 var approvalReading = () => {
   if (!signoff) return null;
   const { text, reason } = approvalWords();
-  return { text, reason };
+  return { text, reason, approved: versionApproved() };
 };
 function presentApproval({ reason, text, title }) {
   render(text, approveWords);
@@ -7019,7 +7025,7 @@ if (SHARE_ROOT) {
     rank: BANNER_CONTROL_RANK.share,
     // A presentation copies the link with its own copy control: a row of the page's own
     // menu with one press, or, where no clipboard is offered, beside the link to select.
-    row: { label: "Link", value: grants, copies: shareUrl, group: "page" }
+    row: { label: "link", value: grants, copies: shareUrl, group: "page" }
   });
 }
 var payloadAge = (provenance) => ago(provenance.committed ?? provenance.installed);
@@ -7079,10 +7085,10 @@ function renderPreview(state) {
       // What it copies is the diagnostics, which a presentation shows to select as
       // well; the line naming the preview says what they describe.
       row: {
-        label: "Preview diagnostics",
+        label: "preview diagnostics",
         value: () => previewLabel,
         copies: () => previewDiagnostics,
-        group: "about"
+        group: "page"
       }
     });
   }
@@ -7142,7 +7148,7 @@ function renderLayerReference(state) {
         label: "Leaf version",
         value: () => layerNamed,
         copies: () => layerDiagnostics,
-        group: "about"
+        group: "page"
       }
     });
   }
@@ -7198,9 +7204,9 @@ function renderSessionReference() {
       focusTarget: sessionReferenceElement,
       rank: BANNER_CONTROL_RANK.session,
       row: {
-        label: "Session reference",
+        label: "session reference",
         copies: () => runtime.sessionReference,
-        group: "about"
+        group: "page"
       }
     });
   }
@@ -7392,6 +7398,17 @@ function createFloatingPanel({
   inner.append(opened, context, row);
   card.append(inner);
   host.append(card, menu, badge, newsDot, peek);
+  const minimize = el("button", "lf-fp-minimize");
+  minimize.type = "button";
+  minimize.tabIndex = -1;
+  minimize.title = "Fold to the leaf";
+  minimize.setAttribute("aria-label", "Fold to the leaf");
+  minimize.append(iconElement("subtract", "lf-fp-minimize-icon"));
+  minimize.addEventListener(
+    "click",
+    () => rows2().find((entry) => entry.key === `command:${FOLD}`).press(null)
+  );
+  host.append(minimize);
   declareWindowChrome(() => {
     const box = row.getBoundingClientRect();
     return box.width > 0 && box.height > 0 ? [box] : [];
@@ -7416,7 +7433,8 @@ function createFloatingPanel({
     explanationParts: [{ text: "Connecting\u2026", source: null }],
     adds: "",
     addsParts: [],
-    asks: false
+    asks: false,
+    publication: null
   };
   const status = () => statusReading() ?? CONNECTING;
   const statusParts = (parts) => parts.map((part) => {
@@ -7892,8 +7910,8 @@ function createFloatingPanel({
     let copy = copyItems.get(entry.key);
     if (!copy) {
       copy = copyControl("lf-fp-copy-item", {
-        success: `${entry.label} copied`,
-        error: `${entry.label} not copied \xB7 select it to copy`
+        success: `${capital(entry.label)} copied`,
+        error: `${capital(entry.label)} not copied \xB7 select it to copy`
       });
       copy.addEventListener("wa-copy", () => putAwayThen(() => {
       }));
@@ -7907,7 +7925,7 @@ function createFloatingPanel({
     copy.disabled = entry.disabled;
     render(
       menuItem(
-        `Copy ${entry.label[0].toLowerCase()}${entry.label.slice(1)}`,
+        `Copy ${entry.label}`,
         html`<wa-icon library="system" name="copy" variant="regular"></wa-icon>`,
         () => {
         },
@@ -7955,7 +7973,10 @@ function createFloatingPanel({
     const groups = Object.keys(GROUPS).filter(
       (group2) => all.some((entry) => groupOf(entry) === group2 && listed(entry))
     );
-    const { tone, summary, summaryParts, adds, addsParts } = status();
+    const { tone, summary, summaryParts, adds, addsParts, publication } = status();
+    const explains = publication ? html`${publication.copy}${publication.examplesUrl ? html`<a href=${publication.examplesUrl}>${publication.examples}</a> ` : nothing}<a href=${publication.installUrl} target="_blank" rel="noopener"
+            >${publication.install}</a
+          >` : adds && addsParts ? statusParts(addsParts) : adds;
     const word2 = TONE_WORDS[tone];
     const part = (name2, text) => (held ? held[name2] : text) ? html`<span
             class="lf-fp-${name2}"
@@ -7991,7 +8012,7 @@ function createFloatingPanel({
         <b>${word2 ?? (summaryParts ? statusParts(summaryParts) : summary)}</b>${part(
       "summary",
       word2 ? summaryParts ? statusParts(summaryParts) : summary : ""
-    )}${part("explain", adds && addsParts ? statusParts(addsParts) : adds)}
+    )}${part("explain", explains)}
       </div>
       ${seats2.map(({ key, draw }) => now.get(key)?.draw(false) ?? draw(true))}`;
   }
@@ -8008,8 +8029,8 @@ function createFloatingPanel({
         entry.key,
         copyControl("lf-fp-copy-press", {
           label: `Copy ${entry.label}`,
-          success: `${entry.label} copied`,
-          error: `${entry.label} not copied \xB7 select it to copy`
+          success: `${capital(entry.label)} copied`,
+          error: `${capital(entry.label)} not copied \xB7 select it to copy`
         })
       );
     const copy = copies.get(entry.key);
@@ -8021,7 +8042,7 @@ function createFloatingPanel({
   function copyRow(entry) {
     const field2 = `lf-fp-copy-${entry.key}`;
     return html`<div class="lf-fp-copy">
-      <label class="lf-fp-copy-label" for=${field2}>${entry.label}</label>
+      <label class="lf-fp-copy-label" for=${field2}>${capital(entry.label)}</label>
       <textarea
         id=${field2}
         class="lf-fp-copy-text"
@@ -8037,19 +8058,23 @@ function createFloatingPanel({
     </div>`;
   }
   function versionsView() {
-    const { rows: versions, picker, selection } = versionsReading();
+    const { rows: versions, picker, selection, latest } = versionsReading();
     const approval = approvalReading();
-    const approved = approval?.text.startsWith("\u2713");
+    const approved = approval?.approved;
     return html`<div class="lf-fp-list">
+      ${latest.failed ? html`<div class="lf-fp-failed" role="status">
+              <b>${latest.label}</b>
+              <p class="lf-fp-failed-error">${latest.error}</p>
+            </div>` : nothing}
       ${repeat(
       versions,
       (entry) => `${entry.version === null ? "draft" : "version"}:${entry.revision}`,
       (entry) => html`<div class="lf-fp-version" ?data-current=${entry.current}>
             ${menuItem(
-        entry.name,
+        html`${entry.name}${entry.note ? html`<span class="lf-fp-note">${entry.note}</span>` : nothing}`,
         entry.current ? html`<span class="lf-fp-value">Showing</span>` : nothing,
         () => putAwayThen(() => versionPicker.activate(entry)),
-        { role: null }
+        { role: null, title: entry.note }
       )}${entry.comparable ? html`<button
                     type="button"
                     class="lf-fp-quiet lf-fp-compare"
@@ -8719,11 +8744,25 @@ function createFloatingPanel({
       quick
     );
   }
-  function rowNotice() {
+  function failedSave() {
+    const { latest } = versionsReading();
+    if (!latest.failed) return null;
+    return {
+      says: "Latest edit not shown",
+      tone: "danger",
+      press: {
+        label: "Why",
+        title: latest.error,
+        run: () => open({ view: "versions" }, { reopen: true })
+      }
+    };
+  }
+  function olderVersion() {
     const { latest } = versionsReading();
     if (latest.shown === null) return null;
     return {
       says: latest.shown,
+      tone: "warn",
       press: {
         label: "Latest",
         title: latest.keyTitle,
@@ -8732,19 +8771,48 @@ function createFloatingPanel({
       }
     };
   }
-  function rowNoticeTemplate({ says, press }) {
-    return press ? html`<button
+  function website() {
+    const { publication } = status();
+    if (!publication) return null;
+    return {
+      says: publication.examples ? "Example" : "Leaf page",
+      tone: "accent",
+      press: { label: publication.install, href: publication.installUrl }
+    };
+  }
+  function approvedVersion() {
+    if (!approvalReading()?.approved) return null;
+    return { says: `\u2713 ${versionsReading().picker.token} approved`, tone: "ok" };
+  }
+  const ROW_NOTICES = [failedSave, olderVersion, website, approvedVersion];
+  const rowNotice = () => {
+    for (const read of ROW_NOTICES) {
+      const notice2 = read();
+      if (notice2) return notice2;
+    }
+    return null;
+  };
+  function rowNoticeTemplate({ says, tone, press = null }) {
+    const face2 = html`<span class="lf-fp-row-notice-face" data-tone=${tone}
+      >${says}${press ? html`<span class="lf-fp-row-notice-sep" aria-hidden="true">·</span
+              ><span class="lf-fp-row-notice-act">${press.label}</span>` : nothing}</span
+    >`;
+    if (!press) return face2;
+    return press.href ? html`<a
+          class="lf-fp-chip lf-fp-row-notice-press"
+          href=${press.href}
+          target="_blank"
+          rel="noopener"
+          >${face2}</a
+        >` : html`<button
           type="button"
           class="lf-fp-chip lf-fp-row-notice-press"
-          title=${press.title}
+          title=${press.title ?? nothing}
           ?disabled=${press.disabled}
           @click=${press.run}
         >
-          <span class="lf-fp-row-notice-face"
-            >${says}<span class="lf-fp-row-notice-sep" aria-hidden="true">·</span
-            ><span class="lf-fp-row-notice-act">${press.label}</span></span
-          >
-        </button>` : html`<span class="lf-fp-row-notice-face">${says}</span>`;
+          ${face2}
+        </button>`;
   }
   leaf.addEventListener("click", () => {
     if (host.dataset.rest === "mark") {

@@ -342,7 +342,13 @@ test("what the disclosure adds to the row says only what the row does not", () =
 test("a published page introduces itself and its links in place of the status", () => {
   const publication = { agent: "Agent", install_url: "/#install" };
   const status = pageStatus({ ...state({ kind: "working" }), publication });
-  assert.deepEqual(status, { kind: "publication", tone: "", publication });
+  // Its line says who answers there, for a seat with room for one line.
+  assert.deepEqual(status, {
+    kind: "publication",
+    tone: "",
+    summary: "Agent revises your private copy",
+    publication,
+  });
   const model = statusModel(status, NO_QUEUES, "Agent");
   assert.equal(
     model.explanation,

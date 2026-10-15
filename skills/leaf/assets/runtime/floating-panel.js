@@ -11,12 +11,14 @@
  * setting chooses it:
  * - **Folded**, the leaf alone in the window's corner, coloured by the agent's state,
  *   with a badge counting what waits on the user and a dot for threads with news. The
- *   user folds it from the leaf's menu; a press on the leaf unfolds it, and it stays as
- *   it was left across pages (`rest`).
+ *   user folds it from the leaf's menu or with `.`, or by a pointer with the small round
+ *   button that rides the box's top-right corner while the pointer is over the panel; a
+ *   press on the leaf unfolds it, and it stays as it was left across pages (`rest`).
  * - **The row**: the leaf, the comment field, and marks with counts for On me and
  *   Threads, with at most one small notice beside the marks for a state the user should
- *   not miss, such as reading an older version, and the one press that ends it
- *   (`rowNotice`); the field gives it room, so the marks keep their seats. The empty
+ *   not miss, such as a failed save or reading an older version, tinted by its tone and
+ *   with at most one press (`ROW_NOTICES`); the field gives it room, so the marks keep
+ *   their seats. The empty
  *   field says what the agent is doing or wants, in the banner's own words
  *   (`statusReading`), or what a passing notice says, where a placeholder would say
  *   "Comment"; in a thread it says whose turn it is. A status that reports reads dimmer
@@ -60,7 +62,10 @@
  *
  * The leaf's menu is a small list above the leaf holding the rest of the page's
  * controls, each one line, with its key where it has one, and a chevron on a row that
- * opens a list of its own (Versions, and the groups: Navigate, Annotations, About). A
+ * opens a list of its own (Versions, and the groups: Navigate, Annotations, and About,
+ * which holds the rows that copy a text only where no clipboard is there to copy with;
+ * elsewhere each such row, the page's link and the Leaf version among them, is one press
+ * in the menu, as the user chose on 15 October over an About view of one line). A
  * keyboard's convenience for where the reader stands, such as Resume writing, stands
  * under Navigate only where no keyboard is there to reach it (banner-toolbar.js, the
  * `keys` group). The field the user clicks in is the field they write in: a page
@@ -79,7 +84,7 @@
  * travels after the gesture that moved it. */
 import { html, nothing, ref, render, repeat } from "/vendor/browser-runtime.js";
 import { el } from "./widget-elements.js";
-import { iconTemplate } from "./icons.js";
+import { iconElement, iconTemplate } from "./icons.js";
 import { copyControl } from "./copy-control.js";
 import { keeps, keepsHidden, keepsText } from "./keeps.js";
 import {
@@ -255,6 +260,22 @@ export function createFloatingPanel({
   // The menu and the peek stand over the leaf by anchoring to it, which they can only
   // do from after it in the tree.
   host.append(card, menu, badge, newsDot, peek);
+  // The pointer's way to fold, which the user asked for as a minimize shown on hover: a
+  // round button on the box's top-right corner, chosen over one at the row's end on 15
+  // October. It presses the fold command's own row, as the menu's row does; that row and
+  // `.` are the keyboard's and a finger's ways, so it takes no Tab stop of its own.
+  const minimize = el("button", "lf-fp-minimize");
+  minimize.type = "button";
+  minimize.tabIndex = -1;
+  minimize.title = "Fold to the leaf";
+  minimize.setAttribute("aria-label", "Fold to the leaf");
+  minimize.append(iconElement("subtract", "lf-fp-minimize-icon"));
+  minimize.addEventListener("click", () =>
+    rows()
+      .find((entry) => entry.key === `command:${FOLD}`)
+      .press(null),
+  );
+  host.append(minimize);
   // The row stands over the window's foot as the bottom bar did, so what the page
   // reveals stands clear of it. A view opened above it is itself read, and stands over
   // the page only while it is used, so it leaves the page's room alone; but what it
@@ -286,6 +307,7 @@ export function createFloatingPanel({
     adds: "",
     addsParts: [],
     asks: false,
+    publication: null,
   };
   const status = () => statusReading() ?? CONNECTING;
   // Only the authored runs carry response identity. Their renderer refs register
@@ -981,8 +1003,8 @@ export function createFloatingPanel({
     let copy = copyItems.get(entry.key);
     if (!copy) {
       copy = copyControl("lf-fp-copy-item", {
-        success: `${entry.label} copied`,
-        error: `${entry.label} not copied · select it to copy`,
+        success: `${capital(entry.label)} copied`,
+        error: `${capital(entry.label)} not copied · select it to copy`,
       });
       copy.addEventListener("wa-copy", () => putAwayThen(() => {}));
       copy.addEventListener("wa-error", () => {
@@ -995,7 +1017,7 @@ export function createFloatingPanel({
     copy.disabled = entry.disabled;
     render(
       menuItem(
-        `Copy ${entry.label[0].toLowerCase()}${entry.label.slice(1)}`,
+        `Copy ${entry.label}`,
         html`<wa-icon library="system" name="copy" variant="regular"></wa-icon>`,
         () => {},
         {
@@ -1051,7 +1073,19 @@ export function createFloatingPanel({
     // The state is said once: in a word, over its one line, and under that only what
     // the banner's disclosure adds to the line (`statusModel`, `adds`), since the menu
     // is reached by pointer, key and finger alike.
-    const { tone, summary, summaryParts, adds, addsParts } = status();
+    const { tone, summary, summaryParts, adds, addsParts, publication } = status();
+    // A published page's introduction keeps its links, as the banner's does.
+    const explains = publication
+      ? html`${publication.copy}${
+            publication.examplesUrl
+              ? html`<a href=${publication.examplesUrl}>${publication.examples}</a> `
+              : nothing
+          }<a href=${publication.installUrl} target="_blank" rel="noopener"
+            >${publication.install}</a
+          >`
+      : adds && addsParts
+        ? statusParts(addsParts)
+        : adds;
     const word = TONE_WORDS[tone];
     const part = (name, text) =>
       (held ? held[name] : text)
@@ -1093,7 +1127,7 @@ export function createFloatingPanel({
         <b>${word ?? (summaryParts ? statusParts(summaryParts) : summary)}</b>${part(
           "summary",
           word ? (summaryParts ? statusParts(summaryParts) : summary) : "",
-        )}${part("explain", adds && addsParts ? statusParts(addsParts) : adds)}
+        )}${part("explain", explains)}
       </div>
       ${seats.map(({ key, draw }) => now.get(key)?.draw(false) ?? draw(true))}`;
   }
@@ -1113,11 +1147,11 @@ export function createFloatingPanel({
         .map((entry) => (entry.copies ? copyRow(entry) : rowFor(entry)))}
     </div>`;
   }
-  // A row of a group whose press copies a text, such as the Leaf version, shows that text
-  // for the user to select as well, with Leaf's copy control beside it (copy-control.js),
-  // which shows on its own face whether the copy took. Where no clipboard is offered
-  // (`canCopy`) the control stands down and the text is there to select, as the page's
-  // link is, which joins About then (`groupOf`); the view stays open across a press, so the
+  // A row of a group whose press copies a text, which stands in About only where the
+  // clipboard is missing or refused (`groupOf`), shows that text for the user to select
+  // as well, with Leaf's copy control beside it (copy-control.js), which shows on its own
+  // face whether the copy took. Where no clipboard is offered (`canCopy`) the control
+  // stands down and the text is there to select; the view stays open across a press, so the
   // text is still there if the copy failed. Its value, which a one-line row would end
   // with, says beneath it what the text is. A text of several lines, such as a preview's
   // diagnostics, shows its first few, and selecting it takes the whole.
@@ -1128,8 +1162,8 @@ export function createFloatingPanel({
         entry.key,
         copyControl("lf-fp-copy-press", {
           label: `Copy ${entry.label}`,
-          success: `${entry.label} copied`,
-          error: `${entry.label} not copied · select it to copy`,
+          success: `${capital(entry.label)} copied`,
+          error: `${capital(entry.label)} not copied · select it to copy`,
         }),
       );
     const copy = copies.get(entry.key);
@@ -1141,7 +1175,7 @@ export function createFloatingPanel({
   function copyRow(entry) {
     const field = `lf-fp-copy-${entry.key}`;
     return html`<div class="lf-fp-copy">
-      <label class="lf-fp-copy-label" for=${field}>${entry.label}</label>
+      <label class="lf-fp-copy-label" for=${field}>${capital(entry.label)}</label>
       <textarea
         id=${field}
         class="lf-fp-copy-text"
@@ -1157,24 +1191,40 @@ export function createFloatingPanel({
     </div>`;
   }
 
-  // The versions the picker lists, the one shown marked, each a press that travels
-  // there, with Compare where the picker offers it; then the version's approval, where
+  // Where the agent's latest save failed its check, first what the check found, which
+  // the row's notice opens this view to say (`failedSave`); then the versions the picker
+  // lists, the one shown marked, each a press that travels
+  // there and says the note its stamp gave it after its name, cut to the row and whole
+  // on hover, as the bars' picker shows it; with Compare where the picker offers it;
+  // then the version's approval, where
   // the page asks for one, with why a press would not approve yet.
   function versionsView() {
-    const { rows: versions, picker, selection } = versionsReading();
+    const { rows: versions, picker, selection, latest } = versionsReading();
     const approval = approvalReading();
-    const approved = approval?.text.startsWith("✓");
+    const approved = approval?.approved;
     return html`<div class="lf-fp-list">
+      ${
+        latest.failed
+          ? html`<div class="lf-fp-failed" role="status">
+              <b>${latest.label}</b>
+              <p class="lf-fp-failed-error">${latest.error}</p>
+            </div>`
+          : nothing
+      }
       ${repeat(
         versions,
         (entry) => `${entry.version === null ? "draft" : "version"}:${entry.revision}`,
         (entry) =>
           html`<div class="lf-fp-version" ?data-current=${entry.current}>
             ${menuItem(
-              entry.name,
+              html`${entry.name}${
+                entry.note
+                  ? html`<span class="lf-fp-note">${entry.note}</span>`
+                  : nothing
+              }`,
               entry.current ? html`<span class="lf-fp-value">Showing</span>` : nothing,
               () => putAwayThen(() => versionPicker.activate(entry)),
-              { role: null },
+              { role: null, title: entry.note },
             )}${
               entry.comparable
                 ? html`<button
@@ -2081,20 +2131,36 @@ export function createFloatingPanel({
   }
 
   // ---------- the row's notice ----------
-  // The one small notice the row shows, beside the marks: what it says, and the press
-  // that ends it, where one does. Reading an older version is its one case: the menu's
-  // row that opens the latest says so too, but only once the menu is open, while the
-  // counts beside it follow the version shown with no word of why.
-  // TODO(2026-10-14): grow this into one general kind of small notice to the user
-  // (notes/floating-panel/GOAL.md, "One general kind of small notice in the row"): what
-  // a notice says, who raises it, the press it offers, and how it ends, and which states
-  // raise one, such as a stale page, being offline, or a page opened from a share link.
-  // Until then each case is a branch here, and the slot shows the first that holds.
-  function rowNotice() {
+  // One small notice beside the marks, for a state the user should not miss while they
+  // read: a few words (`says`), a `tone` that tints it, and at most one `press`, a
+  // button or a link. Leaf's own readings raise each, and a notice ends when the state
+  // it reads does. The slot shows the first that holds, most urgent first, so the
+  // field's room never goes to a stack of them. Each case is a reading below; a new
+  // one joins `ROW_NOTICES` in its place.
+  // The agent's latest save failed its check, so the page shows the last one that
+  // passed; Why opens Versions, which says what the check found.
+  function failedSave() {
+    const { latest } = versionsReading();
+    if (!latest.failed) return null;
+    return {
+      says: "Latest edit not shown",
+      tone: "danger",
+      press: {
+        label: "Why",
+        title: latest.error,
+        run: () => open({ view: "versions" }, { reopen: true }),
+      },
+    };
+  }
+  // The page shows an older version than the latest: the menu's row that opens the
+  // latest says so too, but only once the menu is open, while the counts beside it
+  // follow the version shown with no word of why.
+  function olderVersion() {
     const { latest } = versionsReading();
     if (latest.shown === null) return null;
     return {
       says: latest.shown,
+      tone: "warn",
       press: {
         label: "Latest",
         title: latest.keyTitle,
@@ -2103,21 +2169,57 @@ export function createFloatingPanel({
       },
     };
   }
-  function rowNoticeTemplate({ says, press }) {
-    return press
-      ? html`<button
+  // A copy of a page on Leaf's website: the field says who revises it, and the notice
+  // where Leaf comes from; the menu's head holds the introduction and its links.
+  function website() {
+    const { publication } = status();
+    if (!publication) return null;
+    return {
+      says: publication.examples ? "Example" : "Leaf page",
+      tone: "accent",
+      press: { label: publication.install, href: publication.installUrl },
+    };
+  }
+  // The version shown is approved, until a new version asks again.
+  function approvedVersion() {
+    if (!approvalReading()?.approved) return null;
+    return { says: `✓ ${versionsReading().picker.token} approved`, tone: "ok" };
+  }
+  const ROW_NOTICES = [failedSave, olderVersion, website, approvedVersion];
+  const rowNotice = () => {
+    for (const read of ROW_NOTICES) {
+      const notice = read();
+      if (notice) return notice;
+    }
+    return null;
+  };
+  function rowNoticeTemplate({ says, tone, press = null }) {
+    const face = html`<span class="lf-fp-row-notice-face" data-tone=${tone}
+      >${says}${
+        press
+          ? html`<span class="lf-fp-row-notice-sep" aria-hidden="true">·</span
+              ><span class="lf-fp-row-notice-act">${press.label}</span>`
+          : nothing
+      }</span
+    >`;
+    if (!press) return face;
+    return press.href
+      ? html`<a
+          class="lf-fp-chip lf-fp-row-notice-press"
+          href=${press.href}
+          target="_blank"
+          rel="noopener"
+          >${face}</a
+        >`
+      : html`<button
           type="button"
           class="lf-fp-chip lf-fp-row-notice-press"
-          title=${press.title}
+          title=${press.title ?? nothing}
           ?disabled=${press.disabled}
           @click=${press.run}
         >
-          <span class="lf-fp-row-notice-face"
-            >${says}<span class="lf-fp-row-notice-sep" aria-hidden="true">·</span
-            ><span class="lf-fp-row-notice-act">${press.label}</span></span
-          >
-        </button>`
-      : html`<span class="lf-fp-row-notice-face">${says}</span>`;
+          ${face}
+        </button>`;
   }
 
   // ---------- gestures ----------

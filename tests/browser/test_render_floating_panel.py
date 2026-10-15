@@ -23,7 +23,7 @@ from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from model_folds import leaf_page
 from playwright.sync_api import expect
-from render_cases_interaction import panel_comment
+from render_cases_interaction import LIVE_V1, LIVE_V2, live_url, panel_comment
 from render_harness import (
     LONG_PAGE,
     consume_browser_errors,
@@ -625,31 +625,30 @@ def test_threads_is_as_tall_as_the_threads_it_first_shows(browser, serve):
     assert below < row, f"{below:.0f}px stand empty under the last thread"
 
 
-def test_about_s_rows_that_copy_say_what_they_copy(browser, serve):
-    """A row of About whose press copies, such as the Leaf version's diagnostics, shows
-    the text it copies beside Leaf's copy control, and names it. The control is the one
-    a code block wears, an icon named for what it copies, and a press copies the text
-    and says so."""
+def test_the_leaf_version_is_one_press_in_the_leaf_s_menu(browser, serve):
+    """The Leaf version is copied from a row of the leaf's menu itself, as the page's
+    link is: one press puts the menu away, copies the version's diagnostics and says so
+    in the field, and the row's hover name says which Leaf it is. With a clipboard there
+    is no About view, which held only those rows."""
     page = floating(browser, serve(LONG_PAGE))
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
     page.locator(".lf-fp-leaf").click()
-    page.locator(".lf-fp-menu .lf-fp-item", has_text="About this page").click()
-    version = page.locator(".lf-fp-copy", has_text="Leaf version")
-    text = version.locator(".lf-fp-copy-text")
-    expect(text).to_have_value(re.compile("^Leaf layer\n"))
-    copy = version.locator("wa-copy-button")
-    expect(copy).to_be_visible()
-    copy.get_by_role("button", name="Copy Leaf version").click()
+    menu = page.locator(".lf-fp-menu")
+    expect(menu.locator(".lf-fp-item", has_text="About this page")).to_have_count(0)
+    row = menu.get_by_role("menuitem", name="Copy Leaf version")
+    expect(row).to_have_attribute("title", re.compile("^Leaf "))
+    row.click()
+    expect(menu).to_be_hidden()
     expect(field(page)).to_have_attribute(
         "placeholder", re.compile("^Leaf version copied")
     )
-    assert page.evaluate("navigator.clipboard.readText()") == text.input_value()
+    assert page.evaluate("navigator.clipboard.readText()").startswith("Leaf layer\n")
 
 
 def test_copy_link_is_one_press_in_the_leaf_s_menu(browser, serve):
     """The page's link is copied from a row of the leaf's menu itself, in one press that
     puts the menu away and says in the field that the link was copied; its hover name
-    says what the link grants. About keeps the Leaf version and no longer the link."""
+    says what the link grants."""
     page = floating(browser, serve(LONG_PAGE))
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
     page.locator(".lf-fp-leaf").click()
@@ -661,12 +660,6 @@ def test_copy_link_is_one_press_in_the_leaf_s_menu(browser, serve):
     assert re.match(
         r"^http://.*[?&]t=", page.evaluate("navigator.clipboard.readText()")
     )
-
-    page.locator(".lf-fp-leaf").click()
-    page.locator(".lf-fp-menu .lf-fp-item", has_text="About this page").click()
-    about = page.locator(".lf-fp-view[data-view=group]")
-    expect(about.locator(".lf-fp-copy", has_text="Leaf version")).to_be_visible()
-    expect(about.get_by_label("Link", exact=True)).to_have_count(0)
 
 
 def test_a_refused_copy_leaves_the_link_to_select_in_about(browser, serve):
@@ -1667,6 +1660,36 @@ def test_the_panel_folds_to_the_leaf_and_stays_folded(browser, serve):
     expect(page.locator(".lf-thread-panel")).not_to_have_class("open")
 
 
+def test_a_pointer_folds_the_panel_from_its_corner(browser, serve):
+    """A round button on the box's top-right corner folds the panel, shown only while
+    the pointer is over it, so the resting row is the row alone; it takes no Tab stop,
+    since the menu's row and `.` fold from the keyboard."""
+    page = floating(browser, serve(LONG_PAGE, comments=1))
+    minimize = page.locator(".lf-fp-minimize")
+    page.mouse.move(5, 5)
+    expect(minimize).to_be_hidden()
+    expect(minimize).to_have_attribute("tabindex", "-1")
+    page.locator(".lf-fp-row").hover()
+    expect(page.get_by_role("button", name="Fold to the leaf")).to_be_visible()
+    card, button = (
+        page.locator(".lf-fp-card").bounding_box(),
+        minimize.bounding_box(),
+    )
+    # It rides the corner: its centre sits on the box's top-right edge.
+    assert abs(button["x"] + button["width"] / 2 - (card["x"] + card["width"])) <= 2
+    assert abs(button["y"] + button["height"] / 2 - card["y"]) <= 2
+    # It presses the fold command, as the menu's row does, so the press is announced
+    # and logged like any other.
+    page.evaluate(
+        """() => document.addEventListener('lf-command-invoked',
+            ({detail}) => { window.invoked = detail.id }, {once: true})"""
+    )
+    minimize.click()
+    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-rest", "mark")
+    expect(minimize).to_be_hidden()
+    assert page.evaluate("window.invoked") == "panel.floating.fold"
+
+
 def test_asks_are_answered_where_they_are_read_on_me(browser, serve):
     """On me lists what waits on the user, and each ask takes its answer there, by the
     widget's own choice: the event is the widget's action. The answered card keeps its
@@ -1709,7 +1732,7 @@ def test_asks_are_answered_where_they_are_read_on_me(browser, serve):
 def test_versions_travel_and_approval_open_in_the_panel(browser, serve):
     """Version travel opens the panel's Versions, whatever route asks for the versions
     menu: the leaf's menu, whose row names the key as keys, apart from its value, and
-    that key. It lists each version,
+    that key. It lists each version with its note,
     marks the one shown, travels to another, and holds the page's approval, which
     records the sign-off."""
     url = serve(SIGN_OFF)
@@ -1735,6 +1758,11 @@ def test_versions_travel_and_approval_open_in_the_panel(browser, serve):
     expect(page.locator("#lf-versions")).to_be_hidden()
     expect(view.locator(".lf-fp-version")).to_have_count(2)
     expect(view.locator(".lf-fp-version[data-current]")).to_contain_text("Showing")
+    # Each version says the note its stamp gave it after its name, whole on hover.
+    expect(view.locator(".lf-fp-note")).to_have_text(["two", "t"])
+    expect(view.locator(".lf-fp-version .lf-fp-item").first).to_have_attribute(
+        "title", "two"
+    )
     # The list is one stop for Tab, which the arrows walk through each version and its
     # Compare to the approval.
     stops = view.locator(".lf-fp-item:not(:disabled), .lf-fp-compare")
@@ -1797,6 +1825,82 @@ def test_an_older_version_says_so_in_the_row_and_one_press_opens_the_latest(
     expect(page).not_to_have_url(re.compile(r"/versions/"))
     expect(page.locator("main")).to_contain_text("Paragraph zero.")
     expect(notice).to_be_hidden()
+
+
+def test_the_row_says_the_version_shown_is_approved(browser, serve):
+    """Once the user approves the version shown, the row says so, quietly and with no
+    press, until Undo takes the approval back."""
+    page = floating(browser, serve(SIGN_OFF))
+    notice = page.locator(".lf-fp-row-notice")
+    expect(notice).to_be_hidden()
+    page.locator(".lf-fp-leaf").click()
+    page.locator(".lf-fp-menu .lf-fp-item", has_text="Versions").click()
+    view = page.locator(".lf-fp-view[data-view=versions]")
+    with sending(page, "the approval"):
+        view.locator(".lf-fp-item", has_text="Approve version").click()
+    expect(notice).to_have_text(re.compile(r"^\s*✓ v1 approved\s*$"))
+    expect(notice.locator("button, a")).to_have_count(0)
+    expect(notice.locator(".lf-fp-row-notice-face")).to_have_attribute(
+        "data-tone", "ok"
+    )
+    page.keyboard.press("Escape")
+    page.locator("body").focus()
+    with sending(page, "the undo"):
+        page.keyboard.press("z")
+    expect(notice).to_be_hidden()
+
+
+def test_the_row_says_when_the_latest_save_failed_and_why(browser, serve):
+    """When the agent's latest save fails its check, the page keeps the last one that
+    passed, and the row says so beside the marks; its Why opens Versions on what the
+    check found. The notice ends with the next valid save."""
+    page = open_page(browser, live_url(serve(LIVE_V1)), init_script=FLOATING)
+    notice = page.locator(".lf-fp-row-notice")
+    expect(notice).to_be_hidden()
+    (serve.page_dir / "index.html").write_text(LIVE_V2.replace("</main>", ""))
+    told(page)
+    expect(notice).to_have_text(re.compile(r"^\s*Latest edit not shown\s*·\s*Why\s*$"))
+    expect(notice.locator(".lf-fp-row-notice-face")).to_have_attribute(
+        "data-tone", "danger"
+    )
+    notice.locator("button").click()
+    failed = page.locator(".lf-fp-view[data-view=versions] .lf-fp-failed")
+    expect(failed).to_contain_text("Latest edit couldn't be shown")
+    expect(failed.locator(".lf-fp-failed-error")).not_to_be_empty()
+    (serve.page_dir / "index.html").write_text(LIVE_V2)
+    told(page)
+    expect(notice).to_be_hidden()
+    expect(failed).to_have_count(0)
+
+
+def test_a_website_copy_says_who_revises_it_and_where_leaf_comes_from(browser, serve):
+    """On Leaf's website the field says who revises the visitor's copy, the row's notice
+    says where Leaf comes from, and the leaf's menu keeps the introduction with its
+    links, as the banner does."""
+    page = floating(
+        browser,
+        serve(
+            leaf_page("Website example", "<h1>Website example</h1>"),
+            website_publication={
+                "kind": "example",
+                "agent": "Leaf guide",
+                "install_url": "/#install",
+            },
+        ),
+    )
+    expect(field(page)).to_have_attribute(
+        "placeholder", re.compile("^Leaf guide revises your private copy")
+    )
+    notice = page.locator(".lf-fp-row-notice a")
+    expect(notice).to_have_text(re.compile(r"^\s*Example\s*·\s*Install Leaf\s*$"))
+    expect(notice).to_have_attribute("href", "/#install")
+    page.locator(".lf-fp-leaf").click()
+    links = page.locator(".lf-fp-menu .lf-fp-state a")
+    expect(links).to_have_count(2)
+    assert links.evaluate_all("as => as.map(a => a.getAttribute('href'))") == [
+        "/examples/",
+        "/#install",
+    ]
 
 
 def test_the_on_me_walk_arrives_at_the_approval_in_the_panel(browser, serve):
@@ -1904,7 +2008,7 @@ def test_the_leaf_s_menu_marks_what_opens_a_list_and_leaves_key_conveniences_out
     expect(page.locator(".lf-fp-quick button")).to_have_count(2)
     page.locator(".lf-fp-leaf").click()
     menu = page.locator(".lf-fp-menu")
-    for opens in ("Navigate", "Annotations", "About this page"):
+    for opens in ("Navigate", "Annotations"):
         expect(menu.locator(".lf-fp-item[data-opens]", has_text=opens)).to_have_count(1)
     expect(
         menu.locator(".lf-fp-item[data-opens]", has_text="Keyboard shortcuts")

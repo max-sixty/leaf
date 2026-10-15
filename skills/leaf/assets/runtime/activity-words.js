@@ -251,7 +251,15 @@ export function pageStatus(state, { reach = "reached" } = {}) {
           }),
     };
   const { publication } = state;
-  if (publication) return { kind: "publication", tone: "", publication };
+  // A published page's status line says who answers there; its introduction and links
+  // stand beside it (`statusModel`).
+  if (publication)
+    return {
+      kind: "publication",
+      tone: "",
+      summary: `${publication.agent} revises your private copy`,
+      publication,
+    };
   const { activity, agent } = state;
   const { kind, detail } = activity;
   const facts = activityFacts(state);

@@ -274,11 +274,12 @@
      * would, by the same arithmetic about the prose axis (`--lf-over` is how far it
      * passes the column). One that fits the column starts where the prose does.
      *
-     * The margin sets the box at the edge of the free room on the left, and a
-     * translation, which can use the box's own width, moves it the rest. Laying it out
-     * inside the room keeps Firefox from counting an untranslated overhang in what the
-     * page scrolls. The right margin is `auto`, so the box is placed from the left in
-     * either direction.
+     * The margin sets the box at the edge of the free room on its holder's start side,
+     * and a translation, which can use the box's own width (`--lf-pull` is how far a
+     * breakout of that width grows left), moves it the rest. Laying it out inside the
+     * room keeps Firefox from counting an untranslated overhang in what the page
+     * scrolls. A box wider than its holder is placed from the holder's start whatever
+     * margin the other side states, so each direction sets its own start.
      *
      * Its width is its content's, so it gives up size containment; a table the page
      * arranged, in a frame, or inside another breakout stays the contained table
@@ -296,8 +297,14 @@
         margin-left: calc(-1 * var(--lf-free-l));
         margin-right: auto;
         --lf-over: calc(100% - var(--lf-width));
-        translate: calc(var(--lf-free-l) - clamp(max(0px, var(--lf-over) - var(--lf-free-r)),
-          var(--lf-over) / 2, min(var(--lf-over), var(--lf-free-l)))) 0;
+        --lf-pull: clamp(max(0px, var(--lf-over) - var(--lf-free-r)),
+          var(--lf-over) / 2, min(var(--lf-over), var(--lf-free-l)));
+        translate: calc(var(--lf-free-l) - var(--lf-pull)) 0;
+        :dir(rtl) > & {
+          margin-left: auto;
+          margin-right: calc(-1 * var(--lf-free-r));
+          translate: calc(var(--lf-over) - var(--lf-free-r) - var(--lf-pull)) 0;
+        }
         & > caption {
           max-inline-size: max(var(--lf-width), var(--lf-reach));
         }

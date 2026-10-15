@@ -10019,7 +10019,7 @@ var ThreadNarrowingView = class extends HTMLElement {
     >
       ${choice2.amount === null ? choice2.label : html`<span
               data-lf-room=${`${choice2.label} (${"0".repeat(this.#countDigits)})`}
-              ><span>${choice2.label} (${choice2.amount})</span></span
+              ><span>${`${choice2.label} (${choice2.amount})`}</span></span
             >`}
     </button>`;
   }

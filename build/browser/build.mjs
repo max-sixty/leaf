@@ -197,7 +197,7 @@ async function protocolContract(contract) {
     await readFile(path.join(root, assets, "registry.json"), "utf8"),
   );
   const protocol = registry.$events.protocol;
-  const header = `// The event contract pages vendored at protocol ${protocol} speak, as it last stood (protocol.test.ts).`;
+  const header = `/* @noformat The event contract pages vendored at protocol ${protocol} speak, as it last stood (protocol.test.ts). */`;
   return { header, text: `${header}\n${contract.slice(contract.indexOf("\n") + 1)}` };
 }
 

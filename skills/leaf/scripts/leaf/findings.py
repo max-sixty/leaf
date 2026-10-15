@@ -943,7 +943,7 @@ _TEXT = {
     "idiom-fields": _declared(
         lambda v: (
             f"idiom {v['selector']!r} must carry a non-empty description and"
-            " x-example, with optional x-instructions and " + ", ".join(v["marks"])
+            " x-example, with optional x-instructions"
         )
     ),
     "idiom-value": _declared(
@@ -1429,6 +1429,15 @@ _TEXT = {
         f"was vendored by a Leaf at page protocol {v['vendored']}, and this Leaf"
         f" ({v['leaf']}) speaks protocol {v['protocol']}",
         "Update the page's Leaf runtime",
+    ),
+    "newer-layer": lambda at, v: (
+        f"{v['page']} was vendored at page protocol {v['vendored']} by a newer Leaf"
+        f" ({v['vendored_by']}), and this Leaf ({v['leaf']}) speaks protocol"
+        f" {v['protocol']}, so it cannot serve the page or write its log, nor"
+        " re-vendor it to an older protocol. Use a Leaf at protocol"
+        f" {v['vendored']} or later. An agent session keeps the Leaf plugin it"
+        " loaded until it reloads it; in Claude Code, `/reload-plugins` loads an"
+        " installed update."
     ),
     "retired-layer": lambda at, v: _unservable_layer(
         v,

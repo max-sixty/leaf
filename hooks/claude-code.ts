@@ -14,9 +14,13 @@
  *   watch with the Interrupt payload, which closes the turn. Receipt distinguishes
  *   input that entered that turn from input held outside its context;
  * - a watch that wakes an idle session submits its line as a prompt, whose
- *   prompt hook hands the input over; one that wakes during a turn calls the
- *   prompt hook itself and appends what it returns to that turn, which reads it
- *   at its next step. The appended row joins the session's transcript at once,
+ *   prompt hook hands the input over. From an Escape until the user next types,
+ *   Claude Code drops every prompt a plugin submits but still takes a message
+ *   from another session (measured at 2.1.300), so for a dropped prompt the
+ *   module sends Leaf a WakeRefused payload, and Leaf nudges the session through
+ *   that message, as admission does for a session nothing watches. A watch that
+ *   wakes during a turn calls the prompt hook itself and appends what it returns
+ *   to that turn, which reads it at its next step. The appended row joins the session's transcript at once,
  *   and stays there through an Escape (measured at 2.1.291), so the hook's
  *   confirmation holds: the input is in the session's context. Claude Code
  *   shows neither that row nor the prompt hook's context in the terminal. A
@@ -234,9 +238,13 @@ async function wake(
         return;
       }
     }
-    await $.prompt.submit({ text: prompt });
+    // Claude Code drops a plugin's prompt from an Escape until the user next types,
+    // and drops one queued when they press it; Claude Code's debug log says why.
+    const submitted = await $.prompt.submit({ text: prompt });
+    if (submitted?.drop !== undefined)
+      await hook($, { hook_event_name: "WakeRefused", session_id: session });
   } catch (error) {
-    // A wake Claude Code refuses leaves the input to the next turn's prompt hook.
+    // A wake that fails outright leaves the input to the next turn's prompt hook.
     $.ui.log(`Leaf: the watch's wake was refused: ${error}`, { to: "debug" });
   }
 }

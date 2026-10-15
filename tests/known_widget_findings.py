@@ -28,12 +28,6 @@ KNOWN = {
         # Residency (`data-lf-margin`, prepaint.js) already decides their form
         # before that paint.
         ("lf-toc", "keeps-first-box"),
-        # At working density, the workspace's, a card whose title and text are one line
-        # each is shorter than its grip, and the float that keeps the title's line clear
-        # of the grip (board.css) then reaches 1px past the card's content, so the card
-        # and its column grow 1px when the module measures the grip and sizes the float.
-        ("lf-card", "keeps-first-box"),
-        ("lf-column", "keeps-first-box"),
     },
     "diff": {
         # The worked example states its drawing's height in pixels (`data-height="151"`),

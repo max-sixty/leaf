@@ -105,7 +105,9 @@ wa-comparison::part(lf-focus) {
 
 /* A radio's actual focus owner is its host, rather than a native shadow control.
    The generic band surrounds its full face, label included, for both appearances. */
-wa-radio[appearance="button"][data-lf-focus] { z-index: 2; }
+wa-radio[appearance="button"][data-lf-focus] {
+  z-index: 2;
+}
 
 /* Text and select frames cover their editor and auxiliary controls, including Clear.
    Their native input/button outlines stay off so a group has one focus carrier. */
@@ -130,7 +132,9 @@ wa-slider[range]::part(lf-focus) {
   outline: var(--focus-ring);
   outline-offset: 0;
 }
-wa-slider[range]::part(lf-focus) { z-index: 4; }
+wa-slider[range]::part(lf-focus) {
+  z-index: 4;
+}
 
 /* A slider's unfilled track is the scale the value is read against, so it carries a
    contour's weight rather than a hover's: at --chip it read as empty paper, and a value
@@ -141,7 +145,9 @@ wa-slider::part(track) {
 
 /* Tooltip text has its own contrast pair; Leaf's shared shadow text floor
    otherwise replaces the component's inverse foreground with page ink. */
-wa-tooltip { color: var(--wa-tooltip-content-color); }
+wa-tooltip {
+  color: var(--wa-tooltip-content-color);
+}
 }`);/*! Copyright 2026 Fonticons, Inc. - https://webawesome.com/license */var xe=class extends Event{constructor(o){super("wa-copy",{bubbles:!0,cancelable:!1,composed:!0}),this.detail=o}};/*! Copyright 2026 Fonticons, Inc. - https://webawesome.com/license */var Zo=null,Jo=null,ia=7e3;function Le(o){let e=document.createElement("div");return e.setAttribute("role","log"),e.setAttribute("aria-live",o),e.setAttribute("aria-relevant","additions"),Object.assign(e.style,{position:"absolute",width:"1px",height:"1px",margin:"-1px",padding:"0",border:"0",overflow:"hidden",clip:"rect(0 0 0 0)",clipPath:"inset(50%)",whiteSpace:"nowrap"}),e}function la(o){return o==="assertive"?(Jo??(Jo=document.body.appendChild(Le("assertive"))),Jo):(Zo??(Zo=document.body.appendChild(Le("polite"))),Zo)}function ze(o,e="polite"){if(!o)return;let t=la(e),a=document.createElement("div");a.textContent=o,t.appendChild(a),setTimeout(()=>a.remove(),ia)}import{css as sa}from"/vendor/lit.js";/*! Copyright 2026 Fonticons, Inc. - https://webawesome.com/license */var ke=sa`
   :host {
     display: inline-block;

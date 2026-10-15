@@ -219,25 +219,13 @@ def page_data_document_readings(
     return [reading for group in documents for reading in group]
 
 
-def working_data_document_readings(
-    page_dir: Path,
-    registry: dict,
-    events: list,
-    *,
-    authored: SourceDocument | None = None,
-    incoming: list[tuple[SourceDocument, str]] | None = None,
-) -> list[tuple[list, str, dict]]:
-    """Immutable readings plus candidate documents under the candidate registry."""
-    documents = page_data_document_readings(page_dir, events, registry)
-    if authored is None:
-        source = page_dir / "index.html"
-        if source.exists():
-            authored = SourceDocument(source.read_text(encoding="utf-8"))
-    if authored is not None:
-        documents.extend(data_document_readings(authored, "index.html", registry))
-    for document, label in incoming or []:
-        documents.extend(data_document_readings(document, label, registry))
-    return documents
+def _authored_readings(page_dir: Path, registry: dict) -> list[tuple[list, str, dict]]:
+    """The current source under the candidate registry."""
+    source = page_dir / "index.html"
+    if not source.exists():
+        return []
+    authored = SourceDocument(source.read_text(encoding="utf-8"))
+    return data_document_readings(authored, "index.html", registry)
 
 
 def initial_data_document_readings(
@@ -262,7 +250,10 @@ def working_data_bindings(
 ) -> tuple[dict, list[Finding]]:
     """Latest source bindings, with the current authored document taking precedence."""
     return merge_data_document_readings(
-        working_data_document_readings(page_dir, registry, events),
+        [
+            *page_data_document_readings(page_dir, events, registry),
+            *_authored_readings(page_dir, registry),
+        ]
     )
 
 
@@ -367,19 +358,17 @@ def measurement_lag(lf_elements: list, registry: dict, stored: dict) -> list[Fin
 def data_binding_errors(
     page_dir: Path,
     registry: dict,
-    events: list,
-    *,
-    authored: SourceDocument | None = None,
-    incoming: list[tuple[SourceDocument, str]] | None = None,
+    incoming: list[tuple[SourceDocument, str]],
 ) -> list[Finding]:
-    """Conflicting simultaneous bindings inside the working documents."""
-    documents = working_data_document_readings(
-        page_dir,
-        registry,
-        events,
-        authored=authored,
-        incoming=incoming,
-    )
+    """Conflicting simultaneous bindings inside the current source or an incoming
+    document.
+
+    A conflict lies within one document (`merge_data_document_readings`), and each
+    revision and logged fragment was refused for one as it entered, so the history
+    holds none to find."""
+    documents = _authored_readings(page_dir, registry)
+    for document, label in incoming:
+        documents.extend(data_document_readings(document, label, registry))
     return data_document_errors(documents)
 
 

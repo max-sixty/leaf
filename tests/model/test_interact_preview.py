@@ -155,7 +155,7 @@ def test_product_previews_prepare_the_authored_layer_and_media(
     assert served.tree.select("nav.sitenav a[aria-current=page]")
     assert all(
         (page / reference.removeprefix("/")).is_file()
-        for reference in served.media_refs
+        for reference in served.authoring.media_refs
     )
     registry = json.loads((page / "registry.json").read_text())
     assert "nav.sitenav" in registry

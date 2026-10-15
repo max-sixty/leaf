@@ -143,18 +143,13 @@ records each datum's source and revision. A datum that knows its place in the JS
 
 ### Time readings
 
-Reading the time synchronously in a `LeafElement`'s `render()`, a `watchProjection`
-paint or a `readingPaint` draw makes Leaf repaint it when the time's reading changes. `ago(ts)` words a server timestamp as the page does everywhere: "just
+Reading the time synchronously in a `LeafElement`'s `render()` or a `watchProjection`
+paint makes Leaf repaint it when the time's reading changes; time read after an `await`
+isn't watched. `ago(ts)` words a server timestamp as the page does everywhere: "just
 now", then "2m ago", "2h ago", "2d ago". `shortAgo(ts)` is the short form ("now", "2h").
 `quietSince(ts)` says whether work last heard at `ts` has been quiet longer than the
 server's grace period. For any other reading, use `clockValue((now) => reading)`, with
 `now` the server's time in milliseconds.
-
-For a paint outside those, wrap it as `const draw = clocked(element, paint)` and call
-`draw()` when state changes; `draw.stop()` takes it off the clock. Where something else
-schedules the paint, pass `invalidate` as a third argument: Leaf calls it when the time
-changes, and your scheduled pass calls `draw()`. Time read after an `await` isn't
-watched.
 
 ## Editing a bound file
 

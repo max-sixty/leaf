@@ -10,16 +10,16 @@ which shape fits which subject.
 A Layout is a class that arranges the box it is on. Three set the page's shape and go
 on `main`:
 
-| Class | The page |
-| --- | --- |
-| `layout-column` | the reading column, with wide blocks breaking out of it |
-| `layout-sidebar` | a body beside its `aside`, with a `header` and `footer` across both |
-| `layout-workspace` | a screen filling the window: `header`, one body, `footer` |
+| Class              | The page                                                            |
+| ------------------ | ------------------------------------------------------------------- |
+| `layout-column`    | the reading column, with wide blocks breaking out of it             |
+| `layout-sidebar`   | a body beside its `aside`, with a `header` and `footer` across both |
+| `layout-workspace` | a screen filling the window: `header`, one body, `footer`           |
 
 One arranges a block's children:
 
-| Class | Arranges |
-| --- | --- |
+| Class          | Arranges                             |
+| -------------- | ------------------------------------ |
 | `layout-tiles` | equal cells, as many to a row as fit |
 
 On a column page, a board or diagram declares its own width, and any other block, such
@@ -143,11 +143,11 @@ widths. It works on column and sidebar pages:
   stopping short of a margin sidebar or the contents map.
 
 A `table` with either value is only as wide as its columns need, up to that width. A
-block in a list item gets the same width it would outside the list. A block inside an
-`lf-ask` or callout breaks out only with its own `data-width`; the ask keeps the
-column. A block inside a box the
-page lays out itself, such as a grid or flex item, stays in that box, and a table there
-scrolls sideways.
+block inside an `lf-ask` or callout breaks out only with its own `data-width`; the ask
+keeps the column. A block breaks out only from a box that spans the column, such as a
+section or an ask. One inside a box standing in from the column, such as a list item,
+or a box the page lays out itself, such as a grid or flex item, stays in that box, and
+a table there scrolls sideways.
 
 A widget whose entry declares `x-height`, such as `lf-chart`, reserves that height
 before it draws; `data-height` on the element overrides it. A widget whose drawing sets
@@ -190,9 +190,11 @@ rebuilding the event log in page code.
 
 The page's CSS styles the page's content, not Leaf's banner, panels or the controls
 widgets build: a rule for `button` styles only the page's own buttons. To style Leaf's
-controls on purpose, name the widget or Leaf's class, such as `lf-options button` or
-`lf-board .lf-grip`, or the page's own element for controls a page module builds with
-`offer`. A token such as `--accent` on `:root` changes every surface that reads it. For
+controls on purpose, put their rules in a separate `<style data-controls>` or
+`<link rel="stylesheet" data-controls>` element. Its rules and imports stand as
+written; use selectors that reach only the controls you intend to change. Set the marker
+before attaching a dynamic sheet. Theme packages use `controls.css` (`packages.md`,
+"Styles and composition"). A token such as `--accent` on `:root` changes every surface that reads it. For
 a page-specific inset, use the frame declaration in `package-themes.md`, "A theme
 change".
 

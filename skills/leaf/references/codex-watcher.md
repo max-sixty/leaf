@@ -27,6 +27,7 @@ whose "Delivery and acknowledgement" section says how a wait ends. Its job is:
    Append the complete wait output verbatim. If the send fails or its result is
    uncertain, acknowledge nothing and send the same follow-up again. If the output was
    lost or cut off, read the delivery again before forwarding it.
+
 4. Once the harness accepts the follow-up, run `leaf wait --ack <delivery-id>` in
    unified exec and poll it the same way. A batch on stdout is the next delivery; go
    back to step 3. Follow any message that ends the wait. The watcher never replies,

@@ -1,4 +1,4 @@
-/* Generated from skills/leaf/packages/visual-review/styles/theme.css by build/styles.mjs. */
+/* @noformat Generated from skills/leaf/packages/visual-review/styles/theme.css by build/styles.mjs. */
 /* skills/leaf/packages/visual-review/styles/theme.css */
 :scope:is(lf-visual-review) {
   --lf-block-frame: 1;
@@ -206,7 +206,7 @@
 .lf-vr-claim {
   display: grid;
   grid-template-areas: "action-term result-term" "action result";
-  grid-template-columns: minmax(0, .7fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1fr);
   gap: 0 var(--sp-4);
   margin: 0;
 }
@@ -240,12 +240,12 @@
 .lf-vr-links > a {
   display: inline-flex;
   align-items: center;
-  gap: .35em;
+  gap: 0.35em;
   text-decoration: none;
 }
 .lf-vr-links .lf-external-mark {
-  width: .9em;
-  height: .9em;
+  width: 0.9em;
+  height: 0.9em;
   margin: 0;
   vertical-align: 0;
 }

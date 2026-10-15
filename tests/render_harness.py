@@ -603,7 +603,7 @@ def serve(tmp_path, monkeypatch, initialized_page, request):
         if not fixture:
             html = source
             (d / "index.html").write_text(html)
-            references = structure_model.SourceDocument(html).media_refs
+            references = structure_model.SourceDocument(html).authoring.media_refs
             for reference in references:
                 fixture_media = example_media() / reference.removeprefix("/media/")
                 if fixture_media.is_file():
@@ -2720,9 +2720,8 @@ def left_alone(page):
 
     rendered(page)
     prepare_children(page.main_frame)
-    notice = page.locator(".lf-notice.show")
     deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
-    while notice.count():
+    while any(frame.locator(".lf-notice.show").count() for frame in page.frames):
         assert time.monotonic() < deadline, "the arrival notice never retired"
         # still_page fixes Date.now but its timer clock otherwise runs in real time.
         # Run every callback until the notice retires; fast_forward would skip ticks.

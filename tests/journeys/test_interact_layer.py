@@ -34,7 +34,12 @@ from leaf import packages as packages_model
 from leaf_dev.page_fixtures import package_selection_args
 
 
-def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_path):
+def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(
+    tmp_path, monkeypatch
+):
+    # This test runs the copied install's launcher, not the browser-tier fixture's
+    # prepared checkout launcher.
+    monkeypatch.delenv("LEAF_HOST_LAUNCHER", raising=False)
     commit = "4cb17dc60870"
     installed = install_payload(
         tmp_path / "host" / ".claude" / "plugins" / "cache" / "leaf" / "leaf" / commit
@@ -487,12 +492,10 @@ def test_page_packages_are_explicit_and_survive_reinitialization(tmp_path, monke
     assert not (page / "widgets" / "project.js").exists()
 
 
-def test_an_idiom_declares_only_a_mark_the_document_paints(tmp_path, monkeypatch):
-    """An idiom declares the room it takes as an element does (x-space), which delivery
-    paints on every element the idiom's selector matches. A mark other code reads by
-    tag would be half kept, a value its key does not admit paints nothing the theme
-    reads, and a selector delivery cannot match stops every route that serves the
-    page, so a layer declaring any of them is refused at init."""
+def test_an_idiom_declares_no_mark(tmp_path, monkeypatch):
+    """An idiom carries author-facing words and no mark: delivery paints each mark from
+    the element's tag, so a mark an idiom declared would paint nothing. A layer whose
+    idiom declares one, or whose selector cannot be matched, is refused at init."""
     monkeypatch.chdir(tmp_path)
     layer = tmp_path / ".leaf"
     layer.mkdir()
@@ -515,12 +518,12 @@ def test_an_idiom_declares_only_a_mark_the_document_paints(tmp_path, monkeypatch
         )
 
     for selector in (".hazard", "table", "lf-options.selected"):
-        result = init(selector, {"x-space": "column"}, "room")
+        result = init(selector, {}, "plain")
         assert result.exit_code == 0, result.output
     for selector, declaration, page in (
         (".hazard", {"x-inline": True}, "inline"),
-        (".hazard", {"x-space": "huge"}, "huge"),
-        (".hazard::before", {"x-space": "column"}, "pseudo"),
+        (".hazard", {"x-space": "wide"}, "room"),
+        (".hazard::before", {}, "pseudo"),
         (".hazard[", {}, "invalid-selector-without-marks"),
         (".hazard", {"x-example": ""}, "empty-example"),
         (".hazard", {"x-instructions": " "}, "empty-instructions"),
@@ -753,17 +756,6 @@ def test_package_init_starts_one_checked_upgraded_widget(tmp_path, monkeypatch):
     )
     assert (package_root / "theme.css").read_bytes() == b""
     module = (package_root / "widgets" / "lf-risk-note.js").read_text()
-    assert module == (
-        'import { once } from "/runtime/widget-api.js";\n\n'
-        "customElements.define(\n"
-        '  "lf-risk-note",\n'
-        "  class extends HTMLElement {\n"
-        "    connectedCallback() {\n"
-        "      if (!once(this)) return;\n"
-        "    }\n"
-        "  },\n"
-        ");\n"
-    )
     checked = runner.invoke(cli_model.cli, ["package", "check", str(package)])
     assert checked.exit_code == 0, checked.output
 

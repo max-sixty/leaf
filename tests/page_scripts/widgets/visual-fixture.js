@@ -1,7 +1,11 @@
 /* A registered visual whose parts can be drawn together or revealed in stages. */
 import { once, registerVisualParts } from "/runtime/widget-api.js";
 
-export function defineVisualFixture({ tag = "lf-test-visual", staged = false } = {}) {
+export function defineVisualFixture({
+  tag = "lf-test-visual",
+  staged = false,
+  invalidPartId = false,
+} = {}) {
   customElements.define(
     tag,
     class extends HTMLElement {
@@ -32,7 +36,7 @@ export function defineVisualFixture({ tag = "lf-test-visual", staged = false } =
         const htmlSurface = this.querySelector("#html-surface");
         this.parts = [
           {
-            id: "outer",
+            id: invalidPartId ? "two words" : "outer",
             element: outer,
             surface: outerSurface,
             label: "Outer store",

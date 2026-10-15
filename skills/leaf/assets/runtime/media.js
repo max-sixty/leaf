@@ -102,6 +102,9 @@ function imageTools() {
     loading = import("../vendor/photoswipe.esm.js").then(
       ({ default: PhotoSwipe, styles }) => {
         const style = document.createElement("style");
+        // PhotoSwipe paints inside Leaf's dialog; page-sheet filtering must leave its
+        // positioning rules intact.
+        style.setAttribute("data-controls", "");
         style.textContent = styles;
         // The authored head is replaced on revision; the viewer owns these styles.
         mediaViewer.append(style);

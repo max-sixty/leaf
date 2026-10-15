@@ -22,6 +22,7 @@ import { copyControl } from "./copy-control.js";
 import { latestChip, versionBtn } from "./version-picker.js";
 import { versionsReading } from "./version.js";
 import { othersBtn, queueBtn } from "./drawers.js";
+import { leavesCount } from "./live-leaves.js";
 import { pagePresented } from "./page-paint.js";
 import { repaint } from "./repaint.js";
 import { sizeObserver } from "./rendering.js";
@@ -160,7 +161,7 @@ registerBannerControl({
   control: othersBtn,
   rank: BANNER_CONTROL_RANK.leaves,
   conditional: true,
-  row: { label: "All pages", group: "navigate" },
+  row: { label: "All pages", value: () => String(leavesCount()), group: "navigate" },
 });
 registerBannerControl({
   key: "latest",

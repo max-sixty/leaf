@@ -9,7 +9,13 @@
  * a screenshot's measured delta — and in the sans's own figures each rewrite resizes
  * the chip the number is set in, and moves whatever stands after it. The integrated
  * theme's copy of this rule carries the measurement and the norm it answers. */
-.lf-shotcap, .lf-shotdelta,
-:scope:is(lf-sample)::before, :scope:is(lf-sample) > [data-lf-said="label"], :scope:is(lf-column)::before,
-:scope:is(lf-column) > [data-lf-said="label"], :scope:is(lf-tab)::before {
-  font-family: var(--sans); font-variant-numeric: tabular-nums; }
+.lf-shotcap,
+.lf-shotdelta,
+:scope:is(lf-sample)::before,
+:scope:is(lf-sample) > [data-lf-said="label"],
+:scope:is(lf-column)::before,
+:scope:is(lf-column) > [data-lf-said="label"],
+:scope:is(lf-tab)::before {
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
+}

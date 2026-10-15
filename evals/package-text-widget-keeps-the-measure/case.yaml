@@ -1,10 +1,9 @@
-# Added with `x-space: column` (column allocation aligned with the text measure).
-# A package widget whose content is read as text declares the column, so on a wide page
-# its box keeps the measure the prose beside it keeps. Three Claude Code trials told
-# the wordings apart: base 0/3 (its packages.md names no column value), candidate 3/3.
+# A package widget whose content is read as text keeps to the reading measure in its
+# own stylesheet, so on a wide page its box keeps the measure the prose beside it keeps.
+# `x-space` names only a room past the measure, so the widget declares none.
 description: package-text-widget-keeps-the-measure
 metadata:
-  purpose: A package's text-like widget declares the column allocation in its registry entry.
+  purpose: A package's text-like widget keeps the reading measure in its own stylesheet.
   tags:
     - packages
     - layout
@@ -17,12 +16,14 @@ vars:
     pages with charts and tables beside the prose.
 
     Read the package reference and show the registry.json entries for lf-checklist
-    and lf-check, with a sentence on each declaration you chose. Return JSON in your
-    reply.
+    and lf-check, with a sentence on each declaration you chose, and the stylesheet
+    rules that set lf-checklist's width. Return JSON in your reply.
 assert:
   - type: llm-rubric
     metric: checklist-keeps-the-measure
     value: |
-      Pass only if the lf-checklist entry declares "x-space": "column", so the list
-      keeps the prose's reading measure on a wide page. Fail if it declares no x-space,
-      or declares "wide" or "available".
+      Pass only if lf-checklist's stylesheet caps its width at the reading measure,
+      as `max-inline-size: var(--lf-measure)` (or `max-width` of the same), so the list
+      keeps the prose's line length on a wide page, and its registry entry declares no
+      "x-space" of "wide" or "available". Fail if it widens the checklist past the
+      measure or leaves its width unset.

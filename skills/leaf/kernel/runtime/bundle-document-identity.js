@@ -209,7 +209,6 @@ import {
   activityTransitionDue,
   ago,
   chosenSince,
-  clocked,
   containingReadingRegionFor,
   effectiveScroller,
   markStateApplied,
@@ -276,8 +275,10 @@ import {
   clipsPast,
   clipsPastSurfaces,
   closeNativeLayer,
+  completeData,
   containingView,
   countTraffic,
+  dataHeaders,
   el,
   frameFor,
   growthIsSeen,
@@ -452,9 +453,6 @@ function initializeServedDocument() {
 
 // runtime/page-sheets.js
 var APPARATUS = ":not(:where(.lf-chrome, .lf-chrome *, .lf-ui, .lf-ui *))";
-var NAMES_WIDGET = /(?:^|[\s>+~(,&|])[a-z][\w]*-|[.#]lf-|\[\s*data-lf-/i;
-var NOT_SELECTORS = /"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|:{1,2}(?:lang|dir|state|part|highlight|nth-[a-z-]+)\([^)]*\)/gi;
-var namesWidget = (text) => NAMES_WIDGET.test(text.replace(NOT_SELECTORS, ""));
 var narrowed = /* @__PURE__ */ new WeakSet();
 function members(text) {
   const found = [];
@@ -486,36 +484,28 @@ function narrow(member, pseudo) {
   const rest = pseudo < 0 ? "" : member.slice(pseudo);
   return selector + APPARATUS + rest;
 }
-function narrowRules(rules, named) {
+function narrowRules(rules) {
   for (const rule of rules) {
     if (rule instanceof CSSKeyframesRule || rule instanceof CSSImportRule) continue;
-    let within = named;
-    if (rule instanceof CSSScopeRule)
-      within ||= namesWidget(rule.start ?? "") || namesWidget(rule.end ?? "");
     if (rule instanceof CSSStyleRule) {
-      const list = members(rule.selectorText);
-      if (!named) {
-        const next = list.map(
-          ([member, pseudo]) => namesWidget(member) ? member : narrow(member, pseudo)
-        ).join(", ");
-        if (next !== rule.selectorText) rule.selectorText = next;
-      }
-      within ||= list.every(([member]) => namesWidget(member));
+      const next = members(rule.selectorText).map(([member, pseudo]) => narrow(member, pseudo)).join(", ");
+      if (next !== rule.selectorText) rule.selectorText = next;
     }
-    if (rule.cssRules) narrowRules(rule.cssRules, within);
+    if (rule.cssRules) narrowRules(rule.cssRules);
   }
 }
 function narrowSheet(sheet2, runtime2) {
   const owner = sheet2.ownerNode;
+  if (owner?.hasAttribute?.("data-controls")) return;
   if (sheet2.href && new URL(sheet2.href).origin !== window.origin && !owner?.hasAttribute?.("crossorigin"))
     return;
   if (!narrowed.has(sheet2)) {
     narrowed.add(sheet2);
-    if (!runtime2) narrowRules(sheet2.cssRules, false);
+    if (!runtime2) narrowRules(sheet2.cssRules);
     else
       for (const rule of sheet2.cssRules)
         if (rule instanceof CSSLayerBlockRule && rule.name === "lf-theme")
-          narrowRules(rule.cssRules, false);
+          narrowRules(rule.cssRules);
   }
   for (const rule of sheet2.cssRules)
     if (rule instanceof CSSImportRule && rule.styleSheet)
@@ -531,13 +521,15 @@ function keepPageRulesOffLayer() {
     );
   if (watching) return;
   watching = true;
-  new MutationObserver((records) => {
-    for (const record of records)
-      for (const node of record.addedNodes)
-        if (node instanceof HTMLLinkElement)
-          node.addEventListener("load", keepPageRulesOffLayer, { once: true });
-    keepPageRulesOffLayer();
-  }).observe(document.head, {
+  document.addEventListener(
+    "load",
+    (event) => {
+      if (event.target instanceof Element && event.target.matches('link[rel~="stylesheet" i], style'))
+        keepPageRulesOffLayer();
+    },
+    true
+  );
+  new MutationObserver(keepPageRulesOffLayer).observe(document.head, {
     childList: true,
     subtree: true,
     characterData: true
@@ -3081,8 +3073,6 @@ function createVersionController({
       const next = /* @__PURE__ */ new Set();
       for (const node of source) {
         const imported = document.importNode(node, true);
-        if (imported.localName === "link" || imported.localName === "style")
-          imported.addEventListener("load", keepPageRulesOffLayer, { once: true });
         document.head.append(imported);
         next.add(imported);
       }
@@ -4846,10 +4836,11 @@ async function readState(bound) {
   try {
     if (offlineInteractive) return offlineState();
     const signal = globalThis.AbortSignal.timeout(bound);
+    const held = runtime.data;
     let res;
     try {
       res = await fetch(pageUrl("api/state"), {
-        headers: layerHeaders(),
+        headers: layerHeaders(dataHeaders(held)),
         // Coalescing bounds concurrency; this bounds its other dimension. A proxy that
         // never answers cannot own the page's single read slot forever.
         signal
@@ -4860,7 +4851,7 @@ async function readState(bound) {
     if (!admitResponse(res)) return null;
     if (!res.ok) return null;
     try {
-      return await res.json();
+      return completeData(await res.json(), held);
     } catch (error) {
       if (signal.aborted) return null;
       throw error;
@@ -5230,8 +5221,9 @@ function createDelivery({
       if (!ledger.nameEvents(entry)) return { accepted: null };
       const { event } = entry;
       if (entry.admitted) return { accepted: entry.admitted };
+      const held = runtime.data;
       const sent = await Promise.race([
-        postEvent(event).then(
+        postEvent(event, held).then(
           (response) => ({ response }),
           (error) => ({ error })
         ),
@@ -5269,12 +5261,15 @@ function createDelivery({
       if (accepted)
         return {
           accepted,
-          application: applyAnswerState(applyAcceptedState, answer.state)
+          application: applyAnswerState(
+            applyAcceptedState,
+            completeData(answer.state, held)
+          )
         };
       if (reading === "refused" && (!("attempt" in answer) || answer.attempt === event.attempt) && answer.ok === false) {
         return {
           accepted: null,
-          state: answer.state,
+          state: completeData(answer.state, held),
           refusal: `Couldn't send \u2014 ${answer.error || "the server refused it"}`
         };
       }
@@ -5324,9 +5319,10 @@ function createDelivery({
   return { drain };
 }
 async function deliverBookkeeping(event, applyState) {
+  const held = runtime.data;
   let response;
   try {
-    response = await postEvent(event);
+    response = await postEvent(event, held);
   } catch {
     return "unreached";
   }
@@ -5338,7 +5334,8 @@ async function deliverBookkeeping(event, applyState) {
     return "unreached";
   }
   const reading = readEventAnswer(response, answer);
-  if (answer?.state) await applyAnswerState(applyState, answer.state);
+  if (answer?.state)
+    await applyAnswerState(applyState, completeData(answer.state, held));
   return reading === "incomplete" ? "unreached" : reading;
 }
 
@@ -7486,15 +7483,20 @@ function mountApplication(dependencies) {
     dependencies.annotationCommands.renderPageMapDialog(entries);
     return entries;
   }
-  const renderAnnotations = clocked(document.body, () => {
+  let annotationsDrawn = false;
+  const renderAnnotations = () => {
+    annotationsDrawn = true;
     if (!onPaper.matches) {
       const entries = refreshAnnotationInventory();
       overlay?.paint(entries);
     }
-  });
+  };
+  renderAnnotations.refresh = () => {
+    if (annotationsDrawn) renderAnnotations();
+  };
   const annotationInputs = readPart(annotationSelection);
   const mountAnnotations = () => {
-    watchProjection(
+    const watching2 = watchProjection(
       document.body,
       () => {
         annotationInputs();
@@ -7504,7 +7506,7 @@ function mountApplication(dependencies) {
     );
     document.addEventListener("lf-comparison", renderAnnotations);
     onPaper.addEventListener("change", () => {
-      if (!onPaper.matches) renderAnnotations.refresh();
+      if (!onPaper.matches) watching2.refresh();
     });
     watchContributions(({ immediate }) => {
       renderAnnotations();

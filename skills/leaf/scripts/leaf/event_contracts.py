@@ -49,7 +49,7 @@ from leaf.registry.contract import (
 from leaf.registry.kernel import kernel_event_kinds, kernel_event_ownership
 from leaf.registry.reactions import reaction_tokens
 from leaf.registry.schema import schema_complaint
-from leaf.registry.storage import load_registry
+from leaf.registry.storage import IncompatibleLayer, load_registry
 from leaf.schema import MESSAGE_KINDS, WIDGET_KINDS
 from leaf.structure import review_mode
 from leaf.todos import todo_error
@@ -916,6 +916,8 @@ def write_refusal(page_dir: Path) -> Finding | None:
     first, and so does `page check`."""
     try:
         registry = load_registry(page_dir)
+    except IncompatibleLayer as error:
+        return error.findings[0]
     except RegistryError:
         registry = None
     if registry is None:

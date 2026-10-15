@@ -679,12 +679,18 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
             watch.await_news(mark)
     finally:
         watch.release()
-    from .delivery import deliverable
-
     # Input admitted while this watch held the lease was not nudged, so now the
     # lease is gone, any such input is nudged as admission would have.
-    for page_dir in owned_pages(harness.session):
+    nudge_pending(harness.session)
+    return None
+
+
+def nudge_pending(session: str) -> None:
+    """Nudge the session for each page it holds whose input could wake it, as
+    admission would have with no watch holding the lease (`nudge_unwatched`)."""
+    from .delivery import deliverable
+
+    for page_dir in owned_pages(session):
         with contextlib.suppress(FileNotFoundError), PageTransaction(page_dir) as page:
             if wake_inputs(page, deliverable(page)):
                 nudge_unwatched(page)
-    return None

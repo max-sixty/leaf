@@ -5,7 +5,7 @@ import shutil
 import subprocess
 
 import pytest
-from interact_support import ROOT
+from interact_support import ROOT, STATED_TIMEOUT
 from leaf import bridge as bridge_model
 from leaf import hooks as hooks_model
 from leaf import service as service_model
@@ -79,7 +79,7 @@ def test_a_bridged_command_ends_though_its_stdin_never_does():
         text=True,
     )
     try:
-        assert held.wait(timeout=30) == 0
+        assert held.wait(timeout=STATED_TIMEOUT) == 0
         assert held.stdout.read().startswith("leaf ")
     finally:
         held.stdin.close()

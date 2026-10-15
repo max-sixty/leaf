@@ -67,9 +67,12 @@ from render_cases_navigation import (
 )
 from render_cases_widgets import (
     CHART_PAGE,
+    GENERIC_VISUAL_LAYER,
+    GENERIC_VISUAL_PAGE,
     MANIFEST_DIFF_PAGE,
     MULTI_HUNK_PATCH,
     TYPED_PARTS_PAGE,
+    visual_widgets,
 )
 from render_harness import (
     EXAMPLES,
@@ -2541,13 +2544,9 @@ def test_invalid_visual_part_ids_report_the_package_error(browser, serve):
     ):
         page.goto(
             serve(
-                leaf_page(
-                    "Invalid diagram part identity",
-                    '<h1>Diagram</h1><lf-diagram id="flow" parts="all"><pre>'
-                    "sequenceDiagram\nparticipant User Account\n"
-                    "User Account-&gt;&gt;Server: Submit order\n"
-                    "</pre></lf-diagram>",
-                )
+                GENERIC_VISUAL_PAGE,
+                layer_registry=GENERIC_VISUAL_LAYER,
+                layer_widgets=visual_widgets(invalid_part_id=True),
             ),
             wait_until="load",
         )
@@ -3838,15 +3837,14 @@ def test_a_pending_offline_paint_does_not_block_a_recovery_read(browser, serve):
     page = open_page(browser, serve(LONG_PAGE))
     page.evaluate(
         """async () => {
-          const {clocked, clockValue} = await window.__lfWidgetApi();
+          const {watchProjection, clockValue} = await window.__lfWidgetApi();
           window.probeVersion = 0;
           window.probePaints = 0;
-          const paint = clocked(document.body, () => {
+          watchProjection(document.body, () => {
             clockValue(() => window.probeVersion);
             window.probePaints += 1;
             return new Promise(() => {});
-          });
-          paint();
+          }).refresh();
           window.probeVersion = 1;
         }"""
     )

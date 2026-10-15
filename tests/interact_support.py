@@ -2329,9 +2329,20 @@ def woken(output: str, session: str | None = None) -> tuple[dict, dict, list[dic
     pending input through the hook transport.
     """
     lines = output.splitlines()
-    start = next((i for i, line in enumerate(lines) if line.startswith("{")), None)
-    if start is not None:
-        payload = json.loads("\n".join(lines[start:]))
+    decoder = json.JSONDecoder()
+    payload = None
+    # A served page can print a JSON restart diagnostic before the wait envelope.
+    for i, line in enumerate(lines):
+        if not line.startswith("{"):
+            continue
+        candidate, _ = decoder.raw_decode("\n".join(lines[i:]))
+        if (
+            isinstance(candidate, dict)
+            and candidate.get("format") == delivery_model.DELIVERY_FORMAT
+        ):
+            payload = candidate
+            break
+    if payload is not None:
         assert payload["acknowledge"] is not None
         delivery_model.receive(
             payload, session or session_model.session_harness().session

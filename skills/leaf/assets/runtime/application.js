@@ -31,7 +31,6 @@ import { createAnnotationView } from "./annotation-view.js";
 import { createInlineContributions } from "./inline-contributions.js";
 import { presentingContributions, watchContributions } from "./contributions.js";
 import { watchProjection } from "./projection-watch.js";
-import { clocked } from "./presence.js";
 import { createThreadDestinations } from "./thread/destination.js";
 import { createThreadActions } from "./thread/actions.js";
 import { createQueueActions } from "./queue-api.js";
@@ -265,18 +264,28 @@ export function mountApplication(dependencies) {
     dependencies.annotationCommands.renderPageMapDialog(entries);
     return entries;
   }
-  const renderAnnotations = clocked(document.body, () => {
+  // The margin's annotations, which the thread presentation, the margin's own geometry
+  // and contributions also redraw directly. `refresh()` redraws them once they have
+  // been drawn.
+  let annotationsDrawn = false;
+  const renderAnnotations = () => {
+    annotationsDrawn = true;
     if (!onPaper.matches) {
       const entries = refreshAnnotationInventory();
       overlay?.paint(entries);
     }
-  });
+  };
+  renderAnnotations.refresh = () => {
+    if (annotationsDrawn) renderAnnotations();
+  };
   // The inventory lists the marks the projection's chrome paints, reading their nodes,
   // which the watcher cannot track, so it reads the parts that move them itself, and
-  // reads them once that region has committed.
+  // reads them once that region has committed. The ages the margin shows are followed
+  // with the rest of what this paint reads, so the clock repaints them by the same
+  // proof.
   const annotationInputs = readPart(annotationSelection);
   const mountAnnotations = () => {
-    watchProjection(
+    const watching = watchProjection(
       document.body,
       () => {
         annotationInputs();
@@ -285,8 +294,10 @@ export function mountApplication(dependencies) {
       () => projectionRegionsPresented([]),
     );
     document.addEventListener("lf-comparison", renderAnnotations);
+    // A paint on paper read no ages, so the return to screen paints through the
+    // watcher, which follows them again.
     onPaper.addEventListener("change", () => {
-      if (!onPaper.matches) renderAnnotations.refresh();
+      if (!onPaper.matches) watching.refresh();
     });
     watchContributions(({ immediate }) => {
       renderAnnotations();

@@ -24,11 +24,16 @@ checkout pins, so what it adds, replaces or removes is measured against the set 
 branch reads. `publish` replays that change onto the repository's head, which keeps
 files other branches published since, then moves the pin. A writer that owns a whole
 tree, as snapshot acceptance owns the expectations, publishes that tree exactly as it
-staged it. The head's history is a line and every pin is a commit on it, so of two
-media pins that meet in a merge the later holds both branches' files. The site's
-pages name catalog previews by example (`leaf_dev.docs`), so a moved pin changes no
-page source; only the README, which GitHub renders without a build, names the pinned
-commit. Staging and refused publication leave Leaf's consumers unchanged.
+staged it. The site's pages name catalog previews by example (`leaf_dev.docs`), so a
+moved pin changes no page source; only the README, which GitHub renders without a
+build, names the pinned commit. Staging and refused publication leave Leaf's consumers
+unchanged.
+
+The head's history is a line and every pin is a commit on it, so in a merge conflict
+over `leaf-assets.json`, take the later media `revision`: it holds both branches'
+files. Where both branches published the same file, the later pin holds the later
+publication's copy, so publish that file again from the merged tree. A `thread_snapshots_revision` holds only its own branch's
+reviewed appearance, so accept the snapshots again from the merged tree.
 """
 
 import json

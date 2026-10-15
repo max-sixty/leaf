@@ -9,8 +9,7 @@ health sensors (`tests/*_watch.js`) found. So does every gate that refuses one e
 the append door (`event_contracts.admitted_event`). A refusal raised with what a check
 found (`Rejected`, such as `RegistryError` or `event_log.EventRefused`) carries the
 records, so a command that reports it reads them from it. So does every note a command
-gives beside its result, such as the advice `task end` gives on the to-do it ends
-(`todos.finished_in_view`) or why a `leaf wait` ended. Each is produced where it is
+gives beside its result, such as why a `leaf wait` ended. Each is produced where it is
 detected, the browser probes and sensors included, which return records rather than
 sentences, and its words are written here and nowhere else. A command prints
 `finding.json()`, its words as `text`, in its result or as a note on stderr (`note`), as
@@ -1685,14 +1684,6 @@ _TEXT = {
     "unknown-todo": lambda at, v: f"unknown to-do {v['todo']!r}",
     "agents-todo": lambda at, v: (
         f"to-do {v['todo']!r} is the agent's; the user ends only a to-do on them"
-    ),
-    # Advice on a to-do ended `done` (`todos.finished_in_view`).
-    "finished-in-view": lambda at, v: (
-        f"Your work on `{v['element']}` is done, and it still shows unfolded on the"
-        " newest revision (not inside a closed details, a later tab or [hidden])."
-        " Unless it is the page's current content, move it, cut to its outcome,"
-        " to the finished work collapsed after the open work, and let what comes next"
-        ' take its place (authoring-revisions.md, "Keep the current page current").'
     ),
     # What other commands note beside their result (`note`). `status waiting` over
     # updates it still owes an answer, each named by the command that answers it:

@@ -1431,9 +1431,6 @@
     clear: right;
   }
 }
-:scope:is(lf-card):last-child {
-  margin-bottom: 0;
-}
 :scope:is(lf-card) > strong {
   display: block;
   font-weight: 600;

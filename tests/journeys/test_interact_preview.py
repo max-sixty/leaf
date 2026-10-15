@@ -136,7 +136,9 @@ def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
         )
         assert ended.returncode == 0, ended.stderr
         assert state.session_record(sid)["generation"] == before["generation"]
-        assert state.hook_needed({"hook_event_name": "PostToolUse", "session_id": sid})
+        assert state.hook_needed(
+            "codex", {"hook_event_name": "PostToolUse", "session_id": sid}
+        )
         assert leases.lock_is_held(preview.preview_lease(page))
         assert server.running_server(page)["url"] == url
 

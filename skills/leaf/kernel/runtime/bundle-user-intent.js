@@ -2887,7 +2887,8 @@ function showLatestTurn(transcript) {
   const latest = latestTurn(transcript);
   if (!latest) return;
   const over = transcript.getBoundingClientRect().top + transcript.clientTop - latest.getBoundingClientRect().top;
-  if (over > 0) moveScrollerBy(transcript, -over);
+  const headHeight = latest.firstElementChild?.getBoundingClientRect().height ?? 0;
+  if (over > headHeight) moveScrollerBy(transcript, -over);
 }
 function landThread(held, control, behavior, block) {
   bringBackSurfaceOf(held, behavior);

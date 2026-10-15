@@ -820,7 +820,7 @@ def test_terminating_a_preview_mid_update_leaves_no_service(
             stream.write("\nh1 { color: navy; }\n")
         try:
             peer, _ = listener.accept()
-        except socket.timeout:
+        except TimeoutError:
             pytest.fail(f"watcher did not commit the updated layer: {log.read_text()}")
         with peer:
             assert "h1 { color: navy; }" in (directory / "theme.css").read_text()

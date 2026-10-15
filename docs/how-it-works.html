@@ -1980,7 +1980,12 @@ flowchart TD
                 </tr>
                 <tr id="recipe-controls">
                   <td>Controls Leaf or a widget builds</td>
-                  <td><code>@scope (lf-board) { .lf-grip { color: teal; } }</code></td>
+                  <td>
+                    <code
+                      >&lt;style data-controls&gt;lf-board .lf-grip { color: teal;
+                      }&lt;/style&gt;</code
+                    >
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -1992,9 +1997,10 @@ flowchart TD
             <p id="styles-controls-leaf">
               A bare <code>button</code> or <code>input</code> rule reaches only the
               page's own controls. To restyle a control Leaf or a widget builds, put its
-              rules in an explicit CSS scope, as in the last row. Leaf's banner and
-              panels take their colors and type from the tokens on <code>:root</code>,
-              such as <code>--accent</code> and <code>--sans</code>.
+              rules in a stylesheet explicitly marked <code>data-controls</code>, as in
+              the last row. Leaf's banner and panels take their colors and type from the
+              tokens on <code>:root</code>, such as <code>--accent</code> and
+              <code>--sans</code>.
             </p>
 
             <h3 id="styles-try-title">Which rule wins</h3>

@@ -6,7 +6,7 @@
       name="description"
       content="Compare scrolling and wrapping code readers in a narrow panel, adjust their spacing, and choose the treatment to keep."
     />
-    <style>
+    <style data-controls>
       code-reader-comparison {
         display: grid;
         gap: var(--sp-3);
@@ -14,14 +14,12 @@
         container-type: inline-size;
       }
 
-      /* This explicit scope styles the controls this module builds. */
-      @scope (code-reader-comparison) {
-        :scope :is(.code-comparison-toolbar, .code-candidate-controls) {
-          display: flex;
-          flex-wrap: wrap;
-          gap: var(--sp-2);
-          align-items: center;
-        }
+      /* This stylesheet explicitly styles the controls this module builds. */
+      code-reader-comparison :is(.code-comparison-toolbar, .code-candidate-controls) {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--sp-2);
+        align-items: center;
       }
 
       .code-comparison-grid {

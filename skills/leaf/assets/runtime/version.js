@@ -1328,9 +1328,6 @@ export function createVersionController({
       const next = new Set();
       for (const node of source) {
         const imported = document.importNode(node, true);
-        // A linked sheet, or one that imports, is complete only once it has loaded.
-        if (imported.localName === "link" || imported.localName === "style")
-          imported.addEventListener("load", keepPageRulesOffLayer, { once: true });
         document.head.append(imported);
         next.add(imported);
       }

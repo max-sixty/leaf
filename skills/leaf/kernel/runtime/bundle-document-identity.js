@@ -450,31 +450,60 @@ function initializeServedDocument() {
 }
 
 // runtime/page-sheets.js
+var APPARATUS = ":not(:where(.lf-chrome, .lf-chrome *, .lf-ui, .lf-ui *))";
 var narrowed = /* @__PURE__ */ new WeakSet();
-function narrowRules(group) {
-  for (let at = 0; at < group.cssRules.length; at++) {
-    const rule = group.cssRules[at];
-    if (rule instanceof CSSScopeRule || rule instanceof CSSKeyframesRule) continue;
+function members(text) {
+  const found = [];
+  let depth = 0;
+  let quote = null;
+  let start = 0;
+  let pseudo = -1;
+  for (let at = 0; at < text.length; at++) {
+    const ch = text[at];
+    if (quote) {
+      if (ch === "\\") at++;
+      else if (ch === quote) quote = null;
+    } else if (ch === '"' || ch === "'") quote = ch;
+    else if (ch === "\\") at++;
+    else if (ch === "(" || ch === "[") depth++;
+    else if (ch === ")" || ch === "]") depth--;
+    else if (depth === 0 && ch === ",") {
+      found.push([text.slice(start, at), pseudo < 0 ? -1 : pseudo - start]);
+      start = at + 1;
+      pseudo = -1;
+    } else if (depth === 0 && pseudo < 0 && ch === ":" && text[at + 1] === ":")
+      pseudo = at;
+  }
+  found.push([text.slice(start), pseudo < 0 ? -1 : pseudo - start]);
+  return found;
+}
+function narrow(member, pseudo) {
+  const selector = pseudo < 0 ? member.trimEnd() : member.slice(0, pseudo);
+  const rest = pseudo < 0 ? "" : member.slice(pseudo);
+  return selector + APPARATUS + rest;
+}
+function narrowRules(rules) {
+  for (const rule of rules) {
+    if (rule instanceof CSSKeyframesRule || rule instanceof CSSImportRule) continue;
     if (rule instanceof CSSStyleRule) {
-      group.insertRule(
-        `@scope (:root) to (.lf-chrome, .lf-ui) { ${rule.cssText} }`,
-        at
-      );
-      group.deleteRule(at + 1);
-    } else if (rule.cssRules) narrowRules(rule);
+      const next = members(rule.selectorText).map(([member, pseudo]) => narrow(member, pseudo)).join(", ");
+      if (next !== rule.selectorText) rule.selectorText = next;
+    }
+    if (rule.cssRules) narrowRules(rule.cssRules);
   }
 }
 function narrowSheet(sheet2, runtime2) {
   const owner = sheet2.ownerNode;
+  if (owner?.hasAttribute?.("data-controls")) return;
   if (sheet2.href && new URL(sheet2.href).origin !== window.origin && !owner?.hasAttribute?.("crossorigin"))
     return;
   if (!narrowed.has(sheet2)) {
     narrowed.add(sheet2);
-    if (!runtime2) narrowRules(sheet2);
+    if (!runtime2) narrowRules(sheet2.cssRules);
     else
       for (const rule of sheet2.cssRules)
         if (rule instanceof CSSLayerBlockRule && rule.name === "lf-theme")
-          narrowRules(rule);
+          narrowRules(rule.cssRules);
   }
   for (const rule of sheet2.cssRules)
     if (rule instanceof CSSImportRule && rule.styleSheet)
@@ -490,13 +519,15 @@ function keepPageRulesOffLayer() {
     );
   if (watching) return;
   watching = true;
-  new MutationObserver((records) => {
-    for (const record of records)
-      for (const node of record.addedNodes)
-        if (node instanceof HTMLLinkElement)
-          node.addEventListener("load", keepPageRulesOffLayer, { once: true });
-    keepPageRulesOffLayer();
-  }).observe(document.head, {
+  document.head.addEventListener(
+    "load",
+    (event) => {
+      if (event.target instanceof Element && event.target.matches('link[rel="stylesheet"], style'))
+        keepPageRulesOffLayer();
+    },
+    true
+  );
+  new MutationObserver(keepPageRulesOffLayer).observe(document.head, {
     childList: true,
     subtree: true,
     characterData: true

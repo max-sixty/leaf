@@ -1,9 +1,7 @@
-# Native authoring-scope comparison (2026-10-14, Codex): base 0/3, candidate 3/3.
 description: page-css-names-leaf-controls
 metadata:
-  purpose:
-    "Restyling Leaf's controls requires an explicit native CSS scope, while ordinary
-    page rules stop at Leaf controls. A local sizing request leaves other surfaces alone."
+  purpose: "Restyling generated controls uses an explicitly marked stylesheet; selectors
+    then target only the requested widgets while other surfaces keep their faces."
   tags:
     - theme
 vars:
@@ -23,10 +21,10 @@ assert:
   - type: llm-rubric
     metric: judgment
     value: |
-      Read the CSS. Pass only if the rules enlarging the board and options controls
-      are inside explicit native @scope blocks that select the requested widgets or
-      regions, such as @scope (lf-board, lf-options). A bare button rule inside such
-      a scope is valid. A selector naming the widget without an explicit scope cannot
-      reach generated controls and fails. Also fail if the enlargement reaches unrelated
-      page or chrome controls, or changes the page-wide type scale or size tokens read
-      by every surface when the user asked to leave the rest of the page as it is.
+      Read the CSS. Pass only if the supplied style element carries data-controls,
+      granting its stylesheet access to generated controls, and the enlargement rules
+      target the requested board and options controls specifically. Selectors naming
+      widgets without that stylesheet marker cannot reach generated controls and fail.
+      Native @scope may constrain the intended region, but does not itself grant access.
+      Fail if the enlargement reaches unrelated page or chrome controls, or changes
+      page-wide size tokens or the type scale when the user asked to leave the rest alone.

@@ -187,7 +187,8 @@ def composed_dir_files(inputs: list[Path], sub: str) -> dict[str, Path]:
 # order rank their rules. The kernel's Layouts sit above it. A theme package, one that
 # declares no widgets, sits above those defaults and the Layouts (`lf-theme`), so it
 # styles every page the way the page's own sheet styles one; its rules reach Leaf's
-# controls only where they name them, as the page's do (runtime/page-sheets.js).
+# controls only through an explicit controls.css sheet, as a page's marked stylesheet
+# does (runtime/page-sheets.js).
 # Semantic state follows: retirement must outrank a theme's or package's default box
 # and a Layout's arrangement. The page's own sheet stays unlayered above these tiers,
 # and inline widget motion outranks them too. Chrome and apparatus marks stay
@@ -200,6 +201,7 @@ CASCADE_LAYERS = (
     "lf-layouts",
     "lf-shadow",
     "lf-theme",
+    "lf-controls",
     "lf-state",
 )
 
@@ -260,8 +262,8 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     ordinary selectors its descendants. CSS owns nested conditions and proximity;
     composition neither rewrites selectors nor adds specificity. Widget-free
     packages are unscoped themes that reach the page and every tree. In the document
-    the browser keeps a theme's rules off Leaf's controls unless they name them
-    (runtime/page-sheets.js); a theme's shadow.css is written for widget internals and
+    the browser keeps ordinary theme rules off Leaf controls; controls.css explicitly
+    grants access from the lf-controls tier (runtime/page-sheets.js); a theme's shadow.css is written for widget internals and
     stands as written.
     """
     from .styles import scoped
@@ -274,7 +276,13 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     for position, root in enumerate(inputs):
         where = widget_confinement(root) if position else None
         themes = position > 0 and where is None
-        for name in ROOT_SHEETS:
+        if not themes and (root / "controls.css").is_file():
+            raise Refused(
+                f"{root}/controls.css belongs to a theme package; "
+                "a widget package styles its own controls in theme.css"
+            )
+        sheets = (*ROOT_SHEETS, "controls.css") if themes else ROOT_SHEETS
+        for name in sheets:
             source = root / name
             if not source.is_file():
                 continue
@@ -284,7 +292,11 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
                 shadow_css = scoped(css, where[1]) if where else css
                 tier = "lf-theme" if themes else "lf-shadow"
                 shadow.append(f"@layer {tier} {{\n{shadow_css}}}\n")
-            tier = "lf-theme" if themes else "lf-base"
+            tier = (
+                ("lf-controls" if name == "controls.css" else "lf-theme")
+                if themes
+                else "lf-base"
+            )
             theme.append(f"@layer {tier} {{\n{placed}}}\n")
     for name in ("layouts.css", "state.css"):
         if (source := inputs[0] / name).is_file():

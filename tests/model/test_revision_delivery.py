@@ -280,7 +280,7 @@ const lazy = () => import('/page/later.js');
 
 def test_stylesheet_rel_is_case_insensitive_in_delivery_and_export():
     source = (
-        '<html><head><link rel="StyleSheet" href="/page/style.css"></head>'
+        '<html><head><link rel="StyleSheet" data-controls href="/page/style.css"></head>'
         "<body><main></main></body></html>"
     )
 
@@ -292,7 +292,7 @@ def test_stylesheet_rel_is_case_insensitive_in_delivery_and_export():
         source, embedded.address, inline_stylesheet=embedded.stylesheet
     )
     assert "<link" not in exported
-    assert "<style>" in exported
+    assert "data-controls" in SourceDocument(exported).tree.find("style").attrs
     assert "main { color: green; }" in exported
 
 

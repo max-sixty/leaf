@@ -214,7 +214,14 @@ def rebase_document(
                     {
                         name: value
                         for name, value in attrs.items()
-                        if name in {"media", "title", "data-lf-runtime", "disabled"}
+                        if name
+                        in {
+                            "media",
+                            "title",
+                            "data-lf-runtime",
+                            "data-controls",
+                            "disabled",
+                        }
                     }
                 )
                 css = _inline_css(inline_stylesheet(located[0]))

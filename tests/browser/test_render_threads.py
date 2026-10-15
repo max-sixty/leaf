@@ -74,6 +74,7 @@ from render_harness import (
     held_frames,
     hold_pending_thread_presentation,
     holding,
+    http_error_console,
     judge_watches,
     leaf_page,
     nudge,
@@ -2860,7 +2861,7 @@ def test_a_sent_page_comment_closes_and_a_refusal_restores_its_draft(browser, se
         "Couldn't send — refused before append"
     )
     page.unroute("**/api/event", hold)
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(page, http_error_console(400))
 
     with sending(page, "the retried comment with its image"):
         page.keyboard.press("ControlOrMeta+Enter")
@@ -3059,7 +3060,7 @@ def test_comment_on_the_page_starts_a_thread_from_a_card_under_the_banner(
     expect(box).to_have_js_property("value", "Kept for later")
     assert card.evaluate(is_open)
     page.unroute("**/api/event")
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(page, http_error_console(400))
     page.keyboard.press("Escape")
 
     # With Threads open, the card is still where a page thread starts: it hangs over
@@ -3106,7 +3107,7 @@ def test_a_refused_page_comment_respects_newer_reading_input(browser, serve):
     expect(card).to_be_hidden()
     expect(page.locator(".lf-page-comment")).to_be_focused()
     page.unroute("**/api/event", hold)
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(page, http_error_console(400))
     page.keyboard.press("c")
     expect(box).to_be_focused()
 
@@ -10255,9 +10256,6 @@ def test_contextual_messages_share_text_spacing_through_send_and_reopen(
     with sending(page, "the opening comment"):
         page.keyboard.press("ControlOrMeta+Enter")
     preview = page.locator(".lf-margin-preview")
-    expect(preview).to_have_attribute(
-        "data-lf-comment-frame", "every-line" if touch else "last-line"
-    )
     reply = preview.get_by_role("textbox", name="Reply", exact=True)
     write(reply, text)
     with sending(page, "the follow-up reply"):
@@ -11117,7 +11115,7 @@ def _refused_file(serve, page):
     )
     told(page)
     expect(page.locator("lf-diff .lf-error")).to_contain_text("unavailable")
-    consume_browser_errors(page, {"code": "failed-load", "status": 500})
+    consume_browser_errors(page, http_error_console(500))
 
 
 def _refused_patch(serve, page):
@@ -11960,7 +11958,7 @@ def test_a_zoomed_floating_draft_and_sent_comment_fit_a_narrow_window(
     with sending(page, "the zoomed narrow-window comment"):
         page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
-    card = page.locator(".lf-margin-preview[data-lf-comment-frame]")
+    card = page.locator(".lf-margin-preview")
     expect(card).to_be_visible()
     expect(card.locator(".lf-msg-text").first).to_contain_text(content)
     bounds = card.bounding_box()
@@ -12003,10 +12001,8 @@ def _ring_gaps(page, target):
 
 
 def test_a_rewrite_of_a_comment_just_sent_is_the_reply_box(browser, serve):
-    """The card holding a comment just sent keeps its words in the room the draft had,
-    clear of Send (`data-lf-comment-frame`). A rewrite opened there kept that narrow
-    room too, a box shorter and narrower than the reply box under it; it is now the
-    reply box's own field, its words at their inset.
+    """A rewrite of a comment just sent is the reply box's own field, its words at
+    their inset.
 
     The field's ring, drawn outside it as the reply box's is, lost its left and bottom
     sides to the transcript that scrolls it, which kept no room past its edges; and the
@@ -12028,9 +12024,6 @@ def test_a_rewrite_of_a_comment_just_sent_is_the_reply_box(browser, serve):
         page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     card = page.locator(".lf-margin-preview")
-    expect(card).to_have_attribute(
-        "data-lf-comment-frame", "every-line" if touch else "last-line"
-    )
     message = card.locator(".lf-msg").first
     words = message.locator(".lf-msg-text")
     rendered(page)
@@ -13103,7 +13096,7 @@ def test_a_second_rewrite_over_a_refused_first_goes_with_it(browser, serve):
     assert not [e for e in events_model.read_events(d) if e["kind"] == "edit"]
     expect(message.locator(".lf-msg-text")).to_have_text("Fit the north bracket.")
     assert stored_draft_text(page, f"rewrite:{mine['id']}") == "Third."
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(page, http_error_console(400))
     page.unroute_all(behavior="wait")
 
 

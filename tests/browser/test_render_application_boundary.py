@@ -24,6 +24,7 @@ from render_harness import (
     consume_browser_errors,
     expect_asks_answered,
     holding,
+    http_error_console,
     is_problem,
     leaf_page,
     open_page,
@@ -427,7 +428,7 @@ def test_browser_trace_sheds_repeated_gestures_when_delivery_stalls(browser, ser
     assert sum(row["type"] == "pointermove" for row in browser_rows) < 512
     sequences = sorted(row["sequence"] for row in browser_rows)
     assert any(later - earlier > 1 for earlier, later in pairwise(sequences))
-    consume_browser_errors(page, {"code": "failed-load", "status": 503})
+    consume_browser_errors(page, http_error_console(503))
 
 
 def test_browser_trace_keeps_actions_ahead_of_new_repeated_observations(browser, serve):
@@ -473,7 +474,7 @@ def test_browser_trace_keeps_actions_ahead_of_new_repeated_observations(browser,
     browser_rows = [row for row in rows if row.get("source") == "client"]
     assert sum(row["type"] == "click" for row in browser_rows) == 512
     assert not any(row["type"] == "pointermove" for row in browser_rows)
-    consume_browser_errors(page, {"code": "failed-load", "status": 503})
+    consume_browser_errors(page, http_error_console(503))
 
 
 PAGE_MODULE = """\

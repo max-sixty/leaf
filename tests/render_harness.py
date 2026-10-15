@@ -1371,7 +1371,7 @@ def watched(page, *, java_script_enabled=True):
     (`leaf/findings.py`) a test reads by its fields.
 
     The browser's own reports, taken from Playwright's events as the render gate takes
-    them: console warnings and errors, a failed response, and uncaught exceptions.
+    them: console warnings and errors, and uncaught exceptions.
     Window errors without exceptions join them, installed through the same
     `install_window_errors` helper the render gate uses, and so do the health
     sensors' findings, which each sensor hands over as a record through the
@@ -1498,11 +1498,18 @@ def take_browser_errors(page):
     return errors
 
 
+def http_error_console(status):
+    """Chrome's diagnostic prefix for an HTTP error a test arranges.
+
+    This names expected console text; response facts come from the response itself.
+    """
+    return f"Failed to load resource: the server responded with a status of {status}"
+
+
 def said(problem):
     """The first line of what the page itself said in a browser problem: a console
-    entry, an uncaught exception, or a window error. None for a problem the browser or
-    a health sensor reports in fields of its own, such as a failed response's `status`
-    and `url`."""
+    entry, an uncaught exception, or a window error. None for a health sensor's
+    structured finding."""
     text = problem.values.get("text")
     return None if text is None else text.splitlines()[0]
 
@@ -1516,8 +1523,8 @@ def is_problem(problem, expected):
     A string is a fragment of what the page said (`said`), so stack locations cannot
     authorize a problem. A dict names the record as a probe returns one,
     `{code, at, ...values}`: its `code`, and each field the test cares about, equal to
-    what was found, such as `{"code": "failed-load", "status": 400}`. A function of the
-    record answers for itself, for a field read other than by equality."""
+    what was found, such as `{"code": "console-error", "url": "http://page/api/event"}`.
+    A function of the record answers for itself, for a field read other than by equality."""
     if callable(expected):
         return expected(problem)
     if isinstance(expected, str):

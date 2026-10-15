@@ -7,6 +7,7 @@ from render_harness import (
     BOARD_PAGE,
     consume_browser_errors,
     holding,
+    http_error_console,
     leaf_page,
     open_page,
 )
@@ -67,7 +68,7 @@ def test_delivery_benchmark_does_not_borrow_an_older_thread_receipt(browser, ser
     )
     held.clear()
     expect(field).to_have_js_property("value", words)
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(page, http_error_console(400))
     rendered(page)
     assert page.evaluate("window.__leafBench.watch().goals[1].at") is None
     page.evaluate("window.__leafBench.disarm()")

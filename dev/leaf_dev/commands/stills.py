@@ -433,7 +433,7 @@ def composer_long(page: Page) -> None:
 
 
 def composer_sent(page: Page) -> None:
-    """That comment just sent: its card keeps the draft's wrapping while it stands."""
+    """That comment just sent: its card shares the draft's text column and wrapping."""
     composer_long(page)
     if page.evaluate("matchMedia('(pointer: coarse)').matches"):
         page.locator(".lf-fab-bar").get_by_role(
@@ -441,7 +441,7 @@ def composer_sent(page: Page) -> None:
         ).tap()
     else:
         page.keyboard.press("Enter")
-    page.locator(".lf-margin-preview[data-lf-comment-frame]").wait_for()
+    page.locator(".lf-margin-preview").wait_for()
     page.wait_for_function(
         "() => !document.querySelector('.lf-margin-preview [aria-busy=\"true\"]')"
     )
@@ -449,7 +449,7 @@ def composer_sent(page: Page) -> None:
 
 
 def composer_sent_zoomed(page: Page) -> None:
-    """A short sent comment at fractional zoom must keep its one-line viewport."""
+    """A short sent comment at fractional zoom keeps its one line."""
     page.evaluate("document.documentElement.style.zoom = '1.1'")
     page.locator("#plan-lede").click(click_count=3)
     page.locator(".lf-fab-input").click()
@@ -457,7 +457,7 @@ def composer_sent_zoomed(page: Page) -> None:
         "better; is there a way of shortening? or maybe we just remove it??"
     )
     page.keyboard.press("Enter")
-    page.locator(".lf-margin-preview[data-lf-comment-frame]").wait_for()
+    page.locator(".lf-margin-preview").wait_for()
     page.wait_for_function(
         "() => !document.querySelector('.lf-margin-preview [aria-busy=\"true\"]')"
     )
@@ -903,6 +903,24 @@ def film_inspector(page: Page) -> None:
     )
 
 
+def live_sample_embedded(page: Page) -> None:
+    """The arrived practice page at its embedded content height."""
+    page.get_by_role("tab", name="Page & layout", exact=True).click()
+    sample = page.locator("#bg-live-sample")
+    expect(
+        sample.frame_locator("iframe").locator("#bg-live-sample-copy")
+    ).to_be_visible()
+    sample.scroll_into_view_if_needed()
+
+
+def live_sample_full_view(page: Page) -> None:
+    """The same practice frame promoted into its native full-view dialog."""
+    live_sample_embedded(page)
+    sample = page.locator("#bg-live-sample")
+    sample.get_by_role("button", name="Full view", exact=True).click()
+    expect(sample.get_by_role("dialog", name="practice release note")).to_be_visible()
+
+
 def trace_timeline_by_keyboard(page: Page) -> None:
     """The timeline focused, after tabbing away from it and back."""
     trace_controls(page)
@@ -992,6 +1010,26 @@ STATES = (
         viewport=(390, 844),
         touch=True,
         region="#merge-film .film-stage",
+    ),
+    State(
+        "live-sample-embedded",
+        "developer/feature-gallery",
+        live_sample_embedded,
+        region="#bg-live-sample",
+    ),
+    State(
+        "live-sample-embedded-phone",
+        "developer/feature-gallery",
+        live_sample_embedded,
+        viewport=(390, 844),
+        touch=True,
+        region="#bg-live-sample",
+    ),
+    State(
+        "live-sample-full-view",
+        "developer/feature-gallery",
+        live_sample_full_view,
+        region="#bg-live-sample .lf-sample-view",
     ),
     State(
         "trace-comparison-header",

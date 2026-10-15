@@ -67,8 +67,7 @@ customElements.define(
     #disclosure = null;
     #heightReading;
     #fit = () => {
-      const frame = this.#frame;
-      frame.style.height = `${this.#heightReading + frame.offsetHeight - frame.clientHeight}px`;
+      this.#frame.style.height = `${this.#heightReading}px`;
     };
     #scheduleFit = frameFor(this, this.#fit);
     // Drops a resize `heldGrowth` holds.

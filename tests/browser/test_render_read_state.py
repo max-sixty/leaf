@@ -300,7 +300,13 @@ def test_automatic_read_refusal_keeps_message_unread(browser, serve):
         == response.json()["state"]["taken"]
     )
     assert take_browser_errors(page) == [
-        Finding("failed-load", values={"status": 400, "url": request.request.url})
+        Finding(
+            "console-error",
+            values={
+                "text": "Failed to load resource: the server responded with a status of 400 (Bad Request)",
+                "url": request.request.url,
+            },
+        )
     ]
     page.unroute("**/api/event")
     cut.restore()

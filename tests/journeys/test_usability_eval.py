@@ -17,8 +17,11 @@ from leaf_dev.usability_eval import (
     build_fixture,
     page_events,
     post_round,
+    score_board,
+    score_constructs,
     score_elided,
     score_mixed,
+    score_resume,
 )
 
 
@@ -57,6 +60,52 @@ def test_fixture_builds_through_current_leaf_admission(tmp_path, monkeypatch, ca
         [lag] = state["measurement_lag"]
         assert lag["run"] == captured
         assert lag["current_run"] != captured
+    if case in {"resume", "constructs"}:
+        (tmp_path / "work-dir").write_text(str(tmp_path))
+        if case == "constructs":
+            saved = tmp_path / "fixture/data"
+            saved.mkdir(parents=True)
+            (saved / "checkout-p95.json").write_bytes(
+                (page / "data/checkout-p95.json").read_bytes()
+            )
+            source = page / "index.html"
+            source.write_text(source.read_text().replace("184 ms", "0.231 seconds"))
+            run.leaf(
+                "page",
+                "stamp",
+                str(page),
+                "--text",
+                "Retain full latency sentence",
+                check=True,
+            )
+            text = score_constructs(run)["texts"]["latency-summary"]
+            assert "Checkout p95 is 0.231 seconds against a 300 ms budget." == text
+        else:
+            text = score_resume(run)["texts"]["batch-size"]
+            assert "batches of 500" in text
+            assert "pauses two seconds between batches" in text
+    if case == "board":
+        (tmp_path / "work-dir").write_text(str(tmp_path))
+        source = page / "index.html"
+        original = source.read_text()
+        source.write_text(
+            original.replace(
+                "<strong>Expiry alerts</strong>",
+                "<strong>Expiry alerts</strong><p>Do not rename this to Key expiry alerts.</p>",
+            )
+        )
+        run.leaf(
+            "page",
+            "stamp",
+            str(page),
+            "--text",
+            "Mention the proposed title",
+            check=True,
+        )
+        assert not score_board(run)["renamed"]
+        source.write_text(original.replace("Expiry alerts", "Key expiry alerts"))
+        run.leaf("page", "stamp", str(page), "--text", "Rename the card", check=True)
+        assert score_board(run)["renamed"]
     if case == "elided":
         assert PREMISE not in str(page_events(page))
         append_elided_history(run, page)

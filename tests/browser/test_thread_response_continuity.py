@@ -143,7 +143,7 @@ def test_context_paste_after_rewrap_keeps_the_previous_panel_turn_visible(
     from render_cases_interaction import PANEL_PAGE, panel_comment
     from render_harness import scroll_settled
 
-    from browser.test_render_threads import open_threads_list, reply_by_keyboard
+    from browser.threads import open_threads_list, reply_by_keyboard
 
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Keep this review visible.")

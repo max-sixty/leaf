@@ -51,7 +51,7 @@ what fails and what still works.
 - **Observed:** Chrome 155's native accessibility tree exposes the named
   combobox, its controlled grid, and the selected row after filtering and Arrow
   navigation. Desktop and touch journeys retain native editor focus and caret
-  selection. The browser tests in `test_render_navigation.py` check the
+  selection. The browser tests in `navigation/test_command_reference.py` check the
   relationships through the native editor's element-reference properties.
 - **Disposition:** adopted without a fallback; no current browser support gap
   was found in the compatibility data. Native accessibility behavior in Firefox
@@ -478,7 +478,7 @@ application. Recheck the affected Leaf journey when resolving this entry.
 - **Recheck:** run
   `test_a_region_capture_keeps_scrolled_shadow_pixels_and_its_comment_anchor`
   and `test_touch_capture_can_cancel_and_reopen_before_attaching` in
-  `tests/*/test_render_threads.py`. Compare the rasterizer's same crop with a
+  `tests/browser/threads/test_media.py` and `tests/journeys/test_render_threads.py`. Compare the rasterizer's same crop with a
   native screenshot in each installed engine when updating SnapDOM.
 
 ### Anchoring from a shadow root to the outer document

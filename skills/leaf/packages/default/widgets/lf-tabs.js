@@ -53,7 +53,6 @@
  * there is no failSoft. */
 import {
   afterScript,
-  HIDDEN,
   PRESS,
   asksIn,
   askWords,
@@ -453,7 +452,7 @@ customElements.define(
         )
           replaceEntry(this.#locationFor(active));
         for (const [panel, btn] of this.#buttons) {
-          keeps(panel, "hidden", panel === active ? null : HIDDEN);
+          keeps(panel, "hidden", panel === active ? null : "until-found");
           // A tabpanel of prose has no focusable content, so Tab reaches the open
           // panel itself. hidden="until-found" skips only what a panel holds, not
           // the panel. A scrolling panel also takes a native browser stop without

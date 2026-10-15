@@ -112,6 +112,25 @@ what fails and what still works.
   and runs the pseudo-element's transition, so nothing visible differs.
 - **Disposition:** adopted without a fallback.
 
+### Folds, composed selections and anchor scopes without a feature check
+
+- **Owners:** widgets that fold with `hidden="until-found"` (`lf-tabs`,
+  `lf-options`, `lf-trace-compare`); `runtime/passages.js` (`pageRange`, through
+  `Selection.getComposedRanges`); `runtime/css-anchors.js` (`anchor-scope`) and the
+  Page Map toggle in `styles/chrome.css` (anchor positioning).
+- **Compatibility checked 2026-10-14:** `hidden="until-found"` and `beforematch`
+  support Chrome 102+, Firefox 139+ and Safari 26.2+; `getComposedRanges` Chrome
+  137+, Firefox 142+ and Safari 17+; `anchor-name` Chrome 125+ and `anchor-scope`
+  Chrome 131+, both Firefox 147+ and Safari 26+, according to
+  [MDN's compatibility data](https://github.com/mdn/browser-compat-data) 8.1.5.
+  It marks Safari's `until-found` partial: find-in-page reveals the match but
+  [does not scroll to it correctly](https://webkit.org/b/304174).
+- **Observed:** installed Playwright Chromium 153.0.8010.12, Firefox 155 and
+  WebKit 26.6 each expose `onbeforematch`, `getComposedRanges`, `anchor-name` and
+  `anchor-scope`.
+- **Disposition:** adopted without a fallback. An engine without `until-found`
+  reads the unknown value as plain `hidden`, which is what the removed check chose.
+
 ## Known gaps
 
 ### Intrinsic block retirement motion

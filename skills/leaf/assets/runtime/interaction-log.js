@@ -80,7 +80,7 @@ function targetValue(target) {
 }
 
 function describe(event) {
-  const path = event.composedPath?.() ?? [event.target];
+  const path = event.composedPath();
   const elements = path.filter((node) => node instanceof Element).slice(0, 8);
   const entry = {
     type: event.type,
@@ -367,29 +367,28 @@ if (enabled) {
       scroll: [window.scrollX, window.scrollY],
     });
   });
-  if (typeof window.PerformanceObserver !== "undefined") {
-    const observer = new window.PerformanceObserver((list) => {
-      for (const resource of /** @type {PerformanceResourceTiming[]} */ (
-        list.getEntries()
-      )) {
-        if (resource.name.startsWith(url)) continue;
-        const resourceUrl = new URL(resource.name);
-        // Freshness is transport housekeeping; failed reads are explained by the
-        // server diagnostic and the state read they prompt. Logging each look
-        // would turn its quiet clock into a second diagnostic request clock.
-        if (pagePath(resourceUrl.pathname) === "/api/news") continue;
-        enqueue({
-          type: "resource",
-          path: pagePath(resourceUrl.pathname),
-          initiator: resource.initiatorType,
-          durationMs: resource.duration,
-          responseStatus: resource.responseStatus ?? null,
-          transferSize: resource.transferSize,
-        });
-      }
-    });
-    observer.observe({ type: "resource", buffered: true });
-  }
+  const observer = new window.PerformanceObserver((list) => {
+    for (const resource of /** @type {PerformanceResourceTiming[]} */ (
+      list.getEntries()
+    )) {
+      if (resource.name.startsWith(url)) continue;
+      const resourceUrl = new URL(resource.name);
+      // Freshness is transport housekeeping; failed reads are explained by the
+      // server diagnostic and the state read they prompt. Logging each look
+      // would turn its quiet clock into a second diagnostic request clock.
+      if (pagePath(resourceUrl.pathname) === "/api/news") continue;
+      enqueue({
+        type: "resource",
+        path: pagePath(resourceUrl.pathname),
+        initiator: resource.initiatorType,
+        durationMs: resource.duration,
+        // WebKit has no responseStatus.
+        responseStatus: resource.responseStatus ?? null,
+        transferSize: resource.transferSize,
+      });
+    }
+  });
+  observer.observe({ type: "resource", buffered: true });
   enqueue({
     type: "session_start",
     location: `${pagePath(location.pathname)}${location.hash}`,

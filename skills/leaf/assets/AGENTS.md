@@ -286,6 +286,11 @@ questions in script names in its header the requirement the feature can't meet a
 case that shows it; without that reason, the change doesn't land. The same holds for
 patching a built-in prototype or a dependency's internals.
 
+Feature-detect only what a current stable engine lacks, and name that engine beside
+the check (`// Firefox lacks ScrollTimeline.`), so the check goes when the engine ships
+it. Call an API every engine ships directly, with no fallback, and record the check in
+`notes/browser-support.md`.
+
 Two script answers already exist. `focus.js` sets `data-lf-focus` and
 `data-lf-focus-within`, because native `:focus` also matches retargeted shadow hosts
 and a held label press; style focus with those attributes. `geometry.js` decides

@@ -402,7 +402,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      over the words. A focused one stays in the stuck row, where the user can see what
      they hold. The metadata clips only sideways, for its ellipsis, so a label rises to
      the card's edge rather than vanishing at the metadata's own top. The rules wait
-     on view timelines: an engine without them would run the animation on the
+     on view timelines: Firefox, which lacks them, would run the animation on the
      document clock, whose filled end holds the annotations above their row at rest,
      so it keeps them stuck with the name instead. */
   @supports (animation-timeline: view()) {

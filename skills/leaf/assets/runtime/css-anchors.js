@@ -161,17 +161,15 @@ function nameable(el) {
 // shape inside an SVG drawing has no CSS box of its own, so it anchors through the
 // drawing; a `display: contents` target through its first shown part. Wherever it
 // anchors, what stands against it is written as insets from the anchor's box.
-const SCOPES = CSS.supports("anchor-scope", "all");
 function outsideScopes(target) {
   let el = target;
-  if (SCOPES)
-    for (let at = target; at instanceof Element; at = renderedParent(at))
-      if (
-        at.getRootNode() === document &&
-        !at.contains(chromeRoot) &&
-        getComputedStyle(at).anchorScope === "all"
-      )
-        el = renderedParent(at) ?? at;
+  for (let at = target; at instanceof Element; at = renderedParent(at))
+    if (
+      at.getRootNode() === document &&
+      !at.contains(chromeRoot) &&
+      getComputedStyle(at).anchorScope === "all"
+    )
+      el = renderedParent(at) ?? at;
   return el;
 }
 export function anchorElement(target) {
@@ -268,11 +266,12 @@ export function anchorFor(context) {
 // scroller holds only words and breaks, and where it is a
 // block container, a flex or grid box making its `::before` an item, with no `::before`
 // of its own and no first letter floated out of the line, which would stand the range
-// in the float, and where the browser reads a name from an attribute. Its handle answers
-// `getBoundingClientRect` as an element anchor does, and naming it names the `::before`:
-// through the scroller's `data-lf-content-start` (marks.css) in the document, and in a
-// shadow tree through a part, as a box there is named (`namePart`), each written where it
-// is made and again where a revision rewrote it.
+// in the float, and where the browser reads a name from an attribute (typed `attr()`,
+// which WebKit lacks). Its handle answers `getBoundingClientRect` as an element anchor
+// does, and naming it names the `::before`: through the scroller's
+// `data-lf-content-start` (marks.css) in the document, and in a shadow tree through a
+// part, as a box there is named (`namePart`), each written where it is made and again
+// where a revision rewrote it.
 const contentStarts = new WeakMap(); // handle → { scroller, name }
 const starts = new WeakMap(); // scroller → handle
 const START = "data-lf-content-start";

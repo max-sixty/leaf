@@ -1,6 +1,7 @@
 """Preview and offline export tests."""
 
 import base64
+import contextlib
 import json
 import os
 import re
@@ -786,48 +787,47 @@ def test_terminating_a_preview_mid_update_leaves_no_service(
     tmp_path, preview_slot, spawn
 ):
     """A SIGTERM after re-vendor stops the service leaves no restarted service."""
-    marker = tmp_path / "service-stopped"
-    release = tmp_path / "release-update"
     (tmp_path / "hold_update.py").write_text(
-        "import json, os, time\n"
-        "from pathlib import Path\n"
+        "import json, os, socket\n"
         "def pause(page):\n"
         "    record = page.page_dir / 'service.json'\n"
         "    if not record.exists():\n"
         "        return\n"
         "    service = json.loads(record.read_text())\n"
-        "    marker = Path(os.environ['LEAF_TEST_STOP_MARKER'])\n"
-        "    if service.get('restart') and not marker.exists():\n"
-        "        marker.write_text('stopped')\n"
-        "        while not Path(os.environ['LEAF_TEST_RELEASE_UPDATE']).exists():\n"
-        "            time.sleep(0.02)\n"
+        "    theme = (page.page_dir / 'theme.css').read_text()\n"
+        "    if service.get('restart') and 'h1 { color: navy; }' in theme:\n"
+        "        port = int(os.environ['LEAF_TEST_UPDATE_BARRIER'])\n"
+        "        with socket.create_connection(('127.0.0.1', port)) as peer:\n"
+        "            if peer.recv(1) != b'x':\n"
+        "                os._exit(1)\n"
     )
     env = os.environ | {
         "PYTHONPATH": os.pathsep.join(
             filter(None, (str(tmp_path), os.environ.get("PYTHONPATH")))
         ),
         "LEAF_PAGE_COMMIT": "hold_update:pause",
-        "LEAF_TEST_STOP_MARKER": str(marker),
-        "LEAF_TEST_RELEASE_UPDATE": str(release),
     }
-    source, runtime, directory, process, _, log = watching(
-        tmp_path, preview_slot, spawn, user=True, env=env
-    )
-    theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
-    with theme.open("a", encoding="utf-8") as stream:
-        stream.write("\nh1 { color: navy; }\n")
-    wait_for(
-        marker.exists,
-        bool,
-        failure=lambda: (
-            f"watcher did not stop service during update: {log.read_text()}"
-        ),
-    )
-    assert not files_model.read_json(directory / "service.json")["enabled"]
-    try:
-        os.killpg(process.pid, signal.SIGTERM)
-    finally:
-        release.touch()
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        listener.listen(1)
+        listener.settimeout(STATED_TIMEOUT)
+        env["LEAF_TEST_UPDATE_BARRIER"] = str(listener.getsockname()[1])
+        source, runtime, directory, process, _, log = watching(
+            tmp_path, preview_slot, spawn, user=True, env=env
+        )
+        theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
+        with theme.open("a", encoding="utf-8") as stream:
+            stream.write("\nh1 { color: navy; }\n")
+        try:
+            peer, _ = listener.accept()
+        except socket.timeout:
+            pytest.fail(f"watcher did not commit the updated layer: {log.read_text()}")
+        with peer:
+            assert "h1 { color: navy; }" in (directory / "theme.css").read_text()
+            assert not files_model.read_json(directory / "service.json")["enabled"]
+            os.killpg(process.pid, signal.SIGTERM)
+            with contextlib.suppress(BrokenPipeError, ConnectionResetError):
+                peer.sendall(b"x")
     process.wait(timeout=STATED_TIMEOUT)
     assert server_model.running_server(directory) is None
     assert (directory / "events.jsonl").is_file()

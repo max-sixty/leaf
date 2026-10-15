@@ -10570,17 +10570,22 @@ def test_webawesome_chrome_loads_without_optional_controls(browser, serve):
         is True
     )
     control = page.locator(".lf-vr-case-select")
-    # A page rule with no specificity at all. It can outrank the generated sheet's own
-    # `:is(wa-select, …)` mapping only because that sheet sits in @layer lf-vendor.
-    page.add_style_tag(
-        content=":where(wa-select){--wa-color-text-quiet: rgb(1, 2, 3);}"
+    # A page rule granted control access and with no specificity at all can outrank
+    # the generated sheet's `:is(wa-select, …)` mapping in @layer lf-vendor.
+    page.evaluate(
+        """() => {
+          const style = document.createElement('style');
+          style.setAttribute('data-controls', '');
+          style.textContent = ':where(wa-select){--wa-color-text-quiet: rgb(1, 2, 3);}';
+          document.head.append(style);
+        }"""
     )
     assert (
         control.evaluate(
             "el => getComputedStyle(el).getPropertyValue('--wa-color-text-quiet')"
         ).strip()
         == "rgb(1, 2, 3)"
-    ), "the package theme must outrank the lazy vendor defaults"
+    ), "a page rule granted control access must outrank the lazy vendor defaults"
 
 
 def test_webawesome_menu_text_stays_readable_as_the_current_option_moves(

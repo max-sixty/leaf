@@ -8290,6 +8290,45 @@ def test_a_thread_on_a_widget_its_reply_brings_is_marked_as_the_reply_lands(
     expect(page.locator('.lf-thread[data-id="tv-on-it"]')).to_have_count(1)
 
 
+def test_a_target_a_reply_widget_redraws_keeps_its_mark(browser, serve):
+    """A widget in a reply that replaces a part another thread stands on, and says its
+    layout changed, has the replacement marked.
+
+    The reply's markup is authored content, though it stands in the runtime's panel, so
+    its layout signal asks for the thread pass that finds the new node. A signal from
+    the panel's own cards asks for none."""
+    url = serve(REPLY_TRAVEL_PAGE)
+    seed_reply(
+        serve.page_dir,
+        '<lf-options id="tv-decision"><lf-option id="tv-redis">Redis</lf-option>'
+        '<lf-option id="tv-cookie">A signed cookie</lf-option></lf-options>',
+        "tv-redis",
+    )
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    marked = re.compile(r"\blf-mark-el\b")
+    expect(page.locator("#tv-redis")).to_have_class(marked)
+
+    # Read once the pass the signal asked for has painted, and before anything else
+    # (the clock's next tick) would paint the targets again.
+    remarked = page.evaluate("""async () => {
+      const { layoutChanged } = await window.__lfWidgetApi();
+      const { whenDocumentPresented } = await window.__lfCheckApi();
+      const old = document.getElementById('tv-redis');
+      const replacement = old.cloneNode(true);
+      replacement.classList.remove('lf-mark-el');
+      old.replaceWith(replacement);
+      await layoutChanged(document.getElementById('tv-decision'));
+      await whenDocumentPresented();
+      await new Promise((resolve) => requestAnimationFrame(() => resolve()));
+      return replacement.classList.contains('lf-mark-el');
+    }""")
+    assert remarked, (
+        "the part the reply widget redrew lost the mark its thread gives it"
+    )
+
+
 def test_a_boxless_widget_in_a_reply_still_shows_the_parts_it_paints(browser, serve):
     """A wrapper that generates no box shows as what its contents paint — in either
     document.

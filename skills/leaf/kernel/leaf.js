@@ -308,6 +308,7 @@ import {
 import {
   COLLAPSE,
   TEXT_BLOCK,
+  authoredScope,
   blockAt,
   closestAcross,
   contextAround,
@@ -5430,8 +5431,9 @@ function createAnchorControls({
   }
   const onLayoutInvalidated = (event) => {
     invalidatePageGeometry();
-    if (inChrome(event.target)) return;
-    plannedFor = null;
+    if (inChrome(event.target) && authoredScope(event.target) === pageDocument())
+      return;
+    if (!inChrome(event.target)) plannedFor = null;
     queueInvalidation();
   };
   const onMessageReference = (event) => {

@@ -2594,6 +2594,11 @@ def resize_findings(page, path):
         ]
 
     left_alone(page)
+    # A sample can hold its child's growth while the reader sees the frame. Resizing
+    # interrupts that reading and releases the held height; take the baseline after
+    # that first release, so the return trip compares settled layouts at each width.
+    resized(page, path[-1], 900)
+    resized(page, path[0], 900)
     said = {width: at_width(width) for width in path}
     for width in path[-2::-1]:
         if changes := state_changes(said[width], at_width(width)):

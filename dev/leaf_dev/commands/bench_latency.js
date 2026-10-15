@@ -129,6 +129,12 @@
   const resources = (entries) => ({
     requests: entries.length,
     bytes: entries.reduce((total, entry) => total + entry.transferSize, 0),
+    // Each request, for results.json: what a count or a byte total cannot say.
+    entries: entries.map((entry) => ({
+      url: entry.name,
+      initiator: entry.initiatorType,
+      bytes: entry.transferSize,
+    })),
   });
   Object.defineProperty(window, "__leafBench", {
     value: Object.freeze({

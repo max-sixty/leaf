@@ -24,8 +24,19 @@ export const elementDeclarations = () =>
 
 // Take in the fetched vocabulary. A verb's writer is read from `$states`
 // (`registry-contract.js`), where composition stamped it.
+// The layer-wide `$` declarations are frozen as they arrive, so `layerFact` hands a
+// package module the registry's own value, which it can read but not write.
 export function adoptRegistry(declarations) {
+  for (const [name, value] of Object.entries(declarations))
+    if (name.startsWith("$")) freeze(value);
   Object.assign(registry, declarations);
+}
+
+/** @param {unknown} value */
+function freeze(value) {
+  if (value === null || typeof value !== "object" || Object.isFrozen(value)) return;
+  for (const child of Object.values(value)) freeze(child);
+  Object.freeze(value);
 }
 
 let stateIndex;
@@ -62,12 +73,11 @@ export const stateSpecs = () => indexedState().specs;
 export const recordedWidgetSelector = (record) =>
   indexedState().recordSelectors.get(recordSlot(record)) ?? "";
 
-// Shared `$` declarations belong to the layer rather than to one widget. Return a copy so
-// a package module can read its cross-widget vocabulary without a registry write path.
-export function layerFact(name) {
-  const value = registry[name];
-  return value === undefined ? undefined : structuredClone(value);
-}
+// Shared `$` declarations belong to the layer rather than to one widget. Each is frozen
+// on adoption, so a package module reads its cross-widget vocabulary without a registry
+// write path, and a reader called per element copies nothing.
+/** @param {string} name */
+export const layerFact = (name) => registry[name];
 
 export const declarationFor = (el, key) => registry[el?.localName]?.[key];
 

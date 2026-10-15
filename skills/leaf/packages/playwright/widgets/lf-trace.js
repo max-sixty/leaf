@@ -94,7 +94,6 @@ import {
   signal,
   quoted,
   registerVisualParts,
-  rowArrows,
   scopedMediaUrl,
   retainUserIntent,
   scrollBehavior,
@@ -363,11 +362,13 @@ customElements.define(
       // Element command scopes leave with their element; a return keeps the declaration.
       if (!quoted(this))
         commands(this, "In a Playwright recording", [
-          // Back along the time scale is the arrow toward its start; the scale
-          // runs left to right in every text direction (theme.css).
+          // Back along the time scale is the arrow toward its start. The scale
+          // runs left to right in every text direction (theme.css), so its arrows
+          // are fixed rather than read from the computed direction, which would
+          // force a style recalculation each time the page's keys are reflected.
           {
             id: "trace.previous",
-            keys: () => [rowArrows(timeline)[0]],
+            keys: ["ArrowLeft"],
             title: "previous timeline point",
             control: this.#previous.value,
             when: () => this.#position() > 0 || this.#cursorTime !== null,
@@ -375,7 +376,7 @@ customElements.define(
           },
           {
             id: "trace.next",
-            keys: () => [rowArrows(timeline)[1]],
+            keys: ["ArrowRight"],
             title: "next timeline point",
             control: this.#next.value,
             when: () => this.#position() < this.#items().length - 1,
@@ -407,16 +408,14 @@ customElements.define(
           },
           {
             id: "trace.previous-event",
-            keys: () =>
-              standingIn(timeline) ? [`Shift+${rowArrows(timeline)[0]}`] : [],
+            keys: () => (standingIn(timeline) ? ["Shift+ArrowLeft"] : []),
             title: "previous input or moment",
             when: () => this.#eventStop(-1) !== null,
             run: () => this.#navigate(this.#eventStop(-1)),
           },
           {
             id: "trace.next-event",
-            keys: () =>
-              standingIn(timeline) ? [`Shift+${rowArrows(timeline)[1]}`] : [],
+            keys: () => (standingIn(timeline) ? ["Shift+ArrowRight"] : []),
             title: "next input or moment",
             when: () => this.#eventStop(1) !== null,
             run: () => this.#navigate(this.#eventStop(1)),

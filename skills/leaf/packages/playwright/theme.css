@@ -59,7 +59,7 @@
  * the lanes and the playhead. Every mark's left edge is its time:
  * left = edge + t × (track − 2 × edge), with t the fraction of the recording.
  * The scale runs left to right in every text direction, as a chart's time axis
- * does; the step arrows read their direction from it (`rowArrows`). */
+ * does, so its step arrows are always ArrowLeft and ArrowRight (lf-trace.js). */
 .lf-trace-timeline {
   direction: ltr;
   --lf-trace-ruler-h: 26px;

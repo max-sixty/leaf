@@ -493,7 +493,14 @@ var registry = runtime.registry;
 var tokenEntry = (name) => registry.$reactions.tokens[name];
 var elementDeclarations = () => Object.entries(registry).filter(([tag]) => isElementName(tag));
 function adoptRegistry(declarations) {
+  for (const [name, value] of Object.entries(declarations))
+    if (name.startsWith("$")) freeze(value);
   Object.assign(registry, declarations);
+}
+function freeze(value) {
+  if (value === null || typeof value !== "object" || Object.isFrozen(value)) return;
+  for (const child of Object.values(value)) freeze(child);
+  Object.freeze(value);
 }
 var stateIndex;
 var recordSlot = (record) => JSON.stringify([record.kind, "attr" in record ? record.attr : null]);
@@ -522,10 +529,7 @@ function indexedState() {
 }
 var stateSpecs = () => indexedState().specs;
 var recordedWidgetSelector = (record) => indexedState().recordSelectors.get(recordSlot(record)) ?? "";
-function layerFact(name) {
-  const value = registry[name];
-  return value === void 0 ? void 0 : structuredClone(value);
-}
+var layerFact = (name) => registry[name];
 var declarationFor = (el2, key) => registry[el2?.localName]?.[key];
 var decisionFor = (tag) => registry.$decisions[tag] ?? null;
 var elementsDeclaring = (root2, key, { direct = false } = {}) => {

@@ -286,9 +286,8 @@ def _render_scheme(
         )
 
     def explained(code, **values):
-        # The named wait says what never arrived; the console and the response
-        # statuses collected above are what says why, and a refused document has
-        # nothing else to offer a reader.
+        # The named wait says what never arrived; the console diagnostics collected
+        # above explain why, including when the document itself was refused.
         console = [problem.json(text=False) for problem in [*errors, *resize_notices]]
         return ended([Finding(code, values={**values, "console": console})])
 

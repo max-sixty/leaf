@@ -1498,6 +1498,14 @@ def take_browser_errors(page):
     return errors
 
 
+def http_error_console(status):
+    """Chrome's diagnostic prefix for an HTTP error a test arranges.
+
+    This names expected console text; response facts come from the response itself.
+    """
+    return f"Failed to load resource: the server responded with a status of {status}"
+
+
 def said(problem):
     """The first line of what the page itself said in a browser problem: a console
     entry, an uncaught exception, or a window error. None for a health sensor's

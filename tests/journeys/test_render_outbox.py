@@ -18,6 +18,7 @@ from render_harness import (
     banner_control,
     consume_browser_errors,
     expect_banner_control_offered,
+    http_error_console,
     navigate,
     open_page,
     page_comment,
@@ -88,7 +89,7 @@ def test_a_tab_whose_key_is_refused_keeps_its_moves_and_names_the_link(browser, 
     expect(page.locator(".lf-status-text")).not_to_contain_text("Key refused")
     consume_browser_errors(
         page,
-        "Failed to load resource: the server responded with a status of 401",
+        http_error_console(401),
         "Leaf interaction log rejected",
     )
 

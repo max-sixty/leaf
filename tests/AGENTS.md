@@ -255,8 +255,8 @@ left at the end; don't install a second collector. Each problem is a record
 (`leaf/findings.py`). Consume an expected one where it happens with
 `consume_browser_errors`, or `reported_browser_errors` when it arrives in parts, naming
 it by its fields (`{"code": "console-error", "url": "http://page/api/event"}`) or by a
-fragment of the console message (`render_harness.is_problem`). For a recurring fault, close the page
-first and then consume. Filtering the collector is not an assertion.
+fragment of the console message (`render_harness.is_problem`). For a recurring fault,
+close the page first and then consume. Filtering the collector is not an assertion.
 
 Three watches report problems; a fourth, `input_work_watch.js`, tells them which input
 caused a change. Fix what they report rather than consuming it; there is no per-test
@@ -398,10 +398,10 @@ printed record), since the log's last event may be a `read` an open page appende
 ### Test-made noise
 
 Instrumentation must not add noise to the channel a test asserts is quiet; `refuse`
-uses the `aborted` reason for that. Assert a deliberate HTTP error through the
-response's status and consume its console diagnostic separately. Wrap a deliberate
-server restart in
-`restarting`, asserting any diagnostic inside that block.
+uses the `aborted` reason for that. Consume a deliberate HTTP error by the browser's
+diagnostic (`http_error_console`); where the status itself is under test, assert the
+response's status. Wrap a deliberate server restart in `restarting`, asserting any
+diagnostic inside that block.
 
 ## Frames, sequences, and instants
 

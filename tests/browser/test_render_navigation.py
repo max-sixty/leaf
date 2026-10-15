@@ -83,6 +83,7 @@ from render_harness import (
     expect_comment_notes,
     hold_selection,
     holding,
+    http_error_console,
     is_problem,
     leaf_page,
     margins_laid_out,
@@ -1894,9 +1895,7 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     page.keyboard.press("Enter")
     expect(retry).to_have_count(0)
 
-    consume_browser_errors(
-        page, "Failed to load resource: the server responded with a status of 400"
-    )
+    consume_browser_errors(page, http_error_console(400))
 
 
 def test_a_render_that_keeps_an_external_link_gives_back_the_mark_it_dropped(

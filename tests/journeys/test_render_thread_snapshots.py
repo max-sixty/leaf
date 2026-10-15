@@ -15,7 +15,7 @@ from leaf.served_state import context as served_context
 from leaf_dev import ROOT
 from leaf_dev.commands.thread_snapshots import CASES, COMPARED, SnapshotRun
 from leaf_dev.thread_journey import NEXT_WORDS, WORDS, delivery_journey
-from render_harness import consume_browser_errors, open_page
+from render_harness import consume_browser_errors, http_error_console, open_page
 
 
 # A colour scheme changes only pixels, so where no image is compared its cases would
@@ -88,9 +88,7 @@ def test_message_delivery_appearance_and_first_frame(
         for stage in ("newer-draft-pending", "accepted"):
             assert observed[stage]["focused"]
             assert observed[stage]["caret"] == [len(NEXT_WORDS) - 3] * 2
-        consume_browser_errors(
-            page, "Failed to load resource: the server responded with a status of 400"
-        )
+        consume_browser_errors(page, http_error_console(400))
         run.finish()
     finally:
         (run.output / "observations.json").write_text(

@@ -305,8 +305,7 @@ def test_an_acknowledgement_neither_waits_for_nor_holds_up_a_gesture(browser, se
         for text in page.locator(".lf-notice").all_text_contents()
     )
     assert all(
-        is_problem(error, "Failed to load")
-        or (error.code == "console-error" and "/api/event" in error.values["url"])
+        is_problem(error, "Failed to load") and "/api/event" in error.values["url"]
         for error in take_browser_errors(page)
     )
 

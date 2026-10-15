@@ -50,6 +50,7 @@ from render_cases_layout import (
     mark_edges,
     page_at_rest,
     ring_faults,
+    ring_rules,
     rings_drawn,
     serious_axe_violations,
     standing_ring,
@@ -1671,7 +1672,7 @@ customElements.define('lf-shadow-focus', class extends HTMLElement {
     )
     paint = """el => { const s = getComputedStyle(el); return {
       style: s.outlineStyle, width: s.outlineWidth, color: s.outlineColor,
-      offset: s.outlineOffset, name: s.getPropertyValue('--lf-focus-ring').trim()
+      offset: s.outlineOffset
     }; }"""
     button = page.locator("#focus-button")
     tab = page.get_by_role("tab", name="First", exact=True)
@@ -1689,10 +1690,10 @@ customElements.define('lf-shadow-focus', class extends HTMLElement {
         expect(control).to_be_focused()
         rendered(page)
         pointer = carrier.evaluate(paint)
-        assert pointer["style"] == "solid" and pointer["name"] != "none", pointer
+        assert pointer["style"] == "solid", pointer
         drawn = rings_drawn(page)
         samples = [ring for ring in drawn if ring["sample"]]
-        assert len(samples) == 1, drawn
+        assert len(samples) == 1 and samples[0]["rule"], drawn
         assert not ring_faults(drawn, "after pointer arrival")
 
         # Return by sequential navigation to cover the tab list's roving stop and
@@ -1703,7 +1704,9 @@ customElements.define('lf-shadow-focus', class extends HTMLElement {
         rendered(page)
         assert carrier.evaluate(paint) == pointer
         drawn = rings_drawn(page)
-        assert len([ring for ring in drawn if ring["sample"]]) == 1, drawn
+        assert [ring["rule"] for ring in drawn if ring["sample"]] == [
+            samples[0]["rule"]
+        ], drawn
         assert not ring_faults(drawn, "after keyboard arrival")
 
     assert page.locator("#focus-shadow").evaluate(paint)["style"] == "none", (
@@ -5020,12 +5023,12 @@ def test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge(
 def test_the_ring_reading_distinguishes_element_marks_from_focus(browser, serve):
     """The reading ignores element contours and still recognizes the real focus ring.
 
-    A hovered passage deliberately shares the ring's accent and width but has no
-    focus-ring declaration, so its element-feedback role must keep it out of the
-    population of keyboard rings. The named focus state on that same element and an
-    unregistered real ring follow as positive controls; without them a reading that
-    ignored all element contours would pass the first case and prove only that it was
-    silent."""
+    A hovered passage deliberately shares the ring's accent and width but its rule
+    writes the contour out rather than drawing the ring's token, so the browser's
+    answer for which rule drew it keeps it out of the population of keyboard rings. The
+    focus state on that same element, a token ring on a plain box, and a contour on a
+    focused mark follow as positive controls; without them a reading that ignored all
+    element contours would pass the first case and prove only that it was silent."""
     example = next(e for e in EXAMPLES if e.stem == "release-notes")
     url = serve(example, comments=2, seed_log=False)
     page = open_page(browser, url)
@@ -5038,14 +5041,12 @@ def test_the_ring_reading_distinguishes_element_marks_from_focus(browser, serve)
         box.classList.toggle(name, false);
       box.toggleAttribute('data-lf-focus', how === 'focused mark');
       box.style.outline = '';
-      box.style.removeProperty('--lf-focus-ring');
       if (how === 'mark') box.classList.add('lf-mark-el', 'lf-mark-hover');
       if (how === 'focused mark') box.classList.add('lf-mark-el');
       if (how === 'the ring itself') box.style.outline = 'var(--focus-ring)';
-      if (how === 'unregistered focused mark') {
+      if (how === 'contour on a focused mark') {
         box.classList.add('lf-mark-el');
-        box.style.outline = 'var(--focus-ring)';
-        box.style.setProperty('--lf-focus-ring', 'none');
+        box.style.outline = 'var(--focus-ring-w) solid var(--accent)';
         box.tabIndex = -1;
         box.focus();
       }
@@ -5083,8 +5084,8 @@ def test_the_ring_reading_distinguishes_element_marks_from_focus(browser, serve)
 
     _style, _width, colour = page.evaluate(plant, "focused mark")
     focused_claims = claimed()
-    assert [seen["ring"] for seen in focused_claims] == ["passage-focus"], (
-        f"the marked element's named focus ring ({colour}) was not credited: "
+    assert [".lf-mark-el" in seen["rule"] for seen in focused_claims] == [True], (
+        f"the marked element's focus ring ({colour}) was not credited to its rule: "
         f"{focused_claims}"
     )
 
@@ -5095,16 +5096,16 @@ def test_the_ring_reading_distinguishes_element_marks_from_focus(browser, serve)
         "this reading now divides on"
     )
     ring_claims = claimed()
-    assert len(ring_claims) == 1 and not ring_claims[0]["ring"], (
+    assert [seen["rule"] for seen in ring_claims] == ["style attribute"], (
         f"a box wearing the layer's own ring ({ring_paint}) was not counted, so the cases "
         "above prove only that this reading is silent"
     )
 
-    focused_mark_paint = page.evaluate(plant, "unregistered focused mark")
+    focused_mark_paint = page.evaluate(plant, "contour on a focused mark")
     focused_mark_claims = claimed()
-    assert len(focused_mark_claims) == 1 and not focused_mark_claims[0]["ring"], (
-        f"a focused element mark wearing an unregistered ring ({focused_mark_paint}) "
-        f"was not counted: {focused_mark_claims}"
+    assert [seen["rule"] for seen in focused_mark_claims] == [""], (
+        f"a focused element mark wearing a contour no ring rule drew "
+        f"({focused_mark_paint}) was not counted: {focused_mark_claims}"
     )
 
 
@@ -5278,7 +5279,7 @@ def test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across(
     page.keyboard.press("Tab")
     page.keyboard.press("Shift+Tab")
     standing = standing_ring(page)
-    assert standing and standing["ring"] == "edge", (
+    assert standing and ".lf-edge" in standing["rule"], (
         f"the keyboard is not standing on the grip's own ring: {standing}"
     )
 
@@ -5604,9 +5605,10 @@ def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_bo
 # with a second version so the versions menu has a comparison to offer.
 RING_CHROME = "triage-board"
 # A causal sample in each surface the keyboard reaches. Each case names its surface, the
-# real keys that open it, the element whose focus state paints the ring, and the ring it
-# paints. A null selector means the opening keys themselves leave the required
-# non-focusable carrier lit.
+# real keys that open it, the element whose focus state paints the ring, and the rule
+# that paints it, as the part of its matched selector that makes the rule that
+# control's own (`ring_rules`, render_cases_layout.py). A null selector means the
+# opening keys themselves leave the required non-focusable carrier lit.
 RING_CASES = (
     (
         "the page",
@@ -5616,76 +5618,82 @@ RING_CASES = (
             # since every page carries the same chrome and each reading over a large
             # document costs seconds.
             RING_CHROME: (
-                (".lf-skip", "skip"),
-                (".lf-grip", "card-grip"),
-                (".lf-status-button", "status"),
-                (".lf-others", "btn"),
-                (".lf-edge:visible", "edge"),
+                (".lf-skip", ".lf-skip"),
+                (".lf-grip", ".lf-grip"),
+                (".lf-status-button", ".lf-status-button"),
+                (".lf-others", ":is(.lf-btn, .button)"),
+                (".lf-edge:visible", ".lf-edge"),
                 # Before the fields: More stands down while a field takes its key.
-                (".lf-shortcut-more", "key-more"),
-                (".lf-find-box input", "text-entry"),
-                (".lf-thread-panel leaf-text", "text-box"),
+                (".lf-shortcut-more", ".lf-shortcut-more"),
+                (".lf-find-box input", "wa-input::part"),
+                (".lf-thread-panel leaf-text", ".lf-compose-field"),
             ),
             "feature-gallery": (
-                (".lf-tab-btn", "tab-btn"),
-                ("lf-option > .lf-pick", "options-row"),
+                (".lf-tab-btn", ".lf-tab-btn"),
+                ("lf-option > .lf-pick", "lf-option:has(> .lf-pick"),
                 (
                     any_owner_entry("suggestion", "accept") + ":visible",
                     "margin-entry",
                 ),
-                (".lf-draft-edit", "draft-editor"),
+                (".lf-draft-edit", ".lf-draft-edit"),
             ),
-            "heat-loss": ((".lf-visual-action", "visual-target"),),
-            "review-a-plan": (("main details > summary", "focus"),),
+            "heat-loss": ((".lf-visual-action", ".lf-visual-action"),),
+            "review-a-plan": (("main details > summary", ":where([data-lf-focus])"),),
             "pr-walkthrough": (
-                ("lf-gloss:visible > .lf-gloss-mark", "gloss-mark"),
-                (".lf-diff-search input", "text-entry"),
-                ("lf-diff summary", "code-summary"),
-                ("lf-diff code", "code-pre-shadow"),
+                ("lf-gloss:visible > .lf-gloss-mark", ".lf-gloss-mark"),
+                (".lf-diff-search input", "wa-input::part"),
+                ("lf-diff summary", ".lf-diff-file > details > summary"),
+                ("lf-diff code", "code[data-code]"),
             ),
             "release-notes": (
-                ("main p.lf-mark-el", "passage-focus"),
-                ('lf-shot .lf-shotcomparison [part~="handle"]', "comparison-handle"),
-                (".lf-shotcap", "pressable"),
+                ("main p.lf-mark-el", ".lf-mark-el"),
+                (
+                    'lf-shot .lf-shotcomparison [part~="handle"]',
+                    "wa-comparison::part(lf-focus)",
+                ),
+                (".lf-shotcap", "[data-lf-offer]"),
             ),
-            "ship-review": ((".lf-reopen", "thread-action"),),
+            "ship-review": ((".lf-reopen", ".lf-thread-action"),),
             "wt-merge": (
-                ('[data-lf-reading-role="pane"] > [tabindex="0"]', "pane-body"),
+                (
+                    '[data-lf-reading-role="pane"] > [tabindex="0"]',
+                    "[data-lf-reading-role=pane]",
+                ),
             ),
         },
     ),
-    ("a landed diff line", ("]",), {"pr-walkthrough": ((None, "code-line"),)}),
+    ("a landed diff line", ("]",), {"pr-walkthrough": ((None, "[data-line]"),)}),
     (
         "an inline response",
         (),
-        {"pr-walkthrough": (("leaf-text.lf-fab-input", "text-box"),)},
+        {"pr-walkthrough": (("leaf-text.lf-fab-input", ".lf-response-control"),)},
     ),
     # The list holds focus itself only while it shows no thread, so the sample finds
     # nothing and backs out of the find box onto the emptied list.
     (
         "the thread list",
         ("g", "Shift+t", "/", "z", "q", "x", "j", "Escape"),
-        {RING_CHROME: ((None, "thread-list"),)},
+        {RING_CHROME: ((None, ".lf-threads-frame"),)},
     ),
     (
         "a thread title",
         (),
-        {"ship-review": ((".lf-thread-summary:visible", "thread-summary"),)},
+        {"ship-review": ((".lf-thread-summary:visible", ".lf-thread-summary"),)},
     ),
     # The keyboard walk lands on the accordion title, whose inset band also marks
     # its native Tab stop.
     (
         "a walked thread",
         ("g", "Shift+t", "t"),
-        {"ship-review": ((None, "thread-summary"),)},
+        {"ship-review": ((None, ".lf-thread-summary"),)},
     ),
     # The same walk with the panel shut lands in the margin's thread view, on the
     # thread itself rather than a control inside it.
-    ("an inline thread", ("t",), {"ship-review": ((None, "page-thread"),)}),
+    ("an inline thread", ("t",), {"ship-review": ((None, ".lf-page-thread"),)}),
     (
         "passage search",
         ("/",),
-        {RING_CHROME: ((".lf-page-search-box input:visible", "text-entry"),)},
+        {RING_CHROME: ((".lf-page-search-box input:visible", "wa-input::part"),)},
     ),
     # Item hints, and the anchored bar the user answers a chosen item on. Both open the
     # same mode, and both step back and then forward through it, which lands on the last
@@ -5703,13 +5711,13 @@ RING_CASES = (
     (
         "target hints",
         ("Tab", "s", "Shift+Tab", "Tab"),
-        {RING_CHROME: ((None, "target-hint"),)},
+        {RING_CHROME: ((None, ".lf-key-hint.lf-current"),)},
     ),
     # Enter opens Comment on the item the keyboard is browsing and focuses its field.
     (
         "the response bar",
         ("Tab", "s", "Shift+Tab", "Tab", "Enter"),
-        {RING_CHROME: ((".lf-fab-input", "text-box"),)},
+        {RING_CHROME: ((".lf-fab-input", ".lf-response-control"),)},
     ),
     # These controls live behind exact page-owned view states: a settled group's
     # disclosure, and the options it puts away.
@@ -5718,7 +5726,7 @@ RING_CASES = (
         (),
         {
             "current-proposed-comparison": (
-                ("#comparison-policy > .lf-settled", "options-settled"),
+                ("#comparison-policy > .lf-settled", ".lf-settled"),
             )
         },
     ),
@@ -5727,14 +5735,17 @@ RING_CASES = (
         (),
         {
             "current-proposed-comparison": (
-                ("#comparison-policy > lf-option > .lf-pick", "options-pick"),
+                (
+                    "#comparison-policy > lf-option > .lf-pick",
+                    ":is(lf-option) .lf-pick",
+                ),
             )
         },
     ),
     (
         "a contents link",
         (),
-        {"feature-gallery": (("#bg-contents li a:visible", "toc-link"),)},
+        {"feature-gallery": (("#bg-contents li a:visible", ":is(lf-toc) a"),)},
     ),
     # The reaction palette a message's strip opens. Its chips are the last boxes the
     # layer dresses in the chrome's chip face, and they are behind a press: the strip
@@ -5743,11 +5754,15 @@ RING_CASES = (
     (
         "a reaction palette",
         (),
-        {"ship-review": ((".lf-react-palette:popover-open .lf-react", "chip"),)},
+        {
+            "ship-review": (
+                (".lf-react-palette:popover-open .lf-react", ".lf-outline-chip"),
+            )
+        },
     ),
-    ("the On panel", (), {"ship-review": ((".lf-queue-row", "queue-row"),)}),
-    ("the pages drawer", ("g", "Shift+l"), {RING_CHROME: ((None, "others-row"),)}),
-    ("page status", (), {RING_CHROME: ((None, "status-detail"),)}),
+    ("the On panel", (), {"ship-review": ((".lf-queue-row", ".lf-queue-row"),)}),
+    ("the pages drawer", ("g", "Shift+l"), {RING_CHROME: ((None, ".lf-others-row"),)}),
+    ("page status", (), {RING_CHROME: ((None, ".lf-status-detail"),)}),
     # The menu's own route after the key that opens it: an open lands on the version being
     # read, which is the first row, and the comparison press beside a row is a Tab forward
     # from the row below it. The walk is clamped, so a second press at the bottom moves
@@ -5757,8 +5772,8 @@ RING_CASES = (
         ("g", "Shift+v", "ArrowDown", "ArrowDown"),
         {
             RING_CHROME: (
-                (".lf-version-row", "version-row"),
-                (".lf-version-diff:visible:not(:disabled)", "version-diff"),
+                (".lf-version-row", ".lf-version-row"),
+                (".lf-version-diff:visible:not(:disabled)", ".lf-version-diff"),
             )
         },
     ),
@@ -5767,8 +5782,8 @@ RING_CASES = (
         ("?", "?"),
         {
             RING_CHROME: (
-                (".lf-command-reference-search input:visible", "text-entry"),
-                (".lf-command-reference-command", "help-command"),
+                (".lf-command-reference-search input:visible", "wa-input::part"),
+                (".lf-command-reference-command", ".lf-command-reference-command"),
             )
         },
     ),
@@ -5779,23 +5794,34 @@ RING_CASES = (
     (
         "a thread card",
         (),
-        {"ship-review": ((".lf-margin-preview .lf-resolve", "thread"),)},
+        {
+            "ship-review": (
+                (
+                    ".lf-margin-preview .lf-resolve",
+                    ".lf-page-thread :is(.lf-btn, summary)",
+                ),
+            )
+        },
     ),
-    ("message media", (), {"feature-gallery": ((".lf-message-media", "media"),)}),
+    (
+        "message media",
+        (),
+        {"feature-gallery": ((".lf-message-media", ".lf-media-open"),)},
+    ),
     # Both controls of a summarized range wear one band: the checkpoint's own button, and
     # the rail that folds the originals back once it has opened them.
     (
         "a summarized range",
         (),
-        {"feature-gallery": ((".lf-summary-expand", "summary-fold"),)},
+        {"feature-gallery": ((".lf-summary-expand", ".lf-thread-disclosure"),)},
     ),
     (
         "the Page Map dialog",
         (),
         {
             RING_CHROME: (
-                (".lf-page-map-action:visible", "page-map-action"),
-                (".lf-page-map-search input:visible", "text-entry"),
+                (".lf-page-map-action:visible", ".lf-page-map-action"),
+                (".lf-page-map-search input:visible", "wa-input::part"),
             )
         },
     ),
@@ -5814,11 +5840,11 @@ RING_EXAMPLE_FILES = {
 }
 # Rings whose carrier is semantic state elsewhere in the page rather than the focused
 # control or one of its ancestors. Mark the exact carrier before reading the composed
-# paint so an unrelated ring with the same name cannot credit the sample.
+# paint so an unrelated ring drawn by the same rule cannot credit the sample.
 RING_REMOTE_CARRIER = {
-    "target-hint": ".lf-target-picker-hint.lf-current",
+    ".lf-key-hint.lf-current": ".lf-target-picker-hint.lf-current",
     # A pane draws its focused body's band inset over the body's cell (theme.css).
-    "pane-body": '[data-lf-reading-role="pane"]:has(> [data-lf-focus])',
+    "[data-lf-reading-role=pane]": '[data-lf-reading-role="pane"]:has(> [data-lf-focus])',
 }
 
 
@@ -5907,6 +5933,20 @@ WALKED_STOP = f"""() => {{
 }}"""
 
 
+def seen_stop(page, seen=...):
+    """The focused stop as the user would fail to find it, or None where they can.
+
+    `seen` is a `SEEN_STOP` reading already taken. The rings off the stop itself that
+    it leaves undecided answer only where a ring rule drew them (`ring_rules`)."""
+    if seen is ...:
+        seen = page.evaluate(SEEN_STOP)
+    if seen is None:
+        return None
+    if any(ring_rules(page, [(pseudo, "outline") for pseudo in seen["carriers"]])):
+        return None
+    return seen["lost"]
+
+
 def _tab_stops_without_indication(page, stem):
     """Walk the page's whole ordinary Tab order, Threads open, and name every stop
     that shows nothing of where the keyboard is. The panel is closed again after."""
@@ -5918,7 +5958,8 @@ def _tab_stops_without_indication(page, stem):
     empty = 0
     for _ in range(400):
         page.keyboard.press("Tab")
-        stop, lost = page.evaluate(WALKED_STOP)
+        stop, seen = page.evaluate(WALKED_STOP)
+        lost = seen_stop(page, seen)
         if stop == "seen":
             break
         if stop == "empty":
@@ -5949,16 +5990,33 @@ def test_the_focus_sweep_distinguishes_stops_inside_a_live_frame(browser):
     assert page.evaluate(RING_NEW_STOP) == "new"
 
 
-# Every declaration in the page's composed layer that lifts a box off the page: a
-# box-shadow with a blur radius. A ring is `0 0 0 Npx` and an inset band is `inset …`, so
+# Every declaration in the page's composed layer that spells a lift: a box-shadow, a
+# filter's drop-shadow(), or a custom property either reads, with a blur radius written
+# out. A ring is `0 0 0 Npx`
+# and an inset band is `inset …`, so
 # the reading asks for a third length that is not nought — which is the one thing that
 # separates elevation from the other two uses of the property, and is decidable from the
 # declaration where "is this a shadow" is not.
 #
-# Flat and condition-blind for the reasons RING_NAMES gives next door: nothing re-runs a
-# selector, and a shadow painted only in some other medium is one this reading should say
-# nothing about.
+# Flat and condition-blind: nothing re-runs a selector, and a shadow painted only in some
+# other medium is one this reading should say nothing about.
 ELEVATION_SHADOWS = """() => {
+  // A shadow list's layers, or a filter's drop-shadow() arguments, which may hold a
+  // colour function's own parentheses.
+  const layersOf = (property, value) => {
+    if (property !== 'filter') return value.split(/,(?![^(]*\\))/);
+    const layers = [];
+    for (let at = value.indexOf('drop-shadow('); at >= 0;
+         at = value.indexOf('drop-shadow(', at + 1)) {
+      let depth = 0, end = at + 'drop-shadow'.length;
+      for (; end < value.length; end++) {
+        if (value[end] === '(') depth++;
+        else if (value[end] === ')' && --depth === 0) break;
+      }
+      layers.push(value.slice(at + 'drop-shadow('.length, end));
+    }
+    return layers;
+  };
   const found = [];
   const eaten = new Set();
   const eat = (sheet) => {
@@ -5968,17 +6026,20 @@ ELEVATION_SHADOWS = """() => {
     try { list = sheet.cssRules; } catch { return; }  // a sheet from another origin
     const walk = (from) => {
       for (const rule of from) {
-        for (const property of ['box-shadow', '--lf-lift']) {
-          const value = rule.style?.getPropertyValue(property)?.trim();
+        const named = rule.style ? [...rule.style] : [];
+        const lifted = (name) => ['box-shadow', 'filter'].includes(name) || name.startsWith('--');
+        for (const property of named.filter(lifted)) {
+          const value = rule.style.getPropertyValue(property).trim();
           if (!value || value === 'none') continue;
           // The blur, which is the third length of a layer, past the two offsets. A ring
           // writes `0 0 0 Npx` and has none; an inset band is not a lift at all. Read per
           // layer, because a control may state its ring and its lift in one declaration.
-          const lifts = value.split(/,(?![^(]*\\))/).filter((layer) => {
+          const lifts = layersOf(property, value).filter((layer) => {
             if (/(^|\\s)inset(\\s|$)/.test(layer)) return false;
             const lengths = layer.trim().split(/\\s+/)
               .filter((token) => /^-?(\\d*\\.)?\\d+(px)?$/.test(token));
-            return lengths.length >= 3 && parseFloat(lengths[2]) !== 0;
+            return lengths.length >= 3 && parseFloat(lengths[2]) !== 0
+              && lengths.some((token) => token.endsWith('px'));
           });
           if (!lifts.length) continue;
           const own = rule.selectorText;
@@ -6016,36 +6077,44 @@ PAINTED_SHADE = """() => {
 }"""
 
 
-def test_every_shadow_the_layer_lifts_a_box_with_is_cast_in_the_scheme_s_own_ink(
+def test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink(
     browser, serve
 ):
-    """A drop shadow written as rgba(0,0,0,α) can only be right about one ground.
+    """A box stands at one of three heights, and only the theme spells them out.
 
-    At .12 over the light paper a menu lifts its ground by 10 L*. The same declaration
-    over the dark paper lifts it by 1.4, which is a shadow that is in the stylesheet and
-    not on the screen — and nine of the layer's twelve elevation shadows were written that
-    way, each with an alpha of its own between .12 and .24. --shade is the ink, stated once
-    per scheme, and depth is left to the offsets and the blur that were already saying it.
+    Twenty-nine lifts once wrote fourteen geometries between them, so two menus beside
+    each other stood at different heights for no reason anyone chose, and nothing kept
+    the next one from writing a fifteenth. The `--raise-*` tokens (theme.css, beside
+    --shade) are now the only declarations that write a blur; every other rule, a
+    filter's drop-shadow() included, names one, with a hairline or ring beside it where
+    its edge needs one.
+
+    A drop shadow written as rgba(0,0,0,α) can only be right about one ground: at .12
+    over the light paper a menu lifts its ground by 10 L*, and over the dark paper by
+    1.4. So the heights are cast in --shade, the ink stated once per scheme, and the two
+    schemes are then asked for different answers from it.
 
     Asked of the declarations rather than of the paint, because that is where the fault
-    is: on the dark ground the difference between the value that reads and the value that
-    does not is 4 L*, which no screenshot of a blurred edge will tell you about reliably,
-    while "does this name the token" is exact. The two schemes are then asked for
-    different answers from the token itself, which is the whole of what one hard-coded
-    colour could not do.
+    is: "does this name the token" is exact, where a screenshot of a blurred edge is not.
     """
     page = open_page(browser, serve(LONG_PAGE))
     lifted = page.evaluate(ELEVATION_SHADOWS)
-    assert len(lifted) >= 10, (
-        f"the layer declares {len(lifted)} elevation shadows, which is fewer than it "
-        f"ships: this reading has stopped finding them and the assertion below is "
-        f"about nothing"
+    heights = {s["property"] for s in lifted if s["property"].startswith("--raise-")}
+    assert heights == {"--raise-1", "--raise-2", "--raise-3"}, (
+        f"the layer spells the heights {sorted(heights)}, not --raise-1 to --raise-3: "
+        f"this reading has stopped finding them and the assertions below are about "
+        f"nothing"
     )
-    raw = [shadow for shadow in lifted if "var(--shade)" not in shadow["value"]]
+    spelled = [s for s in lifted if not s["property"].startswith("--raise-")]
+    assert not spelled, (
+        f"{len(spelled)} lifts write their own geometry rather than naming a --raise-* "
+        f"height:\n  "
+        + "\n  ".join(f"{s['said']} — {s['property']}: {s['value']}" for s in spelled)
+    )
+    raw = [s for s in lifted if "var(--shade)" not in s["value"]]
     assert not raw, (
-        f"{len(raw)} of the layer's {len(lifted)} elevation shadows are cast in a "
-        f"colour of their own rather than in --shade, so the dark scheme cannot answer "
-        f"for them:\n  "
+        f"{len(raw)} heights are cast in a colour of their own rather than in --shade, "
+        f"so the dark scheme cannot answer for them:\n  "
         + "\n  ".join(f"{s['said']} — {s['property']}: {s['value']}" for s in raw)
     )
     light = page.evaluate(PAINTED_SHADE)

@@ -343,6 +343,27 @@ that changes size after first paint, with its cause.
   startup shifts only as diagnostics, so a marker drawn in the wrong place in its first
   frame and then moved would fail nothing. Read `leaf-dev probe`'s startup readings on
   a page with margin markers at a few widths.
+- **Fold a thread summary without moving the messages it covers.** Folding moves
+  the covered messages into `.lf-summary-originals` (`thread-card.js`), so a text
+  selection inside them is lost in Chromium, Firefox and WebKit, and WebKit, which
+  lacks `moveBefore`, reloads any frame among them: once when the summary arrives
+  and twice when it is retracted. A prototype of a flat transcript, which folds by
+  hiding the covered messages where they stand, kept both in every engine and drew
+  the same picture. It changes how screen readers group the folded messages and how
+  a checkpoint's frame is drawn, so it needs the user's go-ahead. Build it on current
+  `main`, move the tests off `.lf-summary-originals`, and check margin and page
+  captures and a screen reader.
+- **Let the shift watch see the runtime's own scrolls.** `tests/shift_watch.js`
+  measures in layout coordinates, which remove scrolling, so a scroll the runtime
+  makes during a gesture can move the control under the user's aim and fail
+  nothing; #2895's reply box moved 9–14px on a send that way. The proposed rule:
+  only a gesture that takes the user somewhere (the `t` and `q` walks, links,
+  Go-to) may move its control, and every other gesture keeps it still. Declare the
+  exemption on the command, not in a list in the watch. Then fix what it catches,
+  starting with the landings that choose where a gesture's control ends up:
+  `standOnThread`, the Threads list's landing, and `scrollThreadIntoView`. This
+  needs the user's go-ahead, and its per-frame cost measured at 4x CPU throttling
+  (`notes/shift-watch-cost.md`).
 
 ### Queues
 
@@ -350,11 +371,6 @@ A queue is one `lf-tabs list="side"` beside its open item (`page-layout.md`, "A
 workspace"). The first real one, a 21-item triage page, showed these. Its list's
 height and where a switch lands wait on the workspace decision under Layout.
 
-- **Start `m` from the open item's ask.** From a row, `m` goes to the queue's first
-  open ask, and `1` then picks for an item the user isn't looking at. The walk
-  measures from focus (`queue-walk.js`), and the row precedes every
-  panel; `t` and `T` measure the same way. A tab could stand at the view it opens for
-  the walks (`standing-target.js`), while `c` on a row still names the row.
 - **Keep the open item's group named on a phone.** In the one-row strip a group's
   label stands before its run's first tab, so opening a later item in a long run
   (`alert-review`'s "Ledger consumer lag" at 390px) scrolls the label out of view. A
@@ -461,9 +477,6 @@ on 2026-10-07.
   `build/browser/`, keeping the generated event and protocol declarations under
   their generator. Rebuild the vendored JavaScript in the same change: the
   compiler preserves source formatting, and the build gate compares its bytes.
-- **Format authored YAML.** JSON coverage is complete. Expand YAML while keeping
-  pnpm lockfiles, Tend workflows and test snapshots under their producers. Verify
-  that regeneration leaves the formatted tree unchanged.
 - **Set formatter conventions for authored CSS and Markdown.** Review what
   Prettier changes in compact CSS rules and Markdown lists and tables, then
   enable the formats where that layout is useful. Format CSS source entries

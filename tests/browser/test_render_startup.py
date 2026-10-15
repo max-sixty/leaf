@@ -85,6 +85,7 @@ from render_harness import (
     expect_asks_answered,
     expect_banner_control_offered,
     holding,
+    http_error_console,
     is_problem,
     leaf_page,
     nudge,
@@ -418,7 +419,7 @@ def test_a_website_example_shows_its_public_session_reference(browser, serve):
         (
             {"status": 503, "body": ""},
             "Server offline — reconnecting",
-            {"code": "failed-load", "status": 503},
+            http_error_console(503),
         ),
         (
             {"status": 200, "body": "{"},
@@ -1885,7 +1886,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
     suggestion_accept = page.locator("[data-lf-margin-for='sug'] .lf-sug-accept")
     expect(suggestion_accept).to_be_disabled()
     assert suggestion_accept.evaluate(
-        """button => {
+        """button => lfUnwatched(() => {
               const glyph = button.firstElementChild;
               const widget = document.getElementById('sug');
               const parent = widget.parentNode;
@@ -1893,7 +1894,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
               widget.remove();
               parent.insertBefore(widget, next);
               return button.firstElementChild === glyph;
-            }"""
+            })"""
     ), "an unchanged availability paint rebuilt the suggestion control"
     suggestion_accept.dispatch_event("click")
     expect(suggestion_accept).to_be_disabled()
@@ -3863,7 +3864,7 @@ def test_a_pending_offline_paint_does_not_block_a_recovery_read(browser, serve):
     expect(page.locator(".lf-status-detail")).not_to_contain_text(
         "Server offline — reconnecting"
     )
-    consume_browser_errors(page, {"code": "failed-load", "status": 503})
+    consume_browser_errors(page, http_error_console(503))
 
 
 def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
@@ -5017,7 +5018,10 @@ customElements.define('lf-test-surface', class extends HTMLElement {
       return this.failure === 'hidden' ? null : placement.datumElement.outlet;
     });
     for (const row of this.children) {
-      if (this.failure === 'moved') document.querySelector('main').append(row.outlet);
+      if (this.failure === 'moved') {
+        const main = document.querySelector('main');
+        if (row.outlet.parentElement !== main) main.append(row.outlet);
+      }
       if (this.failure === 'detached') row.outlet.remove();
     }
     if (this.failure === 'target-removed') {
@@ -5205,7 +5209,8 @@ customElements.define('lf-test-surface', class extends HTMLElement {
         page.keyboard.press("Escape")
         broken.evaluate("""widget => {
             widget.failure = null;
-            for (const row of widget.children) row.append(row.outlet);
+            for (const row of widget.children)
+              if (row.outlet.parentElement !== row) row.append(row.outlet);
         }""")
         append_carried_log_record(
             serve.page_dir,

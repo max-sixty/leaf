@@ -1510,7 +1510,7 @@ def retire_test_services(tmp_path, isolated_session):
         record = files_model.read_json(path)
         if isinstance(record, dict) and isinstance(record.get("id"), str):
             cleanup_model.end_session(record["id"])
-    # A Claude Code hook leaves Leaf's bridge running for the worker's lifetime.
+    # A Claude Code hook leaves Leaf's bridge running while its session lives.
     for lock in (isolated_session / "bridge").glob("*.lock"):
         if leases_model.lock_is_held(lock):
             retire_bridge(lock)

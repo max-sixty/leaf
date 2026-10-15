@@ -104,14 +104,28 @@
         JSON.stringify(nodes.map((node) => valueAt(node, boundary))),
     };
   };
+  // Detaching an iframe retires its browsing context even if the same element is
+  // reinserted before observer delivery; DOM equality cannot see that change.
+  const hasFrame = (node) =>
+    node instanceof HTMLIFrameElement ||
+    [...node.childNodes].some(hasFrame) ||
+    [...trees].some(
+      (tree) => tree instanceof ShadowRoot && tree.host === node && hasFrame(tree),
+    );
   const renderedChildren = (nodes) =>
     [...nodes].filter((node) => node.nodeType !== Node.COMMENT_NODE);
   const restored = (target, records, readings) => {
-    if (!records.some((record) => renderedChildren(record.removedNodes).length))
+    const frameRecords = new Set(
+      records.filter((record) =>
+        [...record.removedNodes, ...record.addedNodes].some(hasFrame),
+      ),
+    );
+    const ordinary = records.filter((record) => !frameRecords.has(record));
+    if (!ordinary.some((record) => renderedChildren(record.removedNodes).length))
       return false;
     // Preserve the atomic check even when unrelated changes share its delivery.
     if (
-      records.some((record) => {
+      ordinary.some((record) => {
         const removed = renderedChildren(record.removedNodes);
         const position = readings.position(record);
         return (
@@ -137,7 +151,10 @@
     const residents = new Set(renderedChildren(current));
     const pending = new Map();
     for (const record of records) {
-      if ([...record.removedNodes].some((node) => residents.has(node))) {
+      if (
+        !frameRecords.has(record) &&
+        [...record.removedNodes].some((node) => residents.has(node))
+      ) {
         const before = renderedChildren(current);
         if (!pending.has(before.length)) pending.set(before.length, []);
         pending
@@ -151,6 +168,7 @@
       current.splice(at, 0, ...record.addedNodes);
       const after = renderedChildren(current);
       if (
+        !frameRecords.has(record) &&
         (pending.get(after.length) ?? []).includes(
           readings.read(after, readings.position(record) + 1),
         )
@@ -167,6 +185,12 @@
   };
   // Writes that restate a value for a reason of their own, by the report they make.
   const EXPECTED = [
+    // A repeated live announcement replaces its text node so assistive technology
+    // hears a fresh arrival even when the words match the previous announcement.
+    /^children of div\.lf-ui\.lf-live$/,
+    // Lit's keyed repeat moves equivalent marker nodes when a visual action in
+    // the group changes identity, while the rendered controls update in place.
+    /^children of div\.lf-visual-actions(?:\.|$)/,
     // Mermaid's diagram renderers and their shared viewport helper both assign the SVG's
     // width while measuring the same drawing. Its upstream-owned paint is separate
     // from Leaf's adapter, which uses keeps when setting the final natural width.
@@ -182,10 +206,13 @@
     /^class on div\.cm-line\.lf-field-last in shadow of leaf-text/,
     // CodeMirror's CompositeTile.sync replaces a line's children while reconciling
     // editor updates, including equivalent line-break nodes after clearing a field.
-    /^children of div\.cm-line(?:\.[\w-]+)* in shadow of leaf-text(?:[.#]|$)/,
+    /^children of div\.cm-line(?:\.[\w-]+)* in shadow of leaf-text(?:[.#]| in |$)/,
     // CodeMirror's GutterElement.setMarkers restates its class as marker sets
     // change, including when the resulting gutter class remains the same.
     /^class on div\.cm-gutterElement(?:\.| in shadow|$)/,
+    // CodeMirror's syncGutters reinserts the gutter beside unchanged content when
+    // its editor view updates.
+    /^children of div\.cm-scroller in shadow of lf-file-editor(?:[.#]|$)/,
     // Web Awesome's components reflect each property onto the attribute it came from
     // as they update, and restate what their own shadow trees hold.
     /^[\w-]+ on wa-/,

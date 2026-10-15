@@ -207,9 +207,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  *
  * The ring is the fallback rather than the rule: every control with a ring of its own
  * outranks this, and what is left is the controls that were wearing the platform's
- * outline or, where a widget had restyled them, nothing at all. Named like every other
- * ring the layer draws, so the suite's ring samples can credit it (--lf-focus-ring,
- * theme.css).
+ * outline or, where a widget had restyled them, nothing at all.
  *
  * Every rule here is written to be outranked. The value guard sits in :where() so it
  * costs nothing, which leaves each rule at the weight of the thing it is answering — the
@@ -237,7 +235,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    auto ring flush against the words, beside the 2px band on every Leaf control.
    focus.js assigns lf-focus from the same logical standing that routes input;
    retargeting shadow hosts and a label press's intermediate nodes get no band. */
-:where([data-lf-focus]) { outline: var(--focus-ring); --lf-focus-ring: focus;
+:where([data-lf-focus]) { outline: var(--focus-ring);
   outline-offset: var(--focus-ring-gap); }
 /* Where the user stands wears a ring outside its box, so a scroll that brings the focus
    into view, the browser's or a landing's (anchor-travel.js reads it), keeps the ring's
@@ -272,7 +270,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 [data-lf-offer]:where(:not([data-lf-offer=""])):is([aria-disabled="true"], :disabled) {
   cursor: default; opacity: .55; }
 [data-lf-offer]:where(:not([data-lf-offer=""]))[data-lf-focus] {
-  outline: var(--focus-ring); --lf-focus-ring: pressable;
+  outline: var(--focus-ring);
   outline-offset: var(--focus-ring-gap); }
 /* The floor under every aim the layer offers, stated once for all of them rather
    than left to whatever each control's type and padding happened to add up to.
@@ -359,7 +357,7 @@ summary { align-content: center; }
 .lf-page-thread[data-lf-focus]::after { content: "";
           position: absolute; inset: 0; pointer-events: none;
           border-radius: inherit;
-          outline: var(--focus-ring); --lf-focus-ring: page-thread;
+          outline: var(--focus-ring);
           outline-offset: calc(-1 * var(--focus-ring-w)); }
 @media (forced-colors: active) {
   .lf-page-thread[data-lf-focus-within] {
@@ -370,9 +368,9 @@ summary { align-content: center; }
 .lf-say leaf-text { flex: 1; min-width: 0; }
 .lf-thread-seat > .lf-say { margin-top: 0; }
 .lf-page-thread + :is(.lf-page-thread, .lf-resolved-threads) {
-          margin-top: calc(2 * var(--sp-3)); }
+          margin-top: var(--sp-3); }
 .lf-page-thread + :is(.lf-page-thread, .lf-resolved-threads)::before { content: "";
-          position: absolute; inset-inline: var(--sp-1); inset-block-start: calc(-1 * var(--sp-3));
+          position: absolute; inset-inline: var(--sp-1); inset-block-start: calc(-1 * var(--sp-2));
           border-top: 1px solid var(--rule); pointer-events: none; }
 /* Every conversation shares its reading edge, including a floating draft. The
    field subtracts its border; messages and metadata take the full inset. */
@@ -423,7 +421,8 @@ summary { align-content: center; }
           max-inline-size: 5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lf-msg-head .lf-msg-sending { min-width: 0; overflow: hidden;
           text-overflow: ellipsis; }
-:is(.lf-msg-head, .lf-thread-working-head) b { flex: 0 1 auto; min-width: 0;
+/* Keep short authors intact while long names leave room for delivery metadata. */
+:is(.lf-msg-head, .lf-thread-working-head) b { flex: 0 0 auto; max-inline-size: 40%; min-width: 0;
           overflow: hidden;
           text-overflow: ellipsis; font-size: var(--lf-msg-name-size);
           font-weight: 600; color: var(--ink); }
@@ -492,7 +491,7 @@ summary { align-content: center; }
   @keyframes lf-sheen { from, to { -webkit-text-fill-color: currentColor; } }
 }
 .lf-thread-disclosure[data-lf-focus] {
-  outline: var(--focus-ring); --lf-focus-ring: summary-fold;
+  outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w)); }
 /* Held news and header words spend separate retained allocations. A receipt may
    change inside its metadata box, but cannot grow underneath the notice. */
@@ -564,7 +563,7 @@ button.lf-thread-notice { appearance: none; margin: 0; padding: 0;
 .lf-thread-notice:hover { box-shadow: none; text-decoration: underline;
           text-underline-offset: 3px; }
 button.lf-thread-notice[data-lf-focus] { outline: var(--focus-ring);
-          --lf-focus-ring: thread-notice; outline-offset: 1px; }
+          outline-offset: 1px; }
 /* What a seat holds while it would move the page under the reader (thread/held-news.js).
    The row it appears in already stands at the height of the control beside it, the
    head controls row's Resolve or Reopen. Centred rather than on the row's baseline,

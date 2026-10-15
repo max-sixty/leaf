@@ -190,11 +190,12 @@ def test_a_pending_reply_keeps_the_transcript_end_when_card_fitting_reduces_room
     assert pending, "The reply POST must still be pending after fitting"
 
 
-def test_reading_keys_follow_a_submitted_comment_s_inner_viewport(browser, serve):
-    """A long submitted comment retains its editor viewport inside the transcript.
+def test_reading_keys_follow_a_submitted_comment_s_viewport(browser, serve):
+    """A long submitted comment opens its card at the lines the editor showed.
 
-    Reading keys must name that inner viewport, as native wheel/PageUp do, and
-    closing it must release the region before another comment adopts the frame.
+    Reading keys must move that card's transcript, as native wheel/PageUp do, before
+    and after delivery, and closing it must release the region before another comment
+    opens a card.
     """
     source = leaf_page(
         "Read a submitted comment",
@@ -223,8 +224,8 @@ def test_reading_keys_follow_a_submitted_comment_s_inner_viewport(browser, serve
         page.keyboard.press("ControlOrMeta+Enter")
         holding(page, pending, 1, "the submitted comment")
         message = page.locator(".lf-margin-preview .lf-msg").first
-        body = message.locator(".lf-msg-body > .lf-msg-text")
-        expect(body).to_contain_text("Line 29:")
+        body = page.locator(".lf-margin-preview .lf-thread-transcript")
+        expect(message).to_contain_text("Line 29:")
         expect(message).to_have_attribute("data-event", re.compile("pending:.*"))
         rendered(page)
         before = body.evaluate("body => body.scrollTop")
@@ -236,10 +237,10 @@ def test_reading_keys_follow_a_submitted_comment_s_inner_viewport(browser, serve
         expect(body).to_be_focused()
         page.keyboard.press("u")
         page.wait_for_function(
-            "before => document.querySelector('.lf-margin-preview .lf-msg-text').scrollTop < before",
+            "before => document.querySelector('.lf-margin-preview .lf-thread-transcript').scrollTop < before",
             arg=before,
         )
-        scroll_settled(page, ".lf-margin-preview .lf-msg-text")
+        scroll_settled(page, ".lf-margin-preview .lf-thread-transcript")
         after = body.evaluate("body => body.scrollTop")
         assert after < before
         pending.pop().continue_()
@@ -248,10 +249,10 @@ def test_reading_keys_follow_a_submitted_comment_s_inner_viewport(browser, serve
         assert abs(body.evaluate("body => body.scrollTop") - after) <= 1
         page.keyboard.press("d")
         page.wait_for_function(
-            "after => document.querySelector('.lf-margin-preview .lf-msg-text').scrollTop > after",
+            "after => document.querySelector('.lf-margin-preview .lf-thread-transcript').scrollTop > after",
             arg=after,
         )
-        scroll_settled(page, ".lf-margin-preview .lf-msg-text")
+        scroll_settled(page, ".lf-margin-preview .lf-thread-transcript")
         page.locator(".lf-margin-preview").get_by_role(
             "button", name="Dismiss thread view"
         ).click()

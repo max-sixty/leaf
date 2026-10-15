@@ -14,7 +14,7 @@ readings are disposable process memory; the session record keeps only the
 hook-provided path needed to observe that source.
 
 Codex's prompt hook records the provider turn even before a page is claimed. Once the
-session has claimed a page (`state.hook_needed`), its PostToolUse hook identifies an
+session has claimed a page (`state.holds_claims`), its PostToolUse hook identifies an
 unknown session-scoped turn once, or renews only the provider turn already observed
 running, and offers one immutable pointer between steps (`codex.offer_hook_delivery`).
 The observation's revision advances on a prompt, an ending or a tool step, and the

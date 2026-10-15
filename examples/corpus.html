@@ -1467,7 +1467,9 @@
 <!-- pr-walkthrough.html authored styles -->
 <style>
       @import url("/page/theme.css");
-
+</style>
+<!-- pr-walkthrough.html authored styles -->
+<style>
       .pr-review-gesture {
         padding-block: var(--sp-2);
         border-block: 1px solid var(--rule);
@@ -1751,7 +1753,9 @@
       }
       lf-merge-film .film-inspect {
         position: absolute;
-        max-width: 300px;
+        box-sizing: border-box;
+        width: max-content;
+        max-width: min(300px, calc(100% - 20px));
         padding: 10px 12px;
         display: grid;
         gap: 4px;
@@ -1762,9 +1766,6 @@
         border-radius: var(--r);
         box-shadow: 0 8px 24px var(--shade);
         pointer-events: none;
-      }
-      lf-merge-film[data-phone] .film-inspect {
-        max-width: calc(100% - 20px);
       }
       lf-merge-film .film-inspect strong {
         font-family: var(--mono);
@@ -9140,7 +9141,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 reply box. Disclosures inside interactive replies return their room the
                 same way. The later room check has no answer yet, so it stands as a dim
                 working message above the reply box rather than as a reply, and counts
-                nothing unread.
+                nothing unread. Its header keeps its author and posting time visible.
               </p>
               <p id="bg-thread-unread">
                 <strong>Unread replies.</strong> The seeded agent replies start unread,
@@ -10522,7 +10523,8 @@ switch --readers checkout-api,orders-api</code></pre>
               </h3>
               <p id="bg-source-guide">
                 The document follows its source's current value. Its caption names the
-                captured file and line range.
+                captured file and line range. The source uses the same numbered,
+                syntax-colored presentation as a diff; selecting it copies only source.
               </p>
               <lf-text-document
                 id="bg-source-live"

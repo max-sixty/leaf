@@ -185,10 +185,12 @@ def test_a_revision_captures_the_complete_dependency_graph(page_dir):
         'main { background-image: url("../image.svg"); }'
     )
     (authored / "image.svg").write_text('<svg xmlns="http://www.w3.org/2000/svg"/>')
+    (authored / "inline.svg").write_text('<svg xmlns="http://www.w3.org/2000/svg"/>')
     html = PAGE.replace(
         "</head>",
         '<script type="module" src="/page/app.js"></script>'
-        '<link rel="stylesheet" href="/page/style.css"></head>',
+        '<link rel="stylesheet" href="/page/style.css">'
+        "<style>/*</style><style>main { background: url(/page/inline.svg) }</style></head>",
     )
     (page_dir / "index.html").write_text(html)
 
@@ -208,6 +210,7 @@ def test_a_revision_captures_the_complete_dependency_graph(page_dir):
         "/page/image.svg",
     )
     assert artifact.resources["/page/image.svg"].mime == "image/svg+xml"
+    assert artifact.resources["/page/inline.svg"].mime == "image/svg+xml"
     assert artifact.resources["/page/app.js"].mime == "application/javascript"
     assert artifact.registry == read_page_registry(page_dir).registry
     assert artifact.implementations["lf-options"]["path"] == "/widgets/lf-options.js"
@@ -378,6 +381,7 @@ def test_invalid_dependencies_leave_the_previous_revision_active(page_dir, tmp_p
         ('import "ftp://outside.example/module.js";', "http(s) URL"),
         ('import "../../outside.js";', "public layer entry point"),
         ('import "/runtime/events.js";', "public layer entry point"),
+        ('import "/vendor/lit.js";', "public layer entry point"),
         ('import "./data.json";', "JavaScript MIME"),
         ('import "./escape.js";', "symlink"),
         ('import "./data\\u002ejson";', "dependency must be a local URL"),

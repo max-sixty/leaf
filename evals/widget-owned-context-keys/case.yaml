@@ -5,8 +5,8 @@ description: widget-owned-context-keys
 metadata:
   purpose: A widget declares local keys and explicitly forwardable context aliases once.
   tags:
-  - packages
-  - keyboard
+    - packages
+    - keyboard
 vars:
   prompt: |
     An existing Leaf package widget owns a classifier with passButton and keepButton,
@@ -19,22 +19,22 @@ vars:
     visibility. Only shipped references are available; runtime source and execution
     are unavailable. Do not implement new runtime machinery or a page adapter.
 assert:
-- type: llm-rubric
-  metric: judgment
-  value: |
-    Pass only if the snippet uses the public commands/commandScope API imported
-    from /runtime/widget-api.js and declares one command per existing action.
-    Pass and Keep have stable dotted ids, concise titles, ordinary ArrowLeft and
-    ArrowRight keys, explicit contextKeys 1 and 2, decision: true, their real
-    controls, requested bindingBadge seats or explicit null, canClassify availability,
-    and direct invocation of classify("pass") / classify("keep") from run. The command
-    declaration owns native button clicks and disabled state, so the response removes
-    the separate click listeners and disabled painters instead of calling click(). It attaches the
-    declaration to the classifier and calls paintKeys when availability changes.
-    It does not attach the complete local-arrow scope to the Ask, assign numbers
-    from live actions, duplicate callbacks into a second Ask row list, install
-    keydown listeners, or calculate focus/hint visibility itself. It leaves native
-    input precedence and forwarding to Leaf. Optional description or short line
-    wording is fine but no duplicate action-name decision string or does field.
-    The controls and widget lifecycle already exist; execution is unavailable,
-    so not running checks is not a failure.
+  - type: llm-rubric
+    metric: judgment
+    value: |
+      Pass only if the snippet uses the public commands/commandScope API imported
+      from /runtime/widget-api.js and declares one command per existing action.
+      Pass and Keep have stable dotted ids, concise titles, ordinary ArrowLeft and
+      ArrowRight keys, explicit contextKeys 1 and 2, decision: true, their real
+      controls, requested bindingBadge seats or explicit null, canClassify availability,
+      and direct invocation of classify("pass") / classify("keep") from run. The command
+      declaration owns native button clicks and disabled state, so the response removes
+      the separate click listeners and disabled painters instead of calling click(). It attaches the
+      declaration to the classifier and calls paintKeys when availability changes.
+      It does not attach the complete local-arrow scope to the Ask, assign numbers
+      from live actions, duplicate callbacks into a second Ask row list, install
+      keydown listeners, or calculate focus/hint visibility itself. It leaves native
+      input precedence and forwarding to Leaf. Optional description or short line
+      wording is fine but no duplicate action-name decision string or does field.
+      The controls and widget lifecycle already exist; execution is unavailable,
+      so not running checks is not a failure.

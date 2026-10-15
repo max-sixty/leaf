@@ -23,6 +23,7 @@ from render_cases_layout import (
     SHOT_SRC,
     SHOTS,
     UNPARSABLE_DIAGRAM,
+    ring_rule,
     shown_frames,
     solid_png,
 )
@@ -671,13 +672,11 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
         expect(caption).to_be_focused()
 
     handle.focus()
-    ring = handle.evaluate(
-        """node => { const cs = getComputedStyle(node); return {
-          name: cs.getPropertyValue('--lf-focus-ring').trim(),
-          width: cs.outlineStyle === 'none' ? 0 : parseFloat(cs.outlineWidth),
-        }}"""
+    width = handle.evaluate(
+        "node => getComputedStyle(node).outlineStyle === 'none' ? 0 :"
+        " parseFloat(getComputedStyle(node).outlineWidth)"
     )
-    assert ring["name"] == "comparison-handle" and ring["width"] > 0
+    assert width > 0 and "wa-comparison::part(lf-focus)" in ring_rule(handle)
 
 
 def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path, headless_shell):

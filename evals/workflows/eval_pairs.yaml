@@ -30,26 +30,26 @@ prompt: |-
   return insufficient_evidence and explain what remains unverified; do not turn
   missing observation into a tie or an omission.
 aspects:
-- evidence
-- decisions
-- width
-- phone
-- comment
-- applied
+  - evidence
+  - decisions
+  - width
+  - phone
+  - comment
+  - applied
 output_schema:
   type: object
   properties:
     status:
       type: string
       enum:
-      - complete
-      - insufficient_evidence
+        - complete
+        - insufficient_evidence
     evidence: &id001
       type: string
       enum:
-      - A
-      - B
-      - tie
+        - A
+        - B
+        - tie
     decisions: *id001
     width: *id001
     phone: *id001
@@ -59,9 +59,9 @@ output_schema:
     margin:
       type: string
       enum:
-      - slight
-      - clear
-      - strong
+        - slight
+        - clear
+        - strong
     defects_A: &id002
       type: array
       items:
@@ -70,18 +70,19 @@ output_schema:
     reason:
       type: string
   required:
-  - status
-  - evidence
-  - decisions
-  - width
-  - phone
-  - comment
-  - applied
-  - overall
-  - margin
-  - defects_A
-  - defects_B
-  - reason
+    - status
+    - evidence
+    - decisions
+    - width
+    - phone
+    - comment
+    - applied
+    - overall
+    - margin
+    - defects_A
+    - defects_B
+    - reason
   additionalProperties: false
-brief_intro: Pages A and B were each built for this request, then revised for each later message.
+brief_intro:
+  Pages A and B were each built for this request, then revised for each later message.
   The live copies show their final versions before your inspection actions.

@@ -390,9 +390,28 @@
      Depth is geometry here and nowhere else. The alphas that were spread .12–.24 across
      the sites are gone, because a shadow's spread and offset already say how high a thing
      is and a second dial saying the same thing is a second dial to keep in step: a card
-     in the hand is 0 8px 24px against its resting 0 2px 8px, which is the whole
+     in the hand is --raise-2 against its resting --raise-1, which is the whole
      difference and enough of one. */
   --shade: light-dark(rgb(0 0 0 / .14), rgb(0 0 0 / .55));
+  /* The three heights a box stands at, and the only place a lift's geometry is
+     written: every elevation names one, adding a hairline or ring beside it where its
+     edge needs one. --raise-1 lies on the page or stands just off it (an image, a pin,
+     a pressable, a control's label, a card lifted under the pointer); --raise-2 opens
+     over the page (a menu, a popover, a focused chip under the banner, a card in the
+     hand); --raise-3 stands over the page for a task of its own (a dialog, the thread
+     card). A surface takes the height its meaning has, never a new value. Each is one
+     layer with no spread, so `filter: drop-shadow(var(--raise-N))` reads it as it
+     stands, for a surface whose silhouette is not its box. */
+  --raise-1: 0 2px 8px var(--shade);
+  --raise-2: 0 8px 24px var(--shade);
+  --raise-3: 0 12px 36px var(--shade);
+  /* A tooltip's face: a control's label, held or hovered, in the inverse ink at
+     --raise-1. Its stylesheets live wherever the control does, often in a shadow tree
+     or a package and on a pseudo-element no shared class reaches, so the face is
+     tokens they name; each keeps its own placement. --tip-font is derived from the
+     ladder, so `.density-working` declares it again. */
+  --tip-bg: var(--ink); --tip-ink: var(--paper); --tip-pad: 4px 7px; --tip-r: 4px;
+  --tip-font: 500 var(--t-6)/1.2 var(--sans);
   /* Inline code's ground is measured against the paper it sits on, not the white code
      canvas: GitHub's #f6f8fa over this ivory is 1.01:1, so the chip vanished and its
      side padding read as double spaces around every span. */
@@ -449,9 +468,9 @@
      quarter of the accent, beside a border already tinted with it, and in dark that
      ring all but vanished where every other control wore the solid band.
 
-     Naming this token is how the suite's ring samples recognise a shadow-drawn ring,
-     exactly as naming --focus-ring is for an outline-drawn one; the ring
-     itself is still what the box paints, not what it names. */
+     A rule draws the ring with this token or --focus-ring and gives it no name of its
+     own: the suite asks the browser which rule drew a ring it sees, and the token is
+     what tells that rule from a contour painted in the same ink. */
   --focus-shadow: 0 0 0 var(--focus-ring-w) var(--accent);
   --target-trace-w: 1.5px;
   --target-trace-ink: color-mix(in srgb, var(--ink-2) 42%, var(--paper));
@@ -550,38 +569,6 @@ html[data-lf-live][data-lf-floating-chrome] {
    changes about how small a control, or the words typed in one, may be. Every rule that
    states a floor reads its token, so a control joins both answers by joining one of them. */
 @media (pointer: coarse) { :root { --aim-floor: 44px; --entry-floor: 16px; } }
-/* Which focus ring this is, said by the rule that draws it. An outline carries no word
-   for which of the layer's rules put it there — so a user that had to know worked it
-   back from the selectors, matching the layer's own rules against the document by hand.
-   To ask `querySelectorAll` anything it first had to resolve nesting, join `@scope`
-   roots onto their descendants and split `:host(...)` on a matched paren, and it had
-   been wrong at each of them in turn: an unresolved `&` throws, and a throw there reads
-   exactly like a rule nothing on the page matches, which is the whole of why the joined
-   group's own ring was invisible to the gate that watches it. None of that was a fact
-   about rings. It was the cost of asking the stylesheet a question the browser had
-   already answered.
-
-   The rule says which ring it is instead, in the same declaration that draws it, the
-   way a box already says where it draws its frame (--lf-block-frame). Users ask the
-   composed page, and get a truer answer than the matching gave: the cascade hands the
-   name to whichever rule won the outline, so what is credited is the ring the user is
-   looking at rather than every rule whose selector reached the element.
-
-   Registered rather than reset, because the reset --lf-block-frame needs is a rule of its own
-   and this wants none: a name left to inherit would put an ancestor's ring on every word
-   inside it. Typed as one identifier, so a value that is no name — a shadow channel's,
-   under a property somebody else spelled the same way, which is how this one came to be
-   spelled out in full — falls back to `none` rather than reading as one.
-
-   Naming is not how the layer says a ring is there; the outline is, and nothing the
-   product ships reads this. What holds the layer to naming what it draws is the suite's
-   ring samples, which require every rule drawing the ring to name it and credit what
-   the page paints. */
-@property --lf-focus-ring {
-  syntax: "<custom-ident>";
-  inherits: false;
-  initial-value: none;
-}
 
 /* ---------- elements ---------- */
 
@@ -888,13 +875,13 @@ html:not([data-lf-interactive]) [data-lf-prepaint]:not(.lf-markdown-body) { disp
   background: var(--card); color: var(--ink); }
 :where(select, input:not([type=checkbox], [type=radio], [type=range], [type=color],
        [type=file], [type=button], [type=submit], [type=reset], [type=image])):is(.lf-ui, .field)[data-lf-focus] {
-  outline: var(--focus-ring); --lf-focus-ring: text-box; outline-offset: 0;
+  outline: var(--focus-ring); outline-offset: 0;
   border-color: transparent; }
 .lf-ui :is(input, textarea)::placeholder,
 :is(input, textarea):is(.lf-ui, .field)::placeholder { color: var(--muted); opacity: 1; }
 .lf-ui :is(textarea, leaf-text):where(:not(.lf-fab-input))[data-lf-focus],
 :is(textarea, leaf-text).lf-ui:where(:not(.lf-fab-input))[data-lf-focus] { outline: var(--focus-ring);
-  --lf-focus-ring: text-box; outline-offset: 0; border-color: transparent; }
+  outline-offset: 0; border-color: transparent; }
 /* `main` has no layout until the page gives it one: a Layout class (layouts.css) or the
  * page's own CSS. Leaf sets none of its geometry, nor the body's, so a page with no
  * Layout lays out as the browser lays out any page. What stays here is what Leaf's chrome
@@ -1058,6 +1045,7 @@ p { margin: 13px 0; }
   --sp-1: 3px; --sp-2: 6px; --sp-3: 10px; --sp-4: 14px;
   --code-size: 12px; --code-line: 17px;
   --lf-key-badge-size: calc(round(var(--t-6) * 1.478 + 2px, 1px));
+  --tip-font: 500 var(--t-6)/1.2 var(--sans);
   --pane-bar-pad: 6px 12px;
   --pane-inset: 12px;
   --h2-start: 18px; --h3-start: 12px; --figure-margin-block: 10px;
@@ -1096,7 +1084,7 @@ img { aspect-ratio: attr(width type(<number>)) / attr(height type(<number>)); }
  * capture is cut, and a container that clips to its own frame, such as lf-shot's,
  * hides them. A page drops them for art with no edge of its own, such as a
  * transparent logo, with `box-shadow: none`. */
-img { box-shadow: 0 0 0 1px var(--border-2), 0 2px 8px var(--shade); }
+img { box-shadow: 0 0 0 1px var(--border-2), var(--raise-1); }
 /* Media sits in a line box, and on the baseline it leaves the line's descender room
  * under itself, about 7px between a capture or a drawing and its caption or the next
  * figure. Centring it on the line ends its box at its own bottom edge. */
@@ -1473,6 +1461,8 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) { padd
   display: inline-flex; align-items: center; justify-content: center; gap: 0;
   font: 600 var(--t-6)/1 var(--sans); white-space: nowrap;
   scroll-margin-block: var(--focus-ring-room);
+  /* The raised face a pressable entry wears, beneath any pulse that rings it. */
+  --lf-entry-lift: 0 1px 0 var(--border-2), var(--raise-1);
 }
 /* A margin entry carries one of three promises on the same paper surface.
    An action's heavier ring and lower shadow say this press acts now; a disclosure's
@@ -1482,7 +1472,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) { padd
 .lf-margin-entry[data-lf-behavior="action"] {
   border-width: 2px;
   color: var(--lf-entry-ink, var(--ink));
-  box-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
+  box-shadow: var(--lf-entry-lift);
 }
 .lf-margin-entry[data-lf-behavior="disclosure"] {
   border-color: color-mix(in srgb, var(--ink) 34%, var(--paper));
@@ -1525,7 +1515,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) { padd
    add the one outer ring that says where input will land. */
 .lf-margin-entry[data-lf-target-selected] { border-color: var(--accent); }
 .lf-margin-entry[data-lf-focus] {
-  outline: var(--focus-ring); --lf-focus-ring: margin-entry; outline-offset: 1px;
+  outline: var(--focus-ring); outline-offset: 1px;
 }
 .lf-margin-entry[aria-disabled="true"] { cursor: default; }
 .lf-margin-entry.lf-react[aria-pressed="true"] {
@@ -1537,7 +1527,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) { padd
    mark does not gain a second ring or pretend the reaction itself changed. */
 .lf-react-mark[data-lf-behavior="disclosure"] {
   border-width: 2px; border-color: var(--border-2); color: var(--lf-entry-ink, var(--ink));
-  box-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
+  box-shadow: var(--lf-entry-lift);
 }
 /* Margin and Page Map share the same attention reading. Blue is the ordinary
    thread and work cue; green means it is the user's turn, even when another thread
@@ -1570,7 +1560,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) { padd
 }
 /* The arrival pulse keeps the action's existing shadow beneath its transient ring. */
 .lf-margin-entry[data-lf-agent-workflow="working"][data-lf-behavior="action"] {
-  --lf-agent-stage-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
+  --lf-agent-stage-shadow: var(--lf-entry-lift);
 }
 /* Unread agent content marks the entry the way it marks the Threads toggle: a dot
    painted inside the box the entry already reserves, so it adds no width. */
@@ -1585,10 +1575,10 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) { padd
   position: absolute; z-index: 3; inset-block-start: calc(100% + 6px);
   inset-inline-end: 0; display: block; width: max-content;
   max-width: min(320px, 100vw - 8px);
-  padding: 4px 7px; border-radius: 4px;
-  background: var(--ink); color: var(--paper);
-  font: 500 var(--t-6)/1.2 var(--sans); white-space: normal; overflow-wrap: anywhere;
-  box-shadow: 0 2px 8px var(--shade);
+  padding: var(--tip-pad); border-radius: var(--tip-r);
+  background: var(--tip-bg); color: var(--tip-ink);
+  font: var(--tip-font); white-space: normal; overflow-wrap: anywhere;
+  box-shadow: var(--raise-1);
   opacity: 0; visibility: hidden; pointer-events: none;
   transform: translateY(-2px);
   transition: opacity 90ms ease, transform 90ms ease, visibility 0s linear 90ms;
@@ -1670,7 +1660,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) { padd
 }
 [data-lf-reading-role="pane"]:has(> :not(header, footer)[data-lf-focus])::after {
   content: ""; grid-row: 2; grid-column: 1; z-index: 1; pointer-events: none;
-  outline: var(--focus-ring); --lf-focus-ring: pane-body;
+  outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 :where([data-lf-reading-role="pane"]) {
@@ -1727,5 +1717,5 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) { padd
 }
 .lf-motion-preview.lf-inhand {
   max-width: none; /* Keep Sortable’s card width so its grip stays under the pointer. */
-  opacity: 1; box-shadow: 0 8px 24px var(--shade);
+  opacity: 1; box-shadow: var(--raise-2);
 }

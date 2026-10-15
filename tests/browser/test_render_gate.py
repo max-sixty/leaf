@@ -102,6 +102,7 @@ from render_harness import (
     plant_quiet_word,
     primed,
     reader_state,
+    reported_browser_errors,
     resized,
     root_overflow,
     scroll_followers,
@@ -595,12 +596,34 @@ def test_a_released_entry_that_never_arrives_is_named_like_any_other_file(
     assert stopped.value.finding.values["requesting"] == [entry_path]
 
 
+def test_browser_like_console_words_remain_console_diagnostics(browser):
+    """An authored message cannot establish an HTTP failure by imitating Chrome."""
+    page = browser.new_page()
+    text = (
+        "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    )
+    page.evaluate("text => console.error(text)", text)
+    [problem] = reported_browser_errors(page, text)
+    assert problem.code == "console-error"
+    assert problem.values == {"text": text, "url": ""}
+    assert str(problem) == text
+    page.evaluate(
+        "console.error('ordinary failure')\n//# sourceURL=http://page/author.js"
+    )
+    [problem] = reported_browser_errors(page, "ordinary failure")
+    assert problem.values == {
+        "text": "ordinary failure",
+        "url": "http://page/author.js",
+    }
+    assert str(problem) == "ordinary failure — http://page/author.js"
+
+
 def test_a_refused_document_reports_the_status_beside_the_wait_that_stopped(
     browser, serve, monkeypatch
 ):
     """A server that refuses the document leaves the proof with nothing to wait for
-    and the page with no console message of its own. The status the gate collected is
-    the only thing that says why the wait stopped, so the named wait carries it."""
+    and the page with no authored console message. The browser's native diagnostic
+    explains the refusal, so the named wait retains its complete text and URL."""
     real_proof = render_gate_scheme.start_with_pre_upgrade_proof
 
     def promptly(page, url):
@@ -620,9 +643,12 @@ def test_a_refused_document_reports_the_status_beside_the_wait_that_stopped(
     assert (failure.code, failure.scheme) == ("never-reached", "light")
     assert failure.values["arrival"] == "an authored main"
     assert {
-        "code": "failed-load",
+        "code": "console-error",
         "severity": "error",
-        "values": {"status": 401, "url": refused},
+        "values": {
+            "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+            "url": refused,
+        },
     } in failure.values["console"], failure
 
 
@@ -1043,14 +1069,16 @@ def test_the_render_gate_requires_a_declared_threads_host_and_a_defined_element(
     registry_path.write_text(json.dumps(registry, indent=2))
     module = package / "widgets" / "lf-callout.js"
     source = module.read_text()
-    runtime_import = 'import { once } from "/runtime/widget-api.js";'
-    once = "      if (!once(this)) return;\n"
-    assert source.count(runtime_import) == 1 and source.count(once) == 1
+    runtime_import = 'import { LeafElement } from "/runtime/widget-api.js";'
+    starter = "class extends LeafElement {},"
+    assert source.count(runtime_import) == 1 and source.count(starter) == 1
     module.write_text(
         source.replace(
-            runtime_import, 'import { threadBox, once } from "/runtime/widget-api.js";'
+            runtime_import,
+            'import { LeafElement, threadBox } from "/runtime/widget-api.js";',
         ).replace(
-            once, '      if (once(this)) this.append(threadBox(this, "Question"));\n'
+            starter,
+            'class extends LeafElement { setup() { this.append(threadBox(this, "Question")); } },',
         )
     )
     page = CUSTOM_WIDGET_PAGE.replace(
@@ -4483,16 +4511,19 @@ def test_an_authored_project_widget_loads_through_the_real_layer(
     )
     module = widgets / "lf-callout.js"
     source = module.read_text()
-    runtime_import = 'import { once } from "/runtime/widget-api.js";'
+    runtime_import = 'import { LeafElement } from "/runtime/widget-api.js";'
     assert source.count(runtime_import) == 1
     source = source.replace(
         runtime_import,
         runtime_import + '\nimport { label } from "./callout-label.js";',
     )
-    once = "      if (!once(this)) return;"
-    assert source.count(once) == 1
+    starter = "class extends LeafElement {},"
+    assert source.count(starter) == 1
     module.write_text(
-        source.replace(once, "      if (once(this)) this.dataset.helper = label;")
+        source.replace(
+            starter,
+            "class extends LeafElement { setup() { this.dataset.helper = label; } },",
+        )
     )
 
     url = serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))

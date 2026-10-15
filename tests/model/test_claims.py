@@ -177,9 +177,36 @@ def test_a_claim_records_where_the_session_is_working(page_dir, tmp_path, monkey
     assert service_model.claim_page(page_dir)
     assert service_model.page_claim(page_dir)["cwd"] == str(work)
     assert presence_model.presence(page_dir, [])["session_cwd"] == str(work)
+    # Diagnostic joins survive replacement/ending of the live claim and lifecycle.
+    from leaf.event_log import read_events
+    from leaf.interaction_log import read_interactions
+    from leaf.todos import take_in_hand
+
+    append_carried_log_record(
+        page_dir, {"kind": "comment", "id": "input", "author": "user", "text": "why?"}
+    )
+    with service_model.PageTransaction(page_dir) as page:
+        started = take_in_hand(
+            page, "input", "Reading it", {"session": "s1", "agent": "Claude"}
+        )
+    context = next(
+        row
+        for row in read_interactions(page_dir)
+        if row.get("event", {}).get("id") == started["id"]
+    )
+    assert context["context"] == {
+        "harness": "claude-code",
+        "turn": started["turn"],
+        "provider": False,
+        "cwd": str(work),
+        "transcript_path": None,
+    }
+    assert "context" not in started
+    assert all("context" not in event for event in read_events(page_dir))
     cleanup_model.end_session("s1")
     assert presence_model.presence(page_dir, [])["session_cwd"] == str(work)
     assert presence_model.presence(page_dir, [])["session_alive"] is False
+    assert context in read_interactions(page_dir, types=("event",))
 
 
 @pytest.mark.skipif(not shutil.which("sandbox-exec"), reason="macOS's sandbox")

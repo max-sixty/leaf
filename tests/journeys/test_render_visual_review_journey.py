@@ -13,6 +13,7 @@ from playwright.sync_api import expect
 from render_cases_navigation import source_revision
 from render_harness import (
     consume_browser_errors,
+    http_error_console,
     leaf_page,
     open_page,
     resized,
@@ -111,7 +112,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     response = denied.goto(f"{base_target.origin}/versions/v1.html")
     assert response and response.status == 401
     # The refusal is the point of this page: the reviewer has no capture credential.
-    consume_browser_errors(denied, {"code": "failed-load", "status": 401})
+    consume_browser_errors(denied, http_error_console(401))
     denied.close()
 
     context = browser.new_context(

@@ -232,7 +232,6 @@
 .lf-playground-choice-face:has(> input[data-lf-focus]) {
   outline: var(--focus-ring);
   outline-offset: 2px;
-  --lf-focus-ring: playground-choice;
 }
 
 .lf-playground-presets {

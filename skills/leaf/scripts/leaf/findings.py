@@ -387,9 +387,10 @@ def _shift_evidence(v: dict) -> str:
 # of its own, it says "console: " first.
 _TEXT = {
     # What the browser's console and the page's window reported.
-    "console-error": lambda at, v: v["text"],
+    "console-error": lambda at, v: (
+        f"{v['text']} — {v['url']}" if v.get("url") else v["text"]
+    ),
     "console-warning": lambda at, v: f"warning: {v['text']}",
-    "failed-load": lambda at, v: f"{v['status']} {v['url']}",
     "page-exception": lambda at, v: v["text"],
     "window-error": lambda at, v: f"window error: {v['text']}",
     "resize-loop": lambda at, v: (
@@ -703,11 +704,6 @@ _TEXT = {
             else f"one of {', '.join(v['allowed'])}"
         )
     ),
-    "css-unclosed": lambda at, v: (
-        f"{v['sheet']}: {v['depth']} block(s) left open at end of file — every rule"
-        " after the unclosed brace, this stylesheet's or a later layer's, lands inside"
-        " its scope"
-    ),
     "css-syntax": lambda at, v: (
         f"{v['sheet']} syntax error at {v['row']}:{v['column']}: {v['message']}"
     ),
@@ -878,9 +874,6 @@ _TEXT = {
     "unpointable-wide": lambda at, v: (
         f"unpointable — {_line(at, v)} has no id, so a comment aimed at it lands on"
         f" the whole of #{v['enclosing']}"
-    ),
-    "dropped-ids": lambda at, v: (
-        f"ids dropped from revision r{v['revision']}: {_json(v['ids'])}"
     ),
     "measurement-lag": lambda at, v: (
         f"measurement behind its source: {_line(at, v)} pins source {v['source']!r}"
@@ -1722,7 +1715,7 @@ _TEXT = {
         f"{v['page']}'s server was stopped while it was re-vendored, so it stays"
         " stopped."
     ),
-    # A server just started (`hosting.announce_server`).
+    # A server just started (`hosting.started_server`).
     "loopback-only": lambda at, v: (
         "the URL reaches only this machine; re-serve with --host NAME for a user"
         " elsewhere"
@@ -1848,7 +1841,6 @@ _USER = {
 _CONSOLE = {
     "console-error",
     "console-warning",
-    "failed-load",
     "page-exception",
     "window-error",
     "resize-loop",

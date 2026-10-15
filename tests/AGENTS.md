@@ -185,8 +185,10 @@ Focus rings show actual focus whatever the input route. Test the shared ring wit
 clicks and keyboard arrivals, require `:focus`, and compare the paint. A keyboard
 navigation test reaches its stop with `Tab` or its declared command; `element.focus()`
 doesn't prove that route. `RELEASE_FOCUS` (`render_harness.py`) resets where Tab
-starts, which `blur()` doesn't. Read a ring's paint through `RINGS_DRAWN` and
-`ring_faults`, because an ancestor may draw it.
+starts, which `blur()` doesn't. Read a ring's paint through `rings_drawn` and
+`ring_faults`, because an ancestor may draw it. Tell which ring it is by the rule the
+browser says drew it (`ring_rules`, `render_cases_layout.py`): a stylesheet rule draws
+the ring with `--focus-ring` or `--focus-shadow` and names nothing.
 
 ## Fixtures
 
@@ -252,9 +254,9 @@ The `browser` fixture watches every page it makes and fails the test on any prob
 left at the end; don't install a second collector. Each problem is a record
 (`leaf/findings.py`). Consume an expected one where it happens with
 `consume_browser_errors`, or `reported_browser_errors` when it arrives in parts, naming
-it by its fields (`{"code": "failed-load", "status": 400}`) or by a fragment of the
-console message (`render_harness.is_problem`). For a recurring fault, close the page
-first and then consume. Filtering the collector is not an assertion.
+it by its fields (`{"code": "console-error", "url": "http://page/api/event"}`) or by a
+fragment of the console message (`render_harness.is_problem`). For a recurring fault,
+close the page first and then consume. Filtering the collector is not an assertion.
 
 Three watches report problems; a fourth, `input_work_watch.js`, tells them which input
 caused a change. Fix what they report rather than consuming it; there is no per-test
@@ -396,9 +398,10 @@ printed record), since the log's last event may be a `read` an open page appende
 ### Test-made noise
 
 Instrumentation must not add noise to the channel a test asserts is quiet; `refuse`
-uses the `aborted` reason for that. Assert a deliberate HTTP error through the
-collector's status-and-URL entry, and wrap a deliberate server restart in
-`restarting`, asserting any diagnostic inside that block.
+uses the `aborted` reason for that. Consume a deliberate HTTP error by the browser's
+diagnostic (`http_error_console`); where the status itself is under test, assert the
+response's status. Wrap a deliberate server restart in `restarting`, asserting any
+diagnostic inside that block.
 
 ## Frames, sequences, and instants
 

@@ -538,11 +538,11 @@ function scrollIntoReadingBand(where, holder, block, behavior) {
     inner = outer;
   }
 }
-function scrollIntoView(where, { alignment = where, behavior = "auto", block = "start" } = {}) {
+function scrollIntoView(where, { alignment = where, behavior = "auto", block = "start", within: within2 = null } = {}) {
   if (!where) return;
   const holder = placeHolder(alignment);
   if (!holder) return;
-  const targetScroller = scrollersOf(holder).next().value;
+  const targetScroller = within2 ? null : scrollersOf(holder).next().value;
   let inside = true;
   for (let box = placeHolder(where); box instanceof Element; box = renderedParent(box)) {
     if (box === targetScroller) inside = false;
@@ -554,7 +554,8 @@ function scrollIntoView(where, { alignment = where, behavior = "auto", block = "
       const byY = inside ? nearestScrollBy(destination.top, destination.bottom, top, bottom) : 0;
       if (byX || byY) land(box, localScrollBy(box, { x: byX, y: byY }), "instant");
     }
-    if (box === pageScroller || getComputedStyle(box).position === "fixed") break;
+    if (box === within2 || box === pageScroller || getComputedStyle(box).position === "fixed")
+      break;
   }
   if (targetScroller) scrollIntoReadingBand(alignment, holder, block, behavior);
 }
@@ -1021,16 +1022,26 @@ function placeOf(node) {
   }
   return inChrome(at) ? null : at;
 }
-function standingPlace() {
+function walkOrigin() {
   for (const node of standingNodes()) {
     const place2 = placeOf(node);
-    if (place2) return place2;
+    if (place2) {
+      const tab = place2.closest('[role="tab"][aria-selected="true"]');
+      const panel = tab?.ariaControlsElements?.[0];
+      return panel ? { place: panel, kind: "enter" } : { place: place2, kind: "standing" };
+    }
   }
-  return null;
+  return { place: pageReadingBlock(), kind: "standing" };
 }
-var walkOrigin = () => standingPlace() ?? pageReadingBlock();
-function stepFrom(list, here, dir, placeOfItem) {
+function stepFrom(list, { place: here, kind }, dir, placeOfItem) {
   if (!here) return cycledRow(list, null, dir);
+  if (kind === "enter") {
+    const inside = list.filter((item) => {
+      const place2 = placeOfItem(item);
+      return place2 && renderedUnder(place2, here);
+    });
+    if (inside.length) return cycledRow(inside, null, dir);
+  }
   const reach = list.filter((item) => {
     const place2 = placeOfItem(item);
     if (!place2) return dir > 0;
@@ -2887,7 +2898,8 @@ function showLatestTurn(transcript) {
   const latest = latestTurn(transcript);
   if (!latest) return;
   const over = transcript.getBoundingClientRect().top + transcript.clientTop - latest.getBoundingClientRect().top;
-  if (over > 0) moveScrollerBy(transcript, -over);
+  const headHeight = latest.firstElementChild?.getBoundingClientRect().height ?? 0;
+  if (over > headHeight) moveScrollerBy(transcript, -over);
 }
 function landThread(held, control, behavior, block) {
   bringBackSurfaceOf(held, behavior);
@@ -5740,6 +5752,10 @@ var ReplyContinuity = class {
     this.#presenting = [];
     if (!this.#row?.isConnected || this.#owner.localName === "details" && !this.#owner.open)
       return this.release();
+    if (!this.#visible()) {
+      reading?.place.finish(reading.held);
+      return this.release();
+    }
     if (reading != null) {
       const { extent, place: place2, held } = reading;
       const body = this.#owner.localName === "details" ? getComputedStyle(this.#owner, "::details-content") : getComputedStyle(this.#owner);
@@ -5760,7 +5776,9 @@ var ReplyContinuity = class {
   #keep(space) {
     if (space === this.#space) return;
     this.#space = space;
-    this.gap.style.setProperty("--lf-reply-space", layoutPx(space));
+    const value = layoutPx(space);
+    if (this.gap.style.getPropertyValue("--lf-reply-space") !== value)
+      this.gap.style.setProperty("--lf-reply-space", value);
   }
   #retainWriting() {
     const input = this.#row?.querySelector(TEXT_FIELD);
@@ -5794,7 +5812,8 @@ var ReplyContinuity = class {
     this.#departure = null;
     this.#space = 0;
     this.#releaseWriting();
-    this.gap.style.removeProperty("--lf-reply-space");
+    if (this.gap.style.getPropertyValue("--lf-reply-space"))
+      this.gap.style.removeProperty("--lf-reply-space");
   }
 };
 
@@ -5844,6 +5863,7 @@ function workingMessage(thread, attention, messages) {
   const agentMessage = messages.findLast((message) => message.author === "agent");
   const work = running?.detail ? running : !running && !todo ? stopped : null;
   const progress = !work && (running || !todo && !stopped) ? pending.at(-1) : null;
+  const timestamp = work?.ts ?? progress?.timestamp ?? null;
   const feedback = work?.input ? {
     input_id: work.input,
     reply_id: null,
@@ -5854,7 +5874,9 @@ function workingMessage(thread, attention, messages) {
     reply_kind: "progress"
   } : null;
   return Object.freeze({
-    who: agent || agentMessage?.by || "Agent",
+    who: work?.agent || progress?.by || agent || agentMessage?.by || "Agent",
+    timestamp,
+    age: timestamp ? ago(timestamp) : null,
     words: words.trim().replace(/\.$/, ""),
     feedback,
     live: live2,
@@ -5941,7 +5963,10 @@ function threadReading(thread, surface, commands2, options) {
 function workingView(working) {
   return html`<div class="lf-thread-working-head">
       ${working.who ? html`<b>${working.who}</b>` : nothing}
-      ${working.condition ? html`<span class="lf-msg-meta">${working.condition}</span>` : nothing}
+      ${working.timestamp || working.condition ? html`<span class="lf-msg-meta"
+              >${working.timestamp ? html`<time datetime=${working.timestamp}>${working.age}</time>` : nothing}
+              ${working.condition}</span
+            >` : nothing}
     </div>
     <div class="lf-thread-working-words">${working.words}</div>`;
 }

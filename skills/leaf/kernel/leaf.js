@@ -269,6 +269,7 @@ import {
 import {
   JUST_NOW,
   PRESENTATION,
+  SCROLL_SLACK,
   UPGRADE,
   afterPresentation,
   ago,
@@ -277,6 +278,7 @@ import {
   effectiveScroller,
   markPagePresented,
   markPageUpgraded,
+  moveScrollerBy,
   pageReadiness,
   pageScroller,
   reachScrollers,
@@ -284,6 +286,7 @@ import {
   registerReadingRegion,
   scrollChainOf,
   scrollLimit,
+  scrollToEnd,
   scrollerFor,
   scrollersOf,
   settlePageInterface,
@@ -1995,7 +1998,7 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
       ".lf-command-reference-results"
     );
     search.value = "";
-    results.scrollTop = 0;
+    results.scrollTo({ top: 0, behavior: "instant" });
     stopReferenceReading = registerReadingRegion({
       id: "lf-region:command-reference",
       host: commandReferenceDialog,
@@ -2158,7 +2161,6 @@ function createResponseSurface({
   pageComment: pageComment2,
   responseHome,
   revealResponseHome = null,
-  threadTransitionOrigin,
   createComment,
   landSent,
   wireInput,
@@ -2630,7 +2632,6 @@ function createResponseSurface({
     reactionAvailable,
     designModeActive,
     openPageThread,
-    threadTransitionOrigin,
     anchorTravelAt,
     bringForward,
     fabAnchorAt,
@@ -5374,7 +5375,7 @@ function createAnchorControls({
     const label2 = open ? labelAnchor(anchor, about) : "";
     keepsText(draftQuote, label2);
     const located = Boolean(resolved && resolved.status !== "outdated");
-    draftQuote.classList.toggle("lf-unseen", !label2 || located && !about);
+    draftQuote.classList.toggle("lf-quiet", !label2 || located && !about);
   }
   function render2({ readings, draft }) {
     const notes = /* @__PURE__ */ new Map();
@@ -7714,7 +7715,7 @@ function createFloatingPanel({
         (key) => message(key)?.ephemeral || message(key)?.provisional
       ),
       extent: view.scrollHeight,
-      height: view.clientHeight
+      limit: scrollLimit(view)
     };
     const answerIn = (drawn2) => {
       const turn2 = drawn2.findLastIndex((key) => {
@@ -7728,14 +7729,14 @@ function createFloatingPanel({
     if (!answer?.keys.length || asked2?.turn !== answer.turn || !asked2.keys.every((key) => before.coming.includes(key)) || !answer.keys.every((key) => message(key)?.author === "agent"))
       return;
     if (view.scrollHeight <= before.extent + 0.5) return;
-    const atEnd = view.scrollTop + before.height >= before.extent - 1;
+    const atEnd = before.limit - view.scrollTop <= SCROLL_SLACK;
     const turn = outlet.querySelector(
       `.lf-msg[data-message="${CSS.escape(answer.turn)}"]`
     );
     const pad = Number.parseFloat(getComputedStyle(view).paddingTop);
     const from = () => turn.getBoundingClientRect().top - view.getBoundingClientRect().top - pad;
     if (!waiting && atEnd && view.scrollHeight - view.scrollTop - from() <= view.clientHeight) {
-      view.scrollTop = view.scrollHeight;
+      scrollToEnd(view);
       return;
     }
     const reply = answer.keys.find((key) => !message(key).ephemeral);
@@ -7749,7 +7750,7 @@ function createFloatingPanel({
     const below = foot ? turn.getBoundingClientRect().bottom - foot.top : 0;
     const by = Math.min(Math.max(below, 0), from());
     if (Math.abs(by) < 0.5) return;
-    view.scrollTop += by;
+    moveScrollerBy(view, by);
     placed = view.scrollTop;
   }
   function showAnswer() {
@@ -8463,6 +8464,7 @@ function createFloatingPanel({
     }
     const openThreads2 = threads().filter((candidate) => !candidate.resolved);
     const at = thread ? openThreads2.indexOf(thread) : -1;
+    const titleClass = top.view === "queue" ? "lf-fp-title lf-quiet" : "lf-fp-title";
     const crumb = top.view === "threads" && searching ? html`<input
             class="lf-fp-search"
             type="search"
@@ -8481,9 +8483,7 @@ function createFloatingPanel({
                     >
                       ${titleOf2(parent)}</button
                     ><span class="lf-fp-sep" aria-hidden="true">/</span>` : nothing}
-            <h2 class="lf-fp-title" ?data-unseen=${top.view === "queue"}>
-              ${titleOf2(top)}
-            </h2>
+            <h2 class=${titleClass}>${titleOf2(top)}</h2>
             ${at >= 0 ? html`<span class="lf-fp-where"
                     >${at + 1} of ${openThreads2.length}</span
                   >` : nothing}`;
@@ -8556,7 +8556,7 @@ function createFloatingPanel({
     );
     if (!view || (outletOf()?.childElementCount ?? 0) <= landAtEnd.after) return;
     landAtEnd = null;
-    view.scrollTop = view.scrollHeight;
+    scrollToEnd(view);
   }
   function paintNow() {
     const top = trail.at(-1) ?? null;
@@ -9148,7 +9148,7 @@ function createThreadNarrowing({ view, listRoot, readThreads: readThreads2, repa
     const ticket = repaint2();
     void ticket.then(
       () => {
-        if (mayReset()) listRoot.scrollTop = 0;
+        if (mayReset()) listRoot.scrollTo({ top: 0, behavior: "instant" });
       },
       () => {
       }
@@ -10570,7 +10570,8 @@ function createQueueWalk({
     return stops().filter((stop) => stop.kind === "ask" && held.has(stop.id));
   }
   const stopsOf = (region) => region ? stopsWithin(region) : stops();
-  function standingStop(list, here = walkOrigin()) {
+  function standingStop(list, { place: here, kind } = walkOrigin()) {
+    if (kind !== "standing") return null;
     if (focused(document) === approvalTarget())
       return list.find((stop) => stop.kind === "approval") ?? null;
     const held = threadHere();
@@ -10596,9 +10597,9 @@ function createQueueWalk({
       return at && (at === here || under(here, at));
     }) ?? null;
   }
-  function step(list, dir, region, origin = walkOrigin(), stands = true) {
-    if (region && !under(origin, region)) return cycledRow(list, null, dir);
-    const standing2 = stands ? standingStop(list, origin) : null;
+  function step(list, dir, region, origin) {
+    if (region && !under(origin.place, region)) return cycledRow(list, null, dir);
+    const standing2 = standingStop(list, origin);
     if (standing2) return cycledRow(list, standing2, dir);
     return stepFrom(list, origin, dir, (stop) => stop.place);
   }
@@ -10636,10 +10637,10 @@ function createQueueWalk({
     const at = listWalkPosition(list, here, { identity: (stop) => stop.key });
     return at && { ...at, qualifier: `${region ? WITHIN : QUALIFIER} \xB7 ${here.noun}` };
   }
-  function walk(dir, region = null, origin = walkOrigin(), stands = true) {
+  function walk(dir, region = null, origin = walkOrigin()) {
     const list = stopsOf(region);
     if (!list.length) return Promise.resolve(false);
-    const { row: next2, wrapped } = step(list, dir, region, origin, stands);
+    const { row: next2, wrapped } = step(list, dir, region, origin);
     const ready = arriveAt(next2).then((arrived) => {
       if (!arrived) return false;
       announce2(
@@ -10751,11 +10752,12 @@ function createQueueWalk({
     const asks2 = asksIn(within);
     const kept = asks2.find((ask) => ask.id === wentTo);
     const toward = dir < 0 ? -1 : 1;
-    if (under(here, within)) return walk(toward, within, here);
-    if (kept) return walk(toward, within, askPlace(kept).source);
+    if (under(here.place, within)) return walk(toward, within, here);
+    if (kept)
+      return walk(toward, within, { place: askPlace(kept).source, kind: "standing" });
     const clips = /* @__PURE__ */ new Map();
     const shown = asks2.map((ask) => askPlace(ask).node).find((node) => node && seenRect(node, clips));
-    return shown ? walk(toward, within, shown, false) : walk(toward, within, here);
+    return shown ? walk(toward, within, { place: shown, kind: "at" }) : walk(toward, within, here);
   }
   return { mount, arriveAtItem, next, nextWithin };
 }
@@ -12891,13 +12893,19 @@ function stepThread(dir, destinations, panelIsOpen2, narrowing2, list) {
   const { threadsBox: threadsBox2 } = list;
   const { threadHere, threadAtStanding, threadPlace } = destinations;
   const { threads } = threadWalk(panelIsOpen2, list);
+  const origin = walkOrigin();
   const current = currentThread(threads, threadHere);
-  const targetId = !current && threadAtStanding();
+  const targetId = !current && origin.kind === "standing" && threadAtStanding();
   const atTarget = targetId && threads.find((thread) => thread.dataset.id === targetId);
   const atRow = panelIsOpen2() && focused() !== threadsBox2 && standingIn(threadsBox2);
-  const { row: next, wrapped } = current ? cycledRow(threads, current, dir) : atTarget ? { row: atTarget, wrapped: false } : atRow ? stepFrom(threads, focused(), dir, (thread) => thread) : stepFrom(
+  const { row: next, wrapped } = current ? cycledRow(threads, current, dir) : atTarget ? { row: atTarget, wrapped: false } : atRow ? stepFrom(
     threads,
-    !panelIsOpen2() || narrowing2.listedInPageOrder() ? walkOrigin() : null,
+    { place: focused(), kind: "standing" },
+    dir,
+    (thread) => thread
+  ) : stepFrom(
+    threads,
+    !panelIsOpen2() || narrowing2.listedInPageOrder() ? origin : { place: null, kind: "enter" },
     dir,
     (thread) => threadPlace(thread.dataset.id)
   );
@@ -13555,7 +13563,6 @@ responseSurface = createResponseSurface({
   pageComment: generalComment,
   responseHome: overlaySelected ? chromeRoot : panelFoot,
   revealResponseHome: overlaySelected ? null : () => threadPanelController.setPanel(true),
-  threadTransitionOrigin: app.overlay?.threadTransitionOrigin,
   createComment: (command) => app.threadActions.create(command)?.delivery ?? null,
   landSent: landing.landSent,
   wireInput: inputs.wireInput,

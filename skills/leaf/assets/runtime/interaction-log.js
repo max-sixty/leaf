@@ -43,7 +43,6 @@ let nextNodeId = 0;
 let sending = false;
 let inFlightCount = 0;
 let scheduled = null;
-let retryTimer = null;
 
 const timestamp = () => new Date().toISOString();
 const pagePath = (pathname) =>
@@ -81,7 +80,7 @@ function targetValue(target) {
 }
 
 function describe(event) {
-  const path = event.composedPath?.() ?? [event.target];
+  const path = event.composedPath();
   const elements = path.filter((node) => node instanceof Element).slice(0, 8);
   const entry = {
     type: event.type,
@@ -181,22 +180,21 @@ function describe(event) {
   return entry;
 }
 
-function schedule() {
-  if (scheduled !== null || sending || retryTimer !== null || !queue.length) return;
+function schedule(delay = 250) {
+  if (scheduled !== null || sending || !queue.length) return;
   scheduled = setTimeout(() => {
     scheduled = null;
     void flush();
-  }, 250);
+  }, delay);
 }
 
 function append(row) {
   if (queue.length >= MAX_PENDING_ENTRIES) {
     let evict = queue.findIndex(
-      (entry, index) =>
-        index >= inFlightCount && repetitive.has(entry.originalType ?? entry.type),
+      (entry, index) => index >= inFlightCount && entry.repetitive,
     );
     if (evict < 0) {
-      if (repetitive.has(row.originalType ?? row.type)) return;
+      if (row.repetitive) return;
       evict = inFlightCount;
       if (evict >= queue.length) return;
     }
@@ -213,37 +211,41 @@ function enqueue(entry) {
     visibility: document.visibilityState,
     sequence: ++nextSequence,
   };
-  const row = { ...entry, ...common };
-  const bytes = encoder.encode(JSON.stringify(row)).length;
-  // Diagnostics are bounded observations. Large drafts stay with the editor and
-  // semantic event log; this stream records their omission without duplicating them.
-  append(
-    bytes <= 40_000
-      ? row
-      : {
-          ...common,
-          type: "interaction_omitted",
-          originalType: entry.type,
-          bytes,
-          reason: "record_exceeds_limit",
-        },
-  );
+  let body = JSON.stringify({ ...entry, ...common });
+  let bytes = encoder.encode(body).length;
+  // Keep large drafts in their editor and semantic log. This diagnostic records
+  // their omission, using the original observation's identity and clocks.
+  if (bytes > 40_000) {
+    body = JSON.stringify({
+      ...common,
+      type: "interaction_omitted",
+      originalType: entry.type,
+      bytes,
+      reason: "record_exceeds_limit",
+    });
+    bytes = encoder.encode(body).length;
+  }
+  append({ body, bytes, repetitive: repetitive.has(entry.type) });
   schedule();
 }
 
 function batch(start, maxBytes) {
-  const entries = [];
-  let body = "";
-  while (start + entries.length < queue.length && entries.length < 100) {
-    const candidate = JSON.stringify({
-      session,
-      entries: [...entries, queue[start + entries.length]],
-    });
-    if (entries.length && encoder.encode(candidate).length > maxBytes) break;
-    entries.push(queue[start + entries.length]);
-    body = candidate;
+  const prefix = `{"session":${JSON.stringify(session)},"entries":[`;
+  let bytes = encoder.encode(prefix).length + 2;
+  let count = 0;
+  while (start + count < queue.length && count < 100) {
+    const size = queue[start + count].bytes + (count ? 1 : 0);
+    if (count && bytes + size > maxBytes) break;
+    bytes += size;
+    count++;
   }
-  return { entries, body };
+  return {
+    count,
+    body: `${prefix}${queue
+      .slice(start, start + count)
+      .map((row) => row.body)
+      .join(",")}]}`,
+  };
 }
 
 function post(body) {
@@ -261,30 +263,28 @@ function post(body) {
 async function flush() {
   if (sending || !queue.length) return;
   sending = true;
-  const { entries, body } = batch(0, 100_000);
-  inFlightCount = entries.length;
+  const { count, body } = batch(0, 100_000);
+  inFlightCount = count;
+  let delay = 250;
   try {
     const response = await post(body);
     if (response.status >= 400 && response.status < 500) {
       // A rejected batch cannot become valid by retrying. Its sequence gap is
       // visible in later batches, and the console carries the immediate fault.
       console.error(
-        `Leaf interaction log rejected ${entries.length} records: ${response.status}`,
+        `Leaf interaction log rejected ${count} records: ${response.status}`,
       );
-      queue.splice(0, entries.length);
+      queue.splice(0, count);
       return;
     }
     if (!response.ok) throw new Error(`interaction log returned ${response.status}`);
-    queue.splice(0, entries.length);
+    queue.splice(0, count);
   } catch {
-    retryTimer = setTimeout(() => {
-      retryTimer = null;
-      schedule();
-    }, 2000);
+    delay = 2000;
   } finally {
     inFlightCount = 0;
     sending = false;
-    schedule();
+    schedule(delay);
   }
 }
 
@@ -367,29 +367,28 @@ if (enabled) {
       scroll: [window.scrollX, window.scrollY],
     });
   });
-  if (typeof window.PerformanceObserver !== "undefined") {
-    const observer = new window.PerformanceObserver((list) => {
-      for (const resource of /** @type {PerformanceResourceTiming[]} */ (
-        list.getEntries()
-      )) {
-        if (resource.name.startsWith(url)) continue;
-        const resourceUrl = new URL(resource.name);
-        // Freshness is transport housekeeping; failed reads are explained by the
-        // server diagnostic and the state read they prompt. Logging each look
-        // would turn its quiet clock into a second diagnostic request clock.
-        if (pagePath(resourceUrl.pathname) === "/api/news") continue;
-        enqueue({
-          type: "resource",
-          path: pagePath(resourceUrl.pathname),
-          initiator: resource.initiatorType,
-          durationMs: resource.duration,
-          responseStatus: resource.responseStatus ?? null,
-          transferSize: resource.transferSize,
-        });
-      }
-    });
-    observer.observe({ type: "resource", buffered: true });
-  }
+  const observer = new window.PerformanceObserver((list) => {
+    for (const resource of /** @type {PerformanceResourceTiming[]} */ (
+      list.getEntries()
+    )) {
+      if (resource.name.startsWith(url)) continue;
+      const resourceUrl = new URL(resource.name);
+      // Freshness is transport housekeeping; failed reads are explained by the
+      // server diagnostic and the state read they prompt. Logging each look
+      // would turn its quiet clock into a second diagnostic request clock.
+      if (pagePath(resourceUrl.pathname) === "/api/news") continue;
+      enqueue({
+        type: "resource",
+        path: pagePath(resourceUrl.pathname),
+        initiator: resource.initiatorType,
+        durationMs: resource.duration,
+        // WebKit has no responseStatus.
+        responseStatus: resource.responseStatus ?? null,
+        transferSize: resource.transferSize,
+      });
+    }
+  });
+  observer.observe({ type: "resource", buffered: true });
   enqueue({
     type: "session_start",
     location: `${pagePath(location.pathname)}${location.hash}`,
@@ -402,8 +401,8 @@ if (enabled) {
       // Keep the in-flight entries in the queue until their fetch is acknowledged.
       // A closeout may duplicate a batch, identified by session and sequence.
       for (let start = 0; start < queue.length;) {
-        const { entries, body } = batch(start, 48_000);
-        start += entries.length;
+        const { count, body } = batch(start, 48_000);
+        start += count;
         void post(body).catch(() => {});
       }
     },

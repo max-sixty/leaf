@@ -320,7 +320,7 @@ export function createThreadNarrowing({ view, listRoot, readThreads, repaint }) 
     // either outcome because event listeners can discard this ticket.
     void ticket.then(
       () => {
-        if (mayReset()) listRoot.scrollTop = 0;
+        if (mayReset()) listRoot.scrollTo({ top: 0, behavior: "instant" });
       },
       () => {},
     );

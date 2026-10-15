@@ -23,7 +23,8 @@ long it lives across revisions. A widget's declarations are in
 
 ## The helper surface
 
-Import Leaf only from `/runtime/widget-api.js`. Don't import the runtime's other
+Import Leaf's helpers only from `/runtime/widget-api.js`; the bundled library entry
+is described in `page-behavior.md`. Don't import the runtime's other
 modules, query Leaf's own chrome, or copy a runtime helper. Each helper is described in
 the section for the task it serves, and the header of its module under `runtime/` has
 the full contract. A DOM helper takes the element it acts for as its first argument.
@@ -312,7 +313,7 @@ A size change needs no call.
 with Leaf's frame, label, editor and Clear button; the widget owns the query and
 results, and can put a match count in its `end` slot.
 
-To fold content it may show again, set its `hidden` to `HIDDEN`. Where the browser
-supports `hidden="until-found"`, find-in-page and fragment links still reach the content
-and fire `beforematch` on it, and the widget opens it there. Take a folded element that
-is itself a Tab stop out of the Tab order.
+To fold content it may show again, set its `hidden` to `"until-found"`. Find-in-page and
+fragment links still reach the content and fire `beforematch` on it, and the widget opens
+it there; paper prints it open (`controls.css`). The fold skips only what the element
+holds, so take a folded element that is itself a Tab stop out of the Tab order.

@@ -13,12 +13,12 @@
 .lf-resolved-threads:not([open]) > :not(summary) { display: none; }
 .lf-resolved-summary { border-radius: var(--r); cursor: pointer;
           padding: max(var(--sp-1), (var(--aim-floor) - 1lh) / 2) var(--sp-1);
-          color: var(--muted); font: 600 var(--t-5)/var(--lf-ui-lh) var(--sans);
+          color: var(--muted); font: var(--t-6)/var(--lf-ui-lh) var(--sans);
           white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lf-resolved-summary:hover { color: var(--ink-2); }
 .lf-page-thread .lf-btn { font: inherit; }
 :is(.lf-page-thread :is(.lf-btn, summary), .lf-resolved-summary)[data-lf-focus] {
-          outline: var(--focus-ring); outline-offset: 1px; --lf-focus-ring: thread; }
+          outline: var(--focus-ring); outline-offset: 1px; }
 /* Paper prints every thread open, resolved ones included, as words the page keeps,
    though the card, its messages and the resolved group carry data-lf-offer, which
    paper otherwise drops (state.css); their presses and status still go. */
@@ -57,7 +57,7 @@
           align-items: center; }
 }
 .lf-outline-chip[data-lf-focus] { outline: var(--focus-ring);
-          --lf-focus-ring: chip; outline-offset: 1px; }
+          outline-offset: 1px; }
 /* Reaction controls own their resting, selected and interactive appearance together.
    A surface places and reveals them without restating their ink, border or fill.
    Margin reactions wear the margin-entry family (theme.css); response actions keep
@@ -87,9 +87,10 @@
 .lf-react:not(.lf-margin-entry):is([data-lf-held-word], [data-lf-focus])::after {
           content: attr(aria-label); position: absolute; z-index: 5;
           inset-block-end: calc(100% + 6px); inset-inline-start: 50%; translate: -50% 0;
-          width: max-content; max-width: 220px; padding: 4px 7px; border-radius: 4px;
-          background: var(--ink); color: var(--paper); box-shadow: 0 2px 8px var(--shade);
-          font: 500 var(--t-6)/1.2 var(--sans); white-space: nowrap; pointer-events: none; }
+          width: max-content; max-width: 220px;
+          padding: var(--tip-pad); border-radius: var(--tip-r);
+          background: var(--tip-bg); color: var(--tip-ink); box-shadow: var(--raise-1);
+          font: var(--tip-font); white-space: nowrap; pointer-events: none; }
 /* A reaction surface offers one quiet trigger. It disappears when its list opens;
    a token in force remains visible in a closed message strip as the user's receipt
    and eraser. */
@@ -170,7 +171,7 @@ svg[data-lf-icon] { max-width: none; overflow: visible; fill: none; stroke: curr
           width: max-content; max-width: calc(100vw - 16px);
           padding: 4px;
           border: 1px solid var(--border-2); border-radius: var(--r);
-          background: var(--card); box-shadow: 0 4px 12px var(--shade); }
+          background: var(--card); box-shadow: var(--raise-2); }
 :where(.lf-react-strip > .lf-react-palette:popover-open) > .lf-react {
           box-sizing: border-box; inline-size: 32px; block-size: 32px; padding: 0;
           font-size: 16px; }
@@ -187,7 +188,7 @@ svg[data-lf-icon] { max-width: none; overflow: visible; fill: none; stroke: curr
             var(--lf-msg-head-room, 0px)); }
 }
 .lf-msg-meta { display: flex; align-items: baseline; gap: var(--sp-2); min-width: 0; }
-.lf-msg-sending { color: var(--muted); font-weight: 600; white-space: nowrap; }
+.lf-msg-sending { color: var(--muted); white-space: nowrap; }
 .lf-msg-sending::before { content: "\00b7"; margin-inline-end: 6px;
           color: var(--muted-2); }
 .lf-msg-meta > time { flex: none; }
@@ -272,9 +273,8 @@ svg[data-lf-icon] { max-width: none; overflow: visible; fill: none; stroke: curr
 }
 @media print {
   /* Paper has no press to open what a page puts behind a gesture, so it prints open:
-     a shut <details>, and whatever a widget folds with `hidden="until-found"`
-     (`HIDDEN`, widget-elements.js), such as an inactive tab or a settled group's
-     cards. Each is hidden by content-visibility, so that is what says otherwise; the
+     a shut <details>, and whatever a widget folds with `hidden="until-found"`,
+     such as an inactive tab or a settled group's cards. Each is hidden by content-visibility, so that is what says otherwise; the
      marker goes because paper has nothing to turn. A page that means a disclosure to
      stay shut on paper says so in its own stylesheet, at a weight this does not
      contest. */
@@ -337,4 +337,4 @@ svg[data-lf-icon] { max-width: none; overflow: visible; fill: none; stroke: curr
    too. In chrome.css, where it was, it reached neither that button nor a
    package wanting to answer it. */
 :is(.lf-btn, .button)[data-lf-focus] { outline: var(--focus-ring);
-          --lf-focus-ring: btn; outline-offset: 2px; }
+          outline-offset: 2px; }

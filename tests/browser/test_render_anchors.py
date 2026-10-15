@@ -72,6 +72,7 @@ from render_harness import (
     consume_browser_errors,
     hold_selection,
     holding,
+    http_error_console,
     leaf_page,
     open_page,
     open_versions,
@@ -209,7 +210,7 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
     )
     page.locator(".lf-fab-input").click()
     page.wait_for_function(
-        "() => document.querySelector('.lf-composer').style.display === 'contents'"
+        "() => document.querySelector('.lf-composer').hasAttribute('data-lf-open')"
     )
     quoted = composer_quote(page)["text"]
     assert quoted.strip("“”") == "In flight"
@@ -1151,7 +1152,7 @@ def test_the_captured_quote_is_prose_a_file_can_hold(browser, serve):
         page.locator(block).click(click_count=3)
         page.locator(".lf-fab-input").click()
         page.wait_for_function(
-            "() => document.querySelector('.lf-composer').style.display === 'contents'"
+            "() => document.querySelector('.lf-composer').hasAttribute('data-lf-open')"
         )
 
     # Read off the composer's description of its own anchor, which is the captured quote
@@ -1231,7 +1232,7 @@ def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
     page.locator("#q").click(click_count=3)
     page.locator(".lf-fab-input").click()
     page.wait_for_function(
-        "() => document.querySelector('.lf-composer').style.display === 'contents'"
+        "() => document.querySelector('.lf-composer').hasAttribute('data-lf-open')"
     )
 
     # The click that selected #q also scrolled it into view. Bring the other passage
@@ -1248,7 +1249,7 @@ def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
     page.locator("#p").click(click_count=3)
     page.locator(".lf-fab-input").click()
     page.wait_for_function(
-        "() => document.querySelector('.lf-composer').style.display === 'contents'"
+        "() => document.querySelector('.lf-composer').hasAttribute('data-lf-open')"
     )
     page.mouse.click(*mark_point(page, "lf-pending"))
     assert not page.locator(".lf-thread-panel").evaluate(
@@ -5445,7 +5446,7 @@ def test_a_deferred_diff_tracks_each_write_and_retries_a_failed_file(browser, se
     expect(page.locator("lf-diff .lf-error")).to_contain_text(
         "the patch is unavailable"
     )
-    consume_browser_errors(page, {"code": "failed-load", "status": 500})
+    consume_browser_errors(page, http_error_console(500))
     summary.click()
     summary.click()
     expect(
@@ -5566,7 +5567,7 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
     )
     page.wait_for_timeout(250)
     assert len(requests) == 1, "thread hydration retried without another user gesture"
-    consume_browser_errors(page, {"code": "failed-load", "status": 500})
+    consume_browser_errors(page, http_error_console(500))
 
     summary = page.locator("lf-diff summary")
     summary.click()
@@ -5582,9 +5583,7 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
     ) as retried:
         summary.click()
     assert len(requests) == 2
-    reported_browser_errors(
-        page, {"code": "failed-load", "status": 500, "url": retried.value.url}
-    )
+    reported_browser_errors(page, {"code": "console-error", "url": retried.value.url})
 
 
 def test_passage_at_either_shadow_host_edge_excludes_its_words(browser, serve):

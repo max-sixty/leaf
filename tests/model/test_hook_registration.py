@@ -51,6 +51,12 @@ def _registered_hook_command(harness, event):
     return hook["command"]
 
 
+def _registered_hook_arguments(harness, event):
+    """The `leaf` arguments the synchronous registration for this event passes."""
+    words = shlex.split(_registered_hook_command(harness, event))
+    return words[words.index("hook") : words.index("||")]
+
+
 def _registered_watch_arguments():
     """What Claude Code's background Stop registration passes its supervisor."""
     [hook] = [
@@ -347,10 +353,11 @@ def test_the_registered_hook_leaves_library_execution_to_uv(
         "python",
         "-m",
         "leaf",
-        "hook",
-        "--harness",
-        harness,
-        *(["--watch"] if watch else []),
+        *(
+            _registered_watch_arguments()
+            if watch
+            else _registered_hook_arguments(harness, event)
+        ),
     ]
     assert received.read_text() == payload
     assert not python_called.exists()

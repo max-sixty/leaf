@@ -112,6 +112,25 @@ what fails and what still works.
   and runs the pseudo-element's transition, so nothing visible differs.
 - **Disposition:** adopted without a fallback.
 
+### Folds, composed selections and anchor scopes without a feature check
+
+- **Owners:** widgets that fold with `hidden="until-found"` (`lf-tabs`,
+  `lf-options`, `lf-trace-compare`); `runtime/passages.js` (`pageRange`, through
+  `Selection.getComposedRanges`); `runtime/css-anchors.js` (`anchor-scope`) and the
+  Page Map toggle in `styles/chrome.css` (anchor positioning).
+- **Compatibility checked 2026-10-14:** `hidden="until-found"` and `beforematch`
+  support Chrome 102+, Firefox 139+ and Safari 26.2+; `getComposedRanges` Chrome
+  137+, Firefox 142+ and Safari 17+; `anchor-name` Chrome 125+ and `anchor-scope`
+  Chrome 131+, both Firefox 147+ and Safari 26+, according to
+  [MDN's compatibility data](https://github.com/mdn/browser-compat-data) 8.1.5.
+  It marks Safari's `until-found` partial: find-in-page reveals the match but
+  [does not scroll to it correctly](https://webkit.org/b/304174).
+- **Observed:** installed Playwright Chromium 153.0.8010.12, Firefox 155 and
+  WebKit 26.6 each expose `onbeforematch`, `getComposedRanges`, `anchor-name` and
+  `anchor-scope`.
+- **Disposition:** adopted without a fallback. An engine without `until-found`
+  reads the unknown value as plain `hidden`, which is what the removed check chose.
+
 ## Known gaps
 
 ### Intrinsic block retirement motion
@@ -565,3 +584,23 @@ document, and the runtime relies on it (next entry).
   `--t`, a `position: fixed` box with `position-anchor: --t; top: anchor(top)`
   after it, and a document tall enough to scroll; scroll the document and the panel
   and compare the two rectangles' tops.
+
+### Native reveal bounded to its scroller
+
+- **Disposition: worked around in Leaf.** Leaf reveals an item inside one box
+  through `scrollIntoView(node, {within})` in `runtime/landing-scroll.js`, which
+  moves only that box and the boxes inside it, in all three engines (Chromium 153,
+  Firefox 155, WebKit 26.6, checked 2026-10-14 on a stuck tab strip and a contents
+  outline). Revisit if every engine honours `container` and Leaf's walk could
+  hand the bounded case to it.
+- **Affected:** a tab strip, contents outline or page map list bringing its item
+  into view while the page stays where the user reads.
+- **Observed, 2026-10-14:** `scrollIntoView({block: "nearest", inline: "nearest",
+  container: "nearest"})` on a button in a sideways strip whose foot stands 1 px
+  below its scroller's band scrolls the strip alone in Chromium 153 and WebKit 26.6,
+  and the outer scroller by 2 px as well in Firefox 155, whether the outer scroller
+  is the root or a nested box. An earlier check on another page also saw WebKit
+  scroll the outer box.
+- **Recheck:** a 600 px scroller holding a 300 px `overflow-x: auto` strip of
+  twenty 120 px buttons; scroll so the strip's foot is just past the band, call
+  the native reveal on the sixteenth button, and read both scroll offsets.

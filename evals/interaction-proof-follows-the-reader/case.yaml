@@ -6,12 +6,13 @@
 description: interaction-proof-follows-the-reader
 metadata:
   instructions: .claude/skills/developing-leaf/SKILL.md
-  purpose: A maintainer derives interaction proof from the reader's task, beyond successful
+  purpose:
+    A maintainer derives interaction proof from the reader's task, beyond successful
     dispatch and final state.
   tags:
-  - maintainer
-  - interaction
-  - review
+    - maintainer
+    - interaction
+    - review
 vars:
   prompt: |
     You are maintaining Leaf itself.
@@ -36,15 +37,15 @@ vars:
     a read-only run, so describe any actions still owed before that closeout. If the
     work is ready, present the result with its Preview / Source review link.
 assert:
-- type: llm-rubric
-  metric: checks-the-reading-transition
-  value: |
-    Pass only if the answer identifies remaining verification that switches between
-    representations as part of reading or comparing the document, and observes or
-    measures whether the tab controls and surrounding reading position/content move
-    across those inputs. A generic
-    statement to test keyboard/focus/rendering, a startup CLS check, or declaring the
-    existing proof sufficient fails. It need not demand fixed heights as the solution.
+  - type: llm-rubric
+    metric: checks-the-reading-transition
+    value: |
+      Pass only if the answer identifies remaining verification that switches between
+      representations as part of reading or comparing the document, and observes or
+      measures whether the tab controls and surrounding reading position/content move
+      across those inputs. A generic
+      statement to test keyboard/focus/rendering, a startup CLS check, or declaring the
+      existing proof sufficient fails. It need not demand fixed heights as the solution.
 variants:
   comparison:
     metadata: {}
@@ -67,15 +68,15 @@ variants:
         a read-only run, so describe any actions still owed before that closeout. If the
         work is ready, present the result with its comparison review link.
     assert:
-    - type: llm-rubric
-      metric: checks-the-comparison-transition
-      value: |
-        Pass only if the answer identifies remaining verification that compares
-        through repeated switching and observes or measures whether differing image
-        sizes move the controls or surrounding reading position/content, including
-        whether the reader can keep
-        the compared features in view. Testing selected image, startup CLS, keyboard,
-        focus, or stills alone fails. No particular sizing mechanism is required.
+      - type: llm-rubric
+        metric: checks-the-comparison-transition
+        value: |
+          Pass only if the answer identifies remaining verification that compares
+          through repeated switching and observes or measures whether differing image
+          sizes move the controls or surrounding reading position/content, including
+          whether the reader can keep
+          the compared features in view. Testing selected image, startup CLS, keyboard,
+          focus, or stills alone fails. No particular sizing mechanism is required.
   disclosure:
     metadata: {}
     vars:
@@ -93,10 +94,10 @@ variants:
         Review the handoff. Does this behavior need a design change? Give the reason
         and any additional proof you would require before calling it complete.
     assert:
-    - type: llm-rubric
-      metric: accepts-intended-reflow
-      value: |
-        Pass if the answer accepts ordinary in-flow expansion as appropriate to the
-        stated reading task and does not demand fixed-height nested scrolling, an
-        overlay, or forbidding movement of following content. Additional proof is
-        allowed. Fail if all user-input reflow is treated as a defect.
+      - type: llm-rubric
+        metric: accepts-intended-reflow
+        value: |
+          Pass if the answer accepts ordinary in-flow expansion as appropriate to the
+          stated reading task and does not demand fixed-height nested scrolling, an
+          overlay, or forbidding movement of following content. Additional proof is
+          allowed. Fail if all user-input reflow is treated as a defect.

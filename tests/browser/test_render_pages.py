@@ -63,6 +63,7 @@ from render_harness import (
     TOKEN,
     consume_browser_errors,
     held_frames,
+    http_error_console,
     leaf_page,
     margins_laid_out,
     nudge,
@@ -124,6 +125,10 @@ def test_sort_film_readout_and_narration(browser, serve):
     """Changing step numbers hold their space, and narration renders inline Markdown."""
     example = next(path for path in EXAMPLES if path.stem == "rust-sort")
     page = open_page(browser, serve(example))
+    assert (
+        "collapse(): merge when a clause is true"
+        in page.locator("#sort-film svg[role='img']").text_content()
+    )
     readings = page.evaluate(
         """async () => {
           const imports = JSON.parse(document.querySelector('script[type="importmap"]').textContent).imports;
@@ -3238,7 +3243,7 @@ def test_a_page_refuses_a_browser_that_never_had_the_link(browser, serve):
 
     assert schema_model.NO_KEY in page.locator("body").inner_text()
     # The refusal is the subject: a user without the key is answered 401.
-    consume_browser_errors(page, {"code": "failed-load", "status": 401})
+    consume_browser_errors(page, http_error_console(401))
 
 
 @pytest.mark.parametrize(

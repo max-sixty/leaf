@@ -4,9 +4,9 @@ metadata:
   purpose: Read current content, decisions and hidden surfaces; distinguish unavailable
     viewer state.
   tags:
-  - workflow
+    - workflow
   conditions:
-  - leaf
+    - leaf
   executor: leaf_dev.usability_eval
   scenario: reading
 variants:

@@ -213,11 +213,12 @@ def build() -> str:
         stem = source.stem
         text = source.read_text(encoding="utf-8")
         parsed = SourceDocument(text)
-        if parsed.css.strip():
-            css = "\n".join(line.rstrip() for line in parsed.css.splitlines())
-            authored_assets.append(
-                f"<!-- {source.name} authored styles -->\n<style>{css}</style>"
-            )
+        for sheet in parsed.style_blocks:
+            if sheet["css"].strip():
+                css = "\n".join(line.rstrip() for line in sheet["css"].splitlines())
+                authored_assets.append(
+                    f"<!-- {source.name} authored styles -->\n<style>{css}</style>"
+                )
         authored_assets.extend(
             f"<!-- {source.name} authored script -->\n<script"
             + "".join(

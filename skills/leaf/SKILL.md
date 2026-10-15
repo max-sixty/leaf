@@ -28,29 +28,9 @@ $ARGUMENTS
   `references/conversation-loop.md`, "The On lists", says how to register each
   kind and when to reconcile the lists.
 
-## Core principles
+## Purpose and principles
 
-- **Responsive.** Responding to the user comes first, ahead of the work itself.
-- **Playable.** Using Leaf should feel like playing a game. The user sees at a
-  glance what each view wants of them, every state they reach offers a move, and
-  a move the page can draw shows its result at once. Test a draft by reading only
-  its headings, pictures and controls, the way a player takes in a board. If that
-  leaves a view's point or move unclear, the view describes in words something it
-  should draw or let the user do.
-- **Concrete.** Show the user the thing they are judging, not a description of
-  it: an interface as it looks, a behavior running, a mechanism or proposal as a
-  drawing, a numeric relationship as a chart, wording as the text itself. Show
-  code as text only when its wording is what the user judges. When they judge
-  what code does, such as what it draws, overrides or calls, show that effect.
-  Whatever the user would have to picture from your words to judge, show
-  instead. Each option of an ask shows what choosing it gives them. Use words
-  for what the thing can't show: the claim, the reason, the cost.
-- **Current.** The page shows where the work stands now, not how it got there
-  ("Keep the user current").
-- **Personalized.** The user's word decides the page's content and presentation.
-  Leaf's defaults apply only where they have said nothing.
-- **Extensible.** Leaf has a small core and default packages. Independently
-  authored packages use the same declared interfaces as the defaults.
+Read [SOUL.md](SOUL.md) before authoring or responding on a Leaf page.
 
 ## Operate
 
@@ -75,13 +55,6 @@ line for each refusal or note, with the words in `error` or `text`.
 2. Read all of `references/page-authoring.md`, then each reference the page
    needs, listed under "Author a version" below. Choose elements and class idioms
    from the registry as it says, and read their examples and instructions first.
-   Show each view's subject as **Concrete** says, so the page carries pictures:
-   drawings, captures, charts or the thing running. Put the picture in the view
-   that needs it; one on another page or in another section shows the user
-   nothing while they judge this view. A draft of only prose, tables, lists and
-   code is describing what it should show, unless the user is judging the words,
-   exact values or reasons themselves, as in a text edit, a message, a lookup table
-   or the case for a refactor.
    Write `<page>/index.html` in the registry's vocabulary. Each valid save
    becomes the live immutable revision. An invalid save leaves the last valid one
    live and reports the error in page state and the browser. You write
@@ -139,8 +112,8 @@ the page and answer the user.
 Unless the user sets the page's shape or depth, a Leaf page is a short sequence
 of visually distinct, self-contained views. Each view makes one point, shows one
 state or offers one move, so the user takes it in at a glance and moves on;
-disclosures hold supporting detail out of that path. Each view shows its subject
-as **Concrete** says (`references/page-authoring.md`, "Show the subject").
+disclosures hold supporting detail out of that path. `references/page-authoring.md`,
+"Show the subject", applies SOUL.md’s "Make the work concrete and playable" principle.
 
 The page's shape follows the subject: prose read in order, regions read side by
 side on a sidebar page, or a workspace the user moves through instead of
@@ -154,22 +127,9 @@ resolutions and sign-offs can be undone; sent words stay in the log.
 
 ## Keep the user current
 
-By default the page is the shared canvas and current record of the subject.
-Whenever the user returns, it should be the page you would write today from what
-you now know. Its title, lede and headings say what is true now. The column holds
-the open work and open questions, led by what waits on the user and what comes
-next. Finished work, cut to its outcome, sits collapsed after them or on its own
-tab, so the user finds each outcome without reconstructing a thread or chat. The
-banner says what you are doing now; threads carry discussion and rationale.
-
-When work lands, a decision is made or your understanding changes, reread the
-whole page and write the page you would hand over now, instead of noting the
-change where its subject is mentioned. Lead with what is still open and what the
-change opens, such as the next piece of work or a decision it raises
-(`references/authoring-revisions.md`, "Keep the current page current", says how
-finished work leaves the column and how to keep user state). Correct wrong
-figures in place and remove superseded claims; the `page stamp` changelog and
-the event log keep the history. Save freely and stamp meaningful checkpoints.
+Follow `references/authoring-revisions.md`, "Keep the current page current", when
+work lands, a decision is made, or your understanding changes. That section owns
+how finished work leaves the column and how revisions preserve user state.
 
 ## Follow the user's preferences
 

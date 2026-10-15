@@ -390,9 +390,6 @@ describe("product-site delivery", () => {
           headers: {
             Cookie: `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board")}`,
             "Content-Type": "text/plain;charset=UTF-8",
-            "User-Agent":
-              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
-              "AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36",
           },
           body: JSON.stringify(startupReport()),
         }),
@@ -408,9 +405,6 @@ describe("product-site delivery", () => {
         reference: "318445474579",
         route: "/examples/triage-board",
         currentRelease: RELEASE,
-        browser: "chrome",
-        browserVersion: 140,
-        platform: "windows",
         presentedMs: 310,
         firstContentfulPaintMs: 115,
         upgradedMs: 180,
@@ -1828,9 +1822,6 @@ describe("page faults", () => {
           // A tab still on the release before a deploy, so the record tells the
           // document's release apart from the edge's.
           "Leaf-Release": "b".repeat(64),
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
-            "AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36",
         },
         body: JSON.stringify(body),
       }),
@@ -1864,8 +1855,6 @@ describe("page faults", () => {
         release: "b".repeat(64),
         currentRelease: RELEASE,
         revision: 3,
-        browser: "chrome",
-        platform: "windows",
       });
       expect(record.reason).toHaveLength(300);
       expect(record.reason.startsWith("syntax highlight failed: x")).toBe(true);

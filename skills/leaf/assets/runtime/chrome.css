@@ -37,7 +37,7 @@
     inset: 0;
     z-index: calc(var(--lf-z-banner) - 1);
     pointer-events: none;
-    filter: drop-shadow(0 12px 14px color-mix(in srgb, var(--shade) 70%, transparent)) drop-shadow(0 1px 1px color-mix(in srgb, var(--shade) 30%, transparent));
+    filter: drop-shadow(var(--raise-2));
   }
   .lf-fp-ring,
   .lf-fp-fill {
@@ -98,7 +98,6 @@
   :where(.lf-floating-panel) :is(button, input, textarea, .lf-fp-on-item):focus-visible {
     outline: var(--focus-ring);
     outline-offset: -2px;
-    --lf-focus-ring: floating-panel;
   }
   .lf-floating-panel .lf-action-icon {
     width: 16px;
@@ -444,12 +443,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .lf-fp-title[data-unseen] {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    clip-path: inset(50%);
-  }
   .lf-fp-back {
     flex: none;
     min-height: 0;
@@ -600,7 +593,7 @@
     padding: 0 12px 0 8px;
     border-radius: 14px;
     background: var(--lf-fp-surface);
-    box-shadow: 0 0 0 1px var(--lf-fp-ring), 0 4px 10px -6px var(--shade);
+    box-shadow: 0 0 0 1px var(--lf-fp-ring), var(--raise-1);
     color: var(--ink);
     font-size: 12px;
   }
@@ -850,7 +843,7 @@
     box-sizing: border-box;
     border-radius: var(--lf-fp-radius);
     background: var(--lf-fp-surface);
-    box-shadow: 0 0 0 1px var(--lf-fp-ring), 0 12px 24px -12px var(--shade);
+    box-shadow: 0 0 0 1px var(--lf-fp-ring), var(--raise-2);
   }
   .lf-floating-panel:not([data-menu]) .lf-fp-menu {
     display: none;
@@ -913,7 +906,7 @@
     padding: 6px 10px;
     border-radius: 8px;
     background: var(--lf-fp-surface);
-    box-shadow: 0 0 0 1px var(--lf-fp-ring), 0 8px 20px -10px var(--shade);
+    box-shadow: 0 0 0 1px var(--lf-fp-ring), var(--raise-1);
     color: var(--lf-fp-muted);
     font-size: 12px;
     pointer-events: none;
@@ -1023,27 +1016,30 @@
   opacity: 0;
   pointer-events: none;
 }
-.lf-skip[data-lf-focus] {
-  opacity: 1;
-  pointer-events: auto;
+:is(.lf-skip, .lf-visual-action)[data-lf-focus] {
   position: fixed;
-  z-index: var(--lf-z-escaped-control);
   top: calc(var(--lf-banner-h) + 6px);
   left: 8px;
   width: auto;
   height: auto;
   min-height: var(--aim-floor);
+  max-width: calc(100vw - 16px);
   padding: 6px 10px;
   overflow: visible;
   clip-path: none;
+  pointer-events: auto;
+  white-space: normal;
   outline: var(--focus-ring);
-  --lf-focus-ring: skip;
   outline-offset: calc(-1 * var(--focus-ring-w));
   border: 1px solid var(--accent);
   border-radius: var(--r);
   background: var(--card);
   color: var(--ink);
-  box-shadow: 0 8px 24px var(--shade);
+  box-shadow: var(--raise-2);
+}
+.lf-skip[data-lf-focus] {
+  opacity: 1;
+  z-index: var(--lf-z-escaped-control);
 }
 :is(button, [role=button])[aria-busy=true] {
   animation: lf-runtime-4f3c2a8d-working 140ms linear 200ms both;
@@ -1094,7 +1090,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
 }
 [data-lf-ask] {
   outline: var(--lf-ask-ring, var(--focus-ring));
-  --lf-focus-ring: ask;
   outline-offset: var(--focus-ring-gap);
   scroll-margin-block: var(--focus-ring-room);
 }
@@ -1146,27 +1141,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-visual-action {
     pointer-events: none;
   }
-  .lf-visual-action[data-lf-focus] {
-    position: fixed;
-    top: calc(var(--lf-banner-h) + 6px);
-    left: 8px;
-    width: auto;
-    height: auto;
-    max-width: calc(100vw - 16px);
-    padding: 6px 10px;
-    overflow: visible;
-    clip-path: none;
-    pointer-events: auto;
-    white-space: normal;
-    border: 1px solid var(--accent);
-    border-radius: var(--r);
-    background: var(--card);
-    color: var(--ink);
-    box-shadow: 0 8px 24px var(--shade);
-    outline: var(--focus-ring);
-    --lf-focus-ring: visual-target;
-    outline-offset: calc(-1 * var(--focus-ring-w));
-  }
   :scope,
   .lf-legend {
     position: static;
@@ -1210,10 +1184,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     --lf-shape-stroke: var(--target-trace-w);
     --lf-shape-dash: none;
   }
-  .lf-target-trace.lf-shaped {
-    border: 0;
+  .lf-shaped {
+    border: 0 !important;
     border-radius: 0 !important;
-    background: none;
+    background: none !important;
   }
   .lf-target-trace-shape {
     display: block;
@@ -1423,7 +1397,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-banner > .lf-status-queues[data-lf-focus] {
     outline: var(--focus-ring);
     outline-offset: 2px;
-    --lf-focus-ring: status;
   }
   .lf-status-button:hover {
     color: var(--ink);
@@ -1431,7 +1404,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-status-button[data-lf-focus] {
     outline: var(--focus-ring);
     outline-offset: 2px;
-    --lf-focus-ring: status;
   }
   .lf-status-text {
     color: inherit;
@@ -1444,27 +1416,19 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-status-detail {
     --lf-banner-panel-gap: 8px;
-    position: fixed;
     left: calc(14px + var(--lf-safe-left));
     right: auto;
-    bottom: auto;
-    margin: 0;
     width: min(420px, calc(100vw - 28px));
     max-height: calc(100dvh - var(--lf-banner-h) - 24px);
     overflow: auto;
     padding: 14px 16px;
-    border: 1px solid var(--border-2);
-    border-radius: var(--r);
-    background: var(--card);
     color: var(--ink-2);
-    box-shadow: 0 8px 24px var(--shade);
     white-space: normal;
     overflow-wrap: anywhere;
   }
   .lf-status-detail[data-lf-focus] {
     outline: var(--focus-ring);
     outline-offset: 2px;
-    --lf-focus-ring: status-detail;
   }
   .lf-status-text:has(.lf-publication-install) {
     display: flex;
@@ -1484,7 +1448,24 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     flex: none;
   }
   :is(.lf-banner-menu, .lf-version-menu, .lf-status-detail) {
+    position: fixed;
     top: calc(var(--lf-banner-h) + var(--lf-banner-panel-gap, 6px));
+    bottom: auto;
+    margin: 0;
+    background: var(--card);
+    border: 1px solid var(--border-2);
+    border-radius: var(--r);
+    box-shadow: var(--raise-2);
+  }
+  :is(.lf-banner-menu, .lf-version-menu) {
+    position-anchor: --lf-banner-more;
+    right: anchor(right);
+    left: auto;
+    display: none;
+    padding: 4px;
+    max-height: calc(100dvh - var(--lf-banner-h) - 20px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
   .lf-btn.lf-auxiliary-toggle[aria-expanded=true] {
     border-color: transparent;
@@ -1512,26 +1493,11 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     background: var(--accent);
   }
   .lf-banner-menu {
-    position: fixed;
-    position-anchor: --lf-banner-more;
-    right: anchor(right);
-    left: auto;
-    bottom: auto;
-    margin: 0;
-    display: none;
     flex-direction: column;
     align-items: stretch;
     gap: 1px;
     box-sizing: border-box;
     width: min(280px, calc(100vw - 16px));
-    max-height: calc(100dvh - var(--lf-banner-h) - 20px);
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    background: var(--card);
-    border: 1px solid var(--border-2);
-    border-radius: var(--r);
-    box-shadow: 0 8px 24px var(--shade);
-    padding: 4px;
   }
   .lf-banner-menu:popover-open {
     display: flex;
@@ -1635,25 +1601,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     }
   }
   .lf-version-menu {
-    position: fixed;
-    position-anchor: --lf-banner-more;
-    right: anchor(right);
-    bottom: auto;
-    left: auto;
-    margin: 0;
-    display: none;
     grid-template-columns: 1fr auto;
     align-items: start;
     min-width: anchor-size(width);
     max-width: min(360px, calc(100vw - 16px));
-    max-height: calc(100dvh - var(--lf-banner-h) - 20px);
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    background: var(--card);
-    border: 1px solid var(--border-2);
-    border-radius: var(--r);
-    box-shadow: 0 8px 24px var(--shade);
-    padding: 4px;
   }
   .lf-version-menu:popover-open {
     display: grid;
@@ -1683,7 +1634,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-version-row[data-lf-focus] {
     outline: var(--focus-ring);
-    --lf-focus-ring: version-row;
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
   .lf-version-row[aria-current] .lf-version-num {
@@ -1719,7 +1669,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-version-diff[data-lf-focus] {
     outline: var(--focus-ring);
-    --lf-focus-ring: version-diff;
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
   .lf-version-diff[aria-checked=true] {
@@ -1827,7 +1776,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-others-row[data-lf-focus] {
     outline: var(--focus-ring);
-    --lf-focus-ring: others-row;
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
   .lf-others-head {
@@ -1909,7 +1857,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-queue-row:is([data-lf-focus], [data-lf-ask]),
   .lf-queue-done > summary[data-lf-focus] {
     outline: var(--focus-ring);
-    --lf-focus-ring: queue-row;
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
   .lf-queue-kind {
@@ -2026,7 +1973,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-edge[data-lf-focus] {
     outline: var(--focus-ring);
-    --lf-focus-ring: edge;
     outline-offset: 0;
   }
   .lf-thread-panel-head,
@@ -2200,7 +2146,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-threads-frame:has(> .lf-threads[data-lf-focus])::after {
     outline: var(--focus-ring);
-    --lf-focus-ring: thread-list;
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
   .lf-empty {
@@ -2302,7 +2247,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-thread-summary[data-lf-focus] {
     outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-w));
-    --lf-focus-ring: thread-summary;
   }
   .lf-thread-topic {
     grid-column: 1;
@@ -2507,7 +2451,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-quote[data-lf-focus] {
     outline: var(--focus-ring);
-    --lf-focus-ring: passage-focus;
     outline-offset: 2px;
   }
   .lf-thread-head > .lf-quote:not(.detached)::after {
@@ -2545,15 +2488,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-quote-expand[aria-expanded=true]::before {
     content: "▾";
   }
-  .lf-unseen {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    border: 0;
-    overflow: hidden;
-    clip-path: inset(50%);
-  }
   .lf-msg.lf-unread {
     border-image: linear-gradient(var(--accent), var(--accent)) 0 0 0 1 / 0 0 0 2px / 0 0 0 6px;
   }
@@ -2588,7 +2522,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-thread-action[data-lf-focus] {
     outline: var(--focus-ring);
-    --lf-focus-ring: thread-action;
     outline-offset: 2px;
   }
   .lf-general > .lf-composer-media {
@@ -2608,6 +2541,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   :is(.lf-fab-bar, .lf-margin-preview) {
     --lf-comment-inset: 12px;
+    --lf-comment-frame-inline: calc(var(--lf-comment-inset) + 1px);
     --lf-comment-foot-gap: var(--sp-3);
     --lf-comment-frame-top: calc(1px + var(--lf-comment-inset) + var(--lf-msg-head-height) + var(--lf-msg-body-gap));
     --lf-comment-reply-row: calc(var(--lf-comment-foot-gap) + var(--lf-compose-h) + 2px);
@@ -2622,11 +2556,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     --lf-shape-dash: none;
     border: 2px solid var(--accent);
     background: color-mix(in srgb, var(--accent) 8%, transparent);
-  }
-  .lf-aim.lf-shaped {
-    border: 0;
-    border-radius: 0 !important;
-    background: none;
   }
   .lf-aim-shape {
     display: block;
@@ -2681,7 +2610,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     background: var(--card);
     border: 1px solid var(--border-2);
     border-radius: var(--r);
-    box-shadow: 0 12px 32px var(--shade);
+    box-shadow: var(--raise-3);
     padding: 14px 18px;
   }
   .lf-command-reference.open {
@@ -2767,7 +2696,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-media-viewer .pswp__img {
     outline: 1px solid var(--border-2);
-    box-shadow: 0 8px 24px var(--shade);
+    box-shadow: var(--raise-2);
   }
   .lf-media-viewer .pswp {
     position: absolute;
@@ -2930,7 +2859,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-command-reference-command[data-lf-focus] {
     outline: var(--focus-ring);
-    --lf-focus-ring: help-command;
     outline-offset: 1px;
   }
   .lf-page-map-toggle {
@@ -2994,7 +2922,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-page-map-action[data-lf-focus] {
     outline: var(--focus-ring);
-    --lf-focus-ring: page-map-action;
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
   .lf-page-map-dialog {
@@ -3009,7 +2936,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     border-radius: 12px;
     background: var(--paper);
     color: var(--ink);
-    box-shadow: 0 18px 54px var(--shade);
+    box-shadow: var(--raise-3);
   }
   .lf-page-map-dialog[open] {
     display: flex;
@@ -3050,11 +2977,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   @media screen {
     :scope:is([data-lf-rail-covered], [data-lf-pins]) .lf-page-map-toggle {
-      display: inline-flex;
-    }
-  }
-  @supports not (anchor-name: --lf-page) {
-    .lf-page-map-toggle {
       display: inline-flex;
     }
   }
@@ -3245,7 +3167,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-shortcut-more[data-lf-focus] {
     outline: var(--focus-ring);
-    --lf-focus-ring: key-more;
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
   .lf-key-chips > .lf-paint-stand[data-lf-paint-plane=page] {
@@ -3284,7 +3205,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   :is(.lf-target-picker-hints, .lf-go-to-hints) .lf-key-hint.lf-current {
     font-weight: 700;
-    --lf-focus-ring: target-hint;
     box-shadow: var(--focus-shadow);
   }
   .lf-page-search-match {
@@ -3304,7 +3224,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     width: min(390px, calc(100vw - 28px));
     box-sizing: border-box;
     border-radius: var(--r);
-    box-shadow: 0 8px 24px var(--shade);
+    box-shadow: var(--raise-2);
   }
   .lf-page-search-status {
     min-width: 0;

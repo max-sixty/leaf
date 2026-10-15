@@ -151,6 +151,11 @@ representative desktop viewport.
   dashed line marks a distinct state, such as a draft or a drag placeholder. One
   contour shows one control state, and a segmented group shares one-pixel seams. Avoid
   rounded one-sided borders and reflexive cards, tints, gradients and soft shadows.
+- **A face used twice is a token or a shared rule**, and a rule names it rather than
+  spelling it out. A lift names one of the theme's three heights, `--raise-1` to
+  `--raise-3` (`styles/theme.css`, beside `--shade`); boxes that wear one face, such as
+  the chip a focused skip link and picture proxy show under the banner, share one rule.
+  Check: `test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink`.
 - **Each thread's `unread` and `attention` are computed once**, and every surface that
   paints them uses that value, so the Threads toggle, filters, panel, margin entry and
   Page Map change together. Green marks the user's turn; other thread controls stay
@@ -286,6 +291,11 @@ questions in script names in its header the requirement the feature can't meet a
 case that shows it; without that reason, the change doesn't land. The same holds for
 patching a built-in prototype or a dependency's internals.
 
+Feature-detect only what a current stable engine lacks, and name that engine beside
+the check (`// Firefox lacks ScrollTimeline.`), so the check goes when the engine ships
+it. Call an API every engine ships directly, with no fallback, and record the check in
+`notes/browser-support.md`.
+
 Two script answers already exist. `focus.js` sets `data-lf-focus` and
 `data-lf-focus-within`, because native `:focus` also matches retargeted shadow hosts
 and a held label press; style focus with those attributes. `geometry.js` decides
@@ -374,7 +384,8 @@ adds its row. Rows marked *lint* are enforced in `eslint.config.mjs`.
 | Whether the reader or layout chose a box's scroll position | `scrolling.js` `chosenSince`, `placeKept` |
 | The page's `main` | `passages.js` `pageDocument` |
 | Whether a place is already shown, and the space a landing needs | `landing-scroll.js` `alreadyShown`, `landingRoom` |
-| Bring something into view without scrolling the page around it | `landing-scroll.js` `scrollIntoView` (*lint*) |
+| Bring something into view without scrolling the page around it, or only inside one box (its `within`) | `landing-scroll.js` `scrollIntoView` (*lint*) |
+| Move a box to its end, or by an amount | `scrolling.js` `scrollToEnd`, `moveScrollerBy` (*lint*) |
 | Open or close a native modal or popover | `keyboard/layer-stack.js` `showNativeLayer`, `closeNativeLayer` (*lint*) |
 | Whether a node is, or is inside, an open native layer, and of which kind | `shadow-tree.js` `nativeLayerKind`, `isNativeLayer`, `nativeLayerHolding` (*lint*) |
 | Which native layers are open, in opening order, and whether a modal admits a node | `keyboard/layer-stack.js` `nativeLayers`, `nativeModalAdmits` |

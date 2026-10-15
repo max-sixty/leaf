@@ -232,7 +232,11 @@ def sample_errors(
 
 def _presentation_errors(parser) -> list[Finding]:
     """Validate the page's own CSS: its <style> and each inline style."""
-    errors = list(css_syntax_errors(parser.css, "page <style>"))
+    errors = []
+    for sheet in parser.style_blocks:
+        errors.extend(
+            css_syntax_errors(sheet["css"], f"page <style> (line {sheet['line']})")
+        )
     for inline in parser.inline_styles:
         errors.extend(
             css_syntax_errors(inline["style"], inline_style_at(inline), block=True)
@@ -244,22 +248,9 @@ def _source_advice(
     parser,
     registry: dict | None,
     stored_data: dict,
-    revision: PredecessorReading,
-    dropped_ids: list[str],
 ) -> list[Finding]:
     """Report non-blocking drift after every error-producing phase has run."""
     return [
-        *(
-            [
-                Finding(
-                    "dropped-ids",
-                    values={"revision": revision.predecessor, "ids": dropped_ids},
-                    severity="advice",
-                )
-            ]
-            if dropped_ids
-            else []
-        ),
         *measurement_lag(parser.lf_elements, registry or {}, stored_data),
         *(
             Finding(
@@ -324,16 +315,7 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
         except ArtifactError as error:
             errors.append(Finding("capture-failed", values={"error": str(error)}))
     revision = predecessor_reading(page_dir, data, events, artifact)
-
-    dropped_advice = sorted(revision.previous.document.ids - document.ids)
-
-    advice = _source_advice(
-        document,
-        registry,
-        stored_data,
-        revision,
-        dropped_advice,
-    )
+    advice = _source_advice(document, registry, stored_data)
     reanchors, anchor_advice = revision_reanchors(
         events, reading, revision, candidate_revision=revision.candidate
     )

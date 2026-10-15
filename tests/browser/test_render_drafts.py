@@ -63,6 +63,7 @@ from render_harness import (
     hold_pending_thread_presentation,
     hold_selection,
     holding,
+    http_error_console,
     leaf_page,
     open_page,
     page_comment,
@@ -2056,7 +2057,7 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
         {"value": sent},
         {"value": "Keep the revised unsent words."},
     ]
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(page, http_error_console(400))
 
 
 def test_one_shared_draft_edit_appends_one_action_across_tabs(browser, serve, one_user):
@@ -2137,11 +2138,6 @@ def test_one_shared_added_option_has_one_action_payload_across_tabs(
     round_trip(first)
     # The forged selection is not the state's, so the `add` renders it away and the pick
     # that follows in the same task puts it back.
-    consume_browser_errors(
-        first,
-        {"code": "unchanged-write", "what": "chosen", "node": "lf-option#job-mounts"},
-    )
-
     moves = [
         event
         for event in events_model.read_events(serve.page_dir)
@@ -2259,7 +2255,7 @@ def test_a_refused_selection_comment_leaves_the_words_on_their_passage(
         for event in events_model.read_events(serve.page_dir)
         if event.get("text") == words
     ]
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(page, http_error_console(400))
 
 
 def test_a_refused_selection_comment_reopens_its_words_while_the_send_owns_intent(
@@ -2294,7 +2290,7 @@ def test_a_refused_selection_comment_reopens_its_words_while_the_send_owns_inten
     expect(page.locator(".lf-notice")).to_have_text(
         "Couldn't send — refused before append"
     )
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(page, http_error_console(400))
 
 
 def test_a_refused_selection_comment_written_past_is_where_resume_writing_goes(
@@ -2336,7 +2332,7 @@ def test_a_refused_selection_comment_written_past_is_where_resume_writing_goes(
     expect(page.locator(".lf-fab-input")).to_be_focused()
     expect(page.locator(".lf-fab-input")).to_have_js_property("value", words)
     assert stored_draft_text(page, "general") == later
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(page, http_error_console(400))
 
 
 @pytest.mark.parametrize("reply_sent", [True, False], ids=["sent", "unsent"])
@@ -2429,7 +2425,7 @@ def test_a_reply_under_a_refused_parent_comes_back_with_it(
     # went, which is what the guard's report is about.
     consume_browser_errors(
         page,
-        {"code": "failed-load", "status": 400},
+        http_error_console(400),
         *([] if reply_sent else [{"code": "words-left-screen", "words": reply}]),
     )
 
@@ -2492,7 +2488,7 @@ def test_a_refused_comments_reply_travels_with_it_to_another_passage(
     assert sent["anchor"]["section"] == "p5"
     thread = page.locator(f'.lf-thread[data-id="{sent["id"]}"]')
     expect(thread.locator("leaf-text").first).to_have_js_property("value", reply)
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(page, http_error_console(400))
 
 
 def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
@@ -2547,7 +2543,7 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
         for event in events_model.read_events(serve.page_dir)
         if event.get("text") == words
     ]
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(page, http_error_console(400))
 
 
 def test_every_message_send_says_so_to_a_user_listening(held_events, serve):
@@ -3360,7 +3356,11 @@ def test_a_late_refusal_cannot_restore_an_attempt_another_tab_settled(
             )
         expect(first.locator(".lf-notice")).to_contain_text("Couldn't send")
         expected_error = Finding(
-            "failed-load", values={"status": 400, "url": refused.value.url}
+            "console-error",
+            values={
+                "text": "Failed to load resource: the server responded with a status of 400 (Bad Request)",
+                "url": refused.value.url,
+            },
         )
         first_errors = first.lf_errors
         first_errors.remove(expected_error)
@@ -5308,8 +5308,7 @@ def test_registered_control_keys_activate_once(browser, serve):
           const hs = getComputedStyle(host), es = getComputedStyle(editor);
           return {
             host: {outline: hs.outlineStyle, width: parseFloat(hs.outlineWidth)},
-            editor: {outline: es.outlineStyle, shadow: es.boxShadow,
-                     ring: es.getPropertyValue('--lf-focus-ring').trim()},
+            editor: {outline: es.outlineStyle, shadow: es.boxShadow},
           };
         }"""
     )
@@ -5318,7 +5317,6 @@ def test_registered_control_keys_activate_once(browser, serve):
     assert focus_paint["editor"] == {
         "outline": "none",
         "shadow": "none",
-        "ring": "none",
     }, "the draft's one editing surface acquired a second focus box"
     page.emulate_media(forced_colors="active")
     forced = page.locator("#draft-ops").evaluate(
@@ -6314,7 +6312,7 @@ def test_first_draft_save_and_refusal_keep_the_local_editor_controls(browser, se
     expect(draft_control(page, "retry", "first-draft")).to_be_visible()
     expect(draft_control(page, "cancel", "first-draft")).to_be_visible()
     assert page.locator("#following").bounding_box() == before
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(page, http_error_console(400))
 
 
 def test_draft_controls_survive_hiding_annotations_and_escape_discards(browser, serve):

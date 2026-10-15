@@ -138,6 +138,7 @@ import {
 import { rowWalk } from "./walk-position.js";
 import { sizeObserver } from "./rendering.js";
 import { scrollIntoView } from "./landing-scroll.js";
+import { moveScrollerBy, SCROLL_SLACK, scrollLimit, scrollToEnd } from "./scrolling.js";
 import { declareOccluder, declareWindowChrome } from "./geometry.js";
 import { agentName } from "./semantic-state.js";
 import { runtime } from "./context.js";
@@ -715,7 +716,7 @@ export function createFloatingPanel({
         (key) => message(key)?.ephemeral || message(key)?.provisional,
       ),
       extent: view.scrollHeight,
-      height: view.clientHeight,
+      limit: scrollLimit(view),
     };
     // What follows the user's last turn in what is drawn: the answer, as far as it has
     // come. Before, it held only work under way or a reply still streaming.
@@ -742,7 +743,7 @@ export function createFloatingPanel({
     // turn and the answer fit in the view, the end follows the answer into sight;
     // otherwise New reply says what waits below the fold, and leads to the reply itself
     // once one follows the work under way, as it takes over the press.
-    const atEnd = view.scrollTop + before.height >= before.extent - 1;
+    const atEnd = before.limit - view.scrollTop <= SCROLL_SLACK;
     const turn = outlet.querySelector(
       `.lf-msg[data-message="${CSS.escape(answer.turn)}"]`,
     );
@@ -754,7 +755,7 @@ export function createFloatingPanel({
       atEnd &&
       view.scrollHeight - view.scrollTop - from() <= view.clientHeight
     ) {
-      view.scrollTop = view.scrollHeight;
+      scrollToEnd(view);
       return;
     }
     const reply = answer.keys.find((key) => !message(key).ephemeral);
@@ -772,7 +773,7 @@ export function createFloatingPanel({
     const below = foot ? turn.getBoundingClientRect().bottom - foot.top : 0;
     const by = Math.min(Math.max(below, 0), from());
     if (Math.abs(by) < 0.5) return;
-    view.scrollTop += by;
+    moveScrollerBy(view, by);
     placed = view.scrollTop;
   }
   // Shows the answer waiting below the fold: its start comes into sight. The press that
@@ -1748,6 +1749,9 @@ export function createFloatingPanel({
     }
     const openThreads = threads().filter((candidate) => !candidate.resolved);
     const at = thread ? openThreads.indexOf(thread) : -1;
+    // On's name is its selected tab's, which the tabs beside it already show, so the
+    // heading names the view to assistive tech alone.
+    const titleClass = top.view === "queue" ? "lf-fp-title lf-quiet" : "lf-fp-title";
     const crumb =
       top.view === "threads" && searching
         ? html`<input
@@ -1773,9 +1777,7 @@ export function createFloatingPanel({
                     ><span class="lf-fp-sep" aria-hidden="true">/</span>`
                 : nothing
             }
-            <h2 class="lf-fp-title" ?data-unseen=${top.view === "queue"}>
-              ${titleOf(top)}
-            </h2>
+            <h2 class=${titleClass}>${titleOf(top)}</h2>
             ${
               at >= 0
                 ? html`<span class="lf-fp-where"
@@ -1866,7 +1868,7 @@ export function createFloatingPanel({
     );
     if (!view || (outletOf()?.childElementCount ?? 0) <= landAtEnd.after) return;
     landAtEnd = null;
-    view.scrollTop = view.scrollHeight;
+    scrollToEnd(view);
   }
   function paintNow() {
     const top = trail.at(-1) ?? null;

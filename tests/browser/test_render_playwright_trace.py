@@ -1161,7 +1161,7 @@ def test_trace_comparison_prepaint_shows_only_its_opening_recording(browser, ser
             opening: child.hasAttribute('data-lf-opening'),
             drawn: child.checkVisibility()
         })),
-        reserved: parseFloat(getComputedStyle(node, '::before').height)
+        reserved: parseFloat(getComputedStyle(node.querySelector('lf-trace'), '::before').height)
     })""")
     assert len(before["children"]) == 2
     assert [child["drawn"] for child in before["children"]] == [
@@ -1214,6 +1214,24 @@ def test_trace_comparison_shows_each_wrapped_recording_in_one_place(browser, ser
     after = shown()
     assert after["top"] == before["top"], (before, after)
     assert [before["end"], after["end"]] == [before["foot"], after["foot"]]
+
+    # A source switch after inspecting a moment must keep the chooser reachable
+    # when its controls wrap. Moving its focused native radio into the other view
+    # before hiding the old one once scrolled that chooser above a short phone.
+    resized(user, 320, 520)
+    user.locator("#paired-after").get_by_role(
+        "button", name="Reviewed result", exact=False
+    ).click()
+    wait_until_ready(user)
+    before_radio = user.get_by_role("radio", name="Before", exact=True)
+    before_radio.click()
+    expect(user.locator("#paired-before")).to_be_visible()
+    expect(before_radio).to_be_focused()
+    expect(workspace.locator(".lf-trace-compare-controls")).to_be_in_viewport()
+    before_radio.press("ArrowRight")
+    expect(user.locator("#paired-after")).to_be_visible()
+    expect(user.get_by_role("radio", name="After", exact=True)).to_be_focused()
+    expect(workspace.locator(".lf-trace-compare-controls")).to_be_in_viewport()
 
 
 def test_trace_render_gate_restores_the_zoomed_time_window(browser, serve):

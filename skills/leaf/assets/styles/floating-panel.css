@@ -65,14 +65,14 @@
   }
 
   /* The surface: a layer over the whole window, cut to the box's outline by the
-     panel's script, with a ring a pixel outside it and one soft shadow around both. */
+     panel's script, with a ring a pixel outside it and one soft shadow around both,
+     cast at the height of what opens over the page. */
   .lf-fp-ground {
     position: fixed;
     inset: 0;
     z-index: calc(var(--lf-z-banner) - 1);
     pointer-events: none;
-    filter: drop-shadow(0 12px 14px color-mix(in srgb, var(--shade) 70%, transparent))
-      drop-shadow(0 1px 1px color-mix(in srgb, var(--shade) 30%, transparent));
+    filter: drop-shadow(var(--raise-2));
   }
   .lf-fp-ring,
   .lf-fp-fill {
@@ -134,7 +134,6 @@
   :where(.lf-floating-panel) :is(button, input, textarea, .lf-fp-on-item):focus-visible {
     outline: var(--focus-ring);
     outline-offset: -2px;
-    --lf-focus-ring: floating-panel;
   }
   .lf-floating-panel .lf-action-icon {
     width: 16px;
@@ -537,14 +536,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  /* On's name is its selected tab's, which the tabs beside it already show, so the
-     heading names the view to assistive tech alone. */
-  .lf-fp-title[data-unseen] {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    clip-path: inset(50%);
-  }
   .lf-fp-back {
     flex: none;
     min-height: 0;
@@ -715,7 +706,7 @@
     background: var(--lf-fp-surface);
     box-shadow:
       0 0 0 1px var(--lf-fp-ring),
-      0 4px 10px -6px var(--shade);
+      var(--raise-1);
     color: var(--ink);
     font-size: 12px;
   }
@@ -992,7 +983,7 @@
     background: var(--lf-fp-surface);
     box-shadow:
       0 0 0 1px var(--lf-fp-ring),
-      0 12px 24px -12px var(--shade);
+      var(--raise-2);
   }
   .lf-floating-panel:not([data-menu]) .lf-fp-menu {
     display: none;
@@ -1065,7 +1056,7 @@
     background: var(--lf-fp-surface);
     box-shadow:
       0 0 0 1px var(--lf-fp-ring),
-      0 8px 20px -10px var(--shade);
+      var(--raise-1);
     color: var(--lf-fp-muted);
     font-size: 12px;
     pointer-events: none;

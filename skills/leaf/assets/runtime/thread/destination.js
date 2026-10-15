@@ -114,7 +114,7 @@ export function createThreadDestinations({
       flash = true,
       scroll = true,
       intent = retainUserIntent(),
-      transition = null,
+      origin = null,
     } = {},
   ) {
     if (!intent()) return null;
@@ -230,7 +230,7 @@ export function createThreadDestinations({
       let opened = null;
       if (preview)
         intent.handoff(() => {
-          opened = preview.open(id, { transition });
+          opened = preview.open(id, { origin });
         });
       if (opened) {
         if (trip) {

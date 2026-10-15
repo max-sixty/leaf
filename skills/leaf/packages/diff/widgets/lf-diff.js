@@ -16,7 +16,10 @@
  * on every fix. A source's evidence commits together after open files load. Lazy
  * disclosure joins the pending source render before reading its evidence, and a closed file shows
  * none of the previous revision while it loads current evidence. Line conversations
- * follow the visible reader width while source lines may scroll horizontally. Passage reveal
+ * follow the visible reader width while source lines may scroll horizontally. Pierre's
+ * ResizeManager owns those column dimensions, including the gutter, and its declarations
+ * size the conversations; each file with a line conversation keeps one manager until
+ * its last conversation leaves. Passage reveal
  * clears this widget's file filter; addressed datum reveal also hydrates its file.
  * All file evidence is read and checked before any listing metadata appears;
  * closed files retain that parse and defer only textual rendering. Native
@@ -77,6 +80,7 @@ import {
   readDiffCoordinate,
 } from "./diff-coordinates.js";
 import "/vendor/webawesome.esm.js";
+import { pierre, markSyntax } from "/widgets/pierre.js";
 // Only a diff that is actually rendering has any use for Pierre's renderer —
 // an authored <lf-diff> bound to data
 // that has not arrived yet does not. So it is imported on first use rather than at
@@ -86,8 +90,6 @@ import "/vendor/webawesome.esm.js";
 // Metadata must be parsed before its row commits; unopened text needs no renderer.
 let parser = null;
 const parse = () => (parser ??= import("/vendor/pierre-parser.esm.js"));
-let renderer = null;
-const pierre = () => (renderer ??= import("/vendor/pierre-diffs.esm.js"));
 
 const OPTIONS = Object.freeze({
   diffStyle: "unified",
@@ -98,19 +100,6 @@ const OPTIONS = Object.freeze({
   lineDiffType: "word-alt",
   overflow: "scroll",
 });
-
-// Keep Pierre's Shiki styles intact. The marker lets the render gate inspect
-// themed glyphs without prescribing their colors or translating them into roles.
-function markSyntax(root, foreground) {
-  for (const token of root.querySelectorAll("span[style]"))
-    if (
-      (token.style.color && token.style.color !== foreground) ||
-      token.style.fontStyle ||
-      token.style.fontWeight ||
-      token.style.textDecoration
-    )
-      token.dataset.lfSyn = "";
-}
 
 // The records every source form renders from, in the shape of the contract's file
 // manifest. A patch text is parsed once, strictly, so a malformed hunk never becomes
@@ -311,24 +300,6 @@ function unwatchPathCut(details) {
   for (const part of pathParts(details)) pathSizes.unobserve(part);
 }
 
-// Conversations belong to the reader's visible code column, not its longest line.
-// Observe the two owners of that width only once a line conversation opens. Keeping
-// their measured dimensions on the reader also keeps a thread visible while code pans.
-const threadSizes = sizeObserver((entries) => {
-  const readers = new Set(
-    entries.map(({ target }) => target.closest("code[data-code]")),
-  );
-  const widths = [...readers].map((reader) => ({
-    reader,
-    gutter: reader.querySelector("[data-gutter]").getBoundingClientRect().width,
-    width: reader.clientWidth,
-  }));
-  for (const { reader, gutter, width } of widths) {
-    reader.style.setProperty("--lf-diff-gutter-width", layoutPx(gutter));
-    reader.style.setProperty("--lf-diff-thread-width", layoutPx(width - gutter));
-  }
-});
-
 function filePathTemplate({ path, previousPath }) {
   const name = path || "(unnamed file)";
   // The held-word presentation uses generated content, so it needs a soft break
@@ -502,6 +473,41 @@ function outletPlaces(content, rows, outlets) {
   return { lead, after };
 }
 
+// CSS anchors and focus can add shadow parts to rendered syntax spans. They are
+// presentation on the live row, not a change to the file's evidence.
+const runtimePart = /^lf-(?:a\d+|focus|focus-within)$/;
+const sameLineChildren = (held, wanted) =>
+  held.childNodes.length === wanted.childNodes.length &&
+  [...held.childNodes].every((child, index) =>
+    sameLineContent(child, wanted.childNodes[index]),
+  );
+function sameLineContent(held, wanted) {
+  if (held.nodeType !== wanted.nodeType) return false;
+  if (held.nodeType !== Node.ELEMENT_NODE) return held.nodeValue === wanted.nodeValue;
+  const attributes = (node, live) =>
+    [...node.attributes]
+      .map(({ name, value }) => [
+        name,
+        live && name === "part"
+          ? value
+              .split(/\s+/)
+              .filter((part) => !runtimePart.test(part))
+              .join(" ")
+          : value,
+      ])
+      .filter(
+        ([name, value]) => !(live && isPagePaint(name)) && (name !== "part" || value),
+      );
+  const left = attributes(held, true);
+  const right = attributes(wanted, false);
+  if (
+    left.length !== right.length ||
+    left.some(([name, value]) => right.find(([other]) => other === name)?.[1] !== value)
+  )
+    return false;
+  return sameLineChildren(held, wanted);
+}
+
 // A file's evidence goes under its kept disclosure, whose summary the record paints.
 function replaceFileContent(entry, rendered, pairs, outlets) {
   const restore = holdFileFocus(entry);
@@ -520,7 +526,12 @@ function replaceFileContent(entry, rendered, pairs, outlets) {
   );
   for (const next of rendered.lines) {
     const previous = prior.get(diffDatumKey(next));
-    if (!previous || previous.node.innerHTML !== next.node.innerHTML) continue;
+    if (!previous) continue;
+    if (
+      previous.node.innerHTML !== next.node.innerHTML &&
+      !sameLineChildren(previous.node, next.node)
+    )
+      continue;
     retained.set(next.node, previous.node);
     const nextGutter = nextPre.querySelector(
       `[data-gutter] [data-line-index="${next.node.dataset.lineIndex}"]`,
@@ -811,10 +822,8 @@ function fileRecord(file, section) {
 // Pierre stylesheet joins `sharedStyles` once, for the stage to hold.
 async function renderFile(file, sharedStyles) {
   const lang = langForPath(file.name);
-  const [{ preloadDiffHTML }, { themeName, foreground }] = await Promise.all([
-    pierre(),
-    ensureSyntaxLanguage(lang),
-  ]);
+  const [{ preloadDiffHTML, ResizeManager }, { themeName, foreground }] =
+    await Promise.all([pierre(), ensureSyntaxLanguage(lang)]);
   const template = document.createElement("template");
   template.innerHTML = await preloadDiffHTML({
     fileDiff: { ...file, lang: lang ?? "text" },
@@ -852,7 +861,7 @@ async function renderFile(file, sharedStyles) {
   viewport.setAttribute("aria-label", file.name || "diff");
 
   const lines = renderedLines(file, rendered);
-  return { nodes: [...rendered.children], pre, lines };
+  return { nodes: [...rendered.children], pre, lines, ResizeManager };
 }
 
 function replacementFile(files, parseDiffFromFile) {
@@ -972,6 +981,7 @@ customElements.define(
     #delivered;
     #shown;
     #showing = false;
+    threadSizeManagers = new Map();
 
     setup() {
       commands(
@@ -1103,7 +1113,6 @@ customElements.define(
             for (const record of this.threadSeats.values()) record.active = false;
             this.retireThreadOutlets();
           }
-          this.threadSizeTargets = null;
           this.threadSeats = null;
           this.threadPairs = null;
         };
@@ -1454,13 +1463,10 @@ customElements.define(
       for (const { outlet, pair } of this.threadSeats?.values() ?? [])
         if (pair && outlet.parentNode === pair.content)
           counts.set(pair, (counts.get(pair) ?? 0) + 1);
-      const targets = new Set();
+      const files = new Set();
       for (const pair of this.threadPairs?.values() ?? []) {
         const count = counts.get(pair) ?? 0;
-        if (count) {
-          targets.add(pair.content.closest("code[data-code]"));
-          targets.add(pair.gutter);
-        }
+        if (count && pair.content.isConnected) files.add(pair.content.closest("pre"));
         const contentRow = count
           ? `span ${pair.contentRows + count}`
           : pair.contentGridRow;
@@ -1470,11 +1476,23 @@ customElements.define(
         pair.content.style.gridRow = contentRow;
         pair.gutter.style.gridRow = gutterRow;
       }
-      for (const target of this.threadSizeTargets ?? [])
-        if (!targets.has(target)) threadSizes.unobserve(target);
-      for (const target of targets)
-        if (!this.threadSizeTargets?.has(target)) threadSizes.observe(target);
-      this.threadSizeTargets = targets;
+      // Static rendering does not start Pierre's managers. Give its column owner
+      // each live file that needs these declarations, and let it follow retained
+      // code/gutter nodes across revisions. Its global observer holds strong owners,
+      // so retiring the last line conversation explicitly releases the file.
+      for (const [pre, manager] of this.threadSizeManagers)
+        if (!files.has(pre)) {
+          manager.cleanUp();
+          this.threadSizeManagers.delete(pre);
+        }
+      for (const pre of files) {
+        let manager = this.threadSizeManagers.get(pre);
+        if (!manager) {
+          manager = new this.ResizeManager();
+          this.threadSizeManagers.set(pre, manager);
+        }
+        manager.setup(pre, { disableAnnotations: true });
+      }
     }
 
     async loadEntry(entry) {
@@ -1582,6 +1600,7 @@ customElements.define(
       const restore =
         rendered &&
         replaceFileContent(entry, rendered, this.threadPairs, this.threadSeats);
+      if (rendered) this.ResizeManager = rendered.ResizeManager;
       entry.renderKey = renderKey;
       entry.loaded = true;
       entry.details.querySelector("pre")?.toggleAttribute("hidden", false);

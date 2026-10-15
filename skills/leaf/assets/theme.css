@@ -126,6 +126,14 @@
   --card: light-dark(#fffefb, #201e1a);
   --field: light-dark(#f4f1e8, #232019);
   --shade: light-dark(rgb(0 0 0 / .14), rgb(0 0 0 / .55));
+  --raise-1: 0 2px 8px var(--shade);
+  --raise-2: 0 8px 24px var(--shade);
+  --raise-3: 0 12px 36px var(--shade);
+  --tip-bg: var(--ink);
+  --tip-ink: var(--paper);
+  --tip-pad: 4px 7px;
+  --tip-r: 4px;
+  --tip-font: 500 var(--t-6)/1.2 var(--sans);
   --code-bg: light-dark(#ecebe5, #2b2b29);
   --pre-bg: light-dark(#fff, #1b1b1a);
   --code-chrome: light-dark(#f6f8fa, #222220);
@@ -212,7 +220,6 @@ html[data-lf-live][data-lf-floating-chrome] {
     --entry-floor: 16px;
   }
 }
-@property --lf-focus-ring { syntax: "<custom-ident>"; inherits: false; initial-value: none; }
 @property --lf-frame-start { syntax: "<integer>"; inherits: false; initial-value: 0; }
 @property --lf-frame-end { syntax: "<integer>"; inherits: false; initial-value: 0; }
 @property --lf-holds-edge { syntax: "<integer>"; inherits: false; initial-value: 0; }
@@ -370,7 +377,6 @@ html:not([data-lf-interactive]) [data-lf-prepaint]:not(.lf-markdown-body) {
 }
 :where(select, input:not([type=checkbox], [type=radio], [type=range], [type=color], [type=file], [type=button], [type=submit], [type=reset], [type=image])):is(.lf-ui, .field)[data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: text-box;
   outline-offset: 0;
   border-color: transparent;
 }
@@ -382,7 +388,6 @@ html:not([data-lf-interactive]) [data-lf-prepaint]:not(.lf-markdown-body) {
 .lf-ui :is(textarea, leaf-text):where(:not(.lf-fab-input))[data-lf-focus],
 :is(textarea, leaf-text).lf-ui:where(:not(.lf-fab-input))[data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: text-box;
   outline-offset: 0;
   border-color: transparent;
 }
@@ -478,6 +483,7 @@ p {
   --code-size: 12px;
   --code-line: 17px;
   --lf-key-badge-size: calc(round(var(--t-6) * 1.478 + 2px, 1px));
+  --tip-font: 500 var(--t-6)/1.2 var(--sans);
   --pane-bar-pad: 6px 12px;
   --pane-inset: 12px;
   --h2-start: 18px;
@@ -525,7 +531,7 @@ img {
   aspect-ratio: attr(width type(<number>)) / attr(height type(<number>));
 }
 img {
-  box-shadow: 0 0 0 1px var(--border-2), 0 2px 8px var(--shade);
+  box-shadow: 0 0 0 1px var(--border-2), var(--raise-1);
 }
 img,
 svg,
@@ -886,11 +892,12 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   font: 600 var(--t-6)/1 var(--sans);
   white-space: nowrap;
   scroll-margin-block: var(--focus-ring-room);
+  --lf-entry-lift: 0 1px 0 var(--border-2), var(--raise-1);
 }
 .lf-margin-entry[data-lf-behavior=action] {
   border-width: 2px;
   color: var(--lf-entry-ink, var(--ink));
-  box-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
+  box-shadow: var(--lf-entry-lift);
 }
 .lf-margin-entry[data-lf-behavior=disclosure] {
   border-color: color-mix(in srgb, var(--ink) 34%, var(--paper));
@@ -924,7 +931,6 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
 }
 .lf-margin-entry[data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: margin-entry;
   outline-offset: 1px;
 }
 .lf-margin-entry[aria-disabled=true] {
@@ -937,7 +943,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   border-width: 2px;
   border-color: var(--border-2);
   color: var(--lf-entry-ink, var(--ink));
-  box-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
+  box-shadow: var(--lf-entry-lift);
 }
 :where(.lf-margin-entry[data-lf-kinds~=comment], .lf-page-map-action[data-lf-map-item^="comment:"], .lf-margin-entry[data-lf-agent-workflow], .lf-page-map-action[data-lf-agent-workflow]) > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
   color: var(--accent);
@@ -968,7 +974,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   }
 }
 .lf-margin-entry[data-lf-agent-workflow=working][data-lf-behavior=action] {
-  --lf-agent-stage-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
+  --lf-agent-stage-shadow: var(--lf-entry-lift);
 }
 .lf-margin-entry[data-lf-unread]::after {
   content: "";
@@ -998,14 +1004,14 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   display: block;
   width: max-content;
   max-width: min(320px, 100vw - 8px);
-  padding: 4px 7px;
-  border-radius: 4px;
-  background: var(--ink);
-  color: var(--paper);
-  font: 500 var(--t-6)/1.2 var(--sans);
+  padding: var(--tip-pad);
+  border-radius: var(--tip-r);
+  background: var(--tip-bg);
+  color: var(--tip-ink);
+  font: var(--tip-font);
   white-space: normal;
   overflow-wrap: anywhere;
-  box-shadow: 0 2px 8px var(--shade);
+  box-shadow: var(--raise-1);
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
@@ -1081,7 +1087,6 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   z-index: 1;
   pointer-events: none;
   outline: var(--focus-ring);
-  --lf-focus-ring: pane-body;
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 :where([data-lf-reading-role=pane]) {
@@ -1127,5 +1132,5 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
 .lf-motion-preview.lf-inhand {
   max-width: none;
   opacity: 1;
-  box-shadow: 0 8px 24px var(--shade);
+  box-shadow: var(--raise-2);
 }

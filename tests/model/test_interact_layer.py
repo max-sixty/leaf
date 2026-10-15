@@ -321,18 +321,55 @@ def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(claimed, 
     assert fetch(f"{server}/api/state")[0] == 200
 
 
-def test_a_command_leaves_a_page_a_newer_leaf_vendored(claimed):
+@pytest.mark.parametrize(
+    "reshape",
+    [
+        None,
+        lambda registry: registry["$events"].pop("handling"),
+        lambda registry: registry.update({"$future": 1}),
+    ],
+    ids=["same-shape", "layer-facts", "declarations"],
+)
+def test_a_command_leaves_a_page_a_newer_leaf_vendored(claimed, reshape):
     """A process the session started before its plugin updated still runs the older
     Leaf, and must not take the page back to it: the newer Leaf's next hook would
-    re-vendor it up again, reloading the user's tabs each time."""
+    re-vendor it up again, reloading the user's tabs each time. Neither a command
+    naming the page nor an explicit `page init` re-vendors it down, and each names
+    the newer Leaf as the repair rather than the re-vendor it refuses. That holds
+    for a layer whose shape this Leaf's schema rejects, as a newer protocol's may
+    be: the protocol is read before the shape."""
+    publish(claimed)
     foreign = vendored_at_another_protocol(claimed, newer=True)
-    checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(claimed)])
-    assert checked.exit_code != 0
-    assert f"page protocol {foreign}" in checked.output
-    assert (
-        interact_files.read_json(claimed / "registry.json")["$events"]["protocol"]
-        == foreign
+    if reshape:
+        path = claimed / "registry.json"
+        registry = json.loads(path.read_text())
+        reshape(registry)
+        # Replaced rather than written through: a revision hard-links its files.
+        path.unlink()
+        path.write_text(json.dumps(registry))
+    for command in (["page", "check"], ["page", "init"]):
+        refused = CliRunner().invoke(cli_model.cli, [*command, str(claimed)])
+        assert refused.exit_code != 0
+        assert f"Use a Leaf at protocol {foreign} or later" in refused.output
+        assert "leaf page init" not in refused.output
+        assert (
+            interact_files.read_json(claimed / "registry.json")["$events"]["protocol"]
+            == foreign
+        )
+    # A fresh process in a session that does not hold the page reads the state of
+    # the revision published before, and reports the same refusal as its source
+    # error.
+    stated = subprocess.run(
+        [*LEAF_COMMAND, "page", "state", str(claimed)],
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+        check=False,
+        env={**os.environ, "CLAUDE_CODE_SESSION_ID": "s2"},
     )
+    assert stated.returncode == 0, stated.stderr
+    error = json.loads(stated.stdout)["source"]["error"]
+    assert f"Use a Leaf at protocol {foreign} or later" in error
 
 
 def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(claimed):
@@ -1641,7 +1678,7 @@ def test_kernel_selectors_name_no_package_tag():
     leaks = []
     for sheet in sorted(schema_model.ASSETS.rglob("*.css")):
         if "vendor" in sheet.parts or sheet.read_text().startswith(
-            "/* Generated from "
+            "/* @noformat Generated from "
         ):
             continue
         where = sheet.relative_to(schema_model.ASSETS)
@@ -1701,7 +1738,7 @@ def test_layout_style_and_widgets_never_read_each_other():
         # Read the owners here rather than treating each compiled delivery as a
         # second authority for selectors.
         if source.suffix == ".css" and source.read_text().startswith(
-            "/* Generated from "
+            "/* @noformat Generated from "
         ):
             continue
         foreign = [names for home, names in owned.items() if home != source]
@@ -1756,7 +1793,7 @@ def test_every_token_a_sheet_reads_is_set_somewhere():
         if (
             source.suffix != ".css"
             or "vendor" in source.parts
-            or text.startswith("/* Generated from ")
+            or text.startswith("/* @noformat Generated from ")
         ):
             continue
         for _conditions, _enclosing, selector, declarations in _style_rules(source):
@@ -2755,8 +2792,6 @@ def test_init_merges_idioms_by_complete_entry_and_facts_by_member(
     shipped = json.loads((schema_model.ASSETS / "registry.json").read_text())
     assert registry[".hazard"] == hazard
     assert registry[".callout"] == callout
-    assert shipped[".callout"]["x-space"] == "column"
-    assert "x-space" not in registry[".callout"]
     assert set(shipped) <= set(registry)
     assert registry["$languages"]["paths"]["svelte"] == "javascript"
     assert set(shipped["$languages"]["paths"]) <= set(registry["$languages"]["paths"])

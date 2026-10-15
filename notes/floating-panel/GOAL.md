@@ -119,7 +119,6 @@ Choose **Leaf** in the tabs at the sample's top, and Minimal or Moderate beside
 them. **Full view** fits the sample to the window. The prototype runs on its own
 2026-10-10 runtime, which is why it is served from that tree rather than this one.
 
-
 Reference images are in `~/.tmp/leaf/floating-controls-reference/`:
 
 - `prototype/`: stills of the approved Leaf arrangement, Minimal and Moderate:
@@ -267,6 +266,10 @@ shortfall. Add each improvement you make, with its reason. Where an item here an
   keeps the field ("numbers next to icons rather than saying whole words").
 - **Passing notices are said in the empty field** (the overhaul); a walk's position
   still stands centred at the window's head.
+- **The panel shows no key hints**, neither the bottom bar's resting hints nor the
+  `g` sequence's destination list: the menu's rows carry their shortcuts and `?` opens
+  the full reference. The user chose this over one or two hints in the line above the
+  field on 13 October, to keep the panel quietest.
 
 ## What went wrong last time
 

@@ -121,12 +121,14 @@ def visual_widgets(
     *,
     tag="lf-test-visual",
     staged=False,
+    invalid_part_id=False,
 ):
     """Serve one visual implementation with each case's declared state and faults,
     defined as `tag` so several cases can stand on one page."""
     configuration = {
         "tag": tag,
         "staged": staged,
+        "invalidPartId": invalid_part_id,
     }
     return {
         "visual-fixture.js": browser_source("widgets/visual-fixture.js"),

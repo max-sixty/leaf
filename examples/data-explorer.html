@@ -77,7 +77,15 @@
       }
     </style>
     <script type="module">
-      import { keepsText, layoutChanged, offer, once } from "/runtime/widget-api.js";
+      import {
+        PAGE_INTERFACE,
+        keepsText,
+        layoutChanged,
+        offer,
+        once,
+        setChildren,
+        whileConnected,
+      } from "/runtime/widget-api.js";
 
       const RELEASES = [
         { service: "Checkout", region: "europe", risk: 72, owner: "payments" },
@@ -94,8 +102,6 @@
         ],
         order: ["filter-1", "filter-2"],
       };
-
-      const clone = (value) => structuredClone(value);
 
       function matches(release, row) {
         const actual = release[row.field];
@@ -126,18 +132,17 @@
         "release-query-explorer",
         class extends HTMLElement {
           #playground = null;
-          #state = clone(DEFAULT_FILTERS);
-          #notify = null;
+          #filters = null;
           #rows = null;
           #results = null;
           #count = null;
           #rowEls = new Map();
           #listed = "";
-          #next = 3;
 
           connectedCallback() {
-            if (once(this)) this.#build();
-            this.#connect();
+            if (!once(this)) return;
+            this.#build();
+            whileConnected(this, (signal) => this.#connect(signal));
           }
 
           #build() {
@@ -148,15 +153,20 @@
             );
             const add = offer("button", "lf-btn query-add", "Add filter");
             add.addEventListener("click", () => {
-              const id = `filter-${this.#next++}`;
-              this.#state.rows.push({
-                id,
-                field: "owner",
-                operator: "is",
-                value: "platform",
+              const state = this.#filters.get();
+              const next =
+                Math.max(
+                  0,
+                  ...state.rows.map((row) => Number(row.id.split("-").at(-1))),
+                ) + 1;
+              const id = `filter-${next}`;
+              this.#filters.set({
+                rows: [
+                  ...state.rows,
+                  { id, field: "owner", operator: "is", value: "platform" },
+                ],
+                order: [...state.order, id],
               });
-              this.#state.order.push(id);
-              this.#changed();
               queueMicrotask(() =>
                 this.querySelector(`[data-filter-id="${id}"] input`)?.focus(),
               );
@@ -179,27 +189,27 @@
             this.append(toolbar, this.#rows, this.#count, tableFrame);
           }
 
-          async #connect() {
-            await customElements.whenDefined("lf-playground");
-            if (!this.isConnected || this.#notify) return;
+          #connect(signal) {
+            let unsubscribe;
+            const initialize = () => {
+              if (signal.aborted || unsubscribe) return;
+              if (!this.#filters) this.#initialize();
+              unsubscribe = this.#playground.subscribe(() => this.#render());
+            };
+            document.addEventListener(
+              PAGE_INTERFACE,
+              (event) => event.detail.present(Promise.resolve().then(initialize)),
+              { signal },
+            );
+            if (this.#filters) initialize();
+            return () => unsubscribe?.();
+          }
+
+          #initialize() {
             this.#playground = this.closest("lf-playground");
-            this.#notify = this.#playground.registerContributor(
+            this.#filters = this.#playground.registerContributor(
               "filters",
               DEFAULT_FILTERS,
-              {
-                read: () => clone(this.#state),
-                apply: (state) => {
-                  this.#state = clone(state);
-                  this.#next =
-                    Math.max(
-                      0,
-                      ...this.#state.rows.map((row) =>
-                        Number(row.id.split("-").at(-1)),
-                      ),
-                    ) + 1;
-                  this.#render();
-                },
-              },
             );
             this.#playground.registerInstructionProvider((values) => {
               const rows = values.filters.order.map((id) =>
@@ -215,31 +225,33 @@
             });
           }
 
-          #changed() {
-            this.#notify();
-          }
-
           #update(id, field, value) {
-            this.#state.rows.find((row) => row.id === id)[field] = value;
-            this.#changed();
+            const state = this.#filters.get();
+            this.#filters.set({
+              ...state,
+              rows: state.rows.map((row) =>
+                row.id === id ? { ...row, [field]: value } : row,
+              ),
+            });
           }
 
           #move(id, offset) {
-            const from = this.#state.order.indexOf(id);
+            const state = this.#filters.get();
+            const from = state.order.indexOf(id);
             const to = from + offset;
-            if (to < 0 || to >= this.#state.order.length) return;
-            [this.#state.order[from], this.#state.order[to]] = [
-              this.#state.order[to],
-              this.#state.order[from],
-            ];
-            this.#changed();
+            if (to < 0 || to >= state.order.length) return;
+            const order = [...state.order];
+            [order[from], order[to]] = [order[to], order[from]];
+            this.#filters.set({ ...state, order });
           }
 
           #remove(id) {
-            const index = this.#state.order.indexOf(id);
-            this.#state.rows = this.#state.rows.filter((row) => row.id !== id);
-            this.#state.order = this.#state.order.filter((rowId) => rowId !== id);
-            this.#changed();
+            const state = this.#filters.get();
+            const index = state.order.indexOf(id);
+            this.#filters.set({
+              rows: state.rows.filter((row) => row.id !== id),
+              order: state.order.filter((rowId) => rowId !== id),
+            });
             queueMicrotask(() => {
               const rows = this.querySelectorAll(".query-row");
               const next = rows[Math.min(index, rows.length - 1)];
@@ -314,10 +326,10 @@
           }
 
           #render() {
-            if (!this.#rows) return;
-            const byId = new Map(this.#state.rows.map((row) => [row.id, row]));
-            const last = this.#state.order.length - 1;
-            const shown = this.#state.order.map((id, index) => {
+            const state = this.#filters.get();
+            const byId = new Map(state.rows.map((row) => [row.id, row]));
+            const last = state.order.length - 1;
+            const shown = state.order.map((id, index) => {
               const row = byId.get(id);
               const made = this.#row(row);
               if (made.field.value !== row.field) made.field.value = row.field;
@@ -333,16 +345,11 @@
             });
             for (const id of this.#rowEls.keys())
               if (!byId.has(id)) this.#rowEls.delete(id);
-            const current = this.#rows.children;
-            if (
-              shown.length !== current.length ||
-              shown.some((element, index) => element !== current[index])
-            )
-              this.#rows.replaceChildren(...shown);
-            const values = this.#playground?.values;
+            setChildren(this.#rows, shown);
+            const values = this.#playground.values;
             const filtered = RELEASES.filter((release) =>
-              this.#state.order.every((id) => matches(release, byId.get(id))),
-            ).slice(0, values?.limit ?? 4);
+              state.order.every((id) => matches(release, byId.get(id))),
+            ).slice(0, values.limit);
             const listed = JSON.stringify(filtered);
             if (listed !== this.#listed) {
               this.#listed = listed;

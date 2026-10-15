@@ -461,7 +461,6 @@ import {
   PresentationRetentionError,
   SHARE_ROOT,
   WEBSITE_DELIVERY,
-  agentLabel,
   agentName,
   annotationMode,
   applicationPresenter,
@@ -783,6 +782,8 @@ function drawingThumbnail(drawing2, target) {
 // runtime/composing/input.js
 var inputDrafts = /* @__PURE__ */ new WeakMap();
 var MEDIA_SHELF_TAG = "leaf-attached-media-shelf";
+var sameDrawing = (a, b) => a === b || JSON.stringify(a) === JSON.stringify(b);
+var thumbnailVersion = 0;
 var AttachedMediaShelf = class extends LitElement {
   static properties = {
     model: { attribute: false }
@@ -793,11 +794,18 @@ var AttachedMediaShelf = class extends LitElement {
     this.actions = null;
     this.undoIcon = iconElement("undo", "lf-action-icon");
     this.removeIcon = iconElement("cross", "lf-action-icon");
-    this.pictured = { drawing: null, node: null };
+    this.pictured = { drawing: null, target: null, node: null };
   }
   picture(drawing2) {
-    if (drawing2 !== this.pictured.drawing)
-      this.pictured = { drawing: drawing2, node: drawingThumbnail(drawing2, this.model.target) };
+    if (!sameDrawing(drawing2, this.pictured.drawing) || this.model.target !== this.pictured.target) {
+      const node = drawingThumbnail(drawing2, this.model.target);
+      node.dataset.lfDrawingVersion = String(++thumbnailVersion);
+      this.pictured = {
+        drawing: drawing2,
+        target: this.model.target,
+        node
+      };
+    }
     return this.pictured.node;
   }
   createRenderRoot() {
@@ -996,7 +1004,6 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
     };
     let shelfSeen = null;
     let arrivals = 0;
-    const sameDrawing = (a, b) => a === b || JSON.stringify(a) === JSON.stringify(b);
     const putDrawing = (drawn2) => {
       shelfSeen = { ...shelfSeen, drawing: drawn2 };
       drawing2.replace(drawn2);
@@ -1065,6 +1072,8 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
     hydrate(ta.value);
     const label2 = () => typeof hint === "function" ? hint() : hint;
     const name2 = () => typeof accessibleName === "function" ? accessibleName() : accessibleName;
+    const initialName = name2();
+    if (initialName) keeps(ta, "aria-label", initialName);
     const sendWord = () => typeof sends === "function" ? sends() : sends;
     const sendLabel = () => {
       const word2 = sendWord();
@@ -6642,6 +6651,68 @@ function createDrawers({
   return { setOpenDrawer, drawerNames, mountDrawers };
 }
 
+// runtime/live-leaves.js
+var others = [];
+var rows = Object.freeze([]);
+var leavesOffered = () => pagePresented() && (others.length > 0 || drawerIsOpen("leaves"));
+var presentationModel = () => Object.freeze({
+  offered: leavesOffered(),
+  label: `All pages (${rows.length})`,
+  rows
+});
+var presentLeaves = () => liveLeavesList.present(presentationModel());
+var leavesCount = () => listedPages(runtime.state).length;
+var othersLinks = () => [...othersPanel.querySelectorAll("a.lf-others-row")];
+function declareLeavesKeys() {
+  keys(
+    othersPanel,
+    "In the pages drawer",
+    rowWalk({ id: "leaf", noun: "Page", plural: "pages", rows: othersLinks }),
+    () => othersLinks().length > 0
+  );
+}
+var rowAccount = (entry, title, line) => [
+  title,
+  entry.session_cwd,
+  line,
+  // The rest of the canonical agent obligations the line summarizes, expanded for the
+  // row's hover. A raw cursor count cannot say whether those words are queued,
+  // opened in this turn, or still waiting for delivery; the line already says the
+  // queued and pending ones.
+  activityFacts(entry).owed.join("; ")
+].filter(Boolean).join("\n");
+var listedPages = (state) => state === null ? [] : [
+  { key: "self", href: null, title: document.title, entry: state },
+  ...state.others.map((entry) => ({
+    key: entry.page_key,
+    href: entry.url,
+    title: entry.title,
+    entry
+  }))
+];
+function paintOthers() {
+  const state = runtime.state;
+  const offeredBefore = leavesOffered();
+  others = state === null ? [] : state.others;
+  rows = Object.freeze(
+    listedPages(state).map(({ key, href, title, entry }) => {
+      const { tone, line } = leafRow(entry);
+      return Object.freeze({
+        key,
+        self: key === "self",
+        href,
+        title,
+        tone,
+        line,
+        account: rowAccount(entry, title, line)
+      });
+    })
+  );
+  if (offeredBefore !== leavesOffered()) paintKeys();
+  return presentLeaves();
+}
+watchProjection(liveLeavesList, paintOthers);
+
 // runtime/banner-status-view.js
 var TAG3 = "leaf-banner-status";
 var BannerStatusView = class extends HTMLElement {
@@ -6868,7 +6939,7 @@ registerBannerControl({
   control: othersBtn,
   rank: BANNER_CONTROL_RANK.leaves,
   conditional: true,
-  row: { label: "All pages", group: "navigate" }
+  row: { label: "All pages", value: () => String(leavesCount()), group: "navigate" }
 });
 registerBannerControl({
   key: "latest",
@@ -8986,7 +9057,7 @@ var FACETS = Object.freeze([
   ]),
   group("waiting", "Waiting on", [
     choice("waiting", "user", "Me", "lf-needs"),
-    choice("waiting", "agent", agentLabel)
+    choice("waiting", "agent", "Agent")
   ]),
   group("scope", "Location", [
     choice("scope", "page", "Page"),
@@ -9950,7 +10021,7 @@ var ThreadNarrowingView = class extends HTMLElement {
     >
       ${choice2.amount === null ? choice2.label : html`<span
               data-lf-room=${`${choice2.label} (${"0".repeat(this.#countDigits)})`}
-              ><span>${choice2.label} (${choice2.amount})</span></span
+              ><span>${`${choice2.label} (${choice2.amount})`}</span></span
             >`}
     </button>`;
   }
@@ -11685,67 +11756,6 @@ function createThreadPanelController({
   }
   return { panelIsOpen: panelIsOpen2, setPanel, showView, mountThreadPanel, dispose };
 }
-
-// runtime/live-leaves.js
-var others = [];
-var rows = Object.freeze([]);
-var leavesOffered = () => pagePresented() && (others.length > 0 || drawerIsOpen("leaves"));
-var presentationModel = () => Object.freeze({
-  offered: leavesOffered(),
-  label: `All pages (${rows.length})`,
-  rows
-});
-var presentLeaves = () => liveLeavesList.present(presentationModel());
-var othersLinks = () => [...othersPanel.querySelectorAll("a.lf-others-row")];
-function declareLeavesKeys() {
-  keys(
-    othersPanel,
-    "In the pages drawer",
-    rowWalk({ id: "leaf", noun: "Page", plural: "pages", rows: othersLinks }),
-    () => othersLinks().length > 0
-  );
-}
-var rowAccount = (entry, title, line) => [
-  title,
-  entry.session_cwd,
-  line,
-  // The rest of the canonical agent obligations the line summarizes, expanded for the
-  // row's hover. A raw cursor count cannot say whether those words are queued,
-  // opened in this turn, or still waiting for delivery; the line already says the
-  // queued and pending ones.
-  activityFacts(entry).owed.join("; ")
-].filter(Boolean).join("\n");
-function paintOthers() {
-  const state = runtime.state;
-  const offeredBefore = leavesOffered();
-  others = state === null ? [] : state.others;
-  const wanted = state ? [
-    { key: "self", href: null, title: document.title, entry: state },
-    ...others.map((entry) => ({
-      key: entry.page_key,
-      href: entry.url,
-      title: entry.title,
-      entry
-    }))
-  ] : [];
-  rows = Object.freeze(
-    wanted.map(({ key, href, title, entry }) => {
-      const { tone, line } = leafRow(entry);
-      return Object.freeze({
-        key,
-        self: key === "self",
-        href,
-        title,
-        tone,
-        line,
-        account: rowAccount(entry, title, line)
-      });
-    })
-  );
-  if (offeredBefore !== leavesOffered()) paintKeys();
-  return presentLeaves();
-}
-watchProjection(liveLeavesList, paintOthers);
 
 // runtime/keyboard/go-to-sequence.js
 var goToHintLayer = el("div", "lf-ui lf-key-chips lf-go-to-hints");

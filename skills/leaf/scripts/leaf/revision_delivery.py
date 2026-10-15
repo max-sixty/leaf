@@ -359,34 +359,25 @@ def mark_declared(
     module clones it, and a declarative shadow tree's content is its host's to style, so
     neither is marked.
 
-    A mark is declared by the element's tag or by a selector idiom whose selector
-    the element matches, as a `.callout` declares the room it takes; the tag's
-    declaration comes first.
+    A mark is declared by the element's tag, so a selector idiom declares none.
     """
     tree = turbohtml.parse(source, scripting=True, source_locations=True)
     index = source_index(source)
-    idioms = [
-        (selector, entry)
-        for selector, entry in registry.items()
-        if not selector.startswith("$")
-        and not is_element_name(selector)
-        and not entry.keys().isdisjoint(DECLARED_MARKS)
-    ]
     edits = []
     for element in tree.find_all(True):
         location = element.source_location
         if location is None or element.closest("template") is not None:
             continue
-        declarations = (
-            [registry.get(element.tag, {})] if is_element_name(element.tag) else []
-        ) + [entry for selector, entry in idioms if element.matches(selector)]
+        declaration = (
+            registry.get(element.tag, {}) if is_element_name(element.tag) else {}
+        )
         attrs = element_attrs(element)
         content = element.tag not in {"html", "body", "main"} and (
             element.closest("main") is not None
         )
         marks = {}
         for key, mark in DECLARED_MARKS.items():
-            declared = next((d[key] for d in declarations if d.get(key)), None)
+            declared = declaration.get(key)
             means = {"content": content, "declared": bool(declared)}
             authored = mark.get("authored")
             if authored in attrs and means[mark["authored_on"]]:
@@ -395,10 +386,7 @@ def mark_declared(
                 value = "" if declared is True else str(declared)
             else:
                 continue
-            if value in mark.get("paints", {}):
-                marks[mark["paints"][value]] = ""
-            else:
-                marks[mark["paint"]] = value
+            marks[mark["paint"]] = value
         sizes = [
             size
             for value in attrs.values()
@@ -691,7 +679,10 @@ def delivery_prelude(
     """
     viewport = (
         ""
-        if any(meta["name"].lower() == "viewport" for meta in document.named_metas)
+        if any(
+            meta["name"].lower() == "viewport"
+            for meta in document.authoring.named_metas
+        )
         else '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
     )
     return (
@@ -774,7 +765,7 @@ def compose_document(
         inline_stylesheet=delivery.inline_stylesheet,
     )
     document = SourceDocument(source)
-    if "head" not in document.wrapper_tags:
+    if "head" not in document.authoring.wrapper_tags:
         raise ValueError("document has no explicit <head>")
     theme = (
         f"<style data-lf-runtime>{_inline_css(delivery.inline_stylesheet('/theme.css'))}</style>"
@@ -828,7 +819,7 @@ def compose_document(
             else ""
         )
     )
-    head_start, head_end = document.wrapper_tags["head"]
+    head_start, head_end = document.authoring.wrapper_tags["head"]
     insertions = [(head_end, head)]
     if delivery.runtime is not None:
         # A classic parser checkpoint waits for every preceding stylesheet, including
@@ -837,7 +828,7 @@ def compose_document(
         # later task. It shares the same residency computation used after upgrade.
         insertions.append(
             (
-                document.wrapper_tags["body"][1],
+                document.authoring.wrapper_tags["body"][1],
                 "<script data-lf-runtime>document.documentElement.lfInitial.residency()</script>",
             )
         )
@@ -849,8 +840,8 @@ def compose_document(
     if root:
         attributes = _attributes(root)
         insertions.append(
-            (document.wrapper_tags["html"][1] - 1, attributes)
-            if "html" in document.wrapper_tags
+            (document.authoring.wrapper_tags["html"][1] - 1, attributes)
+            if "html" in document.authoring.wrapper_tags
             # A source may leave <html> implicit; the tag is then written where the
             # parser would have implied it, before the head.
             else (head_start, f"<html{attributes}>")
@@ -858,7 +849,7 @@ def compose_document(
     if delivery.body_attributes:
         insertions.append(
             (
-                document.wrapper_tags["body"][1] - 1,
+                document.authoring.wrapper_tags["body"][1] - 1,
                 _attributes(delivery.body_attributes),
             )
         )

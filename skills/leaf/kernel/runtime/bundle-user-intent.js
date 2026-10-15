@@ -320,8 +320,24 @@ function placeCorrection({
   const reflowed = withinTask || limit < held.limit && held.scrollTop > limit && scrollTop === limit ? scrollTop - held.scrollTop : 0;
   return now - was - reflowed;
 }
+var heldScrollers = /* @__PURE__ */ new WeakMap();
+var sharedMovement = (moved2, paid) => Math.sign(moved2) === Math.sign(paid) ? Math.sign(paid) * Math.min(Math.abs(moved2), Math.abs(paid)) : 0;
 function placeKeeper(scroller, { items, identity, active = () => true, preferred = () => null }) {
   let current = null;
+  const owner = {};
+  const lease = {
+    owner,
+    snapshot: () => ({
+      hold: current,
+      references: current?.references.filter(live2) ?? []
+    }),
+    sync: ({ hold, references }, paid) => {
+      if (current !== hold) return;
+      for (const reference of references)
+        if (live2(reference)) reference.contentTop += paid;
+      hold.at = { scrollTop: scroller.scrollTop, limit: limit() };
+    }
+  };
   const limit = () => scrollLimit(scroller);
   const heldBox = (node) => {
     if (!node?.isConnected || !scroller.contains(node) || !node.matches(items) || !node.checkVisibility())
@@ -347,12 +363,14 @@ function placeKeeper(scroller, { items, identity, active = () => true, preferred
     } else if (!returning && scroller.style.getPropertyValue("overflow-anchor"))
       returning = nextRender(() => {
         returning = 0;
-        if (!current?.spans) scroller.style.removeProperty("overflow-anchor");
+        if (!heldScrollers.has(scroller))
+          scroller.style.removeProperty("overflow-anchor");
       });
   }
   function release2(hold) {
     if (current !== hold) return;
     current = null;
+    if (heldScrollers.get(scroller)?.owner === owner) heldScrollers.delete(scroller);
     if (hold.spans) claim();
   }
   function correct(hold) {
@@ -360,8 +378,10 @@ function placeKeeper(scroller, { items, identity, active = () => true, preferred
     const reference = hold.references.find(live2);
     if (!reference) return false;
     const now = heldBox(reference.node).top + scroller.scrollTop;
+    const was = reference.contentTop;
+    const scrollWas = scroller.scrollTop;
     const delta = placeCorrection({
-      was: reference.contentTop,
+      was,
       now,
       scrollTop: scroller.scrollTop,
       limit: limit(),
@@ -377,12 +397,25 @@ function placeKeeper(scroller, { items, identity, active = () => true, preferred
       if (node) candidate.contentTop = heldBox(node).top + scroller.scrollTop;
     }
     hold.at = { scrollTop: scroller.scrollTop, limit: limit() };
+    if (hold.borrowed) {
+      hold.borrowed.lease.sync(
+        hold.borrowed.reading,
+        sharedMovement(now - was, scroller.scrollTop - scrollWas)
+      );
+      hold.borrowed.reading = hold.borrowed.lease.snapshot();
+    }
     return true;
   }
   function take({ spans: spans2 = true } = {}) {
+    const enclosing = heldScrollers.get(scroller);
+    if (enclosing?.owner !== owner && enclosing && spans2) return null;
     const prior = current;
     if (prior) correct(prior);
     current = heldPlace(prior, spans2);
+    if (current && enclosing?.owner !== owner && enclosing)
+      current.borrowed = { lease: enclosing, reading: enclosing.snapshot() };
+    else if (current) heldScrollers.set(scroller, lease);
+    else if (enclosing?.owner === owner) heldScrollers.delete(scroller);
     if (spans2 || prior?.spans) claim();
     return current;
   }
@@ -1310,9 +1343,7 @@ async function highlightBlocks(root) {
 
 // runtime/declared-words.js
 var PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
-var isPagePaint = (name) => PAGE_PAINT_ATTRIBUTES.has(name) || Object.values(registry.$marks).some(
-  (mark) => mark.paint === name || Object.values(mark.paints ?? {}).includes(name)
-);
+var isPagePaint = (name) => PAGE_PAINT_ATTRIBUTES.has(name) || Object.values(registry.$marks).some((mark) => mark.paint === name);
 function quietWord(el2, word2) {
   const title = el2.querySelector(":scope > strong");
   const seat = title ? title.nextSibling : el2.firstChild;
@@ -2835,6 +2866,11 @@ function mirrorDraft(ta, sync, ctx, {
 
 // runtime/off-flow.js
 var surfaces = /* @__PURE__ */ new Map();
+function offFlowSurfaceOf(node) {
+  for (const [surface, { floats }] of surfaces)
+    if (floats() && under(node, surface)) return surface;
+  return null;
+}
 var unseen = (node, surface) => {
   const box = node.getBoundingClientRect();
   const bounds = surface.getBoundingClientRect();
@@ -5687,6 +5723,8 @@ var ReplyContinuity = class {
   #row = null;
   #departure = null;
   #space = 0;
+  // Growth already deducted from passive space while a refused draft returns.
+  #returningWriting = 0;
   // The writing areas a presentation changes, each with its height before it.
   #presenting = [];
   #writing = null;
@@ -5700,7 +5738,7 @@ var ReplyContinuity = class {
     this.#measure = nextRender(() => {
       this.#measure = null;
       if (this.#writing !== writing2) return;
-      if (!this.#visible()) return this.release();
+      if (!this.#visible()) return this.#releaseSpace();
       writing2.width = atLayoutPrecision(
         parseFloat(getComputedStyle(writing2.input).inlineSize)
       );
@@ -5739,12 +5777,12 @@ var ReplyContinuity = class {
     this.#presenting = writing2.filter((node) => node.isConnected).map((node) => ({ node, height: node.getBoundingClientRect().height }));
     const body = this.#owner.localName === "details" ? getComputedStyle(this.#owner, "::details-content") : getComputedStyle(this.#owner);
     const extent = parseFloat(body.blockSize);
-    const place2 = placeKeeper(scrollerFor(this.#owner), {
+    const place2 = offFlowSurfaceOf(this.#owner) ? null : placeKeeper(scrollerFor(this.#owner), {
       items: ".lf-reply-continuity",
       identity: (node) => node.dataset.id,
       preferred: () => this.#owner
     });
-    return { extent, place: place2, held: place2.take({ spans: false }) };
+    return { extent, place: place2, held: place2?.take({ spans: false }) };
   }
   after(reading) {
     this.#row = this.#owner.querySelector(":scope > .lf-thread-reply");
@@ -5753,9 +5791,10 @@ var ReplyContinuity = class {
     if (!this.#row?.isConnected || this.#owner.localName === "details" && !this.#owner.open)
       return this.release();
     if (!this.#visible()) {
-      reading?.place.finish(reading.held);
-      return this.release();
+      reading?.place?.finish(reading.held);
+      return this.#releaseSpace();
     }
+    this.#retainWriting();
     if (reading != null) {
       const { extent, place: place2, held } = reading;
       const body = this.#owner.localName === "details" ? getComputedStyle(this.#owner, "::details-content") : getComputedStyle(this.#owner);
@@ -5763,15 +5802,28 @@ var ReplyContinuity = class {
         (sum, { node, height }) => sum + node.getBoundingClientRect().height - height,
         0
       );
+      const input = this.#row.querySelector(TEXT_FIELD);
+      const context = input && replyDraftContext(input);
+      const returning = this.#writing?.input === input && context && draftHasContent(context) && !this.#owner.querySelector(".lf-msg.user[data-attempt]") ? Math.max(
+        0,
+        parseFloat(this.#writing.room) - input.getBoundingClientRect().height
+      ) : 0;
       this.#keep(
-        Math.max(0, this.#space + extent - parseFloat(body.blockSize) + written)
+        Math.max(
+          0,
+          this.#space + extent - parseFloat(body.blockSize) + written + this.#returningWriting - returning
+        )
       );
-      place2.finish(held);
+      this.#returningWriting = returning;
+      place2?.finish(held);
     }
-    if (!this.#visible()) return this.release();
-    this.#retainWriting();
+    if (!this.#visible()) return this.#releaseSpace();
     this.#departure?.();
-    this.#departure = whenNone([this.#row], growthIsSeen, () => this.release());
+    this.#departure = whenNone([this.#row], growthIsSeen, () => {
+      if (!this.#owner.isConnected || this.#owner.localName === "details" && !this.#owner.open)
+        this.release();
+      else this.#releaseSpace();
+    });
   }
   #keep(space) {
     if (space === this.#space) return;
@@ -5782,7 +5834,16 @@ var ReplyContinuity = class {
   }
   #retainWriting() {
     const input = this.#row?.querySelector(TEXT_FIELD);
-    if (!input?.value) return this.#releaseWriting();
+    if (!input?.value) {
+      const context = input && replyDraftContext(input);
+      if (context && draftHasContent(context) && this.#writing?.context === context) {
+        if (this.#writing.input === input) return;
+        const width = atLayoutPrecision(parseFloat(getComputedStyle(input).inlineSize));
+        if (width === this.#writing.width)
+          return this.#allocateWriting(input, this.#writing.room);
+      }
+      return this.#releaseWriting();
+    }
     if (this.#writing?.input === input) return;
     this.#allocateWriting(input, getComputedStyle(input).blockSize);
   }
@@ -5791,6 +5852,7 @@ var ReplyContinuity = class {
       this.#releaseWriting();
       this.#writing = {
         input,
+        context: replyDraftContext(input),
         width: atLayoutPrecision(parseFloat(getComputedStyle(input).inlineSize)),
         room: null
       };
@@ -5802,18 +5864,23 @@ var ReplyContinuity = class {
   }
   #releaseWriting() {
     if (!this.#writing) return;
+    this.#returningWriting = 0;
     const { input } = this.#writing;
     input.style.removeProperty("--lf-reply-writing-room");
     this.#sizes.unobserve(input);
     this.#writing = null;
   }
-  release() {
+  #releaseSpace() {
     this.#departure?.();
     this.#departure = null;
     this.#space = 0;
-    this.#releaseWriting();
+    this.#returningWriting = 0;
     if (this.gap.style.getPropertyValue("--lf-reply-space"))
       this.gap.style.removeProperty("--lf-reply-space");
+  }
+  release() {
+    this.#releaseSpace();
+    this.#releaseWriting();
   }
 };
 

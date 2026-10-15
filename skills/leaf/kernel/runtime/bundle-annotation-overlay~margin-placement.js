@@ -1693,7 +1693,7 @@ function commentPlacement() {
         replyTurn: keepReplyLine ? latest.key : null,
         draftText
       };
-      edge = hold ? "top" : pressHeld ?? (keepReplyLine || !drafting && side === "top" ? "foot" : "top");
+      edge = hold ? side === "top" ? "foot" : "top" : pressHeld ?? (keepReplyLine || !drafting && side === "top" ? "foot" : "top");
       return edge;
     },
     // The edge a change the user did not make would hold, read before it is drawn: a

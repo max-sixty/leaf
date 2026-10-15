@@ -76,9 +76,8 @@ var PAGE_PAINT_ATTRIBUTE = Object.freeze({
   goto: "data-lf-go-to-active",
   traffic: "data-lf-traffic",
   indicated: "data-lf-indicated",
-  // A breakout in a box the page arranged itself, which keeps to that box
-  // (prepaint.js, `indents`).
-  arranged: "data-lf-arranged",
+  // A breakout that keeps to its holder (prepaint.js, `breakouts`).
+  kept: "data-lf-kept",
   // Delivery's, not a runtime writer's: the size of the page media an element names
   // (revision_delivery.py, `mark_declared`).
   mediaWidth: "data-lf-media-width",
@@ -493,7 +492,14 @@ var registry = runtime.registry;
 var tokenEntry = (name) => registry.$reactions.tokens[name];
 var elementDeclarations = () => Object.entries(registry).filter(([tag]) => isElementName(tag));
 function adoptRegistry(declarations) {
+  for (const [name, value] of Object.entries(declarations))
+    if (name.startsWith("$")) freeze(value);
   Object.assign(registry, declarations);
+}
+function freeze(value) {
+  if (value === null || typeof value !== "object" || Object.isFrozen(value)) return;
+  for (const child of Object.values(value)) freeze(child);
+  Object.freeze(value);
 }
 var stateIndex;
 var recordSlot = (record) => JSON.stringify([record.kind, "attr" in record ? record.attr : null]);
@@ -522,10 +528,7 @@ function indexedState() {
 }
 var stateSpecs = () => indexedState().specs;
 var recordedWidgetSelector = (record) => indexedState().recordSelectors.get(recordSlot(record)) ?? "";
-function layerFact(name) {
-  const value = registry[name];
-  return value === void 0 ? void 0 : structuredClone(value);
-}
+var layerFact = (name) => registry[name];
 var declarationFor = (el2, key) => registry[el2?.localName]?.[key];
 var decisionFor = (tag) => registry.$decisions[tag] ?? null;
 var elementsDeclaring = (root2, key, { direct = false } = {}) => {
@@ -1753,25 +1756,35 @@ function prune() {
   }
 }
 function pushNativeLayer(node, source = null) {
-  const at = entries.findIndex((entry) => entry.root === node);
+  const at = entries.findIndex((entry2) => entry2.root === node);
   const existing = at < 0 ? null : entries[at];
-  if (existing?.active()) return;
+  if (existing?.active()) return existing;
   prune();
   const holding = focused();
-  entries.push({
+  const entry = {
     root: node,
+    opening: !isNativeLayer(node),
     get kind() {
       return nativeLayerKind(node);
     },
-    active: () => isNativeLayer(node),
+    active() {
+      return this.opening || isNativeLayer(node);
+    },
     fromNowhere: !holding || holding === document.body,
     opener: holding && holding !== document.body ? holding : null,
     source
-  });
+  };
+  if (entry.opening)
+    queueMicrotask(() => {
+      entry.opening = false;
+    });
+  entries.push(entry);
+  return entry;
 }
 function closing(event) {
   if (event.newState !== "closed") return;
   const entry = entries.find((candidate) => candidate.root === event.target);
+  if (entry) entry.opening = false;
   if (entry?.kind === "popover") {
     for (const layer of nativeLayers().toReversed())
       if (layer.kind === "modal" && renderedUnder(layer.root, event.target))
@@ -1781,14 +1794,21 @@ function closing(event) {
     releaseFocus();
 }
 HTMLDialogElement.prototype.showModal = function() {
-  if (nativeLayerKind(this) !== "modal") pushNativeLayer(this);
-  return nativeDialogShowModal.call(this);
+  const entry = nativeLayerKind(this) !== "modal" ? pushNativeLayer(this) : null;
+  try {
+    return nativeDialogShowModal.call(this);
+  } finally {
+    if (entry) entry.opening = false;
+  }
 };
 HTMLElement.prototype.showPopover = function(options) {
   const opening = nativeLayerKind(this) !== "popover";
-  if (opening) pushNativeLayer(this);
-  nativePopoverShow.call(this, options);
-  const entry = opening && entries.find((candidate) => candidate.root === this);
+  const entry = opening ? pushNativeLayer(this) : null;
+  try {
+    nativePopoverShow.call(this, options);
+  } finally {
+    if (entry) entry.opening = false;
+  }
   if (entry && options?.source) entry.source = options.source;
 };
 function showNativeLayer(layer, { source, modal = true } = {}) {

@@ -209,7 +209,6 @@ import {
   activityTransitionDue,
   ago,
   chosenSince,
-  clocked,
   containingReadingRegionFor,
   effectiveScroller,
   markStateApplied,
@@ -7484,15 +7483,20 @@ function mountApplication(dependencies) {
     dependencies.annotationCommands.renderPageMapDialog(entries);
     return entries;
   }
-  const renderAnnotations = clocked(document.body, () => {
+  let annotationsDrawn = false;
+  const renderAnnotations = () => {
+    annotationsDrawn = true;
     if (!onPaper.matches) {
       const entries = refreshAnnotationInventory();
       overlay?.paint(entries);
     }
-  });
+  };
+  renderAnnotations.refresh = () => {
+    if (annotationsDrawn) renderAnnotations();
+  };
   const annotationInputs = readPart(annotationSelection);
   const mountAnnotations = () => {
-    watchProjection(
+    const watching2 = watchProjection(
       document.body,
       () => {
         annotationInputs();
@@ -7502,7 +7506,7 @@ function mountApplication(dependencies) {
     );
     document.addEventListener("lf-comparison", renderAnnotations);
     onPaper.addEventListener("change", () => {
-      if (!onPaper.matches) renderAnnotations.refresh();
+      if (!onPaper.matches) watching2.refresh();
     });
     watchContributions(({ immediate }) => {
       renderAnnotations();

@@ -1,4 +1,4 @@
-/* Generated from skills/leaf/packages/default/styles/theme.css by build/styles.mjs. */
+/* @noformat Generated from skills/leaf/packages/default/styles/theme.css by build/styles.mjs. */
 /* skills/leaf/packages/default/styles/shot.css */
 :scope:is(lf-shot) {
   display: block;
@@ -52,8 +52,8 @@
 :scope:is(lf-shot) .lf-shotcomparison::part(handle) {
   border: 1px solid var(--ink-2);
   box-shadow: var(--raise-1);
-  opacity: .52;
-  scale: .88;
+  opacity: 0.52;
+  scale: 0.88;
   transition: opacity 120ms ease, scale 120ms ease;
 }
 :scope:is(lf-shot) .lf-shot-handle {
@@ -77,8 +77,8 @@
   scale: 1;
 }
 :scope:is(lf-shot) .lf-shotcomparison:is([position="0"], [position="100"]):not(:hover, [data-lf-focus-within])::part(handle) {
-  opacity: .18;
-  scale: .68;
+  opacity: 0.18;
+  scale: 0.68;
 }
 :scope:is(lf-shot) .lf-shotframe {
   position: relative;
@@ -311,7 +311,7 @@
   width: 100%;
   height: auto;
   filter: grayscale(1);
-  opacity: .28;
+  opacity: 0.28;
 }
 :scope:is(lf-shot) > .lf-shotpixels > span {
   position: absolute;
@@ -485,7 +485,7 @@
     background: var(--card);
     color: var(--ink-2);
     font: 650 var(--t-6) / 1 var(--sans);
-    letter-spacing: .04em;
+    letter-spacing: 0.04em;
     text-transform: uppercase;
   }
   :scope:is(lf-shot)[data-lf-shot-mode=compare] .lf-shot-frame-label::before {
@@ -573,7 +573,7 @@
     text-decoration-line: underline;
     text-decoration-color: var(--accent);
     text-decoration-thickness: 1px;
-    text-underline-offset: .18em;
+    text-underline-offset: 0.18em;
     cursor: help;
   }
 }
@@ -673,6 +673,12 @@
   --lf-option-line: 1lh;
   container-type: inline-size;
 }
+@media screen {
+  :scope:is(lf-options) {
+    box-sizing: border-box;
+    max-inline-size: var(--lf-measure);
+  }
+}
 :scope:is(lf-options):not(:has(> lf-option > strong)) {
   --lf-option-font: var(--t-5)/1.5 var(--sans);
   font: var(--lf-option-font);
@@ -710,7 +716,7 @@
 @container style(--lf-density: working) and (width >= 30rem) {
   :scope:is(lf-options):has(> lf-option > strong) > lf-option {
     & > strong {
-      margin-inline-end: .35em;
+      margin-inline-end: 0.35em;
     }
     & > .tag {
       float: inline-end;
@@ -750,7 +756,7 @@
     color: var(--muted);
     font-size: var(--t-6);
     text-transform: uppercase;
-    letter-spacing: .05em;
+    letter-spacing: 0.05em;
     font-weight: 400;
     margin-top: 6px;
     padding: 0;
@@ -771,7 +777,7 @@
   }
   @container style(--lf-joined: 0) {
     :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > lf-option {
-      transition: box-shadow .12s ease, transform .12s ease;
+      transition: box-shadow 0.12s ease, transform 0.12s ease;
     }
     :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *):has(> lf-option > strong) > lf-option:hover {
       transform: translateY(-1px);
@@ -855,8 +861,8 @@
       margin: 0;
     }
     & > .lf-another {
-      --lf-option-add-seat-end: calc(var(--sp-3) + (var(--lf-option-line) - var(--lf-option-action-size)) / 2);
-      --lf-option-action-room: calc(var(--lf-option-write-badge-inset) + var(--lf-key-badge-size) + var(--sp-2));
+      --lf-option-add-seat-end: calc( var(--sp-3) + (var(--lf-option-line) - var(--lf-option-action-size)) / 2 );
+      --lf-option-action-room: calc( var(--lf-option-write-badge-inset) + var(--lf-key-badge-size) + var(--sp-2) );
     }
     & > .lf-another:has(.lf-compose-submit:not([data-lf-empty])) > .lf-key-badge {
       inset-inline-end: var(--lf-option-write-badge-inset);
@@ -974,7 +980,7 @@
     --lf-add-cell-height: calc(var(--lf-option-line) + 2 * 5px);
     --lf-done-cell-height: 32px;
     &:has(> lf-option > strong) {
-      --lf-add-cell-height: calc(max(var(--lf-option-line), var(--lf-card-state-height)) + 2 * var(--sp-3));
+      --lf-add-cell-height: calc( max(var(--lf-option-line), var(--lf-card-state-height)) + 2 * var(--sp-3) );
     }
     &:not(:where(.lf-chrome *)):not(:has(> .lf-another)) {
       --lf-missing-cells: var(--lf-add-cell-height);
@@ -1073,10 +1079,10 @@
     --lf-option-action-size: max(28px, var(--aim-floor));
     --lf-option-add-seat-inset: var(--sp-1);
     --lf-option-add-seat-end: var(--lf-option-add-seat-inset);
-    --lf-option-add-badge-inset: calc(var(--lf-option-add-seat-inset) + (var(--lf-option-action-size) - var(--lf-key-badge-size)) / 2);
-    --lf-option-add-badge-end: calc(var(--lf-option-add-seat-end) + (var(--lf-option-action-size) - var(--lf-key-badge-size)) / 2);
-    --lf-option-write-badge-inset: calc(var(--lf-option-add-seat-inset) + var(--lf-option-action-size) + var(--sp-2));
-    --lf-option-action-room: calc(var(--lf-option-add-seat-inset) + var(--lf-option-action-size) + var(--sp-2));
+    --lf-option-add-badge-inset: calc( var(--lf-option-add-seat-inset) + (var(--lf-option-action-size) - var(--lf-key-badge-size)) / 2 );
+    --lf-option-add-badge-end: calc( var(--lf-option-add-seat-end) + (var(--lf-option-action-size) - var(--lf-key-badge-size)) / 2 );
+    --lf-option-write-badge-inset: calc( var(--lf-option-add-seat-inset) + var(--lf-option-action-size) + var(--sp-2) );
+    --lf-option-action-room: calc( var(--lf-option-add-seat-inset) + var(--lf-option-action-size) + var(--sp-2) );
     position: relative;
     display: flex;
     align-items: center;
@@ -1128,7 +1134,7 @@
   }
   :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) {
     --lf-key-badge-start: var(--sp-2);
-    --lf-key-badge-col: calc(var(--lf-key-badge-start) + var(--lf-key-badge-size) + 6px);
+    --lf-key-badge-col: calc( var(--lf-key-badge-start) + var(--lf-key-badge-size) + 6px );
   }
   :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > lf-option {
     padding-inline-start: var(--lf-key-badge-col);
@@ -1296,7 +1302,7 @@
   --lf-card-measure: 136px;
   --lf-reading-column-inset: 8px;
   --lf-card-inset: 10px;
-  --lf-reading-column-floor: calc(var(--lf-card-measure) + 2 * var(--lf-reading-column-inset) + 2 * var(--lf-card-inset) + var(--lf-grip-room, 0px) + 2px);
+  --lf-reading-column-floor: calc( var(--lf-card-measure) + 2 * var(--lf-reading-column-inset) + 2 * var(--lf-card-inset) + var(--lf-grip-room, 0px) + 2px );
   grid-auto-columns: 1fr;
   gap: var(--sp-2);
   margin: 14px 0;
@@ -1463,7 +1469,7 @@
   color: var(--ink-2);
 }
 :scope:is(lf-card).lf-ghost {
-  opacity: .4;
+  opacity: 0.4;
   border-style: dashed;
   border-color: var(--accent);
 }
@@ -1484,7 +1490,7 @@
 .lf-tabstrip .lf-tab-group {
   font-size: var(--t-6);
   text-transform: uppercase;
-  letter-spacing: .05em;
+  letter-spacing: 0.05em;
   color: var(--muted);
 }
 :scope:is(lf-tab)::before {
@@ -2100,7 +2106,7 @@
         left: var(--sp-4);
         top: var(--lf-banner-h, 0px);
         z-index: 4;
-        width: calc(var(--sidebar-max) - var(--sp-4));
+        width: var(--sp-4);
         box-sizing: border-box;
         pointer-events: none;
         height: var(--lf-view-height);
@@ -2114,7 +2120,15 @@
         padding: var(--sp-4) 0;
         --lf-toc-label-opacity: 0;
         pointer-events: none;
-        transition: background-color .24s ease-out;
+        transition: background-color 0.24s ease-out;
+      }
+      :scope:is(lf-toc):is(:hover, [data-lf-focus-within]) .lf-toc-nav {
+        width: calc(var(--sidebar-max) - var(--sp-4));
+      }
+      @scope (body[data-lf-go-to-active] :scope) {
+        :scope:is(lf-toc) .lf-toc-nav {
+          width: calc(var(--sidebar-max) - var(--sp-4));
+        }
       }
       :scope:is(lf-toc) .lf-toc-heading {
         display: none;
@@ -2221,17 +2235,17 @@
         display: -webkit-box;
         top: 0;
         left: 0;
-        width: 100%;
+        width: calc(var(--sidebar-max) - var(--sp-4));
         overflow: hidden;
         max-height: 2.6em;
         padding: 0 2px 2px calc(14px + var(--lf-toc-indent));
         line-height: 1.3;
         -webkit-box-orient: vertical;
         -webkit-line-clamp: 2;
-        transform: translateY(calc(var(--lf-toc-row-shift, 0px) - .5lh));
+        transform: translateY(calc(var(--lf-toc-row-shift, 0px) - 0.5lh));
         opacity: var(--lf-toc-label-opacity);
         pointer-events: none;
-        transition: color .12s ease-out, opacity .24s ease-out;
+        transition: color 0.12s ease-out, opacity 0.24s ease-out;
       }
       :scope:is(lf-toc) .lf-toc-start a {
         color: var(--ink-2);
@@ -2302,6 +2316,7 @@
       :scope:is(lf-toc)[data-lf-outline] :is(.lf-toc-start, li) a {
         position: relative;
         display: block;
+        width: 100%;
         max-height: none;
         padding: 3px 0;
         transform: none;
@@ -2482,7 +2497,17 @@
   display: block;
 }
 @media screen {
-  :scope:is(lf-ask)[data-lf-column]:has(> [data-lf-space]:not([data-lf-arranged])) {
+  :scope:is(lf-ask) {
+    box-sizing: border-box;
+    max-inline-size: var(--lf-measure);
+  }
+  :scope:is(lf-ask):has(> [data-lf-space=wide]) {
+    max-inline-size: max(var(--lf-measure), var(--wide));
+  }
+  :scope:is(lf-ask):has(> [data-lf-space=available]) {
+    max-inline-size: none;
+  }
+  :scope:is(lf-ask):not([data-lf-space]):has(> [data-lf-space]:not([data-lf-kept])) {
     margin-left: calc(-1 * var(--lf-grow-l));
     margin-right: calc(-1 * var(--lf-grow-r));
     padding-left: var(--lf-grow-l);
@@ -2527,7 +2552,7 @@
   display: table-caption;
   font-size: var(--t-6);
   margin-bottom: var(--sp-1);
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--muted);
 }
@@ -2931,6 +2956,12 @@
   margin: 12px 0;
   background: var(--card);
   font-size: max(var(--entry-floor), 1em);
+}
+@media screen {
+  :scope:is(lf-draft) {
+    box-sizing: border-box;
+    max-inline-size: var(--lf-measure);
+  }
 }
 .lf-draft-body,
 :scope:is(lf-draft) > .lf-markdown-body {

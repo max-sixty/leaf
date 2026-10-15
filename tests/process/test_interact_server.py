@@ -4076,6 +4076,7 @@ def test_a_page_reading_waits_out_an_append_in_progress(page_dir):
     crossing an in-place append can pair its modification time with the size before
     it, a state the log was never at, so the look waits for the log's lease, which
     every append holds, and then names the finished append as a state answer would."""
+    absence_window = 0.2  # This duration is the subject of the absence assertion.
     with ThreadPoolExecutor(max_workers=1) as executor:
         with cleanup_model.flocked(page_dir / "events.jsonl") as log:
             log.seek(0, os.SEEK_END)
@@ -4083,7 +4084,7 @@ def test_a_page_reading_waits_out_an_append_in_progress(page_dir):
             log.flush()
             look = executor.submit(served_reading.page_reading, page_dir)
             # The window is the subject of an absence assertion, not a deadline.
-            assert not wait_futures([look], timeout=0.2).done, (
+            assert not wait_futures([look], timeout=absence_window).done, (
                 "the look named the log while an append held it"
             )
             log.write(b'lf"}\n')
@@ -4368,25 +4369,37 @@ def test_a_server_start_re_vendors_an_older_page_and_refuses_a_newer_one(page_di
     the browser on every read. A page an older Leaf vendored the start re-vendors
     first, as the plugin update that left it there calls for. One a newer Leaf
     vendored, which this Leaf does not take back, is refused before the start claims
-    the page or records a service, and the refusal names the re-vendor that ends it.
-    A server already running over such a page is refused the same way rather than
-    handed out as this Leaf's."""
+    the page or records a service, and the refusal names the newer Leaf that would
+    serve it. A server already running over such a page is refused the same way
+    rather than handed out as this Leaf's."""
     from leaf.event_contracts import write_refusal
 
     runner = CliRunner()
+    stamp = page_dir / "registry.json"
+    vendored = stamp.read_text(encoding="utf-8")
     foreign = vendored_at_another_protocol(page_dir, newer=True)
 
     refused = runner.invoke(cli_model.cli, ["server", "start", str(page_dir)])
 
     assert refused.exit_code != 0, refused.output
-    assert f"page protocol {foreign}" in refused.output
-    assert f"leaf page init {page_dir}" in refused.output
+    assert f"Use a Leaf at protocol {foreign} or later" in refused.output
     assert not service_model.claim_path(page_dir).exists()
     assert files_model.read_json(page_dir / "service.json") is None
     assert not leases_model.lock_is_held(page_dir / "server.lock")
 
-    reinitialized = runner.invoke(cli_model.cli, ["page", "init", str(page_dir)])
-    assert reinitialized.exit_code == 0, reinitialized.output
+    # A newer protocol may reshape the layer past this Leaf's schema, which reads
+    # the protocol first.
+    newer = json.loads(stamp.read_text(encoding="utf-8"))
+    stamp.unlink()
+    stamp.write_text(json.dumps({**newer, "$future": 1}), encoding="utf-8")
+    reshaped = runner.invoke(
+        cli_model.cli, ["server", "start", "--persistent", str(page_dir)]
+    )
+    assert reshaped.exit_code != 0, reshaped.output
+    assert f"Use a Leaf at protocol {foreign} or later" in reshaped.output
+
+    stamp.unlink()
+    stamp.write_text(vendored, encoding="utf-8")
     vendored_at_another_protocol(page_dir)
     started = runner.invoke(cli_model.cli, ["server", "start", str(page_dir)])
     try:
@@ -4396,8 +4409,7 @@ def test_a_server_start_re_vendors_an_older_page_and_refuses_a_newer_one(page_di
         foreign = vendored_at_another_protocol(page_dir, newer=True)
         reused = runner.invoke(cli_model.cli, ["server", "start", str(page_dir)])
         assert reused.exit_code != 0, reused.output
-        assert f"page protocol {foreign}" in reused.output
-        assert f"leaf page init {page_dir}" in reused.output
+        assert f"Use a Leaf at protocol {foreign} or later" in reused.output
     finally:
         stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
         assert stopped.exit_code == 0, stopped.output
@@ -4418,24 +4430,27 @@ def test_a_revision_saved_before_a_re_vendor_neither_opens_nor_takes_input(page_
         "</lf-board>",
     )
     (page_dir / "index.html").write_text(board)
-    foreign = vendored_at_another_protocol(page_dir)
-    # Build the capture an older Leaf left behind. This Leaf refuses to activate
-    # mutable source vendored at that older protocol.
+    # Build the capture an older Leaf left behind: this Leaf reads no layer vendored
+    # at that older protocol, so the capture takes this Leaf's vocabulary with the
+    # older number, and the layer then moves to that number too.
     page_registry = registry_storage.read_page_registry(page_dir)
+    foreign = page_registry.registry["$events"]["protocol"] - 1
+    older = {
+        **page_registry.registry,
+        "$events": {**page_registry.registry["$events"], "protocol": foreign},
+    }
     document = structure_model.SourceDocument(board)
     artifact = artifact_model.capture_artifact(
         page_dir,
         document,
-        page_registry.registry,
+        older,
         declaration_sources=page_registry.declaration_sources,
         widget_sources=page_registry.widget_sources,
     )
     artifact_model.write_artifact(
-        page_dir,
-        1,
-        artifact,
-        passages_model.SourceReading(document, page_registry.registry),
+        page_dir, 1, artifact, passages_model.SourceReading(document, older)
     )
+    vendored_at_another_protocol(page_dir)
     waiting = append_carried_log_record(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "Still there?"},

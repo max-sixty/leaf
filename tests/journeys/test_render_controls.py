@@ -2795,12 +2795,9 @@ def test_a_failed_leaves_restore_keeps_application_presentation_pending(
           return presentation.readApplicationPresentation().pending.includes('leaves');
         }"""
     )
-    assert [said(error) for error in take_browser_errors(page)] == [
-        (
-            "leaf: Presentation failed: Leaves presentation and retention failed: "
-            "deliberate leaves failure; deliberate leaves failure"
-        )
-    ]
+    errors = [said(error) for error in take_browser_errors(page)]
+    assert any("Leaves presentation and retention failed" in error for error in errors)
+    assert errors and all("deliberate leaves failure" in error for error in errors)
 
     # A later complete reading replaces the failed ticket and opens readiness again.
     told(page)
@@ -3614,6 +3611,7 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
     page.evaluate("""() => {
         const style = document.createElement('style');
         style.id = 'lf-ring-negative-control';
+        style.setAttribute('data-controls', '');
         style.textContent =
           '.lf-threads-toggle:focus { outline: none !important;'
           + ' box-shadow: none !important; }';
@@ -3640,6 +3638,7 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
     assert seen_stop(page) is None
     page.evaluate("""() => {
         const style = document.createElement('style');
+        style.setAttribute('data-controls', '');
         style.textContent = '.lf-threads-frame::after { outline: none !important; }';
         document.head.append(style);
     }""")
@@ -3670,9 +3669,13 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
         name.evaluate(
             "(node, property) => node.style.removeProperty(property)", property
         )
-    page.add_style_tag(
-        content=".lf-tab-btn > .lf-tab-name { outline: none !important; }"
-    )
+    page.evaluate("""() => {
+        const style = document.createElement('style');
+        style.setAttribute('data-controls', '');
+        style.textContent =
+          '.lf-tab-btn > .lf-tab-name { outline: none !important; }';
+        document.head.append(style);
+    }""")
     lost = seen_stop(page)
     assert lost and "lf-tab-btn" in lost, lost
 

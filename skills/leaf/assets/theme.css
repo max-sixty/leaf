@@ -1,4 +1,4 @@
-/* Generated from skills/leaf/assets/styles/theme.css by build/styles.mjs. */
+/* @noformat Generated from skills/leaf/assets/styles/theme.css by build/styles.mjs. */
 /* skills/leaf/assets/styles/theme.css */
 @property --lf-banner-rows { syntax: "<integer>"; inherits: true; initial-value: 1; }
 @property --lf-motion-flash { syntax: "<time>"; inherits: true; initial-value: 1200ms; }
@@ -13,13 +13,13 @@
   --lf-safe-right: env(safe-area-inset-right, 0px);
   --lf-safe-bottom: env(safe-area-inset-bottom, 0px);
   --lf-safe-left: env(safe-area-inset-left, 0px);
-  --lf-banner-row: max(42px, calc(var(--t-5) * var(--lf-ui-lh) + 19px), calc(var(--aim-floor) + 9px));
+  --lf-banner-row: max( 42px, calc(var(--t-5) * var(--lf-ui-lh) + 19px), calc(var(--aim-floor) + 9px) );
   --lf-banner-status-row: max(36px, calc(var(--t-5) * var(--lf-ui-lh) + 4px));
   --lf-banner-actions-w: calc(37 * var(--t-5));
-  --lf-banner-rows: clamp(1, round(up, calc((var(--lf-banner-actions-w) + 4 * var(--t-5) + 220px + var(--lf-safe-left) + var(--lf-safe-right)) / 100vw)), 2);
-  --lf-banner-h: calc(var(--lf-banner-status-row) * (var(--lf-banner-rows) - 1) + var(--lf-banner-row) + var(--lf-safe-top));
+  --lf-banner-rows: clamp( 1, round( up, calc( ( var(--lf-banner-actions-w) + 4 * var(--t-5) + 220px + var(--lf-safe-left) + var(--lf-safe-right) ) / 100vw ) ), 2 );
+  --lf-banner-h: calc( var(--lf-banner-status-row) * (var(--lf-banner-rows) - 1) + var(--lf-banner-row) + var(--lf-safe-top) );
   --lf-bottom-bar-h: calc(44px + var(--lf-safe-bottom));
-  --lf-bottom-status-bottom: calc(var(--lf-safe-bottom) + (var(--lf-bottom-bar-h) - var(--lf-safe-bottom)) / 2);
+  --lf-bottom-status-bottom: calc( var(--lf-safe-bottom) + (var(--lf-bottom-bar-h) - var(--lf-safe-bottom)) / 2 );
   --lf-bottom-status-translate: 0 50%;
   --lf-view-height: calc(100dvh - var(--lf-banner-h) - var(--lf-bottom-bar-h));
   --lf-top: var(--lf-banner-h);
@@ -125,7 +125,7 @@
     monospace;
   --card: light-dark(#fffefb, #201e1a);
   --field: light-dark(#f4f1e8, #232019);
-  --shade: light-dark(rgb(0 0 0 / .14), rgb(0 0 0 / .55));
+  --shade: light-dark(rgb(0 0 0 / 0.14), rgb(0 0 0 / 0.55));
   --raise-1: 0 2px 8px var(--shade);
   --raise-2: 0 8px 24px var(--shade);
   --raise-3: 0 12px 36px var(--shade);
@@ -189,7 +189,7 @@
 @media screen and (width <= 480px) {
   :root {
     --lf-banner-face: phone;
-    --lf-banner-row: max(52px, calc(var(--t-5) * var(--lf-ui-lh) + 19px), calc(var(--aim-floor) + 9px));
+    --lf-banner-row: max( 52px, calc(var(--t-5) * var(--lf-ui-lh) + 19px), calc(var(--aim-floor) + 9px) );
     --lf-banner-rows: 1;
   }
 }
@@ -210,7 +210,7 @@ html[data-lf-live][data-lf-floating-chrome] {
   --lf-floating-row: max(48px, calc(var(--aim-floor) + 8px));
   --lf-floating-gap: 14px;
   --lf-banner-h: var(--lf-safe-top);
-  --lf-bottom-bar-h: calc(var(--lf-floating-row) + 2 * var(--lf-floating-gap) + var(--lf-safe-bottom));
+  --lf-bottom-bar-h: calc( var(--lf-floating-row) + 2 * var(--lf-floating-gap) + var(--lf-safe-bottom) );
   --lf-bottom-status-bottom: calc(var(--lf-bottom-bar-h) + 4px);
   --lf-bottom-status-translate: none;
 }
@@ -287,11 +287,11 @@ html {
 }
 @property --lf-auxiliary-beside { syntax: "<length>"; inherits: false; initial-value: 0px; }
 body {
-  --lf-auxiliary-beside: clamp(0px, (100vw - var(--lf-auxiliary-width, 100vw) - 319.5px) * 1000000, var(--lf-auxiliary-width, 0px));
+  --lf-auxiliary-beside: clamp( 0px, (100vw - var(--lf-auxiliary-width, 100vw) - 319.5px) * 1000000, var(--lf-auxiliary-width, 0px) );
 }
 @media screen {
   html[data-lf-live] body:is([data-lf-auxiliary-surface=threads], [data-lf-auxiliary-surface=queue]) {
-    --lf-auxiliary-width: var(--lf-thread-panel-width, var(--lf-thread-panel-default-width));
+    --lf-auxiliary-width: var( --lf-thread-panel-width, var(--lf-thread-panel-default-width) );
   }
 }
 [data-lf-prepaint] {
@@ -410,17 +410,16 @@ main {
 @property --sidebar { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --note { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @media screen {
-  :where(p, li, dt, dd, blockquote, figcaption, h1, h2, h3, h4, h5, h6, [data-lf-column]) {
+  :where(p, li, dt, dd, blockquote, figcaption, h1, h2, h3, h4, h5, h6, .callout, lf-suggestion) {
     max-inline-size: var(--lf-measure);
   }
-  :where([data-lf-column]) {
+  :where(.callout) {
     box-sizing: border-box;
-    --lf-reach: min(var(--lf-measure), var(--lf-room, 0px));
   }
-  :where([data-lf-column]:has(> [data-lf-space=wide])) {
+  :where(.callout:has(> [data-lf-space=wide])) {
     max-inline-size: max(var(--lf-measure), var(--wide));
   }
-  :where([data-lf-column]:has(> [data-lf-space=available])) {
+  :where(.callout:has(> [data-lf-space=available])) {
     max-inline-size: none;
   }
   [data-lf-bound] {
@@ -596,7 +595,7 @@ th:not([scope=row]),
 }
 .eyebrow {
   font-size: var(--t-6);
-  letter-spacing: .1em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--muted);
   font-weight: 500;
@@ -644,7 +643,7 @@ section.panel > :is(h2, h3):first-child {
 section.panel > :is(h2, h3):first-child,
 :where([data-lf-reading-role=pane]) > header > :is(h2, h3, h4, h5, h6) {
   font: 600 var(--t-6)/1.3 var(--sans);
-  letter-spacing: .06em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
 }
@@ -783,7 +782,7 @@ svg.drawing .ghost {
 svg.drawing .guide {
   fill: none;
   stroke: var(--accent);
-  stroke-opacity: .5;
+  stroke-opacity: 0.5;
   stroke-dasharray: 2 3;
 }
 svg.drawing .dim {

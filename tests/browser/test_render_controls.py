@@ -4538,9 +4538,21 @@ def test_the_accessibility_audit_reads_exposed_frames_and_their_names(browser, s
       document.body.append(frame);
       await loaded;
     }""")
+    page.evaluate("""async () => {
+      const host = document.createElement('div');
+      host.setAttribute('aria-hidden', 'true');
+      const frame = document.createElement('iframe');
+      frame.title = 'Hidden shadow practice';
+      frame.srcdoc = '<button></button>';
+      host.attachShadow({mode: 'open'}).append(frame);
+      document.body.append(host);
+      await new Promise(resolve => frame.addEventListener('load', resolve, {once: true}));
+    }""")
     violations, _ = serious_axe_violations(page)
-    assert [violation["id"] for violation in violations] == ["button-name"]
-    assert len(violations[0]["nodes"]) == 2, "both exposed documents must be audited"
+    assert [violation["id"] for violation in violations] == [
+        "button-name",
+        "button-name",
+    ], "both exposed documents must be audited"
 
     child.locator("button").evaluate("button => button.textContent = 'Continue'")
     child.frame_locator("#nested-frame").locator("button").evaluate(
@@ -6036,7 +6048,15 @@ ELEVATION_SHADOWS = """() => {
           // layer, because a control may state its ring and its lift in one declaration.
           const lifts = layersOf(property, value).filter((layer) => {
             if (/(^|\\s)inset(\\s|$)/.test(layer)) return false;
-            const lengths = layer.trim().split(/\\s+/)
+            // Functions in a shadow can contain numbers (rgb, calc). Only lengths
+            // at the shadow layer's top level describe its offsets and blur.
+            let depth = 0;
+            const outside = [...layer].map((char) => {
+              if (char === '(') { depth++; return ' '; }
+              if (char === ')') { depth--; return ' '; }
+              return depth ? ' ' : char;
+            }).join('');
+            const lengths = outside.trim().split(/\\s+/)
               .filter((token) => /^-?(\\d*\\.)?\\d+(px)?$/.test(token));
             return lengths.length >= 3 && parseFloat(lengths[2]) !== 0
               && lengths.some((token) => token.endsWith('px'));

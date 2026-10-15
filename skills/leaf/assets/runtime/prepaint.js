@@ -630,31 +630,32 @@
     // before upgrade the same attributes already provide the final authored box.
     return true;
   };
-  // How far each breakout's holder stands in from the column on each side
-  // (`--lf-indent-l`, `--lf-indent-r`), which the breakout's room counts as its own
-  // (layouts.css): a list item, a list the page resets, a page's own indented block,
-  // whatever moved it, read off the boxes rather than declared by each kind of holder.
-  // Only a column grows a breakout past its holder, so a page whose `main` requests no
-  // column shell (`seat`) carries no reading, and a breakout inside another takes its
-  // holder's width and none of this room. A breakout the browser is not drawing, such
-  // as one in a tab not chosen, is not read, since reading skipped content forces its
-  // style and layout: it keeps its last reading, and one never read stands as if its
-  // holder were the column. Every edge is read before any is written, so the page is
-  // laid out once however many breakouts it holds. Read with the column, so a breakout
-  // parsed before first paint is placed before it paints; one inserted or
-  // revealed later is read as it arrives (content-layout.js).
+  // Whether each breakout grows past its holder (layouts.css). Only a column grows one,
+  // so a page whose `main` requests no column shell (`seat`) holds none, and a breakout
+  // inside another takes its holder's width and is not read. In a column, a breakout
+  // grows only from a holder whose content box is the column's own: `main`, a section,
+  // an Ask standing in it. Every other one wears `data-lf-kept` and keeps to the box it
+  // is laid out in, since the room beside that box is not the page's to give, and the
+  // holder's axis is not the prose's:
   //
-  // A breakout grows out of the column only down a chain of block flow: each box from
-  // the breakout up to `main` a block-level box its holder lays out one under another.
-  // Where the breakout, or a box between it and the column, is an item of a grid, a
-  // flex line, a table or one of a holder's columns, is an inline block, floats or is
-  // positioned, the page arranged that box itself, and the room beside it is the page's
-  // own, such as a sibling track's text: grown into it, a wide block in a grid cell
-  // stood over the other cell's words, and a table widened its own track and crushed
-  // the other to 30px. A link or other inline around a block is no such box, since the
-  // browser sets the block in its holder's flow (`holderOf`). Such a breakout
-  // wears `data-lf-arranged` and keeps to the box it is laid out in (layouts.css), so
-  // the indent is read only where the holder's content box is the breakout's block.
+  // - a holder standing in from the column, however it got there: a list item, a
+  //   quotation, a page's own indented block;
+  // - a breakout the page arranged, or one inside a box the page arranged, however wide:
+  //   one its holder does not lay out in block flow, one under another, as an item of a
+  //   grid, a flex line or a table, an inline block, one that floats or is positioned,
+  //   and one in a holder's columns. The room beside it is the page's own, such as a
+  //   sibling track's text: grown into it, a wide block in a grid cell stood over the
+  //   other cell's words, a table widened its own track and crushed the other to 30px,
+  //   and a block in a holder's second column stood over the first's words.
+  //
+  // A link or other inline around a block is no holder, since the browser sets the
+  // block in its own holder's flow (`holderOf`). A breakout the browser is not drawing,
+  // such as one in a tab not chosen, is not read, since reading skipped content forces
+  // its style and layout: it keeps its last reading, and one never read grows. Every box
+  // is read before any is written, so the page is laid out once however many breakouts
+  // it holds. Read with the column, so a breakout parsed before first paint is placed
+  // before it paints; one inserted or revealed later is read as it arrives
+  // (content-layout.js).
   const contentEdges = (element) => {
     const box = element.getBoundingClientRect();
     const style = getComputedStyle(element);
@@ -666,7 +667,7 @@
     };
   };
   const BREAKOUT = "[data-lf-space]";
-  const ARRANGED = "data-lf-arranged";
+  const KEPT = "data-lf-kept";
   // The box a breakout is laid out in: its slot's where a widget slots it, past any
   // ancestor that draws no box of its own (shadow-tree.js, `renderedParent`), and past
   // an inline one, such as a link around a chart or an unknown element, since the
@@ -685,8 +686,7 @@
   };
   // A holder whose inner display is flow or flow-root, and which sets no columns, lays
   // its children out one under another at its full width; the computed display names
-  // that by its short keyword or in full. One that sets columns computes as a block too,
-  // and a wide block in its second column stood over the first's words.
+  // that by its short keyword or in full.
   const FLOWS =
     /^(block|flow-root|list-item|inline-block|table-cell|table-caption)$|\bflow\b|\bflow-root\b|\blist-item\b/;
   const inFlow = (box, holder) => {
@@ -715,8 +715,8 @@
     }
     return verdicts.get(holder);
   };
-  // Returns whether any breakout's indent or arrangement changed.
-  const indents = () => {
+  // Returns whether any breakout's reading changed.
+  const breakouts = () => {
     const main = document.querySelector("body > main");
     if (!main) return { changed: false };
     const grows = document.body.hasAttribute("data-lf-column-shell");
@@ -726,46 +726,27 @@
     for (const breakout of main.querySelectorAll(BREAKOUT)) {
       if (breakout.parentElement.closest(BREAKOUT)) continue;
       if (!grows) {
-        readings.push([breakout, 0, 0, false]);
+        readings.push([breakout, false]);
         continue;
       }
       if (!breakout.checkVisibility()) continue;
       const holder = holderOf(breakout, main);
-      if (!inFlow(breakout, holder) || arrangedAbove(holder, main, verdicts)) {
-        readings.push([breakout, 0, 0, true]);
-        continue;
-      }
       column ??= contentEdges(main);
-      const edges = contentEdges(holder);
-      const reading = [
-        Math.max(0, Math.round(edges.left - column.left)),
-        Math.max(0, Math.round(column.right - edges.right)),
-      ];
-      readings.push([breakout, ...reading, false]);
-      // A holder kept to the column can span the breakout it holds, as an Ask does
-      // (the default package's ask.css), and its padding keeps its content box where
-      // its own holder's is, so it stands in from the column as far: it takes the same
-      // reading, and grows as far each way as the block does.
-      if (holder.matches("[data-lf-column]"))
-        readings.push([holder, ...reading, false]);
+      const edges = holder === main ? column : contentEdges(holder);
+      readings.push([
+        breakout,
+        !inFlow(breakout, holder) ||
+          arrangedAbove(holder, main, verdicts) ||
+          Math.abs(edges.left - column.left) > 0.5 ||
+          Math.abs(edges.right - column.right) > 0.5,
+      ]);
     }
     let changed = false;
-    for (const [breakout, left, right, arranged] of readings) {
-      const writes = [
-        ["--lf-indent-l", left],
-        ["--lf-indent-r", right],
-      ].filter(
-        ([property, length]) =>
-          breakout.style.getPropertyValue(property) !== (length ? `${length}px` : ""),
-      );
-      const rearranged = breakout.hasAttribute(ARRANGED) !== arranged;
-      if (!writes.length && !rearranged) continue;
+    for (const [breakout, held] of readings) {
+      if (breakout.hasAttribute(KEPT) === held) continue;
       if (!sourceShells.has(breakout))
         sourceShells.set(breakout, breakout.cloneNode(false));
-      for (const [property, length] of writes)
-        if (length) setRuntimeRootStyle(breakout, property, `${length}px`);
-        else removeRuntimeRootStyle(breakout, property);
-      if (rearranged) setRuntimeRootAttribute(breakout, ARRANGED, arranged ? "" : null);
+      setRuntimeRootAttribute(breakout, KEPT, held ? "" : null);
       changed = true;
     }
     return { changed };
@@ -840,7 +821,7 @@
   const residency = () => {
     const seated = seat();
     const stood = stand();
-    const reading = indents();
+    const reading = breakouts();
     return { ...reading, changed: reading.changed || seated || stood };
   };
 
@@ -868,7 +849,7 @@
     runtimeRootStyles: (node) => new Set(runtimeStyles.get(node) ?? []),
     authoredShell: (node) => sourceShells.get(node) ?? sources.get(node) ?? node,
     residency,
-    indents,
+    breakouts,
     skipped,
     register(tag, render) {
       // The widget loader imports unregistered producers for later revisions and

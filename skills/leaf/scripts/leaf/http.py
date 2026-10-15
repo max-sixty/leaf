@@ -1005,7 +1005,7 @@ class PageEndpoint:
         path = self.path
         if match := re.fullmatch(r"/api/files/([^/]+)", path):
             if not self.source.writable:
-                return self._refuse("Captured previews cannot read live files.", 403)
+                return self._json(None)
             try:
                 return self._json(read_file(self.page_dir, match[1]))
             except FileBindingError as error:
@@ -1330,11 +1330,8 @@ def page_endpoint(
     The key has no default: every server over a page directory is reachable by
     whatever reached the machine, so there is no construction that should quietly go
     without one."""
-    identity = (
-        page_snapshot.context.layer
-        if page_snapshot is not None
-        else layer_metadata(page_dir)
-    )
+    # The registry first: its reader refuses a layer at another protocol before any
+    # check of a shape that is this Leaf's protocol's, as the identity's reader does.
     registry = (
         page_snapshot.context.registry
         if page_snapshot is not None
@@ -1342,6 +1339,11 @@ def page_endpoint(
     )
     if refusal := incompatible_layer(page_dir, registry):
         raise Rejected([refusal])
+    identity = (
+        page_snapshot.context.layer
+        if page_snapshot is not None
+        else layer_metadata(page_dir)
+    )
     return partial(
         endpoint,
         page_dir=page_dir,

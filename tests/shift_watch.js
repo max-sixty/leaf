@@ -1068,6 +1068,7 @@
         reading: Boolean(range) || readingMedia(element),
         shown,
       };
+      const words = range ? node.textContent : null;
       const seen = placed.get(node) ?? [];
       const sameBox =
         last &&
@@ -1084,6 +1085,7 @@
         last.rect.top === rect.top &&
         last.rect.right === rect.right &&
         last.rect.bottom === rect.bottom &&
+        last.words === words &&
         Object.keys(paint).every((key) => last.paint[key] === paint[key]) &&
         fragments.length === last.fragments.length &&
         fragments.every((rect, i) =>
@@ -1120,6 +1122,7 @@
         nativeOrigin,
         rect,
         fragments,
+        words,
         paint,
       });
       pruneSamples(seen);
@@ -2214,6 +2217,9 @@
       for (const [before, after] of [[0, 2]]) {
         const prior = readings[before],
           next = readings[after];
+        // A changed text node is a new reading, even when Lit retained its DOM
+        // identity. Its old and new glyph fragments are not the same landmark.
+        if (node.nodeType === Node.TEXT_NODE && prior.words !== next.words) continue;
         const scroll = scrollMotion(node, around[before].at, around[after].at);
         const motion = animationMotion(
           node,

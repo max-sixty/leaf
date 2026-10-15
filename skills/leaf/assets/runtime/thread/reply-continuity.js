@@ -5,21 +5,27 @@
    later content consumes that spacer. Local disclosures and native edits never take
    an allocation snapshot, so returning to a collapsed shape is ordinary layout.
    Message rewrites identify their changing boxes at the presentation boundary, so their
-   own height change does not become passive space. The reply editor alone retains its
-   room across mirrored draft replacement; native input returns it to intrinsic size.
-   A departed or closed response releases both mechanical allocations. */
+   own height change does not become passive space. The reply editor retains its room
+   across mirrored draft replacement and while it is scrolled out of sight; native
+   input returns it to intrinsic size. A departed or closed response releases both
+   mechanical allocations. */
 import { growthIsSeen, whenNone } from "../geometry.js";
 import { atLayoutPrecision, layoutPx } from "../keeps.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 import { nextRender, sizeObserver } from "../rendering.js";
 import { placeKeeper } from "../user-place.js";
 import { scrollerFor } from "../reading-regions.js";
+import { offFlowSurfaceOf } from "../off-flow.js";
+import { draftHasContent } from "../drafts.js";
+import { replyDraftContext } from "./replies.js";
 
 export class ReplyContinuity {
   #owner;
   #row = null;
   #departure = null;
   #space = 0;
+  // Growth already deducted from passive space while a refused draft returns.
+  #returningWriting = 0;
   // The writing areas a presentation changes, each with its height before it.
   #presenting = [];
   #writing = null;
@@ -41,7 +47,7 @@ export class ReplyContinuity {
     this.#measure = nextRender(() => {
       this.#measure = null;
       if (this.#writing !== writing) return;
-      if (!this.#visible()) return this.release();
+      if (!this.#visible()) return this.#releaseSpace();
       writing.width = atLayoutPrecision(
         parseFloat(getComputedStyle(writing.input).inlineSize),
       );
@@ -94,12 +100,16 @@ export class ReplyContinuity {
     const extent = parseFloat(body.blockSize);
     // Natural measurement can briefly clamp a surrounding scroller before the gap
     // settles. Use the shared synchronous place keeper to pay for that reflow only.
-    const place = placeKeeper(scrollerFor(this.#owner), {
-      items: ".lf-reply-continuity",
-      identity: (node) => node.dataset.id,
-      preferred: () => this.#owner,
-    });
-    return { extent, place, held: place.take({ spans: false }) };
+    // A floating surface owns its position; correcting the page scroller for growth
+    // inside it moves the authored page under the reader instead.
+    const place = offFlowSurfaceOf(this.#owner)
+      ? null
+      : placeKeeper(scrollerFor(this.#owner), {
+          items: ".lf-reply-continuity",
+          identity: (node) => node.dataset.id,
+          preferred: () => this.#owner,
+        });
+    return { extent, place, held: place?.take({ spans: false }) };
   }
   after(reading) {
     this.#row = this.#owner.querySelector(":scope > .lf-thread-reply");
@@ -111,9 +121,10 @@ export class ReplyContinuity {
     )
       return this.release();
     if (!this.#visible()) {
-      reading?.place.finish(reading.held);
-      return this.release();
+      reading?.place?.finish(reading.held);
+      return this.#releaseSpace();
     }
+    this.#retainWriting();
     if (reading != null) {
       const { extent, place, held } = reading;
       const body =
@@ -126,15 +137,46 @@ export class ReplyContinuity {
           (sum, { node, height }) => sum + node.getBoundingClientRect().height - height,
           0,
         );
+      // A refusal lifts the draft mask after this thread presentation. Its words
+      // will grow the still-empty field back to the writing room we retained from
+      // before Send. Account for that growth while replacing the departed turn
+      // with passive space, rather than adding both the space and the words.
+      const input = this.#row.querySelector(TEXT_FIELD);
+      const context = input && replyDraftContext(input);
+      const returning =
+        this.#writing?.input === input &&
+        context &&
+        draftHasContent(context) &&
+        !this.#owner.querySelector(".lf-msg.user[data-attempt]")
+          ? Math.max(
+              0,
+              parseFloat(this.#writing.room) - input.getBoundingClientRect().height,
+            )
+          : 0;
       this.#keep(
-        Math.max(0, this.#space + extent - parseFloat(body.blockSize) + written),
+        Math.max(
+          0,
+          this.#space +
+            extent -
+            parseFloat(body.blockSize) +
+            written +
+            this.#returningWriting -
+            returning,
+        ),
       );
-      place.finish(held);
+      this.#returningWriting = returning;
+      place?.finish(held);
     }
-    if (!this.#visible()) return this.release();
-    this.#retainWriting();
+    if (!this.#visible()) return this.#releaseSpace();
     this.#departure?.();
-    this.#departure = whenNone([this.#row], growthIsSeen, () => this.release());
+    this.#departure = whenNone([this.#row], growthIsSeen, () => {
+      if (
+        !this.#owner.isConnected ||
+        (this.#owner.localName === "details" && !this.#owner.open)
+      )
+        this.release();
+      else this.#releaseSpace();
+    });
   }
   #keep(space) {
     if (space === this.#space) return;
@@ -145,7 +187,16 @@ export class ReplyContinuity {
   }
   #retainWriting() {
     const input = this.#row?.querySelector(TEXT_FIELD);
-    if (!input?.value) return this.#releaseWriting();
+    if (!input?.value) {
+      const context = input && replyDraftContext(input);
+      if (context && draftHasContent(context) && this.#writing?.context === context) {
+        if (this.#writing.input === input) return;
+        const width = atLayoutPrecision(parseFloat(getComputedStyle(input).inlineSize));
+        if (width === this.#writing.width)
+          return this.#allocateWriting(input, this.#writing.room);
+      }
+      return this.#releaseWriting();
+    }
     if (this.#writing?.input === input) return;
     this.#allocateWriting(input, getComputedStyle(input).blockSize);
   }
@@ -154,6 +205,7 @@ export class ReplyContinuity {
       this.#releaseWriting();
       this.#writing = {
         input,
+        context: replyDraftContext(input),
         width: atLayoutPrecision(parseFloat(getComputedStyle(input).inlineSize)),
         room: null,
       };
@@ -165,17 +217,22 @@ export class ReplyContinuity {
   }
   #releaseWriting() {
     if (!this.#writing) return;
+    this.#returningWriting = 0;
     const { input } = this.#writing;
     input.style.removeProperty("--lf-reply-writing-room");
     this.#sizes.unobserve(input);
     this.#writing = null;
   }
-  release() {
+  #releaseSpace() {
     this.#departure?.();
     this.#departure = null;
     this.#space = 0;
-    this.#releaseWriting();
+    this.#returningWriting = 0;
     if (this.gap.style.getPropertyValue("--lf-reply-space"))
       this.gap.style.removeProperty("--lf-reply-space");
+  }
+  release() {
+    this.#releaseSpace();
+    this.#releaseWriting();
   }
 }

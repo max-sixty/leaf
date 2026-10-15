@@ -213,6 +213,7 @@
 <!-- notification-playground.html authored script -->
 <script type="module">
       import {
+        PAGE_INTERFACE,
         keeps,
         keepsText,
         layoutChanged,
@@ -328,13 +329,13 @@
         class extends HTMLElement {
           #banner = null;
           #strip = null;
-          #values = null;
+          #initialized = false;
           #cards = "";
 
           connectedCallback() {
             if (!once(this)) return;
             this.#build();
-            whileConnected(this, (signal) => void this.#connect(signal));
+            whileConnected(this, (signal) => this.#connect(signal));
           }
 
           #build() {
@@ -345,67 +346,59 @@
             this.append(candidates);
           }
 
-          async #connect(signal) {
-            await customElements.whenDefined("lf-playground");
-            if (signal.aborted) return;
+          #connect(signal) {
             const playground = this.closest("lf-playground");
-            if (!playground) return;
-            playground.addEventListener(
-              "lf-playground-change",
-              (event) => {
-                if (event.target !== playground) return;
-                this.#values = event.detail.values;
-                this.#render();
-              },
+            let unsubscribe;
+            const initialize = () => {
+              if (signal.aborted || unsubscribe) return;
+              unsubscribe = playground.subscribe((values) => this.#render(values));
+              this.#initialized = true;
+            };
+            document.addEventListener(
+              PAGE_INTERFACE,
+              (event) => event.detail.present(Promise.resolve().then(initialize)),
               { signal },
             );
-            this.#values = playground.values;
-            this.#render();
+            if (this.#initialized) initialize();
+            return () => unsubscribe?.();
           }
 
-          #render() {
-            if (!this.#values) return;
-            const events = EVENTS.slice(0, this.#values.events);
-            keeps(this, "data-tone", this.#values.tone);
-            keeps(this, "data-compact", this.#values.compact);
-            this.style.setProperty("--notification-accent", this.#values.accent);
-            this.style.setProperty("--notification-radius", `${this.#values.radius}px`);
+          #render(values) {
+            const events = EVENTS.slice(0, values.events);
+            keeps(this, "data-tone", values.tone);
+            keeps(this, "data-compact", values.compact);
+            this.style.setProperty("--notification-accent", values.accent);
+            this.style.setProperty("--notification-radius", `${values.radius}px`);
             this.#banner.figure.toggleAttribute(
               "data-selected",
-              this.#values.format === "banner",
+              values.format === "banner",
             );
             this.#strip.figure.toggleAttribute(
               "data-selected",
-              this.#values.format === "status strip",
+              values.format === "status strip",
             );
             // The cards read only the event count, the first title and the owner line;
             // a colour or a radius leaves them unchanged.
             const cards = JSON.stringify([
-              this.#values.events,
-              this.#values.title,
-              this.#values["show-owner"],
+              values.events,
+              values.title,
+              values["show-owner"],
             ]);
             if (cards !== this.#cards) {
               this.#cards = cards;
               this.#banner.feed.replaceChildren(
                 ...events.map((event, index) =>
-                  notification(event, "banner", index, this.#values),
+                  notification(event, "banner", index, values),
                 ),
               );
               this.#strip.feed.replaceChildren(
                 ...events.map((event, index) =>
-                  notification(event, "status strip", index, this.#values),
+                  notification(event, "status strip", index, values),
                 ),
               );
             }
-            keepsText(
-              this.#banner.metric,
-              `${this.#values.events} cards · full detail`,
-            );
-            keepsText(
-              this.#strip.metric,
-              `${this.#values.events} rows · compact summary`,
-            );
+            keepsText(this.#banner.metric, `${values.events} cards · full detail`);
+            keepsText(this.#strip.metric, `${values.events} rows · compact summary`);
             layoutChanged(this);
           }
         },
@@ -484,7 +477,15 @@
 </style>
 <!-- data-explorer.html authored script -->
 <script type="module">
-      import { keepsText, layoutChanged, offer, once } from "/runtime/widget-api.js";
+      import {
+        PAGE_INTERFACE,
+        keepsText,
+        layoutChanged,
+        offer,
+        once,
+        setChildren,
+        whileConnected,
+      } from "/runtime/widget-api.js";
 
       const RELEASES = [
         { service: "Checkout", region: "europe", risk: 72, owner: "payments" },
@@ -501,8 +502,6 @@
         ],
         order: ["filter-1", "filter-2"],
       };
-
-      const clone = (value) => structuredClone(value);
 
       function matches(release, row) {
         const actual = release[row.field];
@@ -533,18 +532,17 @@
         "release-query-explorer",
         class extends HTMLElement {
           #playground = null;
-          #state = clone(DEFAULT_FILTERS);
-          #notify = null;
+          #filters = null;
           #rows = null;
           #results = null;
           #count = null;
           #rowEls = new Map();
           #listed = "";
-          #next = 3;
 
           connectedCallback() {
-            if (once(this)) this.#build();
-            this.#connect();
+            if (!once(this)) return;
+            this.#build();
+            whileConnected(this, (signal) => this.#connect(signal));
           }
 
           #build() {
@@ -555,15 +553,20 @@
             );
             const add = offer("button", "lf-btn query-add", "Add filter");
             add.addEventListener("click", () => {
-              const id = `filter-${this.#next++}`;
-              this.#state.rows.push({
-                id,
-                field: "owner",
-                operator: "is",
-                value: "platform",
+              const state = this.#filters.get();
+              const next =
+                Math.max(
+                  0,
+                  ...state.rows.map((row) => Number(row.id.split("-").at(-1))),
+                ) + 1;
+              const id = `filter-${next}`;
+              this.#filters.set({
+                rows: [
+                  ...state.rows,
+                  { id, field: "owner", operator: "is", value: "platform" },
+                ],
+                order: [...state.order, id],
               });
-              this.#state.order.push(id);
-              this.#changed();
               queueMicrotask(() =>
                 this.querySelector(`[data-filter-id="${id}"] input`)?.focus(),
               );
@@ -586,27 +589,27 @@
             this.append(toolbar, this.#rows, this.#count, tableFrame);
           }
 
-          async #connect() {
-            await customElements.whenDefined("lf-playground");
-            if (!this.isConnected || this.#notify) return;
+          #connect(signal) {
+            let unsubscribe;
+            const initialize = () => {
+              if (signal.aborted || unsubscribe) return;
+              if (!this.#filters) this.#initialize();
+              unsubscribe = this.#playground.subscribe(() => this.#render());
+            };
+            document.addEventListener(
+              PAGE_INTERFACE,
+              (event) => event.detail.present(Promise.resolve().then(initialize)),
+              { signal },
+            );
+            if (this.#filters) initialize();
+            return () => unsubscribe?.();
+          }
+
+          #initialize() {
             this.#playground = this.closest("lf-playground");
-            this.#notify = this.#playground.registerContributor(
+            this.#filters = this.#playground.registerContributor(
               "filters",
               DEFAULT_FILTERS,
-              {
-                read: () => clone(this.#state),
-                apply: (state) => {
-                  this.#state = clone(state);
-                  this.#next =
-                    Math.max(
-                      0,
-                      ...this.#state.rows.map((row) =>
-                        Number(row.id.split("-").at(-1)),
-                      ),
-                    ) + 1;
-                  this.#render();
-                },
-              },
             );
             this.#playground.registerInstructionProvider((values) => {
               const rows = values.filters.order.map((id) =>
@@ -622,31 +625,33 @@
             });
           }
 
-          #changed() {
-            this.#notify();
-          }
-
           #update(id, field, value) {
-            this.#state.rows.find((row) => row.id === id)[field] = value;
-            this.#changed();
+            const state = this.#filters.get();
+            this.#filters.set({
+              ...state,
+              rows: state.rows.map((row) =>
+                row.id === id ? { ...row, [field]: value } : row,
+              ),
+            });
           }
 
           #move(id, offset) {
-            const from = this.#state.order.indexOf(id);
+            const state = this.#filters.get();
+            const from = state.order.indexOf(id);
             const to = from + offset;
-            if (to < 0 || to >= this.#state.order.length) return;
-            [this.#state.order[from], this.#state.order[to]] = [
-              this.#state.order[to],
-              this.#state.order[from],
-            ];
-            this.#changed();
+            if (to < 0 || to >= state.order.length) return;
+            const order = [...state.order];
+            [order[from], order[to]] = [order[to], order[from]];
+            this.#filters.set({ ...state, order });
           }
 
           #remove(id) {
-            const index = this.#state.order.indexOf(id);
-            this.#state.rows = this.#state.rows.filter((row) => row.id !== id);
-            this.#state.order = this.#state.order.filter((rowId) => rowId !== id);
-            this.#changed();
+            const state = this.#filters.get();
+            const index = state.order.indexOf(id);
+            this.#filters.set({
+              rows: state.rows.filter((row) => row.id !== id),
+              order: state.order.filter((rowId) => rowId !== id),
+            });
             queueMicrotask(() => {
               const rows = this.querySelectorAll(".query-row");
               const next = rows[Math.min(index, rows.length - 1)];
@@ -721,10 +726,10 @@
           }
 
           #render() {
-            if (!this.#rows) return;
-            const byId = new Map(this.#state.rows.map((row) => [row.id, row]));
-            const last = this.#state.order.length - 1;
-            const shown = this.#state.order.map((id, index) => {
+            const state = this.#filters.get();
+            const byId = new Map(state.rows.map((row) => [row.id, row]));
+            const last = state.order.length - 1;
+            const shown = state.order.map((id, index) => {
               const row = byId.get(id);
               const made = this.#row(row);
               if (made.field.value !== row.field) made.field.value = row.field;
@@ -740,16 +745,11 @@
             });
             for (const id of this.#rowEls.keys())
               if (!byId.has(id)) this.#rowEls.delete(id);
-            const current = this.#rows.children;
-            if (
-              shown.length !== current.length ||
-              shown.some((element, index) => element !== current[index])
-            )
-              this.#rows.replaceChildren(...shown);
-            const values = this.#playground?.values;
+            setChildren(this.#rows, shown);
+            const values = this.#playground.values;
             const filtered = RELEASES.filter((release) =>
-              this.#state.order.every((id) => matches(release, byId.get(id))),
-            ).slice(0, values?.limit ?? 4);
+              state.order.every((id) => matches(release, byId.get(id))),
+            ).slice(0, values.limit);
             const listed = JSON.stringify(filtered);
             if (listed !== this.#listed) {
               this.#listed = listed;
@@ -870,6 +870,7 @@
 <!-- code-comparison.html authored script -->
 <script type="module">
       import {
+        PAGE_INTERFACE,
         frameFor,
         keeps,
         keepsText,
@@ -884,15 +885,12 @@
         candidateA: { density: "compact", wrap: false },
         candidateB: { density: "comfortable", wrap: true },
       };
-      const clone = (value) => structuredClone(value);
 
       customElements.define(
         "code-reader-comparison",
         class extends HTMLElement {
           #playground = null;
-          #state = clone(DEFAULT_COMPARISON);
-          #notify = null;
-          #change = null;
+          #comparison = null;
           #readerLayout = (event) => {
             if (event.target.matches("lf-code")) this.#scheduleMeasurement();
           };
@@ -900,7 +898,7 @@
           connectedCallback() {
             if (!once(this)) return;
             this.#build();
-            whileConnected(this, (signal) => void this.#connect(signal));
+            whileConnected(this, (signal) => this.#connect(signal));
           }
 
           #button(label, run) {
@@ -921,37 +919,33 @@
             this.prepend(toolbar);
           }
 
-          async #connect(signal) {
-            await Promise.all([
-              customElements.whenDefined("lf-playground"),
-              customElements.whenDefined("lf-code"),
-            ]);
-            if (signal.aborted) return;
-            if (!this.#notify) this.#initialize();
-            this.#playground.addEventListener("lf-playground-change", this.#change, {
-              signal,
-            });
+          #connect(signal) {
+            let unsubscribe;
+            const initialize = () => {
+              if (signal.aborted || unsubscribe) return;
+              if (!this.#comparison) this.#initialize();
+              unsubscribe = this.#playground.subscribe(() => this.#render());
+            };
+            document.addEventListener(
+              PAGE_INTERFACE,
+              (event) => event.detail.present(Promise.resolve().then(initialize)),
+              { signal },
+            );
+            if (this.#comparison) initialize();
             this.addEventListener("lf-layout", this.#readerLayout, { signal });
             const watching = sizeObserver(this.#scheduleMeasurement);
             signal.addEventListener("abort", () => watching.disconnect());
             for (const reader of this.querySelectorAll(".code-candidate lf-code")) {
               watching.observe(reader);
             }
-            this.#render();
+            return () => unsubscribe?.();
           }
 
           #initialize() {
             this.#playground = this.closest("lf-playground");
-            this.#notify = this.#playground.registerContributor(
+            this.#comparison = this.#playground.registerContributor(
               "comparison",
               DEFAULT_COMPARISON,
-              {
-                read: () => clone(this.#state),
-                apply: (state) => {
-                  this.#state = clone(state);
-                  this.#render();
-                },
-              },
             );
             this.#playground.registerInstructionProvider((values) => {
               const chosen =
@@ -961,31 +955,34 @@
                 : "keep horizontal scrolling";
               return `Update the built Leaf code reader in skills/leaf/packages/default/widgets/lf-code.js to use the ${chosen.density} reading density and ${wrapping} at a ${values.width}px comparison viewport. Preserve syntax and line anchors, then show the focused browser measurement test.`;
             });
-            this.#change = (event) => {
-              if (event.target === this.#playground) this.#render();
-            };
           }
 
           #toggleDensity(candidate) {
-            this.#state[candidate].density =
-              this.#state[candidate].density === "compact" ? "comfortable" : "compact";
-            this.#notify();
+            const state = this.#comparison.get();
+            this.#comparison.set({
+              ...state,
+              [candidate]: {
+                ...state[candidate],
+                density:
+                  state[candidate].density === "compact" ? "comfortable" : "compact",
+              },
+            });
           }
 
           #copy(from, to) {
-            this.#state[to] = clone(this.#state[from]);
-            this.#notify();
+            const state = this.#comparison.get();
+            this.#comparison.set({ ...state, [to]: state[from] });
           }
 
           #render() {
-            if (!this.#playground) return;
+            const state = this.#comparison.get();
             const values = this.#playground.values;
             for (const [name, key] of [
               ["A", "candidateA"],
               ["B", "candidateB"],
             ]) {
               const candidate = this.querySelector(`[data-candidate="${name}"]`);
-              const setting = this.#state[key];
+              const setting = state[key];
               keeps(candidate, "data-density", setting.density);
               keeps(candidate, "data-wrap", setting.wrap);
               candidate.style.width = `${values.width}px`;
@@ -1171,7 +1168,11 @@
 </style>
 <!-- alert-thresholds.html authored script -->
 <script type="module">
-      import { afterPresentation, keepsText } from "/runtime/widget-api.js";
+      import {
+        PAGE_INTERFACE,
+        keepsText,
+        whileConnected,
+      } from "/runtime/widget-api.js";
 
       const ALERTS = [
         {
@@ -1364,13 +1365,25 @@
           ]),
         ),
       };
-      afterPresentation(() => {
-        const playground = document.getElementById("alert-playground");
-        playground.registerInstructionProvider(instruction);
-        paint(playground.values, today);
-        playground.addEventListener("lf-playground-change", (event) =>
-          paint(event.detail.values, today),
+      const playground = document.getElementById("alert-playground");
+      let registered = false;
+      whileConnected(playground, (signal) => {
+        let unsubscribe;
+        const initialize = () => {
+          if (signal.aborted || unsubscribe) return;
+          if (!registered) {
+            playground.registerInstructionProvider(instruction);
+            registered = true;
+          }
+          unsubscribe = playground.subscribe((values) => paint(values, today));
+        };
+        document.addEventListener(
+          PAGE_INTERFACE,
+          (event) => event.detail.present(Promise.resolve().then(initialize)),
+          { signal },
         );
+        if (registered) initialize();
+        return () => unsubscribe?.();
       });
     </script>
 <!-- live-progress.html authored styles -->
@@ -9593,11 +9606,12 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 </lf-board>
               </template>
             </lf-sample>
-            <figure id="bg-margin-layer-figure" data-width="available">
-              <table id="bg-margin-layer-table">
+            <figure id="bg-margin-layer-figure">
+              <table id="bg-margin-layer-table" data-width="available">
                 <thead>
                   <tr>
                     <th>Session</th>
+                    <th>Room</th>
                     <th>Mon</th>
                     <th>Tue</th>
                     <th>Wed</th>
@@ -9610,21 +9624,23 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 <tbody>
                   <tr>
                     <td>Practice</td>
-                    <td>9:00</td>
-                    <td>9:00</td>
+                    <td>Workshop hall, east wing</td>
+                    <td>9:00–11:00</td>
+                    <td>9:00–11:00</td>
                     <td>—</td>
-                    <td>9:00</td>
-                    <td>9:00</td>
+                    <td>9:00–11:00</td>
+                    <td>9:00–11:00</td>
                     <td>—</td>
                     <td>—</td>
                   </tr>
                   <tr>
                     <td>Debugging</td>
-                    <td>13:30</td>
+                    <td>Lab 2, second floor</td>
+                    <td>13:30–15:00</td>
                     <td>—</td>
-                    <td>13:30</td>
+                    <td>13:30–15:00</td>
                     <td>—</td>
-                    <td>13:30</td>
+                    <td>13:30–15:00</td>
                     <td>—</td>
                     <td>—</td>
                   </tr>

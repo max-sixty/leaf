@@ -1,4 +1,4 @@
-/* Generated from skills/leaf/packages/diff/styles/shadow.css by build/styles.mjs. */
+/* @noformat Generated from skills/leaf/packages/diff/styles/shadow.css by build/styles.mjs. */
 /* skills/leaf/packages/diff/styles/palette.css */
 :where(:scope, :scope:host) {
   --lf-code-add-fill: color-mix(in srgb, var(--ok) 16%, var(--pre-bg));
@@ -43,7 +43,7 @@
 :scope:host(.lf-rendered) .lf-diff-file-thread-outlet > .lf-resolved-threads > .lf-resolved-summary::before {
   content: "▶" / "";
   flex: none;
-  font-size: calc(.7 * var(--t-5));
+  font-size: calc(0.7 * var(--t-5));
 }
 :scope:host(.lf-rendered) :where(.lf-diff-file) > details[open] > summary::before,
 :scope:host(.lf-rendered) .lf-diff-file-thread-outlet > .lf-resolved-threads[open] > .lf-resolved-summary::before {
@@ -61,7 +61,7 @@
 .lf-diff-head .lf-diff-arrow {
   flex: none;
   white-space: normal;
-  margin-inline: .4ch;
+  margin-inline: 0.4ch;
 }
 .lf-diff-head wbr {
   display: none;
@@ -182,7 +182,7 @@
   --lf-diff-head-h: 35px;
 }
 .lf-diff-file:has(> .lf-diff-file-actions > *) {
-  --lf-diff-head-h: max(35px, calc(var(--lf-diff-action-top) + var(--lf-diff-action-h)));
+  --lf-diff-head-h: max( 35px, calc(var(--lf-diff-action-top) + var(--lf-diff-action-h)) );
 }
 .lf-diff-file:has(> .lf-diff-file-actions > *) > :is(.lf-diff-fold, .lf-diff-metadata) {
   margin-top: calc(-1 * (var(--lf-diff-action-h) + var(--lf-diff-action-top)));

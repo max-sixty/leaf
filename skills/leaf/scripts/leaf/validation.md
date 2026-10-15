@@ -6,7 +6,7 @@ directly:
 - an event, whether a browser posted it or a command wrote it, at the append door
   ([events.md, "Admission"](events.md#admission));
 - a page's authored source at `check_source` (`validation/source.py`), which `page
-  check`, activation, `page stamp`, and `page init` all run ("Static validation");
+check`, activation, `page stamp`, and `page init` all run ("Static validation");
 - message markup an agent hands in at `admission.check_markup`, which applies the same
   structure and vocabulary checks to an HTML fragment, with or without widgets;
 - a layer `page init` would vendor at `composition.incoming_registry`;
@@ -49,7 +49,6 @@ prospective log, so every thread it reopens is covered, and reads candidate
 passages at the candidate revision's cutoff. Required transitions journal the
 exact staged bundle before its marker appears. Every transaction completes
 interrupted publication from that bundle before it exposes page readings.
-
 
 That half has one piece plain `page check` runs too. A page that runs code of its
 own, a module script or a page widget the document places, or places a data widget
@@ -217,6 +216,11 @@ Immutable inputs are read once for as long as the process keeps the page's memor
 (`page_memory`). A stored revision's document, captured vocabulary, and passage
 readings live on its one `RevisionReading` (`revision_artifact.read_revision`); a
 candidate's live on the one `SourceReading` its check takes, which the revision
-activation writes from it adopts. Each logged markup fragment is parsed once
+activation writes from it adopts. A `SourceDocument` builds its element index (ids,
+lf-* records, live samples) as it is read, and everything else on first use of
+`SourceDocument.authoring`. The revision inventory scans (ids, ask registrations,
+data consumers) read only the index of each revision, so they never build the rest;
+a reader that names a historical revision's elements, such as gesture naming,
+builds it for that revision. Each logged markup fragment is parsed once
 (`thread_context.logged_fragment`), while markup a writer hands in is parsed afresh at
 its gate.

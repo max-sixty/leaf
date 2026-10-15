@@ -11,12 +11,14 @@ def test_the_composed_corpus_carries_each_examples_head_modules():
     own page test runs the module; this holds the composition to carrying it."""
     composed = {
         script["body"]
-        for script in SourceDocument(corpus_model.CORPUS.read_text()).inline_scripts
+        for script in SourceDocument(
+            corpus_model.CORPUS.read_text()
+        ).authoring.inline_scripts
         if script["early_head"]
     }
     carried = 0
     for source, _ in corpus_model.TABS:
-        for script in SourceDocument(source.read_text()).inline_scripts:
+        for script in SourceDocument(source.read_text()).authoring.inline_scripts:
             if script["early_head"]:
                 assert script["body"] in composed, source.name
                 carried += 1
@@ -25,9 +27,9 @@ def test_the_composed_corpus_carries_each_examples_head_modules():
 
 def test_the_composed_corpus_preserves_stylesheet_access():
     """Each source stylesheet keeps its declarations when the corpus hoists it."""
-    composed = SourceDocument(corpus_model.CORPUS.read_text()).style_blocks
+    composed = SourceDocument(corpus_model.CORPUS.read_text()).authoring.style_blocks
     for source, _ in corpus_model.TABS:
-        for sheet in SourceDocument(source.read_text()).style_blocks:
+        for sheet in SourceDocument(source.read_text()).authoring.style_blocks:
             assert any(
                 item["css"].strip() == sheet["css"].strip()
                 and item["attrs"] == sheet["attrs"]

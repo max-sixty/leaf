@@ -1248,9 +1248,11 @@ function anchorAt(node, anchor, box, at = anchor?.getBoundingClientRect(), visib
     }
   });
 }
-var cutPath = ({ x, y }) => {
-  const open = (clips) => clips ? "0" : "-100000px";
-  return `inset(${open(y)} ${open(x)})`;
+var cutPath = ({ x, y }, band) => {
+  const open = 1e5;
+  const width = band.right - band.left;
+  const height = band.bottom - band.top;
+  return `inset(${layoutPx(y ? 0 : -open)} ${layoutPx(-width - (x ? 0 : open))} ${layoutPx(-height - (y ? 0 : open))} ${layoutPx(x ? 0 : -open)})`;
 };
 var nowhere = { left: 0, top: 0, right: 0, bottom: 0 };
 function headerLevels(item, clips = /* @__PURE__ */ new Map()) {
@@ -1276,8 +1278,13 @@ function cutFrames(levels, frames, make) {
   for (const dropped of frames.slice(0, frames.length - kept.length)) dropped.remove();
   levels.forEach(({ anchor, band, axes, at, reading }, i) => {
     if (reading) nameAnchor(reading);
-    anchorAt(chain[i], anchor, band, at);
-    chain[i].style.clipPath = cutPath(axes);
+    anchorAt(
+      chain[i],
+      anchor,
+      { left: band.left, top: band.top, right: band.left, bottom: band.top },
+      at
+    );
+    chain[i].style.clipPath = cutPath(axes, band);
   });
   return chain;
 }

@@ -766,7 +766,7 @@ def score_cold(run: Run) -> dict:
         "single_choice": not any("multiple" in attrs for attrs in groups),
         "no_sign_off": not any(
             meta["name"] == "lf-review" and meta["content"] == "sign-off"
-            for meta in document.named_metas
+            for meta in document.authoring.named_metas
         ),
     }
 
@@ -814,7 +814,9 @@ def score_board(run: Run) -> dict:
         "todo_kept": todo[:1] == ["card-rotate"] and len(todo) == 2,
         "done_empty": column_cards(document, "col-done") == [],
         "renamed": alerts is not None
-        and element_name(alerts["node"], require_registry(run.work / "page"))
+        and element_name(
+            document.authoring.node_of(alerts), require_registry(run.work / "page")
+        )
         == "Key expiry alerts",
         "no_restated": not document.restated,
     }

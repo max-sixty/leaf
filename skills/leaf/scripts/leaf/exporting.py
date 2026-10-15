@@ -377,7 +377,7 @@ def export_document(
     )
     # The readable record is the outer document, not raw text inside a noscript
     # wrapper: authored noscript elements keep native semantics in both parser modes.
-    body = SourceDocument(fallback).wrapper_tags["body"][1]
+    body = SourceDocument(fallback).authoring.wrapper_tags["body"][1]
     note = (
         '<noscript><p role="note">This file needs JavaScript to display embedded '
         "images, fonts, and recordings. The captured text is shown below.</p></noscript>"

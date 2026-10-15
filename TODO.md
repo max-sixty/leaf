@@ -631,6 +631,16 @@ Revisit these when their stated trigger becomes real; they are not an active que
 
 ### Implementation candidates
 
+- **Remove the early-key hold once startup is fast.** Keys pressed before the
+  runtime upgrades or the first saved state lands are queued, a "Page still
+  loading" chip appears after 150 ms, and the keyboard controller replays them
+  (`holdEarlyKeys` in `runtime/bootstrap.js`, `takeHeldKeys` in
+  `keyboard/controller.js`, `INPUT_PENDING` in `keyboard/dispatch.js`, the pending
+  clause of `scopeAvailable` in `keyboard/bindings.js`). It is worth keeping while
+  startup takes up to a couple of seconds. Trigger: a page presents in about 250 ms
+  consistently, measured with `leaf-dev probe`'s startup phases on the examples;
+  then delete the hold, which a 2026-10-14 trial measured at 240 runtime and 540
+  test lines.
 - **Unconfirmed — Let Lit follow what a widget reads.** `LeafElement`
   (`runtime/leaf-element.js`) collects what `render()` reads with Leaf's own
   `collectReads` over Preact signals and outside readings such as the clock, because

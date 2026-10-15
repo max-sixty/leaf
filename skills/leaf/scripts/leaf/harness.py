@@ -177,7 +177,9 @@ class Harness:
         raise NotImplementedError
 
     def nothing_listening(self, page_dir: Path, *, listening: bool) -> str:
-        """What to do about a live page this session owes a watcher."""
+        """What to do about a live page this session owes a watcher. A harness whose
+        hooks carry input never owes one inside a hook, since the hook's own run is
+        the watcher's proof (`watcher_live`), so it leaves this unimplemented."""
         raise NotImplementedError
 
     def watches_between_turns(self) -> bool:
@@ -370,12 +372,6 @@ class ClaudeCodeHarness(EnvironmentHarness):
 
     def input_unpicked(self, page_dir: Path, *, listening: bool) -> str:
         return "Leaf's hook puts them in your context at your next turn."
-
-    def nothing_listening(self, page_dir: Path, *, listening: bool) -> str:
-        return (
-            "no watcher: Leaf's Stop hook watches this session's pages between "
-            "turns, and has not run for this session."
-        )
 
     def live_turn(self) -> dict | None:
         """The session's live status in Claude Code's session registry
@@ -652,12 +648,6 @@ class PiHarness(EnvironmentHarness):
 
     def input_unpicked(self, page_dir: Path, *, listening: bool) -> str:
         return "Leaf's Pi extension puts them in your context at your next turn."
-
-    def nothing_listening(self, page_dir: Path, *, listening: bool) -> str:
-        return (
-            "no watcher: Leaf's Pi extension watches this session's pages as each "
-            "run settles, and has not run for this session."
-        )
 
 
 @dataclass(frozen=True)

@@ -1188,6 +1188,34 @@ def test_trace_comparison_prepaint_shows_only_its_opening_recording(browser, ser
     expect(wrapper).to_be_hidden()
 
 
+def test_trace_comparison_shows_each_wrapped_recording_in_one_place(browser, serve):
+    """The recording the chooser shows stands where the one it replaced stood, and the
+    workspace ends at its foot. A hidden wrapper kept its margins, so choosing After
+    moved the recording down by them and the sticky chooser hung over a blank band
+    below the workspace."""
+    url = serve(
+        ROOT / "tests/fixtures/pages/playwright-paired-results.html",
+        packages=("playwright",),
+    )
+    user = open_page(browser, url)
+    workspace = user.locator("lf-trace-compare")
+
+    def shown():
+        return workspace.evaluate("""node => {
+            const view = node.querySelector(':scope > figure:not([hidden])');
+            const box = view.getBoundingClientRect();
+            return {top: box.top, foot: box.bottom, end: node.getBoundingClientRect().bottom};
+        }""")
+
+    before = shown()
+    user.get_by_role("radio", name="After", exact=True).click()
+    expect(user.locator("#paired-after")).to_be_visible()
+    wait_until_ready(user)
+    after = shown()
+    assert after["top"] == before["top"], (before, after)
+    assert [before["end"], after["end"]] == [before["foot"], after["foot"]]
+
+
 def test_trace_render_gate_restores_the_zoomed_time_window(browser, serve):
     """A zoomed timeline offers no clipped control, and reading it moves nothing."""
     context = browser.new_context(viewport={"width": 480, "height": 520})

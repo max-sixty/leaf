@@ -131,7 +131,8 @@
     cursor: default;
     background: none;
   }
-  :where(.lf-floating-panel) :is(button, input, textarea, .lf-fp-on-item):focus-visible {
+  :where(.lf-floating-panel)
+    :is(button, input, textarea, .lf-fp-on-item):focus-visible {
     outline: var(--focus-ring);
     outline-offset: -2px;
   }

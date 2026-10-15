@@ -1678,7 +1678,7 @@ def test_kernel_selectors_name_no_package_tag():
     leaks = []
     for sheet in sorted(schema_model.ASSETS.rglob("*.css")):
         if "vendor" in sheet.parts or sheet.read_text().startswith(
-            "/* Generated from "
+            "/* @noformat Generated from "
         ):
             continue
         where = sheet.relative_to(schema_model.ASSETS)
@@ -1738,7 +1738,7 @@ def test_layout_style_and_widgets_never_read_each_other():
         # Read the owners here rather than treating each compiled delivery as a
         # second authority for selectors.
         if source.suffix == ".css" and source.read_text().startswith(
-            "/* Generated from "
+            "/* @noformat Generated from "
         ):
             continue
         foreign = [names for home, names in owned.items() if home != source]
@@ -1793,7 +1793,7 @@ def test_every_token_a_sheet_reads_is_set_somewhere():
         if (
             source.suffix != ".css"
             or "vendor" in source.parts
-            or text.startswith("/* Generated from ")
+            or text.startswith("/* @noformat Generated from ")
         ):
             continue
         for _conditions, _enclosing, selector, declarations in _style_rules(source):

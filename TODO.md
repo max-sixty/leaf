@@ -474,9 +474,6 @@ on 2026-10-07.
 
 ### Development velocity
 
-- **Format authored CSS.** Review what Prettier changes in compact CSS rules,
-  then enable the format. Format CSS source entries rather than the distribution
-  sheets `build/styles.mjs` generates.
 - **Check what handing over on chosen tests costs.** Since 2026-10-04 a handover runs
   the tests the agent picks for its change, and the broad selection runs only at
   landing (`tests/AGENTS.md`, "Run what the change needs"). Before that, 25 of the

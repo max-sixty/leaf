@@ -101,7 +101,9 @@ wa-comparison::part(lf-focus) {
 
 /* A radio's actual focus owner is its host, rather than a native shadow control.
    The generic band surrounds its full face, label included, for both appearances. */
-wa-radio[appearance="button"][data-lf-focus] { z-index: 2; }
+wa-radio[appearance="button"][data-lf-focus] {
+  z-index: 2;
+}
 
 /* Text and select frames cover their editor and auxiliary controls, including Clear.
    Their native input/button outlines stay off so a group has one focus carrier. */
@@ -126,7 +128,9 @@ wa-slider[range]::part(lf-focus) {
   outline: var(--focus-ring);
   outline-offset: 0;
 }
-wa-slider[range]::part(lf-focus) { z-index: 4; }
+wa-slider[range]::part(lf-focus) {
+  z-index: 4;
+}
 
 /* A slider's unfilled track is the scale the value is read against, so it carries a
    contour's weight rather than a hover's: at --chip it read as empty paper, and a value
@@ -137,4 +141,6 @@ wa-slider::part(track) {
 
 /* Tooltip text has its own contrast pair; Leaf's shared shadow text floor
    otherwise replaces the component's inverse foreground with page ink. */
-wa-tooltip { color: var(--wa-tooltip-content-color); }
+wa-tooltip {
+  color: var(--wa-tooltip-content-color);
+}

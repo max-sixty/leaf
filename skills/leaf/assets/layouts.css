@@ -30,13 +30,18 @@
     --lf-block-frame: 1;
   }
   [data-lf-reading-role="pane"] > header {
-    grid-row: 1; margin: 0;
+    grid-row: 1;
+    margin: 0;
   }
   [data-lf-reading-role="pane"] > footer {
-    grid-row: 3; margin: 0;
+    grid-row: 3;
+    margin: 0;
   }
   [data-lf-reading-role="pane"] > :not(header, footer) {
-    grid-row: 2; grid-column: 1; min-width: 0; margin: 0;
+    grid-row: 2;
+    grid-column: 1;
+    min-width: 0;
+    margin: 0;
   }
   /* The column: prose at the reading measure, centred in the shell (100cqi), with one
    * option, a breakout, which `data-width` or a widget's x-space asks for. The breakout
@@ -44,7 +49,9 @@
    * stands in a margin states the room it takes there (`--lf-taken-l`, `--lf-taken-r`).
    * `--lf-shift` moves the column off centre where a resident needs more room on one
    * side (prepaint.js, `residency`). */
-  html[data-lf-layout~="column"] body { margin: 0; }
+  html[data-lf-layout~="column"] body {
+    margin: 0;
+  }
   @media screen {
     html[data-lf-live][data-lf-layout~="column"]:not([data-lf-sample-block]) body {
       min-height: 100%;
@@ -60,13 +67,20 @@
     --lf-width: min(var(--col), max(0px, 100cqi - 2 * var(--col-pad)));
     --lf-beside: calc((100cqi - var(--lf-width)) / 2);
     --lf-shift: var(--lf-column-shift, 0px);
-    --lf-free-l: max(0px, calc(var(--lf-beside) + var(--lf-shift) - var(--col-pad)
-      - var(--lf-taken-l, 0px)));
-    --lf-free-r: max(0px, calc(var(--lf-beside) - var(--lf-shift) - var(--col-pad)
-      - var(--lf-taken-r, 0px)));
+    --lf-free-l: max(
+      0px,
+      calc(var(--lf-beside) + var(--lf-shift) - var(--col-pad) - var(--lf-taken-l, 0px))
+    );
+    --lf-free-r: max(
+      0px,
+      calc(var(--lf-beside) - var(--lf-shift) - var(--col-pad) - var(--lf-taken-r, 0px))
+    );
     --lf-room: calc(var(--lf-width) + var(--lf-free-l) + var(--lf-free-r));
   }
-  @property --lf-column-shell { syntax: "*"; inherits: false; }
+  @property --lf-column-shell {
+    syntax: "*";
+    inherits: false;
+  }
   @media screen {
     /* The column is placed through the body's shell tracks (requested by
      * --lf-column-shell, published on body before the room is measured) rather than an
@@ -76,18 +90,23 @@
     body[data-lf-column-shell] {
       display: grid;
       align-content: start;
-      grid-template-columns: max(0px, calc(2 * var(--lf-column-shift, 0px)))
+      grid-template-columns:
+        max(0px, calc(2 * var(--lf-column-shift, 0px)))
         minmax(0, 1fr) max(0px, calc(-2 * var(--lf-column-shift, 0px)));
     }
     body[data-lf-column-shell]:dir(rtl) {
-      grid-template-columns: max(0px, calc(-2 * var(--lf-column-shift, 0px)))
+      grid-template-columns:
+        max(0px, calc(-2 * var(--lf-column-shift, 0px)))
         minmax(0, 1fr) max(0px, calc(2 * var(--lf-column-shift, 0px)));
     }
     body[data-lf-column-shell]::before,
-    body[data-lf-column-shell] > :not(main) { grid-column: 1 / -1; }
+    body[data-lf-column-shell] > :not(main) {
+      grid-column: 1 / -1;
+    }
     body > main.layout-column {
       --lf-column-shell: grid;
-      grid-column: 2; justify-self: center;
+      grid-column: 2;
+      justify-self: center;
       width: max(0px, calc(100cqi - 2 * var(--col-pad)));
     }
   }
@@ -99,28 +118,50 @@
    * fine pointer, one holding a contents map may stand as the map's spine alone, in --map.
    * A sidenote hangs in the right margin and claims nothing: a wide exhibit level with it
    * clears it, and a margin row level with it stands as a pin (margin-layout.js). */
-  @property --lf-resident { syntax: "*"; inherits: false; }
+  @property --lf-resident {
+    syntax: "*";
+    inherits: false;
+  }
   /* An empty map-only slot already has its margin posture: no margin and no
    * formatting context between the blocks around it. */
-  main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar):has(> [data-lf-resident="map"]:only-child:empty) {
-    display: block; margin-block: 0; }
+  main.layout-column
+    > aside.sidebar:nth-child(1 of aside.sidebar):has(
+      > [data-lf-resident="map"]:only-child:empty
+    ) {
+    display: block;
+    margin-block: 0;
+  }
   /* A resident anchors no scroll (its passage does), and is a reading region of the
    * Layout's own in either posture (`--lf-reading-region`, reading-regions.js), so the
    * reader's place in it survives a change of posture. */
   main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar) {
-    --lf-resident: sidebar; overflow-anchor: none; --lf-reading-region: layout; }
-  main.layout-column aside.sidenote { --lf-resident: note; overflow-anchor: none; }
+    --lf-resident: sidebar;
+    overflow-anchor: none;
+    --lf-reading-region: layout;
+  }
+  main.layout-column aside.sidenote {
+    --lf-resident: note;
+    overflow-anchor: none;
+  }
   @media screen {
     /* Sticky, it can stand level with any band, so it takes its whole side. */
     main.layout-column[data-lf-margin~="sidebar"] {
-      --lf-sidebar-posture: margin; --lf-taken-l: calc(var(--lf-beside) + var(--lf-shift));
-      --lf-top-outer: var(--lf-top); }
+      --lf-sidebar-posture: margin;
+      --lf-taken-l: calc(var(--lf-beside) + var(--lf-shift));
+      --lf-top-outer: var(--lf-top);
+    }
     /* It scrolls what it holds, so it restarts `--lf-top` and its landing band
      * (theme.css), and a focused link keeps the ring's room (`--lf-head-inset`). */
-    main.layout-column[data-lf-margin~="sidebar"] > aside.sidebar:nth-child(1 of aside.sidebar) {
-      float: left; clear: left; position: sticky;
-      top: calc(var(--lf-top-outer) + var(--sp-4)); --lf-top: 0px;
-      --lf-top-covered: 0px; --lf-landing-room: 0px; --lf-head-inset: initial;
+    main.layout-column[data-lf-margin~="sidebar"]
+      > aside.sidebar:nth-child(1 of aside.sidebar) {
+      float: left;
+      clear: left;
+      position: sticky;
+      top: calc(var(--lf-top-outer) + var(--sp-4));
+      --lf-top: 0px;
+      --lf-top-covered: 0px;
+      --lf-landing-room: 0px;
+      --lf-head-inset: initial;
       width: calc(var(--sidebar) - var(--sp-4));
       max-height: calc(var(--lf-view-height) - 2 * var(--sp-4));
       overflow-y: auto;
@@ -131,26 +172,45 @@
    * `data-lf-resident`) rests as a spine in that slot and reveals its labels over the
    * page; its package draws it there once the slot is in the margin. */
   @media screen and (hover: hover) and (pointer: fine) {
-    main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar):has([data-lf-resident="map"]) {
-      --lf-resident: sidebar map; }
+    main.layout-column
+      > aside.sidebar:nth-child(1 of aside.sidebar):has([data-lf-resident="map"]) {
+      --lf-resident: sidebar map;
+    }
     /* A sidebar holding only the map stands as the map alone. */
-    main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar):has(> [data-lf-resident="map"]:only-child) {
-      --lf-resident: map; }
-    main.layout-column[data-lf-margin~="map"] { --lf-sidebar-posture: margin; }
+    main.layout-column
+      > aside.sidebar:nth-child(1 of aside.sidebar):has(
+        > [data-lf-resident="map"]:only-child
+      ) {
+      --lf-resident: map;
+    }
+    main.layout-column[data-lf-margin~="map"] {
+      --lf-sidebar-posture: margin;
+    }
     /* At rest the map is its spine, so a breakout stops short of it. */
     main.layout-column:is([data-lf-margin~="map"], [data-lf-margin~="sidebar"]):has(
-      > aside.sidebar:nth-child(1 of aside.sidebar) [data-lf-resident="map"]) { --lf-taken-l: var(--map); }
+        > aside.sidebar:nth-child(1 of aside.sidebar) [data-lf-resident="map"]
+      ) {
+      --lf-taken-l: var(--map);
+    }
     /* A sidebar whose map stands alone takes no room in the flow. */
     main.layout-column[data-lf-margin~="map"]
-      > aside.sidebar:nth-child(1 of aside.sidebar):has(> [data-lf-resident="map"]:only-child) {
-      display: block; margin-block: 0; }
+      > aside.sidebar:nth-child(1 of aside.sidebar):has(
+        > [data-lf-resident="map"]:only-child
+      ) {
+      display: block;
+      margin-block: 0;
+    }
   }
   @media screen {
     main.layout-column[data-lf-margin~="note"] [data-lf-space] {
-      clear: right; }
+      clear: right;
+    }
     main.layout-column[data-lf-margin~="note"] aside.sidenote {
-      float: right; clear: right; width: calc(var(--note) - var(--sp-4));
-      margin: 0 calc(-1 * var(--note)) 12px 0; }
+      float: right;
+      clear: right;
+      width: calc(var(--note) - var(--sp-4));
+      margin: 0 calc(-1 * var(--note)) 12px 0;
+    }
   }
   /* Breakouts: content wider than the argument about it. The prose axis never moves and
    * there is one wider width, so wide evidence is in the column or at --wide. Which
@@ -182,7 +242,11 @@
   /* `--lf-breakout: 1`: the theme lets this box stand past its holder. Each rule that
    * lets one break out says so, so a reader (the render check, layout.js) asks the box.
    * It does not inherit. */
-  @property --lf-breakout { syntax: "<integer>"; inherits: false; initial-value: 0; }
+  @property --lf-breakout {
+    syntax: "<integer>";
+    inherits: false;
+    initial-value: 0;
+  }
   @media screen {
     /* `data-lf-space` is the room a block takes past the measure: its tag's x-space, or
      * the occurrence's `data-width`, painted by delivery (`mark_declared`) so the width
@@ -204,15 +268,23 @@
      * shares the arithmetic, so it may span that block: an Ask does (ask.css). `wide`
      * and `available` each refine the second rule. */
     :where(main.layout-column, main.layout-sidebar) {
-      :is([data-lf-space],
-        [data-lf-content="markup"]:has(> [data-lf-space]:not([data-lf-kept]))) {
+      :is(
+        [data-lf-space],
+        [data-lf-content="markup"]:has(> [data-lf-space]:not([data-lf-kept]))
+      ) {
         /* Held to the free room beside the page (--lf-free-l/r) and spent evenly about
          * the prose axis where both sides have it. Neither side goes below zero, so the
          * box always covers its holder. */
-        --lf-surplus: clamp(0px, calc(var(--lf-reach) - 100%),
-          calc(var(--lf-free-l) + var(--lf-free-r)));
-        --lf-grow-l: clamp(max(0px, calc(var(--lf-surplus) - var(--lf-free-r))),
-          calc(var(--lf-surplus) / 2), min(var(--lf-surplus), var(--lf-free-l)));
+        --lf-surplus: clamp(
+          0px,
+          calc(var(--lf-reach) - 100%),
+          calc(var(--lf-free-l) + var(--lf-free-r))
+        );
+        --lf-grow-l: clamp(
+          max(0px, calc(var(--lf-surplus) - var(--lf-free-r))),
+          calc(var(--lf-surplus) / 2),
+          min(var(--lf-surplus), var(--lf-free-l))
+        );
         --lf-grow-r: calc(var(--lf-surplus) - var(--lf-grow-l));
       }
       [data-lf-space] {
@@ -226,13 +298,18 @@
       /* `wide` is one width wherever the block stands: capped at --wide even in a holder
        * already wider, such as a sidebar page's body; `available` takes everything. A
        * widget holding a block that breaks out reaches as far as that block. */
-      :is([data-lf-space="wide"],
-        [data-lf-content="markup"]:has(> [data-lf-space="wide"]:not([data-lf-kept]))) {
+      :is(
+        [data-lf-space="wide"],
+        [data-lf-content="markup"]:has(> [data-lf-space="wide"]:not([data-lf-kept]))
+      ) {
         --lf-reach: min(var(--wide), var(--lf-room, 0px));
       }
-      :is([data-lf-space="available"],
+      :is(
+        [data-lf-space="available"],
         [data-lf-content="markup"]:has(
-          > [data-lf-space="available"]:not([data-lf-kept]))) {
+          > [data-lf-space="available"]:not([data-lf-kept])
+        )
+      ) {
         --lf-reach: var(--lf-room, 0px);
       }
       [data-lf-space="wide"] {
@@ -248,7 +325,8 @@
       /* A widget that failed soft shows its message and source (`.lf-error`), which are
        * prose, so it takes the column; the source's `pre` scrolls inside the message. */
       [data-lf-space]:has(> .lf-error) {
-        --lf-room: 0px; }
+        --lf-room: 0px;
+      }
       /* A box that draws a frame keeps a wide widget inside it: the room is the page's to
        * give, and inside a callout or disclosure the page is not what holds the widget. A
        * box declares it draws one where it draws it (`--lf-block-frame: 1`), and the room
@@ -260,11 +338,14 @@
        * declares nothing. `page check --render` reports a box that draws without
        * declaring. */
       @container style(--lf-block-frame: 1) {
-        * { --lf-room: 100%; }
+        * {
+          --lf-room: 100%;
+        }
       }
       /* When startup is incomplete, undrawn widgets show source in the column. */
-      html[data-lf-startup-error]:not([data-lf-interactive]) & :is([data-lf-space],
-        [data-lf-content="markup"]:has(> [data-lf-space])) {
+      html[data-lf-startup-error]:not([data-lf-interactive])
+        &
+        :is([data-lf-space], [data-lf-content="markup"]:has(> [data-lf-space])) {
         --lf-room: 0px;
       }
     }
@@ -287,7 +368,8 @@
      * `normal` before `scroll-state` because Firefox and WebKit drop the second, and a
      * size container would zero its `max-content`. */
     @container not (style(--lf-room: 100%) or style(--lf-block-frame: 1)) {
-      main.layout-column table[data-lf-space]:not([data-lf-space] table, [data-lf-kept]) {
+      main.layout-column
+        table[data-lf-space]:not([data-lf-space] table, [data-lf-kept]) {
         contain: none;
         container-type: normal;
         container-type: scroll-state;
@@ -297,8 +379,11 @@
         margin-left: calc(-1 * var(--lf-free-l));
         margin-right: auto;
         --lf-over: calc(100% - var(--lf-width));
-        --lf-pull: clamp(max(0px, var(--lf-over) - var(--lf-free-r)),
-          var(--lf-over) / 2, min(var(--lf-over), var(--lf-free-l)));
+        --lf-pull: clamp(
+          max(0px, var(--lf-over) - var(--lf-free-r)),
+          var(--lf-over) / 2,
+          min(var(--lf-over), var(--lf-free-l))
+        );
         translate: calc(var(--lf-free-l) - var(--lf-pull)) 0;
         :dir(rtl) > & {
           margin-left: auto;
@@ -314,7 +399,8 @@
      * first paint until its module draws (`lf-rendered`), clipping its source meanwhile,
      * so the drawing lands in room already laid out. Once drawn the box is the drawing's;
      * a failure is shown whole. */
-    html[data-lf-interactive] [data-lf-height]:not([data-lf-height=""], .lf-rendered, :has(> .lf-error)) {
+    html[data-lf-interactive]
+      [data-lf-height]:not([data-lf-height=""], .lf-rendered, :has(> .lf-error)) {
       box-sizing: border-box;
       block-size: attr(data-lf-height px);
       overflow: clip;
@@ -327,7 +413,9 @@
    * bases of 30rem and 18rem, and stack where they no longer fit or where the body would
    * lose its content's minimum. A header or footer takes the whole row. Flex margins do
    * not collapse, so the items' block margins go. */
-  html[data-lf-layout~="sidebar"] body { margin: 0; }
+  html[data-lf-layout~="sidebar"] body {
+    margin: 0;
+  }
   @media screen {
     html[data-lf-live][data-lf-layout~="sidebar"]:not([data-lf-sample-block]) body {
       min-height: 100%;
@@ -347,10 +435,21 @@
     align-items: flex-start;
     gap: var(--sp-4);
   }
-  main.layout-sidebar > :is(header, footer) { flex: 1 0 100%; margin-block: 0; }
-  main.layout-sidebar > :not(header, footer) { flex: 2 1 30rem; margin-block: 0; }
-  main.layout-sidebar > aside { flex: 1 1 18rem; --lf-resident: track; }
-  main.layout-sidebar > :not(header, footer) > :first-child { margin-top: 0; }
+  main.layout-sidebar > :is(header, footer) {
+    flex: 1 0 100%;
+    margin-block: 0;
+  }
+  main.layout-sidebar > :not(header, footer) {
+    flex: 2 1 30rem;
+    margin-block: 0;
+  }
+  main.layout-sidebar > aside {
+    flex: 1 1 18rem;
+    --lf-resident: track;
+  }
+  main.layout-sidebar > :not(header, footer) > :first-child {
+    margin-top: 0;
+  }
   /* A track holding one block keeps it in view beside the scrolling body: sticky below
    * the banner and any tab strip, scrolling what it holds within the window, and only
    * inside its own flex line. The track itself never scrolls, so it keeps its flex
@@ -358,14 +457,22 @@
    * so the margin reading marks it (`data-lf-beside`, prepaint.js `residency`). Like a
    * margin sidebar, the block restarts the slot and landing band, keeps the ring's room,
    * anchors no reading, and is a reading region of the Layout's own. */
-  main.layout-sidebar > aside:has(> :only-child) { align-self: stretch; }
-  main.layout-sidebar > aside > :only-child { --lf-reading-region: layout; }
+  main.layout-sidebar > aside:has(> :only-child) {
+    align-self: stretch;
+  }
+  main.layout-sidebar > aside > :only-child {
+    --lf-reading-region: layout;
+  }
   @media screen {
-    main.layout-sidebar { --lf-top-outer: var(--lf-top); }
+    main.layout-sidebar {
+      --lf-top-outer: var(--lf-top);
+    }
     main.layout-sidebar > aside[data-lf-beside] > :only-child {
       position: sticky;
       top: calc(var(--lf-top-outer) + var(--sp-4));
-      --lf-top: 0px; --lf-top-covered: 0px; --lf-landing-room: 0px;
+      --lf-top: 0px;
+      --lf-top-covered: 0px;
+      --lf-landing-room: 0px;
       --lf-head-inset: initial;
       max-height: calc(var(--lf-view-height) - 2 * var(--sp-4));
       overflow-y: auto;
@@ -379,7 +486,9 @@
     gap: var(--sp-4);
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
   }
-  .layout-tiles > * { margin: 0; }
+  .layout-tiles > * {
+    margin: 0;
+  }
   /* Workspace: a full-height page between the banner and the bottom bar. Header and
    * footer take their content's height and the body the rest, arranged as the body says:
    * a grid of panes, a pane, or a widget composing its own regions. Each pane's body
@@ -391,7 +500,9 @@
    * painted by delivery; a widget-generated one also carries `data-lf-generated`. The
    * workspace takes the whole window, with minimal gutter, gap and header, since every
    * pixel of frame comes from the panes. Type is the theme's (`.density-working`). */
-  html[data-lf-layout~="workspace"] body { margin: 0; }
+  html[data-lf-layout~="workspace"] body {
+    margin: 0;
+  }
   @media screen {
     html[data-lf-live][data-lf-layout~="workspace"]:not([data-lf-sample-block]) body {
       min-height: 100%;
@@ -412,7 +523,9 @@
     padding-block: 0 var(--sp-2);
     --lf-block-frame: 1;
   }
-  main.layout-workspace > header > * { margin-block: 0; }
+  main.layout-workspace > header > * {
+    margin-block: 0;
+  }
   /* A body that is not itself a pane is a reading region of the Layout's own
    * (reading-regions.js, `syncLayoutRegion`). */
   main.layout-workspace > :not(header, footer, [data-lf-reading-role="pane"]) {
@@ -424,12 +537,15 @@
    * cell shows the page's ground. A pane a body widget generates
    * (`data-lf-generated`) is that widget's region, so neither is drawn for it. */
   main.layout-workspace
-    > :not(header, footer):has(> [data-lf-reading-role="pane"]:not([data-lf-generated])) {
+    > :not(header, footer):has(
+      > [data-lf-reading-role="pane"]:not([data-lf-generated])
+    ) {
     gap: 1px;
     border: 1px solid var(--rule);
     border-radius: var(--r);
   }
-  main.layout-workspace > :not(header, footer)
+  main.layout-workspace
+    > :not(header, footer)
     > [data-lf-reading-role="pane"]:not([data-lf-generated]) {
     border: 0;
     border-radius: 0;
@@ -444,7 +560,9 @@
       padding-block-end: 0;
       box-sizing: border-box;
     }
-    main.layout-workspace > :is(header, footer) { flex: none; }
+    main.layout-workspace > :is(header, footer) {
+      flex: none;
+    }
     main.layout-workspace > :not(header, footer) {
       flex: 1 1 0;
       min-block-size: 0;
@@ -453,7 +571,9 @@
     /* Only a page's grid of panes shares the body's height among its rows and gives its
      * panes a definite height; a body widget lays out its own tracks. */
     main.layout-workspace
-      > :not(header, footer):has(> [data-lf-reading-role="pane"]:not([data-lf-generated])) {
+      > :not(header, footer):has(
+        > [data-lf-reading-role="pane"]:not([data-lf-generated])
+      ) {
       grid-auto-rows: minmax(0, 1fr);
       --lf-full-height: 1;
     }
@@ -490,8 +610,11 @@
      * stated bound where less (`[data-lf-bound]`, theme.css), rather than scrolling inside
      * a box that also scrolls. */
     @container style(--lf-holds-height: 1) {
-      :is(main.layout-workspace > :not(header, footer, [data-lf-reading-role="pane"]),
-        [data-lf-reading-role="pane"] > :not(header, footer)) > [data-lf-bound]:only-child {
+      :is(
+          main.layout-workspace > :not(header, footer, [data-lf-reading-role="pane"]),
+          [data-lf-reading-role="pane"] > :not(header, footer)
+        )
+        > [data-lf-bound]:only-child {
         max-block-size: min(100%, var(--lf-bound, 100%));
       }
     }

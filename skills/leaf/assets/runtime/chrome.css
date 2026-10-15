@@ -1,4 +1,4 @@
-/* Generated from skills/leaf/assets/styles/chrome.css by build/styles.mjs. */
+/* @noformat Generated from skills/leaf/assets/styles/chrome.css by build/styles.mjs. */
 /* skills/leaf/assets/styles/floating-panel.css */
 @scope (.lf-chrome) {
   html[data-lf-floating-chrome] :scope {
@@ -1084,7 +1084,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   line-height: inherit;
 }
 .lf-version-inline-deletion del {
-  margin-inline-end: .28em;
+  margin-inline-end: 0.28em;
   background: var(--del-tint);
   color: var(--danger-ink);
 }
@@ -1095,7 +1095,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
 }
 @keyframes lf-runtime-4f3c2a8d-working {
   to {
-    opacity: .5;
+    opacity: 0.5;
   }
 }
 @keyframes lf-runtime-4f3c2a8d-flash {
@@ -1106,7 +1106,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
 @keyframes lf-runtime-4f3c2a8d-grow {
   0% {
     opacity: 0;
-    transform: translateY(-6px) scale(.985);
+    transform: translateY(-6px) scale(0.985);
   }
 }
 @scope (.lf-chrome) {
@@ -1567,7 +1567,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-page-comment-card {
     --lf-card-inset: 8px;
-    --lf-card-width: min(28rem, calc(100% - 2 * var(--lf-card-inset) - var(--lf-safe-left) - var(--lf-safe-right)));
+    --lf-card-width: min( 28rem, calc(100% - 2 * var(--lf-card-inset) - var(--lf-safe-left) - var(--lf-safe-right)) );
     position: fixed;
     position-anchor: --lf-page-comment;
     top: var(--lf-banner-h);
@@ -1952,8 +1952,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     width: 2px;
     border-radius: 1px;
     background: var(--accent);
-    opacity: .55;
-    transition: opacity .12s;
+    opacity: 0.55;
+    transition: opacity 0.12s;
   }
   .lf-edge[data-lf-side=right] {
     left: -4px;
@@ -2424,7 +2424,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     animation: lf-runtime-4f3c2a8d-flash var(--lf-motion-flash) ease-out;
   }
   .lf-thread.grow {
-    animation: lf-runtime-4f3c2a8d-grow .32s cubic-bezier(.2, .7, .3, 1);
+    animation: lf-runtime-4f3c2a8d-grow 0.32s cubic-bezier(0.2, 0.7, 0.3, 1);
   }
   .lf-thread[data-lf-focus-within] {
     outline: none;
@@ -2543,9 +2543,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     --lf-comment-inset: 12px;
     --lf-comment-frame-inline: calc(var(--lf-comment-inset) + 1px);
     --lf-comment-foot-gap: var(--sp-3);
-    --lf-comment-frame-top: calc(1px + var(--lf-comment-inset) + var(--lf-msg-head-height) + var(--lf-msg-body-gap));
-    --lf-comment-reply-row: calc(var(--lf-comment-foot-gap) + var(--lf-compose-h) + 2px);
-    --lf-comment-frame-bottom: calc(var(--lf-comment-reply-row) + var(--lf-comment-inset) + 1px);
+    --lf-comment-frame-top: calc( 1px + var(--lf-comment-inset) + var(--lf-msg-head-height) + var(--lf-msg-body-gap) );
+    --lf-comment-reply-row: calc( var(--lf-comment-foot-gap) + var(--lf-compose-h) + 2px );
+    --lf-comment-frame-bottom: calc( var(--lf-comment-reply-row) + var(--lf-comment-inset) + 1px );
   }
   .lf-aim {
     position: absolute;

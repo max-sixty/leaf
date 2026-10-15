@@ -81,16 +81,25 @@
 
     /* Below the combined floors, the ancestor scrolls both the inline evidence
      * and the instruction rather than hiding either one. */
-    .lf-playground-split:not(:has(> .lf-playground-controls-region > .lf-playground-controls)) {
+    .lf-playground-split:not(
+      :has(> .lf-playground-controls-region > .lf-playground-controls)
+    ) {
       grid-template-rows: minmax(12rem, 1fr) minmax(9rem, auto);
     }
 
-    .lf-playground-split:has(> .lf-playground-controls-region):not(:has(> .lf-playground-controls-region > .lf-playground-controls)) {
-      grid-template-rows: minmax(min-content, auto) minmax(12rem, 1fr) minmax(9rem, auto);
+    .lf-playground-split:has(> .lf-playground-controls-region):not(
+        :has(> .lf-playground-controls-region > .lf-playground-controls)
+      ) {
+      grid-template-rows: minmax(min-content, auto) minmax(12rem, 1fr) minmax(
+          9rem,
+          auto
+        );
     }
 
     @container (min-width: 43.5rem) {
-      .lf-playground-split:has(> .lf-playground-controls-region > .lf-playground-controls) {
+      .lf-playground-split:has(
+        > .lf-playground-controls-region > .lf-playground-controls
+      ) {
         grid-template-rows: minmax(12rem, 1fr) auto;
       }
 

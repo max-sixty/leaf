@@ -584,7 +584,7 @@ class Watched(NamedTuple):
     log: Path
 
 
-def watching(tmp_path, preview_slot, spawn, user: bool):
+def watching(tmp_path, preview_slot, spawn, user: bool, *, env=None):
     source = tmp_path / "watched.html"
     source.write_text(REPLAYED_PAGE, encoding="utf-8")
     runtime = install_payload(tmp_path / "watched-runtime")
@@ -608,6 +608,7 @@ def watching(tmp_path, preview_slot, spawn, user: bool):
             *(["--user"] if user else []),
         ],
         log,
+        **({"env": env} if env is not None else {}),
     )
     return Watched(source, runtime, directory, process, url, log)
 
@@ -781,20 +782,52 @@ def test_preview_adds_immutable_media_before_stamping_source(watched_preview):
     assert (directory / "media" / image.name).read_bytes() == expected
 
 
-def test_terminating_a_preview_mid_update_leaves_no_service(served_preview):
-    """A SIGTERM during an update's stopped-service interval suppresses its restart."""
-    source, runtime, directory, process, _, _ = served_preview
-    # Real page-transaction contention pauses init after the watcher stops the service.
-    with cleanup_model.flocked(directory / "events.jsonl"):
-        theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
-        with theme.open("a", encoding="utf-8") as stream:
-            stream.write("\nh1 { color: navy; }\n")
-        wait_for(
-            lambda: json.loads((directory / "service.json").read_text())["enabled"],
-            lambda enabled: not enabled,
-            failure="watcher did not begin the update",
-        )
+def test_terminating_a_preview_mid_update_leaves_no_service(
+    tmp_path, preview_slot, spawn
+):
+    """A SIGTERM after re-vendor stops the service leaves no restarted service."""
+    marker = tmp_path / "service-stopped"
+    release = tmp_path / "release-update"
+    (tmp_path / "hold_update.py").write_text(
+        "import json, os, time\n"
+        "from pathlib import Path\n"
+        "def pause(page):\n"
+        "    record = page.page_dir / 'service.json'\n"
+        "    if not record.exists():\n"
+        "        return\n"
+        "    service = json.loads(record.read_text())\n"
+        "    marker = Path(os.environ['LEAF_TEST_STOP_MARKER'])\n"
+        "    if service.get('restart') and not marker.exists():\n"
+        "        marker.write_text('stopped')\n"
+        "        while not Path(os.environ['LEAF_TEST_RELEASE_UPDATE']).exists():\n"
+        "            time.sleep(0.02)\n"
+    )
+    env = os.environ | {
+        "PYTHONPATH": os.pathsep.join(
+            filter(None, (str(tmp_path), os.environ.get("PYTHONPATH")))
+        ),
+        "LEAF_PAGE_COMMIT": "hold_update:pause",
+        "LEAF_TEST_STOP_MARKER": str(marker),
+        "LEAF_TEST_RELEASE_UPDATE": str(release),
+    }
+    source, runtime, directory, process, _, log = watching(
+        tmp_path, preview_slot, spawn, user=True, env=env
+    )
+    theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
+    with theme.open("a", encoding="utf-8") as stream:
+        stream.write("\nh1 { color: navy; }\n")
+    wait_for(
+        marker.exists,
+        bool,
+        failure=lambda: (
+            f"watcher did not stop service during update: {log.read_text()}"
+        ),
+    )
+    assert not files_model.read_json(directory / "service.json")["enabled"]
+    try:
         os.killpg(process.pid, signal.SIGTERM)
+    finally:
+        release.touch()
     process.wait(timeout=STATED_TIMEOUT)
     assert server_model.running_server(directory) is None
     assert (directory / "events.jsonl").is_file()

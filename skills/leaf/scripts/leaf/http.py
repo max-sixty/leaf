@@ -997,7 +997,7 @@ class PageEndpoint:
         path = self.path
         if match := re.fullmatch(r"/api/files/([^/]+)", path):
             if not self.source.writable:
-                return self._refuse("Captured previews cannot read live files.", 403)
+                return self._json(None)
             try:
                 return self._json(read_file(self.page_dir, match[1]))
             except FileBindingError as error:

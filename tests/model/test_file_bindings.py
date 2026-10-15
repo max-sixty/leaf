@@ -235,7 +235,7 @@ def test_http_file_door_requires_key_origin_and_current_revision(
     with running_http_server(preview):
         address = f"http://127.0.0.1:{preview.server_address[1]}"
         assert fetch(f"{address}/files.json")[0] == 404
-        assert fetch(f"{address}/api/files/notes")[0] == 403
+        assert fetch(f"{address}/api/files/notes") == (200, b"null")
         assert (
             fetch(
                 f"{address}/api/files/notes", data=posted, headers={"Origin": address}

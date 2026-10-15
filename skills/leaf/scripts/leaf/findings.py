@@ -879,9 +879,6 @@ _TEXT = {
         f"unpointable — {_line(at, v)} has no id, so a comment aimed at it lands on"
         f" the whole of #{v['enclosing']}"
     ),
-    "dropped-ids": lambda at, v: (
-        f"ids dropped from revision r{v['revision']}: {_json(v['ids'])}"
-    ),
     "measurement-lag": lambda at, v: (
         f"measurement behind its source: {_line(at, v)} pins source {v['source']!r}"
         f" run {v['run']}, but that source now holds run {v['current_run']}"

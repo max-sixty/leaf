@@ -600,10 +600,9 @@ def test_unreferenced_ids_and_widget_items_may_leave_the_page(page_dir):
         without_item.replace('<section id="plan">', "<section>")
     )
 
-    status, findings = check_findings(page_dir)
+    status, _ = check_findings(page_dir)
 
     assert status == 0
-    assert found(findings, "dropped-ids", revision=1, ids=["backfill-first", "plan"])
 
 
 def test_an_answered_ask_moves_into_a_collapsed_section_with_its_pick_in_force(

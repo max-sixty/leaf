@@ -444,12 +444,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .lf-fp-title[data-unseen] {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    clip-path: inset(50%);
-  }
   .lf-fp-back {
     flex: none;
     min-height: 0;
@@ -600,7 +594,7 @@
     padding: 0 12px 0 8px;
     border-radius: 14px;
     background: var(--lf-fp-surface);
-    box-shadow: 0 0 0 1px var(--lf-fp-ring), 0 4px 10px -6px var(--shade);
+    box-shadow: 0 0 0 1px var(--lf-fp-ring), var(--raise-1);
     color: var(--ink);
     font-size: 12px;
   }
@@ -850,7 +844,7 @@
     box-sizing: border-box;
     border-radius: var(--lf-fp-radius);
     background: var(--lf-fp-surface);
-    box-shadow: 0 0 0 1px var(--lf-fp-ring), 0 12px 24px -12px var(--shade);
+    box-shadow: 0 0 0 1px var(--lf-fp-ring), var(--raise-2);
   }
   .lf-floating-panel:not([data-menu]) .lf-fp-menu {
     display: none;
@@ -913,7 +907,7 @@
     padding: 6px 10px;
     border-radius: 8px;
     background: var(--lf-fp-surface);
-    box-shadow: 0 0 0 1px var(--lf-fp-ring), 0 8px 20px -10px var(--shade);
+    box-shadow: 0 0 0 1px var(--lf-fp-ring), var(--raise-1);
     color: var(--lf-fp-muted);
     font-size: 12px;
     pointer-events: none;
@@ -1023,27 +1017,31 @@
   opacity: 0;
   pointer-events: none;
 }
-.lf-skip[data-lf-focus] {
-  opacity: 1;
-  pointer-events: auto;
+:is(.lf-skip, .lf-visual-action)[data-lf-focus] {
   position: fixed;
-  z-index: var(--lf-z-escaped-control);
   top: calc(var(--lf-banner-h) + 6px);
   left: 8px;
   width: auto;
   height: auto;
   min-height: var(--aim-floor);
+  max-width: calc(100vw - 16px);
   padding: 6px 10px;
   overflow: visible;
   clip-path: none;
+  pointer-events: auto;
+  white-space: normal;
   outline: var(--focus-ring);
-  --lf-focus-ring: skip;
   outline-offset: calc(-1 * var(--focus-ring-w));
   border: 1px solid var(--accent);
   border-radius: var(--r);
   background: var(--card);
   color: var(--ink);
-  box-shadow: 0 8px 24px var(--shade);
+  box-shadow: var(--raise-2);
+}
+.lf-skip[data-lf-focus] {
+  opacity: 1;
+  z-index: var(--lf-z-escaped-control);
+  --lf-focus-ring: skip;
 }
 :is(button, [role=button])[aria-busy=true] {
   animation: lf-runtime-4f3c2a8d-working 140ms linear 200ms both;
@@ -1147,25 +1145,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     pointer-events: none;
   }
   .lf-visual-action[data-lf-focus] {
-    position: fixed;
-    top: calc(var(--lf-banner-h) + 6px);
-    left: 8px;
-    width: auto;
-    height: auto;
-    max-width: calc(100vw - 16px);
-    padding: 6px 10px;
-    overflow: visible;
-    clip-path: none;
-    pointer-events: auto;
-    white-space: normal;
-    border: 1px solid var(--accent);
-    border-radius: var(--r);
-    background: var(--card);
-    color: var(--ink);
-    box-shadow: 0 8px 24px var(--shade);
-    outline: var(--focus-ring);
     --lf-focus-ring: visual-target;
-    outline-offset: calc(-1 * var(--focus-ring-w));
   }
   :scope,
   .lf-legend {
@@ -1210,10 +1190,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     --lf-shape-stroke: var(--target-trace-w);
     --lf-shape-dash: none;
   }
-  .lf-target-trace.lf-shaped {
-    border: 0;
+  .lf-shaped {
+    border: 0 !important;
     border-radius: 0 !important;
-    background: none;
+    background: none !important;
   }
   .lf-target-trace-shape {
     display: block;
@@ -1444,20 +1424,13 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-status-detail {
     --lf-banner-panel-gap: 8px;
-    position: fixed;
     left: calc(14px + var(--lf-safe-left));
     right: auto;
-    bottom: auto;
-    margin: 0;
     width: min(420px, calc(100vw - 28px));
     max-height: calc(100dvh - var(--lf-banner-h) - 24px);
     overflow: auto;
     padding: 14px 16px;
-    border: 1px solid var(--border-2);
-    border-radius: var(--r);
-    background: var(--card);
     color: var(--ink-2);
-    box-shadow: 0 8px 24px var(--shade);
     white-space: normal;
     overflow-wrap: anywhere;
   }
@@ -1484,7 +1457,24 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     flex: none;
   }
   :is(.lf-banner-menu, .lf-version-menu, .lf-status-detail) {
+    position: fixed;
     top: calc(var(--lf-banner-h) + var(--lf-banner-panel-gap, 6px));
+    bottom: auto;
+    margin: 0;
+    background: var(--card);
+    border: 1px solid var(--border-2);
+    border-radius: var(--r);
+    box-shadow: var(--raise-2);
+  }
+  :is(.lf-banner-menu, .lf-version-menu) {
+    position-anchor: --lf-banner-more;
+    right: anchor(right);
+    left: auto;
+    display: none;
+    padding: 4px;
+    max-height: calc(100dvh - var(--lf-banner-h) - 20px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
   .lf-btn.lf-auxiliary-toggle[aria-expanded=true] {
     border-color: transparent;
@@ -1512,26 +1502,11 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     background: var(--accent);
   }
   .lf-banner-menu {
-    position: fixed;
-    position-anchor: --lf-banner-more;
-    right: anchor(right);
-    left: auto;
-    bottom: auto;
-    margin: 0;
-    display: none;
     flex-direction: column;
     align-items: stretch;
     gap: 1px;
     box-sizing: border-box;
     width: min(280px, calc(100vw - 16px));
-    max-height: calc(100dvh - var(--lf-banner-h) - 20px);
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    background: var(--card);
-    border: 1px solid var(--border-2);
-    border-radius: var(--r);
-    box-shadow: 0 8px 24px var(--shade);
-    padding: 4px;
   }
   .lf-banner-menu:popover-open {
     display: flex;
@@ -1635,25 +1610,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     }
   }
   .lf-version-menu {
-    position: fixed;
-    position-anchor: --lf-banner-more;
-    right: anchor(right);
-    bottom: auto;
-    left: auto;
-    margin: 0;
-    display: none;
     grid-template-columns: 1fr auto;
     align-items: start;
     min-width: anchor-size(width);
     max-width: min(360px, calc(100vw - 16px));
-    max-height: calc(100dvh - var(--lf-banner-h) - 20px);
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    background: var(--card);
-    border: 1px solid var(--border-2);
-    border-radius: var(--r);
-    box-shadow: 0 8px 24px var(--shade);
-    padding: 4px;
   }
   .lf-version-menu:popover-open {
     display: grid;
@@ -2545,15 +2505,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-quote-expand[aria-expanded=true]::before {
     content: "▾";
   }
-  .lf-unseen {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    border: 0;
-    overflow: hidden;
-    clip-path: inset(50%);
-  }
   .lf-msg.lf-unread {
     border-image: linear-gradient(var(--accent), var(--accent)) 0 0 0 1 / 0 0 0 2px / 0 0 0 6px;
   }
@@ -2623,11 +2574,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     border: 2px solid var(--accent);
     background: color-mix(in srgb, var(--accent) 8%, transparent);
   }
-  .lf-aim.lf-shaped {
-    border: 0;
-    border-radius: 0 !important;
-    background: none;
-  }
   .lf-aim-shape {
     display: block;
     width: 100%;
@@ -2681,7 +2627,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     background: var(--card);
     border: 1px solid var(--border-2);
     border-radius: var(--r);
-    box-shadow: 0 12px 32px var(--shade);
+    box-shadow: var(--raise-3);
     padding: 14px 18px;
   }
   .lf-command-reference.open {
@@ -2767,7 +2713,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-media-viewer .pswp__img {
     outline: 1px solid var(--border-2);
-    box-shadow: 0 8px 24px var(--shade);
+    box-shadow: var(--raise-2);
   }
   .lf-media-viewer .pswp {
     position: absolute;
@@ -3009,7 +2955,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     border-radius: 12px;
     background: var(--paper);
     color: var(--ink);
-    box-shadow: 0 18px 54px var(--shade);
+    box-shadow: var(--raise-3);
   }
   .lf-page-map-dialog[open] {
     display: flex;
@@ -3304,7 +3250,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     width: min(390px, calc(100vw - 28px));
     box-sizing: border-box;
     border-radius: var(--r);
-    box-shadow: 0 8px 24px var(--shade);
+    box-shadow: var(--raise-2);
   }
   .lf-page-search-status {
     min-width: 0;

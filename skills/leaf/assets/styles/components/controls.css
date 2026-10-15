@@ -88,7 +88,7 @@
           content: attr(aria-label); position: absolute; z-index: 5;
           inset-block-end: calc(100% + 6px); inset-inline-start: 50%; translate: -50% 0;
           width: max-content; max-width: 220px; padding: 4px 7px; border-radius: 4px;
-          background: var(--ink); color: var(--paper); box-shadow: 0 2px 8px var(--shade);
+          background: var(--ink); color: var(--paper); box-shadow: var(--raise-1);
           font: 500 var(--t-6)/1.2 var(--sans); white-space: nowrap; pointer-events: none; }
 /* A reaction surface offers one quiet trigger. It disappears when its list opens;
    a token in force remains visible in a closed message strip as the user's receipt
@@ -170,7 +170,7 @@ svg[data-lf-icon] { max-width: none; overflow: visible; fill: none; stroke: curr
           width: max-content; max-width: calc(100vw - 16px);
           padding: 4px;
           border: 1px solid var(--border-2); border-radius: var(--r);
-          background: var(--card); box-shadow: 0 4px 12px var(--shade); }
+          background: var(--card); box-shadow: var(--raise-2); }
 :where(.lf-react-strip > .lf-react-palette:popover-open) > .lf-react {
           box-sizing: border-box; inline-size: 32px; block-size: 32px; padding: 0;
           font-size: 16px; }

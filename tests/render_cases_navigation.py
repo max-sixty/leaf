@@ -208,7 +208,7 @@ def composer_quote(page):
     so it is the box's aria description — which is why this asks the class, not the text."""
     return page.evaluate("""() => {
         const q = document.getElementById('lf-composer-quote');
-        return {text: q.textContent, shown: !q.classList.contains('lf-unseen')};
+        return {text: q.textContent, shown: !q.classList.contains('lf-quiet')};
     }""")
 
 

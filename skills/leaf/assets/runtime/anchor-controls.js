@@ -370,7 +370,7 @@ export function createAnchorControls({
     const label = open ? labelAnchor(anchor, about) : "";
     keepsText(draftQuote, label);
     const located = Boolean(resolved && resolved.status !== "outdated");
-    draftQuote.classList.toggle("lf-unseen", !label || (located && !about));
+    draftQuote.classList.toggle("lf-quiet", !label || (located && !about));
   }
 
   function render({ readings, draft }) {

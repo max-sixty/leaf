@@ -63,7 +63,7 @@
   left: auto; bottom: auto; margin: 6px 0; position-try-fallbacks: flip-block;
   display: none; flex-direction: column; gap: 1px; padding: 4px;
   border: 1px solid var(--border-2); border-radius: var(--r);
-  background: var(--card); color: var(--ink); box-shadow: 0 8px 24px var(--shade);
+  background: var(--card); color: var(--ink); box-shadow: var(--raise-2);
   font: .88rem var(--sans);
 }
 :scope:host(lf-file-editor) .lf-file-editor-choices:popover-open { display: flex; }

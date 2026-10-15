@@ -43,7 +43,7 @@
   margin: var(--lf-gloss-gap) 0; padding: 10px 13px 11px;
   border: 1px solid var(--border-2);
   border-radius: var(--r); background: var(--card); color: var(--ink);
-  box-shadow: 0 10px 28px var(--shade);
+  box-shadow: var(--raise-2);
   font-family: var(--serif); font-size: var(--t-5); line-height: 1.45;
   text-align: left; white-space: normal;
   overflow-wrap: anywhere;

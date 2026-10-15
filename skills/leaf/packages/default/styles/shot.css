@@ -36,7 +36,7 @@
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--card) 72%, transparent);
     transition: background-color 120ms ease; }
 :scope:is(lf-shot) .lf-shotcomparison::part(handle) { border: 1px solid var(--ink-2);
-    box-shadow: 0 1px 3px var(--shade);
+    box-shadow: var(--raise-1);
     opacity: .52; scale: .88;
     transition: opacity 120ms ease, scale 120ms ease; }
 :scope:is(lf-shot) .lf-shot-handle { display: block; box-sizing: border-box;
@@ -110,7 +110,7 @@
     inset-block-start: calc(100% + 6px); inset-inline-start: 50%; translate: -50% 0;
     width: max-content; max-width: calc(100cqi - 24px); box-sizing: border-box;
     padding: 4px 7px; border-radius: 4px; background: var(--ink); color: var(--paper);
-    box-shadow: 0 2px 8px var(--shade); font: 500 var(--t-6)/1.2 var(--sans);
+    box-shadow: var(--raise-1); font: 500 var(--t-6)/1.2 var(--sans);
     white-space: normal; pointer-events: none; }
 /* Below the width of the endpoint and inspection targets, keep the latter on
  * their own row. Container width also covers shots in narrow page columns. */

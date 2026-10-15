@@ -121,7 +121,7 @@
   border-radius: 4px;
   background: var(--ink);
   color: var(--paper);
-  box-shadow: 0 2px 8px var(--shade);
+  box-shadow: var(--raise-1);
   white-space: normal;
   overflow-wrap: anywhere;
   pointer-events: none;

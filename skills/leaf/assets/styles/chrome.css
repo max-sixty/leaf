@@ -55,19 +55,21 @@
    (control sweeps, covered words, paper) ask opacity, and takes no pointer while it
    rests, being a keyboard affordance. */
 .lf-skip { opacity: 0; pointer-events: none; }
-/* The skip link (leaf.js says why it stands where it does) and a comment note
-   (anchor-note-view.js) take this chip's face under the banner on focus. Outside the
-   scope block, since the skip link stands outside the container. Its ring insets: it is
-   dropped over whatever the page has under the banner. */
-.lf-skip[data-lf-focus] { opacity: 1; pointer-events: auto;
-  position: fixed; z-index: var(--lf-z-escaped-control);
+/* The skip link (leaf.js says why it stands where it does), a comment note
+   (anchor-note-view.js) and a picture's response proxy (anchor-controls.js) take this
+   chip's face under the banner on focus. Outside the scope block, since the skip link
+   stands outside the container. Its ring insets: it is dropped over whatever the page
+   has under the banner. */
+:is(.lf-skip, .lf-visual-action)[data-lf-focus] { position: fixed;
   top: calc(var(--lf-banner-h) + 6px); left: 8px;
-  width: auto; height: auto; min-height: var(--aim-floor); padding: 6px 10px;
-  overflow: visible; clip-path: none;
-  outline: var(--focus-ring); --lf-focus-ring: skip;
-  outline-offset: calc(-1 * var(--focus-ring-w));
+  width: auto; height: auto; min-height: var(--aim-floor);
+  max-width: calc(100vw - 16px); padding: 6px 10px;
+  overflow: visible; clip-path: none; pointer-events: auto; white-space: normal;
+  outline: var(--focus-ring); outline-offset: calc(-1 * var(--focus-ring-w));
   border: 1px solid var(--accent); border-radius: var(--r); background: var(--card);
-  color: var(--ink); box-shadow: 0 8px 24px var(--shade); }
+  color: var(--ink); box-shadow: var(--raise-2); }
+.lf-skip[data-lf-focus] { opacity: 1; z-index: var(--lf-z-escaped-control);
+  --lf-focus-ring: skip; }
 /* Delay action-control feedback so a quick answer causes no busy flash.
    aria-busy also marks reading content (messages, drafts, and uploading editors):
    their text stays readable, and their receipt or progress cursor carries the wait. */
@@ -150,16 +152,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     top: calc(var(--lf-banner-h) + 6px); left: 8px; }
   /* A picture's response proxies stand on the details shelf rather than as a role written
      onto the provider's drawing. Resting, each is a conventional clipped control; focus
-     gives it a skip-link-style face under the banner. */
+     gives it the skip link's face under the banner (above). */
   .lf-visual-action { pointer-events: none; }
-  .lf-visual-action[data-lf-focus] { position: fixed;
-    top: calc(var(--lf-banner-h) + 6px); left: 8px;
-    width: auto; height: auto; max-width: calc(100vw - 16px); padding: 6px 10px;
-    overflow: visible; clip-path: none; pointer-events: auto; white-space: normal;
-    border: 1px solid var(--accent); border-radius: var(--r); background: var(--card);
-    color: var(--ink); box-shadow: 0 8px 24px var(--shade);
-    outline: var(--focus-ring); --lf-focus-ring: visual-target;
-    outline-offset: calc(-1 * var(--focus-ring-w)); }
+  .lf-visual-action[data-lf-focus] { --lf-focus-ring: visual-target; }
   /* What the layer would inherit from the document, answered at its root:
      position, so a page's broad positioning cannot make the wrapper or the legend's
      paint host a containing block for document-attached floats; cursor, since the body
@@ -193,8 +188,11 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     box-sizing: border-box; border: var(--target-trace-w) solid var(--target-trace-ink);
     --lf-shape-ink: var(--target-trace-ink); --lf-shape-stroke: var(--target-trace-w);
     --lf-shape-dash: none; }
-  .lf-target-trace.lf-shaped {
-    border: 0; border-radius: 0 !important; background: none; }
+  /* A shaped box's SVG child draws its contour (target-paint.js), so the box's own band,
+     corner and ground give way whoever states them: placement writes the target's radius
+     inline (`standOver`), and the overlay's own mark rule arrives in a later sheet. */
+  .lf-shaped {
+    border: 0 !important; border-radius: 0 !important; background: none !important; }
   .lf-target-trace-shape {
     display: block; width: 100%; height: 100%; overflow: hidden; }
   /* The banner draws the rows the theme states (--lf-banner-rows): on one, status, the
@@ -318,12 +316,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-status-text { color: inherit; min-width: 0; overflow: hidden;
     display: block; text-overflow: ellipsis; white-space: nowrap; line-height: 1.35; }
   .lf-status-detail { --lf-banner-panel-gap: 8px;
-    position: fixed;
     left: calc(14px + var(--lf-safe-left));
-    right: auto; bottom: auto; margin: 0; width: min(420px, calc(100vw - 28px));
+    right: auto; width: min(420px, calc(100vw - 28px));
     max-height: calc(100dvh - var(--lf-banner-h) - 24px); overflow: auto;
-    padding: 14px 16px; border: 1px solid var(--border-2); border-radius: var(--r);
-    background: var(--card); color: var(--ink-2); box-shadow: 0 8px 24px var(--shade);
+    padding: 14px 16px; color: var(--ink-2);
     white-space: normal; overflow-wrap: anywhere; }
   .lf-status-detail[data-lf-focus] { outline: var(--focus-ring);
     outline-offset: 2px; --lf-focus-ring: status-detail; }
@@ -335,9 +331,19 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   /* A top-layer panel owned by the fixed banner keeps its vertical edge in viewport
      coordinates. WebKit otherwise resolves an anchor inside that fixed banner against
      the scrolled document and moves the panel offscreen. Each panel can still choose
-     the horizontal edge that identifies its door. */
-  :is(.lf-banner-menu, .lf-version-menu, .lf-status-detail) {
-    top: calc(var(--lf-banner-h) + var(--lf-banner-panel-gap, 6px)); }
+     the horizontal edge that identifies its door. The three share one card's face. */
+  :is(.lf-banner-menu, .lf-version-menu, .lf-status-detail) { position: fixed;
+    top: calc(var(--lf-banner-h) + var(--lf-banner-panel-gap, 6px));
+    bottom: auto; margin: 0;
+    background: var(--card); border: 1px solid var(--border-2); border-radius: var(--r);
+    box-shadow: var(--raise-2); }
+  /* More's two menus hang from its right edge, inward, and scroll inside the window.
+     Unused sides are stated because the popover UA rule is inset: 0 with auto margins,
+     which would centre them. */
+  :is(.lf-banner-menu, .lf-version-menu) { position-anchor: --lf-banner-more;
+    right: anchor(right); left: auto; display: none; padding: 4px;
+    max-height: calc(100dvh - var(--lf-banner-h) - 20px); overflow-y: auto;
+    overscroll-behavior: contain; }
   /* The open auxiliary surface's toggle wears the accent face from aria-expanded, which
      setOpenDrawer and the Threads toggle keep true on exactly the one surface open.
      Scoped, since only banner controls wear lf-auxiliary-toggle. */
@@ -355,17 +361,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
       .lf-version[data-lf-news])::after {
     content: ""; position: absolute; inset-block-start: 2px; inset-inline-end: 2px;
     width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
-  /* Anchored to its own press with a stable width. Unused sides are stated because the
-     popover UA rule is inset: 0 with auto margins, which would centre it. */
-  .lf-banner-menu { position: fixed; position-anchor: --lf-banner-more;
-    right: anchor(right);
-    left: auto; bottom: auto; margin: 0;
-    display: none; flex-direction: column; align-items: stretch; gap: 1px;
-    box-sizing: border-box; width: min(280px, calc(100vw - 16px));
-    max-height: calc(100dvh - var(--lf-banner-h) - 20px); overflow-y: auto;
-    overscroll-behavior: contain;
-    background: var(--card); border: 1px solid var(--border-2); border-radius: var(--r);
-    box-shadow: 0 8px 24px var(--shade); padding: 4px; }
+  /* More's menu keeps a stable width. */
+  .lf-banner-menu { flex-direction: column; align-items: stretch; gap: 1px;
+    box-sizing: border-box; width: min(280px, calc(100vw - 16px)); }
   .lf-banner-menu:popover-open { display: flex; }
   /* A secondary control reads as a row here. No display: the toolbar owns the menu's
      seats, and a display here would put a retired control back in a reopened menu. */
@@ -433,19 +431,11 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      shows. It is the only place version notes appear, so a row wraps to hold one whole;
      capped at the remaining height and scrolling, since versions are unbounded. Two
      columns, the note and its Compare press, as grid siblings, since a role="menu" owns
-     menuitems directly. The anchored right edge and fixed top are the whole placement,
-     taken back from the popover UA rule's inset; fixed keeps it under the banner after
-     a scroll. */
-  .lf-version-menu { position: fixed; position-anchor: --lf-banner-more;
-    right: anchor(right);
-    bottom: auto; left: auto; margin: 0;
-    display: none; grid-template-columns: 1fr auto; align-items: start;
+     menuitems directly. The anchored right edge and fixed top are the whole placement
+     (above); fixed keeps it under the banner after a scroll. */
+  .lf-version-menu { grid-template-columns: 1fr auto; align-items: start;
     min-width: anchor-size(width);
-    max-width: min(360px, calc(100vw - 16px));
-    max-height: calc(100dvh - var(--lf-banner-h) - 20px); overflow-y: auto;
-    overscroll-behavior: contain;
-    background: var(--card); border: 1px solid var(--border-2); border-radius: var(--r);
-    box-shadow: 0 8px 24px var(--shade); padding: 4px; }
+    max-width: min(360px, calc(100vw - 16px)); }
   .lf-version-menu:popover-open { display: grid; }
   /* Left-aligned text in a control that is otherwise a press: the rows are a list to
      read down, and a centred note re-ragged on every line is not one. The row and its
@@ -931,9 +921,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-quote-expand { display: flex; align-items: center; gap: 5px; }
   .lf-quote-expand::before { content: "▸"; inline-size: 1em; text-align: center; }
   .lf-quote-expand[aria-expanded="true"]::before { content: "▾"; }
-  /* Out of the picture, still in the accessibility tree — see the composer's quote in
-     paintAnchors for the one thing that wears this and why. */
-  .lf-unseen { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); }
   /* A border image outset into the inline margin draws the rail and takes no room. */
   .lf-msg.lf-unread {
     border-image: linear-gradient(var(--accent), var(--accent)) 0 0 0 1 / 0 0 0 2px
@@ -990,7 +977,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     --lf-shape-ink: var(--accent); --lf-shape-stroke: 2px; --lf-shape-dash: none;
     border: 2px solid var(--accent);
     background: color-mix(in srgb, var(--accent) 8%, transparent); }
-  .lf-aim.lf-shaped { border: 0; border-radius: 0 !important; background: none; }
   .lf-aim-shape { display: block; width: 100%; height: 100%; overflow: hidden; }
   /* Each drawing stands in a paint stand over what it was drawn on (drawing-ink.js),
      anchored to it, so a stroke crosses content boundaries without becoming part of the
@@ -1019,7 +1005,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     max-height: min(80dvh, calc(100dvh - var(--lf-command-reference-top) - var(--lf-safe-bottom) - 16px));
     overflow: hidden; display: none; margin: 0;
     background: var(--card); border: 1px solid var(--border-2); border-radius: var(--r);
-    box-shadow: 0 12px 32px var(--shade); padding: 14px 18px; }
+    box-shadow: var(--raise-3); padding: 14px 18px; }
   .lf-command-reference.open { display: flex; flex-direction: column; }
   .lf-command-reference::backdrop { background: color-mix(in srgb, var(--ink) 24%, transparent); }
   .lf-media-viewer { position: fixed; inset: 0;
@@ -1052,7 +1038,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-media-viewer-probe > img { display: block; width: auto; height: auto; min-width: 0;
     max-width: none; max-height: none; }
   .lf-media-viewer .pswp__img {
-    outline: 1px solid var(--border-2); box-shadow: 0 8px 24px var(--shade); }
+    outline: 1px solid var(--border-2); box-shadow: var(--raise-2); }
   .lf-media-viewer .pswp { position: absolute; --pswp-bg: var(--paper); --pswp-root-z-index: 0; }
   .lf-media-viewer-caption { position: relative; z-index: 1501; background: var(--card);
     max-width: none; text-align: center;
@@ -1151,7 +1137,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     max-height: min(720px, calc(100dvh - var(--lf-page-map-top) - var(--lf-safe-bottom) - 12px));
     margin: 0 auto; padding: 14px;
     border: 1px solid var(--border-2); border-radius: 12px; background: var(--paper);
-    color: var(--ink); box-shadow: 0 18px 54px var(--shade); }
+    color: var(--ink); box-shadow: var(--raise-3); }
   /* The sheet's one scroller takes the room its head and search leave inside the
      window bounds. Said on [open] so the author sheet leaves the UA's display:none
      intact for a dialog that is shut. */
@@ -1369,7 +1355,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     top: calc(var(--lf-banner-h) + 10px); left: 50%; transform: translateX(-50%);
     width: min(390px, calc(100vw - 28px)); box-sizing: border-box;
     border-radius: var(--r);
-    box-shadow: 0 8px 24px var(--shade); }
+    box-shadow: var(--raise-2); }
   .lf-page-search-status { min-width: 0; min-height: 1lh; color: var(--muted);
     font-size: var(--t-6); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
   .lf-legend-box { position: absolute; pointer-events: none;

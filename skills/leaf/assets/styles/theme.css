@@ -390,9 +390,19 @@
      Depth is geometry here and nowhere else. The alphas that were spread .12–.24 across
      the sites are gone, because a shadow's spread and offset already say how high a thing
      is and a second dial saying the same thing is a second dial to keep in step: a card
-     in the hand is 0 8px 24px against its resting 0 2px 8px, which is the whole
+     in the hand is --raise-2 against its resting --raise-1, which is the whole
      difference and enough of one. */
   --shade: light-dark(rgb(0 0 0 / .14), rgb(0 0 0 / .55));
+  /* The three heights a box stands at, and the only place a lift's geometry is
+     written: every elevation names one, adding a hairline or ring beside it where its
+     edge needs one. --raise-1 lies on the page or stands just off it (an image, a pin,
+     a pressable, a control's label, a card lifted under the pointer); --raise-2 opens
+     over the page (a menu, a popover, a focused chip under the banner, a card in the
+     hand); --raise-3 stands over the page for a task of its own (a dialog, the thread
+     card). A surface takes the height its meaning has, never a new value. */
+  --raise-1: 0 2px 8px var(--shade);
+  --raise-2: 0 8px 24px var(--shade);
+  --raise-3: 0 12px 36px var(--shade);
   /* Inline code's ground is measured against the paper it sits on, not the white code
      canvas: GitHub's #f6f8fa over this ivory is 1.01:1, so the chip vanished and its
      side padding read as double spaces around every span. */
@@ -1096,7 +1106,7 @@ img { aspect-ratio: attr(width type(<number>)) / attr(height type(<number>)); }
  * capture is cut, and a container that clips to its own frame, such as lf-shot's,
  * hides them. A page drops them for art with no edge of its own, such as a
  * transparent logo, with `box-shadow: none`. */
-img { box-shadow: 0 0 0 1px var(--border-2), 0 2px 8px var(--shade); }
+img { box-shadow: 0 0 0 1px var(--border-2), var(--raise-1); }
 /* Media sits in a line box, and on the baseline it leaves the line's descender room
  * under itself, about 7px between a capture or a drawing and its caption or the next
  * figure. Centring it on the line ends its box at its own bottom edge. */
@@ -1473,6 +1483,8 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) { padd
   display: inline-flex; align-items: center; justify-content: center; gap: 0;
   font: 600 var(--t-6)/1 var(--sans); white-space: nowrap;
   scroll-margin-block: var(--focus-ring-room);
+  /* The raised face a pressable entry wears, beneath any pulse that rings it. */
+  --lf-entry-lift: 0 1px 0 var(--border-2), var(--raise-1);
 }
 /* A margin entry carries one of three promises on the same paper surface.
    An action's heavier ring and lower shadow say this press acts now; a disclosure's
@@ -1482,7 +1494,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) { padd
 .lf-margin-entry[data-lf-behavior="action"] {
   border-width: 2px;
   color: var(--lf-entry-ink, var(--ink));
-  box-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
+  box-shadow: var(--lf-entry-lift);
 }
 .lf-margin-entry[data-lf-behavior="disclosure"] {
   border-color: color-mix(in srgb, var(--ink) 34%, var(--paper));
@@ -1537,7 +1549,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) { padd
    mark does not gain a second ring or pretend the reaction itself changed. */
 .lf-react-mark[data-lf-behavior="disclosure"] {
   border-width: 2px; border-color: var(--border-2); color: var(--lf-entry-ink, var(--ink));
-  box-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
+  box-shadow: var(--lf-entry-lift);
 }
 /* Margin and Page Map share the same attention reading. Blue is the ordinary
    thread and work cue; green means it is the user's turn, even when another thread
@@ -1570,7 +1582,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) { padd
 }
 /* The arrival pulse keeps the action's existing shadow beneath its transient ring. */
 .lf-margin-entry[data-lf-agent-workflow="working"][data-lf-behavior="action"] {
-  --lf-agent-stage-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
+  --lf-agent-stage-shadow: var(--lf-entry-lift);
 }
 /* Unread agent content marks the entry the way it marks the Threads toggle: a dot
    painted inside the box the entry already reserves, so it adds no width. */
@@ -1588,7 +1600,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) { padd
   padding: 4px 7px; border-radius: 4px;
   background: var(--ink); color: var(--paper);
   font: 500 var(--t-6)/1.2 var(--sans); white-space: normal; overflow-wrap: anywhere;
-  box-shadow: 0 2px 8px var(--shade);
+  box-shadow: var(--raise-1);
   opacity: 0; visibility: hidden; pointer-events: none;
   transform: translateY(-2px);
   transition: opacity 90ms ease, transform 90ms ease, visibility 0s linear 90ms;
@@ -1727,5 +1739,5 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) { padd
 }
 .lf-motion-preview.lf-inhand {
   max-width: none; /* Keep Sortable’s card width so its grip stays under the pointer. */
-  opacity: 1; box-shadow: 0 8px 24px var(--shade);
+  opacity: 1; box-shadow: var(--raise-2);
 }

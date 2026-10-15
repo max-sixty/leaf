@@ -1409,6 +1409,7 @@ def accessible_documents(page):
     Parent-to-child messages warn on sandboxed frames with opaque origins. Running
     each exposed frame directly reads it without that cross-origin message path.
     """
+
     def exposed(frame):
         yield frame
         for child in frame.child_frames:

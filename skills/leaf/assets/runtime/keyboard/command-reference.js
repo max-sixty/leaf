@@ -875,7 +875,7 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
     // Native editing and scrolling values begin fresh and remain untouched by local Lit
     // renders.
     search.value = "";
-    results.scrollTop = 0;
+    results.scrollTo({ top: 0, behavior: "instant" });
     stopReferenceReading = registerReadingRegion({
       id: "lf-region:command-reference",
       host: commandReferenceDialog,

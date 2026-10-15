@@ -275,8 +275,10 @@ import {
   clipsPast,
   clipsPastSurfaces,
   closeNativeLayer,
+  completeData,
   containingView,
   countTraffic,
+  dataHeaders,
   el,
   frameFor,
   growthIsSeen,
@@ -4834,10 +4836,11 @@ async function readState(bound) {
   try {
     if (offlineInteractive) return offlineState();
     const signal = globalThis.AbortSignal.timeout(bound);
+    const held = runtime.data;
     let res;
     try {
       res = await fetch(pageUrl("api/state"), {
-        headers: layerHeaders(),
+        headers: layerHeaders(dataHeaders(held)),
         // Coalescing bounds concurrency; this bounds its other dimension. A proxy that
         // never answers cannot own the page's single read slot forever.
         signal
@@ -4848,7 +4851,7 @@ async function readState(bound) {
     if (!admitResponse(res)) return null;
     if (!res.ok) return null;
     try {
-      return await res.json();
+      return completeData(await res.json(), held);
     } catch (error) {
       if (signal.aborted) return null;
       throw error;
@@ -5218,8 +5221,9 @@ function createDelivery({
       if (!ledger.nameEvents(entry)) return { accepted: null };
       const { event } = entry;
       if (entry.admitted) return { accepted: entry.admitted };
+      const held = runtime.data;
       const sent = await Promise.race([
-        postEvent(event).then(
+        postEvent(event, held).then(
           (response) => ({ response }),
           (error) => ({ error })
         ),
@@ -5257,12 +5261,15 @@ function createDelivery({
       if (accepted)
         return {
           accepted,
-          application: applyAnswerState(applyAcceptedState, answer.state)
+          application: applyAnswerState(
+            applyAcceptedState,
+            completeData(answer.state, held)
+          )
         };
       if (reading === "refused" && (!("attempt" in answer) || answer.attempt === event.attempt) && answer.ok === false) {
         return {
           accepted: null,
-          state: answer.state,
+          state: completeData(answer.state, held),
           refusal: `Couldn't send \u2014 ${answer.error || "the server refused it"}`
         };
       }
@@ -5312,9 +5319,10 @@ function createDelivery({
   return { drain };
 }
 async function deliverBookkeeping(event, applyState) {
+  const held = runtime.data;
   let response;
   try {
-    response = await postEvent(event);
+    response = await postEvent(event, held);
   } catch {
     return "unreached";
   }
@@ -5326,7 +5334,8 @@ async function deliverBookkeeping(event, applyState) {
     return "unreached";
   }
   const reading = readEventAnswer(response, answer);
-  if (answer?.state) await applyAnswerState(applyState, answer.state);
+  if (answer?.state)
+    await applyAnswerState(applyState, completeData(answer.state, held));
   return reading === "incomplete" ? "unreached" : reading;
 }
 

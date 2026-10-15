@@ -1,5 +1,6 @@
 """Opaque sample exposure uses current native clipping and parent admission."""
 
+import pytest
 from playwright.sync_api import expect
 from render_harness import panel_settled
 
@@ -12,12 +13,14 @@ from journeys.test_render_read_state import (
 )
 
 
+@pytest.mark.shifts_unsurveyed
 def test_narrowing_a_partially_clipped_sample_does_not_acknowledge_hidden_words(
     browser, serve
 ):
     """Both widths leave the tall frame partly intersecting, without crossing its
     observer's 0/1 thresholds. The message must use the new containing clip when it
-    opens, rather than the viewport rectangle transferred at the old width."""
+    opens, rather than the viewport rectangle transferred at the old width. This test
+    deliberately resizes the clip, reflowing the sample's header and frame."""
     page, _, child = _sample_reading_page(
         browser,
         serve,

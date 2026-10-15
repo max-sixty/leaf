@@ -117,13 +117,15 @@
  * second one beside the label: a live sample's gutter moves from the table box to the
  * exhibit around its frame, and the controls stand in the cell above it.
  * The frame's height is a placeholder until its child presents and the widget sizes it
- * to the child's page. */
+ * to the child's page. Content-box sizing gives that reading to the child viewport;
+ * the exhibit's flex stretch fits the frame and its border to the available width. */
 .lf-sample-view { position: static; display: contents; width: auto; max-width: none;
                   max-height: none; margin: 0; padding: 0; border: 0;
                   color: inherit; background: transparent; }
 :scope:is(lf-sample):has(> .lf-sample-view:modal) { height: var(--lf-sample-height); }
 :scope:is(lf-sample)[data-lf-sample-live] { padding-left: 0; border-left: 0; }
-.lf-sample-exhibit { padding-left: var(--sp-4); border-left: 3px solid var(--border-2); }
+.lf-sample-exhibit { display: flex; flex-direction: column;
+                     padding-left: var(--sp-4); border-left: 3px solid var(--border-2); }
 .lf-sample-controls { margin-bottom: 10px; }
 .lf-sample-controls > div { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 /* The status keeps one row's room whatever it says, so loading, ready and a failure
@@ -144,13 +146,13 @@
 .lf-sample-failure[open] > summary { position: absolute; inset: 0 0 auto; z-index: 1;
                     white-space: normal; background: var(--paper);
                     border-bottom: 1px solid var(--border-2); }
-.lf-sample-frame { display: block; box-sizing: border-box; width: 100%; height: 32rem;
+.lf-sample-frame { display: block; box-sizing: content-box; width: auto; height: 32rem;
                     border: 1px solid var(--border-2); border-radius: var(--r);
                     background: var(--paper); }
-/* A window sample keeps a window's height rather than its page's, and scrolls inside.
+/* A window sample keeps its outer height rather than its page's, and scrolls inside.
  * Three quarters of the viewport leaves its label, Reset, and the containing page's
  * banner and bottom bar in view with the whole frame. */
-:scope:is(lf-sample)[window] .lf-sample-frame { height: min(75vh, 48rem); }
+:scope:is(lf-sample)[window] .lf-sample-frame { box-sizing: border-box; height: min(75vh, 48rem); }
 .lf-sample-view:modal { position: fixed; inset: 0; box-sizing: border-box;
                        width: 100%; height: 100dvh; display: flex; flex-direction: column;
                        padding: max(var(--sp-3), env(safe-area-inset-top))
@@ -160,8 +162,7 @@
                        background: var(--paper); overflow: hidden; overscroll-behavior: contain; }
 .lf-sample-view:modal::backdrop { background: var(--paper); }
 .lf-sample-view:modal > .lf-sample-controls { flex: none; }
-.lf-sample-view:modal > .lf-sample-exhibit { flex: 1; min-height: 0; display: flex;
-                                             flex-direction: column; padding: 0; border: 0; }
+.lf-sample-view:modal > .lf-sample-exhibit { flex: 1; min-height: 0; padding: 0; border: 0; }
 .lf-sample-view:modal .lf-sample-frame { flex: 1; min-height: 0; }
 /* Inside a block sample the viewport follows the content, so there a window takes a
  * fixed height rather than a share of the frame it is growing. */

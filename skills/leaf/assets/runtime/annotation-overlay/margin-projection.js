@@ -1473,7 +1473,7 @@ export function createMarginProjection({
   // cluster to reach the thread's own entry. Where the cluster shows but holds neither
   // on its face, as a suggestion's shows its Accept, the card unfolds it and folds it
   // again on closing; a cluster the page withholds shows no card.
-  function openInlineThread(id, { transition = null, unfold = true } = {}) {
+  function openInlineThread(id, { origin = null, unfold = true } = {}) {
     const itemId = marginThreadItem(threadNames(allThreads()).get(id));
     const entry = pageInventory.find((candidate) =>
       candidate.items.some((item) => item.id === itemId),
@@ -1489,7 +1489,7 @@ export function createMarginProjection({
     if (!unfold && !marker && !shown(host)) return null;
     const button = marker ?? threadMarginEntry(entry);
     const positioned = showPreview(entry, button, itemId, {
-      origin: transition,
+      origin,
       accompanies: !unfold,
       forced: true,
     });
@@ -1852,7 +1852,6 @@ export function createMarginProjection({
     targetFor,
     paint: renderNow,
     flushLayout: layoutMarginRows,
-    threadTransitionOrigin: card.threadTransitionOrigin,
     scheduleThreadPreviewPosition: card.schedulePosition,
     marginTargetAt,
     marginEntryContextContains,

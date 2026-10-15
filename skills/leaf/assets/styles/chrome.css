@@ -956,6 +956,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      this one adds, since it floats over page content rather than the empty rail. */
   :is(.lf-fab-bar, .lf-margin-preview) {
     --lf-comment-inset: 12px;
+    --lf-comment-frame-inline: calc(var(--lf-comment-inset) + 1px);
     --lf-comment-foot-gap: var(--sp-3);
     --lf-comment-frame-top: calc(1px + var(--lf-comment-inset) + var(--lf-msg-head-height) + var(--lf-msg-body-gap));
     /* The card's reply row at rest, which the editor's frame reserves beneath the words,

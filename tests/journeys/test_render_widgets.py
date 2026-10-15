@@ -514,9 +514,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     assert toc_box is not None
     assert banner_box is not None
     assert 23 <= nav_box["x"] <= 25
-    assert nav_box["y"] == pytest.approx(
-        banner_box["y"] + banner_box["height"], abs=1
-    )
+    assert nav_box["y"] == pytest.approx(banner_box["y"] + banner_box["height"], abs=1)
     assert nav_box["height"] >= 740, f"the reading map used only {nav_box['height']}px"
     padding = nav.evaluate(
         "node => parseFloat(getComputedStyle(node).paddingBlockStart)"

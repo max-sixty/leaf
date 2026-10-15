@@ -473,10 +473,6 @@ on 2026-10-07.
 
 ### Development velocity
 
-- **Format authored browser-framework TypeScript.** Extend Prettier's scope to
-  `build/browser/`, keeping the generated event and protocol declarations under
-  their generator. Rebuild the vendored JavaScript in the same change: the
-  compiler preserves source formatting, and the build gate compares its bytes.
 - **Set formatter conventions for authored CSS and Markdown.** Review what
   Prettier changes in compact CSS rules and Markdown lists and tables, then
   enable the formats where that layout is useful. Format CSS source entries

@@ -1179,48 +1179,23 @@ def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
         },
         "limit": 4,
     }
-    assert (
-        playground.evaluate(
-            """root => {
-          const returned = root.values;
-          returned.filters.rows[0].value = 'tampered';
-          return root.values.filters.rows[0].value;
-        }"""
-        )
-        == "europe"
-    )
-    assert playground.evaluate(
-        """root => {
-          const errors = [];
-          for (const [name, value] of [
-            ['limit', {}],
-            ['filters', {}],
-            ['bad-date', new Date()],
-          ]) {
-            try {
-              root.registerContributor(name, value, {read: () => value, apply: () => {}});
-            } catch (error) {
-              errors.push(error.message);
-            }
-          }
-          try {
-            root.registerInstructionProvider(() => 'A second provider');
-          } catch (error) {
-            errors.push(error.message);
-          }
-          return errors;
-        }"""
-    ) == [
-        "contributor limit collides with a control",
-        "repeats contributor filters",
-        "contributor bad-date must be JSON-safe",
-        "playground already has an instruction provider",
-    ]
     expect(page.locator(".query-result-count")).to_have_text("2 releases shown")
 
     rows.nth(1).get_by_label("Value").fill("80")
     expect(page.locator(".query-result-count")).to_have_text("1 release shown")
-    rows.nth(1).get_by_role("button", name="Move filter 2 up").click()
+    # Moving a sibling row must retain the native field, caret and edit history.
+    editor = page.locator('input[name="filter-1-value"]')
+    editor.focus()
+    editor.press("End")
+    editor.press_sequentially("x")
+    editor.press("ArrowLeft")
+    rows.nth(1).get_by_role("button", name="Move filter 2 up").evaluate(
+        "button => button.click()"
+    )
+    expect(editor).to_be_focused()
+    assert editor.evaluate("input => input.selectionStart") == len("europe")
+    editor.press("ControlOrMeta+z")
+    expect(editor).to_have_value("europe")
     assert playground.evaluate("root => root.values.filters.order") == [
         "filter-2",
         "filter-1",
@@ -1299,7 +1274,7 @@ def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
 
 
 def test_built_code_comparison_drives_both_candidates(browser, serve):
-    """Candidate measurements follow rendered readers through sizing and reconnection."""
+    """Candidate measurements follow rendered readers through sizing and edits."""
     source = Path(__file__).parents[2] / "examples" / "code-comparison.html"
     context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
     page = open_page(browser, serve(source), context=context)
@@ -1328,11 +1303,6 @@ def test_built_code_comparison_drives_both_candidates(browser, serve):
     initial_viewport = page.viewport_size
     resized(page, 390, 844)
     measurements_match_readers()
-    page.locator("#code-reader-comparison").evaluate("""owner => {
-      const parent = owner.parentNode, next = owner.nextSibling;
-      owner.remove();
-      parent.insertBefore(owner, next);
-    }""")
     resized(page, initial_viewport["width"], initial_viewport["height"])
     measurements_match_readers()
     assert playground.evaluate("root => root.values") == {

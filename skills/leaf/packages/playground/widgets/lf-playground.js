@@ -6,18 +6,21 @@
  * tab-local persistence, CSS reflection, instruction copying, commands, and
  * the final recordless action. Intermediate changes never enter Leaf's event log.
  *
- * The host element is the extension boundary. Its `values` getter returns a fresh
- * snapshot. Page modules register structured contributors through one read/apply pair
- * and call the returned notifier after a gesture. Every working-state change then
- * dispatches `lf-playground-change` with the same aggregate snapshot at
- * `event.detail.values`. Simple previews need neither: they read the reflected
- * `--playground-NAME` properties and `data-playground-NAME` attributes, which this
- * element carries and the root of each sample child under it wears (`dressSamples`).
+ * The playground owns the complete working configuration. Contributors declare a
+ * named default and get an immutable slice handle; set replaces that slice. Required
+ * views subscribe to the aggregate and paint inside this LeafElement's render, so
+ * local edits and canonical restoration share its failure and presentation boundary.
+ * Consumers retain native editors and keep no second configuration model. The initial
+ * producer draws once; this module adopts its nodes and values without rebuilding.
+ * Values awaiting a contributor declaration stay pending until it joins. They are
+ * restoration input, never another working model. Simple previews read reflected
+ * --playground-NAME properties and data-playground-NAME attributes on the host and
+ * its sample roots.
  *
  * Projection is deliberately separate from working state. A repeated projection must
  * not erase local edits, while a newly chosen action or its undo must replace them.
- * The last projection signature distinguishes those cases without making the DOM or a
- * second event history authoritative. */
+ * The last choice identity distinguishes those cases, including equal-valued choices;
+ * the attempt stays stable when a local gesture receives its durable event id. */
 import {
   announce,
   commands,
@@ -40,7 +43,6 @@ import {
 import "./lf-playground-output.js";
 
 const NAME = /^[a-z][a-z0-9-]*$/;
-const CHANGE = "lf-playground-change";
 // What one pointer press operates: a preset, Reset, and the controls whose press or
 // drag is the whole gesture. Their readable labels remain ordinary selection targets.
 const ONE_PRESS = [
@@ -89,13 +91,13 @@ customElements.define(
     #initial = null;
     #controls = [];
     #controlByName = new Map();
-    #contributors = new Map();
+    #views = new Set();
     #presetSettings = new Map();
     #presetButtons = new Map();
     /** @type {Readonly<Record<string, unknown>>} */
     #defaults = Object.freeze({});
     #values = Object.freeze({});
-    #storedCandidate = null;
+    #pendingValues = {};
     #instructionProvider = null;
     #output = null;
     #preview = null;
@@ -124,39 +126,36 @@ customElements.define(
     }
 
     get values() {
-      return structuredClone(this.#values);
+      return this.#values;
     }
 
-    registerContributor(name, defaultSnapshot, operations) {
+    registerContributor(name, defaultSnapshot) {
       if (!this.#ready) throw new Error("playground is not ready");
       if (!NAME.test(name ?? "")) throw new Error(`invalid contributor name ${name}`);
       if (this.#controlByName.has(name))
         throw new Error(`contributor ${name} collides with a control`);
-      if (this.#contributors.has(name)) throw new Error(`repeats contributor ${name}`);
-      if (typeof operations?.read !== "function")
-        throw new Error(`contributor ${name} needs a read operation`);
-
+      if (Object.hasOwn(this.#defaults, name))
+        throw new Error(`repeats contributor ${name}`);
       const initial = jsonSnapshot(defaultSnapshot, `contributor ${name}`);
-      this.#contributors.set(name, { ...operations, defaultSnapshot: initial });
-      this.#defaults = Object.freeze({ ...this.#defaults, [name]: initial });
-      const restored = Object.hasOwn(this.#storedCandidate ?? {}, name)
-        ? this.#storedCandidate[name]
+      const restored = Object.hasOwn(this.#pendingValues, name)
+        ? jsonSnapshot(this.#pendingValues[name], `contributor ${name}`)
         : initial;
-      try {
-        this.#apply({ ...this.#values, [name]: restored }, { remember: false });
-      } catch (error) {
-        this.#contributors.delete(name);
-        const { [name]: _discarded, ...defaults } = this.#defaults;
-        this.#defaults = Object.freeze(defaults);
-        throw error;
-      }
+      this.#defaults = Object.freeze({ ...this.#defaults, [name]: initial });
+      this.#values = Object.freeze({ ...this.#values, [name]: restored });
+      delete this.#pendingValues[name];
+      this.#draw();
+      return Object.freeze({
+        get: () => this.#values[name],
+        set: (value) => this.#set(name, jsonSnapshot(value, `contributor ${name}`)),
+      });
+    }
 
-      return () => {
-        const contributor = this.#contributors.get(name);
-        if (!contributor) return;
-        const snapshot = jsonSnapshot(contributor.read(), `contributor ${name}`);
-        this.#apply({ ...this.#values, [name]: snapshot });
-      };
+    // Views belong to the subscribing component's connection. Declared slices belong
+    // to this playground's lifetime; reconnecting keeps their handles and values.
+    subscribe(paint) {
+      this.#views.add(paint);
+      this.#draw();
+      return () => this.#views.delete(paint);
     }
 
     registerInstructionProvider(provider) {
@@ -164,8 +163,7 @@ customElements.define(
       if (this.#instructionProvider)
         throw new Error("playground already has an instruction provider");
       this.#instructionProvider = provider;
-      this.#renderOutput();
-      this.#syncCopy();
+      this.#draw();
     }
 
     #build() {
@@ -175,7 +173,11 @@ customElements.define(
       this.#controlByName = initial.controlByName;
       this.#defaults = initial.defaults;
       this.#values = initial.values;
-      this.#storedCandidate = initial.storedCandidate;
+      this.#pendingValues = Object.fromEntries(
+        Object.entries(initial.storedCandidate ?? {}).filter(
+          ([name]) => !Object.hasOwn(this.#defaults, name),
+        ),
+      );
       this.#output = initial.output;
       this.#preview = initial.preview;
       this.#interactive = Boolean(initial.submit);
@@ -195,11 +197,19 @@ customElements.define(
       dressSamples(this, reflection);
       if (this.#interactive) {
         for (const control of this.#controls)
-          control.addEventListener("input", () => this.#takeInputs());
+          control.addEventListener("input", () => {
+            this.#set(
+              control.getAttribute("name"),
+              this.#parse(control, String(this.#initial.readInput(control))),
+            );
+          });
         for (const [preset, button] of this.#presetButtons)
           button.addEventListener("click", () => {
-            const next = { ...this.#values, ...this.#presetSettings.get(preset) };
-            this.#apply(next);
+            this.#values = this.#normalize({
+              ...this.#values,
+              ...this.#presetSettings.get(preset),
+            });
+            this.#draw();
           });
         this.#copy.addEventListener("click", () => this.#copyInstruction());
         this.addEventListener("mousedown", (event) => {
@@ -246,10 +256,7 @@ customElements.define(
     }
 
     #normalize(candidate) {
-      const names = [
-        ...this.#controlByName.keys(),
-        ...this.#contributors.keys(),
-      ].sort();
+      const names = Object.keys(this.#defaults).sort();
       const keys = Object.keys(candidate).sort();
       if (!sameKeys(names, keys))
         throw new Error(
@@ -308,26 +315,22 @@ customElements.define(
           keys: ["Alt+0"],
           control: this.#reset,
           title: "reset controls",
-          run: () => this.#apply(this.#defaults),
+          run: () => {
+            this.#restore(this.#defaults);
+            this.#draw();
+          },
         },
       ]);
     }
 
-    #readInput(control) {
-      return this.#initial.readInput(control);
+    #set(name, value) {
+      this.#values = Object.freeze({ ...this.#values, [name]: value });
+      this.#draw();
     }
 
-    #takeInputs() {
-      const next = {
-        ...this.#values,
-        ...Object.fromEntries(
-          this.#controls.map((control) => [
-            control.getAttribute("name"),
-            this.#parse(control, String(this.#readInput(control))),
-          ]),
-        ),
-      };
-      this.#apply(next);
+    #draw() {
+      this.requestUpdate();
+      this.performUpdate();
     }
 
     #setInput(control, value) {
@@ -339,31 +342,34 @@ customElements.define(
       return this.#initial.reflection(this.#values);
     }
 
-    #apply(candidate, { remember = true } = {}) {
-      const values = this.#normalize(candidate);
-      // Contributors may read sibling controls through the public aggregate while
-      // applying their own slice. Publish the complete input before invoking them.
-      this.#values = values;
-      for (const [name, contributor] of this.#contributors)
-        contributor.apply(structuredClone(values[name]));
-      for (const [name, value] of Object.entries(values)) {
-        const control = this.#controlByName.get(name);
-        if (control) this.#setInput(control, value);
-      }
+    #restore(candidate) {
+      // A chosen snapshot can arrive before its structured editor declares its slice.
+      const known = Object.entries(candidate).filter(([name]) =>
+        Object.hasOwn(this.#defaults, name),
+      );
+      this.#values = this.#normalize(Object.fromEntries(known));
+      this.#pendingValues = Object.fromEntries(
+        Object.entries(candidate).filter(
+          ([name]) => !Object.hasOwn(this.#defaults, name),
+        ),
+      );
+    }
+
+    #paint() {
+      for (const [name, control] of this.#controlByName)
+        this.#setInput(control, this.#values[name]);
       const reflection = this.#reflection();
       wear(this, reflection);
       dressSamples(this, reflection);
       this.#renderOutput();
       this.#syncCopy();
       this.#paintPresets();
-      if (remember) tabStore.set(this.#storeKey(), JSON.stringify(values));
-      this.dispatchEvent(
-        new CustomEvent(CHANGE, {
-          bubbles: true,
-          composed: true,
-          detail: { values: this.values },
-        }),
+      // Keep not-yet-declared tab values without another copy of known working slices.
+      tabStore.set(
+        this.#storeKey(),
+        JSON.stringify({ ...this.#pendingValues, ...this.#values }),
       );
+      for (const paint of this.#views) paint(this.#values);
       layoutChanged(this);
       paintKeys();
     }
@@ -458,16 +464,17 @@ customElements.define(
     // A change to the reading's availability draws again too, and paints the keys.
     render() {
       const configuration = this.state.choose;
-      const projected =
-        configuration?.action === "choose"
-          ? JSON.stringify(configuration.detail.values)
-          : null;
+      const choice = Object.values(this.reading.provenance).find(
+        ({ event }) => event.action === "choose",
+      )?.event;
+      const projected = choice ? (choice.attempt ?? choice.id) : null;
       if (this.#projected !== projected) {
         const firstProjection = this.#projected === undefined;
         this.#projected = projected;
-        if (projected !== null) this.#apply(configuration.detail.values);
-        else if (!firstProjection) this.#apply(this.#defaults);
+        if (projected !== null) this.#restore(configuration.detail.values);
+        else if (!firstProjection) this.#restore(this.#defaults);
       }
+      this.#paint();
       this.#paintAvailability();
       return nothing;
     }

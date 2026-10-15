@@ -233,9 +233,11 @@
       const previewBody = node("div", "lf-playground-preview-body");
       previewBody.append(preview);
       const split = node("div", "lf-playground-split");
+      if (!railed.length && presetBar)
+        split.append(pane("controls", "Controls", null, presetBar));
       split.append(
         pane("preview", "Preview", null, previewBody),
-        ...railed.length ? [pane("controls", "Controls", presetBar, panel)] : presetBar ? [pane("controls", "Controls", null, presetBar)] : [],
+        ...railed.length ? [pane("controls", "Controls", presetBar, panel)] : [],
         pane(
           "instruction",
           "Instruction to agent",

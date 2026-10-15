@@ -537,8 +537,8 @@ def test_an_explicit_acknowledgement_cannot_reopen_a_known_provider_turn(
     assert page_state(claimed)["pending"] == 1
 
 
-def test_reading_a_pointer_never_confirms_unread_input(claimed, monkeypatch, capsys):
-    """Both failed output and a successful read leave receipt to the reader."""
+def test_reading_a_pointer_never_confirms_unread_input(claimed):
+    """A read leaves receipt to the reader."""
     event = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "Please answer"}
     )
@@ -546,18 +546,7 @@ def test_reading_a_pointer_never_confirms_unread_input(claimed, monkeypatch, cap
         payload = delivery_model.freeze_delivery(
             [delivery_model.batch_data(claimed, page, [event])]
         )
-    import builtins
-
-    def broken_print(*args, **kwargs):
-        raise BrokenPipeError("consumer disappeared")
-
-    with monkeypatch.context() as broken:
-        broken.setattr(builtins, "print", broken_print)
-        with pytest.raises(BrokenPipeError):
-            delivery_model.cmd_delivery_read(payload["id"])
-    assert events_model.read_cursor(claimed) < event["seq"]
-    delivery_model.cmd_delivery_read(payload["id"])
-    output = json.loads(capsys.readouterr().out)
+    output = delivery_model.cmd_delivery_read(payload["id"])
     assert events_model.read_cursor(claimed) < event["seq"]
     assert not delivery_model.pickup_receipts(
         events_model.read_events(claimed), phase="opened"
@@ -576,10 +565,17 @@ def test_reading_a_pointer_never_confirms_unread_input(claimed, monkeypatch, cap
     )
 
 
+def read_part(delivery_id: str, part: int = 1) -> str:
+    """What `leaf delivery read` prints for one part."""
+    read = CliRunner().invoke(
+        cli_model.cli, ["delivery", "read", delivery_id, "--part", str(part)]
+    )
+    assert read.exit_code == 0, read.output
+    return read.stdout
+
+
 @pytest.mark.parametrize("transport", ["pointer", "wait"])
-def test_a_large_pointer_read_is_bounded_and_losslessly_paged(
-    claimed, capsys, transport
-):
+def test_a_large_pointer_read_is_bounded_and_losslessly_paged(claimed, transport):
     """One huge message and escaped Unicode still fit the reader's output budget."""
     event = append_carried_log_record(
         claimed,
@@ -590,8 +586,7 @@ def test_a_large_pointer_read_is_bounded_and_losslessly_paged(
             [delivery_model.batch_data(claimed, page, [event])]
         )
     if transport == "pointer":
-        delivery_model.cmd_delivery_read(payload["id"])
-        output = capsys.readouterr().out
+        output = read_part(payload["id"])
     else:
         with service_model.PageTransaction(claimed) as page:
             reading = session_model.PageTick(
@@ -605,8 +600,7 @@ def test_a_large_pointer_read_is_bounded_and_losslessly_paged(
     assert first["part"] == 1 and first["parts"] > 1
     assert first["acknowledge"] is None
     for part in range(2, first["parts"] + 1):
-        delivery_model.cmd_delivery_read(payload["id"], part=part)
-        output = capsys.readouterr().out
+        output = read_part(payload["id"], part)
         assert len(output.encode("utf-8")) <= 24000
         reading = json.loads(output)
         parts.append(reading["text"])

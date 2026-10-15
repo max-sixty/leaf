@@ -173,8 +173,8 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
             });
             observer.observe(parent, {childList: true});
             queue.remove();
-            parent.insertBefore(queue, next);
           });
+          parent.insertBefore(queue, next);
           return firstTab === queue.querySelector('.lf-tab-btn');
         }"""
     )

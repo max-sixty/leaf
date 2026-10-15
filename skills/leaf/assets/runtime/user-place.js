@@ -124,9 +124,13 @@ export function placeCorrection({
 }
 
 // A synchronous hold inside another hold can correct a transient clamp before the
-// enclosing presentation finishes. Hand the inner change to the outer hold's baseline
-// so the outer one does not pay for the same reflow again.
+// enclosing presentation finishes. Credit the outer hold only for content movement
+// the inner hold actually corrected: another named row may have moved independently.
 const heldScrollers = new WeakMap();
+const sharedMovement = (moved, paid) =>
+  Math.sign(moved) === Math.sign(paid)
+    ? Math.sign(paid) * Math.min(Math.abs(moved), Math.abs(paid))
+    : 0;
 
 export function placeKeeper(
   scroller,
@@ -145,12 +149,15 @@ export function placeKeeper(
         }) ?? [],
       ),
     }),
-    sync: ({ hold, positions }) => {
+    sync: ({ hold, positions }, paid) => {
       if (current !== hold) return;
       for (const [reference, before] of positions) {
         const node = live(reference);
         if (before !== null && node)
-          reference.contentTop += heldBox(node).top + scroller.scrollTop - before;
+          reference.contentTop += sharedMovement(
+            heldBox(node).top + scroller.scrollTop - before,
+            paid,
+          );
       }
       hold.at = { scrollTop: scroller.scrollTop, limit: limit() };
     },
@@ -213,8 +220,10 @@ export function placeKeeper(
     const reference = hold.references.find(live);
     if (!reference) return false;
     const now = heldBox(reference.node).top + scroller.scrollTop;
+    const was = reference.contentTop;
+    const scrollWas = scroller.scrollTop;
     const delta = placeCorrection({
-      was: reference.contentTop,
+      was,
       now,
       scrollTop: scroller.scrollTop,
       limit: limit(),
@@ -236,7 +245,10 @@ export function placeKeeper(
     }
     hold.at = { scrollTop: scroller.scrollTop, limit: limit() };
     if (hold.borrowed) {
-      hold.borrowed.lease.sync(hold.borrowed.reading);
+      hold.borrowed.lease.sync(
+        hold.borrowed.reading,
+        sharedMovement(now - was, scroller.scrollTop - scrollWas),
+      );
       hold.borrowed.reading = hold.borrowed.lease.snapshot();
     }
     return true;

@@ -262,6 +262,26 @@ test("nested keepers on one scroller correct a reflow once", () => {
   scroller.remove();
 });
 
+test("an inner hold cannot consume movement of another named row", () => {
+  const { scroller, item, at, scrolled, scrollTo } = laidOut();
+  const first = item("first", 1000);
+  const later = item("later", 1200);
+  first.classList.add("earlier");
+  later.classList.add("later");
+  scroller.append(first, later);
+  scrollTo(1000);
+  const identity = (node) => node.dataset.id;
+  const list = placeKeeper(scroller, { items: ".later", identity });
+  const card = placeKeeper(scroller, { items: ".earlier", identity });
+  const listHold = list.take();
+  const cardHold = card.take({ spans: false });
+  at.set(later, 1269);
+  card.finish(cardHold);
+  list.finish(listHold);
+  assert.equal(scrolled(), 1069);
+  scroller.remove();
+});
+
 test("a released keeper cannot remove the next keeper's anchoring claim", async () => {
   const { scroller, item, scrollTo } = laidOut();
   scroller.append(item("first", 1000));

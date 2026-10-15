@@ -321,6 +321,7 @@ function placeCorrection({
   return now - was - reflowed;
 }
 var heldScrollers = /* @__PURE__ */ new WeakMap();
+var sharedMovement = (moved2, paid) => Math.sign(moved2) === Math.sign(paid) ? Math.sign(paid) * Math.min(Math.abs(moved2), Math.abs(paid)) : 0;
 function placeKeeper(scroller, { items, identity, active = () => true, preferred = () => null }) {
   let current = null;
   const owner = {};
@@ -335,12 +336,15 @@ function placeKeeper(scroller, { items, identity, active = () => true, preferred
         }) ?? []
       )
     }),
-    sync: ({ hold, positions }) => {
+    sync: ({ hold, positions }, paid) => {
       if (current !== hold) return;
       for (const [reference, before] of positions) {
         const node = live2(reference);
         if (before !== null && node)
-          reference.contentTop += heldBox(node).top + scroller.scrollTop - before;
+          reference.contentTop += sharedMovement(
+            heldBox(node).top + scroller.scrollTop - before,
+            paid
+          );
       }
       hold.at = { scrollTop: scroller.scrollTop, limit: limit() };
     }
@@ -385,8 +389,10 @@ function placeKeeper(scroller, { items, identity, active = () => true, preferred
     const reference = hold.references.find(live2);
     if (!reference) return false;
     const now = heldBox(reference.node).top + scroller.scrollTop;
+    const was = reference.contentTop;
+    const scrollWas = scroller.scrollTop;
     const delta = placeCorrection({
-      was: reference.contentTop,
+      was,
       now,
       scrollTop: scroller.scrollTop,
       limit: limit(),
@@ -403,7 +409,10 @@ function placeKeeper(scroller, { items, identity, active = () => true, preferred
     }
     hold.at = { scrollTop: scroller.scrollTop, limit: limit() };
     if (hold.borrowed) {
-      hold.borrowed.lease.sync(hold.borrowed.reading);
+      hold.borrowed.lease.sync(
+        hold.borrowed.reading,
+        sharedMovement(now - was, scroller.scrollTop - scrollWas)
+      );
       hold.borrowed.reading = hold.borrowed.lease.snapshot();
     }
     return true;

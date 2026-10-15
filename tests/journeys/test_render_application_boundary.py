@@ -835,9 +835,13 @@ def test_an_external_withdrawal_keeps_the_readers_allocation(browser, serve, pla
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     if place == "scaled":
-        page.add_style_tag(
-            content=".lf-thread-panel { transform:scale(1.2); transform-origin:top right; }"
-        )
+        page.evaluate("""() => {
+            const style = document.createElement('style');
+            style.setAttribute('data-controls', '');
+            style.textContent =
+              '.lf-thread-panel { transform:scale(1.2); transform-origin:top right; }';
+            document.head.append(style);
+        }""")
         assert (
             page.locator(".lf-thread-panel").evaluate(
                 "node => getComputedStyle(node).transform"

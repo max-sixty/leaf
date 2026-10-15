@@ -18,6 +18,7 @@ def test_child_list_restatements_are_judged_across_one_delivery(browser):
             '<div hidden id="membership"><i data-for="old"></i></div>'
             '<div hidden id="order"><i data-for="a"></i><i data-for="b"></i></div>'
             '<div hidden id="measurement"><i></i></div>'
+            '<div hidden id="frame"><iframe></iframe></div>'
             '<div hidden id="retained-content"><span title="before">before</span></div>'
             '<div hidden id="nested-roundtrip"><span><i>before</i></span></div>'
             '<div hidden id="before-restore"><span>before</span></div>'
@@ -75,6 +76,11 @@ def test_child_list_restatements_are_judged_across_one_delivery(browser):
       const probe = document.createElement('i');
       measurement.append(probe);
       probe.remove();
+      // Detachment resets a frame's browsing context even when its node returns.
+      const frame = document.getElementById('frame');
+      const iframe = frame.firstChild;
+      iframe.remove();
+      frame.append(iframe);
       const markers = document.getElementById('markers');
       markers.firstChild.replaceWith(document.createComment(''));
       markers.lastChild.remove();

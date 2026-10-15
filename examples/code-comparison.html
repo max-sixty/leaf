@@ -6,7 +6,7 @@
       name="description"
       content="Compare scrolling and wrapping code readers in a narrow panel, adjust their spacing, and choose the treatment to keep."
     />
-    <style>
+    <style data-controls>
       code-reader-comparison {
         display: grid;
         gap: var(--sp-3);
@@ -14,8 +14,7 @@
         container-type: inline-size;
       }
 
-      /* The controls this element's module builds wear the layer's .lf-ui, and a page
-         rule reaches those only by naming the widget they stand in. */
+      /* This stylesheet explicitly styles the controls this module builds. */
       code-reader-comparison :is(.code-comparison-toolbar, .code-candidate-controls) {
         display: flex;
         flex-wrap: wrap;

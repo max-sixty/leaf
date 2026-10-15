@@ -776,7 +776,7 @@
       );
     </script>
 <!-- code-comparison.html authored styles -->
-<style>
+<style data-controls="">
       code-reader-comparison {
         display: grid;
         gap: var(--sp-3);
@@ -784,8 +784,7 @@
         container-type: inline-size;
       }
 
-      /* The controls this element's module builds wear the layer's .lf-ui, and a page
-         rule reaches those only by naming the widget they stand in. */
+      /* This stylesheet explicitly styles the controls this module builds. */
       code-reader-comparison :is(.code-comparison-toolbar, .code-candidate-controls) {
         display: flex;
         flex-wrap: wrap;
@@ -1544,7 +1543,7 @@
       }
 </style>
 <!-- wt-merge.html authored styles -->
-<style>
+<style data-controls="">
       /* The film beside the steps it plays, stacked where the workspace flows. */
       #merge-regions {
         display: grid;
@@ -1933,7 +1932,7 @@
       }
 </style>
 <!-- rust-sort.html authored styles -->
-<style>
+<style data-controls="">
       /* The sort beside the source it follows, stacked where the workspace flows. */
       #sort-regions {
         display: grid;
@@ -2151,6 +2150,10 @@
 <style>
       @import url("/page/theme.css");
 
+      #bg-style-access :is([role="checkbox"], a) {
+        color: var(--mark-ink);
+      }
+
       #bg-metrics > dl {
         margin: 0;
         padding: var(--sp-3);
@@ -2319,6 +2322,12 @@
 
       main:not([data-lf-margin~="map"], [data-lf-margin~="sidebar"]) #bg-sidebar {
         display: none;
+      }
+</style>
+<!-- feature-gallery.html authored styles -->
+<style data-controls="">
+      #bg-style-allowed .lf-pick {
+        color: var(--accent);
       }
 </style>
 <!-- feature-gallery.html authored script -->
@@ -9194,6 +9203,28 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             <div class="callout" id="bg-theme-conclusion">
               <p id="bg-theme-conclusion-copy">The comparison is ready for review.</p>
             </div>
+          </section>
+
+          <section id="bg-style-access">
+            <h2><strong>A stylesheet explicitly chooses control access</strong></h2>
+            <p id="bg-style-access-guide">
+              The ordinary page rule colors this
+              <a href="#bg-style-allowed">page link</a>, while the first pair keeps
+              Leaf's ink. A separate stylesheet marked <code>data-controls</code>
+              colors the second pair's selection marks with the accent. Pick by click,
+              tap, or Tab and Space; Undo restores the earlier choice without changing
+              either face.
+            </p>
+            <h3>Ordinary page stylesheet</h3>
+            <lf-options id="bg-style-protected" choose>
+              <lf-option id="bg-style-protected-one"><strong>First</strong></lf-option>
+              <lf-option id="bg-style-protected-two"><strong>Second</strong></lf-option>
+            </lf-options>
+            <h3>Stylesheet with control access</h3>
+            <lf-options id="bg-style-allowed" choose>
+              <lf-option id="bg-style-allowed-one"><strong>First</strong></lf-option>
+              <lf-option id="bg-style-allowed-two"><strong>Second</strong></lf-option>
+            </lf-options>
           </section>
 
           <section id="bg-user-view">

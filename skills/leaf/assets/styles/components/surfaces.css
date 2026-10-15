@@ -368,9 +368,9 @@ summary { align-content: center; }
 .lf-say leaf-text { flex: 1; min-width: 0; }
 .lf-thread-seat > .lf-say { margin-top: 0; }
 .lf-page-thread + :is(.lf-page-thread, .lf-resolved-threads) {
-          margin-top: calc(2 * var(--sp-3)); }
+          margin-top: var(--sp-3); }
 .lf-page-thread + :is(.lf-page-thread, .lf-resolved-threads)::before { content: "";
-          position: absolute; inset-inline: var(--sp-1); inset-block-start: calc(-1 * var(--sp-3));
+          position: absolute; inset-inline: var(--sp-1); inset-block-start: calc(-1 * var(--sp-2));
           border-top: 1px solid var(--rule); pointer-events: none; }
 /* Every conversation shares its reading edge, including a floating draft. The
    field subtracts its border; messages and metadata take the full inset. */
@@ -421,7 +421,8 @@ summary { align-content: center; }
           max-inline-size: 5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lf-msg-head .lf-msg-sending { min-width: 0; overflow: hidden;
           text-overflow: ellipsis; }
-:is(.lf-msg-head, .lf-thread-working-head) b { flex: 0 1 auto; min-width: 0;
+/* Keep short authors intact while long names leave room for delivery metadata. */
+:is(.lf-msg-head, .lf-thread-working-head) b { flex: 0 0 auto; max-inline-size: 40%; min-width: 0;
           overflow: hidden;
           text-overflow: ellipsis; font-size: var(--lf-msg-name-size);
           font-weight: 600; color: var(--ink); }

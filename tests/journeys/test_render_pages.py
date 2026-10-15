@@ -868,15 +868,17 @@ def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
 
     The page's own frame is the same place: a wide widget is measured against the box
     that frames it, and everything else on the page is excused by a scroll container
-    above it. Asked in that order, the excuse ate the measurement: a board scrolls, so
-    every card on every board was excused from the one reading that applies to what it
-    holds, and a diagram drawn 332px across the next column passed the gate that
-    exists to name it. So a board in a frame of the page's own that scrolls is named
-    too."""
+    above it. The fixture deliberately overrides the board's width so it escapes the
+    frame; the ordinary theme now holds it inside. Asked in the wrong order, the scroll
+    container's excuse ate this measurement, so a wide widget escaping its frame went
+    unnamed."""
     framed = FRAMED_SCROLLER_PAGE[FRAMED_SCROLLER_PAGE.index("<div id='own-frame'") :]
     framed = framed[: framed.index("</lf-board></div>") + len("</lf-board></div>")]
+    source = OWN_MARGIN_FURNITURE.replace(
+        "</head>", "<style>#framed { width: 1080px; }</style></head>"
+    )
     failures = render_gate_model.render_version(
-        browser, serve(OWN_MARGIN_FURNITURE.replace("</main>", framed + "</main>"))
+        browser, serve(source.replace("</main>", framed + "</main>"))
     ).failures
 
     assert [

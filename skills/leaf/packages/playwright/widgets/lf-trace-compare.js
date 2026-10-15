@@ -43,7 +43,9 @@ customElements.define(
     connectedCallback() {
       if (!once(this)) return;
       for (const child of this.children) {
-        const recording = child.matches("lf-trace") ? child : child.querySelector("lf-trace");
+        const recording = child.matches("lf-trace")
+          ? child
+          : child.querySelector("lf-trace");
         if (!recording) continue;
         this.#views.push(child);
         this.#recordings.push(recording);

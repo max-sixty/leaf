@@ -72,6 +72,7 @@ from render_harness import (
     consume_browser_errors,
     hold_selection,
     holding,
+    http_error_console,
     leaf_page,
     open_page,
     open_versions,
@@ -5445,7 +5446,7 @@ def test_a_deferred_diff_tracks_each_write_and_retries_a_failed_file(browser, se
     expect(page.locator("lf-diff .lf-error")).to_contain_text(
         "the patch is unavailable"
     )
-    consume_browser_errors(page, {"code": "failed-load", "status": 500})
+    consume_browser_errors(page, http_error_console(500))
     summary.click()
     summary.click()
     expect(
@@ -5566,7 +5567,7 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
     )
     page.wait_for_timeout(250)
     assert len(requests) == 1, "thread hydration retried without another user gesture"
-    consume_browser_errors(page, {"code": "failed-load", "status": 500})
+    consume_browser_errors(page, http_error_console(500))
 
     summary = page.locator("lf-diff summary")
     summary.click()
@@ -5582,9 +5583,7 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
     ) as retried:
         summary.click()
     assert len(requests) == 2
-    reported_browser_errors(
-        page, {"code": "failed-load", "status": 500, "url": retried.value.url}
-    )
+    reported_browser_errors(page, {"code": "console-error", "url": retried.value.url})
 
 
 def test_passage_at_either_shadow_host_edge_excludes_its_words(browser, serve):

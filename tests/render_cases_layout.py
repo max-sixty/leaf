@@ -1415,7 +1415,12 @@ def accessible_documents(page):
         for child in frame.child_frames:
             element = child.frame_element()
             if element.is_visible() and element.evaluate(
-                """element => !element.closest('[aria-hidden="true"], [inert]')"""
+                """element => {
+                  for (let current = element; current; current = current.getRootNode().host) {
+                    if (current.closest('[aria-hidden="true"], [inert]')) return false;
+                  }
+                  return true;
+                }"""
             ):
                 yield from exposed(child)
 

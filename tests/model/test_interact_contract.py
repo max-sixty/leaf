@@ -3834,11 +3834,24 @@ def test_the_events_reference_names_the_fields_each_kind_declares():
     describes once for every kind: the fields all kinds require, `revision`, and
     the posting session's `agent` and `session`.
     """
+    from markdown_it import MarkdownIt
+
     kinds = json.loads((schema_model.ASSETS / "registry.json").read_text())["$events"][
         "kinds"
     ]
     text = Path(schema_model.__file__).with_name("events.md").read_text()
-    opening, table = text.split("\n| Kind |", 1)
+    tokens = MarkdownIt("commonmark").enable("table").parse(text)
+    start = next(
+        index for index, token in enumerate(tokens) if token.type == "table_open"
+    )
+    end = next(
+        index
+        for index in range(start, len(tokens))
+        if tokens[index].type == "table_close"
+    )
+    opening = "\n".join(text.splitlines()[: tokens[start].map[0]])
+    cells = [token.content for token in tokens[start:end] if token.type == "inline"]
+    assert cells[:5] == ["Kind", "Author", "Door", "Fields", "Meaning"]
     shared = set.intersection(
         *(set(kind["record"]["required"]) for kind in kinds.values())
     )
@@ -3846,10 +3859,7 @@ def test_the_events_reference_names_the_fields_each_kind_declares():
     assert {name for name in described_once if f"`{name}`" not in opening} == set()
 
     listed, rows = [], {}
-    for line in table.split("\n\n", 1)[0].splitlines()[2:]:
-        kind, _author, _door, cell, _meaning = (
-            part.strip() for part in line.strip().strip("|").split("|")
-        )
+    for kind, _author, _door, cell, _meaning in itertools.batched(cells[5:], 5):
         while (bare := re.sub(r"\([^()]*\)", "", cell)) != cell:
             cell = bare
         listed.append(kind.strip("`"))

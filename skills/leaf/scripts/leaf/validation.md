@@ -6,7 +6,7 @@ directly:
 - an event, whether a browser posted it or a command wrote it, at the append door
   ([events.md, "Admission"](events.md#admission));
 - a page's authored source at `check_source` (`validation/source.py`), which `page
-  check`, activation, `page stamp`, and `page init` all run ("Static validation");
+check`, activation, `page stamp`, and `page init` all run ("Static validation");
 - message markup an agent hands in at `admission.check_markup`, which applies the same
   structure and vocabulary checks to an HTML fragment, with or without widgets;
 - a layer `page init` would vendor at `composition.incoming_registry`;
@@ -49,7 +49,6 @@ prospective log, so every thread it reopens is covered, and reads candidate
 passages at the candidate revision's cutoff. Required transitions journal the
 exact staged bundle before its marker appears. Every transaction completes
 interrupted publication from that bundle before it exposes page readings.
-
 
 That half has one piece plain `page check` runs too. A page that runs code of its
 own, a module script or a page widget the document places, or places a data widget

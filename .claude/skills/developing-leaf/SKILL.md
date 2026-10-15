@@ -46,12 +46,12 @@ changes.
 These are optional installs, separate from Leaf's plugin. Check the harness's available
 skills before invoking one; each link has installation instructions.
 
-| Install | Use in a UI review |
-| --- | --- |
-| [Impeccable](https://github.com/pbakaus/impeccable#installation) | `/impeccable critique` for hierarchy, grouping and clarity; `audit` for technical UI quality; focused workflows such as `layout` and `typeset`. |
-| [Web Design Guidelines](https://github.com/vercel-labs/agent-skills/tree/main/skills/web-design-guidelines) | `/web-design-guidelines` for interface conventions, accessibility, navigation, forms and motion. |
-| [Frontend Design](https://github.com/anthropics/skills/tree/main/skills/frontend-design) | `/frontend-design` for new compositions or an intentional redesign. |
-| [Emil Kowalski's skills](https://github.com/emilkowalski/skills) | `review-animations` for motion; it refuses model invocation, so read its `SKILL.md` and `STANDARDS.md`. `/break-ui` for worst-case content, such as long names or no items; keep the demo-data toggle it adds out of a shipped page. |
+| Install                                                                                                     | Use in a UI review                                                                                                                                                                                                                   |
+| ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [Impeccable](https://github.com/pbakaus/impeccable#installation)                                            | `/impeccable critique` for hierarchy, grouping and clarity; `audit` for technical UI quality; focused workflows such as `layout` and `typeset`.                                                                                      |
+| [Web Design Guidelines](https://github.com/vercel-labs/agent-skills/tree/main/skills/web-design-guidelines) | `/web-design-guidelines` for interface conventions, accessibility, navigation, forms and motion.                                                                                                                                     |
+| [Frontend Design](https://github.com/anthropics/skills/tree/main/skills/frontend-design)                    | `/frontend-design` for new compositions or an intentional redesign.                                                                                                                                                                  |
+| [Emil Kowalski's skills](https://github.com/emilkowalski/skills)                                            | `review-animations` for motion; it refuses model invocation, so read its `SKILL.md` and `STANDARDS.md`. `/break-ui` for worst-case content, such as long names or no items; keep the demo-data toggle it adds out of a shipped page. |
 
 ## Leave taste to the authoring agent
 

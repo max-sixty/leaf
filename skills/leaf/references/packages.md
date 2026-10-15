@@ -50,16 +50,16 @@ too.
 
 The optional bundled packages are:
 
-| Package | Adds |
-| --- | --- |
-| `code-review` | Instructions for writing a review; select it with the evidence packages the page needs. |
-| `diagram` | `lf-diagram` and its Mermaid renderer. |
-| `diff` | `lf-diff`, its `unified-diff` data contract, and `lf-call-diff`, which links to exact patch lines. |
-| `file-editor` | `lf-file-editor`, a CodeMirror editor for a bound local text file. |
-| `playground` | Controls with shared state, preview and output, and typed submission of the configuration. |
-| `monitoring` | Instructions for a release workspace: current state, checks, a run log and a rollback ask. |
-| `visual-review` | Website cases with aligned before-and-after captures and a verdict per case. |
-| `playwright` | Trace import and `lf-trace`, which steps through recorded actions and screenshots. |
+| Package         | Adds                                                                                               |
+| --------------- | -------------------------------------------------------------------------------------------------- |
+| `code-review`   | Instructions for writing a review; select it with the evidence packages the page needs.            |
+| `diagram`       | `lf-diagram` and its Mermaid renderer.                                                             |
+| `diff`          | `lf-diff`, its `unified-diff` data contract, and `lf-call-diff`, which links to exact patch lines. |
+| `file-editor`   | `lf-file-editor`, a CodeMirror editor for a bound local text file.                                 |
+| `playground`    | Controls with shared state, preview and output, and typed submission of the configuration.         |
+| `monitoring`    | Instructions for a release workspace: current state, checks, a run log and a rollback ask.         |
+| `visual-review` | Website cases with aligned before-and-after captures and a verdict per case.                       |
+| `playwright`    | Trace import and `lf-trace`, which steps through recorded actions and screenshots.                 |
 
 Packages declare no dependencies on each other; a page lists every package it needs.
 
@@ -132,12 +132,12 @@ public control.
 
 Custom properties come in four kinds:
 
-| Kind | Owner and supported use |
-| --- | --- |
-| Theme inputs | Page authors and themes set them on the root, or on a subtree: colours (`--paper`, `--ink`, `--muted`, `--accent`, `--ok`, `--danger`), faces (`--serif`, `--sans`, `--mono`), type scales, radius (`--r`), the code palette (`--code-*`), focus (`--focus-ring` and `--focus-shadow`, set together), and page geometry (`--col`, `--wide`, `--sidebar`, `--page-pad-start`, `--page-pad-end`). A value derived from an input is computed where it is declared, so setting the input on a subtree doesn't change a derived value it inherits. |
-| Layout declarations | The box that allocates space sets `--lf-full-height`, `--lf-density`, `--lf-block-frame` and `--lf-holds-edge`, as `package-themes.md`, "A theme change", describes. |
-| Runtime outputs | Leaf writes values such as `--lf-thread-panel-width` and anchor geometry. Read them; don't set them. |
-| Vendor bridges | An adapter maps Leaf inputs to a dependency's properties, such as `--diffs-*` and `--plot-background`. Change the Leaf input, not each use. |
+| Kind                | Owner and supported use                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Theme inputs        | Page authors and themes set them on the root, or on a subtree: colours (`--paper`, `--ink`, `--muted`, `--accent`, `--ok`, `--danger`), faces (`--serif`, `--sans`, `--mono`), type scales, radius (`--r`), the code palette (`--code-*`), focus (`--focus-ring` and `--focus-shadow`, set together), and page geometry (`--col`, `--wide`, `--sidebar`, `--page-pad-start`, `--page-pad-end`). A value derived from an input is computed where it is declared, so setting the input on a subtree doesn't change a derived value it inherits. |
+| Layout declarations | The box that allocates space sets `--lf-full-height`, `--lf-density`, `--lf-block-frame` and `--lf-holds-edge`, as `package-themes.md`, "A theme change", describes.                                                                                                                                                                                                                                                                                                                                                                          |
+| Runtime outputs     | Leaf writes values such as `--lf-thread-panel-width` and anchor geometry. Read them; don't set them.                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Vendor bridges      | An adapter maps Leaf inputs to a dependency's properties, such as `--diffs-*` and `--plot-background`. Change the Leaf input, not each use.                                                                                                                                                                                                                                                                                                                                                                                                   |
 
 A `--lf-` prefix doesn't make a property an input; most are outputs. A package
 documents any further inputs it supports. No type or colour override may shrink a
@@ -195,17 +195,17 @@ absence the default, as in `lf-diff collapsed` or `lf-shot outlines`.
 The shipped declarations are the worked examples. For the keys that change a widget's
 role on the page:
 
-| Key                  | Shipped example                                                |
-| -------------------- | -------------------------------------------------------------- |
-| `x-reading-role`     | `lf-pane`                                                      |
-| `x-resident`         | `lf-toc`                                                       |
-| `x-visual`           | `lf-chart` declares `whole`, `lf-diagram` in `diagram` `parts`  |
-| `x-bound`            | `lf-activity`                                                  |
-| `x-height`           | `lf-chart`                                                     |
-| `x-history`          | `lf-activity`                                                  |
-| `x-patch`            | `lf-tabs`                                                      |
-| `x-views`            | `lf-tabs`                                                      |
-| `x-thread-surface`   | `lf-diff` in `diff`, `lf-visual-review` in `visual-review`     |
+| Key                | Shipped example                                                |
+| ------------------ | -------------------------------------------------------------- |
+| `x-reading-role`   | `lf-pane`                                                      |
+| `x-resident`       | `lf-toc`                                                       |
+| `x-visual`         | `lf-chart` declares `whole`, `lf-diagram` in `diagram` `parts` |
+| `x-bound`          | `lf-activity`                                                  |
+| `x-height`         | `lf-chart`                                                     |
+| `x-history`        | `lf-activity`                                                  |
+| `x-patch`          | `lf-tabs`                                                      |
+| `x-views`          | `lf-tabs`                                                      |
+| `x-thread-surface` | `lf-diff` in `diff`, `lf-visual-review` in `visual-review`     |
 
 A CSS-only widget is a registry entry and a theme rule; one with behavior adds a module,
 following [module-authoring.md](module-authoring.md). Helper modules sit beside the

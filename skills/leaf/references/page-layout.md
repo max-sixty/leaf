@@ -10,16 +10,16 @@ which shape fits which subject.
 A Layout is a class that arranges the box it is on. Three set the page's shape and go
 on `main`:
 
-| Class | The page |
-| --- | --- |
-| `layout-column` | the reading column, with wide blocks breaking out of it |
-| `layout-sidebar` | a body beside its `aside`, with a `header` and `footer` across both |
-| `layout-workspace` | a screen filling the window: `header`, one body, `footer` |
+| Class              | The page                                                            |
+| ------------------ | ------------------------------------------------------------------- |
+| `layout-column`    | the reading column, with wide blocks breaking out of it             |
+| `layout-sidebar`   | a body beside its `aside`, with a `header` and `footer` across both |
+| `layout-workspace` | a screen filling the window: `header`, one body, `footer`           |
 
 One arranges a block's children:
 
-| Class | Arranges |
-| --- | --- |
+| Class          | Arranges                             |
+| -------------- | ------------------------------------ |
 | `layout-tiles` | equal cells, as many to a row as fit |
 
 On a column page, a board or diagram declares its own width, and any other block, such

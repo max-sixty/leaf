@@ -3160,14 +3160,15 @@ def test_an_aim_follows_a_scroll_inside_a_widgets_shadow_stage(browser, serve):
 SHOWN_PAINT = """(selector) => {
   const paint = document.querySelector(selector);
   let { left, right } = paint.getBoundingClientRect();
-  // A frame cuts across where its clip path's inline inset is zero.
-  const cutsAcross = (frame) =>
-    /^inset\\((\\S+ )?0px\\)$/.test(getComputedStyle(frame).clipPath);
+  // Leaf's zero-size frames extend their clip to the measured band.
   for (let frame = paint.parentElement; frame; frame = frame.parentElement)
-    if (frame.matches('.lf-paint-frame') && cutsAcross(frame)) {
+    if (frame.matches('.lf-paint-frame')) {
+      const inset = /^inset\\((-?[\\d.]+)px (-?[\\d.]+)px (-?[\\d.]+)px (-?[\\d.]+)px\\)$/
+        .exec(getComputedStyle(frame).clipPath);
+      if (!inset) continue;
       const cut = frame.getBoundingClientRect();
-      left = Math.max(left, cut.left);
-      right = Math.min(right, cut.right);
+      left = Math.max(left, cut.left + Number(inset[4]));
+      right = Math.min(right, cut.right - Number(inset[2]));
     }
   return { left, right };
 }"""

@@ -9,13 +9,18 @@
  * lands (`connectedMoveCallback`, as `leaf-text` does). New nodes, nodes from
  * another root, and engines without the API use `insertBefore`, which blurs a focused
  * descendant to the body; an element's hold (`holdFocus`) puts the user back in it, as
- * it does when a change had dropped them from it and they have not acted since. Text,
- * comments and fragments, which Lit inserts for every new row, hold no one. An iframe
- * still reloads there. The return value matches insertBefore, including when inserting
- * a fragment. */
+ * it does when a change had dropped them from it and they have not acted since. An
+ * already placed node is left alone. Text, comments and fragments, which Lit inserts
+ * for every new row, hold no one. An iframe still reloads there. The return value
+ * matches insertBefore, including when inserting a fragment. */
 import { holdFocus, watchStandingIn } from "./focus.js";
 
 export function move(parent, node, before) {
+  if (
+    node.parentNode === parent &&
+    (before === node || node.nextSibling === before)
+  )
+    return node;
   // A retained move can enter another shadow root without a focus event. Subscribe
   // before placement, so connectedMoveCallback and the caller's next move are heard.
   if (parent.isConnected) watchStandingIn(parent.getRootNode());

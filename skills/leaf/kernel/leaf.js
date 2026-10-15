@@ -10570,7 +10570,8 @@ function createQueueWalk({
     return stops().filter((stop) => stop.kind === "ask" && held.has(stop.id));
   }
   const stopsOf = (region) => region ? stopsWithin(region) : stops();
-  function standingStop(list, here = walkOrigin()) {
+  function standingStop(list, { place: here, kind } = walkOrigin()) {
+    if (kind !== "standing") return null;
     if (focused(document) === approvalTarget())
       return list.find((stop) => stop.kind === "approval") ?? null;
     const held = threadHere();
@@ -10596,9 +10597,9 @@ function createQueueWalk({
       return at && (at === here || under(here, at));
     }) ?? null;
   }
-  function step(list, dir, region, origin = walkOrigin(), stands = true) {
-    if (region && !under(origin, region)) return cycledRow(list, null, dir);
-    const standing2 = stands ? standingStop(list, origin) : null;
+  function step(list, dir, region, origin) {
+    if (region && !under(origin.place, region)) return cycledRow(list, null, dir);
+    const standing2 = standingStop(list, origin);
     if (standing2) return cycledRow(list, standing2, dir);
     return stepFrom(list, origin, dir, (stop) => stop.place);
   }
@@ -10636,10 +10637,10 @@ function createQueueWalk({
     const at = listWalkPosition(list, here, { identity: (stop) => stop.key });
     return at && { ...at, qualifier: `${region ? WITHIN : QUALIFIER} \xB7 ${here.noun}` };
   }
-  function walk(dir, region = null, origin = walkOrigin(), stands = true) {
+  function walk(dir, region = null, origin = walkOrigin()) {
     const list = stopsOf(region);
     if (!list.length) return Promise.resolve(false);
-    const { row: next2, wrapped } = step(list, dir, region, origin, stands);
+    const { row: next2, wrapped } = step(list, dir, region, origin);
     const ready = arriveAt(next2).then((arrived) => {
       if (!arrived) return false;
       announce2(
@@ -10751,11 +10752,12 @@ function createQueueWalk({
     const asks2 = asksIn(within);
     const kept = asks2.find((ask) => ask.id === wentTo);
     const toward = dir < 0 ? -1 : 1;
-    if (under(here, within)) return walk(toward, within, here);
-    if (kept) return walk(toward, within, askPlace(kept).source);
+    if (under(here.place, within)) return walk(toward, within, here);
+    if (kept)
+      return walk(toward, within, { place: askPlace(kept).source, kind: "standing" });
     const clips = /* @__PURE__ */ new Map();
     const shown = asks2.map((ask) => askPlace(ask).node).find((node) => node && seenRect(node, clips));
-    return shown ? walk(toward, within, shown, false) : walk(toward, within, here);
+    return shown ? walk(toward, within, { place: shown, kind: "at" }) : walk(toward, within, here);
   }
   return { mount, arriveAtItem, next, nextWithin };
 }
@@ -12891,13 +12893,19 @@ function stepThread(dir, destinations, panelIsOpen2, narrowing2, list) {
   const { threadsBox: threadsBox2 } = list;
   const { threadHere, threadAtStanding, threadPlace } = destinations;
   const { threads } = threadWalk(panelIsOpen2, list);
+  const origin = walkOrigin();
   const current = currentThread(threads, threadHere);
-  const targetId = !current && threadAtStanding();
+  const targetId = !current && origin.kind === "standing" && threadAtStanding();
   const atTarget = targetId && threads.find((thread) => thread.dataset.id === targetId);
   const atRow = panelIsOpen2() && focused() !== threadsBox2 && standingIn(threadsBox2);
-  const { row: next, wrapped } = current ? cycledRow(threads, current, dir) : atTarget ? { row: atTarget, wrapped: false } : atRow ? stepFrom(threads, focused(), dir, (thread) => thread) : stepFrom(
+  const { row: next, wrapped } = current ? cycledRow(threads, current, dir) : atTarget ? { row: atTarget, wrapped: false } : atRow ? stepFrom(
     threads,
-    !panelIsOpen2() || narrowing2.listedInPageOrder() ? walkOrigin() : null,
+    { place: focused(), kind: "standing" },
+    dir,
+    (thread) => thread
+  ) : stepFrom(
+    threads,
+    !panelIsOpen2() || narrowing2.listedInPageOrder() ? origin : { place: null, kind: "enter" },
     dir,
     (thread) => threadPlace(thread.dataset.id)
   );

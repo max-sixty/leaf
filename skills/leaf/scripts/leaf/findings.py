@@ -387,9 +387,10 @@ def _shift_evidence(v: dict) -> str:
 # of its own, it says "console: " first.
 _TEXT = {
     # What the browser's console and the page's window reported.
-    "console-error": lambda at, v: v["text"],
+    "console-error": lambda at, v: (
+        f"{v['text']} — {v['url']}" if v.get("url") else v["text"]
+    ),
     "console-warning": lambda at, v: f"warning: {v['text']}",
-    "failed-load": lambda at, v: f"{v['status']} {v['url']}",
     "page-exception": lambda at, v: v["text"],
     "window-error": lambda at, v: f"window error: {v['text']}",
     "resize-loop": lambda at, v: (
@@ -702,11 +703,6 @@ _TEXT = {
             if v["allowed"] is None
             else f"one of {', '.join(v['allowed'])}"
         )
-    ),
-    "css-unclosed": lambda at, v: (
-        f"{v['sheet']}: {v['depth']} block(s) left open at end of file — every rule"
-        " after the unclosed brace, this stylesheet's or a later layer's, lands inside"
-        " its scope"
     ),
     "css-syntax": lambda at, v: (
         f"{v['sheet']} syntax error at {v['row']}:{v['column']}: {v['message']}"
@@ -1836,7 +1832,6 @@ _USER = {
 _CONSOLE = {
     "console-error",
     "console-warning",
-    "failed-load",
     "page-exception",
     "window-error",
     "resize-loop",

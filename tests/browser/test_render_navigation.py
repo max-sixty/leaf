@@ -83,6 +83,7 @@ from render_harness import (
     expect_comment_notes,
     hold_selection,
     holding,
+    http_error_console,
     is_problem,
     leaf_page,
     margins_laid_out,
@@ -1894,7 +1895,7 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     page.keyboard.press("Enter")
     expect(retry).to_have_count(0)
 
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(page, http_error_console(400))
 
 
 def test_a_render_that_keeps_an_external_link_gives_back_the_mark_it_dropped(
@@ -2264,7 +2265,7 @@ def test_a_reply_link_moves_the_thread_walk_to_its_destination(
     page.go_back()
     page.wait_for_function("""async () => {
       const {walkOrigin} = await window.__lfCheckApi();
-      return walkOrigin()?.id === 'source';
+      return walkOrigin().place?.id === 'source';
     }""")
     page.go_forward()
     expect(page.locator("#arrival")).to_be_focused()
@@ -2387,6 +2388,39 @@ def test_the_thread_walk_opens_the_thread_on_the_passage_the_caret_is_in(
     page.keyboard.press(key)
     expect(
         page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{roots[1]}"]')
+    ).to_be_focused()
+
+
+@pytest.mark.parametrize("key", ["t", "Shift+t"])
+def test_thread_walks_start_at_the_selected_tabs_panel(browser, serve, key):
+    """Both directions measure from the open panel, not the preceding tab strip."""
+    url = serve(
+        leaf_page(
+            "Discussions in tabs",
+            '<h1>Discussions</h1><section id="wrap"><p>Intro words</p>'
+            '<lf-tabs id="tabs" list="side">'
+            + "".join(
+                f'<lf-tab id="panel-{name.lower()}" label="{name}">'
+                f'<p id="{name}">{name} discussion</p></lf-tab>'
+                for name in ("First", "Second", "Third")
+            )
+            + "</lf-tabs></section>",
+        ),
+        anchored=[
+            ("wrap", "Intro words"),
+            *((name, f"{name} discussion") for name in ("First", "Second", "Third")),
+        ],
+    )
+    roots = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    page = open_page(browser, url)
+    page.get_by_role("tab", name="Second", exact=True).click()
+    page.keyboard.press(key)
+    expect(
+        page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{roots[2]}"]')
     ).to_be_focused()
 
 
@@ -3594,16 +3628,16 @@ def test_the_on_panel_shows_each_list_with_its_own_done(browser, serve):
 
     # The answered question joins the user's Done, which stays folded until opened, and
     # a done row arrives at its thread too. The thread's card stands over the panel's
-    # head, so the keyboard opens the fold.
+    # head, so the keyboard opens the fold and activates the covered controls.
     summary = page.locator(".lf-queue-done > summary")
     expect(summary).to_have_text("Done · 1")
     summary.focus()
     page.keyboard.press("Enter")
     done = page.locator(".lf-queue-done .lf-queue-row")
     expect(done).to_have_text([re.compile("Weekly\\?")])
-    tabs.nth(1).click()
+    tabs.nth(1).press("Enter")
     expect(page.locator(".lf-queue-done > summary")).to_have_text("Done · 3")
-    done.filter(has_text="Retitle the release").click()
+    done.filter(has_text="Retitle the release").press("Enter")
     expect(
         page.locator(f'.lf-page-thread[data-thread="{retitle["id"]}"]')
     ).to_be_focused()
@@ -3665,6 +3699,32 @@ def test_the_on_panels_next_on_me_walks_as_m_does(browser, serve):
     expect(button).to_be_hidden()
 
 
+def test_a_selected_tab_enters_the_ask_it_controls(browser, serve):
+    """A controlled panel can itself be an ask; selecting its tab hasn't entered it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "A tab opening an ask",
+                '<h1>Decisions</h1><div role="tablist">'
+                '<button role="tab" aria-selected="true" aria-controls="second-decision">'
+                "Second</button></div>"
+                + "".join(
+                    f'<lf-ask id="{key}-decision"><h2>Pick {key}</h2>'
+                    f'<lf-options id="{key}" choose><lf-option id="{key}-a">'
+                    "Alpha</lf-option></lf-options></lf-ask>"
+                    for key in ("first", "second")
+                ),
+            )
+        ),
+    )
+    page.get_by_role("tab", name="Second").click()
+    page.keyboard.press("m")
+    expect(page.locator("#second-decision")).to_be_focused()
+    page.keyboard.press("m")
+    expect(page.locator("#first-decision")).to_be_focused()
+
+
 def test_a_tally_counts_its_regions_asks_and_walks_them(browser, serve):
     """An `lf-tally` counts the asks its region holds, by the rule a queue row's mark
     reads, and leaves out one outside it. Its Next on me is `m` within the region: a
@@ -3705,6 +3765,35 @@ def test_a_tally_counts_its_regions_asks_and_walks_them(browser, serve):
     first, second = page.locator("#first-decision"), page.locator("#second-decision")
     expect(words).to_have_text("2 of 2 to answer")
     box = page.locator("#left").bounding_box()
+
+    # The row opens the item the user reads. Enter its ask before deciding: the
+    # strip itself precedes every panel in DOM order, but is not the walk's origin.
+    page.get_by_role("tab", name="Second", exact=True).click()
+    page.keyboard.press("Shift+m")
+    expect(second).to_be_focused()
+    page.get_by_role("tab", name="Second", exact=True).click()
+    page.keyboard.press("m")
+    expect(second).to_be_focused()
+    with sending(page, "the second item's answer by digit"):
+        page.keyboard.press("1")
+    round_trip(page)
+    expect(words).to_have_text("1 of 2 to answer")
+    answer = next(
+        event
+        for event in reversed(events_model.read_events(serve.page_dir))
+        if event["kind"] == "action"
+    )
+    assert answer["widget"] == "second"
+    button.click()
+    expect(first).to_be_focused()
+    with sending(page, "undo the second item's answer after Next"):
+        page.keyboard.press("z")
+    round_trip(page)
+    expect(words).to_have_text("2 of 2 to answer")
+    assert events_model.read_events(serve.page_dir)[-1]["undoes"] == answer["id"]
+    expect(first).to_be_focused()
+    # Leave the next press at the region's start, as on initial arrival.
+    page.get_by_role("tab", name="First", exact=True).click()
 
     def back_to_the_tally():
         for _ in range(30):

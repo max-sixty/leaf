@@ -9,6 +9,8 @@ from functools import cache
 from pathlib import Path
 from typing import NamedTuple
 
+import tinycss2
+
 from .findings import Finding
 from .locations import located, locations_overlap
 from .machine import package_store
@@ -203,9 +205,14 @@ CASCADE_LAYERS = (
     "lf-state",
 )
 
+# tinycss2 currently decodes surrogate escapes to lone surrogates. CSS requires
+# U+FFFD instead; keep its serialization valid UTF-8 until its tokenizer is fixed.
+_CSS_SURROGATES = dict.fromkeys(range(0xD800, 0xE000), 0xFFFD)
+
 
 def _sheet(source: Path) -> str:
-    from .styles import css_syntax_errors
+    """Validate one source and complete its EOF recovery before composition."""
+    from .styles import css_stylesheet, css_syntax_errors
 
     try:
         css = source.read_text(encoding="utf-8")
@@ -213,7 +220,8 @@ def _sheet(source: Path) -> str:
         raise Refused(f"{source} must be UTF-8")
     if errors := css_syntax_errors(css, str(source)):
         raise Refused(str(errors[0]))
-    return css if css.endswith("\n") else css + "\n"
+    serialized = tinycss2.serialize(css_stylesheet(css)).translate(_CSS_SURROGATES)
+    return serialized if serialized.endswith("\n") else serialized + "\n"
 
 
 def widget_confinement(root: Path) -> tuple[str, str] | None:

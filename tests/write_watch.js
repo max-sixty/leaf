@@ -167,6 +167,9 @@
   };
   // Writes that restate a value for a reason of their own, by the report they make.
   const EXPECTED = [
+    // Lit's keyed repeat moves equivalent marker nodes when a visual action in
+    // the group changes identity, while the rendered controls update in place.
+    /^children of div\.lf-visual-actions(?:\.|$)/,
     // Mermaid's diagram renderers and their shared viewport helper both assign the SVG's
     // width while measuring the same drawing. Its upstream-owned paint is separate
     // from Leaf's adapter, which uses keeps when setting the final natural width.

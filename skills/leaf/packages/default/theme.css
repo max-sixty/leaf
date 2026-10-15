@@ -205,12 +205,12 @@
   width: max-content;
   max-width: calc(100cqi - 24px);
   box-sizing: border-box;
-  padding: 4px 7px;
-  border-radius: 4px;
-  background: var(--ink);
-  color: var(--paper);
+  padding: var(--tip-pad);
+  border-radius: var(--tip-r);
+  background: var(--tip-bg);
+  color: var(--tip-ink);
   box-shadow: var(--raise-1);
-  font: 500 var(--t-6)/1.2 var(--sans);
+  font: var(--tip-font);
   white-space: normal;
   pointer-events: none;
 }

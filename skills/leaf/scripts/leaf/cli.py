@@ -32,6 +32,10 @@ def resolve_dir(dir_arg: str, must_exist: bool = True, *, renew: bool = True) ->
     page_dir = canonical_path(Path(dir_arg).expanduser())
     if not must_exist:
         return page_dir
+    if page_dir.is_file():
+        raise click.ClickException(
+            f"{page_dir} is a file; a page command takes the page's directory"
+        )
     if not (page_dir / EVENTS_FILE).is_file():
         raise click.ClickException(
             f"{page_dir} is not an initialized page; "

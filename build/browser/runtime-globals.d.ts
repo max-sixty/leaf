@@ -23,11 +23,9 @@ interface LeafStore {
   keys(): string[];
 }
 
-/** One margin breakout and the holder it indents from (`content-layout.js`). */
+/** Whether a residency or indent reading changed what it writes (`prepaint.js`). */
 interface LeafIndents {
   changed: boolean;
-  breakouts: Element[];
-  holders: Map<Element, unknown>;
 }
 
 /** A package's synchronous initial drawing of one host (`initial.js`). */

@@ -462,11 +462,13 @@ export function commentPlacement() {
         replyTurn: keepReplyLine ? latest.key : null,
         draftText,
       };
-      // Adoption holds the message's start: expanded composer choices may add a row
-      // below it that the thread does not carry. Later placements use the surface's own
-      // top/foot reading, including the normal above-side and reply-line holds.
+      // Adoption keeps the editor's attachment edge. Above its subject, a taller card
+      // grows upward rather than crossing the block the editor stood clear of.
+      // Later placements use the surface's own top/foot reading and reply-line holds.
       edge = hold
-        ? "top"
+        ? side === "top"
+          ? "foot"
+          : "top"
         : (pressHeld ??
           (keepReplyLine || (!drafting && side === "top") ? "foot" : "top"));
       return edge;

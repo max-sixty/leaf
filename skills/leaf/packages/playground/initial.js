@@ -17,7 +17,10 @@ const COPY_LABELS = [
 ];
 
 function render(host, { tabStore, offer, keeps }) {
-  const controls = own(host, "lf-playground-control");
+  const controls = [...host.querySelectorAll("lf-playground-control")].filter(
+    (control) => control.closest("lf-playground") === host,
+  );
+  const panelControls = controls.filter((control) => control.parentElement === host);
   const presets = own(host, "lf-playground-preset");
   const outputs = own(host, "lf-playground-output");
   const previews = own(host, "lf-playground-preview");
@@ -154,7 +157,7 @@ function render(host, { tabStore, offer, keeps }) {
     panelTitle.id = `${host.id}-controls-title`;
     panel.setAttribute("role", "group");
     panel.setAttribute("aria-labelledby", panelTitle.id);
-    panel.append(panelTitle, ...controls);
+    if (panelControls.length) panel.append(panelTitle, ...panelControls);
     for (const control of controls) {
       const name = control.getAttribute("name"),
         kind = control.getAttribute("kind"),
@@ -256,9 +259,12 @@ function render(host, { tabStore, offer, keeps }) {
     const previewBody = node("div", "lf-playground-preview-body");
     previewBody.append(preview);
     const split = node("div", "lf-playground-split");
+    if (!panelControls.length && presets.length)
+      split.append(pane("controls", "Controls", null, presetBar));
+    split.append(pane("preview", "Preview", null, previewBody));
+    if (panelControls.length)
+      split.append(pane("controls", "Controls", presetBar, panel));
     split.append(
-      pane("preview", "Preview", null, previewBody),
-      pane("controls", "Controls", presetBar, panel),
       pane(
         "instruction",
         "Instruction to agent",

@@ -54,7 +54,7 @@
   },
   "lf-playground-control": {
     "description": "One typed input in a playground.",
-    "x-instructions": "Use a stable name for the submitted field and a label for its control. Author its initial value as a string: a finite number for range, true or false for toggle, one child value for choice, a six-digit hex colour for color, or arbitrary text for text. Range controls need max; min, step, and unit are optional. Only choice controls contain lf-playground-choice children.",
+    "x-instructions": "Use a stable name for the submitted field and a label for its control. Place it within the preview to keep it beside its evidence, or directly in the playground for the shared control panel. Author its initial value as a string: a finite number for range, true or false for toggle, one child value for choice, a six-digit hex colour for color, or arbitrary text for text. Range controls need max; min, step, and unit are optional. Only choice controls contain lf-playground-choice children.",
     "x-name": "label",
     "type": "object",
     "properties": {
@@ -148,7 +148,6 @@
     ],
     "additionalProperties": false,
     "x-unique": { "name": "lf-playground" },
-    "x-owners": ["lf-playground"],
     "x-content": "members",
     "x-upgrade": false
   },

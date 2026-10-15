@@ -2560,6 +2560,52 @@ PLAYGROUND_PAGE = leaf_page(
 )
 
 
+CONTRIBUTOR_PAGE = leaf_page(
+    "query configuration",
+    """
+<lf-ask id="query-ask"><h1>Choose the alert query</h1>
+<lf-playground id="query-config">
+  <lf-playground-control name="stream" label="Event stream" kind="choice" value="checkout">
+    <lf-playground-choice value="checkout" label="Checkout"></lf-playground-choice>
+    <lf-playground-choice value="billing" label="Billing"></lf-playground-choice>
+  </lf-playground-control>
+  <lf-playground-preset label="Checkout stream">
+    <lf-playground-setting for="stream" value="checkout"></lf-playground-setting>
+  </lf-playground-preset>
+  <lf-playground-preview>
+    <label for="region-filter">Region filter</label>
+    <input id="region-filter" type="text" value="eu-west-1">
+  </lf-playground-preview>
+  <lf-playground-output>Implement the selected query.</lf-playground-output>
+</lf-playground></lf-ask>
+<script type="module">
+import {afterPresentation} from "/runtime/widget-api.js";
+afterPresentation(() => {
+  if (sessionStorage.getItem('delay-query-contributors')) return;
+  const playground = document.querySelector('#query-config');
+  const input = document.querySelector('#region-filter');
+  let region = input.value;
+  const applies = [];
+  let notify;
+  input.addEventListener('input', () => { region = input.value; });
+  input.addEventListener('change', () => notify());
+  notify = playground.registerContributor('filters', {region}, {
+    read: () => ({region}),
+    apply: snapshot => {
+      applies.push(snapshot.region);
+      region = snapshot.region;
+      if (input.value !== region) input.value = region;
+    }
+  });
+  playground.registerInstructionProvider(values =>
+    `Implement ${values.stream} alerts for region ${values.filters.region}.`);
+  window.contributorApplies = applies;
+});
+</script>
+""",
+)
+
+
 def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, serve):
     """Decision rows keep source order in the margin layer, and so in the tab order,
     through upgrade and reconnection."""
@@ -4616,6 +4662,284 @@ def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
     assert playground.evaluate("root => root.values")["compact"] is False
 
 
+def test_narrow_playground_keeps_complete_preset_labels_operable(browser, serve):
+    label = "Recommended: 6 pages, 1 false, none missed"
+    source = leaf_page(
+        "Complete preset labels",
+        f"""<h1>Tune alert policy</h1>
+<lf-playground id="policy">
+  <lf-playground-preset label="{label}">
+    <lf-playground-setting for="threshold" value="6"></lf-playground-setting>
+  </lf-playground-preset>
+  <lf-playground-preview>
+    <p>Six minutes catches the incident with time to act.</p>
+    <lf-playground-control name="threshold" label="Threshold" kind="range"
+      value="5" min="1" max="10"></lf-playground-control>
+  </lf-playground-preview>
+  <lf-playground-output>Use a <lf-playground-value for="threshold"></lf-playground-value> minute threshold.</lf-playground-output>
+</lf-playground>""",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 390, 844)
+    preset = page.get_by_role("button", name=label, exact=True)
+    reset = page.get_by_role("button", name="Reset", exact=True)
+    for button in (preset, reset):
+        reading = button.evaluate("""button => {
+          const range = document.createRange();
+          range.selectNodeContents(button);
+          return {box: button.getBoundingClientRect().toJSON(),
+                  lines: [...range.getClientRects()].map(line => line.toJSON())};
+        }""")
+        assert reading["lines"]
+        for line in reading["lines"]:
+            assert (
+                reading["box"]["left"]
+                <= line["left"]
+                <= line["right"]
+                <= reading["box"]["right"]
+            )
+            assert (
+                reading["box"]["top"]
+                <= line["top"]
+                <= line["bottom"]
+                <= reading["box"]["bottom"]
+            )
+    preset.click()
+    expect(page.get_by_role("slider", name="Threshold")).to_have_value("6")
+    reset.click()
+    expect(page.get_by_role("slider", name="Threshold")).to_have_value("5")
+
+
+def test_playground_adopts_live_sources_without_restoring_their_drafts(browser, serve):
+    """Native change can wait for blur while another control keeps preview focus.
+    That gesture and final consumption read the model; only reset/projection restore it."""
+    page = open_page(browser, serve(CONTRIBUTOR_PAGE))
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    playground = page.locator("#query-config")
+    field = page.get_by_role("textbox", name="Region filter")
+    field.fill("us-east-1")
+    playground.get_by_role("radio", name="Billing", exact=True).click()
+    expect(field).to_be_focused()
+    expect(field).to_have_value("us-east-1")
+    assert playground.evaluate("root => root.values.filters.region") == "us-east-1"
+    assert page.evaluate("window.contributorApplies") == ["eu-west-1"]
+
+    field.fill("ap-south-1")
+    # A later component registers while another component owns an unfinished edit.
+    playground.evaluate("""root => {
+      let grouped = false;
+      root.registerContributor('grouped', false, {
+        read: () => grouped, apply: value => { grouped = value; }
+      });
+    }""")
+    expect(field).to_have_value("ap-south-1")
+    assert page.evaluate("window.contributorApplies") == ["eu-west-1"]
+
+    field.fill("eu-north-1")
+    playground.get_by_role("button", name="Checkout stream").click()
+    expect(field).to_be_focused()
+    expect(field).to_have_value("eu-north-1")
+    assert playground.evaluate("root => root.values") == {
+        "stream": "checkout",
+        "filters": {"region": "eu-north-1"},
+        "grouped": False,
+    }
+
+    # Native activation need not move focus. Copy and Choose capture the sources
+    # themselves rather than relying on a blur to cause a contributor notification.
+    field.fill("copy-region")
+    playground.get_by_role("button", name="Copy instruction").evaluate(
+        "button => button.click()"
+    )
+    expect(playground.get_by_role("button", name="Copied", exact=True)).to_be_visible()
+    assert page.evaluate("navigator.clipboard.readText()") == (
+        "Implement checkout alerts for region copy-region."
+    )
+    expect(field).to_be_focused()
+    assert page.evaluate("window.contributorApplies") == ["eu-west-1"]
+
+    playground.get_by_role("button", name="Reset", exact=True).click()
+    expect(field).to_have_value("eu-west-1")
+    assert page.evaluate("window.contributorApplies") == ["eu-west-1", "eu-west-1"]
+    field.fill("chosen-region")
+    with sending(page, "the query configuration"):
+        playground.get_by_role("button", name="Use these settings").evaluate(
+            "button => button.click()"
+        )
+    assert events_model.read_events(serve.page_dir)[-1]["detail"]["values"] == {
+        "stream": "checkout",
+        "filters": {"region": "chosen-region"},
+        "grouped": False,
+    }
+    field.fill("unsent-region")
+    round_trip(page)
+    expect(field).to_have_value("unsent-region")
+    page.reload()
+    wait_until_ready(page)
+    expect(field).to_have_value("chosen-region")
+
+    # The admitted aggregate can precede every page-module source. Each joining
+    # source restores its slice; an undo replaces the pending snapshot as well.
+    page.evaluate("sessionStorage.setItem('delay-query-contributors', 'true')")
+    page.reload()
+    wait_until_ready(page)
+    assert playground.evaluate("root => root.values") == {"stream": "checkout"}
+    assert (
+        playground.evaluate("""root => {
+      let grouped = true;
+      root.registerContributor('grouped', true, {
+        read: () => grouped, apply: value => { grouped = value; }
+      });
+      return grouped;
+    }""")
+        is False
+    )
+    undo(page)
+    playground.evaluate("""root => {
+      const input = document.querySelector('#region-filter');
+      root.registerContributor('filters', {region:'eu-west-1'}, {
+        read: () => ({region:input.value}),
+        apply: value => { input.value = value.region; }
+      });
+    }""")
+    expect(field).to_have_value("eu-west-1")
+    assert playground.evaluate("root => root.values") == {
+        "stream": "checkout",
+        "filters": {"region": "eu-west-1"},
+        "grouped": True,
+    }
+
+
+@pytest.mark.parametrize("shared_panel", [True, False])
+def test_playground_controls_stay_beside_evidence_and_share_the_configuration(
+    browser, serve, shared_panel
+):
+    """Authored placement changes presentation, while every control participates in
+    the same reset, tab restoration, copy, final submission, and undo."""
+    source = (
+        Path(__file__).parents[1] / "fixtures/pages/playground-controls.html"
+    ).read_text()
+    if not shared_panel:
+        team = re.search(
+            r'<lf-playground-control\s+name="team".*?</lf-playground-control>',
+            source,
+            re.DOTALL,
+        )[0]
+        source = source.replace(team, "").replace(
+            '<lf-playground-preview id="alert-evidence">',
+            '<lf-playground-preview id="alert-evidence">' + team,
+        )
+    page = open_page(browser, serve(source))
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    playground = page.locator("#alert-tuning")
+    expect(page.locator("#latency-evidence lf-playground-control")).to_have_count(2)
+    expect(page.locator("#queue-evidence lf-playground-control")).to_have_count(1)
+    expect(playground.locator(".lf-playground-controls-region")).to_have_count(
+        1 if shared_panel else 0
+    )
+    split = playground.locator(".lf-playground-split").bounding_box()
+    preview = playground.locator(".lf-playground-preview-region").bounding_box()
+    gap = playground.locator(".lf-playground-split").evaluate(
+        "node => parseFloat(getComputedStyle(node).columnGap)"
+    )
+    assert preview["width"] == pytest.approx(
+        (split["width"] - gap) * 2 / 3 if shared_panel else split["width"], abs=1
+    )
+    defaults = {"team": "Platform", "latency": 5, "enabled": True, "signal": "age"}
+    assert playground.evaluate("root => root.values") == defaults
+    before = len(events_model.read_events(serve.page_dir))
+    playground.get_by_role("slider", name="Latency window").press("ArrowRight")
+    playground.get_by_role("switch", name="Page on checkout latency").click()
+    playground.get_by_role("radio", name="Queue depth", exact=True).click()
+    playground.get_by_role("textbox", name="Owning team").fill("Reliability")
+    configured = {
+        "team": "Reliability",
+        "latency": 6,
+        "enabled": False,
+        "signal": "depth",
+    }
+    assert playground.evaluate("root => root.values") == configured
+    assert len(events_model.read_events(serve.page_dir)) == before
+    page.reload()
+    wait_until_ready(page)
+    assert playground.evaluate("root => root.values") == configured
+    playground.get_by_role("button", name="Copy instruction").click()
+    expect(playground.get_by_role("button", name="Copied", exact=True)).to_be_visible()
+    copied = page.evaluate("navigator.clipboard.readText()")
+    assert "Reliability" in copied and "6min" in copied and "depth" in copied
+    with sending(page, "the alert policies"):
+        playground.get_by_role("button", name="Deploy alert policies").click()
+    assert events_model.read_events(serve.page_dir)[-1]["detail"] == {
+        "values": configured,
+        "instruction": copied,
+    }
+    undo(page)
+    assert playground.evaluate("root => root.values") == defaults
+    playground.get_by_role("slider", name="Latency window").press("ArrowRight")
+    playground.get_by_role("button", name="Reset", exact=True).click()
+    assert playground.evaluate("root => root.values") == defaults
+
+
+@pytest.mark.parametrize("presets", [True, False])
+def test_inline_playground_keeps_evidence_and_long_instruction_reachable_in_a_short_workspace(
+    browser, serve, presets
+):
+    source = leaf_page(
+        "Short alert workspace",
+        '<lf-ask id="short-ask"><h1>Tune alert policies</h1>'
+        '<lf-playground id="short-config" data-width="available">'
+        + (
+            '<lf-playground-preset label="Starting policy">'
+            '<lf-playground-setting for="latency" value="5"></lf-playground-setting>'
+            "</lf-playground-preset>"
+            if presets
+            else ""
+        )
+        + "<lf-playground-preview><h2>Checkout latency</h2>"
+        "<p>The last incident lasted seven minutes. Tune its alert beside this evidence.</p>"
+        '<lf-playground-control name="latency" label="Latency window" kind="range" '
+        'value="5" min="1" max="15" unit="min"></lf-playground-control>'
+        "</lf-playground-preview><lf-playground-output>"
+        + "Include alert evidence, validation, routing and deployment instructions. "
+        * 100
+        + '<span id="instruction-end">Finish with the rollback procedure.</span>'
+        "</lf-playground-output></lf-playground></lf-ask>",
+        layout="workspace",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 900, 500)
+    playground = page.locator("#short-config")
+    preview = playground.locator(".lf-playground-preview-body")
+    instruction = playground.locator("lf-playground-output")
+    if presets:
+        pane = playground.locator(".lf-playground-controls-region").bounding_box()
+        bar = playground.locator(".lf-playground-presets").bounding_box()
+        assert pane["height"] >= bar["height"]
+        playground.get_by_role("button", name="Starting policy").click()
+    assert preview.bounding_box()["height"] >= 192
+    assert instruction.evaluate("node => node.scrollHeight > node.clientHeight")
+    instruction.evaluate("node => { node.scrollTop = node.scrollHeight; }")
+    body = instruction.bounding_box()
+    last = page.locator("#instruction-end").bounding_box()
+    assert body["y"] <= last["y"] < body["y"] + body["height"]
+    slider = playground.get_by_role("slider", name="Latency window")
+    slider.press("ArrowRight")
+    expect(slider).to_have_value("6")
+    view = preview.bounding_box()
+    field = slider.bounding_box()
+    assert view["y"] <= field["y"] < view["y"] + view["height"]
+    submit = playground.get_by_role("button", name="Use these settings")
+    submit.scroll_into_view_if_needed()
+    action = submit.bounding_box()
+    main = page.locator("main").bounding_box()
+    assert action["y"] + action["height"] <= main["y"] + main["height"]
+    with sending(page, "the short-workspace configuration"):
+        submit.click()
+    assert events_model.read_events(serve.page_dir)[-1]["detail"]["values"] == {
+        "latency": 6
+    }
+
+
 def test_notification_playground_sets_regions_side_by_side_while_its_workspace_is_full_height(
     browser, serve
 ):
@@ -5016,7 +5340,19 @@ def test_a_playground_rejects_range_values_that_do_not_land_on_its_step(browser,
 def test_a_quoted_playground_is_a_static_preview_with_its_authored_output(
     browser, serve
 ):
-    source = PLAYGROUND_PAGE.replace(
+    source = PLAYGROUND_PAGE
+    controls = re.findall(
+        r"<lf-playground-control\b.*?</lf-playground-control>", source, re.DOTALL
+    )[1:]
+    for control in controls:
+        source = source.replace(control, "")
+    source = source.replace(
+        '<lf-playground-preview id="card-preview">',
+        '<lf-playground-preview id="card-preview"><section>'
+        + "".join(controls)
+        + "</section>",
+    )
+    source = source.replace(
         '<lf-ask id="card-playground-ask">',
         '<lf-sample id="playground-example" label="card playground">',
     ).replace("</lf-ask>", "</lf-sample>")
@@ -5036,6 +5372,27 @@ def test_a_quoted_playground_is_a_static_preview_with_its_authored_output(
             && !root.querySelector('[data-lf-reading-role]');
         }"""
     )
+
+
+def test_exported_playground_keeps_inline_controls_and_disables_submission(
+    browser, serve, tmp_path
+):
+    source = Path(__file__).parents[1] / "fixtures/pages/playground-controls.html"
+    serve(source)
+    output = tmp_path / "alert-tuning.html"
+    exporting_model.cmd_export(serve.page_dir, output, None)
+    page = open_page(browser, output.as_uri())
+    playground = page.locator("#alert-tuning")
+    expect(page.locator("#latency-evidence lf-playground-control")).to_have_count(2)
+    playground.get_by_role("slider", name="Latency window").press("ArrowRight")
+    expect(playground.locator("lf-playground-output")).to_contain_text("6min")
+    assert playground.evaluate("root => root.values.latency") == 6
+    playground.get_by_role("button", name="Reset", exact=True).click()
+    assert playground.evaluate("root => root.values.latency") == 5
+    expect(
+        playground.get_by_role("button", name="Deploy alert policies")
+    ).to_be_disabled()
+    expect(playground).to_contain_text("Submission unavailable")
 
 
 def test_playground_labels_can_be_selected_without_changing_the_controls(

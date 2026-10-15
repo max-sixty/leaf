@@ -10,7 +10,11 @@
  * snapshot. Page modules register structured contributors through one read/apply pair
  * and call the returned notifier after a gesture. Every working-state change then
  * dispatches `lf-playground-change` with the same aggregate snapshot at
- * `event.detail.values`. Simple previews need neither: they read the reflected
+ * `event.detail.values`. Local gestures adopt each source's current reading without
+ * restoring its model or browser state. Reset and projection restore complete
+ * snapshots; sources that register later join that same restoration, while
+ * registration restores only the joining source. Simple previews need
+ * neither: they read the reflected
  * `--playground-NAME` properties and `data-playground-NAME` attributes, which this
  * element carries and the root of each sample child under it wears (`dressSamples`).
  *
@@ -143,26 +147,26 @@ export default class extends HTMLElement {
       throw new Error(`contributor ${name} needs a read operation`);
 
     const initial = jsonSnapshot(defaultSnapshot, `contributor ${name}`);
+    const previous = this.#values;
+    const current = this.#workingValues();
     this.#contributors.set(name, { ...operations, defaultSnapshot: initial });
     this.#defaults = Object.freeze({ ...this.#defaults, [name]: initial });
     const restored = Object.hasOwn(this.#storedCandidate ?? {}, name)
       ? this.#storedCandidate[name]
       : initial;
     try {
-      this.#apply({ ...this.#values, [name]: restored }, { remember: false });
+      this.#values = this.#normalize({ ...current, [name]: restored });
+      operations.apply(structuredClone(this.#values[name]));
+      this.#paint({ remember: false });
     } catch (error) {
       this.#contributors.delete(name);
       const { [name]: _discarded, ...defaults } = this.#defaults;
       this.#defaults = Object.freeze(defaults);
+      this.#values = previous;
       throw error;
     }
 
-    return () => {
-      const contributor = this.#contributors.get(name);
-      if (!contributor) return;
-      const snapshot = jsonSnapshot(contributor.read(), `contributor ${name}`);
-      this.#apply({ ...this.#values, [name]: snapshot });
-    };
+    return () => this.#adopt();
   }
 
   registerInstructionProvider(provider) {
@@ -204,8 +208,7 @@ export default class extends HTMLElement {
         control.addEventListener("input", () => this.#takeInputs());
       for (const [preset, button] of this.#presetButtons)
         button.addEventListener("click", () => {
-          const next = { ...this.#values, ...this.#presetSettings.get(preset) };
-          this.#apply(next);
+          this.#adopt(this.#presetSettings.get(preset));
         });
       this.#copy.addEventListener("click", () => this.#copyInstruction());
       this.addEventListener("mousedown", (event) => {
@@ -277,6 +280,8 @@ export default class extends HTMLElement {
   #standsInPreview() {
     let at = focused(document);
     if (!this.#preview.contains(at)) return false;
+    if (at?.closest("lf-playground-control")?.closest("lf-playground") === this)
+      return false;
     // A sample's frame holds focus for its child page, which may stand on nothing.
     while (at?.contentDocument) at = at.contentDocument.activeElement;
     if (at?.localName === "iframe")
@@ -301,7 +306,7 @@ export default class extends HTMLElement {
         keys: ["Alt+0"],
         control: this.#reset,
         title: "reset controls",
-        run: () => this.#apply(this.#defaults),
+        run: () => this.#restore(this.#defaults),
       },
     ]);
   }
@@ -311,16 +316,31 @@ export default class extends HTMLElement {
   }
 
   #takeInputs() {
-    const next = {
-      ...this.#values,
-      ...Object.fromEntries(
+    this.#adopt(
+      Object.fromEntries(
         this.#controls.map((control) => [
           control.getAttribute("name"),
           this.#parse(control, String(this.#readInput(control))),
         ]),
       ),
+    );
+  }
+
+  #workingValues() {
+    return {
+      ...this.#values,
+      ...Object.fromEntries(
+        [...this.#contributors].map(([name, contributor]) => [
+          name,
+          contributor.read(),
+        ]),
+      ),
     };
-    this.#apply(next);
+  }
+
+  #adopt(changes = {}) {
+    this.#values = this.#normalize({ ...this.#workingValues(), ...changes });
+    this.#paint();
   }
 
   #setInput(control, value) {
@@ -332,13 +352,28 @@ export default class extends HTMLElement {
     return this.#initial.reflection(this.#values);
   }
 
-  #apply(candidate, { remember = true } = {}) {
-    const values = this.#normalize(candidate);
+  #restore(candidate) {
+    // A projection may arrive before page modules register their contributors.
+    // Keep its complete snapshot at the same deferred-restore home as tab state;
+    // validate and restore each known slice now and each joining slice on registration.
+    const values = this.#normalize(
+      Object.fromEntries(
+        Object.entries(candidate).filter(
+          ([name]) => this.#controlByName.has(name) || this.#contributors.has(name),
+        ),
+      ),
+    );
+    this.#storedCandidate = candidate;
     // Contributors may read sibling controls through the public aggregate while
     // applying their own slice. Publish the complete input before invoking them.
     this.#values = values;
     for (const [name, contributor] of this.#contributors)
       contributor.apply(structuredClone(values[name]));
+    this.#paint();
+  }
+
+  #paint({ remember = true } = {}) {
+    const values = this.#values;
     for (const [name, value] of Object.entries(values)) {
       const control = this.#controlByName.get(name);
       if (control) this.#setInput(control, value);
@@ -397,6 +432,7 @@ export default class extends HTMLElement {
   // feedback words' width in place. Its label shows the result where the press was;
   // the page's live region says it, as Web Awesome's copy button says its own.
   async #copyInstruction() {
+    this.#adopt();
     const instruction = this.#instruction();
     let feedback;
     try {
@@ -422,6 +458,7 @@ export default class extends HTMLElement {
     this.#paintAvailability();
     this.#submit.setAttribute("aria-busy", "true");
     try {
+      this.#adopt();
       const event = await this.#controller.dispatch({
         kind: "action",
         verb: "choose",
@@ -454,8 +491,8 @@ export default class extends HTMLElement {
     if (this.#projected === projected) return true;
     const firstProjection = this.#projected === undefined;
     this.#projected = projected;
-    if (projected !== null) this.#apply(configuration.detail.values);
-    else if (!firstProjection) this.#apply(this.#defaults);
+    if (projected !== null) this.#restore(configuration.detail.values);
+    else if (!firstProjection) this.#restore(this.#defaults);
     this.#paintAvailability();
     return true;
   }

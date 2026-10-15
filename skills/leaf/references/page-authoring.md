@@ -115,8 +115,9 @@ from these:
   a row of headline numbers can use ordinary `dl` elements in one. Tiles of paragraphs are prose
   cut into columns, and read worse than the column.
 - **A comparison** is a table or native sections arranged by the page's CSS.
-- **Controls beside evidence** is a playground, which declares how its controls
-  operate its preview.
+- **A configuration the user tunes and submits** is a playground, which keeps
+  its controls, preview, and submitted values together. Its package instructions
+  describe composing controls with the evidence they affect.
 - **A screen the reader moves through rather than scrolls**, like a mail client or a
   dashboard, such as a queue worked one item at a time or a run's log beside the chart
   it explains, is a workspace (below). A document read top to bottom beside a panel

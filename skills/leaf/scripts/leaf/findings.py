@@ -805,6 +805,7 @@ _TEXT = {
         f'{_line(at, v)}: {v["key"]}="{v["value"]}" repeats the {at} at line'
         f" {v['first_line']} in the same <{v['scope']}>"
     ),
+    "missing-owner": lambda at, v: f"{_line(at, v)}: must be inside <{v['scope']}>",
     "unmatched-member": lambda at, v: (
         f'{_line(at, v)}: {v["attr"]}="{v["target"]}" names no <{v["member"]}'
         f' {v["key"]}="{v["target"]}"> in its <{v["scope"]}>'

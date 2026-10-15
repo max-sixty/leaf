@@ -615,6 +615,42 @@ def test_a_playground_control_value_fits_its_kind_at_the_markup_boundary():
     ]
 
 
+def test_scoped_names_require_their_owner_even_with_a_different_direct_owner():
+    """Direct membership and a wider key scope can compose: a row owns a cell's
+    grammar while the table owns the cell's unique name."""
+    registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
+    for tag, content in [("lf-test-table", "markup"), ("lf-test-row", "members")]:
+        registry[tag] = {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": False,
+            "x-content": content,
+            "x-upgrade": False,
+        }
+    registry["lf-test-cell"] = {
+        "type": "object",
+        "properties": {"name": {"type": "string"}},
+        "required": ["name"],
+        "additionalProperties": False,
+        "x-owners": ["lf-test-row"],
+        "x-unique": {"name": "lf-test-table"},
+        "x-content": "empty",
+        "x-upgrade": False,
+    }
+    cell = '<lf-test-cell name="one"></lf-test-cell>'
+    row = f"<lf-test-row>{cell}</lf-test-row>"
+    assert [error.code for error in fragment_errors(row, registry)] == ["missing-owner"]
+    assert [error.code for error in fragment_errors(cell, registry)] == ["not-member"]
+    table = f"<lf-test-table>{row}</lf-test-table>"
+    assert fragment_errors(table + table, registry) == []
+    assert [
+        error.code
+        for error in fragment_errors(
+            f"<lf-test-table>{row}{row}</lf-test-table>", registry
+        )
+    ] == ["repeated-key"]
+
+
 def test_a_playground_names_its_controls_within_itself(tmp_path, initialized_page):
     """A preset's setting and an instruction's value slot name a control of their
     own playground by `name` (a keyed x-refers), and names, choice values and a
@@ -673,6 +709,19 @@ def test_a_playground_names_its_controls_within_itself(tmp_path, initialized_pag
         }
 
     assert reply(playground("a", tone, preset("tone"), slot("tone"))) == []
+    inline = playground("a", "", preset("tone"), slot("tone")).replace(
+        "<p>Preview</p>", f"<article><p>Evidence for this tone.</p>{tone}</article>"
+    )
+    assert reply(inline) == []
+    # A nested playground owns its names independently; the outer output cannot
+    # borrow a control that exists only in that inner scope.
+    nested = playground("outer", "", output=slot("size")).replace(
+        "<p>Preview</p>", playground("inner", size)
+    )
+    assert found(reply(nested), "unmatched-member", **unmatched("size"))
+    assert found(
+        reply(tone), "missing-owner", "<lf-playground-control>", scope="lf-playground"
+    )
     assert found(
         reply(playground("a", tone, preset("tine"))),
         "unmatched-member",

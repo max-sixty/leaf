@@ -31,12 +31,15 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
     """Validate parsed lf-* elements against the registry: schema over the
     attribute instance, x-owners nesting, and the x-content model."""
     errors = []
-    # Member containers admit exactly the tags that declare them as x-owners.
+    # Direct and scoped ownership both admit members; only x-owners requires the
+    # direct grammar, while x-unique binds through authored markup to its owner.
     members_of = {}
     for tag, entry in registry.items():
         if not is_element_name(tag):
             continue
-        for owner in entry.get("x-owners", []):
+        for owner in set(entry.get("x-owners", [])) | set(
+            entry.get("x-unique", {}).values()
+        ):
             members_of.setdefault(owner, set()).add(tag)
 
     for rec in lf_elements:
@@ -64,7 +67,7 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
             errors.append(
                 found_at("not-member", rec, owners=want_owners, parent=rec["parent"])
             )
-        # Tags that name this declaration in x-owners are its admissible members under
+        # Tags that name this declaration as an owner are its admissible members under
         # any content model. "data" takes one <pre>, "members" takes element members
         # only, and "empty" takes nothing at all.
         content = entry["x-content"]
@@ -242,7 +245,7 @@ def keyed_members(lf_elements: list, registry: dict) -> dict:
     """Every member a keyed reference may name, as `(id(owner), tag, key, value)` mapped
     to the members holding it, in document order; the owner is the member's nearest
     enclosing element of the tag its x-unique declaration names for that key. A member
-    standing in no such owner is left out: x-owners reports where it stands."""
+    standing in no such owner is left out: unique_errors reports where it stands."""
     members = {}
     for rec in lf_elements:
         for key, scope_tag in registry.get(rec["tag"], {}).get("x-unique", {}).items():
@@ -258,7 +261,19 @@ def unique_errors(lf_elements: list, registry: dict) -> list[Finding]:
     their shared owner: two playground controls with one name, or two choices of one
     control with one value. Asked of one document, since an owner and its members
     always stand in the same one."""
-    return [
+    missing = [
+        found_at("missing-owner", rec, scope=scope)
+        for rec in lf_elements
+        for scope in sorted(
+            set(registry.get(rec["tag"], {}).get("x-unique", {}).values())
+        )
+        if enclosing(rec, scope) is None
+        and not (
+            registry.get(rec["tag"], {}).get("x-owners")
+            and rec["parent"] not in registry[rec["tag"]]["x-owners"]
+        )
+    ]
+    return missing + [
         found_at(
             "repeated-key",
             extra,

@@ -9,10 +9,10 @@ note was condensed; `git log --` on those paths finds them.
 
 ## Current observations
 
-No run so far calls for a new page-reading interface. Every miss was an instruction
-miss or missing information in a declaration, and agents never wrote to the wrong
-place or lost a user's state. These runs establish behavior on particular revisions
-with few samples.
+These runs establish behavior on particular revisions with few samples, rather than
+a universally preferable page layout. The owner comparison below found a primitive
+constraint and working-state defects; the earlier runs mostly exposed instruction
+or declaration gaps.
 
 ### First baseline, 2026-09-27
 
@@ -211,6 +211,80 @@ What this points #20 and the instructions at, strongest first:
   `leaf wait` prints, after `leaf page claim` on a page another session held).
 - On-page decisions are where Leaf's documents won; keep them in whatever #20
   changes.
+
+### Authoring owner comparison, 2026-10-12
+
+The configuration layout hypothesis reached a primitive constraint. Diagnostic
+configuration authors received the complete skill, page-authoring, asks, and composed
+playground instructions before writing. The registry required direct controls, and
+the initial renderer moved all of them into a shared panel. Guidance alone could not
+put an alert's controls with its evidence.
+
+Controls now belong to their nearest playground, including inside its preview.
+Direct controls form the shared panel; inline controls keep their authored positions.
+Both use the same typed configuration, presets, reset, persistence, copy, submission,
+and undo. The authoring change explains this capability without prescribing cards.
+
+One cold native author per arm completed the same four-phase alert configuration
+workflow on baseline `4f7cc21c1497ce6d449f6ec22d9508651fd654c3` and an initial inline
+trial. Both preserved and independently read back all twelve user-selected settings.
+The trial increased effort: 107 versus 71 turns, 31 versus 11 page writes, and $4.925
+versus $3.450 author spend. It is a diagnostic trial, not efficiency evidence for the
+final candidate. The author read private theme code and added three layout overrides.
+Removing only those overrides from the same page, the owner default widened its
+900px preview from 552 to 852px and alert column from 230 to 530px. At 600px, preview
+and alert dimensions matched; presets now precede the preview. All values matched.
+
+Contrasting query editing exposed stale restoration: an unrelated built-in gesture
+could erase an unnotified contributor draft. Local gestures now adopt live sources;
+reset and projection restore snapshots. Late contributors join a pending chosen
+snapshot, and undo replaces it. Focused browser journeys cover these transitions,
+copy/submission, reload, short workspaces with and without presets, and existing
+structured explorers. Reproduce the central case with:
+
+```sh
+uv run pytest -q -n0 tests/browser/test_render_widgets.py::test_playground_adopts_live_sources_without_restoring_their_drafts
+```
+
+Two further native authors built independent proposals. Both began with three open
+Questions and no selected defaults. Ordinary Remove/Keep clicks left one unanswered
+proposal; an unrelated heading revision preserved both exact answers. Read-only
+source probes had produced an invalid candidate proposal, which this native workflow
+did not reproduce. Source sketches and validated working pages are distinct evidence.
+
+The final authoring arm is `candidate-inline-v3`, payload manifest SHA256
+`33225dc70ba0c1b9dff9a2edd325c4e096bf43fbc4e79736e1d90b951f963784`.
+The executor is frozen at `c3060df98bc2e6b73d9a81a624d0499fc4221e44`.
+One fresh cold author per arm completed the final matched workflow with that same
+executor. Both passed every deterministic check and independently read back all
+twelve settings. The candidate used 98 versus 103 turns, $5.209 versus $5.922,
+and 5 versus 24 recorded page-write operations (the executor's approximate tool and
+shell-command count). Complete intended instructions appeared before each author's
+first page write; normalized initial prompts and evaluator source hashes matched.
+This supports reduced effort on this pair, not a general efficiency improvement.
+Independent comparison found stronger local tuning caveats in the candidate, but the
+baseline better kept the final overview beside its summary at 900px. Both phone
+tables fragmented alert identities. Preserved decisions do not imply a uniformly
+better final page; no unqualified quality improvement is established.
+
+A later owner repair removes unconditional `nowrap` from the shared ordinary
+button face. The same candidate page's long preset labels then fit on a phone;
+its 900px presets, compact banner, and twelve values remain unchanged. The original
+button matrix was trimmed to one narrow-browser regression: long preset and short
+Reset labels fit, and both actions work. Composition and state-preservation coverage
+is retained. Delivery
+arm `candidate-inline-v4` has manifest
+`70efc1093fe7f2c6c1fe2e15ba82375290c8dd0326132ecfb91bd14020737b04`;
+the matched author results remain tied to v3.
+
+The separate clipboard-permission change for live samples is deferred at the user's
+request; it is not required by these repairs.
+
+The frozen executor's observation/replay code is reviewed, but its quality rubric remains preliminary:
+calibration found unsupported explanations. Quality conclusions therefore use
+independent inspection, with no calibrated aggregate score. Raw runs, exact
+instruction receipts, payload manifests, and browser evidence remain under
+`.tmp/authoring-quality/` and `.tmp/playground-browser-evidence/` in this worktree.
 
 ## Remaining evaluation gaps
 

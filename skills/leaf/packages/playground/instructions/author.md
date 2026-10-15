@@ -12,15 +12,13 @@ Interactive behavior does not by itself justify a package; `references/packages.
 says where page-only and reused behavior belong. A page module can define custom
 elements, register structured state with its playground, and derive the output.
 
-The playground draws its own regions: the preview is a stage, and the controls and the
-instruction to the agent stand in a rail beside it, on the same `2fr 1fr` tracks as a
-sidebar page's body and aside, wherever it has 43.5rem; narrower, they stack. A preview
-that needs width, such as two candidates side by side, takes the room beside the column:
-give the `lf-playground` `data-width="available"`, so it widens while the question and
-premise in its `lf-ask` keep the prose's width. On a workspace page (`<main
-class="layout-workspace density-working">`) whose body is that `lf-ask`, the stage also
-grows to the window's height. Draw candidates directly on the stage without separate
-cards.
+Place a control inside the preview where the user needs its evidence, or directly in
+`lf-playground` for a shared control panel. Both placements share the same typed values,
+presets, reset, restore, copy, and submission. Controls inside the preview stay in their
+authored positions. A shared panel stands beside the preview and instruction when
+space allows. With all controls inside the preview, presets stand above it and the
+instruction and actions below. Give a preview that needs more room
+`data-width="available"` on its playground.
 
 The preview is the surface the user operates. An A/B comparison keeps both candidates
 mounted there with the same configuration and starting content. Candidates that stand
@@ -182,8 +180,9 @@ Later snapshots arrive in the bubbling
 A custom state model joins the same configuration with
 `playground.registerContributor(name, defaultSnapshot, {read, apply})`. The returned
 notifier is called after a direct gesture changes that source. Names are stable, unique,
-and distinct from control names. `read` returns a JSON-safe snapshot; `apply` replaces
-the page module's complete state from a restored, reset, preset, or projected snapshot.
+and distinct from control names. `read` returns the source's current JSON-safe snapshot;
+`apply` restores it on registration, reset, or projection. Local changes, copy, and
+submission read the sources without restoring them.
 The playground then owns the aggregate persistence, reset, copy, and submit path.
 
 When structured state changes the instruction, one

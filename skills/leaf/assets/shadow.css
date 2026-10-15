@@ -1119,7 +1119,6 @@ leaf-text.lf-fab-input,
   border-radius: 6px;
   background: var(--card);
   cursor: pointer;
-  white-space: nowrap;
   color: var(--ink);
   display: inline-block;
 }

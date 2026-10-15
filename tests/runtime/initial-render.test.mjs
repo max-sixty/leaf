@@ -1,6 +1,7 @@
 /* Initial package drawing adopts one node tree and preserves the authored source
    that semantic intake and revision comparison read before behavior modules start. */
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { initialRender, initialOrigin } from "/runtime/initial-render.js";
 import { unmarkedCopy } from "/runtime/initial-render.js";
@@ -23,7 +24,10 @@ function registerInitial(tag, render) {
   const script = document.createElement("script");
   script.dataset.lfVocabulary = "1";
   window.initialProducer = render;
-  script.textContent = `document.documentElement.lfInitial.register(${JSON.stringify(tag)}, window.initialProducer)`;
+  script.textContent =
+    typeof render === "string"
+      ? render
+      : `document.documentElement.lfInitial.register(${JSON.stringify(tag)}, window.initialProducer)`;
   window.happyDOM.settings.enableJavaScriptEvaluation = true;
   try {
     document.head.append(script);
@@ -35,6 +39,61 @@ function registerInitial(tag, render) {
   document.body.dataset.lfVocabulary = "1";
   bindVocabulary(document, { revision: 1, declarations: registry });
 }
+
+test("playground initial drawing keeps inline controls with their nearest owner", () => {
+  registerInitial(
+    "lf-playground",
+    readFileSync(
+      new URL(
+        "../../skills/leaf/packages/playground/vendor/lf-playground-initial.js",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  );
+  const control = (value) =>
+    `<lf-playground-control name="limit" label="Limit" kind="range" value="${value}" max="10"></lf-playground-control>`;
+  const playground = (id, preview) =>
+    `<lf-playground id="${id}"><lf-playground-preview>${preview}</lf-playground-preview><lf-playground-output>Use <lf-playground-value for="limit"></lf-playground-value>.</lf-playground-output></lf-playground>`;
+  document.body.innerHTML = `<main>${playground("outer-inline", `<article>${control(5)}</article>${playground("inner-inline", control(9))}`)}</main>`;
+  const inner = document.querySelector("#inner-inline");
+  const outer = document.querySelector("#outer-inline");
+  const innerDrawing = initialRender(inner);
+  const outerDrawing = initialRender(outer);
+  assert.deepEqual(innerDrawing.values, { limit: 9 });
+  assert.deepEqual(outerDrawing.values, { limit: 5 });
+  assert.equal(outerDrawing.controls.length, 1);
+  assert.equal(outerDrawing.controls[0].parentElement.localName, "article");
+  assert.equal(outerDrawing.controls[0].querySelector("input").value, "5");
+  assert.deepEqual(
+    outerDrawing.regions.map((region) => region.name),
+    ["preview", "instruction"],
+  );
+  const exhibit = document.createElement("section");
+  exhibit.dataset.lfExhibit = "";
+  exhibit.innerHTML = playground("quoted-inline", `<article>${control(3)}</article>`);
+  document.body.append(exhibit);
+  const quoted = initialRender(exhibit.firstElementChild);
+  assert.deepEqual(quoted.values, { limit: 3 });
+  assert.equal(quoted.inputs.size, 0);
+  const presetHost = document.createElement("section");
+  presetHost.innerHTML = playground("preset-inline", control(3)).replace(
+    "</lf-playground-preview>",
+    '</lf-playground-preview><lf-playground-preset label="Tighter"><lf-playground-setting for="limit" value="2"></lf-playground-setting></lf-playground-preset>',
+  );
+  document.body.append(presetHost);
+  const presetDrawing = initialRender(presetHost.firstElementChild);
+  assert.deepEqual(
+    presetDrawing.regions.map((region) => region.name),
+    ["controls", "preview", "instruction"],
+  );
+  assert.equal(
+    presetDrawing.regions.find((region) => region.name === "controls").body,
+    presetHost.querySelector(".lf-playground-presets"),
+  );
+  assert.equal(presetHost.querySelector(".lf-playground-controls"), null);
+  document.body.replaceChildren();
+});
 
 test("initial drawing and module adoption share nodes and restored tab values", () => {
   document.body.innerHTML =

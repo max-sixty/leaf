@@ -415,14 +415,14 @@ jq -n \
 
 The native headers are at
 `.result.events.events[]["$workers"].event.request.headers` in the response. To start
-with a browser instead, query native records by
+with a browser instead, use a substring filter on native
 `$workers.event.request.headers.user-agent` or a client-hint header, then query their
 trace IDs for startup or fault records. These occasional investigations take two
 queries; the semantic records do not duplicate the headers.
 
 Production and `dev` enable [Workers Logs](https://developers.cloudflare.com/workers/observability/logs/workers-logs/)
-with invocation logging and 100% head sampling through Cloudflare's defaults. All
-logs for a sampled request are collected together and share the same retention
+and explicitly keep invocation logs enabled in `worker/wrangler.toml`; head
+sampling defaults to 100%. All logs for a sampled request are collected together and share the same retention
 (at most seven days). Check `result.statistics.abr_level` is `1` and narrow the
 query window if needed; a sampled query, a truncated log, or an expired record is
 not evidence that a browser sent no header. Request headers can contain OS,

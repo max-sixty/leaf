@@ -13,7 +13,7 @@
 .lf-resolved-threads:not([open]) > :not(summary) { display: none; }
 .lf-resolved-summary { border-radius: var(--r); cursor: pointer;
           padding: max(var(--sp-1), (var(--aim-floor) - 1lh) / 2) var(--sp-1);
-          color: var(--muted); font: 600 var(--t-5)/var(--lf-ui-lh) var(--sans);
+          color: var(--muted); font: var(--t-6)/var(--lf-ui-lh) var(--sans);
           white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lf-resolved-summary:hover { color: var(--ink-2); }
 .lf-page-thread .lf-btn { font: inherit; }
@@ -187,7 +187,7 @@ svg[data-lf-icon] { max-width: none; overflow: visible; fill: none; stroke: curr
             var(--lf-msg-head-room, 0px)); }
 }
 .lf-msg-meta { display: flex; align-items: baseline; gap: var(--sp-2); min-width: 0; }
-.lf-msg-sending { color: var(--muted); font-weight: 600; white-space: nowrap; }
+.lf-msg-sending { color: var(--muted); white-space: nowrap; }
 .lf-msg-sending::before { content: "\00b7"; margin-inline-end: 6px;
           color: var(--muted-2); }
 .lf-msg-meta > time { flex: none; }

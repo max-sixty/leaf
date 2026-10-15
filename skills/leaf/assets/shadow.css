@@ -231,13 +231,13 @@ summary {
   margin-top: 0;
 }
 .lf-page-thread + :is(.lf-page-thread, .lf-resolved-threads) {
-  margin-top: calc(2 * var(--sp-3));
+  margin-top: var(--sp-3);
 }
 .lf-page-thread + :is(.lf-page-thread, .lf-resolved-threads)::before {
   content: "";
   position: absolute;
   inset-inline: var(--sp-1);
-  inset-block-start: calc(-1 * var(--sp-3));
+  inset-block-start: calc(-1 * var(--sp-2));
   border-top: 1px solid var(--rule);
   pointer-events: none;
 }
@@ -318,7 +318,8 @@ summary {
   text-overflow: ellipsis;
 }
 :is(.lf-msg-head, .lf-thread-working-head) b {
-  flex: 0 1 auto;
+  flex: 0 0 auto;
+  max-inline-size: 40%;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -833,7 +834,7 @@ leaf-text.lf-fab-input,
   cursor: pointer;
   padding: max(var(--sp-1), (var(--aim-floor) - 1lh) / 2) var(--sp-1);
   color: var(--muted);
-  font: 600 var(--t-5)/var(--lf-ui-lh) var(--sans);
+  font: var(--t-6)/var(--lf-ui-lh) var(--sans);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1089,7 +1090,6 @@ svg[data-lf-icon] {
 }
 .lf-msg-sending {
   color: var(--muted);
-  font-weight: 600;
   white-space: nowrap;
 }
 .lf-msg-sending::before {

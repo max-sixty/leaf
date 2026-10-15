@@ -186,6 +186,9 @@
     // CodeMirror's GutterElement.setMarkers restates its class as marker sets
     // change, including when the resulting gutter class remains the same.
     /^class on div\.cm-gutterElement(?:\.| in shadow|$)/,
+    // CodeMirror's syncGutters reinserts the gutter beside unchanged content when
+    // its editor view updates.
+    /^children of div\.cm-scroller in shadow of lf-file-editor(?:[.#]|$)/,
     // Web Awesome's components reflect each property onto the attribute it came from
     // as they update, and restate what their own shadow trees hold.
     /^[\w-]+ on wa-/,

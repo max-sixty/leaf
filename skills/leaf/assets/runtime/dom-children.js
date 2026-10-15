@@ -359,7 +359,10 @@ function patchChildren(liveParent, beforeParent, afterParent, rules) {
 // A widget whose controller only builds beside its members is neither, for a revision
 // that leaves everything but their interiors alone: a page written as tabs keeps every
 // tab the author did not touch, rather than rebuilding the page for one sentence.
+// A stylesheet's parsed rules belong to CSSOM. Replacing a changed source owner
+// reparses its original text, including when only its access declaration changed.
 const atomic = (before, after, live, rules) =>
+  before.matches('style, link[rel~="stylesheet" i]') ||
   (rules.declared(before) && !rules.reaches(before, after)) ||
   [...tree(before).childNodes].some(
     (node) => rules.pairs.get(node)?.parentNode !== tree(live),

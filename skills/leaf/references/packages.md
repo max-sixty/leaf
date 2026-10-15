@@ -72,6 +72,7 @@ package/
 ├── registry.json       element declarations and shared $ declarations
 ├── theme.css           rules in the layer's shared cascade layer
 ├── shadow.css          rules that also reach declared shadow trees
+├── controls.css        deliberate control styling; theme packages grant access
 ├── instructions/       Markdown instructions named for their audiences
 ├── runtime/            package-owned browser modules
 ├── widgets/            entry modules and their private helpers
@@ -94,10 +95,14 @@ writing widget CSS, and reuse Leaf's thread symbol, comment box and keyboard hin
 A widget package's rules rank below the Layouts, a theme package's (one that declares
 no widgets) above them, and the page's own `<style>` above both. In layer terms: Leaf
 orders its cascade layers `lf-reset`, `lf-base`, `lf-layouts`, `lf-shadow`, `lf-theme`,
-`lf-state`. In the document, a widget package's `theme.css` and `shadow.css` go in
+`lf-controls`, `lf-state`. In the document, a widget package's `theme.css` and `shadow.css` go in
 `lf-base` and a theme package's in `lf-theme`. In a shadow root, each package's
 `shadow.css` goes in `lf-shadow`, or `lf-theme` for a theme package, and Layout rules
-don't reach inside. The page's own CSS is unlayered. `!important` and inline styles are not ways to customise a
+don't reach inside. The page's own CSS is unlayered. An optional `controls.css` grants a theme package
+explicit access to generated controls from `lf-controls`, above ordinary theme rules
+and below semantic state. Its selectors retain native CSS meaning. A widget package already styles its own controls in `theme.css`; `controls.css` belongs
+to theme packages.
+Page authors grant access per stylesheet (`page-layout.md`, "Page CSS and Leaf's controls"). `!important` and inline styles are not ways to customise a
 widget.
 
 An element with `hidden` is always `display: none`, in the document and in shadow

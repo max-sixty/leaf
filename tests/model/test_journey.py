@@ -14,12 +14,32 @@ from types import SimpleNamespace
 
 import pytest
 from interact_support import STATED_TIMEOUT
-from leaf_dev import journey, journey_claude_code, journey_pi
+from leaf.interaction_log import read_interactions
+from leaf_dev import journey_claude_code, journey_pi
+from leaf_dev.commands import journey, journey_chart
+from leaf_dev.page_fixtures import record_run_context
 from leaf_dev.review_scenario import SLEEP
 
 
 def at(seconds: float) -> str:
     return f"2026-10-08T09:00:{seconds:06.3f}+00:00"
+
+
+def test_journey_declares_automation_after_a_user_preview_starts(
+    page_dir, tmp_path, monkeypatch
+):
+    """Preview intent cannot make the journey's following synthetic input human."""
+    record_run_context(page_dir, purpose="user-review", run=page_dir)
+    evidence = tmp_path / "run-evidence"
+    evidence.mkdir()
+    place = journey.Isolation(
+        tmp_path, tmp_path, tmp_path, page_dir, tmp_path, evidence
+    )
+    monkeypatch.setattr(journey, "running_server", lambda page: {"url": "http://page/"})
+    with journey.user_at(None, place, journey.Terminal(), time.monotonic()):
+        contexts = read_interactions(page_dir, types=("run_context",))
+        assert [row["purpose"] for row in contexts] == ["user-review", "automated"]
+        assert contexts[-1]["run"] == str(evidence)
 
 
 def test_release_publication_requires_the_marker_in_board_markup():
@@ -208,7 +228,7 @@ def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(end):
         "target": "claude-code",
         "comment": {**sample["comment"], "approved": []},
     }
-    rows = journey.chart_rows(
+    rows = journey_chart.chart_rows(
         [prompted, later, {**later, "comment": sample["comment"]}]
     )
     # The latest version is chosen before rows split by prompt, so a prompted run of

@@ -402,18 +402,11 @@
     padding-inline: 10px;
   }
 
-  /* One quiet line over the field, there only while it has something to say: where the
-     words go once they hide the placeholder, or a notice the placeholder has given up.
-     It is one line tall whatever it says. With no view open it stands above the row,
-     with nothing above it to move. While a view is open it lies over the view's foot,
-     on the panel's ground, rather than taking room of its own, so its coming, changing
-     or going moves nothing at the view's head, and no empty band stands under the view
-     while it has nothing to say. It stands there across the seam between the view and
-     the row, in the room their paddings already leave between the view's last words and
-     the field's, so it covers little of the view beyond the view's own padding. */
+  /* One quiet line over the field, there only while it has something to say and no
+     view is open (floating-panel.js): where the words go once they hide the
+     placeholder, or a notice the placeholder has given up. It is one line tall
+     whatever it says, and stands above the row, with nothing above it to move. */
   .lf-fp-context {
-    position: relative;
-    z-index: 1;
     box-sizing: content-box;
     height: 1lh;
     padding: 8px 14px 0;
@@ -422,13 +415,6 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-  }
-  .lf-floating-panel[data-open] .lf-fp-context {
-    padding-top: 0;
-    margin: calc(6px - 1lh) 0 -6px;
-    background: var(--lf-fp-surface);
-    /* What it covers fades out just above it rather than being cut at its edge. */
-    box-shadow: 0 -3px 4px var(--lf-fp-surface);
   }
   .lf-fp-context[data-notice] {
     color: var(--ink);
@@ -703,6 +689,36 @@
   .lf-fp-view[data-view="thread"] {
     padding-top: 8px;
     mask-image: linear-gradient(to bottom, transparent 0, #000 12px);
+  }
+  /* An answer waiting below the fold (floating-panel.js, `fitAnswer`): a press at the
+     view's foot, where the answer begins, standing on the panel's ground, which fades
+     in above it so what passes under reads as under a layer. The ground runs down to
+     the view's edge through the view's padding, which the foot's margin gives back, so
+     at the view's end the foot stands where it stuck and the room it takes is the
+     press's alone. */
+  .lf-fp-foot {
+    position: sticky;
+    bottom: 0;
+    margin: 0 -6px -6px;
+    padding: 10px 0 6px;
+    background: linear-gradient(transparent, var(--lf-fp-surface) 10px);
+  }
+  .lf-fp-new-reply {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin: 0 auto;
+    padding: 0 12px 0 8px;
+    border-radius: 14px;
+    background: var(--lf-fp-surface);
+    box-shadow:
+      0 0 0 1px var(--lf-fp-ring),
+      0 4px 10px -6px var(--shade);
+    color: var(--ink);
+    font-size: 12px;
+  }
+  :where(.lf-floating-panel) .lf-fp-new-reply:hover {
+    background: color-mix(in srgb, var(--ink) 5%, var(--lf-fp-surface));
   }
 
   /* Rows of a list, one line each. */
@@ -1029,7 +1045,9 @@
     color: var(--danger);
   }
 
-  /* The status in full, on hover or focus of the folded leaf. */
+  /* The status in full, on hover or focus of the folded leaf; and a passing notice,
+     over the folded leaf or, unfolded, over an open view's foot from the leaf's left
+     edge, where it reads along the panel rather than out past its side. */
   .lf-fp-leaf {
     anchor-name: --lf-fp-leaf;
   }
@@ -1051,6 +1069,10 @@
     pointer-events: none;
     display: none;
     transition: opacity 120ms;
+  }
+  .lf-floating-panel[data-rest="row"] .lf-fp-peek {
+    right: auto;
+    left: anchor(left);
   }
   /* It fades in where it stands: a peek that rose into place would move its words
      under nobody's input. */

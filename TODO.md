@@ -104,6 +104,19 @@ has tried; settle that before building it.
   removed in October 2026 have been gone a while; if pages written since still
   carry the heading, remove this check too. It fired in 4 sessions, 2 of them on
   user pages, between 2026-07-22 and 2026-10-11.
+- **Run `leaf` in Codex's sandbox without settings.** Codex's sandbox refuses what a
+  `leaf` command needs and, unlike Claude Code's, leaves a command no route out:
+  with network off it has no proxy, and a direct connection to 127.0.0.1 or a Unix
+  socket is refused (measured at codex-cli 0.160.0), so the bridge Claude Code's
+  sandboxed commands use (`bridge.py`) cannot serve it. A plugin's MCP server runs
+  outside both harnesses' sandboxes (measured on macOS). Ship one whose tool runs
+  `leaf` with the arguments it is given, have a sandboxed refusal name it, and
+  drop the README's Codex rule. Codex asks before each MCP tool call unless the
+  user approves the tool or sets the server's `default_tools_approval_mode =
+  "approve"`; find whether a plugin can declare that itself. A session that never
+  runs `leaf` should pay nothing for this, as Claude Code's do for the bridge, so
+  find whether Codex starts a plugin's MCP server in every session or only on first
+  use.
 - **Consider a reminder when revising decided content.** An optional `--force`
   acknowledgment could make an agent pause over an existing decision. Revisions
   currently remain unrestricted; decide whether such a reminder helps before
@@ -480,7 +493,7 @@ on 2026-10-07.
   drift again, such as `wt merge`'s macOS pre-merge when the thread runtime or theme
   changes.
 - **Guard thread appearance on CI again.** The thread snapshot gate compares images
-  on macOS only (`dev/leaf_dev/thread_snapshots.py`), so a pull request's Linux CI
+  on macOS only (`dev/leaf_dev/commands/thread_snapshots.py`), so a pull request's Linux CI
   checks the delivery journey but not how it looks. Fonts and antialiasing differ by
   OS, so Mac and Linux images never match. A Linux image could only be made on CI's
   own runner, which meant pushing, downloading the run's images and accepting them
@@ -503,21 +516,6 @@ on 2026-10-07.
   into a page by hand. It is an experiment: the alternative is for the command to
   print the samples' rows and leave the chart to the agent writing the page. Keep it
   if it gets used for later readings; otherwise reduce it to the rows.
-- **Choose how installs get the compiled kernel before a proper release.** Installs
-  follow `main` and load about 260 source modules; the website, suite, and developer
-  previews prepare a kernel with `leaf_dev.distribution`. On `pr-walkthrough` (2026-10-11, 8
-  paired runs on a loaded Mac), the kernel's 57 JS requests presented about 755 ms
-  after document receipt, against about 940 ms for source modules; `modulepreload`
-  hints for the 222 statically imported modules recovered only about 35 ms. A
-  CI-built `prepared` branch carried the kernel to installs from #1963 until
-  2026-10-11, when it was dropped to keep installs on `main`. Candidates: CI commits
-  the kernel to `main` after each runtime merge, and installs serve source modules
-  while it is stale; CI publishes each `main` commit to npm, which Claude Code, Codex
-  and Pi accept as a plugin source; or the first run builds it, which adds Node to
-  the host's requirements. Committing the kernel in each pull request conflicts too
-  often: of 25 replayed pairs of consecutive runtime commits, the minified chunks
-  conflicted in 20, and one unminified file per entry conflicted in 3 and merged one
-  more cleanly into bytes that differ from a rebuild.
 
 ## Etc
 

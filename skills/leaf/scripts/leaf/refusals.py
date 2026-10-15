@@ -2,16 +2,16 @@
 
 Code that refuses raises `Refused`, or a subclass a boundary dispatches on, such as
 `EventRefused` or `StaleFileError`. Only a process or transport boundary turns one
-into an outcome: `LeafGroup` and `__main__` print it and exit 1, the HTTP door answers
-it with a status or records it as a fault, a detached child's `Handshake` hands it to
-its parent, and a long-lived caller (the Codex adapter, the website) carries on. So a
-refusal raised from a helper the server and a harness share cannot end their process,
-and an exception that is not a refusal keeps its traceback rather than printing as one.
+into an outcome: `LeafGroup` and `__main__` print it and exit 1, the HTTP server
+answers it with a status or records it as a fault, a detached child's `Handshake`
+hands it to its parent, and a long-lived caller (the Codex adapter, the website)
+carries on. So a refusal raised in a helper the server and a harness share cannot end
+either process, and an exception that is not a refusal keeps its traceback.
 
-A gate that refuses on what it found raises `findings.Rejected`, whose `findings` are
-records with a code and fields; any other refusal has none. A boundary that answers
-in JSON writes `json()`, so the event door's refusal answer and a command's refusal
-have one shape.
+A check that refuses on what it found raises `findings.Rejected`, whose `findings`
+each carry a code and fields; any other refusal has none. A boundary that answers in
+JSON writes `json()`, so a refused event posted to the server and a refused command
+print the same shape.
 
 Imports nothing from Leaf, so the lowest module can raise it.
 """

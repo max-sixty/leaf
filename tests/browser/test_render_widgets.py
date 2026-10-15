@@ -17,8 +17,8 @@ from leaf import exporting as exporting_model
 from leaf import render_checks as render_checks_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.schema import ELEMENT_ID
+from leaf_dev.commands.stills import visual_review_menu
 from leaf_dev.example_data import patch_manifest
-from leaf_dev.stills import visual_review_menu
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ALL_ASKS_IN_ORDER,

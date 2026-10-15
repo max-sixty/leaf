@@ -19,6 +19,7 @@ from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
+from leaf import interaction_log as interaction_model
 from leaf import leases as leases_model
 from leaf import media as media_model
 from leaf import render_checks as render_checks_model
@@ -69,6 +70,7 @@ from render_harness import (
     consume_browser_errors,
     example_media,
     expect_asks_answered,
+    held_frames,
     hold_pending_thread_presentation,
     holding,
     judge_watches,
@@ -853,7 +855,19 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
     page = open_page(browser, url)
     # The comment's row on the agent's list says the line the agent last gave, as the
     # thread will. The agent's count opens the panel on that list.
-    page.locator(".lf-status-queues").click()
+    with page.expect_response(
+        lambda response: (
+            response.url.endswith("/api/interaction")
+            and response.ok
+            and any(
+                entry["type"] == "reply_visible"
+                and entry.get("input_id") == root
+                and entry.get("presentation_kind") == "queue_words"
+                for entry in response.request.post_data_json["entries"]
+            )
+        )
+    ):
+        page.locator(".lf-status-queues").click()
     row = page.locator("[data-lf-queue='agent'] .lf-queue-row")
     expect(row.locator(".lf-queue-where")).to_contain_text(
         "Working · Trying a lighter weight."
@@ -862,12 +876,52 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
     panel_settled(page)
     thread = page.locator(f'.lf-thread[data-id="{root}"]')
     expect(thread.locator(".lf-thread-unread")).to_have_count(0)
-    thread.locator(":scope > .lf-thread-summary").click()
+    with page.expect_response(
+        lambda response: (
+            response.url.endswith("/api/interaction")
+            and response.ok
+            and any(
+                entry["type"] == "reply_visible" and entry.get("input_id") == root
+                for entry in response.request.post_data_json["entries"]
+            )
+        )
+    ):
+        thread.locator(":scope > .lf-thread-summary").click()
     line = thread.locator(".lf-thread-working")
     expect(line.locator(".lf-thread-working-head b")).to_have_text("Codex")
     expect(line.locator(".lf-thread-working-words")).to_have_text(
         "Trying a lighter weight"
     )
+    # The working line is actual agent feedback even while each underlying progress
+    # MessageView is folded. It uses the input's exact workflow identity, not the
+    # thread parent, and carries no copy of the agent's words in diagnostics.
+    feedback = [
+        row
+        for row in interaction_model.read_interactions(serve.page_dir)
+        if row.get("type") == "reply_visible"
+    ]
+    assert any(
+        row.get("input_id") == root and row["presentation_kind"] == "queue_words"
+        for row in feedback
+    )
+    assert any(
+        row.get("input_id") == root
+        and row["reply_kind"] == "work"
+        and row["presentation_kind"] == "working_words"
+        for row in feedback
+    )
+    assert any(
+        row.get("input_id") == root
+        and row["presentation_kind"] == "banner_words"
+        and row["reply_id"] == steps[-1]["id"]
+        for row in feedback
+    )
+    assert not any(
+        row["presentation_kind"] == "message_words"
+        and row.get("reply_id") in {step["id"] for step in steps}
+        for row in feedback
+    )
+
     expect(line).to_have_attribute("data-lf-live", "")
     expect(line.get_by_role("button")).to_have_count(0)
     # A long step wraps as a message does, so all of it shows; in an idle open card
@@ -4134,14 +4188,20 @@ def test_a_resolution_from_elsewhere_moves_nothing_after_a_diff_thread(browser, 
     expect(page.locator("lf-diff .lf-resolved-summary")).to_have_text("Resolved · 1")
 
 
-def long_diff_thread(serve):
-    """Serve a diff long enough for its file header to stick, with a user's thread on
-    its first line, and return the page's URL and the thread's id."""
+# Paragraphs that give a page length before the thread it is about.
+LEAD = "".join(
+    f"<p>Paragraph {n}, there to give the page length.</p>" for n in range(30)
+)
+
+
+def long_diff_thread(serve, lead=""):
+    """Serve a diff long enough for its file header to stick, after `lead`, with a
+    user's thread on its first line, and return the page's URL and the thread's id."""
     lines = "".join(f" line {number}\n" for number in range(2, 80))
     url = serve(
         leaf_page(
             "a long diff thread",
-            '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch">'
+            f'<h1 id="title">Review</h1>{lead}<lf-diff id="patch" source="review-patch">'
             "<pre></pre></lf-diff><p>Reading the paragraph after the diff.</p>",
         )
     )
@@ -4167,6 +4227,118 @@ def long_diff_thread(serve):
         },
     )["id"]
     return url, root
+
+
+def long_seated_thread(serve):
+    """Serve a widget seating a thread in the page's flow, with the page's length around
+    it, and a user's thread on the seat; return the page's URL and the thread's id."""
+    url = serve(
+        leaf_page(
+            "a seated thread",
+            f'<h1 id="title">Bracket order</h1>{LEAD}'
+            '<lf-test-plan id="cd-command" label="Bracket extras">'
+            '<lf-test-task id="cd-q" status="active" talk>'
+            "<strong>Which extras go in?</strong>"
+            "<p>Choose between a seed tray and a second pole.</p>"
+            f"</lf-test-task></lf-test-plan>{LEAD}",
+        )
+    )
+    root = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Does the tray fit the north bracket?",
+            "anchor": {"section": "cd-q"},
+        },
+    )["id"]
+    return url, root
+
+
+# Where a reply row's foot stands, where Send and the caret are, on screen and below
+# the top of the thread it grows in, and whether the thread is taller than the window.
+ROW_FOOT = """box => {
+  const row = box.closest('.lf-thread-reply');
+  const thread = row.parentElement;
+  const foot = row.getBoundingClientRect().bottom;
+  return {foot, within: foot - thread.getBoundingClientRect().top,
+    tall: thread.getBoundingClientRect().height > innerHeight};
+}"""
+
+
+def send_reply(page, thread, box, words):
+    """Type `words` into the thread's reply box, its lines on Shift+Enter, and send
+    them; return where the row's foot stood before the send and after it drew."""
+    box.click()
+    for at, line in enumerate(words.split("\n")):
+        if at:
+            page.keyboard.press("Shift+Enter")
+        page.keyboard.type(line)
+    turns = thread.locator(".lf-msg").count()
+    before = box.evaluate(ROW_FOOT)
+    page.keyboard.press("Enter")
+    expect(thread.locator(".lf-msg")).to_have_count(turns + 1)
+    rendered(page)
+    return before, box.evaluate(ROW_FOOT)
+
+
+@pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
+@pytest.mark.parametrize(("seat", "lines"), [("widget", 1), ("diff", 1), ("diff", 4)])
+def test_sends_from_a_page_threads_box_hold_its_foot_at_the_bands(
+    engine, seat, lines, request, serve
+):
+    """Each send from a thread's box at the reading band's foot, where typing brings
+    it, leaves the box's foot there, where Send and the caret stand, through the send
+    that makes the thread taller than the band.
+
+    The send landed the whole thread while it fitted and the reply row once it did
+    not, and the thread, focused by the send, took its focus ring's room at its foot.
+    So the first send lifted the box by that room and the thread's padding, and the
+    send that made the thread too tall dropped it back by the same. Held by its top
+    instead, a box emptied of several lines lifted its foot by the lines it lost."""
+    browser = request.getfixturevalue(engine)
+    url, root = (
+        long_seated_thread(serve) if seat == "widget" else long_diff_thread(serve, LEAD)
+    )
+    page = open_page(browser, url)
+    resized(page, 1200, 560)
+    thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
+    expect(thread).to_be_visible()
+    box = thread.locator("leaf-text")
+    # The box's foot just past the landing band's, where the first keystroke lands it.
+    box.evaluate(
+        """box => scrollBy({top: box.getBoundingClientRect().bottom - innerHeight
+          + parseFloat(getComputedStyle(document.documentElement).scrollPaddingBottom)
+          - 12, behavior: 'instant'})"""
+    )
+    rendered(page)
+    sends = []
+    while not sends or not sends[-1][1]["tall"]:
+        assert len(sends) < 8, sends
+        words = "\n".join(f"Reply {len(sends)}, line {n}" for n in range(lines))
+        sends.append(send_reply(page, thread, box, words))
+    for before, after in sends:
+        assert abs(after["foot"] - before["foot"]) < 1, sends
+
+
+def test_a_panel_send_with_room_below_moves_only_the_box(browser, serve):
+    """A send from a Threads panel card with room below its box draws the turn where
+    the box stood and moves the box down by it, and the list stays where it is: the
+    card's transcript is an append region, whose earlier turns stay put."""
+    url = serve(PANEL_PAGE)
+    root = seed_panel_threads(serve.page_dir, 2)[0]
+    page = open_page(browser, url)
+    open_threads_list(page, 1200, 900)
+    card = reply_by_keyboard(page, root)
+    box = card.locator("leaf-text")
+    list_top = "() => document.querySelector('.lf-threads').scrollTop"
+    scrolled = page.evaluate(list_top)
+    before, after = send_reply(page, card, box, "Reply with room below")
+    scroll_settled(page, ".lf-threads")
+    assert page.evaluate(list_top) == scrolled
+    grew = after["within"] - before["within"]
+    assert grew > 0 and abs(after["foot"] - before["foot"] - grew) < 1, (before, after)
 
 
 @pytest.mark.parametrize("foot", ["under the banner", "under the file header"])
@@ -9014,6 +9186,121 @@ def test_a_bounded_log_in_an_agent_reply_follows_its_end_as_a_reading_region(
     assert held == {"scroller": True, "atEnd": True}, held
 
 
+def test_a_reply_disclosure_returns_its_room_after_progress_is_hidden(browser, serve):
+    """A native disclosure in rich reply content shares the card's resize behavior."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Could we make the banner quieter?")
+    address = {"to": root, "for": root}
+    thread_model.post_reply(
+        serve.page_dir, address, "Checking the labels.", ephemeral=True
+    )
+    words = "The labels remain legible in both schemes. " * 12
+    thread_model.post_reply(
+        serve.page_dir,
+        address,
+        "Here is the inspection detail.",
+        markup=f"<details open><summary>Inspection detail</summary><p>{words}</p></details>",
+    )
+    page = open_page(browser, url)
+    open_threads_list(page, 1400, 900)
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    if card.get_attribute("open") is None:
+        card.locator(":scope > .lf-thread-summary").click()
+    progress = card.locator(".lf-summary-expand")
+    progress.click()
+    rendered(page)
+    progress.click()
+    rendered(page)
+    details = card.locator(".lf-msg-body details")
+    before = card.bounding_box()["height"]
+    expanded = details.bounding_box()["height"]
+    details.locator("summary").press("Enter")
+    expect(details).not_to_have_attribute("open", "")
+    rendered(page)
+    given_back = expanded - details.bounding_box()["height"]
+    assert given_back > 100
+    assert card.bounding_box()["height"] == pytest.approx(before - given_back, abs=0.5)
+
+
+def test_collapsing_progress_preserves_room_for_a_later_canceled_stream(
+    browser, serve, request
+):
+    """Only the disclosure's own change resizes the reply, even before a frame paints."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Keep this thread here.")
+    for words in ("Checking labels.", "Measuring controls.", "Checking both schemes."):
+        thread_model.post_reply(
+            serve.page_dir, {"to": root, "for": root}, words, ephemeral=True
+        )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": root,
+            "text": "The labels work.",
+        },
+    )
+    claim_for_codex(serve.page_dir, request)
+    stream_reply(
+        serve.page_dir,
+        root,
+        "This provisional answer has several lines of useful context. " * 5,
+    )
+    page = open_page(browser, url)
+    open_threads_list(page, 1400, 1200)
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    if card.get_attribute("open") is None:
+        card.locator(":scope > .lf-thread-summary").click()
+    stream = card.locator(f'.lf-msg[data-attempt="{STREAM_ATTEMPT}"]')
+    expect(stream).to_be_visible()
+    rendered(page)
+    compact = card.bounding_box()["height"]
+    progress = card.locator(".lf-summary-expand")
+    progress.press("Enter")
+    rendered(page)
+    with held_frames(page):
+        progress.press("Enter")
+        expect(progress).to_have_attribute("aria-expanded", "false")
+        with service_model.PageTransaction(serve.page_dir) as transaction:
+            transaction.clear_stream_reply("codex-thread", "leaf-turn")
+        expect(stream).to_have_count(0)
+    rendered(page)
+    assert card.bounding_box()["height"] == pytest.approx(compact, abs=0.5)
+
+
+def test_canceling_a_long_stream_keeps_the_panel_reading(browser, serve, request):
+    """Measuring removed content must not reset the surrounding list's scroll."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Keep this thread here.")
+    claim_for_codex(serve.page_dir, request)
+    stream_reply(
+        serve.page_dir,
+        root,
+        "\n\n".join(["A provisional answer with useful detail. " * 5] * 25),
+    )
+    page = open_page(browser, url)
+    open_threads_list(page, 1400, 700)
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    if card.get_attribute("open") is None:
+        card.locator(":scope > .lf-thread-summary").click()
+    write(card.locator("leaf-text"), "Half a thought")
+    listing = page.locator(".lf-threads")
+    listing.evaluate("node => node.scrollTop = node.scrollHeight")
+    rendered(page)
+    top = listing.evaluate("node => node.scrollTop")
+    reply = card.locator(":scope > .lf-thread-reply")
+    reply_top = reply.bounding_box()["y"]
+    assert top > 500
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        transaction.clear_stream_reply("codex-thread", "leaf-turn")
+    told(page)
+    expect(card.locator(f'.lf-msg[data-attempt="{STREAM_ATTEMPT}"]')).to_have_count(0)
+    rendered(page)
+    assert listing.evaluate("node => node.scrollTop") == pytest.approx(top, abs=1)
+    assert reply.bounding_box()["y"] == pytest.approx(reply_top, abs=1)
+
+
 def reply_by_keyboard(page, root):
     """Stand on the thread's title and press `c` into its reply box."""
     card = page.locator(f'.lf-thread[data-id="{root}"]')
@@ -12640,9 +12927,9 @@ def test_opening_a_rewrite_keeps_room_the_thread_holds(browser, serve):
     rendered(page)
     latest = thread.locator(".lf-msg").last
     held = latest.bounding_box()
-    assert thread.evaluate(
-        "n => n.style.getPropertyValue('--lf-thread-body-extent')"
-    ), "the thread holds no room, so this proves nothing"
+    assert thread.locator(":scope > .lf-reply-space").bounding_box()["height"] > 0, (
+        "the thread holds no room, so this proves nothing"
+    )
     page.keyboard.press("ArrowUp")
     expect(latest.locator(".lf-msg-editor leaf-text")).to_be_focused()
     rendered(page)
@@ -13543,8 +13830,15 @@ def test_a_long_quote_of_replaced_data_has_a_local_reading(browser, serve):
         "button", name="Full quote", exact=True
     )
     expect(disclosure).to_be_visible()
+    card = page.locator(".lf-thread-panel .lf-thread")
+    compact = card.bounding_box()["height"]
     disclosure.click()
     assert quote.evaluate("el => el.scrollHeight <= el.clientHeight + 1")
+    rendered(page)
+    assert card.bounding_box()["height"] > compact
+    disclosure.click()
+    rendered(page)
+    assert card.bounding_box()["height"] == pytest.approx(compact, abs=0.5)
 
 
 @pytest.mark.parametrize("quoted", [True, False], ids=["short-quote", "whole-section"])

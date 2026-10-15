@@ -10,7 +10,7 @@ def test_pairwise_counts_only_a_winner_both_orders_name(tmp_path, monkeypatch):
     """No model runs: a judge that always prefers position A splits every pair, and
     one that prefers a column's page wins it in both orders."""
     from click.testing import CliRunner
-    from leaf_dev import eval_pairs
+    from leaf_dev.commands import eval_pairs
 
     run = tmp_path / "run"
     results = []
@@ -81,7 +81,7 @@ def test_pairwise_counts_only_a_winner_both_orders_name(tmp_path, monkeypatch):
     assert CliRunner().invoke(eval_pairs.eval_pairs, [str(run)]).exit_code == 0
     pair = json.loads((run / "pairs.json").read_text())[0]
     assert pair["winner"] is None and pair["status"] == "insufficient_evidence"
-    from leaf_dev.eval_report import outcome, verdict_line
+    from leaf_dev.commands.eval_report import outcome, verdict_line
 
     assert verdict_line(pair) == "Insufficient evidence for comparison"
     assert "split 0" in outcome("document", [pair])

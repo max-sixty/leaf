@@ -40,8 +40,9 @@ from interact_support import (
 from leaf import cli as cli_model
 from leaf import codex_adapter, hosting, leases, server, service, state
 from leaf.harness import claim_harness
-from leaf_dev import preview
-from leaf_dev.page_fixtures import read_fixture
+from leaf.interaction_log import read_interactions
+from leaf_dev.commands import preview
+from leaf_dev.page_fixtures import read_fixture, record_run_context
 from model.test_interact_preview import _ScriptedChanges
 
 
@@ -49,7 +50,13 @@ from model.test_interact_preview import _ScriptedChanges
 # the transcript would.
 @pytest.mark.parametrize("retirement", ["archive", "stop"])
 def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
-    tmp_path, under_codex, codex_env, codex_queue, native_codex_chat, retirement
+    tmp_path,
+    under_codex,
+    codex_env,
+    codex_queue,
+    native_codex_chat,
+    retirement,
+    request,
 ):
     """The command returns; unloading its chat keeps the watcher, URL and carrier.
 
@@ -71,7 +78,7 @@ def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
             [
                 sys.executable,
                 "-m",
-                "leaf_dev.preview",
+                "leaf_dev.commands.preview",
                 "--worker",
                 "--user",
                 "--source",
@@ -97,6 +104,7 @@ def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
         output, errors = task.communicate(timeout=STATED_TIMEOUT)
         assert task.returncode == 0, f"{output}{errors}"
         url = next(line for line in output.splitlines() if line.startswith("http://"))
+        record_run_context(page, purpose="test", run=tmp_path, test=request.node.nodeid)
         acquired = service.page_claim(page)["acquisition"]
         before = state.session_record(sid)
         old = time.time() - timedelta(hours=12).total_seconds()
@@ -241,7 +249,7 @@ def test_abandoned_desktop_preview_publishes_no_claim(
         [
             sys.executable,
             "-m",
-            "leaf_dev.preview",
+            "leaf_dev.commands.preview",
             "--worker",
             "--user",
             "--source",
@@ -278,7 +286,7 @@ def test_abandoned_desktop_preview_publishes_no_claim(
 
 
 def test_preview_publishes_companion_edits_at_its_existing_url(
-    tmp_path, monkeypatch, capsys
+    tmp_path, monkeypatch, capsys, request
 ):
     """A custom widget edit publishes exact inputs without erasing feedback.
 
@@ -321,6 +329,14 @@ def test_preview_publishes_companion_edits_at_its_existing_url(
 
     def changes(watched):
         assert str(widget) in watched.paths
+        [context] = [
+            row for row in read_interactions(page) if row.get("type") == "run_context"
+        ]
+        assert context["purpose"] == "author-preview"
+        assert context["run"] == str(page)
+        assert context["authored_source"] == str(source)
+        record_run_context(page, purpose="test", run=tmp_path, test=request.node.nodeid)
+        contexts = read_interactions(page, types=("run_context",))
         url = next(
             line
             for line in capsys.readouterr().out.splitlines()
@@ -340,6 +356,7 @@ def test_preview_publishes_companion_edits_at_its_existing_url(
         first = latest_revision(page)
         old_resource = resource(first)
         assert at(old_resource) == (200, original)
+
         status, body = fetch(
             urlsplit(url)._replace(path="/api/event").geturl(),
             token=None,
@@ -362,6 +379,7 @@ def test_preview_publishes_companion_edits_at_its_existing_url(
         assert at(resource(second)) == (200, revised)
         assert at(old_resource) == (200, original)
         assert (page / "events.jsonl").read_bytes().startswith(before)
+        assert read_interactions(page, types=("run_context",)) == contexts
 
         delivered = page / "page/widgets/lf-reading.js"
         delivered.write_text("export const reading = 'Preview edit';")
@@ -434,7 +452,7 @@ def test_preview_filters_feedback_before_discovering_inputs(tmp_path, monkeypatc
 
     def changes(_watched):
         count = len(readings)
-        for name in ("interactions.jsonl", "user-views.json", "viewed.json"):
+        for name in ("observations.jsonl", "user-views.json", "viewed.json"):
             yield {str(page / name)}
             assert len(readings) == count
         source.write_text(source.read_text().replace("Reading</h1>", "Revised</h1>"))
@@ -673,7 +691,7 @@ finally:
 
 
 def test_user_preview_restart_keeps_feedback_and_authored_progress(
-    tmp_path, spawn, monkeypatch
+    tmp_path, spawn, monkeypatch, request
 ):
     """A user slot resumes its durable page rather than replaying its fixture."""
     from leaf.data import read_data
@@ -742,6 +760,17 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
         )
         status, body = fetch_hanging_up(url)
         assert status == 200, body
+        contexts = [
+            row
+            for row in read_interactions(page, types=("run_context",))
+            if row["purpose"] == "user-review"
+        ]
+        assert len(contexts) == number
+        assert {row["purpose"] for row in contexts} == {"user-review"}
+        assert contexts[-1]["run"] == str(page)
+        assert contexts[-1]["authored_source"] == str(source)
+        record_run_context(page, purpose="test", run=tmp_path, test=request.node.nodeid)
+        assert read_interactions(page, types=("run_context",))[-1]["purpose"] == "test"
         return task, url, log
 
     def stop(task):

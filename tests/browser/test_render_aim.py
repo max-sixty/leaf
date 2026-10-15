@@ -3209,8 +3209,11 @@ def test_an_aim_follows_a_scroll_inside_a_widgets_shadow_stage(browser, serve):
 SHOWN_PAINT = """(selector) => {
   const paint = document.querySelector(selector);
   let { left, right } = paint.getBoundingClientRect();
+  // A frame cuts across where its clip path's inline inset is zero.
+  const cutsAcross = (frame) =>
+    /^inset\\((\\S+ )?0px\\)$/.test(getComputedStyle(frame).clipPath);
   for (let frame = paint.parentElement; frame; frame = frame.parentElement)
-    if (frame.matches('.lf-paint-frame') && getComputedStyle(frame).overflowX === 'clip') {
+    if (frame.matches('.lf-paint-frame') && cutsAcross(frame)) {
       const cut = frame.getBoundingClientRect();
       left = Math.max(left, cut.left);
       right = Math.min(right, cut.right);
@@ -3559,7 +3562,6 @@ graph LR
           const aim = document.querySelector('.lf-aim');
           const stand = aim.closest('.lf-paint-stand');
           return {
-            layers: stand.querySelectorAll('.lf-paint-motion').length,
             boxes: [aim, ...stand.querySelectorAll('.lf-paint-frame')].map((box) => ({
               position: getComputedStyle(box).position,
               anchor: getComputedStyle(box).positionAnchor,
@@ -3568,7 +3570,6 @@ graph LR
         }"""
     )
     page.keyboard.up("Alt")
-    assert stand["layers"] == 0, stand
     assert all(
         box["position"] == "fixed" and box["anchor"].startswith("--lf-a")
         for box in stand["boxes"]
@@ -4223,14 +4224,20 @@ def test_a_scroll_carries_paint_over_targets_and_writes_it_once_settled(
         if scroller == "pane"
         else "document.scrollingElement",
     )
-    # Near-window membership may add distinct boxes to a carrier as targets cross
-    # the observer's boundary. Their placement must still need no per-frame writes.
-    painted = [
-        w
-        for w in writes
-        if PAINT.search(w["target"])
-        and not (w["type"] == "childList" and "lf-paint-carrier" in w["target"])
-    ]
+    # A carrier may gain distinct boxes as targets enter the near-window inventory.
+    # Count each box's membership, so those arrivals are legal while removing and
+    # reinserting the same box every frame is still a scroll follower.
+    painted = []
+    for mutation in writes:
+        if not PAINT.search(mutation["target"]):
+            continue
+        if mutation["type"] == "childList" and "lf-paint-carrier" in mutation["target"]:
+            painted.extend(
+                {**mutation, "key": f"{mutation['key']} {node}"}
+                for node in mutation["nodes"]
+            )
+        else:
+            painted.append(mutation)
     assert not scroll_followers(painted, frames), painted
 
 

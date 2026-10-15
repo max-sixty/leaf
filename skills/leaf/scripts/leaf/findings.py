@@ -165,8 +165,6 @@ def _visual_problem(problem: dict) -> str:
     kind = problem["kind"]
     if kind == "unregistered":
         return "did not call registerVisualParts"
-    if kind == "unreadable":
-        return f"could not read visual parts: {problem['error']}"
     return f"registered parts its prefixes do not admit {', '.join(problem['parts'])}"
 
 
@@ -524,16 +522,16 @@ _TEXT = {
         " it, or write the state on the chrome the module built"
     ),
     "settlement-mark": lambda at, v: (
-        f"{at} wears data-lf-state={_json(v['mark'])} where the log records "
+        f"{at} has data-lf-state={_json(v['mark'])} where the log records "
         + (f"`{v['outcome']}`" if v["outcome"] else "no decision")
-        + " — the mark is the layer's paint of a logged decision, so a module may say"
-        " only what the log decided"
+        + " — Leaf sets data-lf-state from the decision in the log, so a widget's"
+        " module must not set it to anything else"
     ),
     "retired-slot": lambda at, v: (
-        f"{at} settled `{v['outcome']}` and its <{v['slot']}> still shows"
-        f" {_json(v['words'])} — those words have left the page's reading, so"
-        " the user can select what no comment can anchor to; the layer hides a"
-        " retired slot by default, so something in this family is showing it anyway"
+        f"{at} is settled `{v['outcome']}`, but its <{v['slot']}> still shows"
+        f" {_json(v['words'])}. Leaf hides a retired slot by default, so this"
+        " widget's styles or module show it anyway, and the user can select words no"
+        " comment can anchor to"
     ),
     "render-threw": lambda at, v: (
         f"{at} renderState threw when the complete state was rendered a second time:"
@@ -561,8 +559,8 @@ _TEXT = {
         f"{at} stands {v['past']}px past the room the page has for a wide widget"
     ),
     "over-margin": lambda at, v: (
-        f"{at} is drawn over {v['resident']}, which stands in the margin it grew into"
-        " — the side that holds it gives no room"
+        f"{at} grows into the margin and is drawn over {v['resident']}, which already"
+        " sits there; that side of the page has no free room for it"
     ),
     "off-axis": lambda at, v: (
         f"{at} is drawn {v['drawn']}px wide where its width grants {v['granted']}px"
@@ -595,7 +593,9 @@ _TEXT = {
         " can reach it"
     ),
     "apparatus-among-authored": lambda at, v: (
-        f"{at} stands among the children of {v['parent']}"
+        f"{at}, which Leaf adds, stands among the page's own elements inside"
+        f" {v['parent']}, so the page's rules that read its structure, such as"
+        " :first-child or h2 + p, match differently"
     ),
     "unread-syntax": lambda at, v: (
         f"code styled {_json(v['style'])} reads at {v['ratio']:.1f}:1 against the"
@@ -749,6 +749,10 @@ _TEXT = {
         f"{_line(at, v)}: unknown widget — not in the vendored registry.json"
     ),
     "attribute-schema": lambda at, v: f"{_line(at, v)}: {v['reason']}",
+    "member-record-slot": lambda at, v: (
+        f"{_line(at, v)}: scalar verb `{v['value_verb']}` and `{v['owner']}`'s "
+        f"selection verb `{v['owner_verb']}` both write attribute `{v['attr']}`"
+    ),
     "not-member": lambda at, v: (
         f"{_line(at, v)}: must be a direct member of "
         + " or ".join(f"<{owner}>" for owner in v["owners"])
@@ -1203,14 +1207,15 @@ _TEXT = {
     "unoverruled": _declared(
         lambda v: (
             "declares agent-written x-state verbs"
-            f" {_json(v['verbs'])} but not the boolean `overruled` attribute a"
-            " version overrules a report in force with"
+            f" {_json(v['verbs'])} but no boolean `overruled` attribute, which a"
+            " version sets to overrule a worker's report"
         )
     ),
     "unrestated": _declared(
         lambda v: (
-            "declares user x-state verbs that fold on the widget but not the"
-            " boolean `restated` attribute a version retracts a decision with"
+            "declares user x-state verbs on the whole widget but no boolean"
+            " `restated` attribute, which a version sets to retract the user's"
+            " decision"
         )
     ),
     "reserved-resolves": _declared(
@@ -1271,6 +1276,13 @@ _TEXT = {
     "creates-id": _declared(
         lambda v: _created(
             v, "whose required id must use the canonical element-id schema"
+        )
+    ),
+    "creates-semantic-owner": _declared(
+        lambda v: _created(
+            v,
+            "which must be a parent-owned member without independent owner capabilities: "
+            + ", ".join(v["keys"]),
         )
     ),
     "shared-slot": _declared(
@@ -1619,12 +1631,14 @@ _TEXT = {
     ),
     # A to-do, a start and an ending (`tasks.task_error`, `work.widget_seat_error`).
     "progress-parent": lambda at, v: (
-        "progress must take in hand the reply input addressed by its parent"
+        f"this progress line replies to {v['parent']!r} but starts an update you owe"
+        f" no reply to {v['parent']!r} for; it may already be answered"
     ),
     "not-a-widget": lambda at, v: f"{v['widget']!r} is not a widget on this page",
     "not-an-element": lambda at, v: f"{v['element']!r} is not an element on this page",
     "hidden-widget": lambda at, v: (
-        f"{v['widget']} is not visible under the page's outcomes in force"
+        f"{v['widget']} no longer shows on the page: a decision in the log retired it"
+        " or left it empty; open the to-do on another element or on `page`"
     ),
     "quoted-seat": lambda at, v: (
         f"{v['widget']} is quoted exhibit content, not a live page widget"
@@ -1665,7 +1679,7 @@ _TEXT = {
             if v["session"] is not None
             else "a sessionless command"
         )
-        + f" (start {v['start']!r}); take it in hand with `leaf task start`"
+        + f" (start {v['start']!r}); start it with `leaf task start`"
         " before ending it from another session"
     ),
     "unknown-todo": lambda at, v: f"unknown to-do {v['todo']!r}",
@@ -1674,8 +1688,9 @@ _TEXT = {
     ),
     # Advice on a to-do ended `done` (`todos.finished_in_view`).
     "finished-in-view": lambda at, v: (
-        f"Your work on `{v['element']}` is done, and it still stands among the open"
-        " work. Unless it is the page's current content, move it, cut to its outcome,"
+        f"Your work on `{v['element']}` is done, and it still shows unfolded on the"
+        " newest revision (not inside a closed details, a later tab or [hidden])."
+        " Unless it is the page's current content, move it, cut to its outcome,"
         " to the finished work collapsed after the open work, and let what comes next"
         ' take its place (authoring-revisions.md, "Keep the current page current").'
     ),
@@ -1810,8 +1825,8 @@ _TEXT = {
         "--detach cannot be combined with --quote, --section, or --part"
     ),
     "held-anchor": lambda at, v: (
-        f"thread {v['thread']!r} holds the command goal named by its opening comment,"
-        " so its anchor cannot be changed"
+        f"thread {v['thread']!r} holds the widget its first comment was sent from, so"
+        " its anchor cannot be moved or detached"
     ),
     "no-anchor": lambda at, v: (
         f"thread {v['thread']!r} has no current anchor to detach"

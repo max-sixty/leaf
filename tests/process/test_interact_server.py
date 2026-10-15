@@ -105,14 +105,28 @@ from leaf_dev.example_data import patch_manifest
 from leaf_dev.page_fixtures import example_media
 
 
+def browser_observation(kind, sequence=1, **fields):
+    """A browser observation whose wall clock is deliberately ahead of the host."""
+    return {
+        "type": kind,
+        "observed_at": "2099-01-01T00:00:00Z",
+        "sequence": sequence,
+        "monotonic_ms": sequence * 10,
+        "visibility": "visible",
+        **fields,
+    }
+
+
 def test_interaction_trace_records_browser_entries_and_every_request_outcome(
     server, page_dir
 ):
     payload = {
         "session": "tab-1",
         "entries": [
-            {"type": "click", "target": "#approve", "source": "forged"},
-            {"type": "input", "value": "draft"},
+            browser_observation(
+                "click", target="#approve", source="forged", ts="forged"
+            ),
+            browser_observation("input", 2, value="draft"),
         ],
     }
     assert fetch(f"{server}/api/interaction", data=json.dumps(payload).encode()) == (
@@ -123,11 +137,14 @@ def test_interaction_trace_records_browser_entries_and_every_request_outcome(
         fetch(f"{server}/api/interaction", data=b'{"session":"tab-1","entries":[]}')[0]
         == 400
     )
-    for entry in (
-        {"type": "interaction_part", "sequence": 1},
-        {"type": "keydown", "ts": 42},
-        {"type": "focusin", "target": [{}]},
+    for invalid in (
+        {"type": ""},
+        {"observed_at": "2026-10-14T12:00:00"},
+        {"sequence": True},
+        {"monotonic_ms": -1},
+        {"visibility": "unknown"},
     ):
+        entry = browser_observation("keydown", **invalid)
         assert (
             fetch(
                 f"{server}/api/interaction",
@@ -135,24 +152,21 @@ def test_interaction_trace_records_browser_entries_and_every_request_outcome(
             )[0]
             == 400
         )
+    missing_time = browser_observation("click")
+    del missing_time["observed_at"]
+    assert (
+        fetch(
+            f"{server}/api/interaction",
+            data=json.dumps({"session": "missing", "entries": [missing_time]}).encode(),
+        )[0]
+        == 400
+    )
     assert (
         fetch(
             f"{server}/api/interaction", data=json.dumps(payload).encode(), token=None
         )[0]
         == 401
     )
-    for entry in (
-        {"type": "keydown", "sequence": True},
-        {"type": "interaction_part", "sequence": 1},
-        {"type": "focusin", "target": [{}]},
-    ):
-        assert (
-            fetch(
-                f"{server}/api/interaction",
-                data=json.dumps({"session": "bad", "entries": [entry]}).encode(),
-            )[0]
-            == 400
-        )
     assert fetch(f"{server}/missing")[0] == 404
 
     rows = [
@@ -168,7 +182,9 @@ def test_interaction_trace_records_browser_entries_and_every_request_outcome(
         ("tab-1", "input"),
     ]
     assert client[0]["source"] == "client"
-    assert all(row["received"] for row in client)
+    assert all(row["observed_at"] == "2099-01-01T00:00:00Z" for row in client)
+    assert all(datetime.fromisoformat(row["ts"]).year != 2099 for row in client)
+    assert all("received" not in row for row in client)
     server_rows = [row for row in rows if row["source"] == "server"]
     assert {(row["method"], row["path"], row["status"]) for row in server_rows} >= {
         ("POST", "/api/interaction", 204),
@@ -177,7 +193,7 @@ def test_interaction_trace_records_browser_entries_and_every_request_outcome(
         ("GET", "/missing", 404),
     }
     assert all("?" not in row["path"] and row["durationMs"] >= 0 for row in server_rows)
-    assert fetch(f"{server}/interactions.jsonl")[0] == 404
+    assert fetch(f"{server}/observations.jsonl")[0] == 404
 
 
 def test_diagnostic_write_failure_does_not_change_the_http_answer(
@@ -208,7 +224,9 @@ def test_interaction_trace_is_writable_from_a_read_only_page_preview(page_dir):
     ) as preview:
         status, body = fetch(
             f"{preview.origin}/api/interaction",
-            data=b'{"session":"preview","entries":[{"type":"click"}]}',
+            data=json.dumps(
+                {"session": "preview", "entries": [browser_observation("click")]}
+            ).encode(),
         )
         assert (status, body) == (204, b"")
         assert fetch(f"{preview.origin}/api/event", data=b"{}")[0] == 403
@@ -227,9 +245,12 @@ def test_interaction_trace_does_not_change_page_or_presence_readings(page_dir):
     sources = served_reading.source_readings(page_dir)
     presence_stamp = presence_model._page_stamp(page_dir)
 
-    for sequence in range(2):
+    for sequence in range(1, 3):
         interaction_model.append_interactions(
-            page_dir, [{"source": "client", "sequence": sequence}]
+            page_dir,
+            interaction_model.client_records(
+                "tab-1", "/", [browser_observation("click", sequence)]
+            ),
         )
         assert served_reading.page_reading(page_dir) == reading
         assert served_reading.source_readings(page_dir) == sources
@@ -325,7 +346,9 @@ def test_samples_use_captured_resources_and_independent_event_logs(server, page_
     assert json.loads(raw)["events"] == []
     assert fetch(
         child + "/api/interaction",
-        data=b'{"session":"child-tab","entries":[{"type":"click"}]}',
+        data=json.dumps(
+            {"session": "child-tab", "entries": [browser_observation("click")]}
+        ).encode(),
     ) == (204, b"")
     status, answer = fetch(
         child + "/api/event",
@@ -645,7 +668,10 @@ def test_sample_capability_authorizes_only_its_live_descendants(page_dir, routed
                 first + "/api/interaction",
                 token=None,
                 data=json.dumps(
-                    {"session": "routed-sample", "entries": [{"type": "checkpoint"}]}
+                    {
+                        "session": "routed-sample",
+                        "entries": [browser_observation("checkpoint")],
+                    }
                 ).encode(),
             )[0]
             == 204
@@ -670,7 +696,10 @@ def test_sample_capability_authorizes_only_its_live_descendants(page_dir, routed
                 nested + "/api/interaction",
                 token=None,
                 data=json.dumps(
-                    {"session": "nested-sample", "entries": [{"type": "checkpoint"}]}
+                    {
+                        "session": "nested-sample",
+                        "entries": [browser_observation("checkpoint")],
+                    }
                 ).encode(),
             )[0]
             == 204
@@ -2970,8 +2999,9 @@ def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
     )
     publisher = server_rows_model.RowPublisher(neighbor, "fixture-server")
     publisher.refresh()
-    expected = page_state(neighbor)["activity"]
-    expected.pop("obligations")
+    activity = page_state(neighbor)["activity"]
+    assert activity["detail_source"] is not None
+    expected = server_rows_model.compact_activity(activity)
     reads = []
     read_json = files_model.read_json
 
@@ -2993,6 +3023,8 @@ def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
     monkeypatch.setattr(event_model, "read_events", no_fold)
     [row] = presence_model.other_leaves(page_dir)
     assert row["activity"] == expected
+    assert "detail_source" not in row["activity"]
+    assert "obligations" not in row["activity"]
     assert row["activity"]["counts"]["pending"] == 1
     assert row["session_cwd"] == "/work/neighbor"
     assert reads == [neighbor / "service.json"]
@@ -3081,7 +3113,7 @@ def test_neighbor_discovery_needs_no_native_subscription(
     assert second in [page for page, _record in presence_model.neighbor_candidates()]
 
 
-def test_native_watcher_limit_has_an_actionable_refusal(tmp_path, monkeypatch):
+def test_native_watcher_failure_reaches_its_owner(tmp_path, monkeypatch):
     from leaf import file_changes
     from watchfiles._rust_notify import WatchfilesRustInternalError
 
@@ -3091,7 +3123,7 @@ def test_native_watcher_limit_has_an_actionable_refusal(tmp_path, monkeypatch):
         )
 
     monkeypatch.setattr(file_changes, "RustNotify", exhausted)
-    with pytest.raises(Refused, match=r"fs\.inotify\.max_user_instances"):
+    with pytest.raises(WatchfilesRustInternalError, match="Too many open files"):
         file_changes.FileChanges({tmp_path: False}, lambda _path: True)
 
 

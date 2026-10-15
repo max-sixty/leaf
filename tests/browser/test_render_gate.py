@@ -950,24 +950,27 @@ def test_arrival_reading_reports_a_deterministic_transition(browser, serve):
     )
 
 
-def test_shadow_stage_withholds_package_transitions_until_presentation(browser, serve):
+def test_shadow_stage_withholds_package_transitions_until_presentation(
+    browser, serve, tmp_path
+):
     """The shared shadow stage suppresses a package transition during arrival."""
+    theme = tmp_path / "transition-theme"
+    theme.mkdir()
+    (theme / "shadow.css").write_text("details { transition: color 60s linear; }\n")
     page = browser.new_page()
     held = []
     page.route("**/api/state*", lambda route: held.append(route))
-    page.goto(serve(PANEL_PAGE), wait_until="load")
+    page.goto(
+        serve(PANEL_PAGE, packages=(*EXAMPLE_PACKAGES, "./transition-theme")),
+        wait_until="load",
+    )
     render_checks_model.wait_for_probe(page, "upgraded")
     assert held, "the state read completed before the shadow guard was observed"
     assert page.locator("body").get_attribute("data-lf-presented") is None
     assert (
         page.evaluate(
-            """() => {
-                  const root = document.querySelector("#how-patch").shadowRoot;
-                  const style = document.createElement("style");
-                  style.textContent = "details { transition: color 60s linear; }";
-                  root.append(style);
-                  return getComputedStyle(root.querySelector("details")).transitionProperty;
-                }"""
+            """() => getComputedStyle(document.querySelector("#how-patch")
+                  .shadowRoot.querySelector("details")).transitionProperty"""
         )
         == "none"
     )
@@ -1080,7 +1083,7 @@ def test_the_render_gate_requires_a_declared_threads_host_and_a_defined_element(
 def test_the_render_gate_refuses_visual_inventories_it_cannot_trust(
     browser, serve, tmp_path, monkeypatch
 ):
-    """A provider must register a valid inventory whose ids its prefixes admit."""
+    """A provider registers its inventory and declares which generated ids it admits."""
     monkeypatch.chdir(tmp_path)
     add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     callout = json.loads((tmp_path / ".leaf" / "registry.json").read_text())[
@@ -1097,13 +1100,10 @@ def test_the_render_gate_refuses_visual_inventories_it_cannot_trust(
         },
         "lf-callout": callout,
     }
-    widgets = visual_widgets(outside_surface_for="outside") | visual_widgets(
-        tag="lf-test-visual-prefixed"
-    )
+    widgets = visual_widgets() | visual_widgets(tag="lf-test-visual-prefixed")
     markup = CUSTOM_WIDGET_PAGE.replace(
         "</main>",
-        """<lf-test-visual id="outside" parts="all"></lf-test-visual>
-<lf-test-visual-prefixed id="prefixed"></lf-test-visual-prefixed>
+        """<lf-test-visual-prefixed id="prefixed"></lf-test-visual-prefixed>
 </main>""",
     )
     failures = render_gate_model.render_version(
@@ -1122,18 +1122,6 @@ def test_the_render_gate_refuses_visual_inventories_it_cannot_trust(
     assert {problem["kind"] for _, _, problem in problems("lf-callout")} == {
         "unregistered"
     }, failures
-    visual = problems("lf-test-visual")
-    assert [(scheme, at, problem["kind"]) for scheme, at, problem in visual] == [
-        (scheme, "<lf-test-visual id=outside>", "unreadable")
-        for scheme in ("light", "dark")
-    ], failures
-    unread = [problem["error"] for _, _, problem in visual if "error" in problem]
-    assert len(unread) == 2, failures
-    assert all(
-        "Visual part outer has no descendant Element surface" in error
-        and "TypeError:" in error
-        for error in unread
-    ), unread
     assert problems("lf-test-visual-prefixed") == [
         (
             scheme,
@@ -3564,7 +3552,23 @@ FRAMED_TABLES_PAGE = leaf_page(
 <table id="allocated" data-width="wide"><tr><th>Session</th><td>9:00</td></tr></table>
 <figure data-width="available">
 <table id="figure-table"><tr><th>Session</th><td>9:00</td></tr></table>
+<lf-ask id="figure-asked">
+<h2>Which session ends?</h2>
+<table id="figure-asked-table"><tr><th>Session</th><td>17:00</td></tr></table>
+<lf-options id="figure-asked-choice" choose>
+<lf-option id="figure-asked-early"><strong>Early</strong> End it at 16:00.</lf-option>
+<lf-option id="figure-asked-late"><strong>Late</strong> End it at 18:00.</lf-option>
+</lf-options>
+</lf-ask>
 </figure>
+<lf-ask id="asked">
+<h2>Which session moves?</h2>
+<table id="asked-table"><tr><th>Session</th><td>9:00</td></tr></table>
+<lf-options id="asked-choice" choose>
+<lf-option id="asked-early"><strong>Early</strong> Move it to 8:00.</lf-option>
+<lf-option id="asked-late"><strong>Late</strong> Move it to 10:00.</lf-option>
+</lf-options>
+</lf-ask>
 <section class="panel" id="checks">
 <h2>Checks</h2>
 <table id="framed"><thead><tr><th>Check</th><th>Observed</th></tr></thead>

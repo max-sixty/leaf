@@ -1294,6 +1294,7 @@ export default [
       ".venv/**",
       "examples/corpus.html",
       "skills/leaf/assets/vendor/**",
+      "skills/leaf/kernel/**",
       "skills/leaf/packages/*/vendor/**",
       "evals/ui-review-detection/fixtures/**",
     ],
@@ -1369,14 +1370,17 @@ export default [
     rules: { "no-undef": "error" },
   },
   {
-    files: ["dev/leaf_dev/startup.js", "dev/leaf_dev/bench_latency.js"],
+    files: ["dev/leaf_dev/startup.js", "dev/leaf_dev/commands/bench_latency.js"],
     languageOptions: { globals: browserGlobals, sourceType: "script" },
     rules: { "no-undef": "error" },
   },
   {
     // Browser diagnostics resolve published runtime entries from the page under
     // test. Those scoped URLs are data rather than static dependency edges.
-    files: ["dev/leaf_dev/verify_site_browser.js", "dev/leaf_dev/bench_latency.js"],
+    files: [
+      "dev/leaf_dev/commands/verify_site_browser.js",
+      "dev/leaf_dev/commands/bench_latency.js",
+    ],
     languageOptions: { globals: browserGlobals, sourceType: "script" },
     rules: {
       "no-undef": "error",

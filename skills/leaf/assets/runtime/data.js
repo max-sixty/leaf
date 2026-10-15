@@ -58,7 +58,7 @@ export async function notifyDataSubscribers() {
   for (const delivered of [...deliveryListeners]) delivered(round);
   const current = [...subscriptions];
   for (const subscription of current) subscription.notify();
-  const regions = current.map((subscription) => subscription.region);
+  const regions = current.flatMap((subscription) => subscription.regions);
   await whenApplicationRegionsPresented(
     regions,
     () => runtime.data.version === version,
@@ -144,15 +144,16 @@ export function dataReader(element, input) {
   };
 }
 
-// A renderer that draws data as it reads it holds the data version until its region
-// presents, as a `watchData` subscription does; its readers hear the delivery itself.
+// A renderer that draws data as it reads it holds the data version until its regions
+// present, as a `watchData` subscription does: a widget's render and the preparation
+// its draw starts (`present()`). Its readers hear the delivery itself.
 let deliveries = 0;
 const deliveryListeners = new Set();
 // The accepted readings a `LeafElement` follows to claim its region, not to draw.
 const stagedReadings = new WeakSet();
 export const stagesOnly = (reading) => stagedReadings.has(reading);
-export function joinDataDelivery(region) {
-  const subscription = { region, notify() {} };
+export function joinDataDelivery(regions) {
+  const subscription = { regions, notify() {} };
   subscriptions.add(subscription);
   return () => subscriptions.delete(subscription);
 }
@@ -180,7 +181,7 @@ export function watchData(element, input, callback) {
   let completion = Promise.resolve();
   const region = `data:${element.id}:${input}:${++subscriptionSequence}`;
   let presentation = null;
-  const subscription = { region, notify: () => notifySelected() };
+  const subscription = { regions: [region], notify: () => notifySelected() };
   let stopSelection;
   let pendingDelivery = null;
   let stopped = false;

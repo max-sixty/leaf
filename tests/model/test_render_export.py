@@ -7,7 +7,7 @@ from interact_support import (
     STATED_TIMEOUT,
 )
 from leaf import cli as cli_model
-from leaf_dev import preview as preview_model
+from leaf_dev.commands import preview as preview_model
 from render_harness import (
     leaf_page,
 )

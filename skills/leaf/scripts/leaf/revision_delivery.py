@@ -388,9 +388,15 @@ def mark_declared(
             means = {"content": content, "declared": bool(declared)}
             authored = mark.get("authored")
             if authored in attrs and means[mark["authored_on"]]:
-                marks[mark["paint"]] = attrs[authored]
+                value = attrs[authored]
             elif declared:
-                marks[mark["paint"]] = "" if declared is True else str(declared)
+                value = "" if declared is True else str(declared)
+            else:
+                continue
+            if value in mark.get("paints", {}):
+                marks[mark["paints"][value]] = ""
+            else:
+                marks[mark["paint"]] = value
         sizes = [
             size
             for value in attrs.values()
@@ -426,7 +432,8 @@ def mark_declared(
                     )
                 )
         if prepaint := prepaint_markup(registry, element.tag):
-            root = len(re.match(r"<[a-z][a-z0-9]*", prepaint)[0])
+            painted = turbohtml.parse(prepaint, scripting=True).find("body")
+            root = 1 + len(next(iter(painted.children)).tag)
             edits.append(
                 (
                     index(location.start_tag.end_line, location.start_tag.end_col),

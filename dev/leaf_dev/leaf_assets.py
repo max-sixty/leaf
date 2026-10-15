@@ -4,12 +4,12 @@ Every tracked byte ships in every install, so Leaf's tree is text and its images
 in a separate Git repository instead, each at the path its reader would look for it in
 the tree (`pinned_copy`):
 
-- `examples/` holds the catalog previews (`leaf_dev.example_previews`), and
-  `examples/media/` the images the example pages show (`leaf_dev.page_fixtures`);
+- `examples/` holds the catalog previews (`leaf_dev.commands.refresh_previews`), and
+  `examples/media/` the images the example pages show (`leaf_dev.commands.publish_media`);
 - `demo/` holds the README's recording and stills and the site's card
-  (`leaf_dev.record_demo`);
+  (`leaf_dev.commands.record_demo`);
 - `evals/<case>/` holds what an instruction case hands its child
-  (`leaf_dev.eval`).
+  (`leaf_dev.commands.eval`).
 
 `leaf-assets.json` pins media and reviewed thread expectations independently. Media
 publication follows the asset head; only snapshot acceptance advances the expectations
@@ -40,8 +40,6 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Literal
-
-import click
 
 from leaf_dev import ROOT
 
@@ -288,10 +286,3 @@ def publish(checkout: Checkout, message: str) -> str:
             encoding="utf-8",
         )
     return revision
-
-
-@click.command("fetch-assets")
-def fetch_assets() -> None:
-    """Fetch the generated images leaf-assets.json pins."""
-    for revision_key in ("revision", "thread_snapshots_revision"):
-        click.echo(f"✓ {pinned_assets(revision_key=revision_key)}")

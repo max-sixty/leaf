@@ -37,6 +37,7 @@ Each harness's registrations name it (`--harness`) and its payload names the
 session; `harness.hook_harness` says why neither comes from the environment."""
 
 import json
+import os
 import time
 
 from .leases import mark_hooks
@@ -68,6 +69,15 @@ def cmd_hook(harness: str, payload: dict) -> None:
         mark_hooks(sid)
     if event == "SessionEnd":
         end_harness_instance(sid)
+        return
+    if event == "PreToolUse":
+        # Claude Code runs hooks outside its sandbox and shell commands inside it.
+        # Its registration runs this only before a command naming `leaf`, so a
+        # session that never runs one starts no bridge.
+        if pid := os.environ.get("CLAUDE_PID"):
+            from .bridge import ensure
+
+            ensure(int(pid))
         return
     if not sid:
         return

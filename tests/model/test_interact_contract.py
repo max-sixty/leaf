@@ -2819,7 +2819,7 @@ def test_a_work_seat_declaration_is_checked_whole(page_dir, mutate, message):
         (_report_authored_detail, "registry extensions are invalid"),
         # `overruled` is how a version keeps its state over a report; without it
         # every contradiction is unpublishable.
-        (_report_without_overruled, "not the boolean `overruled`"),
+        (_report_without_overruled, "no boolean `overruled` attribute"),
         # Reports replay through renderState, so the widget must upgrade.
         (_report_without_upgrade, "declares x-state"),
         # Only an agent verb declares `text`.
@@ -5865,3 +5865,240 @@ def test_state_definition_identity_ignores_only_annotations(case):
         for key in ("before", "after")
     ]
     assert same_state_definition(*definitions) is case["same"]
+
+
+def _independent_member_records():
+    """An unfamiliar package composes selection, positions and scalar member state."""
+    registry = deepcopy(model_layer())
+    for tag in ("lf-audit-board", "lf-audit-zone", "lf-audit-card"):
+        registry[tag] = element_declaration(tag, upgrade=True)
+        registry[tag]["properties"]["restated"] = {"type": "boolean"}
+        registry[tag].pop("x-example", None)
+    board, zone, card = (
+        registry[tag] for tag in ("lf-audit-board", "lf-audit-zone", "lf-audit-card")
+    )
+    board["x-content"] = "members"
+    board["x-state"] = {
+        "move": {
+            "unit": "unit",
+            "record": {"kind": "position", "within": "lf-audit-zone"},
+        }
+    }
+    zone["x-owners"] = ["lf-audit-board"]
+    zone["x-content"] = "members"
+    zone["x-state"] = {
+        "choose": {
+            "unit": "widget",
+            "record": {"kind": "attribute", "attr": "selected"},
+        },
+    }
+    card["x-owners"] = ["lf-audit-zone"]
+    card["properties"].update(selected={"type": "boolean"}, phase={"type": "string"})
+    card["x-state"] = {
+        "phase": {"unit": "widget", "record": {"kind": "value", "attr": "phase"}}
+    }
+    registry_validation.validate_registry(registry, "independent member records")
+    markup = """<lf-audit-board id="outer">
+<lf-audit-zone id="one"><lf-audit-card id="card" selected phase="idle">
+<lf-audit-board id="inner"><lf-audit-zone id="inner-zone">
+<lf-audit-card id="inner-card" selected phase="idle">Inner</lf-audit-card>
+</lf-audit-zone></lf-audit-board></lf-audit-card></lf-audit-zone>
+<lf-audit-zone id="two"></lf-audit-zone></lf-audit-board>"""
+    return ModelPage(markup, registry=registry)
+
+
+def test_member_records_compose_without_claiming_each_others_state(tmp_path):
+    from leaf.construction import constructed_content
+    from leaf.projection import page_reading
+
+    page = _independent_member_records()
+    reading = page.reading(1, page.registry(1))
+    commands = [
+        {
+            "kind": "action",
+            "widget": "one",
+            "action": "choose",
+            "detail": {"value": ["card"]},
+        },
+        {
+            "kind": "action",
+            "widget": "card",
+            "action": "phase",
+            "detail": {"value": "running"},
+        },
+        {
+            "kind": "action",
+            "widget": "outer",
+            "action": "move",
+            "detail": {"unit": "card", "value": "two", "rank": "1"},
+        },
+    ]
+
+    def card_attributes(commands):
+        events = model.served_reading(
+            reading.document.html, commands, registry=reading.registry
+        )["events"]
+        pending = constructed_content(
+            reading.document,
+            page_reading(reading, events, 1).projection,
+            reading.spoken,
+            reading.registry,
+            {"sources": {}},
+            tmp_path,
+            retired=set(),
+            thread="thread",
+        )
+        while pending:
+            node = pending.pop()
+            if isinstance(node, dict):
+                if node["attrs"].get("id") == "card":
+                    return node["attrs"]
+                pending.extend(node["content"])
+        pytest.fail("The moved card disappeared")
+
+    # The destination's unchanged empty selection clears the incoming member;
+    # its unrelated scalar state survives both moving and undoing the move.
+    assert card_attributes(commands) == {"id": "card", "phase": "running"}
+    assert card_attributes([*commands, {"kind": "undo", "undoes": "e3"}]) == {
+        "id": "card",
+        "selected": "",
+        "phase": "running",
+    }
+    with pytest.raises(events_model.EventRefused) as refused:
+        card_attributes(
+            [
+                *commands,
+                {
+                    "kind": "action",
+                    "widget": "one",
+                    "action": "choose",
+                    "detail": {"value": ["card"]},
+                },
+            ]
+        )
+    assert refused_on(refused.value).code == "unknown-members"
+
+
+def test_nested_member_records_refuse_foreign_selection_and_position():
+    page = _independent_member_records()
+    for widget, action, detail in (
+        ("one", "choose", {"value": ["inner-card"]}),
+        ("outer", "move", {"unit": "inner-card", "value": "two", "rank": "1"}),
+        ("outer", "move", {"unit": "card", "value": "inner-zone", "rank": "1"}),
+    ):
+        with pytest.raises(events_model.EventRefused):
+            event_contracts_model.admitted_event(
+                page,
+                [],
+                {
+                    "kind": "action",
+                    "author": "user",
+                    "revision": 1,
+                    "widget": widget,
+                    "action": action,
+                    "detail": detail,
+                },
+            )
+
+
+def test_member_scalar_and_parent_selection_cannot_share_an_attribute():
+    from leaf.validation.instances import widget_errors
+
+    page = _independent_member_records()
+    registry = page.registry(1)
+    registry["lf-audit-zone"]["x-state"]["choose"]["record"]["attr"] = "phase"
+    registry_validation.validate_registry(registry, "reusable record declarations")
+    reading = page.reading(1, registry)
+    findings = widget_errors(reading.document.lf_elements, registry)
+    assert {finding.code for finding in findings} == {"member-record-slot"}
+
+    # These declarations are valid until a move changes their actual composition.
+    zone = registry["lf-audit-zone"]
+    zone.pop("x-state")
+    zone["x-owners"] = ["lf-audit-left", "lf-audit-right"]
+    for tag, attr in (("lf-audit-left", "selected"), ("lf-audit-right", "phase")):
+        holder = element_declaration(tag, upgrade=True)
+        holder["x-content"] = "members"
+        holder["x-owners"] = ["lf-audit-board"]
+        holder["properties"]["restated"] = {"type": "boolean"}
+        holder["x-state"] = {
+            "choose": {"unit": "widget", "record": {"kind": "attribute", "attr": attr}}
+        }
+        registry[tag] = holder
+    registry_validation.validate_registry(registry, "movable record compositions")
+    page = ModelPage(
+        '<lf-audit-board id="board"><lf-audit-left id="left">'
+        '<lf-audit-zone id="one"><lf-audit-card id="card" phase="idle">Card</lf-audit-card>'
+        '</lf-audit-zone></lf-audit-left><lf-audit-right id="right">'
+        '<lf-audit-zone id="two"></lf-audit-zone></lf-audit-right></lf-audit-board>',
+        registry=registry,
+    )
+    assert widget_errors(page.document(1).lf_elements, registry) == []
+    with pytest.raises(events_model.EventRefused) as refused:
+        model.reading(
+            page.document(1).html,
+            [
+                {
+                    "kind": "action",
+                    "widget": "board",
+                    "action": "move",
+                    "detail": {"unit": "card", "value": "two", "rank": "1"},
+                }
+            ],
+            registry=registry,
+        )
+    finding = refused_on(refused.value)
+    assert finding.code == "member-record-slot"
+    assert finding.values["owner"] == "right"
+
+
+def test_creates_targets_are_members_while_authored_widgets_keep_owner_capabilities():
+    registry = deepcopy(model_layer())
+    child = registry["lf-option"]
+    child.update({"x-upgrade": True, "x-shadow": True, "x-visual": "whole"})
+    registry_validation.validate_registry(registry, "presentation members")
+    child["properties"].update(phase={"type": "string"}, restated={"type": "boolean"})
+    child["x-state"] = {"phase": _value_verb("phase")}
+    with pytest.raises(registry_contract.RegistryError) as refused:
+        registry_validation.validate_registry(registry, "independent created owner")
+    assert refused.value.findings[0].code == "creates-semantic-owner"
+
+    del registry["lf-options"]["x-state"]["add"]
+    registry_validation.validate_registry(registry, "independent authored owner")
+
+
+def test_created_ids_cannot_collide_across_page_and_frozen_content():
+    markup = (
+        '<p id="reserved">Page</p><lf-options id="page-options" choose></lf-options>'
+    )
+    commands = [
+        {"kind": "comment", "text": "Pick a seed."},
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": "e1",
+            "text": "Seeds",
+            "markup": '<lf-options id="thread-options" choose></lf-options>',
+        },
+        {
+            "kind": "action",
+            "widget": "thread-options",
+            "action": "add",
+            "detail": {"option": "elm", "text": "Elm"},
+        },
+    ]
+    for widget, identity in (("page-options", "elm"), ("thread-options", "reserved")):
+        with pytest.raises(events_model.EventRefused) as refused:
+            model.reading(
+                markup,
+                [
+                    *commands,
+                    {
+                        "kind": "action",
+                        "widget": widget,
+                        "action": "add",
+                        "detail": {"option": identity, "text": "Duplicate"},
+                    },
+                ],
+            )
+        assert refused_on(refused.value).code == "created-exists"

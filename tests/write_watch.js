@@ -115,8 +115,11 @@
   const renderedChildren = (nodes) =>
     [...nodes].filter((node) => node.nodeType !== Node.COMMENT_NODE);
   const restored = (target, records, readings) => {
-    const frameRecords = new Set(records.filter((record) =>
-      [...record.removedNodes, ...record.addedNodes].some(hasFrame)));
+    const frameRecords = new Set(
+      records.filter((record) =>
+        [...record.removedNodes, ...record.addedNodes].some(hasFrame),
+      ),
+    );
     const ordinary = records.filter((record) => !frameRecords.has(record));
     if (!ordinary.some((record) => renderedChildren(record.removedNodes).length))
       return false;

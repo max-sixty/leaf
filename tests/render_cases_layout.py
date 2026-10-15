@@ -1409,9 +1409,22 @@ def accessible_documents(page):
     Parent-to-child messages warn on sandboxed frames with opaque origins. Running
     each exposed frame directly reads it without that cross-origin message path.
     """
-    for frame in page.frames:
-        if frame == page.main_frame or frame.frame_element().is_visible():
-            yield frame
+
+    def exposed(frame):
+        yield frame
+        for child in frame.child_frames:
+            element = child.frame_element()
+            if element.is_visible() and element.evaluate(
+                """element => {
+                  for (let current = element; current; current = current.getRootNode().host) {
+                    if (current.closest('[aria-hidden="true"], [inert]')) return false;
+                  }
+                  return true;
+                }"""
+            ):
+                yield from exposed(child)
+
+    yield from exposed(page.main_frame)
 
 
 # The element at an axe target's selector within one document: a list is a chain of

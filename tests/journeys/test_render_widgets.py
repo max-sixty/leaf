@@ -439,11 +439,8 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     reveal without moving the map or changing the item under the pointer. The same
     links remain an ordinary open outline where the margin posture is unavailable.
 
-    The map runs to the window's foot, so the shortcut bar stands over the last section it
-    names — always the last, the map being sized to the viewport rather than scrolled.
-    The line is a hover here and the map is not one of the regions that ends above it;
-    `lf-toc`'s own rule in the default theme carries that decision and its TODO. This
-    holds the map to the window so the cutoff cannot close a region at a time."""
+    The map fills the space between the banner and shortcut bar. Its rows keep the
+    last section in view while the document scrolls."""
     source = leaf_page(
         "contents map",
         """
@@ -509,15 +506,17 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
         "timing": "ease-out, ease-out",
     }
     nav_box = nav.bounding_box()
+    rows_box = nav.locator(".lf-toc-rows").bounding_box()
     toc_box = toc.bounding_box()
     banner_box = page.locator(".lf-banner").bounding_box()
     assert nav_box is not None
+    assert rows_box is not None
     assert toc_box is not None
     assert banner_box is not None
     assert 23 <= nav_box["x"] <= 25
-    assert 64 <= nav_box["y"] <= 68
+    assert nav_box["y"] == pytest.approx(banner_box["y"] + banner_box["height"], abs=1)
     assert nav_box["height"] >= 740, f"the reading map used only {nav_box['height']}px"
-    padding = toc.evaluate(
+    padding = nav.evaluate(
         "node => parseFloat(getComputedStyle(node).paddingBlockStart)"
     )
     assert toc_box["y"] == pytest.approx(banner_box["y"] + banner_box["height"], abs=1)
@@ -525,21 +524,22 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     assert toc_box["y"] + toc_box["height"] == pytest.approx(
         page.locator(".lf-shortcut-bar").bounding_box()["y"], abs=1
     )
-    assert nav_box["y"] == pytest.approx(toc_box["y"] + padding, abs=1)
+    assert nav_box["y"] == pytest.approx(toc_box["y"], abs=1)
     assert nav_box["y"] + nav_box["height"] == pytest.approx(
-        toc_box["y"] + toc_box["height"] - padding, abs=1
+        toc_box["y"] + toc_box["height"], abs=1
     )
+    assert rows_box["y"] == pytest.approx(nav_box["y"] + padding, abs=1)
 
     # At rest the map takes the pointer on its spine alone, so the words beside it stay
     # the page's; once entered, the whole map keeps the pointer across its labels and
     # the padding that keeps it clear of the banner.
-    page.mouse.move(nav_box["x"] + 100, nav_box["y"] + 20)
+    page.mouse.move(rows_box["x"] + 100, rows_box["y"] + 20)
     assert not toc.evaluate("node => node.matches(':hover')")
-    page.mouse.move(nav_box["x"] + 2, nav_box["y"] + 20, steps=4)
+    page.mouse.move(rows_box["x"] + 2, rows_box["y"] + 20, steps=4)
     assert toc.evaluate("node => node.matches(':hover')")
     expect(prepare).to_have_css("opacity", "1")
     expect(prepare).to_have_css("pointer-events", "auto")
-    page.mouse.move(nav_box["x"] + 100, nav_box["y"] - 8, steps=8)
+    page.mouse.move(nav_box["x"] + 100, rows_box["y"] - 8, steps=8)
     assert toc.evaluate("node => node.matches(':hover')")
     page.mouse.move(nav_box["x"] + 100, toc_box["y"] - 2)
     assert page.evaluate(

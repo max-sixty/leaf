@@ -1061,12 +1061,14 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     )
     assert geometry["sidebarPosition"] == "sticky"
     assert geometry["tocPosition"] == "fixed"
-    assert 64 <= geometry["tocTop"] <= 68
-    # The map ends above the bottom bar, as every region does: its foot is the window's
-    # less the band and the map's own inset, so the keyboard's line never covers its last
-    # entry.
-    assert abs(geometry["tocBottom"] - (geometry["lineTop"] - 24)) <= 1, (
-        f"the map's foot is not the band's top less its inset: {geometry}"
+    banner_box = page.locator(".lf-banner").bounding_box()
+    assert banner_box is not None
+    assert geometry["tocTop"] == pytest.approx(
+        banner_box["y"] + banner_box["height"], abs=1
+    )
+    # The map ends at the bottom bar, keeping its last entry in view.
+    assert abs(geometry["tocBottom"] - geometry["lineTop"]) <= 1, (
+        f"the map's foot is not at the band's top: {geometry}"
     )
     banner_control(page, ".lf-queue").click()
     expect(page.locator(".lf-queue-panel")).to_be_hidden()

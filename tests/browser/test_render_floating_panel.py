@@ -1732,7 +1732,7 @@ def test_asks_are_answered_where_they_are_read_on_me(browser, serve):
 def test_versions_travel_and_approval_open_in_the_panel(browser, serve):
     """Version travel opens the panel's Versions, whatever route asks for the versions
     menu: the leaf's menu, whose row names the key as keys, apart from its value, and
-    that key. It lists each version,
+    that key. It lists each version with its note,
     marks the one shown, travels to another, and holds the page's approval, which
     records the sign-off."""
     url = serve(SIGN_OFF)
@@ -1758,6 +1758,11 @@ def test_versions_travel_and_approval_open_in_the_panel(browser, serve):
     expect(page.locator("#lf-versions")).to_be_hidden()
     expect(view.locator(".lf-fp-version")).to_have_count(2)
     expect(view.locator(".lf-fp-version[data-current]")).to_contain_text("Showing")
+    # Each version says the note its stamp gave it after its name, whole on hover.
+    expect(view.locator(".lf-fp-note")).to_have_text(["two", "t"])
+    expect(view.locator(".lf-fp-version .lf-fp-item").first).to_have_attribute(
+        "title", "two"
+    )
     # The list is one stop for Tab, which the arrows walk through each version and its
     # Compare to the approval.
     stops = view.locator(".lf-fp-item:not(:disabled), .lf-fp-compare")

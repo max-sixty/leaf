@@ -1171,7 +1171,9 @@ export function createFloatingPanel({
   }
 
   // The versions the picker lists, the one shown marked, each a press that travels
-  // there, with Compare where the picker offers it; then the version's approval, where
+  // there and says the note its stamp gave it after its name, cut to the row and whole
+  // on hover, as the bars' picker shows it; with Compare where the picker offers it;
+  // then the version's approval, where
   // the page asks for one, with why a press would not approve yet.
   function versionsView() {
     const { rows: versions, picker, selection } = versionsReading();
@@ -1184,10 +1186,14 @@ export function createFloatingPanel({
         (entry) =>
           html`<div class="lf-fp-version" ?data-current=${entry.current}>
             ${menuItem(
-              entry.name,
+              html`${entry.name}${
+                entry.note
+                  ? html`<span class="lf-fp-note">${entry.note}</span>`
+                  : nothing
+              }`,
               entry.current ? html`<span class="lf-fp-value">Showing</span>` : nothing,
               () => putAwayThen(() => versionPicker.activate(entry)),
-              { role: null },
+              { role: null, title: entry.note },
             )}${
               entry.comparable
                 ? html`<button

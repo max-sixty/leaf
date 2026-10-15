@@ -912,6 +912,11 @@
   .lf-fp-version[data-current] .lf-fp-label {
     font-weight: 600;
   }
+  .lf-fp-note {
+    margin-inline-start: 8px;
+    color: var(--lf-fp-muted);
+    font-weight: 400;
+  }
   .lf-fp-compare {
     flex: none;
     font-size: 12px;

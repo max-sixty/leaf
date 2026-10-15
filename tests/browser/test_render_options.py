@@ -14,7 +14,6 @@ from interact_support import (
 )
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
-from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
@@ -2101,22 +2100,37 @@ def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve
 
 
 def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_path):
-    """A customization may deliberately give a container member a content seat.
-    The runtime's generated margin entry is still apparatus rather than that member's own
-    gesture: clicking status about an option must not choose the option."""
-    option = json.loads((schema_model.DEFAULT_PACKAGE / "registry.json").read_text())[
-        "lf-option"
-    ]
-    option["x-work"] = True
+    """A work-bearing block inside an option does not turn its margin entry into a pick."""
     layer = tmp_path / ".leaf"
     layer.mkdir()
-    (layer / "registry.json").write_text(json.dumps({"lf-option": option}))
+    (layer / "registry.json").write_text(
+        json.dumps(
+            {
+                "lf-work-point": {
+                    "description": "A block that can hold a local agent task.",
+                    "type": "object",
+                    "properties": {"id": {"type": "string"}},
+                    "required": ["id"],
+                    "additionalProperties": False,
+                    "x-content": "markup",
+                    "x-work": True,
+                    "x-upgrade": False,
+                }
+            }
+        )
+    )
+    page_source = ASK_PAGE.replace(
+        "Replace the <code>M8</code> mounts</lf-option>",
+        '<lf-work-point id="mount-work">Replace the <code>M8</code> mounts</lf-work-point></lf-option>',
+    )
 
-    page = open_page(browser, serve(ASK_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf")))
-    working(serve.page_dir, "checking the mount", subject="job-mounts")
+    page = open_page(
+        browser, serve(page_source, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
+    )
+    working(serve.page_dir, "checking the mount", subject="mount-work")
     told(page)
 
-    work_button = page.locator('[data-lf-margin-for="job-mounts"] > .lf-margin-marker')
+    work_button = page.locator('[data-lf-margin-for="mount-work"] > .lf-margin-marker')
     expect(work_button).to_have_attribute("data-lf-kinds", "activity")
     work_button.click()
 

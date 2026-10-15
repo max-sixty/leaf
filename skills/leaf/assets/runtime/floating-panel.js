@@ -61,7 +61,10 @@
  *
  * The leaf's menu is a small list above the leaf holding the rest of the page's
  * controls, each one line, with its key where it has one, and a chevron on a row that
- * opens a list of its own (Versions, and the groups: Navigate, Annotations, About). A
+ * opens a list of its own (Versions, and the groups: Navigate, Annotations, and About,
+ * which holds the rows that copy a text only where no clipboard is there to copy with;
+ * elsewhere each such row, the page's link and the Leaf version among them, is one press
+ * in the menu, as the user chose on 15 October over an About view of one line). A
  * keyboard's convenience for where the reader stands, such as Resume writing, stands
  * under Navigate only where no keyboard is there to reach it (banner-toolbar.js, the
  * `keys` group). The field the user clicks in is the field they write in: a page
@@ -258,15 +261,19 @@ export function createFloatingPanel({
   host.append(card, menu, badge, newsDot, peek);
   // The pointer's way to fold, which the user asked for as a minimize shown on hover: a
   // round button on the box's top-right corner, chosen over one at the row's end on 15
-  // October. The menu's row and `.` are the keyboard's and a finger's ways, so it takes
-  // no Tab stop of its own.
+  // October. It presses the fold command's own row, as the menu's row does; that row and
+  // `.` are the keyboard's and a finger's ways, so it takes no Tab stop of its own.
   const minimize = el("button", "lf-fp-minimize");
   minimize.type = "button";
   minimize.tabIndex = -1;
   minimize.title = "Fold to the leaf";
   minimize.setAttribute("aria-label", "Fold to the leaf");
   minimize.append(iconElement("subtract", "lf-fp-minimize-icon"));
-  minimize.addEventListener("click", () => setRest("mark"));
+  minimize.addEventListener("click", () =>
+    rows()
+      .find((entry) => entry.key === `command:${FOLD}`)
+      .press(null),
+  );
   host.append(minimize);
   // The row stands over the window's foot as the bottom bar did, so what the page
   // reveals stands clear of it. A view opened above it is itself read, and stands over
@@ -994,8 +1001,8 @@ export function createFloatingPanel({
     let copy = copyItems.get(entry.key);
     if (!copy) {
       copy = copyControl("lf-fp-copy-item", {
-        success: `${entry.label} copied`,
-        error: `${entry.label} not copied · select it to copy`,
+        success: `${capital(entry.label)} copied`,
+        error: `${capital(entry.label)} not copied · select it to copy`,
       });
       copy.addEventListener("wa-copy", () => putAwayThen(() => {}));
       copy.addEventListener("wa-error", () => {
@@ -1008,7 +1015,7 @@ export function createFloatingPanel({
     copy.disabled = entry.disabled;
     render(
       menuItem(
-        `Copy ${entry.label[0].toLowerCase()}${entry.label.slice(1)}`,
+        `Copy ${entry.label}`,
         html`<wa-icon library="system" name="copy" variant="regular"></wa-icon>`,
         () => {},
         {
@@ -1126,11 +1133,11 @@ export function createFloatingPanel({
         .map((entry) => (entry.copies ? copyRow(entry) : rowFor(entry)))}
     </div>`;
   }
-  // A row of a group whose press copies a text, such as the Leaf version, shows that text
-  // for the user to select as well, with Leaf's copy control beside it (copy-control.js),
-  // which shows on its own face whether the copy took. Where no clipboard is offered
-  // (`canCopy`) the control stands down and the text is there to select, as the page's
-  // link is, which joins About then (`groupOf`); the view stays open across a press, so the
+  // A row of a group whose press copies a text, which stands in About only where the
+  // clipboard is missing or refused (`groupOf`), shows that text for the user to select
+  // as well, with Leaf's copy control beside it (copy-control.js), which shows on its own
+  // face whether the copy took. Where no clipboard is offered (`canCopy`) the control
+  // stands down and the text is there to select; the view stays open across a press, so the
   // text is still there if the copy failed. Its value, which a one-line row would end
   // with, says beneath it what the text is. A text of several lines, such as a preview's
   // diagnostics, shows its first few, and selecting it takes the whole.
@@ -1141,8 +1148,8 @@ export function createFloatingPanel({
         entry.key,
         copyControl("lf-fp-copy-press", {
           label: `Copy ${entry.label}`,
-          success: `${entry.label} copied`,
-          error: `${entry.label} not copied · select it to copy`,
+          success: `${capital(entry.label)} copied`,
+          error: `${capital(entry.label)} not copied · select it to copy`,
         }),
       );
     const copy = copies.get(entry.key);
@@ -1154,7 +1161,7 @@ export function createFloatingPanel({
   function copyRow(entry) {
     const field = `lf-fp-copy-${entry.key}`;
     return html`<div class="lf-fp-copy">
-      <label class="lf-fp-copy-label" for=${field}>${entry.label}</label>
+      <label class="lf-fp-copy-label" for=${field}>${capital(entry.label)}</label>
       <textarea
         id=${field}
         class="lf-fp-copy-text"

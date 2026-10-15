@@ -625,31 +625,30 @@ def test_threads_is_as_tall_as_the_threads_it_first_shows(browser, serve):
     assert below < row, f"{below:.0f}px stand empty under the last thread"
 
 
-def test_about_s_rows_that_copy_say_what_they_copy(browser, serve):
-    """A row of About whose press copies, such as the Leaf version's diagnostics, shows
-    the text it copies beside Leaf's copy control, and names it. The control is the one
-    a code block wears, an icon named for what it copies, and a press copies the text
-    and says so."""
+def test_the_leaf_version_is_one_press_in_the_leaf_s_menu(browser, serve):
+    """The Leaf version is copied from a row of the leaf's menu itself, as the page's
+    link is: one press puts the menu away, copies the version's diagnostics and says so
+    in the field, and the row's hover name says which Leaf it is. With a clipboard there
+    is no About view, which held only those rows."""
     page = floating(browser, serve(LONG_PAGE))
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
     page.locator(".lf-fp-leaf").click()
-    page.locator(".lf-fp-menu .lf-fp-item", has_text="About this page").click()
-    version = page.locator(".lf-fp-copy", has_text="Leaf version")
-    text = version.locator(".lf-fp-copy-text")
-    expect(text).to_have_value(re.compile("^Leaf layer\n"))
-    copy = version.locator("wa-copy-button")
-    expect(copy).to_be_visible()
-    copy.get_by_role("button", name="Copy Leaf version").click()
+    menu = page.locator(".lf-fp-menu")
+    expect(menu.locator(".lf-fp-item", has_text="About this page")).to_have_count(0)
+    row = menu.get_by_role("menuitem", name="Copy Leaf version")
+    expect(row).to_have_attribute("title", re.compile("^Leaf "))
+    row.click()
+    expect(menu).to_be_hidden()
     expect(field(page)).to_have_attribute(
         "placeholder", re.compile("^Leaf version copied")
     )
-    assert page.evaluate("navigator.clipboard.readText()") == text.input_value()
+    assert page.evaluate("navigator.clipboard.readText()").startswith("Leaf layer\n")
 
 
 def test_copy_link_is_one_press_in_the_leaf_s_menu(browser, serve):
     """The page's link is copied from a row of the leaf's menu itself, in one press that
     puts the menu away and says in the field that the link was copied; its hover name
-    says what the link grants. About keeps the Leaf version and no longer the link."""
+    says what the link grants."""
     page = floating(browser, serve(LONG_PAGE))
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
     page.locator(".lf-fp-leaf").click()
@@ -661,12 +660,6 @@ def test_copy_link_is_one_press_in_the_leaf_s_menu(browser, serve):
     assert re.match(
         r"^http://.*[?&]t=", page.evaluate("navigator.clipboard.readText()")
     )
-
-    page.locator(".lf-fp-leaf").click()
-    page.locator(".lf-fp-menu .lf-fp-item", has_text="About this page").click()
-    about = page.locator(".lf-fp-view[data-view=group]")
-    expect(about.locator(".lf-fp-copy", has_text="Leaf version")).to_be_visible()
-    expect(about.get_by_label("Link", exact=True)).to_have_count(0)
 
 
 def test_a_refused_copy_leaves_the_link_to_select_in_about(browser, serve):
@@ -1685,9 +1678,16 @@ def test_a_pointer_folds_the_panel_from_its_corner(browser, serve):
     # It rides the corner: its centre sits on the box's top-right edge.
     assert abs(button["x"] + button["width"] / 2 - (card["x"] + card["width"])) <= 2
     assert abs(button["y"] + button["height"] / 2 - card["y"]) <= 2
+    # It presses the fold command, as the menu's row does, so the press is announced
+    # and logged like any other.
+    page.evaluate(
+        """() => document.addEventListener('lf-command-invoked',
+            ({detail}) => { window.invoked = detail.id }, {once: true})"""
+    )
     minimize.click()
     expect(page.locator(".lf-floating-panel")).to_have_attribute("data-rest", "mark")
     expect(minimize).to_be_hidden()
+    assert page.evaluate("window.invoked") == "panel.floating.fold"
 
 
 def test_asks_are_answered_where_they_are_read_on_me(browser, serve):
@@ -1932,7 +1932,7 @@ def test_the_leaf_s_menu_marks_what_opens_a_list_and_leaves_key_conveniences_out
     expect(page.locator(".lf-fp-quick button")).to_have_count(2)
     page.locator(".lf-fp-leaf").click()
     menu = page.locator(".lf-fp-menu")
-    for opens in ("Navigate", "Annotations", "About this page"):
+    for opens in ("Navigate", "Annotations"):
         expect(menu.locator(".lf-fp-item[data-opens]", has_text=opens)).to_have_count(1)
     expect(
         menu.locator(".lf-fp-item[data-opens]", has_text="Keyboard shortcuts")

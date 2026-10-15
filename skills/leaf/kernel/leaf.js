@@ -7090,7 +7090,7 @@ if (SHARE_ROOT) {
     rank: BANNER_CONTROL_RANK.share,
     // A presentation copies the link with its own copy control: a row of the page's own
     // menu with one press, or, where no clipboard is offered, beside the link to select.
-    row: { label: "Link", value: grants, copies: shareUrl, group: "page" }
+    row: { label: "link", value: grants, copies: shareUrl, group: "page" }
   });
 }
 var payloadAge = (provenance) => ago(provenance.committed ?? provenance.installed);
@@ -7150,10 +7150,10 @@ function renderPreview(state) {
       // What it copies is the diagnostics, which a presentation shows to select as
       // well; the line naming the preview says what they describe.
       row: {
-        label: "Preview diagnostics",
+        label: "preview diagnostics",
         value: () => previewLabel,
         copies: () => previewDiagnostics,
-        group: "about"
+        group: "page"
       }
     });
   }
@@ -7213,7 +7213,7 @@ function renderLayerReference(state) {
         label: "Leaf version",
         value: () => layerNamed,
         copies: () => layerDiagnostics,
-        group: "about"
+        group: "page"
       }
     });
   }
@@ -7269,9 +7269,9 @@ function renderSessionReference() {
       focusTarget: sessionReferenceElement,
       rank: BANNER_CONTROL_RANK.session,
       row: {
-        label: "Session reference",
+        label: "session reference",
         copies: () => runtime.sessionReference,
-        group: "about"
+        group: "page"
       }
     });
   }
@@ -7469,7 +7469,10 @@ function createFloatingPanel({
   minimize.title = "Fold to the leaf";
   minimize.setAttribute("aria-label", "Fold to the leaf");
   minimize.append(iconElement("subtract", "lf-fp-minimize-icon"));
-  minimize.addEventListener("click", () => setRest("mark"));
+  minimize.addEventListener(
+    "click",
+    () => rows2().find((entry) => entry.key === `command:${FOLD}`).press(null)
+  );
   host.append(minimize);
   declareWindowChrome(() => {
     const box = row.getBoundingClientRect();
@@ -7971,8 +7974,8 @@ function createFloatingPanel({
     let copy = copyItems.get(entry.key);
     if (!copy) {
       copy = copyControl("lf-fp-copy-item", {
-        success: `${entry.label} copied`,
-        error: `${entry.label} not copied \xB7 select it to copy`
+        success: `${capital(entry.label)} copied`,
+        error: `${capital(entry.label)} not copied \xB7 select it to copy`
       });
       copy.addEventListener("wa-copy", () => putAwayThen(() => {
       }));
@@ -7986,7 +7989,7 @@ function createFloatingPanel({
     copy.disabled = entry.disabled;
     render(
       menuItem(
-        `Copy ${entry.label[0].toLowerCase()}${entry.label.slice(1)}`,
+        `Copy ${entry.label}`,
         html`<wa-icon library="system" name="copy" variant="regular"></wa-icon>`,
         () => {
         },
@@ -8087,8 +8090,8 @@ function createFloatingPanel({
         entry.key,
         copyControl("lf-fp-copy-press", {
           label: `Copy ${entry.label}`,
-          success: `${entry.label} copied`,
-          error: `${entry.label} not copied \xB7 select it to copy`
+          success: `${capital(entry.label)} copied`,
+          error: `${capital(entry.label)} not copied \xB7 select it to copy`
         })
       );
     const copy = copies.get(entry.key);
@@ -8100,7 +8103,7 @@ function createFloatingPanel({
   function copyRow(entry) {
     const field2 = `lf-fp-copy-${entry.key}`;
     return html`<div class="lf-fp-copy">
-      <label class="lf-fp-copy-label" for=${field2}>${entry.label}</label>
+      <label class="lf-fp-copy-label" for=${field2}>${capital(entry.label)}</label>
       <textarea
         id=${field2}
         class="lf-fp-copy-text"

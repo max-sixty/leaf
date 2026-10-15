@@ -337,7 +337,6 @@ import {
   annotationMode,
   applicationPresenter,
   applicationState,
-  attachApplicationPresentation,
   documentChanged,
   layerRoot,
   offlineData,
@@ -6536,11 +6535,11 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
               dispose: () => message.retire()
             };
           } else {
-            let joined = false;
+            let joined2 = false;
             const { hint, accessibleName, sent } = item.options;
             const reply = createReplyView(item.key, commands.reply, {
               onChange: () => {
-                if (joined) void update().catch(() => {
+                if (joined2) void update().catch(() => {
                 });
               },
               editLast: rewritesOf(item.key).editLast,
@@ -6548,7 +6547,7 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
               accessibleName,
               sent
             });
-            joined = true;
+            joined2 = true;
             node.append(reply.node);
             view = { node, reply, dispose: reply.dispose };
           }
@@ -8217,27 +8216,14 @@ function askEnding(ask) {
 function acceptData(candidate, taken) {
   return applicationState.acceptData(candidate, taken);
 }
-var subscriptions = /* @__PURE__ */ new Set();
-var subscriptionSequence = 0;
-function readingIdentity(reading) {
-  return reading ? JSON.stringify([
-    reading.contract,
-    reading.revision ?? null,
-    reading.run ?? null,
-    reading.error ?? null,
-    Object.hasOwn(reading, "value")
-  ]) : null;
-}
+var joined = /* @__PURE__ */ new Set();
 async function notifyDataSubscribers() {
   const version = runtime.data.version;
   deliveries += 1;
   const round = {};
   for (const delivered of [...deliveryListeners]) delivered(round);
-  const current = [...subscriptions];
-  for (const subscription of current) subscription.notify();
-  const regions = current.map((subscription) => subscription.region);
   await whenApplicationRegionsPresented(
-    regions,
+    [...joined],
     () => runtime.data.version === version
   );
   if (version !== null && runtime.data.version === version)
@@ -8247,7 +8233,7 @@ var declaredInput = (element, input) => {
   const declaration = registry[element.localName]?.["x-data"]?.[input];
   if (!declaration)
     throw new Error(
-      `watchData(${element.localName}, ${input}) input is not declared by this widget`
+      `<${element.localName}> input ${input} is not declared by this widget`
     );
   return declaration;
 };
@@ -8312,102 +8298,8 @@ var deliveryListeners = /* @__PURE__ */ new Set();
 var stagedReadings = /* @__PURE__ */ new WeakSet();
 var stagesOnly = (reading) => stagedReadings.has(reading);
 function joinDataDelivery(region) {
-  const subscription = { region, notify() {
-  } };
-  subscriptions.add(subscription);
-  return () => subscriptions.delete(subscription);
-}
-function watchData(element, input, callback) {
-  const declaration = declaredInput(element, input);
-  const source = element.getAttribute(declaration.source);
-  const paint = readingPaint(element, callback);
-  const selectedSource = applicationState.select(
-    (root) => source && Object.hasOwn(root.data.sources, source) ? root.data.sources[source] : null
-  );
-  let completion = Promise.resolve();
-  const region = `data:${element.id}:${input}:${++subscriptionSequence}`;
-  let presentation = null;
-  const subscription = { region, notify: () => notifySelected() };
-  let stopSelection;
-  let pendingDelivery = null;
-  let stopped = false;
-  let stopLifetime = null;
-  function disconnect() {
-    subscriptions.delete(subscription);
-    stopSelection?.();
-    stopSelection = null;
-    pendingDelivery = null;
-    presentation?.disconnect();
-    presentation = null;
-  }
-  function stop() {
-    if (stopped) return;
-    stopped = true;
-    stopLifetime?.();
-    disconnect();
-    paint.stop();
-  }
-  const deliver = (snapshot, identity2) => {
-    if (paint.owes(identity2)) {
-      if (snapshot)
-        snapshot.origin = {
-          input,
-          source,
-          contract: declaration.contract,
-          revision: snapshot.revision
-        };
-      const rendering = paint(identity2, structuredClone(snapshot));
-      completion = Promise.resolve(rendering).catch(() => {
-      });
-    }
-    return completion;
-  };
-  const update = (sourceStore) => {
-    const identity2 = readingIdentity(sourceStore);
-    const incompatible = sourceStore && sourceStore.contract !== declaration.contract;
-    if (incompatible && paint.owes(identity2))
-      reportPageError(
-        `data source ${source} carries contract ${sourceStore.contract}; watchData(${element.localName}, ${input}) requires ${declaration.contract}`
-      );
-    if (incompatible || !source || !sourceStore || !Object.hasOwn(sourceStore, "value"))
-      return deliver(null, identity2);
-    return deliver({ source, ...sourceStore }, identity2);
-  };
-  const stage = (sourceStore) => {
-    const identity2 = readingIdentity(sourceStore);
-    if (!pendingDelivery && !paint.owes(identity2)) return;
-    pendingDelivery = { sourceStore, ticket: presentation.present(identity2) };
-  };
-  function notifySelected() {
-    const pending = pendingDelivery;
-    if (!pending) return;
-    pendingDelivery = null;
-    pending.ticket.resolve(update(pending.sourceStore));
-  }
-  function connect() {
-    if (stopped || stopSelection || !element.isConnected) return;
-    presentation = attachApplicationPresentation(region, element);
-    const mount = presentation;
-    let mounting = true;
-    stopSelection = selectedSource.subscribe((sourceStore) => {
-      if (mounting) {
-        const rendering = update(sourceStore);
-        if (!stopped) mount.present(readingIdentity(sourceStore)).resolve(rendering);
-        return rendering;
-      }
-      stage(sourceStore);
-    });
-    mounting = false;
-    if (stopped) {
-      stopSelection();
-      stopSelection = null;
-      return;
-    }
-    subscriptions.add(subscription);
-  }
-  stopLifetime = watchOwner(element, { connect, disconnect });
-  stop.refresh = paint.refresh;
-  return stop;
+  joined.add(region);
+  return () => joined.delete(region);
 }
 async function loadDeferred(manifest, key) {
   const { source, revision } = manifest;
@@ -8517,6 +8409,5 @@ export {
   dataReader,
   stagesOnly,
   joinDataDelivery,
-  watchData,
   loadDeferred
 };

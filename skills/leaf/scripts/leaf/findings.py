@@ -534,11 +534,11 @@ _TEXT = {
         " comment can anchor to"
     ),
     "render-threw": lambda at, v: (
-        f"{at} renderState threw when the complete state was rendered a second time:"
+        f"{at} render() threw when the complete state was rendered a second time:"
         f" {v['error']}"
     ),
     "relative-render": lambda at, v: (
-        f"{at} renderState is relative — rendering the same complete state changed"
+        f"{at} render() is relative — rendering the same complete state changed"
         f" {', '.join(v['changed'])}. Render the supplied values without stepping"
         " from the DOM."
     ),

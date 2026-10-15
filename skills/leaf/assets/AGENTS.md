@@ -307,7 +307,7 @@ the ordered list of this tab's unresolved work into the one state every componen
 | Fact | Authority |
 | --- | --- |
 | authored widget state | the validated source markup, captured before upgrade |
-| external data | the latest page data; `watchData` delivers each bound source |
+| external data | the latest page data; a widget reads each bound source through `this.data` (data.js) |
 | version shown | the revision the delivery prelude names; a newer revision with the same executable identity patches in place, and a different one loads a fresh document |
 | accepted history | the server's event log and its `/api/state` answer, which the publisher adopts whole |
 | unresolved browser work | the publisher's one ordered list |

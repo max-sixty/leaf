@@ -17,9 +17,10 @@
    own. A move claims that region synchronously, inside the publication that made it,
    and the next update that draws settles the claim once all of it, `updated` included,
    has run; a claim no update can draw yet stays open until one does. An update that
-   throws anywhere settles it with the fail-soft box, which stands at the head of the
-   render root beside what the element drew, since a render may paint retained nodes no
-   later draw would make again; the next update that draws takes the box away. One no
+   throws anywhere settles it with the fail-soft box, which stands at the end of the
+   render root after what the element drew, since a render may paint retained nodes no
+   later draw would make again and nothing drawn moves for it; the next update that
+   draws takes the box away. One no
    claim waits on, such as a mechanical redraw, reports and shows its failure the same
    way, and so does a failed preparation (`present()`) or a module's own
    `failSoft(this, …)`. A `setup()` that throws shows its failure, and the element draws
@@ -29,16 +30,17 @@
    before the layer marks it retired.
 
    Its readers are followed while it stands (`watchOwner`, arrivals.js), and it draws
-   nothing while away, so a draw queued as it left is owed to its return; a return draws
-   again only where that is owed or something it read moved meanwhile, and claims its
-   region either way, so a returning widget never leaves its epoch waiting. A widget
-   whose reading lacks a declared verb, as at startup before the log is read, draws
-   nothing until it has them all; its claim settles with nothing drawn. While its
-   controller's `defer()` holds it, its claim stays open; the release draws the newest
-   reading at once, changed or not, since the gesture may have rewritten its nodes. An
-   element whose tag declares `x-data` holds the page's data version while it stands,
-   until it has drawn what was delivered, and any drawing that draw held it for
-   (`drawing()`), such as highlighting or a loading frame, has landed.
+   nothing while away, so a draw queued as it left, or one whose drawing had not landed,
+   is owed to its return; a return draws again only where that is owed or something it
+   read moved meanwhile, and claims its region either way, so a returning widget never
+   leaves its epoch waiting. A widget whose reading lacks a declared verb, as a revision's
+   replacement does before its document is adopted, draws nothing until it has them all
+   (before the first state read, the authored state supplies every verb); its claim
+   settles with nothing drawn. While its controller's `defer()` holds it, its claim stays
+   open; the release draws the newest reading at once, changed or not, since the gesture
+   may have rewritten its nodes. An element whose tag declares `x-data` holds the page's data
+   version while it stands, until it has drawn what was delivered, and any drawing that
+   draw held it for (`drawing()`), such as highlighting or a loading frame, has landed.
    `setup()` runs once, on the first connection, before the first render. */
 import {
   LitElement,
@@ -93,6 +95,9 @@ export class LeafElement extends LitElement {
   #drawing = null;
   // The drawing that follows the update under way, which its claim waits for.
   #work = null;
+  // The last update's drawing until it lands, which a later update replaces; a departure
+  // before then owes a draw.
+  #unfinished = null;
   #data = new Map();
   #leaveData = null;
   #scheduled = null;
@@ -139,9 +144,13 @@ export class LeafElement extends LitElement {
       // A widget showing a shadow stage over its host shows the box as that stage,
       // which its next stage replaces, as any shadow widget does.
       if (root === this && this.shadowRoot) return false;
+      // The same failure again leaves the box that already says it.
+      if (this.#box?.parentNode === root && this.#box.textContent === box.textContent)
+        return true;
       this.#box?.remove();
       this.#box = box;
-      root.prepend(box);
+      // After what the element drew, so nothing it drew moves for the box.
+      root.append(box);
       return true;
     });
     try {
@@ -177,7 +186,7 @@ export class LeafElement extends LitElement {
     return this.#controller;
   }
 
-  /** The bound source of a declared `x-data` input, as `watchData` delivers it. */
+  /** The bound source of a declared `x-data` input, one copy a delivery (data.js). */
   data(input) {
     let read = this.#data.get(input);
     if (!read) this.#data.set(input, (read = dataReader(this, input)));
@@ -256,6 +265,13 @@ export class LeafElement extends LitElement {
         if (outer) outerWork = outerWork ? Promise.all([outerWork, work]) : work;
         else if (this.#region) this.#drawing = this.#claim();
       }
+      this.#unfinished = work;
+      if (work) {
+        const landed = () => {
+          if (this.#unfinished === work) this.#unfinished = null;
+        };
+        work.then(landed, landed);
+      }
       this.#drawing?.resolve(work ?? undefined);
     } catch (error) {
       if (outer && !this.#drawing) throw error;
@@ -271,7 +287,12 @@ export class LeafElement extends LitElement {
    *  claims the region for it. The widget's presentation, and the data version a
    *  delivery it draws holds, wait for it. Call it from `render()` or `updated()`. */
   drawing(work) {
-    this.#work = this.#work ? Promise.all([this.#work, work]) : work;
+    // A failure names the widget; the claim it rejects reports nothing again.
+    const named = Promise.resolve(work).catch((error) => {
+      reportFailure(this, error);
+      throw error;
+    });
+    this.#work = this.#work ? Promise.all([this.#work, named]) : named;
   }
 
   /** The render drawn again at once, outside any claim and Lit's own schedule, with a
@@ -383,6 +404,8 @@ export class LeafElement extends LitElement {
 
   #disconnect() {
     this.#connected = false;
+    // A drawing the departure cut short is drawn again on return.
+    if (this.#unfinished) this.#owed = true;
     this.#follow();
     this.#leaveData?.();
     this.#leaveData = null;

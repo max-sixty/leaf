@@ -144,20 +144,17 @@ def starter_element_declaration(tag: str) -> dict:
 
 
 def starter_widget_module(tag: str) -> bytes:
-    """The registration and one-shot upgrade shared by behavioral widgets.
+    """The registration shared by behavioral widgets: a `LeafElement`
+    (module-authoring.md, "Drawing what a widget reads").
 
     The layer paints what the declaration alone determines, settlement included, with
-    no help from the module. A module that adds a `renderState` subscribes to its
-    `widgetController`, which is what calls it."""
+    no help from the module. A module that draws state adds `render()`, which reads
+    `this.state` and is drawn again whenever it changes."""
     return (
-        'import { once } from "/runtime/widget-api.js";\n\n'
+        'import { LeafElement } from "/runtime/widget-api.js";\n\n'
         "customElements.define(\n"
         f'  "{tag}",\n'
-        "  class extends HTMLElement {\n"
-        "    connectedCallback() {\n"
-        "      if (!once(this)) return;\n"
-        "    }\n"
-        "  },\n"
+        "  class extends LeafElement {},\n"
         ");\n"
     ).encode()
 

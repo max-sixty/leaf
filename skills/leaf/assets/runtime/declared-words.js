@@ -18,7 +18,7 @@
      neither names a tag.
    - the internal validation adapter exposes replay winners to the render gate,
      the panel's own folds included: a widget an agent sent folds the way a page widget
-     does and the poll replays it the same way, so the premise that every `renderState`
+     does and the poll replays it the same way, so the premise that every widget's `render()`
      is absolute binds it too.
 
    A module owns only its choreography and semantics that no declaration can express. For

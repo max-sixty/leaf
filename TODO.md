@@ -638,10 +638,18 @@ Revisit these when their stated trigger becomes real; they are not an active que
   (`signal-polyfill`). Were the publication and those readings TC39 signals,
   `SignalWatcher` would draw again on a read's move, and the base class would keep
   only Leaf's rules: the presentation claim, `defer()`, drawing nothing while away,
-  and data delivery. Settle first that `SignalWatcher` schedules its own updates
-  outside the coordinator's ordered pass (`notes/browser-reactivity.md`, "LitElement
-  and microtask updates"), and that TC39 signals are still a proposal. Trigger: every
-  widget draws as a `LeafElement`, so the change lands in one class.
+  and data delivery. Every widget draws as a `LeafElement` now, so the change would
+  land in one class, but assessed on 2026-10-14 it is no simplification yet. Ordering
+  no longer stands in the way: `LeafElement.scheduleUpdate` puts every update in the
+  parent-ordered widget queue (`queueWidgetUpdate`), `SignalWatcher`'s included. What
+  does: a move must claim the widget's region inside the publication that made it,
+  which `SignalWatcher`'s watcher gives no hook for, so the base class would keep a
+  watcher of its own; and `collectReads` and `outsideReading` (`snapshot.ts`) also
+  drive `watchProjection` and version paints, so adopting TC39 signals means moving
+  the publication itself (`snapshot.ts`, `presentation.ts`, and the runtime modules
+  importing `signal`/`effect`) off Preact signals, to save the fifteen lines of
+  `#follow`. TC39 signals are also still a proposal. Trigger: the proposal reaches a
+  stage browsers ship, or Lit's signal integration exposes the notify a claim needs.
 - **Consider moving the before/after reading out of the core.** How
   `runtime/image-difference.js` reads a pair (blocks, moves, outlines) is
   experimental and about 500 lines in the core runtime, consumed by `lf-shot`,

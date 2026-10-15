@@ -260,7 +260,7 @@
 /* Prepaint chooses the same recording as the upgraded workspace. Without an
  * interactive runtime, every labeled recording remains available in page flow. */
 @scope (html[data-lf-interactive] :scope) {
-  :scope:is(lf-trace-compare):not(:defined):has(lf-trace) {
+  :scope:is(lf-trace-compare):not(:defined) {
     &::before { content: ""; display: block; block-size: calc(var(--lf-trace-control-size) + 2 * var(--sp-1)); margin-block-end: var(--sp-2); }
     & > :is(lf-trace, :has(lf-trace)):not([data-lf-opening]) { display: none; }
   }

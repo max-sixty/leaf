@@ -197,8 +197,8 @@
     }
   },
   "lf-visual-review": {
-    "description": "A guided review of a typed visual run, with before-and-after evidence and recorded case dispositions.",
-    "x-instructions": "Author an empty element with a stable id and bind source to the visual run. Supply focus rectangles when a case should open on its changed area; keep case identities tied to the run rather than the user's temporary inspection choices.",
+    "description": "A guided review of a visual run, with before-and-after captures and the user's verdict on each case.",
+    "x-instructions": "Write it empty with a stable id, and bind `source` to the visual run. To open a case on its changed area, give it a `focus` rectangle in the run. Tie each case's id to the run, not to the user's inspection choices.",
     "type": "object",
     "properties": {
       "id": {

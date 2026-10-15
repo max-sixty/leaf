@@ -1,6 +1,6 @@
-Select `--package file-editor` when the reader should edit a UTF-8 file on the
-machine serving the page. Bind each file explicitly; the browser receives a label
-and contents, never its absolute path.
+Use `--package file-editor` when the reader should edit a UTF-8 file on the machine
+serving the page. Bind each file explicitly; the browser receives the file's name and
+contents, never its absolute path.
 
 ```bash
 leaf page init --package file-editor PAGE
@@ -11,19 +11,16 @@ leaf file bind PAGE notes ./research-notes.md
 <lf-file-editor id="notes-file" binding="notes"></lf-file-editor>
 ```
 
-Tell the reader that edits save automatically. Keep the surrounding page quiet:
-the editor already saves, follows clean external updates, and preserves a draft
-when a save fails or another writer changes the file. A delayed save, a failed
-save and a conflict each say so in the editor's own status line, which offers
-Retry or the conflict's choices; both versions open for comparison on request.
-Markdown filenames receive Markdown highlighting; other UTF-8 files remain
-plain text. CodeMirror supplies editing, history, selection and bracket behavior.
+Tell the reader that edits save automatically, and say nothing more about saving. The
+editor saves as the reader types, keeps their draft when a save fails or another
+program changes the file, and reports each problem in its own status line with the
+choices that resolve it.
 
-File edits change the bound file, outside Leaf's action history. A reader's Undo
-inside the editor changes its buffer and saves that change normally. Keep files
-that the reader should not alter as `lf-code` evidence instead.
+Edits change the file itself, outside Leaf's action history, and Undo in the editor is
+an ordinary edit that saves too. Show a file the reader should not change with `lf-code`
+instead.
 
-Bindings belong to the local page server. A copied or exported page without that
-binding cannot edit the original file and explains that it is unavailable.
-Stamped revisions are read only. Use `lf-code` with the exact source when a
-portable snapshot is what the reader needs.
+A binding belongs to the page server that made it, so a copied or exported page can't
+edit the file and shows the editor as unavailable, and a stamped revision is read-only.
+Use `lf-code` with the exact source when the reader needs a copy that travels with the
+page.

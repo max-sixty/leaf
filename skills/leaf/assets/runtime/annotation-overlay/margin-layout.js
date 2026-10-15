@@ -29,7 +29,11 @@
    beside the target, or to the target itself, so the browser carries it through those
    scrolls and offsets too (`carrierFor`); and a bounded region's lane is a frame
    anchored to the region's scroller and cut at its edge, inside one such frame for each
-   scroller around it. Remeasuring after a scroll writes the same insets.
+   scroller around it. A row passes under the sticky headers and footers a page declares
+   over its target, as the target's words do: its carrier stands in frames cut where
+   they stand (css-anchors.js, `headerLevels`), one run of them for each run of rows
+   the same headers cut, so a pin whose target scrolls under a stuck toolbar takes none
+   of the toolbar's presses. Remeasuring after a scroll writes the same insets.
    Layout owners announce same-size view rearrangements with `lf-layout`; resize
    observation covers the target's layout siblings and ancestors, including a bounded
    region whose outer height stayed fixed. Geometric reflow, rather than scroll, is what
@@ -95,6 +99,7 @@ import {
   anchorReading,
   carriedAnchor,
   cutFrames,
+  headerLevels,
   nameAnchor,
   scrollsWith,
 } from "../css-anchors.js";
@@ -159,12 +164,16 @@ let layer = null;
 // the document scrolls sideways only by script (`overflow-x: hidden`, theme.css), and
 // the pass that scroll brings places it again.
 // A carrier holds one run of consecutive rows, so rows keep document order across
-// carriers; a second run on the same anchor takes a second carrier.
-const carriers = new Map();
+// carriers; a second run on the same anchor takes a second carrier. Carriers are kept
+// by what holds them, a lane or the frames a header cuts, so a row never takes over a
+// carrier another holder's withheld row keeps.
+const carriers = new Map(); // holder → anchor → its carriers by axes
 const carrierAxes = new WeakMap();
-function carrierFor(anchor, axes, run) {
-  let held = carriers.get(anchor);
-  if (!held) carriers.set(anchor, (held = { xy: [], y: [] }));
+function carrierFor(holder, anchor, axes, run) {
+  let byAnchor = carriers.get(holder);
+  if (!byAnchor) carriers.set(holder, (byAnchor = new Map()));
+  let held = byAnchor.get(anchor);
+  if (!held) byAnchor.set(anchor, (held = { xy: [], y: [] }));
   if (!held[axes][run]) {
     const carrier = document.createElement("div");
     carrier.className = "lf-ui lf-margin-carrier";
@@ -174,6 +183,38 @@ function carrierFor(anchor, axes, run) {
   return held[axes][run];
 }
 const isCarrier = (node) => node?.classList.contains("lf-margin-carrier");
+// Each run of rows the same headers cut stands in one chain of frames cut where those
+// headers stand (`headerLevels`), keyed by the lane and the cuts, its innermost frame
+// holding the run's carriers.
+const ids = new WeakMap();
+let idCount = 0;
+const idOf = (node) => ids.get(node) ?? (ids.set(node, ++idCount), idCount);
+const cutFramesByKey = new Map(); // lane id + cut key → innermost frame of each run
+const chains = new WeakMap(); // innermost frame → its chain, outermost first
+const outerFrame = new WeakMap(); // innermost frame → outermost
+const makeCutFrame = () => {
+  const frame = document.createElement("div");
+  frame.className = "lf-margin-cut";
+  return frame;
+};
+function cutRun(lane, read, run) {
+  const key = `${idOf(lane)}|${read.cutKey}`;
+  let held = cutFramesByKey.get(key);
+  if (!held) cutFramesByKey.set(key, (held = []));
+  const chain = cutFrames(read.cuts, chains.get(held[run]) ?? [], makeCutFrame);
+  const inner = chain.at(-1);
+  if (held[run] && held[run] !== inner) chains.delete(held[run]);
+  held[run] = inner;
+  chains.set(inner, chain);
+  outerFrame.set(inner, chain[0]);
+  return inner;
+}
+// The lane a box of the margin stands in: itself, or the lane holding its frames.
+const laneOf = (box) => {
+  for (let at = box; at; at = at.parentElement)
+    if (at === layer.root || at.classList.contains("lf-margin-lane")) return at;
+  return layer.root;
+};
 // The page's sideways scroll as the last pass placed rows.
 let laidOutScrollX = 0;
 // Where the scroll reading finds a row standing, as offsets from its target's shown
@@ -947,7 +988,9 @@ function scheduleScrollReading() {
     if (
       boxes.includes(pageScroller) &&
       scrollX !== laidOutScrollX &&
-      [...carriers.values()].some((held) => held.y.length)
+      [...carriers.values()].some((byAnchor) =>
+        [...byAnchor.values()].some((held) => held.y.length),
+      )
     ) {
       scheduleMarginLayout();
       return;
@@ -1045,6 +1088,7 @@ export function layoutMarginRows() {
     }
   }
   const carrierNames = new Map();
+  const cutClips = new Map();
   for (const [row, options] of rows) {
     const target = options.anchor();
     if (!target?.isConnected) {
@@ -1061,10 +1105,12 @@ export function layoutMarginRows() {
     if (skipped(target)) {
       present.push({ row, at: null });
       const home = row.parentElement ?? layer.root;
+      const container = isCarrier(home) ? home.parentElement : home;
       reads.push({
         row,
         options,
-        lane: isCarrier(home) ? home.parentElement : home,
+        lane: laneOf(container),
+        container,
         home,
         shown: false,
       });
@@ -1209,6 +1255,18 @@ export function layoutMarginRows() {
     if (!read.target) continue;
     const subject = read.point ?? read.target;
     read.carrier = carrierAnchor(subject, scrollSources(subject), read.scroller);
+    // The headers over the target cut its row, in frames the document's own scroll
+    // does not carry, so a row they cut stands in a carrier the document's scroll does.
+    read.cuts = headerLevels(subject, cutClips);
+    read.cutKey = read.cuts
+      .map(({ anchor, band, at }) =>
+        anchor
+          ? `${idOf(anchor)}:${band.top - at.top}:${band.bottom - at.top}`
+          : `window:${band.top}:${band.bottom}`,
+      )
+      .join("|");
+    if (read.cuts.length)
+      read.carrier ??= carriedAnchor(pageScroller) ?? anchorElement(targetBox(subject));
     read.carrierBox = read.carrier?.getBoundingClientRect();
     read.lane = read.scroller === pageScroller ? layer.root : null;
     if (read.carrier && !carrierNames.has(read.carrier))
@@ -1275,7 +1333,6 @@ export function layoutMarginRows() {
   for (const [scroller, lane] of layer.lanes) {
     const levels = regions.get(scroller);
     if (!levels) continue;
-    for (const { reading } of levels) nameAnchor(reading);
     const hidden = { left: 0, top: 0, right: 0, bottom: 0 };
     laneFrames.set(
       lane,
@@ -1294,35 +1351,66 @@ export function layoutMarginRows() {
         move(lastLane.parentNode, root, lastLane.nextSibling);
       lastLane = root;
     }
-    // Each home's next place: the lane's own, and each carrier's, which stands in the
-    // lane where its run of rows comes.
+    // Each home's next place: the lane's own, each run of header frames', which stands
+    // in the lane where its run of rows comes, and each carrier's, which stands in the
+    // lane or those frames where its run comes.
     const cursors = new Map([[lane, lane.firstElementChild]]);
     const runs = new Map();
+    const cutRuns = new Map();
+    // A withheld row keeps its carrier and frames where they stand, so a shown row
+    // allocating a run takes the next one they leave free, keeping document order.
+    const kept = new Set(
+      members
+        .filter((read) => !read.target)
+        .flatMap(({ home, container }) => [home, container])
+        .filter(Boolean),
+    );
     let previous = null;
     for (const read of members) {
       const { row } = read;
       if (read.target) {
+        if (!read.cutKey) read.container = lane;
+        else if (previous?.cutKey === read.cutKey && previous.container !== lane)
+          read.container = previous.container;
+        else {
+          const held = cutFramesByKey.get(`${idOf(lane)}|${read.cutKey}`) ?? [];
+          let run = cutRuns.get(read.cutKey) ?? 0;
+          while (kept.has(held[run])) run += 1;
+          cutRuns.set(read.cutKey, run + 1);
+          read.container = cutRun(lane, read, run);
+        }
         const axes = read.place === "rail" ? "y" : "xy";
         if (!read.carrier) read.home = lane;
-        else if (previous?.carrier === read.carrier && previous.axes === axes)
+        else if (
+          previous?.carrier === read.carrier &&
+          previous.axes === axes &&
+          previous.container === read.container
+        )
           read.home = previous.home;
         else {
-          const key = carrierFor(read.carrier, axes, 0);
-          const run = runs.get(key) ?? 0;
+          const key = carrierFor(read.container, read.carrier, axes, 0);
+          let run = runs.get(key) ?? 0;
+          while (kept.has(carrierFor(read.container, read.carrier, axes, run)))
+            run += 1;
           runs.set(key, run + 1);
-          read.home = carrierFor(read.carrier, axes, run);
+          read.home = carrierFor(read.container, read.carrier, axes, run);
         }
         read.axes = axes;
       }
       previous = read;
+      const container = read.container ?? lane;
       const home = read.home ?? lane;
-      if (home !== lane && !cursors.has(home)) {
-        let at = cursors.get(lane);
-        if (at && at.parentElement !== lane) at = null;
-        if (at === home) cursors.set(lane, home.nextElementSibling);
-        else move(lane, home, at);
-        cursors.set(home, home.firstElementChild);
-      }
+      // Each box takes its place in the one holding it at that box's cursor.
+      const seat = (holder, box, outer = box) => {
+        if (cursors.has(box)) return;
+        let at = cursors.get(holder);
+        if (at && at.parentElement !== holder) at = null;
+        if (at === outer) cursors.set(holder, outer.nextElementSibling);
+        else move(holder, outer, at);
+        cursors.set(box, box.firstElementChild);
+      };
+      if (container !== lane) seat(lane, container, outerFrame.get(container));
+      if (home !== container) seat(container, home);
       let before = cursors.get(home);
       // A row this pass moved to another home no longer marks a place in this one.
       if (before && before.parentElement !== home) before = null;
@@ -1334,14 +1422,28 @@ export function layoutMarginRows() {
       cursors.set(home, before);
     }
   }
-  for (const [anchor, held] of carriers) {
-    for (const axes of ["xy", "y"])
-      held[axes] = held[axes].filter((carrier) => {
-        if (carrier.isConnected && carrier.childElementCount) return true;
-        carrier.remove();
-        return false;
-      });
-    if (!held.xy.length && !held.y.length) carriers.delete(anchor);
+  for (const [holder, byAnchor] of carriers) {
+    for (const [anchor, held] of byAnchor) {
+      for (const axes of ["xy", "y"])
+        held[axes] = held[axes].filter((carrier) => {
+          if (carrier.isConnected && carrier.childElementCount) return true;
+          carrier.remove();
+          return false;
+        });
+      if (!held.xy.length && !held.y.length) byAnchor.delete(anchor);
+    }
+    if (!byAnchor.size) carriers.delete(holder);
+  }
+  for (const [key, held] of cutFramesByKey) {
+    const kept = held.filter((inner) => inner.isConnected && inner.childElementCount);
+    for (const inner of held)
+      if (!kept.includes(inner)) {
+        outerFrame.get(inner)?.remove();
+        outerFrame.delete(inner);
+        chains.delete(inner);
+      }
+    if (kept.length) cutFramesByKey.set(key, kept);
+    else cutFramesByKey.delete(key);
   }
   for (const [scroller, lane] of layer.lanes)
     if (!byLane.has(lane)) {

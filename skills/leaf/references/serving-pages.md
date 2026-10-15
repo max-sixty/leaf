@@ -1,8 +1,8 @@
 # Serving pages
 
-Serve and hand over by the selected harness contract. Use this reference for
-export, address changes, re-vendoring, and resuming a page. Keep the exact keyed
-URL returned by `leaf server start`.
+Serve and hand over a page as your harness's reference says, keeping the exact keyed
+URL `leaf server start` prints. This reference covers export, changing the address,
+re-vendoring and resuming a page.
 
 ## Exported files
 
@@ -14,147 +14,114 @@ run:
 leaf page export <page> -o <file>
 ```
 
-Hand back the `file://` URL. Do not start a server or wait. The file opens
-offline and runs the page's own runtime against the captured revision and its
-state: widgets, local controls, and page-owned computation work as served. Embedded
-images, fonts, and recordings need JavaScript; with scripts disabled, the file keeps
-authored text, layout, and image alt text and explains the unavailable graphics. No host
-stands behind it, so threads and any action that needs an agent or server are
-unavailable. A page that declares a live sample needs a server and
-cannot be exported. Write the file where the project keeps user-facing artifacts.
-A live page can be exported without ending its loop. Exports omit the links to
-neighboring live Leaf pages and their server access keys.
+Hand back the `file://` URL; don't start a server or wait. The file opens offline, and
+its widgets, controls and page code work, but threads and anything that needs the agent
+don't. A page with a live sample can't be exported. Write the file where the project
+keeps files for the user. Exporting a live page doesn't end its loop.
 
 ## Address and authentication
 
-By default Leaf serves on the address the session arrived through: the SSH
-destination for an SSH session, otherwise loopback. Preserve the exact URL from
-`server start`; its key is required for the document, assets, state reads, and
-event writes. The browser stores the key in a cookie. The key is machine-wide,
-so sharing one page URL grants access to every Leaf page on that machine.
+By default Leaf serves on the address the session arrived through: the SSH destination
+for an SSH session, otherwise loopback. The document, its files and its events all need
+the URL's key, which the browser keeps in a cookie. One key covers every page on the
+machine, so sharing one page's URL gives access to all of them. Leaf opens no public
+tunnel; binding beyond loopback exposes the port to that network.
 
-Leaf serves only on networks the machine already joins and creates no public
-tunnel. Binding beyond loopback exposes the port to that network.
-
-The OS chooses a page's first port. Leaf retains its host and port in
-`<page>/service.json`, and its key in the machine's state home. Re-serving,
-re-vendoring and reviving it use the same URL. `--host` changes the hostname while
-preserving the port. On macOS, restarting a `--host` page can wait about 30
-seconds for TCP to release that port. If the port stays occupied beyond the
-startup wait, serving refuses rather than moving the page. A stop issued during
-startup waits for that preparation.
+A page keeps its host and port in `<page>/service.json`, so serving again, re-vendoring
+and reviving keep the same URL. `--host` changes the hostname and keeps the port. On
+macOS, restarting a `--host` page can wait about 30 seconds for the port to free up, and
+serving refuses if it is still taken.
 
 ## Unreachable URLs and `--host`
 
-A serve that binds loopback says so beside its URL, in a `loopback-only` note. That
-is the no-SSH default above, and it covers sessions that are remote from the user
-without having arrived over SSH: a scheduler, a daemon, a detached background job.
-When that note appears and the session is not one the user is sitting at, ask them
-for a name their browser routes to and serve on it before handing the URL over, or
-export the version as a file.
+When a server binds only loopback, `server start` prints a `loopback-only` note. That
+is the default for any session that didn't arrive over SSH, such as a scheduler or a
+background job. If you see it and the user isn't at this machine, ask them for a
+hostname their browser can reach and serve on it, or export the version as a file.
 
-Otherwise only the user's browser can establish that a URL is unreachable. When
-they say it does not load, stop the server and restart it with a hostname their
-browser can use:
+Otherwise only the user can tell you a URL doesn't load. When they do, restart the
+server with a hostname their browser can use:
 
 ```bash
 leaf server stop <page>
 leaf server start <page> --host <reachable-name>
 ```
 
-`--host` places that name in the URL and binds every interface; the name need
-not resolve locally. An overlay-network hostname is appropriate when that
-network is the shared route. If no network route works, export the version as a
-file.
+`--host` puts that name in the URL and binds every interface; the name needn't resolve
+on this machine, and an overlay-network hostname works. If no route works, export the
+version as a file.
 
-## Re-vendoring and layer epochs
+## Re-vendoring
 
-A Leaf update leaves open pages served and writable until it changes the page
-protocol or retires a registry key the page's layer declares. After a protocol
-change, the first `leaf` command or hook of the session holding the page re-vendors
-it, keeping its log and source, and says so only where index.html now fails `page
-check` or the re-vendor was refused. Otherwise, as for a retired key or a page
-another live session holds, serving or writing the page refuses, and `leaf page
-state` reports the refusal as `source.error`, naming the `leaf page init` that
-updates the page's Leaf runtime. Run it from the session that holds the page, or to
-adopt a newer runtime, theme or package:
+Open pages keep working across Leaf updates, except after an update that changes the
+page protocol or removes a registry key the page's layer declares.
+
+After a protocol change, the session holding the page re-vendors it at its first `leaf`
+command or hook, keeping the log and source, and reports only a failure. Leaf refuses
+to serve or write the page in two cases: the update removed a registry key the page's
+layer declares, or it changed the protocol while another live session holds the page.
+`leaf page state` then explains in `source.error`, naming the `leaf page init` command
+to run. Run it from the session that
+holds the page. Run it too when you want a newer runtime, theme or package:
 
 ```bash
 leaf page init <page>
 ```
 
-While Leaf is in alpha, an update can also break an older page without changing the
-protocol. Where the Leaf that vendored a page differs from the one running, `page
-check` names both with their dates, and the page's banner menu shows the user its own
-Leaf beside the one serving it. When a page misbehaves and its Leaf is much
-older than the running one, re-vendor it rather than working around the fault. A page
-that works needs no re-vendor for its age alone, since re-vendoring a changed layer
-reloads the user's open tabs.
+While Leaf is in alpha, an update can also break an older page without a protocol
+change. `page check` and the page's banner menu name the Leaf that vendored the page and
+the one running, with their dates. If a page misbehaves and its Leaf is much older,
+re-vendor it rather than working around the fault. Don't re-vendor a working page for
+its age alone, since that reloads the user's open tabs.
 
-Init validates incoming layer declarations and file destinations first; refusal
-leaves the page and server unchanged. An unchanged layer and serving payload
-preserve installed files and the running server without reloading open tabs.
-A layer, server-code, dependency, package selection, or installed-file change
-writes a new layer epoch, restarts a running server at its recorded URL and
-lifetime, and reloads open tabs. Page status is preserved, and a stopped server
-stays stopped. For a session service, init refuses a change while another live
-session owns it. If its previous session has ended, init leaves it stopped;
-serve it from the session that will now own it. An enabled persistent service
-restarts independently of session ownership.
+`page init` changes nothing if it refuses. When the layer, server code, dependencies,
+package selection or installed files changed, it restarts a running server at the same
+URL and reloads open tabs; a stopped server stays stopped. For a session page, it
+refuses a change while another live session holds the page. If the holding session
+has ended, it leaves the server stopped, and you serve it from your session.
 
-Versions a page saved before a re-vendor across a protocol change stay in its
-history but no longer open. If restart fails,
-follow init's diagnostic; an enabled page's watcher also tries one revival.
-Init reads the log under Leaf's kernel transport contract. If init cannot read an
-earlier page's log, or the page still misbehaves once re-vendored, initialize a new
-directory, write the current page there, and hand over its new URL.
+Versions saved before a protocol change stay in the history but no longer open. If
+`page init` can't read an older page's log, or the page still misbehaves after
+re-vendoring, write the current page into a new page directory and hand over its URL.
 
 ## Page lifetime
 
-A normal `server start` from an agent session claims the page and connects the
-selected harness's delivery route before returning. Re-serving restores delivery
-even when its server is already running. The page's first serve records its
-lifetime. Normal re-serving from an agent session preserves that lifetime. To
-change a session service to persistent, stop it and start with `--persistent`;
-starting a stopped service from the user's shell also selects persistent.
+`server start` from an agent session claims the page for that session and connects
+the harness's delivery, even when the server is already running. The first serve sets
+the page's lifetime, and later serves keep it. To make a session page persistent, stop
+it and start it with `--persistent`, or start it from the user's shell.
 
-A session page retires when no live session holds it. Desktop Codex keeps the
-chat's ownership and delivery across idle instance unloading and long absences.
-Archiving or deleting the chat ends that lifetime. Terminal sessions release
-ownership when their harness ends.
+A session page stops when no live session holds it: when a terminal harness exits, or
+when a desktop Codex chat is archived or deleted.
 
-`server start --persistent`, or serving from the user's shell, makes a page stay
-live between sessions and prepares no agent delivery. Tell the user when starting
-one: they inherit a process that only `leaf server stop <page>` ends. Ending a
-session releases its claim and leaves the persistent service enabled.
+A persistent page keeps running between sessions; starting it prepares no agent
+delivery. Tell the user
+when you start one: they now own a process that only `leaf server stop <page>` ends.
 
-A watcher revives an enabled service whose process dies, at its recorded URL and
-lifetime, and ends if revival fails. `leaf server stop <page>` disables service;
-a watcher still watches a stopped page until it is idle. Ending the page's
-conversation follows `page-checkpoints.md`, "Sign-off and ending".
+A watcher restarts an enabled server whose process dies, at the same URL. `leaf server
+stop <page>` disables the server; a watcher keeps watching a stopped page until it is
+idle. To end the page's conversation, follow `page-checkpoints.md`, "Sign-off and
+ending".
 
 ## Resuming a persistent or foreign page
 
-Resume a page from one session only. `leaf page claim <page>` moves the claim to
-whichever session runs it, and a watcher another session still runs stops watching
-that page. First read the page:
+Resume a page from one session only. First read it:
 
 ```bash
 leaf page state <page>
 ```
 
-Read the active revision's HTML (`active.file`) and the current `state` over it,
-then open asks, current thread state, and `measurement_lag` for figures whose sources
-have run again. Before editing, follow `authoring-revisions.md`'s "Read
-before editing" section. Then run `leaf page claim <page>` and follow your harness
-contract for watching it. Starting a server
-when the persistent one is already live prints its URL without changing its lifetime.
+Read the active revision's HTML (`active.file`) and the `state` over it, then the open
+asks, the threads, and `measurement_lag` for figures whose sources have run again, as
+`authoring-revisions.md`, "Read before editing", describes. Then run
+`leaf page claim <page>`, which moves the page to your session and stops another
+session's watcher from watching it, and watch it as your harness's reference says.
 
 ## Inspecting interactions
 
-For a served page, read the private diagnostic stream to reconstruct a user or
-test-agent path. Select a browser tab and a time window using ISO times with
-explicit timezone offsets:
+To reconstruct the path a user or test agent took on a served page, read its private
+diagnostic stream for a browser tab and a time window, with ISO times that carry a
+timezone offset:
 
 ```bash
 leaf page interactions <page> --session TAB \
@@ -162,18 +129,18 @@ leaf page interactions <page> --session TAB \
   --type keydown --type command --type focusin
 ```
 
-Omit the session filter to include server requests, which have no browser session
-association. Each line is one complete JSON record; `tail -F
-<page>/interactions.jsonl` follows raw delivery order while reproducing. The
-reader orders observations by their recorded time, deduplicates retries,
-reconstructs split values, and retains visible gap diagnostics under type filters.
-Browser and server clocks can differ; recorded order alone does not prove causation.
-The semantic decisions remain in `leaf page events <page>`. See [page-storage.md](../scripts/leaf/page-storage.md)
-for the file contract. The public site stores its browser batches in Workers
-Observability; `worker/README.md` describes lookup by session reference.
+Omit `--session` to include server requests. Each line is one JSON record:
+`leaf page interactions` sorts records by host receipt time, removes retried duplicates
+and retains gap diagnostics under type filters. The raw `<page>/observations.jsonl`,
+which `tail -F` follows live while you reproduce a problem, is in arrival order and
+still holds retries. Browser wall time stays in `observed_at`; order alone does not
+prove cause. The user's decisions are in `leaf page events <page>`, and
+[page-storage.md](../scripts/leaf/page-storage.md) defines the file. The public site
+stores its browser batches in Workers Observability; `worker/README.md` describes
+lookup by session reference.
 
 ## Temporary test servers
 
-`server run --temporary` serves on loopback until its foreground command exits,
-with a per-server key and no claim or `service.json`. It cannot be revived and
-does not deliver its browser events to an agent. Use it for browser-harness tests.
+`server run --temporary` serves on loopback until its foreground command exits, with
+its own key and no claim. It can't be revived and delivers no browser events to an
+agent. Use it for browser tests.

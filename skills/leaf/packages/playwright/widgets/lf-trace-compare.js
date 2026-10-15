@@ -5,7 +5,9 @@
  * Its one sticky source chooser declares its measured extent to the children,
  * so their inspection stages use the room below it. Measurement commits in the
  * rendering pass: changing a child's extent during observer delivery would
- * resize ancestors the browser has already visited in that delivery. */
+ * resize ancestors the browser has already visited in that delivery.
+ * Each direct child that is or holds an lf-trace is one view, so a recording may
+ * stand in a wrapper such as a <figure>, which shows and hides with it. */
 import {
   HIDDEN,
   el,
@@ -27,6 +29,7 @@ customElements.define(
   "lf-trace-compare",
   class extends HTMLElement {
     #choices = null;
+    #views = [];
     #recordings = [];
     #selected = 0;
     #measureHead = frameFor(this, () => {
@@ -39,8 +42,15 @@ customElements.define(
 
     connectedCallback() {
       if (!once(this)) return;
-      this.#recordings = [...this.querySelectorAll(":scope > lf-trace")];
-      this.#selected = this.#recordings.indexOf(openingView(this, this.#recordings));
+      for (const child of this.children) {
+        const recording = child.matches("lf-trace")
+          ? child
+          : child.querySelector("lf-trace");
+        if (!recording) continue;
+        this.#views.push(child);
+        this.#recordings.push(recording);
+      }
+      this.#selected = this.#views.indexOf(openingView(this, this.#views));
       const header = el("div", "lf-trace-compare-controls");
       header.dataset.lfGen = "1";
       this.#choices = offer("wa-radio-group", "lf-trace-sources lf-label-hidden");
@@ -49,13 +59,14 @@ customElements.define(
       this.#choices.size = "s";
       this.#choices.orientation = "horizontal";
       for (const [index, recording] of this.#recordings.entries()) {
-        recording.addEventListener("lf-reveal", (event) => {
+        const view = this.#views[index];
+        view.addEventListener("lf-reveal", (event) => {
           if (index !== this.#selected) event.detail.replacedView();
           this.#selected = index;
           this.#choices.value = String(index);
           event.detail.present(this.#draw());
         });
-        recording.addEventListener("beforematch", () => {
+        view.addEventListener("beforematch", () => {
           this.#selected = index;
           this.#choices.value = String(index);
           this.#draw();
@@ -87,11 +98,10 @@ customElements.define(
 
     #draw() {
       for (const [index, recording] of this.#recordings.entries()) {
-        keeps(recording, "hidden", index === this.#selected ? null : HIDDEN);
+        keeps(this.#views[index], "hidden", index === this.#selected ? null : HIDDEN);
         keeps(recording, "aria-label", recording.getAttribute("label"));
       }
-      if (this.#recordings[this.#selected])
-        keepView(this, this.#recordings[this.#selected]);
+      if (this.#views[this.#selected]) keepView(this, this.#views[this.#selected]);
       return layoutChanged(this);
     }
   },

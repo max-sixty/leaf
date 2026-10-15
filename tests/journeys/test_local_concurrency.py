@@ -7,7 +7,8 @@ from contextlib import ExitStack
 from pathlib import Path
 
 from interact_support import STATED_TIMEOUT, wait_for
-from leaf_dev import ROOT, verify_site
+from leaf_dev import ROOT
+from leaf_dev.commands import verify_site
 
 
 def test_local_worker_wrapper_announces_independent_bound_ports(tmp_path, spawn):

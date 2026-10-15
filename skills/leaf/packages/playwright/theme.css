@@ -21,6 +21,7 @@
   font: var(--t-5) / 1.45 var(--sans);
   overflow-wrap: anywhere;
 }
+.lf-trace-view { display: contents; }
 .lf-trace-body { min-inline-size: 0; }
 :scope:is(lf-trace)[hidden="until-found"] { margin: 0; padding: 0; border: 0; }
 .lf-trace-stage { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(180px, 1fr) auto; min-block-size: var(--lf-trace-stage-height); min-inline-size: 0; }
@@ -67,6 +68,7 @@
   --lf-trace-mark: color-mix(in srgb, var(--ink) 55%, var(--paper));
   --lf-trace-input: var(--accent);
   position: relative;
+  anchor-scope: --lf-trace-tip;
   display: grid;
   /* A fixed name column: a font arriving cannot move the time scale. */
   grid-template-columns: 76px minmax(0, 1fr);
@@ -141,7 +143,14 @@
 .lf-trace-overview[data-zoomed] { cursor: grab; }
 .lf-trace-overview-time { position: absolute; inset-block: 0; left: calc(var(--lf-trace-time, 0) * 100%); inline-size: 2px; translate: -1px 0; background: var(--accent); }
 .lf-trace-legend { grid-column: 1 / -1; margin: 0; padding: var(--sp-1) var(--sp-2); border-block-start: 1px solid var(--border-2); color: var(--muted); font: var(--lf-trace-small-type) / 1.4 var(--sans); max-inline-size: none; }
-.lf-trace-tip { position: absolute; z-index: 4; max-inline-size: min(48ch, 100%); padding: var(--sp-1) var(--sp-2); border-radius: var(--r); background: var(--ink); color: var(--paper); font: var(--lf-trace-small-type) / 1.4 var(--sans); white-space: pre-line; pointer-events: none; }
+.lf-trace-timeline [data-lf-trace-tip-anchor] { anchor-name: --lf-trace-tip; }
+/* The tooltip may stand above its timeline, while safe inline alignment keeps its
+ * full words inside that timeline's width. Native anchoring follows the mark's pan. */
+.lf-trace-tip { position: absolute; position-anchor: --lf-trace-tip;
+  inset-inline: 0; inset-block-start: auto; inset-block-end: anchor(top);
+  justify-self: anchor-center;
+  margin-block-end: 4px; box-sizing: border-box; inline-size: max-content;
+  z-index: 4; max-inline-size: min(48ch, 100%); padding: var(--sp-1) var(--sp-2); border-radius: var(--r); background: var(--ink); color: var(--paper); font: var(--lf-trace-small-type) / 1.4 var(--sans); white-space: pre-line; pointer-events: none; }
 
 .lf-trace-options { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); min-block-size: var(--lf-trace-control-size); }
 .lf-trace-bookmarks { padding: 0; border: 0; background: none; margin: 0; min-inline-size: 0; }
@@ -242,16 +251,20 @@
 .lf-trace-input-badge { position: absolute; z-index: 2; inset-block-start: var(--sp-2); inset-inline-end: var(--sp-2); max-inline-size: min(45ch, 85%); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; border: 1px solid var(--accent); border-radius: var(--r); padding: var(--sp-1) var(--sp-2); background: var(--paper); color: var(--accent); font: 600 var(--lf-trace-small-type) / 1.5 var(--sans); pointer-events: none; }
 .lf-trace-input-point { position: absolute; z-index: 2; inline-size: 18px; block-size: 18px; border: 2px solid var(--accent); border-radius: 50%; background: var(--accent-tint); transform: translate(-50%, -50%); box-shadow: 0 0 0 2px var(--paper); pointer-events: none; }
 
-/* The workspace spaces its parts itself; a recording inside it takes no margin. */
+/* The workspace spaces its parts itself: a view, whether the recording or a wrapper
+ * holding it, and a recording inside a wrapper take no block margin, so a hidden view
+ * leaves no blank band under the shown one for the sticky chooser to hang over. */
 :scope:is(lf-trace-compare) { display: flex; flex-direction: column; min-inline-size: 0; --lf-trace-control-size: 44px; --lf-trace-compare-top: var(--lf-top); --lf-trace-compare-head: 44px; font: var(--t-5) / 1.45 var(--sans); }
 .lf-trace-compare-controls { margin-block-end: var(--sp-2); position: sticky; inset-block-start: var(--lf-trace-compare-top); z-index: 4; background: var(--paper); padding-block: var(--sp-1); }
-:scope:is(lf-trace-compare) > lf-trace { margin-block: 0; --lf-top: calc(var(--lf-trace-compare-top) + var(--lf-trace-compare-head)); }
+:scope:is(lf-trace-compare) > * { --lf-top: calc(var(--lf-trace-compare-top) + var(--lf-trace-compare-head)); }
+:scope:is(lf-trace-compare) > :not(.lf-trace-compare-controls),
+:scope:is(lf-trace-compare) lf-trace { margin-block: 0; }
 
 /* Prepaint chooses the same recording as the upgraded workspace. Without an
  * interactive runtime, every labeled recording remains available in page flow. */
 @scope (html[data-lf-interactive] :scope) {
-  :scope:is(lf-trace-compare):not(:defined):has(> lf-trace) {
+  :scope:is(lf-trace-compare):not(:defined) {
     &::before { content: ""; display: block; block-size: calc(var(--lf-trace-control-size) + 2 * var(--sp-1)); margin-block-end: var(--sp-2); }
-    & > lf-trace:not([data-lf-opening]) { display: none; }
+    & > :is(lf-trace, :has(lf-trace)):not([data-lf-opening]) { display: none; }
   }
 }

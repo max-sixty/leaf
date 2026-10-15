@@ -4,10 +4,10 @@
  * `build/browser/build.mjs` builds `lit.js` from `litNamespace()`: every public Lit
  * module in one namespace, shaped like Lit's own `lit-all` bundle. Static-html's
  * template tags would collide there with the ordinary `html`, `svg` and `mathml`, so
- * they go by the names in `staticTags`. A bundle that carries Lit-based components
+ * they get a `static` prefix. A bundle that carries Lit-based components
  * imports Lit through `bindToVendoredLit`, which reverses that renaming, so a page
  * registers one LitElement, one template cache, and one version. Both directions read
- * the one table and the export list Lit itself publishes.
+ * the same naming rule and the export list Lit itself publishes.
  */
 import { readFileSync, realpathSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -18,17 +18,17 @@ const require = createRequire(import.meta.url);
 /** The layer path of the page's one Lit. */
 export const litPath = "vendor/lit.js";
 
-/** Static-html's template tags, and the names `lit.js` gives them. */
-const staticTags = { html: "staticHtml", svg: "staticSvg", mathml: "staticMathml" };
+/** Static-html's template tags, prefixed to distinguish the ordinary tags. */
+const staticTags = ["html", "svg", "mathml"];
 
 /** Static-html's exports, the renamed tags first, as `[published, inLit]` pairs. */
 async function staticExports() {
   const published = Object.keys(await import("lit/static-html.js"));
-  for (const tag of Object.keys(staticTags))
+  for (const tag of staticTags)
     if (!published.includes(tag)) throw new Error(`lit/static-html.js lacks ${tag}`);
   return [
-    ...Object.entries(staticTags),
-    ...published.filter((name) => !Object.hasOwn(staticTags, name)).map((n) => [n, n]),
+    ...staticTags.map((tag) => [tag, `static${tag[0].toUpperCase()}${tag.slice(1)}`]),
+    ...published.filter((name) => !staticTags.includes(name)).map((n) => [n, n]),
   ];
 }
 

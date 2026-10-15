@@ -23,6 +23,20 @@ what fails and what still works.
 
 ## Supported APIs checked
 
+### Feedback clearance above a covering thread panel
+
+- **Owner:** `styles/chrome.css`. Native `anchor-size()` reads the panel foot and
+  selected reply, while `anchor()` reads the list's foot; feedback keeps one
+  clearance through list scrolling and draft growth. The list opens one chosen
+  thread, so it supplies one visible reply anchor.
+- **Observed 2026-10-14:** installed Playwright Chromium 153.0.8010.12, Firefox 155
+  and WebKit 26.6 match the former measured placement within one pixel for short
+  and multiline replies at both scroll ends, reply selection changes, an empty
+  list, a multiline page-mode foot composer, and the panel beside the page.
+  Empty lists use the foot anchor alone; a reply's presence adds its clearance.
+- **Disposition:** adopted without a fallback. These are installed engine checks,
+  rather than a current stable-browser compatibility survey.
+
 ### Help search result relationships
 
 - **Owner:** `runtime/keyboard/command-reference.js`. The shared input keeps its
@@ -99,6 +113,29 @@ what fails and what still works.
 - **Disposition:** adopted without a fallback.
 
 ## Known gaps
+
+### Intrinsic block retirement motion
+
+- **Owner:** `runtime/motion.js` (`foldBlock`), used by resolved thread cards and
+  block suggestion slots. The browser interpolates the ordinary intrinsic block
+  size to zero with `calc-size(auto, size)`; the other block metrics start at their
+  underlying CSS values. Neither caller measures or reconstructs the starting box.
+- **Checked 2026-10-14:** installed Playwright Chromium 153.0.8010.12 supports
+  `calc-size()` and `interpolate-size`; Firefox 155 and WebKit 26.6 expose neither.
+  These are installed test engines, not a current stable Firefox/Safari survey.
+  [Chrome's documentation](https://developer.chrome.com/docs/css-ui/animate-to-height-auto)
+  describes native intrinsic interpolation and its progressive enhancement model.
+- **Observed:** card, native details and block-slot probes preserve their exact
+  first size, shrink to zero, and restore their ordinary size when canceled in
+  Chromium. Retired-slot styling applies padding changes only to the survivor, so
+  the outgoing slot starts at its actual pre-decision shape. Inline suggestions
+  do not animate. Reduced motion skips the effect, and the shared motion owner
+  finishes a running fold when that preference changes.
+- **Disposition:** accepted visual difference. Without `calc-size()` the same
+  semantic retirement completes immediately, as it does under reduced motion.
+  The runtime explicitly declines the animation rather than letting unsupported
+  intrinsic-size interpolation jump halfway through a fade. Content, Undo and
+  Reopen remain available through their ordinary paths.
 
 ### Browser dictation in comment boxes
 
@@ -267,6 +304,28 @@ what fails and what still works.
   The browser tests `test_frame_edges_pass_through_whatever_stands_at_them` and
   `test_a_row_at_a_frame_edge_holds_the_trim_by_declaring_it` hold the required
   wrapper and row behavior. Parser support alone does not establish it.
+
+### Scroll-state containers and table fill
+
+- **Disposition: scroll-state is progressive; Firefox's unfilled frames are an
+  accepted visual difference.** A `container-type` naming `scroll-state` is written
+  after the same declaration without it, so an engine without scroll-state keeps the
+  size container. A table in a drawn frame keeps its columns' natural width in
+  Firefox, short of the frame's far edge; every cell stays readable.
+- **Owner:** the table rules in
+  [`reading.css`](../skills/leaf/assets/styles/components/reading.css) and the
+  granted-room table in [`layouts.css`](../skills/leaf/assets/layouts.css).
+- **Observed, 2026-10-14:** Firefox 157 (a user's page) and Playwright's Firefox and
+  WebKit 26.6 drop `container-type: inline-size scroll-state` whole, so the table was
+  no size container and the 100cqi its fill caption reads measured the window: an
+  Ask's two-column table laid its rows out 1728px wide in a 720px column and cut off
+  its second column. Chrome 155 keeps it. Firefox also never widens a table grid to a
+  caption wider than its columns' natural width, whatever the caption's width, so the
+  caption fill does nothing there; Chromium and WebKit spread the columns to it.
+- **Recheck:** `test_a_table_of_prose_wraps_inside_its_box_in_every_engine` holds
+  the size container in all three engines; the Chromium-only
+  `test_a_table_fills_its_declared_allocation_or_frame_and_a_bare_one_keeps_its_content`
+  holds the fill.
 
 ### State-preserving content reordering (review #22)
 

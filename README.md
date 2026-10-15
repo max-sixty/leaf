@@ -9,14 +9,14 @@ or follow live work in a page you can comment on and change. The agent responds 
 revising the page.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/40dc7c4e2078357b89ec0b5f1be59f7a6235761d/demo/session-dark.png">
-  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/40dc7c4e2078357b89ec0b5f1be59f7a6235761d/demo/session-light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/d16ea2b3e999a6f1909a66dd8ae801b9575d0e80/demo/session-dark.png">
+  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/d16ea2b3e999a6f1909a66dd8ae801b9575d0e80/demo/session-light.png">
 </picture>
 
 <details>
 <summary>Watch the comment-and-revision loop</summary>
 
-![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/40dc7c4e2078357b89ec0b5f1be59f7a6235761d/demo/demo.gif)
+![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/d16ea2b3e999a6f1909a66dd8ae801b9575d0e80/demo/demo.gif)
 
 </details>
 
@@ -89,10 +89,10 @@ agent's shell commands do, and a sandbox refuses them what they need: writes to
 Leaf's state in `~/.local/state/leaf`, a port on localhost for the page server, and
 a browser for render checks.
 
-In Claude Code, Leaf's hooks keep a bridge running outside the sandbox, and each
-sandboxed `leaf` command hands itself to the bridge through the sandbox's network
-proxy. The first time in a session, Claude Code asks whether to allow that
-connection. To allow it without asking, add `127.0.0.1` to Claude Code's settings,
+In Claude Code, Leaf's hook starts a bridge outside the sandbox before the first
+`leaf` command, and each sandboxed `leaf` command hands itself to the bridge
+through the sandbox's network proxy. The first time in a session, Claude Code asks
+whether to allow that connection. To allow it without asking, add `127.0.0.1` to Claude Code's settings,
 such as `~/.claude/settings.json`:
 
 ```json

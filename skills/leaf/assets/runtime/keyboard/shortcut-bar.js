@@ -50,7 +50,7 @@
    are announced because the revealed hint chips themselves remain visual. When there is
    no additional current row, the first activation opens the reference directly. The
    native control also opens it directly. */
-import { html, nothing, render, repeat } from "/vendor/browser-runtime.js";
+import { html, nothing, render } from "/vendor/browser-runtime.js";
 
 import {
   activeRows,
@@ -142,10 +142,10 @@ const bottomStatusTemplate = (model) => html`
   >
 `;
 
+// Hint cells carry no local state. More keeps its native node after the list, while
+// each cell draws the current command scene regardless of declaration identity.
 const shortcutBarTemplate = (model) =>
-  html`${repeat(
-      model.items,
-      (item) => item.key,
+  html`${model.items.map(
       (item) => html`
         <span
           class=${`lf-shortcut${item.sequenceControl ? " lf-sequence-command" : ""}`}
@@ -177,15 +177,12 @@ const shortcutBarTemplate = (model) =>
     }`;
 
 let bottomStatusContext = EMPTY_STATUS_CONTEXT;
-let placeBottomStatus = null;
 const renderBottomStatus = () => {
   const model = Object.freeze({
     ...bottomStatusContext,
     notice: noticeReading(),
   });
   render(bottomStatusTemplate(model), bottomStatusEl);
-  // Feedback reaches its geometry owner before this turn can paint it.
-  placeBottomStatus?.();
 };
 renderBottomStatus();
 render(shortcutBarTemplate(EMPTY_BAR), shortcutBarEl);
@@ -225,14 +222,6 @@ declareWindowChrome(bottomChromeBoxes, [shortcutBarEl, bottomStatusEl]);
 // page's ordinary digit meaning without hiding the option row's other keys.
 const sourceRows = new WeakMap();
 const sourceRow = (row) => sourceRows.get(row) ?? row;
-const rowPresentationKeys = new WeakMap();
-let nextRowPresentationKey = 1;
-const rowPresentationKey = (row) => {
-  const source = sourceRow(row);
-  if (!rowPresentationKeys.has(source))
-    rowPresentationKeys.set(source, nextRowPresentationKey++);
-  return rowPresentationKeys.get(source);
-};
 const effectiveRow = (row, declared, active) => {
   if (active.length === declared.length) return row;
   const routes = commandRoutes(row).filter((route) => active.includes(route.binding));
@@ -442,7 +431,6 @@ export function renderShortcutBar(goToStatus) {
     const states = inSequence ? progressStates(steps, sequence) : neutralStates(steps);
     const active = bindings(row);
     return Object.freeze({
-      key: rowPresentationKey(row),
       sequenceControl: Boolean(row.sequenceControl),
       sequence: keySequenceModel(steps, states),
       said: lineOf(row),
@@ -567,13 +555,7 @@ const shortcutBarExpanded = () => shortcutBarIsExpanded && shortcutHelpAvailable
 
 // Boot supplies the two transient interactions More closes. The bar renderer and its
 // reference rows never import those command owners to draw their current declarations.
-export function mountShortcutBar({
-  setGoToSequence,
-  setReact,
-  placeBottomStatus: place,
-}) {
-  placeBottomStatus = place;
-  placeBottomStatus();
+export function mountShortcutBar({ setGoToSequence, setReact }) {
   activateShortcutMore = () => {
     setGoToSequence(false);
     setReact(false);

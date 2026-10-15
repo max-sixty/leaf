@@ -145,7 +145,7 @@
       display: block; margin-block: 0; }
   }
   @media screen {
-    main.layout-column[data-lf-margin~="note"] [data-lf-space]:not([data-lf-space="column"]) {
+    main.layout-column[data-lf-margin~="note"] [data-lf-space] {
       clear: right; }
     main.layout-column[data-lf-margin~="note"] aside.sidenote {
       float: right; clear: right; width: calc(var(--note) - var(--sp-4));
@@ -180,14 +180,15 @@
    * It does not inherit. */
   @property --lf-breakout { syntax: "<integer>"; inherits: false; initial-value: 0; }
   @media screen {
-    /* `data-lf-space` is the room an element takes: its tag's or idiom's x-space, or the
-     * occurrence's `data-width`, painted by delivery (`mark_declared`) so the width is in
-     * the first paint. A message's room is withheld by not painting it. `column` is the
-     * text measure (theme.css); `wide` and `available` grow, each refining the second
-     * rule below. Only a document allocates: every rule but the containment one is held
-     * to the column and sidebar page. A box allocated the column has no surplus unless it
-     * holds a breakout among its own blocks. */
-    :where(main.layout-column, main.layout-sidebar) [data-lf-space] {
+    /* `data-lf-space` is the room a block takes past the measure: its tag's or idiom's
+     * x-space, or the occurrence's `data-width`, painted by delivery (`mark_declared`) so
+     * the width is in the first paint; delivery paints `x-space: column` as
+     * `data-lf-column` instead. A message's room is withheld by not painting it.
+     * `wide` and `available` each refine the second rule below. Only a document
+     * allocates: every rule but the containment one is held to the column and sidebar
+     * page. A box kept to the measure (`data-lf-column`, theme.css) shares the
+     * arithmetic and has no surplus unless it holds a breakout among its own blocks. */
+    :where(main.layout-column, main.layout-sidebar) :is([data-lf-space], [data-lf-column]) {
       /* Held to the free room beside the page (--lf-free-l/r) and spent evenly about the
        * prose axis where both sides have it. A holder standing in from the column, such as
        * a list item, adds its indent on that side (`--lf-indent-l/r`), so the box keeps
@@ -201,7 +202,7 @@
         min(var(--lf-surplus), calc(var(--lf-free-l) + var(--lf-indent-l))));
       --lf-grow-r: calc(var(--lf-surplus) - var(--lf-grow-l));
     }
-    :where(main.layout-column, main.layout-sidebar) [data-lf-space]:where(:not([data-lf-space="column"])) {
+    :where(main.layout-column, main.layout-sidebar) [data-lf-space] {
       max-width: none;
       width: calc(100% + var(--lf-surplus));
       margin-left: calc(-1 * var(--lf-grow-l));
@@ -213,22 +214,22 @@
      * on any page: what it holds scrolls inside it. Size containment keeps its content's
      * minimum out of every shrink-to-fit ancestor (a row-form option, a pane), which
      * would otherwise grow past its own clip. So this rule is held to no Layout. */
-    [data-lf-space]:where(:not([data-lf-space="column"])) {
+    [data-lf-space] {
       contain: inline-size;
       --lf-breakout: 1;
     }
     /* `wide` is one width wherever the block stands: capped at --wide even in a holder
      * already wider, such as a sidebar page's body; `available` takes everything. A box
-     * allocated the column reaches as far as the widest of its own children (theme.css
+     * kept to the column reaches as far as the widest of its own children (theme.css
      * widens it there), unless the page arranged that child (`data-lf-arranged`). A box
      * that draws no frame spends that reach by spanning the block (ask.css); one that
      * draws a frame keeps the block inside it (`--lf-block-frame`, below). */
     :where(main.layout-column, main.layout-sidebar) :is([data-lf-space="wide"],
-      [data-lf-space="column"]:where(:has(> [data-lf-space="wide"]:not([data-lf-arranged])))) {
+      [data-lf-column]:where(:has(> [data-lf-space="wide"]:not([data-lf-arranged])))) {
       --lf-reach: min(var(--wide), var(--lf-room, 0px));
     }
     :where(main.layout-column, main.layout-sidebar) :is([data-lf-space="available"],
-      [data-lf-space="column"]:where(:has(> [data-lf-space="available"]:not([data-lf-arranged])))) {
+      [data-lf-column]:where(:has(> [data-lf-space="available"]:not([data-lf-arranged])))) {
       --lf-reach: var(--lf-room, 0px);
     }
     :where(main.layout-column, main.layout-sidebar) [data-lf-space="wide"] {
@@ -252,11 +253,14 @@
      * Its width is its content's, so it gives up size containment and breaks out only
      * down a chain of block flow (prepaint.js, `indents`); a table the page arranged, in a
      * frame, or inside another breakout stays the contained table reading.css makes it.
-     * Its caption is held to the span. */
+     * Its caption is held to the span. It says `normal` before `scroll-state` because
+     * Firefox and WebKit drop the second, and a size container would zero its
+     * `max-content`. */
     @container not (style(--lf-room: 100%) or style(--lf-block-frame: 1)) {
-      main.layout-column table:is([data-lf-space="wide"], [data-lf-space="available"]):not(
-        :is([data-lf-space="wide"], [data-lf-space="available"]) table, [data-lf-arranged]) {
+      main.layout-column table[data-lf-space]:not(
+        [data-lf-space] table, [data-lf-arranged]) {
         contain: none;
+        container-type: normal;
         container-type: scroll-state;
         width: max-content;
         min-width: 100%;
@@ -270,13 +274,13 @@
         --lf-table-span: calc(var(--lf-width) + 2 * min(var(--lf-free-l), var(--lf-free-r)));
       }
       main.layout-column table[data-lf-space="wide"]:not(
-        :is([data-lf-space="wide"], [data-lf-space="available"]) table, [data-lf-arranged]) {
+        [data-lf-space] table, [data-lf-arranged]) {
         --lf-table-span: min(var(--wide),
           var(--lf-width) + 2 * min(var(--lf-free-l), var(--lf-free-r)));
       }
       :is(main.layout-column, main.layout-column *):dir(rtl)
-        > table:is([data-lf-space="wide"], [data-lf-space="available"]):not(
-        :is([data-lf-space="wide"], [data-lf-space="available"]) table, [data-lf-arranged]) {
+        > table[data-lf-space]:not(
+        [data-lf-space] table, [data-lf-arranged]) {
         margin-left: 0;
         margin-right: calc(var(--lf-width) / 2 - var(--lf-indent-r) - var(--lf-table-span) / 2);
         translate: max(
@@ -285,8 +289,8 @@
             calc(50% - var(--lf-table-span) / 2))) 0;
       }
       main.layout-column[data-lf-margin~="sidebar"]
-        table:is([data-lf-space="wide"], [data-lf-space="available"]):not(
-        :is([data-lf-space="wide"], [data-lf-space="available"]) table, [data-lf-arranged]) {
+        table[data-lf-space]:not(
+        [data-lf-space] table, [data-lf-arranged]) {
         margin-left: calc(-1 * var(--lf-indent-l));
         margin-right: 0;
         translate: min(var(--lf-indent-l),
@@ -295,35 +299,36 @@
       }
       main.layout-column[data-lf-margin~="sidebar"]
         table[data-lf-space="wide"]:not(
-        :is([data-lf-space="wide"], [data-lf-space="available"]) table, [data-lf-arranged]) {
+        [data-lf-space] table, [data-lf-arranged]) {
         --lf-table-span: min(var(--wide), var(--lf-width) + var(--lf-free-r));
       }
       :is(main.layout-column[data-lf-margin~="sidebar"],
         main.layout-column[data-lf-margin~="sidebar"] *):dir(rtl)
-        > table:is([data-lf-space="wide"], [data-lf-space="available"]):not(
-        :is([data-lf-space="wide"], [data-lf-space="available"]) table, [data-lf-arranged]) {
+        > table[data-lf-space]:not(
+        [data-lf-space] table, [data-lf-arranged]) {
         margin-left: 0;
         margin-right: calc(var(--lf-width) - var(--lf-indent-r) - var(--lf-table-span));
         translate: max(calc(var(--lf-width) - var(--lf-indent-r) - var(--lf-table-span)),
           calc(100% - var(--lf-table-span))) 0;
       }
-      main.layout-column table:is([data-lf-space="wide"], [data-lf-space="available"]):not(
-        :is([data-lf-space="wide"], [data-lf-space="available"]) table,
+      main.layout-column table[data-lf-space]:not(
+        [data-lf-space] table,
         [data-lf-arranged]) > caption {
         max-inline-size: var(--lf-table-span);
       }
     }
     /* A breakout inside another, or one the page arranged (`data-lf-arranged`), takes its
-     * holder's width: the room beside it is the page's own. A box allocated the column is
+     * holder's width: the room beside it is the page's own. A box kept to the column is
      * no such holder: a framed one withholds room as any frame does (below), and an
      * unframed one, such as an Ask, lets a breakout through. */
-    :where(main.layout-column, main.layout-sidebar) [data-lf-space]:not([data-lf-space="column"]) [data-lf-space],
+    :where(main.layout-column, main.layout-sidebar) [data-lf-space] :is([data-lf-space], [data-lf-column]),
     :where(main.layout-column, main.layout-sidebar) [data-lf-arranged] {
       --lf-room: 100%;
     }
     /* A widget that failed soft shows its message and source (`.lf-error`), which are
      * prose, so it takes the column; the source's `pre` scrolls inside the message. */
-    :where(main.layout-column, main.layout-sidebar) [data-lf-space]:has(> .lf-error) { --lf-room: 0px; }
+    :where(main.layout-column, main.layout-sidebar) :is([data-lf-space], [data-lf-column]):has(> .lf-error) {
+      --lf-room: 0px; }
     /* A box that draws a frame keeps a wide widget inside it: the room is the page's to
      * give, and inside a callout or disclosure the page is not what holds the widget. A
      * box declares it draws one where it draws it (`--lf-block-frame: 1`), and the room
@@ -338,7 +343,7 @@
       :where(main.layout-column, main.layout-sidebar) * { --lf-room: 100%; }
     }
     /* When startup is incomplete, undrawn widgets show source in the column. */
-    html[data-lf-startup-error]:not([data-lf-interactive]) :where(main.layout-column, main.layout-sidebar) [data-lf-space] {
+    html[data-lf-startup-error]:not([data-lf-interactive]) :where(main.layout-column, main.layout-sidebar) :is([data-lf-space], [data-lf-column]) {
       --lf-room: 0px;
     }
 

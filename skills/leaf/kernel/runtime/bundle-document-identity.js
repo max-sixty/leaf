@@ -271,6 +271,7 @@ import {
   announce,
   claimsEsc,
   clamp,
+  clippedContents,
   clippedPlace,
   clipsPast,
   clipsPastSurfaces,
@@ -280,6 +281,7 @@ import {
   el,
   frameFor,
   growthIsSeen,
+  hasArea,
   intersect,
   keys,
   labelOf,
@@ -298,6 +300,7 @@ import {
   pruneScopedElements,
   randomId,
   reachedForWords,
+  recordInteraction,
   registry,
   repaint,
   reportCarried,
@@ -317,6 +320,7 @@ import {
   shadowRootsIn,
   showNativeLayer,
   shownBox,
+  shownWindow,
   skipped,
   tagsDeclaring,
   union,
@@ -333,7 +337,6 @@ import {
   annotationMode,
   applicationPresenter,
   applicationState,
-  attachApplicationPresentation,
   documentChanged,
   layerRoot,
   offlineData,
@@ -689,7 +692,7 @@ function sentDrawing(drawing) {
 }
 
 // runtime/protocol.js
-var recordFormat = (kind) => `leaf-${kind}/6`;
+var recordFormat = (kind) => `leaf-${kind}/7`;
 
 // runtime/composing/text-field.js
 import {
@@ -1300,17 +1303,12 @@ var composer = el("div", "lf-ui lf-composer");
 composer.id = "lf-composer";
 var composerQuote = el("blockquote", "lf-ui lf-quote detached");
 composerQuote.id = "lf-composer-quote";
-var suggestRow = el("label", "lf-suggest-row");
-var suggestCheck = document.createElement("input");
-suggestCheck.type = "checkbox";
-suggestCheck.name = "suggest-replacement";
-suggestRow.append(suggestCheck, document.createTextNode("Suggest replacement text"));
 var composerInput = fabInput;
 composerInput.setAttribute("aria-describedby", composerQuote.id);
 var composerSend = el("button", "lf-btn", "Comment");
 var composerField = document.createDocumentFragment();
 composerField.append(composerInput);
-composer.append(composerQuote, suggestRow, composerSend);
+composer.append(composerQuote, composerSend);
 fabBar.prepend(composer);
 var pendingAnchor = null;
 var pendingAbout = null;
@@ -1353,12 +1351,13 @@ function createSelectionComposer({
   const composerCtx = (anchor) => COMPOSER_KEY + anchorKey(anchor);
   let syncComposer;
   let pendingRevision = null;
+  let suggestionMode = false;
   const composerDraftValue = (text = syncComposer.value()) => JSON.stringify({
     format: DRAFT_FORMAT,
     text,
     anchor: pendingAnchor,
     revision: pendingRevision,
-    suggest: suggestCheck.checked,
+    suggest: suggestionMode,
     about: pendingAbout,
     drawing: pendingDrawing,
     touched: Date.now()
@@ -1423,8 +1422,7 @@ function createSelectionComposer({
   const holdsContent = (draft) => Boolean(draft || pendingDrawing);
   const composerHolds = () => holdsContent(syncComposer.value());
   function syncSuggestMode() {
-    suggestRow.style.display = pendingAnchor?.quote && !pendingAbout && !pendingDrawing ? "flex" : "none";
-    const suggest = !suggestCheck.checked;
+    const suggest = !suggestionMode;
     responseAction(fabSuggest, {
       icon: suggest ? "edit" : "comment",
       label: suggest ? "Suggest" : "Comment",
@@ -1437,15 +1435,15 @@ function createSelectionComposer({
     repaint();
   }
   function setSuggestionMode(suggest) {
-    suggestCheck.checked = Boolean(suggest);
-    if (suggestCheck.checked && syncComposer.hasMedia()) {
-      suggestCheck.checked = false;
+    suggestionMode = Boolean(suggest);
+    if (suggestionMode && syncComposer.hasMedia()) {
+      suggestionMode = false;
       syncSuggestMode();
       notice("Remove attached images before suggesting replacement text");
       focusDestination(composerInput, "return");
       return;
     }
-    if (suggestCheck.checked && !syncComposer.value() && pendingAnchor?.quote)
+    if (suggestionMode && !syncComposer.value() && pendingAnchor?.quote)
       syncComposer.load(seededQuote = pendingAnchor.quote);
     syncSuggestMode();
     saveComposerDraft();
@@ -1514,7 +1512,6 @@ function createSelectionComposer({
     if (composerOpen && !open && composerHolds())
       notice("Draft kept \u2014 g i resumes writing");
     composerOpen = open;
-    composer.style.display = open ? "contents" : "none";
     composer.toggleAttribute("data-lf-open", open);
     refreshThread();
     repaint();
@@ -1530,7 +1527,7 @@ function createSelectionComposer({
     pendingRevision = revision;
     pendingAbout = about ?? null;
     pendingDrawing = drawing ?? null;
-    suggestCheck.checked = Boolean(suggest);
+    suggestionMode = Boolean(suggest);
     return retargeted;
   }
   function openComposer(anchor, text, {
@@ -1571,7 +1568,7 @@ function createSelectionComposer({
       anchor: anchor || null,
       revision,
       text: text || syncComposer.value(),
-      suggest: suggest === void 0 ? suggestCheck.checked : suggest,
+      suggest: suggest === void 0 ? suggestionMode : suggest,
       about: about === void 0 ? pendingAbout : about,
       drawing: previousCtx !== ctx ? storedDrawing : pendingDrawing
     });
@@ -1630,7 +1627,7 @@ function createSelectionComposer({
     composerWatch = null;
     syncComposer.load("");
     seededQuote = "";
-    suggestCheck.checked = false;
+    suggestionMode = false;
     pendingAnchor = null;
     pendingRevision = null;
     pendingAbout = null;
@@ -1646,7 +1643,7 @@ function createSelectionComposer({
   function carryComposerToReply(ctx) {
     if (!pendingAnchor) return;
     const text = syncComposer.value();
-    if (ctx && text && !loadDraft(ctx) && !suggestCheck.checked && !pendingAbout && !pendingDrawing && !syncComposer.hasMedia())
+    if (ctx && text && !loadDraft(ctx) && !suggestionMode && !pendingAbout && !pendingDrawing && !syncComposer.hasMedia())
       transferDraft(composerCtx(pendingAnchor), ctx, text);
     detachComposer();
     showFab(null);
@@ -1679,10 +1676,10 @@ function createSelectionComposer({
   function mount() {
     declareResponseOptionKeys();
     syncComposer = wireInput2(composerInput, {
-      hint: () => suggestCheck.checked ? "Replacement text" : pendingAbout ? "About the layer" : "Comment\u2026",
-      sends: () => suggestCheck.checked ? "suggest" : "comment",
+      hint: () => suggestionMode ? "Replacement text" : pendingAbout ? "About the layer" : "Comment\u2026",
+      sends: () => suggestionMode ? "suggest" : "comment",
       sendBtn: composerSend,
-      allowsMedia: () => suggestCheck.checked ? "Images can be added to comments, not replacement text" : true,
+      allowsMedia: () => suggestionMode ? "Images can be added to comments, not replacement text" : true,
       hasContent: holdsContent,
       save: saveComposerDraft,
       drawing: {
@@ -1696,7 +1693,7 @@ function createSelectionComposer({
         const anchor = structuredClone(pendingAnchor);
         const revision = pendingRevision;
         const ctx = composerCtx(anchor);
-        const suggestion = suggestCheck.checked;
+        const suggestion = suggestionMode;
         const about = pendingAbout;
         const drawing = pendingDrawing && sentDrawing(structuredClone(pendingDrawing));
         const transition = threadTransitionOrigin?.(composerInput, fabFrameAt());
@@ -1746,8 +1743,7 @@ function createSelectionComposer({
         }
       }
     });
-    suggestCheck.onchange = () => setSuggestionMode(suggestCheck.checked);
-    fabSuggest.onclick = () => setSuggestionMode(!suggestCheck.checked);
+    fabSuggest.onclick = () => setSuggestionMode(!suggestionMode);
     onStanding((node) => {
       if (node && responseOptionsOpen && !fabBar.contains(node))
         setResponseOptions(false);
@@ -3078,17 +3074,22 @@ function createVersionController({
     return next;
   }
   function activateHead(doc, revision) {
-    for (const node of authoredHeadNodes) node.remove();
-    const next = /* @__PURE__ */ new Set();
-    for (const node of doc.head.children) {
-      if (!versionedHeadNode(node)) continue;
-      const imported = document.importNode(node, true);
-      if (imported.localName === "link" || imported.localName === "style")
-        imported.addEventListener("load", keepPageRulesOffLayer, { once: true });
-      document.head.append(imported);
-      next.add(imported);
+    const source = [...doc.head.children].filter(versionedHeadNode);
+    const current = [...document.head.children].filter(
+      (node) => authoredHeadNodes.has(node)
+    );
+    if (current.length !== authoredHeadNodes.size || current.length !== source.length || current.some((node, index) => !node.isEqualNode(source[index]))) {
+      for (const node of authoredHeadNodes) node.remove();
+      const next = /* @__PURE__ */ new Set();
+      for (const node of source) {
+        const imported = document.importNode(node, true);
+        if (imported.localName === "link" || imported.localName === "style")
+          imported.addEventListener("load", keepPageRulesOffLayer, { once: true });
+        document.head.append(imported);
+        next.add(imported);
+      }
+      authoredHeadNodes = next;
     }
-    authoredHeadNodes = next;
     let marker = document.querySelector('meta[name="lf-revision"][data-lf-runtime]');
     if (!marker) {
       marker = document.createElement("meta");
@@ -5146,13 +5147,20 @@ function createPendingLedger({ newAttempt, enqueue }) {
 
 // runtime/pending/dispatch.js
 function createCommandDispatch() {
+  const submitted = /* @__PURE__ */ new Set();
   const ledger = createPendingLedger({
     newAttempt: randomId,
-    enqueue: (event) => applicationState.enqueue(
-      event,
-      saidNow(),
-      isThreadEvent(event) ? messageText(event) : void 0
-    )
+    enqueue: (event) => {
+      if (!submitted.has(event.attempt)) {
+        submitted.add(event.attempt);
+        recordInteraction("event_submit", { kind: event.kind, attempt: event.attempt });
+      }
+      return applicationState.enqueue(
+        event,
+        saidNow(),
+        isThreadEvent(event) ? messageText(event) : void 0
+      );
+    }
   });
   let dependencies = null;
   const current = () => {
@@ -6532,11 +6540,11 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
               dispose: () => message.retire()
             };
           } else {
-            let joined = false;
+            let joined2 = false;
             const { hint, accessibleName, sent } = item.options;
             const reply = createReplyView(item.key, commands.reply, {
               onChange: () => {
-                if (joined) void update().catch(() => {
+                if (joined2) void update().catch(() => {
                 });
               },
               editLast: rewritesOf(item.key).editLast,
@@ -6544,7 +6552,7 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
               accessibleName,
               sent
             });
-            joined = true;
+            joined2 = true;
             node.append(reply.node);
             view = { node, reply, dispose: reply.dispose };
           }
@@ -6573,6 +6581,11 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
             workflows: message.workflows
           });
           view.draw();
+          keeps(
+            view.node,
+            "data-lf-append-tail",
+            message.provisional && message === item.thread.msgs.at(-1) ? "" : null
+          );
         } else {
           keepsHidden(view.node, !replyAvailable(item.thread));
           if (view.notice.node.parentNode !== view.node)
@@ -6679,9 +6692,30 @@ function visibleInterval(body, clips, band) {
     contentHeight: body.scrollHeight
   };
 }
+function wordsAreVisible(body, clips, band) {
+  if (!presented(body) || !body.checkVisibility({ opacityProperty: true }))
+    return false;
+  const text = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+  const range = document.createRange();
+  for (let node = text.nextNode(); node; node = text.nextNode()) {
+    if (!node.textContent.trim()) continue;
+    const holder = node.parentElement;
+    if (!holder || !presented(holder) || !holder.checkVisibility({ opacityProperty: true }))
+      continue;
+    range.selectNodeContents(node);
+    for (const box of range.getClientRects()) {
+      const clipped = clippedContents(box, holder, clips);
+      if (!clipped) continue;
+      const room = shownWindow({ within: clipped, item: holder });
+      if (hasArea(intersect(intersect(clipped, room), band))) return true;
+    }
+  }
+  return false;
+}
 function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
   let coverage = /* @__PURE__ */ new WeakMap();
   const renderedBodies = /* @__PURE__ */ new Map();
+  const visibleReplies = /* @__PURE__ */ new Set();
   const refusedThisVisit = /* @__PURE__ */ new Set();
   const sizes = sizeObserver(() => scheduleScan());
   const frameWatches = [];
@@ -6731,24 +6765,34 @@ function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
     run: firstUnread
   };
   function scan(sampleBand) {
-    if (!threadsPresented || document.visibilityState !== "visible" || !document.hasFocus())
-      return;
+    if (document.visibilityState !== "visible") return;
     const band = sampleBand ?? containingView();
     if (!band || sampleBand?.visible === false) return;
     const candidates = new Map(
-      actionableUnread().map(({ item }) => [item.message, item])
+      (threadsPresented ? actionableUnread() : []).map(({ item }) => [
+        item.message,
+        item
+      ])
     );
-    if (!candidates.size) return;
+    const mayRead = threadsPresented && document.hasFocus();
     const clips = /* @__PURE__ */ new Map();
     const completed = /* @__PURE__ */ new Map();
     for (const [node, rendered] of renderedBodies) {
-      const { body, id, version } = rendered;
+      const { body, id, version, feedback } = rendered;
       if (!node.isConnected || !body.isConnected) {
         sizes.unobserve(body);
         renderedBodies.delete(node);
         continue;
       }
-      const item = candidates.get(id);
+      if (feedback) {
+        const identity2 = feedback.reply_id ?? `input:${feedback.input_id}`;
+        const key2 = `${identity2}:${feedback.presentation_kind}:${feedback.surface}`;
+        if (!visibleReplies.has(key2) && wordsAreVisible(body, clips, band)) {
+          visibleReplies.add(key2);
+          recordInteraction("reply_visible", feedback);
+        }
+      }
+      const item = mayRead && candidates.get(id);
       const key = item && keyOf(item);
       if (!item || item.version !== version || completed.has(key) || refusedThisVisit.has(key))
         continue;
@@ -6816,14 +6860,13 @@ function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
       frameWatches.length = 0;
     });
   }
-  function observeMessage(body, message) {
+  function observeBody(body, reading) {
     if (!(body instanceof Element))
       throw new TypeError("A message body must be an Element");
     if (!renderedBodies.has(body)) sizes.observe(body);
     const registration = {
       body,
-      id: message.id,
-      version: message.version
+      ...reading
     };
     renderedBodies.set(body, registration);
     scheduleScan();
@@ -6832,6 +6875,22 @@ function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
       sizes.unobserve(body);
       renderedBodies.delete(body);
     };
+  }
+  function observeMessage(body, message) {
+    return observeBody(body, {
+      id: message.id,
+      version: message.version,
+      feedback: message.author === "agent" ? {
+        reply_id: message.id,
+        attempt: message.attempt,
+        presentation_kind: "message_words",
+        reply_kind: message.provisional ? "stream" : message.progress ? "progress" : message.failure ? "failure" : "answer",
+        surface: message.panel ? "panel" : "margin"
+      } : null
+    });
+  }
+  function observeFeedback(body, feedback) {
+    return observeBody(body, { id: null, version: null, feedback });
   }
   function present() {
     const generation = presentationGeneration;
@@ -6872,6 +6931,7 @@ function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
     abort,
     present,
     observeMessage,
+    observeFeedback,
     firstUnreadCommand
   };
 }
@@ -8161,27 +8221,14 @@ function askEnding(ask) {
 function acceptData(candidate, taken) {
   return applicationState.acceptData(candidate, taken);
 }
-var subscriptions = /* @__PURE__ */ new Set();
-var subscriptionSequence = 0;
-function readingIdentity(reading) {
-  return reading ? JSON.stringify([
-    reading.contract,
-    reading.revision ?? null,
-    reading.run ?? null,
-    reading.error ?? null,
-    Object.hasOwn(reading, "value")
-  ]) : null;
-}
+var joined = /* @__PURE__ */ new Set();
 async function notifyDataSubscribers() {
   const version = runtime.data.version;
   deliveries += 1;
   const round = {};
   for (const delivered of [...deliveryListeners]) delivered(round);
-  const current = [...subscriptions];
-  for (const subscription of current) subscription.notify();
-  const regions = current.flatMap((subscription) => subscription.regions);
   await whenApplicationRegionsPresented(
-    regions,
+    [...joined],
     () => runtime.data.version === version
   );
   if (version !== null && runtime.data.version === version)
@@ -8191,7 +8238,7 @@ var declaredInput = (element, input) => {
   const declaration = registry[element.localName]?.["x-data"]?.[input];
   if (!declaration)
     throw new Error(
-      `watchData(${element.localName}, ${input}) input is not declared by this widget`
+      `<${element.localName}> input ${input} is not declared by this widget`
     );
   return declaration;
 };
@@ -8218,6 +8265,7 @@ function dataReader(element, input) {
   );
   stagedReadings.add(selected);
   let reported = null;
+  let copied = { store: null, value: null };
   return () => {
     selected.read();
     const sourceStore = (
@@ -8233,119 +8281,30 @@ function dataReader(element, input) {
     }
     if (incompatible || !source || !sourceStore || !Object.hasOwn(sourceStore, "value"))
       return null;
-    return structuredClone({
-      source,
-      ...sourceStore,
-      origin: {
-        input,
-        source,
-        contract: declaration.contract,
-        revision: sourceStore.revision
-      }
-    });
+    if (sourceStore !== copied.store)
+      copied = {
+        store: sourceStore,
+        value: structuredClone({
+          source,
+          ...sourceStore,
+          origin: {
+            input,
+            source,
+            contract: declaration.contract,
+            revision: sourceStore.revision
+          }
+        })
+      };
+    return copied.value;
   };
 }
 var deliveries = 0;
 var deliveryListeners = /* @__PURE__ */ new Set();
 var stagedReadings = /* @__PURE__ */ new WeakSet();
 var stagesOnly = (reading) => stagedReadings.has(reading);
-function joinDataDelivery(regions) {
-  const subscription = { regions, notify() {
-  } };
-  subscriptions.add(subscription);
-  return () => subscriptions.delete(subscription);
-}
-function watchData(element, input, callback) {
-  const declaration = declaredInput(element, input);
-  const source = element.getAttribute(declaration.source);
-  const paint = readingPaint(element, callback);
-  const selectedSource = applicationState.select(
-    (root) => source && Object.hasOwn(root.data.sources, source) ? root.data.sources[source] : null
-  );
-  let completion = Promise.resolve();
-  const region = `data:${element.id}:${input}:${++subscriptionSequence}`;
-  let presentation = null;
-  const subscription = { regions: [region], notify: () => notifySelected() };
-  let stopSelection;
-  let pendingDelivery = null;
-  let stopped = false;
-  let stopLifetime = null;
-  function disconnect() {
-    subscriptions.delete(subscription);
-    stopSelection?.();
-    stopSelection = null;
-    pendingDelivery = null;
-    presentation?.disconnect();
-    presentation = null;
-  }
-  function stop() {
-    if (stopped) return;
-    stopped = true;
-    stopLifetime?.();
-    disconnect();
-    paint.stop();
-  }
-  const deliver = (snapshot, identity2) => {
-    if (paint.owes(identity2)) {
-      if (snapshot)
-        snapshot.origin = {
-          input,
-          source,
-          contract: declaration.contract,
-          revision: snapshot.revision
-        };
-      const rendering = paint(identity2, structuredClone(snapshot));
-      completion = Promise.resolve(rendering).catch(() => {
-      });
-    }
-    return completion;
-  };
-  const update = (sourceStore) => {
-    const identity2 = readingIdentity(sourceStore);
-    const incompatible = sourceStore && sourceStore.contract !== declaration.contract;
-    if (incompatible && paint.owes(identity2))
-      reportPageError(
-        `data source ${source} carries contract ${sourceStore.contract}; watchData(${element.localName}, ${input}) requires ${declaration.contract}`
-      );
-    if (incompatible || !source || !sourceStore || !Object.hasOwn(sourceStore, "value"))
-      return deliver(null, identity2);
-    return deliver({ source, ...sourceStore }, identity2);
-  };
-  const stage = (sourceStore) => {
-    const identity2 = readingIdentity(sourceStore);
-    if (!pendingDelivery && !paint.owes(identity2)) return;
-    pendingDelivery = { sourceStore, ticket: presentation.present(identity2) };
-  };
-  function notifySelected() {
-    const pending = pendingDelivery;
-    if (!pending) return;
-    pendingDelivery = null;
-    pending.ticket.resolve(update(pending.sourceStore));
-  }
-  function connect() {
-    if (stopped || stopSelection || !element.isConnected) return;
-    presentation = attachApplicationPresentation(region, element);
-    const mount = presentation;
-    let mounting = true;
-    stopSelection = selectedSource.subscribe((sourceStore) => {
-      if (mounting) {
-        const rendering = update(sourceStore);
-        if (!stopped) mount.present(readingIdentity(sourceStore)).resolve(rendering);
-        return rendering;
-      }
-      stage(sourceStore);
-    });
-    mounting = false;
-    if (stopped) {
-      stopSelection();
-      stopSelection = null;
-      return;
-    }
-    subscriptions.add(subscription);
-  }
-  stopLifetime = watchOwner(element, { connect, disconnect });
-  stop.refresh = paint.refresh;
-  return stop;
+function joinDataDelivery(region) {
+  joined.add(region);
+  return () => joined.delete(region);
 }
 async function loadDeferred(manifest, key) {
   const { source, revision } = manifest;
@@ -8398,7 +8357,6 @@ export {
   textField,
   fabBar,
   fabInput,
-  fab,
   composerQuote,
   pendingAnchor,
   pendingAbout,
@@ -8456,6 +8414,5 @@ export {
   dataReader,
   stagesOnly,
   joinDataDelivery,
-  watchData,
   loadDeferred
 };

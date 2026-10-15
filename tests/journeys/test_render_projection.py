@@ -1438,7 +1438,7 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
 ):
     """A settlement is the layer's rendering of the log's decision, never a module
     obligation: the trial's module is the product's starter, which only defines the
-    element — it never subscribes to its controller and supplies no renderState — and
+    element — a `LeafElement` with no `render()` of its own — and
     once its decision replays the holder wears
     data-lf-state, the retired slot is marked and hidden by the theme's one generic
     rule, and the quote anchored in it detaches instead of pointing at words the
@@ -1454,7 +1454,7 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
     monkeypatch.chdir(tmp_path)
     trial_family(tmp_path)
     module = (tmp_path / ".leaf" / "widgets" / "lf-trial.js").read_text()
-    assert "subscribe" not in module, "the holder's module must leave the mark to Leaf"
+    assert "render(" not in module, "the holder's module must leave the mark to Leaf"
 
     url = serve(
         TWO_HOLDER_PAGE,
@@ -1556,31 +1556,11 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
     module = serve.page_dir / "widgets" / "lf-trial.js"
     module.write_text(
         """\
-import {keeps, once, widgetController} from "/runtime/widget-api.js";
-customElements.define("lf-trial", class extends HTMLElement {
-  #controller;
+import {keeps, LeafElement} from "/runtime/widget-api.js";
+customElements.define("lf-trial", class extends LeafElement {
   #presented;
-  #stop;
-  connectedCallback() {
-    this.#controller ??= widgetController(this);
-    if (!once(this)) {
-      this.#subscribe();
-      return;
-    }
-    this.#subscribe();
-  }
-  disconnectedCallback() {
-    this.#stop?.();
-    this.#stop = undefined;
-    this.#presented?.disconnect();
-    this.#presented = undefined;
-  }
-  #subscribe() {
-    this.#stop ??= this.#controller.subscribe(reading => this.#markAfterPresentation(reading));
-    this.#markAfterPresentation(this.#controller.read());
-  }
-  #markAfterPresentation(reading) {
-    if (!reading.state) return;
+  render() {
+    if (!this.reading.state) return;
     if (document.body.dataset.lfPresented === "1") {
       keeps(this, "data-lf-state", "shelve");
       return;

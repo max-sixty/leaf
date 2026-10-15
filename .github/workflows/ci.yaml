@@ -146,7 +146,7 @@ jobs:
           trap '' INT
           export PYTHONUNBUFFERED=1
           # Each worker charges its tests' CPU to a cgroup of its own under this one
-          # (`dev/leaf_dev/suite_profile.py`). Owning it lets the workers make and join
+          # (`dev/leaf_dev/commands/suite_profile.py`). Owning it lets the workers make and join
           # theirs without root, and this shell joins it so pytest starts inside.
           export SUITE_PROFILE_CGROUP=/sys/fs/cgroup/leaf-suite
           sudo mkdir "$SUITE_PROFILE_CGROUP"

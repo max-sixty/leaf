@@ -662,7 +662,8 @@ let signoff = false;
 
 // The banner's row mounts after the version picker and drawers exist. Its complete
 // inventory and order already belong to the shelf's explicit registrations above.
-export function mountBanner({ approveVersion }) {
+export function mountBanner({ approveVersion, observeFeedback }) {
+  bannerStatus.trackFeedback(observeFeedback);
   signoff = isSignoffDeclared();
   showBannerControl(approveBtn, signoff);
   approvalWatch = watchProjection(document.body, drawApproval);

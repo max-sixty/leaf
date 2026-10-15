@@ -1,82 +1,73 @@
 # Leaf glossary
 
 The canonical names for the page a user sees and operates. Use them in element
-declarations, JavaScript, CSS, visible copy, tests, examples, and references. Where an
+declarations, JavaScript, CSS, visible copy, tests, examples and references. Where an
 existing name disagrees, rename it rather than adding an alias. Events, comments,
-threads, replies, asks, and activity are named by their protocol references, not here.
+threads, replies, asks and activity are named by their protocol references, not here.
 
 A term gets an entry once current behavior gives it a stable identity. Name the
-narrowest established kind, and where the web platform or UI design already names the
-thing (a drawer, a focus ring, a sticky header, a full-height layout), use that name.
-Coin a word only where no standard name fits, and record under "Coined terms" which
-standard term comes closest and why it doesn't fit. Qualify a noun that another web or
-Leaf concept also uses.
+narrowest established kind, and use the web platform's or UI design's name where one
+exists (a drawer, a focus ring, a sticky header, a full-height layout). Coin a word
+only where no standard name fits, and record under "Coined terms" the closest standard
+term and why it doesn't fit. Qualify a noun another web or Leaf concept also uses.
 
 ## Reader-facing words
 
-Use these words in UI labels, command help, errors and prose. Protocol field names
-and implementation terms retain their exact spelling when the reader needs them.
+Use these words in UI labels, command help, errors and prose. Protocol fields and
+implementation terms keep their exact spelling where the reader needs them.
 
 | Term | Meaning and visible use |
 |---|---|
-| **Page** | The document the user reads and acts on; *page instance* below names its durable directory |
-| **Update** | One input the user sends the agent, of any kind, or a mixed collection of them: “Updates are saved” |
-| **Response** | Work owed to user input whose kind is not known: “2 responses owed” |
-| **Answer** | The current value within an ask, or the response that satisfies a user update. An ask contains its answer; no separate Answer record exists |
-| **Reply** | A message in a conversation, including an answer or a proactive message |
-| **Delivery** | How far an update has got toward the agent: **Sending**, **Sent**, **Queued**, then **Picked up**. Picked up does not claim work has begun |
-| **Sent** | The delivery state of an update Leaf has logged that no harness has yet queued or opened into a turn (stage `sent` in `workflows.py`); before the log accepts it, the browser shows **Sending**. A message shows it, as does the margin row of the widget a widget action acted on |
-| **Working** | The agent has explicitly started this update or to-do; page activity alone does not establish it |
-| **Undo** | Taking back the latest eligible user update |
+| **Page** | The document the user reads and acts on; *page instance* below names its directory |
+| **Update** | One input the user sends the agent, of any kind, or several of mixed kinds: “Updates are saved” |
+| **Response** | Work owed to user input of unknown kind: “2 responses owed” |
+| **Answer** | The current value of an ask, or the response that satisfies a user update. An ask contains its answer; there is no separate Answer record |
+| **Reply** | A message in a conversation, including an answer or an unprompted message |
+| **Delivery** | How far an update has got toward the agent: **Sending**, **Sent**, **Queued**, then **Picked up**. Picked up doesn't mean work has begun |
+| **Sent** | An update Leaf has logged that no harness has queued or opened into a turn yet (stage `sent` in `workflows.py`); before the log accepts it, the browser shows **Sending** |
+| **Working** | The agent has explicitly started this update or to-do; page activity alone doesn't mean it has |
+| **Undo** | Taking back the user's latest update that can be taken back |
 | **Threads** | The control and panel listing conversations. A **thread** is one conversation; a **comment box** is the field where the user writes a comment or reply |
 | **Version** | A stamped page the user can revisit: **Showing v4** in the version picker, or **Showing Draft** for the live unstamped source |
 
-Visible copy speaks in the user's voice, since the page is their own space. The first
-person is for labels that tell the user's side from the agent's: **Me** as an author,
-**Waiting on me**, **My turn to answer**, **my change**, and commands such as **Edit my
-last message**. Copy never narrates what the user saw, decided, or is doing (*since I
-last looked*, *what I'm standing on*): Leaf can't know it, and saying it in their voice
-is uncanny. Everything else Leaf reports drops the pronoun rather than saying *you* or
-*my*: “The draft is kept”, “retrying the change”, “not in the version shown”, “New
-messages”. Text addressed to the agent,
-such as `x-instructions` and event handling, stays in the second person, as does the
-website's prose to a visitor.
+Visible copy speaks in the user's voice, since the page is their space. Use the first
+person only for labels that tell the user's side from the agent's: **Me** as an
+author, **Waiting on me**, **My turn to answer**, **my change**, and commands such as
+**Edit my last message**. Never narrate what the user saw, decided or is doing (*since
+I last looked*): Leaf can't know it, and saying it in their voice is uncanny. Other
+status drops the pronoun rather than saying *you* or *my*: “The draft is kept”, “New
+messages”. Text addressed to the agent, such as `x-instructions` and event handling,
+uses the second person, as does the website's prose to a visitor.
 
 Name an update's kind where it is known: a **comment**, **reply**, **choice**,
 **reaction** or **approval**; in protocol text a widget's is an **action**, after its
-event kind. Don't call an update a *move* or *feedback*, or an *input* as a count noun
-(“an input”, “inputs”); *input* stays as a mass noun (“waiting for input”). Only the
-user's input is an update: a worker's news is a **report**, and the agent's interim
-thread message a **progress message**. Until an answer folds it, the thread draws the agent's
-current line at its foot as the **working message**: a message's head over dim words, with
-the sheen of a title being generated while the work runs. Update counts do not count revisions. Where the
-kind is known, say **answer** or **reply** rather than *response*; the On panel
-lists a reply the agent owes as **Reply** and a revision it owes as **Answer**. Undo
-keeps its name whatever widget verb it withdraws.
+event kind. Don't call an update a *move* or *feedback*, or an *input* as a count noun;
+*input* stays as a mass noun (“waiting for input”). Only the user's input is an update:
+a worker's news is a **report**, and the agent's interim thread message a **progress
+message**. Until an answer replaces it, the thread shows the agent's current line at
+its foot as the **working message**. Update counts don't count revisions. Where the
+kind is known, say **answer** or **reply** rather than *response*; the On panel lists a
+reply the agent owes as **Reply** and a revision it owes as **Answer**. Undo keeps its
+name whatever widget action it takes back.
 
-The **Pages drawer**, opened by **All pages**, lists live pages on this machine. **No session** means no agent
-session currently holds the page, on both the banner and neighboring-page rows.
-**Page closed** means the page's work has ended.
+The **Pages drawer**, opened by **All pages**, lists live pages on this machine. **No
+session** means no agent session holds the page, on the banner and on neighboring-page
+rows. **Page closed** means the page's work has ended.
 
 ## Pages, packages, and layers
 
 | Term | Identity criterion |
 |---|---|
-| **Page instance** | One durable page directory: its source, revisions, selected layer, data, media, and event history |
+| **Page instance** | One page directory: its source, revisions, selected layer, data, media and event history |
 | **Package** | One composable source directory of declarations and their payload |
 | **Leaf layer** | One checked, vendored composition of packages |
 | **User session** | One browser tab's temporary interaction with a page instance |
-| **In force** | An action, report, reaction or decision that no undo withdrew and no version note retracted; at each owner-unit-verb coordinate the latest in force wins (`events.InForce`, `StateProjection.in_force`; the served event field keeps its name, `stands`) |
+| **In force** | An action, report, reaction or decision that no undo took back and no version note retracted. For each widget, unit and action kind, the latest one in force sets the state (`events.InForce`, `StateProjection.in_force`; the served event field is still called `stands`) |
 
-Core Leaf owns revision activation, scoped serving, the executable and inert-input
-boundaries, target identity, event admission, comments, and export. A package owns
-reusable declarations, widgets, browser modules, styles, data contracts, and instructions.
-A page instance owns its content, page-local modules, styles, assets, and declarations,
-its semantic target choices, drafts, and package selection. A user session owns focus,
-scroll, selection, and disposable exploration state; a durable user choice enters the
-page instance through Leaf's event path. Moving code into a package changes who reuses
-and maintains it, not what it can reach: it runs in the page document beside every
-other script.
+A user session owns focus, scroll, selection and throwaway exploration; a lasting user
+choice reaches the page instance through Leaf's events. Code in a package runs in the
+page document beside every other script, so moving code into a package changes who
+reuses it, not what it can reach.
 
 For an authored occurrence say *Leaf element*, never *instance* alone.
 
@@ -90,16 +81,13 @@ For an authored occurrence say *Leaf element*, never *instance* alone.
 | **Compound owner** | A Leaf element whose body holds declared direct members |
 | **Compound member** | A Leaf element whose declaration names the owner types that may hold it directly |
 | **Structural element** | A Leaf element with a declared role in reading structure |
-| **Addressable element** | An authored, identified element a user can target |
+| **Addressable element** | An authored element with an id that a user can target |
 
-An element declaration keeps independent dimensions in separate keys:
-
-- `x-content`, what its body holds: `markup`, `members`, `data`, or `empty`.
-- `x-owners`, the compound owner types that may hold it directly; with `x-within`, it
-  may also stand at any depth inside the regions that key names, belonging to the
-  nearest owner around them.
-- `x-reading-role`, an authored reading-structure role.
-- Every other `x-*` key declares a capability, not an element family.
+An element declaration keeps independent properties in separate keys: `x-content`
+(what its body holds: `markup`, `members`, `data` or `empty`), `x-owners` (the compound
+owner types that may hold it directly; with `x-within`, it may also sit at any depth
+inside the regions that key names), and `x-reading-role` (an authored reading-structure
+role). Every other `x-*` key declares a capability, not an element family.
 
 Don't say *widget entry* for an element declaration, *item* for an addressable element
 (it stays ordinary English for a list item), or *holder* for a compound owner.
@@ -108,171 +96,164 @@ Don't say *widget entry* for an element declaration, *item* for an addressable e
 
 | Term | Identity criterion |
 |---|---|
-| **Page shell** | The body-level responsive sizing envelope after chrome reservations |
+| **Page shell** | The body-level box that sizes the page after the chrome takes its space |
 | **Content frame** | `body > main`, the root of authored content and its reading column in flow posture |
-| **Layout** | A shipped class (`layouts.css`, the `lf-layouts` cascade layer) that arranges the box it is on: the page Layouts `layout-column`, `layout-sidebar` and `layout-workspace` on the content frame alone, and `layout-tiles` on any block |
-| **Frame** | A box whose size comes from outside it: `main`, a root tab panel, a pane, a cell of a Layout or of the page's own grid, or any box declaring `--lf-block-frame`, whose values `theme.css` defines |
-| **Text** and **surface** | How a block uses its frame's width. Text (a paragraph, list item, term or description, quote, caption or heading, or a block allocated the column) keeps the reading measure; every other box is a surface that uses the room its frame permits, with `wide` capped at `--wide` and `available` taking the available room |
-| **Bounded block** | A block that holds its own height and scrolls inside it (`x-bound`, `data-bound`), which makes it a reading region |
-| **Sidebar page** | A content frame on `layout-sidebar`, as wide as the window up to a cap: a wrapping layout placing the body beside its `aside` when both fit, with a header and footer across both. Every block starts at its region's left edge and takes its width, while text keeps the reading measure |
-| **Margin sidebar** | `aside.sidebar`: page-level supporting material, typically navigation, in a column page's left margin where it fits and in flow otherwise. It creates no side-by-side content regions |
+| **Layout** | A shipped class (`layouts.css`, the `lf-layouts` cascade layer) that arranges the box it is on: the page Layouts `layout-column`, `layout-sidebar` and `layout-workspace` on the content frame only, and `layout-tiles` on any block |
+| **Frame** | A box whose size comes from outside it: `main`, a root tab panel, a pane, a cell of a Layout or of the page's own grid, or any box declaring `--lf-block-frame`. It sets its children's width and trims their outer margins |
+| **Text** and **surface** | How a block uses its frame's width. Text (a paragraph, list item, quote, caption, heading, or a block given the column) keeps the reading measure. Every other block is a surface and takes the width its frame allows: `wide` up to `--wide`, `available` all of it |
+| **Bounded block** | A block that keeps its own height and scrolls inside it (`x-bound`, `data-bound`), which makes it a reading region |
+| **Sidebar page** | A content frame on `layout-sidebar`, as wide as the window up to a cap, with the body beside its `aside` when both fit |
+| **Margin sidebar** | `aside.sidebar` on a column page: supporting material, usually navigation, in the left margin where it fits and in flow otherwise |
 | **Workspace** | A page on `main.layout-workspace`, which keeps task regions together |
-| **Full-height** | A workspace that fills the window exactly, where the window is large enough, marked by `--lf-full-height: 1` on `main`; the web calls it a full-height or app-shell layout. `layouts.css` says which of its boxes scroll |
-| **Pane** | One reading region, typically in a workspace's body: an optional header, exactly one body element, an optional footer |
-| **Reading region** | A stable semantic place used by navigation and reading-position recovery |
-| **Effective reading scroller** | The scroll container currently governing one reading region |
-| **Sticky header** | A sticky box of stated height that covers the top of the scroller it sticks in, such as an `lf-diff` file header, a root `lf-tabs` strip, or an open thread's title in the Threads list; `module-scroll-and-motion.md`, "Sticky headers", says how headers stack |
-| **Reading posture** | Whether a region's body scrolls on its own (`bounded`) or its container carries it (`flow`). The stylesheet decides it and the runtime reads it |
+| **Full-height** | A workspace that exactly fills the window, where the window is large enough, marked by `--lf-full-height: 1` on `main`; the web calls it a full-height or app-shell layout |
+| **Pane** | One reading region, usually in a workspace: an optional header, exactly one body element, an optional footer |
+| **Reading region** | A stable place on the page that navigation and reading-position recovery use |
+| **Effective reading scroller** | The scroll container that currently scrolls one reading region |
+| **Sticky header** | A sticky box of known height covering the top of its scroller, such as an `lf-diff` file header, a root `lf-tabs` strip, or an open thread's title in the Threads list (`module-scroll-and-motion.md`, "Sticky headers") |
+| **Reading posture** | Whether a region's body scrolls on its own (`bounded`) or its container scrolls it (`flow`). The stylesheet decides it and the runtime reads it |
 
-A root `lf-tabs` and an embedded `lf-tabs` remain the same element type; placement
-changes their presentation rather than creating another structural kind. Only a
-full-height workspace gives a pane bounded posture; a pane anywhere else, a page tab's
-included, remains in flow.
-A compound widget may own reading regions without being a pane, and its own
-stylesheet decides whether their bodies scroll.
+A root `lf-tabs` and an embedded `lf-tabs` are the same element type; placement changes
+only how they look. Only a full-height workspace gives a pane bounded posture; any other
+pane, including a page tab's, stays in flow. A compound widget may own reading regions
+without being a pane, and its own stylesheet decides whether they scroll.
 
 ## Chrome and auxiliary surfaces
 
 | Term | Identity criterion |
 |---|---|
-| **Chrome** | Runtime-owned interface outside authored content, rooted at the one `.lf-chrome` container |
-| **Leaf panel** | Opt-in chrome (`?lf-chrome=floating`, `floating-panel.js`): one box floating over the window's foot whose resting row holds the leaf, coloured by the agent's state and opening the leaf's menu of the page's other controls; the comment field, which shows the agent's status and passing notices while empty; the row notice, at most one small notice beside the marks for a state the user should not miss, such as reading an older version, with the press that ends it; and the On me and Threads marks. Threads, the On panel, Versions and the menu's groups open as views above that row, and folding leaves the leaf alone in the window's corner. It stands for the banner and the bottom bar, drawing their controls from the toolbar's rows (`banner-toolbar.js`) |
-| **Banner** | Default chrome, which `?lf-chrome=classic` also restores after the Leaf panel was chosen (`prepaint.js`): the fixed row at the window's top: page status ending with the agent's count (**On Claude: 2**), the primary Approval, Comment on the page, On me and Threads controls, and an overflow disclosure of secondary controls (`banner-toolbar.js` says where each control sits) |
-| **Page comment card** | The card hung from the banner's Comment on the page control, holding the page's general comment box, the one place a page thread starts (`thread/page-comment.js`) |
-| **Bottom bar** | Classic chrome's row at the window's foot, at one stated height (`--lf-bottom-bar-h`), holding the shortcut bar and the status |
-| **Auxiliary surface** | Chrome opened `beside`, `over`, or `covering` the content frame |
-| **Side panel** | The right-edge slot, with one width and one drawn edge, that the thread panel and the On panel take turns in; On me and Threads are its two banner doors. The On panel has no title of its own: its head is a tab per list, On me and On *agent*, and the open one reads as the title |
-| **Thread panel** | The auxiliary surface listing threads, one of the two that take turns in the side panel |
-| **Drawer** | An auxiliary surface built as a head over a list of rows, one open at a time: the On panel at the right edge, in the side panel, and the Pages drawer at the left |
+| **Chrome** | Interface the runtime draws outside authored content, rooted at the one `.lf-chrome` container |
+| **Leaf panel** | Opt-in chrome (`?lf-chrome=floating`, `floating-panel.js`) that replaces the banner and bottom bar with one box floating at the window's foot: the leaf, which opens a menu of the page's controls, the comment field, and the On me and Threads marks |
+| **Banner** | The default chrome (`?lf-chrome=classic` restores it): the fixed row at the window's top with page status, the agent's count (**On Claude: 2**), the primary controls, and a More menu of the rest (`banner-toolbar.js`) |
+| **Page comment card** | The card under the banner's Comment on the page control, holding the page's general comment box, the one place a page thread starts (`thread/page-comment.js`) |
+| **Bottom bar** | Classic chrome's row at the window's foot, of fixed height (`--lf-bottom-bar-h`), holding the shortcut bar and the status |
+| **Auxiliary surface** | Chrome opened `beside`, `over` or `covering` the content frame |
+| **Side panel** | The right-edge slot, with one width and one drawn edge, that the thread panel and the On panel share; the banner's On me and Threads controls open it. The On panel's head is a tab per list, On me and On *agent*, and the open tab serves as its title |
+| **Thread panel** | The auxiliary surface listing threads, one of the two in the side panel |
+| **Drawer** | An auxiliary surface with a head over a list of rows, one open at a time: the On panel in the side panel, and the Pages drawer at the left |
 
-The current drawers are the **On panel** (experimental) and the **Pages drawer**. Use *covering auxiliary
-surface*, not *modal workspace*: a covering surface and a modal dialog are different
-web interaction primitives. A covering surface makes the page inert behind it; a surface
-over the page, such as the thread panel on a desktop window, takes no width from
-it and leaves it live. A **sticky header** covers one edge of one scroller, and nothing
-about it is modal.
+The current drawers are the **On panel** (experimental) and the **Pages drawer**. Say
+*covering auxiliary surface*, not *modal workspace*: a covering surface makes the page
+inert behind it, but it is not a modal dialog. A surface over the page, such as the
+thread panel on a desktop window, takes no width from the page and leaves it live. A
+**sticky header** covers one edge of one scroller and is not modal.
 
 ## Page Map and the margin
 
-**Page Map** is the page inventory, every destination and action on the page, shown
-two ways: the compact **margin projection** beside the page, and the searchable modal
-**Page Map dialog**. The margin projection has its own terms:
+**Page Map** is the page's inventory of every destination and action, shown two ways:
+the compact **margin projection** beside the page, and the searchable **Page Map
+dialog**. The margin projection has its own terms:
 
 | Term | Identity criterion |
 |---|---|
-| **Rail** | The strip right of `main` where margin rows sit beside their targets. Seated where the room beside `main` holds it, it never moves the column; only `data-rail="right"` on `body` makes the shell give up the rail's width, so the page's layout gets narrower (`annotation-theme.css`). `page-layout.md`, "The rail and the margin", says when a page has one |
-| **Margin resident** | Something the page's margin holds: the rail, the contents map, a column's first sidebar, its sidenotes. One measurement, prepaint.js `residency`, admits each where the room beside `main` holds it |
-| **Margin row** | One target-anchored row whose placement is `rail`, `pin`, or `withheld` |
-| **Pin** | A margin row drawn over the page by its target, used where the row cannot sit in the rail (`rowPosture`). It takes the first of its seats, all touching its target, that covers no words, control, media or other pin: just outside the target's top-right corner, after a run of text's last word, just inside the corner or further down its right edge, just above the corner, or just below the bottom-right corner. Where none is clear it folds, and failing that stands over the target, keeping off controls where it can (`seatRows` in `margin-placement.js`, `pinSeating` in `margin-layout.js`) |
-| **Folded pin** | A pin drawn as its options' toggle alone (`data-lf-folded`) because its whole face found no room (`seatRows` in `margin-placement.js`) |
-| **Margin lane** | The layer holding the margin rows of one scroller: the root lane for the document, and one lane per bounded reading region, clipped to what that region shows |
+| **Rail** | The strip right of `main` where margin rows sit beside their targets. It appears where there is room beside `main` and never moves the column; `data-rail="right"` on `body` reserves its width and narrows the page instead (`page-layout.md`, "The rail and the margin") |
+| **Margin resident** | Something the margin holds: the rail, the contents map, a column page's first sidebar, its sidenotes. `residency` in `prepaint.js` admits each where there is room beside `main` |
+| **Margin row** | One row tied to a target, placed in the `rail`, as a `pin`, or `withheld` |
+| **Pin** | A margin row drawn over the page by its target, used where the row can't sit in the rail (`rowPosture`). It takes the first spot touching its target that covers no words, control, media or other pin; with none free it folds, and failing that it covers the target (`seatRows` in `margin-placement.js`) |
+| **Folded pin** | A pin drawn as its options' toggle alone (`data-lf-folded`) because its full face found no room |
+| **Margin lane** | The layer holding one scroller's margin rows: the root lane for the document, and one lane per bounded reading region, clipped to what that region shows |
 | **Margin cluster** | The visible group attached to one target |
 | **Margin contribution** | One provider's registered bundle of margin content |
-| **Margin entry** | One ranked action, disclosure, or status in a contribution |
-| **Contributed control** | A margin entry a package puts in a target's cluster, such as a suggestion's Accept and Reject |
+| **Margin entry** | One ranked action, disclosure or status in a contribution |
+| **Contributed control** | A margin entry a package adds to a target's cluster, such as a suggestion's Accept and Reject |
 
-A row is *withheld* while its target shows no part of itself in its region: inside a
-closed `details`, in an inactive tab, or in a pane scrolled past it. A withheld row is
-out of the tab order, and the term says nothing about whether the entry will appear
-later.
+A row is *withheld* while no part of its target shows in its region: inside a closed
+`details`, in an inactive tab, or in a pane scrolled past it. A withheld row is out of
+the tab order; the word says nothing about whether it will appear later.
 
 ## Contents outline
 
-`lf-toc` requests the **contents outline**, navigation generated from the page's
-headings. In ordinary flow it lists every included heading; where the margin has room
-it may show the **contents spine** instead, which spreads the heading destinations over
-the document's height.
+`lf-toc` requests the **contents outline**, navigation built from the page's headings.
+In flow it lists every included heading; where the margin has room it may show the
+**contents spine** instead, which spreads the headings over the document's height.
 
 ## Keyboard interactions
 
 | Term | Identity criterion |
 |---|---|
-| **Scope** | A registered command-applicability and shadowing boundary |
-| **Design mode** | The `l` interaction that reinterprets input for interface comments until the user exits |
-| **Draw mode** | The `w` interaction that reinterprets pointer input as a drawing until the user exits |
-| **Annotation layer** | Everything Leaf draws over the page's content: pins, the marks on commented and reacted passages, an open card, an unfolded cluster. The rail is not part of it. `o` toggles whether it shows |
-| **Go-to sequence** | The `g` prefix grammar that builds a current map of Go-to targets, paints transient hint codes, and resolves complete ordered addresses |
-| **Target picker** | The `s` interaction that presents addressable elements and ends when the user chooses one or closes it |
-| **Page search** | The `/` interaction that filters or walks text matches for a query |
-| **Walk** | Ordered semantic movement among one category of destination: open threads (`t`), the user's On me list (`m`), a list's rows |
-| **On me** | The user's list, everything waiting on the user (`queues.on_user`), named in the user's voice: open asks, to-dos the agent put on the user, and resends. An open ask the user has commented on leaves it until the agent replies, since the comment's answer is then on the agent's list. The banner's On me control opens the On panel on it, and the `m` walk steps through the same list; its Done fold holds the asks answered or withdrawn and the to-dos the user ended |
-| **On *agent*** | The agent's list, everything waiting on the agent (`queues.on_agent`), named for the agent, such as **On Claude**: answers it owes, work in hand, and its own to-dos. The banner ends with its count, which opens the On panel on it; its Done fold holds the replies the agent sent and the to-dos it ended. A message the user sends counts on it as an answer the agent owes before any to-do exists. Prose about no particular agent writes `On <agent>` |
-| **Ask** | One core record of a request for the user's input, with its typed answer and its lifecycle. A widget ask has identity `widget:<source-id>`; a prose ask, from a reply sent with `--ask`, has `reply:<agent-message-id>`; an approval ask, `approval:v<version>`, tracks a stamped version's sign-off. Widget state owns a widget ask's values, and the conversation owns a prose ask's settlement. An optional `lf-ask` frames one or more asks with prompt context without changing their identity. An ask is distinct from a to-do and from a resend. The interface calls one an ask, never a question, and a route through them names the list rather than the item, as Next on me does |
-| **To-do** | Explicit work owed until it ends (`todo` in the protocol), by the agent or by the user. An ask is a separate record, not a to-do |
-| **Tally** | `lf-tally`: how many of the asks a region holds (`asksIn`) are still open, “7 of 8 to answer”, with an optional Next on me that walks the region's asks waiting on the user |
+| **Scope** | A registered boundary where commands apply and can hide outer ones |
+| **Design mode** | The `l` interaction that turns input into interface comments until the user exits |
+| **Draw mode** | The `w` interaction that turns pointer input into a drawing until the user exits |
+| **Annotation layer** | Everything Leaf draws over the page's content: pins, marks on commented and reacted passages, an open card, an unfolded cluster. The rail is not part of it. `o` toggles whether it shows |
+| **Go-to sequence** | The `g` keys: Leaf paints hint codes on the current Go-to targets and goes to the one whose code the user types |
+| **Target picker** | The `s` interaction that shows addressable elements and ends when the user picks one or closes it |
+| **Page search** | The `/` interaction that filters or steps through text matches for a query |
+| **Walk** | Stepping in order through one kind of destination: open threads (`t`), the user's On me list (`m`), a list's rows |
+| **On me** | The user's list of everything waiting on them (`queues.on_user`): open asks, to-dos the agent gave them, and resends. An ask the user has commented on leaves it until the agent replies. `m` walks it |
+| **On *agent*** | The agent's list of everything waiting on it (`queues.on_agent`), named for the agent, such as **On Claude**: answers it owes, work in hand and its own to-dos. Prose about no particular agent writes `On <agent>` |
+| **Ask** | One record of a request for the user's input, with its typed answer: a widget ask (`widget:<source-id>`), a prose ask from a reply sent with `--ask` (`reply:<agent-message-id>`), or an approval ask for a stamped version (`approval:v<version>`). `lf-ask` frames asks with context without changing their ids. The interface calls it an ask, never a question |
+| **To-do** | Explicit work owed until it ends (`todo` in the protocol), by the agent or by the user |
+| **Tally** | `lf-tally`: how many of a region's asks (`asksIn`) are still open, “7 of 8 to answer”, with an optional Next on me that walks the region's asks waiting on the user |
 | **Resend** | An update the user has to send again, which stays in On me until they do |
-| **Done** | The control with which the user ends a to-do the agent put on them; it writes `todo_end`. A widget may also name its own answer-submission control Done |
-| **Done fold** | What left a list, folded under it in the On panel: each item lands in the Done of the list it left (`owner`) |
-| **Trip** | One travel to a destination (a thread's passage, an ask, a datum, or the element a followed fragment link names): it clears the auxiliary surface hiding the destination, then stays where the user already has it, or departs and leaves a history entry (`history.js`) |
-| **Journey** | Consecutive trips each leaving from the last one's landing, which share one history entry so Back returns to where the first began; it may mix threads and asks, and is not a walk |
-| **Standing** | Holding a destination or a control inside it: a thread on the page or in the panel, an ask, or authored page content. A panel thread's title and its messages are one destination; chrome controls, margin rows, comment notes, and contents-outline links are apparatus, not destinations |
-| **Standing target** | The addressable element the user stands at, whether they hold the element or something inside it, its margin cluster, a note it names on the details shelf, or the thread card showing its threads (`standing-target.js`) |
-| **Floor** | The place in a layer where the user stands on nothing: the page's body, the whole thread panel |
-| **Unwind** | What Escape takes off, read from what stands in front of the user rather than from how they reached it: the innermost step of the ladder `skills/leaf/assets/runtime/keyboard/AGENTS.md` states, with containment before kind, each landing them at the parent of what it closed |
-| **Landing** | Where a step leaves the user. Closing a box lands on its container, ending a standing lands on the layer's floor, and closing a surface lands on the document block the user was reading, which is focused and then blurred |
-| **Layer stack** | The one ordered record of the popovers and modal dialogs open over the page, in the order they opened (`keyboard/layer-stack.js`); a covering auxiliary surface is its floor without being an entry |
-| **Focus ring** | The one ring on whatever takes the user's next press: a focused control, a bounded decision, an ask stood at. It marks standing as well as DOM focus; `theme.css` (`--lf-focus-ring`) says how a rule draws it |
-| **Key badge** | A keycap-shaped carrier for a binding or transient hint code |
-| **Binding badge** | A key badge showing a command's currently resolved binding |
+| **Done** | The control with which the user ends a to-do the agent gave them; it writes `todo_end`. A widget may also call its own submit control Done |
+| **Done fold** | The items that left a list, folded under it in the On panel |
+| **Trip** | One move to a destination, such as a thread's passage, an ask, or the element a followed fragment link names. It clears any surface hiding the destination, then stays put if the user already sees it, or moves and adds a history entry (`history.js`) |
+| **Journey** | Consecutive trips, each starting where the last landed, that share one history entry, so Back returns to where the first began |
+| **Standing** | Being at a destination or a control inside it: a thread on the page or in the panel, an ask, or authored page content. A panel thread's title and its messages are one destination; chrome controls, margin rows, comment notes and contents links are not destinations |
+| **Standing target** | The addressable element the user is at, whether focus is on the element, inside it, on its margin cluster, on a note it names on the details shelf, or on the thread card showing its threads (`standing-target.js`) |
+| **Floor** | The place in a layer where the user is at nothing: the page's body, or the whole thread panel |
+| **Unwind** | What one Escape closes: the innermost open step, decided by what is open now rather than how the user got there (`runtime/keyboard/AGENTS.md`, "Escape"). It lands the user on the parent of what it closed |
+| **Landing** | Where a step leaves the user. Closing a box lands on its container, leaving a destination lands on the layer's floor, and closing a surface lands on the document block the user was reading |
+| **Layer stack** | Leaf's ordered record of the popovers and modal dialogs open over the page (`keyboard/layer-stack.js`); a covering auxiliary surface sits beneath it without being an entry |
+| **Focus ring** | The one ring on whatever takes the user's next press: a focused control, a bounded decision, an ask the user is at. It shows standing as well as DOM focus (`--lf-focus-ring` in `theme.css`) |
+| **Key badge** | A keycap-shaped label for a binding or a hint code |
+| **Binding badge** | A key badge showing a command's current binding |
 
 Only Design mode and Draw mode are *modes*, lasting until an explicit exit. `g` opens a
-sequence, `s` opens a picker, and `o` is a toggle that changes what the page shows, not
-what input means. Commands have stable dotted ids; bindings are canonical normalized
-chords matched against keyboard events.
+sequence, `s` a picker, and `o` toggles what the page shows without changing what
+input means. Commands have stable dotted ids.
 
-A *binding* is one chord a scope's row declares for a command, the word code, the
-register, and package authors use. A *shortcut* is the whole key sequence a user
-presses to reach the command, prefix included (`g d`), and the only word user-visible
-text uses. A *keyboard route* is any keyboard path to an action, Tab to a native
-control included. A row's `routes` are its extra keyed meanings, each with its own id
-and binding, never another name for a binding or a shortcut.
+A *binding* is one key a scope's row declares for a command; code, the register and
+package authors use the word. A *shortcut* is the whole key sequence a user presses,
+prefix included (`g d`), and the only word visible text uses. A *keyboard route* is any
+keyboard path to an action, including Tab to a native control. A row's `routes` are
+its extra keyed meanings, each with its own id and binding.
 
-The keyboard help comes in three presentations:
+The keyboard help comes in three forms:
 
-- **Shortcut bar**: the always-visible compact list of commands that apply in the
-  current keyboard context, drawn in the bottom bar.
+- **Shortcut bar**: the always-visible list of commands that apply now, in the bottom
+  bar.
 - **Expanded shortcut bar**: what More's first press opens, the rest of the current
   commands in up to two rows; not another surface.
-- **Command reference**: the searchable complete catalog of commands, including
-  pointer- and platform-triggered ones with no keyboard binding.
+- **Command reference**: the searchable catalog of all commands, including pointer and
+  platform ones with no key.
 
 ## Coined terms
 
-These terms name Leaf concepts that no standard term covers, so they stay:
+These name Leaf concepts no standard term covers:
 
-- **Standing**, not *focus*: a user stands at a target from its margin cluster, its
-  thread card, or its note on the details shelf as well as from the element, while DOM
-  focus is on one node. Where the two coincide, say *focus*. *Standing* means only
-  where the user is: say *in force* for an event not withdrawn, *current* for the
-  latest value, *open* for something still owed or on screen, and *persistent* for a
-  serve that outlives sessions.
-- **Trip** and **Journey**, not *navigation*: a trip decides whether to leave a history
-  entry (it stays when the user already has the destination), and a journey shares one
-  entry across trips. Web navigation always adds an entry, or replaces one.
+- **Standing**, not *focus*: a user can be at a target through its margin cluster,
+  thread card or note on the details shelf as well as the element, while DOM focus is
+  on one node. Where the two coincide, say *focus*. Use *standing* only for where the
+  user is: say *in force* for an event not taken back, *current* for the latest value,
+  *open* for something still owed or on screen.
+- **Trip** and **Journey**, not *navigation*: a trip decides whether to add a history
+  entry, and a journey shares one entry across trips, while web navigation always adds
+  or replaces one.
 - **Landing** and **Floor**, not *focus restoration*: a landing is where any step leaves
-  the user, including a box's close and a surface's, and the floor is the place in a
-  layer that holds nothing, which focus restoration has no name for.
-- **Unwind**, not *dismiss*: one Escape takes off whichever step stands innermost, a
-  selection or a narrowing as well as a surface, and only surfaces are dismissed.
-- **Walk**: ordered movement among one category of destination, as a DOM `TreeWalker` walks;
-  roving focus moves within one widget.
-- **Frame**, **Text**, and **surface**: the CSS terms (containing block, `margin-trim`)
-  each cover half of a frame, which both sizes what it holds and trims its edge margins.
-- **Reading posture**, **Bounded block**, and **Margin resident**: whether a region
-  scrolls on its own, and what the margin admits, are decisions Leaf makes and reads
-  back; *scroll container* names only the CSS outcome.
+  the user, and the floor is the place in a layer that holds nothing; focus restoration
+  names neither.
+- **Unwind**, not *dismiss*: one Escape can close a selection or a filter as well as a
+  surface, and only surfaces are dismissed.
+- **Walk**: stepping through one kind of destination, as a DOM `TreeWalker` does;
+  roving focus moves only within one widget.
+- **Frame**, **Text** and **surface**: CSS's *containing block* names a box that sizes
+  its children, and `margin-trim` the trimming of their edge margins; a frame does
+  both, so neither name fits.
+- **Reading posture**, **Bounded block** and **Margin resident**: whether a region
+  scrolls on its own, and what the margin holds, are choices Leaf makes; *scroll
+  container* names only the CSS result.
 - **Rail**: the strip of margin rows beside the column. A *gutter* is a code editor's
   line-number strip, and Material's *navigation rail* holds destinations, not notes.
-- **Details shelf**: the one chrome container holding the notes an element names through
-  `aria-details`; ARIA names the relation, not a place to keep its targets.
-- **Layer stack**: Leaf's ordered record of the popovers and dialogs in the platform's
-  *top layer*, which the platform keeps but does not expose.
-- **Key badge**: a keycap-shaped label that carries a hint code as well as a binding,
-  so *keycap* alone would misname half its uses.
-- **Tally**: a *progress indicator* draws completion as a bar or ring and a *counter*
-  counts anything; a tally counts what is left of one region's asks against their whole
-  and leads to the next, so neither name says what it counts or that it navigates.
+- **Details shelf**: the one chrome container for the notes an element names through
+  `aria-details`; ARIA names the relation, not a place to keep the notes.
+- **Layer stack**: Leaf's record of the popovers and dialogs in the platform's *top
+  layer*, which the platform keeps but doesn't expose.
+- **Key badge**: it carries hint codes as well as bindings, so *keycap* would misname
+  half its uses.
+- **Tally**: a *progress indicator* draws completion as a bar or ring, and a *counter*
+  counts anything; a tally counts a region's open asks against their total and leads to
+  the next one.
 
-**Pin**, **Banner**, **Drawer**, **Toolbar**, and **Picker** keep their ordinary UI
+**Pin**, **Banner**, **Drawer**, **Toolbar** and **Picker** keep their ordinary UI
 meanings. Qualify **picker** (the target picker, the version picker) where the reaction
 picker could be meant.

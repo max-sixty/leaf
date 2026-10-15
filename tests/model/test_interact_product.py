@@ -665,7 +665,11 @@ def test_a_playground_names_its_controls_within_itself(tmp_path, initialized_pag
             "scope": "lf-playground",
         }
 
-    assert reply(playground("a", tone, preset("tone"), slot("tone"))) == []
+    # A value slot may stand inside the output's prose, as within a <strong>.
+    assert (
+        reply(playground("a", tone, preset("tone"), f"<strong>{slot('tone')}</strong>"))
+        == []
+    )
     assert found(
         reply(playground("a", tone, preset("tine"))),
         "unmatched-member",
@@ -814,7 +818,7 @@ def test_a_playground_control_stands_in_the_rail_or_inside_its_preview():
 
 def test_corpus_is_generated_from_the_examples():
     """examples/corpus.html is derived; a commit that lets it drift fails here."""
-    from leaf_dev import corpus
+    from leaf_dev.commands import corpus
 
     committed = (Path(__file__).parents[2] / "examples" / "corpus.html").read_text()
     assert corpus.build() == committed, "examples changed — rerun leaf-dev corpus"

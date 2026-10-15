@@ -18,7 +18,7 @@
      neither names a tag.
    - the internal validation adapter exposes replay winners to the render gate,
      the panel's own folds included: a widget an agent sent folds the way a page widget
-     does and the poll replays it the same way, so the premise that every `renderState`
+     does and the poll replays it the same way, so the premise that every widget's `render()`
      is absolute binds it too.
 
    A module owns only its choreography and semantics that no declaration can express. For
@@ -61,7 +61,9 @@ const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
 // nothing has painted, and paint it did not look past is a change the author never made.
 export const isPagePaint = (name) =>
   PAGE_PAINT_ATTRIBUTES.has(name) ||
-  Object.values(registry.$marks).some((mark) => mark.paint === name);
+  Object.values(registry.$marks).some(
+    (mark) => mark.paint === name || Object.values(mark.paints ?? {}).includes(name),
+  );
 
 // A word for a user listening, silent on screen: real text — the one thing every
 // screen reader announces in every mode — placed after the element's leading title,

@@ -3195,13 +3195,9 @@ def test_a_projected_attribute_opens_an_ask_captured_from_authored_markup(
         "x-example": '<lf-conditional id="example" phase="closed">Choose.</lf-conditional>',
     }
     module = """\
-import { keeps, once, widgetController } from "/runtime/widget-api.js";
-customElements.define("lf-conditional", class extends HTMLElement {
-  #controller = widgetController(this);
-  #stop;
-  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
-  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState(state) { keeps(this, "phase", state.phase.value); }
+import { keeps, LeafElement } from "/runtime/widget-api.js";
+customElements.define("lf-conditional", class extends LeafElement {
+  render() { keeps(this, "phase", this.state.phase.value); }
 });
 """
     page = open_page(
@@ -5626,13 +5622,10 @@ def test_a_user_verb_and_an_agent_verb_stand_side_by_side(
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-tally.js").write_text(
         """\
-import { keeps, once, widgetController } from "/runtime/widget-api.js";
-customElements.define("lf-tally", class extends HTMLElement {
-  #controller = widgetController(this);
-  #stop;
-  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
-  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState(state) {
+import { keeps, LeafElement } from "/runtime/widget-api.js";
+customElements.define("lf-tally", class extends LeafElement {
+  render() {
+    const { state } = this;
     if (state.set.value === null) this.removeAttribute("count");
     else keeps(this, "count", state.set.value);
     if (state.observe.value === null) this.removeAttribute("seen");
@@ -5680,38 +5673,16 @@ customElements.define("lf-tally", class extends HTMLElement {
     assert original.evaluate("node => node === document.getElementById('tally-seen')")
 
 
-LEGACY_OWNER = """\
-import { once, widgetController } from "/runtime/widget-api.js";
-customElements.define("lf-owner", class extends HTMLElement {
-  #controller = widgetController(this);
-  #stop;
-  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
-  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState(state) {
-    for (const [id, order] of Object.entries(state.move.value)) {
-      const zone = document.getElementById(id);
-      for (const child of order) zone.append(document.getElementById(child));
-    }
-  }
-});
-"""
-LEGACY_PIECE = """\
-import { keeps, once, widgetController } from "/runtime/widget-api.js";
-customElements.define("lf-piece", class extends HTMLElement {
-  #controller = widgetController(this);
-  #stop;
-  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
-  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState(state) { keeps(this, "pinned", state.move.value); }
-});
-"""
 LEAF_OWNER = """\
 import { LeafElement, nothing } from "/runtime/widget-api.js";
 customElements.define("lf-owner", class extends LeafElement {
   render() {
     for (const [id, order] of Object.entries(this.state.move.value)) {
       const zone = document.getElementById(id);
-      for (const child of order) zone.append(document.getElementById(child));
+      for (const child of order) {
+        const member = document.getElementById(child);
+        if (member.parentElement !== zone) zone.append(member);
+      }
     }
     return nothing;
   }
@@ -5774,14 +5745,11 @@ def test_lit_parent_moves_before_controller_members_render_selection(
         'await customElements.whenDefined("lf-zone");\n' + LEAF_OWNER
     )
     (package / "widgets/lf-zone.js").write_text("""\
-import { keeps, once, widgetController } from "/runtime/widget-api.js";
-customElements.define("lf-zone", class extends HTMLElement {
-  connectedCallback() {
-    if (once(this)) widgetController(this).subscribe(() => {});
-  }
-  renderState(state) {
+import { keeps, LeafElement } from "/runtime/widget-api.js";
+customElements.define("lf-zone", class extends LeafElement {
+  render() {
     for (const piece of this.querySelectorAll("lf-piece"))
-      keeps(piece, "selected", state.choose.value.includes(piece.id) ? "" : null);
+      keeps(piece, "selected", this.state.choose.value.includes(piece.id) ? "" : null);
   }
 });
 """)
@@ -5804,14 +5772,13 @@ customElements.define("lf-zone", class extends HTMLElement {
     expect(page.locator("#piece")).not_to_have_attribute("selected", "")
 
 
-@pytest.mark.parametrize("contract", ["controller", "leaf-element"])
 def test_a_part_and_its_own_widget_keep_same_named_verbs_independent(
-    browser, serve, tmp_path, monkeypatch, contract
+    browser, serve, tmp_path, monkeypatch
 ):
     """Verbs are local to their owning widget contract. A container's `move` of part
     `piece` and that element's own `move` therefore coexist even though unit and verb
-    text are identical; both owners reconcile, whether they draw through a controller
-    subscription or as a `LeafElement`, and a remounted part has its owner place it."""
+    text are identical; both owners reconcile, and a remounted part has its owner
+    place it."""
     monkeypatch.chdir(tmp_path)
     for tag, upgrade in (
         ("lf-owner", True),
@@ -5857,13 +5824,8 @@ def test_a_part_and_its_own_widget_keep_same_named_verbs_independent(
     }
     piece.pop("x-example", None)
     registry_path.write_text(json.dumps(declarations, indent=2))
-    owner, piece = (
-        (LEGACY_OWNER, LEGACY_PIECE)
-        if contract == "controller"
-        else (LEAF_OWNER, LEAF_PIECE)
-    )
-    (tmp_path / ".leaf" / "widgets" / "lf-owner.js").write_text(owner)
-    (tmp_path / ".leaf" / "widgets" / "lf-piece.js").write_text(piece)
+    (tmp_path / ".leaf" / "widgets" / "lf-owner.js").write_text(LEAF_OWNER)
+    (tmp_path / ".leaf" / "widgets" / "lf-piece.js").write_text(LEAF_PIECE)
     html = leaf_page(
         "owned coordinates",
         """<h1>Owned coordinates</h1><lf-owner id="owner">
@@ -6309,23 +6271,16 @@ def test_withdrawing_a_custom_settlement_clears_the_layers_mark(
     decide["detail"]["properties"]["decision"] = {"enum": ["open", "shelved"]}
     decide["detail"]["required"].append("decision")
     registry_path.write_text(json.dumps(declarations))
-    stage = (
-        "if (once(this)) shadowStage(this, [...this.children]);"
-        if shadow
-        else "once(this);"
-    )
+    stage = "shadowStage(this, [...this.children]);" if shadow else ""
     if shadow:
         (tmp_path / ".leaf" / "shadow.css").write_text(
             "lf-current, lf-proposed { display: block; }"
         )
     (tmp_path / ".leaf" / "widgets" / "lf-trial.js").write_text(
-        """import { keeps, once, shadowStage, widgetController } from "/runtime/widget-api.js";
-customElements.define("lf-trial", class extends HTMLElement {
-  #controller = widgetController(this);
-  #stop;
-  connectedCallback() { STAGE this.#stop ??= this.#controller.subscribe(() => {}); }
-  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState(state) { keeps(this, "decision", state.decide.detail.decision ?? "open"); }
+        """import { keeps, LeafElement, shadowStage } from "/runtime/widget-api.js";
+customElements.define("lf-trial", class extends LeafElement {
+  setup() { STAGE }
+  render() { keeps(this, "decision", this.state.decide.detail.decision ?? "open"); }
 });
 """.replace("STAGE", stage)
     )
@@ -6378,13 +6333,9 @@ def test_a_throwing_settlement_still_reaches_the_layers_terminal_state(
     trial_family(tmp_path)
     (tmp_path / ".leaf" / "widgets" / "lf-trial.js").write_text(
         """\
-import {widgetController} from "/runtime/widget-api.js";
-customElements.define("lf-trial", class extends HTMLElement {
-  #controller = widgetController(this);
-  #stop;
-  connectedCallback() { this.#stop ??= this.#controller.subscribe(() => {}); }
-  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState() { throw new Error("trial replay broke"); }
+import {LeafElement} from "/runtime/widget-api.js";
+customElements.define("lf-trial", class extends LeafElement {
+  render() { throw new Error("trial replay broke"); }
 });
 """
     )
@@ -6405,7 +6356,7 @@ customElements.define("lf-trial", class extends HTMLElement {
     expect(page.locator("#th-cache")).to_have_attribute("data-lf-state", "shelve")
     expect(page.locator("#th-cache .lf-error")).to_contain_text("trial replay broke")
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "1")
-    consume_browser_errors(page, "<lf-trial> renderState threw: trial replay broke")
+    consume_browser_errors(page, '<lf-trial id="th-cache"> failed: trial replay broke')
 
 
 def test_a_label_in_a_retired_slot_leaves_the_page_with_the_slot(browser, serve):
@@ -6628,21 +6579,15 @@ def test_thread_body_initial_state_comes_from_source_before_upgrade(
             },
             "layer_widgets": {
                 f"{tag}.js": """
-import {once, widgetController, keepsText} from '/runtime/widget-api.js';
-customElements.define('lf-delayed-body', class extends HTMLElement {
-  #controller = widgetController(this);
-  #stop;
-  connectedCallback() {
-    if (once(this)) {
-      this.#controller.present(new Promise(resolve => requestAnimationFrame(() => {
-        this.querySelector('pre').textContent = 'Presentation-only rewrite.';
-        resolve();
-      })));
-    }
-    this.#stop ??= this.#controller.subscribe(() => {});
+import {LeafElement, keepsText} from '/runtime/widget-api.js';
+customElements.define('lf-delayed-body', class extends LeafElement {
+  setup() {
+    this.controller.present(new Promise(resolve => requestAnimationFrame(() => {
+      this.querySelector('pre').textContent = 'Presentation-only rewrite.';
+      resolve();
+    })));
   }
-  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState(state) { keepsText(this.querySelector('pre'), state.edit.value); }
+  render() { keepsText(this.querySelector('pre'), this.state.edit.value); }
 });
 """
             },

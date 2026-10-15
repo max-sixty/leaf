@@ -14,7 +14,7 @@ import {
 } from "./bundle-media.js";
 import {
   flashDuration,
-  foldDuration,
+  foldBlock,
   motion,
   scrollBehavior
 } from "./bundle-motion.js";
@@ -29,9 +29,11 @@ import {
   anchoringIsReady,
   chromeForeground,
   chromeRoot,
+  cutFrames,
   datumAimTarget,
   datumLabel,
   followingItsEnd,
+  headerLevels,
   localScrollBy,
   nameAnchor,
   refreshAnchorView,
@@ -351,7 +353,7 @@ function placeKeeper(scroller, { items, identity, active = () => true, preferred
   function release2(hold) {
     if (current !== hold) return;
     current = null;
-    claim();
+    if (hold.spans) claim();
   }
   function correct(hold) {
     if (current !== hold || !active()) return false;
@@ -381,7 +383,7 @@ function placeKeeper(scroller, { items, identity, active = () => true, preferred
     const prior = current;
     if (prior) correct(prior);
     current = heldPlace(prior, spans2);
-    claim();
+    if (spans2 || prior?.spans) claim();
     return current;
   }
   function heldPlace(prior, spans2) {
@@ -446,7 +448,7 @@ function placeKeeper(scroller, { items, identity, active = () => true, preferred
       finish(held);
     }
   }
-  return { take: () => take(), finish, around };
+  return { take, finish, around };
 }
 
 // runtime/landing-scroll.js
@@ -1297,7 +1299,9 @@ async function highlightBlocks(root) {
 
 // runtime/declared-words.js
 var PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
-var isPagePaint = (name) => PAGE_PAINT_ATTRIBUTES.has(name) || Object.values(registry.$marks).some((mark) => mark.paint === name);
+var isPagePaint = (name) => PAGE_PAINT_ATTRIBUTES.has(name) || Object.values(registry.$marks).some(
+  (mark) => mark.paint === name || Object.values(mark.paints ?? {}).includes(name)
+);
 function quietWord(el2, word2) {
   const title = el2.querySelector(":scope > strong");
   const seat = title ? title.nextSibling : el2.firstChild;
@@ -1520,6 +1524,34 @@ function copyControl(className, { label = "", success, error }) {
 // runtime/code-copy.js
 var controls = /* @__PURE__ */ new WeakMap();
 var wired = /* @__PURE__ */ new WeakMap();
+var cuts = /* @__PURE__ */ new WeakMap();
+var makeCut = () => {
+  const frame = document.createElement("div");
+  frame.className = "lf-code-copy-cut";
+  return frame;
+};
+var placed = /* @__PURE__ */ new Map();
+var resized = 0;
+addEventListener("resize", () => {
+  resized ||= nextRender(() => {
+    resized = 0;
+    const read = [...placed].map(([copy, pre]) => [copy, pre, headerLevels(pre)]);
+    for (const [copy, pre, levels] of read) standUnderHeaders(copy, pre, levels);
+  });
+});
+function standUnderHeaders(copy, pre, levels) {
+  const frames = cutFrames(levels, cuts.get(copy) ?? [], makeCut);
+  cuts.set(copy, frames);
+  placed.set(copy, pre);
+  if (frames[0] && frames[0].parentNode !== chromeRoot)
+    move(chromeRoot, frames[0], null);
+  const home = frames.at(-1) ?? chromeRoot;
+  if (copy.parentNode !== home) move(home, copy, null);
+}
+var revealed = (pre, copy) => {
+  if (cuts.has(copy)) standUnderHeaders(copy, pre, headerLevels(pre));
+  refreshAnchorView(copy);
+};
 var COPY_SCOPE = /* @__PURE__ */ Symbol("code copy");
 var pressedPath = /* @__PURE__ */ new WeakSet();
 addEventListener(
@@ -1532,7 +1564,7 @@ addEventListener(
 onStanding((node) => {
   for (let at = node; at; at = upFrom(at)) {
     const copy = controls.get(at);
-    if (copy) return refreshAnchorView(copy);
+    if (copy) return revealed(at, copy);
   }
 });
 function prepareCodeBlock(pre, source, noun) {
@@ -1557,7 +1589,7 @@ function prepareCodeBlock(pre, source, noun) {
       if (event.pointerType === "touch" && copy.isConnected)
         focusDestination(pre, "move");
     });
-    pre.addEventListener("pointerenter", () => refreshAnchorView(copy));
+    pre.addEventListener("pointerenter", () => revealed(pre, copy));
     controls.set(pre, copy);
   }
   const place2 = () => copy.classList.toggle("lf-code-copy-away", !anchorView(copy, pre, place2));
@@ -1595,20 +1627,21 @@ function watchCodeBlocks() {
     arriveBatch(blocks) {
       const prepared = blocks.filter((pre) => pre.getRootNode() === document).map(
         (pre) => (
-          /** @type {[HTMLElement, ReturnType<typeof prepareCodeBlock>]} */
+          /** @type {[HTMLElement, ReturnType<typeof prepareCodeBlock>, any[]]} */
           [
             pre,
             prepareCodeBlock(
               pre,
               () => pre.querySelector(":scope > code").textContent,
               "code"
-            )
+            ),
+            headerLevels(pre)
           ]
         )
       );
-      for (const [pre, pending] of prepared) {
+      for (const [pre, pending, levels] of prepared) {
         const copy = positionCodeBlock(pending);
-        if (copy.parentNode !== chromeRoot) move(chromeRoot, copy, null);
+        standUnderHeaders(copy, pre, levels);
         copy.tabIndex = -1;
         claimReachStop(pre);
         if (!wired.has(pre)) {
@@ -1653,6 +1686,9 @@ function watchCodeBlocks() {
       if (copy?.matches(".lf-code-copy-hover, .lf-code-copy-focused"))
         copy.classList.remove("lf-code-copy-hover", "lf-code-copy-focused");
       copy?.remove();
+      cuts.get(copy)?.[0]?.remove();
+      cuts.delete(copy);
+      placed.delete(copy);
       releaseReachStop(pre);
       projectCommandScope(pre, COPY_SCOPE, null);
     }
@@ -1785,21 +1821,21 @@ function placedMarkdownTokens(source) {
       if (child.nesting === 1) {
         if (child.markup && child.markup !== "linkify" && child.markup !== "autolink")
           a = b - child.markup.length;
-        const placed = {
+        const placed2 = {
           token: child,
           from: positions[a],
           to: positions[b],
           contentFrom: positions[b]
         };
-        found.push(placed);
-        stack.push(placed);
+        found.push(placed2);
+        stack.push(placed2);
       } else if (child.nesting === -1) {
-        const placed = stack.pop();
-        if (!placed) continue;
+        const placed2 = stack.pop();
+        if (!placed2) continue;
         if (child.markup && child.markup !== "linkify" && child.markup !== "autolink")
           b = a + child.markup.length;
-        placed.to = positions[b];
-        placed.contentTo = positions[a];
+        placed2.to = positions[b];
+        placed2.contentTo = positions[a];
       } else if (child.type !== "html_inline") {
         found.push({
           token: child,
@@ -1826,10 +1862,10 @@ function markdownSourceOffset(body, node, offset) {
   const shown = fragmentWords(body.cloneNode(true));
   let shownAt = 0;
   let sourceEnd = 0;
-  for (const placed of placedMarkdownTokens(source)) {
-    const { token, from, to } = placed;
+  for (const placed2 of placedMarkdownTokens(source)) {
+    const { token, from, to } = placed2;
     if (token.nesting) continue;
-    const words = placed.words;
+    const words = placed2.words;
     if (!words) continue;
     const start = shown.indexOf(words, shownAt);
     if (start < 0) continue;
@@ -2713,11 +2749,11 @@ function captureDraftEditing(input = focused()) {
 var draftEditingStands = (editing) => Boolean(editing) && activeDraftRecord(editing.context)?.attempt === editing.attempt;
 function draftEditingDestination(editing, handoff) {
   const shown = (view) => Boolean(editorInput(view)?.checkVisibility({ visibilityProperty: true }));
-  const placed = (view) => editorInput(view)?.isConnected;
+  const placed2 = (view) => editorInput(view)?.isConnected;
   const roots = [...draftEditors].filter(
-    (view) => view.ctx === editing.context && !view.mirrored && (placed(view) || view.resume)
+    (view) => view.ctx === editing.context && !view.mirrored && (placed2(view) || view.resume)
   );
-  const editor = roots.find(shown) ?? roots.find(placed) ?? roots[0];
+  const editor = roots.find(shown) ?? roots.find(placed2) ?? roots[0];
   if (!editor) return null;
   const open2 = shown(editor) ? null : editor.resume?.()?.open;
   if (open2) handoff(open2);
@@ -5521,20 +5557,7 @@ function foldOut(node, repaintThread) {
   if (running && node.isConnected) return true;
   folding.delete(node);
   running?.played.cancel();
-  const style = getComputedStyle(node);
-  const from = {
-    height: node.getBoundingClientRect().height + "px",
-    minHeight: style.minHeight,
-    marginBottom: style.marginBottom,
-    borderTopWidth: style.borderTopWidth,
-    borderBottomWidth: style.borderBottomWidth,
-    paddingTop: style.paddingTop,
-    paddingBottom: style.paddingBottom,
-    opacity: 1
-  };
-  const to = Object.fromEntries(Object.keys(from).map((key) => [key, "0px"]));
-  to.opacity = 0;
-  const played = motion(node, [from, to], foldDuration());
+  const played = foldBlock(node);
   if (!played) return false;
   const record = { played };
   folding.set(node, record);
@@ -5647,15 +5670,11 @@ function unreadBoundaries(ranges) {
 }
 
 // runtime/thread/reply-continuity.js
-var writingArea = (row2, target) => row2?.contains(target) ? row2 : target.closest?.(".lf-msg-editor")?.closest(".lf-msg") ?? null;
 var ReplyContinuity = class {
   #owner;
   #row = null;
   #departure = null;
-  #extent = null;
-  // The writing area read at an edit's boundary, and its height then.
-  #read = null;
-  #readHeight = 0;
+  #space = 0;
   // The writing areas a presentation changes, each with its height before it.
   #presenting = [];
   #writing = null;
@@ -5674,7 +5693,6 @@ var ReplyContinuity = class {
         parseFloat(getComputedStyle(writing2.input).inlineSize)
       );
       this.#allocateWriting(writing2.input, layoutPx(writing2.input.naturalBlockSize));
-      this.#readArea(this.#row);
     });
   });
   gap = document.createElement("div");
@@ -5687,12 +5705,13 @@ var ReplyContinuity = class {
       if (!this.#visible()) this.release();
     });
     owner.addEventListener(
-      "lf-before-edit",
-      (event) => this.#readArea(writingArea(this.#row, event.target))
-    );
-    owner.addEventListener(
       "input",
-      (event) => this.#edited(writingArea(this.#row, event.target)),
+      (event) => {
+        if (!this.#row?.contains(event.target)) return;
+        const input = this.#row.querySelector(TEXT_FIELD);
+        if (input.value) this.#allocateWriting(input, layoutPx(input.naturalBlockSize));
+        else this.#releaseWriting();
+      },
       { capture: true }
     );
   }
@@ -5707,50 +5726,47 @@ var ReplyContinuity = class {
     if (!this.#visible()) return null;
     this.#presenting = writing2.filter((node) => node.isConnected).map((node) => ({ node, height: node.getBoundingClientRect().height }));
     const body = this.#owner.localName === "details" ? getComputedStyle(this.#owner, "::details-content") : getComputedStyle(this.#owner);
-    return parseFloat(body.blockSize);
+    const extent = parseFloat(body.blockSize);
+    const place2 = placeKeeper(scrollerFor(this.#owner), {
+      items: ".lf-reply-continuity",
+      identity: (node) => node.dataset.id,
+      preferred: () => this.#owner
+    });
+    return { extent, place: place2, held: place2.take({ spans: false }) };
   }
-  after(extent) {
+  after(reading) {
     this.#row = this.#owner.querySelector(":scope > .lf-thread-reply");
     const presenting = this.#presenting;
     this.#presenting = [];
-    if (extent == null || !this.#row?.isConnected || this.#owner.localName === "details" && !this.#owner.open) {
-      this.release();
-      if (this.#visible()) this.#retainWriting();
-      return;
+    if (!this.#row?.isConnected || this.#owner.localName === "details" && !this.#owner.open)
+      return this.release();
+    if (!this.#visible()) {
+      reading?.place.finish(reading.held);
+      return this.release();
     }
-    if (this.#extent == null) this.#keep(extent);
-    const grown = presenting.filter(({ node }) => node.isConnected).reduce(
-      (sum, { node, height }) => sum + node.getBoundingClientRect().height - height,
-      0
-    );
-    this.#keep(Math.max(0, extent + grown));
-    this.#readArea(this.#row);
+    if (reading != null) {
+      const { extent, place: place2, held } = reading;
+      const body = this.#owner.localName === "details" ? getComputedStyle(this.#owner, "::details-content") : getComputedStyle(this.#owner);
+      const written = presenting.filter(({ node }) => node.isConnected).reduce(
+        (sum, { node, height }) => sum + node.getBoundingClientRect().height - height,
+        0
+      );
+      this.#keep(
+        Math.max(0, this.#space + extent - parseFloat(body.blockSize) + written)
+      );
+      place2.finish(held);
+    }
+    if (!this.#visible()) return this.release();
     this.#retainWriting();
     this.#departure?.();
     this.#departure = whenNone([this.#row], growthIsSeen, () => this.release());
   }
-  #keep(extent) {
-    if (extent === this.#extent) return;
-    this.#extent = extent;
-    this.#owner.style.setProperty("--lf-thread-body-extent", layoutPx(extent));
-  }
-  #edited(area) {
-    if (!area?.isConnected) return;
-    if (area === this.#row) {
-      const input = this.#row.querySelector(TEXT_FIELD);
-      if (input.value) this.#allocateWriting(input, layoutPx(input.naturalBlockSize));
-      else this.#releaseWriting();
-    }
-    const height = area.getBoundingClientRect().height;
-    if (this.#extent != null && area === this.#read)
-      this.#keep(Math.max(0, this.#extent + height - this.#readHeight));
-    this.#read = area;
-    this.#readHeight = height;
-  }
-  #readArea(area) {
-    if (!area?.isConnected) return;
-    this.#read = area;
-    this.#readHeight = area.getBoundingClientRect().height;
+  #keep(space) {
+    if (space === this.#space) return;
+    this.#space = space;
+    const value = layoutPx(space);
+    if (this.gap.style.getPropertyValue("--lf-reply-space") !== value)
+      this.gap.style.setProperty("--lf-reply-space", value);
   }
   #retainWriting() {
     const input = this.#row?.querySelector(TEXT_FIELD);
@@ -5782,9 +5798,10 @@ var ReplyContinuity = class {
   release() {
     this.#departure?.();
     this.#departure = null;
-    this.#extent = null;
+    this.#space = 0;
     this.#releaseWriting();
-    this.#owner.style.removeProperty("--lf-thread-body-extent");
+    if (this.gap.style.getPropertyValue("--lf-reply-space"))
+      this.gap.style.removeProperty("--lf-reply-space");
   }
 };
 
@@ -5832,9 +5849,21 @@ function workingMessage(thread, attention, messages) {
   const [words, live2, condition, agent] = running ? [running.detail || said, true, null, running.agent] : todo ? [todo.line, true, null, null] : stopped ? [stopped.detail, false, workflowLabel(stopped), stopped.agent] : [said, false, null, null];
   if (!words || !pending.length && !live2 && !condition) return null;
   const agentMessage = messages.findLast((message) => message.author === "agent");
+  const work = running?.detail ? running : !running && !todo ? stopped : null;
+  const progress = !work && (running || !todo && !stopped) ? pending.at(-1) : null;
+  const feedback = work?.input ? {
+    input_id: work.input,
+    reply_id: null,
+    reply_kind: "work"
+  } : progress ? {
+    reply_id: progress.id,
+    attempt: progress.attempt,
+    reply_kind: "progress"
+  } : null;
   return Object.freeze({
     who: agent || agentMessage?.by || "Agent",
     words: words.trim().replace(/\.$/, ""),
+    feedback,
     live: live2,
     condition
   });
@@ -5984,15 +6013,6 @@ function paintBoundary(node, kind) {
   );
 }
 var nextViewId = 0;
-var allotMarginControls = (row2) => row2.parentElement?.style.setProperty(
-  "--lf-margin-controls-width",
-  layoutPx(row2.getBoundingClientRect().width)
-);
-var marginControlsSizes = sizeObserver((entries) => {
-  nextRender(() => {
-    for (const { target } of entries) allotMarginControls(target);
-  });
-});
 var replyRowSizes = sizeObserver((entries) => {
   for (const { target, borderBoxSize } of entries)
     target.parentElement?.style.setProperty(
@@ -6022,6 +6042,7 @@ var ThreadView = class {
   #actions = document.createElement("span");
   #transcript = document.createElement("div");
   #working = document.createElement("div");
+  #stopWorkingExposure = null;
   // Each pending progress range's covered message ids, as last drawn, so a fold that
   // takes the range over can take its disclosure state with it.
   #pendingCovers = /* @__PURE__ */ new Map();
@@ -6031,7 +6052,6 @@ var ThreadView = class {
   #expandedSummaries = /* @__PURE__ */ new Set();
   #quoteExpanded = false;
   #marginControls = null;
-  #marginControlsRow = null;
   #viewId = ++nextViewId;
   // What a thread in the page's flow holds back says so in its control row (held-news.js).
   #news = newsNotice();
@@ -6049,11 +6069,6 @@ var ThreadView = class {
     this.#quoteNode = node;
     if (node) this.#sizes.observe(node);
   };
-  #watchMarginControls = (node) => {
-    if (this.#marginControlsRow) marginControlsSizes.unobserve(this.#marginControlsRow);
-    this.#marginControlsRow = node;
-    if (node) marginControlsSizes.observe(node);
-  };
   #sizes = sizeObserver(() => {
     this.#retainHeaderSlot();
     this.#measureQuote();
@@ -6065,7 +6080,7 @@ var ThreadView = class {
       views: () => (this.#model?.messages ?? []).flatMap(
         ({ key }) => this.#messages.get(key) ?? []
       ),
-      paint: (message) => this.repaint({ writing: message }),
+      paint: () => this.repaint(),
       send: (id, text, options) => this.#speak(
         () => commands2.reply.actions.edit(this.#model.key, id, text, options),
         options.attempt,
@@ -6150,8 +6165,8 @@ var ThreadView = class {
   }
   // Local disclosure and draft changes repaint the complete received descriptor,
   // never feed a held presentation back into the news owner's input.
-  repaint(options) {
-    this.present(this.#received, options);
+  repaint() {
+    this.#paint(this.#received);
   }
   // What holds the card folded away: its own closed disclosure, a panel card's, or the
   // closed Resolved disclosure its seat gathers it in (inline.js).
@@ -6293,7 +6308,12 @@ var ThreadView = class {
     return share(was, now) === was && outside.every((part, index) => part === this.#drawnWith[index]);
   }
   #drawnWith = null;
-  present(model, { retaining = false, viewChanged = false, writing: writing2 = null } = {}) {
+  present(model, options = {}) {
+    return this.#paint(model, options, true);
+  }
+  // The caller knows whether this is a publication or a local repaint. Only a
+  // publication allocates passive space; disclosures and editors stay intrinsic.
+  #paint(model, { retaining = false, viewChanged = false } = {}, published = false) {
     this.#received = model;
     this.#drawnWith = this.#outside(model);
     const prior = this.#model;
@@ -6317,11 +6337,8 @@ var ThreadView = class {
         this.#heldNews.hold({ threads: [model] }, { row: false }).threads[0]
       );
     if (model.news && !prior?.news) this.#retainHeaderSlot({ observe: false });
-    const rewritten2 = new Set(
-      [...this.#messages.values()].filter((view) => view.editing).map(({ node }) => node)
-    );
-    if (writing2) rewritten2.add(writing2);
-    const bodyPlace = this.#continuity?.before([...rewritten2]);
+    const rewritten2 = [...this.#messages.values()].filter((view) => view.editing).map(({ node }) => node);
+    const bodyPlace = published ? this.#continuity?.before(rewritten2) : null;
     const restoreFocus = holdFocus(this.node);
     const standing2 = focused();
     const priorSummaries = new Set(prior?.summaries.map(({ id }) => id) ?? []);
@@ -6457,7 +6474,7 @@ var ThreadView = class {
     });
     const messageNodes = new Map(messages.map(({ key, node }) => [key, node]));
     const markers = /* @__PURE__ */ new Map();
-    const placed = (key, summary) => {
+    const placed2 = (key, summary) => {
       const node = messageNodes.get(key);
       keeps(node, "data-lf-summary", summary);
       const kind = boundaries.get(key);
@@ -6472,7 +6489,7 @@ var ThreadView = class {
     const transcriptLists = [[this.#transcript, transcript]];
     for (const range of rangeState) {
       if (range.kind === "message") {
-        transcript.push(...placed(range.message.key, null));
+        transcript.push(...placed2(range.message.key, null));
         continue;
       }
       const id = range.summary.id;
@@ -6482,7 +6499,7 @@ var ThreadView = class {
       transcript.push(checkpoint.node);
       transcriptLists.push([
         checkpoint.originals,
-        range.messages.flatMap((message) => placed(message.key, id))
+        range.messages.flatMap((message) => placed2(message.key, id))
       ]);
     }
     if (model.working) {
@@ -6490,6 +6507,15 @@ var ThreadView = class {
       render(workingView(model.working), this.#working);
       transcript.push(this.#working);
     }
+    this.#stopWorkingExposure?.();
+    this.#stopWorkingExposure = model.working?.feedback ? this.#commands.read.observeFeedback(
+      this.#working.querySelector(".lf-thread-working-words"),
+      {
+        ...model.working.feedback,
+        presentation_kind: "working_words",
+        surface: model.surface
+      }
+    ) : null;
     this.#checkpoints = checkpoints;
     this.#markers = markers;
     keeps(
@@ -6537,12 +6563,7 @@ var ThreadView = class {
             </header>` : nothing}
       ${this.#transcript}
       ${threadActions ? marginControls ? html`${model.news ? html`<div class="lf-margin-thread-news">${news}</div>` : nothing}
-                <div
-                  class="lf-margin-thread-controls"
-                  ${ref(this.#watchMarginControls)}
-                >
-                  ${threadActions}
-                </div>` : html`<div class="lf-thread-controls" data-lf-reflow="text">
+                <div class="lf-margin-thread-controls">${threadActions}</div>` : html`<div class="lf-thread-controls" data-lf-reflow="text">
                 ${news}${threadActions}
               </div>` : nothing}
     `;
@@ -6560,9 +6581,6 @@ var ThreadView = class {
       `,
       this.node
     );
-    const controlsRow = marginControls && this.#marginControlsRow;
-    if (controlsRow?.isConnected)
-      measure(controlsRow, () => allotMarginControls(controlsRow));
     if (!marginControls && model.news)
       measure(this.node, () => this.#retainHeaderSlot());
     else this.#releaseHeaderSlot();
@@ -7008,6 +7026,8 @@ var ThreadView = class {
     this.#reply?.claim(shown);
   }
   retire() {
+    this.#stopWorkingExposure?.();
+    this.#stopWorkingExposure = null;
     this.#reply?.cancelDictation();
     for (const view of this.#messages.values()) view.retire();
   }
@@ -7015,7 +7035,6 @@ var ThreadView = class {
     this.#sizes.disconnect();
     this.#quoteNode = null;
     this.#releaseHeaderSlot();
-    if (this.#marginControlsRow) marginControlsSizes.unobserve(this.#marginControlsRow);
     this.#heldNews?.dispose();
     this.#continuity?.release();
     this.retire();

@@ -11471,7 +11471,7 @@ def test_reactionless_other_responses_can_turn_the_compact_field_into_a_suggesti
         < send_box["y"] + send_box["height"]
         < (field_box["y"] + field_box["height"])
     )
-    expect(send).to_have_attribute("title", re.compile(r"^Comment \(⏎\)$"))
+    expect(send).to_have_attribute("aria-label", "Comment")
 
     page.keyboard.press("Tab")
     choices = page.locator(".lf-fab-bar")
@@ -11482,7 +11482,7 @@ def test_reactionless_other_responses_can_turn_the_compact_field_into_a_suggesti
     page.keyboard.press("Enter")
     expect(box).to_be_focused()
     expect(box).to_have_attribute("placeholder", re.compile(r"^Replacement text .*⏎$"))
-    expect(send).to_have_attribute("title", re.compile(r"^Suggest \(⏎\)$"))
+    expect(send).to_have_attribute("aria-label", "Suggest")
     assert "A paragraph carrying bold text and emphasis inside it" in box.evaluate(
         "box => box.value"
     )

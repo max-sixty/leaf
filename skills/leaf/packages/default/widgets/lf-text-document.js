@@ -83,11 +83,11 @@ customElements.define(
       return nothing;
     }
 
-    // Highlighting and the preview load before the document shows, so its drawing
-    // holds the widget's presentation until it lands.
+    // Highlighting and the preview load after the draw, and the draw's claim waits
+    // for them.
     updated(changed) {
       super.updated(changed);
-      this.controller.present(this.show(this.snapshot));
+      this.drawing(this.show(this.snapshot));
     }
 
     async show(snapshot) {

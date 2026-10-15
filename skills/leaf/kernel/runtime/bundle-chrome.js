@@ -39,7 +39,7 @@ import {
 import {
   PRESSABLE,
   clippedContents,
-  exceptionText,
+  headerCuts,
   hostIn,
   inUi,
   layoutChanged,
@@ -88,7 +88,6 @@ function registerVisualParts(source, read, { reveal = null, label = null } = {})
   registrations.set(source, { read, reveal, label });
   return { update: () => layoutChanged(source) };
 }
-var hasVisualParts = (source) => registrations.has(source);
 function visualPartAdmission(visual, declaration) {
   if (!declaration || typeof declaration !== "object") return null;
   const { prefixes } = declaration;
@@ -104,15 +103,11 @@ function revealRegisteredVisualPart(source, id) {
 }
 function visualPartProblems(source, declaration) {
   if (!declaration || typeof declaration !== "object") return [];
-  if (!hasVisualParts(source)) return [{ kind: "unregistered" }];
-  try {
-    const parts = registeredVisualParts(source);
-    const admission = visualPartAdmission(source, declaration);
-    const outside = declaration.prefixes ? parts.filter((part) => !admission(part.id)).map((part) => part.id) : [];
-    return outside.length ? [{ kind: "unadmitted-parts", parts: outside }] : [];
-  } catch (error) {
-    return [{ kind: "unreadable", error: exceptionText(error) }];
-  }
+  if (!registrations.has(source)) return [{ kind: "unregistered" }];
+  const parts = registeredVisualParts(source);
+  const admission = visualPartAdmission(source, declaration);
+  const outside = declaration.prefixes ? parts.filter((part) => !admission(part.id)).map((part) => part.id) : [];
+  return outside.length ? [{ kind: "unadmitted-parts", parts: outside }] : [];
 }
 function registeredVisualParts(source) {
   const read = registrations.get(source)?.read;
@@ -122,11 +117,11 @@ function registeredVisualParts(source) {
   const seenSurfaces = /* @__PURE__ */ new Set();
   return [...read()].map((part, index) => {
     const number = index + 1;
-    const id = words(part?.id);
-    const element = part?.element;
-    const label = words(part?.label);
-    const surface = part?.surface ?? element;
-    if (!id || /\s/.test(id))
+    const id = part.id;
+    const element = part.element;
+    const label = words(part.label);
+    const surface = part.surface ?? element;
+    if (typeof id !== "string" || !id || /\s/.test(id))
       throw new TypeError(`Visual part ${number} has no single-token id`);
     if (!(element instanceof Element) || element === source || !under(element, source))
       throw new TypeError(`Visual part ${id} has no descendant Element`);
@@ -145,13 +140,6 @@ function registeredVisualParts(source) {
     return { id, element, label, surface };
   });
 }
-function usableVisualParts(source) {
-  try {
-    return registeredVisualParts(source);
-  } catch {
-    return [];
-  }
-}
 var registeredVisualPart = (source, id) => registeredVisualParts(source).find((part) => part.id === id) ?? null;
 var registeredVisualPartLabel = (source, id) => {
   const current = registeredVisualPart(source, id)?.label;
@@ -159,9 +147,9 @@ var registeredVisualPartLabel = (source, id) => {
   const label = registrations.get(source)?.label?.(id);
   return words(label) || null;
 };
-function usableVisualPartAt(source, target, admits = () => true) {
+function registeredVisualPartAt(source, target, admits = () => true) {
   const byElement = new Map(
-    usableVisualParts(source).filter(admits).map((part) => [part.element, part])
+    registeredVisualParts(source).filter(admits).map((part) => [part.element, part])
   );
   for (let current = target; current && current !== source; current = upFrom(current)) {
     const part = byElement.get(current);
@@ -383,12 +371,10 @@ function revealAddressed(source, key) {
 }
 var visualAdmission = (visual) => visual ? visualPartAdmission(visual, registry[visual.localName]?.["x-visual"]) : null;
 var wholeVisualSurface = (element) => registry[element?.localName]?.["x-visual"] ? element : null;
-function visualParts(visual, { strict = false } = {}) {
+function visualParts(visual) {
   const admits = visualAdmission(visual);
   if (!admits) return [];
-  return (strict ? registeredVisualParts(visual) : usableVisualParts(visual)).filter(
-    (part) => admits(part.id)
-  );
+  return registeredVisualParts(visual).filter((part) => admits(part.id));
 }
 var admitsVisualPart = (visual, part) => visualAdmission(visual)?.(part) ?? false;
 function visualPart(visual, part) {
@@ -399,7 +385,7 @@ function revealVisualPart(visual, part) {
 }
 function visualPartAt(visual, target) {
   const admits = visualAdmission(visual);
-  return admits ? usableVisualPartAt(visual, target, (part) => admits(part.id)) : null;
+  return admits ? registeredVisualPartAt(visual, target, (part) => admits(part.id)) : null;
 }
 var visualPartLabel = (visual, part) => admitsVisualPart(visual, part) ? registeredVisualPartLabel(visual, part) : null;
 var declaredVisualSelector = () => [...tagsDeclaring((entry) => entry["x-visual"])].join(",");
@@ -1269,6 +1255,19 @@ var cutPath = ({ x, y }) => {
   const open = (clips) => clips ? "0" : "-100000px";
   return `inset(${open(y)} ${open(x)})`;
 };
+var nowhere = { left: 0, top: 0, right: 0, bottom: 0 };
+function headerLevels(item, clips = /* @__PURE__ */ new Map()) {
+  return headerCuts(item, clips).map(({ box, band }) => {
+    const anchor = box === box.ownerDocument.scrollingElement ? null : anchorElement(box);
+    return {
+      anchor,
+      reading: anchor && anchorReading(anchor),
+      at: anchor?.getBoundingClientRect(),
+      band: band ?? nowhere,
+      axes: { x: false, y: true }
+    };
+  });
+}
 function cutFrames(levels, frames, make) {
   const kept = frames.slice(Math.max(0, frames.length - levels.length));
   const chain = [...Array.from({ length: levels.length - kept.length }, make), ...kept];
@@ -1278,7 +1277,8 @@ function cutFrames(levels, frames, make) {
   for (let i = 1; i < chain.length; i++)
     if (chain[i].parentNode !== chain[i - 1]) move(chain[i - 1], chain[i], null);
   for (const dropped of frames.slice(0, frames.length - kept.length)) dropped.remove();
-  levels.forEach(({ anchor, band, axes, at }, i) => {
+  levels.forEach(({ anchor, band, axes, at, reading }, i) => {
+    if (reading) nameAnchor(reading);
     anchorAt(chain[i], anchor, band, at);
     chain[i].style.clipPath = cutPath(axes);
   });
@@ -1419,6 +1419,7 @@ export {
   anchorFor,
   anchorName,
   anchorAt,
+  headerLevels,
   cutFrames,
   refreshAnchorView,
   anchorView

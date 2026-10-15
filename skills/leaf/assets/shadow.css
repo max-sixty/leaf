@@ -234,13 +234,13 @@ summary {
   margin-top: 0;
 }
 .lf-page-thread + :is(.lf-page-thread, .lf-resolved-threads) {
-  margin-top: calc(2 * var(--sp-3));
+  margin-top: var(--sp-3);
 }
 .lf-page-thread + :is(.lf-page-thread, .lf-resolved-threads)::before {
   content: "";
   position: absolute;
   inset-inline: var(--sp-1);
-  inset-block-start: calc(-1 * var(--sp-3));
+  inset-block-start: calc(-1 * var(--sp-2));
   border-top: 1px solid var(--rule);
   pointer-events: none;
 }
@@ -252,7 +252,6 @@ summary {
   --lf-group-ring-end: 6px;
   --lf-msg-head-height: max(28px, var(--aim-floor));
   --lf-msg-body-gap: 4px;
-  --lf-thread-resolve-width: max(calc(5 * var(--t-6)), var(--aim-floor));
 }
 .lf-thread-transcript {
   min-width: 0;
@@ -262,7 +261,7 @@ summary {
   display: flow-root;
   min-width: 0;
   anchor-scope: --lf-thread-headline;
-  --lf-thread-action-height: var(--lf-msg-head-height);
+  --lf-thread-action-room: var(--lf-msg-head-height);
   --lf-thread-notice-room: var(--lf-msg-head-height);
   --lf-thread-message-control-room: 0px;
 }
@@ -484,8 +483,8 @@ summary {
   inset-inline-start: anchor(left);
   inset-block-start: anchor(center);
   translate: 0 -50%;
-  inline-size: calc(anchor-size(width) + var(--lf-thread-resolve-width) + var(--sp-2));
-  block-size: var(--lf-thread-action-height);
+  inline-size: calc(anchor-size(width) + var(--lf-thread-action-room) + var(--sp-2));
+  block-size: var(--lf-thread-action-room);
   display: flex;
   align-items: center;
   pointer-events: none;
@@ -496,14 +495,14 @@ summary {
 }
 .lf-thread-content:has(> .lf-thread-controls) > .lf-thread-transcript > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-msg-head {
   anchor-name: --lf-thread-headline;
-  margin-inline-end: calc(var(--lf-thread-resolve-width) + var(--sp-2));
+  margin-inline-end: calc(var(--lf-thread-action-room) + var(--sp-2));
   padding-inline-end: calc(var(--lf-thread-notice-room) + var(--sp-2) + var(--lf-thread-message-control-room));
 }
 .lf-thread-content:has(> .lf-thread-controls) > .lf-thread-transcript > .lf-thread-checkpoint:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-summary-checkpoint > .lf-summary-header {
   anchor-name: --lf-thread-headline;
-  min-height: var(--lf-thread-action-height);
+  min-height: var(--lf-thread-action-room);
   box-sizing: border-box;
-  margin-inline-end: calc(var(--lf-thread-resolve-width) + var(--sp-2));
+  margin-inline-end: calc(var(--lf-thread-action-room) + var(--sp-2));
   padding-inline-end: calc(var(--lf-thread-notice-room) + var(--sp-2));
 }
 .lf-thread-content:has(> .lf-thread-controls):has(> .lf-thread-transcript > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > :is(.lf-react-strip, .lf-msg-control)) {
@@ -523,16 +522,16 @@ summary {
   margin-inline-start: auto;
 }
 .lf-thread-controls > .lf-thread-meta-actions {
-  min-height: var(--lf-thread-action-height);
+  min-height: var(--lf-thread-action-room);
 }
 .lf-thread-controls > .lf-thread-news {
   position: absolute;
   inset-inline-start: calc(var(--lf-thread-news-start, 0px) + var(--sp-2));
   inline-size: var(--lf-reserved-width, max-content);
-  max-inline-size: max(0px, min(calc(100% - var(--lf-thread-news-start, 0px) - 2 * var(--sp-2) - var(--lf-thread-resolve-width) - var(--lf-thread-message-control-room)), calc(var(--lf-thread-news-visible-end, 100%) - var(--lf-thread-news-start, 0px) - var(--sp-2))));
+  max-inline-size: max(0px, min(calc(100% - var(--lf-thread-news-start, 0px) - 2 * var(--sp-2) - var(--lf-thread-action-room) - var(--lf-thread-message-control-room)), calc(var(--lf-thread-news-visible-end, 100%) - var(--lf-thread-news-start, 0px) - var(--sp-2))));
   box-sizing: border-box;
   min-width: 0;
-  min-height: var(--lf-thread-action-height);
+  min-height: var(--lf-thread-action-room);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -839,7 +838,7 @@ leaf-text.lf-fab-input,
   cursor: pointer;
   padding: max(var(--sp-1), (var(--aim-floor) - 1lh) / 2) var(--sp-1);
   color: var(--muted);
-  font: 600 var(--t-5)/var(--lf-ui-lh) var(--sans);
+  font: var(--t-6)/var(--lf-ui-lh) var(--sans);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1355,27 +1354,17 @@ leaf-text.lf-fab-input,
   position: relative;
   flex: none;
   margin-inline-start: auto;
-  inline-size: var(--lf-thread-resolve-width);
-  min-inline-size: var(--lf-thread-resolve-width);
-  display: inline-flex;
-  justify-content: center;
-  font: var(--t-6)/var(--lf-ui-lh) var(--sans);
-  color: var(--muted);
-}
-:is(.lf-resolve, .lf-reopen).lf-icon-action::before {
-  inset: 0;
-  inline-size: auto;
-  block-size: auto;
-}
-:is(.lf-resolve, .lf-reopen).lf-icon-action > span {
-  position: relative;
-  z-index: 1;
+  color: var(--ink);
 }
 .lf-resolve.lf-icon-action:not([aria-disabled=true]):hover {
   color: var(--ok-ink);
 }
 .lf-resolve.lf-icon-action:not([aria-disabled=true]):hover::before {
   background: var(--ok-tint);
+}
+:is(.lf-resolve, .lf-reopen).lf-icon-action .lf-action-icon {
+  inline-size: 15px;
+  block-size: 15px;
 }
 .lf-reopen.lf-icon-action {
   color: var(--ok-ink);

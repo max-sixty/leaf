@@ -798,9 +798,12 @@ export class ThreadView {
     //   the thread holds news, the notice in Reopen's place, since the card has no other
     //   row to draw it in without growing.
     // - "margin": a margin card's own controls row.
-    // - "head": the first message's header reserves the action's text width,
-    //   independently of the shared header height, beside its message controls.
-    //   Resolve and Reopen occupy the same corner on every inline thread.
+    // - "head": the head's controls row, which reserves the room of one icon control
+    //   (shadow.css, `--lf-thread-action-room`) beside the first message's own
+    //   controls, so whatever stands there is the check: Resolve, or Reopen in its place
+    //   on a resolved page or outlet thread, so the two states of one toggle share one
+    //   face and one corner. The word, wider, ran over the message's pencil, and a foot
+    //   row of its own drew resolved threads unlike open ones.
     const settlementPlace = marginControls
       ? "margin"
       : panel && model.resolved && !replySlot && !model.folding
@@ -1324,20 +1327,20 @@ export class ThreadView {
     }
   }
 
-  // The panel's resolved title keeps its status allocation for the Reopen action.
-  // Other surfaces use the same quiet text action for Resolve and Reopen.
+  // The panel's resolved title keeps its state label as the reopening action.
+  // Other surfaces use Reopen or the completed check in Resolve's place.
   #settlement(model, place) {
     const state = model.settlement;
     const reopen = state.kind === "unresolve";
     const header = place === "title";
-    // Header and margin controls share a quiet text face in their action allocation.
-    const compact = place === "head" || (place === "margin" && !model.resolved);
+    // A margin card's controls row draws Resolve as the check and Reopen as the word.
+    const icon = place === "head" || (place === "margin" && !model.resolved);
     const face = `${state.kind} ${place}`;
     let button = this.#settlements.get(face);
     if (!button) {
       button = offer(
         "button",
-        `lf-btn ${reopen ? "lf-reopen" : "lf-resolve"} ${header ? "lf-thread-header-action lf-thread-action" : compact ? "lf-icon-action" : "lf-thread-action"}`,
+        `lf-btn ${reopen ? "lf-reopen" : "lf-resolve"} ${header ? "lf-thread-header-action lf-thread-action" : icon ? "lf-icon-action" : "lf-thread-action"}`,
       );
       button.type = "button";
       this.#settlements.set(face, button);
@@ -1358,7 +1361,7 @@ export class ThreadView {
     if (header) {
       keeps(button, "aria-label", `${model.resolvedBy || "Resolved"} · Reopen thread`);
       keeps(button, "title", `${model.resolvedBy || "Resolved"} · Reopen thread`);
-    } else if (compact) {
+    } else if (icon) {
       const label = model.folding
         ? "Resolved"
         : reopen && model.resolvedBy
@@ -1369,9 +1372,9 @@ export class ThreadView {
     }
     render(
       header
-        ? state.word
-        : compact
-          ? html`<span>${model.folding ? "Resolved" : state.word}</span>`
+        ? model.resolvedBy || "Resolved"
+        : icon
+          ? iconTemplate("check", "lf-action-icon")
           : state.label,
       button,
     );

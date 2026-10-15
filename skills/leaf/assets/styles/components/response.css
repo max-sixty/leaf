@@ -37,8 +37,11 @@
 .lf-close-action { border: 0; background: transparent;
           color: var(--muted); }
 .lf-close-action:hover { background: var(--chip); color: var(--ink); }
-/* Send and dictate use compact glyph actions. Resolve and Reopen use quiet
-   words with their own width allocation and the shared action height. */
+/* Send and resolve are the two glyph actions: a bare glyph in the action's own ink,
+   whose ::before is a 28px disc that stays clear at rest and takes the action's tint
+   on hover. The hit box around the disc is the icon-action floor above. The glyph's
+   ink outranks the .lf-ui face by coming later. Reopen standing in Resolve's place
+   is the same glyph drawn done, on every surface that seats a thread. */
 :is(.lf-compose-submit, .lf-compose-dictate), :is(.lf-resolve, .lf-reopen).lf-icon-action { border: 0;
           background: transparent; box-shadow: none; }
 :is(.lf-compose-submit, .lf-compose-dictate, .lf-resolve.lf-icon-action, .lf-reopen.lf-icon-action)::before {
@@ -60,16 +63,12 @@
 .lf-compose-dictate[data-dictation="failed"]:hover::before { background: var(--danger-tint); }
 .lf-compose-dictate:not([data-dictation="failed"]) .lf-mic-slash { display: none; }
 :is(.lf-resolve, .lf-reopen).lf-icon-action { position: relative; flex: none;
-          margin-inline-start: auto;
-          inline-size: var(--lf-thread-resolve-width); min-inline-size: var(--lf-thread-resolve-width);
-          display: inline-flex; justify-content: center;
-          font: var(--t-6)/var(--lf-ui-lh) var(--sans); color: var(--muted); }
-:is(.lf-resolve, .lf-reopen).lf-icon-action::before {
-          inset: 0; inline-size: auto; block-size: auto; }
-:is(.lf-resolve, .lf-reopen).lf-icon-action > span { position: relative; z-index: 1; }
+          margin-inline-start: auto; color: var(--ink); }
 .lf-resolve.lf-icon-action:not([aria-disabled="true"]):hover { color: var(--ok-ink); }
 .lf-resolve.lf-icon-action:not([aria-disabled="true"]):hover::before {
           background: var(--ok-tint); }
+:is(.lf-resolve, .lf-reopen).lf-icon-action .lf-action-icon { inline-size: 15px;
+          block-size: 15px; }
 .lf-reopen.lf-icon-action { color: var(--ok-ink); }
 .lf-reopen.lf-icon-action::before { background: var(--ok-tint); }
 /* Drawn done at rest, so the press shows on hover as a deeper disc. */

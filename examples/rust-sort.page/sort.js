@@ -591,6 +591,18 @@ const el = (tag, attrs = {}, parent) => {
   return node;
 };
 
+// The visual parts keep their group nodes; a frame keeps each shape whose SVG did not change.
+const reconcileChildren = (parent, painted) => {
+  const next = [...painted.childNodes];
+  next.forEach((node, index) => {
+    const current = parent.childNodes[index];
+    if (current?.isEqualNode(node)) return;
+    if (current) parent.replaceChild(node, current);
+    else parent.append(node);
+  });
+  while (parent.childNodes.length > next.length) parent.lastChild.remove();
+};
+
 // The four clauses of collapse(), in source order, with the stack depth each needs.
 const CLAUSES = [
   { key: "start0", text: "runs[n-1].start == 0", needs: 2 },
@@ -843,7 +855,7 @@ export class Painter {
     }
 
     // Holes: slots in v that hold no element, inside the region being worked on.
-    this.holes.replaceChildren();
+    const holes = el("g");
     step.v.forEach((id, s) => {
       if (id !== null) return;
       el(
@@ -858,12 +870,13 @@ export class Painter {
           stroke: C.danger,
           "stroke-dasharray": "3 2",
         },
-        this.holes,
+        holes,
       );
     });
+    reconcileChildren(this.holes, holes);
 
     // The merge window, and the scan window, as a tinted band behind the bars.
-    this.winG.replaceChildren();
+    const winG = el("g");
     const band = (from, to, tint, y0, y1) =>
       el(
         "rect",
@@ -875,7 +888,7 @@ export class Painter {
           fill: tint,
           rx: 4,
         },
-        this.winG,
+        winG,
       );
     if (step.win) {
       band(step.win.lo, step.win.hi, C.accentTint, G.top, G.base + 2);
@@ -890,7 +903,7 @@ export class Painter {
           stroke: C.accent,
           "stroke-dasharray": "4 3",
         },
-        this.winG,
+        winG,
       );
     } else if (step.focus)
       band(step.focus.start, step.focus.end, C.field, G.top, G.base + 2);
@@ -907,11 +920,12 @@ export class Painter {
         );
       else if (step.tmp) band(from, from + len, C.warnTint, G.sPtr + 2, G.scratch + 2);
     }
+    reconcileChildren(this.winG, winG);
 
     // Runs on the stack, bracketed under the slice with their stack index where every
     // bracket is wide enough to hold its own, and with their length alone where one is
     // not: the stack under the lanes names each run by its colour.
-    this.runsG.replaceChildren();
+    const runsG = el("g");
     const bracket = (start, len, col, label, y) => {
       const x1 = this.x(start) + 1;
       const x2 = this.x(start + len) - 2;
@@ -923,7 +937,7 @@ export class Painter {
           stroke: col,
           "stroke-width": 1.5,
         },
-        this.runsG,
+        runsG,
       );
       const t = el(
         "text",
@@ -935,7 +949,7 @@ export class Painter {
           "font-family": C.mono,
           "font-size": TYPE,
         },
-        this.runsG,
+        runsG,
       );
       t.textContent = label;
     };
@@ -960,10 +974,11 @@ export class Painter {
         `${step.focus.end - step.focus.start}`,
         G.base + 14,
       );
+    reconcileChildren(this.runsG, runsG);
 
     // Merge pointers, each a mark over its slot with its name in the row above. Names
     // closer than their width in one lane stand apart, in slot order, within the lane.
-    this.ptrs.replaceChildren();
+    const ptrs = el("g");
     const names = { v: [], buf: [] };
     for (const [name, pl] of Object.entries(step.ptr ?? {})) {
       const slot = pl.lane === "buf" ? step.bufAt + pl.idx : pl.idx;
@@ -974,7 +989,7 @@ export class Painter {
       el(
         "path",
         { d: `M${cx - 5},${y - 8} L${cx + 5},${y - 8} L${cx},${y} z`, fill: col },
-        this.ptrs,
+        ptrs,
       );
       names[pl.lane === "v" ? "v" : "buf"].push({ name, cx, y: y - 12, col });
     }
@@ -1001,11 +1016,12 @@ export class Painter {
             "font-family": C.mono,
             "font-size": TYPE,
           },
-          this.ptrs,
+          ptrs,
         );
         t.textContent = p.name;
       }
     }
+    reconcileChildren(this.ptrs, ptrs);
 
     this.#paintStack(step, C, runTone);
   }
@@ -1013,8 +1029,7 @@ export class Painter {
   // The run stack, bottom to top, and the collapse() clauses that decide whether to merge.
   #paintStack(step, C, runTone) {
     const { stack: S, clauses: K } = this.G;
-    const g = this.stack;
-    g.replaceChildren();
+    const g = el("g");
     const text = (x, y, s, attrs = {}) => {
       const t = el(
         "text",
@@ -1087,6 +1102,7 @@ export class Painter {
       });
     }
     if (!k) text(S.x, S.top + 13, "empty", { fill: C.muted, "font-style": "italic" });
+    reconcileChildren(this.stack, g);
 
     // The collapse() clauses, always drawn: idle between checks, and during one each
     // clause says whether it held, or that `||` never reached it.
@@ -1095,8 +1111,7 @@ export class Painter {
     CLAUSES.forEach((clause, i) => {
       const { lines, top, bottom } = K.rows[i];
       const c = list.find((c) => c.line === `c-${clause.key}`);
-      const cg = this.checkEls[clause.key];
-      cg.replaceChildren();
+      const cg = el("g");
       el(
         "rect",
         {
@@ -1138,6 +1153,7 @@ export class Painter {
           ? `not checked: needs ${clause.needs} runs`
           : "·"
         : `${c.evaluated ? (c.fires ? "true → merge" : "false") : "not evaluated"}   ${c.detail}`;
+      reconcileChildren(this.checkEls[clause.key], cg);
     });
   }
 }

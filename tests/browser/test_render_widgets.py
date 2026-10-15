@@ -4831,7 +4831,7 @@ def test_playground_keeps_contributor_drafts_until_reset_or_a_new_choice(
     }
     expect(field).to_have_value("unsent-region")
     expect(field).to_be_focused()
-    assert field.evaluate("input => input.selectionStart") == len("unsent-regio")
+    assert field.evaluate("input => input.selectionStart") == len("unsent-region") - 1
     nudge(serve.page_dir)
     told(page)
     expect(field).to_have_value("unsent-region")

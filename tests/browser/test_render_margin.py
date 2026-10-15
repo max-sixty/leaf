@@ -1678,7 +1678,7 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
         '[data-lf-margin-for="bg-margin-controls-samples"]'
     ).get_by_role("button", name="Inspect projection", exact=True)
     expect(projection).to_be_visible()
-    projection.hover()
+    projection.focus()
     expect(projection.locator(".lf-margin-entry-label-word")).to_have_text(
         "Inspect projection…"
     )

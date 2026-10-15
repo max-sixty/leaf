@@ -170,6 +170,9 @@
     // A repeated live announcement replaces its text node so assistive technology
     // hears a fresh arrival even when the words match the previous announcement.
     /^children of div\.lf-ui\.lf-live$/,
+    // Lit's keyed repeat moves equivalent marker nodes when a visual action in
+    // the group changes identity, while the rendered controls update in place.
+    /^children of div\.lf-visual-actions(?:\.|$)/,
     // Mermaid's diagram renderers and their shared viewport helper both assign the SVG's
     // width while measuring the same drawing. Its upstream-owned paint is separate
     // from Leaf's adapter, which uses keeps when setting the final natural width.

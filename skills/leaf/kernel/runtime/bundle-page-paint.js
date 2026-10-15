@@ -187,7 +187,7 @@ function targetValue(target) {
   return {};
 }
 function describe(event) {
-  const path = event.composedPath?.() ?? [event.target];
+  const path = event.composedPath();
   const elements = path.filter((node) => node instanceof Element).slice(0, 8);
   const entry = {
     type: event.type,
@@ -447,28 +447,27 @@ if (enabled) {
       scroll: [window.scrollX, window.scrollY]
     });
   });
-  if (typeof window.PerformanceObserver !== "undefined") {
-    const observer = new window.PerformanceObserver((list) => {
-      for (
-        const resource of
-        /** @type {PerformanceResourceTiming[]} */
-        list.getEntries()
-      ) {
-        if (resource.name.startsWith(url)) continue;
-        const resourceUrl = new URL(resource.name);
-        if (pagePath(resourceUrl.pathname) === "/api/news") continue;
-        enqueue({
-          type: "resource",
-          path: pagePath(resourceUrl.pathname),
-          initiator: resource.initiatorType,
-          durationMs: resource.duration,
-          responseStatus: resource.responseStatus ?? null,
-          transferSize: resource.transferSize
-        });
-      }
-    });
-    observer.observe({ type: "resource", buffered: true });
-  }
+  const observer = new window.PerformanceObserver((list) => {
+    for (
+      const resource of
+      /** @type {PerformanceResourceTiming[]} */
+      list.getEntries()
+    ) {
+      if (resource.name.startsWith(url)) continue;
+      const resourceUrl = new URL(resource.name);
+      if (pagePath(resourceUrl.pathname) === "/api/news") continue;
+      enqueue({
+        type: "resource",
+        path: pagePath(resourceUrl.pathname),
+        initiator: resource.initiatorType,
+        durationMs: resource.duration,
+        // WebKit has no responseStatus.
+        responseStatus: resource.responseStatus ?? null,
+        transferSize: resource.transferSize
+      });
+    }
+  });
+  observer.observe({ type: "resource", buffered: true });
   enqueue({
     type: "session_start",
     location: `${pagePath(location.pathname)}${location.hash}`,
@@ -2798,7 +2797,6 @@ function el(tag, cls, text) {
   if (text !== void 0) node.textContent = text;
   return node;
 }
-var HIDDEN = "onbeforematch" in document.body ? "until-found" : "";
 var hands = M(/* @__PURE__ */ new Set());
 var dragHeld = () => hands.value.size > 0;
 var dragging = (el2, on) => {
@@ -3196,7 +3194,7 @@ function admitResponse(response) {
   return true;
 }
 var sessionMode = release ? "unknown" : "active";
-var sessionChannel = release && !document.documentElement.lfSample && typeof window.BroadcastChannel !== "undefined" ? new window.BroadcastChannel(`leaf-session:${release}:${pageUrl("")}`) : null;
+var sessionChannel = release && !document.documentElement.lfSample ? new window.BroadcastChannel(`leaf-session:${release}:${pageUrl("")}`) : null;
 function activateSession(broadcast) {
   const activated = sessionMode !== "active";
   sessionMode = "active";
@@ -3518,7 +3516,6 @@ export {
   iconElement,
   reveal,
   el,
-  HIDDEN,
   dragHeld,
   dragging,
   LAYOUT,

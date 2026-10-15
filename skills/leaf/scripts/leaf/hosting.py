@@ -405,12 +405,12 @@ def server_reading(page_dir: Path) -> dict:
     }
 
 
-def announce_server(page_dir: Path, url: str) -> None:
-    """Print a started server's URL and reading (`server_reading`) as one object, and
-    note an address that stays on this machine (`server.loopback_only`)."""
-    print(json.dumps({"url": url} | server_reading(page_dir)), flush=True)
+def started_server(page_dir: Path, url: str) -> dict:
+    """A started server's URL and reading (`server_reading`) as one object, noting
+    an address that stays on this machine (`server.loopback_only`)."""
     if loopback_only(page_dir):
         note(Finding("loopback-only", severity="advice"))
+    return {"url": url} | server_reading(page_dir)
 
 
 def _serve_claim(
@@ -441,8 +441,11 @@ def _serve_claim(
 
 
 def _announce_server(page_dir: Path, url: str) -> bool:
-    """Print a committed foreground server's reading (`announce_server`)."""
-    announce_server(page_dir, url)
+    """Print a committed foreground server's reading (`started_server`) before it
+    serves, since the command returns only when the server stops."""
+    from .event_log import jsonl_line
+
+    print(jsonl_line(started_server(page_dir, url)), flush=True)
     return True
 
 

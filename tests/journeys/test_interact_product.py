@@ -42,10 +42,10 @@ def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(page_di
     (page_dir / "index.html").write_text(
         PAGE.replace("</main>", group.format(" settled", " chosen") + "</main>")
     )
-    assert checking_command.cmd_check(page_dir) == 0
+    assert checking_command.cmd_check(page_dir)["status"] == 0
 
     (page_dir / "index.html").write_text(PAGE)
-    assert checking_command.cmd_check(page_dir) == 0
+    assert checking_command.cmd_check(page_dir)["status"] == 0
 
 
 # One case per fixture, named by its path since notes each keep a `playground.html`, so

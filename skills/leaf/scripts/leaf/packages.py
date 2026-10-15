@@ -1,7 +1,6 @@
 """Package authoring commands and filesystem safety gates."""
 
 import contextlib
-import json
 import os
 import re
 import secrets
@@ -395,13 +394,12 @@ def init_starter_widget(
         raise
 
 
-def cmd_package_init(package: Path, widget: str | None = None) -> Path:
+def cmd_package_init(package: Path, widget: str | None = None) -> dict:
     with package_write_lock(package):
         package, protected, composition = check_package(package, require_exists=False)
         if widget is not None:
             init_starter_widget(package, protected, composition, widget)
-            print(json.dumps({"package": str(package), "widget": widget}))
-            return package
+            return {"package": str(package), "widget": widget}
 
         refuse_package_overlap(
             [package, *(package / name for name in (*VENDORED_FILES, *PACKAGE_DIRS))],
@@ -421,13 +419,12 @@ def cmd_package_init(package: Path, widget: str | None = None) -> Path:
             if not ((package / name).exists() or (package / name).is_symlink())
         ]
         create_package_files(package, creates)
-        print(json.dumps({"package": str(package)}))
-        return package
+        return {"package": str(package)}
 
 
-def cmd_package_check(package: Path, render: bool = False) -> int:
+def cmd_package_check(package: Path, render: bool = False) -> dict:
     """Check the package, and with `render` its widgets' worked examples in the
-    host's browser, and print one object in `page check`'s shape: `status`, the exit
+    host's browser, and report one object in `page check`'s shape: `status`, the exit
     status; `findings`, each finding as a record: the findings a refusal carries, such
     as a registry's, any other refusal as one `package` record, or the widget quality
     findings; and `browser`, what the browser gate ran in or why none could, null
@@ -435,17 +432,11 @@ def cmd_package_check(package: Path, render: bool = False) -> int:
     from .findings import Finding, Rejected
 
     def reported(status, findings=(), browser=None):
-        print(
-            json.dumps(
-                {
-                    "status": status,
-                    "findings": [finding.json() for finding in findings],
-                    "browser": browser,
-                },
-                ensure_ascii=False,
-            )
-        )
-        return status
+        return {
+            "status": status,
+            "findings": [finding.json() for finding in findings],
+            "browser": browser,
+        }
 
     try:
         package, _, _ = check_package(package, require_exists=True)
@@ -464,7 +455,7 @@ def cmd_package_check(package: Path, render: bool = False) -> int:
     return reported(check.status, check.findings, check.json())
 
 
-def cmd_package_install(source: Path) -> Path:
+def cmd_package_install(source: Path) -> dict:
     """Publish a checked immutable snapshot under its source directory's name.
 
     The lexical name changes atomically after all copied bytes validate. Existing
@@ -505,8 +496,7 @@ def cmd_package_install(source: Path) -> Path:
             destination = names / name
             os.replace(pointer, destination)
             fsync_parents([published, destination])
-        print(json.dumps({"package": str(published)}))
-        return published
+        return {"package": str(published)}
 
 
 def cmd_package_run(name: str, script: str, arguments: tuple[str, ...]) -> None:

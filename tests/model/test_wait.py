@@ -750,7 +750,6 @@ def test_one_wait_watches_every_page_the_session_holds(
     leases_model.mark_hooks("s9")  # its harness runs Leaf's hooks
     second = tmp_path / "second"
     vendoring_model.cmd_init(second)
-    capsys.readouterr()
     session_model.cmd_waiting(second, "")
     session_model.cmd_waiting(page_dir, "")
     serving(page_dir, 1)
@@ -1233,7 +1232,6 @@ def test_a_page_served_mid_wait_joins_the_running_watch(
     assert service_model.claim_page(page_dir)
     joined = tmp_path / "joined"
     vendoring_model.cmd_init(joined)
-    capsys.readouterr()
     session_model.cmd_waiting(joined, "")
     serving(joined, 2)
 

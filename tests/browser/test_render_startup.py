@@ -1885,7 +1885,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
     suggestion_accept = page.locator("[data-lf-margin-for='sug'] .lf-sug-accept")
     expect(suggestion_accept).to_be_disabled()
     assert suggestion_accept.evaluate(
-        """button => {
+        """button => lfUnwatched(() => {
               const glyph = button.firstElementChild;
               const widget = document.getElementById('sug');
               const parent = widget.parentNode;
@@ -1893,7 +1893,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
               widget.remove();
               parent.insertBefore(widget, next);
               return button.firstElementChild === glyph;
-            }"""
+            })"""
     ), "an unchanged availability paint rebuilt the suggestion control"
     suggestion_accept.dispatch_event("click")
     expect(suggestion_accept).to_be_disabled()

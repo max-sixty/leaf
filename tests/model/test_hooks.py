@@ -115,7 +115,6 @@ def test_receiving_a_batch_observes_the_session_turn_on_every_owned_page(
     would clear."""
     sibling = tmp_path / "sibling"
     vendoring_model.cmd_init(sibling)
-    capsys.readouterr()
     working(claimed, "answering the first comment")
     working(sibling, "reading the sibling")
     serving(claimed, 1)
@@ -141,7 +140,6 @@ def test_receiving_a_batch_observes_the_session_turn_on_every_owned_page(
     # A page another session holds is not this turn's to speak for.
     others = tmp_path / "others"
     vendoring_model.cmd_init(others)
-    capsys.readouterr()
     working(others, "another session's page")
     serving(others, 3)
     assert service_model.claim_page(others)
@@ -174,7 +172,6 @@ def test_the_prompt_hook_opens_the_turn_on_every_page_the_session_holds(
     same session scope."""
     sibling = tmp_path / "sibling"
     vendoring_model.cmd_init(sibling)
-    capsys.readouterr()
     working(claimed, "answering the first comment")
     working(sibling, "reading the sibling")
     serving(claimed, 1)
@@ -957,7 +954,6 @@ def test_a_hook_stopped_before_receipt_has_confirmed_nothing(
     sibling = tmp_path / "sibling"
     vendoring_model.cmd_init(sibling)
     service_model.claim_page(sibling)
-    capsys.readouterr()
     for page in (claimed, sibling):
         append_carried_log_record(
             page, {"kind": "comment", "author": "user", "text": "Please answer"}
@@ -1199,7 +1195,6 @@ def test_a_hook_waits_on_no_receipt_lock_past_its_deadline(
     sibling = tmp_path / "sibling"  # after `claimed` in the walk's path order
     vendoring_model.cmd_init(sibling)
     service_model.claim_page(sibling)
-    capsys.readouterr()
     for page in (claimed, sibling):
         append_carried_log_record(
             page, {"kind": "comment", "author": "user", "text": "Please answer"}

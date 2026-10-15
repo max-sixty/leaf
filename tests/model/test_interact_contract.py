@@ -4305,16 +4305,16 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
     queued = codex_model.offer_delivery(
         path, codex_model.read_record(path), transport="queue"
     )
-    delivery_model.cmd_delivery_read(queued.payload["id"])
-    read = capsys.readouterr().out
+    read = json.dumps(
+        delivery_model.cmd_delivery_read(queued.payload["id"]), ensure_ascii=False
+    )
 
     thread = "codex-thread"
     prepared = codex_model.prepare_codex_delivery(
         page_dir, harness_model.EmbeddedHarness(thread, "Codex", os.getpid())
     )
     started = codex_model.app_server_turn_start_params(thread, prepared.payload)
-    delivery_model.cmd_delivery_read(prepared.payload["id"])
-    reader = json.loads(capsys.readouterr().out)
+    reader = delivery_model.cmd_delivery_read(prepared.payload["id"])
     assert json.loads(started["toolOutput"]["output"]) == prepared.payload
     assert reader["batches"] == prepared.payload["batches"]
     assert f"leaf delivery ack {prepared.payload['id']}" in reader["acknowledge"]

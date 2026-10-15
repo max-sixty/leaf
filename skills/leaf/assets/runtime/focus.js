@@ -323,7 +323,8 @@ export const focused = (tree = null) => {
 // The selection the user drew in the tree `node` stands in, where the browser keeps it.
 const selectionOf = (node) => {
   const root = node.getRootNode();
-  // Chromium's shadow roots answer their own selection.
+  // Only Chromium's shadow roots answer their own selection; Firefox and WebKit
+  // keep it on the document.
   const own = /** @type {{getSelection?: () => Selection}} */ (root);
   return (root instanceof ShadowRoot && own.getSelection?.()) || getSelection();
 };

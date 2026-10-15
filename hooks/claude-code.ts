@@ -8,8 +8,8 @@
  * (`ClaudeCodeHarness` in `skills/leaf/scripts/leaf/harness.py`):
  *
  * - the session's start and each main-loop turn's end start the watch (`bin/leaf
- *   hook --harness claude-code --if-claimed --watch`), which prints a line and exits once one
- *   of the session's pages has input;
+ *   hook --harness claude-code --if-claimed --watch`), which prints a line and
+ *   exits once one of the session's pages has input;
  * - a turn the user interrupts ends with no Stop hook, so the module starts the
  *   watch with the Interrupt payload, which closes the turn. Receipt distinguishes
  *   input that entered that turn from input held outside its context;

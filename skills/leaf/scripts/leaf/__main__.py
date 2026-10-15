@@ -8,8 +8,8 @@ Harnesses call `leaf hook --harness NAME` on every turn, including sessions hold
 page, and `leaf session-end` as a session ends. Both are `HARNESS_ENTRIES`, routed
 here without importing Click, and this is their only route: `hook`, alone or with
 `--if-claimed` or `--watch` after it, enters the dependency-light hook owner, and
-`session-end`
-delegates to the same cleanup owner `bin/leaf` runs cold, in a managed interpreter.
+`session-end` delegates to the same cleanup owner `bin/leaf` runs cold, in a
+managed interpreter.
 Any other argv after one of their names is refused with its usage line. Help and
 every other invocation use the CLI, whose `prog_name` stays `leaf` for both entry
 forms.

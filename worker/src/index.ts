@@ -18,7 +18,8 @@
  * from a passive session is the published page failing, so the edge logs it for the
  * site's maintainers instead of activating a container to hold it. Analytics Engine
  * records accepted product events; Workers Observability records the execution path,
- * whose only page words are a bounded startup or fault `reason`.
+ * whose only page words are a bounded startup or fault `reason`. Native invocation
+ * logs hold request headers; browser diagnostics read that evidence by trace ID.
  */
 
 import {
@@ -278,47 +279,6 @@ function containerId(sessionId: string, release: string): string {
   return `${release}:${sessionId}`;
 }
 
-function browserIdentity(request: Request): {
-  browser: string;
-  browserVersion: number | null;
-  platform: string;
-} {
-  const userAgent = request.headers.get("User-Agent") ?? "";
-  const browserPatterns: Array<[string, RegExp]> = [
-    ["edge", /(?:Edg|EdgA|EdgiOS)\/(\d+)/],
-    ["chrome", /(?:Chrome|CriOS)\/(\d+)/],
-    ["firefox", /(?:Firefox|FxiOS)\/(\d+)/],
-    ["safari", /Version\/(\d+).+Safari\//],
-  ];
-  const browserReading = browserPatterns
-    .map(([browser, pattern]) => ({ browser, match: userAgent.match(pattern) }))
-    .find(({ match }) => match !== null);
-  const parsedVersion = browserReading ? Number(browserReading.match?.[1]) : null;
-  const platform = /Windows/.test(userAgent)
-    ? "windows"
-    : /(?:iPhone|iPad)/.test(userAgent)
-      ? "ios"
-      : /Android/.test(userAgent)
-        ? "android"
-        : /CrOS/.test(userAgent)
-          ? "chromeos"
-          : /Macintosh/.test(userAgent)
-            ? "macos"
-            : /Linux/.test(userAgent)
-              ? "linux"
-              : "other";
-  return {
-    browser: browserReading?.browser ?? "other",
-    browserVersion:
-      parsedVersion !== null &&
-      Number.isSafeInteger(parsedVersion) &&
-      parsedVersion <= 9999
-        ? parsedVersion
-        : null,
-    platform,
-  };
-}
-
 // The body as text, or null once it passes maxBytes, whether the client declared that
 // length or streamed it without one. A request with no body reads as "".
 async function readBoundedText(
@@ -370,7 +330,6 @@ async function recordStartup(
     reference,
     route: route.root,
     currentRelease: manifest.release,
-    ...browserIdentity(request),
     ...parsed.data,
   });
   return new Response(null, {
@@ -417,7 +376,6 @@ function recordPageFault(
     release: siteRelease.safeParse(request.headers.get("Leaf-Release")).data ?? null,
     currentRelease: manifest.release,
     revision: fault.revision ?? null,
-    ...browserIdentity(request),
     reason: fault.text.slice(0, PAGE_FAULT_REASON_CHARS),
   });
   const answer = new Response(null, {

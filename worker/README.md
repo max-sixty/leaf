@@ -347,12 +347,12 @@ Each public document's inline bootstrap reports one `component=leaf-startup` rec
 also when the module graph fails to load. The deployed Worker logs it; the container
 never sees it, and a site served by `leaf_website` alone (the test suite, a local
 preview) acknowledges the report and keeps nothing. Filter by `reference`, `route`,
-browser, or `loadId`.
+or `loadId`. Browser evidence comes from the native request record described below.
 
 | Field | Meaning |
 | --- | --- |
 | `route`, `release`, `currentRelease` | The page, the release its document names, and the release the edge serves |
-| browser, platform, `navigationType` | Browser family and major version, platform, and how the load began |
+| `navigationType` | How the load began |
 | `serverMs`, `firstByteMs`, `firstContentfulPaintMs` | Worker time, network time to the first byte, and first paint |
 | `upgradedMs` | First widget upgrade in the body |
 | `firstStateResponseMs` | First completed `api/state` response for the page (Resource Timing `responseEnd`) |
@@ -382,6 +382,52 @@ addresses, or private session id. `reason` is the runtime's own words, but an ex
 thrown while handling a value can quote that value, so treat `reason` as possibly
 containing user text.
 
+### Browser evidence
+
+Cloudflare's native invocation record owns the request headers. For a startup or
+passive page-fault record, take `$metadata.traceId`, then query that trace's
+`cf-worker-event` record. Its `$workers.event.request.headers` holds the raw
+`user-agent` and any `sec-ch-ua`, `sec-ch-ua-platform`, and `sec-ch-ua-mobile` values.
+Interpret those as reported evidence: UA tokens need not identify a unique browser,
+client hints may be absent, and hint brand lists may contain synthetic brands.
+Leaf derives no browser family, version or platform and requests no extra hints.
+
+Using the token and account from [Find a session's records](#find-a-sessions-records),
+query a narrow window around the diagnostic's timestamp:
+
+```sh
+trace_id=...
+from_ms=...
+to_ms=...
+
+jq -n \
+  --arg trace_id "$trace_id" \
+  --argjson from "$from_ms" \
+  --argjson to "$to_ms" \
+  '{queryId:"leaf-browser-evidence",timeframe:{from:$from,to:$to},view:"events",limit:100,parameters:{datasets:[],filterCombination:"and",filters:[{key:"$metadata.traceId",operation:"eq",type:"string",value:$trace_id},{key:"$metadata.type",operation:"eq",type:"string",value:"cf-worker-event"}]}}' \
+| curl --fail-with-body --silent --show-error \
+    --request POST \
+    --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+    --header "Content-Type: application/json" \
+    --data-binary @- \
+    "https://api.cloudflare.com/client/v4/accounts/$account_id/workers/observability/telemetry/query"
+```
+
+The native headers are at
+`.result.events.events[]["$workers"].event.request.headers` in the response. To start
+with a browser instead, query native records by
+`$workers.event.request.headers.user-agent` or a client-hint header, then query their
+trace IDs for startup or fault records. These occasional investigations take two
+queries; the semantic records do not duplicate the headers.
+
+Production and `dev` enable [Workers Logs](https://developers.cloudflare.com/workers/observability/logs/workers-logs/)
+with invocation logging and 100% head sampling through Cloudflare's defaults. All
+logs for a sampled request are collected together and share the same retention
+(at most seven days). Check `result.statistics.abr_level` is `1` and narrow the
+query window if needed; a sampled query, a truncated log, or an expired record is
+not evidence that a browser sent no header. Request headers can contain OS,
+device and full-version detail; they are client-reported, not verified identity.
+
 ### Page faults
 
 A runtime fault after startup, such as a code block that fails to highlight, reaches
@@ -389,7 +435,7 @@ the server as a page `error` event (`reportPageError`). While the session has no
 changed the page, the Worker logs it as `component=leaf-page-error`,
 `event=browser_page_error` and starts no container. The record carries `reference`,
 `route`, the document's `release`, the edge's `currentRelease`, the document
-`revision`, browser, platform, and the first 300 characters of the runtime's message as
+`revision` and the first 300 characters of the runtime's message as
 `reason`, which may contain user text as above. The agent never sees these faults, even
 after the visitor's first comment activates the session. Once the page is active, its
 faults go to the container like any other event.

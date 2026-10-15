@@ -23,6 +23,20 @@ what fails and what still works.
 
 ## Supported APIs checked
 
+### Feedback clearance above a covering thread panel
+
+- **Owner:** `styles/chrome.css`. Native `anchor-size()` reads the panel foot and
+  selected reply, while `anchor()` reads the list's foot; feedback keeps one
+  clearance through list scrolling and draft growth. The list opens one chosen
+  thread, so it supplies one visible reply anchor.
+- **Observed 2026-10-14:** installed Playwright Chromium 153.0.8010.12, Firefox 155
+  and WebKit 26.6 match the former measured placement within one pixel for short
+  and multiline replies at both scroll ends, reply selection changes, an empty
+  list, a multiline page-mode foot composer, and the panel beside the page.
+  Empty lists use the foot anchor alone; a reply's presence adds its clearance.
+- **Disposition:** adopted without a fallback. These are installed engine checks,
+  rather than a current stable-browser compatibility survey.
+
 ### Help search result relationships
 
 - **Owner:** `runtime/keyboard/command-reference.js`. The shared input keeps its
@@ -99,6 +113,29 @@ what fails and what still works.
 - **Disposition:** adopted without a fallback.
 
 ## Known gaps
+
+### Intrinsic block retirement motion
+
+- **Owner:** `runtime/motion.js` (`foldBlock`), used by resolved thread cards and
+  block suggestion slots. The browser interpolates the ordinary intrinsic block
+  size to zero with `calc-size(auto, size)`; the other block metrics start at their
+  underlying CSS values. Neither caller measures or reconstructs the starting box.
+- **Checked 2026-10-14:** installed Playwright Chromium 153.0.8010.12 supports
+  `calc-size()` and `interpolate-size`; Firefox 155 and WebKit 26.6 expose neither.
+  These are installed test engines, not a current stable Firefox/Safari survey.
+  [Chrome's documentation](https://developer.chrome.com/docs/css-ui/animate-to-height-auto)
+  describes native intrinsic interpolation and its progressive enhancement model.
+- **Observed:** card, native details and block-slot probes preserve their exact
+  first size, shrink to zero, and restore their ordinary size when canceled in
+  Chromium. Retired-slot styling applies padding changes only to the survivor, so
+  the outgoing slot starts at its actual pre-decision shape. Inline suggestions
+  do not animate. Reduced motion skips the effect, and the shared motion owner
+  finishes a running fold when that preference changes.
+- **Disposition:** accepted visual difference. Without `calc-size()` the same
+  semantic retirement completes immediately, as it does under reduced motion.
+  The runtime explicitly declines the animation rather than letting unsupported
+  intrinsic-size interpolation jump halfway through a fade. Content, Undo and
+  Reopen remain available through their ordinary paths.
 
 ### Browser dictation in comment boxes
 

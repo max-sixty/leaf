@@ -867,6 +867,8 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
   background: none;
   color: inherit;
   text-decoration: none;
+}
+lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   padding: 0;
 }
 .lf-margin-entry > :is(.lf-margin-entry-space, .lf-margin-entry-label) {

@@ -40,7 +40,6 @@ const face = (control, initial, room) => {
   owner.room = room;
   owner.model = initial;
   owner.commit();
-  owner.style.display = "contents";
   control.append(owner);
   return owner;
 };

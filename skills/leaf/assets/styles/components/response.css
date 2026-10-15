@@ -191,7 +191,7 @@ button.lf-media-open { cursor: zoom-in; }
     padding-block: var(--lf-compose-pad-block); }
   /* The physical response presentation allocates the field's box. The host is
      the editor's scrollport; its content-sized editor keeps native caret reveals. */
-  leaf-text.lf-fab-input { width: 100%; min-width: 0;
+  leaf-text.lf-fab-input { display: none; width: 100%; min-width: 0;
     padding-inline: var(--lf-compose-pad-inline-start) calc(var(--lf-comment-text-pad-end) - 1px);
     --lf-field-end-room: var(--lf-comment-send-room);
     overflow-y: auto; }
@@ -233,18 +233,24 @@ button.lf-media-open { cursor: zoom-in; }
 /* Core may seat its one response bar in a widget's exact-datum Thread outlet. The
    widget supplies only the layout location; these rules carry the canonical composer
    into the same trees as the Thread view around it. */
-.lf-fab-bar { font: var(--t-5)/1.5 var(--sans); }
-.lf-fab-bar[data-lf-presentation="inline"] { display: inline-flex; position: static;
+.lf-composer { display: none; }
+.lf-composer[data-lf-open] { display: contents; }
+.lf-composer[data-lf-open] leaf-text.lf-fab-input { display: block; }
+/* The target-only control and its open composer are the bar's two presentations.
+   Both are local mechanical state; the stylesheet also reads them in widget seats. */
+.lf-fab-bar { display: none; font: var(--t-5)/1.5 var(--sans); }
+.lf-fab-bar:is([data-lf-target-only], :has(> .lf-composer[data-lf-open])) {
+  display: var(--lf-response-display, inline-flex); }
+.lf-fab-bar[data-lf-presentation="inline"] { position: static;
           box-sizing: border-box; align-items: flex-end; gap: 4px; width: 100%;
           max-width: 760px; white-space: nowrap; color: var(--ink); }
 .lf-fab-bar[data-lf-presentation="inline"] *,
 .lf-fab-bar[data-lf-presentation="inline"] *::before,
 .lf-fab-bar[data-lf-presentation="inline"] *::after { box-sizing: inherit; }
-.lf-fab-bar[data-lf-presentation="inline"] .lf-composer { display: contents; }
 .lf-fab-bar[data-lf-presentation="inline"] .lf-composer
           > :not(.lf-compose-field, .lf-composer-media) { display: none !important; }
 .lf-fab-bar[data-lf-presentation="inline"] leaf-text.lf-fab-input {
-  display: block; max-width: none; max-height: 50vh; margin: 0; }
+  max-width: none; max-height: 50vh; margin: 0; }
 .lf-fab-bar[data-lf-presentation="inline"].lf-response-open > .lf-response-options {
   flex-basis: 100%; }
 /* Only a floating box is carried (surface-grip.js), so a seated one shows no grip. */

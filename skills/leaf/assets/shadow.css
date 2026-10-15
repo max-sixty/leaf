@@ -1598,6 +1598,7 @@ button.lf-media-open {
   padding-block: var(--lf-compose-pad-block);
 }
 leaf-text.lf-fab-input {
+  display: none;
   width: 100%;
   min-width: 0;
   padding-inline: var(--lf-compose-pad-inline-start) calc(var(--lf-comment-text-pad-end) - 1px);
@@ -1657,11 +1658,23 @@ leaf-text.lf-fab-input {
   min-width: 0;
   flex-wrap: wrap;
 }
+.lf-composer {
+  display: none;
+}
+.lf-composer[data-lf-open] {
+  display: contents;
+}
+.lf-composer[data-lf-open] leaf-text.lf-fab-input {
+  display: block;
+}
 .lf-fab-bar {
+  display: none;
   font: var(--t-5)/1.5 var(--sans);
 }
+.lf-fab-bar:is([data-lf-target-only], :has(> .lf-composer[data-lf-open])) {
+  display: var(--lf-response-display, inline-flex);
+}
 .lf-fab-bar[data-lf-presentation=inline] {
-  display: inline-flex;
   position: static;
   box-sizing: border-box;
   align-items: flex-end;
@@ -1676,14 +1689,10 @@ leaf-text.lf-fab-input {
 .lf-fab-bar[data-lf-presentation=inline] *::after {
   box-sizing: inherit;
 }
-.lf-fab-bar[data-lf-presentation=inline] .lf-composer {
-  display: contents;
-}
 .lf-fab-bar[data-lf-presentation=inline] .lf-composer > :not(.lf-compose-field, .lf-composer-media) {
   display: none !important;
 }
 .lf-fab-bar[data-lf-presentation=inline] leaf-text.lf-fab-input {
-  display: block;
   max-width: none;
   max-height: 50vh;
   margin: 0;

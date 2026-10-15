@@ -364,6 +364,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      trigger under a finger. */
   .lf-margin-thread .lf-thread-transcript .lf-msg-body {
     --lf-top: var(--lf-msg-head-height); }
+  /* A short editable turn keeps room for its one-line rewrite field, so opening
+     the field does not shift the turn above a reply the reader is writing in. */
+  .lf-margin-thread .lf-msg:has(> .lf-msg-edit) > .lf-msg-body {
+    min-height: calc(var(--lf-compose-h) + 2px); }
   .lf-margin-thread .lf-thread-transcript .lf-msg-body * {
     scroll-margin-top: calc(var(--lf-top) + var(--focus-ring-room)); }
   .lf-margin-thread .lf-thread-transcript .lf-msg-meta { overflow: hidden; }

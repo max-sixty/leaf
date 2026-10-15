@@ -374,7 +374,8 @@ adds its row. Rows marked *lint* are enforced in `eslint.config.mjs`.
 | Whether the reader or layout chose a box's scroll position | `scrolling.js` `chosenSince`, `placeKept` |
 | The page's `main` | `passages.js` `pageDocument` |
 | Whether a place is already shown, and the space a landing needs | `landing-scroll.js` `alreadyShown`, `landingRoom` |
-| Bring something into view without scrolling the page around it | `landing-scroll.js` `scrollIntoView` (*lint*) |
+| Bring something into view without scrolling the page around it, or within one box | `landing-scroll.js` `scrollIntoView`, `within` (*lint*) |
+| Move a box to its end, or by an amount | `scrolling.js` `scrollToEnd`, `moveScrollerBy` (*lint*) |
 | Open or close a native modal or popover | `keyboard/layer-stack.js` `showNativeLayer`, `closeNativeLayer` (*lint*) |
 | Whether a node is, or is inside, an open native layer, and of which kind | `shadow-tree.js` `nativeLayerKind`, `isNativeLayer`, `nativeLayerHolding` (*lint*) |
 | Which native layers are open, in opening order, and whether a modal admits a node | `keyboard/layer-stack.js` `nativeLayers`, `nativeModalAdmits` |

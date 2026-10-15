@@ -41,6 +41,11 @@ COMPILER_INPUTS = (
 )
 
 
+def compiler_root() -> Path:
+    """The developer checkout that launched a selected-runtime preview."""
+    return Path(os.environ.get("LEAF_PREVIEW_COMPILER_ROOT", ROOT)).resolve()
+
+
 def prepare(output: Path, runtime: Path = ROOT) -> None:
     """Build a new installation tree from this checkout or an extracted payload.
 
@@ -54,14 +59,15 @@ def prepare(output: Path, runtime: Path = ROOT) -> None:
     else:
         output.mkdir(parents=True)
         copy_payload(runtime, output)
+    compiler = compiler_root()
     subprocess.run(
         [
             "node",
-            str(ROOT / "build/runtime-bundle.mjs"),
+            str(compiler / "build/runtime-bundle.mjs"),
             str(output / "skills/leaf/assets"),
             str(output / "skills/leaf/kernel"),
         ],
-        cwd=ROOT,
+        cwd=compiler,
         check=True,
     )
     write_json(
@@ -119,9 +125,10 @@ def installation_inputs(runtime: Path = ROOT) -> dict[str, Path]:
             )
             if "__pycache__" not in path.parts and path.suffix != ".pyc"
         ]
+    compiler = compiler_root()
     inputs = {
         **{f"payload/{path.relative_to(runtime).as_posix()}": path for path in payload},
-        **{f"compiler/{name}": ROOT / name for name in COMPILER_INPUTS},
+        **{f"compiler/{name}": compiler / name for name in COMPILER_INPUTS},
     }
     return {name: path for name, path in sorted(inputs.items()) if path.is_file()}
 
@@ -147,7 +154,7 @@ def cached_installation(runtime: Path = ROOT) -> Path:
     runtime = runtime.resolve()
     if (runtime / "leaf-distribution.json").is_file():
         return runtime
-    cache = ROOT / ".tmp/compiled-runtime"
+    cache = compiler_root() / ".tmp/compiled-runtime"
     cache.mkdir(parents=True, exist_ok=True)
 
     def revision_is_current(identity: str, producer: dict) -> bool:

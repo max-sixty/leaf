@@ -63,15 +63,19 @@ other page files and the external state listed below.
   captures the media its document names, but every host serves media at the page root,
   and documents, messages, and the runtime all address it there.
 
-- `events.jsonl` — append-only event log; an event's seq is its line number (1-based)
+- `events.jsonl` — append-only event log; an event's seq is its line number (1-based).
+  Stored rows include private native session `context`. Application readers
+  strip it before admission, projections, delivery or public event output.
+  Diagnostic queries read raw events using the current application rules.
 
 - `observations.jsonl` — private, best-effort diagnostic JSON-lines trace of
   server requests, browser observations and developer run context. It never enters
   page state or acknowledgement and is never served as an asset. The semantic
   `events.jsonl` remains the durable record of accepted decisions.
 
-  Every stored row has a host-clock `ts`. Browser observations retain their wall
-  clock as `observed_at`, a positive `sequence`, finite nonnegative `monotonic_ms`,
+  Every stored row has a host-clock `ts`, assigned by the append door (internal
+  imports may supply `ts`). Browser observations retain their wall clock as
+  `observed_at`, a positive `sequence`, finite nonnegative `monotonic_ms`,
   and `visibility` (`visible` or `hidden`). Admission validates these common fields
   once; observation types and other payload fields remain open. `/api/interaction`
   adds session identity and the scoped root-relative page address. Descendant sample
@@ -79,7 +83,8 @@ other page files and the external state listed below.
   Server request rows have type `request`, method, path without query, status and
   duration; successful news looks and resource-byte delivery are excluded.
 
-  `leaf page interactions` orders by host time and keeps the first copy of each
+  `leaf page interactions` combines raw event records and private observations,
+  orders by host time and keeps the first copy of each
   `(session, sequence)`. Its end cutoff defines observed history, then gap detection
   precedes start, session and type filtering. Missing sequences remain visible under
   a type filter; an unsent tail leaves no evidence. Server and developer records have
@@ -100,6 +105,12 @@ other page files and the external state listed below.
   thread, or On list, with reply/input identity and presentation kind. Generic
   delivery labels do not count. Compare monotonic values only within one browser
   session; host receipt and browser wall time do not measure send-to-visible latency.
+  Native session context captures harness name, cwd, validated transcript path,
+  and the lifecycle's turn and `provider` flag as they stood at the event. The
+  timing query combines this with the event's recorded session and turn; it labels
+  a turn native or Leaf-created only when that turn matches the captured lifecycle.
+  A missing event turn remains unknown. Browser `session` identifies a document
+  and its clock, separately from native session identity.
   Developer `run_context` declares `purpose`, `run` and optional authored source or
   test identity before synthetic input or preview use. Purpose describes a run,
   rather than proving a human gesture. `leaf-dev response-times` preserves missing

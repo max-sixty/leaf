@@ -3,12 +3,36 @@
 import json
 
 from click.testing import CliRunner
+from leaf import interaction_log
 from leaf.event_log import append_event
 from leaf.interaction_log import append_interactions, client_records
 from leaf_dev.cli import cli
 
 
-def test_query_keeps_input_identity_and_missing_observations(tmp_path):
+def test_query_keeps_input_identity_and_missing_observations(tmp_path, monkeypatch):
+    original_context = interaction_log.session_context
+
+    def context(session, claim=None):
+        if session == "session":
+            return {
+                "harness": "claude-code",
+                "turn": "turn-one",
+                "provider": False,
+                "cwd": "/workspace/leaf",
+                "transcript_path": "/logs/claude-session.jsonl",
+            }
+        if session == "successor":
+            return {
+                "harness": "codex",
+                "turn": "native-codex-turn",
+                "provider": True,
+                "cwd": None,
+                "transcript_path": None,
+            }
+        return original_context(session, claim)
+
+    monkeypatch.setattr(interaction_log, "session_context", context)
+
     def event(kind, identity, second, **fields):
         return {
             "kind": kind,
@@ -45,7 +69,13 @@ def test_query_keeps_input_identity_and_missing_observations(tmp_path):
             "pickup", "queued", 5, events=["edited"], phase="queued", session="session"
         ),
         event(
-            "pickup", "opened", 7, events=["edited"], phase="opened", session="session"
+            "pickup",
+            "opened",
+            7,
+            events=["edited"],
+            phase="opened",
+            session="session",
+            turn="earlier-turn",
         ),
         event(
             "reply",
@@ -53,7 +83,7 @@ def test_query_keeps_input_identity_and_missing_observations(tmp_path):
             9,
             parent="first",
             ephemeral=True,
-            start={"item": "edited"},
+            start={"item": "edited", "turn": "turn-one"},
             agent="Claude",
             session="session",
         ),
@@ -76,7 +106,33 @@ def test_query_keeps_input_identity_and_missing_observations(tmp_path):
             failure="startup_failed",
         ),
         event("comment", "reaction", 13, author="user", token="keep"),
-        event("reply", "answer2", 20, parent="first", responds="edited"),
+        event(
+            "pickup",
+            "delivery-failed",
+            14,
+            events=["second"],
+            phase="failed",
+            session="failed-session",
+            failure="startup_failed",
+        ),
+        event(
+            "reply",
+            "answer2",
+            20,
+            parent="first",
+            responds="edited",
+            session="successor",
+            turn="native-codex-turn",
+        ),
+        event(
+            "edit",
+            "quiet-edit",
+            21,
+            author="user",
+            message="first",
+            base="first",
+            text="Reworded without another request.",
+        ),
         event("reply", "outside", 40, parent="first", responds="third"),
     ]:
         append_event(tmp_path, row)
@@ -93,8 +149,11 @@ def test_query_keeps_input_identity_and_missing_observations(tmp_path):
     report = json.loads(result.output)
     rows = {row["input_id"]: row for row in report["samples"]}
     assert set(rows) == {"first", "second", "edited", "third"}
+    assert rows["first"]["superseded_by_edit"] == "quiet-edit"
     assert rows["second"]["superseded_by_edit"] == "edited"
-    assert rows["second"]["milestones"] == {}
+    assert set(rows["second"]["milestones"]) == {"failure"}
+    assert rows["second"]["milestones"]["failure"]["elapsed_s"] == 11
+    assert report["summary"]["failure"]["observed"] == 2
     assert rows["edited"]["message_id"] == "second"
     assert {
         name: value["elapsed_s"] for name, value in rows["edited"]["milestones"].items()
@@ -107,6 +166,41 @@ def test_query_keeps_input_identity_and_missing_observations(tmp_path):
         "answered": 16,
     }
     assert rows["edited"]["first_reply_kind"] == "progress"
+    agents = rows["edited"]["agent_sessions"]
+    assert set(agents) == {"queued", "opened", "progress", "answer2"}
+    assert agents["queued"] == {
+        "session": "session",
+        "turn": None,
+        "harness": "claude-code",
+        "turn_provider": None,
+        "cwd": "/workspace/leaf",
+        "transcript_path": "/logs/claude-session.jsonl",
+    }
+    assert rows["second"]["agent_sessions"]["delivery-failed"]["harness"] is None
+    assert agents["progress"] == {
+        "session": "session",
+        "turn": "turn-one",
+        "harness": "claude-code",
+        "turn_provider": "leaf",
+        "cwd": "/workspace/leaf",
+        "transcript_path": "/logs/claude-session.jsonl",
+    }
+    assert agents["opened"] == {
+        **agents["progress"],
+        "turn": "earlier-turn",
+        "turn_provider": None,
+    }
+    assert agents["answer2"] == {
+        "session": "successor",
+        "turn": "native-codex-turn",
+        "harness": "codex",
+        "turn_provider": "native",
+        "cwd": None,
+        "transcript_path": None,
+    }
+    assert rows["edited"]["milestones"]["progress"]["turn"] == "turn-one"
+    assert rows["edited"]["milestones"]["answered"]["turn"] == "native-codex-turn"
+    assert rows["edited"]["milestones"]["first_reply"]["turn_provider"] == "leaf"
     assert rows["third"]["milestones"]["failure"]["elapsed_s"] == 1
     assert "first_reply" not in rows["third"]["milestones"]
     assert rows["third"]["observed_for_s"] == 19
@@ -135,6 +229,7 @@ def test_query_reports_clock_errors_and_requires_qualified_timestamps(tmp_path):
             "author": "user",
             "attention": True,
             "ts": "2026-10-14T12:00:05Z",
+            "attempt": "send-input",
         },
         {
             "id": "reply",
@@ -146,13 +241,45 @@ def test_query_reports_clock_errors_and_requires_qualified_timestamps(tmp_path):
         },
     ]:
         append_event(tmp_path, row)
+    append_interactions(
+        tmp_path,
+        [
+            {
+                **row,
+                "source": "client",
+                "session": "origin",
+                "page": "/",
+                "ts": "2026-10-14T12:00:06Z",
+                "visibility": "visible",
+                "observed_at": "2026-10-14T12:00:06Z",
+            }
+            for row in [
+                {
+                    "type": "event_submit",
+                    "sequence": 1,
+                    "monotonic_ms": 10,
+                    "attempt": "send-input",
+                },
+                {
+                    "type": "reply_visible",
+                    "sequence": 2,
+                    "monotonic_ms": 5,
+                    "reply_id": "reply",
+                    "presentation_kind": "message_words",
+                    "reply_kind": "answer",
+                    "surface": "panel",
+                },
+            ]
+        ],
+    )
     result = CliRunner().invoke(
         cli,
         ["response-times", str(tmp_path), "--until", "2026-10-14T12:00:30Z", "--json"],
     )
     assert result.exit_code == 0, result.output
-    summary = json.loads(result.output)["summary"]["first_reply"]
-    assert summary == {
+    summary = json.loads(result.output)["summary"]
+    assert summary["send_to_visible"] == summary["first_reply"]
+    assert summary["first_reply"] == {
         "inputs": 1,
         "observed": 0,
         "missing": 0,
@@ -306,7 +433,8 @@ def test_query_joins_one_browser_clock_and_selects_declared_purpose(
             surface="panel",
         ),
     ]
-    append_interactions(tmp_path, client_records("origin", "/", records))
+    append_interactions(tmp_path, client_records("origin", "/", records[4:]))
+    append_interactions(tmp_path, client_records("origin", "/", records[:4]))
     append_interactions(tmp_path, client_records("origin", "/", records[4:5]))
     # Another viewer has no matching submission on its own clock; sample paths
     # cannot collide with the containing page's event identities either.

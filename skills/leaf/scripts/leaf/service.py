@@ -27,6 +27,7 @@ from leaf.event_log import (
     read_cursor,
 )
 from leaf.files import read_json, unfinished_publications
+from leaf.interaction_log import session_context
 from leaf.machine import pid_alive, sandbox_remedy, state_home
 from leaf.refusals import Refused
 from leaf.schema import STATUS_FILE
@@ -678,7 +679,12 @@ class PageTransaction:
         is the one caller — every writer reaches the log through that door, and
         nothing else here may append."""
         try:
-            return _append_event_unlocked(self._log, event, self.events)
+            return _append_event_unlocked(
+                self._log,
+                event,
+                self.events,
+                context=session_context(event.get("session"), self.claim),
+            )
         finally:
             self._events = None
 

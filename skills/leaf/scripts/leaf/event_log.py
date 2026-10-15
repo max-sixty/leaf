@@ -1,4 +1,9 @@
-"""Append-only event log storage, raw readings, locking, and attempt identity."""
+"""Append-only event storage, application readings, locking, and attempt identity.
+
+Stored events carry private native session context. It shares the event's durable
+append and is stripped from application readings, returned records and attempt
+comparisons.
+"""
 
 import json
 import os
@@ -115,7 +120,9 @@ def new_event_id(events: list[dict]) -> str:
             return candidate
 
 
-def _append_event_unlocked(f, event: dict, events: list[dict]) -> dict:
+def _append_event_unlocked(
+    f, event: dict, events: list[dict], *, context: dict | None = None
+) -> dict:
     """Append while the caller holds this log file's exclusive lease.
 
     Attempt identity is the append door's (`event_contracts.append_admitted`): it
@@ -136,7 +143,9 @@ def _append_event_unlocked(f, event: dict, events: list[dict]) -> dict:
         f.seek(-1, os.SEEK_END)
         if f.read(1) != b"\n":
             f.write(b"\n")
-    f.write((jsonl_line(event) + "\n").encode())
+    f.seek(0)
+    seq = f.read().count(b"\n") + 1
+    f.write((jsonl_line({**event, "context": context}) + "\n").encode())
     # To the platter before the caller is told it landed: an event is a
     # decision, the sender's 200 (or a CLI exit 0) is the claim it is kept,
     # and events are rare enough that a flush per append costs nothing.
@@ -144,19 +153,22 @@ def _append_event_unlocked(f, event: dict, events: list[dict]) -> dict:
     os.fsync(f.fileno())
     # The record as every reader reads it back: seq is its line number, which the
     # stored line does not carry.
-    f.seek(0)
-    return {**event, "seq": f.read().count(b"\n")}
+    return {**event, "seq": seq}
 
 
 def append_event(page_dir: Path, event: dict) -> dict:
     # This low-level fixture seam can start a log in an existing directory.
+    from .interaction_log import session_context
+
     log = page_dir / EVENTS_FILE
     with open(log, "a", encoding="utf-8"):
         pass
     with flocked(log) as f:
         f.seek(0)
         events = _parse_events(f.read())
-        return _append_event_unlocked(f, event, events)
+        return _append_event_unlocked(
+            f, event, events, context=session_context(event.get("session"))
+        )
 
 
 def _parse_events(data: bytes, before: int = 0) -> list[dict]:
@@ -185,6 +197,7 @@ def _parse_events(data: bytes, before: int = 0) -> list[dict]:
             # and there is nothing anyone could do with a fragment — so it is
             # skipped, not raised over, and the page keeps reading.
             continue
+        event.pop("context", None)
         event["seq"] = before + i + 1
         events.append(event)
     return events

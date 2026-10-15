@@ -1,12 +1,10 @@
-"""Query recorded and visible first feedback from retained Leaf page logs.
+"""Query recorded and visible first feedback from Leaf page logs.
 
     leaf-dev response-times PAGE... [--since ISO] [--until ISO] [--json]
 
-Each attention-bearing user message or edit is an input, regardless of its wording. Progress names
-its exact input through `start.item`; an answer through `responds`. A thread parent
-only locates presentation and cannot associate a reply with a later user message.
-Pickup, work starts, titles, and failure receipts are separate milestones, not
-agent replies. Answers can promise further work, so answer time is not task time.
+Each attention-bearing user message version is an input. Pickup, work starts and
+failure receipts are separate milestones. Progress and answers both count as first
+replies; answer time does not claim the task is finished.
 
 Diagnostics carry host receipt `ts` and browser `observed_at`; the cutoff uses
 host time while visible elapsed time uses only the document's monotonic clock.
@@ -22,7 +20,11 @@ or hosts. Diagnostics are best effort, so absent evidence is retained as missing
 Run context comes from explicit producer declarations before each input, not from
 text or current preview files. Purpose describes the declared run, never proof that
 a gesture is human. --exclude-purpose selects out known runs and keeps unknowns.
-JSON is also an analytical export for history that must outlive source pages.
+Each sample retains every recorded agent session and turn associated with its
+exact input through pickup, start, progress or answer evidence. Missing turns remain
+unknown; browser diagnostic sessions are separate identities. Captured context
+identifies the harness and the provider of an explicitly recorded matching turn;
+no current claim or timestamp proximity supplies this identity.
 """
 
 import json
@@ -33,7 +35,6 @@ from datetime import datetime
 from pathlib import Path
 
 import click
-from leaf.event_log import read_events
 from leaf.interaction_log import interaction_time, read_interactions
 from leaf.schema import MESSAGE_KINDS
 from leaf.state import now_iso
@@ -42,7 +43,9 @@ from leaf.todos import start_reading
 
 
 def visible_feedback(
-    diagnostics: list[dict], messages: dict[str, dict], reply_inputs: dict[str, str]
+    diagnostics: list[dict],
+    input_attempts: dict[str, str],
+    reply_inputs: dict[str, str],
 ) -> dict[str, dict]:
     """Pair submission and visible words in the same originating document.
 
@@ -51,28 +54,29 @@ def visible_feedback(
     cannot provide its endpoint. Stream attempts may resolve through a subsequently
     admitted answer. Uncommitted streams without an exact input remain unjoined.
     """
-    attempts = {
-        message["attempt"]: identity
-        for identity, message in messages.items()
-        if "attempt" in message
-    }
     browser = sorted(
         (
             row
             for row in diagnostics
             if row["source"] == "client" and row["page"] == "/"
         ),
-        key=lambda row: row["sequence"],
+        key=lambda row: (row["session"], row["sequence"]),
     )
-    submissions = {}
-    for row in browser:
-        if row["type"] == "event_submit" and row.get("attempt") in attempts:
-            submissions.setdefault((row["session"], row["attempt"]), row)
     origins = {}
-    for (_, attempt), row in sorted(
-        submissions.items(), key=lambda item: interaction_time(item[1]["ts"])
-    ):
-        origins.setdefault(attempts[attempt], row)
+    submitted = set()
+    for row in browser:
+        identity = input_attempts.get(row.get("attempt"))
+        if row["type"] != "event_submit" or identity is None:
+            continue
+        key = (row["session"], identity)
+        if key in submitted:
+            continue
+        submitted.add(key)
+        origin = origins.get(identity)
+        if origin is None or interaction_time(row["ts"]) < interaction_time(
+            origin["ts"]
+        ):
+            origins[identity] = row
     result = {}
     for row in browser:
         if row["type"] != "reply_visible" or row["visibility"] != "visible":
@@ -107,121 +111,135 @@ def visible_feedback(
 
 
 def page_timings(page: Path, *, since: datetime | None, until: datetime) -> dict:
-    """One row per admitted user message version in [since, until), observed until cutoff.
+    """Measure exact inputs and their feedback from recorded events.
 
-    Evidence comes from this page's semantic and diagnostic logs. Repeated delivery receipts or progress
-    updates retain their first timestamp. Unaddressed replies are never guessed
-    from their parent or their proximity to an input.
+    Events follow admission order even under wall-clock skew. Context declarations
+    use host time; browser feedback uses its tab's clock. Every attention-bearing
+    input version stays in the denominator, including missing feedback.
     """
     page = page.resolve()
-    events = [
-        event for event in read_events(page) if interaction_time(event["ts"]) < until
-    ]
-    messages = {
-        event["id"]: event
-        for event in events
-        if event["author"] == "user"
-        and event["kind"] in MESSAGE_KINDS | {"edit"}
-        and event["attention"]
-        and (since is None or interaction_time(event["ts"]) >= since)
-    }
-    diagnostics = read_interactions(
-        page, until=until, types=("event_submit", "reply_visible", "run_context")
+    observations = read_interactions(
+        page,
+        until=until,
+        types=("event", "event_submit", "reply_visible", "run_context"),
     )
     contexts = [
         row
-        for row in diagnostics
+        for row in observations
         if row["source"] == "developer" and row["type"] == "run_context"
     ]
+    context_times = [interaction_time(row["ts"]) for row in contexts]
+    semantic = sorted(
+        (row for row in observations if row["source"] == "semantic"),
+        key=lambda row: row["event_seq"],
+    )
     rows = {}
-    for identity, message in messages.items():
-        admitted = interaction_time(message["ts"])
-        # Declarations precede their inputs; the last appended context wins a tie.
-        context_index = (
-            bisect_right(
-                contexts, admitted, key=lambda row: interaction_time(row["ts"])
-            )
-            - 1
-        )
-        context = contexts[context_index] if context_index >= 0 else None
-        rows[identity] = {
-            "page": str(page),
-            "input_id": identity,
-            "input_kind": message["kind"],
-            "message_id": message["message"] if message["kind"] == "edit" else identity,
-            "superseded_by_edit": None,
-            "admitted_at": message["ts"],
-            "observed_until": until.isoformat(),
-            "observed_for_s": (until - admitted).total_seconds(),
-            "provenance": {
-                key: context[key]
-                for key in ("purpose", "run", "authored_source", "test")
-                if key in context
-            }
-            if context is not None
-            else None,
-            "milestones": {},
-            "first_reply_kind": None,
-            "first_reply_agent": None,
-        }
+    admitted_times = {}
+    input_attempts = {}
     reply_inputs = {}
     unlinked = []
-
-    def record(identity: str, names: tuple[str, ...], event: dict) -> None:
-        if identity not in rows:
-            return
-        row = rows[identity]
-        milestone = {
-            "event_id": event["id"],
-            "at": event["ts"],
-            "elapsed_s": (
-                interaction_time(event["ts"]) - interaction_time(row["admitted_at"])
-            ).total_seconds(),
-            "session": event.get("session"),
-            "clock": "server_wall",
-        }
-        if "first_reply" in names and "first_reply" not in row["milestones"]:
-            row["first_reply_kind"] = "progress" if event.get("ephemeral") else "answer"
-            row["first_reply_agent"] = event.get("agent")
-        for name in names:
-            row["milestones"].setdefault(name, milestone)
-
-    for event in events:
-        response_input = None
-        if (
-            event["kind"] == "edit"
-            and event["author"] == "user"
-            and event["base"] in rows
-        ):
-            rows[event["base"]]["superseded_by_edit"] = event["id"]
-        if event["kind"] == "pickup":
-            for identity in event["events"]:
-                record(identity, (event["phase"],), event)
-        if started := start_reading(event):
-            record(started["item"], ("started",), event)
-            if event["kind"] == "reply" and event.get("ephemeral"):
-                record(started["item"], ("progress", "first_reply"), event)
-                response_input = started["item"]
-        if is_answer(event):
-            record(event["responds"], ("answered", "first_reply"), event)
-            response_input = event["responds"]
-        elif event["kind"] == "reply" and "failure" in event:
-            record(event["responds"], ("failure",), event)
-        if response_input is not None:
-            reply_inputs[event["id"]] = response_input
+    for observation in semantic:
+        event = observation["event"]
+        stamp = interaction_time(event["ts"])
+        in_cohort = since is None or stamp >= since
+        identity, kind = event["id"], event["kind"]
+        if event["author"] == "user" and kind in MESSAGE_KINDS | {"edit"}:
+            if kind == "edit" and event["base"] in rows:
+                rows[event["base"]]["superseded_by_edit"] = identity
+            if not event.get("attention") or not in_cohort:
+                continue
+            # The last declaration at or before admission wins a timestamp tie.
+            index = bisect_right(context_times, stamp) - 1
+            context = contexts[index] if index >= 0 else None
+            admitted_times[identity] = stamp
             if "attempt" in event:
-                reply_inputs[event["attempt"]] = response_input
-        if (
-            event["kind"] == "reply"
+                input_attempts[event["attempt"]] = identity
+            rows[identity] = {
+                "page": str(page),
+                "input_id": identity,
+                "input_kind": kind,
+                "message_id": event["message"] if kind == "edit" else identity,
+                "superseded_by_edit": None,
+                "admitted_at": event["ts"],
+                "observed_until": until.isoformat(),
+                "observed_for_s": (until - stamp).total_seconds(),
+                "provenance": {
+                    key: context[key]
+                    for key in ("purpose", "run", "authored_source", "test")
+                    if key in context
+                }
+                if context is not None
+                else None,
+                "milestones": {},
+                "agent_sessions": {},
+                "first_reply_kind": None,
+                "first_reply_agent": None,
+            }
+            continue
+        inputs, names, reply_kind = [], (), None
+        start = start_reading(event)
+        if kind == "pickup":
+            inputs = event["events"]
+            names = ("failure" if event["phase"] == "failed" else event["phase"],)
+        elif start is not None:
+            inputs, names = [start["item"]], ("started",)
+            if kind == "reply" and event.get("ephemeral"):
+                names += ("progress", "first_reply")
+                reply_kind = "progress"
+        elif is_answer(event):
+            inputs, names, reply_kind = (
+                [event["responds"]],
+                ("answered", "first_reply"),
+                "answer",
+            )
+        elif kind == "reply" and "failure" in event:
+            inputs, names = [event["responds"]], ("failure",)
+        elif (
+            kind == "reply"
             and event["author"] == "agent"
             and not event.get("responds")
-            and not event.get("start")
-            and (since is None or interaction_time(event["ts"]) >= since)
+            and in_cohort
         ):
-            unlinked.append(event["id"])
-
+            unlinked.append(identity)
+        if not names:
+            continue
+        if reply_kind is not None:
+            reply_inputs[identity] = inputs[0]
+            if "attempt" in event:
+                reply_inputs[event["attempt"]] = inputs[0]
+        context = observation["context"] or {}
+        turn = event.get("turn", start.get("turn") if start is not None else None)
+        actor = {
+            "session": event.get("session"),
+            "turn": turn,
+            "harness": context.get("harness"),
+            "turn_provider": ("native" if context["provider"] else "leaf")
+            if turn is not None
+            and context.get("turn") == turn
+            and context.get("provider") is not None
+            else None,
+            "cwd": context.get("cwd"),
+            "transcript_path": context.get("transcript_path"),
+        }
+        for input_id in inputs:
+            if input_id not in rows:
+                continue
+            row = rows[input_id]
+            row["agent_sessions"][identity] = actor
+            milestone = {
+                "event_id": identity,
+                "at": event["ts"],
+                "elapsed_s": (stamp - admitted_times[input_id]).total_seconds(),
+                **actor,
+                "clock": "server_wall",
+            }
+            if reply_kind is not None and "first_reply" not in row["milestones"]:
+                row["first_reply_kind"] = reply_kind
+                row["first_reply_agent"] = event.get("agent")
+            for name in names:
+                row["milestones"].setdefault(name, milestone)
     for identity, observation in visible_feedback(
-        diagnostics, messages, reply_inputs
+        observations, input_attempts, reply_inputs
     ).items():
         rows[identity]["milestones"]["send_to_visible"] = observation
     return {

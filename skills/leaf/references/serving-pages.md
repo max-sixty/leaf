@@ -129,7 +129,7 @@ leaf page interactions <page> --session TAB \
   --type keydown --type command --type focusin
 ```
 
-Omit `--session` to include server requests. Each line is one JSON record:
+Omit `--session` to include server requests and raw event records. Each line is one JSON record:
 `leaf page interactions` sorts records by host receipt time, removes retried duplicates
 and retains gap diagnostics under type filters. The raw `<page>/observations.jsonl`,
 which `tail -F` follows live while you reproduce a problem, is in arrival order and
@@ -138,6 +138,11 @@ prove cause. The user's decisions are in `leaf page events <page>`, and
 [page-storage.md](../scripts/leaf/page-storage.md) defines the file. The public site
 stores its browser batches in Workers Observability; `worker/README.md` describes
 lookup by session reference.
+
+Raw events retain native session context. `leaf-dev response-times` uses the
+current application readers to measure
+progress and answers, preserving missing observations and distinguishing native
+harness turns from turns Leaf created. Its module header owns the measurements.
 
 ## Temporary test servers
 

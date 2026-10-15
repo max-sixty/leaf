@@ -35,7 +35,7 @@ def test_reader_deduplicates_and_reports_loss_before_host_time_filtering(
 
     stamp(42)
     original = client_records("tab", "/api/samples/child", [observation(1)])
-    append_interactions(tmp_path, original)
+    original = append_interactions(tmp_path, original)
     stamp(45)
     append_interactions(
         tmp_path, client_records("tab", "/api/samples/child", [observation(1)])
@@ -88,14 +88,13 @@ def test_cli_queries_canonical_records_without_changing_the_log(tmp_path, monkey
     rows = client_records(
         "tab", "/", [observation(1, "command", id="text.leave", binding="Escape")]
     )
-    append_interactions(
+    rows = append_interactions(
         tmp_path,
         [
             *rows,
             {
                 "source": "developer",
                 "type": "run_context",
-                "ts": rows[0]["ts"],
                 "purpose": "test",
                 "run": "test-run",
             },
@@ -151,9 +150,8 @@ def test_required_transport_is_validated_once_and_torn_lines_are_skipped(tmp_pat
     for field in ("observed_at", "sequence", "monotonic_ms", "visibility"):
         with pytest.raises((TypeError, ValueError)):
             client_records("bad", "/", [{k: v for k, v in valid.items() if k != field}])
-    admitted = client_records("good", "/", [valid])[0]
-    append_interactions(tmp_path, [admitted])
-    with (tmp_path / INTERACTIONS_FILE).open("a") as stream:
-        stream.write('{"source": "client", "sess\n')
+    [admitted] = append_interactions(tmp_path, client_records("good", "/", [valid]))
+    with (tmp_path / INTERACTIONS_FILE).open("ab") as stream:
+        stream.write(b'{"source": "client", "text": "\xc3\n')
     append_interactions(tmp_path, [admitted])
     assert read_interactions(tmp_path, session="good") == [admitted]

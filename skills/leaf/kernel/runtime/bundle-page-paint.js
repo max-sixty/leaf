@@ -157,7 +157,6 @@ var nextNodeId = 0;
 var sending = false;
 var inFlightCount = 0;
 var scheduled = null;
-var retryTimer = null;
 var timestamp = () => (/* @__PURE__ */ new Date()).toISOString();
 var pagePath = (pathname) => pathname === root || pathname === `${root}/` ? "/" : pathname.startsWith(`${root}/`) ? pathname.slice(root.length) : pathname;
 function locator(node) {
@@ -279,20 +278,20 @@ function describe(event) {
     } : null;
   return entry;
 }
-function schedule() {
-  if (scheduled !== null || sending || retryTimer !== null || !queue.length) return;
+function schedule(delay = 250) {
+  if (scheduled !== null || sending || !queue.length) return;
   scheduled = setTimeout(() => {
     scheduled = null;
     void flush();
-  }, 250);
+  }, delay);
 }
 function append(row) {
   if (queue.length >= MAX_PENDING_ENTRIES) {
     let evict = queue.findIndex(
-      (entry, index) => index >= inFlightCount && repetitive.has(entry.originalType ?? entry.type)
+      (entry, index) => index >= inFlightCount && entry.repetitive
     );
     if (evict < 0) {
-      if (repetitive.has(row.originalType ?? row.type)) return;
+      if (row.repetitive) return;
       evict = inFlightCount;
       if (evict >= queue.length) return;
     }
@@ -308,32 +307,35 @@ function enqueue(entry) {
     visibility: document.visibilityState,
     sequence: ++nextSequence
   };
-  const row = { ...entry, ...common };
-  const bytes = encoder.encode(JSON.stringify(row)).length;
-  append(
-    bytes <= 4e4 ? row : {
+  let body = JSON.stringify({ ...entry, ...common });
+  let bytes = encoder.encode(body).length;
+  if (bytes > 4e4) {
+    body = JSON.stringify({
       ...common,
       type: "interaction_omitted",
       originalType: entry.type,
       bytes,
       reason: "record_exceeds_limit"
-    }
-  );
+    });
+    bytes = encoder.encode(body).length;
+  }
+  append({ body, bytes, repetitive: repetitive.has(entry.type) });
   schedule();
 }
 function batch(start, maxBytes) {
-  const entries2 = [];
-  let body = "";
-  while (start + entries2.length < queue.length && entries2.length < 100) {
-    const candidate = JSON.stringify({
-      session,
-      entries: [...entries2, queue[start + entries2.length]]
-    });
-    if (entries2.length && encoder.encode(candidate).length > maxBytes) break;
-    entries2.push(queue[start + entries2.length]);
-    body = candidate;
+  const prefix = `{"session":${JSON.stringify(session)},"entries":[`;
+  let bytes = encoder.encode(prefix).length + 2;
+  let count = 0;
+  while (start + count < queue.length && count < 100) {
+    const size = queue[start + count].bytes + (count ? 1 : 0);
+    if (count && bytes + size > maxBytes) break;
+    bytes += size;
+    count++;
   }
-  return { entries: entries2, body };
+  return {
+    count,
+    body: `${prefix}${queue.slice(start, start + count).map((row) => row.body).join(",")}]}`
+  };
 }
 function post(body) {
   return fetch(url, {
@@ -347,28 +349,26 @@ function post(body) {
 async function flush() {
   if (sending || !queue.length) return;
   sending = true;
-  const { entries: entries2, body } = batch(0, 1e5);
-  inFlightCount = entries2.length;
+  const { count, body } = batch(0, 1e5);
+  inFlightCount = count;
+  let delay = 250;
   try {
     const response = await post(body);
     if (response.status >= 400 && response.status < 500) {
       console.error(
-        `Leaf interaction log rejected ${entries2.length} records: ${response.status}`
+        `Leaf interaction log rejected ${count} records: ${response.status}`
       );
-      queue.splice(0, entries2.length);
+      queue.splice(0, count);
       return;
     }
     if (!response.ok) throw new Error(`interaction log returned ${response.status}`);
-    queue.splice(0, entries2.length);
+    queue.splice(0, count);
   } catch {
-    retryTimer = setTimeout(() => {
-      retryTimer = null;
-      schedule();
-    }, 2e3);
+    delay = 2e3;
   } finally {
     inFlightCount = 0;
     sending = false;
-    schedule();
+    schedule(delay);
   }
 }
 function recordInteraction(type, detail = {}) {
@@ -479,8 +479,8 @@ if (enabled) {
     "pagehide",
     () => {
       for (let start = 0; start < queue.length; ) {
-        const { entries: entries2, body } = batch(start, 48e3);
-        start += entries2.length;
+        const { count, body } = batch(start, 48e3);
+        start += count;
         void post(body).catch(() => {
         });
       }

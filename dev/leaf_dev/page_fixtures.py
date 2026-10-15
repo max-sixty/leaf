@@ -21,7 +21,7 @@ from leaf.interaction_log import append_interactions
 from leaf.media import media_name
 from leaf.revision_artifact import Resource, capture_artifact, capture_local_resource
 from leaf.schema import CURSOR_FILE, MEDIA_DIR, MEDIA_TYPES
-from leaf.state import now_iso, write_json
+from leaf.state import write_json
 from leaf.structure import SourceDocument
 
 from leaf_dev import ROOT, docs
@@ -75,7 +75,6 @@ def record_run_context(
             {
                 "source": "developer",
                 "type": "run_context",
-                "ts": now_iso(),
                 "purpose": purpose,
                 "run": str(run.resolve()),
                 **(

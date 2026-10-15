@@ -28,7 +28,7 @@
     "runtime/annotation-overlay/visual-mark-paint.js": "79bfa0da875d52954da0cd24360389a5bbc821711258088cb0bbfff3557ef1cb",
     "runtime/annotation-view.js": "5f688adaa597934cd619388dc4bd4d8d8ca269683323e1a0489471f5c60e5324",
     "runtime/application.js": "a4474580c22f1d1015c1c036c729a3d9645032d09750a1dbfa0b9e7173061fe2",
-    "runtime/arrivals.js": "d83cb6c5e4c168da70e66b8b8c1b484a4ec59bf0ad28e3fcb046f26ae3357bdc",
+    "runtime/arrivals.js": "0f347b1311a05364e822bb42a4ec5cf761a33629fd535342136ea15719707094",
     "runtime/asks/answer.js": "d2c645e37c38a85ecbc5a40e178a3ed3a2c7fadb80446cab955cc25a141b2d67",
     "runtime/asks/banner-controls.js": "d34825547317a3e7d29218252ae88006c5b2d94685cc8b11bb8e55facefa5b79",
     "runtime/asks/model.js": "3bba1c977d5bddade032bec13b2d3ca9f884eae3c73d8055027fccabcdd5a074",

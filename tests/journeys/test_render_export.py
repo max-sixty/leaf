@@ -24,9 +24,9 @@ from interact_support import (
     install_payload,
     neighbour_page,
     wait_for,
+    woken,
 )
 from leaf import cli as cli_model
-from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf import files as files_model
@@ -853,13 +853,9 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
         },
     )
     assert waiter.wait(timeout=STATED_TIMEOUT) == 0, waited.read_text()
-    lines = waited.read_text().splitlines()
-    start = next(i for i, line in enumerate(lines) if line.startswith("{"))
-    payload = json.loads("\n".join(lines[start:]))
+    payload, _, events = woken(waited.read_text(), session=session)
     assert f"leaf wait --ack {payload['id']}" in payload["acknowledge"]
-    delivery_model.receive(payload, session)
-    [batch] = payload["batches"]
-    assert [event["text"] for event in batch["events"]] == ["still there?"]
+    assert [event["text"] for event in events] == ["still there?"]
 
 
 def test_a_user_preview_brings_back_a_service_that_is_down_but_wanted(

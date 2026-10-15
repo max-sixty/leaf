@@ -4625,6 +4625,7 @@ def test_a_fresh_server_does_not_revalidate_the_active_revisions_inputs(
     parses the vendored sheets: together they were most of a cold first read."""
     from leaf.validation import source as source_model
 
+    (page_dir / "index.html").write_text(styled("main { color: red; }"))
     assert revisioning_model.activate_source(page_dir).error is None
     validated, linted = [], []
     real_validate = registry_page.validate_registry
@@ -4646,7 +4647,7 @@ def test_a_fresh_server_does_not_revalidate_the_active_revisions_inputs(
     with fresh_process():
         assert revisioning_model.activate_source(page_dir).error is None
     assert validated == []
-    assert linted == ["page <style>"]
+    assert linted == ["page <style> (line 5)"]
 
 
 def test_media_names_a_file_by_its_bytes_and_serves_it(page_dir, tmp_path, server):
@@ -4876,20 +4877,22 @@ def test_sample_checks_available_history_beside_forward_thread_references(
 
 def test_check_reports_css_syntax_errors_in_every_source_the_page_writes(page_dir):
     """The page's own <style> and each inline style. Chrome drops a malformed
-    declaration without a word, so the author hears of it here or not at all."""
+    declaration without a word, so the author hears of it here or not at all.
+    An earlier style's EOF-terminated comment cannot hide a later style's errors.
+    """
     (page_dir / "index.html").write_text(
         styled(
             '.page { color: "unterminated\n; }',
-            '<p style="color red">Every CSS input is malformed.</p>',
-        )
+            '<p style="color red">Independent stylesheets are checked.</p>',
+        ).replace("<style>", "<style>/*</style>\n<style>", 1)
     )
 
     status, findings = check_findings(page_dir)
 
     assert status == 1
     assert [f.values["sheet"] for f in found(findings, "css-syntax")] == [
-        "page <style>",
-        "<p style> (line 10)",
+        "page <style> (line 6)",
+        "<p style> (line 11)",
     ]
 
 

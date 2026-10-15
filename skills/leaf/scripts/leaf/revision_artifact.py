@@ -719,8 +719,9 @@ def _capture_artifact(
                     f"{path}: a stylesheet dependency must have CSS MIME type"
                 )
             entries.append(path)
-        for specifier in _css_dependencies(authored.css):
-            entries.append(resolve_dependency(specifier, "/index.html"))
+        for sheet in authored.style_blocks:
+            for specifier in _css_dependencies(sheet["css"]):
+                entries.append(resolve_dependency(specifier, "/index.html"))
         for inline in authored.inline_styles:
             for specifier in _css_dependencies(inline["style"], declarations=True):
                 entries.append(resolve_dependency(specifier, "/index.html"))

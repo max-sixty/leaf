@@ -185,7 +185,7 @@ def fragment_style_errors(parser: SourceDocument) -> list[Finding]:
     of a message's own has nowhere honest to sit, because the message is not the
     page and its markup is frozen in the log where no version can revise it."""
     errors = []
-    if parser.css.strip():
+    if any(sheet["css"].strip() for sheet in parser.style_blocks):
         errors.append(Finding("message-style", "<style>"))
     if links_with_rel(parser.links, "stylesheet"):
         errors.append(Finding("message-stylesheet", "<link>"))

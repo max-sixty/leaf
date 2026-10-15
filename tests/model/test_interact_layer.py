@@ -621,7 +621,7 @@ def test_a_page_command_names_what_its_path_holds_instead(tmp_path, regtest):
     for path in (source, tmp_path / "missing"):
         result = CliRunner().invoke(cli_model.cli, ["page", "state", str(path)])
         assert result.exit_code == 1
-        print(result.output.replace(str(tmp_path), "<tmp>"), file=regtest)
+        print(result.output.replace(str(tmp_path), "<tmp>"), end="", file=regtest)
 
 
 def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):

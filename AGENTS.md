@@ -265,13 +265,17 @@ gestures into current state. It publishes each state as one immutable value that
 components read through selectors and never write. Widgets draw the complete
 state, unset and undecided values included. Undo never rebuilds widgets or
 replays authored actions into the DOM. Renderer nodes, promises and DOM
-attributes stay out of the published state.
+attributes stay out of the published state. A page widget's state is bounded by
+the document version; a widget frozen into a thread message is bounded by its
+thread's window instead.
 
 When `applicationState` publishes a new state, each renderer repaints only if
 something it read has changed. Renderers read state through selectors, so the
 runtime tracks what each one depends on and nobody has to list it. A renderer
-whose inputs didn't change keeps its last paint. Code that changes what the page
-shows should publish, then await `whenDocumentPresented()`, which resolves once
+whose inputs didn't change keeps its last paint. A renderer that also reads
+something outside the state, such as a draft or the page's own nodes, repaints
+only when whoever changes that input calls its `present()`. Code that changes
+what the page shows should publish, then await `whenDocumentPresented()`, which resolves once
 every renderer the change moved has painted. It shouldn't call renderers or
 decide their order. Where one renderer depends on DOM another writes (the thread
 renderer needs the words the projection inserts into the page), the order is set

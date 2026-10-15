@@ -2120,11 +2120,13 @@ def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_
         )
     )
     page_source = ASK_PAGE.replace(
-        'Replace the <code>M8</code> mounts</lf-option>',
+        "Replace the <code>M8</code> mounts</lf-option>",
         '<lf-work-point id="mount-work">Replace the <code>M8</code> mounts</lf-work-point></lf-option>',
     )
 
-    page = open_page(browser, serve(page_source, packages=(*EXAMPLE_PACKAGES, "./.leaf")))
+    page = open_page(
+        browser, serve(page_source, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
+    )
     working(serve.page_dir, "checking the mount", subject="mount-work")
     told(page)
 

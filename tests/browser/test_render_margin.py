@@ -1711,9 +1711,7 @@ def _a_pin_on_a_wide_figure_hides_with_o_while_the_rail_stays(page):
     resized(page, 1440, 900)
     page.locator("#bg-gallery-tabs").get_by_role("tab", name="Page & layout").click()
     margins_laid_out(page)
-    pin = page.locator(
-        '.lf-margin-cluster[data-lf-margin-for="bg-margin-layer-table"]'
-    )
+    pin = page.locator('.lf-margin-cluster[data-lf-margin-for="bg-margin-layer-table"]')
     expect(pin).to_have_attribute("data-lf-place", "pin")
     rail = page.locator('.lf-margin-cluster[data-lf-place="rail"]:visible')
     assert rail.count() > 0

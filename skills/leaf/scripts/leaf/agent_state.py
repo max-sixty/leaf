@@ -174,7 +174,7 @@ def _apply_document_state(
 ) -> None:
     parser = document.document
     projection = document.projection
-    state["title"] = parser.title.strip()
+    state["title"] = parser.authoring.title.strip()
     state["elements"] = [
         {
             "tag": record["tag"],

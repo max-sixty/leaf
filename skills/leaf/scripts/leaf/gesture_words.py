@@ -120,14 +120,19 @@ class GestureWords:
             if document["kind"] == "thread":
                 structure = thread_structure(self.events)
                 self._documents[revision] = _Document(
-                    [fragment.content for fragment in structure.fragments.values()],
+                    [
+                        fragment.authoring.content
+                        for fragment in structure.fragments.values()
+                    ],
                     frozen_thread_reading(self.events, self.registry).spoken,
                     self.registry,
                 )
             else:
                 reading = self.revisions(revision)
                 self._documents[revision] = _Document(
-                    [reading.document.content], reading.spoken, reading.registry
+                    [reading.document.authoring.content],
+                    reading.spoken,
+                    reading.registry,
                 )
         return self._documents[revision]
 

@@ -69,11 +69,11 @@ def catalog_sources() -> list[Path]:
 def document_metadata(source: Path) -> tuple[str, str]:
     """The authored title and description a page's link card and catalog caption show."""
     parsed = SourceDocument(source.read_text(encoding="utf-8"))
-    title = parsed.title.strip()
+    title = parsed.authoring.title.strip()
     description = next(
         (
             (meta["content"] or "").strip()
-            for meta in parsed.named_metas
+            for meta in parsed.authoring.named_metas
             if meta["name"] == "description"
         ),
         "",

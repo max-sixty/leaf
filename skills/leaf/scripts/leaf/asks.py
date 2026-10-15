@@ -603,7 +603,7 @@ class _AskReducer:
         self.nodes = {
             node["attrs"]["id"]: node
             for document in documents
-            for node in nodes(document.content)
+            for node in nodes(document.authoring.content)
             if node["attrs"].get("id")
         }
         self.records = [record for record in elements if self._is_declared(record)]

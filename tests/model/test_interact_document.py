@@ -611,7 +611,7 @@ def test_file_readings_follow_browser_tree_recovery():
     )
 
     parsed = structure_model.SourceDocument(html)
-    [main] = parsed.content
+    [main] = parsed.authoring.content
     assert [node["tag"] for node in main["content"]] == ["p", "table", "p"]
     assert [node["tag"] for node in main["content"][1]["content"]] == ["tr"]
 
@@ -642,9 +642,9 @@ def test_file_readings_follow_browser_tree_recovery():
 )
 def test_example_fragments_retain_context_sensitive_elements(fragment, tags, ids):
     parsed = structure_model.SourceDocument(fragment, fragment=True)
-    assert [node["tag"] for node in parsed.nodes] == tags
+    assert [node["tag"] for node in parsed.authoring.nodes] == tags
     assert parsed.ids == ids
-    assert parsed.errors == [] and parsed.unclosed == []
+    assert parsed.authoring.errors == [] and parsed.authoring.unclosed == []
 
 
 def test_option_passages_read_rendered_markdown_words():
@@ -709,25 +709,26 @@ def test_markdown_body_passages_preserve_source_state_and_read_visible_words():
 
 def test_structural_errors_distinguish_recovery_from_ambiguous_source():
     optional = structure_model.SourceDocument("<main><p>First<div>Second</div></main>")
-    assert optional.errors == [] and optional.unclosed == []
+    assert optional.authoring.errors == []
+    assert optional.authoring.unclosed == []
 
     unclosed = structure_model.SourceDocument("<main><section>Text</main>")
-    assert unclosed.unclosed == [("section", 1)]
+    assert unclosed.authoring.unclosed == [("section", 1)]
 
     caption = structure_model.SourceDocument(
         "<main><table><caption>Title<tbody><tr><td>Cell</table></main>"
     )
-    assert caption.unclosed == []
+    assert caption.authoring.unclosed == []
 
     svg = structure_model.SourceDocument(
         '<main><svg id="plot"><circle cx="5" cy="5" r="4"/></main>'
     )
-    assert svg.unclosed == [("svg", 1)]
+    assert svg.authoring.unclosed == [("svg", 1)]
 
     duplicate_body = structure_model.SourceDocument(
         "<body><main>Text</main></body><body></body>"
     )
-    assert duplicate_body.body_lines == [1, 1]
+    assert duplicate_body.authoring.body_lines == [1, 1]
 
 
 def construction_nodes(content):
@@ -3757,10 +3758,10 @@ def test_a_cold_page_state_reads_only_the_element_index_of_history(
         assert activated.error is None, activated.error
     active = files_model.revision_path(page_dir, files_model.latest_revision(page_dir))
     authored = []
-    native = structure_model._Authoring
+    native = structure_model.Authoring
     monkeypatch.setattr(
         structure_model,
-        "_Authoring",
+        "Authoring",
         lambda document: authored.append(document.html) or native(document),
     )
     with fresh_process():
@@ -3959,7 +3960,7 @@ def test_a_process_keeps_the_pages_it_read_most_recently(page_dir):
             artifact_model.read_revision(other, revision)
         gc.collect()
         assert kept() is None
-        assert artifact_model.read_revision(page_dir, revision).document.title
+        assert artifact_model.read_revision(page_dir, revision).document.authoring.title
         assert artifact_model.read_revision(held_page, revision) is sample_reading
         assert page_memory_model.memory_of(held_page) is holder
 

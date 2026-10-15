@@ -253,8 +253,8 @@ const lazy = () => import('/page/later.js');
     delivered = rebase_document(source, ADDRESS)
     parsed = SourceDocument(delivered)
 
-    assert parsed.external_scripts[0]["attrs"]["src"] == ROOT + "/page/app.js"
-    assert parsed.links[0]["attrs"]["href"] == ROOT + "/page/style.css"
+    assert parsed.authoring.external_scripts[0]["attrs"]["src"] == ROOT + "/page/app.js"
+    assert parsed.authoring.links[0]["attrs"]["href"] == ROOT + "/page/style.css"
     assert f'import "{ROOT}/page/inline.js";' in delivered
     assert f'import("{ROOT}/page/later.js")' in delivered
     assert parsed.tree.find("img").attrs["src"] == ROOT + "/page/caf%C3%A9.svg#leaf"
@@ -265,8 +265,8 @@ const lazy = () => import('/page/later.js');
     assert parsed.tree.find("video").attrs["poster"] == ROOT + "/page/poster.png"
     assert parsed.tree.find("image").attrs["href"] == ROOT + "/page/caf%C3%A9.svg#leaf"
     assert parsed.tree.find("feImage").attrs["href"] == ROOT + "/page/poster.png"
-    assert f"{ROOT}/page/background.svg#leaf" in parsed.style_blocks[0]["css"]
-    assert ROOT + "/page/inline.svg" in parsed.inline_styles[0]["style"]
+    assert f"{ROOT}/page/background.svg#leaf" in parsed.authoring.style_blocks[0]["css"]
+    assert ROOT + "/page/inline.svg" in parsed.authoring.inline_styles[0]["style"]
     for unchanged in (
         "<title>🍂 route ./page/app.js</title>",
         "const prose = 'import \"./page/unused.js\"';",
@@ -285,7 +285,7 @@ def test_stylesheet_rel_is_case_insensitive_in_delivery_and_export():
     )
 
     delivered = SourceDocument(rebase_document(source, ADDRESS))
-    assert delivered.links[0]["attrs"]["href"] == ROOT + "/page/style.css"
+    assert delivered.authoring.links[0]["attrs"]["href"] == ROOT + "/page/style.css"
 
     embedded = AssetInliner(lambda url: Resource(b"main { color: green; }", "text/css"))
     exported = rebase_document(
@@ -523,8 +523,8 @@ def test_captured_document_entries_resolve_at_every_public_address(tmp_path):
     artifact = capture_artifact(tmp_path, SourceDocument(source), {})
     delivered = SourceDocument(rebase_document(source, ADDRESS))
     entries = [
-        delivered.external_scripts[0]["attrs"]["src"],
-        delivered.links[0]["attrs"]["href"],
+        delivered.authoring.external_scripts[0]["attrs"]["src"],
+        delivered.authoring.links[0]["attrs"]["href"],
         delivered.tree.find("image").attrs["href"],
         *(
             candidate.split()[0]
@@ -598,7 +598,7 @@ def test_a_host_marks_the_delivered_document_where_it_asks(explicit_html):
     served = SourceDocument(delivered.removeprefix("﻿"))
     assert "data-lf-contained" in served.tree.find("html").attrs
     assert "inert" in served.tree.find("body").attrs
-    assert served.title == "T" and "<p>Text.</p>" in delivered
+    assert served.authoring.title == "T" and "<p>Text.</p>" in delivered
 
 
 def test_a_delivered_document_carries_its_declared_marks_in_the_source():

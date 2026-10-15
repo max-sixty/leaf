@@ -4746,7 +4746,7 @@ def test_source_reading_preserves_foreign_graphics_as_exact_markup():
     )
     html = "<main>Préface\r\n" + graphic + '<p id="after">After</p></main>'
     parser = structure_model.SourceDocument(html)
-    [main] = parser.content
+    [main] = parser.authoring.content
     _, image, after = main["content"]
     assert image["markup"] == graphic
     assert image["content"] == []
@@ -4766,13 +4766,13 @@ def test_source_reading_keeps_a_sample_out_of_its_parent_identity_space():
     )
     parser = structure_model.SourceDocument(html)
 
-    assert parser.errors == []
+    assert parser.authoring.errors == []
     assert parser.lf_elements == []
     assert "nested-options" not in parser.by_id
     assert passages_model.page_passages(parser).text == "Visible words."
     [sample] = parser.samples
     assert "nested-options" in sample["document"].by_id
-    assert sample["document"].main_elements == [(1, True)]
+    assert sample["document"].authoring.main_elements == [(1, True)]
     assert structure_model.page_layout(sample["document"]) == "column"
 
 

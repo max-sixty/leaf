@@ -2,7 +2,6 @@
 
 import hashlib
 import re
-import threading
 from functools import cached_property
 from html import escape
 from urllib.parse import urlsplit
@@ -284,51 +283,21 @@ class SourceDocument:
     reconstructing it.
 
     Construction reads only the element index: ids and their holders, the lf-*
-    records and the live samples. A scan of a page's whole revision history reads
-    nothing else of each revision, and the rest cost twenty times the tree's parse.
-    Everything else (`AUTHORING`) is read in one more walk the first time any of it
-    is asked for, under a lock, and published whole, so no reader sees a partial
-    index. An lf-* record's `node` is filled by that walk; `node_of` reads it.
+    records and the live samples. A revision inventory scan of a page's whole
+    history reads nothing else of each revision, and the rest costs twenty times the
+    tree's parse. Everything else is one more reading, `authoring`, taken on first
+    use.
 
     Registry examples are fragments, so `fragment=True` parses in template context:
     table rows, cells and select options survive without a surrounding document.
     """
-
-    # The indexes the authoring walk publishes on first use (`_Authoring`).
-    AUTHORING = frozenset(
-        {
-            "errors",
-            "unclosed",
-            "external_scripts",
-            "inline_scripts",
-            "links",
-            "document_declarations",
-            "named_metas",
-            "body_lines",
-            "head_lines",
-            "head_elements",
-            "main_elements",
-            "outside_main",
-            "media_refs",
-            "page_resource_refs",
-            "style_blocks",
-            "inline_styles",
-            "authored_allocations",
-            "title",
-            "bare_blocks",
-            "reserved_markers",
-            "content",
-            "nodes",
-            "wrapper_tags",
-        }
-    )
 
     def __init__(self, source: str, *, fragment: bool = False):
         self.html = source
         self.data = source.encode("utf-8")
         self.digest = f"sha256:{hashlib.sha256(self.data).hexdigest()}"
         self.all_ids = []
-        # {tag, line, attrs, parent, direct, children, text, body, holder, node}
+        # {tag, line, attrs, parent, direct, children, text, body, holder}
         self.lf_elements = []
         self.samples = []
         # id → the record of the innermost lf-* element standing around it, an
@@ -342,7 +311,6 @@ class SourceDocument:
         # The record of each lf-* element, by where its start tag begins, for the
         # authoring walk: the parser hands out a new object per visit of an element.
         self._records = {}
-        self._authoring = threading.Lock()
         self.tree = (
             turbohtml.parse_fragment(
                 source, context="template", scripting=True, source_locations=True
@@ -354,24 +322,14 @@ class SourceDocument:
             if isinstance(child, turbohtml.Element):
                 self._index(child, holder=None, in_svg=False)
 
-    def __getattr__(self, name: str):
-        """Read the authoring indexes on first use of any of them."""
-        if name not in SourceDocument.AUTHORING:
-            raise AttributeError(name)
-        with self._authoring:
-            if name not in vars(self):
-                vars(self).update(vars(_Authoring(self)))
-        return vars(self)[name]
+    @cached_property
+    def authoring(self) -> "Authoring":
+        """What a check, delivery or capture reads beyond the element index."""
+        return Authoring(self)
 
     @cached_property
     def _source_index(self):
         return source_index(self._source)
-
-    def node_of(self, record: dict) -> dict | None:
-        """The content node of one of this document's lf-* records, or None for
-        one inside SVG, which keeps its exact source rather than a tree."""
-        self.content  # noqa: B018 - the authoring walk links each record's node
-        return record["node"]
 
     @staticmethod
     def _position(element) -> tuple[int, int]:
@@ -424,7 +382,6 @@ class SourceDocument:
                     "text": False,
                     "body": "",
                     "holder": holder,
-                    "node": None,
                 }
                 self.lf_elements.append(record)
                 self._records[_start(element)] = record
@@ -551,13 +508,15 @@ class SourceDocument:
         return sorted({i for i in self.all_ids if not ASCII_WHITESPACE.isdisjoint(i)})
 
 
-class _Authoring:
-    """The indexes a check reads of a `SourceDocument` beyond its element index,
-    read in one walk of the document's tree. Its attributes are exactly
-    `SourceDocument.AUTHORING`, which the document publishes whole."""
+class Authoring:
+    """A `SourceDocument`'s indexes beyond its element index, read in one walk of
+    its tree (`SourceDocument.authoring`): its assets, metadata, styles, references,
+    allocations, the content tree, and the source errors a check reports."""
 
     def __init__(self, document: SourceDocument):
         self._document = document
+        # The content node of each of the document's lf-* records, by the record.
+        self._nodes_of = {}
         self.errors = []
         self.unclosed = []  # source elements whose required end tag is absent
         # {attrs, parent, position, early_head} per external asset. Applicability and
@@ -617,6 +576,11 @@ class _Authoring:
             if isinstance(child, turbohtml.Element):
                 self._visit(child, self.content)
         del self._document, self._first_body_position
+
+    def node_of(self, record: dict) -> dict | None:
+        """The content node of one of the document's lf-* records, or None for one
+        inside SVG, which keeps its exact source rather than a tree."""
+        return self._nodes_of.get(id(record))
 
     def _source_errors(self) -> None:
         document = self._document
@@ -848,7 +812,7 @@ class _Authoring:
             self.nodes.append(node)
             child_output = node["content"]
             if record is not None:
-                record["node"] = node
+                self._nodes_of[id(record)] = node
 
             if element.tag in POINTABLE_TAGS | PROSE_TAGS and not attrs.get("id"):
                 under = next(
@@ -933,7 +897,7 @@ def review_mode(document: SourceDocument):
     return next(
         (
             meta["content"]
-            for meta in document.named_metas
+            for meta in document.authoring.named_metas
             if meta["name"] == "lf-review"
         ),
         None,

@@ -84,10 +84,10 @@ def test_every_published_source_says_what_its_page_is():
         parsed = SourceDocument(page.read_text())
         described = [
             meta["content"]
-            for meta in parsed.named_metas
+            for meta in parsed.authoring.named_metas
             if meta["name"] == "description"
         ]
-        assert parsed.title.strip(), page.name
+        assert parsed.authoring.title.strip(), page.name
         assert len(described) == 1, page.name
         assert described[0].strip(), page.name
         descriptions[page.name] = described[0]

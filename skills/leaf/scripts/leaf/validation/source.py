@@ -100,7 +100,10 @@ def _document_errors(page_dir: Path, parser) -> list[Finding]:
     # module runs after it, in document order. A parser-blocking or async script can
     # run first, changing what Leaf reads as authored and throwing where no check
     # hears it.
-    for script in [*parser.inline_scripts, *parser.external_scripts]:
+    for script in [
+        *parser.authoring.inline_scripts,
+        *parser.authoring.external_scripts,
+    ]:
         attrs = script["attrs"]
         kind = script_kind(attrs)
         if kind not in {"module", "classic"}:
@@ -114,7 +117,7 @@ def _document_errors(page_dir: Path, parser) -> list[Finding]:
 
     errors.extend(document_declaration_errors(parser))
 
-    for meta in parser.named_metas:
+    for meta in parser.authoring.named_metas:
         if not meta["name"].startswith("lf-"):
             continue  # ordinary document metadata: a title, a description, a card
         where = {"name": meta["name"], "line": meta["line"]}
@@ -233,11 +236,11 @@ def sample_errors(
 def _presentation_errors(parser) -> list[Finding]:
     """Validate the page's own CSS: its <style> and each inline style."""
     errors = []
-    for sheet in parser.style_blocks:
+    for sheet in parser.authoring.style_blocks:
         errors.extend(
             css_syntax_errors(sheet["css"], f"page <style> (line {sheet['line']})")
         )
-    for inline in parser.inline_styles:
+    for inline in parser.authoring.inline_styles:
         errors.extend(
             css_syntax_errors(inline["style"], inline_style_at(inline), block=True)
         )

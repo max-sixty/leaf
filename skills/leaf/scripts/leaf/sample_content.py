@@ -112,7 +112,10 @@ def initial_sample_events(
         )
     scripts = [
         script
-        for script in [*holder.inline_scripts, *holder.external_scripts]
+        for script in [
+            *holder.authoring.inline_scripts,
+            *holder.authoring.external_scripts,
+        ]
         if script["attrs"].get("id") == reference
     ]
     if not reference or len(scripts) != 1:

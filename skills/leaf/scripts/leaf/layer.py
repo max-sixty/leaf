@@ -510,8 +510,29 @@ def incompatible_layer(page_dir: Path, registry: dict) -> Finding | None:
     check (`validation.source.check_source`), so activation writes no revision under
     the layer and `page state` reports the refusal as `source.error`. A revision the
     page saved before its last re-vendor is judged on its own registry
-    (`incompatible_revision`).
+    (`incompatible_revision`). The vendored layer's reader asks the protocol half
+    (`protocol_refusal`) before it validates the layer's shape
+    (`registry.storage.load_registry`).
     """
+    if refusal := protocol_refusal(page_dir, registry):
+        return refusal
+    if retired := _retired_keys(registry):
+        return Finding(
+            "retired-layer",
+            values={
+                "page": str(page_dir),
+                "retired": retired,
+                "leaf": str(PLUGIN_ROOT),
+            },
+        )
+    return None
+
+
+def protocol_refusal(page_dir: Path, registry: dict) -> Finding | None:
+    """The half of `incompatible_layer` that reads only the page protocol a registry's
+    `$events` declare, so it may run on a layer before this Leaf validates its shape
+    (`registry.storage.load_registry`): that shape is this Leaf's protocol's, which a
+    layer vendored at another one need not have."""
     if (vendored := _foreign_protocol(registry)) is not None:
         if type(vendored) is int and vendored > kernel_protocol():
             return Finding(
@@ -533,15 +554,6 @@ def incompatible_layer(page_dir: Path, registry: dict) -> Finding | None:
                 "vendored": vendored,
                 "leaf": str(PLUGIN_ROOT),
                 "protocol": kernel_protocol(),
-            },
-        )
-    if retired := _retired_keys(registry):
-        return Finding(
-            "retired-layer",
-            values={
-                "page": str(page_dir),
-                "retired": retired,
-                "leaf": str(PLUGIN_ROOT),
             },
         )
     return None

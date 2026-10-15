@@ -4414,24 +4414,27 @@ def test_a_revision_saved_before_a_re_vendor_neither_opens_nor_takes_input(page_
         "</lf-board>",
     )
     (page_dir / "index.html").write_text(board)
-    foreign = vendored_at_another_protocol(page_dir)
-    # Build the capture an older Leaf left behind. This Leaf refuses to activate
-    # mutable source vendored at that older protocol.
+    # Build the capture an older Leaf left behind: this Leaf reads no layer vendored
+    # at that older protocol, so the capture takes this Leaf's vocabulary with the
+    # older number, and the layer then moves to that number too.
     page_registry = registry_storage.read_page_registry(page_dir)
+    foreign = page_registry.registry["$events"]["protocol"] - 1
+    older = {
+        **page_registry.registry,
+        "$events": {**page_registry.registry["$events"], "protocol": foreign},
+    }
     document = structure_model.SourceDocument(board)
     artifact = artifact_model.capture_artifact(
         page_dir,
         document,
-        page_registry.registry,
+        older,
         declaration_sources=page_registry.declaration_sources,
         widget_sources=page_registry.widget_sources,
     )
     artifact_model.write_artifact(
-        page_dir,
-        1,
-        artifact,
-        passages_model.SourceReading(document, page_registry.registry),
+        page_dir, 1, artifact, passages_model.SourceReading(document, older)
     )
+    vendored_at_another_protocol(page_dir)
     waiting = append_carried_log_record(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "Still there?"},

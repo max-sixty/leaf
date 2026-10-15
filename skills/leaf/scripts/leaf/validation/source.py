@@ -14,7 +14,7 @@ from leaf.findings import Finding
 from leaf.layer import incompatible_layer
 from leaf.passages import SourceReading
 from leaf.registry.contract import RegistryError
-from leaf.registry.storage import read_page_registry
+from leaf.registry.storage import IncompatibleLayer, read_page_registry
 from leaf.revision_artifact import ArtifactError, RevisionArtifact, capture_artifact
 from leaf.sample_content import initial_sample_events
 from leaf.schema import VENDORED_FILES
@@ -277,6 +277,10 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
     try:
         page_registry = read_page_registry(page_dir)
         registry = page_registry.registry if page_registry is not None else None
+    except IncompatibleLayer as error:
+        return SourceCheck(
+            SourceReading(document, None), None, list(error.findings), []
+        )
     except RegistryError as error:
         registry = None
         errors.extend(error.findings)

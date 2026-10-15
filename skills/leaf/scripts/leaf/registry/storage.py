@@ -11,6 +11,15 @@ from .contract import RegistryError, read_registry_declarations, registry_error
 from .layer import check_layer_facts
 
 
+class IncompatibleLayer(RegistryError):
+    """A vendored layer at another page protocol than this Leaf's, refused for its
+    protocol (`layer.protocol_refusal`) before its shape is validated, since the
+    shape a layer must have is its own protocol's. Its repair is the one that
+    refusal names rather than the re-vendor a shape fault names: a layer a newer
+    Leaf vendored would otherwise read as damaged, and its refusal would tell the
+    agent to take the page back to this Leaf."""
+
+
 class _Layer(Slot):
     """The page's vendored layer, by its file's stamp."""
 
@@ -23,8 +32,9 @@ def load_registry(page_dir: Path):
     """The page's complete vendored layer, or None before `page init`.
 
     The layer is `page init`'s own output rather than anything an author writes, so a
-    reader that rejects it wants a re-vendor rather than an edit. It checks only that
-    the layer declares what every reader looks up. Its `$events` copy may be another
+    reader that rejects it wants a re-vendor rather than an edit. It refuses a layer
+    at another page protocol first (`IncompatibleLayer`), then checks only that the
+    layer declares what every reader looks up. Its `$events` copy may be another
     Leaf's at this protocol: it is the page runtime's, and admission reads the running
     Leaf's own (`registry.kernel`); `read_page_registry` validates the vocabulary where
     it is new.
@@ -39,10 +49,17 @@ def load_registry(page_dir: Path):
 
 
 def _read_layer(page_dir: Path, path: Path) -> dict | None:
+    from leaf.layer import protocol_refusal
+
     try:
         registry = read_registry_declarations(path)
-        if registry is not None:
-            check_layer_facts(registry, path)
+        if registry is None:
+            return None
+        if refusal := protocol_refusal(page_dir, registry):
+            raise IncompatibleLayer(refusal)
+        check_layer_facts(registry, path)
+    except IncompatibleLayer:
+        raise
     except RegistryError as error:
         raise _revendor(page_dir, error) from None
     return registry

@@ -1411,7 +1411,7 @@ def test_state_validation_follows_css_edits_and_recovers_cached_readings(
 
     path.write_text(source.replace("--probe-width: 700px", "--probe-width  700px"))
     assert (
-        "page <style> syntax error"
+        "page <style> (line 5) syntax error"
         in json.loads(fetch(f"{server}/api/state")[1])["source_error"]
     )
     path.write_text(source)

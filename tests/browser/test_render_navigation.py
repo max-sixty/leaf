@@ -4162,7 +4162,7 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
     page.keyboard.press("c")
     page.locator(".lf-fab-input").click()
     page.wait_for_function(
-        "() => document.querySelector('.lf-composer').style.display === 'contents'"
+        "() => document.querySelector('.lf-composer').hasAttribute('data-lf-open')"
     )
 
     passage = " ".join(page.locator("#p").inner_text().split())
@@ -6048,7 +6048,7 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
     select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
     page.locator(".lf-fab-input").click()
     page.wait_for_function(
-        "() => document.querySelector('.lf-composer').style.display === 'contents'"
+        "() => document.querySelector('.lf-composer').hasAttribute('data-lf-open')"
     )
     write(page.locator(".lf-composer leaf-text"), "Too short.")
     page.keyboard.press("ControlOrMeta+Enter")

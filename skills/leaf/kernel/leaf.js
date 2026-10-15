@@ -7518,8 +7518,6 @@ function createFloatingPanel({
         sent: () => {
           landAtEnd = { key, after: outletOf()?.childElementCount ?? 0 };
           waiting = null;
-          const top = trail.at(-1);
-          if (top?.view === "thread") rooms.delete(routeKey(top));
           queueMicrotask(paint);
         }
       });
@@ -7720,54 +7718,48 @@ function createFloatingPanel({
       coming: keys2.filter(
         (key) => message(key)?.ephemeral || message(key)?.provisional
       ),
-      extent: view.scrollHeight
+      extent: view.scrollHeight,
+      height: view.clientHeight
     };
-    const lastTurn = (drawn2) => drawn2.map(message).findLast((each) => each && !each.ephemeral);
     const answerIn = (drawn2) => {
-      const turn = drawn2.findLastIndex((key) => {
+      const turn2 = drawn2.findLastIndex((key) => {
         const each = message(key);
         return each?.author === "user" && !each.ephemeral;
       });
-      return turn < 0 ? null : { turn: drawn2[turn], keys: drawn2.slice(turn + 1) };
+      return turn2 < 0 ? null : { turn: drawn2[turn2], keys: drawn2.slice(turn2 + 1) };
     };
-    const room = routeKey(top);
-    const fresh = before ? keys2.filter((key) => !before.keys.includes(key)) : [];
     const answer = answerIn(keys2);
     const asked2 = before && answerIn(before.keys);
-    if (answer?.keys.length && asked2?.turn === answer.turn && asked2.keys.every((key) => before.coming.includes(key)) && answer.keys.every((key) => message(key)?.author === "agent") && rooms.has(room)) {
-      if (view.scrollHeight <= before.extent + 0.5) return;
-      const atEnd = view.scrollTop + view.clientHeight >= before.extent - 1;
-      if (!waiting && atEnd && view.scrollHeight - before.extent <= view.clientHeight) {
-        view.scrollTop = view.scrollHeight;
-        return;
-      }
-      const reply = answer.keys.find((key) => !message(key).ephemeral);
-      const next = reply ? { key: top.thread, message: reply, label: "New reply" } : { key: top.thread, message: answer.keys[0], label: "New update" };
-      if (waiting?.message !== next.message) {
-        const extent = !waiting && atEnd ? view.scrollHeight : null;
-        waiting = next;
-        paint();
-        if (extent !== null) {
-          view.scrollTop += view.scrollHeight - extent;
-          placed = view.scrollTop;
-        }
-      }
+    if (!answer?.keys.length || asked2?.turn !== answer.turn || !asked2.keys.every((key) => before.coming.includes(key)) || !answer.keys.every((key) => message(key)?.author === "agent"))
+      return;
+    if (view.scrollHeight <= before.extent + 0.5) return;
+    const atEnd = view.scrollTop + before.height >= before.extent - 1;
+    const turn = outlet.querySelector(
+      `.lf-msg[data-message="${CSS.escape(answer.turn)}"]`
+    );
+    const pad = Number.parseFloat(getComputedStyle(view).paddingTop);
+    const from = () => turn.getBoundingClientRect().top - view.getBoundingClientRect().top - pad;
+    if (!waiting && atEnd && view.scrollHeight - view.scrollTop - from() <= view.clientHeight) {
+      view.scrollTop = view.scrollHeight;
       return;
     }
-    if (fresh.length && !waiting && rooms.delete(room)) {
-      paint();
-      return;
-    }
-    if (lastTurn(keys2)?.author === "user" && !rooms.has(room)) {
-      rooms.set(room, view.offsetHeight);
-      paint();
-    }
+    const reply = answer.keys.find((key) => !message(key).ephemeral);
+    const next = reply ? { key: top.thread, message: reply, label: "New reply" } : { key: top.thread, message: answer.keys[0], label: "New update" };
+    if (waiting?.message === next.message) return;
+    const arriving = !waiting;
+    waiting = next;
+    paint();
+    if (!arriving || !atEnd) return;
+    const foot = view.querySelector(".lf-fp-foot")?.getBoundingClientRect();
+    const below = foot ? turn.getBoundingClientRect().bottom - foot.top : 0;
+    const by = Math.min(Math.max(below, 0), from());
+    if (Math.abs(by) < 0.5) return;
+    view.scrollTop += by;
+    placed = view.scrollTop;
   }
   function showAnswer() {
-    const top = trail.at(-1);
     const answer = waiting;
     waiting = null;
-    if (top) rooms.delete(routeKey(top));
     paint();
     const view = openView();
     if (view) focusDestination(view, "move");
@@ -8195,7 +8187,7 @@ function createFloatingPanel({
     const thread = threadByKey(key);
     if (!thread)
       return html`<p class="lf-fp-empty">This thread is not on the page.</p>`;
-    return html`<div class="lf-fp-messages lf-fp-outlet"></div>
+    return html`<div class="lf-fp-messages lf-fp-outlet" data-lf-reflow="append"></div>
       ${waiting?.key === key ? html`<div class="lf-fp-foot">
               <button type="button" class="lf-fp-new-reply" @click=${showAnswer}>
                 ${iconTemplate("down", "lf-action-icon")}${waiting.label}
@@ -8606,6 +8598,7 @@ function createFloatingPanel({
             data-view=${route.view}
             data-thread=${shows(route) ?? nothing}
             ?data-lf-thread-view=${shows(route) !== null}
+            ?data-lf-rises=${route.view === "thread"}
             ${ref(declareView)}
             style=${rooms.has(routeKey(route)) ? `height: ${rooms.get(routeKey(route))}px` : nothing}
             ?data-leaving=${route === leaving}

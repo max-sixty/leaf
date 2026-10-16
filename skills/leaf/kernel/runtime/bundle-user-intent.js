@@ -4070,7 +4070,6 @@ var PAGE_COMMANDS = [
   "design.mode.enter",
   "annotations.toggle",
   "panel.floating.fold",
-  "chrome.switch",
   // The reference's own binding. Its place here is nominal: renderShortcutBar gives it the
   // permanent More control instead of spending a hint slot on it.
   COMMAND_REFERENCE,

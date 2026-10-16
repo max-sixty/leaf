@@ -104,14 +104,11 @@ interface HTMLElement {
     userStore: LeafStore;
   };
   lfKeyboard?: { readonly quick: boolean; setQuick(on: boolean): void };
-  /** Which chrome the user reads the page with, and the panel's resting size. */
+  /** The floating panel's resting size. */
   lfChrome?: {
-    /** `classic` or `floating`. */
-    readonly mode: string;
     /** `row` or `mark`. */
     readonly rest: string;
-    adopt(mode: string): void;
-    set(name: "mode" | "rest", value: string): void;
+    setRest(value: string): void;
   };
   lfInitial?: LeafInitial;
   /** Which member a one-at-a-time holder opens on, and the record of each shown. */

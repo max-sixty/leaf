@@ -224,62 +224,24 @@
     },
   };
 
-  // Which chrome the user reads the page with: the floating panel (`floating`, the
-  // default, floating-panel.js) or the banner and bottom bar (`classic`), which a row in
-  // either chrome switches between (chrome-choice.js), with the size the
-  // panel was left at (`row`, the comment field and its counts, or `mark`, the leaf
-  // alone in the window's corner). One preference for every page on
-  // the origin, read here because the classic bars' room is reserved before the
-  // first paint (theme.css). `?lf-chrome=floating` or `?lf-chrome=classic` sets it. A
-  // sample child takes its parent's choice, or its element's, in its settings
-  // (sample.js), since its store is its own.
-  const chromeKeys = {
-    mode: "lf-chrome",
-    rest: "lf-chrome-rest",
-  };
-  const chromeValues = {
-    mode: ["floating", "classic"],
-    rest: ["row", "mark"],
-  };
-  const chrome = {};
-  const paintChrome = () => {
-    const floating = chrome.mode === "floating";
-    const write = (name, value) => {
-      if (root.getAttribute(name) !== value)
-        if (value === null) root.removeAttribute(name);
-        else root.setAttribute(name, value);
-    };
-    write("data-lf-floating-chrome", floating ? "" : null);
-  };
-  for (const [name, key] of Object.entries(chromeKeys)) {
-    const value = userStore.get(key);
-    chrome[name] = chromeValues[name].includes(value) ? value : chromeValues[name][0];
-  }
-  // The bootstrap takes the parameter out of the address with its other marks.
-  const askedMode = new URL(location.href).searchParams.get("lf-chrome");
-  if (chromeValues.mode.includes(askedMode)) {
-    chrome.mode = askedMode;
-    userStore.set(chromeKeys.mode, askedMode);
-  }
-  paintChrome();
+  // The floating panel (floating-panel.js) is the page's chrome. The reader's one
+  // preference is the size the panel was left at (`row`, the comment field and its
+  // counts, or `mark`, the leaf alone in the window's corner), one for every page on
+  // the origin, read here so the first paint already stands at it.
+  // TODO(2026-10-16): the attribute goes with the banner it hides (theme.css).
+  root.setAttribute("data-lf-floating-chrome", "");
+  const restKey = "lf-chrome-rest";
+  const restValues = ["row", "mark"];
+  const storedRest = userStore.get(restKey);
+  let rest = restValues.includes(storedRest) ? storedRest : restValues[0];
   root.lfChrome = {
-    get mode() {
-      return chrome.mode;
-    },
     get rest() {
-      return chrome.rest;
+      return rest;
     },
-    // A sample's settings choose for it alone, so nothing is stored.
-    adopt(mode) {
-      if (!chromeValues.mode.includes(mode) || chrome.mode === mode) return;
-      chrome.mode = mode;
-      paintChrome();
-    },
-    set(name, value) {
-      if (!chromeValues[name]?.includes(value) || chrome[name] === value) return;
-      chrome[name] = value;
-      userStore.set(chromeKeys[name], value);
-      paintChrome();
+    setRest(value) {
+      if (!restValues.includes(value) || rest === value) return;
+      rest = value;
+      userStore.set(restKey, value);
       document.dispatchEvent(new CustomEvent("lf-chrome-preference"));
     },
   };

@@ -109,7 +109,7 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 from leaf_dev import ROOT
 from leaf_dev.arms import PAYLOAD, PageClient, extract_payload, run_directory, run_leaf
-from leaf_dev.browser import CLASSIC_CHROME, DESKTOP, headless_shell
+from leaf_dev.browser import DESKTOP, headless_shell
 from leaf_dev.commands.verify_site import (
     agent_session,
     answered,
@@ -1317,7 +1317,6 @@ def local_session(browser, url: str) -> Session:
     its keyed `url`. In the window's width Threads stands beside the page rather than
     over the passages the user selects to comment on."""
     context = browser.new_context(viewport={"width": DESKTOP[0], "height": DESKTOP[1]})
-    context.add_init_script(CLASSIC_CHROME)
     page = context.new_page()
     failures = observe_startup(page)
     response = page.goto(url, wait_until="load", timeout=120_000)

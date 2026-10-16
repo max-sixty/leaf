@@ -57,7 +57,7 @@ from leaf_dev.arms import (
     install_codex_plugin,
     run_directory,
 )
-from leaf_dev.browser import CLASSIC_CHROME, headless_shell
+from leaf_dev.browser import headless_shell
 from leaf_dev.commands.site import asset_site, install_tree
 from leaf_dev.startup import observe_startup as record_startup
 from leaf_dev.startup import startup_reading
@@ -496,7 +496,6 @@ def user_session(
 ) -> AgentSession | str:
     """One activated user session, or why this allocation cannot admit a turn."""
     context = browser.new_context()
-    context.add_init_script(CLASSIC_CHROME)
     page = context.new_page()
     failures = observe_startup(page)
     response = page.goto(url, wait_until="load", timeout=120_000)
@@ -745,7 +744,6 @@ def verify_saved_state(browser, worker: LocalWorker) -> dict[str, dict]:
     worker.stop(container)
     asleep = worker.containers()
     context = browser.new_context()
-    context.add_init_script(CLASSIC_CHROME)
     context.add_cookies(cookies)
     page = context.new_page()
     failures = observe_startup(page)

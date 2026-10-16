@@ -87,7 +87,6 @@ import {
 import { createThreadPanelKeys } from "./runtime/thread/panel.js";
 import { createPageComment } from "./runtime/thread/page-comment.js";
 import { createFloatingPanel } from "./runtime/floating-panel.js";
-import "./runtime/chrome-choice.js";
 import { standingThreadId } from "./runtime/thread/focus.js";
 import { createThreadListController } from "./runtime/thread/thread-list.js";
 import { createThreadNarrowing } from "./runtime/thread/narrowing.js";
@@ -111,7 +110,6 @@ import { createVersionController } from "./runtime/version.js";
 import { versionMenu } from "./runtime/version-picker.js";
 import {
   banner,
-  enterBanner,
   isSignoffDeclared,
   loadIcon,
   mountBanner,
@@ -593,27 +591,21 @@ pageComment = createPageComment({
   showThread: landing.showThread,
   threadsToggle: toggleBtn,
 });
-// The floating panel stands in for the banner and bottom bar where the reader chose it
-// (prepaint.js, `lfChrome`); a choice made later reloads the page.
-const floatingPanel =
-  document.documentElement.lfChrome?.mode === "floating"
-    ? createFloatingPanel({
-        wireInput: inputs.wireInput,
-        observeFeedback: app.read.observeFeedback,
-        threadActions: app.threadActions,
-        registerChromeThreadPresentation: app.registerChromeThreadPresentation,
-        asks: {
-          choicesOf: asks.choicesOf,
-          open: (id) => app.openAsk(id),
-        },
-        queueActions: app.queueActions,
-        withdraw: app.withdraw,
-        settlement: app.settlement,
-      })
-    : null;
-// The page's general comment box: the card under the banner's control, or the floating
-// panel's field.
-const generalComment = floatingPanel?.pageComment ?? pageComment;
+const floatingPanel = createFloatingPanel({
+  wireInput: inputs.wireInput,
+  observeFeedback: app.read.observeFeedback,
+  threadActions: app.threadActions,
+  registerChromeThreadPresentation: app.registerChromeThreadPresentation,
+  asks: {
+    choicesOf: asks.choicesOf,
+    open: (id) => app.openAsk(id),
+  },
+  queueActions: app.queueActions,
+  withdraw: app.withdraw,
+  settlement: app.settlement,
+});
+// The page's general comment box is the floating panel's field.
+const generalComment = floatingPanel.pageComment;
 const passageSelection = createPassageSelection({
   restore: anchorTravel.restoreSelection,
 });
@@ -835,10 +827,9 @@ const standingPainters = {
   paintInputs: inputs.paintInputs,
 };
 
-// Skip to Leaf controls lands where the chrome the reader chose begins: the banner's, or
-// the floating panel's where it stands for the banner.
+// Skip to Leaf controls lands in the floating panel.
 const skipToChrome = offer("button", "lf-skip", "Skip to Leaf controls");
-skipToChrome.onclick = floatingPanel?.enter ?? enterBanner;
+skipToChrome.onclick = floatingPanel.enter;
 
 if (!offlineInteractive) {
   document.adoptedStyleSheets = [
@@ -887,8 +878,7 @@ if (!offlineInteractive) {
   // resolve updateComplete until connection, and keyboard registration needs that input.
   narrowing.mount();
   await panelKeys.mount();
-  if (floatingPanel) floatingPanel.mount(chromeForeground);
-  else pageComment.mount(chromeForeground);
+  floatingPanel.mount(chromeForeground);
   responseSurface.mount();
   holdToRead();
   reactions.mount();

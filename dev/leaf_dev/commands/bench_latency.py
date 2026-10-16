@@ -58,7 +58,7 @@ from leaf_dev.arms import (
     run_leaf,
     serving,
 )
-from leaf_dev.browser import CLASSIC_CHROME, DESKTOP, headless_shell
+from leaf_dev.browser import DESKTOP, headless_shell
 
 OUT = ROOT / ".tmp" / "bench-latency"
 RUNS = 5
@@ -376,7 +376,6 @@ def served(browser: Browser, arm: str, arm_dir: Path, source: str, scratch: Path
             viewport={"width": DESKTOP[0], "height": DESKTOP[1]}
         )
         try:
-            context.add_init_script(CLASSIC_CHROME)
             context.add_init_script(path=PROBE)
             page = context.new_page()
             page.goto(address)  # The token sets the page cookie; later loads drop it.

@@ -533,7 +533,6 @@ import {
   shadowHost,
   sizeObserver,
   standingIn,
-  tabStops,
   takesLetters,
   typesText,
   under,
@@ -571,7 +570,7 @@ import "/vendor/webawesome-chrome.js";
 
 // runtime/composing/drawing-geometry.js
 var INTRINSIC_VISUAL = "svg, img, canvas, video";
-var contentChildren = (root2) => [...root2.children].filter((child) => !leafSurface(child));
+var contentChildren = (root) => [...root.children].filter((child) => !leafSurface(child));
 function captureDrawingFrame(target, hit) {
   let source = hit;
   while (source && !source.matches(INTRINSIC_VISUAL)) source = upFrom(source);
@@ -598,9 +597,9 @@ function resolveDrawingFrame(target, reference) {
   if (target.localName !== reference.root) return null;
   let node = target;
   for (const step of reference.path) {
-    const root2 = step.shadow ? node.shadowRoot : node;
-    if (!root2) return null;
-    const children = contentChildren(root2);
+    const root = step.shadow ? node.shadowRoot : node;
+    if (!root) return null;
+    const children = contentChildren(root);
     if (children.length !== step.siblings) return null;
     node = children[step.index];
     if (node?.localName !== step.tag) return null;
@@ -1142,7 +1141,7 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
         focusDestination(ta, "return");
         const revision = applicationState.read().document.revision;
         if (!stopDictationRevision)
-          stopDictationRevision = applicationState.select((root2) => root2.document.revision).subscribe((next) => {
+          stopDictationRevision = applicationState.select((root) => root.document.revision).subscribe((next) => {
             if (next !== revision) cancelDictation();
           });
         if (!dictation) {
@@ -3773,8 +3772,8 @@ var plane = (target) => {
   );
   return !target || stackLevel(target) >= chipLevel ? "chrome" : "page";
 };
-function chipSeats(root2) {
-  const set = paintSet(root2);
+function chipSeats(root) {
+  const set = paintSet(root);
   const seats2 = /* @__PURE__ */ new Map();
   return {
     // The seat for `key`, made where there is none, in the document so the chip it is
@@ -3786,7 +3785,7 @@ function chipSeats(root2) {
         seat.className = "lf-chip-seat";
         seats2.set(key, seat);
       }
-      if (!seat.isConnected) root2.append(seat);
+      if (!seat.isConnected) root.append(seat);
       return seat;
     },
     // The seat for `key`, if one is seated.
@@ -3923,14 +3922,14 @@ function nestOutsets(faces, room) {
   );
   const around = (at) => before.filter((by) => by !== at && encloses(faces[by].target, faces[at].target));
   const depth = new Map(before.map((at) => [at, around(at).length]));
-  const root2 = new Map(
+  const root = new Map(
     before.map((at) => [at, around(at).find((by) => depth.get(by) === 0) ?? at])
   );
   const deepest = /* @__PURE__ */ new Map();
   for (const at of before)
-    deepest.set(root2.get(at), Math.max(deepest.get(root2.get(at)) ?? 0, depth.get(at)));
+    deepest.set(root.get(at), Math.max(deepest.get(root.get(at)) ?? 0, depth.get(at)));
   const levels = faces.map(
-    (_, at) => depth.has(at) ? deepest.get(root2.get(at)) - depth.get(at) : 0
+    (_, at) => depth.has(at) ? deepest.get(root.get(at)) - depth.get(at) : 0
   );
   const fits = faces.map((face2, at) => levels[at] ? room(face2) / levels[at] : null).filter((step2) => step2 > 0);
   const step = Math.floor(clamp(Math.min(NEST_STEP, ...fits), NEST_FLOOR, NEST_STEP));
@@ -5044,7 +5043,7 @@ function createAnchorNoteProjection({ openThread, labelAnchor }) {
 }
 
 // runtime/anchor-controls.js
-var shownDocument = readPart((root2) => root2.document);
+var shownDocument = readPart((root) => root.document);
 var MSG_REF = '.lf-msg-body a[href^="#"]';
 function createAnchorControls({
   commentOnTarget,
@@ -5207,7 +5206,7 @@ function createAnchorControls({
       const roots = [...held.before, ...held.inside];
       let record = reactionSeats.get(at);
       const changed = !record || record.roots.length !== roots.length || roots.some(
-        (root2, index) => root2.id !== record.roots[index]?.id || root2.token !== record.roots[index]?.token
+        (root, index) => root.id !== record.roots[index]?.id || root.token !== record.roots[index]?.token
       );
       if (!record) {
         record = { roots, expanded: null, margin: null, surface: null };
@@ -5239,7 +5238,7 @@ function createAnchorControls({
       }
       record.roots = roots;
       kept.add(at);
-      if (!roots.some((root2) => root2.id === record.expanded)) record.expanded = null;
+      if (!roots.some((root) => root.id === record.expanded)) record.expanded = null;
       if (!record.margin)
         record.margin = registerContribution({
           key: "reactions",
@@ -5247,50 +5246,50 @@ function createAnchorControls({
           read: () => ({
             side: "after",
             state: record.expanded ? "engaged" : "idle",
-            entries: record.roots.flatMap((root2) => [
+            entries: record.roots.flatMap((root) => [
               {
-                key: `reaction:${root2.id}:open`,
-                glyph: registry.$reactions.tokens[root2.token]?.glyph ?? root2.token,
-                label: `${root2.token} reaction actions`,
+                key: `reaction:${root.id}:open`,
+                glyph: registry.$reactions.tokens[root.token]?.glyph ?? root.token,
+                label: `${root.token} reaction actions`,
                 behavior: "disclosure",
                 rank: "secondary",
                 className: "lf-react-mark",
                 scope: record.scope,
                 relation: {
                   kind: "entries",
-                  keys: [`reaction:${root2.id}:remove`],
-                  expanded: record.expanded === root2.id
+                  keys: [`reaction:${root.id}:remove`],
+                  expanded: record.expanded === root.id
                 }
               },
               {
-                key: `reaction:${root2.id}:remove`,
+                key: `reaction:${root.id}:remove`,
                 icon: "cross",
-                label: `Remove ${root2.token} reaction`,
+                label: `Remove ${root.token} reaction`,
                 tone: "negative",
                 rank: "secondary",
                 className: "lf-react-remove",
                 scope: record.scope,
-                visible: record.expanded === root2.id
+                visible: record.expanded === root.id
               }
             ]),
-            readings: record.roots.map((root2) => ({
-              id: `reaction:${root2.id}`,
-              text: `${root2.token} reaction actions`,
-              activate: () => record.margin.focus(`reaction:${root2.id}:open`, "move")
+            readings: record.roots.map((root) => ({
+              id: `reaction:${root.id}`,
+              text: `${root.token} reaction actions`,
+              activate: () => record.margin.focus(`reaction:${root.id}:open`, "move")
             }))
           }),
           activate: (activation, context) => {
-            const root2 = record.roots.find(
+            const root = record.roots.find(
               (candidate) => activation === `reaction:${candidate.id}:open` || activation === `reaction:${candidate.id}:remove`
             );
-            if (!root2) return;
-            if (activation === `reaction:${root2.id}:remove`) {
-              withdrawReaction(root2);
+            if (!root) return;
+            if (activation === `reaction:${root.id}:remove`) {
+              withdrawReaction(root);
               return;
             }
             record.surface = context.surface ?? null;
             const standing2 = focused2();
-            setReactionRemoval(record, record.expanded === root2.id ? null : root2.id, {
+            setReactionRemoval(record, record.expanded === root.id ? null : root.id, {
               focus: context.input === "keyboard" && context.origin === standing2,
               surface: record.surface
             });
@@ -6810,13 +6809,6 @@ var INITIAL = Object.freeze({
 var banner = el("header", "lf-ui lf-banner");
 banner.id = "lf-banner";
 declareBanner(banner);
-function enterBanner() {
-  for (const control of tabStops(banner)) {
-    focusDestination(control, "move");
-    if (control.matches(":focus")) return;
-  }
-  focusDestination(banner, "move");
-}
 var bannerStatus = createBannerStatusView(repaint, INITIAL);
 registerNoticePresentation(() => bannerStatus.presentNotice(noticeReading()));
 var queueCounts = bannerStatus.queues;
@@ -7228,7 +7220,7 @@ function renderSessionReference() {
   );
   keeps(sessionReferenceElement, "title", `${sessionReferenceLabel} \xB7 copy reference`);
 }
-var reach = readPart((root2) => root2.reach);
+var reach = readPart((root) => root.reach);
 var upgraded = false;
 function currentStatus() {
   const answer = reach();
@@ -7307,7 +7299,7 @@ function stateSignoff(next, syncLayout) {
 }
 var approving = false;
 var versionApproved = readPart(
-  (root2) => root2.effective.asks.all.some(
+  (root) => root.effective.asks.all.some(
     (ask) => ask.source.kind === "approval" && ask.status === "answered"
   )
 );
@@ -7711,7 +7703,6 @@ var GROUPS = Object.freeze({
 });
 var OWN_VIEWS = Object.freeze(["threads", "queue", "versions"]);
 var FOLD = "panel.floating.fold";
-var SWITCH = "chrome.switch";
 var HELD_ELSEWHERE = Object.freeze([
   "threads",
   "queue",
@@ -7719,7 +7710,6 @@ var HELD_ELSEWHERE = Object.freeze([
   "approval",
   "keyboard",
   `command:${FOLD}`,
-  `command:${SWITCH}`,
   "command:target.picker.open"
 ]);
 var listed = (entry) => !entry.gesture && !HELD_ELSEWHERE.includes(entry.key);
@@ -8031,7 +8021,7 @@ function createFloatingPanel({
   }
   function writeOnPage() {
     const before = trail.at(-1);
-    if (prefs().rest === "mark") prefs().set("rest", "row");
+    if (prefs().rest === "mark") prefs().setRest("row");
     trail = [];
     setMenu(false);
     transition2(before);
@@ -8468,7 +8458,6 @@ function createFloatingPanel({
     );
     const keyboard = all.find((entry) => entry.key === "keyboard");
     const fold = all.find((entry) => entry.key === `command:${FOLD}`);
-    const swap = all.find((entry) => entry.key === `command:${SWITCH}`);
     const groups = Object.keys(GROUPS).filter(
       (group2) => all.some((entry) => groupOf(entry) === group2 && listed(entry))
     );
@@ -8498,7 +8487,7 @@ function createFloatingPanel({
         )
       })),
       { key: "", draw: () => html`<hr />` },
-      ...[keyboard, fold, swap].filter(Boolean).map(seat)
+      ...[keyboard, fold].filter(Boolean).map(seat)
     ];
     const now = new Map(offered.map((row2) => [row2.key, row2]));
     seats2 = held?.seats ?? offered;
@@ -9031,7 +9020,7 @@ function createFloatingPanel({
   function setRest(rest) {
     const before = trail.at(-1);
     const inside = standingIn(host);
-    prefs().set("rest", rest);
+    prefs().setRest(rest);
     trail = [];
     menuOpen = false;
     menuAt = null;
@@ -9331,7 +9320,7 @@ function createFloatingPanel({
   }
   leaf.addEventListener("click", () => {
     if (host.dataset.rest === "mark") {
-      prefs().set("rest", "row");
+      prefs().setRest("row");
       paint();
       return;
     }
@@ -9595,23 +9584,6 @@ function createFloatingPanel({
   }
   return { host, mount, open, close, enter, pageComment: pageComment2 };
 }
-
-// runtime/chrome-choice.js
-var root = document.documentElement;
-var floating = () => root.lfChrome.mode === "floating";
-if (!root.lfSample)
-  pageCommand({
-    id: "chrome.switch",
-    keys: [],
-    title: () => floating() ? "use the banner" : "use the Leaf panel",
-    description: () => floating() ? "Read every page with the banner and bottom bar in place of the Leaf panel" : "Read every page with the Leaf panel in place of the banner and bottom bar",
-    touch: () => floating() ? "Use the banner" : "Use the Leaf panel",
-    menu: "page",
-    run: () => {
-      root.lfChrome.set("mode", floating() ? "classic" : "floating");
-      location.reload();
-    }
-  });
 
 // runtime/thread/narrowing.js
 var choice = (kind, value, label2, className = "") => Object.freeze({ kind, value, label: label2, className });
@@ -9893,7 +9865,7 @@ function createThreadNarrowing({ view, listRoot, readThreads: readThreads2, repa
 }
 
 // runtime/thread/thread-list.js
-var readDescriptors = readPart((root2) => root2.document.descriptors);
+var readDescriptors = readPart((root) => root.document.descriptors);
 function createThreadListController({ panel: panel2, threadsBox: threadsBox2, narrowingView: narrowingView2 }) {
   const threadCards = () => [...threadsBox2.querySelectorAll(":scope > .lf-thread")];
   const openThreadsInPageOrder = () => threadsBox2.inPageOrder(
@@ -10968,15 +10940,15 @@ function createAskView({
   }
   function askContext(origin) {
     const record = askAt(readAsks().all, hostIn(origin, document));
-    let root2 = null;
+    let root = null;
     for (let node = origin; record && node; node = upFrom(node)) {
       if (askAt(readAsks().all, node)?.id !== record.id) break;
-      root2 = node;
+      root = node;
       if (node.hasAttribute("data-lf-thread-surface")) break;
     }
-    if (!root2) return null;
+    if (!root) return null;
     return {
-      root: root2,
+      root,
       declarations: () => {
         const source = sourceNode(record);
         return source ? commandDeclarationsWithin(source).filter(
@@ -11726,7 +11698,7 @@ function createCommandHints({ presentedControl }) {
       (visible.right - visible.left) / 4,
       (visible.bottom - visible.top) / 4
     );
-    const root2 = bindingBadge.getRootNode();
+    const root = bindingBadge.getRootNode();
     return [
       [x, y],
       [x, visible.top + inset],
@@ -11734,7 +11706,7 @@ function createCommandHints({ presentedControl }) {
       [visible.left + inset, y],
       [visible.right - inset, y]
     ].every(([atX, atY]) => {
-      const stack2 = root2.elementsFromPoint(atX, atY);
+      const stack2 = root.elementsFromPoint(atX, atY);
       const at = stack2.indexOf(bindingBadge);
       return at >= 0 && stack2.slice(0, at).every((over) => renderedUnder(over, control));
     });
@@ -13736,7 +13708,7 @@ pageComment = createPageComment({
   showThread: landing.showThread,
   threadsToggle: toggleBtn
 });
-var floatingPanel = document.documentElement.lfChrome?.mode === "floating" ? createFloatingPanel({
+var floatingPanel = createFloatingPanel({
   wireInput: inputs.wireInput,
   observeFeedback: app.read.observeFeedback,
   threadActions: app.threadActions,
@@ -13748,8 +13720,8 @@ var floatingPanel = document.documentElement.lfChrome?.mode === "floating" ? cre
   queueActions: app.queueActions,
   withdraw: app.withdraw,
   settlement: app.settlement
-}) : null;
-var generalComment = floatingPanel?.pageComment ?? pageComment;
+});
+var generalComment = floatingPanel.pageComment;
 var passageSelection = createPassageSelection({
   restore: anchorTravel.restoreSelection
 });
@@ -13959,7 +13931,7 @@ var standingPainters = {
   paintInputs: inputs.paintInputs
 };
 var skipToChrome = offer("button", "lf-skip", "Skip to Leaf controls");
-skipToChrome.onclick = floatingPanel?.enter ?? enterBanner;
+skipToChrome.onclick = floatingPanel.enter;
 if (!offlineInteractive) {
   document.adoptedStyleSheets = [
     ...document.adoptedStyleSheets,
@@ -14003,8 +13975,7 @@ if (!offlineInteractive) {
   auxiliarySurfaces.mount();
   narrowing.mount();
   await panelKeys.mount();
-  if (floatingPanel) floatingPanel.mount(chromeForeground);
-  else pageComment.mount(chromeForeground);
+  floatingPanel.mount(chromeForeground);
   responseSurface.mount();
   holdToRead();
   reactions.mount();

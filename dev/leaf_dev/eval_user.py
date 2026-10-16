@@ -198,7 +198,7 @@ def comment_on_passage(
     `attempt` key that finds the admitted comment in the log."""
     with (
         headless_shell() as browser,
-        tab(browser, viewport=viewport, classic=True) as view,
+        tab(browser, viewport=viewport) as view,
     ):
         load(view, url)
         quote = view.evaluate(SELECT, list(quotes))
@@ -267,7 +267,7 @@ def decide(url: str, task: str, evidence: Path, *, viewport: tuple[int, int]) ->
         port = probe.getsockname()[1]
     with (
         headless_shell(args=[f"--remote-debugging-port={port}"]) as browser,
-        tab(browser, viewport=viewport, motion="no-preference", classic=True) as view,
+        tab(browser, viewport=viewport, motion="no-preference") as view,
         scratch() as cwd,
         tempfile.TemporaryDirectory(prefix="leaf-pw-", dir="/tmp") as sockets,
     ):

@@ -3483,12 +3483,12 @@ function threadAttention(thread) {
     });
   }
   if (thread.attention?.kind === "waiting" && thread.attention.reason === "todo") {
-    const { title, line } = thread.attention.todo;
+    const [{ title, running }] = thread.todos;
     return Object.freeze({
       kind: "waiting",
-      label: todoLabel(line),
+      label: todoLabel(running),
       workflow: null,
-      secondary: line ?? title
+      secondary: running?.text ?? title
     });
   }
   if (thread.attention?.kind === "waiting")
@@ -5951,8 +5951,8 @@ function workingMessage(thread, attention, messages) {
   const stopped = workflows.find(
     (workflow) => STOPPED.has(workflow.condition?.kind) && workflow.detail
   );
-  const todo = (thread.todos ?? []).find(({ line }) => line);
-  const [words, live2, condition, agent] = running ? [running.detail || said, true, null, running.agent] : todo ? [todo.line, true, null, null] : stopped ? [stopped.detail, false, workflowLabel(stopped), stopped.agent] : [said, false, null, null];
+  const todo = thread.todos.find((open2) => open2.running);
+  const [words, live2, condition, agent] = running ? [running.detail || said, true, null, running.agent] : todo ? [todo.running.text, true, null, null] : stopped ? [stopped.detail, false, workflowLabel(stopped), stopped.agent] : [said, false, null, null];
   if (!words || !pending.length && !live2 && !condition) return null;
   const agentMessage = messages.findLast((message) => message.author === "agent");
   const work = running?.detail ? running : !running && !todo ? stopped : null;
@@ -5987,7 +5987,7 @@ function threadReading(thread, surface, commands2, options) {
   const label = resolved2 ? word2 : "Resolve thread";
   const attention = threadAttention(thread);
   const asking = thread.user_prompt?.message;
-  const openTodos = new Set((thread.todos ?? []).map(({ id }) => id));
+  const openTodos = new Set(thread.todos.map(({ id }) => id));
   const leaves = (message) => message.ask && message.id === asking ? "Waiting on me" : message.todo && openTodos.has(message.id) ? "To-do open" : null;
   const messages = turns(thread).map(
     (message) => messageReading(message, {
@@ -6514,7 +6514,12 @@ var ThreadView = class {
     this.#titleControl = titleControl;
     let threadActions = null;
     if (settlementPlace === "head" || settlementPlace === "margin") {
-      const actions = marginControls ? [marginControls.nav, settlement, marginControls.close].filter(Boolean) : [settlement].filter(Boolean);
+      const actions = marginControls ? [
+        model.news ? notice2.node : null,
+        marginControls.nav,
+        settlement,
+        marginControls.close
+      ].filter(Boolean) : [settlement].filter(Boolean);
       setChildren(this.#actions, actions);
       threadActions = actions.length || model.news ? this.#actions : null;
     }
@@ -6674,8 +6679,7 @@ var ThreadView = class {
               </blockquote>
             </header>` : nothing}
       ${this.#transcript}
-      ${threadActions ? marginControls ? html`${model.news ? html`<div class="lf-margin-thread-news">${news}</div>` : nothing}
-                <div class="lf-margin-thread-controls">${threadActions}</div>` : html`<div class="lf-thread-controls" data-lf-reflow="text">
+      ${threadActions ? marginControls ? html`<div class="lf-margin-thread-controls">${threadActions}</div>` : html`<div class="lf-thread-controls" data-lf-reflow="text">
                 ${news}${threadActions}
               </div>` : nothing}
     `;

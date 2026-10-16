@@ -234,28 +234,34 @@ test("a thread's margin entry and Page Map row say the word Threads gives it", (
   // answered has settled, and for one an agent is working on. Threads says To-do open
   // and Working on their cards; the margin and Page Map say the same of them.
   const working = Object.freeze({ id: "w", stage: "working", condition: null });
-  const thread = (attention, { workflows = [], unread = 0 } = {}) => ({
+  const thread = (attention, { workflows = [], unread = 0, todos = [] } = {}) => ({
     resolved: null,
     workflows,
     attention,
+    todos,
     unread: Array.from({ length: unread }, (_, index) => ({ message: `m${index}` })),
   });
-  const todo = (line) => ({
-    kind: "waiting",
-    reason: "todo",
-    workflow: null,
-    todo: { id: "t1", title: "Rebuild the banner quieter", ...(line ? { line } : {}) },
-  });
+  const waitingOnTodo = { kind: "waiting", reason: "todo", workflow: null };
+  const todo = (line) => [
+    {
+      id: "t1",
+      title: "Rebuild the banner quieter",
+      running: line ? { text: line } : null,
+    },
+  ];
   const said = (held) => {
     const item = marker("thread", "comment", threadMarks(held));
     const [row] = map([inventory({ items: [item] })])[0].actions;
     return [readingContext({ items: [item] }), row.context];
   };
-  assert.deepEqual(said(thread(todo())), ["To-do open", "To-do open"]);
-  assert.deepEqual(said(thread(todo("Rebuilding it"), { unread: 1 })), [
-    "Working",
-    "Working",
+  assert.deepEqual(said(thread(waitingOnTodo, { todos: todo() })), [
+    "To-do open",
+    "To-do open",
   ]);
+  assert.deepEqual(
+    said(thread(waitingOnTodo, { todos: todo("Rebuilding it"), unread: 1 })),
+    ["Working", "Working"],
+  );
   // A thread whose workflow is under way carries it as its receipt, which says it in
   // the workflow's own words; its line is what else it holds.
   const busy = thread(

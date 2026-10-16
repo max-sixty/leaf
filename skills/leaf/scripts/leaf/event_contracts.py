@@ -738,8 +738,9 @@ def admission_error(
 
 
 def _todo_error(view, event: dict, readings) -> Finding | None:
-    """A to-do stands on an open thread, a widget that seats work or an element, or the
-    page. A completing note and `todo_end` share completion authority.
+    """A `todo` event stands on a widget that seats work, an element, or the page; a
+    to-do on a thread comes from the reply that promises it. A completing note and
+    `todo_end` share completion authority.
     A `todo_end` also admits an agent withdrawal of a prose ask; a
     start names explicit agent work or an owed update (`todos.todo_error`)."""
     from leaf.todos import start_reading
@@ -802,7 +803,6 @@ def _todo_error(view, event: dict, readings) -> Finding | None:
         element_error=element_error,
         user_widget_error=user_widget_error,
         owed=owed,
-        todos=lambda: [todo for half in readings.work.page_todos() for todo in half],
         asks=lambda: readings.work.all_asks["all"],
     )
 

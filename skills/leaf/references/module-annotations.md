@@ -162,7 +162,8 @@ Leaf fills them and keeps the rendering, reactions, read tracking and reply draf
 package keeps layout, order, selection, scroll and disclosure. `parts.reply` takes
 `{hint, accessibleName, sent}`, where `sent()` runs after a send instead of moving the
 user to the thread. The collection holds back changes that would move what the user
-sees, behind a notice; `readThreads()` stays current for counts. A feed of single turns
+sees, behind a notice, which stands where `parts.news(thread.key, outlet)` names, or
+else at the end of the first part's head; `readThreads()` stays current for counts. A feed of single turns
 supplies Resolve and Reopen through `threadActions`.
 
 Await the handle's `update()` after a local layout change, or `update({release: true})`

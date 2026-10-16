@@ -137,7 +137,7 @@ test("a thread's unread is the server reading less what this tab is acknowledgin
     }),
   ];
   const read = (acknowledging) =>
-    readThreadRecords(threads, NO_DOCUMENT, new Map(), [], acknowledging)[0];
+    readThreadRecords(threads, NO_DOCUMENT, new Map(), [], [], acknowledging)[0];
 
   const unread = read([]);
   assert.deepEqual(

@@ -52,9 +52,12 @@ the choice, and add what is missing. Use product copy for visible and accessible
 and put commentary about the prototype in the surrounding playground only where needed.
 
 When the decision changes an existing interface, include its current state as a labeled
-baseline. Derive each candidate from the baseline and change only what is under review,
-keeping its controls, words, tokens and interaction state unless the candidate proposes
-changing them.
+baseline. Derive each candidate from the baseline and change only what is under review.
+Draw everything else as the product shows it, copied from the files that define it: its
+controls and words, its icons and logos, theme tokens and interaction state. The user
+reads any difference from the product as part of the proposal, so a lookalike, such as
+an emoji, a Unicode symbol or a plain dot standing in for an icon or logo, shows a change
+nobody proposed. Where a part can't be copied, leave a plain blank of its size.
 
 A copy of a component's DOM has its appearance but none of its listeners, state or
 lifecycle. When behavior is part of the comparison, mount the component through its

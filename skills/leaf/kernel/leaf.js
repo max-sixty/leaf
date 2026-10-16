@@ -8057,8 +8057,9 @@ function createFloatingPanel({
         return true;
       },
       // Taking the resolve back stands the user on the thread's row, where they are
-      // back at Threads; it opens no view, since the reopening arrives with the
-      // server's reading and a view opening then would move the panel under no
+      // back at Threads. Where they moved on to the next thread, they stay on it, and
+      // the reopened thread waits in Threads: the reopening arrives with the server's
+      // reading, and a view opening or closing then would move the panel under no
       // press. The undo door passes the intent of the press that asked for it.
       reverse: (may = mayRestore) => {
         if (!may() || trail.at(-1)?.view !== "threads") return;

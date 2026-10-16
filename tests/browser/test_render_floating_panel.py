@@ -313,7 +313,8 @@ def test_a_thread_s_keys_answer_in_its_view(browser, serve):
 def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     """Resolving the thread open from Threads moves the user on to the next open
     thread, standing on its view, as the banner's Threads does, so a second `r`
-    resolves that one; with none left, the user is back at Threads. Escape there puts
+    resolves that one; taking a resolve back leaves the user where they moved on to;
+    with none left, the user is back at Threads. Escape there puts
     the view away and returns the user to the page."""
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Is the window long enough?")
@@ -330,12 +331,23 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     expect(page.locator(".lf-fp-head .lf-fp-title")).not_to_have_text(first)
     expect(thread).to_be_visible()
     expect(thread).to_be_focused()
+    second = page.locator(".lf-fp-head .lf-fp-title").inner_text()
+    # Taking the first resolve back leaves the user on the thread they moved on to.
+    with sending(page, "the undo"):
+        page.keyboard.press("z")
+    assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
+    expect(page.locator(".lf-fp-head .lf-fp-title")).to_have_text(second)
+    expect(thread).to_be_focused()
     with sending(page, "the second resolve"):
         page.keyboard.press("r")
     resolved = [
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "resolve"
     ]
     assert len(resolved) == 2
+    # The first thread, reopened, is the one open thread left, so the user moves to it.
+    expect(page.locator(".lf-fp-head .lf-fp-title")).to_have_text(first)
+    with sending(page, "the last resolve"):
+        page.keyboard.press("r")
     expect(page.locator(".lf-fp-view[data-view=threads]")).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fp-view")).to_have_count(0)

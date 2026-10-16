@@ -3871,10 +3871,10 @@ flowchart TD
             <p id="ontology-lede">
               Leaf keeps few records and derives everything else from them. A page
               directory records three kinds of thing. The server folds them into the
-              threads, workflows, asks and lists a page shows, afresh on every read. The
-              browser combines that reading with the authored page and the updates it is
-              still sending. Each kind below has one writer, and every other part of
-              Leaf reads it from that writer.
+              threads, workflows, asks and lists a page shows, each time the page is
+              read. The browser combines that reading with the authored page and the
+              updates it is still sending. Each kind below has one writer, and every
+              other part of Leaf reads it from that writer.
             </p>
             <table id="ontology-table">
               <thead>
@@ -3891,8 +3891,8 @@ flowchart TD
                 <tr id="ontology-revision">
                   <td>Revision</td>
                   <td>
-                    An immutable copy of the page's HTML, written by the agent's valid
-                    save. The active revision gives each widget its initial state.
+                    An immutable copy of the page's HTML, written when the agent saves a
+                    valid page. The active revision gives each widget its initial state.
                   </td>
                   <td>its number, such as v4</td>
                 </tr>
@@ -3951,15 +3951,15 @@ flowchart TD
                     it is open, answered or withdrawn.
                   </td>
                   <td>
-                    <code>widget:</code>, <code>reply:</code> or
-                    <code>approval:</code> and its source
+                    <code>widget:</code>, <code>reply:</code> or <code>approval:</code>,
+                    then its source
                   </td>
                 </tr>
                 <tr id="ontology-todo">
                   <td>To-do</td>
                   <td>
                     Explicit work the agent or the user owes until it ends. One the
-                    agent opens on a thread holds that thread.
+                    agent opens on a thread keeps that thread waiting on the agent.
                   </td>
                   <td>its event id</td>
                 </tr>
@@ -4017,7 +4017,7 @@ flowchart TD
             <p id="ontology-relations-lede">
               A thread is the unit most surfaces show. The user's messages and widget
               actions are both updates, and each update has one workflow tracking the
-              agent's progress on it. A thread's attention is decided from the workflows
+              agent's progress on it. A thread's attention follows from the workflows
               standing in it, the asks it carries, and any to-do holding it. Each
               workflow and to-do names the thread it stands in, and the lists add up the
               same asks, to-dos and workflows across the page.
@@ -4058,9 +4058,9 @@ flowchart TD
           <section id="ontology-flow-section">
             <h2>Data flow</h2>
             <p id="ontology-flow-lede">
-              Every surface draws from the same publication, so each step below has one
-              owner. The server owns whatever depends on the whole log: whose turn a
-              thread is, how far a workflow has got, which asks are open. The browser
+              Each step below has one owner, and every surface draws from the same
+              publication. The server owns whatever depends on the whole log: whose turn
+              a thread is, how far a workflow has got, which asks are open. The browser
               adds only the updates it is still sending. Between the publication and the
               surfaces sit the readings: one function per question a surface asks of a
               thread, such as its name or its word. An update the user makes joins the
@@ -4108,7 +4108,7 @@ flowchart TD
             <p id="ontology-readings-lede">
               A thread appears on several surfaces at once: its card in Threads, its
               entry in the margin, its row in the Page Map, its item in Questions, and
-              its line in an activity feed. Each says the same things about it from the
+              its line in an activity feed. Every surface takes each of these from the
               same owner.
             </p>
             <table id="ontology-readings-table">
@@ -4158,7 +4158,10 @@ flowchart TD
                 </tr>
                 <tr id="reading-unread">
                   <td>How many agent messages the user has not read</td>
-                  <td>the server's <code>unread</code>, summed where several meet</td>
+                  <td>
+                    the server's <code>unread</code>, summed where a row covers several
+                    threads
+                  </td>
                   <td>Threads, the margin, the Page Map</td>
                 </tr>
                 <tr id="reading-id">

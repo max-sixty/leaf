@@ -349,6 +349,10 @@ function marginSpot(target, point = null, passage = null) {
   const left = main.getBoundingClientRect().right + hang;
   return { left, right: left + restingRail().row };
 }
+function quotedBoxes(options) {
+  if (options.point?.()) return [];
+  return passageBoxes(options.passage?.() ?? null);
+}
 function samePassage(passage, words) {
   const range = passage && targetRange(passage);
   if (!range || !words) return !passage && !words;
@@ -617,17 +621,13 @@ function standFolded(row, fold, on) {
 }
 function seatsBy(parts, home, inline, cover, size) {
   const height = home.bottom - home.top;
-  const box = parts.length ? {
-    right: Math.max(...parts.map((part) => part.right)),
-    top: Math.min(...parts.map((part) => part.top))
-  } : { right: home.right, top: home.top };
+  const box = union(parts) ?? home;
   const end = parts.at(-1);
-  const foot = parts.length ? Math.max(...parts.map((part) => part.bottom)) : home.bottom;
   const under2 = {
-    left: Math.min(home.left, ...parts.map((part) => part.left)),
+    left: Math.min(home.left, box.left),
     right: home.right,
-    top: foot + GAP,
-    bottom: foot + GAP + height
+    top: box.bottom + GAP,
+    bottom: box.bottom + GAP + height
   };
   const belowClear = !cover.some((box2) => overlaps(box2, under2));
   return [
@@ -827,10 +827,11 @@ function scheduleScrollReading() {
       if (!moving) continue;
       if (!row.classList.contains("lf-withheld") && boxes.every((box) => box === pageScroller))
         continue;
-      const extent = shownExtent(target);
+      const whole = shownExtent(target);
+      const words = quotedBoxes(options);
       const by = standsBy.get(row);
-      const stands = row.classList.contains("lf-withheld") || !extent || !by ? null : row.dataset.lfPlace === "pin" ? { top: extent.top + by.top, right: extent.right + by.right } : { top: extent.top + by.top };
-      if (targetShown(target, extent, stands, bands) === row.classList.contains("lf-withheld")) {
+      const stands = row.classList.contains("lf-withheld") || !whole || !by ? null : row.dataset.lfPlace === "pin" ? { top: whole.top + by.top, right: whole.right + by.right } : { top: whole.top + by.top };
+      if (targetShown(target, words.length ? union(words) : whole, stands, bands) === row.classList.contains("lf-withheld")) {
         scheduleMarginLayout();
         return;
       }
@@ -903,10 +904,12 @@ function layoutMarginRows() {
     const anchor = targetBox(target);
     anchors.set(row, anchor);
     const point = options.point?.() ?? null;
-    const passage = point ? null : options.passage?.() ?? null;
-    const words = passage ? passageBoxes(passage) : [];
+    const words = quotedBoxes(options);
     observeGeometry(point ?? target);
-    present.push({ row, at: point ?? targetSegments(passage)[0]?.node ?? target });
+    present.push({
+      row,
+      at: point ?? targetSegments(options.passage?.())[0]?.node ?? target
+    });
     const scroller = scrollerFor(target);
     const rootLane = scroller === pageScroller;
     const box = anchor.getBoundingClientRect();

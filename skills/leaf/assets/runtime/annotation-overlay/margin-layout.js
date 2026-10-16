@@ -343,6 +343,14 @@ export function marginSpot(target, point = null, passage = null) {
   return { left, right: left + restingRail().row };
 }
 
+// The boxes of the words a row's comments quote, where it stands by a passage rather
+// than a pointed row (none otherwise): the subject both the layout pass and a scroll's
+// reading of visibility measure.
+function quotedBoxes(options) {
+  if (options.point?.()) return [];
+  return passageBoxes(options.passage?.() ?? null);
+}
+
 // Whether a row's passage (a resolved anchor, or none) is the range `words` (or none).
 function samePassage(passage, words) {
   const range = passage && targetRange(passage);
@@ -743,25 +751,17 @@ function standFolded(row, fold, on) {
 // its last word.
 function seatsBy(parts, home, inline, cover, size) {
   const height = home.bottom - home.top;
-  const box = parts.length
-    ? {
-        right: Math.max(...parts.map((part) => part.right)),
-        top: Math.min(...parts.map((part) => part.top)),
-      }
-    : { right: home.right, top: home.top };
+  const box = union(parts) ?? home;
   const end = parts.at(-1);
   // Below the corner only where the row under the subject is empty from its left edge
   // to the corner: beside the next block's words, a pin reads as that block's.
   // Measured from the subject's own foot, not its home's: a subject shorter than a pin
   // would otherwise skip the block below it.
-  const foot = parts.length
-    ? Math.max(...parts.map((part) => part.bottom))
-    : home.bottom;
   const under = {
-    left: Math.min(home.left, ...parts.map((part) => part.left)),
+    left: Math.min(home.left, box.left),
     right: home.right,
-    top: foot + GAP,
-    bottom: foot + GAP + height,
+    top: box.bottom + GAP,
+    bottom: box.bottom + GAP + height,
   };
   const belowClear = !cover.some((box) => overlaps(box, under));
   return [
@@ -805,7 +805,9 @@ function seatsBy(parts, home, inline, cover, size) {
 // corner is its own words' rather than the block's, just after its last word, where a
 // reader finishes it; just inside the corner, on the target itself, or further down its
 // right edge; then just above that inside seat, which keeps the inset from the
-// window's edge, so a target as wide as the window still has room above it; and last
+// window's edge, so a target as wide as the window still has room above it (a run of
+// words' hangs off its top-right corner instead, where the pin's pointed foot meets
+// it); and last
 // just below its bottom-right corner, at the same inset, where nothing stands level
 // with it under the target. Above and below come last because a pin there can read as
 // the neighbouring block's, and above stands outside what a pane shows when the pane is
@@ -1068,18 +1070,19 @@ function scheduleScrollReading() {
         boxes.every((box) => box === pageScroller)
       )
         continue;
-      const extent = shownExtent(target);
+      const whole = shownExtent(target);
+      const words = quotedBoxes(options);
       // The row's own box is not read: a carried row's box is read a frame late
       // after a scroll, which is not where it is painted.
       const by = standsBy.get(row);
       const stands =
-        row.classList.contains("lf-withheld") || !extent || !by
+        row.classList.contains("lf-withheld") || !whole || !by
           ? null
           : row.dataset.lfPlace === "pin"
-            ? { top: extent.top + by.top, right: extent.right + by.right }
-            : { top: extent.top + by.top };
+            ? { top: whole.top + by.top, right: whole.right + by.right }
+            : { top: whole.top + by.top };
       if (
-        targetShown(target, extent, stands, bands) ===
+        targetShown(target, words.length ? union(words) : whole, stands, bands) ===
         row.classList.contains("lf-withheld")
       ) {
         scheduleMarginLayout();
@@ -1180,10 +1183,12 @@ export function layoutMarginRows() {
     // (pointed-place.js), or with the first line of the passage its comments quote;
     // otherwise level with the target's top.
     const point = options.point?.() ?? null;
-    const passage = point ? null : (options.passage?.() ?? null);
-    const words = passage ? passageBoxes(passage) : [];
+    const words = quotedBoxes(options);
     observeGeometry(point ?? target);
-    present.push({ row, at: point ?? targetSegments(passage)[0]?.node ?? target });
+    present.push({
+      row,
+      at: point ?? targetSegments(options.passage?.())[0]?.node ?? target,
+    });
     const scroller = scrollerFor(target);
     const rootLane = scroller === pageScroller;
     const box = anchor.getBoundingClientRect();

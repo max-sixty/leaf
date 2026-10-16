@@ -15,7 +15,7 @@ import { marginInventory } from "./margin-model.js";
 import { livePoint } from "./pointed-place.js";
 import { ago } from "./presence.js";
 import { runtime } from "./context.js";
-import { elementById, inChrome } from "./passages.js";
+import { elementById, inChrome, quoteFrom, textNodesUnder } from "./passages.js";
 import { addressableLabel, addressableWord } from "./addressable-names.js";
 import { threadList } from "./thread/state.js";
 import { threadKey } from "./thread/model.js";
@@ -165,9 +165,10 @@ export function createAnnotationInventory({
   // threads at (pointed-place.js), and one more for each passage threads quote: those
   // threads stand there together, by what they are about, and everything else about the
   // target (its other threads, an ask's marker, a widget's actions) keeps the target's
-  // own row. `pointed` is `{ key, element, passage, words }`: the row's key, which its
-  // first comment gave it and later ones share, the element it is or the passage it
-  // stands by (a resolved anchor), and its words as the page reads them, which name it.
+  // own row. `pointed` is `{ key, element, passage, words }`: the row's key (a pointed
+  // row's its first comment gave it, a passage's from its words, `passageRow`), the
+  // element it is or the passage it stands by (a resolved anchor), and its words, which
+  // name it.
   function groupFor(groups, target, pointed = null) {
     const key = pointed ? `${targetPath(target)}@${pointed.key}` : targetPath(target);
     const slot = pointed ? `point:${key}` : target;
@@ -191,28 +192,20 @@ export function createAnnotationInventory({
     return group;
   }
 
-  // The row key for threads quoting `passage` of `target`: its words, their whitespace
-  // collapsed as the page shows it, and which occurrence of those words in the target it
-  // is. Threads quoting the same words share it, and none settling or arriving changes
-  // it, so the row and a card open on it outlive them. A re-render that removes an
-  // earlier occurrence renumbers it and builds the row again, as a shifted path does an
-  // id-less target's.
+  // The row key for threads quoting `passage` of `target`: its words as the page reads
+  // them, and which occurrence of those words in the target's reading it is. Threads
+  // quoting the same words share it, and none settling or arriving changes it, so the
+  // row and a card open on it outlive them. A re-render that removes an earlier
+  // occurrence renumbers it and builds the row again, as a shifted path does an id-less
+  // target's.
   function passageRow(target, passage) {
     const segments = targetSegments(passage);
-    const collapsed = (text) => text.replace(/\s+/g, " ");
-    const words = collapsed(
-      segments.map(({ node, start, end }) => node.data.slice(start, end)).join(""),
-    );
-    const walk = document.createTreeWalker(target, NodeFilter.SHOW_TEXT);
-    let before = "";
-    for (
-      let node = walk.nextNode();
-      node && node !== segments[0].node;
-      node = walk.nextNode()
-    )
-      before += node.nodeValue;
-    before += segments[0].node.data.slice(0, segments[0].start);
-    return JSON.stringify([words, collapsed(before).split(words).length - 1]);
+    const page = textNodesUnder(target);
+    const at = page.findIndex(({ node }) => node === segments[0].node);
+    const before =
+      at < 0 ? page : [...page.slice(0, at), { ...page[at], end: segments[0].start }];
+    const words = quoteFrom(segments);
+    return JSON.stringify([words, quoteFrom(before).split(words).length - 1]);
   }
 
   function add(groups, target, item, pointed = null) {

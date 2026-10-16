@@ -253,6 +253,7 @@ import {
   pageDocument,
   pageParts,
   pageReadingVersion,
+  quoteFrom,
   rangeOf,
   readingFrom,
   selectEnds,
@@ -4070,16 +4071,11 @@ function createAnnotationInventory({
   }
   function passageRow(target, passage) {
     const segments = targetSegments(passage);
-    const collapsed = (text) => text.replace(/\s+/g, " ");
-    const words2 = collapsed(
-      segments.map(({ node, start, end }) => node.data.slice(start, end)).join("")
-    );
-    const walk = document.createTreeWalker(target, NodeFilter.SHOW_TEXT);
-    let before = "";
-    for (let node = walk.nextNode(); node && node !== segments[0].node; node = walk.nextNode())
-      before += node.nodeValue;
-    before += segments[0].node.data.slice(0, segments[0].start);
-    return JSON.stringify([words2, collapsed(before).split(words2).length - 1]);
+    const page = textNodesUnder(target);
+    const at = page.findIndex(({ node }) => node === segments[0].node);
+    const before = at < 0 ? page : [...page.slice(0, at), { ...page[at], end: segments[0].start }];
+    const words2 = quoteFrom(segments);
+    return JSON.stringify([words2, quoteFrom(before).split(words2).length - 1]);
   }
   function add(groups, target, item, pointed = null) {
     if (!target?.isConnected || inChrome(target)) return;

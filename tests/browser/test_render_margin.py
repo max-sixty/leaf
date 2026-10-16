@@ -11048,7 +11048,14 @@ def test_a_quoted_passage_stands_its_own_rail_row_level_with_its_words(browser, 
     context.close()
 
 
-def test_a_quoted_passage_scrolled_out_of_its_pane_withholds_its_row(browser, serve):
+@pytest.mark.parametrize(
+    "pane",
+    ['style="height:160px;overflow:auto"', 'data-bound="start" style="height:160px"'],
+    ids=["box", "reading-region"],
+)
+def test_a_quoted_passage_scrolled_out_of_its_pane_withholds_its_row(
+    browser, serve, pane
+):
     """A passage's row is about its words, so where a pane shows its paragraph but has
     scrolled the quoted words out of view, the row is withheld rather than standing
     beside other words, and it comes back when the pane brings the words in."""
@@ -11056,7 +11063,7 @@ def test_a_quoted_passage_scrolled_out_of_its_pane_withholds_its_row(browser, se
         f"Sentence number {i} says something about the release." for i in range(40)
     )
     body = (
-        '<h1>Pane</h1><div id="pane" style="height:160px;overflow:auto">'
+        f'<h1>Pane</h1><div id="pane" {pane}>'
         f'<p id="long">{text} Finally the last words land.</p></div>'
     )
     events = [
@@ -11078,6 +11085,10 @@ def test_a_quoted_passage_scrolled_out_of_its_pane_withholds_its_row(browser, se
     page.locator("#pane").evaluate("pane => { pane.scrollTop = pane.scrollHeight; }")
     margins_laid_out(page)
     expect(row).not_to_have_class(re.compile(r"\blf-withheld\b"))
+    # Scrolling alone, with no layout announced, takes the words away again, within a
+    # frame or two rather than at some later pass.
+    page.locator("#pane").evaluate("pane => { pane.scrollTop = 0; }")
+    expect(row).to_have_class(re.compile(r"\blf-withheld\b"), timeout=2000)
     context.close()
 
 

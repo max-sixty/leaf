@@ -134,6 +134,7 @@ import {
   dismissBannerControls,
   dismissReply,
   draftHasContent,
+  drawnThreadId,
   focusThread,
   focusedThreadTarget,
   followBoxGrowth,
@@ -174,6 +175,7 @@ import {
   rememberWriting,
   replyAvailable,
   replyCompositionHasDraft,
+  replyContext,
   replyDraftContext,
   replyDraftsHold,
   restoreBannerStanding,
@@ -200,6 +202,7 @@ import {
   threadFocusStop,
   threadHoldsDraft,
   threadList,
+  threadName,
   threadReading,
   threadState,
   touchPresses,
@@ -548,6 +551,7 @@ import {
   html,
   itemNoun,
   itemOutcome,
+  lastMovedAt,
   noChange,
   nothing,
   observeQueuedWork,
@@ -556,8 +560,7 @@ import {
   repeat,
   sameAnchor,
   threadKey,
-  threadNames,
-  threadSummary
+  threadNames
 } from "./runtime/bundle-queued-work.js";
 import "./runtime/bundle-__export.js";
 
@@ -2751,7 +2754,7 @@ function createResponseSurface({
     const threadId = threadAtStanding();
     const replyId = replyThreadAtStanding();
     const target = threadId && threadTarget(threadId);
-    const inlineBox = inline && (inline.dataset.thread ?? inline.dataset.id) === threadId && (!here || standingIn(inline) || target && under(target, heldAsk() ?? here.element)) && threadInput(inline);
+    const inlineBox = inline && drawnThreadId(inline) === threadId && (!here || standingIn(inline) || target && under(target, heldAsk() ?? here.element)) && threadInput(inline);
     const said = standingThread() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
     const subject = threadId && (!here || target && under(target, heldAsk() ?? here.element));
     const replySubject = subject && replyId;
@@ -7565,7 +7568,7 @@ function createFloatingPanel({
   const threadByKey = (key) => threads().find((thread) => thread.key === key || thread.id === key) ?? null;
   const threadTitle = (key) => {
     const thread = threadByKey(key);
-    return thread ? threadSummary(thread).topic : "this thread";
+    return thread ? threadName(thread) : "this thread";
   };
   const unread = (thread) => thread.unread.length > 0;
   const newCount = () => threads().filter(unread).length;
@@ -7585,7 +7588,7 @@ function createFloatingPanel({
     return [
       unread(thread) && "New",
       state,
-      draftHasContent(`reply:${thread.key}`) && "Draft"
+      draftHasContent(replyContext(thread.key)) && "Draft"
     ].filter((word2) => word2 && word2 !== said).join(" \xB7 ");
   };
   const rows2 = () => bannerRows();
@@ -8171,14 +8174,11 @@ function createFloatingPanel({
     const words = query.trim().toLowerCase();
     return threads().filter((thread) => {
       if (words) {
-        const text = [
-          threadSummary(thread).topic,
-          ...thread.msgs.map((m) => m.text ?? "")
-        ].join(" ").toLowerCase();
+        const text = [threadName(thread), ...thread.msgs.map((m) => m.text ?? "")].join(" ").toLowerCase();
         return text.includes(words);
       }
       if (filter === "unread") return unread(thread);
-      if (filter === "drafts") return draftHasContent(`reply:${thread.key}`);
+      if (filter === "drafts") return draftHasContent(replyContext(thread.key));
       if (filter === "resolved") return thread.resolved;
       return !thread.resolved;
     });
@@ -8204,7 +8204,7 @@ function createFloatingPanel({
                   @click=${() => open({ view: "thread", thread: thread.key })}
                 >
                   <span class="lf-fp-news-mark" aria-hidden="true"></span>
-                  <span class="lf-fp-label">${threadSummary(thread).topic}</span>
+                  <span class="lf-fp-label">${threadName(thread)}</span>
                   <span class="lf-fp-value"
                     >${threadStatus(thread, query.trim() ? null : filter)}</span
                   >
@@ -8259,7 +8259,7 @@ function createFloatingPanel({
   const openIn = (view) => {
     const top = trail.at(-1);
     const thread = top?.view === "thread" ? threadByKey(top.thread) : null;
-    return thread && !view.hasAttribute("data-leaving") && view.dataset.thread === thread.id ? thread : null;
+    return thread && !view.hasAttribute("data-leaving") && drawnThreadId(view) === thread.id ? thread : null;
   };
   const viewParts = Object.freeze({
     reply: (view) => {
@@ -8322,7 +8322,7 @@ function createFloatingPanel({
     const thread = item.thread ? threadByKey(item.thread) : null;
     const asking = ask?.source.kind === "reply" && thread ? thread.msgs.find((candidate) => candidate.id === ask.message) : null;
     const message = asking && presentation?.primary !== false ? asking : null;
-    const title = message ? thread.title ?? (thread.root.id === message.id ? "" : threadSummary(thread).topic) : asking ? threadSummary(thread).topic : queueTitle(item);
+    const title = message ? thread.title ?? (thread.root.id === message.id ? "" : threadName(thread)) : asking ? threadName(thread) : queueTitle(item);
     const said = message ? "" : asking ? messageReading(asking, { panel: false, reactions: [], workflows: [] }).body.plainText : ask?.prompt?.text;
     const prompt = said && said.trim() !== title.trim() ? said : "";
     const answered = ask && ask.status !== "open";
@@ -10742,7 +10742,7 @@ function createQueueWalk({
     if (focused(document) === approvalTarget())
       return list.find((stop) => stop.kind === "approval") ?? null;
     const held = threadHere();
-    const thread = held?.dataset.id ?? held?.dataset.thread;
+    const thread = drawnThreadId(held);
     if (thread) {
       const stop = list.find(
         (candidate) => candidate.kind === "thread" && candidate.id === thread
@@ -10988,7 +10988,7 @@ function createQueuePanel({
   const wherePart = (text, feedback = null) => ({ text, feedback });
   function when(item, thread) {
     if (itemNoun(item) === "ask")
-      return [wherePart(thread && shortAgo(threadSummary(thread).latest))];
+      return [wherePart(thread && shortAgo(lastMovedAt(thread)))];
     const feedback = item.workflow?.detail && item.workflow.input ? {
       input_id: item.workflow.input,
       reply_id: null,
@@ -12972,7 +12972,7 @@ var threadWalk = (panelIsOpen2, { threadsBox: threadsBox2, openThreadsInPageOrde
 };
 var currentThread = (threads, threadHere) => {
   const held = threadHere();
-  const id = held?.dataset.id ?? held?.dataset.thread;
+  const id = drawnThreadId(held);
   return threads.find((thread) => thread.dataset.id === id);
 };
 var threadPosition = (threadHere, panelIsOpen2, narrowing2, list) => {
@@ -13439,7 +13439,6 @@ var focusForNavigation = (node, cause, options) => app?.overlay?.focusForNavigat
 var anchorTravel = createAnchorTravel({
   anchors: anchorPlacement,
   surfaces: auxiliarySurfaces,
-  currentThreads: allThreads,
   refreshThread: () => app.refreshThread(),
   focusForNavigation,
   threadFocusTarget: (id, options) => app.threadDestinations.threadFocusTarget(id, options),

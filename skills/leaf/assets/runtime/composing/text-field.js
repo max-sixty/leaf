@@ -161,6 +161,15 @@ sheet.replaceSync(`
     text-underline-offset: var(--link-underline-offset); }
   .lf-md-quote { border-inline-start: var(--quote-rule); font-style: var(--quote-style);
     padding-inline-start: var(--quote-inset); color: var(--muted); }
+  /* A bullet item's marker is drawn as the message's bullet, in a box as wide as the
+     marker and its space, which the item's wrapped lines hang under. The dash it stands
+     for keeps that box while the caret touches it, so revealing it moves no word. */
+  .lf-md-item { padding-inline-start: 1.25em; text-indent: -1.25em; }
+  .lf-md-bullet { display: inline-block; inline-size: 1.25em; text-indent: 0;
+    white-space: pre; }
+  .lf-md-bullet:not(.lf-md-mark) { color: transparent; position: relative; }
+  .lf-md-bullet:not(.lf-md-mark)::before { content: "•"; position: absolute;
+    inset-inline-start: 0; color: var(--ink); }
   .lf-md-code-block { font-family: var(--mono); font-size: var(--code-size);
     line-height: var(--code-line); color: var(--code-ink); background: var(--pre-bg);
     font-variant-ligatures: none; border-inline: 1px solid var(--code-border);
@@ -178,6 +187,8 @@ const ownerStep = StateEffect.define();
 const hide = Decoration.replace({});
 const dim = Decoration.mark({ class: "lf-md-mark" });
 const link = Decoration.mark({ class: "lf-md-link" });
+const bullet = Decoration.mark({ class: "lf-md-bullet" });
+const shownBullet = Decoration.mark({ class: "lf-md-bullet lf-md-mark" });
 const line = (cls) => Decoration.line({ class: cls });
 
 // The inline constructs the preview draws, by the renderer's token type: each as the
@@ -264,8 +275,15 @@ function decorate(state, placed) {
         if (mark) add(each.from, each.from + mark[0].length, dim);
       });
     } else if (token.type === "list_item_open") {
-      const mark = text.match(/^ {0,3}(?:[*+-]|\d{1,9}[.)])/);
-      if (mark) add(from, from + mark[0].length, dim);
+      const item = text.match(/^( {0,3})(?:([*+-])[ \t]?|\d{1,9}[.)])/);
+      if (!item) continue;
+      const at = from + item[1].length;
+      const end = from + item[0].length;
+      if (!item[2]) add(at, end, dim);
+      else {
+        out.push(line("lf-md-item").range(state.doc.lineAt(from).from));
+        add(at, end, touches(state, at, end) ? shownBullet : bullet);
+      }
     }
   }
   return Decoration.set(out, true);

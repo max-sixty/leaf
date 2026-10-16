@@ -17,7 +17,7 @@ from leaf.projection import folded_value, markup_value, page_reading
 from leaf.refusals import Refused
 from leaf.revisioning import planned_activation, publish_checked_event
 from leaf.service import PageTransaction
-from leaf.todos import owed_todos
+from leaf.todos import TodoReading
 from leaf.validation.admission import read_text_arg
 from leaf.validation.source import check_source
 
@@ -97,7 +97,7 @@ def _completed_tasks(
     """
     if len(set(completes)) != len(completes):
         raise Refused("--completes names each widget at most once")
-    todos = owed_todos(events)
+    todos = TodoReading(events).owed
     on_widgets = [todo for todo in todos if todo["subject"]["kind"] == "widget"]
     unearned = sorted(set(completes) - {todo["subject"]["id"] for todo in on_widgets})
     if unearned:

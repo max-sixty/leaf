@@ -84,7 +84,7 @@ def todo_reading(event: dict, threads: dict[str, str]) -> dict | None:
     `threads` is `thread_context.thread_names`, which names the thread a reply's
     to-do stands on. A reply's to-do keeps the reply's identity, as its start does."""
     if event["kind"] == "todo":
-        return event if "owner" in event else None
+        return event
     if event["kind"] == "reply" and "todo" in event:
         return {
             **event,
@@ -173,12 +173,21 @@ class TodoReading:
         return item_starts(self.events)
 
     @cached_property
-    def todos(self) -> list[dict]:
-        return _todos(self.events, self.withdrawn, self.starts)
+    def ends(self) -> dict:
+        """The `todo_end` in force on each id it names, by that id: a to-do's, or a
+        prose ask's the agent retired (`asks.thread_asks`)."""
+        return {
+            event["todo"]: {
+                "state": event["outcome"],
+                **_outcome(event, event.get("detail")),
+            }
+            for event in self.events
+            if event["kind"] == "todo_end" and event["id"] not in self.withdrawn
+        }
 
     @cached_property
-    def ends(self) -> dict:
-        return _ends(self.events, self.withdrawn)
+    def todos(self) -> list[dict]:
+        return _todos(self.events, self.ends, self.starts)
 
     @property
     def owed(self) -> list[dict]:
@@ -217,62 +226,46 @@ class TodoReading:
         return None
 
 
-def _todos(events: list, withdrawn: set, starts: dict) -> list[dict]:
+def _todos(events: list, ends: dict, starts: dict) -> list[dict]:
+    """Every to-do the log opened, with how it ended: by its `todo_end` in force
+    (`ends`) or by the first stamped version whose `--completes` names it, whichever
+    came first."""
     todos: dict[str, dict] = {}
-
-    def end(todo: dict, state: str, event: dict, detail: str | None) -> None:
-        todo["state"] = state
-        todo["outcome"] = _outcome(event, detail)
-
     threads = thread_names(events)
     for event in events:
         if opened := todo_reading(event, threads):
-            event = opened
-            todos[event["id"]] = {
-                "id": event["id"],
-                "owner": event["owner"],
-                "subject": event["subject"],
-                "title": event["title"],
+            todos[opened["id"]] = {
+                "id": opened["id"],
+                "owner": opened["owner"],
+                "subject": opened["subject"],
+                "title": opened["title"],
                 "state": "open",
-                "seq": event["seq"],
-                "ts": event["ts"],
-                "agent": event.get("agent"),
-                "session": event.get("session"),
-                "revision": event.get("revision"),
+                "seq": opened["seq"],
+                "ts": opened["ts"],
+                "agent": opened.get("agent"),
+                "session": opened.get("session"),
+                "revision": opened.get("revision"),
                 "running": None,
                 "outcome": None,
             }
-        elif (
-            event["kind"] == "todo_end"
-            and event["todo"] in todos
-            and event["id"] not in withdrawn
-        ):
-            end(todos[event["todo"]], event["outcome"], event, event.get("detail"))
         elif event["kind"] == "note":
             for identity in note_settlements(event, "todo"):
                 todo = todos.get(identity)
-                if todo is not None and todo["state"] == "open":
-                    end(todo, "done", event, f"v{event['version']}")
+                ended = ends.get(identity)
+                if (
+                    todo is not None
+                    and todo["state"] == "open"
+                    and (ended is None or ended["seq"] > event["seq"])
+                ):
+                    todo["state"] = "done"
+                    todo["outcome"] = _outcome(event, f"v{event['version']}")
     for todo in todos.values():
+        if todo["state"] == "open" and (ended := ends.get(todo["id"])):
+            todo["state"] = ended["state"]
+            todo["outcome"] = {key: ended[key] for key in ended if key != "state"}
         if todo["state"] == "open" and todo["id"] in starts:
             todo["running"] = running(starts[todo["id"]])
     return list(todos.values())
-
-
-def _ends(events: list, withdrawn: set) -> dict:
-    return {
-        event["todo"]: {
-            "state": event["outcome"],
-            **_outcome(event, event.get("detail")),
-        }
-        for event in events
-        if event["kind"] == "todo_end" and event["id"] not in withdrawn
-    }
-
-
-def owed_todos(events: list) -> list[dict]:
-    """The agent's to-dos nothing has ended: the work it still owes."""
-    return TodoReading(events).owed
 
 
 def todo_error(
@@ -283,7 +276,6 @@ def todo_error(
     element_error,
     user_widget_error,
     owed: set[str],
-    todos,
     asks,
 ) -> Finding | None:
     """Why the append door refuses a to-do, start or completion, or None.
@@ -323,7 +315,7 @@ def todo_error(
         return None
     identity = event["todo"]
     named = {"todo": identity}
-    todo = next((todo for todo in todos() if todo["id"] == identity), None)
+    todo = next((todo for todo in log.todos if todo["id"] == identity), None)
     if todo is None:
         ask = next(
             (ask for ask in asks() if identity == ask["id"]),

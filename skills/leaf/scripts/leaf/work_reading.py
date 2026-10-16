@@ -136,17 +136,14 @@ class WorkReading:
             asks=self.all_asks,
         )
 
-    def page_todos(self, aged: list[dict] = ()) -> tuple[list[dict], list[dict]]:
-        """To-dos enriched with their thread and current activity."""
+    def page_todos(self, aged: list[dict]) -> list[dict]:
+        """Every to-do, open and ended, with its thread, and an open one's activity
+        as `aged` (`activity._canonical_todos`) reads it."""
         by_id = {todo["id"]: todo for todo in aged}
-        log = [
+        return [
             {
                 **by_id.get(todo["id"], todo),
                 "thread": self.thread.subject_thread(todo["subject"]),
             }
             for todo in self.log.todos
         ]
-        return (
-            [todo for todo in log if todo["state"] == "open"],
-            [todo for todo in log if todo["state"] != "open"],
-        )

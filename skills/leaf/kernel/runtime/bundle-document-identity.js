@@ -4316,7 +4316,7 @@ function createAnnotationInventory({
       });
     });
     for (const todo of runtime.todos) {
-      if (todo.owner !== "agent" || todo.subject.kind !== "widget" && todo.subject.kind !== "element" || todo.revision > runtime.currentRevision)
+      if (todo.owner !== "agent" || todo.state !== "open" || todo.subject.kind !== "widget" && todo.subject.kind !== "element" || todo.revision > runtime.currentRevision)
         continue;
       if (activityAlreadyShown.has(`widget:${todo.subject.id}`)) continue;
       const target = elementById(todo.subject.id);

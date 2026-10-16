@@ -382,7 +382,7 @@ def _page_state(
             ]
             thread["attention"] = served_threads[thread["id"]]["attention"]
         state["asks"] = view["document"]["asks"]["all"] + view["thread"]["asks"]["all"]
-        state["todos"] = browser["todos"]
+        state["todos"] = [todo for todo in browser["todos"] if todo["state"] == "open"]
         served_queues = view["queues"]
         state["queues"] = {
             side: served_queues[side] for side in ("on_user", "on_agent")

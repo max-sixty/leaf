@@ -152,7 +152,7 @@ test("a Done this tab sends ends its to-do at once, and its undo puts it back", 
   assert.deepEqual(ended(), []);
 
   const later = adopted("user done").app;
-  const { outcome } = servedReading("user done").browser.ended_todos.find(
+  const { outcome } = servedReading("user done").browser.todos.find(
     ({ id }) => id === todo.id,
   );
   later.enqueue({ kind: "undo", undoes: outcome.id, attempt: "u" }, "now");

@@ -438,6 +438,91 @@
         </p>
       </section>
 
+      <section id="thread-readings">
+        <h2>Thread readings</h2>
+        <p id="thread-readings-lede">
+          A thread appears on several surfaces at once: its card in Threads, its entry
+          in the margin, its row in the Page Map, its row in the On panel and the
+          floating panel, and its line in an activity feed. Every surface takes each of
+          these from the same owner.
+        </p>
+        <table id="thread-readings-table">
+          <thead>
+            <tr>
+              <th>Reading</th>
+              <th>Owner</th>
+              <th>Where it shows</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr id="reading-name">
+              <td>
+                Its name: the title, else the words of its opening message, else Drawing
+              </td>
+              <td><code>threadName</code></td>
+              <td>
+                Threads, the On panel, the floating panel, the margin, the Page Map, an
+                activity feed
+              </td>
+            </tr>
+            <tr id="reading-word">
+              <td>
+                Its word: My turn to answer, Working, To-do open, Waiting, or a
+                workflow's word
+              </td>
+              <td><code>threadAttention</code></td>
+              <td>
+                Threads and the floating panel, as its status; the margin and the Page
+                Map, as its line (<code>threadMarks</code>)
+              </td>
+            </tr>
+            <tr id="reading-workflow">
+              <td>An update's word: Sent, Queued, Replying, Failed</td>
+              <td><code>workflowLabel</code></td>
+              <td>a message's receipt; the margin and Page Map controls</td>
+            </tr>
+            <tr id="reading-face">
+              <td>The agent's progress face: picked up, or at work</td>
+              <td><code>progressFace</code></td>
+              <td>the margin and Page Map controls</td>
+            </tr>
+            <tr id="reading-todo">
+              <td>An open to-do's word: To-do open, or Working while it runs</td>
+              <td><code>todoLabel</code></td>
+              <td>a thread's status; a widget's margin entry</td>
+            </tr>
+            <tr id="reading-unread">
+              <td>How many agent messages the user has not read</td>
+              <td>
+                the server's <code>unread</code>, summed where a row covers several
+                threads
+              </td>
+              <td>Threads, the margin, the Page Map</td>
+            </tr>
+            <tr id="reading-id">
+              <td>The thread a drawn thread, or a name, stands for</td>
+              <td><code>drawnThreadId</code>, <code>threadNamed</code></td>
+              <td>every press on a thread; trips, previews, Back and Forward</td>
+            </tr>
+            <tr id="reading-draft">
+              <td>The draft a thread holds: its reply, or a rewrite</td>
+              <td><code>threadDraft</code></td>
+              <td>the reply box, wherever the thread is open</td>
+            </tr>
+          </tbody>
+        </table>
+        <p id="thread-readings-owners">
+          The runtime's
+          <a
+            href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/assets/AGENTS.md#one-answer-for-each-question"
+            >owner table</a
+          >
+          lists these readings beside the runtime's other shared questions. A new
+          surface asks the owner. A new reading gets an owner and a row there. A surface
+          that keeps its own copy says why in a comment beside it.
+        </p>
+      </section>
+
       <section id="summaries">
         <h2>Summaries</h2>
         <p id="summaries-fold">

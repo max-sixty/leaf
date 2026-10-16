@@ -12,6 +12,8 @@ feature and code owner, browser versions and check date, user-visible effect,
 evidence or reproduction, and disposition. Distinguish an observed failure from
 published compatibility data and an old test engine from a current browser gap.
 Update or remove the entry when the implementation or browser support changes.
+`uv run leaf-dev probe SOURCE --firefox` runs a probe or journey in Playwright's
+Firefox, the one other engine installed beside the suite's Chromium.
 
 Minor visual differences, including a small layout shift confined to one browser,
 are acceptable when content remains readable and controls remain usable. Record
@@ -130,6 +132,19 @@ what fails and what still works.
   `anchor-scope`.
 - **Disposition:** adopted without a fallback. An engine without `until-found`
   reads the unknown value as plain `hidden`, which is what the removed check chose.
+
+### The sheen over a line cut short
+
+- **Owner:** `@keyframes lf-sheen` in `styles/components/surfaces.css`, run by the
+  floating panel's field (`floating-panel.css`), the thread card's working words
+  (`surfaces.css`) and a pending thread title (`chrome.css`). It paints the words in
+  ink and dims them with a moving `mask-image` to each box's rest face.
+- **Observed 2026-10-15:** the sheen it replaced, a background clipped to the glyphs
+  under a transparent fill, hid a cut line's ellipsis in Playwright Firefox 155, and
+  the user saw it in Firefox 157: Firefox draws the ellipsis outside the clipped
+  background. With the mask, Firefox 155 and Chromium 153 both draw the ellipsis in
+  every frame of the pass.
+- **Disposition:** adopted without a fallback.
 
 ## Known gaps
 

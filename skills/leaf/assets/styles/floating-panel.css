@@ -193,6 +193,11 @@
   .lf-fp-field .lf-compose-field:has(> leaf-text[data-lf-focus]) {
     outline: none;
   }
+  /* An attached image's shelf takes a line of its own over the page's words, as it does
+     over a thread's reply (response.css). */
+  .lf-fp-box {
+    flex-wrap: wrap;
+  }
   .lf-fp-resolved {
     flex: 1;
     margin: 0;
@@ -218,37 +223,25 @@
   }
   /* Words running past the field's top or bottom edge fade into it, so a glance says
      there is more above or below, in place of a scrollbar, whose overlay flashed with
-     every line the field scrolled to. Where no scroll timeline drives the fade, the
-     scrollbar stays. */
-  @supports (animation-timeline: scroll()) {
-    .lf-fp-field .lf-compose-field > leaf-text:state(scrolls) {
-      scrollbar-width: none;
-      mask-image: linear-gradient(
-        to bottom,
-        transparent 0,
-        #000 var(--lf-fp-fade-top),
-        #000 calc(100% - var(--lf-fp-fade-bottom)),
-        transparent 100%
-      );
-      animation: lf-fp-field-edges linear both;
-      animation-timeline: scroll(self);
-    }
+     every line the field scrolled to. The field says which edges words run past
+     (text-field.js, `more-above`, `more-below`). */
+  .lf-fp-field .lf-compose-field > leaf-text:state(scrolls) {
+    --lf-fp-fade-top: 0px;
+    --lf-fp-fade-bottom: 0px;
+    scrollbar-width: none;
+    mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      #000 var(--lf-fp-fade-top),
+      #000 calc(100% - var(--lf-fp-fade-bottom)),
+      transparent 100%
+    );
   }
-  @keyframes lf-fp-field-edges {
-    0% {
-      --lf-fp-fade-top: 0px;
-      --lf-fp-fade-bottom: 16px;
-    }
-    4% {
-      --lf-fp-fade-top: 16px;
-    }
-    96% {
-      --lf-fp-fade-bottom: 16px;
-    }
-    100% {
-      --lf-fp-fade-top: 16px;
-      --lf-fp-fade-bottom: 0px;
-    }
+  .lf-fp-field .lf-compose-field > leaf-text:state(more-above) {
+    --lf-fp-fade-top: 16px;
+  }
+  .lf-fp-field .lf-compose-field > leaf-text:state(more-below) {
+    --lf-fp-fade-bottom: 16px;
   }
   .lf-fp-field .lf-compose-field > leaf-text[data-lf-focus] {
     outline: none;
@@ -271,16 +264,19 @@
     .lf-floating-panel[data-says="status"][data-tone="working"]:not([data-asks])
       .lf-fp-field
       leaf-text::part(placeholder) {
+      /* The quiet face is ink at 48% (`--lf-fp-quiet`). */
+      --lf-sheen-rest: 0.48;
       animation: lf-sheen 2s ease-in-out infinite alternate;
     }
   }
-  /* A status that asks the user to act reads in its tone's ink at full strength, the
-     leaf's colour made legible as words, so a request stands apart from a report. */
+  /* A status that asks the user to act reads in its tone's ink, the leaf's colour made
+     legible as words, so a request stands apart from a report. It stays quiet, at the
+     words' own weight and short of full strength: the user found full-strength
+     medium-weight green bold for a line that stands at rest (15 October). */
   .lf-floating-panel[data-says="status"][data-asks]
     .lf-fp-field
     leaf-text::part(placeholder) {
-    color: var(--lf-fp-asks);
-    font-weight: 500;
+    color: color-mix(in srgb, var(--lf-fp-asks) 70%, transparent);
   }
   .lf-floating-panel[data-asks] {
     --lf-fp-asks: var(--ink);
@@ -987,6 +983,19 @@
     margin-inline-start: 8px;
     color: var(--lf-fp-muted);
     font-weight: 400;
+  }
+  /* Approval's reason, why a press would not approve yet, gives up its room before
+     the press's own words do, cut with an ellipsis and whole on hover. */
+  .lf-fp-approval .lf-fp-item {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .lf-fp-approval .lf-fp-end {
+    min-width: 0;
+    justify-content: end;
+  }
+  .lf-fp-approval .lf-fp-value {
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .lf-fp-compare {
     flex: none;

@@ -1,32 +1,16 @@
 preference:
-  "A lasting preference for all my pages from now on: I read them in a window about
-  900px wide, beside my editor. At that width, keep the page's summary, status, contents or
-  queue beside the main content rather than stacked above or below it."
+  "A lasting preference for all my pages from now on: I use them fullscreen on my
+  desktop, in a window about 1600px wide and 1000px tall. Make evidence, decisions and
+  navigation comfortable to work through at that size, using the available space
+  where it helps the task."
 reachable:
   A labeled control whose content is out of view, such as a collapsed section, an unselected
   item or a scroll region's remainder, counts as reachable but costs the user a step; content
   cut off with no visible way to reach it does not count.
 widths:
-  laptop:
-    viewport:
-      - 1440
-      - 900
-    description: a 1440px laptop window
-  narrow:
-    viewport:
-      - 900
-      - 900
-    description: a 900px window
-  short:
-    viewport:
-      - 900
-      - 600
-    description: a short 900px by 600px window
-  phone:
-    viewport:
-      - 390
-      - 844
-    description: a 390px phone
+  desktop:
+    viewport: [1600, 1000]
+    description: a fullscreen 1600px by 1000px desktop window
 prompts:
   first:
     leaf: |-
@@ -153,10 +137,11 @@ cases:
         value: file://../dev/leaf_dev/authoring_assertion.mjs
         config:
           phase: 2
-          required_widths: [narrow, short]
+          required_widths: [desktop]
           rubric: >-
-            At both 900px window heights, the page follows the lasting preference quoted in the
-            output: summary, status, contents or queue remains beside the main content.
+            At the declared fullscreen desktop size, the page follows the lasting preference
+            quoted in the output: evidence, decisions and navigation are comfortable to work
+            through, and the available space supports the task.
       - &comment_answered
         type: llm-rubric
         metric: comment-answered
@@ -364,6 +349,17 @@ cases:
       - *phase_2_preference
       - *comment_answered
   sidebar-page-at-900px:
+    preference:
+      "A lasting preference for all my pages from now on: I read them in a window about
+      900px wide, beside my editor. At that width, keep the page's summary, status, contents or
+      queue beside the main content rather than stacked above or below it."
+    widths:
+      short:
+        viewport: [900, 600]
+        description: a short 900px by 600px window
+      phone:
+        viewport: [390, 844]
+        description: a 390px phone
     inputs:
       comment: null
       decision: null
@@ -379,7 +375,7 @@ cases:
             user's task, makes its evidence readable and reachable, and provides the decisions or
             navigation the request requires. The completed rollout's forty entries must remain
             readable in the document's scroll, rather than showing only one screen of a separate
-            listing. At both 900px window heights, all six checks and their failing result stay
+            listing. At the short 900px window, all six checks and their failing result stay
             accessible beside the log as it scrolls. Page navigation and any supporting sidebar
             content remain reachable; a sticky box must not hold them below the window. On a
             phone, the regions stack without covering the log or hiding its entries.
@@ -393,8 +389,17 @@ cases:
             user's task, makes its evidence readable and reachable, and provides the decisions or
             navigation the request requires. The completed rollout's forty entries must remain
             readable in the document's scroll, rather than showing only one screen of a separate
-            listing. At both 900px window heights, all six checks and their failing result stay
+            listing. At the short 900px window, all six checks and their failing result stay
             accessible beside the log as it scrolls. Page navigation and any supporting sidebar
             content remain reachable; a sticky box must not hold them below the window. On a
             phone, the regions stack without covering the log or hiding its entries.
-      - *phase_2_preference
+      - type: javascript
+        metric: phase-2-preference
+        value: file://../dev/leaf_dev/authoring_assertion.mjs
+        config:
+          phase: 2
+          required_widths: [short]
+          rubric: >-
+            At the short 900px window, the page follows the lasting preference quoted in the
+            output: the checklist stays beside the log while every check and navigation
+            remains reachable.

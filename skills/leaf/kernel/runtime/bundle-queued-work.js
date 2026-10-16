@@ -676,10 +676,6 @@ function lastMovedAt(thread) {
   }
   return latest;
 }
-var threadSummary = (thread) => ({
-  topic: thread.title ?? thread.root.body.text.trim(),
-  latest: lastMovedAt(thread)
-});
 var versionKey = ({ message, version }) => `${message}\0${version}`;
 function readThreadRecords(threads, document, widgets, workflows, markingRead = [], ready = true) {
   const locallyRead = new Set(markingRead.map(versionKey));
@@ -2506,7 +2502,7 @@ export {
   awaitsUser,
   seatRoot,
   moved,
-  threadSummary,
+  lastMovedAt,
   isThreadEvent,
   isMessageEvent,
   pendingForParent,

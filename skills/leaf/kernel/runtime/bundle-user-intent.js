@@ -84,6 +84,7 @@ import {
   elementById,
   fencePassageParts,
   inChrome,
+  labelWords,
   pageBlocks,
   pageDocument,
   pageRange,
@@ -241,6 +242,7 @@ import {
   html,
   isElementName,
   isReaction,
+  lastMovedAt,
   messageKey,
   moved,
   nothing,
@@ -253,7 +255,6 @@ import {
   share,
   threadKey,
   threadNames,
-  threadSummary,
   turns
 } from "./bundle-queued-work.js";
 
@@ -2434,6 +2435,14 @@ var projectDraftRecord = (ctx, record) => queueMicrotask(() => {
   tellDraft(ctx, active ? current.text : null, active ? current.payload : void 0);
 });
 var sharedIsBaseOf = (branch, shared) => branch.base === null ? shared === null : shared?.attempt === branch.base;
+var replyContext = (key) => `reply:${key}`;
+var rewriteContext = (id) => `rewrite:${id}`;
+var THREAD_DRAFT = /^(reply|rewrite):(.*)$/s;
+function threadDraft(ctx) {
+  const match = THREAD_DRAFT.exec(ctx);
+  return match ? { part: match[1], name: match[2] } : null;
+}
+var isReply = (ctx) => threadDraft(ctx)?.part === "reply";
 var refreshDraftRecord = (ctx) => {
   const cached = draftCache.get(ctx);
   const read = draftStore.read(DRAFT + ctx);
@@ -2520,7 +2529,7 @@ function transferDraft(from, to, text) {
   const editor = [...draftEditors].find((view) => view.ctx === from) ?? [...draftEditors].find((view) => view.ctx === to);
   const selection = writingPlace?.context === from ? writingPlace.selection : readCaret(editor && editorInput(editor));
   const held = [carriedHeld(to), carriedHeld(from)].filter(Boolean).join("\n\n") || null;
-  const durable = to.startsWith("reply:") ? saveDraft(to, held ? `${text}
+  const durable = isReply(to) ? saveDraft(to, held ? `${text}
 
 ${held}` : text, void 0, null) : saveDraft(to, text, void 0, held);
   keepWritingPlace({
@@ -2585,9 +2594,9 @@ function sendMessage(ctx, owns, send) {
     answer(null);
     return null;
   }
-  if (!ctx.startsWith("reply:")) {
+  if (!isReply(ctx)) {
     openedFrom.set(current.attempt, ctx);
-    const under2 = `reply:${current.attempt}`;
+    const under2 = replyContext(current.attempt);
     if (current.held && !activeDraftRecord(under2)) {
       saveDraft(under2, current.held);
       tellDraft(under2, current.held);
@@ -2595,7 +2604,7 @@ function sendMessage(ctx, owns, send) {
   }
   const previousPlace = writingPlace;
   const sentPlace = previousPlace?.context === ctx ? {
-    context: ctx.startsWith("reply:") ? ctx : `reply:${current.attempt}`,
+    context: isReply(ctx) ? ctx : replyContext(current.attempt),
     selection: [0, 0],
     generation: previousPlace.generation
   } : null;
@@ -2654,7 +2663,7 @@ function keepRefusedWords(attempts) {
   for (const attempt of attempts) {
     const from = openedFrom.get(attempt);
     openedFrom.delete(attempt);
-    const under2 = `reply:${attempt}`;
+    const under2 = replyContext(attempt);
     const box = activeDraftRecord(under2);
     if (from === void 0 || !box || !holdReply(from, box.text)) continue;
     const resumed = writingPlace?.context === under2;
@@ -2713,7 +2722,6 @@ function registerWritingDestination(prefix, reveal) {
   writingRoutes.set(prefix, reveal);
   return () => writingRoutes.delete(prefix);
 }
-var THREAD_HELD = /^(reply|rewrite):/;
 function moveToPage(ctx) {
   const words = loadDraft(ctx) ?? "";
   const text = [loadDraft(PAGE_DRAFT), words].filter(Boolean).join("\n\n");
@@ -2731,14 +2739,13 @@ function createWritingResume({
   arriveEditor,
   holdsThreadDraft
 }) {
-  const holdsBox = (ctx) => THREAD_HELD.test(ctx) ? holdsThreadDraft(ctx) : [...writingRoutes.keys()].some((prefix) => ctx.startsWith(prefix)) || [...draftEditors].some((view) => view.ctx === ctx);
+  const holdsBox = (ctx) => threadDraft(ctx) ? holdsThreadDraft(ctx) : [...writingRoutes.keys()].some((prefix) => ctx.startsWith(prefix)) || [...draftEditors].some((view) => view.ctx === ctx);
   const resume = async () => {
     const place2 = writingPlace;
     if (!place2) return;
     const intent = retainUserIntent();
     let input;
-    if (THREAD_HELD.test(place2.context))
-      input = await revealInThread(place2.context, intent);
+    if (threadDraft(place2.context)) input = await revealInThread(place2.context, intent);
     else {
       const resolve = () => {
         const route = [...writingRoutes].find(
@@ -2905,6 +2912,7 @@ function bringBackSurfaceOf(node, behavior = scrollBehavior()) {
 
 // runtime/thread/selectors.js
 var THREAD = ".lf-thread, .lf-page-thread, [data-lf-thread-view]";
+var drawnThreadId = (node) => node?.dataset.id ?? node?.dataset.thread ?? null;
 var SAYS_IN = `${THREAD}, .lf-thread-seat`;
 var SAY_ROW = ".lf-thread-reply, .lf-say";
 var SAY_BOX = SAY_ROW.split(", ").map((row2) => `:scope > ${row2} ${TEXT_FIELD}`).join(", ");
@@ -3170,7 +3178,6 @@ function holdToRead() {
 }
 
 // runtime/thread/message-edit.js
-var editContext = (id) => `rewrite:${id}`;
 var OPEN_MESSAGE_EDIT = "lf-open-message-edit";
 var open = /* @__PURE__ */ new Map();
 var sending = /* @__PURE__ */ new Set();
@@ -3189,14 +3196,14 @@ function openMessageEdit(id, view, panel, thread) {
   for (const [other, holder] of [...open]) {
     if (other === id || holder.thread !== thread) continue;
     if (holder.view) holder.view.putEditAside();
-    else if (!draftHasContent(editContext(other))) open.delete(other);
+    else if (!draftHasContent(rewriteContext(other))) open.delete(other);
   }
   const displaced2 = open.get(id)?.view;
   open.set(id, { view, panel, thread });
   if (displaced2 && displaced2 !== view) displaced2.closeEdit();
 }
-var keptRewrite = (id) => !open.has(id) && !sending.has(id) && draftHasContent(editContext(id));
-var watchRewrite = (id, changed2) => watchDraft(editContext(id), changed2);
+var keptRewrite = (id) => !open.has(id) && !sending.has(id) && draftHasContent(rewriteContext(id));
+var watchRewrite = (id, changed2) => watchDraft(rewriteContext(id), changed2);
 function openMessageEditIn(thread, id) {
   const message = [...thread?.querySelectorAll(".lf-msg") ?? []].find(
     (node) => (node.dataset.mid ?? node.dataset.event) === id
@@ -3255,7 +3262,7 @@ function threadRewrites({
 function closeMessageEdit(id, { discard }) {
   open.delete(id);
   if (!discard) return;
-  const ctx = editContext(id);
+  const ctx = rewriteContext(id);
   clearDraft(ctx);
   tellDraft(ctx, null);
   forgetWritingPlace(ctx);
@@ -3267,7 +3274,7 @@ var MessageEditor = class {
   #settling = null;
   #follow;
   constructor(id, view, { wireInput, said, base: currentBase, send, land: land2, paint: paint2, previous, reveal }) {
-    const ctx = editContext(id);
+    const ctx = rewriteContext(id);
     let base = currentBase();
     const keptOver = loadDraftPayload(ctx)?.over;
     if (keptOver && keptOver !== base && !keptOver.startsWith(PENDING))
@@ -3444,7 +3451,8 @@ var workflowTitle = (workflow) => {
   const label = workflowLabel(workflow, { answered: true });
   return [label, workflow.detail].filter(Boolean).join(" \xB7 ");
 };
-var isWorkflowProgress = (workflow) => !workflow.condition && ["picked_up", "working", "replying"].includes(workflow.stage);
+var progressFace = (workflow) => !workflow || workflow.condition ? null : workflow.stage === "picked_up" ? "picked_up" : ["working", "replying"].includes(workflow.stage) ? "working" : null;
+var isWorkflowProgress = (workflow) => progressFace(workflow) !== null;
 var isPageWidgetWorkflow = (workflow, revision) => workflow.subject.kind === "widget" && workflow.thread === null && workflow.revision <= revision;
 var tier = (workflow) => (workflow.next_actor === "user" ? 0 : 2) + Number(workflow.stage === "sending");
 function strongestWorkflow(workflows) {
@@ -3453,6 +3461,7 @@ function strongestWorkflow(workflows) {
     if (strongest === null || tier(candidate) < tier(strongest)) strongest = candidate;
   return strongest;
 }
+var todoLabel = (running) => running ? "Working" : "To-do open";
 function threadAttention(thread) {
   if (thread.resolved) return null;
   const workflow = thread.attention?.workflow ? thread.workflows.find(
@@ -3477,7 +3486,7 @@ function threadAttention(thread) {
     const { title, line } = thread.attention.todo;
     return Object.freeze({
       kind: "waiting",
-      label: line ? "Working" : "To-do open",
+      label: todoLabel(line),
       workflow: null,
       secondary: line ?? title
     });
@@ -3618,6 +3627,18 @@ function messageText(message) {
   }
   return message.suggestion ? message.text ?? "" : proseReading(message).plainText;
 }
+function threadName(thread) {
+  if (thread.title != null) return thread.title;
+  const { root } = thread;
+  const words = labelWords(
+    root.body.kind === "authored" ? root.body.text : messageText(root)
+  );
+  return words || (root.drawing ? "Drawing" : "");
+}
+var threadSummary = (thread) => ({
+  topic: threadName(thread),
+  latest: lastMovedAt(thread)
+});
 var authoredMessages = /* @__PURE__ */ new Map();
 function prepareAuthoredMessage(message, thread) {
   const key = message.attempt ?? message.id;
@@ -4487,12 +4508,19 @@ var threadState = readPart((root) => root.effective.thread);
 var allThreads = () => threadState().all;
 var readThreads = readPart((root) => root.effective.thread.collection);
 var threadList = () => readThreads().threads;
+var names = /* @__PURE__ */ new WeakMap();
+function threadNamed(name) {
+  const threads = allThreads();
+  let index = names.get(threads);
+  if (!index) names.set(threads, index = threadNames(threads));
+  return index.get(name) ?? null;
+}
+var threadIdNamed = (name) => threadNamed(name)?.id ?? name;
 
 // runtime/thread/replies.js
 var REPLY_COMPOSITION = /* @__PURE__ */ Symbol("reply composition");
 var compositions = /* @__PURE__ */ new Map();
 var views2 = /* @__PURE__ */ new Map();
-var replyContext = (key) => "reply:" + key;
 var available = (composition) => Boolean(composition) && views2.get(composition.context)?.has(composition) && composition.controls.input.isConnected;
 function adopt(context, composition) {
   const session = compositions.get(context);
@@ -4556,7 +4584,7 @@ function holdReplyCompositions(threads, realize) {
     }
   };
 }
-var threadHoldsDraft = (key, ids) => draftHasContent(replyContext(key)) || ids.some((id) => draftHasContent(editContext(id)));
+var threadHoldsDraft = (key, ids) => draftHasContent(replyContext(key)) || ids.some((id) => draftHasContent(rewriteContext(id)));
 var replyDraftsHold = (retains) => [...compositions].some(
   ([context, session]) => loadDraft(context) !== null && !retains(session.owner?.controls.input)
 );
@@ -4832,10 +4860,9 @@ var ownParts = {
     (control) => control.closest(THREAD) === thread
   ) ?? null
 };
-var threadIdOf = (thread) => thread.dataset.id ?? thread.dataset.thread;
 function* drawingsOf(thread) {
-  const id = threadIdOf(thread);
-  for (let at = thread; at === thread || at && id && threadIdOf(at) === id; at = closestAcross(upFrom(at), THREAD))
+  const id = drawnThreadId(thread);
+  for (let at = thread; at === thread || at && id && drawnThreadId(at) === id; at = closestAcross(upFrom(at), THREAD))
     yield at;
 }
 function wholeThread(thread) {
@@ -4866,10 +4893,7 @@ function focusedThreadTarget() {
   return active?.matches?.(".lf-thread-summary") ? active.closest(".lf-thread") : focusedThread();
 }
 var heldThread = () => closestAcross(focused(), THREAD);
-function heldThreadId() {
-  const thread = heldThread();
-  return (thread && threadIdOf(thread)) ?? null;
-}
+var heldThreadId = () => drawnThreadId(heldThread());
 var pressed = null;
 var release = 0;
 function releasePress() {
@@ -4918,7 +4942,7 @@ function holdThreadPlace(open2, { threadAt, seated }) {
   const destination = replyControlDestination(node);
   const key = destination && replyThreadKey(node);
   const thread = !destination && closestAcross(node, ".lf-page-thread");
-  const id = key ? allThreads().find((each) => threadKey(each) === key)?.id : thread ? thread.dataset.id ?? thread.dataset.thread : threadAt(node);
+  const id = key ? allThreads().find((each) => threadKey(each) === key)?.id : thread ? drawnThreadId(thread) : threadAt(node);
   if (!id) return null;
   const intent = retainUserIntent({ source: node });
   const may = destination ? mayReplyTo(id, intent) : restrictUserIntent(
@@ -5184,7 +5208,7 @@ var holders = /* @__PURE__ */ new Set();
 var showHeld = (id) => everySeat(id, (held, thread) => held.show(thread));
 var showHeldThread = (id) => everySeat(id, (held, thread) => held.showThreads(thread));
 function everySeat(id, show) {
-  const thread = threadNames(allThreads()).get(id)?.id ?? id;
+  const thread = threadIdNamed(id);
   let shown = false;
   for (const held of holders) shown = show(held, thread) || shown;
   return shown;
@@ -5193,7 +5217,7 @@ var standing = null;
 onStanding((node, cause) => {
   if (cause === "drop") return;
   const thread = node && closestAcross(node, THREAD);
-  const id = thread ? thread.dataset.id ?? thread.dataset.thread : null;
+  const id = drawnThreadId(thread);
   const title = thread && threadFocusStop(thread);
   const arrived = id !== null && id !== standing && (cause === "move" || cause === "step" || cause === "press" && title !== thread && node === title);
   standing = id;
@@ -7738,7 +7762,7 @@ function revealHeld(ids) {
 }
 function surfaceFocusTarget(id, { part = "reply" } = {}) {
   if (part === "message") return null;
-  id = threadNames(allThreads()).get(id)?.id ?? id;
+  id = threadIdNamed(id);
   for (const registration of registrations.values()) {
     const thread = [...registration.outlets].map(
       (outlet) => outlet.querySelector(`.lf-page-thread[data-thread="${CSS.escape(id)}"]`)
@@ -8196,6 +8220,8 @@ export {
   whereDraft,
   tellDraft,
   storedDraft,
+  replyContext,
+  threadDraft,
   draftHasContent,
   saveDraft,
   clearDraft,
@@ -8219,6 +8245,7 @@ export {
   declareOffFlowSurface,
   bringBackSurfaceOf,
   THREAD,
+  drawnThreadId,
   SAYS_IN,
   SAY_BOX,
   landingTarget,
@@ -8232,9 +8259,11 @@ export {
   openMessageEditIn,
   threadRewrites,
   workflowLabel,
+  progressFace,
   isWorkflowProgress,
   isPageWidgetWorkflow,
   strongestWorkflow,
+  todoLabel,
   threadAttention,
   DESIGN_MODE_KEY,
   designName,
@@ -8242,6 +8271,8 @@ export {
   holdToRead,
   loadMessageMarkdown,
   messageText,
+  threadName,
+  threadSummary,
   prepareAuthoredMessage,
   messageReading,
   MessageView,
@@ -8271,6 +8302,8 @@ export {
   allThreads,
   readThreads,
   threadList,
+  threadNamed,
+  threadIdNamed,
   replyDraftContext,
   holdReplyCompositions,
   threadHoldsDraft,

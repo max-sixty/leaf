@@ -90,20 +90,33 @@ In this comparison, `format` names which of the two candidates to build:
 ```html
 <lf-ask id="notification-ask">
   <h2>Which deployment notification should we build?</h2>
-  <lf-playground id="notification-playground" submit-label="Create notification"
-    data-width="available">
+  <lf-playground
+    id="notification-playground"
+    submit-label="Create notification"
+    data-width="available"
+  >
     <lf-playground-control name="format" label="Format" kind="choice" value="banner">
       <lf-playground-choice value="banner" label="Banner"></lf-playground-choice>
       <lf-playground-choice
-        value="status strip" label="Status strip"
+        value="status strip"
+        label="Status strip"
       ></lf-playground-choice>
     </lf-playground-control>
     <lf-playground-control
-      name="radius" label="Corner radius" kind="range"
-      value="10" min="0" max="24" step="1" unit="px"
+      name="radius"
+      label="Corner radius"
+      kind="range"
+      value="10"
+      min="0"
+      max="24"
+      step="1"
+      unit="px"
     ></lf-playground-control>
     <lf-playground-control
-      name="compact" label="Compact spacing" kind="toggle" value="false"
+      name="compact"
+      label="Compact spacing"
+      kind="toggle"
+      value="false"
     ></lf-playground-control>
 
     <lf-playground-preset label="Status strip">
@@ -115,10 +128,12 @@ In this comparison, `format` names which of the two candidates to build:
     <lf-playground-preview>
       <section class="notification-candidates" aria-label="Notification candidates">
         <article data-candidate="banner">
-          <h3>Banner</h3><p>Checkout deployed. Review the deployment run.</p>
+          <h3>Banner</h3>
+          <p>Checkout deployed. Review the deployment run.</p>
         </article>
         <article data-candidate="status strip">
-          <h3>Status strip</h3><p>Checkout · deployed · 18 checks passed</p>
+          <h3>Status strip</h3>
+          <p>Checkout · deployed · 18 checks passed</p>
         </article>
       </section>
     </lf-playground-preview>
@@ -138,11 +153,18 @@ on the `lf-playground` as a custom property, `--playground-NAME`, and an attribu
 attribute holds the unquoted text:
 
 ```css
-.notification-candidates > article { border-radius: var(--playground-radius); }
+.notification-candidates > article {
+  border-radius: var(--playground-radius);
+}
 #notification-playground[data-playground-compact="true"]
-  .notification-candidates > article { padding: var(--sp-2); }
+  .notification-candidates
+  > article {
+  padding: var(--sp-2);
+}
 #notification-playground[data-playground-format="status strip"]
-  [data-candidate="status strip"] { outline: 2px solid var(--accent); }
+  [data-candidate="status strip"] {
+  outline: 2px solid var(--accent);
+}
 ```
 
 To study Leaf's own live interface, embed each candidate in an `lf-sample window` inside

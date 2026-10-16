@@ -71,6 +71,20 @@ def headless_shell(**options):
         yield browser
 
 
+@contextmanager
+def headless_firefox():
+    """Playwright's Firefox, for a probe of a Gecko-only difference: some readers use
+    Leaf in Firefox, and the suite and `headless_shell` drive Chromium alone. A host
+    without it gets Playwright's own error, which names the install command. It ends
+    with a plain close: `ending` reads Chromium's process tree over CDP."""
+    with sync_playwright() as playwright:
+        browser = playwright.firefox.launch()
+        try:
+            yield browser
+        finally:
+            browser.close()
+
+
 @cache
 def shell_executable() -> str:
     """The pinned headless shell's executable, which leaf-dev and the suite name as

@@ -97,11 +97,23 @@ A sticky header has a stated height, sticks at `var(--lf-top)`, and adds its hei
 copies the incoming value to a second name:
 
 ```css
-.file { --lf-top-outer: var(--lf-top); }
-.file > .head { position: sticky; top: var(--lf-top); block-size: var(--head-h); }
-.file > .rows { --lf-top: calc(var(--lf-top-outer) + var(--head-h)); }
-.file .row { scroll-margin-top: var(--head-h); }
-.file > .head { --lf-head-inset: var(--head-pad); }
+.file {
+  --lf-top-outer: var(--lf-top);
+}
+.file > .head {
+  position: sticky;
+  top: var(--lf-top);
+  block-size: var(--head-h);
+}
+.file > .rows {
+  --lf-top: calc(var(--lf-top-outer) + var(--head-h));
+}
+.file .row {
+  scroll-margin-top: var(--head-h);
+}
+.file > .head {
+  --lf-head-inset: var(--head-pad);
+}
 ```
 
 The rows' `scroll-margin-top` makes a scroll to a row land below the header; a focused

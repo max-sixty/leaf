@@ -592,7 +592,9 @@ class LeafText extends HTMLElement {
     this.#model = null;
     this.#sizes.observe(this);
     this.#overflow.observe(this);
-    this.#overflow.observe(this.#view.scrollDOM);
+    // The host can keep the same height when a long draft shrinks. Watch the words'
+    // box too: its height changes even when the scroller's viewport does not.
+    this.#overflow.observe(this.#view.contentDOM);
     // The scroller is focusable only so a press on it keeps focus in the editor, and
     // the field's scroller never scrolls; left focusable it is the node the root
     // delegates focus to, which holds no caret.

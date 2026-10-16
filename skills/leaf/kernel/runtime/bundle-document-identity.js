@@ -1121,7 +1121,7 @@ var LeafText = class extends HTMLElement {
     this.#model = null;
     this.#sizes.observe(this);
     this.#overflow.observe(this);
-    this.#overflow.observe(this.#view.scrollDOM);
+    this.#overflow.observe(this.#view.contentDOM);
     this.#view.scrollDOM.removeAttribute("tabindex");
     this.#describe();
     this.#paintEmpty();

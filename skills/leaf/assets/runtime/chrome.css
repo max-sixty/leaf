@@ -147,6 +147,9 @@
   .lf-fp-field .lf-compose-field:has(> leaf-text[data-lf-focus]) {
     outline: none;
   }
+  .lf-fp-box {
+    flex-wrap: wrap;
+  }
   .lf-fp-resolved {
     flex: 1;
     margin: 0;

@@ -1203,7 +1203,9 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
       ta.readOnly = true;
       ta.setAttribute("aria-busy", "true");
       refresh();
-      notice(images.length === 1 ? "Adding image\u2026" : `Adding ${images.length} images\u2026`);
+      announce(
+        images.length === 1 ? "Adding image\u2026" : `Adding ${images.length} images\u2026`
+      );
       const attachedAt = arrivals;
       try {
         const paths = await Promise.all(images.map((image) => uploadMedia2(image)));
@@ -1215,7 +1217,7 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
         attachedMedia.push(...paths);
         renderMedia();
         draftChanged();
-        notice(images.length === 1 ? "Image added" : `${images.length} images added`);
+        announce(images.length === 1 ? "Image added" : `${images.length} images added`);
         return true;
       } catch (error) {
         notice(`Could not add image \u2014 ${error?.message ?? error}`);
@@ -8492,7 +8494,8 @@ function createFloatingPanel({
           query = "";
           paint();
         },
-        (name2) => name2 === "unread" ? news : null
+        // Open counts what the thread mark counts, so the mark's number is found here.
+        (name2) => name2 === "unread" ? news : name2 === "open" ? openCount() : null
       )}<button
           type="button"
           class="lf-fp-icon-btn"

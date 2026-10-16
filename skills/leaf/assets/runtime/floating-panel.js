@@ -1820,7 +1820,8 @@ export function createFloatingPanel({
             query = "";
             paint();
           },
-          (name) => (name === "unread" ? news : null),
+          // Open counts what the thread mark counts, so the mark's number is found here.
+          (name) => (name === "unread" ? news : name === "open" ? openCount() : null),
         )}<button
           type="button"
           class="lf-fp-icon-btn"

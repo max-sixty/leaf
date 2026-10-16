@@ -1,4 +1,10 @@
-"""Page initialization and atomic layer vendoring."""
+"""Page initialization and atomic layer vendoring.
+
+Re-vendoring refreshes an active revision from valid source with its newly composed
+layer before returning, so deliveries use that layer's captured handling without
+needing a browser or state read first. Invalid source keeps its last good revision
+and reports its check errors. A page with no active revision stays unactivated.
+"""
 
 from __future__ import annotations
 
@@ -202,6 +208,8 @@ def _init_page(
     """Start or re-vendor the page under its lock and its service's restart, and
     return what keeps a re-vendored index.html from activating; a re-vendor `still`
     no longer wants under the transaction commits nothing."""
+    from .revisioning import activate_checked_source
+
     # The restart around this took the server down, but the page lock came after
     # it, and a start can land in between.
     if lock_is_held(page_dir / SERVER_LOCK):
@@ -227,11 +235,10 @@ def _init_page(
         if not plan.changed:
             return []
         _commit_layer(page_dir, plan)
-        events = page.events
-    # The re-vendored layer is in place, but the page shows it only once index.html
-    # activates, which runs the same check `page check` does. Say now what would
-    # hold it back, rather than leave the next read to refuse it unseen.
-    return check_source(page_dir, events).errors
+        checked = check_source(page_dir, page.events)
+        if checked.revision.active:
+            activate_checked_source(page, checked)
+        return checked.errors
 
 
 class _PagePlan(NamedTuple):

@@ -17,7 +17,7 @@ from interact_support import (
     _observer,
     append_carried_log_record,
     append_command,
-    command_refusal,
+    command_findings,
     delivered_ref,
     delivery_through,
     last_deliverable_seq,
@@ -511,7 +511,7 @@ def test_response_api_records_failure_without_reopening_thread(page_dir):
     )
     # An answer to the same reference is not a retry of the receipt: it is refused
     # as an answer to a settled input rather than handed the receipt back.
-    answered = command_refusal(
+    [answered] = command_findings(
         "response", "reply", reference, "--done", "--text", "Here it is."
     )
     assert answered.code == "superseded-reply"

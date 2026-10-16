@@ -86,7 +86,7 @@ import { readQueues, queueItemKey } from "./queue-api.js";
 import { askHolding, declareSide } from "./standing-target.js";
 import { anchorLabel } from "./thread/messages.js";
 import { queueTitle } from "./queue-title.js";
-import { threadSummary } from "./thread/model.js";
+import { lastMovedAt } from "./thread/model.js";
 import { workflowLabel } from "./thread/workflow.js";
 import { walkPositionLabel } from "./walk-position.js";
 
@@ -180,7 +180,7 @@ export function createQueuePanel({
   const wherePart = (text, feedback = null) => ({ text, feedback });
   function when(item, thread) {
     if (itemNoun(item) === "ask")
-      return [wherePart(thread && shortAgo(threadSummary(thread).latest))];
+      return [wherePart(thread && shortAgo(lastMovedAt(thread)))];
     // Agent-authored detail has its own span and exact input identity. A generic
     // stage or a to-do title is never evidence of visible agent words.
     const feedback =

@@ -27,7 +27,7 @@ from interact_support import (
     add_test_widget,
     append_carried_log_record,
     case_alias,
-    command_refusal,
+    command_findings,
     element_declaration,
     fetch,
     install_payload,
@@ -504,8 +504,12 @@ def test_a_layer_stamped_with_its_revision_still_names_the_revendor(page_dir):
         check=False,
     )
     assert checked.returncode != 0
-    assert "x-work" in words(checked.stdout)
-    assert f"leaf page init {page_dir}" in words(checked.stdout)
+    [refused] = json.loads(checked.stdout)["findings"]
+    assert (refused["code"], refused["values"]["missing"]) == (
+        "keys-documentation",
+        ["x-work"],
+    )
+    assert refused["values"]["revendor"] == str(page_dir)
 
 
 def test_the_skill_routes_every_reference_it_ships():
@@ -729,7 +733,7 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
 
     # A refused title refuses the whole command, so no message goes up unnamed.
     before = events_model.read_events(page_dir)
-    unnamed = command_refusal(
+    [unnamed] = command_findings(
         "thread", "open", page_dir, "--text", "and the cache?", "--title", ""
     )
     assert (unnamed.code, unnamed.values["kind"]) == ("invalid-event", "comment")
@@ -745,7 +749,7 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
             "thread_title",
         ),
     ):
-        refused = command_refusal(*command)
+        [refused] = command_findings(*command)
         assert (refused.code, refused.values["kind"]) == (
             "invalid-event",
             rejected_kind,
@@ -3338,7 +3342,7 @@ def test_init_refuses_invalid_ids_in_a_registry_example(
     registry["lf-toned-note"]["x-example"] = example
     registry_path.write_text(json.dumps(registry))
 
-    refused = command_refusal(
+    [refused] = command_findings(
         "page", "init", "--package", "./.leaf", str(tmp_path / "page")
     )
 
@@ -4095,7 +4099,7 @@ def test_package_init_widget_checks_its_candidate_before_writing(tmp_path, monke
         packages_model, "starter_element_declaration", lambda tag: declaration
     )
 
-    refused = command_refusal(
+    [refused] = command_findings(
         "package", "init", str(package), "--widget", "lf-risk-note"
     )
 

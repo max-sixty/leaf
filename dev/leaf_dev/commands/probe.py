@@ -25,7 +25,14 @@ from playwright.sync_api import Error as PlaywrightError
 
 from leaf_dev import ROOT
 from leaf_dev.arms import base_ref, build_arm, serving_source
-from leaf_dev.browser import DESKTOP, headless_shell, load, settle, tab
+from leaf_dev.browser import (
+    DESKTOP,
+    headless_firefox,
+    headless_shell,
+    load,
+    settle,
+    tab,
+)
 from leaf_dev.commands.stills import DRIVERS
 from leaf_dev.example_data import named_source
 from leaf_dev.recording import recording
@@ -138,6 +145,11 @@ def viewport(value: str) -> tuple[int, int]:
     help="Show the page under a finger: a coarse pointer and a mobile viewport.",
 )
 @click.option(
+    "--firefox",
+    is_flag=True,
+    help="Run in Playwright's Firefox rather than the Chromium shell.",
+)
+@click.option(
     "--base",
     is_flag=False,
     flag_value="",
@@ -158,9 +170,11 @@ def probe(
     size,
     scheme,
     touch,
+    firefox,
     base,
 ) -> None:
-    """Open SOURCE in Chrome, run each --do step, and print what --js returns.
+    """Open SOURCE in Chrome, or Firefox with --firefox, run each --do step, and
+    print what --js returns.
 
     SOURCE is an example or fixture name, an authored .html path built fresh
     from this working tree, or any http(s) URL. Each --do step is one input:
@@ -224,7 +238,7 @@ def probe(
         if base is not None:
             commit = build_arm(base_ref(base), scratch / "base-arm")
             arms = {"base": (commit, scratch / "base-arm"), **arms}
-        with headless_shell() as browser:
+        with headless_firefox() if firefox else headless_shell() as browser:
             for arm, (ran, arm_dir) in arms.items():
                 reading, doing = {}, "build"
                 try:

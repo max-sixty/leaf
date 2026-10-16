@@ -89,7 +89,7 @@ declare:
 {
   "value": "move",
   "answered": {
-    "move": {"empty": {"within": "lf-queue-column", "when": {"queued": [true]}}}
+    "move": { "empty": { "within": "lf-queue-column", "when": { "queued": [true] } } }
   }
 }
 ```

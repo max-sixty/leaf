@@ -28,7 +28,6 @@ import {
   releaseFocus,
   renderedParent,
   renderedUnder,
-  sampleVisibility,
   shadowHost,
   sizeObserver,
   takesLetters,
@@ -2397,25 +2396,8 @@ function frameView(frame2, within) {
     bottom: y2(shown.bottom)
   };
 }
-var FRAME_VIEW = /* @__PURE__ */ Symbol.for("leaf.frameView");
-Object.defineProperty(document, FRAME_VIEW, {
-  value: (frame2) => {
-    const within = presented(frame2) && containingView();
-    return within ? frameView(frame2, within) : null;
-  }
-});
-var holdingFrame = () => sampleVisibility() ? null : window.frameElement;
-function containingView() {
-  const frame2 = holdingFrame();
-  if (!frame2) return window === window.top ? layoutWindow() : null;
-  return frame2.ownerDocument[FRAME_VIEW]?.(frame2) ?? null;
-}
 var ROOM_MOVED = "lf-room-moved";
 var announceRoom = (target) => target.dispatchEvent(new Event(ROOM_MOVED, { bubbles: true, composed: true }));
-var WATCH_ROOM = /* @__PURE__ */ Symbol.for("leaf.watchRoom");
-Object.defineProperty(document, WATCH_ROOM, {
-  value: (callback) => watchRoom(callback)
-});
 function watchRoom(callback) {
   const viewport = window.visualViewport;
   const listening = [
@@ -2434,25 +2416,6 @@ function watchRoom(callback) {
         target.removeEventListener(type, callback, capture);
     }
   ];
-  const frame2 = holdingFrame();
-  const holder = frame2?.ownerDocument[WATCH_ROOM];
-  if (holder) {
-    const moves = new frame2.ownerDocument.defaultView.IntersectionObserver(callback, {
-      threshold: [0, 1]
-    });
-    moves.observe(frame2);
-    const unhold = holder(callback);
-    const leave = (event) => {
-      if (!event.persisted) stopHolding();
-    };
-    const stopHolding = () => {
-      moves.disconnect();
-      unhold();
-      window.removeEventListener("pagehide", leave);
-    };
-    window.addEventListener("pagehide", leave);
-    stops.push(stopHolding);
-  }
   return () => {
     for (const stop of stops) stop();
   };
@@ -3513,7 +3476,6 @@ export {
   seenRect,
   presented,
   frameView,
-  containingView,
   announceRoom,
   watchRoom,
   growthIsSeen,

@@ -854,3 +854,47 @@ def test_distant_margin_coordinates_follow_small_moves_without_restatement(
     for _ in range(3):
         page.evaluate("window.dispatchEvent(new Event('resize'))")
         rendered(page)
+
+
+@pytest.mark.parametrize(
+    "pane",
+    ['style="height:160px;overflow:auto"', 'data-bound="start" style="height:160px"'],
+    ids=["box", "reading-region"],
+)
+def test_a_quoted_passage_scrolled_out_of_its_pane_withholds_its_row(
+    browser, serve, pane
+):
+    """A passage's row is about its words, so where a pane shows its paragraph but has
+    scrolled the quoted words out of view, the row is withheld rather than standing
+    beside other words, and it comes back when the pane brings the words in."""
+    text = " ".join(
+        f"Sentence number {i} says something about the release." for i in range(40)
+    )
+    body = (
+        f'<h1>Pane</h1><div id="pane" {pane}>'
+        f'<p id="long">{text} Finally the last words land.</p></div>'
+    )
+    events = [
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "On its end",
+            "anchor": {"section": "long", "quote": "the last words land"},
+        }
+    ]
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    page = open_page(
+        browser, serve(leaf_page("Pane", body), events=events), context=context
+    )
+    margins_laid_out(page)
+    row = page.locator('[data-lf-margin-for="long"]')
+    expect(row).to_have_class(re.compile(r"\blf-withheld\b"))
+    page.locator("#pane").evaluate("pane => { pane.scrollTop = pane.scrollHeight; }")
+    margins_laid_out(page)
+    expect(row).not_to_have_class(re.compile(r"\blf-withheld\b"))
+    # Scrolling alone, with no layout announced, takes the words away again, within a
+    # frame or two rather than at some later pass.
+    page.locator("#pane").evaluate("pane => { pane.scrollTop = 0; }")
+    expect(row).to_have_class(re.compile(r"\blf-withheld\b"), timeout=2000)
+    context.close()

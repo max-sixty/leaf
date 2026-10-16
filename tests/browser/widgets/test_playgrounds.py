@@ -314,7 +314,7 @@ def test_playground_keeps_contributor_drafts_until_reset_or_a_new_choice(
         {
             "code": "words-left-screen",
             "words": "unsent-region",
-            "place": "input#region-filter",
+            "place": ["input#region-filter"],
         },
     )
     page.evaluate("""() => lfUnwatched(() => {
@@ -363,7 +363,7 @@ def test_playground_keeps_contributor_drafts_until_reset_or_a_new_choice(
         {
             "code": "words-left-screen",
             "words": "refused-region",
-            "place": "input#region-filter",
+            "place": ["input#region-filter"],
         },
     )
     page.unroute("**/api/event")

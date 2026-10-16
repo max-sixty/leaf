@@ -183,18 +183,20 @@ turns is the to-do itself (`todos.py`), which no turn or session ending lapses.
 
 ### Turns and generations
 
-The turn id and `turn_closed` stamp a declaration is judged against are the
-session's rather than the page's: prompts and endings publish one atomic session
-record. Page claims reference its generation and derive the current turn; no opening
-or ending rewrites claims. Each acquisition has its own unique ID, so rollback
-compares claim publication rather than derived lifecycle fields or second-resolution
-timestamps. The first observed harness lifetime may enrich an unknown prompt-created
-lifetime; replacing known provenance starts a generation. SessionEnd ends a
-process-backed generation without page discovery or page locks; a resumed
-process-backed harness ID gets a new generation, leaving old claims inactive. Desktop
-Codex unloading closes its instance observations and retains the chat generation, so
-resuming that chat retains its page ownership. The native chat source keeps every
-page it owns alive, independently of browser attention.
+The turn id and `turn_closed` stamp a declaration is judged against are the session's
+rather than the page's: prompts and endings publish one atomic session record. Page
+claims reference its generation and derive the current turn; no opening or ending
+rewrites claims. Each acquisition has its own unique ID, so rollback compares claim
+publication rather than derived lifecycle fields or second-resolution timestamps. The
+first observed harness lifetime may enrich an unknown prompt-created lifetime; replacing
+known provenance starts a generation. SessionEnd ends a process-backed generation
+without page discovery or page locks; a resumed process-backed harness ID gets a new
+generation, leaving old claims inactive. Where the lifetime outlives the instance, a
+desktop Codex chat's native source or a Claude Code background job's record (its daemon
+retires the job's worker between sittings), SessionEnd closes the instance's
+observations and retains the generation, so resuming the chat or job retains its page
+ownership. That source or record keeps every page it owns alive, independently of
+browser attention.
 
 Where nothing answers for the declaration, activity reports the page unheld rather
 than repeating it. A page with a persistent service spends most of its life unheld,
@@ -280,8 +282,8 @@ PostToolUse and Interrupt, and Leaf's Pi extension (`hooks/pi.ts`) calls it at t
 accepted run boundaries. An unwatched page is one whose watcher is a process of its
 own; Claude Code's watch is its next Stop hook. The hook also stamps that turn's
 ending and the next one's opening, surfaces unacknowledged user events at the next
-prompt, ends process-backed ownership when the session exits, and retains desktop
-chat ownership when its instance unloads.
+prompt, ends process-backed ownership when the session exits, and retains a
+desktop chat's or background job's ownership when its instance ends.
 
 The Stop hook continues a turn only for what the turn owes. It keeps a turn going
 through the harness's continuation channel (`Harness.hook_context`): the non-error
@@ -357,15 +359,15 @@ with no retained page avoids the delivery and page-reading stacks.
 
 SessionEnd calls the launcher's `session-end` entry, which runs its standalone stdlib
 state owner directly. That program supports Python 3.9 and publishes the session
-transition: process-backed generations end, while desktop chat generations retain
-ownership and close their instance observations. It needs no page discovery, page
-locks or claim rewrites, including for claims made by another checkout when this
-plugin has no uv environment. Managed Leaf delegates SessionEnd to the same owner.
-Registrations retain stderr and return nonblocking exit 1 when the application cannot
-answer, including when uv uses exit 2 for its own startup failure. The harness owns
-their deadlines. `hooks/scripts/background-watch.py` supervises the background watch,
-calling the launcher and converting its successful result into Claude Code's exit-2
-wake.
+transition: process-backed generations end, while desktop chat and background job
+generations retain ownership and close their instance observations. It needs no page
+discovery, page locks or claim rewrites, including for claims made by another checkout
+when this plugin has no uv environment. Managed Leaf delegates SessionEnd to the same
+owner. Registrations retain stderr and return nonblocking exit 1 when the application
+cannot answer, including when uv uses exit 2 for its own startup failure. The harness
+owns their deadlines. `hooks/scripts/background-watch.py` supervises the background
+watch, calling the launcher and converting its successful result into Claude Code's
+exit-2 wake.
 
 Only a page handed to a user owes a watcher, so the unwatched clause passes over a
 page carrying `preview.json`, which only a checkout's `leaf-dev preview` writes;

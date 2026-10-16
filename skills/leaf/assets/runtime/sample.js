@@ -44,7 +44,7 @@ import { requestJson } from "./layer-client.js";
 import { pageUrl, runtime } from "./context.js";
 import { dressFor, registerSampleDress } from "./dress.js";
 import { widgetDescriptor } from "./widget-descriptors.js";
-import { containingView, frameView, presented, watchRoom } from "./geometry.js";
+import { frameView, layoutWindow, presented, watchRoom } from "./geometry.js";
 import {
   sampleVisibility,
   onSampleVisibility,
@@ -195,7 +195,7 @@ export function mountSample(
     try {
       const outer = await readSampleVisibility();
       if (channel !== port) return;
-      const within = outer ? outer.visible && outer : containingView();
+      const within = outer ? outer.visible && outer : layoutWindow();
       const view = admitted() && within && frameView(frame, within);
       port.postMessage({
         type: "visibility-reading",

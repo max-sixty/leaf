@@ -1559,11 +1559,12 @@ def test_a_comment_inside_a_widget_stays_out_of_what_the_widget_reads(
         )
     ).to_have_count(1)
     expect_comment_notes(page, "#draft-ops", 1)
-    # The thread's margin row stands at the same seat as its note: the widget, not the
-    # paragraph its Markdown body renders.
-    expect(page.locator("[data-lf-margin-for]")).to_have_attribute(
-        "data-lf-margin-for", "draft-ops"
-    )
+    # The thread's margin row, which stands by the passage it quotes, has the same seat
+    # as its note: the widget, not the paragraph its Markdown body renders.
+    expect(page.locator("[data-lf-margin-for]")).to_have_count(2)
+    expect(
+        page.locator("[data-lf-margin-for]:not([data-lf-margin-for=draft-ops])")
+    ).to_have_count(0)
     page.locator("#draft-ops .lf-draft-body").dblclick()
     assert (
         page.locator("#draft-ops leaf-text").evaluate("el => el.value") == DRAFT_TEXT
@@ -4216,6 +4217,10 @@ def test_comment_follows_a_thread_standing_instead_of_an_earlier_draft(
     Resume returns its words and caret before Comment answers the standing thread.
     """
     page = open_page(browser, serve(LONG_PAGE, anchored=[("p41", "Paragraph 41.")]))
+    # Slow the browser to expose Resume writing interrupting native smooth travel.
+    page.context.new_cdp_session(page).send(
+        "Emulation.setCPUThrottlingRate", {"rate": 6}
+    )
     thread = page.locator(".lf-margin-preview .lf-page-thread")
     if existing_reply:
         page.keyboard.press("t")
@@ -4247,6 +4252,7 @@ def test_comment_follows_a_thread_standing_instead_of_an_earlier_draft(
     page.keyboard.press("g")
     page.keyboard.press("i")
     expect(earlier).to_be_focused()
+    scroll_settled(page)
     expect(earlier).to_be_in_viewport()
     expect(page.locator("#p3")).to_be_in_viewport()
     expect(earlier).to_have_js_property("value", words)
@@ -4457,7 +4463,7 @@ def test_reply_editing_and_saved_words_have_separate_resolution_lifetimes(
         # Escape itself, active settlement, and every other field remain strict.
         errors = consume_browser_errors(
             page,
-            {"code": "words-left-screen", "words": words, "place": "leaf-text.lf-ui"},
+            {"code": "words-left-screen", "words": words, "place": ["leaf-text.lf-ui"]},
         )
         assert len(errors) == 1
 
@@ -6046,13 +6052,6 @@ def test_executable_revision_preserves_each_editor_identity(browser, serve, kind
     if kind == "authored":
         after["scroll"] = editor.evaluate("el=>el.scrollTop")
     assert after == before
-
-
-def editing_mirror_source(mode):
-    return editing_revision_source(mode).replace(
-        "</main>",
-        '<lf-thread-mirror id="first"></lf-thread-mirror><lf-thread-mirror id="second"></lf-thread-mirror></main>',
-    )
 
 
 def editing_reply_page(browser, serve, context=None):

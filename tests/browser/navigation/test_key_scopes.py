@@ -2067,10 +2067,10 @@ def test_native_layer_transitions_change_state_without_rewriting_reflected_attri
     }""")
     page.evaluate("() => guard([popover], () => popover.showPopover())")
     failures = consume_browser_errors(page, {"code": "unchanged-write"})
-    assert {(error.values["what"], error.values["node"]) for error in failures} == {
+    assert {(error.values["what"], *error.values["node"]) for error in failures} == {
         ("open", "dialog#native-transition-probe"),
         ("inert", "dialog#native-transition-probe"),
-        ("inert", "dialog#shadow-modal in shadow of div#shadow-host"),
+        ("inert", "dialog#shadow-modal", "#shadow-root", "div#shadow-host"),
         ("inert", "html"),
         ("inert", "div#unrelated"),
         ("inert", "div#native-popover"),

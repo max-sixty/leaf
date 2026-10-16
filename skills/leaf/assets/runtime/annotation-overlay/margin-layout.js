@@ -86,8 +86,8 @@ import {
   rowPosture,
   seatRows,
 } from "./margin-placement.js";
-import { clippingAxes, overlaps } from "../rect.js";
-import { pointBand } from "../pointed-place.js";
+import { clamp, clippingAxes, overlaps, union } from "../rect.js";
+import { passageBoxes, targetRange, targetSegments } from "../resolved-target.js";
 import { residencyStarted } from "../content-layout.js";
 import { keeps, layoutPx } from "../keeps.js";
 import { move } from "../dom-move.js";
@@ -315,17 +315,19 @@ function restingRail() {
 }
 
 // Where across the page the margin row for a comment on `target` stands, at `point`
-// inside it if a pointing gesture named one (pointed-place.js): the row standing there
+// inside it if a pointing gesture named one (pointed-place.js), or by the `passage` it
+// quotes (a range), each of which stands a row of its own: the row standing there
 // now where one is shown, else where a rail row would stand at rest, `--rail-hang` off
 // `main`'s edge and one entry wide, and nothing where the rail does not stand beside
 // `target`, whose rows are pins placed as they come. comment-placement.js keeps this
 // row clear when the full preferred message width fits beyond it; otherwise the
 // message takes priority over marker clearance.
-export function marginSpot(target, point = null) {
+export function marginSpot(target, point = null, passage = null) {
   for (const [row, options] of rows)
     if (
       options.anchor?.() === target &&
       (options.point?.() ?? null) === point &&
+      samePassage(options.passage?.() ?? null, passage) &&
       row.checkVisibility()
     ) {
       const { left, right } = row.getBoundingClientRect();
@@ -339,6 +341,26 @@ export function marginSpot(target, point = null) {
     ) || 0;
   const left = main.getBoundingClientRect().right + hang;
   return { left, right: left + restingRail().row };
+}
+
+// The boxes of the words a row's comments quote, where it stands by a passage rather
+// than a pointed row (none otherwise): the subject both the layout pass and a scroll's
+// reading of visibility measure.
+function quotedBoxes(options) {
+  if (options.point?.()) return [];
+  return passageBoxes(options.passage?.() ?? null);
+}
+
+// Whether a row's passage (a resolved anchor, or none) is the range `words` (or none).
+function samePassage(passage, words) {
+  const range = passage && targetRange(passage);
+  if (!range || !words) return !passage && !words;
+  return (
+    range.startContainer === words.startContainer &&
+    range.startOffset === words.startOffset &&
+    range.endContainer === words.endContainer &&
+    range.endOffset === words.endOffset
+  );
 }
 
 // Said on the chrome root where the margin's residency is decided: where the markers are
@@ -723,6 +745,55 @@ function standFolded(row, fold, on) {
   fold?.changed();
 }
 
+// The seats by one subject, in the order a pin takes them, `size` wide and as tall as
+// `home`, the pin's seat inside the subject's top-right corner; `parts` are the
+// subject's boxes, and `inline` whether it is a run of words, which adds the seat after
+// its last word.
+function seatsBy(parts, home, inline, cover, size) {
+  const height = home.bottom - home.top;
+  const box = union(parts) ?? home;
+  const end = parts.at(-1);
+  // Below the corner only where the row under the subject is empty from its left edge
+  // to the corner: beside the next block's words, a pin reads as that block's.
+  // Measured from the subject's own foot, not its home's: a subject shorter than a pin
+  // would otherwise skip the block below it.
+  const under = {
+    left: Math.min(home.left, box.left),
+    right: home.right,
+    top: box.bottom + GAP,
+    bottom: box.bottom + GAP + height,
+  };
+  const belowClear = !cover.some((box) => overlaps(box, under));
+  return [
+    {
+      left: box.right + GAP,
+      right: box.right + GAP + size,
+      top: box.top,
+      bottom: box.top + height,
+    },
+    ...(inline && end
+      ? [
+          {
+            left: end.right + GAP,
+            right: end.right + GAP + size,
+            top: end.top,
+            bottom: end.top + height,
+          },
+        ]
+      : []),
+    { ...home, left: home.right - size },
+    // Above the corner: a block's inside it, a run of words' hanging off it, so the
+    // pin's pointed foot meets the words' top-right corner rather than their middle.
+    {
+      left: inline ? box.right : home.right - size,
+      right: inline ? box.right + size : home.right,
+      top: box.top - GAP - height,
+      bottom: box.top - GAP,
+    },
+    ...(belowClear ? [{ ...under, left: home.right - size }] : []),
+  ];
+}
+
 // Prepares every pin's seats and what they must keep off, then supplies its posture
 // solver to the shared seating order. Each pin avoids the final rows and held labels
 // already placed, and writes its final seat into the entry's rect. The walk crosses the
@@ -730,15 +801,19 @@ function standFolded(row, fold, on) {
 // the document's do.
 //
 // A pin's seats, in the order it takes them, all touch its target (`seatRows`): just
-// outside the target's top-right corner; for a run of text, just after its last word,
-// where a reader finishes it; just inside the corner, on the target itself, or further
-// down its right edge; then just above that inside seat, which keeps the inset from the
-// window's edge, so a target as wide as the window still has room above it; and last
+// outside the target's top-right corner; for a run of text or a quoted passage, whose
+// corner is its own words' rather than the block's, just after its last word, where a
+// reader finishes it; just inside the corner, on the target itself, or further down its
+// right edge; then just above that inside seat, which keeps the inset from the
+// window's edge, so a target as wide as the window still has room above it (a run of
+// words' hangs off its top-right corner instead, where the pin's pointed foot meets
+// it); and last
 // just below its bottom-right corner, at the same inset, where nothing stands level
 // with it under the target. Above and below come last because a pin there can read as
 // the neighbouring block's, and above stands outside what a pane shows when the pane is
 // scrolled to its target. Below is the one seat clear beside a full-width figure or
-// keypad that sits right under a paragraph.
+// keypad that sits right under a paragraph. A quoted passage's pin then tries the same
+// seats by the block holding it, so it covers words only where the block's do too.
 //
 // A row that can fold (its `fold.able()`, margin-projection.js) is seated at both sizes,
 // which are worked out rather than read, since only the one it stands at is drawn:
@@ -760,7 +835,7 @@ function pinSeating(rows, { bands, shell, pinInset }) {
       standFolded(read.row, read.options.fold, false);
       continue;
     }
-    const { target, point, row } = read;
+    const { target, point, words, row } = read;
     const home = entry.rect;
     const height = home.bottom - home.top;
     const width = home.right - home.left;
@@ -776,17 +851,25 @@ function pinSeating(rows, { bands, shell, pinInset }) {
     // A pin level with a pointed row keeps to that row, as a pin keeps to its target;
     // the row's boxes are read wherever it is drawn, a widget's shadow tree included,
     // since the walk below reads the room around the target, which is the document's.
-    const parts = partsOf(point ?? target);
-    const box = parts.length
-      ? {
-          right: Math.max(...parts.map((part) => part.right)),
-          top: Math.min(...parts.map((part) => part.top)),
-        }
-      : { right: home.right, top: home.top };
+    const parts = words ?? partsOf(point ?? target);
+    // A passage's pin falls back to its block's own seats, which cover nothing more
+    // often than the words' do, before it stands over words: the passage's highlight
+    // already says which words it is about.
+    const blockParts = words && read.block ? partsOf(target) : [];
+    const block = blockParts.length > 0 && {
+      parts: blockParts,
+      home: {
+        left: read.block.right - pinInset - width,
+        right: read.block.right - pinInset,
+        top: read.block.top,
+        bottom: read.block.top + height,
+      },
+    };
+    const spans = [home, ...parts, ...(block ? [block.home, ...block.parts] : [])];
     const around = height + GAP;
     const band = {
-      top: Math.min(home.top, box.top) - around,
-      bottom: Math.max(home.bottom, ...parts.map((part) => part.bottom)) + around,
+      top: Math.min(...spans.map((box) => box.top)) - around,
+      bottom: Math.max(...spans.map((box) => box.bottom)) + around,
     };
     // Only what scrolls with the pin is read: in a pane, the pane's own content. The pane's
     // header, standing still above it, would enter the band as the pane scrolled the
@@ -801,50 +884,24 @@ function pinSeating(rows, { bands, shell, pinInset }) {
     );
     const end = parts.at(-1);
     const inline =
-      !point &&
-      end &&
-      target instanceof HTMLElement &&
-      getComputedStyle(target).display.startsWith("inline");
+      Boolean(words) ||
+      (!point &&
+        end &&
+        target instanceof HTMLElement &&
+        getComputedStyle(target).display.startsWith("inline"));
     const floor = Math.max(home.bottom, ...parts.map((part) => part.bottom));
-    // Below the corner only where the row under the target is empty from its left edge
-    // to the corner: beside the next block's words, a pin reads as that block's.
-    // Measured from the target's own foot, not `floor`, which reaches the foot of the
-    // pin's home: a target shorter than a pin would otherwise skip the block below it.
-    const foot = parts.length
-      ? Math.max(...parts.map((part) => part.bottom))
-      : home.bottom;
-    const under = {
-      left: Math.min(home.left, ...parts.map((part) => part.left)),
-      right: home.right,
-      top: foot + GAP,
-      bottom: foot + GAP + height,
-    };
-    const belowClear = !cover.some((box) => overlaps(box, under));
+    // Only those wholly within half the scroller's height of the words, so the pin is on
+    // screen whenever its words stand mid-screen, though they are deep in a long
+    // paragraph or pane.
+    const reach = (stop === pageScroller ? innerHeight : stop.clientHeight) / 2;
+    const near = (seat) =>
+      seat.top >= Math.min(...parts.map((part) => part.top)) - reach &&
+      seat.bottom <= Math.max(...parts.map((part) => part.bottom)) + reach;
     const seatsAt = (size) => [
-      {
-        left: box.right + GAP,
-        right: box.right + GAP + size,
-        top: box.top,
-        bottom: box.top + height,
-      },
-      ...(inline
-        ? [
-            {
-              left: end.right + GAP,
-              right: end.right + GAP + size,
-              top: end.top,
-              bottom: end.top + height,
-            },
-          ]
+      ...seatsBy(parts, home, inline, cover, size),
+      ...(block
+        ? seatsBy(block.parts, block.home, false, cover, size).filter(near)
         : []),
-      { ...home, left: home.right - size },
-      {
-        left: home.right - size,
-        right: home.right,
-        top: box.top - GAP - height,
-        bottom: box.top - GAP,
-      },
-      ...(belowClear ? [{ ...under, left: home.right - size }] : []),
     ];
     /** @type {{left?: number, right?: number, top: number, bottom?: number}} */
     const within = stop === pageScroller ? rootBounds : contentBox(stop);
@@ -859,7 +916,9 @@ function pinSeating(rows, { bands, shell, pinInset }) {
       seats: seatsAt(wide),
       corner: inline ? 2 : 1,
       floor,
-      cover,
+      // A passage's own words count twice, so a pin with no clear seat covers its
+      // neighbours' words before the ones it is about.
+      cover: words ? [...cover, ...words] : cover,
       controls,
       folds: fold && { seats: seatsAt(across(1)), open: across(fold.controls()) },
       folded: folded.has(row),
@@ -953,12 +1012,13 @@ function setStyle(row, property, value) {
 // line counts, since a row standing above a pane's top would be clipped by its lane and
 // still take the keyboard, and for a pin its right edge too: a card half past a board's
 // edge would stand its pin outside the board, beside nothing and past the page. A pin not
-// yet seated passes `stands` null, and is asked again once it is.
+// yet seated passes `stands` null, and is asked again once it is. `extent` is what shows
+// of the target, or of the passage a row quotes, and none where its scrollers show none.
 function targetShown(target, extent, stands, bands) {
   const shown = (part) =>
     part.checkVisibility() && clippedBand(part, part.getBoundingClientRect(), bands);
   if (!visibleTargetParts(target).some(shown)) return false;
-  if (!clippedBand(target, extent, bands)) return false;
+  if (!extent || !clippedBand(target, extent, bands)) return false;
   if (!stands) return true;
   const view = clippedBand(target, EVERYWHERE, bands);
   return (
@@ -1010,18 +1070,19 @@ function scheduleScrollReading() {
         boxes.every((box) => box === pageScroller)
       )
         continue;
-      const extent = shownExtent(target);
+      const whole = shownExtent(target);
+      const words = quotedBoxes(options);
       // The row's own box is not read: a carried row's box is read a frame late
       // after a scroll, which is not where it is painted.
       const by = standsBy.get(row);
       const stands =
-        row.classList.contains("lf-withheld") || !extent || !by
+        row.classList.contains("lf-withheld") || !whole || !by
           ? null
           : row.dataset.lfPlace === "pin"
-            ? { top: extent.top + by.top, right: extent.right + by.right }
-            : { top: extent.top + by.top };
+            ? { top: whole.top + by.top, right: whole.right + by.right }
+            : { top: whole.top + by.top };
       if (
-        targetShown(target, extent, stands, bands) ===
+        targetShown(target, words.length ? union(words) : whole, stands, bands) ===
         row.classList.contains("lf-withheld")
       ) {
         scheduleMarginLayout();
@@ -1119,17 +1180,29 @@ export function layoutMarginRows() {
     const anchor = targetBox(target);
     anchors.set(row, anchor);
     // Level with the row a gesture pointed into, where the row's comment has one
-    // (pointed-place.js); otherwise level with the target's top.
+    // (pointed-place.js), or with the first line of the passage its comments quote;
+    // otherwise level with the target's top.
     const point = options.point?.() ?? null;
+    const words = quotedBoxes(options);
     observeGeometry(point ?? target);
-    present.push({ row, at: point ?? target });
+    present.push({
+      row,
+      at: point ?? targetSegments(options.passage?.())[0]?.node ?? target,
+    });
     const scroller = scrollerFor(target);
     const rootLane = scroller === pageScroller;
     const box = anchor.getBoundingClientRect();
     const whole = shownExtent(target);
-    const extent = whole && clippedBand(target, whole, bands, scroller);
-    const top = extent && point ? pointBand(extent, point).top : extent?.top;
-    const level = point ? top : box.top;
+    // A passage's row is about its words, so it stands within what shows of them and
+    // is withheld once they are scrolled away, though the rest of the target shows.
+    const block = whole && clippedBand(target, whole, bands, scroller);
+    const extent = words.length
+      ? whole && clippedBand(target, union(words), bands, scroller)
+      : block;
+    const line = point?.getBoundingClientRect() ?? words[0];
+    const top =
+      extent && line ? clamp(line.top, extent.top, extent.bottom) : extent?.top;
+    const level = line ? top : box.top;
     const besideRail = railBeside(scroller);
     const size = stands && besideRail ? railEntrySize() : 0;
     const place = rowPosture({
@@ -1146,6 +1219,8 @@ export function layoutMarginRows() {
       options,
       target,
       point,
+      words: words.length ? words : null,
+      block,
       anchor,
       whole,
       scroller,

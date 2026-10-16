@@ -248,7 +248,7 @@
       return;
     }
     if (putAway(field, typedOrder, source)) return;
-    const place = window.lfPlace?.(field) ?? field.localName;
+    const place = window.lfPlace?.(field) ?? [field.localName];
     window.__leafWatchFinding({ code: "words-left-screen", words, place });
   };
   const look = (source, afterFrame = false) => {

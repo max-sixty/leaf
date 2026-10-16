@@ -3548,7 +3548,7 @@ def test_the_write_gate_allows_only_the_column_measurement_property(
     failures = consume_browser_errors(page, {"code": "unchanged-write"})
     assert len(failures) == 1
     assert failures[0].values["what"] == "style", failures
-    assert failures[0].values["node"].startswith("body"), failures
+    assert failures[0].values["node"][0].startswith("body"), failures
 
 
 def test_a_control_the_page_writes_takes_leaf_type_and_yields_to_page_css(

@@ -22,20 +22,24 @@
 // While `window.lfWrites` is an array, every write is also appended to it, numbered by
 // `window.lfWriteStep`, for a test that reads what a gesture wrote (scroll_writes).
 (() => {
-  // An element by its tag, id and classes, one with neither by where it stands, and one
-  // in a shadow tree by the tree's host too.
+  // Where a node stands, as the steps a reader finds it by, innermost first: an element
+  // by its tag, id and classes (`div#id.class`), any other node by its name (`#text`).
+  // A step with neither id nor class is followed by its parent, and the last step in a
+  // shadow tree by `#shadow-root` and the tree's host, so `div.cm-line` in a
+  // `leaf-text#field` is `["div.cm-line", "#shadow-root", "leaf-text#field"]`.
+  // Findings carry the steps; `leaf/findings.py` writes their words.
   const place = (node) => {
-    if (node.nodeType !== 1)
-      return `${node.nodeName} in ${node.parentElement ? place(node.parentElement) : "nothing"}`;
-    const named =
-      `${node.localName}${node.id ? "#" + node.id : ""}` +
-      `${node.classList.length ? "." + [...node.classList].join(".") : ""}`;
-    if (!node.id && !node.classList.length && node.parentElement)
-      return `${named} in ${place(node.parentElement)}`;
+    const element = node.nodeType === 1;
+    const step = element
+      ? `${node.localName}${node.id ? "#" + node.id : ""}` +
+        `${node.classList.length ? "." + [...node.classList].join(".") : ""}`
+      : node.nodeName;
+    if ((!element || (!node.id && !node.classList.length)) && node.parentElement)
+      return [step, ...place(node.parentElement)];
     const root = node.getRootNode();
     return root instanceof ShadowRoot
-      ? `${named} in shadow of ${place(root.host)}`
-      : named;
+      ? [step, "#shadow-root", ...place(root.host)]
+      : [step];
   };
   // Naming is shared with the shift sensor, including in opaque child frames.
   window.lfPlace = place;
@@ -183,65 +187,87 @@
     if (!numbered.has(node)) numbered.set(node, ++count);
     return numbered.get(node);
   };
-  // Writes that restate a value for a reason of their own, by the report they make.
+  // Writes that restate a value for a reason of their own, each a test of what was
+  // written (an attribute, `text`, or `children`) and the live node it was written on.
+  const is = (node, selector) => node.nodeType === 1 && node.matches(selector);
+  // The hosts of the shadow trees holding a node, innermost first.
+  const hosts = (node) => {
+    const found = [];
+    for (let root = node.getRootNode(); root instanceof ShadowRoot;) {
+      found.push(root.host);
+      root = root.host.getRootNode();
+    }
+    return found;
+  };
   const EXPECTED = [
     // A repeated live announcement replaces its text node so assistive technology
     // hears a fresh arrival even when the words match the previous announcement.
-    /^children of div\.lf-ui\.lf-live$/,
+    (what, node) => what === "children" && is(node, "div.lf-ui.lf-live"),
     // Lit's keyed repeat moves equivalent marker nodes when a visual action in
     // the group changes identity, while the rendered controls update in place.
-    /^children of div\.lf-visual-actions(?:\.|$)/,
+    (what, node) => what === "children" && is(node, "div.lf-visual-actions"),
     // Mermaid's diagram renderers and their shared viewport helper both assign the SVG's
     // width while measuring the same drawing. Its upstream-owned paint is separate
     // from Leaf's adapter, which uses keeps when setting the final natural width.
-    /^width on svg#lf-diagram-\d+(?:\.|$)/,
+    (what, node) => what === "width" && is(node, "svg[id^='lf-diagram-']"),
     // Mermaid's layout pass reapplies the same transform to a label group while
     // measuring it. The diagram module does not own that SVG write.
-    /^transform on g\.label$/,
+    (what, node) => what === "transform" && is(node, "g.label"),
     // Mermaid's timeline wraps and measures labels by restating tspan text. Its
     // measurement groups have already detached by the observer's reading.
-    /^children of tspan in text in g(?: in g\.timeline-node\.section--?\d+)?$/,
+    (what, node) => what === "children" && is(node, "g > text > tspan"),
     // CodeMirror writes every attribute of its content element when it mounts a view,
     // the tab-size style that element already holds among them.
-    /^style on div\.cm-content/,
+    (what, node) => what === "style" && is(node, "div.cm-content"),
     // CodeMirror reapplies this line decoration when the editor view updates, even
     // when the last line still holds the same words and the class is unchanged.
-    /^class on div\.cm-line\.lf-field-last in shadow of leaf-text/,
+    (what, node) =>
+      what === "class" &&
+      is(node, "div.cm-line.lf-field-last") &&
+      hosts(node)[0]?.localName === "leaf-text",
     // CodeMirror's CompositeTile.sync replaces a line's children while reconciling
     // editor updates, including equivalent line-break nodes in either editor host.
-    /^children of div\.cm-line(?:\.[\w-]+)* in shadow of /,
+    (what, node) =>
+      what === "children" && is(node, "div.cm-line") && hosts(node).length > 0,
     // CodeMirror's GutterElement.setMarkers restates its class as marker sets
     // change, including when the resulting gutter class remains the same.
-    /^class on div\.cm-gutterElement(?:\.| in shadow|$)/,
+    (what, node) => what === "class" && is(node, "div.cm-gutterElement"),
     // CodeMirror's syncGutters reinserts the gutter beside unchanged content when
     // its editor view updates.
-    /^children of div\.cm-scroller in shadow of lf-file-editor(?:[.#]|$)/,
+    (what, node) =>
+      what === "children" &&
+      is(node, "div.cm-scroller") &&
+      hosts(node)[0]?.localName === "lf-file-editor",
     // Web Awesome's components reflect each property onto the attribute it came from
     // as they update, and restate what their own shadow trees hold.
-    /^[\w-]+ on wa-/,
-    / in shadow of wa-[\w-]+/,
-    // Vis Timeline reuses axis labels and grid nodes but restates their classes
-    // and contents during redraw. Viewer.js similarly reapplies image/canvas
-    // classes and magnifier visibility when an inspected image changes. These
-    // are upstream-owned renderers; Leaf's adapter controls remain watched.
-    /^(?:class|style|title|aria-hidden|children|text) (?:on|of) (?:div|img)\.(?:vis-|viewer-)/,
+    (what, node) => what !== "children" && node.localName?.startsWith("wa-"),
+    (what, node) => hosts(node).some((host) => host.localName.startsWith("wa-")),
+    // Viewer.js reapplies image/canvas classes and magnifier visibility when an
+    // inspected image changes. It is an upstream-owned renderer; Leaf's adapter
+    // controls remain watched.
+    (what, node) =>
+      ["class", "style", "title", "aria-hidden", "children"].includes(what) &&
+      is(node, ":is(div, img):is([class^='viewer-'], [class*=' viewer-'])"),
     // The contents map decides which face it needs, roomy, compact or an open outline,
     // by measuring its labels in each; a label's height is where it wraps in that face.
-    /^data-lf-(compact|outline) on lf-toc/,
+    (what, node) =>
+      ["data-lf-compact", "data-lf-outline"].includes(what) && is(node, "lf-toc"),
     // Sortable takes a dragged card's ghost class off and puts it back as the drag
     // crosses into another lane.
-    /^class on .*\.lf-ghost/,
+    (what, node) => what === "class" && is(node, ".lf-ghost"),
     // PhotoSwipe reasserts its root's zoom and pointer classes while handling
     // gestures and viewport changes, including when those classes already stand.
-    /^class on div\.pswp(?:\.|$)/,
+    (what, node) => what === "class" && is(node, "div.pswp"),
   ];
   const reported = new Set();
-  // `what` is the attribute written, `text`, or `children`, and `node` the place.
+  // `what` is the attribute written, `text`, or `children`, and `node` the node written.
   const report = (what, node) => {
-    const words = what === "children" ? `children of ${node}` : `${what} on ${node}`;
-    if (reported.has(words) || EXPECTED.some((known) => known.test(words))) return;
-    reported.add(words);
-    window.__leafWatchFinding({ code: "unchanged-write", what, node });
+    if (EXPECTED.some((expected) => expected(what, node))) return;
+    const finding = { code: "unchanged-write", what, node: place(node) };
+    const key = JSON.stringify(finding);
+    if (reported.has(key)) return;
+    reported.add(key);
+    window.__leafWatchFinding(finding);
   };
   const valueOf = (record) =>
     record.type === "attributes"
@@ -354,7 +380,7 @@
         !nativeTransition(record) &&
         !(through.length && putBack(write))
       )
-        report(record.attributeName ?? "text", place(record.target));
+        report(record.attributeName ?? "text", record.target);
     }
     started.clear();
     dialogTransitions = new WeakSet();
@@ -391,7 +417,7 @@
     if (children.size) {
       const readings = batchReadings(records);
       for (const [target, changed] of children)
-        if (restored(target, changed, readings)) report("children", place(target));
+        if (restored(target, changed, readings)) report("children", target);
     }
     judge();
   };

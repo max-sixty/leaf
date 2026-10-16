@@ -373,10 +373,17 @@ def _box(box: dict) -> str:
     return f"{round(box['left'])},{round(box['top'])} {_size(box)}"
 
 
+def placed(steps: list[str] | None) -> str:
+    """The words for where a suite sensor found a node: its steps innermost first
+    (`tests/write_watch.js`, `place`), or that the node has gone."""
+    return "a node since removed" if steps is None else " in ".join(steps)
+
+
 def _by(v: dict) -> str:
     """How far a shift sensor's node moved, and what else its frame moved."""
     left, top = v["by"]
-    beside = f"; the same frame moved {', '.join(v['beside'])}" if v["beside"] else ""
+    moved = ", ".join(map(placed, v["beside"]))
+    beside = f"; the same frame moved {moved}" if moved else ""
     return f" by ({left}, {top})px{beside}"
 
 
@@ -446,19 +453,20 @@ _TEXT = {
     "main-unlaid": lambda at, v: (
         "pre-upgrade: authored main has no measurable pre-upgrade layout"
     ),
-    # The suite's health sensors (`tests/*_watch.js`), each naming a node as the
-    # sensors do (`textarea#field`).
+    # The suite's health sensors (`tests/*_watch.js`), each placing a node by its
+    # steps (`placed`).
     "moved-without-input": lambda at, v: (
-        f"{v['node']} moved without input{_by(v)}{_shift_evidence(v)}"
+        f"{placed(v['node'])} moved without input{_by(v)}{_shift_evidence(v)}"
     ),
     "typing-moved": lambda at, v: (
-        f"typing in {v['field']} moved {v['node']}{_by(v)}; the key found"
-        f" {_box(v['found'])}, the frame painted {_box(v['painted'])}"
+        f"typing in {placed(v['field'])} moved {placed(v['node'])}{_by(v)};"
+        f" the key found {_box(v['found'])}, the frame painted {_box(v['painted'])}"
         f"{_shift_evidence(v)}"
     ),
     "shift-watch-missed": lambda at, v: (
-        f"shift watch missed a change to {v['node'] or "the page's nodes"}"
-        f" ({', '.join(v['changed'])})"
+        "shift watch missed a change to "
+        + (placed(v["node"]) if v["node"] else "the page's nodes")
+        + f" ({', '.join(v['changed'])})"
         + (
             f" and to {v['others']} other node{'' if v['others'] == 1 else 's'}"
             if v["others"]
@@ -468,13 +476,13 @@ _TEXT = {
         ' (shift_watch.js, "Unchanged frames")'
     ),
     "unchanged-write": lambda at, v: (
-        f"unchanged write: children of {v['node']}"
+        f"unchanged write: children of {placed(v['node'])}"
         if v["what"] == "children"
-        else f"unchanged write: {v['what']} on {v['node']}"
+        else f"unchanged write: {v['what']} on {placed(v['node'])}"
     ),
     "words-left-screen": lambda at, v: (
         "typed words left the screen without a key or press:"
-        f" {json.dumps(v['words'], ensure_ascii=False)} in {v['place']}"
+        f" {json.dumps(v['words'], ensure_ascii=False)} in {placed(v['place'])}"
     ),
     # The gate's own run, where it could not read the page.
     "gate-failed": lambda at, v: (

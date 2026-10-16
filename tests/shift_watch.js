@@ -141,8 +141,8 @@
       if (at.getAttribute("aria-hidden") === "true") return false;
     return true;
   };
-  // What the API names, which it does not once the node is gone.
-  const name = (node) => (node ? window.lfPlace(node) : "a node since removed");
+  // Where a node stands (write_watch.js, `place`); null once the API no longer names it.
+  const name = (node) => (node ? window.lfPlace(node) : null);
   // Both edges moved the same way. A box that grew moved one edge, or both apart, as
   // the painted box of a field does when it gains its focus ring.
   const carried = (from, to, start, end) => {
@@ -843,7 +843,7 @@
       depth(miss[0]) > depth(deepest[0]) ? miss : deepest,
     );
     const named = node ? name(node) : null;
-    report(`missed ${named}`, {
+    report(JSON.stringify(["missed", named]), {
       code: "shift-watch-missed",
       node: named,
       changed,
@@ -2358,7 +2358,7 @@
           ? { previousRect: first.previousRect, currentRect: last.currentRect }
           : chain.find(confirms);
         if (proof)
-          report(`moved ${name(node)}`, {
+          report(JSON.stringify(["moved", name(node)]), {
             code: "moved-without-input",
             node: name(node),
             by: by(proof.previousRect, proof.currentRect),
@@ -2396,9 +2396,9 @@
         Math.abs(from.top - to.top) >= 1 &&
         Math.abs(after.top - before.top - scroll.top - motion.top) >= 1;
       if (!x && !y) continue;
-      const field = window.lfPlace(typing.field),
-        place = window.lfPlace(node);
-      report(`typing in ${field} moved ${place}`, {
+      const field = name(typing.field),
+        place = name(node);
+      report(JSON.stringify(["typing", field, place]), {
         code: "typing-moved",
         node: place,
         field,

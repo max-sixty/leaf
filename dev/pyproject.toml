@@ -14,7 +14,6 @@ dependencies = [
     "click>=8",
     "pillow>=12.1",
     "pyyaml>=6",
-    "unidiff>=1",
 ]
 
 [project.scripts]

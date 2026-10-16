@@ -6,15 +6,12 @@ renamed or removed sends them to write a second copy. A rename fails here and po
 at the row.
 """
 
+import json
 import re
 
-from interact_support import PLUGIN_ROOT
+from interact_support import PLUGIN_ROOT, js_facts
 
 ASSETS = PLUGIN_ROOT / "skills/leaf/assets"
-EXPORT = re.compile(
-    r"^export\s+(?:async\s+)?(?:function|const|let|class)\s+([A-Za-z_$][\w$]*)",
-    re.MULTILINE,
-)
 
 
 def test_each_owner_in_the_question_index_is_exported_by_its_module():
@@ -33,11 +30,13 @@ def test_each_owner_in_the_question_index_is_exported_by_its_module():
         (names[0], names[1:]) for names in named if names and names[0].endswith(".js")
     ]
     assert owned, "the question index lists no owners"
+    modules = sorted({ASSETS / "runtime" / module for module, _ in owned})
+    exported = json.loads(js_facts("exports", modules))
     missing = [
         f"{module} {name}"
         for module, names in owned
         for name in names
-        if name not in EXPORT.findall((ASSETS / "runtime" / module).read_text())
+        if name not in exported[str(ASSETS / "runtime" / module)]["names"]
         and not name.startswith("$")
     ]
     assert not missing, (

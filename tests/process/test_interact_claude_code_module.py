@@ -7,6 +7,7 @@ the real launcher, so these hold the module and the hooks it calls together."""
 import json
 import os
 import queue
+import socket
 import subprocess
 import threading
 from pathlib import Path
@@ -18,7 +19,7 @@ from interact_support import (
     serving,
     wait_for,
 )
-from leaf import hook_transport as hook_transport_model
+from leaf import harness as harness_model
 from leaf import hooks as hooks_model
 from leaf import leases as leases_model
 from leaf import service as service_model
@@ -71,7 +72,7 @@ class ClaudeCode:
                 self.watches.put(record["watching"])
             elif "watched" in record:
                 self.exits.put(record["watched"])
-            elif "submitted" in record or "appended" in record:
+            elif {"submitted", "dropped", "appended"} & record.keys():
                 self.sent.put(record)
             elif "diagnostic" in record:
                 self.diagnostics.put(record["diagnostic"])
@@ -82,7 +83,8 @@ class ClaudeCode:
         return self.answers.get(timeout=STATED_TIMEOUT)
 
     def message(self) -> dict:
-        """The next prompt the module submits or row it appends."""
+        """The next prompt the module submits, or Claude Code drops, or row it
+        appends."""
         return self.sent.get(timeout=3 * STATED_TIMEOUT)
 
     def send(self, line: dict) -> None:
@@ -262,14 +264,17 @@ def test_the_module_stands_the_background_registration_down(page_dir, claude_cod
 
 
 def test_the_module_hands_input_to_a_running_turn_and_closes_an_interrupted_one(
-    page_dir, claude_code
+    page_dir, claude_code, socket_dir
 ):
     """Input arriving during a turn is handed to that turn: the module calls the
     prompt hook and appends its delivery, which the turn reads at its next step.
     An Escape then ends the turn with no Stop hook; the module starts the watch
     with the Interrupt payload, which closes the turn the delivery opened and
     wakes for input the stopped turn never received
-    (`session.watch_between_turns`)."""
+    (`session.watch_between_turns`). Claude Code drops the prompt that wake
+    submits, as it drops every plugin's prompt from an Escape until the user next
+    types, so Leaf messages the session's socket with the input instead, as
+    admission does for a session nothing watches."""
     assert claude_code.watches.get(timeout=STATED_TIMEOUT)["hook_event_name"] == "Stop"
     claude_code.start_turn()
     handed = append_carried_log_record(
@@ -298,12 +303,43 @@ def test_the_module_hands_input_to_a_running_turn_and_closes_an_interrupted_one(
         bool,
         failure="the module started no watch after the interrupted turn",
     )
+    listener = messaging_socket(claude_code, socket_dir)
     append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "after"}
     )
-    assert claude_code.message()["submitted"].startswith(
+    assert claude_code.message()["dropped"].startswith(
         f"Leaf: {page_dir} has new input"
     )
+    listener.settimeout(STATED_TIMEOUT)
+    peer, _ = listener.accept()
+    with peer:
+        frames = b"".join(iter(lambda: peer.recv(4096), b"")).decode().splitlines()
+    _, user = map(json.loads, frames)
+    assert user["session_id"] == claude_code.session
+    assert str(page_dir.resolve()) in user["message"]["content"]
+
+
+def messaging_socket(claude_code: ClaudeCode, socket_dir: Path) -> socket.socket:
+    """A listening socket registered as the driven session's own, as Claude Code
+    registers each session's (`harness.message_claude_code_session`)."""
+    address = str(socket_dir / f"{claude_code.pid}.sock")
+    listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    listener.bind(address)
+    listener.listen()
+    sessions = harness_model.claude_code_sessions()
+    sessions.mkdir(parents=True, exist_ok=True)
+    cleanup_model.write_json(
+        sessions / f"{claude_code.pid}.json",
+        {
+            "pid": claude_code.pid,
+            "sessionId": claude_code.session,
+            "messagingSocketPath": address,
+        },
+    )
+    cleanup_model.write_json(
+        sessions / f"{claude_code.pid}.k.key", {"peerToken": "token"}
+    )
+    return listener
 
 
 @pytest.mark.parametrize("claude_code", [{"abortLagMs": 250}], indirect=True)
@@ -393,7 +429,7 @@ def test_interrupt_watch_replacement_waits_for_aborted_process_exit(
     append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "after Escape"}
     )
-    assert claude_code.message()["submitted"].startswith(
+    assert claude_code.message()["dropped"].startswith(
         f"Leaf: {page_dir} has new input"
     )
 
@@ -404,9 +440,10 @@ def test_the_module_keeps_a_stop_hooks_delivery_out_of_the_terminal(
     """Claude Code prints what a Stop hook continues a turn with in the user's
     terminal, and none of a row a module appends. Input pending as a turn ends,
     with no watch running, is handed over by Leaf's Stop hook inline; the module
-    appends that delivery to the session and the turn goes on with one line, so
-    the delivery is in the turn's context, as its Picked up says, but not on the
-    user's screen."""
+    runs that hook itself, in place of its registration, to read the delivery its
+    output names, appends the delivery to the session, and the turn goes on with
+    one line, so the delivery is in the turn's context, as its Picked up says, but
+    not on the user's screen."""
     claude_code.start_turn()
     append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "wakes the watch"}
@@ -416,20 +453,20 @@ def test_the_module_keeps_a_stop_hooks_delivery_out_of_the_terminal(
         page_dir, {"kind": "comment", "author": "user", "text": "as it ends"}
     )
     payload = {"hook_event_name": "Stop", "session_id": claude_code.session}
-    hooks_model.cmd_hook("claude-code", payload)
-    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
-        "additionalContext"
-    ]
-    assert context.startswith(hook_transport_model.INLINE_DELIVERY)
+    ended = claude_code.emit("classic.Stop", payload)
+    # Leaf's Stop registration beneath the module stands down for the payload it
+    # receives, since the module ran the hook itself.
+    hooks_model.cmd_hook("claude-code", ended["reached"])
+    assert capsys.readouterr().out == ""
 
-    answer = {"additionalContext": [context]}
-    result = claude_code.emit("classic.Stop", payload, answer)["result"]
     appended = claude_code.message()["appended"]
-    assert appended == context
-    [batch] = json.loads(appended.split("\n")[1])["batches"]
+    [delivery] = [
+        json.loads(line) for line in appended.split("\n") if line.startswith("{")
+    ]
+    [batch] = delivery["batches"]
     assert [event["id"] for event in batch["events"]] == [pending["id"]]
-    [shown] = result["additionalContext"]
-    assert hook_transport_model.INLINE_DELIVERY not in shown
+    [shown] = ended["result"]["additionalContext"]
+    assert delivery["id"] not in shown
 
 
 def test_a_wake_during_the_stop_hooks_waits_for_them(page_dir, claude_code):

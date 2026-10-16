@@ -1,37 +1,44 @@
 /**
  * Public Leaf site with edge reads and isolated canonical mutation sessions.
  *
- * Cloudflare serves the immutable live shell, initial state, and published data of each
- * product and example page at the edge. A request needing mutation starts the Python
- * Leaf server in a container selected by an opaque browser cookie. Disposable sample
- * URLs carry the opaque container object ID alongside their own random capability,
- * so an opaque-origin child uses native requests without a browser session cookie.
- * This routing reference selects a container only beneath that sample capability;
- * it grants no access to its parent page. The container starts
- * with the same complete page directories and writes only to its own ephemeral
- * filesystem, so one user can exercise the real event log without changing another
- * user's page.
- * Containers are scoped to the deployed release, so a rollout may reset this explicitly
- * ephemeral state but never sends a new document through an older user session. The
- * container image itself rolls out after the Worker is already live, so a fresh session
- * can still start on the previous release; the edge serves the published projection in
- * place of that container's answer rather than handing the browser a release no reload
- * can reach. A private revision that changes executable code marks its one required
- * container reload in the URL; every ordinary document navigation stays at the edge.
+ * Cloudflare serves untouched pages at the edge. A browser cookie selects a private,
+ * release-scoped Durable Object holding canonical page records and Python-produced
+ * dormant responses. Saved content loads without starting Linux. Mutations wake the
+ * Python Leaf server, which restores the record before admission and publishes the
+ * record and matching delivery atomically before acknowledgement. Python owns all
+ * event and activity rules; this Worker stores and routes their output.
+ * New releases select new demo records. A previous container image during rollout is
+ * refused rather than letting it interpret the new release's document.
+ * Disposable sample URLs carry the opaque container object ID alongside their own
+ * random capability, so an opaque-origin child uses native requests without a browser
+ * session cookie. This routing reference selects a container only beneath that sample
+ * capability; it grants no access to its parent page.
  * Accepted browser events start their agent task in the already-selected user
  * container without holding the browser acknowledgement open. A page fault reported
  * from a passive session is the published page failing, so the edge logs it for the
  * site's maintainers instead of activating a container to hold it. Analytics Engine
  * records accepted product events; Workers Observability records the execution path,
- * whose only page words are a bounded startup or fault `reason`.
+ * whose only page words are a bounded startup or fault `reason`. Native invocation
+ * logs hold request headers; browser diagnostics read that evidence by trace ID.
  */
 
-import { Container, getContainer } from "@cloudflare/containers";
+import {
+  Container,
+  getContainer,
+  type OutboundHandlerContext,
+} from "@cloudflare/containers";
 export { ContainerProxy } from "@cloudflare/containers";
 import { type DurableObject } from "cloudflare:workers";
 import * as z from "zod/mini";
+import {
+  CHUNK_BYTES,
+  PageStore,
+  dateStateDelivery,
+  readPublication,
+  type PagePublication,
+} from "./storage";
 
-import { agentLog, dispatchAgentTask, prewarmContainer } from "./agent";
+import { agentLog, dispatchAgentTask } from "./agent";
 import { projectInteractionBatch, sampleInteractionReference } from "./interactions";
 import { proxyModelRequest } from "./model-proxy";
 import {
@@ -56,7 +63,6 @@ import {
 export interface Env {
   ASSETS: Fetcher;
   PAGES: DurableObjectNamespace<LeafWebsiteSession>;
-  AGENT_PREWARM: "true" | "false";
   WEBSITE_EVENTS: AnalyticsEngineDataset;
   SOURCE_AGENT_RATE_LIMITER: RateLimit;
   OPENAI_API_KEY: string;
@@ -67,7 +73,6 @@ const startupTime = z.nullable(
   z.number().check(z.int(), z.nonnegative(), z.maximum(300_000)),
 );
 const startupReportSchema = z.strictObject({
-  version: z.literal(2),
   loadId: z.string().check(z.regex(/^[0-9a-f]{32}$/)),
   release: siteRelease,
   layer: z.string().check(z.regex(/^[A-Za-z0-9_-]{1,128}$/)),
@@ -137,78 +142,149 @@ export class LeafWebsiteSession extends Container<Env> {
   sleepAfter = "10m";
   enableInternet = false;
   interceptHttps = true;
-  allowedHosts = ["api.openai.com"];
+  allowedHosts = ["api.openai.com", "leaf-state.internal"];
+  private pages: PageStore;
 
   constructor(ctx: DurableObject["ctx"], env: Env) {
     super(ctx, env);
+    this.pages = new PageStore(ctx.storage);
     this.envVars = {
       LEAF_AGENT: "Agent",
       OPENAI_API_KEY: CODEX_PROXY_CREDENTIAL,
       CODEX_CA_CERTIFICATE: CLOUDFLARE_CONTAINER_CA,
+      LEAF_PAGE_STORE_URL: "https://leaf-state.internal",
     };
+  }
+
+  savedRecords(): Response {
+    return this.pages.records();
+  }
+
+  async saveBlob(digest: string, bytes: ArrayBuffer): Promise<void> {
+    await this.pages.saveBlob(digest, bytes);
+  }
+
+  private async publication(value: unknown): Promise<PagePublication> {
+    const publication = readPublication(value);
+    const manifest = await siteManifest(new Request("https://leaf.page/"), this.env);
+    if (
+      !(publication.root in manifest.pages) ||
+      publication.release !== manifest.release
+    ) {
+      throw new Error("publication does not name a page in this website release");
+    }
+    return publication;
+  }
+
+  async preparePublication(value: unknown): Promise<string[]> {
+    return this.pages.prepare(await this.publication(value));
+  }
+
+  async savePublication(value: unknown): Promise<void> {
+    this.pages.publish(await this.publication(value));
+  }
+
+  override async fetch(request: Request): Promise<Response> {
+    if (!this.ctx.container?.running) {
+      const url = new URL(request.url);
+      const manifest = await siteManifest(request, this.env);
+      const route = pageRoute(url.pathname, manifest);
+      if (route !== null) {
+        // Optional viewport observations are useful only to a running agent.
+        // Like captured previews, a dormant page acknowledges them without work.
+        if (request.method === "POST" && route.inside === "api/user-view") {
+          return new Response(null, { status: 204 });
+        }
+        if (request.method !== "GET" && request.method !== "HEAD") {
+          return super.fetch(request);
+        }
+        let path = route.inside;
+        if (path === "api/state") {
+          const revision =
+            url.searchParams.get("revision") ||
+            request.headers.get("Leaf-View-Revision");
+          if (revision) path += `?revision=${revision}`;
+        } else if (path === "api/deferred") {
+          path += `?${new URLSearchParams({
+            source: url.searchParams.get("source") ?? "",
+            source_revision: url.searchParams.get("source_revision") ?? "",
+            key: url.searchParams.get("key") ?? "",
+          })}`;
+        }
+        const response = await this.pages.response(
+          route.root,
+          path,
+          request.method === "HEAD",
+        );
+        if (response !== null) return response;
+      }
+    }
+    return super.fetch(request);
   }
 }
 
 // Assignment invokes Container's inherited setter, which registers the handler for
 // ContainerProxy. A static class field would shadow that setter.
-LeafWebsiteSession.outboundByHost = { "api.openai.com": proxyModelRequest };
+LeafWebsiteSession.outboundByHost = {
+  "leaf-state.internal": async (
+    request: Request,
+    env: Env,
+    ctx: OutboundHandlerContext,
+  ) => {
+    // The proxy supplies the owning DO identity. The container cannot select a
+    // different user's session by changing a URL, cookie, or request header.
+    const session = env.PAGES.get(env.PAGES.idFromString(ctx.containerId));
+    const path = new URL(request.url).pathname;
+    if (request.method === "GET" && path === "/records") {
+      return session.savedRecords();
+    }
+    if (request.method === "PUT" && path === "/prepare") {
+      return Response.json({
+        missing: await session.preparePublication(await request.json()),
+      });
+    }
+    const blob = /^\/blobs\/([0-9a-f]{64})$/.exec(path);
+    if (blob !== null && request.method === "PUT") {
+      // Bound the body before it crosses the RPC boundary or enters SQLite.
+      let length = 0;
+      const body = request.body?.pipeThrough(
+        new TransformStream<Uint8Array, Uint8Array>({
+          transform(chunk, controller) {
+            length += chunk.byteLength;
+            if (length > CHUNK_BYTES)
+              throw new Error("page storage chunk exceeds 1 MiB");
+            controller.enqueue(chunk);
+          },
+        }),
+      );
+      await session.saveBlob(blob[1], await new Response(body).arrayBuffer());
+      return new Response(null, { status: 204 });
+    }
+    if (request.method === "PUT" && path === "/publication") {
+      await session.savePublication(await request.json());
+      return new Response(null, { status: 204 });
+    }
+    return new Response("unknown page storage operation", { status: 404 });
+  },
+  "api.openai.com": proxyModelRequest,
+};
 
 function randomSessionId(): string {
   return newSessionId(crypto.getRandomValues(new Uint8Array(16)));
 }
 
-// Website sessions are explicitly ephemeral. A deployment starts a fresh container
-// rather than routing a new static document through an older release to preserve demo
-// state that the website does not promise to persist.
+// A release selects its own durable record and container; new code never interprets
+// a different release’s demo state. Container replacement keeps the same record.
 function containerId(sessionId: string, release: string): string {
   return `${release}:${sessionId}`;
 }
 
-function browserIdentity(request: Request): {
-  browser: string;
-  browserVersion: number | null;
-  platform: string;
-} {
-  const userAgent = request.headers.get("User-Agent") ?? "";
-  const browserPatterns: Array<[string, RegExp]> = [
-    ["edge", /(?:Edg|EdgA|EdgiOS)\/(\d+)/],
-    ["chrome", /(?:Chrome|CriOS)\/(\d+)/],
-    ["firefox", /(?:Firefox|FxiOS)\/(\d+)/],
-    ["safari", /Version\/(\d+).+Safari\//],
-  ];
-  const browserReading = browserPatterns
-    .map(([browser, pattern]) => ({ browser, match: userAgent.match(pattern) }))
-    .find(({ match }) => match !== null);
-  const parsedVersion = browserReading ? Number(browserReading.match?.[1]) : null;
-  const platform =
-    /Windows/.test(userAgent)
-      ? "windows"
-      : /(?:iPhone|iPad)/.test(userAgent)
-        ? "ios"
-        : /Android/.test(userAgent)
-          ? "android"
-          : /CrOS/.test(userAgent)
-            ? "chromeos"
-            : /Macintosh/.test(userAgent)
-              ? "macos"
-              : /Linux/.test(userAgent)
-                ? "linux"
-                : "other";
-  return {
-    browser: browserReading?.browser ?? "other",
-    browserVersion:
-      parsedVersion !== null &&
-      Number.isSafeInteger(parsedVersion) &&
-      parsedVersion <= 9999
-        ? parsedVersion
-        : null,
-    platform,
-  };
-}
-
 // The body as text, or null once it passes maxBytes, whether the client declared that
 // length or streamed it without one. A request with no body reads as "".
-async function readBoundedText(request: Request, maxBytes: number): Promise<string | null> {
+async function readBoundedText(
+  request: Request,
+  maxBytes: number,
+): Promise<string | null> {
   if (Number(request.headers.get("Content-Length")) > maxBytes) return null;
   const reader = request.body?.getReader();
   if (!reader) return "";
@@ -254,7 +330,6 @@ async function recordStartup(
     reference,
     route: route.root,
     currentRelease: manifest.release,
-    ...browserIdentity(request),
     ...parsed.data,
   });
   return new Response(null, {
@@ -301,7 +376,6 @@ function recordPageFault(
     release: siteRelease.safeParse(request.headers.get("Leaf-Release")).data ?? null,
     currentRelease: manifest.release,
     revision: fault.revision ?? null,
-    ...browserIdentity(request),
     reason: fault.text.slice(0, PAGE_FAULT_REASON_CHARS),
   });
   const answer = new Response(null, {
@@ -332,8 +406,7 @@ async function recordInteractions(
     return new Response("invalid interaction batch", { status: 400 });
   }
   const batch = projectInteractionBatch(value);
-  if (batch === null)
-    return new Response("invalid interaction batch", { status: 400 });
+  if (batch === null) return new Response("invalid interaction batch", { status: 400 });
   console.log({
     component: "leaf-interaction",
     event: "client_batch",
@@ -457,9 +530,7 @@ async function staticState(
   const response = await env.ASSETS.fetch(new Request(url));
   if (!response.ok) return new Response("state unavailable", { status: 503 });
   const state = (await response.json()) as Record<string, unknown>;
-  const now = new Date();
-  state.now = now.toISOString();
-  state.taken = now.getTime() / 1000;
+  dateStateDelivery(state);
   const answer = Response.json(state, {
     headers: { "Cache-Control": "no-store", "Leaf-Session": "passive" },
   });
@@ -543,7 +614,9 @@ export default {
     // An opaque sample has no session cookie. The first sample segment carries a
     // namespace object ID for routing; Python admits only the independent random
     // sample capability. Nested samples retain this first routing reference.
-    const sample = /^api\/samples\/[a-f0-9]{32}~([a-f0-9]{64})(?:\/|$)/.exec(route.inside);
+    const sample = /^api\/samples\/[a-f0-9]{32}~([a-f0-9]{64})(?:\/|$)/.exec(
+      route.inside,
+    );
     if (sample) {
       let id: DurableObjectId;
       try {
@@ -551,10 +624,14 @@ export default {
       } catch {
         return new Response("not found", { status: 404 });
       }
-      const sampleReference = request.method === "POST" && route.inside.endsWith("/api/interaction")
-        ? sampleInteractionReference(`/${route.inside.slice(0, -"/api/interaction".length)}`)
-        : null;
-      const interaction = sampleReference === null ? null : { request: request.clone(), sampleReference };
+      const sampleReference =
+        request.method === "POST" && route.inside.endsWith("/api/interaction")
+          ? sampleInteractionReference(
+              `/${route.inside.slice(0, -"/api/interaction".length)}`,
+            )
+          : null;
+      const interaction =
+        sampleReference === null ? null : { request: request.clone(), sampleReference };
       const fetched = await env.PAGES.get(id).fetch(request);
       const response = new Response(fetched.body, fetched);
       response.headers.delete("Set-Cookie");
@@ -562,14 +639,19 @@ export default {
       // same bounded, redacted cloud evidence as a parent batch; the clone lets
       // the native request also keep its full local trace.
       if (interaction !== null && response.status === 204)
-        await recordInteractions(interaction.request, route, { sampleReference: interaction.sampleReference }, manifest.release);
+        await recordInteractions(
+          interaction.request,
+          route,
+          { sampleReference: interaction.sampleReference },
+          manifest.release,
+        );
       return response;
     }
 
     const secure = url.protocol === "https:";
     const cookie = request.headers.get("Cookie");
     const existing = sessionFromCookie(cookie, secure);
-    const active = activeFromCookie(cookie, secure, route.root);
+    const active = activeFromCookie(cookie, secure, route.root, manifest.release);
     const sessionId = existing ?? randomSessionId();
     const privateContainer = containerId(sessionId, manifest.release);
     const reference = sessionReference(sessionId);
@@ -585,6 +667,10 @@ export default {
       }
       return recordInteractions(request, route, { reference }, manifest.release);
     }
+    // Geometry is disposable observation, not a gesture that opens private state.
+    if (!active && request.method === "POST" && route.inside === "api/user-view") {
+      return new Response(null, { status: 204 });
+    }
     if (!active && request.method === "POST" && route.inside === "api/event") {
       const fault = await pageFault(request);
       if (fault !== null) {
@@ -594,27 +680,16 @@ export default {
         return recordPageFault(request, fault, manifest, route, reference);
       }
     }
-    if (
-      !active &&
-      request.method === "GET" &&
-      route.inside === "api/state"
-    ) {
+    if (!active && request.method === "GET" && route.inside === "api/state") {
       return staticState(request, env, manifest, route, reference);
     }
-    // Documents always come from the edge. The only exception is the one reload the
-    // runtime marks after learning that a private revision changed executable code; its
-    // current container owns that document. The runtime removes the marker on arrival,
-    // so ordinary reloads and later visits return to the static shell.
-    const privateRevision = url.searchParams.get("_leaf-revision");
-    const privateDocumentReload =
-      existing !== null &&
-      active &&
-      isLivePageDocumentRequest(route) &&
-      /^[1-9][0-9]*$/.test(privateRevision ?? "");
+    // An active page's current document belongs to its private record, including
+    // on ordinary reload. Its DO can serve that document while the container sleeps.
+    const privateDocument = active && isLivePageDocumentRequest(route);
     if (
       (request.method === "GET" || request.method === "HEAD") &&
       !isPageApiRequest(route) &&
-      !privateDocumentReload
+      !privateDocument
     ) {
       const response = stampedStaticResponse(
         await env.ASSETS.fetch(request),
@@ -631,25 +706,12 @@ export default {
           return response;
         }
         response.headers.set("Leaf-Session-Reference", reference);
-        response.headers.set("Server-Timing", `leaf;dur=${Date.now() - requestStarted}`);
+        response.headers.set(
+          "Server-Timing",
+          `leaf;dur=${Date.now() - requestStarted}`,
+        );
         if (existing === null) {
           response.headers.append("Set-Cookie", sessionCookie(sessionId, secure));
-        }
-        if (
-          env.AGENT_PREWARM === "true" &&
-          request.method === "GET" &&
-          request.headers.get("Sec-Fetch-Dest") === "document"
-        ) {
-          const sourceId = request.headers.get("CF-Connecting-IP") ?? "unknown";
-          ctx.waitUntil(
-            prewarmContainer(
-              env,
-              privateContainer,
-              reference,
-              route.root,
-              sourceId,
-            ),
-          );
         }
         return response;
       }
@@ -682,6 +744,8 @@ export default {
         agentLog("event_accepted", params, {
           durationMs: Date.now() - requestStarted,
         });
+        // Accepted page events are already durable; active Codex turn identity
+        // belongs to the running process.
         // TODO: a dispatch does not yet survive its container (TODO.md, "Make a
         // leaf.page dispatch survive its container").
         ctx.waitUntil(dispatchAgentTask(env, params));
@@ -689,7 +753,7 @@ export default {
     }
     let body: BodyInit | null = response.body;
     if (request.method === "POST" && route.inside === "api/samples" && response.ok) {
-      const answer = await response.json() as { url: string; page: string };
+      const answer = (await response.json()) as { url: string; page: string };
       const allocated = new URL(answer.url, request.url);
       const objectId = env.PAGES.idFromName(privateContainer).toString();
       allocated.pathname = `${allocated.pathname.slice(0, -1)}~${objectId}/`;
@@ -707,7 +771,11 @@ export default {
     if (existing === null) {
       answer.headers.append("Set-Cookie", sessionCookie(sessionId, secure));
     }
-    if (!active) answer.headers.append("Set-Cookie", activeCookie(secure, route.root));
+    if (!active)
+      answer.headers.append(
+        "Set-Cookie",
+        activeCookie(secure, route.root, manifest.release),
+      );
     if (response.headers.get("Content-Type")?.startsWith("text/html")) {
       answer.headers.set("Server-Timing", `leaf;dur=${Date.now() - requestStarted}`);
     }

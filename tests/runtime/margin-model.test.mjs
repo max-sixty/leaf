@@ -269,10 +269,10 @@ test("a thread's margin entry and Page Map row say the word Threads gives it", (
     { unread: 1 },
   );
   assert.deepEqual(threadMarks(onUser).userAttention, {
-    label: "On you to answer",
+    label: "My turn to answer",
     reason: "ask",
   });
-  assert.deepEqual(said(onUser), ["On you to answer", "On you to answer"]);
+  assert.deepEqual(said(onUser), ["My turn to answer", "My turn to answer"]);
 });
 
 test("declared representation and a workflow carrier suppress only duplicate readings", () => {
@@ -418,7 +418,7 @@ test("placement counts every secondary control beside the primary", () => {
 test("focused owner exposes only its complete declared controls", () => {
   const entry = inventory({
     offers: [
-      offer("standing", [control("primary")]),
+      offer("main", [control("primary")]),
       offer(
         "reaction",
         Array.from({ length: 6 }, (_, index) => control(String(index))),

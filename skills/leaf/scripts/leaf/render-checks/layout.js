@@ -2,6 +2,7 @@ import { pageScroller, readingPosture, TEXT_BOX } from "/runtime/widget-api.js";
 import {
   pageDocument,
   readingRegions,
+  renderedParent,
   shownBand,
   shownRegionBounds,
   uiInside,
@@ -15,9 +16,35 @@ import { shrunkLabelReading } from "./words.js";
 
 export const rootOverflow = () => pageScroller.scrollWidth - pageScroller.clientWidth;
 const at = (el) => (el === pageScroller ? "<root scrollport>" : element(el));
-// A block the theme grows past the column (layouts.css). A block allocated `column`
-// keeps the measure as text does, so these checks read it as ordinary flow.
-const BREAKOUT = '[data-lf-space]:not([data-lf-space="column"])';
+// A box the theme lets stand past its holder, which says so where it lets it
+// (`--lf-breakout`, layouts.css): a block granted a wider room than the measure, and an
+// Ask spanning such a block (ask.css). Every other box keeps to the column, as text
+// does. The theme lets only a box it allocates room (`data-lf-space`) or a widget
+// holding authored blocks (`data-lf-content="markup"`) break out.
+const breaksOut = (el) =>
+  getComputedStyle(el).getPropertyValue("--lf-breakout").trim() === "1";
+
+// The box a block's width and margins resolve against: its nearest ancestor that
+// generates a block, inside that ancestor's border, padding and any scrollbar gutter,
+// at the place its scroll puts it. An inline holder, such as a link around a chart, is
+// passed as prepaint.js's `holderOf` passes it, since the browser sets a block inside
+// an inline in its holder's flow; read from the link, a linked breakout was named for
+// standing off the axis of a room 0px wide.
+function contentBox(el) {
+  let s = getComputedStyle(el);
+  while (s.display === "contents" || s.display === "inline")
+    s = getComputedStyle((el = renderedParent(el)));
+  const left =
+    el.getBoundingClientRect().left +
+    el.clientLeft +
+    parseFloat(s.paddingLeft) -
+    el.scrollLeft;
+  return {
+    left,
+    right:
+      left + el.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight),
+  };
+}
 
 // The page's own margin residents, without Leaf's rail: that holds only markers and
 // never moves the column. Both a sweep sample and its breakpoint refinement read the
@@ -129,7 +156,7 @@ export function heldPanes() {
 const AUTHORED_PANE = '[data-lf-reading-role="pane"]:not([data-lf-generated])';
 
 // Each region of a screen that runs past its room. A full-height workspace is a screen
-// rather than a page to scroll (page-authoring.md, A workspace), so each region of it the
+// rather than a page to scroll (page-layout.md, A workspace), so each region of it the
 // page wrote is meant to show what it holds: a pane the page wrote, and the body itself,
 // which the Layout marks (`--lf-reading-region: layout`, layouts.css). A bounded block
 // declares that it scrolls, and a widget's own regions are its to hold, so neither is
@@ -232,7 +259,7 @@ function marginReading(main) {
     // pointer events keep them from occupying the margin until it opens.
     if (
       !el.checkVisibility({ opacityProperty: true, visibilityProperty: true }) ||
-      el.matches(BREAKOUT)
+      breaksOut(el)
     )
       return false;
     const style = getComputedStyle(el);
@@ -272,6 +299,11 @@ export function misplacedBoxes() {
     !uiInside(el, main) ||
     el.checkVisibility({ opacityProperty: true, visibilityProperty: true });
   const { isResident, left, residents, right } = marginReading(main);
+  const wides = new Set(
+    [...main.querySelectorAll(`[data-lf-space], [data-lf-content="markup"]`)].filter(
+      breaksOut,
+    ),
+  );
   // A widget the registry declares wide is answered for out here, the way an
   // absolutely-positioned resident is: standing past the column is what it was
   // declared for. What still has to hold is the page's own box — the room the layout
@@ -306,7 +338,7 @@ export function misplacedBoxes() {
   // scrolled, `overflow-x: auto` having caught every descendant a line above.
   const insideWide = (el) => {
     for (let a = el.parentElement; a && a !== main; a = a.parentElement)
-      if (a.matches(BREAKOUT)) return a;
+      if (wides.has(a)) return a;
     return null;
   };
   // What a wide widget may not escape, whatever the page has room for: the nearest
@@ -333,9 +365,12 @@ export function misplacedBoxes() {
       if (draws(a)) return a;
     return null;
   };
+  // How far a box stands past the band from `start` to `end`.
+  const outside = (box, start, end) =>
+    Math.round(Math.max(box.right - end, start - box.left));
   const over = new Map();
   for (const el of main.querySelectorAll("*")) {
-    const wide = el.matches(BREAKOUT);
+    const wide = wides.has(el);
     // A wide widget is asked whatever it stands in, where everything else is excused
     // by a scroll container above it. The excuse is about the column — a box inside a
     // scroller is drawn only as far as the scroller reaches, so it cannot spill onto
@@ -348,53 +383,26 @@ export function misplacedBoxes() {
     if (b.width < 1) continue;
     const frame = wide ? framing(el) : null;
     const host = wide ? null : insideWide(el);
-    const bound = (frame || host)?.getBoundingClientRect() ?? null;
+    const bound = (frame || host)?.getBoundingClientRect();
     const past =
       wide || host
-        ? Math.round(
-            Math.max(
-              b.right - (bound ? bound.right : roomRight),
-              (bound ? bound.left : roomLeft) - b.left,
-            ),
-          )
-        : Math.round(Math.max(b.right - right, left - b.left));
+        ? outside(b, bound?.left ?? roomLeft, bound?.right ?? roomRight)
+        : outside(b, left, right);
     if (past > 1) over.set(el, [past, wide, frame, host]);
   }
-  // Each finding carries its element's place (locate.js) and its kind beside the words,
-  // so a reader that takes this pass at several widths (the gate's sweep) can tell one
-  // fault met again from a new one without reading the sentence, whose pixel count
-  // moves with the width.
+  // Each finding is a record (findings.py) carrying its element's place
+  // (locate.js) beside its code, so a reader that takes this pass at several widths
+  // (the gate's sweep) can tell one fault met again from a new one by those two,
+  // whatever pixel count the width gives it.
   const found = [];
-  const report = (el, kind, text) =>
-    found.push({ at: at(el), place: place(el), kind, text });
+  const report = (el, code, values) =>
+    found.push({ code, at: at(el), place: place(el), ...values });
   for (const [el, [past, wide, frame, host]] of over) {
     if ([...over.keys()].some((other) => other !== el && other.contains(el))) continue;
-    if (host)
-      report(
-        el,
-        "part",
-        `${at(el)} stands ${past}px outside the ${at(host)} it is part of`,
-      );
-    else if (!wide)
-      report(
-        el,
-        "column",
-        `${at(el)} is set ${past}px past the column, out in the margin`,
-      );
-    else if (frame)
-      report(
-        el,
-        "frame",
-        `${at(el)} stands ${past}px outside the ${at(frame)} that frames it — ` +
-          `declare --lf-block-frame: 1 in the rule that draws the frame, so the box ` +
-          `holds the room in as well as the margins`,
-      );
-    else
-      report(
-        el,
-        "room",
-        `${at(el)} stands ${past}px past the room the page has for a wide widget`,
-      );
+    if (host) report(el, "outside-part", { past, host: at(host) });
+    else if (!wide) report(el, "past-column", { past });
+    else if (frame) report(el, "outside-frame", { past, frame: at(frame) });
+    else report(el, "past-room", { past });
   }
   // The room being the page's own box is not the whole of what a wide widget owes,
   // because the page hangs things in that box. A sidenote stands a gutter off the
@@ -410,7 +418,7 @@ export function misplacedBoxes() {
   // maintains. A resident is whatever `marginReading` finds standing past the column, so
   // a project hanging its own furniture out there is covered without declaring anything
   // to this pass.
-  for (const el of main.querySelectorAll(BREAKOUT)) {
+  for (const el of wides) {
     if (!el.checkVisibility()) continue;
     const b = el.getBoundingClientRect();
     const hit = residents.find((r) => {
@@ -427,13 +435,35 @@ export function misplacedBoxes() {
         b.bottom > c.top + 1
       );
     });
-    if (hit)
-      report(
-        el,
-        "over",
-        `${at(el)} is drawn over ${at(hit)}, which stands in the ` +
-          `margin it grew into — the side that holds it gives no room`,
+    if (hit) report(el, "over-margin", { resident: at(hit) });
+    // The theme grows a breakout past its holder by its margins and gives it the
+    // room's width (layouts.css), so it spans exactly the room its margins open. A
+    // width of the box's own, such as a page rule sizing an iframe, overrides the
+    // width and keeps the margins, so the box starts where the room does and ends
+    // somewhere else, off the prose axis, while every bound above still holds. The
+    // computed margins are the ones the theme set, however the box's own width
+    // over-constrains them. Only growth the margins made counts: a positioned box is
+    // not grown (prepaint.js, `breakouts`), and a table is placed by its translation
+    // (layouts.css), so its margins do not say where its room is. Only a box the user
+    // can see is read.
+    if (!el.checkVisibility({ opacityProperty: true, visibilityProperty: true }))
+      continue;
+    const s = getComputedStyle(el);
+    const grownL = -parseFloat(s.marginLeft);
+    const grownR = -parseFloat(s.marginRight);
+    if ((grownL > 1 || grownR > 1) && s.translate === "none") {
+      const h = contentBox(el.parentElement);
+      const left = h.left - grownL;
+      const right = h.right + grownR;
+      const off = Math.round(
+        Math.max(Math.abs(b.left - left), Math.abs(b.right - right)),
       );
+      if (off > 1)
+        report(el, "off-axis", {
+          drawn: Math.round(b.width),
+          granted: Math.round(right - left),
+        });
+    }
   }
   // The other half of excusing a resident: an excuse is only good if the user can
   // see the thing. Both readings above hand a box to something else to answer for —
@@ -534,14 +564,14 @@ export function misplacedBoxes() {
     // of one container hide the one hung off it and lost 400px out of another.
     if ([...lost].some(([o, [, its]]) => o !== el && its === a && o.contains(el)))
       continue;
-    report(
-      el,
-      "hidden",
-      `${at(el)} is drawn ${past}px outside ${at(a)}, which does not show it`,
-    );
+    report(el, "clipped-out", { past, container: at(a) });
   }
-  const texts = new Set();
-  return found.filter(({ text }) => !texts.has(text) && texts.add(text));
+  // One finding per fault where two elements share a name, as their words would be.
+  const seen = new Set();
+  return found.filter(({ place: _place, ...finding }) => {
+    const key = JSON.stringify(finding);
+    return !seen.has(key) && seen.add(key);
+  });
 }
 
 // A table scrolling sideways with a cell in it wrapped. The theme's three cases for a
@@ -618,14 +648,14 @@ export function misplacedBoxes() {
 // identifier written outside `<code>`, a bare URL), or because the table has more
 // columns than the measure holds. A column wraps when it stands wider with wrapping
 // turned off — its content asked for more than its longest run — which hidden content,
-// laid out on demand but size-contained, cannot change. The finding lists the wrapping
-// columns with their widths, names the widest, and leaves the diagnosis to the author.
+// laid out on demand but size-contained, cannot change. The finding carries every
+// column's name and width and whether it wraps, and leaves the diagnosis to the author.
 // A table that scrolls with nothing left to wrap is the theme's honest third case.
 //
 // Whether a table scrolls depends on the window, so the gate reads this at every width
 // of its sweep, and reports it as advice: the table still scrolls with every word in
 // reach, and the remedy is the author's choice of composition. Each finding carries its
-// table's place (locate.js) beside the words, so the sweep tells one table's run of
+// table's place (locate.js) beside its code, so the sweep tells one table's run of
 // widths from another's. A page with no scrolling table never adds the wrapping rule.
 export function squeezedTables() {
   const main = pageDocument();
@@ -672,14 +702,14 @@ export function squeezedTables() {
       if (!box.height) continue;
       const left = Math.round(box.left);
       if (!columns.has(left))
-        columns.set(left, { name: "", width: Math.round(box.width), cells: [] });
+        columns.set(left, { heading: null, width: Math.round(box.width), cells: [] });
       const column = columns.get(left);
       const head = cell.closest("thead") !== null;
       if (
         cell.matches('th:not([scope="row"])') &&
-        (!column.name || (head && !column.head))
+        (column.heading === null || (head && !column.head))
       ) {
-        column.name = `"${says(cell)}"`;
+        column.heading = says(cell);
         column.head = head;
       }
       column.cells.push(cell);
@@ -687,9 +717,7 @@ export function squeezedTables() {
     const rtl = getComputedStyle(table).direction === "rtl";
     read.set(
       table,
-      [...columns]
-        .sort((a, b) => (rtl ? b[0] - a[0] : a[0] - b[0]))
-        .map(([, c], i) => ({ ...c, name: c.name || `column ${i + 1}` })),
+      [...columns].sort((a, b) => (rtl ? b[0] - a[0] : a[0] - b[0])).map(([, c]) => c),
     );
   }
   const probe = document.createElement("style");
@@ -704,21 +732,13 @@ export function squeezedTables() {
   probe.remove();
   const found = [];
   for (const [table, columns] of read) {
-    const wraps = columns.filter((c) => c.wraps);
-    if (!wraps.length) continue;
-    const short = table.scrollWidth - table.clientWidth;
-    const top = Math.max(...columns.map((c) => c.width));
-    const widest =
-      columns.find((c) => c.width === top && c.wraps) ??
-      columns.find((c) => c.width === top);
+    if (!columns.some((c) => c.wraps)) continue;
     found.push({
+      code: "squeezed-table",
+      at: at(table),
       place: place(table),
-      text:
-        `${at(table)} scrolls ${short}px sideways: ` +
-        wraps.map((c) => `${c.name} wraps at ${c.width}px`).join(", ") +
-        (widest.wraps ? "" : ` beside ${widest.name} at ${widest.width}px`) +
-        ` — an identifier in <code> breaks inside its cell; a column fewer, or a` +
-        ` shorter word in the widest, gives the rest the measure`,
+      scrolls: table.scrollWidth - table.clientWidth,
+      columns: columns.map(({ heading, width, wraps }) => ({ heading, width, wraps })),
     });
   }
   return found;

@@ -43,3 +43,12 @@ export const place = (el) => {
   }
   return steps.join("");
 };
+
+// Each record once, where a probe meets the same finding more than once.
+export const unique = (records) => {
+  const seen = new Set();
+  return records.filter((record) => {
+    const key = JSON.stringify(record);
+    return !seen.has(key) && seen.add(key);
+  });
+};

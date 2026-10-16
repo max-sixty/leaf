@@ -7,7 +7,7 @@
    asynchronous presentation. */
 import { reportPageError } from "./layer-client.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
-import { render } from "../vendor/browser-runtime.js";
+import { render } from "/vendor/browser-runtime.js";
 import { shadowStage } from "./shadow-stage.js";
 
 const initialized = new WeakSet();
@@ -45,11 +45,18 @@ export const bodyText = (el) => dataBody(el).replace(/^\n+/, "").trimEnd();
 // fails on wherever it runs the page. Both name the widget the failing element belongs to, and the report adds its
 // id, since that is how the agent finds it.
 export function failSoft(el, err, source) {
+  reportFailure(el, err);
+  showFailure(el, `<${widgetOf(el).localName}> failed: ${err?.message || err}`, source);
+}
+
+// The report alone, for a widget that shows a part's failure its own way, such as a
+// diff file whose patch it cannot draw beside the files it can.
+export function reportFailure(el, err) {
   const owner = widgetOf(el);
-  const tag = owner.localName;
-  const message = err?.message || err;
-  reportPageError(err, `<${tag}${owner.id ? ` id="${owner.id}"` : ""}> failed`);
-  showFailure(el, `<${tag}> failed: ${message}`, source);
+  reportPageError(
+    err,
+    `<${owner.localName}${owner.id ? ` id="${owner.id}"` : ""}> failed`,
+  );
 }
 
 // The box alone, for the presentation coordinator's fallback: the coordinator reports
@@ -65,6 +72,14 @@ const widgetOf = (el) => {
   return owner.localName.includes("-") ? owner : el;
 };
 
+// An owner that keeps the nodes it drew through a failure places the box itself, beside
+// them, rather than have them replaced by it: a `LeafElement` (leaf-element.js), whose
+// render may paint retained nodes that no later draw would make again. Its placer
+// answers whether it placed the box; otherwise the box goes where it would for any
+// widget.
+const placers = new WeakMap();
+export const placesFailure = (el, place) => placers.set(el, place);
+
 function showFailure(el, text, source) {
   const box = document.createElement("div");
   box.className = "lf-error";
@@ -74,6 +89,7 @@ function showFailure(el, text, source) {
     pre.textContent = source;
     box.append(pre);
   }
+  if (placers.get(el)?.(box)) return;
   // An x-shadow widget shows only what its stage holds, so the box stands there, and
   // the widget's next stage replaces it.
   if (el.shadowRoot) {

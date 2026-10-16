@@ -14,7 +14,7 @@ from interact_support import STATED_TIMEOUT, wait_for
 
 @pytest.mark.parametrize("scenario", ["output", "candidate"])
 def test_flake_copies_share_a_snapshot_but_not_outputs(tmp_path, monkeypatch, scenario):
-    flake = importlib.import_module("leaf_dev.flake")
+    flake = importlib.import_module("leaf_dev.commands.flake")
     arms = importlib.import_module("leaf_dev.arms")
     root = tmp_path / "candidate"
     root.mkdir()

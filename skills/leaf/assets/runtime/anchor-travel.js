@@ -1,34 +1,30 @@
-/* Travel to a place on the page.
+/* Travel to a place on the page: open what hides it, scroll to it, focus it, and
+ * record the departure in history.
  *
- * A place is what an anchor names (anchor-resolution.js): an addressed element, which
- * is what a fragment names too, a passage inside one, or a part of a widget, a projected
- * datum or a visual part. A thread travels to the place its anchor names, a fragment
- * link to its element, a Question to its own arrival region, and a module's
- * `navigateToDatum` to the part its declared reference addresses. Whichever route names
- * it, a part is drawn through the one `revealAddressed`, what holds the place opens
- * through the one `reveal`, and the surface hiding it is cleared through the one
- * `clearFor`. Each route declares its fresh destination, focus target and scroll
- * placements. Each placement names its destination and may name a separate alignment
- * context: inner scrollports reveal the destination before its context is aligned.
- * `arrive` completes their reveal, presentation, focus and placement
- * under the original user intent; routes never perform the final handoff themselves.
- * Travel scrolls within the current view. When reveal replaces a visible view,
- * its destination lands immediately rather than scrolling from the old view's place.
+ * A place is what an anchor names (anchor-resolution.js): an element with an id, a
+ * passage inside one, or a part of a widget, such as a projected datum or a visual
+ * part. A thread travels to its anchor's place, a fragment link to its element, an ask
+ * to its own arrival region, and a module's `navigateToDatum` to the part its
+ * reference names. Every route shares three steps: `revealAddressed` draws the part,
+ * `reveal` opens what holds it, and `clearFor` clears the surface covering it. Each
+ * route says where it lands, what takes focus and how to scroll; `arrive` then does
+ * the reveal, painting, focus and scrolling, and no route does them itself. When the
+ * reveal replaces a visible view, the destination lands at once instead of scrolling
+ * from the old view's position.
  *
- * Travel owns effects above readonly resolution and paint. It receives the current
- * semantic threads and the synchronous thread refresh from the application root;
- * subordinate geometry never imports the presenter. A trip keeps its original user
- * intent through hydration, reveal and presentation. Newer input or another trip
- * cancels its landing without cancelling the data the page is loading. Every trip, to a
- * thread, a Question or a datum, prepares its outgoing checkpoint before reveal, then
- * decides whether the user is already there. Only a successful arrival commits its
- * departure to history, so browser Back returns the user to where they
- * were reading; a journey, trips each leaving from the last one's landing, is one
- * entry. A press or Tab onto another authored passage ends the journey even while its
- * landing remains visible. Controls, chrome and runtime focus handoffs are not reading
- * choices. A fragment link's trip (`followFragment`) departs by the browser's own entry,
- * and Back or Forward to a place the page has hidden since (`returnToFragment`) is a
- * trip that departs by none.
+ * Travel gets the current threads and the synchronous thread refresh from the
+ * application root, so geometry code never imports the presenter. A trip keeps the
+ * user's original intent while data loads, the target opens and the page paints;
+ * newer input or another trip cancels its landing, but not the loading. Each trip
+ * records where the user is before it moves anything, then checks whether the user is
+ * already there. Only an arrival that succeeds adds that departure to history, so Back
+ * returns the user to where they were reading. A journey, a run of trips each leaving
+ * from the last one's landing, is one history entry. Pressing or tabbing to another
+ * authored passage ends the journey, even while its landing still shows; a press on a
+ * control or chrome, or a focus move the runtime makes, does not. A fragment link's
+ * trip (`followFragment`) uses the history entry the browser added for the link as
+ * its departure, and Back or Forward to a place the page has since hidden
+ * (`returnToFragment`) is a trip that adds no entry.
  */
 
 import {
@@ -58,7 +54,7 @@ import { threadNamed } from "./thread/state.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { targetElement, targetPlace, targetSegments } from "./resolved-target.js";
 import { closestAcross, rangeOf, selectEnds } from "./passages.js";
-import { standingPoint } from "./pointed-place.js";
+import { livePoint } from "./pointed-place.js";
 import { PRESSES } from "./control-selectors.js";
 import { typesText } from "./focus.js";
 import { openingPassage, passageBlock } from "./reading-place.js";
@@ -74,6 +70,14 @@ export function scrollToFragment(element) {
   scrollIntoView(element, { behavior: "auto", block: "start" });
 }
 
+/** @param {{
+ *   anchors: any,
+ *   surfaces: any,
+ *   refreshThread: () => unknown,
+ *   focusForNavigation: any,
+ *   threadFocusTarget: any,
+ *   announce: any,
+ * }} travel */
 export function createAnchorTravel({
   anchors,
   surfaces,
@@ -88,19 +92,17 @@ export function createAnchorTravel({
     return restrictUserIntent(retained, () => intent === travelIntent);
   };
 
-  // Preparation captures the outgoing working place before the trip moves anything;
-  // arrival commits it only once its final destination exists (history.js).
-  // A destination already readable where the user stands is no departure. A trip that
-  // names its `landing` while any of the last trip's landing still shows continues that
-  // journey, whether it goes to threads or Questions: it replaces the journey's entry, which
-  // already holds where the journey began. Choosing a different authored passage by
-  // pointer or Tab ends the journey, as does moving off its landing. The next successful
-  // trip then saves the newly chosen working place. A journey is not a walk (the glossary's ordered movement
-  // among one category of destination): steps of the thread walk and of the queue
-  // walk, or a press on a margin marker, can all be trips of one journey. The landing is a lookup
-  // rather than a node because the thread pass repaints marks, and the entry
-  // carries a token for this document's journey because only this load holds the
-  // lookup.
+  // A trip saves where the user is reading before it moves anything, and history.js
+  // commits that only once the trip arrives. A destination the user can already read
+  // where they are is no departure. A trip that names its `landing` while part of the
+  // last trip's landing still shows continues that journey, whether it goes to a
+  // thread or the On panel, and replaces the journey's entry, which already holds
+  // where the journey began. Choosing another authored passage by pointer or Tab, or
+  // moving off the landing, ends the journey, and the next trip saves the new place.
+  // A journey is not a walk: steps of the thread walk, of the queue walk and presses
+  // on margin markers can all be trips of one journey. The landing is kept as a lookup
+  // rather than a node because the thread pass repaints marks, and the entry carries
+  // a token for this load's journey because only this load holds the lookup.
   const journeyPrefix = `${performance.timeOrigin}:`;
   let trips = 0;
   let journey = null;
@@ -262,9 +264,10 @@ export function createAnchorTravel({
   // or newer intent leaves history and the continuing journey untouched. A destination
   // not yet placed (a datum a widget has yet to hydrate) is somewhere else. `there` is the
   // caller's reading of already being there where it asks more than the destination's
-  // own (a Question's arrival region), built on the reading it is handed. Clearing a surface
+  // own (an ask's arrival region), built on the reading it is handed. Clearing a surface
   // can take the focus out of it, so the caller's retained `intent` hands the gesture
   // over to where that leaves the user rather than reading the move as a newer one.
+  /** @param {{landing?: () => unknown, url?: URL, keep?: boolean, intent: any}} trip */
   function prepareTrip({ landing = null, url, keep = false, intent }) {
     const write = prepareEntry();
     const continuing = landing && stillLanded();
@@ -417,6 +420,7 @@ export function createAnchorTravel({
   // not move with that region, so a fixed boundary ends the scrollers that move it
   // (`scrollersOf`); a scroller inside that boundary still owns its ordinary descendants.
 
+  /** @param {{at: any, align?: any, block?: string, behavior?: string, when?: () => boolean}} place */
   function placeScroll(
     { at, align = at, block = "center", behavior = scrollBehavior(), when },
     replacedView,
@@ -431,7 +435,7 @@ export function createAnchorTravel({
       });
   }
 
-  // Synchronous: the move is the caller's gesture, so its intent is the one standing now.
+  // Synchronous: the move is the caller's gesture, so its intent is the current one.
   function scrollToElement(element, behavior = scrollBehavior(), block = "center") {
     const { replacedView } = reveal(element, retainUserIntent());
     placeScroll({ at: element, behavior, block }, replacedView);
@@ -444,10 +448,10 @@ export function createAnchorTravel({
     const holder = placeHolder(where);
     if (!holder) return null;
     const destination = placeBox(where);
-    const standing = surfaces.selectedSurface();
+    const selected = surfaces.selectedSurface();
     const seen = clippedPlace(
       where,
-      standing ? clipsPast([standing]) : new Map(),
+      selected ? clipsPast([selected]) : new Map(),
       destination,
     );
     return seen && { holder, destination, seen };
@@ -496,13 +500,13 @@ export function createAnchorTravel({
       ? rangeOf([segment])
       : (targetElement(placement) ?? targetPlace(placement));
     return (
-      standingPoint(
-        targetElement(placement) ?? targetPlace(placement),
-        placement?.point,
-      ) ?? where
+      livePoint(targetElement(placement) ?? targetPlace(placement), placement?.point) ??
+      where
     );
   };
 
+  /** @param {string} id
+   * @param {{part?: any, focus?: boolean, keep?: boolean, presented?: any, intent?: any}} [options] */
   async function scrollToThread(
     id,
     { part = null, focus = true, keep = false, presented = null, intent } = {},
@@ -512,12 +516,12 @@ export function createAnchorTravel({
     const anchor = thread?.anchor;
     const status = anchors.placedAt(id)?.status;
     const hydrating = (anchor?.datum && status !== "outdated") || anchor?.visual;
-    const standing = threadDestination(id);
+    const destination = threadDestination(id);
     // Decided before the trip awaits anything: a destination that is not readable now,
     // or one a widget has yet to hydrate, is somewhere else.
     const landing = () => threadDestination(id);
     const departure = prepareTrip({ landing, keep, intent: mayArrive });
-    if (standing || hydrating) departure.plan(standing);
+    if (destination || hydrating) departure.plan(destination);
     if (hydrating) {
       const source = sectionOf(anchor);
       // A visual settles on its part, including cancelling a pending replacement of

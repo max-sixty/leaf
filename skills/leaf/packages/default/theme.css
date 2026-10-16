@@ -1,8 +1,9 @@
-/* Generated from skills/leaf/packages/default/styles/theme.css by build/styles.mjs. */
+/* @noformat Generated from skills/leaf/packages/default/styles/theme.css by build/styles.mjs. */
 /* skills/leaf/packages/default/styles/shot.css */
 :scope:is(lf-shot) {
   display: block;
   margin: 16px 0;
+  container: lf-shot / inline-size;
   --lf-shot-rail-size: max(34px, var(--aim-floor));
 }
 :scope:is(lf-shot):has(.lf-shotframe) {
@@ -42,7 +43,6 @@
   --wa-color-neutral-on-quiet: var(--ink-2);
   --wa-focus-ring: var(--focus-ring);
   --wa-focus-ring-offset: 1px;
-  --lf-focus-ring: shot;
 }
 :scope:is(lf-shot) .lf-shotcomparison::part(divider) {
   background: color-mix(in srgb, var(--ink-2) 48%, transparent);
@@ -51,9 +51,9 @@
 }
 :scope:is(lf-shot) .lf-shotcomparison::part(handle) {
   border: 1px solid var(--ink-2);
-  box-shadow: 0 1px 3px var(--shade);
-  opacity: .52;
-  scale: .88;
+  box-shadow: var(--raise-1);
+  opacity: 0.52;
+  scale: 0.88;
   transition: opacity 120ms ease, scale 120ms ease;
 }
 :scope:is(lf-shot) .lf-shot-handle {
@@ -77,8 +77,8 @@
   scale: 1;
 }
 :scope:is(lf-shot) .lf-shotcomparison:is([position="0"], [position="100"]):not(:hover, [data-lf-focus-within])::part(handle) {
-  opacity: .18;
-  scale: .68;
+  opacity: 0.18;
+  scale: 0.68;
 }
 :scope:is(lf-shot) .lf-shotframe {
   position: relative;
@@ -97,7 +97,7 @@
   align-items: center;
   grid-template: var(--lf-shot-rail-size) / auto auto minmax(0, 1fr) auto auto;
   height: var(--lf-shot-rail-size);
-  padding: 0 11px;
+  padding: 0;
   border: 1px solid var(--rule);
   border-bottom: 0;
   border-radius: var(--r) var(--r) 0 0;
@@ -122,16 +122,11 @@
   display: flex;
   align-items: center;
   align-self: stretch;
-  font-size: var(--t-6);
-  font-weight: 650;
-  text-transform: uppercase;
-  letter-spacing: .04em;
   padding: 0 5px;
-  color: var(--muted);
 }
 :scope:is(lf-shot) .lf-shotcap[data-lf-state=before] {
   grid-column: 1;
-  margin-inline-start: -5px;
+  border-start-start-radius: calc(var(--r) - 1px);
 }
 :scope:is(lf-shot) .lf-shot-open[data-lf-shot-open=before] {
   grid-column: 2;
@@ -141,7 +136,7 @@
 }
 :scope:is(lf-shot) .lf-shotcap[data-lf-state=after] {
   grid-column: 5;
-  margin-inline-end: -5px;
+  border-start-end-radius: calc(var(--r) - 1px);
 }
 :scope:is(lf-shot) .lf-shot-open {
   display: grid;
@@ -157,26 +152,84 @@
 :scope:is(lf-shot) .lf-shotdelta {
   grid-area: 1 / 3;
   justify-self: center;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
   padding-inline: 4px;
   text-align: center;
   line-height: 1.2;
 }
-:scope:is(lf-shot) .lf-shotdelta[role=button] {
+:scope:is(lf-shot) .lf-shotviews {
   display: flex;
   align-items: center;
-  padding-block: 3px;
-  padding-inline: 8px;
-  border-radius: var(--r);
-  box-shadow: inset 0 0 0 1px var(--rule);
-  outline-offset: -2px;
+  gap: 12px;
 }
-:scope:is(lf-shot) .lf-shotdelta[role=button]:hover {
-  background: var(--chip);
+:scope:is(lf-shot) .lf-shotview {
+  appearance: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  min-width: var(--aim-floor);
+  min-height: var(--lf-shot-rail-size);
+  cursor: pointer;
+  color: var(--muted);
+  font: 700 10px/14px var(--sans);
+  white-space: nowrap;
+  outline-offset: 1px;
 }
-:scope:is(lf-shot) .lf-shotdelta[role=button][aria-pressed=true] {
-  color: var(--warn-ink);
-  background: var(--warn-tint);
-  box-shadow: inset 0 0 0 1px var(--warn), inset 0 -3px var(--warn-ink);
+:scope:is(lf-shot) .lf-shotview[aria-checked=true] {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+:scope:is(lf-shot) .lf-shotview:hover {
+  box-shadow: none;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+:scope:is(lf-shot) .lf-shotoutlines {
+  touch-action: none;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+:scope:is(lf-shot) .lf-shotoutlines:is(:hover, [data-lf-focus], [data-lf-held-word])::after {
+  content: attr(aria-description);
+  position: absolute;
+  z-index: 2;
+  inset-block-start: calc(100% + 6px);
+  inset-inline-start: 50%;
+  translate: -50% 0;
+  width: max-content;
+  max-width: calc(100cqi - 24px);
+  box-sizing: border-box;
+  padding: var(--tip-pad);
+  border-radius: var(--tip-r);
+  background: var(--tip-bg);
+  color: var(--tip-ink);
+  box-shadow: var(--raise-1);
+  font: var(--tip-font);
+  white-space: normal;
+  pointer-events: none;
+}
+@media screen {
+  @container lf-shot (width < 400px) {
+    :scope:is(lf-shot):is([outlines], [pixels]) > .lf-shotrail {
+      grid-template-rows: repeat(2, var(--lf-shot-rail-size));
+      height: calc(2 * var(--lf-shot-rail-size));
+    }
+    :scope:is(lf-shot):is([outlines], [pixels]) .lf-shotdelta {
+      grid-area: 2 / 1 / 3 / -1;
+    }
+    :scope:is(lf-shot):is([outlines], [pixels]):not([data-lf-shot-controls=off]):has(> .lf-shotrail) > :is(.lf-shotcomparison, .lf-shotframe) {
+      --lf-top: calc(var(--lf-top-outer) + 2 * var(--lf-shot-rail-size) + 1px);
+    }
+    :scope:is(lf-shot):is([outlines], [pixels]):not(:has(> .lf-shotrail))::before {
+      height: calc(2 * var(--lf-shot-rail-size));
+    }
+  }
 }
 :scope:is(lf-shot) .lf-shotcap[data-lf-state] {
   outline-offset: -2px;
@@ -233,7 +286,7 @@
   color: var(--warn-ink);
   font-weight: 650;
 }
-:scope:is(lf-shot):not([outlines]) .lf-shotdiff,
+:scope:is(lf-shot):not([data-lf-shot-view=outlines]) .lf-shotdiff,
 :scope:is(lf-shot):not([outlines], [pixels]) .lf-shotdelta[data-lf-shot-delta=areas] {
   display: none;
 }
@@ -258,13 +311,19 @@
   width: 100%;
   height: auto;
   filter: grayscale(1);
-  opacity: .28;
+  opacity: 0.28;
 }
 :scope:is(lf-shot) > .lf-shotpixels > span {
   position: absolute;
   inset: 0;
   background: var(--warn);
-  mask: var(--lf-shot-pixels) 0 0 / 100% 100% no-repeat;
+  mask: var(--lf-shot-pixels, linear-gradient(transparent, transparent)) 0 0 / 100% 100% no-repeat;
+}
+:scope:is(lf-shot) > .lf-shotpixels > span[data-lf-shot-side=before] {
+  background: var(--danger);
+}
+:scope:is(lf-shot) > .lf-shotpixels > span[data-lf-shot-side=after] {
+  background: var(--accent);
 }
 :scope:is(lf-shot) > input.lf-shotflip {
   display: none;
@@ -302,7 +361,6 @@
 }
 :scope:is(lf-shot):has(> input.lf-shotflip[data-lf-focus]) {
   outline: var(--focus-ring);
-  --lf-focus-ring: shot;
   outline-offset: 1px;
   border-radius: var(--r);
 }
@@ -427,7 +485,7 @@
     background: var(--card);
     color: var(--ink-2);
     font: 650 var(--t-6) / 1 var(--sans);
-    letter-spacing: .04em;
+    letter-spacing: 0.04em;
     text-transform: uppercase;
   }
   :scope:is(lf-shot)[data-lf-shot-mode=compare] .lf-shot-frame-label::before {
@@ -515,7 +573,7 @@
     text-decoration-line: underline;
     text-decoration-color: var(--accent);
     text-decoration-thickness: 1px;
-    text-underline-offset: .18em;
+    text-underline-offset: 0.18em;
     cursor: help;
   }
 }
@@ -533,7 +591,6 @@
 }
 :scope:is(lf-gloss):has(> .lf-gloss-mark[data-lf-focus]) {
   outline: var(--focus-ring);
-  --lf-focus-ring: gloss-mark;
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 .lf-gloss-popover {
@@ -551,7 +608,7 @@
   border-radius: var(--r);
   background: var(--card);
   color: var(--ink);
-  box-shadow: 0 10px 28px var(--shade);
+  box-shadow: var(--raise-2);
   font-family: var(--serif);
   font-size: var(--t-5);
   line-height: 1.45;
@@ -616,6 +673,12 @@
   --lf-option-line: 1lh;
   container-type: inline-size;
 }
+@media screen {
+  :scope:is(lf-options) {
+    box-sizing: border-box;
+    max-inline-size: var(--lf-measure);
+  }
+}
 :scope:is(lf-options):not(:has(> lf-option > strong)) {
   --lf-option-font: var(--t-5)/1.5 var(--sans);
   font: var(--lf-option-font);
@@ -653,7 +716,7 @@
 @container style(--lf-density: working) and (width >= 30rem) {
   :scope:is(lf-options):has(> lf-option > strong) > lf-option {
     & > strong {
-      margin-inline-end: .35em;
+      margin-inline-end: 0.35em;
     }
     & > .tag {
       float: inline-end;
@@ -693,7 +756,7 @@
     color: var(--muted);
     font-size: var(--t-6);
     text-transform: uppercase;
-    letter-spacing: .05em;
+    letter-spacing: 0.05em;
     font-weight: 400;
     margin-top: 6px;
     padding: 0;
@@ -714,11 +777,11 @@
   }
   @container style(--lf-joined: 0) {
     :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > lf-option {
-      transition: box-shadow .12s ease, transform .12s ease;
+      transition: box-shadow 0.12s ease, transform 0.12s ease;
     }
     :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *):has(> lf-option > strong) > lf-option:hover {
       transform: translateY(-1px);
-      --lf-lift: 0 3px 10px var(--shade);
+      --lf-lift: var(--raise-1);
     }
   }
 }
@@ -798,8 +861,8 @@
       margin: 0;
     }
     & > .lf-another {
-      --lf-option-add-seat-end: calc(var(--sp-3) + (var(--lf-option-line) - var(--lf-option-action-size)) / 2);
-      --lf-option-action-room: calc(var(--lf-option-write-badge-inset) + var(--lf-key-badge-size) + var(--sp-2));
+      --lf-option-add-seat-end: calc( var(--sp-3) + (var(--lf-option-line) - var(--lf-option-action-size)) / 2 );
+      --lf-option-action-room: calc( var(--lf-option-write-badge-inset) + var(--lf-key-badge-size) + var(--sp-2) );
     }
     & > .lf-another:has(.lf-compose-submit:not([data-lf-empty])) > .lf-key-badge {
       inset-inline-end: var(--lf-option-write-badge-inset);
@@ -867,7 +930,6 @@
 }
 :scope:is(lf-option) .lf-pick[data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: options-pick;
   outline-offset: var(--focus-ring-gap);
   border-radius: 4px;
 }
@@ -918,7 +980,7 @@
     --lf-add-cell-height: calc(var(--lf-option-line) + 2 * 5px);
     --lf-done-cell-height: 32px;
     &:has(> lf-option > strong) {
-      --lf-add-cell-height: calc(max(var(--lf-option-line), var(--lf-card-state-height)) + 2 * var(--sp-3));
+      --lf-add-cell-height: calc( max(var(--lf-option-line), var(--lf-card-state-height)) + 2 * var(--sp-3) );
     }
     &:not(:where(.lf-chrome *)):not(:has(> .lf-another)) {
       --lf-missing-cells: var(--lf-add-cell-height);
@@ -1000,18 +1062,16 @@
       max-inline-size: none;
     }
   }
-  :is(:scope, :scope *)[data-lf-question]:has(lf-options[choose]:not(:where([data-lf-exhibit]) *) [data-lf-focus]) {
-    --lf-question-ring: none;
+  :is(:scope, :scope *)[data-lf-ask]:has(lf-options[choose]:not(:where([data-lf-exhibit]) *) [data-lf-focus]) {
+    --lf-ask-ring: none;
   }
   :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *) > lf-option:has(> .lf-pick[data-lf-focus]) {
     outline: var(--focus-ring);
-    --lf-focus-ring: options-row;
     outline-offset: calc(-1 * var(--focus-ring-w));
     z-index: 1;
   }
   :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > .lf-another:has(leaf-text[data-lf-focus]) {
     outline: var(--focus-ring);
-    --lf-focus-ring: options-row;
     outline-offset: calc(-1 * var(--focus-ring-w));
     z-index: 1;
   }
@@ -1019,10 +1079,10 @@
     --lf-option-action-size: max(28px, var(--aim-floor));
     --lf-option-add-seat-inset: var(--sp-1);
     --lf-option-add-seat-end: var(--lf-option-add-seat-inset);
-    --lf-option-add-badge-inset: calc(var(--lf-option-add-seat-inset) + (var(--lf-option-action-size) - var(--lf-key-badge-size)) / 2);
-    --lf-option-add-badge-end: calc(var(--lf-option-add-seat-end) + (var(--lf-option-action-size) - var(--lf-key-badge-size)) / 2);
-    --lf-option-write-badge-inset: calc(var(--lf-option-add-seat-inset) + var(--lf-option-action-size) + var(--sp-2));
-    --lf-option-action-room: calc(var(--lf-option-add-seat-inset) + var(--lf-option-action-size) + var(--sp-2));
+    --lf-option-add-badge-inset: calc( var(--lf-option-add-seat-inset) + (var(--lf-option-action-size) - var(--lf-key-badge-size)) / 2 );
+    --lf-option-add-badge-end: calc( var(--lf-option-add-seat-end) + (var(--lf-option-action-size) - var(--lf-key-badge-size)) / 2 );
+    --lf-option-write-badge-inset: calc( var(--lf-option-add-seat-inset) + var(--lf-option-action-size) + var(--sp-2) );
+    --lf-option-action-room: calc( var(--lf-option-add-seat-inset) + var(--lf-option-action-size) + var(--sp-2) );
     position: relative;
     display: flex;
     align-items: center;
@@ -1074,15 +1134,10 @@
   }
   :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) {
     --lf-key-badge-start: var(--sp-2);
-    --lf-key-badge-col: calc(var(--lf-key-badge-start) + var(--lf-key-badge-size) + 6px);
+    --lf-key-badge-col: calc( var(--lf-key-badge-start) + var(--lf-key-badge-size) + 6px );
   }
   :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > lf-option {
     padding-inline-start: var(--lf-key-badge-col);
-  }
-}
-@media print {
-  :scope:is(lf-options) > :is(.lf-another, lf-options-done) {
-    display: none;
   }
 }
 :scope:is(lf-options):not(:has(> lf-option > strong)) > lf-option {
@@ -1175,7 +1230,6 @@
 }
 :scope:is(lf-options)[settled] > .lf-settled[data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: options-settled;
   outline-offset: 1px;
 }
 .lf-settled::before {
@@ -1213,23 +1267,17 @@
     box-shadow: none;
     margin: 0;
   }
-  :scope:is(lf-options)[settled] > lf-option[hidden]:not([hidden=until-found]) {
-    display: none;
-  }
-}
-@media print {
-  :scope:is(lf-options)[settled] > lf-option {
-    content-visibility: visible !important;
-  }
 }
 
 /* skills/leaf/packages/default/styles/board.css */
 :scope:is(lf-board) {
   --lf-board-columns: 1;
+  --lf-grip-room: 0px;
+  --lf-grip-block: 0px;
 }
 @media screen {
   :scope:is(lf-board) {
-    min-inline-size: min(calc(var(--lf-board-columns) * var(--lf-reading-column-floor) + (var(--lf-board-columns) - 1) * var(--sp-2)), var(--lf-reach, calc(100cqi - 2 * var(--col-pad))), var(--lf-box-cap, 100vw));
+    min-inline-size: min(calc(var(--lf-board-columns) * var(--lf-reading-column-floor) + (var(--lf-board-columns) - 1) * var(--sp-2)), var(--lf-reach, min(100%, 100cqi)), var(--lf-box-cap, 100vw));
   }
 }
 :scope:is(lf-board):has(> lf-column:nth-of-type(2)) {
@@ -1254,7 +1302,7 @@
   --lf-card-measure: 136px;
   --lf-reading-column-inset: 8px;
   --lf-card-inset: 10px;
-  --lf-reading-column-floor: calc(var(--lf-card-measure) + 2 * var(--lf-reading-column-inset) + 2 * var(--lf-card-inset) + var(--lf-grip-room, 0px) + 2px);
+  --lf-reading-column-floor: calc( var(--lf-card-measure) + 2 * var(--lf-reading-column-inset) + 2 * var(--lf-card-inset) + var(--lf-grip-room, 0px) + 2px );
   grid-auto-columns: 1fr;
   gap: var(--sp-2);
   margin: 14px 0;
@@ -1367,19 +1415,20 @@
   --lf-block-frame: 1;
 }
 @media screen {
-  :scope:is(lf-card)::before {
+  html[data-lf-interactive] :scope:is(lf-board):not(:where([data-lf-exhibit]) *) {
+    --lf-grip-room: max(var(--aim-floor), calc(var(--t-5) + 20px));
+    --lf-grip-block: max(var(--aim-floor), calc(var(--t-5) + 16px));
+  }
+  html[data-lf-interactive] :scope:is(lf-card):not(:where([data-lf-exhibit]) *)::before {
     content: "";
     float: right;
-    inline-size: var(--lf-grip-room, 0px);
-    block-size: var(--lf-grip-block, 0px);
+    inline-size: var(--lf-grip-room);
+    block-size: var(--lf-grip-block);
     margin-block-start: -10px;
   }
   :scope:is(lf-card) > :not(:first-child) {
     clear: right;
   }
-}
-:scope:is(lf-card):last-child {
-  margin-bottom: 0;
 }
 :scope:is(lf-card) > strong {
   display: block;
@@ -1394,6 +1443,9 @@
   color: var(--muted);
   padding: 8px 10px;
   cursor: grab;
+  box-sizing: border-box;
+  inline-size: var(--lf-grip-room);
+  block-size: var(--lf-grip-block);
   min-height: var(--aim-floor);
   min-width: var(--aim-floor);
   border-radius: 4px;
@@ -1413,17 +1465,16 @@
 }
 :scope:is(lf-card) .lf-grip[data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: card-grip;
   outline-offset: calc(-1 * var(--focus-ring-w));
   color: var(--ink-2);
 }
 :scope:is(lf-card).lf-ghost {
-  opacity: .4;
+  opacity: 0.4;
   border-style: dashed;
   border-color: var(--accent);
 }
 :scope:is(lf-card).lf-lift {
-  box-shadow: 0 2px 8px var(--shade);
+  box-shadow: var(--raise-1);
   border-color: var(--accent);
 }
 
@@ -1439,7 +1490,7 @@
 .lf-tabstrip .lf-tab-group {
   font-size: var(--t-6);
   text-transform: uppercase;
-  letter-spacing: .05em;
+  letter-spacing: 0.05em;
   color: var(--muted);
 }
 :scope:is(lf-tab)::before {
@@ -1478,7 +1529,6 @@
 }
 .lf-tabstrip .lf-tab-btn[data-lf-focus] > .lf-tab-name {
   outline: var(--focus-ring);
-  --lf-focus-ring: tab-btn;
   outline-offset: var(--lf-tab-focus-gap);
 }
 .lf-tabstrip .lf-tab-btn > .lf-tab-name {
@@ -1555,9 +1605,6 @@
   }
   :scope:is(lf-tabs).lf-rendered > lf-tab[hidden] {
     margin: 0;
-  }
-  :scope:is(lf-tabs).lf-rendered > lf-tab[hidden]:not([hidden=until-found]) {
-    display: none;
   }
   :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=box] > lf-tab {
     container-type: inline-size;
@@ -1940,9 +1987,6 @@
   }
 }
 @media print {
-  :scope:is(lf-tabs).lf-rendered > lf-tab {
-    content-visibility: visible !important;
-  }
   :scope:is(lf-tabs)[list=side] > lf-tab[group]::before {
     content: attr(group) " · " attr(label);
   }
@@ -2013,11 +2057,6 @@
 }
 :scope:is(lf-toc) .lf-toc-heading {
   margin: 0 0 7px;
-  color: var(--ink-2);
-  font-size: var(--t-6);
-  font-weight: 650;
-  letter-spacing: .08em;
-  text-transform: uppercase;
 }
 :scope:is(lf-toc) .lf-toc-start,
 :scope:is(lf-toc) .lf-toc-window {
@@ -2067,9 +2106,8 @@
         left: var(--sp-4);
         top: var(--lf-banner-h, 0px);
         z-index: 4;
-        width: calc(var(--sidebar-max) - var(--sp-4));
+        width: var(--sp-4);
         box-sizing: border-box;
-        padding-block: var(--sp-4);
         pointer-events: none;
         height: var(--lf-view-height);
         margin: 0;
@@ -2078,10 +2116,19 @@
         width: 100%;
         height: 100%;
         border: 0;
-        padding: 0;
+        box-sizing: border-box;
+        padding: var(--sp-4) 0;
         --lf-toc-label-opacity: 0;
         pointer-events: none;
-        transition: background-color .24s ease-out;
+        transition: background-color 0.24s ease-out;
+      }
+      :scope:is(lf-toc):is(:hover, [data-lf-focus-within]) .lf-toc-nav {
+        width: calc(var(--sidebar-max) - var(--sp-4));
+      }
+      @scope (body[data-lf-go-to-active] :scope) {
+        :scope:is(lf-toc) .lf-toc-nav {
+          width: calc(var(--sidebar-max) - var(--sp-4));
+        }
       }
       :scope:is(lf-toc) .lf-toc-heading {
         display: none;
@@ -2181,18 +2228,6 @@
         background: var(--ink-2);
         border-color: var(--ink-2);
       }
-      :scope:is(lf-toc) li[data-lf-depth="1"] {
-        --lf-toc-indent: 10px;
-      }
-      :scope:is(lf-toc) li[data-lf-depth="2"] {
-        --lf-toc-indent: 20px;
-      }
-      :scope:is(lf-toc) li[data-lf-depth="3"] {
-        --lf-toc-indent: 30px;
-      }
-      :scope:is(lf-toc) li[data-lf-depth="4"] {
-        --lf-toc-indent: 40px;
-      }
       :scope:is(lf-toc) .lf-toc-start a,
       :scope:is(lf-toc) li a {
         position: absolute;
@@ -2200,17 +2235,17 @@
         display: -webkit-box;
         top: 0;
         left: 0;
-        width: 100%;
+        width: calc(var(--sidebar-max) - var(--sp-4));
         overflow: hidden;
         max-height: 2.6em;
         padding: 0 2px 2px calc(14px + var(--lf-toc-indent));
         line-height: 1.3;
         -webkit-box-orient: vertical;
         -webkit-line-clamp: 2;
-        transform: translateY(calc(var(--lf-toc-row-shift, 0px) - .5lh));
+        transform: translateY(calc(var(--lf-toc-row-shift, 0px) - 0.5lh));
         opacity: var(--lf-toc-label-opacity);
         pointer-events: none;
-        transition: color .12s ease-out, opacity .24s ease-out;
+        transition: color 0.12s ease-out, opacity 0.24s ease-out;
       }
       :scope:is(lf-toc) .lf-toc-start a {
         color: var(--ink-2);
@@ -2223,7 +2258,6 @@
       }
       :scope:is(lf-toc) a[data-lf-focus] {
         outline: var(--focus-ring);
-        --lf-focus-ring: toc-link;
         outline-offset: calc(-1 * var(--focus-ring-w));
       }
       :scope:is(lf-toc):is(:hover, [data-lf-focus-within]) .lf-toc-nav {
@@ -2282,6 +2316,7 @@
       :scope:is(lf-toc)[data-lf-outline] :is(.lf-toc-start, li) a {
         position: relative;
         display: block;
+        width: 100%;
         max-height: none;
         padding: 3px 0;
         transform: none;
@@ -2456,17 +2491,31 @@
   color: var(--muted);
   font: var(--t-5) var(--sans);
 }
-@media print {
-  :scope:is(lf-activity) .lf-activity-news {
-    display: none;
-  }
-}
 
 /* skills/leaf/packages/default/styles/ask.css */
 :scope:is(lf-ask) {
   display: block;
 }
-:scope:is(lf-ask):has(> :is(h1, h2, h3, h4, h5, h6):first-child ~ :is(figure, img, svg, table, lf-chart, lf-shot) ~ lf-options:last-child) {
+@media screen {
+  :scope:is(lf-ask) {
+    box-sizing: border-box;
+    max-inline-size: var(--lf-measure);
+  }
+  :scope:is(lf-ask):has(> [data-lf-space=wide]) {
+    max-inline-size: max(var(--lf-measure), var(--wide));
+  }
+  :scope:is(lf-ask):has(> [data-lf-space=available]) {
+    max-inline-size: none;
+  }
+  :scope:is(lf-ask):not([data-lf-space]):has(> [data-lf-space]:not([data-lf-kept])) {
+    margin-left: calc(-1 * var(--lf-grow-l));
+    margin-right: calc(-1 * var(--lf-grow-r));
+    padding-left: var(--lf-grow-l);
+    padding-right: var(--lf-grow-r);
+    --lf-breakout: 1;
+  }
+}
+:scope:is(lf-ask):has(> :is(figure, img, svg, table, lf-chart, lf-shot) ~ lf-options) {
   --lf-options-across: 1;
 }
 @container style(--lf-full-height: 1) {
@@ -2488,7 +2537,7 @@
 :scope:is(lf-sample) {
   display: table;
   table-layout: fixed;
-  width: var(--lf-breakout-width);
+  width: 100%;
   box-sizing: border-box;
   margin: 18px 0;
   padding-left: var(--sp-4);
@@ -2503,7 +2552,7 @@
   display: table-caption;
   font-size: var(--t-6);
   margin-bottom: var(--sp-1);
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--muted);
 }
@@ -2551,6 +2600,8 @@
   border-left: 0;
 }
 .lf-sample-exhibit {
+  display: flex;
+  flex-direction: column;
   padding-left: var(--sp-4);
   border-left: 3px solid var(--border-2);
 }
@@ -2564,19 +2615,48 @@
   gap: 8px;
 }
 .lf-sample-status {
+  position: relative;
+  flex: 1 1 10em;
+  min-width: 0;
+  min-height: max(1lh, var(--aim-floor));
+  align-content: center;
+  white-space: nowrap;
   color: var(--muted);
   font: var(--t-6)/1.4 var(--sans);
 }
+.lf-sample-failure {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.lf-sample-failure,
+.lf-sample-failure > summary {
+  font: inherit;
+  color: inherit;
+}
+.lf-sample-failure > summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lf-sample-failure[open] > summary {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 1;
+  white-space: normal;
+  background: var(--paper);
+  border-bottom: 1px solid var(--border-2);
+}
 .lf-sample-frame {
   display: block;
-  box-sizing: border-box;
-  width: 100%;
+  box-sizing: content-box;
+  width: auto;
   height: 32rem;
   border: 1px solid var(--border-2);
   border-radius: var(--r);
   background: var(--paper);
 }
 :scope:is(lf-sample)[window] .lf-sample-frame {
+  box-sizing: border-box;
   height: min(75vh, 48rem);
 }
 .lf-sample-view:modal {
@@ -2601,8 +2681,6 @@
 .lf-sample-view:modal > .lf-sample-exhibit {
   flex: 1;
   min-height: 0;
-  display: flex;
-  flex-direction: column;
   padding: 0;
   border: 0;
 }
@@ -2792,9 +2870,32 @@
 }
 :scope:is(lf-text-document) pre {
   margin: 0;
+  padding: 0;
   border: 0;
   border-radius: 0;
   white-space: pre-wrap;
+}
+:scope:is(lf-text-document) .lf-text-document-listing {
+  color-scheme: inherit;
+  --diffs-font-family: var(--mono);
+  --diffs-font-size: var(--code-size);
+  --diffs-line-height: var(--code-line);
+  --diffs-bg: var(--pre-bg);
+  --diffs-bg-buffer: var(--pre-bg);
+  --diffs-fg: var(--code-ink);
+  --diffs-fg-number: var(--code-muted);
+}
+:scope:is(lf-text-document) [data-line-number-content]::before {
+  content: attr(data-number);
+}
+:scope:is(lf-text-document) code[data-code] {
+  display: grid;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  font: inherit;
+  overscroll-behavior: auto;
 }
 @media screen {
   :scope:is(lf-text-document)[data-lf-bound] {
@@ -2856,6 +2957,12 @@
   background: var(--card);
   font-size: max(var(--entry-floor), 1em);
 }
+@media screen {
+  :scope:is(lf-draft) {
+    box-sizing: border-box;
+    max-inline-size: var(--lf-measure);
+  }
+}
 .lf-draft-body,
 :scope:is(lf-draft) > .lf-markdown-body {
   white-space: normal;
@@ -2879,7 +2986,7 @@
 }
 .lf-draft-edit.lf-ui {
   display: block;
-  width: 100%;
+  width: auto;
   padding: 0;
   border: 0;
   background: none;
@@ -2891,7 +2998,6 @@
 .lf-draft-edit.lf-ui[data-lf-focus] {
   outline: none;
   box-shadow: none;
-  --lf-focus-ring: none;
 }
 .lf-draft-footer {
   display: none;
@@ -2903,13 +3009,15 @@
       grid-template-rows: minmax(min-content, auto) minmax(max(32px, var(--aim-floor)), auto);
       gap: 8px;
     }
+    :scope:is(lf-draft) > .lf-draft-edit {
+      margin-right: calc(var(--lf-code-copy-size) + var(--lf-code-copy-inset) + 6px - 14px - 1px);
+    }
   }
   :scope:is(lf-draft):has(.lf-draft-edit) {
     border-color: var(--muted);
   }
   :scope:is(lf-draft):has(.lf-draft-edit[data-lf-focus]) {
     outline: var(--focus-ring);
-    --lf-focus-ring: draft-editor;
     outline-offset: calc(-1 * (var(--focus-ring-w) + var(--focus-ring-gap)));
   }
   :scope:is(lf-draft):has(.lf-draft-edit:state(ready)) > .lf-draft-body {
@@ -2939,29 +3047,6 @@
   .lf-draft-status:empty {
     display: none;
   }
-  .lf-draft-history {
-    flex: 1;
-    min-width: 0;
-    margin: 0;
-    padding: 0;
-    border: 0;
-    --lf-block-frame: 1;
-    font: inherit;
-    color: var(--ink-2);
-  }
-  .lf-draft-history[hidden] {
-    display: none;
-  }
-  .lf-draft-history > summary {
-    width: max-content;
-    max-width: 100%;
-    cursor: pointer;
-    padding-block: 5px;
-    color: var(--muted);
-  }
-  .lf-draft-history > summary:hover {
-    color: var(--ink-2);
-  }
 }
 @media (forced-colors: active) {
   :scope:is(lf-draft):has(.lf-draft-edit[data-lf-focus]) {
@@ -2969,46 +3054,6 @@
     outline-offset: -5px;
     box-shadow: none;
   }
-}
-.lf-draft-current {
-  margin: 10px 0;
-}
-.lf-draft-current > strong {
-  display: block;
-  margin-bottom: 4px;
-}
-.lf-draft-revisions {
-  margin: 0;
-  padding-left: 20px;
-}
-.lf-draft-revisions > li {
-  margin: 8px 0;
-  padding-left: 3px;
-}
-.lf-draft-revision-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 3px;
-}
-.lf-draft-delta,
-.lf-draft-snapshot {
-  white-space: pre-wrap;
-  color: var(--ink-2);
-}
-.lf-draft-delta del {
-  background: var(--del-tint);
-  color: var(--danger-ink);
-}
-.lf-draft-delta ins {
-  background: var(--add-tint);
-  color: var(--ok-ink);
-  text-decoration: none;
-}
-.lf-draft-restore {
-  flex: none;
-  font-size: var(--t-6);
 }
 
 /* skills/leaf/packages/default/styles/theme.css */

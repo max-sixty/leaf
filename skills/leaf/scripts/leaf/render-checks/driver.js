@@ -16,7 +16,9 @@
   // The probe module is served beside the page's Leaf entry, so a page served under a
   // revision path loads that revision's probes.
   const resolve = (route) => {
-    const entry = document.querySelector("script[data-lf-entry]")?.dataset.lfEntry;
+    const entry = /** @type {HTMLScriptElement | null} */ (
+      document.querySelector("script[data-lf-entry]")
+    )?.dataset.lfEntry;
     return entry ? new URL(route.slice(1), new URL(entry, location.href)).href : route;
   };
 
@@ -85,7 +87,9 @@
   // The runtime's rendering facts for chrome and geometry (runtime/rendering.js).
   // Readers select quiet updates or require every preparation to have landed too.
   const renderingState = () => {
-    const read = document.querySelector("script[data-lf-entry]")?.lfRenderingState;
+    const read = /** @type {HTMLScriptElement | null} */ (
+      document.querySelector("script[data-lf-entry]")
+    )?.lfRenderingState;
     if (!read) throw new Error("this document has no Leaf rendering reading");
     return read();
   };
@@ -118,15 +122,9 @@
     );
     const box = main?.getBoundingClientRect();
     return [
-      ...(upgraded.length
-        ? [`widgets upgraded before Leaf entry ran: ${upgraded.join(", ")}`]
-        : []),
-      ...(painted.length
-        ? [`runtime readiness appeared before Leaf entry ran: ${painted.join(", ")}`]
-        : []),
-      ...(!box || box.width <= 0 || box.height <= 0
-        ? ["authored main has no measurable pre-upgrade layout"]
-        : []),
+      ...(upgraded.length ? [{ code: "upgraded-early", tags: upgraded }] : []),
+      ...(painted.length ? [{ code: "ready-early", stamps: painted }] : []),
+      ...(!box || box.width <= 0 || box.height <= 0 ? [{ code: "main-unlaid" }] : []),
     ];
   };
 

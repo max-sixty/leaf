@@ -63,13 +63,32 @@ def panel_comment(d, text, anchor=None, author="user"):
     return append_carried_log_record(d, event)["id"]
 
 
+def answered_comment(d, text, anchor):
+    """A user's thread the agent has replied to, so an ask it is about waits on the
+    user again rather than on that reply (`asks.sections_with_agent`)."""
+    root = panel_comment(d, text, anchor)
+    append_carried_log_record(
+        d,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": root,
+            "responds": root,
+            "revision": 1,
+            "text": "Noted.",
+        },
+    )
+    return root
+
+
 # What the list is holding, from the one query that answers both halves of the
 # question a departing thread raises: what stands where, and what the keys can still
 # reach. The two lists differ by exactly the thread on its way out.
 LIST_STATE = """() => {
   const list = document.querySelector(".lf-threads");
   return {
-    standing: [...list.children].filter((n) => !n.hidden)
+    listed: [...list.children].filter((n) => !n.hidden)
       .map((n) => n.dataset.id).filter(Boolean),
     walkable: [...list.querySelectorAll(":scope > .lf-thread:not([hidden])")].map(
       (n) => n.dataset.id,
@@ -212,7 +231,7 @@ mornings last winter.</p></section>
 # cell in the page and the row in the panel — which is the whole of what those tests
 # compare. `jobs` names the seat, so the `say:jobs` draft key and a comment anchored to
 # `{section: "jobs"}` are the one coordinate the panel and the page share.
-SEATED_QUESTION_PAGE = leaf_page(
+SEATED_ASK_PAGE = leaf_page(
     "seated question",
     """
 <h1 id="h">Three jobs</h1>
@@ -449,7 +468,7 @@ SHORT_SUGGESTION = leaf_page(
 # started one motion", an index is "the motion this gesture started", and a sweep over it
 # steps or releases the frame the test is holding. A motion the test has already let go of
 # — a fold it finished on the way to the gesture under test — answers none of those, and
-# left standing it makes the count one too many, the index one place out, and a sweep
+# left in place it makes the count one too many, the index one place out, and a sweep
 # rewind a finished motion into the middle of a move the page has made. So a motion drops out of the list when it finishes. Cancelling
 # is the other way to end one, and it stays: `motion()` cancels its own last frame after
 # the caller's cleanup, and a cancelled motion is the positive control for a gesture the
@@ -648,8 +667,8 @@ ASK_IN_A_CARD_PAGE = leaf_page(
 # shows through — every shipped widget draws one, and a wrapper a page styles boxless
 # hangs it on the boxes its contents make — so what says the walk is in one place is
 # the outermost page element wearing it, never the count of elements that do. Scoped to
-# main because the Questions panel's row mirrors the same fact in the chrome.
-STANDING_ASK = "main [data-lf-question]:not([data-lf-question] [data-lf-question])"
+# main because the On panel's row mirrors the same fact in the chrome.
+STANDING_ASK = "main [data-lf-ask]:not([data-lf-ask] [data-lf-ask])"
 # The shipped board measures its grip from a live box. Author it into the page and
 # send it in a reply with the same words, so the two readings can be compared.
 ROOM_WIDGETS = """<lf-board id="{id}-b">
@@ -679,7 +698,7 @@ MESSAGE_ROOM_PAGE = leaf_page(
 )
 
 
-# What each Questions panel row says, with the list it stands in ("you", "agent" or "done").
+# What each On panel row says, with the list it stands in ("you", "agent" or "done").
 # Rows under a closed Done fold are in the document and measure as nothing.
 QUEUE_ROW_SAYS = """() => [...document.querySelectorAll('button.lf-queue-row')].map((r) => ({
   at: r.getAttribute('data-lf-at'),
@@ -1037,13 +1056,13 @@ def backdate_note(page_dir, version, hours):
 
 
 # One instance for every verb the vocabulary declares an action or a report for, so a
-# log holding one event apiece leaves the whole of it standing at once. `choose` and
+# log holding one event apiece leaves the whole of it in force at once. `choose` and
 # `answer` share one option-group unit but are distinct verbs, so both stand; two
 # suggestions let both of `decide`'s outcomes stand. The floor below derives the list
 # from the registry, so a newly declared verb fails here rather than passing
 # unexercised.
-STANDING_PAGE = leaf_page(
-    "standing state",
+IN_FORCE_PAGE = leaf_page(
+    "state in force",
     """
 <h1 id="ab-t">The v1 cutover</h1>
 <lf-ask id="ab-pick-decision"><h2>How should the schema migrate?</h2>
@@ -1108,16 +1127,16 @@ diff --git a/ab/bracket.py b/ab/bracket.py
 """,
 )
 
-# The event that leaves each declared verb standing, written out because a detail is
+# The event that leaves each declared verb in force, written out because a detail is
 # the verb's own shape and a schema is no help in inventing one.
 #
 # Two moves into one column, both to its head, because one move cannot say what this
-# gate has to get right. `move` folds by card, so each is its own standing entry with
+# gate has to get right. `move` folds by card, so each is its own entry in force with
 # its own rank: the column holds the second above the first, and re-applying either
 # set of them puts each card where its own rank says, whichever other moves stand. The
 # ranks are the ones lf-board sends: importer before the authored notes ("1"), then
 # notes before importer.
-STANDING_ACTIONS = [
+ACTIONS_IN_FORCE = [
     ("ab-pick", "choose", {"value": ["ab-stage"]}),
     ("ab-pick", "answer", {}),
     ("ab-pick", "add", {"option": "ab-rewrite", "text": "Rewrite the callers first"}),
@@ -1329,15 +1348,14 @@ THREAD_ASKS = [
 ]
 
 # A widget the shipped packages no longer have: one the user owes an answer on that
-# also seats a thread of its own. Those two facts together are what produce the
-# layer's one split between the user's list and the unanswered decisions — a thread
-# standing in the seat while the agent has the next word takes the widget off the list
-# without answering it (`seat_with_agent`, `seatWithAgent`). `lf-options` supplied the
-# pair until 292de9c made the user's cell an add form and dropped `x-thread-seat`, and
-# both halves of the split are still implemented, still described, and reachable by any
-# package that declares both. So the guard is declared here rather than borrowed from
-# whichever shipped entry happens to carry it: the reading under test is the layer's, and
-# the tag it runs on is the layer's business rather than the test's.
+# also seats a thread of its own. A thread anchored on any ask splits the user's list
+# from the unanswered decisions while the agent has the next word, taking the ask off
+# the list without answering it (`asks.sections_with_agent`); a seat is where a
+# user most often starts one. `lf-options` supplied the pair until 292de9c made the
+# user's cell an add form and dropped `x-thread-seat`, so the pair is declared here
+# rather than borrowed from whichever shipped entry happens to carry it: the reading
+# under test is the layer's, and the tag it runs on is the layer's business rather than
+# the test's.
 SEATED_ASK_TAG = "lf-verdict"
 SEATED_ASK_ENTRY = {
     "description": (
@@ -1379,21 +1397,12 @@ SEATED_ASK_ENTRY = {
 # reason the browser door matters as much as the POST one: with the wrong list read here
 # the answer is already on the page, so a refusal is not a refusal the user can see —
 # the control flips, nothing is logged, and the next poll puts it back saying nothing.
-def seated_ask_module(*, seat_attribute=None):
-    """Build a seated Ask with the optional attribute its case's registry requires."""
-    configuration = {"seatAttribute": seat_attribute}
-    return (
-        browser_source("widgets/seated-ask.js")
-        + f"\ndefineSeatedAsk({json.dumps(configuration)});\n"
-    )
-
-
-SEATED_ASK_MODULE = seated_ask_module()
+SEATED_ASK_MODULE = browser_source("widgets/seated-ask.js") + "\ndefineSeatedAsk();\n"
 SEATED_ASK_LAYER = {SEATED_ASK_TAG: SEATED_ASK_ENTRY}
 SEATED_ASK_WIDGETS = {f"{SEATED_ASK_TAG}.js": SEATED_ASK_MODULE}
 
 
-# A block proposal whose new text holds a Question of its own.
+# A block proposal whose new text holds an ask of its own.
 NESTED_PROPOSAL_PAGE = leaf_page(
     "nested proposal",
     """

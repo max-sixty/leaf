@@ -25,39 +25,48 @@ function reportsFor(source, filename = "skills/leaf/assets/runtime/example-store
 
 test("semantic publisher ownership closes every browser framework import path", () => {
   assert.equal(
-    reportsFor("import {createSemanticApplication} from '../vendor/browser-runtime.js'")
+    reportsFor("import {createSemanticApplication} from '/vendor/browser-runtime.js'")
       .length,
     1,
   );
   assert.equal(
     reportsFor(
-      "const {createSemanticApplication} = await import('../vendor/browser-runtime.js')",
+      "const {createSemanticApplication} = await import('/vendor/browser-runtime.js')",
     ).length,
     1,
   );
   assert.equal(
-    reportsFor("export {createSemanticApplication} from '../vendor/browser-runtime.js'")
+    reportsFor("export {createSemanticApplication} from '/vendor/browser-runtime.js'")
       .length,
     1,
   );
   assert.equal(
     reportsFor(
-      "export {createSemanticApplication as make} from '../vendor/browser-runtime.js'",
+      "export {createSemanticApplication as make} from '/vendor/browser-runtime.js'",
     ).length,
     1,
   );
-  assert.equal(reportsFor("export * from '../vendor/browser-runtime.js'").length, 1);
+  assert.equal(reportsFor("export * from '/vendor/browser-runtime.js'").length, 1);
   assert.equal(
-    reportsFor("export * as browser from '../vendor/browser-runtime.js'").length,
+    reportsFor("export * as browser from '/vendor/browser-runtime.js'").length,
     1,
   );
   assert.deepEqual(
     reportsFor(
-      "import {createSemanticApplication} from '../vendor/browser-runtime.js'",
+      "import {createSemanticApplication} from '/vendor/browser-runtime.js'",
       "skills/leaf/assets/runtime/semantic-state.js",
     ),
     [],
   );
+});
+
+// The type check reads the facade's served path as the framework's source, and a
+// relative path as the compiled facade, whose types are blanked.
+test("the browser framework's facade is imported by its served path", () => {
+  assert.deepEqual(reportsFor("import {signal} from '../vendor/browser-runtime.js'"), [
+    "Import the browser framework's facade by its served path, /vendor/browser-runtime.js.",
+  ]);
+  assert.deepEqual(reportsFor("import {signal} from '/vendor/browser-runtime.js'"), []);
 });
 
 // The modules behind the facade are its own, so the facade is the only edge into the

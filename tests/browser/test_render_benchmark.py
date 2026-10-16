@@ -1,12 +1,13 @@
 """Latency goals consume admission and presentation of the gesture being measured."""
 
 from leaf.render_checks import rendered
-from leaf_dev.bench_latency import PROBE
+from leaf_dev.commands.bench_latency import PROBE
 from playwright.sync_api import expect
 from render_harness import (
     BOARD_PAGE,
     consume_browser_errors,
     holding,
+    http_error_console,
     leaf_page,
     open_page,
 )
@@ -67,7 +68,7 @@ def test_delivery_benchmark_does_not_borrow_an_older_thread_receipt(browser, ser
     )
     held.clear()
     expect(field).to_have_js_property("value", words)
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, http_error_console(400))
     rendered(page)
     assert page.evaluate("window.__leafBench.watch().goals[1].at") is None
     page.evaluate("window.__leafBench.disarm()")

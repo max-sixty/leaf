@@ -86,3 +86,56 @@ test("control chips sit above their own left edge", () => {
     { left: 800, top: 382 },
   ]);
 });
+
+test("before chips of nested targets stand one step out per level, the deepest where they would alone", () => {
+  const group = box(200, 100, 400, 300);
+  const option = box(200, 100, 400, 100);
+  const later = box(200, 200, 400, 100);
+  const heading = box(200, 420, 300, 30);
+  assert.deepEqual(
+    seat(
+      [group, option, later, heading].map((target) => ({
+        start: chip(target.left, target.top),
+        target,
+        placement: "before",
+      })),
+    ),
+    [
+      { left: 168, top: 100 },
+      { left: 178, top: 118 },
+      { left: 178, top: 200 },
+      { left: 178, top: 420 },
+    ],
+  );
+});
+
+test("the nesting step narrows to the room before the outermost target", () => {
+  const outer = box(40, 100, 400, 300);
+  const middle = box(40, 100, 400, 200);
+  const inner = box(40, 100, 400, 100);
+  const lefts = seat(
+    [outer, middle, inner].map((target) => ({
+      start: chip(target.left, target.top),
+      target,
+      placement: "before",
+    })),
+  ).map(({ left }) => left);
+  // 40 − 20 − 2 leaves 18 − 2 = 16 before the window's band: two levels of 8.
+  assert.deepEqual(lefts, [2, 10, 18]);
+});
+
+test("a target in no nest keeps its chip beside it, and a clamped chip does not narrow the step", () => {
+  const group = box(200, 100, 400, 300);
+  const option = box(200, 100, 400, 100);
+  const alone = box(200, 500, 400, 50);
+  const tight = box(10, 600, 100, 50);
+  const tightInner = box(10, 600, 100, 20);
+  const lefts = seat(
+    [group, option, alone, tight, tightInner].map((target) => ({
+      start: chip(target.left, target.top),
+      target,
+      placement: "before",
+    })),
+  ).map(({ left }) => left);
+  assert.deepEqual(lefts, [168, 178, 178, 2, 2]);
+});

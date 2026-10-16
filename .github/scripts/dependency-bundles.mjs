@@ -6,11 +6,13 @@ import { execFileSync } from "node:child_process";
 import { lstatSync, readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
-export function generated(path) {
+function generated(path) {
   return (
-    /^(?:skills\/leaf\/assets\/vendor|skills\/leaf\/packages\/[^/.]+\/vendor)\/(?:[^/.][^/]*\/)*[^/.][^/]*\.(?:js|css|LICENSES\.txt)$/.test(
-      path,
-    ) && !path.split("/").some((part) => part === ".." || part === ".")
+    (path === "skills/leaf/kernel/kernel.json" ||
+      /^(?:skills\/leaf\/assets\/vendor|skills\/leaf\/packages\/[^/.]+\/vendor|skills\/leaf\/kernel)\/(?:[^/.][^/]*\/)*[^/.][^/]*\.(?:js|css|LICENSES\.txt)$/.test(
+        path,
+      )) &&
+    !path.split("/").some((part) => part === ".." || part === ".")
   );
 }
 

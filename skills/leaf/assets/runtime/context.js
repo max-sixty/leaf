@@ -2,7 +2,7 @@
    delivered it, the interactive export's payload, and read-only views of the semantic
    root. Accepted facts are never installed here independently of application
    publication. */
-import { readApplication } from "./semantic-state.js";
+import { readPart } from "./semantic-state.js";
 
 // ---------- which address this document is ----------
 // Which version a document is comes from its served `lf-version` marker
@@ -18,14 +18,16 @@ export const LIVE_ROOT = PAGE_PATH.endsWith("/");
 // address alike, and every page operation resolves against it. An interactive export
 // has no server and no link, so no root: the file is the page.
 export const PAGE_ROOT =
-  document.querySelector('link[rel="canonical"][data-lf-runtime]')?.href ?? null;
+  /** @type {HTMLLinkElement | null} */ (
+    document.querySelector('link[rel="canonical"][data-lf-runtime]')
+  )?.href ?? null;
 // How a server delivered this document: the runtime script it adds to every document it
 // serves (http.py) names the layer and release the document belongs to, the probe its
 // source answers, and a keyed transport's share address. An interactive export carries
 // no such script. Its own marker (`offlineMarker` below) shares only `data-lf-entry`, the
 // seam a harness finds either delivery by.
-const served = document.querySelector(
-  "script[data-lf-runtime][data-lf-server]",
+const served = /** @type {HTMLScriptElement | null} */ (
+  document.querySelector("script[data-lf-runtime][data-lf-server]")
 )?.dataset;
 export const DELIVERY = Object.freeze({
   layer: served?.lfLayer,
@@ -34,13 +36,13 @@ export const DELIVERY = Object.freeze({
 });
 // The public website declares the release it serves; a local server declares none.
 export const WEBSITE_DELIVERY = DELIVERY.release !== undefined;
-// Where a delivered document's layer, and so its captured resources, is addressed: the
-// directory its registry probe names, the revision's own root, as the document writes
-// it. Empty where nothing declared one, and the layer is at the document's own root.
+// Where a delivered document's captured layer is addressed. The entry names the
+// immutable revision; the registry probe may instead name the mutable page root so
+// startup can detect a newer layer. Empty where nothing declared an entry.
 export const layerRoot = (doc) =>
   doc
-    .querySelector("script[data-lf-runtime][data-lf-probe]")
-    ?.dataset.lfProbe.replace(/registry\.json$/, "") ?? "";
+    .querySelector("script[data-lf-runtime][data-lf-entry]")
+    ?.dataset.lfEntry.replace(/leaf\.js$/, "") ?? "";
 // A keyed transport declares its share address even on a cookie-authorized reload.
 // Samples and the public website have no share address. Preserve the current
 // version path, query and passage while taking access from the transport's URL.
@@ -97,12 +99,33 @@ export const runtimeResource = (path) => {
   return resource + located.hash;
 };
 
+// Each part the getters below read, through its own selection (`readPart`).
+const part = {
+  active: readPart((root) => root.authoritative?.active ?? null),
+  browser: readPart((root) => root.authoritative?.browser ?? null),
+  revision: readPart((root) => root.document.revision),
+  live: readPart((root) => root.document.live),
+  stamp: readPart((root) => root.document.stamp ?? null),
+  data: readPart((root) => root.data),
+  seq: readPart((root) => root.authoritative?.browser.basis.through_seq ?? null),
+  reading: readPart((root) => root.authoritative?.reading ?? null),
+  state: readPart((root) => root.authoritative),
+  phase: readPart((root) => root.phase),
+  versions: readPart((root) => root.authoritative?.versions ?? []),
+  workflows: readPart((root) => root.effective.workflows),
+  view: readPart((root) => root.effective.view),
+  undo: readPart((root) => root.effective.view?.undo ?? []),
+  todos: readPart((root) => root.authoritative?.browser.todos ?? []),
+  receipts: readPart((root) => root.authoritative?.browser.receipts ?? []),
+  revisionLabels: readPart((root) => root.authoritative?.revision_labels),
+};
+
 export const runtime = {
   get active() {
-    return readApplication().authoritative?.active ?? null;
+    return part.active();
   },
   get browser() {
-    return readApplication().authoritative?.browser ?? null;
+    return part.browser();
   },
   // Whether the document shows the active revision. Activation only moves forward
   // (the publisher refuses an answer whose active revision went back), so a document
@@ -114,49 +137,60 @@ export const runtime = {
     );
   },
   get currentLabel() {
-    return readApplication().document.live && runtime.showsActive
+    return part.live() && runtime.showsActive
       ? runtime.active.label
       : runtime.currentStamp === null
         ? null
         : `v${runtime.currentStamp}`;
   },
   get currentRevision() {
-    return readApplication().document.revision;
+    return part.revision();
   },
   get currentStamp() {
-    return readApplication().document.live && runtime.showsActive
-      ? runtime.active.version
-      : (readApplication().document.stamp ?? null);
+    return part.live() && runtime.showsActive ? runtime.active.version : part.stamp();
   },
   get data() {
-    return readApplication().data;
+    return part.data();
   },
   get lastEventSeq() {
-    return readApplication().authoritative?.browser.basis.through_seq ?? null;
+    return part.seq();
   },
   get reading() {
-    return readApplication().authoritative?.reading ?? null;
+    return part.reading();
   },
   sessionReference: null,
   // Whether the server's latest answer refused this tab's key (`layer-client.js`).
   keyRefused: false,
   get state() {
-    return readApplication().authoritative;
+    return part.state();
   },
-  registry: {},
+  // The layer's `registry.json`, which fills this once it loads (registry.js).
+  registry:
+    /** @type {import("../../../../build/browser/application.ts").SemanticDocument["registry"] & Record<string, any>} */ ({}),
   get statePhase() {
-    return readApplication().phase;
+    return part.phase();
   },
   get versions() {
-    return readApplication().authoritative?.versions ?? [];
+    return part.versions();
   },
   get workflows() {
-    return readApplication().effective.workflows;
+    return part.workflows();
   },
   // The shown revision's server view, less its basis, as the publisher resolved it.
   get view() {
-    return readApplication().effective.view;
+    return part.view();
+  },
+  // The gestures that can still be taken back, newest first; empty between versions.
+  get undo() {
+    return part.undo();
+  },
+  get todos() {
+    return part.todos();
+  },
+  // The events the server has admitted from this tab's attempts.
+  get receipts() {
+    return part.receipts();
   },
 };
 
-export const revisionLabel = (revision) => runtime.state.revision_labels[revision];
+export const revisionLabel = (revision) => part.revisionLabels()[revision];

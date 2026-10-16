@@ -6,11 +6,12 @@
 # in 0 of 3 runs and the rewritten entry and example in 3 of 3.
 description: options-draw-their-arrangement
 metadata:
-  purpose: 'Asks: when the alternatives differ in arrangement, each lf-option shows its own arrangement
-    in a drawing, not only in words.'
+  purpose:
+    "Asks: when the alternatives differ in arrangement, each lf-option shows its own arrangement
+    in a drawing, not only in words."
   tags:
-  - asks
-  - drawing
+    - asks
+    - drawing
 vars:
   prompt: |
     You are writing a Leaf page that records the layout shifts left in Leaf's thread
@@ -34,15 +35,11 @@ vars:
     The page directory is not reachable from here, so reply with the section's HTML
     fragment rather than writing a file.
 assert:
-- type: regex
-  metric: has-options
-  value: <lf-option\b
-  transform: output.toLowerCase()
-- type: llm-rubric
-  metric: judgment
-  value: |
-    Find the `lf-options` group that asks where the reply box sits. Pass only if
-    every `lf-option` in it contains its own drawing (an inline `<svg>`, an `<img>`,
-    or an `lf-diagram`) that shows where the reply box sits under that option.
-    Fail if any option in the group is only words and chips, even when a figure
-    showing both arrangements stands elsewhere in the section.
+  - type: llm-rubric
+    metric: judgment
+    value: |
+      Find the `lf-options` group that asks where the reply box sits. Pass only if
+      every `lf-option` in it contains its own drawing (an inline `<svg>`, an `<img>`,
+      or an `lf-diagram`) that shows where the reply box sits under that option.
+      Fail if any option in the group is only words and chips, even when a figure
+      showing both arrangements stands elsewhere in the section.

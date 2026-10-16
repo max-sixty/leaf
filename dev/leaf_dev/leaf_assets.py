@@ -4,12 +4,15 @@ Every tracked byte ships in every install, so Leaf's tree is text and its images
 in a separate Git repository instead, each at the path its reader would look for it in
 the tree (`pinned_copy`):
 
-- `examples/` holds the catalog previews (`leaf_dev.example_previews`), and
-  `examples/media/` the images the example pages show (`leaf_dev.page_fixtures`);
+- `examples/` holds the catalog previews (`leaf_dev.commands.refresh_previews`),
+  `examples/media/` the images the example pages show (`leaf_dev.commands.publish_media`),
+  and `examples/traces/` the Playwright archives the examples link and the manifests
+  imported from them, which an example names as an `asset` capture
+  (`leaf_dev.example_data`);
 - `demo/` holds the README's recording and stills and the site's card
-  (`leaf_dev.record_demo`);
+  (`leaf_dev.commands.record_demo`);
 - `evals/<case>/` holds what an instruction case hands its child
-  (`leaf_dev.eval`).
+  (`leaf_dev.commands.eval`).
 
 `leaf-assets.json` pins media and reviewed thread expectations independently. Media
 publication follows the asset head; only snapshot acceptance advances the expectations
@@ -22,14 +25,18 @@ Every reader calls `pinned_assets()`, which fetches on a miss; the command only 
 the cache, as `wt setup` does. A writer stages its files in a clone of the revision its
 checkout pins, so what it adds, replaces or removes is measured against the set its own
 branch reads. `publish` replays that change onto the repository's head, which keeps
-files other branches published since, then moves the pin and reconciles the catalog's
-linked images with the complete published asset set, including previews another
-writer has published. A writer that owns a whole tree, as snapshot acceptance owns
-the expectations, publishes that tree exactly as it staged it. The head's history is a
-line and every pin is a commit on it, so of two media pins that meet in a merge the
-later holds both branches' files.
-Draft site validation consumes derived markup in its own build; staging and refused
-publication leave Leaf's consumers unchanged.
+files other branches published since, then moves the pin. A writer that owns a whole
+tree, as snapshot acceptance owns the expectations, publishes that tree exactly as it
+staged it. The site's pages name catalog previews by example (`leaf_dev.docs`), so a
+moved pin changes no page source; only the README, which GitHub renders without a
+build, names the pinned commit. Staging and refused publication leave Leaf's consumers
+unchanged.
+
+The head's history is a line and every pin is a commit on it, so in a merge conflict
+over `leaf-assets.json`, take the later media `revision`: it holds both branches'
+files. Where both branches published the same file, the later pin holds the later
+publication's copy, so publish that file again from the merged tree. A `thread_snapshots_revision` holds only its own branch's
+reviewed appearance, so accept the snapshots again from the merged tree.
 """
 
 import json
@@ -42,11 +49,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Literal
 
-import click
-from leaf.media import media_name
-
 from leaf_dev import ROOT
-from leaf_dev.example_data import catalog_sources
 
 LOCK = "leaf-assets.json"
 CACHE = ROOT / ".tmp" / "leaf-assets"
@@ -178,36 +181,6 @@ def clone(staging: Path, *, revision_key: RevisionKey = "revision") -> Checkout:
     return Checkout(path, revision_key)
 
 
-def catalog_updates(checkout: Path) -> dict[Path, str]:
-    """Derive changed catalog documents from the selected asset bytes.
-
-    The authored catalog selects the routes; unused files in the asset repository
-    cannot add entries. Unlinked images retain their authored addresses, and pages
-    whose links already name the staged bytes are left untouched.
-    """
-    pages = {
-        path: path.read_text(encoding="utf-8")
-        for path in sorted((ROOT / "docs").glob("*.html"))
-    }
-    originals = dict(pages)
-    for source in catalog_sources():
-        preview = checkout / "examples" / f"example-{source.stem}.jpg"
-        address = media_name(preview.read_bytes(), preview.suffix)
-        pattern = re.compile(
-            rf'(<a\b[^>]*\bhref="/examples/{re.escape(source.stem)}/"[^>]*>'
-            rf'(?:(?!</a>).)*?<img\b[^>]*\bsrc=")'
-            rf'/media/[0-9a-f]{{16}}\.jpg(")',
-            re.DOTALL,
-        )
-        updated = 0
-        for page, markup in pages.items():
-            pages[page], count = pattern.subn(rf"\g<1>/media/{address}\g<2>", markup)
-            updated += count
-        if updated == 0:
-            raise RuntimeError(f"{source.stem}: expected one catalog preview")
-    return {page: markup for page, markup in pages.items() if markup != originals[page]}
-
-
 def stage(
     directory: str,
     files: dict[str, bytes],
@@ -221,8 +194,8 @@ def stage(
     pin holds and `files` lacks is removed; one another branch published since the pin
     is not there to remove. Subdirectories are left alone unless the caller owns the
     complete tree, which `publish` then installs whole: `examples/media/` sits inside
-    the previews' `examples/`. Leaf's catalog, pin and README continue naming
-    published bytes."""
+    the previews' `examples/`. Leaf's pin and README continue naming published
+    bytes."""
     checkout = clone(staging, revision_key=revision_key)
     if replace_tree:
         checkout = Checkout(checkout.path, revision_key, tree=directory)
@@ -279,7 +252,7 @@ def replay(checkout: Checkout, branch: str) -> None:
 def publish(checkout: Checkout, message: str) -> str:
     """Commit the checkout's change to its pin, replay it onto the repository's head and
     push it, then advance the pin the checkout was cloned from. Media also updates the
-    README and catalog links. Where another writer changed or removed the same file
+    README's image links. Where another writer changed or removed the same file
     since the pin, this change's copy stands, as it would have on the pin. A rejected
     push replays the change onto the head again; an unchanged checkout keeps its pin."""
     path, revision_key = checkout.path, checkout.revision_key
@@ -296,7 +269,6 @@ def publish(checkout: Checkout, message: str) -> str:
         if has_change:
             replay(checkout, branch)
         revision = run("git", "rev-parse", "HEAD", cwd=path)
-        updates = catalog_updates(path) if revision_key == "revision" else {}
         if revision == pinned:
             break
         try:
@@ -321,13 +293,4 @@ def publish(checkout: Checkout, message: str) -> str:
             ),
             encoding="utf-8",
         )
-    for page, markup in updates.items():
-        page.write_text(markup, encoding="utf-8")
     return revision
-
-
-@click.command("fetch-assets")
-def fetch_assets() -> None:
-    """Fetch the generated images leaf-assets.json pins."""
-    for revision_key in ("revision", "thread_snapshots_revision"):
-        click.echo(f"✓ {pinned_assets(revision_key=revision_key)}")

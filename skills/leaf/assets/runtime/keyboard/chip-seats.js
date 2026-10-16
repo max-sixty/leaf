@@ -5,7 +5,7 @@
    them at rest; a scroll leaves each chip riding where it was seated, hidden once its
    target is out of sight, and the pass seats them again once the scroll settles. A
    chip the window's edge or the chrome holds in, or one naming a control on the fixed
-   chrome, stands where the window holds it, so a scroll leaves it standing.
+   chrome, stands where the window holds it, so a scroll leaves it in place.
 
    A chip stacks under the bars and banner it keeps clear of, so one riding a scroll
    slides beneath them as the page does, unless its target stacks at or above that
@@ -39,9 +39,9 @@ export function chipSeats(root) {
       if (!seat.isConnected) root.append(seat);
       return seat;
     },
-    // The seat standing for `key`, if one does.
-    standing: (key) => (seats.get(key)?.isConnected ? seats.get(key) : null),
-    // Hides every standing seat but those for `keys`, as a scroll holds the seats while
+    // The seat for `key`, if one is seated.
+    seated: (key) => (seats.get(key)?.isConnected ? seats.get(key) : null),
+    // Hides every seat but those for `keys`, as a scroll holds the seats while
     // what they say changes: a typed letter leaves chips that no longer match, and a
     // command can leave reach. Hidden, a seat keeps its box, so the pass that seats it
     // again once the scroll settles reads its chip where it stands.

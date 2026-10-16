@@ -12,17 +12,17 @@ meaning; word counts describe the cut, not its quality.
 
 ## Proposed routes
 
-The current routes are `PRODUCT_ROUTES` in `dev/leaf_dev/site.py`. The proposal
+The current routes are `PRODUCT_ROUTES` in `dev/leaf_dev/commands/site.py`. The proposal
 gives each page one reader:
 
-| Route | Reader and purpose |
-|---|---|
-| `/` | Existing front page |
-| `/examples/` | Example users; package named on each card, developer galleries elsewhere |
-| `/using/` | People operating a page and reading its status |
-| `/how-it-works/` | Mechanism, incorporating the event log and one explanation of the fold |
-| `/pages/` | Authors choosing page contents and layouts |
-| `/extending/` | Package authors; ownership, package table and one worked extension |
+| Route            | Reader and purpose                                                       |
+| ---------------- | ------------------------------------------------------------------------ |
+| `/`              | Existing front page                                                      |
+| `/examples/`     | Example users; package named on each card, developer galleries elsewhere |
+| `/using/`        | People operating a page and reading its status                           |
+| `/how-it-works/` | Mechanism, incorporating the event log and one explanation of the fold   |
+| `/pages/`        | Authors choosing page contents and layouts                               |
+| `/extending/`    | Package authors; ownership, package table and one worked extension       |
 
 The proposal removes the public registry page. It predates `/threads/` and
 `/website/`, so it does not yet place them. Explain experimental status,
@@ -46,6 +46,6 @@ the current routes and regrouping their tabs, or rewriting every current page in
 place. A route change also updates the links between the site's pages,
 `PRODUCT_ROUTES`, the Worker's routing fixtures
 (`worker/test/index.test.ts`) and `tests/*/test_product_page.py`. Removing
-`/registry/` also needs a new page for the `x-` key index, which `leaf-dev keydocs`
-writes into `docs/registry.html` and a test in `tests/*/test_interact_product.py`
-checks is current. Compare a rendered candidate before deciding.
+`/registry/` also needs a new home for the `x-` key index, which `leaf_dev.docs`
+composes into `docs/registry.html`'s empty `nav.reference-index` and
+`div.reference-list`. Compare a rendered candidate before deciding.

@@ -21,9 +21,18 @@ process's environment. Stop or Interrupt closes that observed turn, including a
 turn not yet claimed by any page; a newer prompt protects its own epoch. A payload
 that names no turn can state when the turn ended (`ended_at`, in POSIX seconds),
 as the Interrupt from Pi's extension or Leaf's Claude Code hooks module does, and
-then leaves a turn opened or renewed since open.
+then leaves a turn opened or renewed since open. The hooks module also sends
+WakeRefused, an event no harness has, when Claude Code refuses the prompt a
+watch's wake submitted; it nudges the session for the input instead.
 
-Hooks with no retained claim avoid page reading, and import the harness
+Most sessions with the plugin installed never claim a page, so in a session
+holding no claim the launcher answers each hook registered `--if-claimed`
+without starting uv (`bin/leaf`): Codex's tool hook, and every Claude Code hook
+but PreToolUse. Codex's other hooks record the provider turn a later claim rests
+on, so they always run. Claude Code's PreToolUse runs before each `leaf`
+command, and in such a session opens the turn the skipped prompt hook would have,
+so a claim that command makes joins it. Hooks
+that do run with no retained claim avoid page reading, and import the harness
 declarations only once the payload names a session. Page-owning prompt and Stop
 hooks reach `hook_transport`; Codex's tool and Stop hooks reach its delivery
 records in `codex`; a second Claude Code Stop hook watches between turns (`cmd_watch`). The
@@ -47,6 +56,7 @@ from .state import (
     close_session_turn,
     end_harness_instance,
     flocked,
+    holds_claims,
     prompt_turn,
     session_lock_path,
     session_record,
@@ -56,6 +66,11 @@ from .state import (
 def cmd_hook(harness: str, payload: dict) -> None:
     """Answer one hook of `harness`, the name its registration passes."""
     started = time.monotonic()
+    if payload.get("leaf_watch") == "module":
+        # Claude Code's hooks module marks the Stop payload it passes to the
+        # registrations beneath it, and runs this hook itself, unmarked, to read
+        # the delivery its output names (`hooks/claude-code.ts`).
+        return
     event, sid = payload.get("hook_event_name"), payload.get("session_id") or ""
     if sid:
         # Capability evidence for hook transport and open-turn activity. An
@@ -66,9 +81,27 @@ def cmd_hook(harness: str, payload: dict) -> None:
         return
     if not sid:
         return
+    if event == "WakeRefused":
+        # Leaf's Claude Code hooks module sends this when Claude Code refuses the
+        # prompt a watch's wake submitted, leaving the input to the nudge
+        # (`hooks/claude-code.ts`).
+        from .session import nudge_pending
+
+        nudge_pending(sid)
+        return
     from .harness import hook_harness
 
     hooked = hook_harness(harness, sid)
+    if event == "PreToolUse":
+        # Hooks run outside the harness's sandbox and shell commands inside it.
+        # Claude Code's registration runs this only before a command naming
+        # `leaf`, so a session that never runs one opens no road out.
+        hooked.escape_sandbox()
+        if not holds_claims(sid):
+            # The launcher skipped this turn's prompt hook (`bin/leaf`),
+            # so the turn a claim joins opens here, before the command.
+            prompt_turn(sid)
+        return
     turn_id = payload.get("turn_id")
     if event in {"UserPromptSubmit", "TurnStart"}:
         expected = prompt_turn(sid, turn_id)

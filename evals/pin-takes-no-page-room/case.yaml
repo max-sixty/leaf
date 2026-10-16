@@ -2,10 +2,11 @@
 # 26-52px to clear the pin (0 of 3); the change left the CSS empty (3 of 3).
 description: pin-takes-no-page-room
 metadata:
-  purpose: 'The rail and the margin: a pin is an overlay the user hides with `o` or More''s Hide annotations,
-    so the page''s CSS leaves no room for one, such as padding at the end of a heading.'
+  purpose:
+    "The rail and the margin: a pin is an overlay the user hides with `o` or More's Hide annotations,
+    so the page's CSS leaves no room for one, such as padding at the end of a heading."
   tags:
-  - theme
+    - theme
 vars:
   prompt: |
     You are revising a Leaf page for the user. It is a `layout-column` page whose main
@@ -27,14 +28,14 @@ vars:
     element the page needs, or say that it needs none, and the reply you would give the
     user.
 assert:
-- type: llm-rubric
-  metric: judgment
-  value: |
-    Read the CSS and the reply to the user. Fail if any rule makes room for the marker
-    in the page's layout: padding, margin, a narrower width or max-width, text-indent,
-    or a grid or flex track on the Ask, its heading, or `main`, placed at the end or
-    right of the heading or block so the marker no longer overlaps the words. Fail too
-    if a rule moves, hides, or restyles Leaf's marker itself. Pass if the page needs no
-    such room: the reply tells the user how to hide the markers to read what is under
-    them (Hide annotations in the banner's More menu, or the `o` key), and any CSS left
-    is unrelated to the marker. Rewording the heading is allowed but not required.
+  - type: llm-rubric
+    metric: judgment
+    value: |
+      Read the CSS and the reply to the user. Fail if any rule makes room for the marker
+      in the page's layout: padding, margin, a narrower width or max-width, text-indent,
+      or a grid or flex track on the Ask, its heading, or `main`, placed at the end or
+      right of the heading or block so the marker no longer overlaps the words. Fail too
+      if a rule moves, hides, or restyles Leaf's marker itself. Pass if the page needs no
+      such room: the reply tells the user how to hide the markers to read what is under
+      them (Hide annotations in the banner's More menu, or the `o` key), and any CSS left
+      is unrelated to the marker. Rewording the heading is allowed but not required.

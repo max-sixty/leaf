@@ -28,6 +28,8 @@ import {
   pageText,
   pageWords,
   pointAt,
+  programmaticSelection,
+  selectEnds,
   says,
   watchPassageRoot,
 } from "/runtime/passages.js";
@@ -139,7 +141,7 @@ test("a mark the runtime paints is not a change to what the page says", () => {
   // reading does not read them, and re-walking the document for one is the cost this
   // page could not afford.
   document.querySelector("p").classList.add("lf-mark-el");
-  assert.equal(pageText(), first, "a painted class leaves the reading standing");
+  assert.equal(pageText(), first, "a painted class leaves the reading unchanged");
 });
 
 test("the runtime's chrome repainting is not a change to what the page says", () => {
@@ -159,7 +161,7 @@ test("the runtime's chrome repainting is not a change to what the page says", ()
   document
     .querySelector("main p")
     .insertAdjacentHTML("beforeend", '<span class="lf-ui">1 comment</span>');
-  assert.equal(pageText(), first, "chrome-only changes leave the reading standing");
+  assert.equal(pageText(), first, "chrome-only changes leave the reading unchanged");
 });
 
 test("a label declared inside the chrome is the page's, arriving and leaving", () => {
@@ -179,7 +181,7 @@ test("a label declared inside the chrome is the page's, arriving and leaving", (
 
 // The two inputs the document reports nothing about. An observer sees neither a set the
 // runtime marks a widget's parts into nor a tree behind a shadow boundary, so each has a
-// door in passages.js, and a door that stopped forgetting would leave the reading standing
+// door in passages.js, and a door that stopped forgetting would leave the reading unchanged
 // over words the page no longer says — with nothing else to catch it.
 test("a widget fenced after a reading was taken is in the next one", () => {
   document.body.innerHTML =
@@ -318,4 +320,19 @@ test("spoken context bounds unspaced languages and oversized tokens", () => {
     assert.ok([...around.before].length <= 56);
     assert.ok([...around.after].length <= 56);
   }
+});
+
+// Endpoint equality keeps an asynchronous selectionchange on its writer, but a
+// native divergence retires that provenance even when the endpoints return.
+test("selection write provenance ends at native divergence", () => {
+  document.body.innerHTML = "<main><p>The amber passage keeps its identity.</p></main>";
+  const word = document.querySelector("p").firstChild;
+  const selection = getSelection();
+  selectEnds([word, 4], [word, 9]);
+  assert.equal(programmaticSelection(selection), true);
+  assert.equal(programmaticSelection(selection), true);
+  selection.extend(word, 17);
+  assert.equal(programmaticSelection(selection), false);
+  selection.extend(word, 9);
+  assert.equal(programmaticSelection(selection), false);
 });

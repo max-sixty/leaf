@@ -61,7 +61,7 @@ async function sheet(source) {
         },
       },
     ],
-    banner: { css: `/* Generated from ${source} by build/styles.mjs. */` },
+    banner: { css: `/* @noformat Generated from ${source} by build/styles.mjs. */` },
   });
   if (result.warnings.length)
     throw new Error(

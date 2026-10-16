@@ -3,12 +3,14 @@
 # paragraph on pages for choosing an approach passed 4 of 4.
 description: approach-page-leaves-the-choice-open
 metadata:
-  purpose: 'Asks: a page for the user to choose an approach is built around that choice, not the author''s
-    pick, and asks nothing that only the pick raises.'
+  purpose:
+    "Asks: a page for the user to choose an approach is built around that choice, not the author's
+    pick, and asks nothing that only the pick raises."
   tags:
-  - asks
+    - asks
 vars:
-  prompt: "You are in a Leaf design session. Two reviews came back on how a section's inline\nchoice (Next\
+  prompt:
+    "You are in a Leaf design session. Two reviews came back on how a section's inline\nchoice (Next\
     \ / Later / Drop) and a summary board could share one decision, and\nyour last chat reply said:\n\n\
     > Both reviews reject the board-specific binding. What varies is who owns the\n> decision:\n> - A,\
     \ the picker: `lf-options` keeps the fact; the board card is a view that\n>   sends the picker's `choose`.\
@@ -28,30 +30,26 @@ vars:
     \ HTML rather than writing a file. Figures may be placeholders\nsuch as `<figure id=\"owners-figure\"\
     ><svg class=\"drawing\" viewBox=\"0 0 680 300\"></svg></figure>`.\n"
 assert:
-- type: regex
-  metric: has-asks
-  value: <lf-ask\b
-  transform: output.toLowerCase()
-- type: llm-rubric
-  metric: judgment
-  value: |
-    Read the HTML as the user, who has to choose which approach Leaf builds. Pass
-    only if all of these hold:
-    1. There is an `lf-ask` whose question is which approach (who owns the decision)
-       to build, and its options include A, C and D at least.
-    2. No `lf-ask` asks a question that presupposes C, such as whether `lf-ask` or a
-       new `lf-item` carries the fields, or how C's rank or scale should work. An Ask
-       on whether order within a column matters passes only if the page presents it
-       as an input to choosing the approach rather than as a detail of C. The page
-       may mention C's open questions without asking them.
-    3. The `h1` and the `h2` headings do not state C (the section or subject owning
-       the decision) as the conclusion. "The fact belongs on the subject it is
-       about", "Let the section own it" and "Three more options, all weaker than C"
-       fail this; a heading naming the question, a finding every approach shares, or
-       an approach by name passes, and so does one that gives C as the author's
-       recommendation ("Why I'd take C"). The lede fails only if it presents C as
-       the plan rather than as a recommendation among the approaches.
-    4. No open section (outside a `<details>` or an option) elaborates C alone, such
-       as C's markup or C's vocabulary, without the same treatment of the other
-       approaches.
-    Fail if any one of these does not hold.
+  - type: llm-rubric
+    metric: judgment
+    value: |
+      Read the HTML as the user, who has to choose which approach Leaf builds. Pass
+      only if all of these hold:
+      1. There is an `lf-ask` whose question is which approach (who owns the decision)
+         to build, and its options include A, C and D at least.
+      2. No `lf-ask` asks a question that presupposes C, such as whether `lf-ask` or a
+         new `lf-item` carries the fields, or how C's rank or scale should work. An Ask
+         on whether order within a column matters passes only if the page presents it
+         as an input to choosing the approach rather than as a detail of C. The page
+         may mention C's open questions without asking them.
+      3. The `h1` and the `h2` headings do not state C (the section or subject owning
+         the decision) as the conclusion. "The fact belongs on the subject it is
+         about", "Let the section own it" and "Three more options, all weaker than C"
+         fail this; a heading naming the question, a finding every approach shares, or
+         an approach by name passes, and so does one that gives C as the author's
+         recommendation ("Why I'd take C"). The lede fails only if it presents C as
+         the plan rather than as a recommendation among the approaches.
+      4. No open section (outside a `<details>` or an option) elaborates C alone, such
+         as C's markup or C's vocabulary, without the same treatment of the other
+         approaches.
+      Fail if any one of these does not hold.

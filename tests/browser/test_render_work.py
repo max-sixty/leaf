@@ -17,7 +17,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 def reading(page, scope):
     return page.evaluate(
         """async id => {
-          const {readWork} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {readWork} = await window.__lfWidgetApi();
           const view = readWork(document.getElementById(id));
           return {done: view.done, leaves: view.leaves.map(row => row.element.id),
             stopped: view.stopped.map(row => row.element.id),
@@ -109,11 +109,9 @@ def test_a_page_owned_goal_joins_the_public_projection(browser, serve):
             }
         },
     }
-    module = """import {keeps, once, widgetController} from "/runtime/widget-api.js";
-customElements.define("lf-project-milestone", class extends HTMLElement {
-  #controller = widgetController(this);
-  connectedCallback() { if (once(this)) this.#controller.subscribe(() => {}); }
-  renderState(state) { keeps(this, "phase", state.phase.value); }
+    module = """import {LeafElement, keeps} from "/runtime/widget-api.js";
+customElements.define("lf-project-milestone", class extends LeafElement {
+  render() { keeps(this, "phase", this.state.phase.value); }
 });"""
     source = leaf_page(
         "local work role",

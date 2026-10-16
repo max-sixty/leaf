@@ -16,6 +16,7 @@ from leaf.passages import enclosing_ids, page_passages
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate import version as render_gate_model
+from leaf.render_gate.scheme import console_finding
 from playwright.sync_api import expect
 from render_cases_interaction import (
     live_url,
@@ -168,7 +169,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
     The anchor in that log is the part that can rot quietly. It is captured from
     the mapped revision, and it has to name the same passage once the browser has
     built the page; a rewritten sentence leaves the quote resolving to nothing and
-    the thread standing there detached, which is a broken demo and no error
+    the thread left there detached, which is a broken demo and no error
     anywhere. A sample can instead explicitly retain a historical quote after a
     reply detaches it from a section the current page removed. The corpus's own
     anchor sweep does not cover shipped anchors, because that sweep writes its own.
@@ -194,7 +195,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
     drawn = []
     decided = []
     replied = []
-    read_as = {}  # widget id -> how it reads with the log's decision standing
+    read_as = {}  # widget id -> how it reads with the log's decision in force
 
     for example in seeded:
         url = serve(example)
@@ -225,7 +226,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
             )
             previous.add(event["id"])
         assert {event["id"] for event in events} <= previous
-        # Read standing roots through the same fold as the page. A resolved root keeps
+        # Read the roots in force through the same fold as the page. A resolved root keeps
         # its thread and attachment but owes no paint; a withdrawn reaction owes neither.
         page_ids = enclosing_ids(structure_model.SourceDocument(example.read_text()))
         threads = thread_model.build_threads(logged, page_ids)
@@ -300,6 +301,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
             )
             if tab:
                 page.get_by_role("tab", name=tab, exact=True).click()
+            page.locator(f"#{section}").scroll_into_view_if_needed()
             item = page.locator(f'.lf-margin-cluster[data-lf-margin-for="{section}"]')
             expect(item).to_have_count(1)
             # A crowded target may expose this exact reaction through overflow. Follow
@@ -318,7 +320,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                 sheet = page.get_by_role("dialog", name="Page Map", exact=True)
                 expect(
                     sheet.locator(
-                        '[data-lf-margin-entry-owner="standing-reactions"]'
+                        '[data-lf-margin-entry-owner="reactions"]'
                         f'[data-lf-margin-entry-key="reaction:{reaction["id"]}:open"]'
                     )
                 ).to_be_visible()
@@ -472,7 +474,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
         # markup rather than from the version, through a projection of its own
         # (`frozen_thread_reading`), and replayed into a tree the panel built — so
         # a corpus that seeds the question and not the answer reads the untouched
-        # half of every such widget and leaves the whole standing-decision route
+        # half of every such widget and leaves the whole decision-in-force route
         # to unit-style fixtures. The seed is what puts it under the sweeps.
         decided_here = [
             e["widget"]
@@ -480,21 +482,21 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
             if e["kind"] == "action" and e["widget"] in carried_ids
         ]
         # Named by each carried widget's public semantic reading, which is where a
-        # standing winner has to appear for the gate to reapply it at all.
-        standing = page.evaluate(
+        # winner in force has to appear for the gate to reapply it at all.
+        in_force = page.evaluate(
             """async ids => {
-              const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+              const {widgetController} = await window.__lfWidgetApi();
               return ids.filter(id => Object.values(
                 widgetController(document.getElementById(id)).read().actions,
-              ).some(action => action.standing.length));
+              ).some(action => action.inForce.length));
             }""",
             decided_here,
         )
         for wid in decided_here:
             decided.append(wid)
-            assert wid in standing, (
-                f"{example.stem}: the log decides #{wid} and the runtime's standing "
-                f"state names only {standing} — the panel's fold reached the gate for "
+            assert wid in in_force, (
+                f"{example.stem}: the log decides #{wid} and the runtime's current "
+                f"state names only {in_force} — the panel's fold reached the gate for "
                 "nothing the user did"
             )
             read_as[wid] = page.locator(f"#{wid}").inner_text()
@@ -674,12 +676,11 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
         )
     assert (
         page.evaluate(
-            "async () => (await window.__lfRuntimeImport('/runtime/context.js')).runtime.state.agent"
+            "async () => (await window.__lfCheckApi()).readApplication().authoritative.agent"
         )
-        == "Agent"
+        == "Claude"
     )
-    assert fault.value.text in page.lf_errors
-    page.lf_errors.remove(fault.value.text)
+    page.lf_errors.remove(console_finding(fault.value))
 
     expect(page.locator(".lf-msg.agent .lf-msg-body")).to_have_count(0)
     expect(page.locator(".lf-msg.user .lf-msg-body")).to_have_text(
@@ -742,7 +743,9 @@ lf-roomy > section { min-height: 80px; border: 1px solid currentColor; }
         room: (() => {
           const probe = document.createElement('i');
           probe.style.cssText = 'position:fixed;visibility:hidden;width:var(--lf-room)';
-          el.append(probe);
+          // Children of a breakout reset --lf-room to 100%; read its parent's
+          // allocation, which is the room the breakout itself received.
+          el.parentElement.append(probe);
           const width = probe.getBoundingClientRect().width;
           probe.remove();
           return width;
@@ -789,14 +792,15 @@ lf-roomy > section { min-height: 300px; border: 1px solid currentColor; }
     assert root_overflow(page) == 0, at
 
 
-def test_named_wide_is_the_evidence_width_in_every_layout(browser, serve):
-    """`wide` is the shared capped evidence width wherever a block stands. A sidebar
-    page's body and a workspace pane are wider than `--wide` at a large window, so the
-    breakout's growth alone left a named-wide block at the holder's width there: 1442px
-    in a pane at 1726px. The cap holds an authored
-    occurrence and a package default (a board) alike, at the page's own `--wide`, while
-    a block that names no width still fills its holder and `available` takes it all. A
-    narrow window's pane still bounds the wide block."""
+def test_named_wide_is_the_evidence_width_of_a_document_layout(browser, serve):
+    """`wide` is the shared capped evidence width wherever a block stands on a document
+    page. A sidebar page's body is wider than `--wide` at a large window, so the
+    breakout's growth alone left a named-wide block at the holder's width there. The
+    cap holds an authored occurrence and a package default (a board) alike, at the
+    page's own `--wide`, while a block that names no width still fills its holder and
+    `available` takes it all. A workspace states no evidence width, so there both fill
+    their pane as a block that names none does. A narrow window's holder still bounds
+    the wide block."""
     blocks = """
 <div id="named" data-width="wide">Named wide.</div>
 <lf-board id="board">
@@ -827,16 +831,17 @@ def test_named_wide_is_the_evidence_width_in_every_layout(browser, serve):
       }))"""
     for source, cap in (
         (sidebar_page, 1080),
-        (workspace_page, 1080),
+        (workspace_page, None),
         (configured, 900),
     ):
         page = open_page(browser, serve(source))
         resized(page, 1726, 900)
         at = page.evaluate(measure)
-        assert at["plain"]["width"] > cap + 200, at
+        assert at["plain"]["width"] > 1080 + 200, at
         assert at["available"]["width"] == at["plain"]["width"], at
         for capped in ("named", "board"):
-            assert at[capped]["width"] == pytest.approx(cap, abs=1), (capped, at)
+            width = cap or at["plain"]["width"]
+            assert at[capped]["width"] == pytest.approx(width, abs=1), (capped, at)
             assert at[capped]["left"] == at["plain"]["left"], (capped, at)
         assert root_overflow(page) == 0
 
@@ -863,29 +868,36 @@ def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
 
     The page's own frame is the same place: a wide widget is measured against the box
     that frames it, and everything else on the page is excused by a scroll container
-    above it. Asked in that order, the excuse ate the measurement: a board scrolls, so
-    every card on every board was excused from the one reading that applies to what it
-    holds, and a diagram drawn 332px across the next column passed the gate that
-    exists to name it. So a board in a frame of the page's own that scrolls is named
-    too."""
+    above it. The fixture deliberately overrides the board's width so it escapes the
+    frame; the ordinary theme now holds it inside. Asked in the wrong order, the scroll
+    container's excuse ate this measurement, so a wide widget escaping its frame went
+    unnamed."""
     framed = FRAMED_SCROLLER_PAGE[FRAMED_SCROLLER_PAGE.index("<div id='own-frame'") :]
     framed = framed[: framed.index("</lf-board></div>") + len("</lf-board></div>")]
+    source = OWN_MARGIN_FURNITURE.replace(
+        "</head>", "<style>#framed { width: 1080px; }</style></head>"
+    )
     failures = render_gate_model.render_version(
-        browser, serve(OWN_MARGIN_FURNITURE.replace("</main>", framed + "</main>"))
+        browser, serve(source.replace("</main>", framed + "</main>"))
     ).failures
 
     assert [
         f
         for f in failures
-        if "<lf-board id=sprint> is drawn over <div id=own-rail>" in f
+        if f.code == "over-margin"
+        and f.at == "<lf-board id=sprint>"
+        and f.values["resident"] == "<div id=own-rail>"
     ], (
         f"the gate said nothing about a board drawn over the page's own margin: {failures}"
     )
-    assert not [f for f in failures if "own-rail" in f and "past the column" in f], (
-        "the furniture itself was named for standing where it was put"
-    )
+    assert not [
+        f for f in failures if f.code == "past-column" and "own-rail" in f.at
+    ], "the furniture itself was named for standing where it was put"
     assert [
-        f for f in failures if "<lf-board id=framed>" in f and "<div id=own-frame>" in f
+        f
+        for f in failures
+        if f.at == "<lf-board id=framed>"
+        and f.values.get("frame") == "<div id=own-frame>"
     ], (
         "the gate said nothing about a wide widget escaping a frame that scrolls: "
         f"{failures}"
@@ -901,7 +913,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     takes, so the release-notes shot, the wide exhibit in the control, grows left only
     to stop short of it.
 
-    The Questions panel stands over the page from the right and moves nothing in the left
+    The On panel stands over the page from the right and moves nothing in the left
     margin. A narrow viewport returns the aside to the flow, and print proves paper
     reserves no blank margin for a posture it cannot use.
 
@@ -1021,7 +1033,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         "() => Number(getComputedStyle(document.querySelector('lf-toc a')).opacity) === 0"
     )
 
-    # The Questions panel stands over the page from the right and moves nothing in the left
+    # The On panel stands over the page from the right and moves nothing in the left
     # margin: the fixed ToC and the sidebar stay where the page put them while it stands.
     resized(page, 1700, 900)
     margin = """() => {
@@ -1049,12 +1061,14 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     )
     assert geometry["sidebarPosition"] == "sticky"
     assert geometry["tocPosition"] == "fixed"
-    assert 64 <= geometry["tocTop"] <= 68
-    # The map ends above the bottom bar, as every region does: its foot is the window's
-    # less the band and the map's own inset, so the keyboard's line never covers its last
-    # entry.
-    assert abs(geometry["tocBottom"] - (geometry["lineTop"] - 24)) <= 1, (
-        f"the map's foot is not the band's top less its inset: {geometry}"
+    banner_box = page.locator(".lf-banner").bounding_box()
+    assert banner_box is not None
+    assert geometry["tocTop"] == pytest.approx(
+        banner_box["y"] + banner_box["height"], abs=1
+    )
+    # The map ends at the bottom bar, keeping its last entry in view.
+    assert abs(geometry["tocBottom"] - geometry["lineTop"]) <= 1, (
+        f"the map's foot is not at the band's top: {geometry}"
     )
     banner_control(page, ".lf-queue").click()
     expect(page.locator(".lf-queue-panel")).to_be_hidden()

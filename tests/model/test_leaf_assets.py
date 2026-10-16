@@ -4,7 +4,7 @@ import json
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
-from leaf_dev import example_data, leaf_assets
+from leaf_dev import leaf_assets
 
 
 def test_fetches_the_pin_over_git_and_publishes_a_complete_cache(tmp_path, monkeypatch):
@@ -93,20 +93,13 @@ def test_a_publication_keeps_what_others_published_since_its_pin(tmp_path, monke
 
     def staged(name, directory, files):
         source = tmp_path / name
-        (source / "examples").mkdir(parents=True)
-        (source / "examples" / "decision.html").write_text("<h1>A decision</h1>")
-        (source / "docs").mkdir()
-        (source / "docs" / "examples.html").write_text(
-            '<a class="example-link" href="/examples/decision/">'
-            '<img src="/media/0000000000000000.jpg"></a>\n'
-        )
+        source.mkdir()
         (source / "README.md").write_text("No images.\n")
         (source / "leaf-assets.json").write_text(
             json.dumps({"repository": repository, "revision": pin})
         )
         monkeypatch.setattr(leaf_assets, "ROOT", source)
         monkeypatch.setattr(leaf_assets, "README", source / "README.md")
-        monkeypatch.setattr(example_data, "ROOT", source)
         staging = tmp_path / f"staging-{name}"
         staging.mkdir()
         checkout = leaf_assets.stage(directory, files, staging)

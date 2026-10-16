@@ -6,7 +6,8 @@
    Each field is true when that axis is settled. Hidden documents read true on
    both axes because they owe no visible paint until they become visible again.
    A reader outside the page waits on those facts after a gesture rather than
-   guessing a number of frames.
+   guessing a number of frames, and one inside it on `afterSettling`, as a sample's
+   child does to say which of its heights a gesture caused (sample-child.js).
 
    Leaf's rendering callbacks and size observers go through this module: `nextRender`,
    `nextFrame` and `cancelRender` for settling work, `nextAnimation` and
@@ -71,10 +72,15 @@
    reader asking straight after an input handler that queued work reads false.
 
    Finite asynchronous preparation registers a `holdRendering` until it commits or its
-   owner retires. The one open-ended hold is a live sample whose first document departs
-   before presenting, which waits for a next document or Reset (lf-sample.js).
-   Registration unsettles synchronously; release requires a final quiet
-   update, including the preparation's DOM writes and observer deliveries. A held local
+   owner retires. A live sample whose first document departs before presentation
+   waits for its next document or Reset. Registration unsettles synchronously; release requires a final quiet
+   update, including the preparation's DOM writes and observer deliveries. Its opaque
+   frozen identity is announced to `observePreparations` at registration and once on
+   settlement or cancellation. The registration-time observer cohort follows that hold
+   to retirement even if unsubscribed meanwhile. Capable work owns one hold per producer,
+   independently of whether an aggregate semantic presentation has already failed or
+   been superseded. Reconnecting work registers a new hold and observation identity.
+   A held local
    edit is not rendering work: it defers a semantic reading until the gesture ends.
 
    What the reading cannot see is unregistered work an owner holds in a timer or a
@@ -115,16 +121,34 @@ let quiet = false;
 let checking = false;
 let preparations = 0;
 
+const preparationObservers = new Set();
+
+/** Observe each finite preparation's begin and terminal settle or cancel. */
+export function observePreparations(observer) {
+  preparationObservers.add(observer);
+  return () => preparationObservers.delete(observer);
+}
+
 /** Keep finite preparation pending until it commits or its owner retires. */
 export function holdRendering() {
   preparations++;
+  const serial = ++begun;
+  pending.add(serial);
   unsettle();
+  const identity = Object.freeze({});
+  const observers = [...preparationObservers];
+  for (const observer of observers) observer("begin", identity);
   let released = false;
-  return () => {
+  return (phase = "settle") => {
     if (released) return;
     released = true;
     preparations--;
+    pending.delete(serial);
+    // Its commit owes a whole quiet update, even where a check is already waiting on
+    // an update that ran before the release.
+    if (updateChecking) heard = true;
     unsettle();
+    for (const observer of observers) observer(phase, identity);
   };
 }
 
@@ -224,7 +248,7 @@ function rendered() {
   if (document.hidden) return false;
   const sample = sampleVisibility();
   if (sample) return sample.visible;
-  for (let view = window; view.frameElement; view = view.parent)
+  for (let view = /** @type {Window} */ (window); view.frameElement; view = view.parent)
     if (!view.frameElement.checkVisibility()) return false;
   return true;
 }
@@ -236,9 +260,15 @@ function unsettle() {
   requestAnimationFrame(afterUpdate);
 }
 
-const afterUpdate = () => setTimeout(check);
+// Whether an update has run whose check has not.
+let updateChecking = false;
+const afterUpdate = () => {
+  updateChecking = true;
+  setTimeout(check);
+};
 
 function check() {
+  updateChecking = false;
   if (queued.size || heard) {
     heard = false;
     requestAnimationFrame(afterUpdate);
@@ -246,6 +276,32 @@ function check() {
   }
   checking = false;
   quiet = true;
+  // A preparation's release unsettles the reading again, so a waiter it holds drains
+  // at the check after that release.
+  const waiting = settling;
+  settling = [];
+  for (const waiter of waiting)
+    if ([...pending].some((serial) => serial > waiter.since)) settling.push(waiter);
+    else waiter.settled();
+}
+
+// Those waiting for the rendering begun when they asked to settle (`afterSettling`),
+// each with the last preparation begun before it asked; the preparations not yet
+// released, by the order they began in.
+let settling = [];
+let begun = 0;
+const pending = new Set();
+const owed = () => {};
+
+/** Call `settled` once the rendering that work begun now sets going has settled: a
+    counted update runs after this moment, then one is quiet, and every finite
+    preparation begun since has landed. A preparation already waiting is someone
+    else's. A gesture's rendering is the work its input sets going until then, its
+    answers to that input included, such as a widget preparing what a disclosure the
+    reader opened shows. */
+export function afterSettling(settled) {
+  settling.push({ settled, since: begun });
+  nextFrame(owed);
 }
 
 // Nothing has been heard yet: the page is unsettled until its first quiet update.

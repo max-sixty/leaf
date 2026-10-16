@@ -9,6 +9,8 @@ in its terminal interface, with this working tree's payload as its plugin
 (`--plugin-dir`) under a throwaway home (`arms.claude_home`) whose only content is
 the host's login. `--hooks-module` turns the plugin's `hooks_module` option on, so
 Leaf's hooks module keeps the watch in place of `hooks.json`'s background Stop hook.
+`--sandbox` runs the session's shell commands in Claude Code's sandbox, configured
+as the README asks a sandboxed user to configure it.
 The journey is then the user: it types into the session through a tmux pane,
 presses Escape, answers its permission prompts, and sends its comments at the
 journey's user end. It reads the page's log and claim in process, and stops at the
@@ -43,9 +45,10 @@ The steps, in order:
 Between steps every comment sent so far has exactly one reply and a pickup, and the
 page's claim names the session with its turn closed. With the hooks module, Escape
 closes the turn, a watch runs after each turn, an interrupted one included, and no
-delivery shows in the terminal. Without it, what follows an Escape is reported
-rather than required: the watch from before goes on only if it has not woken, and
-otherwise admission's nudge carries the next comment.
+delivery shows in the terminal; Claude Code drops the prompt that watch wakes the
+stopped session with, so the page nudges it. Without it, what follows an Escape is
+reported rather than required: the watch from before goes on only if it has not
+woken, and otherwise admission's nudge carries the next comment.
 
 A step with comments also prints whether the page nudged the session, and a step
 with an Escape whether it left the turn open, a watch running, and what the page's
@@ -68,10 +71,9 @@ from pathlib import Path
 
 import click
 import psutil
-from leaf.delivery import pickup_receipts
+from leaf.delivery import DELIVERY_FORMAT, pickup_receipts
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
-from leaf.hook_transport import INLINE_DELIVERY
 from leaf.leases import wait_is_live
 from leaf.server import running_server
 from leaf.service import claim_is_active, page_claim
@@ -79,7 +81,7 @@ from leaf.state import session_record
 
 from leaf_dev import ROOT
 from leaf_dev.arms import MODELS, claude_environment, claude_home, run_leaf
-from leaf_dev.journey import Isolation, Terminal, User, isolated, user_at
+from leaf_dev.commands.journey import Isolation, Terminal, User, isolated, user_at
 from leaf_dev.review_scenario import (
     REQUEST,
     SLEEP,
@@ -274,9 +276,10 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, module: bool) -> None:
         sent.extend(names)
         settled(page, cc.session, {name: user.ids[name] for name in sent})
         # The hooks module keeps a delivery out of the user's sight; without it,
-        # Claude Code prints the one the Stop hook hands over.
+        # Claude Code prints the one the Stop hook hands over, whose envelope names
+        # its format.
         require(
-            not module or INLINE_DELIVERY not in cc.shown(),
+            not module or DELIVERY_FORMAT not in cc.shown(),
             f"{name}: a delivery was printed in the terminal",
         )
         # The turn that answers ends with a watch running, under either watcher.
@@ -432,7 +435,9 @@ def transcript(home: Path, session: str) -> list[dict]:
 
 
 @contextmanager
-def answering(browser, *, hooks_module: bool) -> Iterator[tuple[User, Callable]]:
+def answering(
+    browser, *, hooks_module: bool, sandbox: bool
+) -> Iterator[tuple[User, Callable]]:
     """The user at the page an interactive Claude Code session serves, once it has,
     and the steps that follow."""
     require(shutil.which("tmux") is not None, "the claude-code journey drives tmux")
@@ -459,6 +464,14 @@ def answering(browser, *, hooks_module: bool) -> Iterator[tuple[User, Callable]]
                 "leaf@inline": {"options": {"hooks_module": hooks_module}}
             }
         }
+        if sandbox:
+            # The README's settings ("Agent sandboxes"), which let Leaf's sandboxed
+            # commands reach the bridge its hooks keep outside the sandbox.
+            settings["sandbox"] = {
+                "enabled": True,
+                "failIfUnavailable": True,
+                "network": {"allowedDomains": ["127.0.0.1"]},
+            }
         # The session's id is the journey's from the start, so Claude Code's record
         # of it answers `approve` before the page is claimed.
         session = str(uuid.uuid4())
@@ -494,7 +507,7 @@ def answering(browser, *, hooks_module: bool) -> Iterator[tuple[User, Callable]]
             )
             settled(place.page, cc.session, {})
             require(
-                not hooks_module or INLINE_DELIVERY not in cc.shown(),
+                not hooks_module or DELIVERY_FORMAT not in cc.shown(),
                 "setup: a delivery was printed in the terminal",
             )
             cc.keep("setup")

@@ -4,8 +4,10 @@ Lease files are stable coordination points, created on first use and retained
 after release. Only the descriptor's exclusive kernel lock proves a holder is
 live; file existence says nothing. `release_lease` or process exit releases the
 lease, including a crash. Neither holders nor session cleanup remove these
-files. A taker verifies the acquired inode still has its name, since another
-process may have removed or replaced the shared path while it was opening it.
+files; `supersede_lease` alone replaces one, to take its lease from a live
+holder. A taker verifies the acquired inode still has its name, since another
+process may have removed or replaced the shared path while it was opening it,
+and a holder that can be superseded asks the same of its own descriptor.
 """
 
 import contextlib
@@ -38,18 +40,25 @@ def lock_is_held(path: Path) -> bool:
     The question is asked with a shared lock, which every lease here refuses and
     no reading takes for longer than the question. An exclusive probe would be
     answered by another reading's probe as readily as by a lease, so two
-    processes asking at once would tell each other a lease was held.
+    processes asking at once would tell each other a lease was held. A file the
+    name no longer reaches answers nothing either way: `supersede_lease` may have
+    displaced it, its holder still running or gone, while the lease at the name
+    began or ended. So the question is asked again of the file the name reaches.
     """
-    try:
-        with open(path, "r+b") as probe:
-            try:
-                fcntl.flock(probe, fcntl.LOCK_SH | fcntl.LOCK_NB)
-            except OSError:
-                return True
-            fcntl.flock(probe, fcntl.LOCK_UN)
+    while True:
+        try:
+            with open(path, "r+b") as probe:
+                try:
+                    fcntl.flock(probe, fcntl.LOCK_SH | fcntl.LOCK_NB)
+                except OSError:
+                    held = True
+                else:
+                    held = False
+                    fcntl.flock(probe, fcntl.LOCK_UN)
+                if still_named(probe.fileno(), path):
+                    return held
+        except OSError:
             return False
-    except OSError:
-        return False
 
 
 def take_lease(path: Path, *, prepare: Callable[[BinaryIO], None] | None = None):
@@ -107,6 +116,26 @@ def take_lease(path: Path, *, prepare: Callable[[BinaryIO], None] | None = None)
         record.close()
 
 
+def supersede_lease(path: Path):
+    """Take the exclusive lease on this file whether or not another process holds
+    it, and return it held, as `take_lease` does.
+
+    The lease moves to a fresh file that takes the name with its lock already held,
+    so a probe of the name never finds it unheld. A process it displaces still holds
+    a lock, on a file the name no longer reaches, and learns it lost the lease from
+    `still_named`."""
+    staged = path.with_name(f"{path.name}.{os.getpid()}")
+    record = open(staged, "w+b")  # noqa: SIM115 - returned and held by the caller
+    try:
+        fcntl.flock(record, fcntl.LOCK_EX)
+        os.replace(staged, path)
+    except BaseException:
+        record.close()
+        staged.unlink(missing_ok=True)
+        raise
+    return record
+
+
 def release_lease(lease) -> None:
     """Release the descriptor's kernel lock, retaining its coordination file.
 
@@ -120,14 +149,37 @@ def release_lease(lease) -> None:
     lease.close()
 
 
+# The terminating signal this process received, kept for `end_if_terminated`.
+_terminated: list[int] = []
+
+
 def release_on_termination() -> None:
     """Unwind process-owned resources when SIGTERM or SIGHUP ends a command.
 
     Kernel leases release even without unwinding, but a command may also own
     reply reservations and pending work that its `finally` blocks must retire.
-    SIGKILL still skips that application cleanup."""
+    SIGKILL still skips that application cleanup.
+
+    The handler raises the exit wherever the main thread is, since only a raise
+    ends a blocked lock or condition wait; a handler that returns resumes it.
+    Python discards a raise that lands in a weakref callback, `__del__` or a GC
+    callback, such as a page memory's finalizer joining its watcher threads, so
+    the handler also records the signal, and each loop that blocks under it calls
+    `end_if_terminated` before it waits."""
     for terminating in (signal.SIGTERM, signal.SIGHUP):
-        signal.signal(terminating, lambda signum, _frame: sys.exit(128 + signum))
+        signal.signal(terminating, _terminate)
+
+
+def _terminate(signum: int, _frame) -> None:
+    _terminated.append(signum)
+    sys.exit(128 + signum)
+
+
+def end_if_terminated() -> None:
+    """Exit as `release_on_termination`'s handler would have, if its raise was
+    lost."""
+    if _terminated:
+        sys.exit(128 + _terminated[0])
 
 
 @contextlib.contextmanager

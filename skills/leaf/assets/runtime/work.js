@@ -3,8 +3,8 @@
  * owns progress, assignments, report age and stopped-work meaning independently
  * of how a dashboard composes those facts. */
 import { declarationFor, layerFact, registry } from "./registry.js";
-import { readQuestions } from "./questions/model.js";
-import { asksIn } from "./questions/place.js";
+import { readAsks } from "./asks/model.js";
+import { asksIn } from "./asks/place.js";
 import { elementById } from "./passages.js";
 import { quietSince } from "./presence.js";
 import { quoted } from "./widget-descriptors.js";
@@ -118,16 +118,19 @@ const done = (goal, read) => {
 // itself: in its scope, under no nearer goal, and not a goal.
 function interventions(goal, open) {
   const scope = workAncestor(goal, "scope");
-  return asksIn(goal, open)
-    .map((ask) => elementById(ask.source.id))
-    .filter(
-      (item) =>
-        item !== goal &&
-        !workRole(item, "goal") &&
-        workAncestor(item, "scope") === scope &&
-        workAncestor(item.parentElement, "goal") === goal &&
-        !quoted(item),
-    );
+  return (
+    asksIn(goal, open)
+      // `asksIn` holds widgets' asks, which each name their widget.
+      .map((ask) => elementById(/** @type {{id: string}} */ (ask.source).id))
+      .filter(
+        (item) =>
+          item !== goal &&
+          !workRole(item, "goal") &&
+          workAncestor(item, "scope") === scope &&
+          workAncestor(item.parentElement, "goal") === goal &&
+          !quoted(item),
+      )
+  );
 }
 
 function stopped(goal, open, nested, read) {
@@ -185,10 +188,8 @@ export function readWork(scope) {
     return readings.get(element);
   };
   // An ask stops work only while it waits on the user; one they left with the agent
-  // does not (questions/place.js).
-  const open = readQuestions().user.filter(
-    (question) => question.source.kind === "widget",
-  );
+  // does not (asks/place.js).
+  const open = readAsks().user.filter((ask) => ask.source.kind === "widget");
   const goals = workElements(scope, "goal").map((goal) => goalView(goal, open, read));
   const byElement = new Map(goals.map((goal) => [goal.element, goal]));
   const workers = workElements(scope, "worker").map((worker) =>

@@ -4,6 +4,7 @@ from collections import OrderedDict
 from itertools import groupby
 from typing import NamedTuple
 
+from leaf.findings import Finding
 from leaf.schema import MESSAGE_KINDS, UNDOABLE_KINDS
 
 
@@ -42,7 +43,7 @@ def event_document(event: dict) -> dict:
     return document_identity(event["meaning"]["scope"], event["revision"])
 
 
-def standing_approvals(events: list, *, withdrawn: set | None = None) -> list:
+def approvals_in_force(events: list, *, withdrawn: set | None = None) -> list:
     """The sign-off approvals no later undo took back, in log order."""
     if withdrawn is None:
         withdrawn = taken_back(events)
@@ -99,7 +100,7 @@ def bare_reaction(thread: dict) -> bool:
 class UndoReading:
     """Indexed eligibility for the user's one-step withdrawals.
 
-    The browser exposes every standing gesture in one reading, so checking each
+    The browser exposes every gesture in force in one reading, so checking each
     candidate by folding the event log again turns a linear state read into a
     quadratic one. This index computes the shared facts once: event identity,
     withdrawals, and the reaction's thread status. The append door uses the
@@ -161,41 +162,34 @@ class UndoReading:
         self.answered_reactions = answered_reactions
         self.resolved_reactions = resolved_reactions
 
-    def error(self, event: dict) -> str | None:
-        """Return the existing rejection for one proposed ``undo`` event."""
-        target_id = event["undoes"]
-        target = self.events_by_id.get(target_id)
+    def error(self, event: dict) -> Finding | None:
+        """The finding the append door refuses one proposed ``undo`` event on."""
+        named = {"undoes": event["undoes"]}
+        target = self.events_by_id.get(event["undoes"])
         if target is None:
-            return f"unknown undoes {target_id!r}"
+            return Finding("unknown-undo", values=named)
+        named["target"] = target["kind"]
         if target["author"] != "user":
-            return f"{target['kind']} {target['id']} is not the user's own gesture"
+            return Finding("foreign-gesture", values=named)
         if target["id"] in self.withdrawn:
-            return f"{target['id']} has already been taken back"
+            return Finding("withdrawn-gesture", values=named)
         if target["kind"] in MESSAGE_KINDS:
             if not is_reaction(target):
-                return (
-                    f"{target['kind']} {target['id']} is not a reaction; a message "
-                    "with words in it is said rather than unsaid"
-                )
+                return Finding("said-message", values=named)
             if target["id"] in self.answered_reactions:
-                return (
-                    f"reaction {target['id']} has been answered; withdraw it in the "
-                    "thread the answer opened"
-                )
+                return Finding("answered-reaction", values=named)
             if target["id"] in self.resolved_reactions:
-                return f"reaction {target['id']} stands on a resolved thread"
+                return Finding("resolved-reaction", values=named)
         elif target["kind"] not in UNDOABLE_KINDS:
-            return (
-                f"{target['kind']} events cannot be taken back (the kinds that can "
-                f"are {', '.join(sorted(UNDOABLE_KINDS))} and a reaction)"
+            return Finding(
+                "unundoable", values={**named, "undoable": sorted(UNDOABLE_KINDS)}
             )
         elif target["kind"] == "action" and target["id"] in self.absorbed:
             # The newest revision's markup places the unit
             # (`StateProjection.absorbed`), so taking the move back would restore
             # nothing; a new move changes where the unit stands.
-            return (
-                f"move {target['id']} was made on r{target['revision']}, and a "
-                "later revision's markup now places its unit; move it again instead"
+            return Finding(
+                "absorbed-move", values={**named, "revision": target["revision"]}
             )
         return None
 
@@ -205,7 +199,7 @@ def undo_error(
     events: list,
     within: dict,
     absorbed: frozenset,
-) -> str | None:
+) -> Finding | None:
     """Why this undo may not take back the event it names, or None.
 
     Checked once here, at the door the browser writes through, so nothing
@@ -241,25 +235,25 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     ``rewritten_from`` retains the anchor a ``reanchor`` moved off, whose quoted words a
     version rewrote, until a reply chooses the thread's place again.
     A new spoken reply resumes the thread; reactions and failure receipts
-    leave its closure standing. A later resolution closes it again.
+    leave its closure in force. A later resolution closes it again.
     ``revisions`` holds the user's edits in log order, each with ``was``, the words
     it replaced: each shows as its message's wording and stands in the exchange as a
     turn of its own (`exchange`), so it resumes the thread as a reply does.
 
     Each thread is keyed by, and carries as ``id``, the id of the comment that
-    opened it, its ``root``: the name every Question, workflow, summary, and title
-    uses for it. Admission keeps every standing message's parent standing
-    (`event_contracts._parent_error`), so each reply lands in a thread.
+    opened it, its ``root``: the name every ask, workflow, summary, and title
+    uses for it. Admission keeps each message's parent in force while the message is
+    (`event_contracts._parent_error`), so each reply it admits lands in a thread.
     """
     if withdrawn is None:
         withdrawn = taken_back(events)
     # Every action at a coordinate competes, including a non-answer. Thread
     # settlement and visible state therefore read the same winning gesture.
-    standing = Standing(within, retractions(events), withdrawn)
+    in_force = InForce(within, retractions(events), withdrawn)
     for e in events:
         if e["kind"] == "action":
-            standing.admit(e)
-    winners = standing.winners()
+            in_force.admit(e)
+    winners = in_force.winners()
     threads = {}
     thread_for = {}
     messages = {}
@@ -323,8 +317,12 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 message["text"] = e["text"]
             continue
         if e["kind"] == "reply":
+            # Admission keeps a reply's parent in force, but a Leaf older than that
+            # rule could answer a withdrawn message; the reply then stands on nothing
+            # (root `AGENTS.md`, "Stage").
+            if (thread := thread_for.get(e["parent"])) is None:
+                continue
             message = dict(e)
-            thread = thread_for[e["parent"]]
             messages[e["id"]] = message
             thread["msgs"].append(message)
             if thread["title"] is None and "title" in e:
@@ -498,13 +496,13 @@ def unanswered_turns(thread: dict) -> list[dict]:
         ):
             floor = index
             newest_before = None
-    standing = turns[floor + 1 :]
+    since = turns[floor + 1 :]
     responses = {
-        message.get("responds") for message in standing if message["author"] == "agent"
+        message.get("responds") for message in since if message["author"] == "agent"
     }
     return [
         message
-        for message in standing
+        for message in since
         if message["author"] != "agent" and message["id"] not in responses
     ]
 
@@ -520,9 +518,9 @@ def awaits_agent(thread: dict) -> bool:
 
     This reading says nothing about whether the user owes a word: an ordinary agent
     reply may leave the open thread awaiting nobody, while an agent comment, an
-    explicit prose question, or a structured widget Question awaits the user. The browser
+    explicit prose ask, or a structured widget ask awaits the user. The browser
     does not receive it: each browser Thread's `attention` aggregates this turn with
-    the workflows and Questions standing on the thread, so the panel, its filters and the
+    the workflows and asks open on the thread, so the panel, its filters and the
     margin read one answer to whose turn it is."""
     return bool(not thread["resolved"] and unanswered_turns(thread))
 
@@ -541,28 +539,6 @@ def seat_root(thread: dict) -> str | None:
     if root.get("about") or not anchor or len(anchor) != 1:
         return None
     return anchor.get("section")
-
-
-def seats_with_agent(threads: dict) -> set[str]:
-    """Widget ids whose own seat holds a thread now waiting on the agent.
-
-    An Question whose own thread is with the agent is not one the user has to
-    deal with, so a Question projection reading their list subtracts these. It is not an
-    answer — the widget's state is untouched — which is why the reading that asks
-    whether a Question is answered passes an empty set instead. The browser receives
-    the Questions this subtraction leaves rather than subtracting again, so the banner's
-    count and `page state` cannot disagree about whose turn it is.
-
-    Whose thread it is does not enter into it: the agent may open one in the seat too,
-    and once the user has answered there the question is with the agent either way.
-
-    Takes the built fold rather than the log, because every caller already holds one:
-    `build_threads` walks the whole log and tests each action against the retraction
-    floors, and a second fold of the same events in the same function is that walk
-    done twice for one answer."""
-    return {
-        seat for t in threads.values() if awaits_agent(t) and (seat := seat_root(t))
-    }
 
 
 def note_settlements(event: dict, kind: str) -> set[str]:
@@ -639,20 +615,20 @@ def action_retracted(event: dict, floors: dict, within: dict) -> bool:
 
 
 class Change(NamedTuple):
-    """One coordinate's winner before and after a step of a `Standing` walk."""
+    """One coordinate's winner before and after a step of an `InForce` walk."""
 
     coordinate: tuple
     before: dict | None
     after: dict | None
 
 
-class Standing:
-    """The actions standing at each owner-unit-verb coordinate, in log order, the
+class InForce:
+    """The actions in force at each owner-unit-verb coordinate, in log order, the
     last of them its winner.
 
     The one reading of which action decides a coordinate. An action stands from its
     admission until an undo withdraws it or a version note retracts what it rests on
-    (`action_retracted`), and the latest action standing wins, one answering nothing
+    (`action_retracted`), and the latest action in force wins, one answering nothing
     included. A reader of the final state admits the log's actions with `withdrawn`
     and the log's whole `floors` given (`build_threads`, the projection fold); a
     reader of what each event changed walks the log in order instead, handing undos
@@ -663,7 +639,7 @@ class Standing:
     that was not winning changes no coordinate's reading.
 
     Each step costs what it touches: a note reaches the actions resting on what it
-    restates through an index of them, never every action standing, and a
+    restates through an index of them, never every action in force, and a
     coordinate's winner is the tail of a linked order, which taking actions out
     leaves constant to reach. A walk is therefore linear in the log however many
     actions one coordinate collects."""
@@ -674,7 +650,7 @@ class Standing:
         self.withdrawn = withdrawn
         self._at: dict[tuple, OrderedDict[str, dict]] = {}
         self._coordinate: dict[str, tuple] = {}
-        # identity → the standing actions resting on it, in log order.
+        # identity → the actions in force resting on it, in log order.
         self._resting: dict[str, OrderedDict[str, None]] = {}
 
     def winner(self, coordinate: tuple) -> dict | None:
@@ -690,7 +666,7 @@ class Standing:
         }
 
     def ids(self) -> frozenset:
-        """Every action standing."""
+        """Every action in force."""
         return frozenset(self._coordinate)
 
     def admit(self, action: dict) -> Change | None:

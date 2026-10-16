@@ -3,7 +3,7 @@
 import json
 
 import pytest
-from leaf.delivery import DELIVERY_FORMAT, record_pickup
+from leaf.delivery import batch_data, batch_refs, freeze_delivery, record_pickup
 from leaf.event_log import read_cursor, read_events
 from leaf.service import PageTransaction
 from leaf_dev import ROOT
@@ -17,8 +17,11 @@ from leaf_dev.usability_eval import (
     build_fixture,
     page_events,
     post_round,
+    score_board,
+    score_constructs,
     score_elided,
     score_mixed,
+    score_resume,
 )
 
 
@@ -36,7 +39,7 @@ from leaf_dev.usability_eval import (
         "elided",
     ],
 )
-def test_fixture_builds_through_current_leaf_admission(tmp_path, case):
+def test_fixture_builds_through_current_leaf_admission(tmp_path, monkeypatch, case):
     run = Run(case, ROOT, tmp_path)
     run.state.mkdir()
     page = tmp_path / "page"
@@ -57,6 +60,52 @@ def test_fixture_builds_through_current_leaf_admission(tmp_path, case):
         [lag] = state["measurement_lag"]
         assert lag["run"] == captured
         assert lag["current_run"] != captured
+    if case in {"resume", "constructs"}:
+        (tmp_path / "work-dir").write_text(str(tmp_path))
+        if case == "constructs":
+            saved = tmp_path / "fixture/data"
+            saved.mkdir(parents=True)
+            (saved / "checkout-p95.json").write_bytes(
+                (page / "data/checkout-p95.json").read_bytes()
+            )
+            source = page / "index.html"
+            source.write_text(source.read_text().replace("184 ms", "0.231 seconds"))
+            run.leaf(
+                "page",
+                "stamp",
+                str(page),
+                "--text",
+                "Retain full latency sentence",
+                check=True,
+            )
+            text = score_constructs(run)["texts"]["latency-summary"]
+            assert "Checkout p95 is 0.231 seconds against a 300 ms budget." == text
+        else:
+            text = score_resume(run)["texts"]["batch-size"]
+            assert "batches of 500" in text
+            assert "pauses two seconds between batches" in text
+    if case == "board":
+        (tmp_path / "work-dir").write_text(str(tmp_path))
+        source = page / "index.html"
+        original = source.read_text()
+        source.write_text(
+            original.replace(
+                "<strong>Expiry alerts</strong>",
+                "<strong>Expiry alerts</strong><p>Do not rename this to Key expiry alerts.</p>",
+            )
+        )
+        run.leaf(
+            "page",
+            "stamp",
+            str(page),
+            "--text",
+            "Mention the proposed title",
+            check=True,
+        )
+        assert not score_board(run)["renamed"]
+        source.write_text(original.replace("Expiry alerts", "Key expiry alerts"))
+        run.leaf("page", "stamp", str(page), "--text", "Rename the card", check=True)
+        assert score_board(run)["renamed"]
     if case == "elided":
         assert PREMISE not in str(page_events(page))
         append_elided_history(run, page)
@@ -73,24 +122,23 @@ def test_fixture_builds_through_current_leaf_admission(tmp_path, case):
             "kind": "reply", "parent": latest["id"], "revision": 1,
             "attempt": "usability-eval-0-0", "text": "When does the copy start?",
         })  # fmt: skip
-        read_premise = {
-            "type": "user",
-            "message": {"content": [{"type": "tool_result", "content": PREMISE}]},
-        }
         trace = [
             {"type": "result"},
             {"type": "eval_post", "round": 1},
-            {"type": "system", "subtype": "hook_response",
-             "output": json.dumps({"format": DELIVERY_FORMAT,
-                                   "elided": {"messages": 16}})},
             {"type": "eval_received", "round": 1},
-            read_premise,
             {"type": "result"},
-        ]  # fmt: skip
-        assert score_elided(run, trace)["middle_read"]
-        assert not score_elided(
-            run, [read_premise, *[r for r in trace if r is not read_premise]]
-        )["middle_read"]
+        ]
+        assert not score_elided(run, trace)["shown_elided"]
+        with monkeypatch.context() as context:
+            context.setenv("XDG_STATE_HOME", str(run.state))
+            with PageTransaction(page) as transaction:
+                question = transaction.events[-1]
+                delivery = freeze_delivery([batch_data(page, transaction, [question])])
+                [batch] = delivery["batches"]
+                record_pickup(transaction, [question], refs=batch_refs(batch))
+        # The canonical opened receipt and immutable envelope prove elision even
+        # when the native trace contains no printed delivery JSON.
+        assert score_elided(run, trace)["shown_elided"]
 
 
 def test_live_rounds_wait_for_delivery_and_cancel_the_completion_timer(

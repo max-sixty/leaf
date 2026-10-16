@@ -1,0 +1,14 @@
+# Full CLI output after acknowledgment succeeds but its next wait cannot start.
+
+exit: 2
+
+stdout: ''
+
+stderr:
+  - code: wait-active
+    severity: error
+    values:
+      target: >-
+        this session
+    text: >-
+      another `leaf wait` is already active for this session

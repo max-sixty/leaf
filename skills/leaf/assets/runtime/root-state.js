@@ -8,10 +8,13 @@
 
 // Root geometry exists before the module graph. Adopt the initial writers and
 // ownership registries rather than starting a later set of root facts.
+/** @type {LeafInitial["setRuntimeRootAttribute"]} */
 export const setRuntimeRootAttribute = (...args) =>
   document.documentElement.lfInitial.setRuntimeRootAttribute(...args);
+/** @type {LeafInitial["setRuntimeRootStyle"]} */
 export const setRuntimeRootStyle = (...args) =>
   document.documentElement.lfInitial.setRuntimeRootStyle(...args);
+/** @type {LeafInitial["removeRuntimeRootStyle"]} */
 export const removeRuntimeRootStyle = (...args) =>
   document.documentElement.lfInitial.removeRuntimeRootStyle(...args);
 

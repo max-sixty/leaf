@@ -27,6 +27,7 @@ reads layout, color schemes, print, or replay, and code that throws only after a
 gesture or a timer is not reached.
 """
 
+from leaf.findings import Finding
 from leaf.render_checks import (
     RENDER_VIEWPORT,
     PageNotReady,
@@ -46,7 +47,10 @@ def needs_browser(document: SourceDocument, artifact: RevisionArtifact) -> bool:
     code or a data widget's body in a notation only its module parses. A module a
     script imports is reached through that script, and a widget the document never
     places never loads."""
-    scripts = [*document.inline_scripts, *document.external_scripts]
+    scripts = [
+        *document.authoring.inline_scripts,
+        *document.authoring.external_scripts,
+    ]
     if any(script_kind(script["attrs"]) in {"module", "classic"} for script in scripts):
         return True
     registry = artifact.registry
@@ -58,16 +62,18 @@ def needs_browser(document: SourceDocument, artifact: RevisionArtifact) -> bool:
     return bool(judged) and document.tree.select_one(", ".join(judged)) is not None
 
 
-def run_page_code(browser, url: str) -> list[str]:
+def run_page_code(browser, url: str) -> list[Finding]:
     """Every error the served page reports while it upgrades and first presents.
 
-    Returns the reports as the runtime words them, then any stage the page never
-    reached; [] is a pass."""
+    Returns the reports, each in the words the runtime gave it, then any stage the page
+    never reached; [] is a pass."""
     from playwright.sync_api import Error as PlaywrightError
 
     reports = []
     page = browser.new_page(viewport=RENDER_VIEWPORT, color_scheme="light")
-    answer_reports(page, reports.append)
+    answer_reports(
+        page, lambda text: reports.append(Finding("page-report", values={"text": text}))
+    )
     cdp = page.context.new_cdp_session(page)
     cdp.send("Page.enable")
     cdp.send("Network.enable")
@@ -95,8 +101,15 @@ def run_page_code(browser, url: str) -> list[str]:
         if request and "ERR_ABORTED" not in failure:
             kind, frame_id, failed_url = request
             network_errors.append(
-                f"Browser request failed ({kind}, {failure}) in "
-                f"{frame_urls.get(frame_id, frame_id)}: {failed_url}"
+                Finding(
+                    "request-failed",
+                    values={
+                        "kind": kind,
+                        "error": failure,
+                        "frame": frame_urls.get(frame_id, frame_id),
+                        "url": failed_url,
+                    },
+                )
             )
 
     def cdp_response(params):
@@ -113,8 +126,15 @@ def run_page_code(browser, url: str) -> list[str]:
                     response["url"],
                 )
             network_errors.append(
-                f"Browser request returned HTTP {response['status']} ({kind}) in "
-                f"{frame_url}: {failed_url}"
+                Finding(
+                    "request-status",
+                    values={
+                        "status": response["status"],
+                        "kind": kind,
+                        "frame": frame_url,
+                        "url": failed_url,
+                    },
+                )
             )
 
     cdp.on("Page.frameNavigated", cdp_frame)
@@ -133,7 +153,9 @@ def run_page_code(browser, url: str) -> list[str]:
             rendered(page)
             answering = True
         except PageNotReady as error:
-            reports.append(str(error))
+            reports.append(
+                Finding("not-ready", values={"stage": error.stage, "error": str(error)})
+            )
             # A page that refused to start still answers, and posts why; one that
             # missed a stage may not answer at all.
             answering = error.stage == "refused"
@@ -144,7 +166,7 @@ def run_page_code(browser, url: str) -> list[str]:
     except PlaywrightError as error:
         # A wait that timed out names what never arrived; any other browser error
         # is as much a failed run, and the reports already taken still stand.
-        reports.append(str(error).strip())
+        reports.append(Finding("browser-error", values={"error": str(error).strip()}))
     finally:
         page.close()
     if reports and network_errors:

@@ -12,6 +12,7 @@ export const overlapsAcross = (a, b) => a.left < b.right && b.left < a.right;
 // The part of `a` inside `b`, cut only on the axes given. Where the edges cross the result
 // has no area (`hasArea`); callers that need an empty box as nothing ask that.
 const BOTH = { x: true, y: true };
+/** @param {{x?: boolean, y?: boolean}} [axes] */
 export const intersect = (a, b, axes = BOTH) => ({
   left: axes.x ? Math.max(a.left, b.left) : a.left,
   top: axes.y ? Math.max(a.top, b.top) : a.top,

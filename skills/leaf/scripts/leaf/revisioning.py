@@ -1,28 +1,32 @@
-"""Activation of mutable source into immutable ordered revisions.
+"""Turn a page's editable source into numbered, immutable revisions.
 
-Activation judges a candidate: a source whose captured artifact differs from the
-active revision's becomes the next revision if `check_source` finds nothing wrong
-with it, and is refused otherwise, leaving the active revision live. A source
-whose artifact is the active revision's is no candidate, and `check_source` judges
-no transition for it (see its gate on `PredecessorReading.unchanged`).
+`activate_source` makes the source the next revision when its artifact differs from
+the active revision's and `check_source` finds no errors. Otherwise it refuses, and
+the active revision stays live. A source whose artifact matches the active revision
+is not a candidate, and `check_source` checks no transition for it (see its gate on
+`PredecessorReading.unchanged`).
 
-Every state read asks for activation first, so the page's memory keeps its last
-answer (`page_memory`), keyed on the page's stamps as
-`served_state.reading.source_readings` splits them. A save moves the source reading,
-and the next read validates it and turns it into a revision, which is what makes an
-edited `index.html` reach an open tab. An answer that found the source to be the
-active revision holds until the source moves: the log can grow under it without
-changing it, since the door judged every event against the revision it names. A
-refusal is reconsidered when its source or admitted reading changes.
+Every state read calls `activate_source` first, so `page_memory` keeps its last
+answer, keyed on the two readings `served_state.reading.source_readings` returns:
+the source, and the history (the log and the revisions). That is how a saved
+`index.html` reaches an open tab: the next read sees the source change and makes
+the revision. A cached "no new revision" stays valid while only the log grows,
+because admission checked each event against the revision it names. A refusal is
+checked again when the source or the history changes.
 
-Every affected open thread follows its surviving section, or detaches, through
-admitted `reanchor` bookkeeping, under the same log transaction as activation.
-An explicit replacement reply takes precedence. These transitions add no messages
-and answer no outstanding update. A reply or stamp is preflighted against the
-complete prospective log, including reopened threads. Its durable prerequisite
-names the exact staged bundle in `publication`; the discoverable revision marker
-comes last. Every PageTransaction finishes interrupted publications before
-letting a reader or another writer proceed.
+When a revision drops the passage an open thread is anchored to, activation appends
+a `reanchor` event in the same log transaction, which moves the thread to the
+section that survives or detaches it. A reply that moves the thread itself
+(`--quote`/`--section`/`--part`/`--detach`) takes precedence. A `reanchor` adds no
+message and answers no update.
+
+`publish_checked_event` publishes a reply or version note together with the
+revision it needs. It computes reanchors against the log with that event appended,
+because a stamp can reopen a thread by retracting the action that settled it. It
+stages the revision's files, appends the event naming the staged bundle in
+`publication`, and writes the revision marker last. If that is interrupted, the next
+`PageTransaction` finishes it (`finish_publications`) before anyone else reads or
+writes the page.
 """
 
 from contextlib import nullcontext
@@ -109,7 +113,7 @@ def planned_activation(page_dir: Path, checked: SourceCheck) -> Activation:
     revisions = list_revisions(page_dir)
     active = revisions[-1] if revisions else None
     if checked.errors:
-        return Activation(active, "; ".join(checked.errors), False)
+        return Activation(active, "; ".join(map(str, checked.errors)), False)
     return Activation(checked.revision.candidate, None, not checked.revision.unchanged)
 
 
@@ -141,9 +145,13 @@ def finish_publications(page: PageTransaction, publications: list[dict]) -> None
     for event in publications:
         revision = event["revision"]
         reading = staged_reading(page.page_dir, event["publication"])
-        previous = revision - 1
+        previous = max(
+            (value for value in list_revisions(page.page_dir) if value < revision),
+            default=0,
+        )
         predecessor = PredecessorReading(
             previous,
+            revision,
             False,
             False,
             previous,
@@ -191,9 +199,10 @@ def _publish_checked_source(page, checked, event=None):
             **admitted_event(view or PageView(page.page_dir), page.events, event),
             "seq": page.events[-1]["seq"] + 1 if page.events else 1,
         }
-        previous = (revision - 1) if activation.created else revision
+        previous = checked.revision.active if activation.created else revision
         predecessor = PredecessorReading(
             previous,
+            revision,
             False,
             False,
             previous,

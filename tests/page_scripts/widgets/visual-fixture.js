@@ -1,14 +1,10 @@
-/* A registered visual with staged reveals and explicit render-gate faults.
- * Every case shares the drawing and inventory; configuration changes only the tag,
- * initial part visibility, opening fill, or a deliberately invalid surface. */
+/* A registered visual whose parts can be drawn together or revealed in stages. */
 import { once, registerVisualParts } from "/runtime/widget-api.js";
 
 export function defineVisualFixture({
   tag = "lf-test-visual",
   staged = false,
-  openingFill = "#dbeafe",
-  repairFillOnReveal = false,
-  outsideSurfaceFor = null,
+  invalidPartId = false,
 } = {}) {
   customElements.define(
     tag,
@@ -18,7 +14,7 @@ export function defineVisualFixture({
         this.innerHTML = `<svg viewBox="0 0 240 120" width="240" height="120">
       <g id="outer">
         <rect id="outer-surface" x="10" y="10" width="220" height="100" rx="8"
-              fill="${openingFill}" stroke="#2563eb" stroke-width="2"></rect>
+              fill="#dbeafe" stroke="#2563eb" stroke-width="2"></rect>
         <line id="outer-decoration" x1="25" y1="36" x2="215" y2="36"
               stroke="#2563eb" stroke-width="2"></line>
         <g id="inner">
@@ -40,12 +36,9 @@ export function defineVisualFixture({
         const htmlSurface = this.querySelector("#html-surface");
         this.parts = [
           {
-            id: "outer",
+            id: invalidPartId ? "two words" : "outer",
             element: outer,
-            surface:
-              this.id === outsideSurfaceFor
-                ? document.querySelector("#title")
-                : outerSurface,
+            surface: outerSurface,
             label: "Outer store",
           },
           { id: "inner", element: inner, label: "Inner decision" },
@@ -65,7 +58,6 @@ export function defineVisualFixture({
                 reveal: (id) => {
                   if (id !== "inner") return;
                   inner.style.display = "";
-                  if (repairFillOnReveal) outerSurface.setAttribute("fill", "#dbeafe");
                   this.visualRegistration.update();
                 },
               }

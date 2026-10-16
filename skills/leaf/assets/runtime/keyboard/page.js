@@ -17,9 +17,9 @@ import { inChrome, pageQueryAll } from "../passages.js";
 import { inUi } from "../shadow.js";
 import { pageSelection } from "../composing/capture.js";
 import { heldThread } from "../thread/focus.js";
-import { heldQuestion } from "../standing-target.js";
+import { heldAsk } from "../standing-target.js";
 import { leavesBox } from "../thread/landing.js";
-import { claimsEsc, documentFocused } from "./scopes.js";
+import { claimsEsc } from "./scopes.js";
 import { DISCLOSE, DISCLOSURE_SELECTOR, disclosed } from "./disclosure.js";
 import { nativeLayers } from "./layer-stack.js";
 import { LINK } from "./text-entry.js";
@@ -83,7 +83,7 @@ standingOn("disclosure", "On a disclosure", DISCLOSURE_SELECTOR, [
     description: "Open or close it",
     // Read where it is painted rather than named once for both branches, the way a diff's
     // own file rows read theirs: what the press does is whichever way the disclosure is
-    // standing, and a word fixed at declaration could only ever say one of them.
+    // set, and a word fixed at declaration could only ever say one of them.
     title: () => (disclosed(focused()) ? "close" : "open"),
     // Through the element's own click, so keyboard and pointer are one behaviour: a
     // <summary>'s click is the toggle the browser was already making, and a widget's
@@ -115,7 +115,7 @@ pageCommand({
 // while focus is in the panel. On the page, a selection or mode unwinds before the
 // destination does. Chrome controls belong to the surface's own Escape ladder.
 const holding = () => {
-  const active = documentFocused();
+  const active = focused(document);
   return Boolean(active) && active !== document.body;
 };
 let standingFloor = () => null;
@@ -125,10 +125,10 @@ export function declareStanding({ pageState }) {
     if (nativeLayers().length) return null;
     if (leavesBox()) return null;
     if (claimsEsc(focused())) return null;
-    if (inChrome(documentFocused())) return null;
+    if (inChrome(focused(document))) return null;
     const thread = heldThread();
     if (pageSelection() || pageState()) return null;
-    return thread || heldQuestion() || !inUi(focused()) ? document.body : null;
+    return thread || heldAsk() || !inUi(focused()) ? document.body : null;
   };
   pageScope("standing", {
     title: "Standing on something",
@@ -139,7 +139,7 @@ export function declareStanding({ pageState }) {
       {
         id: "navigation.release",
         keys: ["Escape"],
-        description: "Let go of what you are standing on",
+        description: "Let go of the current item",
         title: "let go",
         when: () => Boolean(standingFloor()),
         run: release,

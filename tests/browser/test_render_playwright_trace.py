@@ -11,6 +11,7 @@ from leaf_dev.page_fixtures import example_media
 from playwright.sync_api import expect
 from render_harness import (
     at_rest,
+    consume_browser_errors,
     holding,
     leaf_page,
     open_page,
@@ -27,6 +28,77 @@ def test_trace_viewer_stays_idle_after_initial_presentation(browser, serve):
     """The viewer's disabled transition cannot wake margin layout after readiness."""
     url = serve(ROOT / "examples/developer/playwright-trace-gallery.html")
     assert at_rest(still_page(browser, url)) == []
+
+
+@pytest.mark.parametrize(
+    ("engine", "width"),
+    [("browser", 1400), ("browser", 320), ("firefox_browser", 320)],
+)
+def test_timeline_tooltips_keep_their_words_above_marks_inside_the_timeline(
+    request, serve, engine, width
+):
+    """Narrow timelines keep a complete hovered label inside their inline room.
+
+    The first lane's tooltip may extend above the timeline. Its horizontal fit must
+    still work there, including after zoom changes which marks stand at its edges.
+    Firefox also wraps a narrow label without letting its lower lines cover the mark.
+    """
+    browser = request.getfixturevalue(engine)
+    record = json.loads(
+        (ROOT / "examples/developer/playwright-trace-gallery.data.json").read_text()
+    )["release-journey"]
+    media = {
+        image["url"]: (example_media() / Path(image["url"]).name).read_bytes()
+        for image in record["images"]
+    }
+    url = serve(
+        leaf_page(
+            "Timeline labels",
+            '<h1>Inspect recorded input</h1><lf-trace id="journey" source="trace"></lf-trace>',
+        ),
+        packages=("playwright",),
+        media=media,
+    )
+    data_model.cmd_data_set(serve.page_dir, "trace", record)
+    context = browser.new_context(viewport={"width": width, "height": 900})
+    page = open_page(browser, url, context=context)
+    if engine == "firefox_browser":
+        # Firefox reports the initial presentation sensor's unsupported entry type;
+        # tooltip geometry is read directly below and needs no layout-shift entries.
+        consume_browser_errors(page, "Ignoring unsupported entryTypes: layout-shift.")
+    widget = page.locator("#journey")
+    timeline = widget.get_by_role("group", name="Recording timeline", exact=True)
+    timeline.scroll_into_view_if_needed()
+    for zoom in (False, True):
+        if zoom:
+            widget.get_by_role("button", name="Zoom in", exact=True).click()
+            rendered(page)
+        marks = timeline.locator("[data-tip]")
+        visible = marks.evaluate_all("""nodes => nodes.map((node, index) => {
+            const box = node.getBoundingClientRect();
+            const band = node.closest('.lf-trace-scroller').getBoundingClientRect();
+            return {index, left:box.left, shown:box.width > 0
+              && box.left >= band.left && box.right <= band.right};
+          }).filter(item => item.shown).sort((a,b) => a.left-b.left)
+            .map(item => item.index)""")
+        assert visible
+        for index in (visible[0], visible[-1]):
+            mark = marks.nth(index)
+            mark.hover()
+            tooltip = timeline.get_by_role("tooltip")
+            expect(tooltip).to_be_visible()
+            rendered(page)
+            host, target, tip = (
+                locator.bounding_box() for locator in (timeline, mark, tooltip)
+            )
+            assert tip["y"] + tip["height"] <= target["y"]
+            assert tip["x"] >= host["x"] - 1
+            assert tip["x"] + tip["width"] <= host["x"] + host["width"] + 1
+            assert tooltip.inner_text().replace("\u00a0", " ") == mark.get_attribute(
+                "data-tip"
+            )
+        page.get_by_role("heading", name="Inspect recorded input").hover()
+        expect(timeline.get_by_role("tooltip")).to_be_hidden()
 
 
 def stop_time(record, checkpoint):
@@ -69,6 +141,8 @@ def test_trace_arrows_step_the_way_the_time_scale_runs_in_right_to_left_text(
     """The time scale runs left to right in any text direction, and so do its arrows."""
     source = ROOT / "examples/developer/playwright-trace-gallery.data.json"
     record = json.loads(source.read_text())["release-journey"]
+    setup = next(action for action in record["actions"] if not action["input"])
+    setup["title"] = f"Setup.phase · {setup['title']}"
     media = {
         image["url"]: (example_media() / Path(image["url"]).name).read_bytes()
         for image in record["images"]
@@ -85,6 +159,9 @@ def test_trace_arrows_step_the_way_the_time_scale_runs_in_right_to_left_text(
     data_model.cmd_data_set(serve.page_dir, "rtl-trace", record)
     user = open_page(browser, url)
     widget = user.locator("#journey")
+    call = widget.locator(f'.lf-trace-call-bar[data-id="{setup["id"]}"]')
+    expect(call.locator(".lf-trace-call-name")).to_have_text(setup["method"])
+    expect(call).to_have_attribute("data-tip", re.compile(re.escape(setup["title"])))
     timeline = widget.get_by_role("group", name="Recording timeline", exact=True)
     position = widget.locator(".lf-trace-position")
     playhead = widget.locator(".lf-trace-playhead")
@@ -123,7 +200,7 @@ LANDED_ROW = (
     "async () => {"
     + STILL
     + """
-  const {landingBand} = await window.__lfRuntimeImport('/runtime/geometry.js');
+  const {landingBand} = await window.__lfCheckApi();
   const rows = tree.querySelectorAll('.lf-trace-node');
   const row = rows[rows.length - 1].getBoundingClientRect();
   const box = tree.getBoundingClientRect();
@@ -701,14 +778,12 @@ def test_trace_frames_retain_saved_elements_and_disclosure_stays_closable(
     expect(widget.locator(".lf-trace-input-badge")).to_have_text(
         re.compile(r"^\d+\.\d{3} s · after Click$")
     )
-    # Past that stop, outside every input call, the Click no longer applies,
-    # though its After checkpoint is still the latest stop.
     after = stop_time(record, pointer["phases"]["after"])
     following = min(
         (action for action in inputs if action["startTime"] > after),
         key=lambda action: action["startTime"],
     )
-    gap = (max(after, pointer["endTime"]) + following["startTime"]) / 2
+    sent = pointer["phases"]["action"]["timestamp"]
     widget.get_by_role("button", name="Zoom in", exact=True).click()
     widget.get_by_role("button", name="Zoom in", exact=True).click()
     bar = widget.locator(f'.lf-trace-input-bar[data-id="{following["id"]}"]')
@@ -720,12 +795,30 @@ def test_trace_frames_retain_saved_elements_and_disclosure_stays_closable(
     )
     scale = (last["x"] - first["x"]) / (following["startTime"] - pointer["startTime"])
     ruler = widget.locator(".lf-trace-ruler").bounding_box()
-    user.mouse.click(first["x"] + (gap - pointer["startTime"]) * scale, ruler["y"] + 8)
-    rendered(user)
     origin = record["streams"][0]["monotonicTime"]
-    at = float(widget.locator(".lf-trace-position").inner_text().removesuffix(" s"))
-    assert max(after, pointer["endTime"]) < at * 1000 + origin < following["startTime"]
+
+    def stand_at(time):
+        user.mouse.click(
+            first["x"] + (time - pointer["startTime"]) * scale, ruler["y"] + 8
+        )
+        rendered(user)
+        at = float(widget.locator(".lf-trace-position").inner_text().removesuffix(" s"))
+        return at * 1000 + origin
+
+    # Inside the call, before it sends the click, the click is still to come: the
+    # image marks nothing, though the Input lane's bar says one is under way.
+    assert pointer["startTime"] < stand_at((pointer["startTime"] + sent) / 2) < sent
     expect(widget.locator(".lf-trace-input-badge")).to_be_hidden()
+    expect(widget.locator(".lf-trace-input-point")).to_be_hidden()
+    # Past the call, the sent click stays marked a moment, so playback at recorded
+    # pace shows where it landed.
+    gap = (max(after, pointer["endTime"]) + following["startTime"]) / 2
+    assert gap < sent + 500
+    assert max(after, pointer["endTime"]) < stand_at(gap) < following["startTime"]
+    expect(widget.locator(".lf-trace-input-badge")).to_have_text(
+        re.compile(r"^\d+\.\d{3} s · after Click$")
+    )
+    expect(widget.locator(".lf-trace-input-point")).to_be_visible()
     navigate_to_phase(
         timeline, f"trace-{record['archive']['sha256']}-phase-{pointer['id']}-action"
     )
@@ -733,17 +826,77 @@ def test_trace_frames_retain_saved_elements_and_disclosure_stays_closable(
         re.compile(r"^\d+\.\d{3} s · next: Click$")
     )
     expect(widget.locator(".lf-trace-input-point")).to_be_visible()
-    raster = widget.locator(
-        ".lf-trace-image:not(.lf-trace-image-pending) .viewer-canvas img"
+
+    def lands_on_its_point(input_action):
+        """The recorded pointer's mark stands at its point in the shown capture,
+        which scales the viewport by its width whatever its own height."""
+        # One read of both: a landing may still be scrolling the page.
+        point_box, image_box = widget.evaluate("""widget => [
+          widget.querySelector('.lf-trace-input-point'),
+          widget.querySelector(
+            '.lf-trace-image:not(.lf-trace-image-pending) .viewer-canvas img'),
+        ].map(node => node.getBoundingClientRect().toJSON())""")
+        scale = image_box["width"] / input_action["input"]["viewport"]["width"]
+        for axis, size in (("x", "width"), ("y", "height")):
+            assert point_box[axis] + point_box[size] / 2 == pytest.approx(
+                image_box[axis] + input_action["input"]["point"][axis] * scale, abs=1
+            ), (axis, point_box, image_box)
+
+    lands_on_its_point(pointer)
+    # Playing, the badge names the input alone: whether the shown image is next to,
+    # during or after the call changes faster than it can be read.
+    widget.evaluate("""widget => {
+      const badge = widget.querySelector('.lf-trace-input-badge');
+      window.badgeTexts = [];
+      window.badgeWatch = new MutationObserver(() => {
+        if (!badge.hidden && widget.querySelector('[data-playing]'))
+          window.badgeTexts.push(badge.textContent);
+      });
+      window.badgeWatch.observe(badge, {
+        attributes: true, childList: true, characterData: true, subtree: true,
+      });
+    }""")
+    # Hold playback time while the driver reads the short recording and presses Pause.
+    # A slow driver must not let the film finish before that press is dispatched.
+    user.clock.install()
+    user.clock.pause_at(user.evaluate("Date.now()") / 1000 + 1)
+    widget.get_by_role("button", name="Play", exact=True).click()
+    user.clock.run_for(300)
+    expect(widget.locator(".lf-trace-input-badge")).to_have_text("Click")
+    widget.get_by_role("button", name="Pause", exact=True).click()
+    user.clock.resume()
+    texts = user.evaluate(
+        "() => { window.badgeWatch.disconnect(); return window.badgeTexts }"
     )
-    point_box = widget.locator(".lf-trace-input-point").bounding_box()
-    image_box = raster.bounding_box()
-    assert point_box["x"] + point_box["width"] / 2 == pytest.approx(
-        image_box["x"]
-        + pointer["input"]["point"]["x"]
-        / pointer["input"]["viewport"]["width"]
-        * image_box["width"],
-        abs=1,
+    assert texts and set(texts) == {"Click"}, texts
+    expect(widget.locator(".lf-trace-input-badge")).to_have_text(
+        re.compile(r"^(\d+\.\d{3} s · (during|after) Click)?$")
+    )
+    # A screencast frame crops the viewport's foot: its height is not the
+    # viewport's scaled by its width.
+    last_frame = max(
+        (image for image in record["images"] if image["kind"] == "frame"),
+        key=lambda image: image["timestamp"],
+    )
+    viewport = pointer["input"]["viewport"]
+    assert last_frame["height"] / last_frame["width"] < (
+        viewport["height"] / viewport["width"] - 0.05
+    )
+    widget.locator(".lf-trace-bookmarks").get_by_role(
+        "button", name="Last filmstrip image"
+    ).click()
+    rendered(user)
+    expect(widget.locator(".lf-trace-input-point")).to_be_visible()
+    lands_on_its_point(
+        max(
+            (
+                action
+                for action in inputs
+                if action["input"]["point"]
+                and action["phases"]["action"]["timestamp"] <= last_frame["timestamp"]
+            ),
+            key=lambda action: action["phases"]["action"]["timestamp"],
+        )
     )
     phase_id = f"trace-{record['archive']['sha256']}-phase-{action['id']}-after"
     navigate_to_phase(timeline, phase_id)
@@ -795,18 +948,38 @@ def test_trace_frames_retain_saved_elements_and_disclosure_stays_closable(
     )
 
 
+def test_trace_playback_frames_stand_over_the_capture_they_replace(browser, serve):
+    """A frame played over a fitted capture covers it exactly, so playback shows one
+    image and the recorded pointer lands on the frame it marks."""
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    user = context.new_page()
+    user.goto(serve(ROOT / "examples/developer/playwright-trace-gallery.html"))
+    wait_until_ready(user)
+    widget = user.locator("lf-trace")
+    widget.get_by_role("button", name="Start", exact=True).click()
+    rendered(user)
+    # The fitted capture is narrower than its canvas, where centering rules would
+    # otherwise reach the playback layer.
+    assert widget.evaluate("""widget => {
+      const image = widget.querySelector(
+        '.lf-trace-image:not(.lf-trace-image-pending) .viewer-canvas img');
+      return image.parentElement.closest('.lf-trace-image').getBoundingClientRect().width
+        - image.getBoundingClientRect().width > 20;
+    }""")
+    widget.get_by_role("button", name="Play", exact=True).click()
+    # Read both in one task while the frame shows: the Viewer takes over again once
+    # playback stops.
+    shown, under = user.wait_for_function("""() => {
+      const layer = document.querySelector('.lf-trace-playback-image:not([hidden])');
+      const under = layer?.parentElement.querySelector('.viewer-canvas img');
+      return under && [layer, under].map(image => image.getBoundingClientRect().toJSON());
+    }""").json_value()
+    assert all(abs(shown[key] - under[key]) <= 1 for key in shown), (shown, under)
+
+
 def test_trace_play_press_belongs_to_its_pointer_click(browser, serve):
     """A held Pause keeps its meaning; a canceled press leaves keyboard Play free."""
     source = ROOT / "examples/developer/playwright-trace-gallery.html"
-    record = json.loads(source.with_suffix(".data.json").read_text())["release-journey"]
-    duration = max(
-        [image["timestamp"] for image in record["images"]]
-        + [
-            phase["timestamp"]
-            for action in record["actions"]
-            for phase in action["phases"].values()
-        ]
-    ) - min(action["startTime"] for action in record["actions"])
     user = browser.new_page()
     user.goto(serve(source))
     wait_until_ready(user)
@@ -829,8 +1002,11 @@ def test_trace_play_press_belongs_to_its_pointer_click(browser, serve):
         if canceled:
             user.mouse.move(box["x"] + box["width"] + 60, box["y"] + 100)
             user.mouse.up()
-        user.clock.run_for(round(duration) + 100)
+        # Playback may wait for an image to decode. Let its clock continue after
+        # that asynchronous work instead of advancing a fixed span while paused.
+        user.clock.resume()
         expect(play).to_be_visible()
+        user.clock.pause_at(user.evaluate("() => Date.now() / 1000") + 1)
         if not canceled:
             user.mouse.up()
             expect(play).to_be_visible()
@@ -970,7 +1146,10 @@ def test_trace_pointer_annotation_stays_inside_the_panned_image_viewport(
 
 
 def test_trace_comparison_prepaint_shows_only_its_opening_recording(browser, serve):
-    """Holding the chooser module cannot expose a second recording before upgrade."""
+    """Holding the chooser module cannot expose a second recording before upgrade.
+    A recording in a wrapper, here a <figure> with its caption and no id, shows and
+    hides with it, before upgrade, after, and across a reload, which tells the two
+    anonymous wrappers apart by the recording inside."""
     source = ROOT / "tests/fixtures/pages/playwright-paired-results.html"
     url = serve(source, packages=("playwright",))
     user = browser.new_page()
@@ -979,13 +1158,15 @@ def test_trace_comparison_prepaint_shows_only_its_opening_recording(browser, ser
     with user.expect_request("**/widgets/lf-trace-compare.js"):
         user.goto(url, wait_until="commit")
     workspace = user.locator("lf-trace-compare")
-    user.wait_for_function("() => document.querySelector('lf-trace[data-lf-opening]')")
+    user.wait_for_function(
+        "() => document.querySelector('lf-trace-compare > [data-lf-opening]')"
+    )
     before = workspace.evaluate("""node => ({
         children: [...node.children].map(child => ({
             opening: child.hasAttribute('data-lf-opening'),
             drawn: child.checkVisibility()
         })),
-        reserved: parseFloat(getComputedStyle(node, '::before').height)
+        reserved: parseFloat(getComputedStyle(node.querySelector('lf-trace'), '::before').height)
     })""")
     assert len(before["children"]) == 2
     assert [child["drawn"] for child in before["children"]] == [
@@ -993,13 +1174,69 @@ def test_trace_comparison_prepaint_shows_only_its_opening_recording(browser, ser
     ]
     assert before["reserved"] >= 44
     assert held
+    user.unroute("**/widgets/lf-trace-compare.js")
     for route in held:
         route.continue_()
     wait_until_ready(user)
     user.locator("lf-trace-compare wa-radio").filter(has_text="After").click()
+    wrapper = user.locator("figure:has(#paired-after)")
+    expect(wrapper.locator("figcaption")).to_be_visible()
     expect(user.locator("#paired-after")).to_be_visible()
     expect(user.locator("#paired-before")).to_be_hidden()
     wait_until_ready(user)
+    # Neither wrapper has an id; a reload reopens the chosen one by its recording.
+    user.reload()
+    wait_until_ready(user)
+    expect(wrapper.locator("figcaption")).to_be_visible()
+    expect(user.locator("#paired-before")).to_be_hidden()
+    user.locator("lf-trace-compare wa-radio").filter(has_text="Before").click()
+    expect(wrapper).to_be_hidden()
+
+
+def test_trace_comparison_shows_each_wrapped_recording_in_one_place(browser, serve):
+    """The recording the chooser shows stands where the one it replaced stood, and the
+    workspace ends at its foot. A hidden wrapper kept its margins, so choosing After
+    moved the recording down by them and the sticky chooser hung over a blank band
+    below the workspace."""
+    url = serve(
+        ROOT / "tests/fixtures/pages/playwright-paired-results.html",
+        packages=("playwright",),
+    )
+    user = open_page(browser, url)
+    workspace = user.locator("lf-trace-compare")
+
+    def shown():
+        return workspace.evaluate("""node => {
+            const view = node.querySelector(':scope > figure:not([hidden])');
+            const box = view.getBoundingClientRect();
+            return {top: box.top, foot: box.bottom, end: node.getBoundingClientRect().bottom};
+        }""")
+
+    before = shown()
+    user.get_by_role("radio", name="After", exact=True).click()
+    expect(user.locator("#paired-after")).to_be_visible()
+    wait_until_ready(user)
+    after = shown()
+    assert after["top"] == before["top"], (before, after)
+    assert [before["end"], after["end"]] == [before["foot"], after["foot"]]
+
+    # A source switch after inspecting a moment must keep the chooser reachable
+    # when its controls wrap. Moving its focused native radio into the other view
+    # before hiding the old one once scrolled that chooser above a short phone.
+    resized(user, 320, 520)
+    user.locator("#paired-after").get_by_role(
+        "button", name="Reviewed result", exact=False
+    ).click()
+    wait_until_ready(user)
+    before_radio = user.get_by_role("radio", name="Before", exact=True)
+    before_radio.click()
+    expect(user.locator("#paired-before")).to_be_visible()
+    expect(before_radio).to_be_focused()
+    expect(workspace.locator(".lf-trace-compare-controls")).to_be_in_viewport()
+    before_radio.press("ArrowRight")
+    expect(user.locator("#paired-after")).to_be_visible()
+    expect(user.get_by_role("radio", name="After", exact=True)).to_be_focused()
+    expect(workspace.locator(".lf-trace-compare-controls")).to_be_in_viewport()
 
 
 def test_trace_render_gate_restores_the_zoomed_time_window(browser, serve):

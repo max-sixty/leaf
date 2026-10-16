@@ -1,24 +1,18 @@
 $ leaf thread reply /page --text Answer
 exit: 2
-Usage: leaf thread reply [OPTIONS] PAGE THREAD
-Try 'leaf thread reply --help' for help.
-
-Error: Missing argument 'THREAD'.
+{"error": "Missing argument 'THREAD'.", "findings": [], "usage": "leaf thread reply [OPTIONS] PAGE THREAD"}
 
 $ leaf thread reply /page user-1 --text Answer
 exit: 1
-Error: thread 'user-1' currently requires a response; `leaf response reply <answer.ref>` with the `answer.ref` that `leaf wait /page` delivers for user-1 answers it
+{"error": "thread 'user-1' currently requires a response; `leaf response reply <answer.ref>` with the `answer.ref` that `leaf wait /page` delivers for user-1 answers it", "findings": [{"code": "owed-response", "severity": "error", "values": {"thread": "user-1", "answer": "`leaf response reply <answer.ref>` with the `answer.ref` that `leaf wait /page` delivers for user-1"}}]}
 
 $ leaf thread reply /page --text Answer
 exit: 2
-Usage: leaf thread reply [OPTIONS] PAGE THREAD
-Try 'leaf thread reply --help' for help.
-
-Error: Missing argument 'THREAD'.
+{"error": "Missing argument 'THREAD'.", "findings": [], "usage": "leaf thread reply [OPTIONS] PAGE THREAD"}
 
 $ leaf thread reply /page user-1 --text Answer
 exit: 1
-Error: thread 'user-1' currently requires a response; `leaf response reply response-ref` answers it
+{"error": "thread 'user-1' currently requires a response; `leaf response reply response-ref` answers it", "findings": [{"code": "owed-response", "severity": "error", "values": {"thread": "user-1", "answer": "`leaf response reply response-ref`"}}]}
 
 $ leaf response reply response-ref --text Answer --done
 exit: 0
@@ -34,7 +28,7 @@ exit: 0
 
 $ leaf response reply not-a-response-ref --text Answer --done
 exit: 1
-Error: invalid delivery id 'not-a-response-ref'
+{"error": "invalid delivery id 'not-a-response-ref'", "findings": []}
 
 $ leaf thread resolve /page user-3
 exit: 0

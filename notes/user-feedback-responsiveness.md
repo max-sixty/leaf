@@ -43,15 +43,15 @@ uv run leaf-dev journey --help
 These are proposed budgets, not measured current performance. Evaluate repeated
 phase traces before revising them.
 
-| Transition | Target |
-|---|---|
-| Gesture to local result | Same rendering turn; under 100 ms |
-| Acceptance to visible receipt | Next state application; under 1 s |
-| Turn entry to visible pickup | Without waiting for model output; under 1 s |
-| Input in model context to accepted claim | Before substantive work; under 2 s |
-| Status or result write to browser paint | Next state application; under 1 s |
-| Comment admission to thread title | under 2 s |
-| Comment admission to reply, for a small page change | under 7 s |
+| Transition                                          | Target                                      |
+| --------------------------------------------------- | ------------------------------------------- |
+| Gesture to local result                             | Same rendering turn; under 100 ms           |
+| Acceptance to visible receipt                       | Next state application; under 1 s           |
+| Turn entry to visible pickup                        | Without waiting for model output; under 1 s |
+| Input in model context to accepted claim            | Before substantive work; under 2 s          |
+| Status or result write to browser paint             | Next state application; under 1 s           |
+| Comment admission to thread title                   | under 2 s                                   |
+| Comment admission to reply, for a small page change | under 7 s                                   |
 
 The last two are the journey's `titled` and `replied` steps. On 2026-10-05,
 Claude Code titled in 1.4–2.2 s and replied in 7.8–17.5 s, Codex titled in

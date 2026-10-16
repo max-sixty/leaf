@@ -10,8 +10,8 @@ description: widget-list-keeps-focus
 metadata:
   purpose: A widget paints a removal synchronously, keeps the user in its keyed list, and hands them back when its own popup closes, through the runtime's public primitives.
   tags:
-  - packages
-  - keyboard
+    - packages
+    - keyboard
 vars:
   prompt: |
     I'm writing a Leaf package widget. It shows a list of chosen items, each row
@@ -28,29 +28,23 @@ vars:
     opened it. Read the public references and show the JavaScript for the remove
     handler, the list render, and the popup's close.
 assert:
-- type: regex
-  metric: keyed-hold
-  value: 'holdFocus\([^)]*\{\s*key\s*:'
-- type: regex
-  metric: closes-through-closeLayer
-  value: 'closeLayer\('
-- type: llm-rubric
-  metric: judgment
-  value: |
-    Pass only if the response imports its focus helpers from /runtime/widget-api.js
-    and:
-    - renders the changed list through Leaf's public render() before the remove
-      handler returns, so the caller's receipt reads the changed view; it does
-      not wait for a LitElement reactive update or force one with performUpdate();
-    - holds focus across the list render with holdFocus(list, { key: <the row's
-      key attribute> }), sets that attribute on each row, and calls the returned
-      restore after rendering with the Add item button as its last stand-in;
-    - closes the popup with closeLayer(close, land), where land hands the user back
-      to the Add item button: handBack(openerOf(popup)) after openLayer(popup) as it
-      opens, or handBack naming the button;
-    - any focus it places itself goes through focusDestination with a cause;
-    - the popup's Escape, if shown, is a command row (commands(...)), not a listener.
-    Fail if it calls element.focus() directly, searches for the nearest surviving
-    row itself, keeps the opener in a variable of its own, or installs focus or
-    keydown listeners.
-    Execution is unavailable, so not running checks is not a failure.
+  - type: llm-rubric
+    metric: judgment
+    value: |
+      Pass only if the response imports its focus helpers from /runtime/widget-api.js
+      and:
+      - renders the changed list through Leaf's public render() before the remove
+        handler returns, so the caller's receipt reads the changed view; it does
+        not wait for a LitElement reactive update or force one with performUpdate();
+      - holds focus across the list render with holdFocus(list, { key: <the row's
+        key attribute> }), sets that attribute on each row, and calls the returned
+        restore after rendering with the Add item button as its last stand-in;
+      - closes the popup with closeLayer(close, land), where land hands the user back
+        to the Add item button: handBack(openerOf(popup)) after openLayer(popup) as it
+        opens, or handBack naming the button;
+      - any focus it places itself goes through focusDestination with a cause;
+      - the popup's Escape, if shown, is a command row (commands(...)), not a listener.
+      Fail if it calls element.focus() directly, searches for the nearest surviving
+      row itself, keeps the opener in a variable of its own, or installs focus or
+      keydown listeners.
+      Execution is unavailable, so not running checks is not a failure.

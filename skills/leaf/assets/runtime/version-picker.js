@@ -9,12 +9,13 @@
  * fetches a document, chooses a version, or decides what a comparison means.
  */
 import { closeNativeLayer } from "./keyboard/layer-stack.js";
-import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
+import { isNativeLayer } from "./shadow-tree.js";
+import { html, nothing, render, repeat } from "/vendor/browser-runtime.js";
 
 import { dismissBannerControls } from "./banner-toolbar.js";
 import { el } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
-import { focusDestination, canPlaceFocus, inputCount } from "./focus.js";
+import { focusDestination, canPlaceFocus, inputCount, focused } from "./focus.js";
 import { scrollIntoView } from "./landing-scroll.js";
 
 const LATEST_FAILED = "Latest edit couldn't be shown";
@@ -23,7 +24,7 @@ const EMPTY = Object.freeze([]);
 const INITIAL = Object.freeze({
   picker: Object.freeze({
     offered: false,
-    token: "Showing Draft",
+    token: "Draft",
     compared: false,
     news: false,
     keyTitle: "Draft",
@@ -33,6 +34,7 @@ const INITIAL = Object.freeze({
     disabled: false,
     keyTitle: "Open the current page",
     label: INITIAL_LATEST,
+    shown: null,
   }),
   rows: EMPTY,
   selection: Object.freeze({
@@ -94,7 +96,7 @@ class VersionPickerView {
     // The semantic owner supplies its one latest-version command: it releases the
     // composition hold at the live root and performs ordinary travel on an immutable
     // page. The view retains the native control without duplicating that decision.
-    this.latestChip.onclick = () => this.#latest?.();
+    this.latestChip.onclick = () => this.latest();
     this.present(INITIAL);
   }
 
@@ -106,7 +108,7 @@ class VersionPickerView {
   }
 
   isOpen() {
-    return this.menu.matches(":popover-open");
+    return isNativeLayer(this.menu);
   }
 
   close() {
@@ -124,7 +126,7 @@ class VersionPickerView {
   }
 
   atBoundary(end) {
-    return document.activeElement === this.stops().at(end);
+    return focused() === this.stops().at(end);
   }
 
   #selectedRow() {
@@ -151,8 +153,27 @@ class VersionPickerView {
       }));
   }
 
+  // The picker's commands, and word of each reading it presents, for another
+  // presentation of the same versions, the floating panel's Versions view, which draws
+  // its own rows from `versionsReading` (version.js).
+  #listeners = new Set();
+  watch(listener) {
+    this.#listeners.add(listener);
+    return () => this.#listeners.delete(listener);
+  }
+  activate(entry) {
+    this.#activate?.(entry);
+  }
+  compare(version) {
+    this.#compare?.(version);
+  }
+  latest() {
+    this.#latest?.();
+  }
+
   present(model) {
     this.#model = model;
+    for (const listener of this.#listeners) listener(model);
     const { picker, latest } = model;
     if (!picker.offered) this.close();
 
@@ -163,7 +184,7 @@ class VersionPickerView {
     this.button.toggleAttribute("data-lf-news", picker.news);
     keeps(this.button, "data-lf-key-title", picker.keyTitle);
     keeps(this.button, "aria-label", picker.ariaLabel);
-    render(picker.token, this.button);
+    render(`Showing ${picker.token}`, this.button);
 
     this.latestChip.toggleAttribute("disabled", latest.disabled);
     keeps(this.latestChip, "data-lf-key-title", latest.keyTitle);

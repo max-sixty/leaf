@@ -8,17 +8,15 @@ import pytest
 from interact_support import STATED_TIMEOUT, append_carried_log_record
 from journeys.test_render_read_state import (
     _CARD_BOXES,
-    SAMPLE_READER,
     TASK_SEAT_PAGE,
     _agent_turn,
     _agent_update_reply,
     _box_height,
-    _framed_message_box,
-    _framed_read,
-    _framed_reader,
     _message_body,
-    _place_frame,
+    _open_first_unread,
+    _read_by_the_sample,
     _read_events,
+    _sample_reading_page,
     _seat_comment,
     _settled,
     _still_unread,
@@ -27,6 +25,7 @@ from journeys.test_render_read_state import (
 from leaf import event_endpoint as endpoint_model
 from leaf import http as http_model
 from leaf import thread as thread_model
+from leaf.findings import Finding
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_harness import (
@@ -175,7 +174,7 @@ def test_authored_reply_is_read_when_its_visible_body_is_shown(browser, serve):
         re.compile(r"(^|\s)lf-unread(\s|$)")
     )
     expect(card.locator(".lf-mark-read")).to_have_count(0)
-    expect(card.locator(".lf-thread-status")).to_have_text("On you to answer")
+    expect(card.locator(".lf-thread-status")).to_have_text("My turn to answer")
     assert _read_events(serve.page_dir)[-1]["messages"] == [
         {"message": root, "version": root}
     ]
@@ -293,12 +292,20 @@ def test_automatic_read_refusal_keeps_message_unread(browser, serve):
     assert _read_events(serve.page_dir) == []
     assert (
         page.evaluate("""async () => {
-      const {readApplication} = await window.__lfRuntimeImport('/runtime/semantic-state.js');
+      const {readApplication} = await window.__lfCheckApi();
       return readApplication().authoritative.taken;
     }""")
         == response.json()["state"]["taken"]
     )
-    assert take_browser_errors(page) == [f"400 {request.request.url}"]
+    assert take_browser_errors(page) == [
+        Finding(
+            "console-error",
+            values={
+                "text": "Failed to load resource: the server responded with a status of 400 (Bad Request)",
+                "url": request.request.url,
+            },
+        )
+    ]
     page.unroute("**/api/event")
     cut.restore()
     with sending(page, "read on a new visit"):
@@ -365,42 +372,26 @@ def test_threads_keep_the_scroll_pair_separate_from_first_unread(browser, serve)
     expect(page.locator("body")).not_to_have_attribute("data-lf-go-to-active", "")
 
 
-def test_a_same_origin_frame_under_the_containing_banner_cannot_acknowledge(
-    browser, serve
-):
-    """A Leaf page framed by its own origin is read through what the containing page
-    shows of the frame, which that page's banner stands over like its own content."""
-    page, frame, child = _framed_reader(browser, serve)
-
-    # Scrolled until the message stands under the containing page's banner, where the
-    # framed page's own window shows it whole.
-    body = _framed_message_box(child)
-    foot = page.locator("#lf-banner").evaluate(
-        "banner => banner.getBoundingClientRect().bottom"
-    )
-    assert body["height"] < foot
-    _place_frame(frame, (foot - body["height"]) / 2 - body["top"])
-    assert _message_body(child).evaluate(
-        "body => { const box = body.getBoundingClientRect();"
-        " const frame = frameElement.getBoundingClientRect();"
-        " return frame.top + box.top >= 0 && frame.top + box.bottom <= parent"
-        ".document.getElementById('lf-banner').getBoundingClientRect().bottom; }"
-    ), "the message does not stand under the containing banner"
-    _still_unread(page, child)
-
-    # Scrolled on until the frame stands below the banner, it shows the message.
-    _place_frame(frame, foot)
-    _framed_read(serve, child)
-
-
 def test_a_message_the_banner_stops_covering_is_read_without_a_scroll(browser, serve):
     """The banner changes height without a scroll or resize, as when a tablet's
-    keyboard is attached and its rows shrink from a finger's depth, and what it stops
-    covering is shown from that moment. A framed page hears it from the containing
-    page's banner as that page would."""
-    page, frame, child = _framed_reader(browser, serve)
+    keyboard is attached and its rows shrink from a finger's depth. A sample's message
+    under the containing page's grown banner stays unread, and what the banner stops
+    covering is shown from that moment."""
+    page, frame, child = _sample_reading_page(
+        browser,
+        serve,
+        '<h1>Practice page</h1><div class="read-gap"></div>{sample}'
+        '<div class="read-gap"></div>',
+        ".read-gap { height: 2000px; }",
+    )
+    child.locator(".lf-threads-toggle").focus()
+    page.evaluate("scrollTo(0, 0)")
+    _open_first_unread(page, child)
     banner = page.locator("#lf-banner")
-    body = _framed_message_box(child)
+    body = _message_body(child).evaluate(
+        "body => { const box = body.getBoundingClientRect();"
+        " return {top: box.top, height: box.height}; }"
+    )
     foot = banner.evaluate("banner => banner.getBoundingClientRect().bottom")
     # The banner grows over the message, standing just below its usual foot. It grows
     # by its bottom border, so nothing it holds moves.
@@ -412,38 +403,46 @@ def test_a_message_the_banner_stops_covering_is_read_without_a_scroll(browser, s
         }""",
         body["height"] + 40,
     )
-    _place_frame(frame, foot + 10 - body["top"])
-    assert _message_body(child).evaluate(
-        "body => { const box = body.getBoundingClientRect();"
-        " const frame = frameElement.getBoundingClientRect();"
-        " return frame.top + box.bottom <= parent"
-        ".document.getElementById('lf-banner').getBoundingClientRect().bottom; }"
+    frame.evaluate(
+        "(frame, at) => scrollBy(0, frame.getBoundingClientRect().top - at)",
+        foot + 10 - body["top"],
+    )
+    assert frame.evaluate(
+        """(frame, body) => {
+            const top = frame.getBoundingClientRect().top + body.top;
+            return top >= 0 && top + body.height
+                <= document.getElementById('lf-banner').getBoundingClientRect().bottom;
+        }""",
+        body,
     ), "the grown banner does not stand over the message"
     _still_unread(page, child)
 
     # It shrinks back, with nothing scrolled or resized, and the message is shown: read
-    # by the pass that change itself sets off, before both pages settle. An unrelated
-    # pass reads it in the end, some 40s on, so waiting for the receipt proves nothing.
+    # by the pass that change itself sets off, before both pages settle. A later
+    # unrelated pass reads it in the end, so waiting for the receipt proves nothing.
     banner.evaluate(
         "banner => { banner.style.height = banner.style.borderBottomWidth = ''; }"
     )
     _settled(page, child)
     round_trip(child)
-    assert [event["messages"] for event in _read_events(serve.page_dir)] == [
-        [{"message": SAMPLE_READER, "version": SAMPLE_READER}]
-    ], "the banner shrinking off the message set off no reading"
+    assert child.locator(".lf-first-unread").is_hidden(), (
+        "the banner shrinking off the message set off no reading"
+    )
+    _read_by_the_sample(page, child)
 
 
 @pytest.mark.parametrize("pointer", ["fine", "coarse"])
-def test_a_reopening_in_a_page_seat_waits_where_reopen_stood(browser, serve, pointer):
+def test_a_reopening_in_a_page_seat_waits_in_its_resolved_summary(
+    browser, serve, pointer
+):
     """An agent's reply to a resolved thread reopens it. Drawn at once, the reopened
-    thread grew in place under the reader: its new turn and its reply box pushed the
-    page after it down. It stands as drawn, resolved, and its resolved row says what is
-    waiting in Reopen's place, preserving the row's height under either pointer. On a
-    phone a tap opens it; on the desktop `r` on the thread, which reopens a resolved
-    thread, does. The thread shows open, with the new turn after the earlier ones and
-    a reply box. Nothing before the opening is input, so the shift watch checks that
-    the hold moved nothing."""
+    thread would leave the seat's closed Resolved disclosure and grow under the reader:
+    its turns and its reply box pushed the page after it down. It stays folded there,
+    and the disclosure's summary says what is waiting, at the summary's height under
+    either pointer. A tap on the summary, or Enter on it, opens it, and the thread
+    shows open in the disclosure's place, with the new turn after the earlier ones, a
+    reply box, and the keyboard on it. Nothing before the opening is input, so the
+    shift watch checks that the hold moved nothing."""
     context = (
         browser.new_context(
             viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True
@@ -460,27 +459,29 @@ def test_a_reopening_in_a_page_seat_waits_where_reopen_stood(browser, serve, poi
     )
     page = open_page(browser, url, context=context)
     thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
-    _to_upper_third(thread)
+    resolved = page.locator(".lf-resolved-threads")
+    summary = resolved.locator(":scope > summary")
+    expect(summary).to_have_text("Resolved · 1")
+    expect(thread).to_be_hidden()
+    _to_upper_third(resolved)
     if pointer == "fine":
-        # The user stands in the thread as the reply comes, so `r` there is no arrival.
-        # The key before the focus makes the shortcut bar's redraw an answer to input.
+        # The user stands on the summary as the reply comes. The key before the focus
+        # makes the shortcut bar's redraw an answer to input.
         page.keyboard.press("Shift")
-        thread.focus()
-    height = _box_height(thread)
+        summary.focus()
+    height = _box_height(resolved)
     second = _agent_turn(serve.page_dir, root, "The roof cannot wait after all.")
     told(page)
-    row = thread.locator(":scope > .lf-page-thread-resolved")
-    news = row.get_by_role("button", name="Reopened · 1 new reply")
-    expect(news).to_be_visible()
-    expect(row.get_by_role("button", name="Reopen", exact=True)).to_have_count(0)
-    expect(thread.locator(".lf-msg")).to_have_count(2)
-    assert _box_height(thread) == pytest.approx(height, abs=0.5)
+    expect(summary).to_have_text("Resolved · 1 · Reopened · 1 new reply")
+    expect(thread).to_be_hidden()
+    assert _box_height(resolved) == pytest.approx(height, abs=0.5)
 
     if pointer == "coarse":
-        news.tap()
+        summary.tap()
     else:
-        page.keyboard.press("r")
-    expect(row).to_have_count(0)
+        page.keyboard.press("Enter")
+    expect(resolved).to_have_count(0)
+    expect(thread).to_be_focused()
     shown = thread.locator(".lf-msg")
     expect(shown).to_have_count(3)
     assert shown.evaluate_all("turns => turns.map(turn => turn.dataset.event)") == [

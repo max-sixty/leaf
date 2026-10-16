@@ -11,7 +11,24 @@
     "exactOptionalPropertyTypes": true,
     "noEmit": true,
     "verbatimModuleSyntax": true,
-    "skipLibCheck": false
+    "skipLibCheck": false,
+    "paths": {
+      "/vendor/browser-runtime.js": ["./index.ts"],
+      "/vendor/*": [
+        "../../skills/leaf/assets/vendor/*",
+        "../../skills/leaf/packages/default/vendor/*",
+        "../../skills/leaf/packages/diagram/vendor/*",
+        "../../skills/leaf/packages/diff/vendor/*",
+        "../../skills/leaf/packages/file-editor/vendor/*",
+        "../../skills/leaf/packages/playwright/vendor/*"
+      ],
+      "/widgets/*": [
+        "../../skills/leaf/assets/widgets/*",
+        "../../skills/leaf/packages/default/widgets/*"
+      ],
+      "/runtime/*": ["../../skills/leaf/assets/runtime/*"],
+      "/checks/*": ["../../skills/leaf/scripts/leaf/render-checks/*"]
+    }
   },
-  "include": ["*.ts"]
+  "include": ["*.ts", "../../skills/leaf/assets/runtime/**/*.js"]
 }

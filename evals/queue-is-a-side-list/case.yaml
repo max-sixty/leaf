@@ -12,12 +12,13 @@
 # as rows, base passes 2 of 3 and the change 3 of 3.
 description: queue-is-a-side-list
 metadata:
-  purpose: 'A queue whose items open one at a time beside it is one `lf-tabs list="side"`: its list is
+  purpose:
+    'A queue whose items open one at a time beside it is one `lf-tabs list="side"`: its list is
     the queue, each item a tab, and the page writes no script to select, hide or mark an item.
     Items the user takes by kind carry that kind as their tab''s `group`, and each row
     says what its item is about without its summary repeating the group.'
   tags:
-  - layout
+    - layout
 vars:
   prompt: |
     Five customer escalations came in overnight. Write a Leaf page where the user works
@@ -37,28 +38,22 @@ vars:
     The page directory is not reachable from here, so reply with the complete
     `index.html`, rather than writing a file.
 assert:
-- type: regex
-  metric: side-list
-  value: <lf-tabs\b[^>]*\blist="side"
-- type: regex
-  metric: grouped
-  value: <lf-tab\b[^>]*\bgroup="
-- type: llm-rubric
-  metric: judgment
-  value: |
-    Read the HTML. Pass only if all of these hold. The queue is one `lf-tabs` with
-    `list="side"`, and each of the five tickets is one `lf-tab` in it holding that
-    ticket's detail and its choice. The page has no `<script>` of its own and links no
-    page module that selects, hides or marks tickets. The queue is not written a second
-    time elsewhere on the page, such as a separate list or table of the same tickets.
-    Each ticket's `lf-tab` carries its suggested outcome as `group`, and the tickets
-    sharing an outcome stand next to each other, the escalations before the fixes and
-    the fixes before the close.
-- type: llm-rubric
-  metric: row
-  value: |
-    Read each `lf-tab`'s `label` and `summary` together as its row in the queue. Pass
-    only if every row says, in a few words, what its ticket is about, such as the
-    problem the customer reports; where the label does not say it, the summary says it
-    first, before attributes such as severity and age; and no `summary` repeats its
-    tab's `group`. Fail if a row names only the ticket and such attributes.
+  - type: llm-rubric
+    metric: judgment
+    value: |
+      Read the HTML. Pass only if all of these hold. The queue is one `lf-tabs` with
+      `list="side"`, and each of the five tickets is one `lf-tab` in it holding that
+      ticket's detail and its choice. The page has no `<script>` of its own and links no
+      page module that selects, hides or marks tickets. The queue is not written a second
+      time elsewhere on the page, such as a separate list or table of the same tickets.
+      Each ticket's `lf-tab` carries its suggested outcome as `group`, and the tickets
+      sharing an outcome stand next to each other, the escalations before the fixes and
+      the fixes before the close.
+  - type: llm-rubric
+    metric: row
+    value: |
+      Read each `lf-tab`'s `label` and `summary` together as its row in the queue. Pass
+      only if every row says, in a few words, what its ticket is about, such as the
+      problem the customer reports; where the label does not say it, the summary says it
+      first, before attributes such as severity and age; and no `summary` repeats its
+      tab's `group`. Fail if a row names only the ticket and such attributes.

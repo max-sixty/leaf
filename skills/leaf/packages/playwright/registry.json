@@ -20,10 +20,7 @@
                   "const": 9
                 }
               },
-              "required": [
-                "sha256",
-                "format"
-              ],
+              "required": ["sha256", "format"],
               "additionalProperties": false
             },
             "viewerUrl": {
@@ -56,14 +53,7 @@
               }
             }
           },
-          "required": [
-            "archive",
-            "viewerUrl",
-            "streams",
-            "pages",
-            "actions",
-            "images"
-          ],
+          "required": ["archive", "viewerUrl", "streams", "pages", "actions", "images"],
           "additionalProperties": false,
           "$defs": {
             "box": {
@@ -82,12 +72,7 @@
                   "type": "number"
                 }
               },
-              "required": [
-                "x",
-                "y",
-                "width",
-                "height"
-              ],
+              "required": ["x", "y", "width", "height"],
               "additionalProperties": false
             },
             "node": {
@@ -97,22 +82,13 @@
                   "type": "string"
                 },
                 "role": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "name": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "text": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "box": {
                   "anyOf": [
@@ -125,13 +101,7 @@
                   ]
                 }
               },
-              "required": [
-                "path",
-                "role",
-                "name",
-                "text",
-                "box"
-              ],
+              "required": ["path", "role", "name", "text", "box"],
               "additionalProperties": false
             },
             "tree": {
@@ -147,10 +117,7 @@
                   }
                 }
               },
-              "required": [
-                "timestamp",
-                "nodes"
-              ],
+              "required": ["timestamp", "nodes"],
               "additionalProperties": false
             },
             "phase": {
@@ -164,10 +131,7 @@
                   "type": "number"
                 },
                 "imageId": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "tree": {
                   "anyOf": [
@@ -180,12 +144,7 @@
                   ]
                 }
               },
-              "required": [
-                "pageId",
-                "timestamp",
-                "imageId",
-                "tree"
-              ],
+              "required": ["pageId", "timestamp", "imageId", "tree"],
               "additionalProperties": false
             },
             "point": {
@@ -198,10 +157,7 @@
                   "type": "number"
                 }
               },
-              "required": [
-                "x",
-                "y"
-              ],
+              "required": ["x", "y"],
               "additionalProperties": false
             },
             "viewport": {
@@ -216,29 +172,17 @@
                   "exclusiveMinimum": 0
                 }
               },
-              "required": [
-                "width",
-                "height"
-              ],
+              "required": ["width", "height"],
               "additionalProperties": false
             },
             "input": {
-              "type": [
-                "object",
-                "null"
-              ],
+              "type": ["object", "null"],
               "properties": {
                 "selector": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "key": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "point": {
                   "anyOf": [
@@ -261,12 +205,7 @@
                   ]
                 }
               },
-              "required": [
-                "selector",
-                "key",
-                "point",
-                "viewport"
-              ],
+              "required": ["selector", "key", "point", "viewport"],
               "additionalProperties": false
             },
             "action": {
@@ -284,10 +223,7 @@
                   "type": "string"
                 },
                 "pageId": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "title": {
                   "type": "string"
@@ -303,16 +239,10 @@
                   "type": "number"
                 },
                 "endTime": {
-                  "type": [
-                    "number",
-                    "null"
-                  ]
+                  "type": ["number", "null"]
                 },
                 "error": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "phases": {
                   "type": "object",
@@ -364,10 +294,7 @@
                   "type": "number"
                 },
                 "kind": {
-                  "enum": [
-                    "frame",
-                    "checkpoint"
-                  ]
+                  "enum": ["frame", "checkpoint"]
                 },
                 "url": {
                   "type": "string",
@@ -382,18 +309,10 @@
                   "minimum": 1
                 },
                 "callId": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "phase": {
-                  "enum": [
-                    "before",
-                    "action",
-                    "after",
-                    null
-                  ]
+                  "enum": ["before", "action", "after", null]
                 }
               },
               "required": [
@@ -425,11 +344,7 @@
                   "type": "string"
                 }
               },
-              "required": [
-                "id",
-                "stream",
-                "pageId"
-              ],
+              "required": ["id", "stream", "pageId"],
               "additionalProperties": false
             },
             "stream": {
@@ -443,22 +358,13 @@
                   "type": "string"
                 },
                 "playwrightVersion": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "wallTime": {
-                  "type": [
-                    "number",
-                    "null"
-                  ]
+                  "type": ["number", "null"]
                 },
                 "monotonicTime": {
-                  "type": [
-                    "number",
-                    "null"
-                  ]
+                  "type": ["number", "null"]
                 }
               },
               "required": [
@@ -472,15 +378,13 @@
             }
           }
         },
-        "resources": [
-          "images[].url"
-        ]
+        "resources": ["images[].url"]
       }
     }
   },
   "lf-trace": {
     "description": "A commentable Playwright recording with action phases, native captured frames and saved accessibility elements.",
-    "x-instructions": "Bind to an imported playwright-trace source. Introduce what the recording shows and make the results under review directly reachable with named lf-trace-bookmark members, preferably successful expectations’ After checkpoints; use imported ids and labels naming the result. The viewer supplies its controls. It opens at the earliest resolvable authored moment in the first stream holding one, otherwise the first saved tree, then the first image. Its timeline places calls and inputs as bars spanning their recorded calls; native input carries no timestamp or held duration, so describe input timing at call resolution. Its chronology includes action checkpoints and intermediate frames at native times, with page filters for multi-page recordings and separate clocks for streams. Matching elapsed times across recordings do not establish matching states. Image comments pin the actual image; saved-element comments pin the labeled checkpoint and tree path. These captures can have different times. A first-image preview before its capture time is explicitly labeled. Keep the linked Playwright viewer running for DOM snapshots, element picking, source, console and network inspection. To pair named results across recordings, put the viewers in one lf-trace-compare and give their corresponding bookmarks the same key. Choosing a keyed moment selects each recording’s own target; manual seeking keeps independent positions.",
+    "x-instructions": "Bind it to an imported playwright-trace source. Say what the recording shows, and make each result under review directly reachable with a named lf-trace-bookmark, preferably a successful expectation's After checkpoint, using imported ids and a label naming the result. The viewer supplies its own controls and opens at the earliest authored moment it can resolve. Native input records no timestamp or held duration, so the timeline places inputs at their calls; describe input timing at that resolution. Equal elapsed times in two recordings don't mean equal states. A comment on an image pins that image; one on a saved element pins the labeled checkpoint and tree path, which can be at a different time. Keep the linked Playwright viewer running for DOM snapshots, element picking, source, console and network. To pair results across recordings, put the viewers in one lf-trace-compare and give matching bookmarks the same key: choosing a keyed moment then selects each recording's own target, while manual seeking moves each one independently.",
     "type": "object",
     "properties": {
       "id": {
@@ -496,10 +400,7 @@
         "minLength": 1
       }
     },
-    "required": [
-      "id",
-      "source"
-    ],
+    "required": ["id", "source"],
     "additionalProperties": false,
     "x-content": "members",
     "x-data": {
@@ -511,16 +412,14 @@
     "x-upgrade": true,
     "x-space": "available",
     "x-visual": {
-      "prefixes": [
-        "trace-"
-      ]
+      "prefixes": ["trace-"]
     },
     "x-example": "<lf-trace id=\"recorded-checkout\" source=\"checkout-trace\"></lf-trace>",
     "x-prepaint": "<p class=\"lf-trace-waiting\">Waiting for a Playwright recording.</p>"
   },
   "lf-trace-bookmark": {
-    "description": "An authored, labeled jump to an exact captured image or action phase in its trace.",
-    "x-instructions": "Set target to an existing trace visual coordinate: trace-ARCHIVE_SHA256-image-IMAGE_ID or trace-ARCHIVE_SHA256-phase-ACTION_ID-PHASE. Read those ids from the imported source; phase is before, action, after, start or end. The widget derives elapsed time from the capture. A target absent from the recording is shown as unavailable. A key explicitly pairs this semantic result with bookmarks in the owner’s compare group; elapsed times and label text are never used to infer correspondence.",
+    "description": "A labeled link to one captured image or action phase in its trace.",
+    "x-instructions": "Set `target` to a capture in the trace: `trace-ARCHIVE_SHA256-image-IMAGE_ID` or `trace-ARCHIVE_SHA256-phase-ACTION_ID-PHASE`, where PHASE is before, action, after, start or end. Read the ids from the imported source. A target the recording lacks shows as unavailable. In an `lf-trace-compare`, give the bookmarks for the same result in each recording the same `key`; Leaf never pairs them by time or label.",
     "type": "object",
     "properties": {
       "label": {
@@ -536,22 +435,17 @@
         "pattern": "^[a-z][a-z0-9-]*$"
       }
     },
-    "required": [
-      "label",
-      "target"
-    ],
+    "required": ["label", "target"],
     "additionalProperties": false,
     "x-content": "empty",
-    "x-owners": [
-      "lf-trace"
-    ],
+    "x-owners": ["lf-trace"],
     "x-name": "label",
     "x-example": "<lf-trace id=\"recorded-checkout\" source=\"checkout-trace\"><lf-trace-bookmark label=\"Popup closes\" target=\"trace-0000000000000000000000000000000000000000000000000000000000000000-image-demo\"></lf-trace-bookmark></lf-trace>",
     "x-upgrade": false
   },
   "lf-trace-compare": {
-    "description": "One shared inspection workspace for recordings with explicitly paired named results.",
-    "x-instructions": "Put independent lf-trace viewers inside this container, each with a label naming the recording. Give corresponding lf-trace-bookmark members the same key. Selecting a keyed result chooses each recording’s own captured target; switching the Recording chooser retains the shared inspection position and each image view. Manual seeking remains independent.",
+    "description": "Several Playwright recordings inspected together, with their results paired by key.",
+    "x-instructions": "Put one `lf-trace` per recording inside it, each with a `label` naming its recording, and give the bookmarks for the same result the same `key`. Choosing a keyed result then shows each recording's own capture of it; seeking by hand moves each recording separately.",
     "type": "object",
     "properties": {
       "id": {
@@ -559,9 +453,7 @@
         "pattern": "^[a-z0-9][a-z0-9-]*$"
       }
     },
-    "required": [
-      "id"
-    ],
+    "required": ["id"],
     "additionalProperties": false,
     "x-content": "markup",
     "x-upgrade": true,

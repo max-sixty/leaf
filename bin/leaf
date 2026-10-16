@@ -2,8 +2,14 @@
 # The one launcher. Claude Code appends plugin bin/ directories to its Bash tool's
 # PATH; hooks and Codex resolve this launcher from the plugin or skill directory.
 #
-# The directory above it is a uv project — the repository and the installed
-# plugin are the same tree — and this runs that project: uv keeps one
+# A host selects its executable with an absolute LEAF_HOST_LAUNCHER path for
+# commands and native hooks, while SessionEnd keeps standalone cleanup below.
+# A redirected call consumes the selection so a host wrapper can invoke Leaf.
+# Selecting this launcher itself leaves the default dispatch. LEAF remains the
+# agent's locator and does not override an explicitly invoked launcher.
+#
+# By default the directory above it is a uv project — the repository and the
+# installed plugin are the same tree — and this runs that project: uv keeps one
 # environment per installed version and syncs it in place on first use.
 # `--no-dev` because the project's dev group is the test suite and the
 # `leaf-dev` tooling, recorded in the shipped lock but never a harness's to
@@ -21,24 +27,49 @@
 # this install has an environment. Its canonical cleanup is a standalone stdlib
 # Python 3.9 program; it never imports the managed Leaf package.
 #
-# Codex runs its tool hook after every tool call, so where the environment
-# exists a Codex hook first asks the same standalone program, on that
-# environment's interpreter, whether the session has anything for it
-# (`state.hook_needed`). That spares uv and the package's imports wherever no
-# page was claimed. Without the environment, or with any answer but "nothing",
-# the hook runs whole.
+# Codex runs its tool hook after every tool call, and Claude Code its prompt and
+# Stop hooks in every session the plugin is installed in, and these have nothing to
+# do in a session that holds no claim. Each such registration says so
+# (`hook --harness NAME --if-claimed`), so where the environment exists the hook
+# first asks the same standalone program, on that environment's interpreter,
+# whether the session holds one (`state.holds_claims`). That spares uv and the
+# package's imports wherever no page was claimed. Without the environment, or with
+# any answer but "nothing", the hook runs whole.
+#
+# Claude Code's sandbox refuses what a command needs, so where it confines this
+# one (SANDBOX_RUNTIME), the bridge Leaf's hooks keep outside it runs the command
+# (`bridge.py`). `-I` keeps the agent's directory off the module path.
+#
+# uv's cache serves only to fill the environment, yet `uv run` opens it even
+# with nothing to fetch, and Codex's sandbox refuses writes to ~/.cache/uv. So
+# once the environment exists, which the first hook ensures outside any sandbox,
+# uv runs without the cache; a sync a changed lock needs then downloads afresh.
+# The flag is not inherited, so `package run`'s own uv keeps the cache.
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 state="$root/skills/leaf/scripts/leaf/state.py"
 if [ "$#" -eq 1 ] && [ "$1" = session-end ]; then
     exec python3 -S "$state"
 fi
-if [ "$#" -eq 3 ] && [ "$1" = hook ] && [ "$2" = --harness ] && [ "$3" = codex ] &&
-    [ -x "$root/.venv/bin/python" ]; then
+cache=
+[ -d "$root/.venv" ] && cache=--no-cache
+case "${LEAF_HOST_LAUNCHER:-}" in
+    ''|/*) ;;
+    *) printf '%s\n' 'LEAF_HOST_LAUNCHER must name an absolute launcher path' >&2; exit 2 ;;
+esac
+if [ -n "${LEAF_HOST_LAUNCHER:-}" ] && [ ! "$LEAF_HOST_LAUNCHER" -ef "$0" ]; then
+    leaf_host_launcher=$LEAF_HOST_LAUNCHER
+    unset LEAF_HOST_LAUNCHER
+    exec "$leaf_host_launcher" "$@"
+fi
+if [ -n "${SANDBOX_RUNTIME:-}" ] && [ -x "$root/.venv/bin/python" ]; then
+    exec "$root/.venv/bin/python" -I -m leaf.bridge run "$@"
+fi
+if [ "${1:-}" = hook ] && [ "${4:-}" = --if-claimed ] && [ -x "$root/.venv/bin/python" ]; then
     payload=$(cat)
     printf '%s' "$payload" | "$root/.venv/bin/python" -S "$state" hook-gate
     [ "$?" -eq 3 ] && exit 0
-    exec uv run -q --no-dev --project "$root" python -m leaf "$@" <<EOF
+    exec uv run -q $cache --no-dev --project "$root" python -m leaf "$@" <<EOF
 $payload
 EOF
 fi
-exec uv run -q --no-dev --project "$root" python -m leaf "$@"
+exec uv run -q $cache --no-dev --project "$root" python -m leaf "$@"

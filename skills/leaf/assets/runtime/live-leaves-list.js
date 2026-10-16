@@ -10,7 +10,7 @@
    Each assigned reading opens one Leaves presentation region before either face
    schedules an update. A failed update restores both committed faces before the
    coordinator reports and settles the attempt. */
-import { html, repeat } from "../vendor/browser-runtime.js";
+import { html, repeat } from "/vendor/browser-runtime.js";
 import {
   attachApplicationPresentation,
   failSoftAfterRetention,
@@ -32,6 +32,7 @@ const EMPTY_MODEL = Object.freeze({
   rows: EMPTY_ROWS,
 });
 
+/** @typedef {LeavesBannerFace} LeavesBannerFaceElement For its tag (`runtime-globals.d.ts`). */
 class LeavesBannerFace extends RetainedFace {
   constructor() {
     super(EMPTY_MODEL);
@@ -67,6 +68,7 @@ const rowBody = (row) => html`
   <div class="lf-others-line">${row.line}</div>
 `;
 
+/** @typedef {LiveLeavesList} LiveLeavesListElement For its tag (`runtime-globals.d.ts`). */
 class LiveLeavesList extends RetainedFace {
   #face = null;
   // Across a repaint the user keeps their row, or the nearest that survived it
@@ -95,7 +97,6 @@ class LiveLeavesList extends RetainedFace {
   configure(control) {
     if (this.#face) throw new Error("Leaves presentation is already configured");
     this.#face = document.createElement(FACE_TAG);
-    this.#face.style.display = "contents";
     control.append(this.#face);
   }
 
@@ -136,8 +137,6 @@ class LiveLeavesList extends RetainedFace {
   }
 
   present(model) {
-    if (!model || !Array.isArray(model.rows))
-      throw new TypeError("Leaves presentation needs a model with row models");
     if (!this.#face) throw new Error("Leaves presentation needs its banner control");
     if (!this.#handle)
       throw new Error("Leaves presentation needs its connected drawer");

@@ -68,7 +68,7 @@ def draw_over(page, locator, *, steps=8, points=STROKE):
     return stroke_over(page, locator, steps=steps, points=points)
 
 
-# Two joined options of one Question, with prose around them so the page scrolls them
+# Two joined options of one ask, with prose around them so the page scrolls them
 # into the middle of the window and on past it.
 FILLER = "\n".join(
     f"<p id='filler-{i}'>Paragraph {i}. " + "Filler. " * 20 + "</p>" for i in range(12)
@@ -184,7 +184,7 @@ def test_a_drawing_uses_its_anonymous_svg_inside_its_semantic_figure(browser, se
     start = native_ink_start(page, "#visuals svg:nth-of-type(2)")
     assert start == pytest.approx([108, 129.2], abs=0.03)
     second.evaluate("""async svg => {
-      const {layoutChanged} = await import('/runtime/widget-elements.js');
+      const {layoutChanged} = await window.__lfWidgetApi();
       svg.setAttribute('viewBox', '50 50 400 160');
       await layoutChanged(svg);
     }""")
@@ -319,7 +319,7 @@ def test_native_frames_resolve_css_positions_in_supported_engines(
         ),
     )
     results = page.evaluate("""async () => {
-      const {elementFrame} = await import('/runtime/element-frame.js');
+      const {elementFrame} = await window.__lfCheckApi();
       const image = document.querySelector('#pixels');
       await image.decode();
       const readings = [];
@@ -865,7 +865,7 @@ def test_draw_mode_leaves_inline_thread_controls_usable(browser, serve):
 
 
 def test_draw_mode_captures_widget_controls(browser, serve):
-    """A page widget remains drawable; a Draw press never answers its Question."""
+    """A page widget remains drawable; a Draw press never answers its ask."""
     page = open_page(
         browser,
         serve(
@@ -978,10 +978,10 @@ def test_an_unsent_drawing_survives_reload_before_it_has_words(browser, serve):
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "note"
 
 
-def test_an_older_runtimes_anchored_drawing_draft_keeps_its_words_without_the_mark(
+def test_another_protocols_anchored_drawing_draft_keeps_its_words_without_the_mark(
     browser, serve
 ):
-    """A draft an older runtime saved holds a drawing in a format this one does not
+    """A draft a runtime at another protocol saved may hold a drawing this one cannot
     draw, so its words come back and its mark neither shows nor sends."""
     page = open_page(browser, serve(TARGETS_PAGE))
     # The composer's draft is keyed on the passage it is on.
@@ -991,11 +991,13 @@ def test_an_older_runtimes_anchored_drawing_draft_keeps_its_words_without_the_ma
           const anchor = {section: 'prose'};
           localStorage.setItem(key, JSON.stringify({
             text: JSON.stringify({
+              format: 'leaf-draft/0',
               text: 'Keep these anchored words.',
               anchor,
+              revision: 1,
               suggest: false,
               about: null,
-              drawing: {format: 'leaf-drawing/2', strokes: [[[0, 0], [9, 9]]]},
+              drawing: {strokes: [[[0, 0], [9, 9]]]},
               touched: Date.now(),
             }),
             attempt: record.attempt,
@@ -1038,7 +1040,7 @@ def test_a_drawing_can_be_sent_without_words(browser, serve):
     event = events_model.read_events(serve.page_dir)[-1]
     assert event["kind"] == "comment"
     assert "text" not in event
-    assert event["drawing"]["format"] == "leaf-drawing/3"
+    assert event["drawing"]["strokes"]
     thread = page.get_by_role("dialog", name=re.compile("Thread for"))
     expect(thread).to_be_visible()
     expect(thread.locator(".lf-drawing-reference")).to_have_text("Drawing comment")
@@ -1050,7 +1052,6 @@ def test_an_inline_thread_keeps_drawing_context_on_the_page(browser, serve):
     in the inline transcript."""
     url = serve(THREAD_DIFF_PAGE)
     drawing = {
-        "format": "leaf-drawing/3",
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],
         "box": [640.5, 96],
         "viewport": [1280, 720],
@@ -1161,10 +1162,10 @@ def test_page_mode_keeps_visible_native_ink_and_exact_drawing_comment(browser, s
     expect(
         page.locator(".lf-thread-panel .lf-msg").filter(has_text="The bend I mean")
     ).to_be_visible()
-    physical = page.evaluate(
-        "() => performance.getEntriesByType('resource').some(e=>new URL(e.name).pathname.includes('/annotation-overlay/'))"
-    )
-    assert not physical
+    expect(
+        page.locator(".lf-margin-layer, .lf-margin-cluster, .lf-margin-preview")
+    ).to_have_count(0)
+    expect(page.locator('[data-lf-command="annotations.toggle"]')).to_have_count(0)
 
 
 CLIPPED_DRAWING_PAGE = leaf_page(
@@ -1190,7 +1191,7 @@ def test_drawing_ink_follows_its_targets_transform(browser, serve, transform):
     )
     transformed.evaluate(
         """async (el, value) => {
-      const {layoutChanged} = await import('/runtime/widget-elements.js');
+      const {layoutChanged} = await window.__lfWidgetApi();
       el.style.transformOrigin = '0 0';
       el.style.transform = value;
       await layoutChanged(el);
@@ -1230,7 +1231,7 @@ def test_a_drawing_captured_on_a_scaled_svg_keeps_its_local_feature(browser, ser
     assert drawing["box"] == pytest.approx([180, 100], abs=0.02)
     assert drawing["strokes"][0][0] == pytest.approx([180 * 0.22, 100 * 0.62], abs=0.02)
     target.evaluate("""async el => {
-      const {layoutChanged} = await import('/runtime/widget-elements.js');
+      const {layoutChanged} = await window.__lfWidgetApi();
       el.style.transform = 'none';
       await layoutChanged(el);
     }""")
@@ -1310,17 +1311,16 @@ def test_drawing_ink_follows_pixels_inside_their_ancestor_viewport(browser, serv
         )
 
 
-# The text viewport's length and the device are independent, so each length takes one
-# device rather than both.
+# Comment length and device are independent, so each length takes one device.
 @pytest.mark.parametrize(
     "long, touch",
     [(False, True), (True, False)],
     ids=["short-phone", "scrolled-desktop"],
 )
-def test_sent_drawing_keeps_its_reference_outside_the_retained_text_viewport(
+def test_sent_drawing_keeps_its_reference_in_the_transcript_after_the_text(
     browser, serve, long, touch
 ):
-    """Sending retains the editor's text viewport, not a cap on added metadata."""
+    """The transcript carries the editor's place and holds its drawing reference."""
     context = browser.new_context(has_touch=touch, is_mobile=touch)
     page = open_page(
         browser,
@@ -1363,12 +1363,15 @@ def test_sent_drawing_keeps_its_reference_outside_the_retained_text_viewport(
     text = body.locator(".lf-msg-text")
     if not long:
         assert text.bounding_box()["y"] == pytest.approx(before["top"], abs=1)
-    assert text.evaluate("node => node.scrollHeight > node.clientHeight + 1") == long
-    after = text.evaluate(
+    transcript = card.locator(".lf-thread-transcript")
+    assert (
+        transcript.evaluate("node => node.scrollHeight > node.clientHeight + 1") == long
+    )
+    after = transcript.evaluate(
         "node => ({scroll:node.scrollTop, limit:node.scrollHeight - node.clientHeight})"
     )
-    # The sent card may wrap fewer lines than the draft. Native scrolling clamps a
-    # retained offset to the new scroll range rather than leaving empty space.
+    # The sent card may wrap fewer lines than the draft. Its transcript now owns
+    # the viewport and clamps the retained offset to its own scroll range.
     assert after["scroll"] == pytest.approx(
         min(before["scroll"], after["limit"]), abs=1
     )

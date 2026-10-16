@@ -42,7 +42,12 @@ export function createRegionCapture({
   };
   // Register before Drawing and Aim mount. Paint is pointer-transparent, so selection
   // never occludes the actual page targets that anchor confirmation reads.
-  for (const type of ["pointerdown", "pointermove", "pointerup", "pointercancel"])
+  for (const type of /** @type {const} */ ([
+    "pointerdown",
+    "pointermove",
+    "pointerup",
+    "pointercancel",
+  ]))
     document.addEventListener(
       type,
       (event) => {
@@ -105,6 +110,7 @@ export function createRegionCapture({
     title: "Capture area",
     description: "Select an area of the page and attach its image to a comment",
     touch: "Capture area",
+    menu: "annotate",
     retainStanding: true,
     when: () => anchoringIsReady() && !offlineInteractive && !opening,
     run: async () => {

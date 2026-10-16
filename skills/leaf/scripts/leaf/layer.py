@@ -9,6 +9,9 @@ from functools import cache
 from pathlib import Path
 from typing import NamedTuple
 
+import tinycss2
+
+from .findings import Finding
 from .locations import located, locations_overlap
 from .machine import package_store
 from .refusals import Refused
@@ -19,9 +22,12 @@ from .schema import (
     BROWSER_DIRS,
     BUNDLED_PACKAGES,
     DEFAULT_PACKAGE,
+    EXTENSION_SCHEMA,
     HTML_NAME,
     INSTRUCTIONS_DIR,
     INSTRUCTIONS_FILE,
+    JAVASCRIPT_SUFFIXES,
+    KERNEL,
     LAYER_PLACEHOLDER,
     PACKAGE_DIRS,
     PLUGIN_ROOT,
@@ -178,27 +184,46 @@ def composed_dir_files(inputs: list[Path], sub: str) -> dict[str, Path]:
 
 # The document's cascade tiers, lowest first. The chrome's form-control clearing
 # (`lf-reset`, runtime/chrome.css) stays below everything that chooses a face. The
-# kernel, every package, and each widget module's adopted sheet (runtime/stylesheets.js)
-# share one layer, so specificity, scope proximity, then order rank their rules.
-# The kernel's Layouts sit above it, followed by semantic state: retirement must
-# outrank a package's default box and a Layout's arrangement. The page's own sheet
-# stays unlayered above these tiers, and inline widget motion outranks them too.
-# The page's rules reach Leaf's own controls only where they name them
-# (runtime/page-sheets.js). Chrome and apparatus marks stay unlayered to beat page
-# and widget alike; runtime/stylesheets.js owns their precedence and defaults.
-CASCADE_LAYERS = ("lf-reset", "lf-base", "lf-layouts", "lf-shadow", "lf-state")
+# kernel, every widget package, and each widget module's adopted sheet
+# (runtime/stylesheets.js) share one layer, so specificity, scope proximity, then
+# order rank their rules. The kernel's Layouts sit above it. A theme package, one that
+# declares no widgets, sits above those defaults and the Layouts (`lf-theme`), so it
+# styles every page the way the page's own sheet styles one; its rules reach Leaf's
+# controls only through an explicit controls.css sheet, as a page's marked stylesheet
+# does (runtime/page-sheets.js).
+# Semantic state follows: retirement must outrank a theme's or package's default box
+# and a Layout's arrangement. The page's own sheet stays unlayered above these tiers,
+# and inline widget motion outranks them too. Chrome and apparatus marks stay
+# unlayered to beat page and widget alike; runtime/stylesheets.js owns their
+# precedence and defaults. `lf-shadow` holds shared shadow rules and is read only in
+# shadow trees, where it sits above adopted widget sheets and below theme packages.
+CASCADE_LAYERS = (
+    "lf-reset",
+    "lf-base",
+    "lf-layouts",
+    "lf-shadow",
+    "lf-theme",
+    "lf-controls",
+    "lf-state",
+)
+
+# tinycss2 currently decodes surrogate escapes to lone surrogates. CSS requires
+# U+FFFD instead; keep its serialization valid UTF-8 until its tokenizer is fixed.
+_CSS_SURROGATES = dict.fromkeys(range(0xD800, 0xE000), 0xFFFD)
 
 
 def _sheet(source: Path) -> str:
-    from .styles import css_syntax_errors
+    """Validate one source and complete its EOF recovery before composition."""
+    from .styles import css_stylesheet, css_syntax_errors
 
     try:
         css = source.read_text(encoding="utf-8")
     except UnicodeDecodeError:
         raise Refused(f"{source} must be UTF-8")
     if errors := css_syntax_errors(css, str(source)):
-        raise Refused(errors[0])
-    return css if css.endswith("\n") else css + "\n"
+        raise Refused(str(errors[0]))
+    serialized = tinycss2.serialize(css_stylesheet(css)).translate(_CSS_SURROGATES)
+    return serialized if serialized.endswith("\n") else serialized + "\n"
 
 
 def widget_confinement(root: Path) -> tuple[str, str] | None:
@@ -220,7 +245,7 @@ def widget_confinement(root: Path) -> tuple[str, str] | None:
     return f":is({listed})", host
 
 
-# A root's own stylesheets, in the order the document's theme.css reads them.
+# Every root's shared sheets, before a theme's optional controls.css.
 ROOT_SHEETS = ("shadow.css", "theme.css")
 
 
@@ -231,18 +256,23 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     the document: the stage copies the composed shadow.css into each tree, and the
     document's theme.css reads each root's shadow.css just ahead of its theme.css.
 
-    In the document, every root's sheets are the `lf-base` cascade layer, and the
-    kernel's layouts.css and state.css name their higher tiers and come last.
-    Shared shadow rules use `lf-shadow` above adopted widget sheets (`lf-base`),
-    preserving their precedence over vendor defaults. state.css ranks above both,
-    so declared retirement has the same precedence in both trees. Authored
-    unlayered styles and inline widget motion remain above it.
+    In the document, the kernel's and every widget package's sheets are the `lf-base`
+    cascade layer, the kernel's layouts.css and state.css name their higher tiers and
+    come last, and a theme package's sheets are `lf-theme`, between the two. In shadow
+    trees, shared shadow rules use `lf-shadow` above adopted widget sheets (`lf-base`),
+    preserving their precedence over vendor defaults, and a theme package's shadow.css
+    is `lf-theme` above them. state.css ranks above all of these, so declared
+    retirement has the same precedence in both trees. Authored unlayered styles and
+    inline widget motion remain above it.
 
     Each widget package's sheet has one native @scope around its declared tags
     in the document, or around their :host in shadow trees. :scope names the root,
     ordinary selectors its descendants. CSS owns nested conditions and proximity;
     composition neither rewrites selectors nor adds specificity. Widget-free
-    packages are unscoped themes that reach the page and every tree.
+    packages are unscoped themes that reach the page and every tree. In the document
+    the browser keeps ordinary theme rules off Leaf controls; controls.css explicitly
+    grants access from the lf-controls tier (runtime/page-sheets.js); a theme's shadow.css is written for widget internals and
+    stands as written.
     """
     from .styles import scoped
 
@@ -253,7 +283,14 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     shadow = [order]
     for position, root in enumerate(inputs):
         where = widget_confinement(root) if position else None
-        for name in ROOT_SHEETS:
+        themes = position > 0 and where is None
+        if not themes and (root / "controls.css").is_file():
+            raise Refused(
+                f"{root}/controls.css belongs to a theme package; "
+                "a widget package styles its own controls in theme.css"
+            )
+        sheets = (*ROOT_SHEETS, "controls.css") if themes else ROOT_SHEETS
+        for name in sheets:
             source = root / name
             if not source.is_file():
                 continue
@@ -261,8 +298,14 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
             placed = scoped(css, where[0]) if where else css
             if name == "shadow.css":
                 shadow_css = scoped(css, where[1]) if where else css
-                shadow.append(f"@layer lf-shadow {{\n{shadow_css}}}\n")
-            theme.append(f"@layer lf-base {{\n{placed}}}\n")
+                tier = "lf-theme" if themes else "lf-shadow"
+                shadow.append(f"@layer {tier} {{\n{shadow_css}}}\n")
+            tier = (
+                ("lf-controls" if name == "controls.css" else "lf-theme")
+                if themes
+                else "lf-base"
+            )
+            theme.append(f"@layer {tier} {{\n{placed}}}\n")
     for name in ("layouts.css", "state.css"):
         if (source := inputs[0] / name).is_file():
             sheet = _sheet(source)
@@ -314,19 +357,80 @@ def checked_layer_inputs(inputs: list[Path]) -> list[Path]:
 
 
 def kernel_runtime_paths() -> set[str]:
-    """Private kernel paths packages cannot replace, before or after compilation.
-
-    CI records the source paths in its prepared payload because compiled chunks no
-    longer have those names. Both representations enforce the same package boundary.
-    """
-    manifest = PLUGIN_ROOT / "leaf-distribution.json"
-    paths = {
-        path.relative_to(ASSETS / "runtime").as_posix()
-        for path in (ASSETS / "runtime").rglob("*.js")
+    """Private kernel paths packages cannot replace: the source modules and the
+    compiled kernel's, so one boundary holds whichever a page vendors."""
+    return {
+        path.relative_to(root / "runtime").as_posix()
+        for root in (ASSETS, KERNEL)
+        for path in (root / "runtime").rglob("*.js")
     }
-    if manifest.is_file():
-        paths.update(json.loads(manifest.read_text())["runtime_paths"])
-    return paths
+
+
+class Kernel(NamedTuple):
+    """The compiled kernel: its files by layer path, and the source modules it holds."""
+
+    files: dict[str, bytes]
+    replaces: list[str]
+
+
+def current_kernel() -> Kernel | None:
+    """The committed kernel, where it was compiled from the modules ASSETS holds now.
+
+    Installs follow `main` and serve whatever tree it holds, so this is the one place
+    that chooses between the compiled kernel and the source modules. The build
+    (`build/runtime-bundle.mjs`, `kernelOutputs`) records in `kernel.json` the
+    SHA-256 of every module it read, `leaf.js` and each `.js` under the layer's
+    browser directories. Where any differs from the tree's, or a module has been
+    added or removed since, the kernel is stale and a page vendors the source
+    modules, so an install never serves a runtime other than the one its tree holds.
+    That happens on a branch whose runtime edit has not been rebuilt, or on a `main`
+    two green pull requests left stale together until it is rebuilt there. A tree
+    without the kernel, such as a model test's, also vendors source modules.
+
+    Reading and hashing the roughly 6 MB of modules takes about 12 ms, once for each
+    composition; serving a page reads its vendored copy and never asks again.
+    """
+    record = KERNEL / "kernel.json"
+    if not record.is_file():
+        return None
+    built = json.loads(record.read_text())
+    modules = [
+        ASSETS / "leaf.js",
+        *(path for sub in BROWSER_DIRS for path in (ASSETS / sub).rglob("*.js")),
+    ]
+    digests = {
+        path.relative_to(ASSETS).as_posix(): hashlib.sha256(
+            path.read_bytes()
+        ).hexdigest()
+        for path in modules
+    }
+    if digests != built["inputs"]:
+        return None
+    files = {
+        path.relative_to(KERNEL).as_posix(): path.read_bytes()
+        for path in KERNEL.rglob("*")
+        if path.is_file() and path != record
+    }
+    return Kernel(files, built["replaces"])
+
+
+def _with_kernel(
+    kernel: Kernel,
+    top_files: dict[str, bytes],
+    directory_files: dict[str, dict[str, bytes]],
+) -> None:
+    """Swap the modules compiled into the kernel for the kernel's own files."""
+
+    def split(path: str) -> tuple[dict[str, bytes], str]:
+        sub, _, name = path.partition("/")
+        return (directory_files[sub], name) if name else (top_files, sub)
+
+    for path in kernel.replaces:
+        files, name = split(path)
+        del files[name]
+    for path, data in kernel.files.items():
+        files, name = split(path)
+        files[name] = data
 
 
 class LayerComposition(NamedTuple):
@@ -392,71 +496,190 @@ def payload_server_fingerprint() -> str:
     )
 
 
-def incompatible_layer(page_dir: Path, registry: dict) -> str | None:
+def incompatible_layer(page_dir: Path, registry: dict) -> Finding | None:
     """Why this Leaf can neither serve a page nor write its log, given the registry it
-    would serve the page under: that registry's `$events` were vendored at another
-    `protocol` than this Leaf's own (`registry.kernel.kernel_protocol`). None when it
-    may.
+    would serve the page under; None when it may. Either the registry's `$events`
+    were vendored at another `protocol` than this Leaf's own
+    (`registry.kernel.kernel_protocol`), or its `$keys` document an x- key this Leaf
+    no longer admits (`schema.EXTENSION_SCHEMA`).
 
     A Leaf serves and writes any page vendored at its own number, whichever Leaf
-    vendored it, so a plugin update leaves open pages working. Every page server, the
-    gate's and the website's included (`http.page_endpoint`,
-    `leaf_website.page_binding`), and the one append door (`event_contracts`) refuse
-    on this one reading. A page vendored before the number was declared names none,
-    and is refused too.
+    vendored it, so a plugin update leaves open pages working. A page vendored before
+    the number was declared names none, and is refused too. A page vendored at a
+    higher number is refused as `newer-layer`, naming the Leaf that vendored it,
+    since its repair is a newer Leaf: this one does not re-vendor it down
+    (`vendoring._plan_page`). A key renamed or removed since the page was vendored
+    is the same kind of fact: this Leaf would read the key's new name, find nothing,
+    and drop what the page's layer declares under the old one, so the page is
+    refused rather than misread. The check is one-sided: a key this Leaf added and
+    an older layer lacks refuses nothing. Every page server, the gate's and the
+    website's included (`http.page_endpoint`, `leaf_website.page_binding`), the one
+    append door and the writers that ask it first (`event_contracts.write_refusal`),
+    and `page check` refuse on this one reading, each naming its repair. For a page
+    vendored at an older number, the holding session's prompt and Stop hooks, and
+    each of its commands that names the page, make that re-vendor first
+    (`vendoring.renew_layer`). So does the source
+    check (`validation.source.check_source`), so activation writes no revision under
+    the layer and `page state` reports the refusal as `source.error`. A revision the
+    page saved before its last re-vendor is judged on its own registry
+    (`incompatible_revision`). The vendored layer's reader asks the protocol half
+    (`protocol_refusal`) before it validates the layer's shape
+    (`registry.storage.load_registry`).
     """
-    vendored = registry.get("$events", {}).get("protocol")
-    running = kernel_protocol()
-    if type(vendored) is int and vendored == running:
+    if refusal := protocol_refusal(page_dir, registry):
+        return refusal
+    if retired := _retired_keys(registry):
+        return Finding(
+            "retired-layer",
+            values={
+                "page": str(page_dir),
+                "retired": retired,
+                "leaf": str(PLUGIN_ROOT),
+            },
+        )
+    return None
+
+
+def protocol_refusal(page_dir: Path, registry: dict) -> Finding | None:
+    """The half of `incompatible_layer` that reads only the page protocol a registry's
+    `$events` declare. It reads `$events` and `$layer` only where they are objects,
+    so it may run on a layer before this Leaf validates what its entries hold
+    (`registry.storage.load_registry`): that shape is this Leaf's protocol's, which a
+    layer vendored at another one need not have."""
+    if (vendored := _foreign_protocol(registry)) is not None:
+        if type(vendored) is int and vendored > kernel_protocol():
+            return Finding(
+                "newer-layer",
+                values={
+                    "page": str(page_dir),
+                    "vendored": vendored,
+                    "vendored_by": provenance_label(_producer(registry)),
+                    "leaf": str(PLUGIN_ROOT),
+                    "protocol": kernel_protocol(),
+                },
+            )
+        return Finding(
+            "foreign-layer",
+            values={
+                "page": str(page_dir),
+                "vendored": vendored,
+                "leaf": str(PLUGIN_ROOT),
+                "protocol": kernel_protocol(),
+            },
+        )
+    return None
+
+
+def incompatible_revision(revision: int, registry: dict) -> Finding | None:
+    """Why this Leaf can neither serve one of a page's revisions nor admit input made
+    against it, given the registry that revision captured: it was saved at another
+    protocol, or its vocabulary uses an x- key this Leaf no longer admits, the two
+    refusals `incompatible_layer` makes of the page's layer. None when it may.
+
+    Each revision captures the runtime and registry it was saved with, and a
+    re-vendor leaves existing revisions as they were, so a page re-vendored across a
+    bump still holds revisions saved before it. Served, one would run its own runtime
+    against this Leaf's server, which is the break the protocol announces. The
+    document server and the append door ask this of the revision they would serve or
+    admit under; readings of the log keep reading every revision's registry, so
+    history still projects. Serving the page saves its source as a revision first,
+    so its live revision is one of these only where the source no longer saves.
+    A revision whose vocabulary uses a retired key is refused for the reason the
+    layer is: this Leaf would read the key's new name there, find nothing, and draw
+    the revision without what it declares, such as a framed ask's prompt.
+    """
+    if (saved := _foreign_protocol(registry)) is not None:
+        return Finding(
+            "foreign-revision",
+            values={
+                "revision": revision,
+                "saved": saved,
+                "protocol": kernel_protocol(),
+            },
+        )
+    if retired := _retired_keys(registry):
+        return Finding(
+            "retired-revision", values={"revision": revision, "retired": retired}
+        )
+    return None
+
+
+def _retired_keys(registry: dict) -> list[str]:
+    """The x- keys a vocabulary documents in `$keys` or declares on an entry that
+    this Leaf no longer admits (`schema.EXTENSION_SCHEMA`), in order; none where it
+    uses only admitted ones. One-sided: a key this Leaf added and the vocabulary
+    lacks is not among them."""
+    admitted = set(EXTENSION_SCHEMA["properties"])
+    keys = registry.get("$keys")
+    used = set(keys if isinstance(keys, dict) else ()) - {"description"}
+    for name, entry in registry.items():
+        if not name.startswith("$") and isinstance(entry, dict):
+            used |= {key for key in entry if key.startswith("x-")}
+    return sorted(used - admitted)
+
+
+def _foreign_protocol(registry: dict) -> int | str | None:
+    """The protocol a registry's `$events` declare where this Leaf does not speak
+    it, `"none"` where they declare none, or None where it is this Leaf's own."""
+    events = registry.get("$events")
+    declared = events.get("protocol") if isinstance(events, dict) else None
+    if type(declared) is int and declared == kernel_protocol():
         return None
-    return (
-        f"{page_dir} was vendored by a Leaf at page protocol "
-        f"{vendored if vendored is not None else 'none'}, and this Leaf "
-        f"({PLUGIN_ROOT}) speaks protocol {running}, so it cannot serve the page or "
-        f"write its log. Re-vendor it with `leaf page init {page_dir}`."
-    )
+    return declared if declared is not None else "none"
 
 
-def payload_provenance(*, include_path: bool = False) -> dict:
+def _producer(registry: dict) -> dict:
+    """The provenance a registry's `$layer` records, or none where a layer of
+    another shape records it elsewhere."""
+    layer = registry.get("$layer")
+    producer = layer.get("producer") if isinstance(layer, dict) else None
+    return producer if isinstance(producer, dict) else {}
+
+
+def payload_provenance(*, include_path: bool = False, root: Path | None = None) -> dict:
     """Describe the Leaf payload that is running this command, when its source can.
 
     Beside the commit, one of two dates says how old the payload is: `committed`,
     the commit's committer date, where Git can read it; or `installed`, when a harness
     copied the payload into its plugin cache without `.git`. Both are ISO 8601 with
-    an offset.
+    an offset. Developer preparations can pass `root` to read another checkout
+    through the same provenance rules.
     """
-    provenance = {"path": str(PLUGIN_ROOT)} if include_path else {}
-    distribution = PLUGIN_ROOT / "leaf-distribution.json"
+    source = (
+        Path(__file__) if root is None else root / "skills/leaf/scripts/leaf/layer.py"
+    )
+    root = PLUGIN_ROOT if root is None else root.resolve()
+    provenance = {"path": str(root)} if include_path else {}
+    distribution = root / "leaf-distribution.json"
     if distribution.is_file():
         published = json.loads(distribution.read_text())
         provenance.update(published["producer"])
         return provenance
     # Claude Code copies a marketplace plugin without its .git directory into a cache
     # whose final component is the resolved plugin version. Leaf leaves its manifest
-    # version unset, so that component is the source commit SHA. PLUGIN_ROOT comes from
-    # this module's own resolved path: an updated sibling cache cannot change the
-    # identity of a session still executing this copy.
-    parents = PLUGIN_ROOT.parents
+    # version unset, so that component is the source commit SHA. The default root
+    # follows this module: a newer sibling cannot change the running copy's identity.
+    parents = root.parents
     if (
         len(parents) >= 4
-        and PLUGIN_ROOT.parent.name == "leaf"
+        and root.parent.name == "leaf"
         and parents[2].name == "cache"
         and parents[3].name == "plugins"
-        and re.fullmatch(r"[0-9a-f]{7,40}", PLUGIN_ROOT.name)
+        and re.fullmatch(r"[0-9a-f]{7,40}", root.name)
     ):
         # The copy stamps every file with the time it was made, and Leaf never
         # rewrites its own modules. A harness copies only the marketplace's newest
         # commit, one update sweep after it lands, so this dates the commit to
         # within that sweep; the commit date itself left with `.git`.
-        installed = datetime.fromtimestamp(Path(__file__).stat().st_mtime, UTC)
+        installed = datetime.fromtimestamp(source.stat().st_mtime, UTC)
         provenance.update(
-            commit=PLUGIN_ROOT.name,
+            commit=root.name,
             dirty=False,
             installed=installed.astimezone().isoformat(timespec="seconds"),
         )
         return provenance
 
-    git = ["git", "--no-optional-locks", "-C", str(PLUGIN_ROOT)]
+    git = ["git", "--no-optional-locks", "-C", str(root)]
     try:
         identity = subprocess.run(
             [*git, "rev-parse", "--show-toplevel", "--short=12", "HEAD"],
@@ -469,7 +692,7 @@ def payload_provenance(*, include_path: bool = False) -> dict:
     if identity.returncode != 0:
         return provenance
     lines = identity.stdout.splitlines()
-    if len(lines) != 2 or Path(lines[0]).resolve() != PLUGIN_ROOT.resolve():
+    if len(lines) != 2 or Path(lines[0]).resolve() != root.resolve():
         return provenance
     provenance["commit"] = lines[1]
     provenance["committed"] = subprocess.run(
@@ -538,7 +761,6 @@ def provenance_label(provenance: dict) -> str:
 def compose_layer(roots: list[Path]) -> LayerComposition:
     """Read and validate the complete layer produced by checked inputs."""
     from .revision_artifact import (
-        JAVASCRIPT_SUFFIXES,
         dependency_path,
         javascript_imports,
     )
@@ -609,6 +831,18 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
         }
         for sub in BROWSER_DIRS
     }
+    # A package may replace a vendor module the kernel compiled in; that page keeps
+    # the source modules, so the replacement is the one it loads.
+    if (
+        roots[0].resolve() == ASSETS.resolve()
+        and (kernel := current_kernel())
+        and all(
+            directory_sources[sub][name].is_relative_to(roots[0])
+            for sub, _, name in (path.partition("/") for path in kernel.replaces)
+            if name
+        )
+    ):
+        _with_kernel(kernel, top_files, directory_files)
     client = directory_files["runtime"].get("layer-generation.js", b"")
     if client.count(LAYER_PLACEHOLDER) != 1:
         raise Refused(

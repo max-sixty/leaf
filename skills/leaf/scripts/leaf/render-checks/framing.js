@@ -1,6 +1,6 @@
 import { declarationFor, inChrome } from "/runtime/widget-api.js";
 import { upFrom } from "/runtime/check-api.js";
-import { at } from "./locate.js";
+import { at, unique } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 
 const generated = ".lf-ui, [data-lf-gen]";
@@ -44,6 +44,12 @@ const moduleOwnsBox = (el) => {
 // edge is the one the stylesheet's author had in mind, are facts only the browser holds. A
 // lint over the CSS would be reading the declarations and not the result, which is the same
 // mistake the reserved-width lint made before the press sweep replaced it.
+//
+// A box that holds draws its frame by holding, since a box the reader sees ends where
+// it does. The root is the exception that is no exception: it holds every margin, as
+// the first formatting context, and its edge is the window's, so it frames only by the
+// padding or border it draws. Holding alone, it named the browser's 8px body margin on
+// every page with no Layout (layouts.css), a margin that shows exactly what it states.
 //
 // Two exclusions, both about what a margin means where it stands. A flex or grid container
 // collapses no margin anywhere, so a margin on an item at its edge is a placement rather
@@ -156,7 +162,7 @@ export function trappedMargins() {
         if (!kid.node) continue;
         if (getComputedStyle(el, pseudo).content !== "none") continue;
         const drawn = px(s["padding" + side]) + px(s["border" + side + "Width"]);
-        if (!drawn && !holds(s)) continue;
+        if (!drawn && (!holds(s) || el === document.documentElement)) continue;
         const leak = edgeMargin(kid, edge);
         if (leak && leak.margin > 0.5)
           found.push({
@@ -261,7 +267,7 @@ export function splitEdges() {
 // comes first or next, so a code block's highlighting or the mark ending a link's words
 // is not this.
 export function apparatusAmongAuthored() {
-  const found = new Set();
+  const found = [];
   for (const el of document.querySelectorAll(`main :is(${generated})`)) {
     const parent = el.parentElement;
     if (
@@ -272,7 +278,7 @@ export function apparatusAmongAuthored() {
     )
       continue;
     if (getComputedStyle(parent).display === "inline") continue;
-    found.add(`${at(el)} stands among the children of ${at(parent)}`);
+    found.push({ code: "apparatus-among-authored", at: at(el), parent: at(parent) });
   }
-  return [...found];
+  return unique(found);
 }

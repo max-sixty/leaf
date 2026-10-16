@@ -32,12 +32,7 @@
               }
             }
           },
-          "required": [
-            "title",
-            "base",
-            "candidate",
-            "cases"
-          ],
+          "required": ["title", "base", "candidate", "cases"],
           "additionalProperties": false,
           "$defs": {
             "target": {
@@ -53,9 +48,7 @@
                   "pattern": "^https?://\\S+$"
                 }
               },
-              "required": [
-                "revision"
-              ],
+              "required": ["revision"],
               "additionalProperties": false
             },
             "capture": {
@@ -85,10 +78,7 @@
                       "minimum": 1
                     }
                   },
-                  "required": [
-                    "width",
-                    "height"
-                  ],
+                  "required": ["width", "height"],
                   "additionalProperties": false
                 },
                 "deviceScaleFactor": {
@@ -96,10 +86,7 @@
                   "exclusiveMinimum": 0
                 },
                 "colorScheme": {
-                  "enum": [
-                    "light",
-                    "dark"
-                  ]
+                  "enum": ["light", "dark"]
                 },
                 "locale": {
                   "type": "string",
@@ -142,12 +129,7 @@
                   "exclusiveMinimum": 0
                 }
               },
-              "required": [
-                "x",
-                "y",
-                "width",
-                "height"
-              ],
+              "required": ["x", "y", "width", "height"],
               "additionalProperties": false
             },
             "case": {
@@ -174,10 +156,7 @@
                   "minLength": 1
                 },
                 "classification": {
-                  "enum": [
-                    "changed",
-                    "clean"
-                  ]
+                  "enum": ["changed", "clean"]
                 },
                 "capture": {
                   "$ref": "#/$defs/capture"
@@ -218,8 +197,8 @@
     }
   },
   "lf-visual-review": {
-    "description": "A guided review of a typed visual run, with before-and-after evidence and recorded case dispositions.",
-    "x-instructions": "Author an empty element with a stable id and bind source to the visual run. Supply focus rectangles when a case should open on its changed area; keep case identities tied to the run rather than the user's temporary inspection choices.",
+    "description": "A guided review of a visual run, with before-and-after captures and the user's verdict on each case.",
+    "x-instructions": "Write it empty with a stable id, and bind `source` to the visual run. To open a case on its changed area, give it a `focus` rectangle in the run. Tie each case's id to the run, not to the user's inspection choices.",
     "type": "object",
     "properties": {
       "id": {
@@ -231,10 +210,7 @@
         "pattern": "^[a-z][a-z0-9-]*$"
       }
     },
-    "required": [
-      "id",
-      "source"
-    ],
+    "required": ["id", "source"],
     "additionalProperties": false,
     "x-content": "empty",
     "x-data": {
@@ -253,16 +229,10 @@
               "pattern": "^[a-z0-9][a-z0-9-]*$"
             },
             "disposition": {
-              "enum": [
-                "looks-right",
-                "needs-work"
-              ]
+              "enum": ["looks-right", "needs-work"]
             }
           },
-          "required": [
-            "case",
-            "disposition"
-          ],
+          "required": ["case", "disposition"],
           "additionalProperties": false
         },
         "unit": "case"

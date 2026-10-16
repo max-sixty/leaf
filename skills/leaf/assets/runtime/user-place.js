@@ -22,7 +22,7 @@
    it, where holding the next item grows it up into the room scrolled past. Without a
    preferred reading, the item the band's top cuts holds the place only where no item
    begins in view. Every candidate is recorded, so when the
-   first leaves, hides, or is renamed out of `items`, the next one still standing holds
+   first leaves, hides, or is renamed out of `items`, the next one still present holds
    the place without recovering an old position. A candidate the render replaced is
    handed across to the node now rendered under its identity; that is how a keyed
    re-render keeps the place it was holding (repository AGENTS.md: whatever replaces a
@@ -43,11 +43,13 @@
    same reflow, and a user's scroll between frames stays theirs. It leaves at that pass
    rather than at the release because renders run back to back: one finishing and the
    next taking its hold in the same script would take the property away and put it back,
-   a write that changes nothing. A hold taken while another stands on the same
-   scroller inherits its reference, because a mutation in flight (a fold) has already
-   moved whatever the pointer would now name.
+   a write that changes nothing. A second spanning hold on the same scroller yields to
+   the first. A synchronous nested hold can correct a temporary clamp and hands the
+   reflow it paid for to the outer hold, so the outer hold does not pay it again.
 
-   One synchronous mutation takes its hold with `around(mutate)`, which claims nothing.
+   One synchronous mutation takes its hold with `around(mutate)`, or with
+   `take({spans: false})` / `finish` across separate paint steps. It claims nothing,
+   including any anchoring property another keeper already owns.
    Nothing but reflow moves a scroller inside one task: the browser's own anchoring, which
    a forced layout applies, or a clamp. So its correction pays for every movement since
    the reading and lands the reference where it stood, whatever the browser did first,
@@ -58,16 +60,23 @@
    The module also owns when focus marks the user's place at all (`focusedInView`), for
    the readers outside a hold that take focus as that place. */
 import { cancelRender, nextFrame, nextRender } from "./rendering.js";
-import { headerInset, seenRect, stuckBox, visibleBand } from "./geometry.js";
-import { placeKept, scrollLimit } from "./scrolling.js";
+import {
+  headerInset,
+  inWindowChrome,
+  seenRect,
+  stuckBox,
+  visibleBand,
+} from "./geometry.js";
+import { aimedTop, moveScrollerBy, placeKept, scrollLimit } from "./scrolling.js";
 import { pointerAt } from "./pointer.js";
 import { recentPlaceInput, focused } from "./focus.js";
 
 // The focused control while it marks where the user is: while any of it is in front of
 // them (geometry.js, `seenRect`), and it is not riding in a stuck sticky box
-// (`stuckBox`). A user who scrolled away from the control they stand on is reading
-// something else, though the control keeps focus, and a stuck tab strip, title or reply
-// row stays in view over whatever they scroll to, so it names no place in what it holds.
+// (`stuckBox`) or the window's chrome (`inWindowChrome`). A user who scrolled away from
+// the control they stand on is reading something else, though the control keeps focus,
+// and a stuck tab strip, title or reply row, like the banner and the floating panel's
+// row, stays in view over whatever they scroll to, so it names no place in what it holds.
 // A reflow then holds, and a landing returns them to, what they see instead. A render
 // holding the box they type in (reply-landing.js, `holdBox`), a reading place
 // (reading-place.js, `capturePlace`), and revision continuity (version.js), for the
@@ -78,7 +87,9 @@ import { recentPlaceInput, focused } from "./focus.js";
 // (thread/landing.js), whether the focused title stands wholly where a landing puts it.
 export function focusedInView() {
   const node = focused();
-  return node && seenRect(node, new Map()) && !stuckBox(node) ? node : null;
+  return node && !inWindowChrome(node) && seenRect(node, new Map()) && !stuckBox(node)
+    ? node
+    : null;
 }
 
 // The candidates in the order they may hold the place, each once: an inherited
@@ -112,11 +123,34 @@ export function placeCorrection({
   return now - was - reflowed;
 }
 
+// A synchronous hold inside another hold can correct a transient clamp before the
+// enclosing presentation finishes. Credit the outer hold for the scroll the inner
+// hold applied, so its own reference can still correct any different movement.
+const heldScrollers = new WeakMap();
+const sharedMovement = (moved, paid) =>
+  Math.sign(moved) === Math.sign(paid)
+    ? Math.sign(paid) * Math.min(Math.abs(moved), Math.abs(paid))
+    : 0;
+
 export function placeKeeper(
   scroller,
   { items, identity, active = () => true, preferred = () => null },
 ) {
-  let standing = null;
+  let current = null;
+  const owner = {};
+  const lease = {
+    owner,
+    snapshot: () => ({
+      hold: current,
+      references: current?.references.filter(live) ?? [],
+    }),
+    sync: ({ hold, references }, paid) => {
+      if (current !== hold) return;
+      for (const reference of references)
+        if (live(reference)) reference.contentTop += paid;
+      hold.at = { scrollTop: scroller.scrollTop, limit: limit() };
+    },
+  };
   const limit = () => scrollLimit(scroller);
   // The box a node can hold the place by, or null where it holds nothing.
   const heldBox = (node) => {
@@ -147,42 +181,49 @@ export function placeKeeper(
   };
 
   // Native anchoring is off while a hold that spans tasks stands, and comes back at the
-  // next rendering pass with none standing, before that frame lays anything out. A
+  // next rendering pass with none in place, before that frame lays anything out. A
   // same-value property set writes nothing.
   let returning = 0;
   function claim() {
-    if (standing?.spans) {
+    if (current?.spans) {
       cancelRender(returning);
       returning = 0;
       scroller.style.setProperty("overflow-anchor", "none");
     } else if (!returning && scroller.style.getPropertyValue("overflow-anchor"))
       returning = nextRender(() => {
         returning = 0;
-        if (!standing?.spans) scroller.style.removeProperty("overflow-anchor");
+        if (!heldScrollers.has(scroller))
+          scroller.style.removeProperty("overflow-anchor");
       });
   }
 
   function release(hold) {
-    if (standing !== hold) return;
-    standing = null;
-    claim();
+    if (current !== hold) return;
+    current = null;
+    if (heldScrollers.get(scroller)?.owner === owner) heldScrollers.delete(scroller);
+    if (hold.spans) claim();
   }
 
   function correct(hold) {
-    if (standing !== hold || !active()) return false;
+    if (current !== hold || !active()) return false;
     const reference = hold.references.find(live);
     if (!reference) return false;
     const now = heldBox(reference.node).top + scroller.scrollTop;
+    const was = reference.contentTop;
+    const scrollWas = scroller.scrollTop;
     const delta = placeCorrection({
-      was: reference.contentTop,
+      was,
       now,
       scrollTop: scroller.scrollTop,
       limit: limit(),
       held: hold.at,
       withinTask: !hold.spans,
     });
+    // From where the last correction aimed rather than where its rounding left the
+    // box: a fold corrects every frame, and each frame's rounding would add to the last
+    // (scrolling.js, `moveScrollerBy`).
     if (delta) {
-      scroller.scrollTop += delta;
+      moveScrollerBy(scroller, aimedTop(scroller) - scroller.scrollTop + delta);
       placeKept(scroller);
     }
     // Every candidate observed this reflow too; refresh their baselines after the
@@ -192,15 +233,28 @@ export function placeKeeper(
       if (node) candidate.contentTop = heldBox(node).top + scroller.scrollTop;
     }
     hold.at = { scrollTop: scroller.scrollTop, limit: limit() };
+    if (hold.borrowed) {
+      hold.borrowed.lease.sync(
+        hold.borrowed.reading,
+        sharedMovement(now - was, scroller.scrollTop - scrollWas),
+      );
+      hold.borrowed.reading = hold.borrowed.lease.snapshot();
+    }
     return true;
   }
 
   function take({ spans = true } = {}) {
-    const prior = standing;
+    const enclosing = heldScrollers.get(scroller);
+    if (enclosing?.owner !== owner && enclosing && spans) return null;
+    const prior = current;
     if (prior) correct(prior);
-    standing = heldPlace(prior, spans);
-    claim();
-    return standing;
+    current = heldPlace(prior, spans);
+    if (current && enclosing?.owner !== owner && enclosing)
+      current.borrowed = { lease: enclosing, reading: enclosing.snapshot() };
+    else if (current) heldScrollers.set(scroller, lease);
+    else if (enclosing?.owner === owner) heldScrollers.delete(scroller);
+    if (spans || prior?.spans) claim();
+    return current;
   }
 
   // The place as it stands now, carrying on from `prior` where one stood.
@@ -285,5 +339,5 @@ export function placeKeeper(
     }
   }
 
-  return { take: () => take(), finish, around };
+  return { take, finish, around };
 }

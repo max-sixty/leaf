@@ -1,0 +1,10 @@
+# Full CLI output when receipt is refused after page ownership transfers.
+
+exit: 1
+
+stdout: ''
+
+stderr:
+  - error: >-
+      delivery no longer owns its page: <page>
+    findings: []

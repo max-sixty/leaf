@@ -7,12 +7,12 @@ import sys
 from html.parser import HTMLParser
 from pathlib import Path
 
+from leaf.structure import SourceDocument
+
 from leaf_dev import ROOT
+from leaf_dev.leaf_assets import pinned_copy
 
 TEST_PAGES = ROOT / "tests" / "fixtures" / "pages"
-PATCH_MANIFEST = (
-    ROOT / "skills" / "leaf" / "packages" / "diff" / "scripts" / "patch_manifest.py"
-)
 
 
 # Where a page named on a command line is looked up.
@@ -66,6 +66,23 @@ def catalog_sources() -> list[Path]:
     return catalog.sources
 
 
+def document_metadata(source: Path) -> tuple[str, str]:
+    """The authored title and description a page's link card and catalog caption show."""
+    parsed = SourceDocument(source.read_text(encoding="utf-8"))
+    title = parsed.authoring.title.strip()
+    description = next(
+        (
+            (meta["content"] or "").strip()
+            for meta in parsed.authoring.named_metas
+            if meta["name"] == "description"
+        ),
+        "",
+    )
+    if not title or not description:
+        sys.exit(f"{source}: a published page needs a <title> and a description")
+    return title, description
+
+
 # An authored source's companions, named beside it whether or not it has each
 # (examples/AGENTS.md): its seeded history, its data values, and its page-owned files.
 def seed_log(source: Path) -> Path:
@@ -114,16 +131,19 @@ def example_versions(source: Path) -> list[Path]:
     return [*priors, source]
 
 
-def patch_manifest(patch: str) -> dict:
+def patch_manifest(
+    patch: str, *, runtime: Path = ROOT, env: dict[str, str] | None = None
+) -> dict:
     """The `diff` package's producer script's manifest for one patch.
 
-    It runs as a process, reading stdin and writing stdout as an agent's pipeline
-    does, but under this project's interpreter rather than `leaf package run`: the
-    tooling package carries the script's `unidiff` (locked in the checkout), so the
-    fixtures and the suite read the same manifest on every machine and fetch nothing.
-    A refused patch raises with the script's stderr."""
+    The selected runtime's package runner owns the script and its declared
+    dependencies, so a comparison cannot mix one arm's producer with another's
+    environment or data contract. `env` carries the consumer's package lookup state.
+    A failed run raises with the script's stderr.
+    """
     produced = subprocess.run(
-        [sys.executable, str(PATCH_MANIFEST)],
+        [str(runtime / "bin/leaf"), "package", "run", "diff", "patch_manifest.py"],
+        env=env,
         input=patch.encode("utf-8"),
         capture_output=True,
         check=False,
@@ -133,18 +153,23 @@ def patch_manifest(patch: str) -> dict:
     return json.loads(produced.stdout)
 
 
-def captured_value(file: Path, spec: dict):
+def captured_value(
+    file: Path, spec: dict, *, runtime: Path = ROOT, env: dict[str, str] | None = None
+):
     """One `$captures` entry's value: the file's text, an inclusive `lines` range of
-    it, or, for `"format": "unified-diff"`, the whole patch's file manifest. A
-    patch is captured whole, so a `lines` range beside that format is refused."""
+    it, for `"format": "json"` the JSON value it holds, or, for
+    `"format": "unified-diff"`, the whole patch's file manifest. A patch is captured
+    whole, so a `lines` range beside that format is refused."""
     text = file.read_text(encoding="utf-8")
+    if spec.get("format") == "json":
+        return json.loads(text)
     if spec.get("format") == "unified-diff":
         if "lines" in spec:
             raise ValueError(
                 f"{file}: a unified-diff capture takes the whole patch, not lines "
                 f"{spec['lines']}"
             )
-        return patch_manifest(text)
+        return patch_manifest(text, runtime=runtime, env=env)
     if (lines := spec.get("lines")) is None:
         return text
     start, end = (int(bound) for bound in lines.split(":"))
@@ -162,17 +187,28 @@ def data_companion(source: Path) -> dict:
     return json.loads(companion.read_text(encoding="utf-8"))
 
 
-def capture_files(source: Path) -> list[Path]:
-    """The files the companion's `$captures` read, which its values depend on."""
-    captures = data_companion(source).get("$captures", {})
-    return [source.parent / spec["file"] for spec in captures.values()]
+def capture_file(source: Path, spec: dict) -> Path:
+    """Where one `$captures` entry's bytes are. `file` names a tracked file beside the
+    source; `asset` names one the same way whose bytes are pinned in leaf-assets
+    (`leaf_dev.leaf_assets`), for evidence too large for the tree, such as an imported
+    Playwright trace."""
+    if "asset" in spec:
+        return pinned_copy(source.parent / spec["asset"])
+    return source.parent / spec["file"]
 
 
-def data_operations(source: Path) -> list[dict]:
+def data_operations(
+    source: Path, *, runtime: Path = ROOT, env: dict[str, str] | None = None
+) -> list[dict]:
     """Every source value one example sets: captures first, then written values."""
     document = data_companion(source)
     captures = [
-        {"source": name, "value": captured_value(source.parent / spec["file"], spec)}
+        {
+            "source": name,
+            "value": captured_value(
+                capture_file(source, spec), spec, runtime=runtime, env=env
+            ),
+        }
         for name, spec in document.pop("$captures", {}).items()
     ]
     return [

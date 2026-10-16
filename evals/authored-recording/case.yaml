@@ -3,9 +3,9 @@
 # the existing evidence route; it is not a measure of general authoring quality.
 description: authored-recording
 metadata:
-  purpose: 'Source files and media: show a fixed recording with native playback controls and a poster.'
+  purpose: "Source files and media: show a fixed recording with native playback controls and a poster."
   tags:
-  - evidence
+    - evidence
 vars:
   prompt: |
     Write a Leaf section showing a fixed eight-second screen recording of a bug.
@@ -17,11 +17,12 @@ vars:
 
     The page directory is unavailable. Reply with the section's HTML.
 assert:
-- type: regex
-  metric: native-recording
-  value: '<video\b(?=[^>]*\bcontrols\b)(?=[^>]*\bposter=["''][^"'']*d7cf2b4e22c063dd\.png)[^>]*>(?:[\s\S]*?)</video>'
-  transform: output.toLowerCase()
-- type: regex
-  metric: recorded-source
-  value: '<(?:video|source)\b[^>]*\bsrc=["'']/media/2930ad3df7819c50\.mp4["'']'
-  transform: output.toLowerCase()
+  - type: llm-rubric
+    metric: native-recording
+    value: |
+      Pass only if the section plays the recording in a native `<video>` with the
+      browser's own `controls`, its source the registered
+      `/media/2930ad3df7819c50.mp4` (on the video or a `<source>` inside it) and its
+      `poster` the registered first frame `/media/d7cf2b4e22c063dd.png`. Fail if it
+      rebuilds playback in a script, canvas, page module or other widget, leaves out
+      the controls or the poster, or points at media other than the registered paths.

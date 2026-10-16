@@ -1,9 +1,11 @@
 // @ts-check
-/* Transport handles for the application's immutable, ordered pending attempts.
+/* The promises behind each event the browser is sending to the server.
 
-   The semantic root owns every event and its lifecycle state. This adapter retains only
-   promises and their resolvers; an in-flight delivery reads its latest record by attempt
-   id. Presentation accounting is the only door that resolves a receipt read race. */
+   `applicationState` holds every unresolved event, in order, and where each stands.
+   This ledger keeps only the promises a sender awaits, by attempt id: `answer`, which
+   resolves with the admitted event or with null when it is refused, and `read`. A
+   handle's `event` and `admitted` read the latest entry for its attempt. `read`
+   resolves only in `present`, when the receipt is presented. */
 import { applicationState, readApplication } from "../semantic-state.js";
 
 /** @typedef {import("../../../../../build/browser/domain.ts").Event} Event */

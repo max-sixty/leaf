@@ -9,23 +9,37 @@ note was condensed; `git log --` on those paths finds them.
 
 ## Current observations
 
-No run so far calls for a new page-reading interface. Every miss was an instruction
-miss or missing information in a declaration, and agents never wrote to the wrong
-place or lost a user's state. These runs establish behavior on particular revisions
-with few samples.
+Reconciled on 2026-10-15 against main `fd68e3943`: inline ownership, scoped
+validation and LeafElement are already shared. The playground now owns one immutable
+working configuration. Contributors replace their named slices through `get`/`set`
+handles; required views subscribe through LeafElement rather than keeping a parallel
+model and read/apply callbacks. Complete restoration still preserves snapshots for late
+sources. Undo follows the canonical choice identity, so two equal-valued choices
+restore the earlier choice instead of leaving a later draft; pending-to-admitted
+acknowledgement keeps the same attempt identity. The early drawing pass remains.
+The empty all-inline rail is removed and long button labels wrap. Duplicate ownership
+and export tests were dropped; existing browser journeys cover state, labels and the
+short workspace, with one added contrast for a required view that fails to draw.
+The historical author comparison below has not been rerun on this runtime and
+establishes no broader quality result.
+
+These runs establish behavior on particular revisions with few samples, rather than
+a universally preferable page layout. The owner comparison below found a primitive
+constraint and working-state defects; the earlier runs mostly exposed instruction
+or declaration gaps.
 
 ### First baseline, 2026-09-27
 
 At 387dfed45 with Opus 5.5, three scored runs per case after one pilot that fixed each
 fixture and scorer; $5.85 scored. Every check passed:
 
-| Case | Checks | Result |
-| --- | --- | --- |
-| `cold-report` | skill loaded, page valid, checked, unstamped, no Ask, no sign-off | 3/3 each |
-| `cold-decision` | one Ask with one single-choice group of three options, gesture named | 3/3 each |
-| `near-miss` | skill not loaded, no page | 3/3 |
-| `reading` | seven questions, one per surface | 21/21 |
-| `resume` | date, approach and next step; batch edit in place; pick kept; thread answered; v3 stamped | 3/3 each |
+| Case            | Checks                                                                                    | Result   |
+| --------------- | ----------------------------------------------------------------------------------------- | -------- |
+| `cold-report`   | skill loaded, page valid, checked, unstamped, no Ask, no sign-off                         | 3/3 each |
+| `cold-decision` | one Ask with one single-choice group of three options, gesture named                      | 3/3 each |
+| `near-miss`     | skill not loaded, no page                                                                 | 3/3      |
+| `reading`       | seven questions, one per surface                                                          | 21/21    |
+| `resume`        | date, approach and next step; batch edit in place; pick kept; thread answered; v3 stamped | 3/3 each |
 
 - Reading runs answered from `index.html`, `events.jsonl` and `data/*.json` without
   loading the skill, and read a pick the user made, replaced, then undid.
@@ -41,13 +55,13 @@ fixture and scorer; $5.85 scored. Every check passed:
 At 64186bcb9, three runs each; $5.71 scored. In the live cases the harness played the
 user through the served page.
 
-| Case | What the user does | Checks |
-| --- | --- | --- |
-| `handoff` | asks for a drafted page to be handed over, asks for an edit, then asks a question | 54/54 |
-| `mixed` | sends a comment, a pick, a `shorten` reaction, a card move and its undo, and a page error, in one delivery | 41/42 |
-| `elided` | asks a question whose premise is in the part of a long thread the delivery leaves out | 27/27 |
-| `package` | asks for a widget only the page's own package supplies, without naming it | 22/24 |
-| `shared-source` | asks about, then updates, one of two widgets whose shared data source also holds a look-alike record | 21/24 |
+| Case            | What the user does                                                                                         | Checks |
+| --------------- | ---------------------------------------------------------------------------------------------------------- | ------ |
+| `handoff`       | asks for a drafted page to be handed over, asks for an edit, then asks a question                          | 54/54  |
+| `mixed`         | sends a comment, a pick, a `shorten` reaction, a card move and its undo, and a page error, in one delivery | 41/42  |
+| `elided`        | asks a question whose premise is in the part of a long thread the delivery leaves out                      | 27/27  |
+| `package`       | asks for a widget only the page's own package supplies, without naming it                                  | 22/24  |
+| `shared-source` | asks about, then updates, one of two widgets whose shared data source also holds a look-alike record       | 21/24  |
 
 - The live loop ran as the references describe: every round arrived through the
   prompt hook, every turn re-armed the wait and ended `waiting` with the URL, and
@@ -96,7 +110,7 @@ with ordinary HTML/CSS/JS and no Leaf payload. Nine pairs at a2cf7a001 with Opus
 on Claude Code: three each of `document` (a review the team decides from), `queue`
 (eight escalations, list beside detail) and `configuration` (six alert thresholds to
 tune). The first configuration pair ran at 51ef3d615, whose prompts are the same.
-Each sample authors the page, revises it for the 900px standing preference, then
+Each sample authors the page, revises it for the 900px lasting preference, then
 handles a comment that adds a fact to one passage. Leaf gets the comment anchored on
 the passage, or on the page whole where no candidate quote appears exactly once
 (5 of 9, including every configuration, whose alert text the author's script
@@ -137,14 +151,14 @@ went unmeasured. The catalog checks the comment's fact in the page's text; only
 Means per sample over the three phases, with the last version's authored CSS and
 script lines:
 
-| Task | Condition | Minutes | Cost | Turns | Input tokens | CSS | Script | Page writes | Renders |
-|---|---|---|---|---|---|---|---|---|---|
-| document | Leaf | 7.1 | $2.40 | 48 | 3.7M | 14 | 0 | 7.0 | 6.7 |
-| document | HTML | 3.9 | $0.88 | 30 | 0.8M | 99 | 69 | 7.7 | 7.3 |
-| queue | Leaf | 6.0 | $2.03 | 45 | 3.2M | 5 | 0 | 6.3 | 7.7 |
-| queue | HTML | 4.6 | $1.01 | 27 | 1.0M | 121 | 240 | 9.0 | 5.3 |
-| configuration | Leaf | 13.5 | $3.72 | 78 | 7.3M | 44 | 132 | 12.3 | 13.7 |
-| configuration | HTML | 5.8 | $1.31 | 31 | 1.2M | 113 | 217 | 9.7 | 5.3 |
+| Task          | Condition | Minutes | Cost  | Turns | Input tokens | CSS | Script | Page writes | Renders |
+| ------------- | --------- | ------- | ----- | ----- | ------------ | --- | ------ | ----------- | ------- |
+| document      | Leaf      | 7.1     | $2.40 | 48    | 3.7M         | 14  | 0      | 7.0         | 6.7     |
+| document      | HTML      | 3.9     | $0.88 | 30    | 0.8M         | 99  | 69     | 7.7         | 7.3     |
+| queue         | Leaf      | 6.0     | $2.03 | 45    | 3.2M         | 5   | 0      | 6.3         | 7.7     |
+| queue         | HTML      | 4.6     | $1.01 | 27    | 1.0M         | 121 | 240    | 9.0         | 5.3     |
+| configuration | Leaf      | 13.5    | $3.72 | 78    | 7.3M         | 44  | 132    | 12.3        | 13.7    |
+| configuration | HTML      | 5.8     | $1.31 | 31    | 1.2M         | 113 | 217    | 9.7         | 5.3     |
 
 Page writes and renders count tool calls that write the page and that run a check or
 a browser on it; repair iterations show as writes beyond the first, and the two
@@ -182,7 +196,7 @@ conditions repaired about equally often.
   pairwise judge runs the authors' model, Opus 5.5, and Leaf's viewer chrome in the
   screenshots shows it which page is Leaf's.
   - Documents: on the two documents Leaf won, it won on decisions in both orders,
-    since it put both decisions on the page as Questions where HTML offered a reply
+    since it put both decisions on the page as asks where HTML offered a reply
     to copy. HTML's sticky contents ran out of the short 900px window on all three;
     both conditions' comparison tables lost a column at 390px.
   - Configurations: every Leaf author used `lf-playground`, whose control panel sits
@@ -211,6 +225,80 @@ What this points #20 and the instructions at, strongest first:
   `leaf wait` prints, after `leaf page claim` on a page another session held).
 - On-page decisions are where Leaf's documents won; keep them in whatever #20
   changes.
+
+### Authoring owner comparison, 2026-10-12
+
+The configuration layout hypothesis reached a primitive constraint. Diagnostic
+configuration authors received the complete skill, page-authoring, asks, and composed
+playground instructions before writing. The registry required direct controls, and
+the initial renderer moved all of them into a shared panel. Guidance alone could not
+put an alert's controls with its evidence.
+
+Controls now belong to their nearest playground, including inside its preview.
+Direct controls form the shared panel; inline controls keep their authored positions.
+Both use the same typed configuration, presets, reset, persistence, copy, submission,
+and undo. The authoring change explains this capability without prescribing cards.
+
+One cold native author per arm completed the same four-phase alert configuration
+workflow on baseline `4f7cc21c1497ce6d449f6ec22d9508651fd654c3` and an initial inline
+trial. Both preserved and independently read back all twelve user-selected settings.
+The trial increased effort: 107 versus 71 turns, 31 versus 11 page writes, and $4.925
+versus $3.450 author spend. It is a diagnostic trial, not efficiency evidence for the
+final candidate. The author read private theme code and added three layout overrides.
+Removing only those overrides from the same page, the owner default widened its
+900px preview from 552 to 852px and alert column from 230 to 530px. At 600px, preview
+and alert dimensions matched; presets now precede the preview. All values matched.
+
+Contrasting query editing exposed stale restoration: an unrelated built-in gesture
+could erase an unnotified contributor draft. Local gestures now adopt live sources;
+reset and projection restore snapshots. Late contributors join a pending chosen
+snapshot, and undo replaces it. Focused browser journeys cover these transitions,
+copy/submission, reload, short workspaces with and without presets, and existing
+structured explorers. Reproduce the central case with:
+
+```sh
+uv run pytest -q -n0 tests/browser/test_render_widgets.py::test_playground_adopts_live_sources_without_restoring_their_drafts
+```
+
+Two further native authors built independent proposals. Both began with three open
+Questions and no selected defaults. Ordinary Remove/Keep clicks left one unanswered
+proposal; an unrelated heading revision preserved both exact answers. Read-only
+source probes had produced an invalid candidate proposal, which this native workflow
+did not reproduce. Source sketches and validated working pages are distinct evidence.
+
+The final authoring arm is `candidate-inline-v3`, payload manifest SHA256
+`33225dc70ba0c1b9dff9a2edd325c4e096bf43fbc4e79736e1d90b951f963784`.
+The executor is frozen at `c3060df98bc2e6b73d9a81a624d0499fc4221e44`.
+One fresh cold author per arm completed the final matched workflow with that same
+executor. Both passed every deterministic check and independently read back all
+twelve settings. The candidate used 98 versus 103 turns, $5.209 versus $5.922,
+and 5 versus 24 recorded page-write operations (the executor's approximate tool and
+shell-command count). Complete intended instructions appeared before each author's
+first page write; normalized initial prompts and evaluator source hashes matched.
+This supports reduced effort on this pair, not a general efficiency improvement.
+Independent comparison found stronger local tuning caveats in the candidate, but the
+baseline better kept the final overview beside its summary at 900px. Both phone
+tables fragmented alert identities. Preserved decisions do not imply a uniformly
+better final page; no unqualified quality improvement is established.
+
+A later owner repair removes unconditional `nowrap` from the shared ordinary
+button face. The same candidate page's long preset labels then fit on a phone;
+its 900px presets, compact banner, and twelve values remain unchanged. The original
+button matrix was trimmed to one narrow-browser regression: long preset and short
+Reset labels fit, and both actions work. Composition and state-preservation coverage
+is retained. Delivery
+arm `candidate-inline-v4` has manifest
+`70efc1093fe7f2c6c1fe2e15ba82375290c8dd0326132ecfb91bd14020737b04`;
+the matched author results remain tied to v3.
+
+The separate clipboard-permission change for live samples is deferred at the user's
+request; it is not required by these repairs.
+
+The frozen executor's observation/replay code is reviewed, but its quality rubric remains preliminary:
+calibration found unsupported explanations. Quality conclusions therefore use
+independent inspection, with no calibrated aggregate score. Raw runs, exact
+instruction receipts, payload manifests, and browser evidence remain under
+`.tmp/authoring-quality/` and `.tmp/playground-browser-evidence/` in this worktree.
 
 ## Remaining evaluation gaps
 

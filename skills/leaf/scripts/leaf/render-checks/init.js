@@ -1,3 +1,7 @@
 addEventListener("error", (event) => {
-  if (!event.error) console.error(`window error: ${event.message}`);
+  if (event.error) return;
+  globalThis.__leafWindowError?.({
+    text: event.message,
+    resizeLoop: event.message.startsWith("ResizeObserver loop"),
+  });
 });

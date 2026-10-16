@@ -56,20 +56,20 @@ The playground lays these out, cheapest first, with a table, an operable
 simulation, and a section per cost. A reach rule decides which gesture `z` may
 take back; an add-on combines with any rule.
 
-| Reach rule | How far back `z` reaches | Can `z` change what the user can't see? | Build |
-| --- | --- | --- | --- |
-| Main before #1410 | No limit, walking past sent replies | Yes | Shipped, then replaced |
-| Newest only (main) | The newest gesture, however old | Yes | Shipped |
-| Last 7 days | A fixed age | Yes, within the week | Small |
-| This visit only | Since the page loaded; a tab open for weeks is one visit | Yes, for this visit's gestures out of view | Small |
-| Show, then take | No limit | No: a target out of view, or one the agent has already picked up, is shown on the first press and taken on the second | Medium |
-| Only what's in view | The edge of the viewport, so it moves as the user scrolls | No, though it still reaches an old gesture in view | Medium |
+| Reach rule          | How far back `z` reaches                                  | Can `z` change what the user can't see?                                                                               | Build                  |
+| ------------------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| Main before #1410   | No limit, walking past sent replies                       | Yes                                                                                                                   | Shipped, then replaced |
+| Newest only (main)  | The newest gesture, however old                           | Yes                                                                                                                   | Shipped                |
+| Last 7 days         | A fixed age                                               | Yes, within the week                                                                                                  | Small                  |
+| This visit only     | Since the page loaded; a tab open for weeks is one visit  | Yes, for this visit's gestures out of view                                                                            | Small                  |
+| Show, then take     | No limit                                                  | No: a target out of view, or one the agent has already picked up, is shown on the first press and taken on the second | Medium                 |
+| Only what's in view | The edge of the viewport, so it moves as the user scrolls | No, though it still reaches an old gesture in view                                                                    | Medium                 |
 
-| Add-on | What it adds | Build |
-| --- | --- | --- |
-| Say what `z` takes | The bar and the notice name the gesture and its age | Small |
-| Redo on `Z` | Puts back what an undo took, as Vim's Ctrl-R does, until the user's next change and while it would still show | Large |
-| Changes panel | Every gesture the user made, newest first, each with Undo, and Redo once redo exists | Large |
+| Add-on             | What it adds                                                                                                  | Build |
+| ------------------ | ------------------------------------------------------------------------------------------------------------- | ----- |
+| Say what `z` takes | The bar and the notice name the gesture and its age                                                           | Small |
+| Redo on `Z`        | Puts back what an undo took, as Vim's Ctrl-R does, until the user's next change and while it would still show | Large |
+| Changes panel      | Every gesture the user made, newest first, each with Undo, and Redo once redo exists                          | Large |
 
 The recommendation on the page, which the user has not yet answered: build
 **Show, then take** with **Say what `z` takes** now, since it sets no limit and
@@ -111,11 +111,11 @@ Ctrl-R" (newest + name + redo), "Show, then take, with redo", and "Changes panel
 
 ## Redo in the event model
 
-Redo is an `undo` naming the user's own standing `undo`. Nothing leaves the log
+Redo is an `undo` naming the user's own `undo` in force. Nothing leaves the log
 and no counter-event is invented, so the root `AGENTS.md` invariant ("An `undo`
 event names the gesture withdrawn; it never deletes or invents a counter-event")
 holds as written. `taken_back` changes so that an undo counts only while no
-standing undo names it, which makes it a parity fold over the chain rather than a
+undo in force names it, which makes it a parity fold over the chain rather than a
 flat set.
 
 It has three costs:
@@ -140,7 +140,7 @@ It has three costs:
    cancelling out") needs a clause for a redo.
 
 The rest of the redo change: `UndoReading.error` admits an undo naming the user's
-own standing undo when folding without it changes the page; `document.py` serves a
+own undo in force when folding without it changes the page; `document.py` serves a
 redo list; `projection/model.js` lets a local redo override the server's reading
 that the target is withdrawn, as a pending forward action does; `undo.js`
 binds `Z`; `lf-activity.js`'s "undone" label
@@ -149,7 +149,7 @@ binds `Z`; `lf-activity.js`'s "undone" label
 
 Vim's undo tree is a different thing: `g-` and `g+` restore any past state,
 superseded branches included, where this redo restores only what would still
-show. The Changes panel offers selective undo instead, any standing gesture in any
+show. The Changes panel offers selective undo instead, any gesture in force in any
 order.
 
 ## The playground
@@ -163,8 +163,8 @@ asking for the build on this branch, an updated `events.md` Undo section and
 notice words, and a live preview of `review-a-plan`.
 
 `<undo-sim>` is a page-local custom element: a simulated review page three weeks
-in (an Ask, threads, and the user's newest move, resolving *Scope of the
-migration* 21 days ago below the fold), its event log, and a toolbar (Reload the
+in (an Ask, threads, and the user's newest move, resolving _Scope of the
+migration_ 21 days ago below the fold), its event log, and a toolbar (Reload the
 page, Agent picks up your moves, A week passes, Start over). Its `fold(log)`
 withdraws by parity newest first, so an undo naming an undo is a redo, and reads
 each effect (choose, resolve, unresolve, reply) at its own log position, so a

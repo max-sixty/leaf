@@ -37,6 +37,7 @@ import tempfile
 import threading
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from functools import cached_property, lru_cache, partial
 from pathlib import Path
 from types import MappingProxyType
@@ -54,7 +55,13 @@ from leaf.passages import SourceReading, enclosing_ids
 from leaf.refusals import Refused
 from leaf.registry.contract import is_element_name
 from leaf.render_checks import PROBE_SOURCES
-from leaf.schema import BROWSER_DIRS, CONTENT_TYPES, SERVED_PATH, VENDORED_FILES
+from leaf.schema import (
+    BROWSER_DIRS,
+    CONTENT_TYPES,
+    JAVASCRIPT_SUFFIXES,
+    SERVED_PATH,
+    VENDORED_FILES,
+)
 from leaf.state import fsync_parents
 from leaf.structure import (
     SourceDocument,
@@ -64,10 +71,11 @@ from leaf.structure import (
     script_kind,
 )
 
-PUBLIC_MODULES = ("/runtime/widget-api.js",)
+PUBLIC_MODULES = ("/runtime/widget-api.js", "/vendor/floating-ui.esm.js")
+
+
 RESOURCE_TYPES = {
     **CONTENT_TYPES,
-    ".mjs": "application/javascript",
     ".woff": "font/woff",
     ".woff2": "font/woff2",
     ".ttf": "font/ttf",
@@ -80,11 +88,6 @@ _IMPORT_NODES = Query(
     _JAVASCRIPT,
     "(import_statement) @node (export_statement) @node "
     "(call_expression function: (import)) @node",
-)
-JAVASCRIPT_SUFFIXES = frozenset(
-    suffix
-    for suffix, mime in RESOURCE_TYPES.items()
-    if mime == "application/javascript"
 )
 
 
@@ -180,22 +183,14 @@ class RevisionArtifact:
         }
 
     @cached_property
-    def executable(self) -> str | None:
-        """What this revision is as executable code, or nothing where it predates the field.
-
-        A revision saved before capture recorded this carries a manifest without it, and
-        those revisions are immutable: the addresses that still serve them — every
-        stamped version and every revision URL — can never be repaired by saving the page
-        again. So the absence is a reading rather than a fault. A document that does not
-        say what it is as code is one an open page cannot take a revision from, which is
-        the reload path, and a historical document never activates anything at all.
-        """
-        return json.loads(self.manifest).get("executable")
+    def executable(self) -> str:
+        """The captured module graph's executable identity."""
+        return json.loads(self.manifest)["executable"]
 
     @cached_property
     def widgets(self) -> dict:
         """What each declared widget in this revision's page was written as."""
-        return json.loads(self.manifest).get("widgets", {})
+        return json.loads(self.manifest)["widgets"]
 
 
 def dependency_path(specifier: str, importer: str, *, module=False) -> str | None:
@@ -267,6 +262,9 @@ def javascript_imports(data: bytes, path: str) -> tuple[tuple[int, int, str], ..
     a CDN module named that way loads, and a page file it names is in the revision
     only if something imports it literally.
 
+    This reads imports, not syntax: the browser judges the module, and its error
+    reaches the agent through `page check` or the watcher.
+
     A layer's modules are the same bytes in every page that selects them, and parsing
     a vendored bundle takes about a second, so a process reads each module once."""
     try:
@@ -274,18 +272,8 @@ def javascript_imports(data: bytes, path: str) -> tuple[tuple[int, int, str], ..
     except UnicodeDecodeError as error:
         raise ArtifactError(f"{path}: JavaScript is not UTF-8") from error
     tree = Parser(_JAVASCRIPT).parse(data)
-    if tree.root_node.has_error:
-        pending = [tree.root_node]
-        while pending:
-            node = pending.pop()
-            if node.is_error or node.is_missing:
-                raise ArtifactError(
-                    f"{path}:{node.start_point[0] + 1}: invalid JavaScript"
-                )
-            pending.extend(reversed(node.children))
-        raise ArtifactError(f"{path}: invalid JavaScript")
     # Document order, a node before the nodes it holds, as a walk of the tree meets
-    # them, so the first problem in the file is the one reported.
+    # them, so the spans come back in the order the file states them.
     nodes = sorted(
         QueryCursor(_IMPORT_NODES).captures(tree.root_node).get("node", []),
         key=lambda node: (node.start_byte, -node.end_byte),
@@ -295,21 +283,16 @@ def javascript_imports(data: bytes, path: str) -> tuple[tuple[int, int, str], ..
         literal = None
         if node.type in {"import_statement", "export_statement"}:
             literal = node.child_by_field_name("source")
-            if any(child.type == "import_attribute" for child in node.named_children):
-                raise ArtifactError(
-                    f"{path}:{node.start_point[0] + 1}: import attributes are not supported for JavaScript modules"
-                )
         elif node.type == "call_expression":
             function = node.child_by_field_name("function")
-            if function.type == "import":
-                arguments = node.child_by_field_name("arguments").named_children
-                if len(arguments) == 1 and arguments[0].type == "string":
-                    literal = arguments[0]
+            # A tree the parser recovered from may lack the arguments.
+            if function.type == "import" and (
+                arguments := node.child_by_field_name("arguments")
+            ):
+                named = arguments.named_children
+                if len(named) == 1 and named[0].type == "string":
+                    literal = named[0]
         if literal is not None:
-            if any(child.type != "string_fragment" for child in literal.named_children):
-                raise ArtifactError(
-                    f"{path}:{literal.start_point[0] + 1}: module URLs must be unescaped string literals"
-                )
             imports.append(
                 (
                     literal.start_byte,
@@ -707,7 +690,7 @@ def _capture_artifact(
     documents = [document]
     for authored in documents:
         documents.extend(sample["document"] for sample in authored.samples)
-        for script in authored.inline_scripts:
+        for script in authored.authoring.inline_scripts:
             if script_kind(script["attrs"]) not in {"module", "classic"}:
                 continue
             for _, _, specifier in javascript_imports(
@@ -716,7 +699,7 @@ def _capture_artifact(
                 entries.append(
                     resolve_dependency(specifier, "/index.html", module=True)
                 )
-        for script in authored.external_scripts:
+        for script in authored.authoring.external_scripts:
             if script_kind(script["attrs"]) not in {"module", "classic"}:
                 continue
             path = resolve_dependency(
@@ -727,7 +710,7 @@ def _capture_artifact(
             if not path.startswith("/page/"):
                 raise ArtifactError(f"{path}: authored scripts must be under /page/")
             entries.append(path)
-        for link in links_with_rel(authored.links, "stylesheet"):
+        for link in links_with_rel(authored.authoring.links, "stylesheet"):
             path = resolve_dependency(link["attrs"].get("href", ""), "/index.html")
             if path is None:
                 continue
@@ -736,15 +719,16 @@ def _capture_artifact(
                     f"{path}: a stylesheet dependency must have CSS MIME type"
                 )
             entries.append(path)
-        for specifier in _css_dependencies(authored.css):
-            entries.append(resolve_dependency(specifier, "/index.html"))
-        for inline in authored.inline_styles:
+        for sheet in authored.authoring.style_blocks:
+            for specifier in _css_dependencies(sheet["css"]):
+                entries.append(resolve_dependency(specifier, "/index.html"))
+        for inline in authored.authoring.inline_styles:
             for specifier in _css_dependencies(inline["style"], declarations=True):
                 entries.append(resolve_dependency(specifier, "/index.html"))
-        entries.extend(authored.media_refs)
+        entries.extend(authored.authoring.media_refs)
         entries.extend(
             resolve_dependency(specifier, "/index.html")
-            for specifier in authored.page_resource_refs
+            for specifier in authored.authoring.page_resource_refs
         )
     entries = [entry for entry in entries if entry is not None]
     for entry in entries:
@@ -759,7 +743,7 @@ def _capture_artifact(
         for tag, source in widget_sources.items()
     }
     layer = registry.get("$layer", {})
-    # Which of this capture's inputs a standing document cannot take on in place. A
+    # Which of this capture's inputs the current document cannot take on in place. A
     # module graph is evaluated once per document and a custom element is defined
     # once, so new bytes behind either need a new document. Stylesheets, media,
     # prose, and markup are absent because an open document can be given all of
@@ -798,7 +782,10 @@ def _capture_artifact(
                         "body": _digest(script.get("body", "").encode("utf-8")),
                     }
                     for script in sorted(
-                        [*document.inline_scripts, *document.external_scripts],
+                        [
+                            *document.authoring.inline_scripts,
+                            *document.authoring.external_scripts,
+                        ],
                         key=lambda script: script["position"],
                     )
                 ],
@@ -832,7 +819,7 @@ def _capture_artifact(
     manifest = _canonical_json(
         {
             "html": _digest(document.data),
-            "title": document.title.strip(),
+            "title": document.authoring.title.strip(),
             "entries": sorted(set(entries)),
             "executable": executable,
             "widgets": widgets,
@@ -1062,6 +1049,11 @@ class RevisionReading(SourceReading):
             vars(self).update(vars(adopted))
 
     @cached_property
+    def activated_at(self) -> str:
+        """The immutable marker's publication date, shared by every delivery."""
+        return datetime.fromtimestamp(self.marker.stat().st_mtime, UTC).isoformat()
+
+    @cached_property
     def document(self) -> SourceDocument:
         # Bytes, not text: universal newlines would turn CRLF into LF, and
         # `document.data` must be the captured bytes the digest and the
@@ -1201,10 +1193,10 @@ def _inventory_size(value):
 class _CompactReadings:
     """Compact revision readings with their own byte budget and page lifetime.
 
-    Element identities, Question registration and data consumers are small facts
+    Element identities, ask registration and data consumers are small facts
     about immutable documents. Keeping them separately prevents long-history scans
     from evicting their own completed work with full parses. Each owner charges its retained
-    representation; a Question source also reserves its last dynamic answer,
+    representation; an ask source also reserves its last dynamic answer,
     keyed by the event basis the canonical fold reads. Keys include the marker
     stamp. No document, full registry, SourceReading or event log is retained.
     """
@@ -1308,25 +1300,12 @@ def captured_imports(data: bytes, logical_path: str, resources: Mapping[str, Res
         yield from authored_imports(data, logical_path)
         return
     for start, end, specifier in javascript_imports(data, logical_path):
-        parsed = urlsplit(specifier)
-        if (
-            not specifier
-            or parsed.scheme
-            or parsed.netloc
-            or parsed.query
-            or parsed.fragment
-            or "\\" in specifier
-            or any(ord(char) < 33 for char in specifier)
-        ):
+        target = dependency_path(specifier, logical_path, module=True)
+        if target is None:
             raise ArtifactError(
                 f"{logical_path}: {specifier!r}: captured layer import is not local"
             )
-        target = posixpath.normpath(
-            parsed.path
-            if parsed.path.startswith("/")
-            else posixpath.join(posixpath.dirname(logical_path), parsed.path)
-        )
-        if not target.startswith("/") or target not in resources:
+        if target not in resources:
             raise ArtifactError(
                 f"{logical_path}: {specifier!r}: captured layer import is missing"
             )

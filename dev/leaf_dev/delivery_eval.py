@@ -26,24 +26,19 @@ from leaf_dev.arms import (
     read_trace,
     run_leaf,
     scratch,
-    waits_started,
 )
+from leaf_dev.eval_cases import definition
 from leaf_dev.review_scenario import REQUEST, prepare
 from leaf_dev.usability_eval import Case, Run, execute_live
 
 # When each of a case's comments is posted: `idle` at the end of a turn, `running`
 # once the setup turn has the page's URL.
-CASES = {"idle": ("idle", "idle"), "mid-turn": ("running",)}
-COMMENTS = (
-    {
-        "text": "Cut this paragraph to two sentences; the second one repeats the first.",
-        "anchor": {"section": "triage-lede"},
-    },
-    {
-        "text": "Rename this heading to ‘Why the migration blocks alone’.",
-        "anchor": {"section": "triage-why"},
-    },
-)
+DEFINITION = definition("delivery_eval")
+CASES = {
+    name: tuple(case["inputs"]["injection"])
+    for name, case in DEFINITION["cases"].items()
+}
+COMMENTS = tuple(DEFINITION["comments"])
 
 
 def attempt(n: int) -> str:
@@ -69,7 +64,7 @@ def run_session(
 ) -> None:
     """Drive delivery timing through the same feedback loop as larger examples."""
     run.mkdir(parents=True, exist_ok=True)
-    with scratch() as work:
+    with scratch(arm, state=run / "state") as work:
         (run / "work-dir").write_text(f"{work}\n")
         page, state = work / "page", run / "state"
         prepare(arm, state, page)
@@ -91,7 +86,6 @@ def score(run: Path) -> list[dict]:
     """Read one run's page log and stream into one reading per comment it was sent."""
     events = read_events(run)
     stream = read_trace(run / "stream-1.jsonl")
-    waits = {wait for r in stream for wait in waits_started(r)}
     timed_out = (run / "timed-out").exists()
     turns = [record for record in stream if record["type"] == "result"]
     session_completed = bool(turns) and all(completed([turn]) for turn in turns)
@@ -130,16 +124,7 @@ def score(run: Path) -> list[dict]:
                 ended = moment(record)
                 turn_completed = completed([record])
                 break
-            if (
-                record.get("subtype") == "task_notification"
-                and record["tool_use_id"] in waits
-                and delivery is None
-            ):
-                delivery, transport = record, "notification"
-            elif (stop_blocked(record) or hook_delivered(record)) and transport in (
-                None,
-                "notification",
-            ):
+            if (stop_blocked(record) or hook_delivered(record)) and transport is None:
                 delivery = record
                 transport = f"{record['hook_event'].lower()} hook".replace(
                     "userpromptsubmit", "prompt"

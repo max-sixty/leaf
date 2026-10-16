@@ -8,9 +8,9 @@
    including a freshness token whose body has not changed. A foreign answer is always refused;
    whether the page also reloads is the document source's to answer, through the same
    probe startup recovery uses, because only a source that has moved on has a different
-   document to give and a page that reloads without one never stops. Active responses
-   also establish the private server incarnation, so an ephemeral replacement reloads
-   before its new event sequence meets the old DOM. Do not let one delivery interpret
+   document to give and a page that reloads without one never stops. A page's record
+   survives replacement of its serving process, including a website container, so
+   process identity cannot invalidate the document. Do not let one delivery interpret
    another's state. A refused key is read here too, for every response: it is the page
    cut off from its log rather than an answer about any request, so the event door
    throws it as it throws a lost connection and the banner names the link that ends it.
@@ -33,7 +33,7 @@
    work. Code running inside a sample's child page reports to the child's own
    disposable log, not the page that embeds it. */
 
-import { describeFailure } from "../vendor/browser-runtime.js";
+import { describeFailure } from "/vendor/browser-runtime.js";
 import { countTraffic } from "./traffic.js";
 import { recordInteraction } from "./interaction-log.js";
 import { DELIVERY, offlineInteractive, pageUrl, runtime } from "./context.js";
@@ -79,8 +79,6 @@ async function sourceMovedOn() {
 }
 
 let layerReloading = false;
-// A replaced private incarnation is not a question about generations: its record
-// is gone, so the old DOM has to go whatever the document source says.
 function reloadNow(message) {
   if (layerReloading) return;
   layerReloading = true;
@@ -92,7 +90,7 @@ function reloadNow(message) {
 // while the page waits — this very page can be re-vendored during the hold — and an
 // answer carried over from an earlier reading would leave the tab with no way back. One
 // probe is in the air at a time, so a burst of refusals costs one. The words are said
-// once for the page rather than once an answer: a standing condition explained once is
+// once for the page rather than once an answer: a lasting condition explained once is
 // enough, and repeating a transient status line would hold the page's foot for as long
 // as the disagreement lasts.
 let asking = false;
@@ -131,6 +129,17 @@ export function layerHeaders(headers = {}) {
   };
 }
 
+// A state request names the data reading the tab holds, and an answer whose data is
+// still that version leaves out its sources (http.py, `page_state`): data moves only
+// when an agent sets it, so a gesture's answer need not carry back every source value.
+// The answer's reader restores them from the reading its request named.
+/** @param {{version: string | null}} held */
+export const dataHeaders = (held) =>
+  held.version === null ? {} : { "Leaf-Data-Version": held.version };
+/** @param {{version: string | null}} held */
+export const completeData = (state, held) =>
+  state && !state.data.sources ? { ...state, data: held } : state;
+
 // An answer `admitResponse` refused: it came from another delivery, and whether the page
 // reloads is already settled there. Each caller says what that means for its request.
 export class LayerRefused extends Error {}
@@ -160,9 +169,11 @@ export async function requestJson(url, init, what) {
     } catch (error) {
       throw failed(`${what}: HTTP ${response.status}`, error);
     }
+  // `said` is the server's own words for the refusal, where it gave any.
   if (!response.ok)
     throw Object.assign(failed(answer?.error ?? `${what}: HTTP ${response.status}`), {
       current: answer?.current,
+      said: answer?.error,
     });
   return answer;
 }
@@ -193,41 +204,30 @@ export function admitResponse(response) {
   return true;
 }
 
+// Activation belongs to one private page in one release. A pinned revision shares
+// its canonical root; another page or deployment has a separate saved record.
 let sessionMode = release ? "unknown" : "active";
-// Only an active private-session response establishes an ephemeral incarnation.
-// An ordinary server can restart while its durable page and log remain current.
-let sessionServer = null;
 const sessionChannel =
-  release &&
-  !document.documentElement.lfSample &&
-  typeof window.BroadcastChannel !== "undefined"
-    ? new window.BroadcastChannel("leaf-session")
+  release && !document.documentElement.lfSample
+    ? new window.BroadcastChannel(`leaf-session:${release}:${pageUrl("")}`)
     : null;
 
-function activateSession(broadcast, server = null) {
-  if (server && sessionServer && server !== sessionServer) {
-    reloadNow("This Leaf session restarted — reloading the page.");
-    return;
-  }
-  const learnedServer = server && !sessionServer;
-  if (server) sessionServer = server;
+function activateSession(broadcast) {
   const activated = sessionMode !== "active";
   sessionMode = "active";
   if (activated) document.dispatchEvent(new Event("lf-session-active"));
-  if (broadcast && (activated || learnedServer))
-    sessionChannel?.postMessage({ active: true, server });
+  if (broadcast && activated) sessionChannel?.postMessage({ active: true });
 }
 
 sessionChannel?.addEventListener("message", (event) => {
-  if (event.data?.active === true) activateSession(false, event.data.server);
+  if (event.data?.active === true) activateSession(false);
 });
 
 function observeSession(response) {
   const reference = response.headers.get("Leaf-Session-Reference");
   if (/^\d{12}$/.test(reference)) runtime.sessionReference = reference;
   const mode = response.headers.get("Leaf-Session");
-  const server = response.headers.get("Leaf-Server");
-  if (mode === "active") activateSession(true, server);
+  if (mode === "active") activateSession(true);
   else if (mode === "passive" && sessionMode !== "active") sessionMode = "passive";
 }
 
@@ -243,6 +243,7 @@ function observeKey(response) {
   runtime.keyRefused = response.status === KEY_REFUSED;
 }
 
+/** @type {PromiseWithResolvers<void>} */
 const { promise: layerReady, resolve: revealLayer } = Promise.withResolvers();
 export { revealLayer };
 
@@ -251,7 +252,7 @@ export { revealLayer };
 // deliberately doesn't — and what they share is the request rather than anything about
 // the sending: same path, same method, same encoding, so a door that moved would move
 // for both. Whether a send waits on the one before it belongs to the caller.
-export const postEvent = async (event) => {
+export const postEvent = async (event, held = runtime.data) => {
   if (offlineInteractive)
     throw new Error("no agent or server is available in an interactive export");
   await layerReady;
@@ -263,6 +264,7 @@ export const postEvent = async (event) => {
       method: "POST",
       headers: layerHeaders({
         "Content-Type": "application/json",
+        ...dataHeaders(held),
       }),
       body: JSON.stringify(event),
     });
@@ -331,6 +333,7 @@ const reportedReasons = new WeakSet();
 const reportedPrimitives = new Set();
 const reportedErrors = new Set();
 export function reportPageError(reason, context = "") {
+  if (!document.documentElement.lfDocumentLifetime.active) return;
   if (typeof reason === "object" && reason !== null) reportedReasons.add(reason);
   else reportedPrimitives.add(String(reason));
   const text = exceptionText(reason, context);

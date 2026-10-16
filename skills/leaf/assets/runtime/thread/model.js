@@ -210,7 +210,6 @@ export function foldThreads(threads, gestures) {
         summaries: [],
         unread: [],
         attention: reaction ? null : sending(gesture),
-        todos: [],
       };
       opened.push(thread);
       byName.set(gesture.id, thread);
@@ -323,6 +322,8 @@ const versionKey = ({ message, version }) => `${message}\u0000${version}`;
  * @param {import("../../../../../build/browser/application.ts").SemanticDocument} document
  * @param {ReturnType<typeof import("../projection/model.js").foldWidgetStates>} widgets
  * @param {import("../../../../../build/browser/application.ts").Workflow[]} workflows
+ * @param {readonly import("../../../../../build/browser/application.ts").WireTodo[]} todos
+ *   the open to-dos, of which each thread holds the agent's on it
  * @param {import("../../../../../build/browser/domain.ts").ContentVersion[]} markingRead
  * @param {boolean} ready
  */
@@ -331,6 +332,7 @@ export function readThreadRecords(
   document,
   widgets,
   workflows,
+  todos = [],
   markingRead = [],
   ready = true,
 ) {
@@ -420,7 +422,13 @@ export function readThreadRecords(
       settling: thread.settling ?? null,
       user_prompt: thread.user_prompt,
       attention: thread.attention,
-      todos: thread.todos,
+      // The agent's open to-dos on the thread: a reply that promised one says it is
+      // still open (a to-do a reply opens takes the reply's id, `todos.py`), the first
+      // is the one a thread waiting on a to-do waits on, and a running one is work the
+      // thread's working message reads whoever's turn the thread is.
+      todos: todos.filter(
+        (todo) => todo.owner === "agent" && todo.thread === thread.id,
+      ),
       workflows: workflows.filter((workflow) => workflow.thread === thread.id),
       bare_reaction: thread.bare_reaction,
       seat: thread.seat,

@@ -617,8 +617,7 @@ function foldThreads(threads, gestures) {
         seat: pendingSeat(gesture),
         summaries: [],
         unread: [],
-        attention: reaction ? null : sending(gesture),
-        todos: []
+        attention: reaction ? null : sending(gesture)
       };
       opened.push(thread);
       byName.set(gesture.id, thread);
@@ -677,7 +676,7 @@ function lastMovedAt(thread) {
   return latest;
 }
 var versionKey = ({ message, version }) => `${message}\0${version}`;
-function readThreadRecords(threads, document, widgets, workflows, markingRead = [], ready = true) {
+function readThreadRecords(threads, document, widgets, workflows, todos = [], markingRead = [], ready = true) {
   const locallyRead = new Set(markingRead.map(versionKey));
   const unitsByMessage = /* @__PURE__ */ new Map();
   for (const descriptor of document.descriptors.values()) {
@@ -752,7 +751,13 @@ function readThreadRecords(threads, document, widgets, workflows, markingRead = 
       settling: thread.settling ?? null,
       user_prompt: thread.user_prompt,
       attention: thread.attention,
-      todos: thread.todos,
+      // The agent's open to-dos on the thread: a reply that promised one says it is
+      // still open (a to-do a reply opens takes the reply's id, `todos.py`), the first
+      // is the one a thread waiting on a to-do waits on, and a running one is work the
+      // thread's working message reads whoever's turn the thread is.
+      todos: todos.filter(
+        (todo) => todo.owner === "agent" && todo.thread === thread.id
+      ),
       workflows: workflows.filter((workflow) => workflow.thread === thread.id),
       bare_reaction: thread.bare_reaction,
       seat: thread.seat,
@@ -1633,8 +1638,9 @@ function localTodos(state, local) {
   const undoing = new Set(
     local.flatMap(({ event }) => event.kind === "undo" ? [event.undoes] : [])
   );
-  const served = state?.browser.todos ?? [];
-  const ended = state?.browser.ended_todos ?? [];
+  const all = state?.browser.todos ?? [];
+  const served = all.filter((todo) => todo.state === "open");
+  const ended = all.filter((todo) => todo.state !== "open");
   const reopened = (todo) => todo.outcome !== null && undoing.has(todo.outcome.id ?? "");
   const open = [
     ...served,
@@ -2061,6 +2067,7 @@ function createSemanticApplication({
       document,
       widgets2,
       workflows,
+      todos.open,
       markingRead,
       ready
     );

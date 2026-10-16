@@ -116,7 +116,6 @@ const state = (taken, events = []) => ({
     receipts: events,
     thread_memberships: {},
     todos: [],
-    ended_todos: [],
     approval_history: [],
     views: {
       1: {

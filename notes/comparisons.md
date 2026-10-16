@@ -567,10 +567,12 @@ values per component rather than shared tokens.
 
 Patterns Leaf lacked on the read date:
 
-- **Structured run progress.** Agent Plan, Tool Call Card and Thinking State show
-  steps ticking through with live timers, and tool calls folded to one line under a
-  summary ("Used 2 tools · 1 failed · 2.7s"). Leaf's thread shows the latest
-  progress message with an age; drawing steps needs a step report in the protocol.
+- **A plan drawn as a plan.** Agent Plan keeps a run's steps in order in one card,
+  done ones ticked and the current one timed, under "Running · 1 of 5". Leaf already
+  holds that plan as the agent's to-dos, with `leaf task start` naming the current
+  one, but the On *agent* tab draws them as equal rows and folds finished ones away,
+  with no count or elapsed time. Tool Call Card has no Leaf counterpart: tool calls
+  belong to the harness's transcript.
 - **Answering in a list row.** Agent Inbox and Decision Inbox put Approve and Reject
   in each row, with status and a live clock on the agent's rows. Leaf's floating
   panel's On view answers inline; the side panel's On panel travels to the ask.

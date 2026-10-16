@@ -48,7 +48,7 @@ from render_harness import (
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
-from browser.test_render_startup import HELD_KEYS_PAGE, _hold_startup
+from browser.startup import HELD_KEYS_PAGE, _hold_startup
 
 
 def test_the_gallery_embeds_an_ordinary_stamped_page(browser, serve):

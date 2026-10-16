@@ -39,25 +39,18 @@ from render_harness import (
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
-from browser.test_render_margin import (
+from browser.margin import (
     ACTION_ON_ASK,
-    ASK_IN_LONG_PAGE,
     CARD_AND_REPLY,
     COMMENT_ON_ASK,
     DRAFTING_CARD,
     LONG_THREAD_ROOT,
-    MARGIN_ACTIONS_EVENTS,
     MARGIN_ACTIONS_PAGE,
     MARGIN_EDITOR_ROOTS,
     PANE_PIN_PAGE,
-    SUGGESTION_PINS,
-    THREAD_CARD_GEOMETRY,
-    THREAD_CARD_PAGE,
     WORDS_RIGHT,
     _comment_on,
     _focused_editor_caret,
-    _open_thread,
-    _seed_card_threads,
     _unfold,
     _unfold_suggestion_undo,
     drafting_in_a_short_card,
@@ -66,6 +59,207 @@ from browser.test_render_margin import (
     seeded_thread,
     send_anchored_comment,
 )
+from render_harness import comment_note, example_media, leaf_page
+
+MARGIN_ACTIONS_EVENTS = (
+    {
+        "kind": "comment",
+        "author": "agent",
+        "revision": 1,
+        "text": "Which space is easier to find?",
+        "anchor": {"section": "s-crowded"},
+    },
+    {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "token": "prioritize",
+        "anchor": {"section": "s-crowded"},
+    },
+)
+
+
+# Each suggestion's pin, folded or not, where its controls stand on the page, and where
+# its words end.
+SUGGESTION_PINS = """(ids) => ids.map((id) => {
+  const row = document.querySelector(`[data-lf-margin-for="${id}"]`);
+  const end = [...document.getElementById(id).getClientRects()].at(-1);
+  return [id, row.hasAttribute('data-lf-folded'),
+    [...row.querySelectorAll('.lf-margin-entry')].filter((e) => e.checkVisibility())
+      .map((e) => { const b = e.getBoundingClientRect();
+        return [e.getAttribute('data-lf-margin-entry-key'), b.left, b.top + scrollY]; }),
+    end.right];
+})"""
+
+
+# An Ask in the middle of a long page, so its margin host can be scrolled out from under
+# a parked pointer and back.
+ASK_IN_LONG_PAGE = LONG_PAGE.replace(
+    "<p id='p20'>",
+    """<lf-ask id="route-ask"><h2>Which route should the walk follow?</h2>
+<lf-options id="route" choose>
+  <lf-option id="route-garden">Through the garden</lf-option>
+  <lf-option id="route-river">Along the river</lf-option>
+</lf-options></lf-ask>
+<p id='p20'>""",
+    1,
+)
+
+
+# Two threaded passages with room above and below to scroll them: one paragraph in the
+# right cell of a two-up pair, as a before-and-after comparison sets it, so its words end
+# short of the column and leave room on their left; and a suggestion whose cluster a
+# thread and two reactions in force crowd.
+THREAD_CARD_PAGE = leaf_page(
+    "Thread cards",
+    """
+<h1 id="t">Workshop agenda</h1>
+{before}
+<div id="title-pair">
+  <section id="title-before">
+    <p class="eyebrow">Before · untitled</p>
+    <p id="thread-pending"><strong>An untitled thread.</strong> The workshop schedule
+    leaves lunch open. The agent asked without naming the thread, so its row reads the
+    question itself until the agent gives it a short name.</p>
+  </section>
+  <section id="title-after">
+    <p class="eyebrow">After · title assigned</p>
+    <p id="thread-text"><strong>An existing thread.</strong> The sample agenda has room
+    for one more topic. Its speech-bubble control is green, and hovering it shows “On
+    you” under the label. The image question still needs an answer even though the
+    agent added a later progress message. Open the control and reply: the control turns
+    blue as the thread comes back to the agent.</p>
+  </section>
+</div>
+{between}
+<p id="crowded-line"><strong>Combine roles.</strong> Use the
+  <lf-suggestion id="crowded"><lf-old>courtyard</lf-old><lf-new>covered terrace</lf-new></lf-suggestion>
+  for the practice session. “Accept” and “Reject” act immediately; “Thread” and “⋯”
+  disclose more; a reaction mark stands only while its reaction does.</p>
+{after}
+""",
+    head="""<style>
+#title-pair {{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: var(--sp-4);
+  margin-block: var(--sp-4);
+  max-width: 54rem;
+}}
+</style>""",
+).format(
+    **{
+        part: "\n".join(
+            f"<p id='{part}-{i}'>{part.title()} {i}. " + "Filler. " * 30 + "</p>"
+            for i in range(count)
+        )
+        for part, count in (("before", 8), ("between", 4), ("after", 10))
+    }
+)
+
+
+def _seed_card_threads(page_dir):
+    """Seed THREAD_CARD_PAGE's two threads and the crowded cluster's reactions, and
+    return the two threads' ids: the one on `#thread-text`, then the one on `#crowded`.
+
+    The `#thread-text` thread is the gallery's, its question carrying the pasted room
+    photo, so its transcript is as tall as a real one: a card whose height falls short
+    clips it."""
+    image = "051bee487bfb5d13.png"
+    (page_dir / "media").mkdir(exist_ok=True)
+    (page_dir / "media" / image).write_bytes((example_media() / image).read_bytes())
+
+    def comment(event):
+        return append_carried_log_record(
+            page_dir, {"kind": "comment", "revision": 1, **event}
+        )
+
+    text = comment(
+        {
+            "author": "agent",
+            "text": "I moved the practice exercise before lunch and left the rest of "
+            "the agenda unchanged.",
+            "anchor": {
+                "section": "thread-text",
+                "quote": "The sample agenda has room for one more topic.",
+            },
+        }
+    )
+    for reply, question in (
+        (
+            (
+                "The pasted image stays inside this thread. Does this crop show "
+                "enough of the room, or should I reshoot it wider?\n\n"
+                f"![Pasted image](/media/{image})"
+            ),
+            True,
+        ),
+        (
+            (
+                "I also added the room number to the agenda. The image question "
+                "above still needs your answer."
+            ),
+            False,
+        ),
+    ):
+        append_carried_log_record(
+            page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "parent": text["id"],
+                "revision": 1,
+                "text": reply,
+                **({"question": True} if question else {}),
+            },
+        )
+    crowded = comment(
+        {
+            "author": "agent",
+            "text": "Which space is easier to find? This thread shares its target with "
+            "the decision and reaction controls.",
+            "anchor": {"section": "crowded"},
+        }
+    )
+    for token in ("keep", "change"):
+        comment({"author": "user", "token": token, "anchor": {"section": "crowded"}})
+    return text["id"], crowded["id"]
+
+
+def _open_thread(page, target, thread_id):
+    """Enter a thread from its target's comment note."""
+    page.locator(f"#{target}").scroll_into_view_if_needed()
+    comment_note(page, f"#{target}").press("Enter")
+    walked = page.locator(".lf-margin-preview .lf-page-thread")
+    expect(walked).to_have_attribute("data-thread", thread_id)
+    expect(walked).to_be_focused()
+    rendered(page)
+
+
+# Read the card alongside its target, control cluster, and available message width.
+THREAD_CARD_GEOMETRY = """() => {
+  const main = document.querySelector('main').getBoundingClientRect();
+  const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
+  const controls = document.querySelector('[data-lf-margin-for] [aria-expanded="true"]')
+    .closest('[data-lf-margin-for]').getBoundingClientRect();
+  const reply = document.querySelector('.lf-margin-thread leaf-text')
+    .getBoundingClientRect();
+  return {
+    mainLeft: main.left, mainRight: main.right,
+    wordsRight: main.right - parseFloat(getComputedStyle(document.querySelector('main'))
+      .paddingRight),
+    controlsLeft: controls.left, controlsRight: controls.right,
+    controlsTop: controls.top,
+    controlsBottom: controls.bottom,
+    cardLeft: card.left, cardRight: card.right, cardTop: card.top,
+    cardBottom: card.bottom, cardWidth: card.width,
+    replyWidth: reply.width, innerWidth: window.innerWidth,
+    minimum: parseFloat(getComputedStyle(document.querySelector('.lf-margin-preview'))
+      .getPropertyValue('--thread-card-min')),
+    preferred: parseFloat(getComputedStyle(document.querySelector('.lf-margin-preview'))
+      .getPropertyValue('--thread-card')),
+  };
+}"""
 
 
 def test_a_settled_page_with_a_reaction_in_force_stops_rendering_its_margin(

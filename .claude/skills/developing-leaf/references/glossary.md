@@ -125,8 +125,8 @@ without being a pane, and its own stylesheet decides whether they scroll.
 | Term | Identity criterion |
 |---|---|
 | **Chrome** | Interface the runtime draws outside authored content, rooted at the one `.lf-chrome` container |
-| **Leaf panel** | Opt-in chrome (`?lf-chrome=floating`, `floating-panel.js`) that replaces the banner and bottom bar with one box floating at the window's foot: the leaf, which opens a menu of the page's controls, the comment field, and the On me and Threads marks |
-| **Banner** | The default chrome (`?lf-chrome=classic` restores it): the fixed row at the window's top with page status, the agent's count (**On Claude: 2**), the primary controls, and a More menu of the rest (`banner-toolbar.js`) |
+| **Leaf panel** | The default chrome (`floating-panel.js`) that replaces the banner and bottom bar with one box floating at the window's foot: the leaf, which opens a menu of the page's controls, the comment field, and the On me and Threads marks |
+| **Banner** | The other chrome, chosen with **Use the banner** in the leaf's menu (`chrome-choice.js`) or `?lf-chrome=classic`: the fixed row at the window's top with page status, the agent's count (**On Claude: 2**), the primary controls, and a More menu of the rest (`banner-toolbar.js`) |
 | **Page comment card** | The card under the banner's Comment on the page control, holding the page's general comment box, the one place a page thread starts (`thread/page-comment.js`) |
 | **Bottom bar** | Classic chrome's row at the window's foot, of fixed height (`--lf-bottom-bar-h`), holding the shortcut bar and the status |
 | **Auxiliary surface** | Chrome opened `beside`, `over` or `covering` the content frame |
@@ -150,8 +150,8 @@ dialog**. The margin projection has its own terms:
 |---|---|
 | **Rail** | The strip right of `main` where margin rows sit beside their targets. It appears where there is room beside `main` and never moves the column; `data-rail="right"` on `body` reserves its width and narrows the page instead (`page-layout.md`, "The rail and the margin") |
 | **Margin resident** | Something the margin holds: the rail, the contents map, a column page's first sidebar, its sidenotes. `residency` in `prepaint.js` admits each where there is room beside `main` |
-| **Margin row** | One row tied to a target, placed in the `rail`, as a `pin`, or `withheld` |
-| **Pin** | A margin row drawn over the page by its target, used where the row can't sit in the rail (`rowPosture`). It takes the first spot touching its target that covers no words, control, media or other pin; with none free it folds, and failing that it covers the target (`seatRows` in `margin-placement.js`) |
+| **Margin row** | One row tied to a target, placed in the `rail`, as a `pin`, or `withheld`. A target has its own row, plus one for each row inside it a pointing gesture named and one for each passage its comments quote, each standing level with what it is about (`groupFor` in `annotation-inventory.js`) |
+| **Pin** | A margin row drawn over the page by its target, used where the row can't sit in the rail (`rowPosture`). It takes the first spot touching its target that covers no words, control, media or other pin, and a quoted passage's pin then tries its paragraph's spots near the words; with none free it folds, and failing that it covers the target (`seatRows` in `margin-placement.js`) |
 | **Folded pin** | A pin drawn as its options' toggle alone (`data-lf-folded`) because its full face found no room |
 | **Margin lane** | The layer holding one scroller's margin rows: the root lane for the document, and one lane per bounded reading region, clipped to what that region shows |
 | **Margin cluster** | The visible group attached to one target |

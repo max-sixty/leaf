@@ -413,34 +413,33 @@ summary {
   inline-size: fit-content;
   max-inline-size: 100%;
   font: max(var(--entry-floor), var(--t-5))/1.5 var(--sans);
-  color: color-mix(in oklab, var(--muted) 80%, var(--paper));
+  color: color-mix(in srgb, var(--ink) 50%, transparent);
 }
 .lf-thread-working[data-lf-live] .lf-thread-working-words {
   animation: lf-sheen 2s ease-in-out infinite alternate;
 }
 @keyframes lf-sheen {
   from, to {
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    background-image:
+    color: var(--ink);
+    mask-image:
       linear-gradient(
         110deg,
-        currentColor 42%,
-        var(--ink) 50%,
-        currentColor 58%);
-    background-size: 200% 100%;
+        rgb(0 0 0 / var(--lf-sheen-rest, 0.5)) 42%,
+        #000 50%,
+        rgb(0 0 0 / var(--lf-sheen-rest, 0.5)) 58%);
+    mask-size: 200% 100%;
   }
   from {
-    background-position: 100% 0;
+    mask-position: 100% 0;
   }
   to {
-    background-position: 0% 0;
+    mask-position: 0% 0;
   }
 }
 @media (forced-colors: active) {
   @keyframes lf-sheen {
     from, to {
-      -webkit-text-fill-color: currentColor;
+      mask-image: none;
     }
   }
 }
@@ -1741,6 +1740,9 @@ html[data-lf-draw-mode] main {
 .lf-code-copy.lf-code-copy-away {
   display: none;
 }
+.lf-code-copy-home {
+  display: contents;
+}
 .lf-code-copy-cut {
   pointer-events: none;
   z-index: 1;
@@ -1748,7 +1750,7 @@ html[data-lf-draw-mode] main {
 .lf-code-copy-cut > .lf-code-copy {
   position: fixed;
 }
-:not(.lf-chrome):is(:hover, [data-lf-focus-within]) > .lf-code-copy,
+:not(.lf-chrome, .lf-code-copy-home):is(:hover, [data-lf-focus-within]) > .lf-code-copy,
 .lf-code-copy-hover,
 .lf-code-copy-focused,
 .lf-code-copy:is(:hover, [data-lf-focus-within]) {

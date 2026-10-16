@@ -18,6 +18,7 @@ import {
   presentingContributions,
   registerContribution,
   spokenSubject,
+  threadMarks,
   versionBtn,
   versionMenu,
   versionMenuIsOpen,
@@ -59,6 +60,7 @@ import {
   draftContexts,
   draftEditingDestination,
   draftEditingStands,
+  drawnThreadId,
   finishFold,
   fitsWhole,
   focusThread,
@@ -144,15 +146,19 @@ import {
   surfaceFocusTarget,
   tabStore,
   textBlocks,
-  threadAttention,
+  threadDraft,
   threadFocusDestination,
   threadFocusStop,
+  threadIdNamed,
   threadList,
+  threadName,
+  threadNamed,
   threadPart,
   threadReading,
   threadReplyInput,
   threadRewrites,
   threadState,
+  todoLabel,
   transferDraft,
   watchDraft,
   watchDrafts,
@@ -253,6 +259,7 @@ import {
   pageDocument,
   pageParts,
   pageReadingVersion,
+  quoteFrom,
   rangeOf,
   readingFrom,
   selectEnds,
@@ -406,18 +413,18 @@ import {
   askValue,
   bindQueuedWork,
   collectReads,
+  discussed,
   editable,
   foldWidgetStates,
   isMessageEvent,
   isThreadEvent,
+  lastMovedAt,
   moved,
   outsideReading,
   projectionOrigins,
   reactionsAt,
   stateCoordinate,
   threadKey,
-  threadNames,
-  threadSummary,
   tokenChoices,
   untracked
 } from "./bundle-queued-work.js";
@@ -684,7 +691,7 @@ function sentDrawing(drawing) {
 }
 
 // runtime/protocol.js
-var recordFormat = (kind) => `leaf-${kind}/7`;
+var recordFormat = (kind) => `leaf-${kind}/8`;
 
 // runtime/composing/text-field.js
 import {
@@ -742,8 +749,8 @@ sheet.replaceSync(`
     .lf-field-placeholder { padding-inline-end: 0; }
     .cm-line.lf-field-last::after { content: none; }
   }
-  :host(:state(scrolls)) .lf-field { padding-inline-end: var(--lf-field-end-room); }
-  :host(:state(scrolls)) .cm-line.lf-field-last::after { content: none; }
+  :host([data-scrolls]) .lf-field { padding-inline-end: var(--lf-field-end-room); }
+  :host([data-scrolls]) .cm-line.lf-field-last::after { content: none; }
   /* A draft wears the sent message's faces. Strong, emphasis and strikethrough are the
      elements themselves, which the platform dresses here as it does in the message;
      the rest read the theme's tokens, since its element rules stop at this root. A
@@ -960,16 +967,35 @@ var LeafText = class extends HTMLElement {
   });
   // Host overflow holds the action's room on every line. The host stops at the page's
   // height limit while words grow inside it, so the reading watches the editor's
-  // scroller too. Editor updates and size changes share its read/write phase: the room
-  // changes layout there, rather than feeding back into resize observer delivery.
+  // content too. Editor updates and size changes share its read/write phase: the room
+  // changes layout there, rather than feeding back into resize observer delivery. The
+  // same reading says which edges words run past (`more-above`, `more-below`), read
+  // again as the host scrolls, so an owner can show there is more without a scrollbar.
+  // A scroll timeline would say it in CSS alone, but Firefox lacks scroll timelines.
   #overflow = sizeObserver(() => this.#measureOverflow());
   #measureOverflow() {
     this.#view?.requestMeasure({
       key: this.#overflow,
-      read: () => this.scrollHeight > this.clientHeight,
-      write: (scrolls) => {
-        if (scrolls) this.#internals.states.add("scrolls");
-        else this.#internals.states.delete("scrolls");
+      // Words, not the host's padding, run past an edge.
+      read: () => {
+        const style = getComputedStyle(this);
+        return {
+          scrolls: this.scrollHeight > this.clientHeight,
+          above: this.scrollTop > Number.parseFloat(style.paddingTop) + 1,
+          below: this.scrollTop + this.clientHeight < this.scrollHeight - Number.parseFloat(style.paddingBottom) - 1
+        };
+      },
+      write: (reading) => {
+        if (this.hasAttribute("data-scrolls") !== reading.scrolls)
+          this.toggleAttribute("data-scrolls", reading.scrolls);
+        for (const [state, on] of [
+          ["more-above", reading.scrolls && reading.above],
+          ["more-below", reading.scrolls && reading.below]
+        ]) {
+          if (this.#internals.states.has(state) === on) continue;
+          if (on) this.#internals.states.add(state);
+          else this.#internals.states.delete(state);
+        }
       }
     });
   }
@@ -989,6 +1015,7 @@ var LeafText = class extends HTMLElement {
     this.#root.append(this.#frame);
     this.#model = this.#create("");
     this.addEventListener("mousedown", (event) => this.#pressPadding(event));
+    this.addEventListener("scroll", () => this.#measureOverflow(), { passive: true });
     this.#root.addEventListener("beforeinput", () => this.#beforeEdit(), {
       capture: true
     });
@@ -1095,7 +1122,7 @@ var LeafText = class extends HTMLElement {
     this.#model = null;
     this.#sizes.observe(this);
     this.#overflow.observe(this);
-    this.#overflow.observe(this.#view.scrollDOM);
+    this.#overflow.observe(this.#view.contentDOM);
     this.#view.scrollDOM.removeAttribute("tabindex");
     this.#describe();
     this.#paintEmpty();
@@ -1936,7 +1963,6 @@ function scrollToFragment(element) {
 function createAnchorTravel({
   anchors,
   surfaces,
-  currentThreads,
   refreshThread,
   focusForNavigation,
   threadFocusTarget,
@@ -2048,12 +2074,13 @@ function createAnchorTravel({
           focus: input,
           caret,
           scroll: input ? [
-            { at: input, block: "nearest" },
+            { at: input, block: "nearest", behavior: "instant" },
             {
               at: current.where,
+              behavior: "instant",
               when: () => !readableDestination(current.where) || !readableDestination(input)
             }
-          ] : [{ at: current.where }]
+          ] : [{ at: current.where, behavior: "instant" }]
         };
       },
       {
@@ -2062,10 +2089,6 @@ function createAnchorTravel({
         present: async () => {
           const current = resolve();
           if (!current) return;
-          if (!readableDestination(current.where))
-            mayArrive.handoff(() => {
-              scrollIntoView(current.where, { behavior: "instant", block: "center" });
-            });
           if (current.open)
             mayArrive.handoff(() => {
               release = current.open();
@@ -2229,7 +2252,7 @@ function createAnchorTravel({
   };
   async function scrollToThread(id, { part = null, focus = true, keep = false, presented: presented3 = null, intent } = {}) {
     const mayArrive = retainTravel(intent);
-    const thread = threadNames(currentThreads()).get(id);
+    const thread = threadNamed(id);
     const anchor = thread?.anchor;
     const status = anchors.placedAt(id)?.status;
     const hydrating = anchor?.datum && status !== "outdated" || anchor?.visual;
@@ -3982,7 +4005,7 @@ function threadSection(t, outline, placedAt) {
   });
 }
 var lastMoved = (thread, now) => {
-  const latest = threadSummary(thread).latest;
+  const latest = lastMovedAt(thread);
   return latest ? Date.parse(latest) : now;
 };
 function inRecentOrder(threads) {
@@ -4032,6 +4055,8 @@ function createAnnotationInventory({
     }
     return `${prefix}${from}${steps.reverse().join("/")}`;
   }
+  const standsBy = (group) => group.point ?? targetSegments(group.passage)[0]?.node ?? group.target;
+  const startsAt = (group) => targetSegments(group.passage)[0]?.start ?? -1;
   function comesBefore(left, right) {
     if (left === right) return 0;
     if (!left) return 1;
@@ -4044,6 +4069,8 @@ function createAnnotationInventory({
   const points = /* @__PURE__ */ new Map();
   const entryPoint = (entry) => entry ? livePoint(targetFor(entry), points.get(entry.key)) : null;
   const entryPlace = (entry) => entryPoint(entry) ?? targetFor(entry);
+  const passages = /* @__PURE__ */ new Map();
+  const entryPassage = (entry) => entry ? passages.get(entry.key) ?? null : null;
   const pointName = (words2) => {
     const excerpt = words2 && excerptWords(words2, 32);
     return excerpt ? `\u201C${excerpt}\u201D` : null;
@@ -4068,15 +4095,16 @@ function createAnnotationInventory({
     );
   };
   function groupFor(groups, target, pointed = null) {
-    const slot = pointed ? `point:${pointed.key}` : target;
+    const key = pointed ? `${targetPath(target)}@${pointed.key}` : targetPath(target);
+    const slot = pointed ? `point:${key}` : target;
     let group = groups.get(slot);
     if (!group) {
-      const key = pointed ? `${targetPath(target)}@${pointed.key}` : targetPath(target);
       const word = addressableWord(target);
       group = {
         key,
         target,
         point: pointed?.element ?? null,
+        passage: pointed?.passage ?? null,
         pointWords: pointed?.words ?? null,
         word,
         subject: null,
@@ -4087,6 +4115,14 @@ function createAnnotationInventory({
       groups.set(slot, group);
     }
     return group;
+  }
+  function passageRow(target, passage) {
+    const segments = targetSegments(passage);
+    const page = textNodesUnder(target);
+    const at = page.findIndex(({ node }) => node === segments[0].node);
+    const before = at < 0 ? page : [...page.slice(0, at), { ...page[at], end: segments[0].start }];
+    const words2 = quoteFrom(segments);
+    return JSON.stringify([words2, quoteFrom(before).split(words2).length - 1]);
   }
   function add(groups, target, item, pointed = null) {
     if (!target?.isConnected || inChrome(target)) return;
@@ -4146,12 +4182,13 @@ function createAnnotationInventory({
         continue;
       const id = thread.id;
       const target = placedAt(id)?.place;
-      const attention = threadAttention(thread);
-      const onUser = attention?.kind === "needs_user";
-      const unread = thread.unread.length;
       const placement = placedAt(id);
       const point = livePoint(target, placement?.point);
-      const pointed = point ? { key: placement.pointRow, element: point, words: placement.pointWords } : null;
+      const pointed = point ? { key: placement.pointRow, element: point, words: placement.pointWords } : targetSegments(placement).length ? {
+        key: passageRow(target, placement),
+        passage: placement,
+        words: thread.anchor.quote
+      } : null;
       add(
         groups,
         target,
@@ -4162,24 +4199,13 @@ function createAnnotationInventory({
           // whose identity changed there would be rebuilt — taking with it the reply box
           // the send had just put them in.
           id: marginThreadItem(thread),
-          text: labelWords(
-            thread.root.text || anchorLabel(thread.anchor, thread.root.about)
-          ),
+          text: threadName(thread),
           thread,
           // The Thread record already combines server attention with the local workflow
           // overlay. Margin and Page Map carry that reading rather than deriving another
-          // answer from raw turn or workflow fields.
-          userAttention: onUser ? {
-            label: attention.label,
-            reason: thread.attention?.reason ?? "workflow"
-          } : null,
-          unread,
-          // Page Map lists each thread on its own row, so the word goes on the row
-          // rather than on an aggregate.
-          ...onUser || thread.attention?.reason === "todo" ? { mapContext: attention.label } : unread ? { mapContext: `${unread} unread` } : {},
-          // Work decorates the thread control; it never replaces the control's
-          // comment face or its disclosure action.
-          workflowReceipt: onUser ? null : attention?.workflow,
+          // answer from raw turn or workflow fields. Work decorates the thread control;
+          // it never replaces the control's comment face or its disclosure action.
+          ...threadMarks(thread),
           activate: () => openThread(id)
         },
         pointed
@@ -4295,7 +4321,7 @@ function createAnnotationInventory({
       if (activityAlreadyShown.has(`widget:${todo.subject.id}`)) continue;
       const target = elementById(todo.subject.id);
       const { running } = todo;
-      const label = running ? "Working" : "To-do open";
+      const label = todoLabel(running);
       const account = [todo.agent, running?.text ?? todo.title].filter(Boolean).join(" \xB7 ");
       const age = running && ago(running.ts);
       add(groups, target, {
@@ -4341,13 +4367,15 @@ function createAnnotationInventory({
     const subjects = collected.filter((group) => !group.subject).map((group) => group.target);
     targets.clear();
     points.clear();
+    passages.clear();
     entries = marginInventory(
       collected.sort(
-        (left, right) => comesBefore(left.point ?? left.target, right.point ?? right.target)
+        (left, right) => comesBefore(standsBy(left), standsBy(right)) || startsAt(left) - startsAt(right)
       ).map((group) => {
         const subject = outlineSubjectFor(group.target, subjects, outline);
         targets.set(group.key, group.target);
         if (group.point) points.set(group.key, group.point);
+        if (group.passage) passages.set(group.key, group.passage);
         return Object.freeze({
           key: group.key,
           targetId: group.target.id,
@@ -4391,6 +4419,7 @@ function createAnnotationInventory({
     targetFor,
     entryPoint,
     entryPlace,
+    entryPassage,
     sourceItem,
     workflowReceipt,
     targetPath,
@@ -5977,11 +6006,11 @@ function createThreadDestinations({
   const threadHere = () => heldThread() ?? preview?.accompanied() ?? null;
   const threadAtStanding = () => {
     const held = heldThread();
-    if (held) return held.dataset.thread ?? held.dataset.id;
+    if (held) return drawnThreadId(held);
     const active = focused();
     const ids = active ? threadIdsAt(active) : [];
     const shown = threadHere();
-    const shownId = shown?.dataset.thread ?? shown?.dataset.id;
+    const shownId = drawnThreadId(shown);
     if ((!active || active === document.body) && shownId) return shownId;
     return ids.includes(shownId) ? shownId : ids[0] ?? null;
   };
@@ -6004,8 +6033,8 @@ function createThreadDestinations({
     const trip = travel2 && scroll;
     const selected = presentation;
     if (selected?.owner.isConnected) {
-      const thread = threadNames(readThreads().threads).get(id);
-      if (!thread) return null;
+      const thread = threadNamed(id);
+      if (!thread || !discussed(thread)) return null;
       opening?.abort();
       const abort = new AbortController();
       opening = abort;
@@ -6120,16 +6149,15 @@ function createThreadDestinations({
   async function openThreadDraft(context, intent) {
     const thread = threadHolding(context);
     if (!thread) return null;
-    if (context.startsWith("reply:"))
-      return openPageThread(thread.id, { part: "reply", intent });
-    const name = context.slice(context.indexOf(":") + 1);
+    const { part, name } = threadDraft(context);
+    if (part === "reply") return openPageThread(thread.id, { part: "reply", intent });
     const landed = await openPageThread(name, { part: "message", intent });
     const card = landed && closestAcross(landed, THREAD);
     return card ? openMessageEditIn(card, name) : null;
   }
   function threadHolding(context) {
-    const name = context.slice(context.indexOf(":") + 1);
-    return context.startsWith("reply:") ? allThreads().find((each) => threadKey(each) === name) : allThreads().find((each) => each.msgs.some(({ id }) => id === name));
+    const { part, name } = threadDraft(context);
+    return part === "reply" ? allThreads().find((each) => threadKey(each) === name) : allThreads().find((each) => each.msgs.some(({ id }) => id === name));
   }
   return {
     register,
@@ -7710,6 +7738,7 @@ function mountApplication(dependencies) {
     retireProjectionCoverage: projection.retireProjectionCoverage,
     threadActions: threadActions2,
     queueActions: queueActions2,
+    settlement: settlementView,
     openAsk(id) {
       const ask = readAsks().all.find((item) => item.id === id);
       if (!ask) return Promise.resolve(false);
@@ -7924,7 +7953,7 @@ function wireThreadLanding(threadsBox) {
   });
 }
 var listNode = (id, threadsBox, preferMessage = false) => {
-  const threadId = threadNames(allThreads()).get(id)?.id ?? id;
+  const threadId = threadIdNamed(id);
   const message = `.lf-msg[data-mid="${CSS.escape(id)}"]`;
   const thread = `.lf-thread[data-id="${CSS.escape(threadId)}"]`;
   const node = preferMessage || id !== threadId ? threadsBox.querySelector(message) ?? threadsBox.querySelector(thread) : threadsBox.querySelector(thread) ?? threadsBox.querySelector(message);
@@ -7938,13 +7967,13 @@ async function showThreadNow(id, part, focus, flash, revealThread, threadsBox, m
     if (node2 && !going && !threadsBox.keepsForWords(id)) return { node: node2 };
     if (!mayArrive()) return null;
     if (going) finishFold(going);
-    const ready = revealThread(threadNames(allThreads()).get(id)?.id ?? id);
+    const ready = revealThread(threadIdNamed(id));
     return ready ? { ready } : null;
   });
   threadsBox.querySelector(
-    `.lf-thread[data-id="${CSS.escape(threadNames(allThreads()).get(id)?.id ?? id)}"], .lf-msg[data-mid="${CSS.escape(id)}"]`
+    `.lf-thread[data-id="${CSS.escape(threadIdNamed(id))}"], .lf-msg[data-mid="${CSS.escape(id)}"]`
   )?.classList.toggle("grow", false);
-  threadsBox.revealNavigation(threadNames(allThreads()).get(id)?.id ?? id);
+  threadsBox.revealNavigation(threadIdNamed(id));
   const destination = revealDestination();
   if (!destination) return null;
   let node = destination.node;
@@ -7953,8 +7982,7 @@ async function showThreadNow(id, part, focus, flash, revealThread, threadsBox, m
     if (!mayPresent()) return null;
     node = listNode(id, threadsBox, part === "message");
   }
-  if (mayArrive())
-    threadsBox.revealNavigation(threadNames(allThreads()).get(id)?.id ?? id);
+  if (mayArrive()) threadsBox.revealNavigation(threadIdNamed(id));
   node = listNode(id, threadsBox, part === "message");
   if (!node || !mayPresent()) return null;
   if (node.closest(".lf-summary-originals[hidden]")) {
@@ -8109,7 +8137,7 @@ function declareThreadKeys(landIn, narrowing) {
 function queueTitle(item) {
   const thread = readThreads().threads.find((thread2) => thread2.id === item.thread);
   const own = elementById(item.subject.id);
-  const topic = thread ? threadSummary(thread).topic : "";
+  const topic = thread ? threadName(thread) : "";
   if (item.title) return item.title;
   if (item.kind === "work" && item.detail) return item.detail;
   const sent = item.answer?.message && thread?.msgs.find((message) => message.id === item.answer.message);

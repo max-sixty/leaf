@@ -29,7 +29,7 @@ from render_harness import (
     write,
 )
 
-from browser.test_render_threads import paste_image
+from browser.threads import paste_image
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

@@ -144,8 +144,8 @@ sheet.replaceSync(`
     .lf-field-placeholder { padding-inline-end: 0; }
     .cm-line.lf-field-last::after { content: none; }
   }
-  :host(:state(scrolls)) .lf-field { padding-inline-end: var(--lf-field-end-room); }
-  :host(:state(scrolls)) .cm-line.lf-field-last::after { content: none; }
+  :host([data-scrolls]) .lf-field { padding-inline-end: var(--lf-field-end-room); }
+  :host([data-scrolls]) .cm-line.lf-field-last::after { content: none; }
   /* A draft wears the sent message's faces. Strong, emphasis and strikethrough are the
      elements themselves, which the platform dresses here as it does in the message;
      the rest read the theme's tokens, since its element rules stop at this root. A
@@ -416,17 +416,41 @@ class LeafText extends HTMLElement {
 
   // Host overflow holds the action's room on every line. The host stops at the page's
   // height limit while words grow inside it, so the reading watches the editor's
-  // scroller too. Editor updates and size changes share its read/write phase: the room
-  // changes layout there, rather than feeding back into resize observer delivery.
+  // content too. Editor updates and size changes share its read/write phase: the room
+  // changes layout there, rather than feeding back into resize observer delivery. The
+  // same reading says which edges words run past (`more-above`, `more-below`), read
+  // again as the host scrolls, so an owner can show there is more without a scrollbar.
+  // A scroll timeline would say it in CSS alone, but Firefox lacks scroll timelines.
   #overflow = sizeObserver(() => this.#measureOverflow());
 
   #measureOverflow() {
     this.#view?.requestMeasure({
       key: this.#overflow,
-      read: () => this.scrollHeight > this.clientHeight,
-      write: (scrolls) => {
-        if (scrolls) this.#internals.states.add("scrolls");
-        else this.#internals.states.delete("scrolls");
+      // Words, not the host's padding, run past an edge.
+      read: () => {
+        const style = getComputedStyle(this);
+        return {
+          scrolls: this.scrollHeight > this.clientHeight,
+          above: this.scrollTop > Number.parseFloat(style.paddingTop) + 1,
+          below:
+            this.scrollTop + this.clientHeight <
+            this.scrollHeight - Number.parseFloat(style.paddingBottom) - 1,
+        };
+      },
+      write: (reading) => {
+        // WebKit can retain style from a removed custom state after the words shrink.
+        // An attribute invalidates the field's CSS at the same layout boundary.
+        if (this.hasAttribute("data-scrolls") !== reading.scrolls)
+          this.toggleAttribute("data-scrolls", reading.scrolls);
+        for (const [state, on] of [
+          ["more-above", reading.scrolls && reading.above],
+          ["more-below", reading.scrolls && reading.below],
+        ]) {
+          // Adding a state already set restyles all the same, on every scrolled frame.
+          if (this.#internals.states.has(state) === on) continue;
+          if (on) this.#internals.states.add(state);
+          else this.#internals.states.delete(state);
+        }
       },
     });
   }
@@ -448,6 +472,7 @@ class LeafText extends HTMLElement {
     this.#root.append(this.#frame);
     this.#model = this.#create("");
     this.addEventListener("mousedown", (event) => this.#pressPadding(event));
+    this.addEventListener("scroll", () => this.#measureOverflow(), { passive: true });
     this.#root.addEventListener("beforeinput", () => this.#beforeEdit(), {
       capture: true,
     });
@@ -570,7 +595,9 @@ class LeafText extends HTMLElement {
     this.#model = null;
     this.#sizes.observe(this);
     this.#overflow.observe(this);
-    this.#overflow.observe(this.#view.scrollDOM);
+    // The host can keep the same height when a long draft shrinks. Watch the words'
+    // box too: its height changes even when the scroller's viewport does not.
+    this.#overflow.observe(this.#view.contentDOM);
     // The scroller is focusable only so a press on it keeps focus in the editor, and
     // the field's scroller never scrolls; left focusable it is the node the root
     // delegates focus to, which holds no caret.

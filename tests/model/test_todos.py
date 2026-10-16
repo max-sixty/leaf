@@ -16,7 +16,7 @@ from interact_support import (
     append_carried_log_record,
     append_command,
     asks_on_user,
-    command_refusal,
+    command_findings,
     delivered,
     page_packages,
     page_state,
@@ -146,7 +146,7 @@ def test_required_approval_is_an_ask_for_its_exact_stamp_until_approved(page_dir
         "approval",
     }
     assert done(page_dir, approval["id"])[0] == 400
-    refused = command_refusal("task", "end", page_dir, approval["id"], "done")
+    [refused] = command_findings("task", "end", page_dir, approval["id"], "done")
     assert (refused.code, refused.values["version"]) == ("approval-ask", 1)
     status, response = endpoint_model.accept_event(
         page_dir, {"kind": "done", "version": 1}, dict
@@ -326,13 +326,15 @@ def test_the_door_refuses_a_todo_off_the_page_and_an_outcome_twice(page_dir):
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "Hm."},
     )
-    missing = command_refusal("task", "open", page_dir, "no-such-thing", "Anything")
+    [missing] = command_findings("task", "open", page_dir, "no-such-thing", "Anything")
     assert missing.code == "unknown-subject"
-    unknown = command_refusal("task", "end", page_dir, "no-such-task", "done")
+    [unknown] = command_findings("task", "end", page_dir, "no-such-task", "done")
     assert unknown.code == "unknown-todo"
     # Work in a thread is opened by the reply that promises it, so a to-do's subject
     # is never a thread.
-    threaded = command_refusal("task", "open", page_dir, comment["id"], "Look into it")
+    [threaded] = command_findings(
+        "task", "open", page_dir, comment["id"], "Look into it"
+    )
     assert (threaded.code, threaded.values["field"]) == ("invalid-event", "/subject")
 
     todo = written(leaf("task", "open", page_dir, "page", "Look into it"))
@@ -613,7 +615,9 @@ def test_working_names_a_move_until_its_answer_and_a_todo_until_its_end(page_dir
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "Tighten it."},
     )
-    refused = command_refusal("task", "start", page_dir, "no-such-move", "Reading it")
+    [refused] = command_findings(
+        "task", "start", page_dir, "no-such-move", "Reading it"
+    )
     assert refused.code == "unowed-start"
 
     start = written(
@@ -867,7 +871,7 @@ def test_a_widget_todo_needs_a_seat_and_a_completing_stamp_ends_it(page_dir):
     ends it done, citing that version."""
     (page_dir / "index.html").write_text(WORK_PAGE)
     publish(page_dir)
-    no_seat = command_refusal("task", "open", page_dir, "flow", "Redraw the graph")
+    [no_seat] = command_findings("task", "open", page_dir, "flow", "Redraw the graph")
     assert no_seat.code == "no-work-seat"
 
     todo = written(leaf("task", "open", page_dir, "rollout-card", "Check the rollout"))
@@ -929,7 +933,7 @@ def test_a_stale_completing_stamp_refuses_before_publishing_or_settling_work(pag
     source.write_text(WORK_PAGE.replace("<title>t</title>", "<title>Checked</title>"))
     before = events_model.read_events(page_dir)
     revisions = files_model.list_revisions(page_dir)
-    refused = command_refusal(
+    [refused] = command_findings(
         "page",
         "stamp",
         page_dir,
@@ -1171,7 +1175,7 @@ def test_a_thread_ask_remains_distinct_from_explicit_user_work(page_dir):
             "--ask",
         )
     )
-    refused = command_refusal(
+    [refused] = command_findings(
         "task", "open", page_dir, comment["id"], "Is it enough?", "--on", "user"
     )
     # A to-do's subject is never a thread; the thread asks with `--ask`.
@@ -1236,11 +1240,11 @@ def test_widget_ask_ends_through_its_source_and_agent_ends_a_prose_ask(page_dir)
             )["id"]
         )
     answered_elsewhere, dropped = asked
-    refused = command_refusal(
+    [refused] = command_findings(
         "task", "end", page_dir, ask["id"], "dropped", "Decided in chat"
     )
     assert refused.code == "widget-ask"
-    refused = command_refusal(
+    [refused] = command_findings(
         "task", "end", page_dir, answered_elsewhere, "failed", "No reply"
     )
     assert refused.code == "failed-prose-ask"
@@ -1295,7 +1299,7 @@ def test_widget_ask_ends_through_its_source_and_agent_ends_a_prose_ask(page_dir)
             "detail": {"value": ["flag-first"]},
         },
     )
-    answered = command_refusal("task", "end", page_dir, ask["id"], "done")
+    [answered] = command_findings("task", "end", page_dir, ask["id"], "done")
     assert answered.code == "widget-ask"
 
 
@@ -1303,7 +1307,7 @@ def test_user_work_cannot_duplicate_a_widget_ask(page_dir):
     """An ask owns the request; opening user work must name that canonical id."""
     asking(page_dir)
     [ask] = asks_on_user(state_json(page_dir))
-    result = command_refusal(
+    [result] = command_findings(
         "task", "open", page_dir, "choice", "Check evidence", "--on", "user"
     )
     assert (result.code, result.values["ask"]) == ("duplicate-ask", "widget:choice")
@@ -1471,10 +1475,8 @@ def test_a_start_is_one_log_record_read_at_the_banner_and_the_move(
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "why?"}
     )
-    assert (
-        command_refusal("task", "start", page_dir, "nope", "reading the traces").code
-        == "unowed-start"
-    )
+    [unowed] = command_findings("task", "start", page_dir, "nope", "reading the traces")
+    assert unowed.code == "unowed-start"
     assert _start(page_dir, "c1", "").exit_code != 0
 
     monkeypatch.setenv("LEAF_AGENT", "Trace reader")
@@ -1735,7 +1737,7 @@ def test_only_a_declared_widget_work_seat_is_admitted(page_dir, target):
     )
     publish(page_dir)
 
-    claimed = command_refusal("task", "open", page_dir, target, "Check the estimate")
+    [claimed] = command_findings("task", "open", page_dir, target, "Check the estimate")
     assert claimed.code == "no-work-seat"
 
 

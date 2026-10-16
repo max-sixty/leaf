@@ -8,13 +8,18 @@ from interact_support import (
 )
 from leaf_dev import startup
 from leaf_dev.commands import journey, verify_site
-from process.test_website_server import (
-    _no_harness_outlives_its_test_fixture,  # noqa: F401 (fixtures)
-    shown_by,
-)
 from render_harness import (
     consume_browser_errors,
 )
+
+
+def shown_by(page, id):
+    """Which sign the page recorded for reply `id`, which no thread row dates."""
+    reply = {"thread": "comment", "id": id, "ts": "2026-10-08T09:00:00Z"}
+    page.wait_for_function(
+        "reply => window.__leafVerifier.replyShownAt(reply)", arg=reply
+    )
+    return page.evaluate("window.__leafVerifier.replyShownAt", reply)
 
 
 def test_a_failed_verifier_page_reports_its_browser_errors(browser):

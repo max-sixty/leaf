@@ -282,11 +282,13 @@ var targetRange = (resolved) => {
 };
 function rangeGeometry(range) {
   return {
+    range,
     contextNode: range.startContainer.nodeType === Node.TEXT_NODE ? range.startContainer : range.startContainer.childNodes[range.startOffset] ?? range.startContainer,
     box: range.getBoundingClientRect(),
     attachment: [...range.getClientRects()].find((rect) => rect.width > 0 && rect.height > 0) ?? null
   };
 }
+var passageBoxes = (resolved) => targetRange(resolved) ? targetSegments(resolved).flatMap((segment) => [...rangeOf([segment]).getClientRects()]).filter((box) => box.width && box.height) : [];
 function passageGeometry(resolved) {
   const range = targetRange(resolved);
   return range && rangeGeometry(range);
@@ -1068,10 +1070,31 @@ function localScrollBy(source, { x, y }) {
   if (!horizontal) return { left: 0, top: vertical ? along(axes.y) : 0 };
   if (!vertical) return { left: along(axes.x), top: 0 };
   const determinant = axes.x.x * axes.y.y - axes.x.y * axes.y.x;
-  return {
-    left: (x * axes.y.y - y * axes.y.x) / determinant,
-    top: (y * axes.x.x - x * axes.x.y) / determinant
-  };
+  const left = (x * axes.y.y - y * axes.y.x) / determinant;
+  const top = (y * axes.x.x - x * axes.x.y) / determinant;
+  const reach = (offset, current, minimum, maximum) => Math.max(minimum - current, Math.min(maximum - current, offset));
+  const horizontalLimit = source.scrollWidth - source.clientWidth;
+  const rtl = getComputedStyle(source).direction === "rtl";
+  const reachLeft = (offset) => reach(
+    offset,
+    source.scrollLeft,
+    rtl ? -horizontalLimit : 0,
+    rtl ? 0 : horizontalLimit
+  );
+  const reachTop = (offset) => reach(offset, source.scrollTop, 0, source.scrollHeight - source.clientHeight);
+  const reachableLeft = reachLeft(left);
+  const reachableTop = reachTop(top);
+  if (reachableLeft !== left && axes.y.y)
+    return {
+      left: reachableLeft,
+      top: reachTop((y - reachableLeft * axes.x.y) / axes.y.y)
+    };
+  if (reachableTop !== top && axes.x.x)
+    return {
+      left: reachLeft((x - reachableTop * axes.y.x) / axes.x.x),
+      top: reachableTop
+    };
+  return { left, top };
 }
 
 // runtime/css-anchors.js
@@ -1371,6 +1394,7 @@ export {
   exactTarget,
   targetRange,
   rangeGeometry,
+  passageBoxes,
   passageGeometry,
   targetSurface,
   targetParts,

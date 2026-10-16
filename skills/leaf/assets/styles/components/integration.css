@@ -55,6 +55,11 @@ html[data-lf-draw-mode] main {
 .lf-code-copy.lf-code-copy-away {
   display: none;
 }
+/* Keep the document controls together without introducing a containing block for
+   their CSS anchors or their fixed header-clipping frames. */
+.lf-code-copy-home {
+  display: contents;
+}
 /* The frames a block's sticky headers cut its control in (code-copy.js) take no presses
    of their own and stack where the control would. A frame is the containing block of
    an absolute box, which an anchor outside the frame cannot position, so the control
@@ -68,7 +73,7 @@ html[data-lf-draw-mode] main {
 }
 /* A document block's control stands in chrome, which marks it; a widget's stands
    inside the widget, so the widget's hover or focus shows it. */
-:not(.lf-chrome):is(:hover, [data-lf-focus-within]) > .lf-code-copy,
+:not(.lf-chrome, .lf-code-copy-home):is(:hover, [data-lf-focus-within]) > .lf-code-copy,
 .lf-code-copy-hover,
 .lf-code-copy-focused,
 .lf-code-copy:is(:hover, [data-lf-focus-within]) {

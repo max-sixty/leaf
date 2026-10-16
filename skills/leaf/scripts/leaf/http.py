@@ -1210,7 +1210,7 @@ class PageEndpoint:
                 message,
                 asset_root,
             )
-        except ValueError as error:
+        except (ValueError, Rejected) as error:
             return self._refuse(str(error))
         root = f"{self.page_root}/api/samples/{identity}"
         return self._json(

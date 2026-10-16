@@ -1594,7 +1594,9 @@ def capture(browser, address: str, state: State, path: Path) -> dict | None:
     density of the displays its pairs are read on, so a crop shows text and hairlines
     as the reader's screen draws them."""
     scale = 2
-    with tab(browser, state.viewport, state.scheme, state.touch, scale=scale) as page:
+    with tab(
+        browser, state.viewport, state.scheme, state.touch, scale=scale, classic=True
+    ) as page:
         load(page, address)
         state.drive(page)
         settle(page)

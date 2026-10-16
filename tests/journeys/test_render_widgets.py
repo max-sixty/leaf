@@ -56,7 +56,25 @@ from render_harness import (
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
-from browser.test_render_widgets import MOTION_SAMPLE_CONTENT, PLAYGROUND_PAGE
+from browser.widgets import PLAYGROUND_PAGE
+
+MOTION_SAMPLE_CONTENT = """
+<lf-code id="card-code" language="python"><pre>print("retained")</pre></lf-code>
+<pre id="card-tree">root/
+└── retained.txt</pre>
+<lf-sample id="card-sample" label="Current sample">
+  <template id="card-sample-page" data-sample>
+    <h2>Painted sample</h2>
+    <lf-ask id="sample-choice-ask"><h3>Choose a sample</h3>
+      <lf-options id="sample-choice" choose>
+        <lf-option id="sample-alpha"><strong>Alpha</strong></lf-option>
+        <lf-option id="sample-beta"><strong>Beta</strong></lf-option>
+      </lf-options>
+    </lf-ask>
+    <lf-draft id="sample-draft"><pre>Original sample draft.</pre></lf-draft>
+  </template>
+</lf-sample>
+"""
 
 
 def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):

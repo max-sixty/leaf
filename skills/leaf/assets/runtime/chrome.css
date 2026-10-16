@@ -4,15 +4,9 @@
   html[data-lf-floating-chrome] :scope {
     --lf-notice-seat: panel;
     .lf-banner,
-    .lf-shortcut-bar {
-      display: none !important;
-    }
+    .lf-shortcut-bar,
     .lf-bottom-status {
-      top: calc(12px + var(--lf-safe-top));
-      bottom: auto;
-      right: auto;
-      left: 50%;
-      translate: -50% 0;
+      display: none !important;
     }
     .lf-page-search {
       top: auto;
@@ -122,11 +116,35 @@
     --lf-mark-w: 19px;
   }
   .lf-fp-field {
+    position: relative;
     flex: 1;
     min-width: 0;
     display: flex;
     align-self: stretch;
     align-items: flex-end;
+  }
+  .lf-fp-expand {
+    flex: none;
+    display: none;
+    place-items: center;
+    width: 24px;
+    min-height: 0;
+    height: 1lh;
+    padding: 0;
+    color: var(--lf-fp-muted);
+  }
+  .lf-fp-expand .lf-action-icon {
+    width: 14px;
+    height: 14px;
+  }
+  .lf-floating-panel[data-long] .lf-fp-expand {
+    display: grid;
+  }
+  .lf-floating-panel[data-expanded] {
+    --lf-fp-width: min( 760px, calc(100vw - 24px - var(--lf-safe-left) - var(--lf-safe-right)) );
+  }
+  .lf-floating-panel[data-expanded] .lf-fp-field .lf-compose-field > leaf-text {
+    max-height: 75dvh;
   }
   .lf-fp-box,
   .lf-fp-reply,
@@ -170,35 +188,23 @@
     font: 14px / 22px var(--sans);
     --lf-field-end-room: 0px;
   }
-  @supports (animation-timeline: scroll()) {
-    .lf-fp-field .lf-compose-field > leaf-text:state(scrolls) {
-      scrollbar-width: none;
-      mask-image:
-        linear-gradient(
-          to bottom,
-          transparent 0,
-          #000 var(--lf-fp-fade-top),
-          #000 calc(100% - var(--lf-fp-fade-bottom)),
-          transparent 100%);
-      animation: lf-fp-field-edges linear both;
-      animation-timeline: scroll(self);
-    }
+  .lf-fp-field .lf-compose-field > leaf-text[data-scrolls] {
+    --lf-fp-fade-top: 0px;
+    --lf-fp-fade-bottom: 0px;
+    scrollbar-width: none;
+    mask-image:
+      linear-gradient(
+        to bottom,
+        transparent 0,
+        #000 var(--lf-fp-fade-top),
+        #000 calc(100% - var(--lf-fp-fade-bottom)),
+        transparent 100%);
   }
-  @keyframes lf-fp-field-edges {
-    0% {
-      --lf-fp-fade-top: 0px;
-      --lf-fp-fade-bottom: 16px;
-    }
-    4% {
-      --lf-fp-fade-top: 16px;
-    }
-    96% {
-      --lf-fp-fade-bottom: 16px;
-    }
-    100% {
-      --lf-fp-fade-top: 16px;
-      --lf-fp-fade-bottom: 0px;
-    }
+  .lf-fp-field .lf-compose-field > leaf-text:state(more-above) {
+    --lf-fp-fade-top: 16px;
+  }
+  .lf-fp-field .lf-compose-field > leaf-text:state(more-below) {
+    --lf-fp-fade-bottom: 16px;
   }
   .lf-fp-field .lf-compose-field > leaf-text[data-lf-focus] {
     outline: none;
@@ -212,12 +218,12 @@
   }
   @media (prefers-reduced-motion: no-preference) {
     .lf-floating-panel[data-says=status][data-tone=working]:not([data-asks]) .lf-fp-field leaf-text::part(placeholder) {
+      --lf-sheen-rest: 0.48;
       animation: lf-sheen 2s ease-in-out infinite alternate;
     }
   }
   .lf-floating-panel[data-says=status][data-asks] .lf-fp-field leaf-text::part(placeholder) {
-    color: var(--lf-fp-asks);
-    font-weight: 500;
+    color: color-mix(in srgb, var(--lf-fp-asks) 70%, transparent);
   }
   .lf-floating-panel[data-asks] {
     --lf-fp-asks: var(--ink);
@@ -238,15 +244,17 @@
     display: none;
   }
   .lf-fp-field :is(.lf-compose-submit, .lf-compose-dictate) {
-    position: relative;
-    inset: auto;
-    flex: none;
+    inset-inline-end: 0;
+    inset-block-end: 0;
     place-items: center;
     width: var(--lf-fp-line);
     min-width: 0;
     height: var(--lf-fp-line);
     min-height: 0;
     padding: 0;
+  }
+  .lf-floating-panel[data-writing] .lf-fp-field .lf-compose-field > leaf-text {
+    --lf-field-end-room: calc(var(--lf-fp-line) - 6px);
   }
   .lf-fp-field .lf-compose-submit {
     display: none;
@@ -373,10 +381,16 @@
   }
   .lf-fp-context {
     box-sizing: content-box;
+    display: flex;
+    gap: 8px;
     height: 1lh;
-    padding: 8px 14px 0;
+    padding: 8px 10px 0 14px;
     color: var(--lf-fp-muted);
     font-size: 12px;
+  }
+  .lf-fp-context-words {
+    flex: 1;
+    min-width: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -842,6 +856,17 @@
     margin-inline-start: 8px;
     color: var(--lf-fp-muted);
     font-weight: 400;
+  }
+  .lf-fp-approval .lf-fp-item {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .lf-fp-approval .lf-fp-end {
+    min-width: 0;
+    justify-content: end;
+  }
+  .lf-fp-approval .lf-fp-value {
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .lf-fp-compare {
     flex: none;
@@ -2387,7 +2412,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-thread-topic[data-lf-pending-title] {
     justify-self: start;
     font-weight: 500;
-    color: color-mix(in oklab, var(--muted) 80%, var(--paper));
+    color: color-mix(in srgb, var(--ink) 50%, transparent);
     animation: lf-sheen 2s ease-in-out infinite alternate;
   }
   .lf-thread-meta {

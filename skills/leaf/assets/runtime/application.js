@@ -611,6 +611,7 @@ export function mountApplication(dependencies) {
     retireProjectionCoverage: projection.retireProjectionCoverage,
     threadActions,
     queueActions,
+    settlement: settlementView,
     openAsk(id) {
       const ask = readAsks().all.find((item) => item.id === id);
       if (!ask) return Promise.resolve(false);

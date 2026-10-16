@@ -4,8 +4,6 @@
 @property --lf-motion-flash { syntax: "<time>"; inherits: true; initial-value: 1200ms; }
 @property --lf-motion-fold { syntax: "<time>"; inherits: true; initial-value: 220ms; }
 @property --lf-motion-agent-arrival { syntax: "<time>"; inherits: true; initial-value: 520ms; }
-@property --lf-fp-fade-top { syntax: "<length>"; inherits: false; initial-value: 0px; }
-@property --lf-fp-fade-bottom { syntax: "<length>"; inherits: false; initial-value: 0px; }
 @property --lf-thread-panel-default-width { syntax: "<length>"; inherits: true; initial-value: 420px; }
 :root {
   --lf-banner-face: desk;
@@ -213,8 +211,6 @@ html[data-lf-live][data-lf-floating-chrome] {
   --lf-floating-gap: 14px;
   --lf-banner-h: var(--lf-safe-top);
   --lf-bottom-bar-h: calc( var(--lf-floating-row) + 2 * var(--lf-floating-gap) + var(--lf-safe-bottom) );
-  --lf-bottom-status-bottom: calc(var(--lf-bottom-bar-h) + 4px);
-  --lf-bottom-status-translate: none;
 }
 @media (pointer: coarse) {
   :root {

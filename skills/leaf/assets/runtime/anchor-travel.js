@@ -203,7 +203,9 @@ export function createAnchorTravel({
   // A remembered editor starts from its authored place, before a hidden editor is
   // materialized. Its owner opens without focus; the ordinary arrival owns surface
   // clearance, disclosure, presentation, caret and reading placement. A materializer
-  // may return its keyed focus-handoff release, retired after this landing.
+  // may return its keyed focus-handoff release, retired after this landing. Opening
+  // supplies geometry without moving the viewport: the final arrival places editor and
+  // passage together, taking over any native smooth travel still in progress.
   async function arriveEditor(resolve, { intent, caret }) {
     const mayArrive = retainTravel(intent);
     const destination = resolve();
@@ -243,10 +245,6 @@ export function createAnchorTravel({
         present: async () => {
           const current = resolve();
           if (!current) return;
-          if (!readableDestination(current.where))
-            mayArrive.handoff(() => {
-              scrollIntoView(current.where, { behavior: "instant", block: "center" });
-            });
           if (current.open)
             mayArrive.handoff(() => {
               release = current.open();

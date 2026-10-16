@@ -2086,10 +2086,6 @@ function createAnchorTravel({
         present: async () => {
           const current = resolve();
           if (!current) return;
-          if (!readableDestination(current.where))
-            mayArrive.handoff(() => {
-              scrollIntoView(current.where, { behavior: "instant", block: "center" });
-            });
           if (current.open)
             mayArrive.handoff(() => {
               release = current.open();

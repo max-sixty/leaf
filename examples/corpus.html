@@ -2480,11 +2480,7 @@
           summary: "9ee465bb3f9c1fa309ea9cb1767fa365",
           progress: "bg-progress-question",
         }[view];
-        void sample.showThread(thread, {
-          surface: "panel",
-          status: view === "resolved" ? "resolved" : "open",
-          waiting: view === "you" ? "user" : "all",
-        });
+        void sample.showThread(thread, { surface: "panel" });
       }
 
       for (const button of document.querySelectorAll("#bg-panel-presets button")) {
@@ -8620,13 +8616,13 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
 
         <lf-tab id="bg-view-threads" label="Threads">
           <section id="bg-panel-views">
-            <h2><strong>Threads panel views</strong></h2>
+            <h2><strong>Threads in the panel</strong></h2>
             <p id="bg-panel-views-guide">
-              Choose a view to open the real Threads panel in this practice page. The
+              Choose a view to open its thread in this practice page's Leaf panel. The
               controls, messages, filters, and unread state are live. Reset restores the
               seeded discussion after trying a reply or changing a thread.
             </p>
-            <div id="bg-panel-presets" role="group" aria-label="Threads panel views">
+            <div id="bg-panel-presets" role="group" aria-label="Threads in the panel">
               <button
                 type="button"
                 class="button"

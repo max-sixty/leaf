@@ -15,9 +15,10 @@
    `g G` glide to the page edges; from a focused thread, `g k` and `g j` place its card at
    an edge of the list; `g p` returns focus to the page while leaving open surfaces
    in place. Uppercase mnemonics remain named
-   global destinations: `g T` Threads, `g M` the On panel, `g L` All pages, `g P` the
-   searchable Page Map and `g V` Versions. A named
-   panel destination toggles that panel, matching its visible control. Completing one that
+   global destinations: `g T` Threads, `g M` On me, `g L` All pages, `g P` the
+   searchable Page Map and `g V` Versions. `g T`, `g M` and `g L` open the floating
+   panel's view of that name, and `g V` its Versions, through the panel's own doors
+   (`doors`, floating-panel.js), as its marks and menu rows open them. Completing one that
    opens a surface leaves the user in that surface, whose own Escape step is the way out
    of it — the same step for a surface the user already had, and none of this sequence's
    to declare; completing the mnemonic again closes it. These destinations remain available when an auxiliary surface
@@ -52,8 +53,8 @@
    including panel narrowing. A surface covering the document cannot make that promise,
    so its ordinary Escape rung remains the route back.
 
-   A destination declares no way back. `g T`, `g M` and `g L` may exchange an open
-   panel or drawer for another, and the surface the user ends in owns the one step that
+   A destination declares no way back. `g T`, `g M` and `g L` may exchange one of the
+   panel's views for another, and the surface the user ends in owns the one step that
    takes it off again — the same step whichever door opened it, and the same for a
    surface they already had. Exchanging one for another is lateral, so the one replaced
    is not put back; the user reaches it the way they reached it the first time.
@@ -79,7 +80,6 @@ import { pageParts } from "../passages.js";
 import { addressableSays } from "../addressable-names.js";
 import { announce, notice } from "../notifications.js";
 import { closestAcross, pageQueryAll } from "../passages.js";
-import { currentDrawer, doorStands, othersBtn, queueBtn } from "../drawers.js";
 import { mapButton } from "../page-map-dialog.js";
 
 import { claimsEsc, saying } from "./scopes.js";
@@ -93,8 +93,8 @@ goToHintLayer.setAttribute("aria-hidden", "true");
 // Construct the command vocabulary once; boot mounts the viewport listeners after
 // the chrome is attached. All travel and auxiliary-surface effects are explicit capabilities.
 export function createGoToSequence({
-  panelIsOpen,
-  elements: { banner, toggleBtn },
+  doors,
+  elements: { banner },
   hintChrome,
   directDestinations,
   scrollToElement,
@@ -172,43 +172,28 @@ export function createGoToSequence({
     {
       id: "navigation.panel.threads",
       keys: ["Shift+t"],
-      description: () =>
-        panelIsOpen() ? "Close the Threads panel" : "Go to the Threads panel",
-      title: () => (panelIsOpen() ? "close Threads panel" : "Threads panel"),
-      control: () => toggleBtn,
+      description: () => (doors.threads.shows() ? "Close Threads" : "Go to Threads"),
+      title: () => (doors.threads.shows() ? "close Threads" : "Threads"),
+      run: () => doors.threads.press(),
       when: () => true,
     },
     {
       id: "navigation.drawer.queue",
       keys: ["Shift+m"],
-      // Its door is On me's, so where the panel shows the agent's list it turns to
+      // Its door is On me's, so where the On view shows the agent's list it turns to
       // the user's rather than closing.
-      description: () =>
-        doorStands("queue", queueBtn)
-          ? "Close the On panel"
-          : currentDrawer() === "queue"
-            ? "Show On me in the On panel"
-            : "Go to the On panel",
-      title: () =>
-        doorStands("queue", queueBtn)
-          ? "close On panel"
-          : currentDrawer() === "queue"
-            ? "On me"
-            : "On panel",
-      control: () => queueBtn,
+      description: () => (doors.queue.shows() ? "Close On me" : "Go to On me"),
+      title: () => (doors.queue.shows() ? "close On me" : "On me"),
+      run: () => doors.queue.press(),
       when: () => true,
     },
     {
       id: "navigation.drawer.leaves",
       keys: ["Shift+l"],
-      description: () =>
-        currentDrawer() === "leaves"
-          ? "Close the Pages drawer"
-          : "Go to the Pages drawer",
-      title: () =>
-        currentDrawer() === "leaves" ? "close Pages drawer" : "Pages drawer",
-      control: () => othersBtn,
-      when: (...args) => leavesOffered(...args),
+      description: () => (doors.leaves.shows() ? "Close All pages" : "Go to All pages"),
+      title: () => (doors.leaves.shows() ? "close All pages" : "All pages"),
+      run: () => doors.leaves.press(),
+      when: (...args) => doors.leaves.shows() || leavesOffered(...args),
     },
     {
       id: "navigation.page-map",
@@ -221,9 +206,9 @@ export function createGoToSequence({
   ];
   // Whether each door's surface stands, by the door's id.
   const DOOR_STANDS = new Map([
-    ["navigation.panel.threads", () => panelIsOpen()],
-    ["navigation.drawer.queue", () => currentDrawer() === "queue"],
-    ["navigation.drawer.leaves", () => currentDrawer() === "leaves"],
+    ["navigation.panel.threads", () => doors.threads.shows()],
+    ["navigation.drawer.queue", () => doors.queue.shows()],
+    ["navigation.drawer.leaves", () => doors.leaves.shows()],
   ]);
   // A press hint is an activation and an arrival. Reveal first so a nested control can open
   // the panel that holds it, then focus and use its click path so pointer and keyboard

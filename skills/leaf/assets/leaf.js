@@ -414,6 +414,7 @@ const version = createVersionController({
     app?.overlay?.restoreStanding(standing) ?? false,
   captureAskStanding: () => asks.captureStanding(),
   restoreAskStanding: (standing) => asks.restoreStanding(standing),
+  versions: { press: () => floatingPanel.doors.versions.press() },
 });
 
 const inputs = createCompositionInputs({
@@ -637,10 +638,8 @@ responseSurface = createResponseSurface({
   refreshThread: app.refreshThread,
   dismissThreadView: () => app.overlay?.inlineThreadView.dismiss(),
   pageComment: generalComment,
-  responseHome: overlaySelected ? chromeRoot : panelFoot,
-  revealResponseHome: overlaySelected
-    ? null
-    : () => threadPanelController.setPanel(true),
+  responseHome: overlaySelected ? chromeRoot : floatingPanel.responseHome,
+  revealResponseHome: overlaySelected ? null : floatingPanel.revealResponse,
   createComment: (command) => app.threadActions.create(command)?.delivery ?? null,
   landSent: landing.landSent,
   wireInput: inputs.wireInput,
@@ -738,7 +737,7 @@ threadPanelController = createThreadPanelController({
 if (document.documentElement.lfSample) {
   let viewOperation;
   onSampleNotice("cancel-view", () => viewOperation?.abort());
-  registerSampleCommand("thread", async ({ id, surface, status, waiting }) => {
+  registerSampleCommand("thread", async ({ id, surface, status }) => {
     viewOperation?.abort();
     viewOperation = new AbortController();
     const { signal } = viewOperation;
@@ -749,15 +748,13 @@ if (document.documentElement.lfSample) {
     // Selecting a saved conversation needs the child's authoritative reading.
     return afterPresentation(async () => {
       if (!intent()) return false;
-      if (surface === "panel")
-        return threadPanelController.showView({
-          thread: id,
-          status,
-          waiting,
-          signal,
-          intent,
-        });
-      intent.handoff(() => threadPanelController.setPanel(false));
+      if (surface === "panel") {
+        let shown = null;
+        const show = () =>
+          (shown = floatingPanel.showForSample({ thread: id, status }));
+        if (!intent.handoff(show)) return false;
+        return (await shown) && intent.available();
+      }
       return Boolean(
         await app.threadDestinations.openPageThread(id, {
           focus: false,
@@ -785,8 +782,8 @@ const writingResume = createWritingResume({
   holdsThreadDraft: (context) => app.threadDestinations.holdsThreadDraft(context),
 });
 goToSequence = createGoToSequence({
-  panelIsOpen,
-  elements: { banner, toggleBtn },
+  doors: floatingPanel.doors,
+  elements: { banner },
   hintChrome,
   directDestinations: () => [
     writingResume,
@@ -947,10 +944,7 @@ window.addEventListener("lf-startup-failed", () => (startupFailed = true), {
 
 const initialStateRead = beginRead();
 if (!offlineInteractive) {
-  restoreUserView({
-    restoreAuxiliarySurface: auxiliarySurfaces.restore,
-    setDesignMode: designMode.setActive,
-  });
+  restoreUserView({ setDesignMode: designMode.setActive });
   annotationRenderer?.restoreAnnotations();
   // A page nobody has used starts Tab at the skip link. Inputs before the
   // module graph arrived already gave this document a place to keep.

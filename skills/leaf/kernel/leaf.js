@@ -91,15 +91,12 @@ import {
   userIn
 } from "./runtime/bundle-sample-child.js";
 import {
-  createAuxiliarySurfaces,
-  currentAuxiliarySurface,
   drawerEdge,
   landEdgesWith,
   restateEdges,
   restoreUserView,
-  sideEdge,
-  standsBeside
-} from "./runtime/bundle-auxiliary-surfaces.js";
+  sideEdge
+} from "./runtime/bundle-drawn-edge.js";
 import "./runtime/bundle-projection~presentation.js";
 import {
   BANNER_CONTROL_RANK,
@@ -124,6 +121,7 @@ import {
   bringBackSurfaceOf,
   cancelReplyDictation,
   commandShortcut,
+  commandSteps,
   copyControl,
   coveringAuxiliarySurface,
   createPassageSelection,
@@ -166,6 +164,7 @@ import {
   passOn,
   placeKeeper,
   placeOf,
+  quoteReading,
   readAsks,
   readBoxPlace,
   readPlace,
@@ -173,6 +172,7 @@ import {
   readingBlock,
   readingIsContinuous,
   registerBannerControl,
+  registerCoveringAuxiliarySurface,
   rememberWriting,
   replyAvailable,
   replyCompositionHasDraft,
@@ -209,6 +209,7 @@ import {
   threadState,
   touchPresses,
   upgradeWidgets,
+  userStore,
   walkOrigin,
   walkPosition,
   walkPositionLabel,
@@ -390,6 +391,7 @@ import {
   dragHeld,
   el,
   growthIsSeen,
+  hides,
   hostIn,
   iconElement,
   iconTemplate,
@@ -417,6 +419,7 @@ import {
   pageUpgraded,
   paintKeys,
   paintKeysWithin,
+  placeHolder,
   pointerAt,
   pressIsKeyboardActivation,
   projectCommandScope,
@@ -458,6 +461,7 @@ import {
   submitLabel,
   tagsDeclaring,
   titleOf,
+  transitionNativeAncestor,
   underOccluder,
   union,
   uploadMedia,
@@ -516,6 +520,8 @@ import {
   layoutPx,
   letGo,
   move,
+  nativeLayerHolding,
+  nativeLayerKind,
   nextFrame,
   nextRender,
   observePreparations,
@@ -6048,6 +6054,199 @@ function leafRow(entry) {
   return { tone: facts.tone, line };
 }
 
+// runtime/auxiliary-surfaces.js
+var AUXILIARY_SURFACE_KEY = "lf-auxiliary-surface";
+var selectedKey = null;
+var currentAuxiliarySurface = () => selectedKey;
+var standsBeside = () => parseFloat(
+  getComputedStyle(document.body).getPropertyValue("--lf-auxiliary-beside")
+) > 0;
+function createAuxiliarySurfaces({
+  envelope,
+  band,
+  syncLayout,
+  afterChange,
+  reachChanged
+}) {
+  const controllers = /* @__PURE__ */ new Map();
+  const scrim = document.createElement("div");
+  scrim.className = "lf-auxiliary-scrim";
+  scrim.hidden = true;
+  scrim.setAttribute("aria-hidden", "true");
+  envelope.className = "lf-ui lf-auxiliary-envelope";
+  envelope.setAttribute("open", "");
+  envelope.setAttribute("role", "presentation");
+  envelope.append(scrim);
+  let active = null;
+  let seated = null;
+  let mounted = false;
+  let arriving = null;
+  let arrivalIntent = null;
+  const landingIn = (controller) => controller.landing() ?? controller.surface;
+  function seat(selected) {
+    const next = selected?.covers() ? selected : null;
+    if (seated === selected && active === next) return;
+    const previous = active;
+    const changedPosture = Boolean(active) !== Boolean(next);
+    if (next) dismissPopoversOutside(next.surface);
+    const held = holdFocus(document);
+    closeLayer(
+      () => {
+        if (previous) previous.surface.removeAttribute("data-lf-covered");
+        active = next;
+        seated = selected;
+        keeps(band, "inert", next && !next.underBand ? "" : null);
+        if (next) keeps(next.surface, "data-lf-covered", "");
+        if (changedPosture || !envelope.open) {
+          transitionNativeAncestor(envelope, () => {
+            if (envelope.open) closeNativeLayer(envelope);
+            showNativeLayer(envelope, { modal: Boolean(next) });
+          });
+        }
+        band.toggleAttribute("data-lf-over-covering", Boolean(next?.underBand));
+        keepsHidden(scrim, !next);
+        keeps(document.documentElement, "data-lf-covering-surface", next?.surface.id);
+      },
+      seatLanding(next, held)
+    );
+  }
+  const seatLanding = (next, held) => layerLanding(() => {
+    const restored = held?.();
+    if (next && document.hasFocus() && !restored && nativeLayerKind(nativeLayerHolding(deepFocus())) !== "popover")
+      focusDestination(landingIn(next), "return");
+  });
+  function registerAuxiliarySurface({
+    key,
+    surface,
+    scroller,
+    edge,
+    beside = false,
+    underBand = false,
+    landing: landing2,
+    opener,
+    show,
+    hide,
+    arrival = "mount"
+  }) {
+    if (!key || !surface?.id || !(surface.hasAttribute("aria-label") || surface.hasAttribute("aria-labelledby")) || !scroller || !edge || !landing2 || !opener || !show || !hide)
+      throw new Error(
+        "leaf: an auxiliary surface needs a key, an id and an accessible name, a scroller, an edge, a focus destination, an opener, and visibility callbacks"
+      );
+    if (controllers.has(key))
+      throw new Error(`leaf: duplicate auxiliary surface ${key}`);
+    const controller = {
+      key,
+      surface,
+      scroller,
+      edge,
+      covers: () => !beside || !standsBeside(),
+      underBand,
+      landing: landing2,
+      opener,
+      show,
+      hide,
+      arrival
+    };
+    controllers.set(key, controller);
+    return () => {
+      if (controllers.get(key) !== controller) return;
+      if (selectedKey === key) select(null);
+      controllers.delete(key);
+    };
+  }
+  let reachQueued = false;
+  function sync() {
+    const selected = controllers.get(selectedKey);
+    const shown = selected && selected !== arriving ? selected : null;
+    keeps(envelope, "role", shown ? null : "presentation");
+    keeps(envelope, "aria-label", shown?.surface.getAttribute("aria-label"));
+    keeps(envelope, "aria-labelledby", shown?.surface.getAttribute("aria-labelledby"));
+    seat(shown);
+    if (reachQueued) return;
+    reachQueued = true;
+    nextRender(() => {
+      reachQueued = false;
+      reachChanged();
+    });
+  }
+  function select(key, { remember = true, focus = false, phase = "gesture", land } = {}) {
+    if (key !== null && !controllers.has(key))
+      throw new Error(`leaf: unknown auxiliary surface ${key}`);
+    if (selectedKey === key) return;
+    const previous = controllers.get(selectedKey);
+    selectedKey = key;
+    const selected = controllers.get(key);
+    if (key) document.body.dataset.lfAuxiliarySurface = key;
+    else delete document.body.dataset.lfAuxiliarySurface;
+    arriving = selected && phase === "arrival" && selected.arrival === "presentation" && !pagePresented() ? selected : null;
+    arrivalIntent = arriving ? retainUserIntent({ since: 0 }) : null;
+    if (!selected || arriving || Boolean(active) !== selected.covers()) seat(null);
+    const swap = Boolean(previous && selected && previous.edge === selected.edge);
+    if (previous) {
+      const opener = previous.opener();
+      const inside = standingIn(previous.surface);
+      closeLayer(
+        () => previous.hide({ swap }),
+        land ?? (inside && (() => handBack(opener)))
+      );
+    }
+    if (selected && !arriving) selected.show({ phase: swap ? "swap" : phase });
+    sync();
+    syncLayout();
+    afterChange();
+    if (focus && selected && !arriving) focusDestination(landingIn(selected), "move");
+    if (remember) userStore.set(AUXILIARY_SURFACE_KEY, key ?? "");
+  }
+  function restore() {
+    const key = userStore.get(AUXILIARY_SURFACE_KEY);
+    select(controllers.has(key) ? key : null, { remember: false, phase: "arrival" });
+  }
+  function present() {
+    if (!arriving) return;
+    if (!arrivalIntent()) {
+      select(null, { remember: false });
+      return;
+    }
+    const surface = arriving;
+    arriving = null;
+    arrivalIntent = null;
+    surface.show({ phase: "arrival" });
+    sync();
+    syncLayout();
+    afterChange();
+  }
+  function mount() {
+    if (mounted) return;
+    mounted = true;
+    scrim.addEventListener("pointerdown", (event) => event.preventDefault());
+    scrim.addEventListener("click", () => select(null));
+  }
+  function clearFor(where) {
+    const selected = controllers.get(selectedKey);
+    const holder = where && placeHolder(where);
+    if (!selected || !holder || under(holder, selected.surface)) return;
+    if (selected.covers() || hides(selected.surface, where)) select(null);
+  }
+  const selectedSurface = () => controllers.get(selectedKey)?.surface ?? null;
+  const coveringSurface = () => active?.surface ?? null;
+  const coveringScroller = () => active?.scroller() ?? null;
+  const coveringFocus = () => active ? landingIn(active) : null;
+  registerCoveringAuxiliarySurface(coveringSurface);
+  return {
+    registerAuxiliarySurface,
+    select,
+    restore,
+    present,
+    sync,
+    mount,
+    clearFor,
+    selectedSurface,
+    coveringSurface,
+    coveringScroller,
+    coveringFocus
+  };
+}
+
 // runtime/retained-face.js
 var RetainedFace = class extends LitElement {
   static properties = { model: { attribute: false } };
@@ -6635,24 +6834,25 @@ var listedPages = (state) => state === null ? [] : [
     entry
   }))
 ];
+var leavesRows = (state) => Object.freeze(
+  listedPages(state).map(({ key, href, title, entry }) => {
+    const { tone, line } = leafRow(entry);
+    return Object.freeze({
+      key,
+      self: key === "self",
+      href,
+      title,
+      tone,
+      line,
+      account: rowAccount(entry, title, line)
+    });
+  })
+);
 function paintOthers() {
   const state = runtime.state;
   const offeredBefore = leavesOffered();
   others = state === null ? [] : state.others;
-  rows = Object.freeze(
-    listedPages(state).map(({ key, href, title, entry }) => {
-      const { tone, line } = leafRow(entry);
-      return Object.freeze({
-        key,
-        self: key === "self",
-        href,
-        title,
-        tone,
-        line,
-        account: rowAccount(entry, title, line)
-      });
-    })
-  );
+  rows = leavesRows(state);
   if (offeredBefore !== leavesOffered()) paintKeys();
   return presentLeaves();
 }
@@ -6877,7 +7077,14 @@ registerBannerControl({
   control: othersBtn,
   rank: BANNER_CONTROL_RANK.leaves,
   conditional: true,
-  row: { label: "All pages", value: () => String(leavesCount()), group: "navigate" }
+  // Its keys are the command's, which opens the floating panel's All pages rather
+  // than pressing this control.
+  row: {
+    label: "All pages",
+    value: () => String(leavesCount()),
+    shortcut: () => commandSteps("navigation.drawer.leaves"),
+    group: "navigate"
+  }
 });
 registerBannerControl({
   key: "latest",
@@ -6905,6 +7112,7 @@ registerBannerControl({
   row: {
     label: "Versions",
     value: () => versionsReading().picker.token,
+    shortcut: () => commandSteps("version.open"),
     group: "page"
   }
 });
@@ -7701,7 +7909,7 @@ var GROUPS = Object.freeze({
   annotate: "Annotations",
   about: "About this page"
 });
-var OWN_VIEWS = Object.freeze(["threads", "queue", "versions"]);
+var OWN_VIEWS = Object.freeze(["threads", "queue", "leaves", "versions"]);
 var FOLD = "panel.floating.fold";
 var HELD_ELSEWHERE = Object.freeze([
   "threads",
@@ -7741,7 +7949,8 @@ function createFloatingPanel({
   asks: askView,
   queueActions,
   withdraw,
-  settlement
+  settlement,
+  placedAt
 }) {
   const host = el("section", "lf-ui lf-floating-panel");
   host.setAttribute("aria-label", "Leaf");
@@ -7826,7 +8035,8 @@ function createFloatingPanel({
   lengthWatch.observe(field);
   const rowNoticeSeat = el("div", "lf-fp-row-notice");
   const quick = el("div", "lf-fp-quick");
-  row.append(leaf, field, rowNoticeSeat, quick);
+  const responseSeat = el("div", "lf-fp-response");
+  row.append(leaf, field, responseSeat, rowNoticeSeat, quick);
   const CONNECTING = {
     tone: "",
     summary: "Connecting\u2026",
@@ -7908,14 +8118,23 @@ function createFloatingPanel({
         retype();
       },
       send: (_text, raw, owns) => {
+        let flight = null;
         const handle = sendMessage(
           PAGE_DRAFT,
           owns,
-          (attempt) => threadActions.create({ attempt, text: raw })?.delivery
+          (attempt) => flight = threadActions.create({ attempt, text: raw })?.delivery
         );
         if (!handle) return;
         queueMicrotask(paint);
-        open({ view: "thread", thread: handle.attempt }, { replace: true });
+        const route = { view: "thread", thread: handle.attempt };
+        open(route, { replace: true });
+        const untouched = retainUserIntent();
+        void Promise.resolve(flight).then((sent) => {
+          if (sent || trail.at(-1) !== route) return;
+          caretToField = standingIn(host) || untouched();
+          trail = [];
+          transition2(route, { focus: false });
+        });
       }
     });
     sync();
@@ -7984,6 +8203,7 @@ function createFloatingPanel({
   const titleOf2 = (route) => ({
     threads: "Threads",
     queue: tabLabel(queueTab),
+    leaves: "All pages",
     versions: "Versions",
     thread: route.thread ? threadTitle(route.thread) : "",
     group: GROUPS[route.group]
@@ -7999,7 +8219,7 @@ function createFloatingPanel({
       return;
     }
     if (route.view === "thread" && presentation && !presentation.primary) {
-      openInPackage(route.thread);
+      openInPackage(route.thread, { focus });
       return;
     }
     if (route.view !== "threads" && route.view !== "thread") searching = false;
@@ -8019,13 +8239,17 @@ function createFloatingPanel({
   function arriveAt(key) {
     landAtEnd = { key: threadByKey(key)?.key ?? key, after: 0 };
   }
-  function writeOnPage() {
+  let caretToField = false;
+  function clearRow() {
     const before = trail.at(-1);
     if (prefs().rest === "mark") prefs().setRest("row");
     trail = [];
     setMenu(false);
-    transition2(before);
-    focusDestination(pageEditor().input, "move");
+    transition2(before, { focus: false });
+  }
+  function writeOnPage() {
+    caretToField = true;
+    clearRow();
   }
   function resolveLanding(thread) {
     const route = trail.at(-1);
@@ -8174,6 +8398,7 @@ function createFloatingPanel({
   });
   const rooms = /* @__PURE__ */ new Map();
   let onPageSeat = false;
+  const unplaced = /* @__PURE__ */ new Set();
   function holdRoom() {
     const top = trail.at(-1);
     if (!top || top.view === "thread" || rooms.has(routeKey(top))) return false;
@@ -8293,6 +8518,7 @@ function createFloatingPanel({
     const changed = (before ? routeKey(before) : null) !== (after2 ? routeKey(after2) : null);
     if (changed) {
       rooms.clear();
+      quoteExpanded = false;
       waiting = null;
       placed = null;
       drawnThread = null;
@@ -8428,7 +8654,7 @@ function createFloatingPanel({
         disabled: entry.disabled,
         role: menuOpen ? "menuitem" : null,
         row: entry.key,
-        opens: Boolean(view)
+        opens: view === "versions"
       }
     );
   }
@@ -8638,7 +8864,8 @@ function createFloatingPanel({
   const shownView = () => stage.querySelector(".lf-fp-view:not([data-leaving])");
   const LIST_ROWS = Object.freeze({
     threads: ".lf-fp-thread",
-    queue: ".lf-fp-on-item"
+    queue: ".lf-fp-on-item",
+    leaves: ".lf-fp-page[href]"
   });
   const listRows = () => {
     const rows3 = LIST_ROWS[trail.at(-1)?.view];
@@ -8694,11 +8921,58 @@ function createFloatingPanel({
   const declareView = (view) => view && declareThreadParts(view, viewParts);
   declareView(head);
   declareView(replyOutlet);
+  let quoteExpanded = false;
+  function measureQuote() {
+    const quote = stage.querySelector(".lf-fp-view:not([data-leaving]) .lf-fp-quote");
+    const press = quote?.previousElementSibling;
+    if (press?.classList.contains("lf-quote-expand"))
+      keeps(
+        press,
+        "hidden",
+        !quoteExpanded && quote.scrollHeight <= quote.clientHeight ? "" : null
+      );
+  }
+  const quoteWatch = sizeObserver(() => nextRender(measureQuote));
+  const watchQuote = (node) => {
+    quoteWatch.disconnect();
+    if (node) quoteWatch.observe(node);
+  };
+  function quoteHead(thread) {
+    const quote = quoteReading(thread, { placedAt });
+    if (!quote) return nothing;
+    const expanded2 = quote.localReading && quoteExpanded;
+    return html`<header class="lf-fp-quote-head">
+      ${quote.localReading ? html`<button
+              type="button"
+              class="lf-thread-disclosure lf-quote-expand"
+              aria-label="Full quote"
+              hidden
+              aria-expanded=${String(quoteExpanded)}
+              aria-controls="lf-fp-quote"
+              @click=${() => {
+      quoteExpanded = !quoteExpanded;
+      paint();
+    }}
+            >
+              Full quote
+            </button>` : nothing}
+      <blockquote
+        ${ref(watchQuote)}
+        id="lf-fp-quote"
+        class=${`lf-quote lf-fp-quote${quote.anchored && !quote.found ? " detached" : ""}`}
+        data-expanded=${String(expanded2)}
+        title=${quote.title ?? nothing}
+      >
+        <span class="lf-quote-label">${quote.label}</span>${quote.outdated ? html`<span class="lf-anchor-status">Earlier data</span>` : quote.changed ? html`<span class="lf-anchor-status">Changed</span>` : nothing}
+      </blockquote>
+    </header>`;
+  }
   function threadView(key) {
     const thread = threadByKey(key);
     if (!thread)
       return html`<p class="lf-fp-empty">This thread is not on the page.</p>`;
-    return html`<div class="lf-fp-messages lf-fp-outlet" data-lf-reflow="append"></div>
+    return html`${quoteHead(thread)}
+      <div class="lf-fp-messages lf-fp-outlet" data-lf-reflow="append"></div>
       ${waiting?.key === key ? html`<div class="lf-fp-foot">
               <button type="button" class="lf-fp-new-reply" @click=${showAnswer}>
                 ${iconTemplate("down", "lf-action-icon")}${waiting.label}
@@ -8876,6 +9150,32 @@ function createFloatingPanel({
           </p>`}${finished.length ? html`<h3 class="lf-fp-on-done">Done</h3>
             ${repeat(finished, queueItemKey, (item) => onItemCard(item, "done"))}` : nothing}`;
   }
+  function pagesView() {
+    const rows3 = leavesRows(runtime.state);
+    if (!rows3.length) return html`<p class="lf-fp-empty">No pages are live.</p>`;
+    return html`<div class="lf-fp-list">
+      ${repeat(
+      rows3,
+      (row2) => row2.key,
+      (row2) => {
+        const face2 = html`<span
+              class=${`lf-dot${row2.tone ? ` ${row2.tone}` : ""}`}
+              aria-hidden="true"
+            ></span
+            ><span class="lf-fp-label">${row2.title}</span
+            ><span class="lf-fp-value">${row2.self ? "This page" : row2.line}</span>`;
+        return row2.self ? html`<div class="lf-fp-page" title=${row2.account}>${face2}</div>` : html`<a
+                class="lf-fp-page"
+                href=${row2.href}
+                target="_blank"
+                rel="noopener"
+                title=${row2.account}
+                >${face2}</a
+              >`;
+      }
+    )}
+    </div>`;
+  }
   function viewTemplate(route) {
     switch (route.view) {
       case "threads":
@@ -8884,6 +9184,8 @@ function createFloatingPanel({
         return threadView(route.thread);
       case "queue":
         return onView();
+      case "leaves":
+        return pagesView();
     }
     return nothing;
   }
@@ -8945,7 +9247,7 @@ function createFloatingPanel({
         (tab) => lists[tab].length
       );
     } else if (thread) {
-      onPageSeat ||= Boolean(thread.anchor);
+      onPageSeat ||= Boolean(thread.anchor) && !unplaced.has(thread.key);
       aux = html`${onPageSeat ? html`<button
                 type="button"
                 class="lf-fp-quiet"
@@ -9153,6 +9455,10 @@ function createFloatingPanel({
       const had = standingIn(field);
       field.replaceChildren(...shown);
       if (had && !replying) focusDestination(leaf, "return");
+    }
+    if (caretToField && !replying) {
+      caretToField = false;
+      focusDestination(pageEditor().input, "move");
     }
     const resting = Boolean(thread) && !replyAvailable(thread);
     keepsHidden(resolvedLine, !resting);
@@ -9502,27 +9808,48 @@ function createFloatingPanel({
     },
     true
   );
-  for (const [door, view] of [
-    [toggleBtn, "threads"],
-    [queueBtn, "queue"]
-  ])
-    door.addEventListener(
-      "click",
-      (event) => {
-        event.stopImmediatePropagation();
-        event.preventDefault();
-        if (view === "queue") return openOnMe();
+  function putVersionsAway() {
+    const inside = renderedUnder(focused(), menu);
+    setMenu(false);
+    if (inside) focusDestination(leaf, "return");
+  }
+  const doors = Object.freeze({
+    threads: {
+      shows: () => trail.at(-1)?.view === "threads",
+      press: () => {
         filter = "open";
         query = "";
-        open({ view });
-      },
-      { capture: true }
-    );
-  versionMenu.addEventListener("beforetoggle", (event) => {
-    if (event.newState !== "open") return;
-    event.preventDefault();
-    showMenuAt({ view: "versions" });
+        open({ view: "threads" });
+      }
+    },
+    queue: {
+      shows: () => trail.at(-1)?.view === "queue" && queueTab === "you",
+      press: openOnMe
+    },
+    leaves: {
+      shows: () => trail.at(-1)?.view === "leaves",
+      press: () => open({ view: "leaves" })
+    },
+    versions: {
+      shows: () => menuOpen && menuAt?.view === "versions",
+      press: () => menuOpen && menuAt?.view === "versions" ? putVersionsAway() : showMenuAt({ view: "versions" })
+    }
   });
+  function showForSample({ thread, status: status2 }) {
+    if (thread) {
+      if (!threadByKey(thread)) return Promise.resolve(false);
+      open(
+        { view: "thread", thread: threadByKey(thread).key },
+        { reopen: true, focus: false }
+      );
+    } else {
+      filter = status2 === "resolved" ? "resolved" : "open";
+      query = "";
+      open({ view: "threads" }, { reopen: true, focus: false });
+      paint();
+    }
+    return present({ release: true }).then(() => true);
+  }
   const pageComment2 = Object.freeze({
     get box() {
       return pageEditor().input;
@@ -9557,13 +9884,23 @@ function createFloatingPanel({
         const message = focus ? closestAcross(focused(), ".lf-msg")?.dataset.message ?? null : null;
         return () => openInPackage(top.thread, { focus, message });
       },
-      // A thread about the whole page opens here; one about a passage opens beside it.
-      // Where the user lands in it is the route's (`request.part`), which Leaf's
-      // destinations take them to once it is drawn: the reply, a message, or the
-      // thread itself, the view, where the `t` walk goes on from.
-      reveal: (key) => {
+      // A thread about the whole page opens here; one about a passage opens beside it,
+      // where the page draws it, and here only for one of its messages, which Leaf's
+      // reader alone draws whole, or where nothing on the page shows it, as on a page
+      // drawing no margin, the destination's last resort (`request.last`,
+      // thread/destination.js). Where the user lands in it is the route's
+      // (`request.part`), which Leaf's destinations take them to once it is drawn: the
+      // reply, a message, or the thread itself, the view, where the `t` walk goes on from.
+      reveal: (key, { part, last }) => {
         const thread = threadByKey(key);
-        if (!thread || thread.anchor) return false;
+        if (!thread) return false;
+        if (thread.anchor && part !== "message") {
+          if (!last) {
+            unplaced.delete(thread.key);
+            return false;
+          }
+          unplaced.add(thread.key);
+        }
         open({ view: "thread", thread: thread.key }, { reopen: true, focus: false });
         return present({ release: true });
       }
@@ -9582,7 +9919,21 @@ function createFloatingPanel({
     watching = watchProjection(host, paintPanel);
     paint();
   }
-  return { host, mount, open, close, enter, pageComment: pageComment2 };
+  return {
+    host,
+    mount,
+    open,
+    close,
+    enter,
+    pageComment: pageComment2,
+    doors,
+    showForSample,
+    // The anchored comment box opening in its home (`responseSeat`) clears the row for
+    // it, where the composer then takes the caret (composing/surface.js,
+    // `finishPlacement`).
+    responseHome: responseSeat,
+    revealResponse: clearRow
+  };
 }
 
 // runtime/thread/narrowing.js
@@ -12299,8 +12650,8 @@ function createThreadPanelController({
 var goToHintLayer = el("div", "lf-ui lf-key-chips lf-go-to-hints");
 goToHintLayer.setAttribute("aria-hidden", "true");
 function createGoToSequence({
-  panelIsOpen: panelIsOpen2,
-  elements: { banner: banner2, toggleBtn: toggleBtn2 },
+  doors,
+  elements: { banner: banner2 },
   hintChrome: hintChrome2,
   directDestinations,
   scrollToElement,
@@ -12337,28 +12688,28 @@ function createGoToSequence({
     {
       id: "navigation.panel.threads",
       keys: ["Shift+t"],
-      description: () => panelIsOpen2() ? "Close the Threads panel" : "Go to the Threads panel",
-      title: () => panelIsOpen2() ? "close Threads panel" : "Threads panel",
-      control: () => toggleBtn2,
+      description: () => doors.threads.shows() ? "Close Threads" : "Go to Threads",
+      title: () => doors.threads.shows() ? "close Threads" : "Threads",
+      run: () => doors.threads.press(),
       when: () => true
     },
     {
       id: "navigation.drawer.queue",
       keys: ["Shift+m"],
-      // Its door is On me's, so where the panel shows the agent's list it turns to
+      // Its door is On me's, so where the On view shows the agent's list it turns to
       // the user's rather than closing.
-      description: () => doorStands("queue", queueBtn) ? "Close the On panel" : currentDrawer() === "queue" ? "Show On me in the On panel" : "Go to the On panel",
-      title: () => doorStands("queue", queueBtn) ? "close On panel" : currentDrawer() === "queue" ? "On me" : "On panel",
-      control: () => queueBtn,
+      description: () => doors.queue.shows() ? "Close On me" : "Go to On me",
+      title: () => doors.queue.shows() ? "close On me" : "On me",
+      run: () => doors.queue.press(),
       when: () => true
     },
     {
       id: "navigation.drawer.leaves",
       keys: ["Shift+l"],
-      description: () => currentDrawer() === "leaves" ? "Close the Pages drawer" : "Go to the Pages drawer",
-      title: () => currentDrawer() === "leaves" ? "close Pages drawer" : "Pages drawer",
-      control: () => othersBtn,
-      when: (...args) => leavesOffered2(...args)
+      description: () => doors.leaves.shows() ? "Close All pages" : "Go to All pages",
+      title: () => doors.leaves.shows() ? "close All pages" : "All pages",
+      run: () => doors.leaves.press(),
+      when: (...args) => doors.leaves.shows() || leavesOffered2(...args)
     },
     {
       id: "navigation.page-map",
@@ -12370,9 +12721,9 @@ function createGoToSequence({
     }
   ];
   const DOOR_STANDS = /* @__PURE__ */ new Map([
-    ["navigation.panel.threads", () => panelIsOpen2()],
-    ["navigation.drawer.queue", () => currentDrawer() === "queue"],
-    ["navigation.drawer.leaves", () => currentDrawer() === "leaves"]
+    ["navigation.panel.threads", () => doors.threads.shows()],
+    ["navigation.drawer.queue", () => doors.queue.shows()],
+    ["navigation.drawer.leaves", () => doors.leaves.shows()]
   ]);
   function press(control) {
     scrollToElement(control, void 0, "nearest");
@@ -13560,7 +13911,8 @@ var version = createVersionController({
   captureRetainedStanding: () => app?.overlay?.captureStanding() ?? null,
   restoreRetainedStanding: (standing2) => app?.overlay?.restoreStanding(standing2) ?? false,
   captureAskStanding: () => asks.captureStanding(),
-  restoreAskStanding: (standing2) => asks.restoreStanding(standing2)
+  restoreAskStanding: (standing2) => asks.restoreStanding(standing2),
+  versions: { press: () => floatingPanel.doors.versions.press() }
 });
 var inputs = createCompositionInputs({
   uploadMedia,
@@ -13601,7 +13953,6 @@ app = mountApplication({
   },
   landInThread: (...args) => landing.landInThread(...args),
   landSent: (...args) => landing.landSent(...args),
-  showThread: (...args) => landing.showThread(...args),
   panelIsOpen,
   registerReactSurface: (...args) => reactions.registerReactSurface(...args),
   sendReaction,
@@ -13719,7 +14070,8 @@ var floatingPanel = createFloatingPanel({
   },
   queueActions: app.queueActions,
   withdraw: app.withdraw,
-  settlement: app.settlement
+  settlement: app.settlement,
+  placedAt: anchorPlacement.placedAt
 });
 var generalComment = floatingPanel.pageComment;
 var passageSelection = createPassageSelection({
@@ -13753,8 +14105,8 @@ responseSurface = createResponseSurface({
   refreshThread: app.refreshThread,
   dismissThreadView: () => app.overlay?.inlineThreadView.dismiss(),
   pageComment: generalComment,
-  responseHome: overlaySelected ? chromeRoot : panelFoot,
-  revealResponseHome: overlaySelected ? null : () => threadPanelController.setPanel(true),
+  responseHome: overlaySelected ? chromeRoot : floatingPanel.responseHome,
+  revealResponseHome: overlaySelected ? null : floatingPanel.revealResponse,
   createComment: (command) => app.threadActions.create(command)?.delivery ?? null,
   landSent: landing.landSent,
   wireInput: inputs.wireInput,
@@ -13848,7 +14200,7 @@ threadPanelController = createThreadPanelController({
 if (document.documentElement.lfSample) {
   let viewOperation;
   onSampleNotice("cancel-view", () => viewOperation?.abort());
-  registerSampleCommand("thread", async ({ id, surface, status, waiting }) => {
+  registerSampleCommand("thread", async ({ id, surface, status }) => {
     viewOperation?.abort();
     viewOperation = new AbortController();
     const { signal } = viewOperation;
@@ -13856,15 +14208,12 @@ if (document.documentElement.lfSample) {
     const intent = restrictUserIntent(retained, retained);
     return afterPresentation(async () => {
       if (!intent()) return false;
-      if (surface === "panel")
-        return threadPanelController.showView({
-          thread: id,
-          status,
-          waiting,
-          signal,
-          intent
-        });
-      intent.handoff(() => threadPanelController.setPanel(false));
+      if (surface === "panel") {
+        let shown = null;
+        const show = () => shown = floatingPanel.showForSample({ thread: id, status });
+        if (!intent.handoff(show)) return false;
+        return await shown && intent.available();
+      }
       return Boolean(
         await app.threadDestinations.openPageThread(id, {
           focus: false,
@@ -13890,8 +14239,8 @@ var writingResume = createWritingResume({
   holdsThreadDraft: (context) => app.threadDestinations.holdsThreadDraft(context)
 });
 goToSequence = createGoToSequence({
-  panelIsOpen,
-  elements: { banner, toggleBtn },
+  doors: floatingPanel.doors,
+  elements: { banner },
   hintChrome,
   directDestinations: () => [
     writingResume,
@@ -14032,10 +14381,7 @@ window.addEventListener("lf-startup-failed", () => startupFailed = true, {
 });
 var initialStateRead = beginRead();
 if (!offlineInteractive) {
-  restoreUserView({
-    restoreAuxiliarySurface: auxiliarySurfaces.restore,
-    setDesignMode: designMode.setActive
-  });
+  restoreUserView({ setDesignMode: designMode.setActive });
   annotationRenderer?.restoreAnnotations();
   recoverComposer.handoff(releaseFocus);
 }

@@ -7778,10 +7778,13 @@ var stepsBefore = (scope) => word(scope?.sequencePrefix ?? scope?.sequence) ?? [
 var stepsIn = (scope, row2) => [...stepsBefore(scope), labelOf(row2)].filter(Boolean);
 var shortcutIn = (scope, row2) => stepsIn(scope, row2).join(" ");
 function commandShortcut(id) {
+  return commandSteps(id).join(" ");
+}
+function commandSteps(id) {
   for (const scope of pageScopes())
     for (const row2 of scope?.rows ?? [])
-      if (row2.id === id && bindings(row2).length) return shortcutIn(scope, row2);
-  return "";
+      if (row2.id === id && bindings(row2).length) return stepsIn(scope, row2);
+  return [];
 }
 function controlRows() {
   const more = universalCommandReference();
@@ -8349,6 +8352,7 @@ export {
   HeldNews,
   HeldReading,
   heldGrowth,
+  quoteReading,
   threadReading,
   ThreadView,
   claimSeatReplies,
@@ -8368,6 +8372,7 @@ export {
   revealHeld,
   surfaceFocusTarget,
   commandShortcut,
+  commandSteps,
   paintCoreControls,
   BANNER_CONTROL_RANK,
   bannerActions,

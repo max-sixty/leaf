@@ -89,7 +89,7 @@
     cursor: default;
     background: none;
   }
-  :where(.lf-floating-panel) :is(button, input, textarea, .lf-fp-on-item):focus-visible {
+  :where(.lf-floating-panel) :is(button, input, textarea, a, .lf-fp-on-item):focus-visible {
     outline: var(--focus-ring);
     outline-offset: -2px;
   }
@@ -169,6 +169,18 @@
   }
   .lf-fp-box {
     flex-wrap: wrap;
+  }
+  .lf-fp-response {
+    display: none;
+    flex: 1;
+    min-width: 0;
+    align-self: center;
+  }
+  .lf-floating-panel:not([data-open]) .lf-fp-row:has(> .lf-fp-response > .lf-fab-bar > .lf-composer[data-lf-open]) > .lf-fp-field {
+    display: none;
+  }
+  .lf-floating-panel:not([data-open]) .lf-fp-row:has(> .lf-fp-response > .lf-fab-bar > .lf-composer[data-lf-open]) > .lf-fp-response {
+    display: block;
   }
   .lf-fp-resolved {
     flex: 1;
@@ -830,6 +842,56 @@
   .lf-fp-thread[data-resolved] .lf-fp-label {
     color: var(--lf-fp-muted);
   }
+  .lf-fp-quote-head {
+    display: grid;
+    justify-items: start;
+    gap: 4px;
+    margin: 0 0 12px;
+  }
+  .lf-fp-quote {
+    margin: 0;
+    cursor: default;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
+  }
+  .lf-fp-quote[data-expanded=true] {
+    display: block;
+    overflow: visible;
+  }
+  .lf-fp-quote-head > .lf-quote-expand {
+    min-height: 0;
+    padding: 0;
+    color: var(--lf-fp-muted);
+    font-size: 12px;
+  }
+  .lf-fp-page {
+    display: grid;
+    grid-template-columns: auto minmax(0, max-content) minmax(6em, 1fr) 0.75em;
+    align-items: center;
+    gap: 8px;
+    min-height: 34px;
+    padding: 5px 8px;
+    border-radius: 6px;
+    color: inherit;
+    text-decoration: none;
+  }
+  .lf-fp-page .lf-dot {
+    --lf-mark-w: 14px;
+  }
+  .lf-fp-page .lf-fp-value {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: end;
+  }
+  .lf-fp-page > .lf-external-mark {
+    margin: 0;
+    color: var(--lf-fp-muted);
+  }
+  a.lf-fp-page:hover {
+    background: var(--lf-fp-hover);
+  }
   .lf-fp-version {
     display: flex;
     align-items: center;
@@ -1095,7 +1157,8 @@
       padding: 7px;
     }
     .lf-fp-item,
-    .lf-fp-thread {
+    .lf-fp-thread,
+    .lf-fp-page {
       min-height: 44px;
     }
     :where(.lf-floating-panel) button {

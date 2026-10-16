@@ -125,7 +125,7 @@
     background: none;
   }
   :where(.lf-floating-panel)
-    :is(button, input, textarea, .lf-fp-on-item):focus-visible {
+    :is(button, input, textarea, a, .lf-fp-on-item):focus-visible {
     outline: var(--focus-ring);
     outline-offset: -2px;
   }
@@ -225,6 +225,25 @@
      over a thread's reply (response.css). */
   .lf-fp-box {
     flex-wrap: wrap;
+  }
+  /* The anchored comment box on a page drawing its own annotations, standing in the
+     field's place while its composer is open and no view is open above the row
+     (floating-panel.js, `responseSeat`). */
+  .lf-fp-response {
+    display: none;
+    flex: 1;
+    min-width: 0;
+    align-self: center;
+  }
+  .lf-floating-panel:not([data-open])
+    .lf-fp-row:has(> .lf-fp-response > .lf-fab-bar > .lf-composer[data-lf-open])
+    > .lf-fp-field {
+    display: none;
+  }
+  .lf-floating-panel:not([data-open])
+    .lf-fp-row:has(> .lf-fp-response > .lf-fab-bar > .lf-composer[data-lf-open])
+    > .lf-fp-response {
+    display: block;
   }
   .lf-fp-resolved {
     flex: 1;
@@ -1018,6 +1037,36 @@
     color: var(--lf-fp-muted);
     font-size: 12px;
   }
+  /* A page in All pages: its leaf in its agent's tone, its title, and what its agent is
+     doing, which gives way to the title and is cut where the row ends; then the mark
+     every link opening a tab of its own wears (declared-words.js), in a column of its
+     own at the row's end. */
+  .lf-fp-page {
+    display: grid;
+    grid-template-columns: auto minmax(0, max-content) minmax(6em, 1fr) 0.75em;
+    align-items: center;
+    gap: 8px;
+    min-height: 34px;
+    padding: 5px 8px;
+    border-radius: 6px;
+    color: inherit;
+    text-decoration: none;
+  }
+  .lf-fp-page .lf-dot {
+    --lf-mark-w: 14px;
+  }
+  .lf-fp-page .lf-fp-value {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: end;
+  }
+  .lf-fp-page > .lf-external-mark {
+    margin: 0;
+    color: var(--lf-fp-muted);
+  }
+  a.lf-fp-page:hover {
+    background: var(--lf-fp-hover);
+  }
   .lf-fp-version {
     display: flex;
     align-items: center;
@@ -1316,7 +1365,8 @@
       padding: 7px;
     }
     .lf-fp-item,
-    .lf-fp-thread {
+    .lf-fp-thread,
+    .lf-fp-page {
       min-height: 44px;
     }
     :where(.lf-floating-panel) button {

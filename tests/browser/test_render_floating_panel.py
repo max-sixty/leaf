@@ -32,6 +32,7 @@ from render_harness import (
     consume_browser_errors,
     http_error_console,
     open_page,
+    select_words,
     sending,
     stamp_page,
     ticked,
@@ -2786,6 +2787,122 @@ def test_a_thread_whose_words_are_gone_keeps_its_quotation_in_the_panel(
     expect(disclosure).to_have_attribute("aria-expanded", "true")
     assert quote.evaluate("el => el.scrollHeight <= el.clientHeight + 1")
     expect(page.locator(CLASSIC_SURFACES)).to_have_count(0)
+
+
+def test_the_go_to_doors_open_the_panel_s_views(browser, serve):
+    """`g T` and `g M` open Threads and On me in the panel, and the same keys put them
+    away again; Go-to presses no control of the banner's to get there."""
+    url = serve(LONG_PAGE)
+    panel_comment(serve.page_dir, "Is the window long enough?")
+    page = floating(browser, url)
+    view = page.locator(".lf-fp-view:not([data-leaving])")
+    page.locator("body").focus()
+    for keys, shown in (("Shift+t", "threads"), ("Shift+m", "queue")):
+        page.keyboard.press("g")
+        page.keyboard.press(keys)
+        expect(view).to_have_attribute("data-view", shown)
+        expect(page.locator(CLASSIC_SURFACES)).to_have_count(0)
+        page.keyboard.press("g")
+        page.keyboard.press(keys)
+        expect(view).to_have_count(0)
+
+
+def test_all_pages_is_a_view_of_the_panel(browser, serve, other_leaf):
+    """All pages, from the leaf's menu under Navigate or by `g L`, opens a view above
+    the row listing the pages live on this machine, this one first and marked as this
+    page, each other one a link that opens it in a tab of its own. `g L` puts it away
+    again, and the banner's Pages drawer stays shut."""
+    page = floating(browser, serve(LONG_PAGE))
+    pages = page.locator(".lf-fp-view[data-view=leaves]")
+    page.locator(".lf-fp-leaf").click()
+    page.locator(".lf-fp-menu .lf-fp-item", has_text="Navigate").click()
+    page.locator(".lf-fp-menu .lf-fp-item", has_text="All pages").click()
+    expect(page.locator(".lf-fp-title")).to_have_text("All pages")
+    rows = pages.locator(".lf-fp-page")
+    expect(rows).to_have_count(2)
+    expect(rows.first).to_contain_text("This page")
+    expect(rows.first).not_to_have_attribute("href", re.compile("."))
+    other = pages.locator("a.lf-fp-page", has_text="The other leaf")
+    expect(other).to_have_attribute("target", "_blank")
+    expect(page.locator(CLASSIC_SURFACES)).to_have_count(0)
+    page.keyboard.press("Escape")
+    expect(pages).to_have_count(0)
+
+    page.locator("body").focus()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+l")
+    expect(pages).to_be_visible()
+    expect(page.locator(CLASSIC_SURFACES)).to_have_count(0)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+l")
+    expect(pages).to_have_count(0)
+
+
+def test_a_comment_on_words_where_the_page_draws_no_margin_is_written_in_the_row(
+    browser, serve
+):
+    """On a page that draws its own annotations and gives the comment box no seat, the
+    box for a comment on selected words stands in the field's place in the panel's row
+    while it is open, holding the caret, rather than in the banner's Threads panel. Its
+    comment sent, the panel opens the thread it started, which the page draws
+    nowhere, and the field is back in the row."""
+    page = floating(browser, serve(PAGE_ANNOTATED))
+    response = page.locator(".lf-fp-response")
+    select_words(page, "#p3")
+    page.keyboard.press("c")
+    box = response.locator("leaf-text")
+    expect(box).to_be_visible()
+    expect(box).to_be_focused()
+    expect(page.locator(".lf-fp-field")).to_be_hidden()
+    expect(page.locator(CLASSIC_SURFACES)).to_have_count(0)
+    page.keyboard.type("Is this paragraph needed?")
+    page.keyboard.press("Enter")
+    reader = page.locator(".lf-fp-view[data-view=thread]")
+    expect(reader.locator(".lf-msg")).to_contain_text("Is this paragraph needed?")
+    expect(response).to_be_hidden()
+    expect(page.locator(CLASSIC_SURFACES)).to_have_count(0)
+
+
+def test_a_sample_shows_its_threads_in_its_panel(browser, serve):
+    """A live sample's host asking for the panel (`surface: "panel"`) shows the thread
+    it names in the child's panel, or its Threads with none named, where the banner's
+    Threads panel stood before."""
+    url = serve(
+        titled_page(
+            "A sample's threads",
+            """
+<style>#sample { height: 400px; }</style><h1>Containing page</h1>
+<button id="show-thread" type="button">Show the thread</button>
+<button id="show-threads" type="button">Show Threads</button>
+<script id="history" type="application/json">
+[{"id":"question","kind":"comment","author":"user","text":"Can we schedule lunch?"}]
+</script>
+<lf-sample id="sample" window>
+  <template id="sample-page" data-sample data-sample-events="history">
+    <h1>Schedule</h1><p>Lunch is the remaining question.</p>
+  </template>
+</lf-sample>
+<script type="module">
+  const sample = document.querySelector('#sample');
+  document.querySelector('#show-thread').onclick = () =>
+    sample.showThread('question', {surface: 'panel'});
+  document.querySelector('#show-threads').onclick = () =>
+    sample.showThread(undefined, {surface: 'panel'});
+</script>
+""",
+        )
+    )
+    page = open_page(browser, url, init_script=FLOATING)
+    page.locator("#sample").evaluate("async sample => await sample.ready")
+    child = page.frame_locator("#sample iframe")
+    page.locator("#show-thread").click()
+    reader = child.locator(".lf-fp-view[data-view=thread]")
+    expect(reader.locator(".lf-msg")).to_contain_text("Can we schedule lunch?")
+    child.locator(".lf-fp-close").click()
+    expect(reader).to_have_count(0)
+    page.locator("#show-threads").click()
+    expect(child.locator(".lf-fp-view[data-view=threads]")).to_be_visible()
+    expect(child.locator(CLASSIC_SURFACES)).to_have_count(0)
 
 
 def test_an_image_pasted_in_the_page_s_field_stands_over_its_words(browser, serve):

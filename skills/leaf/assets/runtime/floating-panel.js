@@ -45,9 +45,9 @@
  *   every open view kept for it whether or not it showed (#2902). Rejected: that
  *   overlay, whose room stood under every view's last words for a line that repeated
  *   the head or the placeholder.
- * - **Opened**: a view above the same row (On, Threads or a thread), what the user
- *   reads there, with where they are at its top edge. It lasts while
- *   it is used: Escape or a press on the page puts it away, Escape once the caret has
+ * - **Opened**: a view above the same row (On, Threads, a thread or All pages), what
+ *   the user reads there, with where they are at its top edge. It lasts while it is
+ *   used: Escape or a press on the page puts it away, Escape once the caret has
  *   left the field, since the caret is the innermost thing open. The view stands right
  *   on the row, with no line between them, so typing moves nothing at the view's head.
  *   The user chose that (2026-10-14), reversing a blank line's room kept under every
@@ -72,9 +72,10 @@
  * in the menu, as the user chose on 15 October over an About view of one line). That
  * list takes the menu's place in the same box, sliding in from the side the chevron
  * points to, under a head naming it that goes back, as → and ← do (`menuAt`): those
- * lists are for choosing, as the menu is, while what the user reads, Threads and On,
- * opens as a view. The user chose this on 15 October, reversing each list opening as a
- * view rising from the field with no way back to the menu. Rejected: that view keeping
+ * lists are for choosing, as the menu is, while what the user reads, Threads, On and
+ * All pages, whose rows say what each page's agent is doing, opens as a view. The user
+ * chose this on 15 October, reversing each list opening as a view rising from the
+ * field with no way back to the menu. Rejected: that view keeping
  * its place with a "‹ Menu /" crumb at its head, which still moves the user's eye from
  * the menu to the panel's top. A
  * keyboard's convenience for where the reader stands, such as Resume writing, stands
@@ -102,10 +103,9 @@ import {
   approvalReading,
   approve,
   registerApprovalPresentation,
-  toggleBtn,
   statusReading,
 } from "./banner.js";
-import { queueBtn } from "./drawers.js";
+import { leavesRows } from "./live-leaves.js";
 import { keys } from "./keyboard/scopes.js";
 import { pageCommand, pageRung } from "./keyboard/register.js";
 import { advertisesKeys, rowArrows } from "./keyboard/bindings.js";
@@ -140,7 +140,7 @@ import { queueTitle } from "./queue-title.js";
 import { itemOutcome } from "./queues.js";
 import { shortAgo } from "./presence.js";
 import { askEnding } from "./asks/answer.js";
-import { versionMenu, versionPicker } from "./version-picker.js";
+import { versionPicker } from "./version-picker.js";
 import { versionsReading } from "./version.js";
 import { UPGRADE } from "./presentation.js";
 import { noticeReading, registerNoticePresentation } from "./notifications.js";
@@ -193,9 +193,9 @@ const GROUPS = Object.freeze({
   annotate: "Annotations",
   about: "About this page",
 });
-// Rows the panel draws itself rather than pressing the native control: Threads and On
-// as views, Versions as a list in the menu's place.
-const OWN_VIEWS = Object.freeze(["threads", "queue", "versions"]);
+// Rows the panel draws itself rather than pressing the native control: Threads, On and
+// All pages as views, Versions as a list in the menu's place.
+const OWN_VIEWS = Object.freeze(["threads", "queue", "leaves", "versions"]);
 // Rows held elsewhere, so the menu and its groups leave them out: by the panel's row or
 // its views, or, for picking an element to comment on, by the page itself, where
 // selecting words or pressing `s` already starts it.
@@ -389,7 +389,18 @@ export function createFloatingPanel({
   lengthWatch.observe(field);
   const rowNoticeSeat = el("div", "lf-fp-row-notice");
   const quick = el("div", "lf-fp-quick");
-  row.append(leaf, field, rowNoticeSeat, quick);
+  // The anchored comment box's home on a page that draws its own annotations
+  // (`data-annotations="page"`), where the page gives the box no seat of its own
+  // (composing/surface.js, `responseHome`). While its composer is open it stands in the
+  // field's place, as each destination's own editor does there: its words go to a new
+  // thread on the passage it quotes, which the box says. The field comes back when the
+  // box closes, and while a view is open above the row, whose field it is. Which of the
+  // two shows is the stylesheet's reading of the composer's own open state
+  // (floating-panel.css), so the box seated in the page, or put away, moves nothing
+  // here. Rejected: a view of its own above the row, which stood a second field over
+  // the panel's own.
+  const responseSeat = el("div", "lf-fp-response");
+  row.append(leaf, field, responseSeat, rowNoticeSeat, quick);
 
   const CONNECTING = {
     tone: "",
@@ -624,6 +635,7 @@ export function createFloatingPanel({
     ({
       threads: "Threads",
       queue: tabLabel(queueTab),
+      leaves: "All pages",
       versions: "Versions",
       thread: route.thread ? threadTitle(route.thread) : "",
       group: GROUPS[route.group],
@@ -641,7 +653,7 @@ export function createFloatingPanel({
       return;
     }
     if (route.view === "thread" && presentation && !presentation.primary) {
-      openInPackage(route.thread);
+      openInPackage(route.thread, { focus });
       return;
     }
     if (route.view !== "threads" && route.view !== "thread") searching = false;
@@ -1259,7 +1271,7 @@ export function createFloatingPanel({
         disabled: entry.disabled,
         role: menuOpen ? "menuitem" : null,
         row: entry.key,
-        opens: Boolean(view),
+        opens: view === "versions",
       },
     );
   }
@@ -1569,6 +1581,7 @@ export function createFloatingPanel({
   const LIST_ROWS = Object.freeze({
     threads: ".lf-fp-thread",
     queue: ".lf-fp-on-item",
+    leaves: ".lf-fp-page[href]",
   });
   const listRows = () => {
     const rows = LIST_ROWS[trail.at(-1)?.view];
@@ -1964,6 +1977,40 @@ export function createFloatingPanel({
     }`;
   }
 
+  // ---------- All pages: the pages live on this machine ----------
+  // Each page served on this machine now, this one first (live-leaves.js, `leavesRows`):
+  // its leaf in its agent's tone, its title, and what its agent is doing, its whole
+  // account on hover. A row is a link that opens its page in a tab of its own; this
+  // page's row says it is this page and goes nowhere, so the walk passes it by.
+  function pagesView() {
+    const rows = leavesRows(runtime.state);
+    if (!rows.length) return html`<p class="lf-fp-empty">No pages are live.</p>`;
+    return html`<div class="lf-fp-list">
+      ${repeat(
+        rows,
+        (row) => row.key,
+        (row) => {
+          const face = html`<span
+              class=${`lf-dot${row.tone ? ` ${row.tone}` : ""}`}
+              aria-hidden="true"
+            ></span
+            ><span class="lf-fp-label">${row.title}</span
+            ><span class="lf-fp-value">${row.self ? "This page" : row.line}</span>`;
+          return row.self
+            ? html`<div class="lf-fp-page" title=${row.account}>${face}</div>`
+            : html`<a
+                class="lf-fp-page"
+                href=${row.href}
+                target="_blank"
+                rel="noopener"
+                title=${row.account}
+                >${face}</a
+              >`;
+        },
+      )}
+    </div>`;
+  }
+
   function viewTemplate(route) {
     switch (route.view) {
       case "threads":
@@ -1972,6 +2019,8 @@ export function createFloatingPanel({
         return threadView(route.thread);
       case "queue":
         return onView();
+      case "leaves":
+        return pagesView();
     }
     return nothing;
   }
@@ -2766,33 +2815,61 @@ export function createFloatingPanel({
     true,
   );
 
-  // The Threads and On me doors are the banner's controls, which every route to
-  // those surfaces presses, Go-to's included. In this chrome the panel stands for
-  // them, so their press opens its view instead.
-  for (const [door, view] of [
-    [toggleBtn, "threads"],
-    [queueBtn, "queue"],
-  ])
-    door.addEventListener(
-      "click",
-      (event) => {
-        event.stopImmediatePropagation();
-        event.preventDefault();
-        if (view === "queue") return openOnMe();
+  // The doors to the panel's views and to Versions, as Go-to's named destinations
+  // (keyboard/go-to-sequence.js) and version travel (`g V`, version.js) press them:
+  // each opens what it names, or puts it away where it already stands, so the press
+  // that opened it closes it. The On me door turns the On view to the user's list where
+  // it shows the agent's, as the mark does; the Threads door opens on Open threads.
+  // `shows` says whether the press would put its view away.
+  function putVersionsAway() {
+    const inside = renderedUnder(focused(), menu);
+    setMenu(false);
+    if (inside) focusDestination(leaf, "return");
+  }
+  const doors = Object.freeze({
+    threads: {
+      shows: () => trail.at(-1)?.view === "threads",
+      press: () => {
         filter = "open";
         query = "";
-        open({ view });
+        open({ view: "threads" });
       },
-      { capture: true },
-    );
-
-  // Version travel (`g V`, the picker's own press) opens the versions menu, whichever
-  // route asks; in this chrome that opening is Versions in the leaf's menu.
-  versionMenu.addEventListener("beforetoggle", (event) => {
-    if (event.newState !== "open") return;
-    event.preventDefault();
-    showMenuAt({ view: "versions" });
+    },
+    queue: {
+      shows: () => trail.at(-1)?.view === "queue" && queueTab === "you",
+      press: openOnMe,
+    },
+    leaves: {
+      shows: () => trail.at(-1)?.view === "leaves",
+      press: () => open({ view: "leaves" }),
+    },
+    versions: {
+      shows: () => menuOpen && menuAt?.view === "versions",
+      press: () =>
+        menuOpen && menuAt?.view === "versions"
+          ? putVersionsAway()
+          : showMenuAt({ view: "versions" }),
+    },
   });
+
+  // A live sample's host showing its child's threads in the panel (sample.js, the
+  // `thread` command): the thread it names, else Threads, on Resolved where it asks for
+  // `resolved`. A host's view never takes the child's focus.
+  function showForSample({ thread, status }) {
+    if (thread) {
+      if (!threadByKey(thread)) return Promise.resolve(false);
+      open(
+        { view: "thread", thread: threadByKey(thread).key },
+        { reopen: true, focus: false },
+      );
+    } else {
+      filter = status === "resolved" ? "resolved" : "open";
+      query = "";
+      open({ view: "threads" }, { reopen: true, focus: false });
+      paint();
+    }
+    return present({ release: true }).then(() => true);
+  }
 
   // The page's comment box in this chrome, as `c` and Resume writing find it
   // (composing/surface.js, `commentDestination`).
@@ -2875,5 +2952,19 @@ export function createFloatingPanel({
     paint();
   }
 
-  return { host, mount, open, close, enter, pageComment };
+  return {
+    host,
+    mount,
+    open,
+    close,
+    enter,
+    pageComment,
+    doors,
+    showForSample,
+    // The anchored comment box opening in its home (`responseSeat`) clears the row for
+    // it, where the composer then takes the caret (composing/surface.js,
+    // `finishPlacement`).
+    responseHome: responseSeat,
+    revealResponse: clearRow,
+  };
 }

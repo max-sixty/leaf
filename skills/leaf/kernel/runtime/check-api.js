@@ -6,7 +6,7 @@ import {
 } from "./bundle-sample-child.js";
 import {
   USER_VIEW_RESTORE_CASES
-} from "./bundle-auxiliary-surfaces.js";
+} from "./bundle-drawn-edge.js";
 import {
   shallowSigs
 } from "./bundle-projection~presentation.js";

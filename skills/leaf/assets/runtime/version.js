@@ -1029,6 +1029,7 @@ function revisionDocument(revision) {
  *   restoreRetainedStanding?: (standing: unknown) => boolean,
  *   captureAskStanding?: () => unknown,
  *   restoreAskStanding?: (standing: unknown) => void,
+ *   versions: { press: () => void },
  * }} controller */
 export function createVersionController({
   compositionInput,
@@ -1043,6 +1044,8 @@ export function createVersionController({
   restoreRetainedStanding = () => false,
   captureAskStanding = () => null,
   restoreAskStanding = () => {},
+  // The chrome's Versions, which `g V` opens or puts away (floating-panel.js, `doors`).
+  versions,
 }) {
   let {
     authoredBodyAttributes,
@@ -1230,17 +1233,15 @@ export function createVersionController({
     ],
   };
 
-  // g V names the picker, the control wearing the version number, and the menu it opens.
-  // Named, because the chip that jumps straight to the current page spells that motion in
-  // its tooltip, and because the closed control's own title says the press beside what
-  // pressing it does.
+  // g V names the versions, and what each one changed: the chrome's Versions, which the
+  // press opens or puts away, as its menu row does.
   const PICKER = {
     id: "version.open",
     ready: savedReadingSettled,
     keys: ["Shift+v"],
     description: "The versions, and what each one changed",
     title: "versions",
-    control: versionBtn,
+    run: () => versions.press(),
     // The same predicate the menu's Escape stands on, so the key cannot open a layer the
     // way out is not live over. The walk being empty is the menu's business, not this key's.
     when: versionsOffered,

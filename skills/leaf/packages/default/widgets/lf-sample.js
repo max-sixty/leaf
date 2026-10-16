@@ -403,8 +403,8 @@ customElements.define(
     // selection, Reset or removal supersedes it. The outer control remains the
     // keyboard stop while the child draws its view.
     /** @param {string} id
-     * @param {{surface?: string, status?: string, waiting?: string}} [view] */
-    async showThread(id, { surface = "page", status, waiting } = {}) {
+     * @param {{surface?: string, status?: string}} [view] */
+    async showThread(id, { surface = "page", status } = {}) {
       this.#viewOperation?.abort();
       const operation = new AbortController();
       this.#viewOperation = operation;
@@ -414,7 +414,7 @@ customElements.define(
           .then(() =>
             signal.aborted
               ? false
-              : this.#host.showThread(id, { surface, status, waiting, signal }),
+              : this.#host.showThread(id, { surface, status, signal }),
           )
           .catch((error) => {
             // The departure that rejected it has already promised the next document.

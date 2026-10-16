@@ -32,10 +32,16 @@ const shortcutIn = (scope, row) => stepsIn(scope, row).join(" ");
  * a `g` destination wraps the declaration it stands for — and the shortcut the user
  * presses is the one that scope prefixes. */
 export function commandShortcut(id) {
+  return commandSteps(id).join(" ");
+}
+/** The presses of `commandShortcut`, each a step as a key chip spells it, for a
+ * presentation that draws a command as words with its keys (banner-toolbar.js, a row's
+ * `shortcut`). Empty for a command no key reaches. */
+export function commandSteps(id) {
   for (const scope of pageScopes())
     for (const row of scope?.rows ?? [])
-      if (row.id === id && bindings(row).length) return shortcutIn(scope, row);
-  return "";
+      if (row.id === id && bindings(row).length) return stepsIn(scope, row);
+  return [];
 }
 
 // Each visible control a page row names, with the row that reaches it.

@@ -2905,7 +2905,9 @@ function createVersionController({
   restoreRetainedStanding = () => false,
   captureAskStanding = () => null,
   restoreAskStanding = () => {
-  }
+  },
+  // The chrome's Versions, which `g V` opens or puts away (floating-panel.js, `doors`).
+  versions
 }) {
   let {
     authoredBodyAttributes,
@@ -3059,7 +3061,7 @@ function createVersionController({
     keys: ["Shift+v"],
     description: "The versions, and what each one changed",
     title: "versions",
-    control: versionBtn,
+    run: () => versions.press(),
     // The same predicate the menu's Escape stands on, so the key cannot open a layer the
     // way out is not live over. The walk being empty is the menu's business, not this key's.
     when: versionsOffered
@@ -5979,8 +5981,6 @@ function createInlineContributions({ targetPath }) {
 function createThreadDestinations({
   placedAt,
   threadIdsAt,
-  panelIsOpen,
-  showThread,
   scrollToThread,
   arrive,
   prepareTrip,
@@ -6021,6 +6021,8 @@ function createThreadDestinations({
     return thread && replyAvailable(thread) ? id : null;
   };
   const threadFocusTarget = (id, { part = null } = {}) => part === "message" ? null : surfaceFocusTarget(id, { part }) ?? preview?.focusTarget(id, { part }) ?? null;
+  const DECLINED = /* @__PURE__ */ Symbol("declined");
+  const UNDRAWN = /* @__PURE__ */ Symbol("undrawn");
   async function openPageThread(id, {
     part = null,
     focus = true,
@@ -6032,10 +6034,10 @@ function createThreadDestinations({
   } = {}) {
     if (!intent()) return null;
     const trip = travel2 && scroll;
-    const selected = presentation;
-    if (selected?.owner.isConnected) {
-      const thread = threadNamed(id);
-      if (!thread || !discussed(thread)) return null;
+    const selected = presentation?.owner.isConnected ? presentation : null;
+    const thread = threadNamed(id);
+    if (selected && (!thread || !discussed(thread))) return null;
+    async function inPrimary(last) {
       opening?.abort();
       const abort = new AbortController();
       opening = abort;
@@ -6045,11 +6047,12 @@ function createThreadDestinations({
         message: part === "message" ? thread.msgs.find((message) => message.id === id)?.key ?? null : null,
         part,
         focus,
+        last,
         signal: abort.signal,
         current: () => !abort.signal.aborted && presentation === selected && selected.owner.isConnected && (focus === false ? intent.available() : intent())
       };
-      const mayPresent2 = () => !abort.signal.aborted && presentation === selected && selected.owner.isConnected && (focus === false ? intent.available() : intent());
-      const arriving = restrictUserIntent(intent, mayPresent2);
+      const mayPresent = () => !abort.signal.aborted && presentation === selected && selected.owner.isConnected && (focus === false ? intent.available() : intent());
+      const arriving = restrictUserIntent(intent, mayPresent);
       const departure = focus !== false && trip ? prepareTrip({
         landing: () => selected.reader.destination(thread.key, request),
         intent: arriving
@@ -6057,38 +6060,38 @@ function createThreadDestinations({
       showHeld(id);
       const result = selected.open(thread.key, request);
       const selectedLayout = result?.then ? await whileCurrent(result) : result;
-      if (!mayPresent2()) return null;
-      if (selectedLayout !== false) await whileCurrent(selected.reader.update());
-      if (!mayPresent2()) return null;
-      const destination = selectedLayout === false ? null : selected.reader.destination(thread.key, request);
-      if (destination !== null) {
-        if (!(destination instanceof Element) || !destination.isConnected || !renderedUnder(destination, selected.owner) || !selected.reader.ownsDestination(destination))
-          throw new TypeError(
-            "A Thread destination must be a retained part of its registered presentation"
-          );
-        if (focus === false) {
-          await whileCurrent(reveal(destination, intent).ready);
-          return mayPresent2() ? destination : null;
-        }
-        departure?.plan(destination);
-        const reached = await whileCurrent(
-          arrive(
-            () => {
-              const current = selected.reader.destination(thread.key, request);
-              return current && {
-                where: current,
-                focus: current,
-                scroll: trip ? [{ at: current, block: "nearest" }] : []
-              };
-            },
-            { intent: arriving, departure }
-          )
+      if (!mayPresent()) return null;
+      if (selectedLayout === false) return DECLINED;
+      await whileCurrent(selected.reader.update());
+      if (!mayPresent()) return null;
+      const destination = selected.reader.destination(thread.key, request);
+      if (destination === null) return UNDRAWN;
+      if (!(destination instanceof Element) || !destination.isConnected || !renderedUnder(destination, selected.owner) || !selected.reader.ownsDestination(destination))
+        throw new TypeError(
+          "A Thread destination must be a retained part of its registered presentation"
         );
-        return reached ? selected.reader.destination(thread.key, request) : null;
+      if (focus === false) {
+        await whileCurrent(reveal(destination, intent).ready);
+        return mayPresent() ? destination : null;
       }
+      departure?.plan(destination);
+      const reached = await whileCurrent(
+        arrive(
+          () => {
+            const current = selected.reader.destination(thread.key, request);
+            return current && {
+              where: current,
+              focus: current,
+              scroll: trip ? [{ at: current, block: "nearest" }] : []
+            };
+          },
+          { intent: arriving, departure }
+        )
+      );
+      return reached ? selected.reader.destination(thread.key, request) : null;
     }
-    const mayPresent = () => focus === false ? intent.available() : intent();
-    if (!panelIsOpen() && part !== "message") {
+    async function onPage() {
+      const mayPresent = () => focus === false ? intent.available() : intent();
       const localPart = part ?? "reply";
       const openSurface = async () => {
         if (preview) intent.handoff(preview.close);
@@ -6144,8 +6147,17 @@ function createThreadDestinations({
         if (!mayPresent()) return null;
       }
       if (surfaceFocusTarget(id, { part: localPart })) return openSurface();
+      return DECLINED;
     }
-    return showThread(id, { part: part ?? "reply", focus, flash, scroll, intent });
+    const first = selected ? await inPrimary(false) : DECLINED;
+    if (first !== DECLINED && first !== UNDRAWN) return first;
+    if (part !== "message") {
+      const shown2 = await onPage();
+      if (shown2 !== DECLINED) return shown2;
+    }
+    if (!selected || first !== DECLINED) return null;
+    const shown = await inPrimary(true);
+    return shown === DECLINED || shown === UNDRAWN ? null : shown;
   }
   async function openThreadDraft(context, intent) {
     const thread = threadHolding(context);
@@ -7495,8 +7507,6 @@ function mountApplication(dependencies) {
   const threadDestinations = createThreadDestinations({
     threadIdsAt: annotations.threadIdsAt,
     placedAt: dependencies.anchorPlacement.placedAt,
-    panelIsOpen: dependencies.panelIsOpen,
-    showThread: dependencies.showThread,
     scrollToThread: dependencies.anchorTravel.scrollToThread,
     arrive: dependencies.anchorTravel.arrive,
     prepareTrip: dependencies.anchorTravel.prepareTrip,

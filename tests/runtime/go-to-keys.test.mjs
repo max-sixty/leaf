@@ -31,12 +31,11 @@ pageCommand({
   run: () => reacted.push("e"),
 });
 
+// The floating panel's doors, none standing open.
+const door = { shows: () => false, press: () => {} };
 const goTo = createGoToSequence({
-  panelIsOpen: () => false,
-  elements: {
-    banner: document.createElement("header"),
-    toggleBtn: document.createElement("button"),
-  },
+  doors: { threads: door, queue: door, leaves: door },
+  elements: { banner: document.createElement("header") },
   hintChrome: { barriers: () => [], lineBox: () => null, viewportTop: () => 0 },
   directDestinations: () => [],
   scrollToElement: () => {},

@@ -93,14 +93,11 @@ const listedPages = (state) =>
         })),
       ];
 
-function paintOthers() {
-  const state = runtime.state;
-  const offeredBefore = leavesOffered();
-  // Null is the explicit pre-read state. It has no self presence to draw, and recovery
-  // from a refused first reading must remove every row that candidate introduced.
-  // `others` holds live neighbours only: a closed one leaves it (presence.py).
-  others = state === null ? [] : state.others;
-  rows = Object.freeze(
+// Each page a state reading lists, as a row says it: its tone and line in the shape of
+// the banner's activity, and the whole account its hover gives. The drawer and the
+// floating panel's All pages draw these same rows.
+export const leavesRows = (state) =>
+  Object.freeze(
     listedPages(state).map(({ key, href, title, entry }) => {
       const { tone, line } = leafRow(entry);
       return Object.freeze({
@@ -114,6 +111,15 @@ function paintOthers() {
       });
     }),
   );
+
+function paintOthers() {
+  const state = runtime.state;
+  const offeredBefore = leavesOffered();
+  // Null is the explicit pre-read state. It has no self presence to draw, and recovery
+  // from a refused first reading must remove every row that candidate introduced.
+  // `others` holds live neighbours only: a closed one leaves it (presence.py).
+  others = state === null ? [] : state.others;
+  rows = leavesRows(state);
   if (offeredBefore !== leavesOffered()) paintKeys();
   return presentLeaves();
 }

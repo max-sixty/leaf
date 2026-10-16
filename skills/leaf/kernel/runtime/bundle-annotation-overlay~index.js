@@ -46,7 +46,7 @@ import {
 } from "./bundle-contribution-model.js";
 import {
   ANNOTATIONS_KEY
-} from "./bundle-auxiliary-surfaces.js";
+} from "./bundle-drawn-edge.js";
 import {
   anchorLabel,
   bannerControlDoor,

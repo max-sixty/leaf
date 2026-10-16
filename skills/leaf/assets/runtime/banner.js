@@ -23,6 +23,7 @@ import { latestChip, versionBtn } from "./version-picker.js";
 import { versionsReading } from "./version.js";
 import { othersBtn, queueBtn } from "./drawers.js";
 import { leavesCount } from "./live-leaves.js";
+import { commandSteps } from "./keyboard/control-keys.js";
 import { pagePresented } from "./page-paint.js";
 import { repaint } from "./repaint.js";
 import { sizeObserver } from "./rendering.js";
@@ -161,7 +162,14 @@ registerBannerControl({
   control: othersBtn,
   rank: BANNER_CONTROL_RANK.leaves,
   conditional: true,
-  row: { label: "All pages", value: () => String(leavesCount()), group: "navigate" },
+  // Its keys are the command's, which opens the floating panel's All pages rather
+  // than pressing this control.
+  row: {
+    label: "All pages",
+    value: () => String(leavesCount()),
+    shortcut: () => commandSteps("navigation.drawer.leaves"),
+    group: "navigate",
+  },
 });
 registerBannerControl({
   key: "latest",
@@ -189,6 +197,7 @@ registerBannerControl({
   row: {
     label: "Versions",
     value: () => versionsReading().picker.token,
+    shortcut: () => commandSteps("version.open"),
     group: "page",
   },
 });

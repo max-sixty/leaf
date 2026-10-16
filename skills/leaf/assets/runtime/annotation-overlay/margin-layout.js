@@ -757,12 +757,68 @@ function standFolded(row, fold, on) {
 // with it under the target. Above and below come last because a pin there can read as
 // the neighbouring block's, and above stands outside what a pane shows when the pane is
 // scrolled to its target. Below is the one seat clear beside a full-width figure or
-// keypad that sits right under a paragraph.
+// keypad that sits right under a paragraph. A quoted passage's pin then tries the same
+// seats by the block holding it, so it covers words only where the block's do too.
 //
 // A row that can fold (its `fold.able()`, margin-projection.js) is seated at both sizes,
 // which are worked out rather than read, since only the one it stands at is drawn:
 // unfolded its face is two controls, folded one, and opened `fold.controls()`, each a
 // square the row's height, beside the gaps and the focus ring's room the row keeps.
+// The seats by one subject, in the order a pin takes them, `size` wide and as tall as
+// `home`, the pin's seat inside the subject's top-right corner; `parts` are the
+// subject's boxes, and `inline` whether it is a run of words, which adds the seat after
+// its last word.
+function seatsBy(parts, home, inline, cover, size) {
+  const height = home.bottom - home.top;
+  const box = parts.length
+    ? {
+        right: Math.max(...parts.map((part) => part.right)),
+        top: Math.min(...parts.map((part) => part.top)),
+      }
+    : { right: home.right, top: home.top };
+  const end = parts.at(-1);
+  // Below the corner only where the row under the subject is empty from its left edge
+  // to the corner: beside the next block's words, a pin reads as that block's.
+  // Measured from the subject's own foot, not its home's: a subject shorter than a pin
+  // would otherwise skip the block below it.
+  const foot = parts.length
+    ? Math.max(...parts.map((part) => part.bottom))
+    : home.bottom;
+  const under = {
+    left: Math.min(home.left, ...parts.map((part) => part.left)),
+    right: home.right,
+    top: foot + GAP,
+    bottom: foot + GAP + height,
+  };
+  const belowClear = !cover.some((box) => overlaps(box, under));
+  return [
+    {
+      left: box.right + GAP,
+      right: box.right + GAP + size,
+      top: box.top,
+      bottom: box.top + height,
+    },
+    ...(inline && end
+      ? [
+          {
+            left: end.right + GAP,
+            right: end.right + GAP + size,
+            top: end.top,
+            bottom: end.top + height,
+          },
+        ]
+      : []),
+    { ...home, left: home.right - size },
+    {
+      left: home.right - size,
+      right: home.right,
+      top: box.top - GAP - height,
+      bottom: box.top - GAP,
+    },
+    ...(belowClear ? [{ ...under, left: home.right - size }] : []),
+  ];
+}
+
 function pinSeating(rows, { bands, shell, pinInset }) {
   const main = marginColumn();
   // A scrollable document can reveal seats beyond the viewport, but none above its own
@@ -796,16 +852,24 @@ function pinSeating(rows, { bands, shell, pinInset }) {
     // the row's boxes are read wherever it is drawn, a widget's shadow tree included,
     // since the walk below reads the room around the target, which is the document's.
     const parts = words ?? partsOf(point ?? target);
-    const box = parts.length
-      ? {
-          right: Math.max(...parts.map((part) => part.right)),
-          top: Math.min(...parts.map((part) => part.top)),
-        }
-      : { right: home.right, top: home.top };
+    // A passage's pin falls back to its block's own seats, which cover nothing more
+    // often than the words' do, before it stands over words: the passage's highlight
+    // already says which words it is about.
+    const blockParts = words && read.block ? partsOf(target) : [];
+    const block = blockParts.length > 0 && {
+      parts: blockParts,
+      home: {
+        left: read.block.right - pinInset - width,
+        right: read.block.right - pinInset,
+        top: read.block.top,
+        bottom: read.block.top + height,
+      },
+    };
+    const spans = [home, ...parts, ...(block ? [block.home, ...block.parts] : [])];
     const around = height + GAP;
     const band = {
-      top: Math.min(home.top, box.top) - around,
-      bottom: Math.max(home.bottom, ...parts.map((part) => part.bottom)) + around,
+      top: Math.min(...spans.map((box) => box.top)) - around,
+      bottom: Math.max(...spans.map((box) => box.bottom)) + around,
     };
     // Only what scrolls with the pin is read: in a pane, the pane's own content. The pane's
     // header, standing still above it, would enter the band as the pane scrolled the
@@ -826,45 +890,18 @@ function pinSeating(rows, { bands, shell, pinInset }) {
         target instanceof HTMLElement &&
         getComputedStyle(target).display.startsWith("inline"));
     const floor = Math.max(home.bottom, ...parts.map((part) => part.bottom));
-    // Below the corner only where the row under the target is empty from its left edge
-    // to the corner: beside the next block's words, a pin reads as that block's.
-    // Measured from the target's own foot, not `floor`, which reaches the foot of the
-    // pin's home: a target shorter than a pin would otherwise skip the block below it.
-    const foot = parts.length
-      ? Math.max(...parts.map((part) => part.bottom))
-      : home.bottom;
-    const under = {
-      left: Math.min(home.left, ...parts.map((part) => part.left)),
-      right: home.right,
-      top: foot + GAP,
-      bottom: foot + GAP + height,
-    };
-    const belowClear = !cover.some((box) => overlaps(box, under));
+    // Only those wholly within half the scroller's height of the words, so the pin is on
+    // screen whenever its words stand mid-screen, though they are deep in a long
+    // paragraph or pane.
+    const reach = (stop === pageScroller ? innerHeight : stop.clientHeight) / 2;
+    const near = (seat) =>
+      seat.top >= Math.min(...parts.map((part) => part.top)) - reach &&
+      seat.bottom <= Math.max(...parts.map((part) => part.bottom)) + reach;
     const seatsAt = (size) => [
-      {
-        left: box.right + GAP,
-        right: box.right + GAP + size,
-        top: box.top,
-        bottom: box.top + height,
-      },
-      ...(inline
-        ? [
-            {
-              left: end.right + GAP,
-              right: end.right + GAP + size,
-              top: end.top,
-              bottom: end.top + height,
-            },
-          ]
+      ...seatsBy(parts, home, inline, cover, size),
+      ...(block
+        ? seatsBy(block.parts, block.home, false, cover, size).filter(near)
         : []),
-      { ...home, left: home.right - size },
-      {
-        left: home.right - size,
-        right: home.right,
-        top: box.top - GAP - height,
-        bottom: box.top - GAP,
-      },
-      ...(belowClear ? [{ ...under, left: home.right - size }] : []),
     ];
     /** @type {{left?: number, right?: number, top: number, bottom?: number}} */
     const within = stop === pageScroller ? rootBounds : contentBox(stop);
@@ -879,7 +916,9 @@ function pinSeating(rows, { bands, shell, pinInset }) {
       seats: seatsAt(wide),
       corner: inline ? 2 : 1,
       floor,
-      cover,
+      // A passage's own words count twice, so a pin with no clear seat covers its
+      // neighbours' words before the ones it is about.
+      cover: words ? [...cover, ...words] : cover,
       controls,
       folds: fold && { seats: seatsAt(across(1)), open: across(fold.controls()) },
       folded: folded.has(row),
@@ -1169,9 +1208,10 @@ export function layoutMarginRows({ retainSeats = false } = {}) {
     const whole = shownExtent(target);
     // A passage's row is about its words, so it stands within what shows of them and
     // is withheld once they are scrolled away, though the rest of the target shows.
-    const extent =
-      whole &&
-      clippedBand(target, words.length ? union(words) : whole, bands, scroller);
+    const block = whole && clippedBand(target, whole, bands, scroller);
+    const extent = words.length
+      ? whole && clippedBand(target, union(words), bands, scroller)
+      : block;
     const line = point?.getBoundingClientRect() ?? words[0];
     const top =
       extent && line ? clamp(line.top, extent.top, extent.bottom) : extent?.top;
@@ -1193,6 +1233,7 @@ export function layoutMarginRows({ retainSeats = false } = {}) {
       target,
       point,
       words: words.length ? words : null,
+      block,
       anchor,
       whole,
       scroller,

@@ -140,13 +140,37 @@ CASES = (
         ({"section": "quote-paragraph-end-p", "quote": "to read them."},),
     ),
     Case(
+        "quote-deep",
+        "A passage in the middle line of a long paragraph, full lines above and below.",
+        f'<p id="quote-deep-p">{WORDS} {MORE} {WORDS} {MORE} The pin for a passage'
+        f" deep in a paragraph has words on every side. {MORE} {WORDS}</p>",
+        ({"section": "quote-deep-p", "quote": "deep in a paragraph"},),
+        allow={"far": ("desktop", "phone")},
+        why="Every seat touching the words, and the end of their line, is on words, so"
+        " the pin takes its paragraph's clear corner rather than covering them; the"
+        " words' highlight says which they are.",
+    ),
+    Case(
+        "quote-long",
+        "A passage in the middle of a paragraph taller than the window, words all round.",
+        f'<p id="quote-long-p">{f"{WORDS} {MORE} " * 7}The pin for a passage'
+        f" deep in a long paragraph has words on every side. {f'{MORE} {WORDS} ' * 3}"
+        "</p>",
+        ({"section": "quote-long-p", "quote": "deep in a long paragraph"},),
+        allow={"far": ("desktop",), "words": ("phone",)},
+        why="On a desktop the paragraph's corner is within half a window of the words,"
+        " so the pin takes it; on a phone it is not, and a pin there would be off screen"
+        " whenever the words are on it, so the pin covers words beside them instead.",
+    ),
+    Case(
         "one-word",
         "A single word inside a sentence.",
         f'<p id="one-word-p">{WORDS}</p>',
         ({"section": "one-word-p", "quote": "seats"},),
-        allow={"words": ("phone",)},
-        why="On a phone a pin is wider than the word, and every seat touching it is on"
-        " words, the quoted one's or its neighbours'.",
+        allow={"far": ("phone",)},
+        why="On a phone every seat touching the word is on words, so the pin takes its"
+        " paragraph's clear corner rather than covering them; the word's highlight"
+        " says which it is.",
     ),
     Case(
         "list-items",
@@ -375,8 +399,15 @@ READING = """async (anchors) => {
   };
   const target = document.getElementById(anchors[0].section);
   const box = target.closest('.pin-case');
-  // Below the banner, with room above the case for a pin seated over it.
-  document.scrollingElement.scrollTop += box.getBoundingClientRect().top - 160;
+  // Below the banner, with room above the case for a pin seated over it; a case taller
+  // than the window is scrolled to its first passage instead, mid-window.
+  const first = anchors[0].quote
+    ? quoted(target, anchors[0].quote).getBoundingClientRect().top
+    : -Infinity;
+  document.scrollingElement.scrollTop += Math.max(
+    box.getBoundingClientRect().top - 160,
+    first - innerHeight / 2,
+  );
   await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
   const words = [];
   const walk = document.createTreeWalker(box, NodeFilter.SHOW_TEXT);

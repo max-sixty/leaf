@@ -45,6 +45,7 @@ from interact_support import (
     check_findings,
     comment,
     declare_data_input,
+    delivered,
     element_declaration,
     fetch,
     found,
@@ -58,6 +59,7 @@ from interact_support import (
     read_page_data,
     refused_on,
     registry_refusal,
+    serving,
     styled,
     wait_for,
     words,
@@ -1201,6 +1203,7 @@ def test_a_bare_re_vendor_replaces_a_broken_vendored_registry(page_dir):
     """Re-vendoring is the remedy for a broken vendored layer, so the selection a bare
     `page init` repeats is read on its own: a malformed entry or a missing layer
     generation is replaced rather than refused."""
+    assert files_model.list_revisions(page_dir) == []
     path = page_dir / "registry.json"
     registry = json.loads(path.read_text())
     selection = registry["$layer"]["packages"]
@@ -1214,6 +1217,55 @@ def test_a_bare_re_vendor_replaces_a_broken_vendored_registry(page_dir):
     assert "lf-corrupt" not in revendored
     assert revendored["$layer"]["packages"] == selection
     assert registry_storage.layer_metadata(page_dir)["generation"]
+    assert files_model.list_revisions(page_dir) == []
+
+
+@pytest.mark.parametrize("valid_source", [True, False])
+def test_revendoring_activates_current_delivery_handling_only_for_valid_source(
+    page_dir, capsys, valid_source
+):
+    """A re-vendor replaces the captured CLI vocabulary before a wait can deliver
+    again, without an intervening state read or markup edit. The composed package
+    clauses survive; invalid source keeps the last good capture and reports why."""
+    package = page_dir.parent / ".leaf"
+    package.mkdir()
+    package_handling = "Keep the package's authored comment instructions."
+    (package / "registry.json").write_text(
+        json.dumps({"$events": {"handling": {"comment": [{"text": package_handling}]}}})
+    )
+    vendoring_model.cmd_init(page_dir, selected=(*page_packages(), "./.leaf"))
+    path = page_dir / "registry.json"
+    registry = json.loads(path.read_text())
+    current = registry["$events"]["answering"]["reply"][0]["text"]
+    older = "Use the older CLI's leaf thread reply --for command."
+    registry["$events"]["answering"]["reply"][0]["text"] = older
+    path.write_text(json.dumps(registry))
+    captured = revisioning_model.activate_source(page_dir)
+    assert captured.error is None
+    source = page_dir / "index.html"
+    if not valid_source:
+        source.write_text(
+            source.read_text().replace("</main>", '<p id="plan">Duplicate</p></main>')
+        )
+    unchanged_markup = source.read_bytes()
+
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+
+    assert result.exit_code == 0, result.output
+    assert source.read_bytes() == unchanged_markup
+    assert ("unready-revendor" in result.output) is not valid_source
+    capsys.readouterr()
+    serving(page_dir, 1)
+    append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "Please answer"}
+    )
+    assert service_model.claim_page(page_dir)
+    assert session_model.cmd_wait(page_dir) == 0
+    _, batch, _ = delivered(capsys)
+    clauses = list(batch["handling"].values())
+    assert package_handling in clauses
+    assert (current if valid_source else older) in clauses
+    assert (older if valid_source else current) not in clauses
 
 
 def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):

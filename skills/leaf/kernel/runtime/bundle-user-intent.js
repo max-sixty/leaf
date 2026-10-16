@@ -1566,6 +1566,8 @@ function copyControl(className, { label = "", success, error }) {
 // runtime/code-copy.js
 var controls = /* @__PURE__ */ new WeakMap();
 var wired = /* @__PURE__ */ new WeakMap();
+var documentCopies = document.createElement("div");
+documentCopies.className = "lf-code-copy-home";
 var cuts = /* @__PURE__ */ new WeakMap();
 var makeCut = () => {
   const frame = document.createElement("div");
@@ -1585,9 +1587,10 @@ function standUnderHeaders(copy, pre, levels) {
   const frames = cutFrames(levels, cuts.get(copy) ?? [], makeCut);
   cuts.set(copy, frames);
   placed.set(copy, pre);
-  if (frames[0] && frames[0].parentNode !== chromeRoot)
-    move(chromeRoot, frames[0], null);
-  const home = frames.at(-1) ?? chromeRoot;
+  if (documentCopies.parentNode !== chromeRoot) move(chromeRoot, documentCopies, null);
+  if (frames[0] && frames[0].parentNode !== documentCopies)
+    move(documentCopies, frames[0], null);
+  const home = frames.at(-1) ?? documentCopies;
   if (copy.parentNode !== home) move(home, copy, null);
 }
 var revealed = (pre, copy) => {

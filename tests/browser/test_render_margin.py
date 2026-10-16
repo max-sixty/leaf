@@ -289,6 +289,9 @@ def test_unchanged_margin_passes_over_the_corpus_do_bounded_work_and_write_nothi
     page = open_still_corpus(browser, serve)
     resized(page, 1440, 900)
     margins_laid_out(page)
+    # The placement event precedes deferred Reach and chrome work. A measurement
+    # starting here used to include whatever that previous invalidation still owed.
+    rendered(page)
     # The refresh count is read first, on the page as it presents: on CI's runner it
     # read 73 layouts for five refreshes when it followed the other two passes.
     _refreshes_force_layout_by_refresh_count(page)
@@ -377,6 +380,9 @@ def _refreshes_force_layout_by_refresh_count(page):
         }""",
         refreshes,
     )
+    # A frame callback is before ResizeObserver delivery and the rereads it queues.
+    # Include the complete work caused by these refreshes before reading the count.
+    rendered(page)
     after = {
         metric["name"]: metric["value"]
         for metric in session.send("Performance.getMetrics")["metrics"]

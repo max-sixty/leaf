@@ -283,7 +283,9 @@ def build_page() -> dict[str, bytes]:
             if not path.is_file() or name == "registry.json":
                 continue
             if name == "theme.css":
-                files[name] = files.get(name, b"") + b"\n" + path.read_bytes()
+                files[name] = (
+                    files[name] + b"\n" if name in files else b""
+                ) + path.read_bytes()
                 continue
             if name in files and files[name] != path.read_bytes():
                 sys.exit(f"corpus examples contribute conflicting page file {name!r}")

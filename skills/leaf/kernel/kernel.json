@@ -157,7 +157,7 @@
     "runtime/projection/model.js": "4408b0e912f3eb5951d03fd52c53da9a2440e44a2740dc3ed7a02ae6b76476e8",
     "runtime/projection/presentation.js": "7cd2d965bc26dc64700281ab834ab0fe2bd63c69c9385efc1525a4088b7a5d00",
     "runtime/projection/state.js": "c162fe7d64a8333a16259938ee451ee697fc536859b8144841ffae4f69244dea",
-    "runtime/protocol.js": "0f32a32c023896758a8689adb09c4afbfdb367e2181b3b2a7afad735614a82dc",
+    "runtime/protocol.js": "a64ae330db0ff3a607a65225463c322cb290fec2a85fa7152bdaa0696fea1837",
     "runtime/queue-api.js": "2f162a1c188f0ff17b41873f9fafd300154a9371a0d631a6c509fe02e5f50069",
     "runtime/queue-list.js": "f90a30eedc0b918d4b03bb9403ca0a3266fd3ce961d0d1c4defb23bf006592b6",
     "runtime/queue-panel.js": "5692410d3deee880f92b1becd044cc37d9af5278c4ec014aa2c6bce661981774",

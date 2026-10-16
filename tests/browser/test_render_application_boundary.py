@@ -131,50 +131,6 @@ THREAD_FILTER_DECLARATION = {
     "x-example": '<lf-thread-filter id="example"></lf-thread-filter>',
 }
 
-THREAD_MIRROR = r"""
-import {keeps, mountThreadViews, threadSummary} from '/runtime/widget-api.js';
-customElements.define('lf-thread-mirror', class extends HTMLElement {
-  connectedCallback() {
-    if (!this.outlet) {
-      this.input = document.createElement('input');
-      this.input.setAttribute('aria-label', `Filter ${this.id}`);
-      this.input.value = this.getAttribute('filter') ?? '';
-      this.outlet = document.createElement('div');
-      this.append(this.input, this.outlet);
-      this.input.addEventListener('input', () => this.consumer?.update());
-    }
-    this.consumer ??= mountThreadViews(this, (collection, surfaces) => {
-      this.updates = (this.updates ?? 0) + 1;
-      (this.signals ??= []).push(surfaces.signal);
-      if (this.holding) {
-        keeps(this, 'data-held', true);
-        return new Promise(resolve => (this.releases ??= []).push(resolve));
-      }
-      const query = this.input.value.toLowerCase();
-      for (const thread of collection.threads)
-        if (threadSummary(thread).topic.toLowerCase().includes(query))
-          surfaces.thread(thread.key, this.outlet);
-    });
-  }
-  disconnectedCallback() {
-    this.consumer?.unregister();
-    this.consumer = null;
-  }
-});
-"""
-
-THREAD_MIRROR_DECLARATION = {
-    "description": "A package-owned mirror of core Thread conversations.",
-    "type": "object",
-    "properties": {"id": {"type": "string"}, "filter": {"type": "string"}},
-    "required": ["id"],
-    "additionalProperties": False,
-    "x-content": "empty",
-    "x-upgrade": True,
-    "x-example": '<lf-thread-mirror id="mirror-example"></lf-thread-mirror>',
-}
-
-
 def test_browser_interactions_are_recorded_beside_server_requests(browser, serve):
     """A user gesture remains visible even when it changes no semantic page state."""
     url = serve(

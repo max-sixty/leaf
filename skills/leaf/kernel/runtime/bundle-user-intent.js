@@ -7337,12 +7337,6 @@ var claimSeatReplies = (host) => seats.get(host)?.claim();
 function clearThreadSurface(host) {
   seats.get(host)?.present(EMPTY);
 }
-function renderThreadMirrors(host, threads, commands2) {
-  seatFor(host, commands2).present(seatReading(threads, "outlet", commands2, null), null);
-}
-function clearThreadMirrors(host) {
-  seats.get(host)?.present(EMPTY, null);
-}
 function mountFirstMessage(host, editor) {
   const seat = seatFor(host, null, () => editor);
   seat.present(Object.freeze({ threads: Object.freeze([]), response: true }));
@@ -8320,8 +8314,6 @@ export {
   threadReading,
   ThreadView,
   claimSeatReplies,
-  renderThreadMirrors,
-  clearThreadMirrors,
   mountFirstMessage,
   renderSeats,
   renderMarginThread,

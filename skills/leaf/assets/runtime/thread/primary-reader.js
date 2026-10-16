@@ -1,16 +1,9 @@
-/* Package-owned primary readers and optional mirrors of Thread conversations.
-
-   An optional mirror is a view of the shared Thread reading, never a placement of
-   the original Thread. Optional consumers reconcile their outlets and async
-   preparation independently of the core panel, margin, and read presentation. A later reading or
-   unregister aborts its predecessor before any DOM from that predecessor commits. */
+/* The page's primary reader of Thread conversations: the one presentation, a
+   package's or the floating panel's, that draws each thread in outlets it names
+   (application.js, `attachPresentation`). */
 import { aborted } from "../abort.js";
 import { randomId } from "../ids.js";
-import { reportPageError } from "../layer-client.js";
 import { under, renderedUnder, shadowHost } from "../shadow.js";
-import { clearThreadMirrors, renderThreadMirrors } from "./inline.js";
-import { readThreads } from "./state.js";
-import { watchProjection } from "../projection-watch.js";
 import { ThreadView, threadReading } from "./thread-card.js";
 import { MessageView, messageReading } from "./messages.js";
 import { createReplyView, replyAvailable } from "./replies.js";
@@ -24,111 +17,6 @@ import { orderChildren } from "../dom-children.js";
 import { move } from "../dom-move.js";
 import { growthIsSeen } from "../geometry.js";
 import { HeldNews, newsNotice } from "./held-news.js";
-
-const registrations = new WeakMap();
-
-export function registerMirrorConsumer(owner, render, { commands }) {
-  if (registrations.has(owner))
-    throw new Error(`mountThreadViews(${owner.localName}) registered twice`);
-
-  let active = true;
-  let generation = 0;
-  let pending = null;
-  let queued = false;
-  let outlets = new Set();
-
-  const clear = () => {
-    for (const outlet of outlets) {
-      clearThreadMirrors(outlet);
-      delete outlet.dataset.lfThreadSurface;
-    }
-    outlets = new Set();
-  };
-  const report = (error) =>
-    reportPageError(error, `Thread mirrors in ${owner.localName}#${owner.id} failed`);
-
-  async function reconcile() {
-    const current = ++generation;
-    pending?.abort();
-    const abort = new AbortController();
-    pending = abort;
-    const cancelled = aborted(abort.signal);
-    const collection = readThreads();
-    const byKey = new Map(collection.threads.map((thread) => [thread.key, thread]));
-    const selected = new Map();
-    let accepting = true;
-    const mirrors = {
-      signal: abort.signal,
-      thread(key, outlet) {
-        if (!accepting || abort.signal.aborted)
-          throw new Error("Thread mirrors belong to their current render callback");
-        const thread = byKey.get(key);
-        if (!thread) throw new Error(`No Thread has key ${key}`);
-        if ([...selected.values()].some((threads) => threads.includes(thread)))
-          throw new Error("A consumer may render a Thread only once");
-        const threads = selected.get(outlet) ?? [];
-        threads.push(thread);
-        selected.set(outlet, threads);
-      },
-    };
-    try {
-      const rendering = render(collection, mirrors);
-      if (rendering?.then) await Promise.race([rendering, cancelled]);
-      accepting = false;
-      if (!active || current !== generation || abort.signal.aborted) return;
-      if (!owner.isConnected) return;
-      for (const outlet of selected.keys()) {
-        if (!outlet.isConnected) selected.delete(outlet);
-        else if (!under(outlet, owner))
-          throw new Error(
-            `mountThreadViews(${owner.localName}) returned an outlet outside its widget`,
-          );
-      }
-      for (const outlet of outlets)
-        if (!selected.has(outlet)) {
-          clearThreadMirrors(outlet);
-          delete outlet.dataset.lfThreadSurface;
-        }
-      outlets = new Set(selected.keys());
-      for (const [outlet, threads] of selected) {
-        outlet.toggleAttribute("data-lf-thread-surface", true);
-        renderThreadMirrors(outlet, threads, commands);
-      }
-    } catch (error) {
-      if (!active || current !== generation || abort.signal.aborted) return;
-      clear();
-      report(error);
-    } finally {
-      accepting = false;
-    }
-  }
-
-  const update = () => {
-    if (!active || queued) return;
-    queued = true;
-    queueMicrotask(() => {
-      queued = false;
-      if (active && owner.isConnected) void reconcile();
-    });
-  };
-  // The watcher holds the reconcile it started, so a departure that cuts it short
-  // owes the reading again on return.
-  const stop = watchProjection(owner, reconcile);
-  const handle = Object.freeze({
-    update,
-    unregister() {
-      if (!active) return;
-      active = false;
-      ++generation;
-      pending?.abort();
-      stop();
-      registrations.delete(owner);
-      clear();
-    },
-  });
-  registrations.set(owner, handle);
-  return handle;
-}
 
 /* A selected primary reader joins the required thread presentation. Packages nominate
    complete conversations or retained fragments; core owns their generated roots,

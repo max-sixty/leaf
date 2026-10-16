@@ -1,6 +1,6 @@
 # Guardrail for surface-page-takes-the-window: a playground that is one exhibit in a
 # document keeps the document's column, and the page is not turned into a workspace.
-# Claude Code: base (c20bf406f) 6/6, candidate 6/6.
+# Claude Code: base 9/9 (c20bf406f twice, c71562813 once), candidate 9/9.
 description: exhibit-playground-stays-in-the-column
 metadata:
   purpose: "Arranging a page: a document read top to bottom that cites one small playground stays a column page, the playground breaking out in its section."

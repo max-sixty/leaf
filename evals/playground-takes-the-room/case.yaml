@@ -5,7 +5,8 @@
 # itself, a breakout from a column page. Since a page whose subject is a playground
 # became a workspace (session e8a66e47's design review, where the breakout's edges
 # matched nothing above it), the page itself is the room: the Ask is the workspace's body.
-# On that wording, Claude Code: base (c20bf406f) 4/6 across two runs, candidate 6/6;
+# On that wording, Claude Code: base 6/9 across three runs (c20bf406f twice,
+# c71562813 once), candidate 9/9;
 # the base often follows notification-playground, so this case protects more than it
 # distinguishes.
 description: playground-takes-the-room

@@ -2,8 +2,8 @@
 # sketching a redesigned panel, in a column page as a breakout between the review's
 # prose, so the playground's edges matched nothing above it and the review pushed it
 # down. The user wanted the playground to lead, with the review split out. Claude Code:
-# base (c20bf406f) 0/6 across two runs, every page a column; candidate 6/6, each a
-# workspace whose first page tab is the playground's Ask.
+# base 0/9 across three runs (c20bf406f twice, c71562813 once), every page a column;
+# candidate 9/9, each a workspace whose first page tab is the playground's Ask.
 description: surface-page-takes-the-window
 metadata:
   purpose: "Arranging a page: a page whose main item is one surface the user works gives that surface the window, a workspace, and moves its supporting reading into page tabs after it."

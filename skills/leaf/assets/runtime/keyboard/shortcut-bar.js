@@ -177,6 +177,19 @@ const shortcutBarTemplate = (model) =>
     }`;
 
 let bottomStatusContext = EMPTY_STATUS_CONTEXT;
+// What the status line says between notices, the Go-to filter's word or the walk's
+// position, for a chrome that says it in a seat of its own (floating-panel.js), which
+// registers to hear when it changes, as a notice's seats do.
+const contextPresenters = new Set();
+export const statusContextReading = () => bottomStatusContext;
+export function registerStatusContextPresentation(invalidate) {
+  contextPresenters.add(invalidate);
+}
+const shownWalk = ({ walk }) => (walk?.shown ? walk : null);
+const sameContext = (a, b) =>
+  a.goTo === b.goTo &&
+  shownWalk(a)?.text === shownWalk(b)?.text &&
+  shownWalk(a)?.boundary === shownWalk(b)?.boundary;
 const renderBottomStatus = () => {
   const model = Object.freeze({
     ...bottomStatusContext,
@@ -387,6 +400,7 @@ export function renderShortcutBar(goToStatus) {
       text: position.text,
       boundary: position.boundary,
     });
+  const before = bottomStatusContext;
   bottomStatusContext = Object.freeze({
     goTo: goToReading,
     // A retired walk hides but keeps its last wording, matching the native status
@@ -397,6 +411,8 @@ export function renderShortcutBar(goToStatus) {
   });
   setNoticeContext(Boolean(goToReading));
   renderBottomStatus();
+  if (!sameContext(bottomStatusContext, before))
+    for (const invalidate of contextPresenters) invalidate();
   // Keep the two contextual hints together at the front of the ordinary line. The
   // expanded bar and a sequence retain registry order because each is a fuller reading of
   // one scene rather than a ranked shortlist.

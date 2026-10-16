@@ -5432,7 +5432,8 @@ function createUndo({ post: post2, stateApplying, unaccountedGesture }) {
       notice(WAIT);
       return null;
     }
-    const reverse = reversals.get(event.attempt);
+    const reversal = reversals.get(event.attempt);
+    const reverse = reversal ? bindQueuedWork(reversal) : null;
     const mayLand = retainUserIntent();
     const answer = post2({ kind: "undo", undoes: event.id }).then((accepted) => {
       if (accepted)
@@ -7736,6 +7737,7 @@ function mountApplication(dependencies) {
     retireProjectionCoverage: projection.retireProjectionCoverage,
     threadActions: threadActions2,
     queueActions: queueActions2,
+    settlement: settlementView,
     openAsk(id) {
       const ask = readAsks().all.find((item) => item.id === id);
       if (!ask) return Promise.resolve(false);

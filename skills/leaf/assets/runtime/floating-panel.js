@@ -134,6 +134,7 @@ import { textField } from "./composing/text-field.js";
 import { draftOf, syncInput } from "./composing/input.js";
 import { TEXT_FIELD } from "./control-selectors.js";
 import { retainUserIntent } from "./user-intent.js";
+import { settleThread } from "./thread/folding.js";
 import { queueItemKey, readQueues } from "./queue-api.js";
 import { queueTitle } from "./queue-title.js";
 import { itemOutcome } from "./queues.js";
@@ -143,12 +144,18 @@ import { versionMenu, versionPicker } from "./version-picker.js";
 import { versionsReading } from "./version.js";
 import { UPGRADE } from "./presentation.js";
 import { noticeReading, registerNoticePresentation } from "./notifications.js";
+import { move } from "./dom-move.js";
+import {
+  registerStatusContextPresentation,
+  statusContextReading,
+} from "./keyboard/shortcut-bar.js";
 import { reducedMotion } from "./motion.js";
 import { pagePresented } from "./page-paint.js";
 import { onReadingInterrupted, readingIsContinuous } from "./reading-continuity.js";
 import {
   focusDestination,
   focused,
+  letGo,
   onStanding,
   onUserInput,
   rove,
@@ -230,6 +237,17 @@ const FILTERS = Object.freeze(["open", "unread", "drafts", "resolved"]);
 const LISTS = Object.freeze(["threads", "queue"]);
 const capital = (word) => word[0].toUpperCase() + word.slice(1);
 const coarse = () => matchMedia("(pointer: coarse)").matches;
+// What passes in the panel's one seat for words that pass: a notice while one shows,
+// else what the status line says between notices, the Go-to filter's word or a walk's
+// position ("1 of 3 waiting on me · Ask"). The user asked on 16 October that whatever
+// is not anchored to the page stand at the panel rather than against the window.
+function passing() {
+  const notice = noticeReading();
+  if (notice.visible) return notice;
+  const { goTo, walk } = statusContextReading();
+  const message = goTo ?? (walk?.shown ? walk.text : "");
+  return { message, visible: Boolean(message), news: false };
+}
 // What the leaf's colour says, in a word, at the head of its menu.
 const TONE_WORDS = Object.freeze({
   working: "Working",
@@ -246,6 +264,7 @@ export function createFloatingPanel({
   asks: askView,
   queueActions,
   withdraw,
+  settlement,
 }) {
   const host = el("section", "lf-ui lf-floating-panel");
   host.setAttribute("aria-label", "Leaf");
@@ -265,6 +284,7 @@ export function createFloatingPanel({
   const stage = el("div", "lf-fp-stage");
   opened.append(head, stage);
   const context = el("div", "lf-fp-context");
+  const contextWords = el("span", "lf-fp-context-words");
   const row = el("div", "lf-fp-row");
   const menu = el("div", "lf-fp-menu");
   menu.id = "lf-fp-menu";
@@ -281,6 +301,7 @@ export function createFloatingPanel({
   // A notice answering the user that the line over the field would say, were a view not
   // open (`paintPeek`).
   let overView = false;
+  context.append(contextWords);
   inner.append(opened, context, row);
   card.append(inner);
   // The menu and the peek stand over the leaf by anchoring to it, which they can only
@@ -336,7 +357,9 @@ export function createFloatingPanel({
   leaf.append(mark);
   const field = el("div", "lf-fp-field");
   // A long draft offers more room, by the user's press rather than on its own: past
-  // three lines a quiet mark stands over the field's end, and pressing it widens the
+  // three lines a quiet mark stands at the end of a line already over the field, the
+  // line saying where the words go, or an open view's head, so it takes no room of
+  // its own (assets/AGENTS.md, "A control takes only its own room"). Pressing it widens the
   // panel and lets the field take most of the window, so the words re-wrap because the
   // user asked. It folds back when the field empties, a send included, or on a second
   // press. The user chose this on 15 October over the panel widening by itself at the
@@ -436,7 +459,7 @@ export function createFloatingPanel({
     const thread = key ? threadByKey(key) : null;
     if (input === focused() && !thread?.resolved)
       return { says: "destination", words: whereTo(key) };
-    const notice = noticeReading();
+    const notice = passing();
     if (notice.visible) return { says: "notice", words: notice.message };
     if (thread?.resolved) return { says: "turn", words: "Resolved · reopen to reply" };
     if (!key) return { says: "status", words: status().summary };
@@ -646,6 +669,42 @@ export function createFloatingPanel({
     setMenu(false);
     transition(before);
     focusDestination(pageEditor().input, "move");
+  }
+  // Resolving a thread opened from Threads moves the user on, as the banner's Threads
+  // panel does (thread-card.js, `#prepareLanding`): to the open thread after it, or
+  // before it at the end, standing on its view so `r`, `t` and Escape go on from there;
+  // or, with none left, back to the list. A thread opened from elsewhere goes back to
+  // where it came from. Taking the resolve back, or the log refusing it, returns the
+  // user to the thread, while they have not acted since (folding.js, `settleThread`).
+  function resolveLanding(thread) {
+    const route = trail.at(-1);
+    const fromThreads = trail.at(-2)?.view === "threads";
+    const at = threads()
+      .filter((candidate) => !candidate.resolved)
+      .indexOf(thread);
+    const mayLand = retainUserIntent();
+    let mayRestore = () => false;
+    return {
+      optimistic: () => {
+        if (!mayLand() || trail.at(-1) !== route) return false;
+        const kept = threads().filter((candidate) => !candidate.resolved);
+        const next = fromThreads ? (kept[at] ?? kept[at - 1]) : null;
+        if (next) {
+          open({ view: "thread", thread: next.key }, { replace: true, focus: false });
+          const view = shownView();
+          if (view) focusDestination(view, "move");
+        } else back();
+        mayRestore = retainUserIntent();
+        return true;
+      },
+      // The undo door passes the intent of the press that asked for it (undo.js).
+      reverse: (may = mayRestore) => {
+        if (!may()) return;
+        open(route, { replace: true, focus: false });
+        const view = shownView();
+        if (view) focusDestination(view, "move");
+      },
+    };
   }
   function back() {
     const before = trail.at(-1);
@@ -1924,9 +1983,14 @@ export function createFloatingPanel({
             !(thread.resolved ? thread.offers.reopen : thread.offers.resolve),
           )}
           @click=${() => {
-            if (thread.resolved) return threadActions.reopen(thread.key);
-            dismissReply(thread.key);
-            return threadActions.resolve(thread.key);
+            if (!thread.resolved) dismissReply(thread.key);
+            void settleThread({
+              parent: () => thread.id,
+              key: thread.key,
+              resolved: Boolean(thread.resolved),
+              prepareLanding: thread.resolved ? null : () => resolveLanding(thread),
+              ...settlement,
+            }).catch(() => {});
           }}
         >
           <span class="lf-fp-face" ?data-shown=${!thread.resolved}
@@ -1974,6 +2038,7 @@ export function createFloatingPanel({
             }`;
     return html`<div class="lf-fp-crumb">${crumb}</div>
       <div class="lf-fp-aux">${aux}</div>
+      ${expand}
       <button
         type="button"
         class="lf-fp-icon-btn lf-fp-close"
@@ -2138,6 +2203,9 @@ export function createFloatingPanel({
         : (listed.find((row) => row.getAttribute("tabindex") === "0") ?? listed[0]),
     );
     render(top ? headTemplate(top) : nothing, head);
+    // The more-room mark stands in the view's head while one is open, else at the end
+    // of the line over the field.
+    if (!top) move(context, expand, null);
     const heading = top ? shows(top) : null;
     for (const drawing of [head, replyOutlet]) {
       keeps(drawing, "data-thread", heading);
@@ -2205,15 +2273,15 @@ export function createFloatingPanel({
     // too: the leaf's peek says a notice answering the user there (`paintPeek`), and
     // news arriving goes unsaid, since the view shows it.
     const empty = draftOf(input) === "";
-    const notice = noticeReading();
+    const notice = passing();
     const covered = notice.visible && (!empty || reading.says === "destination");
     overView = Boolean(top) && covered && !notice.news;
     keeps(context, "data-notice", covered ? "" : null);
     keepsText(
-      context,
+      contextWords,
       top ? "" : covered ? notice.message : empty ? "" : whereTo(null),
     );
-    keepsHidden(context, !context.textContent);
+    keepsHidden(context, !contextWords.textContent);
     paintPeek();
 
     const standing = rowNotice();
@@ -2397,7 +2465,7 @@ export function createFloatingPanel({
   // menu stands where it would show.
   function paintPeek() {
     const folded = host.dataset.rest === "mark";
-    const notice = noticeReading();
+    const notice = passing();
     const telling = notice.visible && (folded || (overView && !menuOpen));
     const reading = status();
     const parts = reading.explanationParts ?? [
@@ -2453,9 +2521,11 @@ export function createFloatingPanel({
       root: host,
       title: `close ${titleOf(trail.at(-1)).toLowerCase()}`,
       description: `Close ${titleOf(trail.at(-1))}`,
+      // Putting a view away returns the user to the page, where the view's thread or
+      // list took them from, as closing the banner's Threads panel does.
       out: () => {
         close();
-        focusDestination(leaf, "return");
+        letGo();
       },
     };
   });
@@ -2683,6 +2753,7 @@ export function createFloatingPanel({
     registerApprovalPresentation({ target: approvalControl, arrive: arriveAtApproval });
     // A passing notice is said in the empty field, the one seat this chrome gives it.
     registerNoticePresentation(() => paint());
+    registerStatusContextPresentation(() => paint());
     watchBannerRows(() => paint());
     // A comparison started or stopped changes the versions without a publication.
     versionPicker.watch(() => paint());

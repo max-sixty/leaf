@@ -24,6 +24,7 @@ import { pageCommand } from "./keyboard/register.js";
 import { savedReadingSettled } from "./keyboard/bindings.js";
 import { undoSentence } from "./reactions.js";
 import { PENDING } from "./thread/identity.js";
+import { bindQueuedWork } from "./queued-work.js";
 import { retainUserIntent } from "./user-intent.js";
 
 const WAIT = "Wait for the current change to finish before undoing";
@@ -87,7 +88,10 @@ export function createUndo({ post, stateApplying, unaccountedGesture }) {
       notice(WAIT);
       return null;
     }
-    const reverse = reversals.get(event.attempt);
+    // The reversal is this press's own landing, bound to it now as a settlement binds
+    // its landings (thread/folding.js, `landGesture`), so what it moves is the press's.
+    const reversal = reversals.get(event.attempt);
+    const reverse = reversal ? bindQueuedWork(reversal) : null;
     const mayLand = retainUserIntent();
     const answer = post({ kind: "undo", undoes: event.id }).then((accepted) => {
       if (accepted)

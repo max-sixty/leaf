@@ -248,7 +248,7 @@
      there is more above or below, in place of a scrollbar, whose overlay flashed with
      every line the field scrolled to. The field says which edges words run past
      (text-field.js, `more-above`, `more-below`). */
-  .lf-fp-field .lf-compose-field > leaf-text:state(scrolls) {
+  .lf-fp-field .lf-compose-field > leaf-text[data-scrolls] {
     --lf-fp-fade-top: 0px;
     --lf-fp-fade-bottom: 0px;
     scrollbar-width: none;

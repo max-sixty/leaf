@@ -749,8 +749,8 @@ sheet.replaceSync(`
     .lf-field-placeholder { padding-inline-end: 0; }
     .cm-line.lf-field-last::after { content: none; }
   }
-  :host(:state(scrolls)) .lf-field { padding-inline-end: var(--lf-field-end-room); }
-  :host(:state(scrolls)) .cm-line.lf-field-last::after { content: none; }
+  :host([data-scrolls]) .lf-field { padding-inline-end: var(--lf-field-end-room); }
+  :host([data-scrolls]) .cm-line.lf-field-last::after { content: none; }
   /* A draft wears the sent message's faces. Strong, emphasis and strikethrough are the
      elements themselves, which the platform dresses here as it does in the message;
      the rest read the theme's tokens, since its element rules stop at this root. A
@@ -967,7 +967,7 @@ var LeafText = class extends HTMLElement {
   });
   // Host overflow holds the action's room on every line. The host stops at the page's
   // height limit while words grow inside it, so the reading watches the editor's
-  // scroller too. Editor updates and size changes share its read/write phase: the room
+  // content too. Editor updates and size changes share its read/write phase: the room
   // changes layout there, rather than feeding back into resize observer delivery. The
   // same reading says which edges words run past (`more-above`, `more-below`), read
   // again as the host scrolls, so an owner can show there is more without a scrollbar.
@@ -986,8 +986,9 @@ var LeafText = class extends HTMLElement {
         };
       },
       write: (reading) => {
+        if (this.hasAttribute("data-scrolls") !== reading.scrolls)
+          this.toggleAttribute("data-scrolls", reading.scrolls);
         for (const [state, on] of [
-          ["scrolls", reading.scrolls],
           ["more-above", reading.scrolls && reading.above],
           ["more-below", reading.scrolls && reading.below]
         ]) {

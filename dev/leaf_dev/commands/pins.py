@@ -132,6 +132,10 @@ CASES = (
         "A passage in the middle of a line of a full-width paragraph.",
         f'<p id="quote-mid-line-p">{WORDS} {MORE}</p>',
         ({"section": "quote-mid-line-p", "quote": "before it seats the pin"},),
+        allow={"far": ("phone",)},
+        why="Where a phone's narrower line puts the passage between full lines, as Linux's"
+        " fonts do, every seat by it is on words, so the pin takes its paragraph's"
+        " clear corner rather than covering them.",
     ),
     Case(
         "quote-paragraph-end",

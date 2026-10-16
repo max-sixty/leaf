@@ -28,6 +28,8 @@ import {
   draftHasContent,
   draftEditingStands,
   mirrorDraft,
+  replyContext,
+  rewriteContext,
   saveDraft,
   sendMessage,
   tellDraft,
@@ -38,7 +40,6 @@ import { threadKey } from "./model.js";
 import { closestAcross } from "../passages.js";
 import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
 import { THREAD, SAY_ROW } from "./selectors.js";
-import { editContext } from "./message-edit.js";
 import { el, offer } from "../widget-elements.js";
 import { move } from "../dom-move.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
@@ -48,7 +49,6 @@ import { TEXT_FIELD } from "../control-selectors.js";
 const REPLY_COMPOSITION = Symbol("reply composition");
 const compositions = new Map(); // context -> native session, with its current owner
 const views = new Map();
-const replyContext = (key) => "reply:" + key;
 const available = (composition) =>
   Boolean(composition) &&
   views.get(composition.context)?.has(composition) &&
@@ -135,7 +135,7 @@ export function holdReplyCompositions(threads, realize) {
 // or in a rewrite of one of its messages, `ids`, they closed without saving.
 export const threadHoldsDraft = (key, ids) =>
   draftHasContent(replyContext(key)) ||
-  ids.some((id) => draftHasContent(editContext(id)));
+  ids.some((id) => draftHasContent(rewriteContext(id)));
 
 // Revision admission asks the owner about every native editing session, including
 // one the user left by Tab. Persisted words alone do not create a session.

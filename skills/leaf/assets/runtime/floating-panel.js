@@ -111,8 +111,8 @@ import { readPlace } from "./history.js";
 import { readThreads } from "./thread/state.js";
 import { watchProjection } from "./projection-watch.js";
 import { threadAttention, workflowLabel } from "./thread/workflow.js";
-import { threadSummary } from "./thread/model.js";
-import { messageReading } from "./thread/messages.js";
+import { messageReading, threadName } from "./thread/messages.js";
+import { drawnThreadId } from "./thread/selectors.js";
 import { declareThreadParts } from "./thread/focus.js";
 import { dismissReply, replyAvailable } from "./thread/replies.js";
 import {
@@ -121,6 +121,7 @@ import {
   loadDraft,
   mirrorDraft,
   saveDraft,
+  replyContext,
   sendMessage,
   tellDraft,
 } from "./drafts.js";
@@ -503,7 +504,7 @@ export function createFloatingPanel({
     threads().find((thread) => thread.key === key || thread.id === key) ?? null;
   const threadTitle = (key) => {
     const thread = threadByKey(key);
-    return thread ? threadSummary(thread).topic : "this thread";
+    return thread ? threadName(thread) : "this thread";
   };
   const unread = (thread) => thread.unread.length > 0;
   const newCount = () => threads().filter(unread).length;
@@ -527,7 +528,7 @@ export function createFloatingPanel({
     return [
       unread(thread) && "New",
       state,
-      draftHasContent(`reply:${thread.key}`) && "Draft",
+      draftHasContent(replyContext(thread.key)) && "Draft",
     ]
       .filter((word) => word && word !== said)
       .join(" · ");
@@ -1370,16 +1371,13 @@ export function createFloatingPanel({
     const words = query.trim().toLowerCase();
     return threads().filter((thread) => {
       if (words) {
-        const text = [
-          threadSummary(thread).topic,
-          ...thread.msgs.map((m) => m.text ?? ""),
-        ]
+        const text = [threadName(thread), ...thread.msgs.map((m) => m.text ?? "")]
           .join(" ")
           .toLowerCase();
         return text.includes(words);
       }
       if (filter === "unread") return unread(thread);
-      if (filter === "drafts") return draftHasContent(`reply:${thread.key}`);
+      if (filter === "drafts") return draftHasContent(replyContext(thread.key));
       if (filter === "resolved") return thread.resolved;
       return !thread.resolved;
     });
@@ -1410,7 +1408,7 @@ export function createFloatingPanel({
                   @click=${() => open({ view: "thread", thread: thread.key })}
                 >
                   <span class="lf-fp-news-mark" aria-hidden="true"></span>
-                  <span class="lf-fp-label">${threadSummary(thread).topic}</span>
+                  <span class="lf-fp-label">${threadName(thread)}</span>
                   <span class="lf-fp-value"
                     >${threadStatus(thread, query.trim() ? null : filter)}</span
                   >
@@ -1498,7 +1496,7 @@ export function createFloatingPanel({
     const thread = top?.view === "thread" ? threadByKey(top.thread) : null;
     return thread &&
       !view.hasAttribute("data-leaving") &&
-      view.dataset.thread === thread.id
+      drawnThreadId(view) === thread.id
       ? thread
       : null;
   };
@@ -1596,10 +1594,9 @@ export function createFloatingPanel({
         : null;
     const message = asking && presentation?.primary !== false ? asking : null;
     const title = message
-      ? (thread.title ??
-        (thread.root.id === message.id ? "" : threadSummary(thread).topic))
+      ? (thread.title ?? (thread.root.id === message.id ? "" : threadName(thread)))
       : asking
-        ? threadSummary(thread).topic
+        ? threadName(thread)
         : queueTitle(item);
     const said = message
       ? ""

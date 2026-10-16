@@ -91,6 +91,8 @@ export function createPageComment({
   composer.append(input, send);
 
   const hint = () => (designModeActive() ? "Comment on the design" : NAME);
+  // Words the card would keep on closing: shown in its box, so not a send in flight
+  // (`loadDraft`), and more than blank.
   const holds = () => Boolean(loadDraft(PAGE_DRAFT)?.trim());
   const cardIsOpen = () => isNativeLayer(card);
   keys(card, "In the page comment card", [

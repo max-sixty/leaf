@@ -37,11 +37,11 @@ export default async function grade(output, context, load = loadApiProvider) {
         reason: "No saved page exists for this version.",
       });
     if (!judge) throw new Error("Live judge is not configured");
+    const declared = diagnostics.comparison.widths;
     const widths = Object.fromEntries(
-      (required_widths ?? Object.keys(diagnostics.widths)).map((name) => {
-        if (!diagnostics.widths[name])
-          throw new Error(`Unknown required width ${name}`);
-        return [name, diagnostics.widths[name]];
+      (required_widths ?? Object.keys(declared)).map((name) => {
+        if (!declared[name]) throw new Error(`Unknown required width ${name}`);
+        return [name, declared[name]];
       }),
     );
     if (!Object.keys(widths).length) throw new Error("No judge viewports configured");

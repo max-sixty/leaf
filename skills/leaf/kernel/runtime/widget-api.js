@@ -84,6 +84,7 @@ import {
   synNodes,
   syntax,
   tabStore,
+  threadSummary,
   threadSurface,
   tokenLines,
   watchDraft
@@ -281,7 +282,6 @@ import {
   render,
   repeat,
   styleMap,
-  threadSummary,
   turns,
   unsafeHTML,
   untracked

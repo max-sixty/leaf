@@ -1660,21 +1660,39 @@ def test_the_panel_folds_to_the_leaf_and_stays_folded(browser, serve):
     expect(page.locator(".lf-thread-panel")).not_to_have_class("open")
 
 
+def test_a_new_line_past_the_field_s_height_scrolls_into_view(browser, serve):
+    """Shift+Enter at the field's height limit scrolls the new, empty line into view,
+    as typing a character does, rather than leaving the caret below the field."""
+    page = floating(browser, serve(LONG_PAGE))
+    box = field(page)
+    box.click()
+    page.keyboard.type("line")
+    for _ in range(20):
+        page.keyboard.press("Shift+Enter")
+    page.wait_for_function(
+        # Within a line of the end: the reveal keeps the field's scroll padding.
+        """box => box.scrollHeight > box.clientHeight
+            && box.scrollTop + box.clientHeight >= box.scrollHeight - 10""",
+        arg=box.element_handle(),
+    )
+
+
 def test_a_pointer_folds_the_panel_from_its_corner(browser, serve):
     """A round button on the box's top-right corner folds the panel, shown only while
-    the pointer is over it, so the resting row is the row alone; it takes no Tab stop,
-    since the menu's row and `.` fold from the keyboard."""
+    the pointer is near that corner, so the resting row, and the row under a pointer
+    passing over the field, is the row alone; it takes no Tab stop, since the menu's
+    row and `.` fold from the keyboard."""
     page = floating(browser, serve(LONG_PAGE, comments=1))
     minimize = page.locator(".lf-fp-minimize")
     page.mouse.move(5, 5)
     expect(minimize).to_be_hidden()
     expect(minimize).to_have_attribute("tabindex", "-1")
-    page.locator(".lf-fp-row").hover()
+    card = page.locator(".lf-fp-card").bounding_box()
+    page.mouse.move(card["x"] + 40, card["y"] + card["height"] / 2)
+    expect(minimize).to_be_hidden()
+    page.mouse.move(card["x"] + card["width"] - 20, card["y"] + 6)
     expect(page.get_by_role("button", name="Fold to the leaf")).to_be_visible()
-    card, button = (
-        page.locator(".lf-fp-card").bounding_box(),
-        minimize.bounding_box(),
-    )
+    button = minimize.bounding_box()
     # It rides the corner: its centre sits on the box's top-right edge.
     assert abs(button["x"] + button["width"] / 2 - (card["x"] + card["width"])) <= 2
     assert abs(button["y"] + button["height"] / 2 - card["y"]) <= 2

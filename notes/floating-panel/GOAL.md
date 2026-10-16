@@ -221,10 +221,12 @@ shortfall. Add each improvement you make, with its reason. Where an item here an
   the Leaf arrangement: the mark, its menu, and how everything opens above the
   row.
 - **The box resizes from its foot, in one step, and its surface follows.** The row
-  stays put; the leaving view fades out (80 ms) before the arriving one fades in, and
-  the surface layer follows the box's outline by a clip on the Codex panel's 300 ms
-  `cubic-bezier(.23,1,.32,1)`. (The first build tweened the card's height; a layout
-  tween's last frame landed outside CI's input window as a shift.)
+  stays put; the leaving view fades out (60 ms) before the arriving one fades in (90
+  ms), and the surface layer follows the box's outline by a clip on the Codex panel's
+  `cubic-bezier(.23,1,.32,1)`: 300 ms as the field grows a line, 120 ms as a view
+  opens or closes, since the user found views slow to appear (15 October). (The first
+  build tweened the card's height; a layout tween's last frame landed outside CI's
+  input window as a shift.)
 - **The focused field shows no frame and no ground**: one quiet line opens above it,
   with the keys that send. A dark frame around the field was the previous attempt's
   "form" look.

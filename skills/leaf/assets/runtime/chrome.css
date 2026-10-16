@@ -162,10 +162,40 @@
     box-shadow: none;
     padding: calc((var(--lf-fp-line) - 22px) / 2) 6px;
     min-height: var(--lf-fp-line);
-    max-height: 30dvh;
+    max-height: 50dvh;
     box-sizing: border-box;
     font: 14px / 22px var(--sans);
     --lf-field-end-room: 0px;
+  }
+  @supports (animation-timeline: scroll()) {
+    .lf-fp-field .lf-compose-field > leaf-text:state(scrolls) {
+      scrollbar-width: none;
+      mask-image:
+        linear-gradient(
+          to bottom,
+          transparent 0,
+          #000 var(--lf-fp-fade-top),
+          #000 calc(100% - var(--lf-fp-fade-bottom)),
+          transparent 100%);
+      animation: lf-fp-field-edges linear both;
+      animation-timeline: scroll(self);
+    }
+  }
+  @keyframes lf-fp-field-edges {
+    0% {
+      --lf-fp-fade-top: 0px;
+      --lf-fp-fade-bottom: 16px;
+    }
+    4% {
+      --lf-fp-fade-top: 16px;
+    }
+    96% {
+      --lf-fp-fade-bottom: 16px;
+    }
+    100% {
+      --lf-fp-fade-top: 16px;
+      --lf-fp-fade-bottom: 0px;
+    }
   }
   .lf-fp-field .lf-compose-field > leaf-text[data-lf-focus] {
     outline: none;
@@ -217,12 +247,6 @@
   }
   .lf-fp-field .lf-compose-submit {
     display: none;
-    border-radius: 50%;
-    background: var(--ink);
-    color: var(--lf-fp-surface);
-  }
-  .lf-fp-field .lf-compose-submit:hover {
-    background: var(--ink);
   }
   .lf-floating-panel[data-typing] .lf-fp-field .lf-compose-submit {
     display: grid;
@@ -411,7 +435,7 @@
     transition: opacity 120ms, visibility 0s 120ms;
   }
   @media (hover: hover) {
-    .lf-floating-panel[data-rest=row]:hover .lf-fp-minimize {
+    .lf-floating-panel[data-rest=row][data-corner] .lf-fp-minimize {
       opacity: 1;
       visibility: visible;
       transition: opacity 120ms;

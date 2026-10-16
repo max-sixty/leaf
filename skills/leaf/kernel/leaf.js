@@ -7436,6 +7436,23 @@ function createFloatingPanel({
   const mark = el("span", "lf-dot");
   leaf.append(mark);
   const field = el("div", "lf-fp-field");
+  const expand = el("button", "lf-fp-expand");
+  expand.type = "button";
+  let expanded = false;
+  expand.addEventListener("mousedown", (event) => event.preventDefault());
+  expand.addEventListener("click", () => {
+    expanded = !expanded;
+    paint();
+  });
+  let long = false;
+  const lengthWatch = sizeObserver(() => {
+    const input = fieldInput();
+    const lines = input ? (input.getBoundingClientRect().height - 10) / Number.parseFloat(getComputedStyle(input).lineHeight) : 0;
+    if (lines > 3.5 === long) return;
+    long = lines > 3.5;
+    nextRender(paint);
+  });
+  lengthWatch.observe(field);
   const rowNoticeSeat = el("div", "lf-fp-row-notice");
   const quick = el("div", "lf-fp-quick");
   row.append(leaf, field, rowNoticeSeat, quick);
@@ -8718,7 +8735,7 @@ function createFloatingPanel({
     }
     const thread = top?.view === "thread" ? threadByKey(top.thread) : null;
     const replying = top?.view === "thread";
-    const shown = replying ? [replyOutlet, resolvedLine] : [pageEditor().box];
+    const shown = replying ? [replyOutlet, resolvedLine, expand] : [pageEditor().box, expand];
     if (field.firstElementChild !== shown[0]) {
       const had = standingIn(field);
       field.replaceChildren(...shown);
@@ -8732,6 +8749,13 @@ function createFloatingPanel({
     keeps(host, "data-writing", writing ? "" : null);
     typing = writing && Boolean(draftOf(input).trim());
     keeps(host, "data-typing", typing ? "" : null);
+    if (!draftOf(input).trim()) expanded = false;
+    keeps(host, "data-long", (long || expanded) && !resting ? "" : null);
+    keeps(host, "data-expanded", expanded ? "" : null);
+    keeps(expand, "aria-pressed", String(expanded));
+    keeps(expand, "aria-label", expanded ? "Less room to write" : "More room to write");
+    keeps(expand, "title", expanded ? "Less room to write" : "More room to write");
+    render(iconTemplate(expanded ? "fit" : "expand", "lf-action-icon"), expand);
     const reading = fieldReading(replying ? top.thread : null, input);
     keeps(host, "data-says", reading.says);
     keeps(host, "data-tone", status().tone || null);

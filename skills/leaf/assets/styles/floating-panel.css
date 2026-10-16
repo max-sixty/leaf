@@ -164,11 +164,47 @@
     --lf-mark-w: 19px;
   }
   .lf-fp-field {
+    position: relative;
     flex: 1;
     min-width: 0;
     display: flex;
     align-self: stretch;
     align-items: flex-end;
+  }
+  /* More room for a long draft (floating-panel.js, `expand`): past three lines the
+     field takes a strip over its words, where the mark stands at its end, so the mark
+     covers no word and the words below it stay where they were, the panel rising by
+     the strip. Pressed, the panel widens and the field may take most of the window. */
+  .lf-fp-expand {
+    position: absolute;
+    top: 0;
+    inset-inline-end: 4px;
+    display: none;
+    place-items: center;
+    width: 24px;
+    min-height: 0;
+    height: 24px;
+    padding: 0;
+    color: var(--lf-fp-muted);
+  }
+  .lf-fp-expand .lf-action-icon {
+    width: 14px;
+    height: 14px;
+  }
+  .lf-floating-panel[data-long] .lf-fp-field {
+    padding-top: 24px;
+  }
+  .lf-floating-panel[data-long] .lf-fp-expand {
+    display: grid;
+  }
+  .lf-floating-panel[data-expanded] {
+    --lf-fp-width: min(
+      760px,
+      calc(100vw - 24px - var(--lf-safe-left) - var(--lf-safe-right))
+    );
+  }
+  .lf-floating-panel[data-expanded] .lf-fp-field .lf-compose-field > leaf-text {
+    max-height: 75dvh;
   }
   /* The field holds the page's editor, or the open thread's reply box, which Leaf's
      reader draws in the panel's outlet there (floating-panel.js, `replyOutlet`). Both
@@ -217,8 +253,7 @@
     max-height: 50dvh;
     box-sizing: border-box;
     font: 14px / 22px var(--sans);
-    /* Send and the microphone stand beside the words rather than over their end, so
-       neither the words nor the status saying what the agent does keep room for them. */
+    /* At rest no press stands in the field, so the status takes its whole width. */
     --lf-field-end-room: 0px;
   }
   /* Words running past the field's top or bottom edge fade into it, so a glance says
@@ -296,14 +331,15 @@
   .lf-fp-field .lf-compose-placeholder kbd {
     display: none;
   }
-  /* The field's presses stand in the row's flow beside the words, rather than over the
-     words' end where a card's composer floats them, so the row's one alignment places
-     them too. Each is a line square, as the leaf is, in place of a composer's own
-     hit box. */
+  /* The field's presses float in its foot's end corner, as an anchored comment box's
+     do (response.css), so every line but the last runs the field's whole width and the
+     last keeps room for them (text-field.js, `--lf-field-end-room`). The user chose this
+     on 15 October over the presses standing beside the words in the row's flow, which
+     kept a press's width empty beside every line. Each is a line square, as the leaf
+     is, standing on the row's foot. */
   .lf-fp-field :is(.lf-compose-submit, .lf-compose-dictate) {
-    position: relative;
-    inset: auto;
-    flex: none;
+    inset-inline-end: 0;
+    inset-block-end: 0;
     place-items: center;
     width: var(--lf-fp-line);
     min-width: 0;
@@ -311,8 +347,11 @@
     min-height: 0;
     padding: 0;
   }
-  /* Send stands in the counts' place while the user types, in every composer's face:
-     the accent arrow, not a press of its own. */
+  .lf-floating-panel[data-writing] .lf-fp-field .lf-compose-field > leaf-text {
+    --lf-field-end-room: calc(var(--lf-fp-line) - 6px);
+  }
+  /* Send shows while the user types, in every composer's face: the accent arrow, not
+     a press of its own. The counts step aside, so the field takes their room. */
   .lf-fp-field .lf-compose-submit {
     display: none;
   }

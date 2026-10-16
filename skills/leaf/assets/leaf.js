@@ -87,6 +87,7 @@ import {
 import { createThreadPanelKeys } from "./runtime/thread/panel.js";
 import { createPageComment } from "./runtime/thread/page-comment.js";
 import { createFloatingPanel } from "./runtime/floating-panel.js";
+import "./runtime/chrome-choice.js";
 import { standingThreadId } from "./runtime/thread/focus.js";
 import { createThreadListController } from "./runtime/thread/thread-list.js";
 import { createThreadNarrowing } from "./runtime/thread/narrowing.js";

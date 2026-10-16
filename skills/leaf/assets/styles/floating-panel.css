@@ -683,13 +683,35 @@
     flex: none;
     color: var(--lf-fp-muted);
   }
-  /* Where the thread stands among the open ones keeps the crumb's end, so a title
-     the agent or the user rewrites gives or takes room before it, truncating, and
-     moves neither it nor anything beside it. It stands further from the controls
-     after it than they stand from each other, so it reads with the title rather than
-     as one of them. */
-  .lf-fp-where {
+  /* The thread's facts after its title, the news it holds and where it stands among
+     the open ones, keep the crumb's end whole, so a title the agent or the user
+     rewrites, or news arriving, gives or takes room before them, truncating the
+     title, and moves nothing else. They stand further from the controls after them
+     than those stand from each other, so they read with the title rather than as
+     controls. */
+  .lf-fp-facts {
+    flex: none;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
     margin-inline: auto 12px;
+  }
+  .lf-fp-news-outlet {
+    display: contents;
+  }
+  /* The news qualifies the thread as its place does, so it takes that size, in the
+     ink of what the user may act on. It stands on the crumb's baseline at the height of
+     its words, so its arrival grows no line: the room a pointer aims at reaches above
+     and below them, as tall as a control's. */
+  .lf-fp-news-outlet > .lf-thread-news {
+    --lf-fp-news-reach: calc((max(28px, var(--aim-floor)) - 1lh) / 2);
+    align-self: auto;
+    min-height: 0;
+    padding-block: var(--lf-fp-news-reach);
+    margin-block: calc(-1 * var(--lf-fp-news-reach));
+    font-size: 12px;
+  }
+  .lf-fp-where {
     font-size: 12px;
     font-variant-numeric: tabular-nums;
   }

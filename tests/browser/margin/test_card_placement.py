@@ -285,6 +285,11 @@ def test_an_open_card_takes_news_without_moving_its_controls(browser, serve):
     )
     told(page)
     expect(notice).to_contain_text("new reply")
+    # It reads whole in the head row, before the card's actions.
+    expect(
+        preview.locator(".lf-margin-thread-controls .lf-thread-news")
+    ).to_be_visible()
+    assert notice.evaluate("node => node.scrollWidth <= node.clientWidth")
     rendered(page)
     assert preview.bounding_box() == pytest.approx(writing, abs=0.5)
     held = {name: control.bounding_box() for name, control in controls.items()}

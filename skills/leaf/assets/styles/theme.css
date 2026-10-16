@@ -142,18 +142,6 @@
   inherits: true;
   initial-value: 520ms;
 }
-/* How far the floating panel's field fades at its top and bottom edges while words run
-   past them (floating-panel.css), typed so its scroll timeline can animate them. */
-@property --lf-fp-fade-top {
-  syntax: "<length>";
-  inherits: false;
-  initial-value: 0px;
-}
-@property --lf-fp-fade-bottom {
-  syntax: "<length>";
-  inherits: false;
-  initial-value: 0px;
-}
 /* The default leaves option rows room: 360px crowded them. The drawn edge
  * remains free to choose a width suited to the conversation. */
 @property --lf-thread-panel-default-width {

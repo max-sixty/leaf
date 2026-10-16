@@ -170,35 +170,23 @@
     font: 14px / 22px var(--sans);
     --lf-field-end-room: 0px;
   }
-  @supports (animation-timeline: scroll()) {
-    .lf-fp-field .lf-compose-field > leaf-text:state(scrolls) {
-      scrollbar-width: none;
-      mask-image:
-        linear-gradient(
-          to bottom,
-          transparent 0,
-          #000 var(--lf-fp-fade-top),
-          #000 calc(100% - var(--lf-fp-fade-bottom)),
-          transparent 100%);
-      animation: lf-fp-field-edges linear both;
-      animation-timeline: scroll(self);
-    }
+  .lf-fp-field .lf-compose-field > leaf-text:state(scrolls) {
+    --lf-fp-fade-top: 0px;
+    --lf-fp-fade-bottom: 0px;
+    scrollbar-width: none;
+    mask-image:
+      linear-gradient(
+        to bottom,
+        transparent 0,
+        #000 var(--lf-fp-fade-top),
+        #000 calc(100% - var(--lf-fp-fade-bottom)),
+        transparent 100%);
   }
-  @keyframes lf-fp-field-edges {
-    0% {
-      --lf-fp-fade-top: 0px;
-      --lf-fp-fade-bottom: 16px;
-    }
-    4% {
-      --lf-fp-fade-top: 16px;
-    }
-    96% {
-      --lf-fp-fade-bottom: 16px;
-    }
-    100% {
-      --lf-fp-fade-top: 16px;
-      --lf-fp-fade-bottom: 0px;
-    }
+  .lf-fp-field .lf-compose-field > leaf-text:state(more-above) {
+    --lf-fp-fade-top: 16px;
+  }
+  .lf-fp-field .lf-compose-field > leaf-text:state(more-below) {
+    --lf-fp-fade-bottom: 16px;
   }
   .lf-fp-field .lf-compose-field > leaf-text[data-lf-focus] {
     outline: none;
@@ -212,12 +200,12 @@
   }
   @media (prefers-reduced-motion: no-preference) {
     .lf-floating-panel[data-says=status][data-tone=working]:not([data-asks]) .lf-fp-field leaf-text::part(placeholder) {
+      --lf-sheen-rest: 0.48;
       animation: lf-sheen 2s ease-in-out infinite alternate;
     }
   }
   .lf-floating-panel[data-says=status][data-asks] .lf-fp-field leaf-text::part(placeholder) {
-    color: var(--lf-fp-asks);
-    font-weight: 500;
+    color: color-mix(in srgb, var(--lf-fp-asks) 70%, transparent);
   }
   .lf-floating-panel[data-asks] {
     --lf-fp-asks: var(--ink);
@@ -842,6 +830,17 @@
     margin-inline-start: 8px;
     color: var(--lf-fp-muted);
     font-weight: 400;
+  }
+  .lf-fp-approval .lf-fp-item {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .lf-fp-approval .lf-fp-end {
+    min-width: 0;
+    justify-content: end;
+  }
+  .lf-fp-approval .lf-fp-value {
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .lf-fp-compare {
     flex: none;
@@ -2387,7 +2386,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-thread-topic[data-lf-pending-title] {
     justify-self: start;
     font-weight: 500;
-    color: color-mix(in oklab, var(--muted) 80%, var(--paper));
+    color: color-mix(in srgb, var(--ink) 50%, transparent);
     animation: lf-sheen 2s ease-in-out infinite alternate;
   }
   .lf-thread-meta {

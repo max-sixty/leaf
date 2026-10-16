@@ -246,7 +246,11 @@ shortfall. Add each improvement you make, with its reason. Where an item here an
   presentation), so asks, reactions and HTML replies work in the panel.
 - **The menu carries the banner's inventory,** drawn from each contributor's declared
   row, less what the row and its views already hold (Threads, On me, the page
-  comment, approval); Navigate, Annotations and About open as views of their rows.
+  comment, approval). Navigate, Annotations, About and Versions take the menu's place
+  in the same box, sliding in from the right under a head that goes back; Threads and
+  On, which are read rather than chosen from, open as views. The user chose this on 15
+  October ("expecting it to feel like it's navigating right … and then there's no way
+  to go back"), over the view keeping its place with a "‹ Menu /" crumb.
 - **On a phone, a count at rest is its number beside an icon,** so the agent's status
   keeps the field ("numbers next to icons rather than saying whole words").
 - **Passing notices are said in the empty field** (the overhaul); a walk's position

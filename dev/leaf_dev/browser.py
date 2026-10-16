@@ -19,6 +19,14 @@ DESKTOP = (1440, 900)
 # The width of a window beside an editor.
 BESIDE = (900, 900)
 
+# Pages open in the banner and bottom bar rather than the default Leaf panel until a page
+# stores another choice (prepaint.js, `lfChrome`): for checks and tools that drive the
+# banner's controls. A sample's child has no storage, so it asks nothing there.
+CLASSIC_CHROME = (
+    "try { localStorage.getItem('lf-chrome') ??"
+    " localStorage.setItem('lf-chrome', 'classic') } catch {}"
+)
+
 # The fixed fontconfig that lays text out in DejaVu faces on Linux (`use_linux_fonts`).
 LINUX_FONTCONFIG = ROOT / "tests/fonts.conf"
 LINUX_FONTS = Path("/usr/share/fonts/truetype/dejavu")
@@ -150,12 +158,14 @@ def tab(
     *,
     motion="reduce",
     scale=1,
+    classic=False,
 ):
     """A fresh blank tab at `viewport` and in `scheme`, with reduced motion so a still
     never catches a transition midway (pass motion="no-preference" for a journey),
     and under a finger (a coarse pointer, a mobile
-    viewport) when `touch`, drawing `scale` device pixels to a CSS pixel. A caller
-    listens on it before it `load`s."""
+    viewport) when `touch`, drawing `scale` device pixels to a CSS pixel, and in the
+    banner where `classic` (`CLASSIC_CHROME`). A caller listens on it before
+    it `load`s."""
     context = browser.new_context(
         viewport={"width": viewport[0], "height": viewport[1]},
         device_scale_factor=scale,
@@ -164,6 +174,8 @@ def tab(
         has_touch=touch,
         is_mobile=touch,
     )
+    if classic:
+        context.add_init_script(CLASSIC_CHROME)
     try:
         page = context.new_page()
         page.set_default_timeout(15_000)

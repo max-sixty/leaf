@@ -38,8 +38,7 @@ from render_harness import (
     told,
     write,
 )
-
-from browser.test_render_controls import leaf_page as titled_page
+from render_harness import leaf_page as titled_page
 
 # A sample's child is an opaque origin with no storage, so the script asks nothing of it.
 FLOATING = "try { localStorage.setItem('lf-chrome', 'floating') } catch {}"
@@ -992,7 +991,7 @@ def test_a_streaming_answer_grows_the_view_until_it_outgrows_its_cap(
     step past the view's cap, such as the durable answer completing it with longer
     words, leaves New reply at the view's foot."""
     # The threads suite imports this one, so its stream helpers come in at run time.
-    from browser.test_render_threads import claim_for_codex, stream_reply
+    from browser.threads import claim_for_codex, stream_reply
 
     url = serve(LONG_PAGE)
     root = panel_comment(
@@ -1185,17 +1184,43 @@ def test_an_open_view_covers_the_page_beneath_it(browser, serve):
     assert whole
 
 
-def test_a_reader_who_chose_nothing_reads_with_the_classic_chrome(browser, serve):
-    """A reader without a chrome preference sees the banner and bottom bar. An unknown
-    stored value stands for no choice, overriding the test suite's own preference."""
+def test_a_reader_who_chose_nothing_reads_with_the_panel(browser, serve):
+    """A reader without a chrome preference sees the panel in place of the banner and
+    bottom bar. An unknown stored value stands for no choice, overriding the test
+    suite's own preference."""
     page = open_page(
         browser,
         serve(LONG_PAGE),
         init_script="try { localStorage.setItem('lf-chrome', '') } catch {}",
     )
-    expect(page.locator(".lf-floating-panel")).to_be_hidden()
+    expect(page.locator(".lf-floating-panel")).to_be_visible()
+    expect(page.locator(".lf-banner")).to_be_hidden()
+    expect(page.locator(".lf-shortcut-bar")).to_be_hidden()
+
+
+def test_each_chrome_offers_the_other_and_the_choice_holds(browser, serve):
+    """The banner's More menu offers the panel and the leaf's menu offers the banner
+    back, at its foot; either press reloads the page in the other chrome, which then
+    stays the reader's choice across a reload."""
+    page = open_page(browser, serve(LONG_PAGE))
     expect(page.locator(".lf-banner")).to_be_visible()
-    expect(page.locator(".lf-shortcut-bar")).to_be_visible()
+    page.locator(".lf-banner-more").click()
+    page.locator(".lf-banner-menu").get_by_role(
+        "button", name="Use the Leaf panel"
+    ).click()
+    expect(page.locator(".lf-floating-panel")).to_be_visible()
+    expect(page.locator(".lf-banner")).to_be_hidden()
+    page.reload()
+    expect(page.locator(".lf-floating-panel")).to_be_visible()
+
+    page.locator(".lf-fp-leaf").click()
+    rows = page.locator(".lf-fp-menu .lf-fp-item:not(:disabled)")
+    expect(rows.last).to_have_text(re.compile("Use the banner"))
+    rows.last.click()
+    expect(page.locator(".lf-banner")).to_be_visible()
+    expect(page.locator(".lf-floating-panel")).to_be_hidden()
+    page.reload()
+    expect(page.locator(".lf-banner")).to_be_visible()
 
 
 def test_a_page_s_own_conversation_reader_takes_the_panel_s_threads(browser, serve):
@@ -1288,7 +1313,7 @@ def test_floating_status_records_feedback_only_when_its_words_show(
     """Authored status words retain their exact source through the native placeholder
     slot and folded peek. A draft, focus, or folded panel cannot claim them visible.
     """
-    from browser.test_render_threads import claim_for_codex
+    from browser.threads import claim_for_codex
 
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Can we simplify the logging?")
@@ -1359,7 +1384,7 @@ def test_a_folded_status_keeps_its_reading_until_the_next_exposure(
 ):
     """A clock tick cannot move tooltip words; the leaf stays live and reopening
     reads current status. A notice answering a gesture still shows immediately."""
-    from browser.test_render_threads import claim_for_codex
+    from browser.threads import claim_for_codex
 
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Can we simplify the logging?")
@@ -1438,7 +1463,7 @@ def test_floating_menu_tracks_stalled_detail_hidden_by_a_draft(browser, serve, r
     """The stalled summary carries no authored detail; its menu's Last said words do.
     A draft keeps the row's placeholder hidden, so that menu is their first exposure.
     """
-    from browser.test_render_threads import claim_for_codex
+    from browser.threads import claim_for_codex
 
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Can we simplify the logging?")
@@ -2219,7 +2244,7 @@ def test_the_leaf_s_menu_is_one_tab_stop_its_keys_walk(browser, serve):
     expect(rows.first).to_be_focused()
     page.keyboard.press("End")
     expect(rows.last).to_be_focused()
-    expect(rows.last).to_have_text(re.compile("Fold to the leaf"))
+    expect(rows.last).to_have_text(re.compile("Use the banner"))
     page.keyboard.press("Home")
     expect(rows.first).to_be_focused()
     page.keyboard.press("ArrowDown")

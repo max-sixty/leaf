@@ -1,9 +1,11 @@
 # Goal: the floating Leaf panel
 
-> **Status (2026-10-13): rebuilt and opt-in (TODO #28).** Checkpoints 1–3 landed
+> **Status (2026-10-16): the default chrome (TODO #28).** Checkpoints 1–3 landed
 > on `main` behind the preference, off by default. The user disliked their look, so
 > a second round redesigned it from a sketch they tried and configured (below, "The
-> overhaul"). The rebuilt panel remains non-default while its remaining work is done.
+> overhaul"). On 16 October the user made the rebuilt panel the default, with **Use
+> the banner** in the leaf's menu, and **Use the Leaf panel** in the banner's More
+> menu, to switch between them (`chrome-choice.js`).
 >
 > On 13 October the user retired the Codex reference: the panel is judged by Leaf's
 > own aesthetic and the user's eye, not against the Codex app. The phone waits until
@@ -66,7 +68,8 @@ icon.
 
 Build an opt-in alternative to Leaf's chrome: one panel that hovers over the
 bottom of the page, like the Codex app's floating chat panel, and replaces both
-the banner and the bottom bar. Classic chrome stays the default. Build it on
+the banner and the bottom bar. Classic chrome stayed the default until 16 October.
+Build it on
 current `main` in the Leaf repository, behind a user preference, and land it
 there in steps, so the user can keep developing it from `main` without
 changing what anyone else sees.

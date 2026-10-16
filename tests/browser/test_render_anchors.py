@@ -1006,7 +1006,7 @@ def test_a_drag_that_overshoots_the_layer_is_not_a_passage(browser, serve):
     words by definition and still means the document, which
     `test_a_selection_of_the_whole_page_still_finds_its_passage` holds. The chrome half of
     this — which of the layer's words a selection may reach at all — is
-    `test_render_controls.py::test_a_selection_that_reaches_the_layer_stops_at_the_page`.
+    `controls/test_covering.py::test_a_selection_that_reaches_the_layer_stops_at_the_page`.
     """
     quoted = "Paragraph 3. Filler. Filler. Filler."
     page = open_page(browser, serve(LONG_PAGE, anchored=(("p3", quoted),)))

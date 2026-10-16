@@ -439,7 +439,7 @@ def _base_sources(root, since):
         for path in git("ls-tree", "-r", "--name-only", base, "--", "tests")
         .decode()
         .split()
-        if re.fullmatch(r"tests/(\w+/)?test_\w+\.py", path)
+        if re.fullmatch(r"tests/(\w+/)*test_\w+\.py", path)
     ]
     batch = git(
         "cat-file", "--batch", stdin="".join(f"{base}:{p}\n" for p in paths).encode()

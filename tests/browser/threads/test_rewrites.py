@@ -1049,6 +1049,93 @@ def test_typing_in_a_long_rewrite_keeps_the_view(browser, serve):
     assert abs(after - before) < 30, (before, after)
 
 
+def test_a_rewrite_leaves_a_card_at_the_windows_foot_as_it_stood(browser, serve):
+    """A card whose target stands low in the window stands against the window's foot,
+    where it grows no taller than it stands. Saving a rewrite of its message unchanged
+    left the message a scrolling box clipped mid-line, as did discarding words shortened
+    in the rewrite: the open rewrite was shorter than the message, so the card shrank
+    with it and could not grow back. The rewrite now keeps at least the words' height.
+
+    Unchanged words were shorter in the card's rewrite because its field ended them
+    17px further out than the message did, so lines rewrapped as it opened. They now
+    end where the message's do."""
+    url = serve(LONG_PAGE)
+    mine = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": (
+                "/dispatch\n\nI think this makes sense, but we need to think about "
+                "how to change our Todos first, to handle a tree structure.\n\nLay out "
+                "options for our ontology.\n\nAlso, look first at how we can complete "
+                "any existing clean-ups, given recent changes, as a precursor to "
+                "embarking on adding this\n\nThen after that we can come back to this "
+                "session and look at changing our implementation"
+            ),
+            "anchor": {"section": "p30"},
+        },
+    )
+    page = open_page(browser, url)
+    resized(page, 1512, 860)
+    page.locator("#p30").evaluate("n => n.scrollIntoView({block: 'end'})")
+    rendered(page)
+    page.locator('[data-lf-margin-for="p30"] .lf-margin-marker').click()
+    card = page.locator(".lf-margin-preview")
+    message = card.locator(f'.lf-msg[data-event="{mine["id"]}"]')
+    words = message.locator(".lf-msg-text")
+    editor = message.locator(".lf-msg-editor leaf-text")
+    expect(message).to_be_visible()
+    rendered(page)
+    assert card.evaluate("card => card.style.bottom"), (
+        "the card does not stand against the window's foot, so this proves nothing"
+    )
+    column = """n => { const r = n.getBoundingClientRect(), s = getComputedStyle(n);
+      return [r.left + parseFloat(s.paddingLeft) + parseFloat(s.borderLeftWidth),
+              r.right - parseFloat(s.paddingRight) - parseFloat(s.borderRightWidth)]; }"""
+    text_column = words.evaluate(column)
+
+    def standing():
+        return {
+            "card": card.bounding_box(),
+            "words": words.evaluate(FIRST_LINE),
+            "scrolls": card.locator(".lf-thread-transcript").evaluate(
+                "t => t.scrollHeight > t.clientHeight"
+            ),
+        }
+
+    stood = standing()
+    assert not stood["scrolls"]
+
+    def as_it_stood():
+        now = standing()
+        for side in ("y", "height"):
+            assert abs(now["card"][side] - stood["card"][side]) < 0.5, (now, stood)
+        assert abs(now["words"][1] - stood["words"][1]) < 0.5, (now, stood)
+        assert not now["scrolls"], now
+
+    words.dblclick()
+    expect(editor).to_be_focused()
+    rendered(page)
+    for edge, at in zip(editor.evaluate(column), text_column):
+        assert abs(edge - at) < 0.5, (editor.evaluate(column), text_column)
+    page.keyboard.press("Enter")
+    expect(message.locator(".lf-msg-editor")).to_have_count(0)
+    rendered(page)
+    as_it_stood()
+
+    words.dblclick()
+    expect(editor).to_be_focused()
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.type("Short.")
+    rendered(page)
+    page.keyboard.press("Escape")
+    expect(message.locator(".lf-msg-editor")).to_have_count(0)
+    rendered(page)
+    as_it_stood()
+
+
 def test_saving_one_of_two_open_rewrites_leaves_no_gap(browser, serve):
     """With a changed rewrite left open higher in the thread, saving a shorter one below
     it followed the open one and not the saved one, so the reply box jumped back down

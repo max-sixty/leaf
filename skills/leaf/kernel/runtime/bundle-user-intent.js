@@ -3273,7 +3273,7 @@ var MessageEditor = class {
   #reveal;
   #settling = null;
   #follow;
-  constructor(id, view, { wireInput, said, base: currentBase, send, land: land2, paint: paint2, previous, reveal }) {
+  constructor(id, view, { body, wireInput, said, base: currentBase, send, land: land2, paint: paint2, previous, reveal }) {
     const ctx = rewriteContext(id);
     let base = currentBase();
     const keptOver = loadDraftPayload(ctx)?.over;
@@ -3281,6 +3281,13 @@ var MessageEditor = class {
       notice(`This message changed since this edit began. It now says: \u201C${said()}\u201D`);
     this.#reveal = reveal;
     this.node = offer("div", "lf-msg-editor lf-comment-box");
+    const drawn3 = body?.querySelectorAll(":scope > :is(.lf-msg-text, .lf-msg-media)");
+    if (drawn3?.length) {
+      const words = drawn3[0];
+      const { paddingTop, paddingBottom } = getComputedStyle(words);
+      const height = drawn3[drawn3.length - 1].getBoundingClientRect().bottom - words.getBoundingClientRect().top - parseFloat(paddingTop) - parseFloat(paddingBottom);
+      this.node.style.setProperty("--lf-msg-words-height", layoutPx(height));
+    }
     this.input = offer(TEXT_FIELD);
     this.input.name = "edit";
     const actions = offer("span", "lf-msg-edit-actions");
@@ -3782,6 +3789,7 @@ var MessageView = class {
     const editing = model.editable && holdsMessageEdit(model.id, this, panel);
     if (editing && !this.#editor)
       this.#editor = new MessageEditor(model.id, this, {
+        body: this.node.querySelector(":scope > .lf-msg-body"),
         wireInput: this.#commands.reply.wireInput,
         said: () => this.#model.body.text,
         base: () => this.#model.base,

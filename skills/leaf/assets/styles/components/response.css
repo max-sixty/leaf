@@ -330,7 +330,8 @@ button.lf-media-open {
   background: transparent;
   color: var(--ink);
   font: var(--t-5)/1.5 var(--sans);
-  max-height: 50vh;
+  --lf-comment-box-max-height: 50vh;
+  max-height: var(--lf-comment-box-max-height);
   overflow-y: auto;
 }
 .lf-comment-box > .lf-compose-field > leaf-text[data-lf-focus] {
@@ -354,6 +355,18 @@ button.lf-media-open {
 }
 .lf-thread-transcript .lf-msg-editor {
   margin-inline-start: calc(-1 * var(--lf-thread-text-inset));
+}
+/* Its words are at least as tall as the message's words and media it opened over
+   (message-edit.js), up to the height past which a field scrolls, so it gives up none
+   of their room while it is open. */
+.lf-msg-editor > .lf-compose-field > leaf-text {
+  min-height: max(
+    var(--lf-compose-h),
+    min(
+      calc(var(--lf-msg-words-height, 0px) + 2 * var(--lf-compose-pad-block)),
+      var(--lf-comment-box-max-height)
+    )
+  );
 }
 /* Its foot stands for its last line, whose height a reveal clears above it. */
 .lf-msg-edit-foot {
@@ -399,11 +412,12 @@ button.lf-media-open {
 :is(.lf-fab-bar, .lf-margin-preview) {
   --lf-response-height: max(32px, var(--aim-floor));
 }
-/* The comment box and the card its words become share one text column, so Send
-     moves no word: both start the words `--lf-thread-text-inset` inside the field's or
-     the transcript's edge, and both end them `--lf-comment-text-end` inside it, on
-     every line, the room Send stands in at the box's foot. The editor spends one pixel
-     of each inset on its frame, which the card does not draw. */
+/* The comment box, the card its words become and a rewrite of them in that card share
+     one text column, so neither Send nor opening or closing the rewrite moves a word:
+     each starts the words `--lf-thread-text-inset` inside the field's or the
+     transcript's edge, and ends them `--lf-comment-text-end` inside it, on every line,
+     the room Send stands in at the box's foot. A field spends one pixel of each inset
+     on its frame, which the card's message does not draw. */
 :is(.lf-fab-bar, .lf-margin-preview) {
   --lf-thread-text-pad-block: calc((var(--lf-response-height) - 1lh) / 2);
   --lf-comment-send-inset: calc(
@@ -413,6 +427,9 @@ button.lf-media-open {
 }
 .lf-margin-preview .lf-msg-text {
   padding-inline-end: var(--lf-comment-text-end);
+}
+.lf-margin-preview .lf-msg-editor leaf-text {
+  padding-inline-end: calc(var(--lf-comment-text-end) - 1px);
 }
 .lf-fab-bar .lf-compose-field,
 .lf-response-control {

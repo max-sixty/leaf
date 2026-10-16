@@ -14,7 +14,7 @@ from interact_support import (
     asks_on_user,
     before_choice,
     check_findings,
-    command_refusal,
+    command_findings,
     comment,
     decide,
     drafted,
@@ -1450,7 +1450,8 @@ def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
 def test_resolve_refuses_a_message_the_log_has_not_got(page_dir):
     """The parent rule is the reply door's, so a thread can't be closed by naming
     something outside the thread."""
-    assert command_refusal("thread", "resolve", page_dir, "c9").values["name"] == "c9"
+    [refused] = command_findings("thread", "resolve", page_dir, "c9")
+    assert refused.values["name"] == "c9"
 
 
 def test_unresolve_reopens_a_thread_in_agent_readings(page_dir):

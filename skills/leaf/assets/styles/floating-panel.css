@@ -991,6 +991,33 @@
   .lf-fp-thread[data-resolved] .lf-fp-label {
     color: var(--lf-fp-muted);
   }
+  /* The words a thread in the panel is about, over its messages, as a card's head
+     quotes them (chrome.css, `.lf-quote`): three lines, the whole on Full quote, its
+     press above the words it grows (floating-panel.js, `quoteHead`). */
+  .lf-fp-quote-head {
+    display: grid;
+    justify-items: start;
+    gap: 4px;
+    margin: 0 0 12px;
+  }
+  .lf-fp-quote {
+    margin: 0;
+    cursor: default;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
+  }
+  .lf-fp-quote[data-expanded="true"] {
+    display: block;
+    overflow: visible;
+  }
+  .lf-fp-quote-head > .lf-quote-expand {
+    min-height: 0;
+    padding: 0;
+    color: var(--lf-fp-muted);
+    font-size: 12px;
+  }
   .lf-fp-version {
     display: flex;
     align-items: center;

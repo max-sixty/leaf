@@ -118,6 +118,7 @@ import { threadAttention, workflowLabel } from "./thread/workflow.js";
 import { messageReading, threadName } from "./thread/messages.js";
 import { drawnThreadId } from "./thread/selectors.js";
 import { declareThreadParts } from "./thread/focus.js";
+import { quoteReading } from "./thread/thread-card.js";
 import { dismissReply, replyAvailable } from "./thread/replies.js";
 import {
   PAGE_DRAFT,
@@ -260,6 +261,7 @@ export function createFloatingPanel({
   queueActions,
   withdraw,
   settlement,
+  placedAt,
 }) {
   const host = el("section", "lf-ui lf-floating-panel");
   host.setAttribute("aria-label", "Leaf");
@@ -501,17 +503,31 @@ export function createFloatingPanel({
         retype();
       },
       send: (_text, raw, owns) => {
+        let flight = null;
         const handle = sendMessage(
           PAGE_DRAFT,
           owns,
-          (attempt) => threadActions.create({ attempt, text: raw })?.delivery,
+          (attempt) => (flight = threadActions.create({ attempt, text: raw })?.delivery),
         );
         if (!handle) return;
         // The box empties as the send leaves; the row reads it again once it has.
         queueMicrotask(paint);
         // A page comment starts a thread, keyed by the attempt that sent it, which the
         // panel opens so its reply follows in the same field.
-        open({ view: "thread", thread: handle.attempt }, { replace: true });
+        const route = { view: "thread", thread: handle.attempt };
+        open(route, { replace: true });
+        // A refusal takes back the thread the send drew, which the server never held,
+        // and hands the words back to the page's draft (drafts.js, `standGesture`). Its
+        // view goes with it, where it still stands, so the field stands for the page
+        // again holding them, with the caret in them where the user still stands in the
+        // panel or has done nothing since the send.
+        const untouched = retainUserIntent();
+        void Promise.resolve(flight).then((sent) => {
+          if (sent || trail.at(-1) !== route) return;
+          caretToField = standingIn(host) || untouched();
+          trail = [];
+          transition(route, { focus: false });
+        });
       },
     });
     sync();
@@ -657,13 +673,18 @@ export function createFloatingPanel({
   }
   // Asking to write is asking for the field, so a folded panel unfolds, and the field
   // stands for the page again, with nothing open above it.
-  function writeOnPage() {
+  // Whether the paint that next stands the page's field in the row puts the caret in it.
+  let caretToField = false;
+  function clearRow() {
     const before = trail.at(-1);
     if (prefs().rest === "mark") prefs().setRest("row");
     trail = [];
     setMenu(false);
-    transition(before);
-    focusDestination(pageEditor().input, "move");
+    transition(before, { focus: false });
+  }
+  function writeOnPage() {
+    caretToField = true;
+    clearRow();
   }
   // Resolving a thread opened from Threads moves the user on, as the banner's Threads
   // panel does (thread-card.js, `#prepareLanding`): to the open thread after it, or
@@ -1058,6 +1079,7 @@ export function createFloatingPanel({
       (before ? routeKey(before) : null) !== (after ? routeKey(after) : null);
     if (changed) {
       rooms.clear();
+      quoteExpanded = false;
       waiting = null;
       placed = null;
       drawnThread = null;
@@ -1622,11 +1644,77 @@ export function createFloatingPanel({
   declareView(head);
   declareView(replyOutlet);
 
+  // The words a thread is about, as its card's head quotes them (thread-card.js,
+  // `quoteReading`), above its messages, in three lines: where they still stand on the
+  // page, On the page goes there; where they no longer do, as for a thread a revision
+  // detached from its passage, the quotation the thread kept is all that is left of
+  // them, so Full quote shows the whole of it here, its press standing above the words
+  // it grows so the press never moves itself. It shows only where three lines cut them.
+  let quoteExpanded = false;
+  function measureQuote() {
+    const quote = stage.querySelector(".lf-fp-view:not([data-leaving]) .lf-fp-quote");
+    const press = quote?.previousElementSibling;
+    if (press?.classList.contains("lf-quote-expand"))
+      keeps(
+        press,
+        "hidden",
+        !quoteExpanded && quote.scrollHeight <= quote.clientHeight ? "" : null,
+      );
+  }
+  // The press resizes the view the panel's other observers watch, so it shows in the
+  // next frame rather than inside this observer's delivery.
+  const quoteWatch = sizeObserver(() => nextRender(measureQuote));
+  const watchQuote = (node) => {
+    quoteWatch.disconnect();
+    if (node) quoteWatch.observe(node);
+  };
+  function quoteHead(thread) {
+    const quote = quoteReading(thread, { placedAt });
+    if (!quote) return nothing;
+    const expanded = quote.localReading && quoteExpanded;
+    return html`<header class="lf-fp-quote-head">
+      ${
+        quote.localReading
+          ? html`<button
+              type="button"
+              class="lf-thread-disclosure lf-quote-expand"
+              aria-label="Full quote"
+              hidden
+              aria-expanded=${String(quoteExpanded)}
+              aria-controls="lf-fp-quote"
+              @click=${() => {
+                quoteExpanded = !quoteExpanded;
+                paint();
+              }}
+            >
+              Full quote
+            </button>`
+          : nothing
+      }
+      <blockquote
+        ${ref(watchQuote)}
+        id="lf-fp-quote"
+        class=${`lf-quote lf-fp-quote${quote.anchored && !quote.found ? " detached" : ""}`}
+        data-expanded=${String(expanded)}
+        title=${quote.title ?? nothing}
+      >
+        <span class="lf-quote-label">${quote.label}</span>${
+          quote.outdated
+            ? html`<span class="lf-anchor-status">Earlier data</span>`
+            : quote.changed
+              ? html`<span class="lf-anchor-status">Changed</span>`
+              : nothing
+        }
+      </blockquote>
+    </header>`;
+  }
+
   function threadView(key) {
     const thread = threadByKey(key);
     if (!thread)
       return html`<p class="lf-fp-empty">This thread is not on the page.</p>`;
-    return html`<div class="lf-fp-messages lf-fp-outlet" data-lf-reflow="append"></div>
+    return html`${quoteHead(thread)}
+      <div class="lf-fp-messages lf-fp-outlet" data-lf-reflow="append"></div>
       ${
         waiting?.key === key
           ? html`<div class="lf-fp-foot">
@@ -2232,6 +2320,13 @@ export function createFloatingPanel({
       const had = standingIn(field);
       field.replaceChildren(...shown);
       if (had && !replying) focusDestination(leaf, "return");
+    }
+    // A move to the page's field waits for the paint that stands it there, and lands
+    // before the paint reads where the caret is, so the field is drawn once for it
+    // (`writeOnPage`).
+    if (caretToField && !replying) {
+      caretToField = false;
+      focusDestination(pageEditor().input, "move");
     }
     // A resolved thread takes no reply: the field says how to reopen it instead.
     const resting = Boolean(thread) && !replyAvailable(thread);

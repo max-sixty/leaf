@@ -81,7 +81,10 @@ import { threadRewrites } from "./message-edit.js";
 import { HeldNews, newsNotice } from "./held-news.js";
 import { ReplyContinuity } from "./reply-continuity.js";
 
-function quoteReading(thread, anchors) {
+// What a thread's head says of the words it is about: the quote, whether it still
+// stands on the page, and its hover. A card's head draws it, and so does the floating
+// panel's view of a thread (floating-panel.js, `quoteHead`).
+export function quoteReading(thread, anchors) {
   const placement = anchors.placedAt(thread.id);
   // A version that rewrote the quoted words left the thread on their section
   // (`rewritten_from`, events.md); the head still names those words, marked as changed.

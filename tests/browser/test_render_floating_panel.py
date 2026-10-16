@@ -2736,6 +2736,58 @@ def test_a_reply_its_card_cannot_draw_opens_in_the_panel(browser, serve):
     expect(page.locator(CLASSIC_SURFACES)).to_have_count(0)
 
 
+def test_a_refused_page_comment_hands_its_words_back_to_the_field(browser, serve):
+    """A page comment the server refuses takes back the thread its send opened in the
+    panel, which the server never held, so the field stands for the page again with
+    the words in it and the caret in them, ready to send again."""
+    page = floating(browser, serve(LONG_PAGE))
+
+    def refuse(route):
+        attempt = route.request.post_data_json["attempt"]
+        route.fulfill(
+            status=400,
+            json={"ok": False, "attempt": attempt, "error": "refused", "final": True},
+        )
+
+    page.route("**/api/event", refuse)
+    write(field(page), "Is the window long enough?")
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-fp-view")).to_have_count(0)
+    expect(field(page)).to_have_js_property("value", "Is the window long enough?")
+    expect(field(page)).to_be_focused()
+    consume_browser_errors(page, http_error_console(400))
+
+
+def test_a_thread_whose_words_are_gone_keeps_its_quotation_in_the_panel(
+    browser, serve
+):
+    """A thread about words the page no longer holds opens in the panel, where the
+    quotation it kept stands over its messages, marked as no longer on the page, in
+    three lines; Full quote shows the rest, as a card's head does."""
+    url = serve(LONG_PAGE)
+    words = "The earlier plan required a manual review before every rollout. " * 6
+    panel_comment(
+        serve.page_dir,
+        "Does this still apply?",
+        {"section": "gone", "quote": words + "FINAL WORDS"},
+    )
+    page = floating(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    view = page.locator(".lf-fp-view[data-view=thread]")
+    expect(view.locator(".lf-msg")).to_contain_text("Does this still apply?")
+    quote = view.locator(".lf-quote")
+    expect(quote).to_contain_text("FINAL WORDS")
+    expect(quote).to_have_class(re.compile(r"\bdetached\b"))
+    assert quote.evaluate("el => el.scrollHeight > el.clientHeight")
+    disclosure = view.get_by_role("button", name="Full quote", exact=True)
+    expect(disclosure).to_be_visible()
+    disclosure.click()
+    expect(disclosure).to_have_attribute("aria-expanded", "true")
+    assert quote.evaluate("el => el.scrollHeight <= el.clientHeight + 1")
+    expect(page.locator(CLASSIC_SURFACES)).to_have_count(0)
+
+
 def test_an_image_pasted_in_the_page_s_field_stands_over_its_words(browser, serve):
     """An image pasted into the page's field stands on a line of its own above the
     words, as it does over a thread's reply, leaving the field its width; its thumbnail

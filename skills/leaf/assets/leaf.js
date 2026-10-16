@@ -602,6 +602,7 @@ const floatingPanel = createFloatingPanel({
   queueActions: app.queueActions,
   withdraw: app.withdraw,
   settlement: app.settlement,
+  placedAt: anchorPlacement.placedAt,
 });
 // The page's general comment box is the floating panel's field.
 const generalComment = floatingPanel.pageComment;

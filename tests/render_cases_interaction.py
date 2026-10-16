@@ -47,10 +47,16 @@ diff --git a/gateway/limits.py b/gateway/limits.py
 """,
 )
 
-# The panel's list, in the order it stands: each thread by its id.
-LIST_ORDER = """() => [...document.querySelector(".lf-threads").children]
-  .map((n) => n.dataset.id)
-  .filter(Boolean)"""
+# The panel's Threads view, in the order its rows stand: each thread by its id. A row is
+# keyed by the thread's key, which for a thread this tab started is the attempt that
+# sent it (thread/model.js, `threadKey`), so the page's own reading names its id.
+LIST_ORDER = """async () => {
+  const {readThreads} = await window.__lfWidgetApi();
+  const ids = new Map(readThreads().threads.map((t) => [t.key, t.id]));
+  return [...document.querySelectorAll(
+    '.lf-fp-view[data-view="threads"]:not([data-leaving]) .lf-fp-thread')]
+    .map((row) => ids.get(row.dataset.key));
+}"""
 
 
 def panel_comment(d, text, anchor=None, author="user"):
@@ -82,19 +88,6 @@ def answered_comment(d, text, anchor):
     return root
 
 
-# What the list is holding, from the one query that answers both halves of the
-# question a departing thread raises: what stands where, and what the keys can still
-# reach. The two lists differ by exactly the thread on its way out.
-LIST_STATE = """() => {
-  const list = document.querySelector(".lf-threads");
-  return {
-    listed: [...list.children].filter((n) => !n.hidden)
-      .map((n) => n.dataset.id).filter(Boolean),
-    walkable: [...list.querySelectorAll(":scope > .lf-thread:not([hidden])")].map(
-      (n) => n.dataset.id,
-    ),
-  };
-}"""
 # Every frame the fold paints, sampled from the page because there is nowhere else to
 # sample it: what a motion looks like is a sequence, and every other check here reads a
 # state. One height per animation frame until the node leaves the page, which is the
@@ -698,17 +691,18 @@ MESSAGE_ROOM_PAGE = leaf_page(
 )
 
 
-# What each On panel row says, with the list it stands in ("you", "agent" or "done").
-# Rows under a closed Done fold are in the document and measure as nothing.
-QUEUE_ROW_SAYS = """() => [...document.querySelectorAll('button.lf-queue-row')].map((r) => ({
-  at: r.getAttribute('data-lf-at'),
-  list: r.closest('[data-lf-queue]').dataset.lfQueue,
-  kind: r.dataset.lfKind,
-  word: r.querySelector('.lf-queue-kind').textContent,
-  title: r.querySelector('.lf-queue-title').textContent,
-  where: r.querySelector('.lf-queue-where').textContent,
-  w: Math.round(r.getBoundingClientRect().width),
-  h: Math.round(r.getBoundingClientRect().height),
+# What each card of the panel's On me view says: its item's kind and id (queue-api.js,
+# `queueItemKey`), the list it stands in ("you", "agent" or "done"), its title and its
+# prompt, each null where the card has none, and its box.
+ON_ITEM_SAYS = """() => [...document.querySelectorAll(
+    '.lf-fp-view[data-view="queue"]:not([data-leaving]) .lf-fp-on-item')].map((c) => ({
+  kind: JSON.parse(c.dataset.key)[0],
+  id: JSON.parse(c.dataset.key)[1],
+  list: c.dataset.list,
+  title: c.querySelector('.lf-fp-on-title')?.textContent ?? null,
+  prompt: c.querySelector('.lf-fp-prompt')?.textContent ?? null,
+  w: Math.round(c.getBoundingClientRect().width),
+  h: Math.round(c.getBoundingClientRect().height),
 }))"""
 CHANGE_SHAPES_PAGE = leaf_page(
     "retry policy",

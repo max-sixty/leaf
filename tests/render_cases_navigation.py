@@ -23,7 +23,6 @@ from render_cases_layout import (
 from render_harness import (
     LONG_PAGE,
     leaf_page,
-    panel_settled,
     told,
     write,
 )
@@ -385,25 +384,6 @@ def wait_hovered(page, text):
             f"the pointer should be lighting {text!r} on the page; it is lighting"
             f" {painted(page, 'lf-mark-hover')!r}"
         ) from None
-
-
-def card_body(page, says):
-    """A point low on a comment's card, below the quote — where a user's hand rests
-    while they read the comment, and where nothing presses.
-
-    Low on the card *as the user sees it*: the list scrolls, so the last card's own
-    bottom can sit below the scroller. A point read off the card's rect alone lands
-    outside the list there, which hovers no card at all. A
-    card below the list's fold, as every card after an open one is, is scrolled to
-    first, as the user's hand would. Read once the panel has finished sliding in, which
-    is where the user's hand finds it."""
-    panel_settled(page)
-    card = page.locator(".lf-thread").filter(has_text=says).first
-    card.evaluate("el => el.scrollIntoView({block: 'nearest', behavior: 'instant'})")
-    box = card.bounding_box()
-    seen = page.locator(".lf-threads").bounding_box()
-    bottom = min(box["y"] + box["height"], seen["y"] + seen["height"])
-    return box["x"] + box["width"] / 2, bottom - 8
 
 
 # Addressable links that start within one digit's width of each other: a run of footnote
@@ -928,10 +908,10 @@ def live_watcher(page_dir, page):
     told(page)
 
 
-# What the tab is wearing, once the banner has judged `want` and the tab agrees with it.
-# The runtime builds the href, so reading it back is reading what the browser was handed;
-# null until both hold, which is what makes this a wait — a status arrives on a poll, and
-# the tab is repainted in the pass that repaints the dot.
+# What the tab is wearing, once the panel's leaf has judged `want` and the tab agrees
+# with it. The runtime builds the href, so reading it back is reading what the browser
+# was handed; null until both hold, which is what makes this a wait — a status arrives on
+# a poll, and the tab is repainted in the pass that repaints the dot.
 #
 # Naming the state is what keeps a read off one the page is passing through: dropping the
 # watcher takes a waiting page through `away` on its way to `unheld`, and a wait asking
@@ -941,9 +921,9 @@ def live_watcher(page_dir, page):
 # The tone read is the sheet the runtime appended, never the mark's own — and the two are
 # not told apart by their colours. The mark is authored in the accent, so a working page
 # paints it the shade it already was, and a reading that took the first rule it found
-# agreed with the banner on the one state where nothing had to have happened.
+# agreed with the leaf on the one state where nothing had to have happened.
 TAB_TONE = """(want) => {
-    const el = document.querySelector('.lf-banner .lf-dot');
+    const el = document.querySelector('.lf-fp-leaf .lf-dot');
     const judged = el.className.replace('lf-dot', '').trim();
     const prefix = 'data:image/svg+xml,';
     const href = document.querySelector('link[rel=icon]').getAttribute('href');

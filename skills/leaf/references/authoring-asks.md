@@ -76,7 +76,7 @@ only once it is chosen, wait for the user's pick, the one you recommend included
 A page whose approval unblocks work declares:
 
 ```html
-<meta name="lf-review" content="sign-off">
+<meta name="lf-review" content="sign-off" />
 ```
 
 Leaf offers approval only on a stamped version that declares it, so stamp a draft

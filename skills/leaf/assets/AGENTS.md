@@ -45,6 +45,11 @@ representative desktop viewport.
   margin resident and sidenotes move the column, through `residency` in
   `prepaint.js`. Checks: `test_a_comment_leaves_its_block_as_the_page_wrote_it` and the
   shift watch. Owner: `annotation-overlay/margin-placement.js`.
+- **A control takes only its own room.** Leaf never reserves a strip, a row or
+  full-width padding to seat one small control. The control joins a line that is
+  already there, such as a head, the line over a field or a row's end, or a corner its
+  content leaves free. The floating panel's more-room mark stands on the line over its
+  field (`floating-panel.js`, `expand`) rather than in a strip of its own over the words.
 - **Auxiliary surfaces open over the page and never change its geometry.** The On
   panel, the thread panel and the Pages drawer take no space from the page;
   `auxiliary-surfaces.js` decides whether one sits beside a live page or covers it
@@ -374,7 +379,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | When none of some nodes is seen any more                                                              | `geometry.js` `whenNone`                                                           |
 | How much of the window the page shows                                                                 | `geometry.js` `shownWindow`                                                        |
 | The window's box, less its scrollbars                                                                 | `geometry.js` `layoutWindow`                                                       |
-| Whether the page shows a node at all, and what the pages holding it show of its window                | `geometry.js` `presented`, `containingView`, `frameView`, `watchRoom`              |
+| Whether the page shows a node at all, and what it shows of a sample it holds                          | `geometry.js` `presented`, `frameView`, `watchRoom`                                |
 | Whether a box placed against a target belongs in layout yet                                           | `geometry.js` `nearWindow`, `nearObserver`                                         |
 | Where an element or Range destination is, and how much of it survives clipping                        | `geometry.js` `placeBox`, `clippedPlace`                                           |
 | Whether a box is stuck, and the band sticky headers cover                                             | `geometry.js` `stuckBox`, `headerInset`                                            |
@@ -394,6 +399,13 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Paint on the next frame, or watch a size                                                              | `rendering.js` `nextRender`, `nextFrame`, `sizeObserver` (_lint_)                  |
 | Write a DOM value only when it changed                                                                | `keeps.js` `keeps`                                                                 |
 | Threads, workflow, attention, asks, and whether they are answered                                     | the server's state, under "One writer for each fact"                               |
+| A workflow's word, and its progress face on a control; an open to-do's word                           | `thread/workflow.js` `workflowLabel`, `progressFace`, `todoLabel`                  |
+| A thread's word, which Threads states as its status                                                   | `thread/workflow.js` `threadAttention`                                             |
+| What a thread's margin entry and Page Map row say of it: its line, turn and receipt                   | `margin-model.js` `threadMarks`                                                    |
+| A thread's name, on every surface that names it                                                       | `thread/messages.js` `threadName` (`threadSummary(thread).topic` for packages)     |
+| The thread a name names: its id, a message's, or this tab's attempt                                   | `thread/state.js` `threadNamed`, `threadIdNamed`                                   |
+| The thread id a drawn thread carries                                                                  | `thread/selectors.js` `drawnThreadId`                                              |
+| The draft a thread holds: its reply box or a rewrite                                                  | `drafts.js` `replyContext`, `rewriteContext`, `threadDraft`                        |
 | Which asks a region of the page holds                                                                 | `asks/place.js` `asksIn`                                                           |
 
 ### Facts both runtimes know

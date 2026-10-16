@@ -405,6 +405,10 @@ function pickerModel(state) {
         : currentLabel,
     }),
     latest: Object.freeze({
+      // The agent's latest save failed its check, so the page shows the last one that
+      // passed; `error` is what the check said.
+      failed: sourceFailed,
+      error: sourceFailed ? state.source_error : null,
       disabled: sourceFailed,
       keyTitle: sourceFailed ? state.source_error : "Open the current page",
       label: latestVersionLabel({
@@ -1678,9 +1682,11 @@ export function createVersionController({
   // The move a state asks of the live root, prepared ahead of the commit that makes it.
   // Null where there is nothing to follow — no newer revision, or a document that failed
   // to load, which is reported; the commit's own render then lights the chip as the way
-  // to try again. A re-vendored layer never reaches here: the state names the active
-  // revision's layer, which this tab refuses, and the refusal's probe of the document
-  // source reloads it (layer-client.js, `sourceMovedOn`).
+  // to try again. A re-vendored layer arrives here as a revision whose executable
+  // changed, since the server answers this tab in its revision's layer (http.py,
+  // `_named_layer`); only one this Leaf can no longer admit input against is refused
+  // instead, and the refusal's probe of the document source reloads it at once
+  // (layer-client.js, `sourceMovedOn`).
   // Whether the move happens now is asked at the commit: an unresolved delivery,
   // `midComposition`, or an open menu defers it, unless the chip was pressed (goActive)
   // — the one override, spent by the install it forced.

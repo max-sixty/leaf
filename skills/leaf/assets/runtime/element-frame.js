@@ -234,7 +234,8 @@ export function scrollAxes(source) {
 
 // Convert a viewport reveal movement into the scrollport's own layout offsets. A
 // one-axis scroller uses that axis's projected displacement; a two-axis scroller uses
-// the inverse basis, so rotated horizontal motion never becomes a vertical-only guess.
+// the inverse basis. At an edge the browser clamps one offset, so the other axis must
+// take the remaining projected movement or a rotated scroller leaves words clipped.
 export function localScrollBy(source, { x, y }) {
   const axes = scrollAxes(source);
   const horizontal = source.scrollWidth > source.clientWidth;
@@ -252,8 +253,32 @@ export function localScrollBy(source, { x, y }) {
   if (!horizontal) return { left: 0, top: vertical ? along(axes.y) : 0 };
   if (!vertical) return { left: along(axes.x), top: 0 };
   const determinant = axes.x.x * axes.y.y - axes.x.y * axes.y.x;
-  return {
-    left: (x * axes.y.y - y * axes.y.x) / determinant,
-    top: (y * axes.x.x - x * axes.x.y) / determinant,
-  };
+  const left = (x * axes.y.y - y * axes.y.x) / determinant;
+  const top = (y * axes.x.x - x * axes.x.y) / determinant;
+  const reach = (offset, current, minimum, maximum) =>
+    Math.max(minimum - current, Math.min(maximum - current, offset));
+  const horizontalLimit = source.scrollWidth - source.clientWidth;
+  const rtl = getComputedStyle(source).direction === "rtl";
+  const reachLeft = (offset) =>
+    reach(
+      offset,
+      source.scrollLeft,
+      rtl ? -horizontalLimit : 0,
+      rtl ? 0 : horizontalLimit,
+    );
+  const reachTop = (offset) =>
+    reach(offset, source.scrollTop, 0, source.scrollHeight - source.clientHeight);
+  const reachableLeft = reachLeft(left);
+  const reachableTop = reachTop(top);
+  if (reachableLeft !== left && axes.y.y)
+    return {
+      left: reachableLeft,
+      top: reachTop((y - reachableLeft * axes.x.y) / axes.y.y),
+    };
+  if (reachableTop !== top && axes.x.x)
+    return {
+      left: reachLeft((x - reachableTop * axes.y.x) / axes.x.x),
+      top: reachableTop,
+    };
+  return { left, top };
 }

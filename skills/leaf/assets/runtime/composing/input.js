@@ -695,7 +695,11 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       ta.readOnly = true;
       ta.setAttribute("aria-busy", "true");
       refresh();
-      notice(images.length === 1 ? "Adding image…" : `Adding ${images.length} images…`);
+      // The thumbnail arriving in the shelf is the attachment's result, so only a
+      // listener is told; a failure, which shows nothing, is a notice.
+      announce(
+        images.length === 1 ? "Adding image…" : `Adding ${images.length} images…`,
+      );
       const attachedAt = arrivals;
       try {
         const paths = await Promise.all(images.map((image) => uploadMedia(image)));
@@ -707,7 +711,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         attachedMedia.push(...paths);
         renderMedia();
         draftChanged();
-        notice(images.length === 1 ? "Image added" : `${images.length} images added`);
+        announce(images.length === 1 ? "Image added" : `${images.length} images added`);
         return true;
       } catch (error) {
         notice(`Could not add image — ${error?.message ?? error}`);

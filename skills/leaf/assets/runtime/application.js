@@ -34,7 +34,7 @@ import { watchProjection } from "./projection-watch.js";
 import { createThreadDestinations } from "./thread/destination.js";
 import { createThreadActions } from "./thread/actions.js";
 import { createQueueActions } from "./queue-api.js";
-import { registerMirrorConsumer, createPrimaryReader } from "./thread/mirrors.js";
+import { createPrimaryReader } from "./thread/primary-reader.js";
 import { createReadTracking } from "./thread/read.js";
 import { renderMarginThread } from "./thread/inline.js";
 import { showHeld } from "./thread/held-news.js";
@@ -488,8 +488,6 @@ export function mountApplication(dependencies) {
     requirePageAnnotations();
     return registerPageConsumer(owner, render, threadSurfaceCommands);
   };
-  const mountThreadViews = (owner, render) =>
-    registerMirrorConsumer(owner, render, { commands: inlineView });
 
   // One reader is the page's primary at a time (thread/destination.js). Leaf's own
   // chrome registers one that yields (`registerChromeThreadPresentation`, which the
@@ -609,11 +607,11 @@ export function mountApplication(dependencies) {
     watchThreadSurfaces,
     placePageThreads,
     consumeAnnotations,
-    mountThreadViews,
     registerThreadPanel,
     retireProjectionCoverage: projection.retireProjectionCoverage,
     threadActions,
     queueActions,
+    settlement: settlementView,
     openAsk(id) {
       const ask = readAsks().all.find((item) => item.id === id);
       if (!ask) return Promise.resolve(false);
@@ -647,7 +645,6 @@ export const post = commandDispatch.post;
 export const projectData = (...args) => app().projectData(...args);
 export const placePageThreads = (...args) => app().placePageThreads(...args);
 export const consumeAnnotations = (...args) => app().consumeAnnotations(...args);
-export const mountThreadViews = (...args) => app().mountThreadViews(...args);
 export const registerThreadPresentation = (...args) =>
   app().registerThreadPresentation(...args);
 export const threadActions = Object.freeze({

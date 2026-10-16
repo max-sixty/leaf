@@ -358,6 +358,32 @@ README's image URLs; `uv run leaf-dev record-demo` does the same for the README'
 recording and the site's card. Run `wt setup` first in a new checkout; if Worktrunk asks
 to approve the project commands, ask the user to run `wt config approvals add`.
 
+## Regular maintenance
+
+Whenever a survey, a review or the nightly sweep reads a file, look for code that
+makes Leaf harder to develop than it is worth:
+
+- **A mechanism users wouldn't miss.** Of each mechanism, ask who would notice it gone
+  and what it costs the changes around it. Code woven into the core runtime, the server
+  or a shared contract costs every nearby change, which has to reason around it,
+  preserve it or re-plumb it, so it must clear a much higher bar. Signs it doesn't: a
+  hold, carry or special case for one widget or gesture spread across several owners; a
+  public API whose only callers are tests or a single example; a mechanism `git log`
+  shows patched again and again. Code in its own module, such as a package, a widget or
+  a `leaf-dev` command, costs little beyond its own files; remove it only when it is
+  large and unused, such as thousands of lines of tooling nobody runs. Keep anything
+  users would notice losing, including Leaf's interface guarantees such as nothing
+  moving under the reader. Taking a feature away is the maintainer's call, so propose
+  the removal with what users lose and what it deletes.
+- **Several implementations of one capability.** Consolidate them into one home and
+  move every caller to it (root `AGENTS.md`, "Fix the underlying issue").
+- **A mechanism a dependency or the platform already provides.** Delegate it (root
+  `AGENTS.md`, "Use dependencies").
+
+Measure a candidate by making the change in a scratch worktree: `git diff --numstat`
+gives what it deletes, and a probe or capture of the affected journey shows what users
+lose. A count read off the code overstates the saving.
+
 ## Land a change
 
 Before handing over a change that adds to an area `AGENTS.md`, ask of each addition

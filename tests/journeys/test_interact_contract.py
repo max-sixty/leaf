@@ -40,7 +40,7 @@ from leaf import structure as structure_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
 from leaf.registry import storage as registry_storage
-from model.test_interact_contract import _value_verb
+from model.interact_contract import _value_verb
 
 
 def test_revendoring_serializes_with_thread_markup_entering_the_log(

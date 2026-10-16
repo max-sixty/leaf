@@ -156,11 +156,11 @@ def test_drawing_preview_keeps_fixed_content_after_root_scroll(browser, serve):
 def test_drawing_preview_failure_keeps_ink_and_reports_missing_context(browser, serve):
     page = open_page(browser, serve(CONTEXT_PAGE))
     page.route(
-        "**/vendor/drawing-context.esm.js",
+        "**/vendor/snapdom.esm.js",
         lambda route: route.fulfill(
             status=200,
             content_type="text/javascript",
-            body="export function domToCanvas() { throw new Error('capture refused'); }",
+            body="export function snapdom() { throw new Error('capture refused'); }",
         ),
     )
     draw_over(page, page.locator("#subject"))
@@ -209,7 +209,7 @@ def test_drawing_preview_captures_one_frame_after_its_renderer_arrives(browser, 
     """A transform during the renderer download moves the page and preview ink together."""
     page = open_page(browser, serve(CONTEXT_PAGE))
     held = []
-    page.route("**/vendor/drawing-context.esm.js", lambda route: held.append(route))
+    page.route("**/vendor/snapdom.esm.js", lambda route: held.append(route))
     target = page.locator("#subject")
     draw_over(page, target, points=((0.25, 0.375), (0.5, 0.5), (0.75, 0.625)))
     holding(page, held, 1, "the drawing context renderer")

@@ -8,17 +8,15 @@ import pytest
 from interact_support import STATED_TIMEOUT, append_carried_log_record
 from journeys.test_render_read_state import (
     _CARD_BOXES,
-    SAMPLE_READER,
     TASK_SEAT_PAGE,
     _agent_turn,
     _agent_update_reply,
     _box_height,
-    _framed_message_box,
-    _framed_read,
-    _framed_reader,
     _message_body,
-    _place_frame,
+    _open_first_unread,
+    _read_by_the_sample,
     _read_events,
+    _sample_reading_page,
     _seat_comment,
     _settled,
     _still_unread,
@@ -374,42 +372,26 @@ def test_threads_keep_the_scroll_pair_separate_from_first_unread(browser, serve)
     expect(page.locator("body")).not_to_have_attribute("data-lf-go-to-active", "")
 
 
-def test_a_same_origin_frame_under_the_containing_banner_cannot_acknowledge(
-    browser, serve
-):
-    """A Leaf page framed by its own origin is read through what the containing page
-    shows of the frame, which that page's banner stands over like its own content."""
-    page, frame, child = _framed_reader(browser, serve)
-
-    # Scrolled until the message stands under the containing page's banner, where the
-    # framed page's own window shows it whole.
-    body = _framed_message_box(child)
-    foot = page.locator("#lf-banner").evaluate(
-        "banner => banner.getBoundingClientRect().bottom"
-    )
-    assert body["height"] < foot
-    _place_frame(frame, (foot - body["height"]) / 2 - body["top"])
-    assert _message_body(child).evaluate(
-        "body => { const box = body.getBoundingClientRect();"
-        " const frame = frameElement.getBoundingClientRect();"
-        " return frame.top + box.top >= 0 && frame.top + box.bottom <= parent"
-        ".document.getElementById('lf-banner').getBoundingClientRect().bottom; }"
-    ), "the message does not stand under the containing banner"
-    _still_unread(page, child)
-
-    # Scrolled on until the frame stands below the banner, it shows the message.
-    _place_frame(frame, foot)
-    _framed_read(serve, child)
-
-
 def test_a_message_the_banner_stops_covering_is_read_without_a_scroll(browser, serve):
     """The banner changes height without a scroll or resize, as when a tablet's
-    keyboard is attached and its rows shrink from a finger's depth, and what it stops
-    covering is shown from that moment. A framed page hears it from the containing
-    page's banner as that page would."""
-    page, frame, child = _framed_reader(browser, serve)
+    keyboard is attached and its rows shrink from a finger's depth. A sample's message
+    under the containing page's grown banner stays unread, and what the banner stops
+    covering is shown from that moment."""
+    page, frame, child = _sample_reading_page(
+        browser,
+        serve,
+        '<h1>Practice page</h1><div class="read-gap"></div>{sample}'
+        '<div class="read-gap"></div>',
+        ".read-gap { height: 2000px; }",
+    )
+    child.locator(".lf-threads-toggle").focus()
+    page.evaluate("scrollTo(0, 0)")
+    _open_first_unread(page, child)
     banner = page.locator("#lf-banner")
-    body = _framed_message_box(child)
+    body = _message_body(child).evaluate(
+        "body => { const box = body.getBoundingClientRect();"
+        " return {top: box.top, height: box.height}; }"
+    )
     foot = banner.evaluate("banner => banner.getBoundingClientRect().bottom")
     # The banner grows over the message, standing just below its usual foot. It grows
     # by its bottom border, so nothing it holds moves.
@@ -421,26 +403,32 @@ def test_a_message_the_banner_stops_covering_is_read_without_a_scroll(browser, s
         }""",
         body["height"] + 40,
     )
-    _place_frame(frame, foot + 10 - body["top"])
-    assert _message_body(child).evaluate(
-        "body => { const box = body.getBoundingClientRect();"
-        " const frame = frameElement.getBoundingClientRect();"
-        " return frame.top + box.bottom <= parent"
-        ".document.getElementById('lf-banner').getBoundingClientRect().bottom; }"
+    frame.evaluate(
+        "(frame, at) => scrollBy(0, frame.getBoundingClientRect().top - at)",
+        foot + 10 - body["top"],
+    )
+    assert frame.evaluate(
+        """(frame, body) => {
+            const top = frame.getBoundingClientRect().top + body.top;
+            return top >= 0 && top + body.height
+                <= document.getElementById('lf-banner').getBoundingClientRect().bottom;
+        }""",
+        body,
     ), "the grown banner does not stand over the message"
     _still_unread(page, child)
 
     # It shrinks back, with nothing scrolled or resized, and the message is shown: read
-    # by the pass that change itself sets off, before both pages settle. An unrelated
-    # pass reads it in the end, some 40s on, so waiting for the receipt proves nothing.
+    # by the pass that change itself sets off, before both pages settle. A later
+    # unrelated pass reads it in the end, so waiting for the receipt proves nothing.
     banner.evaluate(
         "banner => { banner.style.height = banner.style.borderBottomWidth = ''; }"
     )
     _settled(page, child)
     round_trip(child)
-    assert [event["messages"] for event in _read_events(serve.page_dir)] == [
-        [{"message": SAMPLE_READER, "version": SAMPLE_READER}]
-    ], "the banner shrinking off the message set off no reading"
+    assert child.locator(".lf-first-unread").is_hidden(), (
+        "the banner shrinking off the message set off no reading"
+    )
+    _read_by_the_sample(page, child)
 
 
 @pytest.mark.parametrize("pointer", ["fine", "coarse"])

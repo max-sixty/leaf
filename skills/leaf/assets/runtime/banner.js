@@ -139,7 +139,7 @@ const AWAITING_STATE = "Approval waits until this page has read its current stat
 export const approvalReading = () => {
   if (!signoff) return null;
   const { text, reason } = approvalWords();
-  return { text, reason };
+  return { text, reason, approved: versionApproved() };
 };
 // Keep a refused press focusable, with its reason available to keyboard and touch.
 function presentApproval({ reason, text, title }) {
@@ -365,7 +365,7 @@ if (SHARE_ROOT) {
     rank: BANNER_CONTROL_RANK.share,
     // A presentation copies the link with its own copy control: a row of the page's own
     // menu with one press, or, where no clipboard is offered, beside the link to select.
-    row: { label: "Link", value: grants, copies: shareUrl, group: "page" },
+    row: { label: "link", value: grants, copies: shareUrl, group: "page" },
   });
 }
 
@@ -448,10 +448,10 @@ function renderPreview(state) {
       // What it copies is the diagnostics, which a presentation shows to select as
       // well; the line naming the preview says what they describe.
       row: {
-        label: "Preview diagnostics",
+        label: "preview diagnostics",
         value: () => previewLabel,
         copies: () => previewDiagnostics,
-        group: "about",
+        group: "page",
       },
     });
   }
@@ -522,7 +522,7 @@ function renderLayerReference(state) {
         label: "Leaf version",
         value: () => layerNamed,
         copies: () => layerDiagnostics,
-        group: "about",
+        group: "page",
       },
     });
   }
@@ -590,9 +590,9 @@ function renderSessionReference() {
       focusTarget: sessionReferenceElement,
       rank: BANNER_CONTROL_RANK.session,
       row: {
-        label: "Session reference",
+        label: "session reference",
         copies: () => runtime.sessionReference,
-        group: "about",
+        group: "page",
       },
     });
   }

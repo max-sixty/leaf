@@ -118,14 +118,21 @@ synchronous turn that puts the words on screen, so comments on them anchor to th
 rather than to prose:
 
 ```js
-setChildren(this, rows.map(row => row.node));
-projectData(this, rows.map(row => ({
-  node: row.node,
-  key: row.key,
-  label: row.label,
-  identity: row.id,
-  origin: {...snapshot.origin, path: ["rows", row.index]},
-})), {snapshot});
+setChildren(
+  this,
+  rows.map((row) => row.node),
+);
+projectData(
+  this,
+  rows.map((row) => ({
+    node: row.node,
+    key: row.key,
+    label: row.label,
+    identity: row.id,
+    origin: { ...snapshot.origin, path: ["rows", row.index] },
+  })),
+  { snapshot },
+);
 ```
 
 `root` is an element with an id, and each datum's `node` must already be under it.

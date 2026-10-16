@@ -1,4 +1,9 @@
 import {
+  pageImage,
+  pageRenderer
+} from "./runtime/bundle-composing~page-image-2.js";
+import "./runtime/bundle-sample-2.js";
+import {
   aimLayer,
   createPageMapDialog,
   mapButton,
@@ -58,6 +63,7 @@ import {
   watchProjection,
   wireThreadLanding
 } from "./runtime/bundle-document-identity.js";
+import "./runtime/bundle-dress.js";
 import {
   closeVersionMenu,
   latestChip,
@@ -128,6 +134,7 @@ import {
   dismissBannerControls,
   dismissReply,
   draftHasContent,
+  drawnThreadId,
   focusThread,
   focusedThreadTarget,
   followBoxGrowth,
@@ -148,6 +155,7 @@ import {
   messageReading,
   mirrorDraft,
   mountHistory,
+  onReadingInterrupted,
   overflowMenu,
   pageCommand,
   pageRung,
@@ -168,6 +176,7 @@ import {
   rememberWriting,
   replyAvailable,
   replyCompositionHasDraft,
+  replyContext,
   replyDraftContext,
   replyDraftsHold,
   restoreBannerStanding,
@@ -180,6 +189,7 @@ import {
   scrollThreadIntoView,
   selectionAnchor,
   sendMessage,
+  settleThread,
   showBannerControl,
   showBannerControls,
   showHeld,
@@ -194,6 +204,7 @@ import {
   threadFocusStop,
   threadHoldsDraft,
   threadList,
+  threadName,
   threadReading,
   threadState,
   touchPresses,
@@ -307,6 +318,7 @@ import {
 } from "./runtime/bundle-stylesheets.js";
 import {
   COLLAPSE,
+  LEAF_SURFACE,
   TEXT_BLOCK,
   authoredScope,
   blockAt,
@@ -403,7 +415,6 @@ import {
   overlapsAcross,
   pagePresented,
   pageUpgraded,
-  paintClips,
   paintKeys,
   paintKeysWithin,
   pointerAt,
@@ -421,6 +432,7 @@ import {
   reveal,
   rightCover,
   routedCommand,
+  rowArrows,
   savedReadingSettled,
   saying,
   scopeIdentity,
@@ -514,7 +526,6 @@ import {
   release,
   releaseFocus,
   renderedOrder,
-  renderedParent,
   renderedUnder,
   renderingState,
   rove,
@@ -542,6 +553,7 @@ import {
   html,
   itemNoun,
   itemOutcome,
+  lastMovedAt,
   noChange,
   nothing,
   observeQueuedWork,
@@ -550,8 +562,7 @@ import {
   repeat,
   sameAnchor,
   threadKey,
-  threadNames,
-  threadSummary
+  threadNames
 } from "./runtime/bundle-queued-work.js";
 import "./runtime/bundle-__export.js";
 
@@ -560,7 +571,7 @@ import "/vendor/webawesome-chrome.js";
 
 // runtime/composing/drawing-geometry.js
 var INTRINSIC_VISUAL = "svg, img, canvas, video";
-var contentChildren = (root) => [...root.children].filter((child) => !leafSurface(child));
+var contentChildren = (root2) => [...root2.children].filter((child) => !leafSurface(child));
 function captureDrawingFrame(target, hit) {
   let source = hit;
   while (source && !source.matches(INTRINSIC_VISUAL)) source = upFrom(source);
@@ -587,9 +598,9 @@ function resolveDrawingFrame(target, reference) {
   if (target.localName !== reference.root) return null;
   let node = target;
   for (const step of reference.path) {
-    const root = step.shadow ? node.shadowRoot : node;
-    if (!root) return null;
-    const children = contentChildren(root);
+    const root2 = step.shadow ? node.shadowRoot : node;
+    if (!root2) return null;
+    const children = contentChildren(root2);
     if (children.length !== step.siblings) return null;
     node = children[step.index];
     if (node?.localName !== step.tag) return null;
@@ -614,43 +625,6 @@ function drawingGeometry(drawing2, target) {
 var CONTEXT_PAD = 24;
 var PREVIEW_WIDTH = 2048;
 var PREVIEW_HEIGHT = 1536;
-function contextSource(target, region) {
-  const fits = (box) => box.left <= region.left && box.top <= region.top && box.right >= region.right && box.bottom >= region.bottom;
-  let root = target;
-  while (root !== document.body && !fits(elementBorderFrame(root).box)) {
-    if (["fixed", "sticky"].includes(getComputedStyle(root).position)) break;
-    root = renderedParent(root) ?? document.body;
-  }
-  const { bands } = paintClips(target, region, /* @__PURE__ */ new Map(), false);
-  for (const { box, band, axes } of bands) {
-    if (band && under(root, box) && (axes.x && (region.left < band.left || region.right > band.right) || axes.y && (region.top < band.top || region.bottom > band.bottom)))
-      root = box;
-  }
-  for (let owner = renderedParent(root); owner; owner = renderedParent(owner)) {
-    const style = getComputedStyle(owner);
-    if (style.backgroundImage !== "none") {
-      root = owner;
-      break;
-    }
-    if (style.backgroundColor !== "rgba(0, 0, 0, 0)" && style.backgroundColor !== "transparent")
-      break;
-  }
-  return root;
-}
-function backingColors(source) {
-  const colors = [];
-  for (let node = renderedParent(source); node; node = renderedParent(node))
-    colors.push(getComputedStyle(node).backgroundColor);
-  return colors.reverse();
-}
-function paintBacking(canvas, colors) {
-  const ctx = canvas.getContext("2d");
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  for (const color of colors) {
-    ctx.fillStyle = color;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-  }
-}
 function readPicture(drawing2, target) {
   const geometry = target && drawingGeometry(drawing2, target);
   const strokes = geometry?.strokes ?? drawing2.strokes;
@@ -704,63 +678,24 @@ function drawingThumbnail(drawing2, target) {
   nextRender(() => {
     if (canvas.isConnected) paintInk();
   });
-  import("/vendor/drawing-context.esm.js").then(async ({ domToCanvas }) => {
+  pageRenderer().then(async () => {
     if (!target?.isConnected) throw new Error("the drawing's subject is absent");
     picture = readPicture(drawing2, target);
     if (!picture.box) throw new Error("the drawing's subject is absent");
     sizeCanvas();
     canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
     paintInk();
-    const { box, left, top, width, height, scale } = picture;
-    const region = {
-      left: box.left + left,
-      top: box.top + top,
-      right: box.left + left + width,
-      bottom: box.top + top + height
-    };
-    const source = contextSource(picture.target, region);
-    const frame = elementBorderFrame(source);
-    const matrix = frame.matrix;
-    const colors = backingColors(source);
-    const image = await domToCanvas(source, {
-      width,
-      height,
-      scale,
-      style: {
-        width: `${frame.width}px`,
-        height: `${frame.height}px`,
-        // The crop is a new containing block. Its dimensions must not reapply
-        // responsive constraints to the root whose painted size we just froze.
-        minWidth: "0",
-        minHeight: "0",
-        maxWidth: "none",
-        maxHeight: "none",
-        minInlineSize: "0",
-        minBlockSize: "0",
-        maxInlineSize: "none",
-        maxBlockSize: "none",
-        boxSizing: "border-box",
-        position: "relative",
-        left: "auto",
-        right: "auto",
-        top: "auto",
-        bottom: "auto",
-        margin: "0",
-        rotate: "none",
-        scale: "none",
-        translate: "none",
-        zoom: "1",
-        transformOrigin: "0 0",
-        transform: `matrix(${matrix.a},${matrix.b},${matrix.c},${matrix.d},${matrix.e - region.left},${matrix.f - region.top})`
-      },
-      filter: (node) => !leafSurface(node),
-      features: { restoreScrollPosition: true }
-    });
-    if (canvas.width !== image.width) canvas.width = image.width;
-    if (canvas.height !== image.height) canvas.height = image.height;
-    paintBacking(canvas, colors);
-    canvas.getContext("2d").drawImage(image, 0, 0);
+    const { box, left, top, width, height } = picture;
+    const { blob, warnings } = await pageImage(
+      { x: scrollX + box.left + left, y: scrollY + box.top + top, width, height },
+      { exclude: [LEAF_SURFACE] }
+    );
+    const image = await window.createImageBitmap(blob);
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
     paintInk();
+    if (warnings.length) canvas.title = warnings.join(" ");
     canvas.dataset.lfDrawingContext = "ready";
   }).catch((error) => {
     canvas.dataset.lfDrawingContext = "unavailable";
@@ -1207,7 +1142,7 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
         focusDestination(ta, "return");
         const revision = applicationState.read().document.revision;
         if (!stopDictationRevision)
-          stopDictationRevision = applicationState.select((root) => root.document.revision).subscribe((next) => {
+          stopDictationRevision = applicationState.select((root2) => root2.document.revision).subscribe((next) => {
             if (next !== revision) cancelDictation();
           });
         if (!dictation) {
@@ -1270,7 +1205,9 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
       ta.readOnly = true;
       ta.setAttribute("aria-busy", "true");
       refresh();
-      notice(images.length === 1 ? "Adding image\u2026" : `Adding ${images.length} images\u2026`);
+      announce(
+        images.length === 1 ? "Adding image\u2026" : `Adding ${images.length} images\u2026`
+      );
       const attachedAt = arrivals;
       try {
         const paths = await Promise.all(images.map((image) => uploadMedia2(image)));
@@ -1282,7 +1219,7 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
         attachedMedia.push(...paths);
         renderMedia();
         draftChanged();
-        notice(images.length === 1 ? "Image added" : `${images.length} images added`);
+        announce(images.length === 1 ? "Image added" : `${images.length} images added`);
         return true;
       } catch (error) {
         notice(`Could not add image \u2014 ${error?.message ?? error}`);
@@ -2819,7 +2756,7 @@ function createResponseSurface({
     const threadId = threadAtStanding();
     const replyId = replyThreadAtStanding();
     const target = threadId && threadTarget(threadId);
-    const inlineBox = inline && (inline.dataset.thread ?? inline.dataset.id) === threadId && (!here || standingIn(inline) || target && under(target, heldAsk() ?? here.element)) && threadInput(inline);
+    const inlineBox = inline && drawnThreadId(inline) === threadId && (!here || standingIn(inline) || target && under(target, heldAsk() ?? here.element)) && threadInput(inline);
     const said = standingThread() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
     const subject = threadId && (!here || target && under(target, heldAsk() ?? here.element));
     const replySubject = subject && replyId;
@@ -3836,8 +3773,8 @@ var plane = (target) => {
   );
   return !target || stackLevel(target) >= chipLevel ? "chrome" : "page";
 };
-function chipSeats(root) {
-  const set = paintSet(root);
+function chipSeats(root2) {
+  const set = paintSet(root2);
   const seats2 = /* @__PURE__ */ new Map();
   return {
     // The seat for `key`, made where there is none, in the document so the chip it is
@@ -3849,7 +3786,7 @@ function chipSeats(root) {
         seat.className = "lf-chip-seat";
         seats2.set(key, seat);
       }
-      if (!seat.isConnected) root.append(seat);
+      if (!seat.isConnected) root2.append(seat);
       return seat;
     },
     // The seat for `key`, if one is seated.
@@ -3986,14 +3923,14 @@ function nestOutsets(faces, room) {
   );
   const around = (at) => before.filter((by) => by !== at && encloses(faces[by].target, faces[at].target));
   const depth = new Map(before.map((at) => [at, around(at).length]));
-  const root = new Map(
+  const root2 = new Map(
     before.map((at) => [at, around(at).find((by) => depth.get(by) === 0) ?? at])
   );
   const deepest = /* @__PURE__ */ new Map();
   for (const at of before)
-    deepest.set(root.get(at), Math.max(deepest.get(root.get(at)) ?? 0, depth.get(at)));
+    deepest.set(root2.get(at), Math.max(deepest.get(root2.get(at)) ?? 0, depth.get(at)));
   const levels = faces.map(
-    (_, at) => depth.has(at) ? deepest.get(root.get(at)) - depth.get(at) : 0
+    (_, at) => depth.has(at) ? deepest.get(root2.get(at)) - depth.get(at) : 0
   );
   const fits = faces.map((face2, at) => levels[at] ? room(face2) / levels[at] : null).filter((step2) => step2 > 0);
   const step = Math.floor(clamp(Math.min(NEST_STEP, ...fits), NEST_FLOOR, NEST_STEP));
@@ -5107,7 +5044,7 @@ function createAnchorNoteProjection({ openThread, labelAnchor }) {
 }
 
 // runtime/anchor-controls.js
-var shownDocument = readPart((root) => root.document);
+var shownDocument = readPart((root2) => root2.document);
 var MSG_REF = '.lf-msg-body a[href^="#"]';
 function createAnchorControls({
   commentOnTarget,
@@ -5270,7 +5207,7 @@ function createAnchorControls({
       const roots = [...held.before, ...held.inside];
       let record = reactionSeats.get(at);
       const changed = !record || record.roots.length !== roots.length || roots.some(
-        (root, index) => root.id !== record.roots[index]?.id || root.token !== record.roots[index]?.token
+        (root2, index) => root2.id !== record.roots[index]?.id || root2.token !== record.roots[index]?.token
       );
       if (!record) {
         record = { roots, expanded: null, margin: null, surface: null };
@@ -5302,7 +5239,7 @@ function createAnchorControls({
       }
       record.roots = roots;
       kept.add(at);
-      if (!roots.some((root) => root.id === record.expanded)) record.expanded = null;
+      if (!roots.some((root2) => root2.id === record.expanded)) record.expanded = null;
       if (!record.margin)
         record.margin = registerContribution({
           key: "reactions",
@@ -5310,50 +5247,50 @@ function createAnchorControls({
           read: () => ({
             side: "after",
             state: record.expanded ? "engaged" : "idle",
-            entries: record.roots.flatMap((root) => [
+            entries: record.roots.flatMap((root2) => [
               {
-                key: `reaction:${root.id}:open`,
-                glyph: registry.$reactions.tokens[root.token]?.glyph ?? root.token,
-                label: `${root.token} reaction actions`,
+                key: `reaction:${root2.id}:open`,
+                glyph: registry.$reactions.tokens[root2.token]?.glyph ?? root2.token,
+                label: `${root2.token} reaction actions`,
                 behavior: "disclosure",
                 rank: "secondary",
                 className: "lf-react-mark",
                 scope: record.scope,
                 relation: {
                   kind: "entries",
-                  keys: [`reaction:${root.id}:remove`],
-                  expanded: record.expanded === root.id
+                  keys: [`reaction:${root2.id}:remove`],
+                  expanded: record.expanded === root2.id
                 }
               },
               {
-                key: `reaction:${root.id}:remove`,
+                key: `reaction:${root2.id}:remove`,
                 icon: "cross",
-                label: `Remove ${root.token} reaction`,
+                label: `Remove ${root2.token} reaction`,
                 tone: "negative",
                 rank: "secondary",
                 className: "lf-react-remove",
                 scope: record.scope,
-                visible: record.expanded === root.id
+                visible: record.expanded === root2.id
               }
             ]),
-            readings: record.roots.map((root) => ({
-              id: `reaction:${root.id}`,
-              text: `${root.token} reaction actions`,
-              activate: () => record.margin.focus(`reaction:${root.id}:open`, "move")
+            readings: record.roots.map((root2) => ({
+              id: `reaction:${root2.id}`,
+              text: `${root2.token} reaction actions`,
+              activate: () => record.margin.focus(`reaction:${root2.id}:open`, "move")
             }))
           }),
           activate: (activation, context) => {
-            const root = record.roots.find(
+            const root2 = record.roots.find(
               (candidate) => activation === `reaction:${candidate.id}:open` || activation === `reaction:${candidate.id}:remove`
             );
-            if (!root) return;
-            if (activation === `reaction:${root.id}:remove`) {
-              withdrawReaction(root);
+            if (!root2) return;
+            if (activation === `reaction:${root2.id}:remove`) {
+              withdrawReaction(root2);
               return;
             }
             record.surface = context.surface ?? null;
             const standing2 = focused2();
-            setReactionRemoval(record, record.expanded === root.id ? null : root.id, {
+            setReactionRemoval(record, record.expanded === root2.id ? null : root2.id, {
               focus: context.input === "keyboard" && context.origin === standing2,
               surface: record.surface
             });
@@ -5970,7 +5907,13 @@ function pageStatus(state, { reach: reach2 = "reached" } = {}) {
       }
     };
   const { publication } = state;
-  if (publication) return { kind: "publication", tone: "", publication };
+  if (publication)
+    return {
+      kind: "publication",
+      tone: "",
+      summary: `${publication.agent} revises your private copy`,
+      publication
+    };
   const { activity, agent } = state;
   const { kind, detail } = activity;
   const facts = activityFacts(state);
@@ -6924,7 +6867,7 @@ var AWAITING_STATE = "Approval waits until this page has read its current state"
 var approvalReading = () => {
   if (!signoff) return null;
   const { text, reason } = approvalWords();
-  return { text, reason };
+  return { text, reason, approved: versionApproved() };
 };
 function presentApproval({ reason, text, title }) {
   render(text, approveWords);
@@ -7090,7 +7033,7 @@ if (SHARE_ROOT) {
     rank: BANNER_CONTROL_RANK.share,
     // A presentation copies the link with its own copy control: a row of the page's own
     // menu with one press, or, where no clipboard is offered, beside the link to select.
-    row: { label: "Link", value: grants, copies: shareUrl, group: "page" }
+    row: { label: "link", value: grants, copies: shareUrl, group: "page" }
   });
 }
 var payloadAge = (provenance) => ago(provenance.committed ?? provenance.installed);
@@ -7150,10 +7093,10 @@ function renderPreview(state) {
       // What it copies is the diagnostics, which a presentation shows to select as
       // well; the line naming the preview says what they describe.
       row: {
-        label: "Preview diagnostics",
+        label: "preview diagnostics",
         value: () => previewLabel,
         copies: () => previewDiagnostics,
-        group: "about"
+        group: "page"
       }
     });
   }
@@ -7213,7 +7156,7 @@ function renderLayerReference(state) {
         label: "Leaf version",
         value: () => layerNamed,
         copies: () => layerDiagnostics,
-        group: "about"
+        group: "page"
       }
     });
   }
@@ -7269,9 +7212,9 @@ function renderSessionReference() {
       focusTarget: sessionReferenceElement,
       rank: BANNER_CONTROL_RANK.session,
       row: {
-        label: "Session reference",
+        label: "session reference",
         copies: () => runtime.sessionReference,
-        group: "about"
+        group: "page"
       }
     });
   }
@@ -7285,7 +7228,7 @@ function renderSessionReference() {
   );
   keeps(sessionReferenceElement, "title", `${sessionReferenceLabel} \xB7 copy reference`);
 }
-var reach = readPart((root) => root.reach);
+var reach = readPart((root2) => root2.reach);
 var upgraded = false;
 function currentStatus() {
   const answer = reach();
@@ -7364,7 +7307,7 @@ function stateSignoff(next, syncLayout) {
 }
 var approving = false;
 var versionApproved = readPart(
-  (root) => root.effective.asks.all.some(
+  (root2) => root2.effective.asks.all.some(
     (ask) => ask.source.kind === "approval" && ask.status === "answered"
   )
 );
@@ -7388,12 +7331,379 @@ function drawApproval() {
   repaint();
 }
 
+// runtime/keyboard/shortcut-bar.js
+var shortcutBarEl = el("div", "lf-ui lf-shortcut-bar");
+shortcutBarEl.id = "lf-shortcut-bar";
+shortcutBarEl.setAttribute("data-lf-reflow", "controls");
+var bottomStatusEl = el("div", "lf-ui lf-bottom-status");
+var activateShortcutMore = null;
+var EMPTY_STATUS_CONTEXT = Object.freeze({ goTo: null, walk: null });
+var EMPTY_BAR = Object.freeze({
+  items: Object.freeze([]),
+  more: Object.freeze({
+    hidden: true,
+    binding: null,
+    line: "more",
+    title: "More keyboard shortcuts",
+    expanded: false,
+    ariaLabel: "More keyboard shortcuts"
+  }),
+  tail: null,
+  expanded: false
+});
+var bottomStatusTemplate = (model) => html`
+  <span class="lf-go-to-status" aria-hidden="true" ?hidden=${!model.goTo}
+    >${model.goTo ?? nothing}</span
+  >
+  <span
+    class="lf-walk-position"
+    aria-hidden="true"
+    ?hidden=${!model.walk?.shown}
+    data-kind=${model.walk?.shown ? model.walk.kind : nothing}
+    ?data-lf-boundary=${model.walk?.shown ? model.walk.boundary : false}
+    >${model.walk?.text ?? nothing}</span
+  >
+  <span class=${`lf-ui lf-notice${model.notice.visible ? " show" : ""}`}
+    >${model.notice.message || nothing}</span
+  >
+`;
+var shortcutBarTemplate = (model) => html`${model.items.map(
+  (item) => html`
+        <span
+          class=${`lf-shortcut${item.sequenceControl ? " lf-sequence-command" : ""}`}
+          aria-hidden="true"
+          data-lf-command-ids=${item.commandIds}
+          >${keySequenceTemplate(item.sequence)}${item.said ? html`<span>${item.said}</span>` : nothing}</span
+        >
+      `
+)}<button
+      type="button"
+      class="lf-shortcut-more"
+      title=${model.more.title}
+      aria-label=${model.more.ariaLabel}
+      aria-expanded=${String(model.more.expanded)}
+      ?hidden=${model.more.hidden}
+    >
+      <kbd class="lf-key-badge">${model.more.binding}</kbd
+      ><span>${model.more.line}</span></button
+    >${model.tail ? html`<span class="lf-shortcut" aria-hidden="true"
+            >${keySequenceTemplate(model.tail.sequence)}<span
+              >${model.tail.said}</span
+            ></span
+          >` : nothing}`;
+var bottomStatusContext = EMPTY_STATUS_CONTEXT;
+var contextPresenters = /* @__PURE__ */ new Set();
+var statusContextReading = () => bottomStatusContext;
+function registerStatusContextPresentation(invalidate) {
+  contextPresenters.add(invalidate);
+}
+var shownWalk = ({ walk }) => walk?.shown ? walk : null;
+var sameContext = (a, b) => a.goTo === b.goTo && shownWalk(a)?.text === shownWalk(b)?.text && shownWalk(a)?.boundary === shownWalk(b)?.boundary;
+var renderBottomStatus = () => {
+  const model = Object.freeze({
+    ...bottomStatusContext,
+    notice: noticeReading()
+  });
+  render(bottomStatusTemplate(model), bottomStatusEl);
+};
+renderBottomStatus();
+render(shortcutBarTemplate(EMPTY_BAR), shortcutBarEl);
+var walkPositionEl = bottomStatusEl.querySelector(".lf-walk-position");
+var goToStatusEl = bottomStatusEl.querySelector(".lf-go-to-status");
+var shortcutBarMore = shortcutBarEl.querySelector(".lf-shortcut-more");
+registerNoticePresentation(renderBottomStatus);
+var boxesOf = (nodes) => nodes.filter((node) => getComputedStyle(node).position === "fixed").map((node) => node.getBoundingClientRect()).filter((box) => box.height > 0 && box.width > 0);
+var fixedStatus = () => !walkPositionEl.hidden || !goToStatusEl.hidden;
+var fixedStatusBox = null;
+var fixedStatusBoxes = () => {
+  if (!fixedStatus()) {
+    fixedStatusBox = null;
+    return [];
+  }
+  if (!noticeVisible()) [fixedStatusBox = null] = boxesOf([bottomStatusEl]);
+  return fixedStatusBox ? [fixedStatusBox] : [];
+};
+var bottomChromeBoxes = () => [...boxesOf([shortcutBarEl]), ...fixedStatusBoxes()];
+declareWindowChrome(bottomChromeBoxes, [shortcutBarEl, bottomStatusEl]);
+var sourceRows = /* @__PURE__ */ new WeakMap();
+var sourceRow = (row) => sourceRows.get(row) ?? row;
+var effectiveRow = (row, declared, active) => {
+  if (active.length === declared.length) return row;
+  const routes = commandRoutes(row).filter((route2) => active.includes(route2.binding));
+  const route = routes.length === 1 ? routes[0] : null;
+  const projected = {
+    ...row,
+    ready: () => commandReady(row),
+    keys: active,
+    routes,
+    // A custom group label cannot describe a binding removed by a nearer scope. A route
+    // may supply the short word for its remaining direction; otherwise the row's shared
+    // word still describes the reduced binding set.
+    label: route?.label,
+    title: route?.title ?? row.title,
+    description: route?.description ?? row.description,
+    line: route?.line ?? row.line
+  };
+  sourceRows.set(projected, row);
+  return projected;
+};
+function lineRows(scopes) {
+  const escape = lineOwner("Escape");
+  const named = /* @__PURE__ */ new Set();
+  const nearer = shadow();
+  const rows2 = [];
+  for (const scope of scopes) {
+    const reachable = scope.rows.flatMap((row) => {
+      if (row.line === false || !scope.sequence && word(row.lineWhen) === false)
+        return [];
+      const bound = bindings(row);
+      const active = bound.filter(
+        (binding) => binding === "Escape" ? escape?.visible && scopeIdentity(escape.scope) === scopeIdentity(scope) && escape.row === row : !named.has(binding) && !nearer.takes(binding, row, scope)
+      );
+      return active.length ? [effectiveRow(row, bound, active)] : [];
+    });
+    for (const row of activeRows(reachable, scope.title ?? "the page's keys")) {
+      if (!lineOf(row)) continue;
+      const active = bindings(row).filter(
+        (binding) => !named.has(binding) && commandEntries(row, [binding]).length
+      );
+      if (!active.length) continue;
+      const source = sourceRow(row);
+      for (const binding of active) named.add(binding);
+      rows2.push(effectiveRow(source, bindings(source), active));
+    }
+    nearer.past(scope);
+  }
+  return rows2;
+}
+var shortcutBarIsExpanded = false;
+var lastWalkPresentation = null;
+var shortcutHelpAvailable = () => bindings(SHORTCUT_HELP).length > 0;
+var arrange = (rows2) => {
+  const referenceAt = rows2.findIndex((row) => sourceRow(row) === SHORTCUT_HELP);
+  const reference = referenceAt === -1 ? null : rows2[referenceAt];
+  const withoutReference = referenceAt === -1 ? rows2 : [...rows2.slice(0, referenceAt), ...rows2.slice(referenceAt + 1)];
+  const candidates = withoutReference;
+  const first = candidates[0];
+  const wayOut = candidates.find(
+    (row) => bindings(row).includes("Escape") && word(row.promoteEscape) !== false
+  );
+  const second = wayOut && wayOut !== first ? wayOut : candidates.find((row) => row !== first);
+  const short = new Set([first, second].filter(Boolean));
+  const tail = withoutReference.includes(COLLAPSE_SHORTCUT_BAR) ? COLLAPSE_SHORTCUT_BAR : null;
+  return { candidates, reference, short, tail, wayOut };
+};
+var completeLine = (scopes, candidates) => {
+  const scope = scopes.find((candidate) => candidate.sequence);
+  if (!scope) return null;
+  const owned = new Set(scope.rows);
+  const rows2 = new Set(candidates.filter((row) => owned.has(sourceRow(row))));
+  if (!rows2.size) return null;
+  return {
+    scope,
+    rows: rows2
+  };
+};
+var openCompleteReference = () => openCommandReference((id) => executeCommand(id, beforeShortcutCommand));
+var keyboardSettings = el("button", "lf-btn", "Keyboard shortcuts");
+keyboardSettings.type = "button";
+keyboardSettings.addEventListener("click", () => {
+  closeLayer(dismissBannerControls, () => {
+    const door = bannerControlDoor(keyboardSettings);
+    if (door) focusDestination(door, "return");
+  });
+  openCompleteReference();
+});
+registerBannerControl({
+  key: "keyboard",
+  control: keyboardSettings,
+  rank: BANNER_CONTROL_RANK.keyboard,
+  seat: "menu",
+  row: { label: "Keyboard shortcuts", shortcut: ["?"], group: "page" }
+});
+function advanceShortcutHelp() {
+  if (!shortcutHelpAvailable() || shortcutBarIsExpanded || !shortcutBarEl.checkVisibility())
+    return openCompleteReference();
+  const scopes = stack();
+  const { candidates, short } = arrange(lineRows(scopes));
+  const shown = completeLine(scopes, candidates)?.rows ?? short;
+  if (!candidates.some((row) => !shown.has(row))) return openCompleteReference();
+  shortcutBarIsExpanded = true;
+  repaint();
+  announce(
+    "Shortcut bar expanded. Press question mark again for Command reference, or Escape to collapse it."
+  );
+}
+function collapseShortcutBar({ silent = false } = {}) {
+  if (!shortcutBarIsExpanded) return;
+  shortcutBarIsExpanded = false;
+  repaint();
+  if (!silent) announce("Shortcut bar collapsed.");
+}
+function renderShortcutBar(goToStatus) {
+  if (!pageUpgraded()) return;
+  const scopes = stack();
+  const rows2 = lineRows(scopes);
+  if (!shortcutHelpAvailable()) shortcutBarIsExpanded = false;
+  const expanded = shortcutBarIsExpanded && !commandReferenceOpen();
+  const { candidates, reference, short, tail, wayOut } = arrange(rows2);
+  const complete = completeLine(scopes, candidates);
+  const shown = complete?.rows ?? short;
+  const position = walkPosition();
+  const goToReading = goToStatus();
+  if (position)
+    lastWalkPresentation = Object.freeze({
+      kind: position.kind,
+      text: position.text,
+      boundary: position.boundary
+    });
+  const before = bottomStatusContext;
+  bottomStatusContext = Object.freeze({
+    goTo: goToReading,
+    // A retired walk hides but keeps its last wording, matching the native status
+    // surface's continuity while transient notice text occupies the same seat.
+    walk: lastWalkPresentation ? Object.freeze({ ...lastWalkPresentation, shown: Boolean(position) }) : null
+  });
+  setNoticeContext(Boolean(goToReading));
+  renderBottomStatus();
+  if (!sameContext(bottomStatusContext, before))
+    for (const invalidate of contextPresenters) invalidate();
+  const projected = expanded || complete ? candidates : [...shown, ...candidates.filter((row) => !shown.has(row))];
+  const projectedRows = projected.filter((row) => !expanded || row !== tail);
+  const referenceRows = reference ? [reference] : [];
+  const ordered = [...projectedRows, ...referenceRows];
+  const referenceBinding = reference ? bindings(reference)[0] : null;
+  const referenceTitle = titleOf(SHORTCUT_HELP);
+  const referenceLine = lineOf(SHORTCUT_HELP);
+  const sequenceScope = complete?.scope;
+  const sequence = word(sequenceScope?.sequence) ?? [];
+  const presentations = ordered.map((row) => {
+    const inSequence = sequence.length && !row.sequenceControl;
+    const steps = inSequence ? [sequence[0], ...rowSteps(row)] : rowSteps(row);
+    const states = inSequence ? progressStates(steps, sequence) : neutralStates(steps);
+    const active = bindings(row);
+    return Object.freeze({
+      sequenceControl: Boolean(row.sequenceControl),
+      sequence: keySequenceModel(steps, states),
+      said: lineOf(row),
+      commandIds: commandPresentations(row, active).map(({ id }) => id).join(" "),
+      wayOut: row === wayOut,
+      hidden: sourceRow(row) === SHORTCUT_HELP || !expanded && !shown.has(row)
+    });
+  });
+  const model = Object.freeze({
+    items: Object.freeze(presentations),
+    more: Object.freeze({
+      hidden: commandReferenceOpen() || !referenceBinding,
+      binding: referenceBinding ? spell(referenceBinding) : null,
+      line: referenceLine,
+      title: referenceTitle,
+      expanded,
+      ariaLabel: referenceBinding ? `${spell(referenceBinding)} ${referenceLine}` : referenceTitle
+    }),
+    tail: expanded && tail ? Object.freeze({
+      sequence: keySequenceModel(rowSteps(tail), neutralStates(rowSteps(tail))),
+      said: lineOf(tail)
+    }) : null,
+    expanded
+  });
+  keeps(shortcutBarEl, "data-lf-expanded", model.expanded);
+  render(shortcutBarTemplate(model), shortcutBarEl);
+  const rowSpans = shortcutBarEl.querySelectorAll(":scope > .lf-shortcut");
+  const drawn2 = model.items.map((presentation, index) => ({
+    presentation,
+    span: rowSpans[index]
+  }));
+  const barStyle = getComputedStyle(shortcutBarEl);
+  const gap = parseFloat(barStyle.columnGap);
+  const [status] = expanded ? [] : fixedStatusBoxes();
+  const reserved = status ? status.width + gap : 0;
+  const outer = (node) => {
+    const style = getComputedStyle(node);
+    return node.getBoundingClientRect().width + parseFloat(style.marginLeft) + parseFloat(style.marginRight);
+  };
+  const line = shortcutBarEl.getBoundingClientRect().width - parseFloat(barStyle.borderLeftWidth) - parseFloat(barStyle.borderRightWidth) - parseFloat(barStyle.paddingLeft) - parseFloat(barStyle.paddingRight) + (parseFloat(shortcutBarEl.style.getPropertyValue("--lf-status-room")) || 0);
+  const eligible = new Map(
+    drawn2.map(({ span, presentation }) => [span, !presentation.hidden])
+  );
+  const widths = new Map(
+    [...shortcutBarEl.children].filter((node) => eligible.get(node) ?? !node.hidden).map((node) => [node, outer(node)])
+  );
+  const trimmed = /* @__PURE__ */ new Set();
+  const rowsUsed = (room2) => {
+    let rows3 = 0;
+    let used = Infinity;
+    for (const [node, width] of widths) {
+      if (trimmed.has(node)) continue;
+      used += gap + width;
+      if (used > line - room2) {
+        rows3 += 1;
+        used = width;
+      }
+    }
+    return rows3;
+  };
+  const ceiling = expanded ? 2 : 1;
+  const removable = drawn2.filter(({ presentation }) => !presentation.hidden && !presentation.wayOut).map(({ span }) => span).toReversed();
+  while (rowsUsed(reserved) > ceiling && removable.length)
+    trimmed.add(removable.shift());
+  for (const span of [...trimmed].toReversed()) {
+    trimmed.delete(span);
+    if (rowsUsed(reserved) > ceiling) trimmed.add(span);
+  }
+  const room = reserved && rowsUsed(reserved) > ceiling ? 0 : reserved;
+  shortcutBarEl.style.setProperty("--lf-status-room", `${room}px`);
+  for (const { presentation, span } of drawn2)
+    span.toggleAttribute("data-lf-off-line", presentation.hidden || trimmed.has(span));
+}
+var shortcutBarExpanded = () => shortcutBarIsExpanded && shortcutHelpAvailable();
+function mountShortcutBar({ setGoToSequence, setReact }) {
+  activateShortcutMore = () => {
+    setGoToSequence(false);
+    setReact(false);
+    advanceShortcutHelp();
+  };
+  repaint();
+}
+var SHORTCUT_HELP = pageCommand({
+  id: "command.reference.open",
+  touch: false,
+  runFromCommandReference: false,
+  keys: ["?"],
+  title: () => shortcutBarExpanded() ? "Command reference" : "More keyboard shortcuts",
+  line: () => shortcutBarExpanded() ? "command reference" : "more",
+  control: () => shortcutBarMore,
+  run: () => activateShortcutMore?.()
+});
+var COLLAPSE_SHORTCUT_BAR = {
+  id: "shortcut.bar.collapse",
+  keys: ["Escape"],
+  title: "Fewer keyboard shortcuts",
+  line: "less",
+  commandReferenceWhen: () => false,
+  runFromCommandReference: false,
+  run: () => collapseShortcutBar()
+};
+pageScope("expanded shortcut bar", {
+  title: "In the expanded shortcut bar",
+  escape: "inner",
+  root: () => shortcutBarEl,
+  at: () => Boolean(shortcutBarExpanded()),
+  rows: [COLLAPSE_SHORTCUT_BAR]
+});
+declareExpandedBarBehindReference(shortcutBarExpanded);
+var beforeShortcutCommand = (row) => {
+  if (shortcutBarExpanded() && !commandReferenceOpen() && row !== SHORTCUT_HELP && row !== COLLAPSE_SHORTCUT_BAR)
+    collapseShortcutBar({ silent: true });
+};
+
 // runtime/floating-panel.js
 var prefs = () => document.documentElement.lfChrome;
 var EASE = "cubic-bezier(.23, 1, .32, 1)";
 var RESIZE_MS = 300;
-var FADE_MS = 180;
-var OUT_MS = 80;
+var VIEW_RESIZE_MS = 120;
+var FADE_MS = 90;
+var OUT_MS = 60;
 var GROUPS = Object.freeze({
   navigate: "Navigate",
   annotate: "Annotations",
@@ -7401,6 +7711,7 @@ var GROUPS = Object.freeze({
 });
 var OWN_VIEWS = Object.freeze(["threads", "queue", "versions"]);
 var FOLD = "panel.floating.fold";
+var SWITCH = "chrome.switch";
 var HELD_ELSEWHERE = Object.freeze([
   "threads",
   "queue",
@@ -7408,6 +7719,7 @@ var HELD_ELSEWHERE = Object.freeze([
   "approval",
   "keyboard",
   `command:${FOLD}`,
+  `command:${SWITCH}`,
   "command:target.picker.open"
 ]);
 var listed = (entry) => !entry.gesture && !HELD_ELSEWHERE.includes(entry.key);
@@ -7418,6 +7730,13 @@ var FILTERS = Object.freeze(["open", "unread", "drafts", "resolved"]);
 var LISTS = Object.freeze(["threads", "queue"]);
 var capital = (word2) => word2[0].toUpperCase() + word2.slice(1);
 var coarse = () => matchMedia("(pointer: coarse)").matches;
+function passing() {
+  const notice2 = noticeReading();
+  if (notice2.visible) return notice2;
+  const { goTo, walk } = statusContextReading();
+  const message = goTo ?? (walk?.shown ? walk.text : "");
+  return { message, visible: Boolean(message), news: false };
+}
 var TONE_WORDS = Object.freeze({
   working: "Working",
   listening: "Waiting on me",
@@ -7431,7 +7750,8 @@ function createFloatingPanel({
   observeFeedback,
   asks: askView,
   queueActions,
-  withdraw
+  withdraw,
+  settlement
 }) {
   const host = el("section", "lf-ui lf-floating-panel");
   host.setAttribute("aria-label", "Leaf");
@@ -7447,6 +7767,7 @@ function createFloatingPanel({
   const stage = el("div", "lf-fp-stage");
   opened.append(head, stage);
   const context = el("div", "lf-fp-context");
+  const contextWords = el("span", "lf-fp-context-words");
   const row = el("div", "lf-fp-row");
   const menu = el("div", "lf-fp-menu");
   menu.id = "lf-fp-menu";
@@ -7459,10 +7780,30 @@ function createFloatingPanel({
   peek.id = "lf-fp-peek";
   peek.setAttribute("role", "tooltip");
   let peekAsked = false;
+  let peekReading = null;
   let overView = false;
+  context.append(contextWords);
   inner.append(opened, context, row);
   card.append(inner);
   host.append(card, menu, badge, newsDot, peek);
+  const minimize = el("button", "lf-fp-minimize");
+  minimize.type = "button";
+  minimize.tabIndex = -1;
+  minimize.title = "Fold to the leaf";
+  minimize.setAttribute("aria-label", "Fold to the leaf");
+  minimize.append(iconElement("subtract", "lf-fp-minimize-icon"));
+  minimize.addEventListener(
+    "click",
+    () => rows2().find((entry) => entry.key === `command:${FOLD}`).press(null)
+  );
+  host.append(minimize);
+  const CORNER = { across: 64, down: 24 };
+  host.addEventListener("pointermove", (event) => {
+    const box = card.getBoundingClientRect();
+    const near = event.target === minimize || minimize.contains(event.target) || event.clientX >= box.right - CORNER.across && event.clientY <= box.top + CORNER.down;
+    keeps(host, "data-corner", near ? "" : null);
+  });
+  host.addEventListener("pointerleave", () => keeps(host, "data-corner", null));
   declareWindowChrome(() => {
     const box = row.getBoundingClientRect();
     return box.width > 0 && box.height > 0 ? [box] : [];
@@ -7476,6 +7817,23 @@ function createFloatingPanel({
   const mark = el("span", "lf-dot");
   leaf.append(mark);
   const field = el("div", "lf-fp-field");
+  const expand = el("button", "lf-fp-expand");
+  expand.type = "button";
+  let expanded = false;
+  expand.addEventListener("mousedown", (event) => event.preventDefault());
+  expand.addEventListener("click", () => {
+    expanded = !expanded;
+    paint();
+  });
+  let long = false;
+  const lengthWatch = sizeObserver(() => {
+    const input = fieldInput();
+    const lines = input ? (input.getBoundingClientRect().height - 10) / Number.parseFloat(getComputedStyle(input).lineHeight) : 0;
+    if (lines > 3.5 === long) return;
+    long = lines > 3.5;
+    nextRender(paint);
+  });
+  lengthWatch.observe(field);
   const rowNoticeSeat = el("div", "lf-fp-row-notice");
   const quick = el("div", "lf-fp-quick");
   row.append(leaf, field, rowNoticeSeat, quick);
@@ -7487,7 +7845,8 @@ function createFloatingPanel({
     explanationParts: [{ text: "Connecting\u2026", source: null }],
     adds: "",
     addsParts: [],
-    asks: false
+    asks: false,
+    publication: null
   };
   const status = () => statusReading() ?? CONNECTING;
   const statusParts = (parts) => parts.map((part) => {
@@ -7511,6 +7870,8 @@ function createFloatingPanel({
   let trail = [];
   let leaving = null;
   let menuOpen = false;
+  let menuAt = null;
+  let menuRoom = null;
   let filter = "open";
   let query = "";
   let searching = false;
@@ -7521,7 +7882,7 @@ function createFloatingPanel({
     const thread = key ? threadByKey(key) : null;
     if (input === focused() && !thread?.resolved)
       return { says: "destination", words: whereTo(key) };
-    const notice2 = noticeReading();
+    const notice2 = passing();
     if (notice2.visible) return { says: "notice", words: notice2.message };
     if (thread?.resolved) return { says: "turn", words: "Resolved \xB7 reopen to reply" };
     if (!key) return { says: "status", words: status().summary };
@@ -7605,7 +7966,7 @@ function createFloatingPanel({
   const threadByKey = (key) => threads().find((thread) => thread.key === key || thread.id === key) ?? null;
   const threadTitle = (key) => {
     const thread = threadByKey(key);
-    return thread ? threadSummary(thread).topic : "this thread";
+    return thread ? threadName(thread) : "this thread";
   };
   const unread = (thread) => thread.unread.length > 0;
   const newCount = () => threads().filter(unread).length;
@@ -7625,7 +7986,7 @@ function createFloatingPanel({
     return [
       unread(thread) && "New",
       state,
-      draftHasContent(`reply:${thread.key}`) && "Draft"
+      draftHasContent(replyContext(thread.key)) && "Draft"
     ].filter((word2) => word2 && word2 !== said).join(" \xB7 ");
   };
   const rows2 = () => bannerRows();
@@ -7637,6 +7998,7 @@ function createFloatingPanel({
     thread: route.thread ? threadTitle(route.thread) : "",
     group: GROUPS[route.group]
   })[route.view];
+  const levelRow = (level) => level.view === "group" ? routeKey(level) : level.view;
   const pathTo = (route) => route.view === "thread" ? [{ view: "threads" }, route] : [route];
   function open(route, { replace = false, reopen = false, focus = true } = {}) {
     const before = trail.at(-1);
@@ -7675,6 +8037,39 @@ function createFloatingPanel({
     transition2(before);
     focusDestination(pageEditor().input, "move");
   }
+  function resolveLanding(thread) {
+    const route = trail.at(-1);
+    const fromThreads = trail.at(-2)?.view === "threads";
+    const at = threads().filter((candidate) => !candidate.resolved).indexOf(thread);
+    const mayLand = retainUserIntent();
+    let mayRestore = () => false;
+    return {
+      optimistic: () => {
+        if (!mayLand() || trail.at(-1) !== route) return false;
+        const kept = threads().filter((candidate) => !candidate.resolved);
+        const next = fromThreads ? kept[at] ?? kept[at - 1] : null;
+        if (next) {
+          open({ view: "thread", thread: next.key }, { replace: true, focus: false });
+          const view = shownView();
+          if (view) focusDestination(view, "move");
+        } else back();
+        mayRestore = retainUserIntent();
+        return true;
+      },
+      // Taking the resolve back stands the user on the thread's row, where they are
+      // back at Threads. Where they moved on to the next thread, they stay on it, and
+      // the reopened thread waits in Threads: the reopening arrives with the server's
+      // reading, and a view opening or closing then would move the panel under no
+      // press. The undo door passes the intent of the press that asked for it.
+      reverse: (may = mayRestore) => {
+        if (!may() || trail.at(-1)?.view !== "threads") return;
+        const row2 = shownView()?.querySelector(
+          `.lf-fp-thread[data-key="${CSS.escape(thread.key)}"]`
+        );
+        if (row2) focusDestination(row2, "move");
+      }
+    };
+  }
   function back() {
     const before = trail.at(-1);
     trail = trail.slice(0, -1);
@@ -7696,10 +8091,42 @@ function createFloatingPanel({
   function setMenu(on) {
     if (menuOpen === on) return;
     menuOpen = on;
+    menuAt = null;
+    menuRoom = null;
     held = null;
     paint();
   }
+  function showMenuAt(level) {
+    const before = menuOpen ? menuAt : void 0;
+    if (before && level && routeKey(before) === routeKey(level)) return;
+    const outside = !standingIn(host);
+    if (renderedUnder(focused(), menu)) focusDestination(leaf, "return");
+    menuOpen = true;
+    menuAt = level;
+    menuRoom = null;
+    held = null;
+    paint();
+    if (level) {
+      menuRoom = menu.offsetHeight;
+      paint();
+    }
+    const page = menu.firstElementChild;
+    if (before !== void 0 && page && !reducedMotion()) {
+      const side = (level ? 1 : -1) * (getComputedStyle(menu).direction === "rtl" ? -1 : 1);
+      page.animate(
+        [
+          { translate: `${side * 16}px 0`, opacity: 0 },
+          { translate: "0 0", opacity: 1 }
+        ],
+        { duration: VIEW_RESIZE_MS, easing: EASE }
+      );
+    }
+    if (!keyed && !outside) return;
+    const target = level ? page?.querySelector(".lf-fp-item:not(.lf-fp-menu-back, :disabled)") : before && menu.querySelector(`[data-row="${levelRow(before)}"]`);
+    if (target) focusDestination(target, "move");
+  }
   let outline = null;
+  let viewMovingUntil = 0;
   const outlineClip = (box, grow = 0) => `inset(${box.top - grow}px ${box.right - grow}px ${box.bottom - grow}px ${box.left - grow}px round ${box.radius + grow}px)`;
   function followBox() {
     const room = ground.getBoundingClientRect();
@@ -7720,6 +8147,7 @@ function createFloatingPanel({
     ))
       return;
     outline = next;
+    const duration = performance.now() < viewMovingUntil ? VIEW_RESIZE_MS : RESIZE_MS;
     for (const [layer, grow] of [
       [ring, 1],
       [fill, 0]
@@ -7729,7 +8157,7 @@ function createFloatingPanel({
       keeps(layer, "style", `clip-path: ${outlineClip(next, grow)}`);
       if (!was || reducedMotion() || !pagePresented()) continue;
       layer.animate([{ clipPath: from }, { clipPath: outlineClip(next, grow) }], {
-        duration: RESIZE_MS,
+        duration,
         easing: EASE
       });
     }
@@ -7745,7 +8173,7 @@ function createFloatingPanel({
     };
     card.animate(
       [{ clipPath: outlineClip(within) }, { clipPath: `inset(0 round ${radius}px)` }],
-      { duration: RESIZE_MS, easing: EASE }
+      { duration, easing: EASE }
     );
   }
   const fit = sizeObserver(() => fitAnswer());
@@ -7883,6 +8311,7 @@ function createFloatingPanel({
     if (changed && before?.view === "thread")
       dismissReply(threadByKey(before.thread)?.key ?? before.thread);
     leaving = changed && before && after2 ? before : null;
+    if (changed) viewMovingUntil = performance.now() + OUT_MS + VIEW_RESIZE_MS;
     paint();
     const drawn2 = reading || before?.view === "queue" ? present({ release: reading }) : null;
     if (!changed || reducedMotion() || !pagePresented()) {
@@ -7963,14 +8392,14 @@ function createFloatingPanel({
     let copy = copyItems.get(entry.key);
     if (!copy) {
       copy = copyControl("lf-fp-copy-item", {
-        success: `${entry.label} copied`,
-        error: `${entry.label} not copied \xB7 select it to copy`
+        success: `${capital(entry.label)} copied`,
+        error: `${capital(entry.label)} not copied \xB7 select it to copy`
       });
       copy.addEventListener("wa-copy", () => putAwayThen(() => {
       }));
       copy.addEventListener("wa-error", () => {
         copyRefused = true;
-        putAwayThen(() => open({ view: "group", group: "about" }));
+        showMenuAt({ view: "group", group: "about" });
       });
       copyItems.set(entry.key, copy);
     }
@@ -7978,7 +8407,7 @@ function createFloatingPanel({
     copy.disabled = entry.disabled;
     render(
       menuItem(
-        `Copy ${entry.label[0].toLowerCase()}${entry.label.slice(1)}`,
+        `Copy ${entry.label}`,
         html`<wa-icon library="system" name="copy" variant="regular"></wa-icon>`,
         () => {
         },
@@ -8000,11 +8429,9 @@ function createFloatingPanel({
       entry.label,
       rowEnd(entry),
       () => {
-        if (view) {
-          open({ view });
-          return;
-        }
-        putAwayThen(() => entry.press(heldStanding));
+        if (view === "versions") showMenuAt({ view });
+        else if (view) open({ view });
+        else putAwayThen(() => entry.press(heldStanding));
       },
       {
         urgent: Boolean(entry.urgent),
@@ -8016,6 +8443,24 @@ function createFloatingPanel({
     );
   }
   function menuTemplate() {
+    if (!menuAt)
+      return html`<div class="lf-fp-menu-page" role="none">${rootTemplate()}</div>`;
+    return html`<div class="lf-fp-menu-page" role="none">
+      <button
+        type="button"
+        role="menuitem"
+        class="lf-fp-item lf-fp-menu-back"
+        aria-label=${`Back to the page menu from ${titleOf2(menuAt)}`}
+        @click=${() => showMenuAt(null)}
+      >
+        <span class="lf-fp-label"
+          >${iconTemplate("next", "lf-fp-chevron")}<b>${titleOf2(menuAt)}</b></span
+        >
+      </button>
+      ${menuAt.view === "versions" ? versionsList() : groupList(menuAt.group)}
+    </div>`;
+  }
+  function rootTemplate() {
     const all = rows2();
     const lead = OWN_VIEWS;
     const page = all.filter((entry) => groupOf(entry) === "page" && listed(entry)).sort(
@@ -8023,10 +8468,14 @@ function createFloatingPanel({
     );
     const keyboard = all.find((entry) => entry.key === "keyboard");
     const fold = all.find((entry) => entry.key === `command:${FOLD}`);
+    const swap = all.find((entry) => entry.key === `command:${SWITCH}`);
     const groups = Object.keys(GROUPS).filter(
       (group2) => all.some((entry) => groupOf(entry) === group2 && listed(entry))
     );
-    const { tone, summary, summaryParts, adds, addsParts } = status();
+    const { tone, summary, summaryParts, adds, addsParts, publication } = status();
+    const explains = publication ? html`${publication.copy}${publication.examplesUrl ? html`<a href=${publication.examplesUrl}>${publication.examples}</a> ` : nothing}<a href=${publication.installUrl} target="_blank" rel="noopener"
+            >${publication.install}</a
+          >` : adds && addsParts ? statusParts(addsParts) : adds;
     const word2 = TONE_WORDS[tone];
     const part = (name2, text) => (held ? held[name2] : text) ? html`<span
             class="lf-fp-${name2}"
@@ -8044,12 +8493,12 @@ function createFloatingPanel({
         draw: (gone) => menuItem(
           GROUPS[group2],
           groupValue(group2) ? html`<span class="lf-fp-value">${groupValue(group2)}</span>` : nothing,
-          () => open({ view: "group", group: group2 }),
-          { opens: true, disabled: gone }
+          () => showMenuAt({ view: "group", group: group2 }),
+          { opens: true, disabled: gone, row: `group:${group2}` }
         )
       })),
       { key: "", draw: () => html`<hr />` },
-      ...[keyboard, fold].filter(Boolean).map(seat)
+      ...[keyboard, fold, swap].filter(Boolean).map(seat)
     ];
     const now = new Map(offered.map((row2) => [row2.key, row2]));
     seats2 = held?.seats ?? offered;
@@ -8062,15 +8511,13 @@ function createFloatingPanel({
         <b>${word2 ?? (summaryParts ? statusParts(summaryParts) : summary)}</b>${part(
       "summary",
       word2 ? summaryParts ? statusParts(summaryParts) : summary : ""
-    )}${part("explain", adds && addsParts ? statusParts(addsParts) : adds)}
+    )}${part("explain", explains)}
       </div>
       ${seats2.map(({ key, draw }) => now.get(key)?.draw(false) ?? draw(true))}`;
   }
   const groupValue = (group2) => group2 === "annotate" ? rows2().find((entry) => entry.key === "command:annotations.toggle")?.label === "Show annotations" ? "Hidden" : "" : "";
-  function groupView(group2) {
-    return html`<div class="lf-fp-list">
-      ${rows2().filter((entry) => groupOf(entry) === group2 && listed(entry)).map((entry) => entry.copies ? copyRow(entry) : rowFor(entry))}
-    </div>`;
+  function groupList(group2) {
+    return rows2().filter((entry) => groupOf(entry) === group2 && listed(entry)).map((entry) => entry.copies ? copyRow(entry) : rowFor(entry));
   }
   const copies = /* @__PURE__ */ new Map();
   function copyFor(entry) {
@@ -8079,8 +8526,8 @@ function createFloatingPanel({
         entry.key,
         copyControl("lf-fp-copy-press", {
           label: `Copy ${entry.label}`,
-          success: `${entry.label} copied`,
-          error: `${entry.label} not copied \xB7 select it to copy`
+          success: `${capital(entry.label)} copied`,
+          error: `${capital(entry.label)} not copied \xB7 select it to copy`
         })
       );
     const copy = copies.get(entry.key);
@@ -8091,8 +8538,8 @@ function createFloatingPanel({
   }
   function copyRow(entry) {
     const field2 = `lf-fp-copy-${entry.key}`;
-    return html`<div class="lf-fp-copy">
-      <label class="lf-fp-copy-label" for=${field2}>${entry.label}</label>
+    return html`<div class="lf-fp-copy" role="none">
+      <label class="lf-fp-copy-label" for=${field2}>${capital(entry.label)}</label>
       <textarea
         id=${field2}
         class="lf-fp-copy-text"
@@ -8107,22 +8554,27 @@ function createFloatingPanel({
       ${entry.value ? html`<p class="lf-fp-copy-note">${entry.value}</p>` : nothing}
     </div>`;
   }
-  function versionsView() {
-    const { rows: versions, picker, selection } = versionsReading();
+  function versionsList() {
+    const { rows: versions, picker, selection, latest } = versionsReading();
     const approval = approvalReading();
-    const approved = approval?.text.startsWith("\u2713");
-    return html`<div class="lf-fp-list">
+    const approved = approval?.approved;
+    return html`
+      ${latest.failed ? html`<div class="lf-fp-failed" role="none">
+              <b>${latest.label}</b>
+              <p class="lf-fp-failed-error">${latest.error}</p>
+            </div>` : nothing}
       ${repeat(
       versions,
       (entry) => `${entry.version === null ? "draft" : "version"}:${entry.revision}`,
-      (entry) => html`<div class="lf-fp-version" ?data-current=${entry.current}>
+      (entry) => html`<div class="lf-fp-version" role="none" ?data-current=${entry.current}>
             ${menuItem(
-        entry.name,
+        html`${entry.name}${entry.note ? html`<span class="lf-fp-note">${entry.note}</span>` : nothing}`,
         entry.current ? html`<span class="lf-fp-value">Showing</span>` : nothing,
         () => putAwayThen(() => versionPicker.activate(entry)),
-        { role: null }
+        { title: entry.note }
       )}${entry.comparable ? html`<button
                     type="button"
+                    role="menuitem"
                     class="lf-fp-quiet lf-fp-compare"
                     aria-pressed=${String(
         selection.on && selection.base === entry.version
@@ -8134,30 +8586,31 @@ function createFloatingPanel({
                   </button>` : nothing}
           </div>`
     )}
-      ${versions.length ? nothing : html`<p class="lf-fp-empty">Showing ${picker.token}</p>`}
+      ${versions.length ? nothing : html`<p class="lf-fp-empty" role="none">Showing ${picker.token}</p>`}
       ${approval ? html`<hr />
-              <div class="lf-fp-approval" title=${approval.reason ?? nothing}>
+              <div
+                class="lf-fp-approval"
+                role="none"
+                title=${approval.reason ?? nothing}
+              >
                 ${menuItem(
       approval.text,
       approval.reason ? html`<span class="lf-fp-value">${approval.reason}</span>` : nothing,
       () => approve(),
-      { disabled: Boolean(approval.reason) && !approved, role: null }
+      { disabled: Boolean(approval.reason) && !approved }
     )}
               </div>` : nothing}
-    </div>`;
+    `;
   }
   function shownThreads() {
     const words = query.trim().toLowerCase();
     return threads().filter((thread) => {
       if (words) {
-        const text = [
-          threadSummary(thread).topic,
-          ...thread.msgs.map((m) => m.text ?? "")
-        ].join(" ").toLowerCase();
+        const text = [threadName(thread), ...thread.msgs.map((m) => m.text ?? "")].join(" ").toLowerCase();
         return text.includes(words);
       }
       if (filter === "unread") return unread(thread);
-      if (filter === "drafts") return draftHasContent(`reply:${thread.key}`);
+      if (filter === "drafts") return draftHasContent(replyContext(thread.key));
       if (filter === "resolved") return thread.resolved;
       return !thread.resolved;
     });
@@ -8177,13 +8630,14 @@ function createFloatingPanel({
       (thread) => html`<button
                   type="button"
                   class="lf-fp-thread"
+                  data-key=${thread.key}
                   ?data-unread=${unread(thread)}
                   ?data-resolved=${thread.resolved}
                   ?data-yours=${threadAttention(thread)?.kind === "needs_user"}
                   @click=${() => open({ view: "thread", thread: thread.key })}
                 >
                   <span class="lf-fp-news-mark" aria-hidden="true"></span>
-                  <span class="lf-fp-label">${threadSummary(thread).topic}</span>
+                  <span class="lf-fp-label">${threadName(thread)}</span>
                   <span class="lf-fp-value"
                     >${threadStatus(thread, query.trim() ? null : filter)}</span
                   >
@@ -8195,9 +8649,7 @@ function createFloatingPanel({
   const shownView = () => stage.querySelector(".lf-fp-view:not([data-leaving])");
   const LIST_ROWS = Object.freeze({
     threads: ".lf-fp-thread",
-    queue: ".lf-fp-on-item",
-    versions: ".lf-fp-item:not(:disabled), .lf-fp-compare",
-    group: ".lf-fp-item:not(:disabled)"
+    queue: ".lf-fp-on-item"
   });
   const listRows = () => {
     const rows3 = LIST_ROWS[trail.at(-1)?.view];
@@ -8240,7 +8692,7 @@ function createFloatingPanel({
   const openIn = (view) => {
     const top = trail.at(-1);
     const thread = top?.view === "thread" ? threadByKey(top.thread) : null;
-    return thread && !view.hasAttribute("data-leaving") && view.dataset.thread === thread.id ? thread : null;
+    return thread && !view.hasAttribute("data-leaving") && drawnThreadId(view) === thread.id ? thread : null;
   };
   const viewParts = Object.freeze({
     reply: (view) => {
@@ -8303,7 +8755,7 @@ function createFloatingPanel({
     const thread = item.thread ? threadByKey(item.thread) : null;
     const asking = ask?.source.kind === "reply" && thread ? thread.msgs.find((candidate) => candidate.id === ask.message) : null;
     const message = asking && presentation?.primary !== false ? asking : null;
-    const title = message ? thread.title ?? (thread.root.id === message.id ? "" : threadSummary(thread).topic) : asking ? threadSummary(thread).topic : queueTitle(item);
+    const title = message ? thread.title ?? (thread.root.id === message.id ? "" : threadName(thread)) : asking ? threadName(thread) : queueTitle(item);
     const said = message ? "" : asking ? messageReading(asking, { panel: false, reactions: [], workflows: [] }).body.plainText : ask?.prompt?.text;
     const prompt = said && said.trim() !== title.trim() ? said : "";
     const answered = ask && ask.status !== "open";
@@ -8443,10 +8895,6 @@ function createFloatingPanel({
         return threadView(route.thread);
       case "queue":
         return onView();
-      case "versions":
-        return versionsView();
-      case "group":
-        return groupView(route.group);
     }
     return nothing;
   }
@@ -8479,7 +8927,8 @@ function createFloatingPanel({
           query = "";
           paint();
         },
-        (name2) => name2 === "unread" ? news : null
+        // Open counts what the thread mark counts, so the mark's number is found here.
+        (name2) => name2 === "unread" ? news : name2 === "open" ? openCount() : null
       )}<button
           type="button"
           class="lf-fp-icon-btn"
@@ -8526,9 +8975,15 @@ function createFloatingPanel({
         !(thread.resolved ? thread.offers.reopen : thread.offers.resolve)
       )}
           @click=${() => {
-        if (thread.resolved) return threadActions.reopen(thread.key);
-        dismissReply(thread.key);
-        return threadActions.resolve(thread.key);
+        if (!thread.resolved) dismissReply(thread.key);
+        void settleThread({
+          parent: () => thread.id,
+          key: thread.key,
+          resolved: Boolean(thread.resolved),
+          prepareLanding: thread.resolved ? null : () => resolveLanding(thread),
+          ...settlement
+        }).catch(() => {
+        });
       }}
         >
           <span class="lf-fp-face" ?data-shown=${!thread.resolved}
@@ -8563,6 +9018,7 @@ function createFloatingPanel({
                   >` : nothing}`;
     return html`<div class="lf-fp-crumb">${crumb}</div>
       <div class="lf-fp-aux">${aux}</div>
+      ${expand}
       <button
         type="button"
         class="lf-fp-icon-btn lf-fp-close"
@@ -8578,6 +9034,8 @@ function createFloatingPanel({
     prefs().set("rest", rest);
     trail = [];
     menuOpen = false;
+    menuAt = null;
+    menuRoom = null;
     held = null;
     transition2(before, { focus: false });
     if (inside) focusDestination(leaf, "return");
@@ -8651,6 +9109,9 @@ function createFloatingPanel({
     keeps(badge, "data-shown", onUser ? "" : null);
     keeps(newsDot, "data-shown", news ? "" : null);
     render(menuOpen ? menuTemplate() : nothing, menu);
+    keeps(menu, "data-level", menuOpen && menuAt ? menuAt.view : null);
+    keeps(menu, "style", menuOpen && menuRoom ? `height: ${menuRoom}px` : null);
+    keeps(menu, "role", menu.querySelector("textarea") ? "dialog" : "menu");
     if (menuOpen) {
       const rows3 = menuRows();
       rove(rows3, rows3.includes(focused()) ? focused() : rows3[0]);
@@ -8690,6 +9151,7 @@ function createFloatingPanel({
       listed2.includes(focused()) ? focused() : listed2.find((row2) => row2.getAttribute("tabindex") === "0") ?? listed2[0]
     );
     render(top ? headTemplate(top) : nothing, head);
+    if (!top) move(context, expand, null);
     const heading = top ? shows(top) : null;
     for (const drawing2 of [head, replyOutlet]) {
       keeps(drawing2, "data-thread", heading);
@@ -8711,6 +9173,13 @@ function createFloatingPanel({
     keeps(host, "data-writing", writing ? "" : null);
     typing = writing && Boolean(draftOf(input).trim());
     keeps(host, "data-typing", typing ? "" : null);
+    if (!draftOf(input).trim()) expanded = false;
+    keeps(host, "data-long", (long || expanded) && !resting ? "" : null);
+    keeps(host, "data-expanded", expanded ? "" : null);
+    keeps(expand, "aria-pressed", String(expanded));
+    keeps(expand, "aria-label", expanded ? "Less room to write" : "More room to write");
+    keeps(expand, "title", expanded ? "Less room to write" : "More room to write");
+    render(iconTemplate(expanded ? "fit" : "expand", "lf-action-icon"), expand);
     const reading = fieldReading(replying ? top.thread : null, input);
     keeps(host, "data-says", reading.says);
     keeps(host, "data-tone", status().tone || null);
@@ -8721,15 +9190,15 @@ function createFloatingPanel({
       reading.says === "status" ? status().explanation || status().summary : null
     );
     const empty = draftOf(input) === "";
-    const notice2 = noticeReading();
+    const notice2 = passing();
     const covered = notice2.visible && (!empty || reading.says === "destination");
     overView = Boolean(top) && covered && !notice2.news;
     keeps(context, "data-notice", covered ? "" : null);
     keepsText(
-      context,
+      contextWords,
       top ? "" : covered ? notice2.message : empty ? "" : whereTo(null)
     );
-    keepsHidden(context, !context.textContent);
+    keepsHidden(context, !contextWords.textContent);
     paintPeek();
     const standing2 = rowNotice();
     keepsHidden(rowNoticeSeat, !standing2);
@@ -8790,11 +9259,25 @@ function createFloatingPanel({
       quick
     );
   }
-  function rowNotice() {
+  function failedSave() {
+    const { latest } = versionsReading();
+    if (!latest.failed) return null;
+    return {
+      says: "Latest edit not shown",
+      tone: "danger",
+      press: {
+        label: "Why",
+        title: latest.error,
+        run: () => showMenuAt({ view: "versions" })
+      }
+    };
+  }
+  function olderVersion() {
     const { latest } = versionsReading();
     if (latest.shown === null) return null;
     return {
       says: latest.shown,
+      tone: "warn",
       press: {
         label: "Latest",
         title: latest.keyTitle,
@@ -8803,19 +9286,48 @@ function createFloatingPanel({
       }
     };
   }
-  function rowNoticeTemplate({ says, press }) {
-    return press ? html`<button
+  function website() {
+    const { publication } = status();
+    if (!publication) return null;
+    return {
+      says: publication.examples ? "Example" : "Leaf page",
+      tone: "accent",
+      press: { label: publication.install, href: publication.installUrl }
+    };
+  }
+  function approvedVersion() {
+    if (!approvalReading()?.approved) return null;
+    return { says: `\u2713 ${versionsReading().picker.token} approved`, tone: "ok" };
+  }
+  const ROW_NOTICES = [failedSave, olderVersion, website, approvedVersion];
+  const rowNotice = () => {
+    for (const read of ROW_NOTICES) {
+      const notice2 = read();
+      if (notice2) return notice2;
+    }
+    return null;
+  };
+  function rowNoticeTemplate({ says, tone, press = null }) {
+    const face2 = html`<span class="lf-fp-row-notice-face" data-tone=${tone}
+      >${says}${press ? html`<span class="lf-fp-row-notice-sep" aria-hidden="true">·</span
+              ><span class="lf-fp-row-notice-act">${press.label}</span>` : nothing}</span
+    >`;
+    if (!press) return face2;
+    return press.href ? html`<a
+          class="lf-fp-chip lf-fp-row-notice-press"
+          href=${press.href}
+          target="_blank"
+          rel="noopener"
+          >${face2}</a
+        >` : html`<button
           type="button"
           class="lf-fp-chip lf-fp-row-notice-press"
-          title=${press.title}
+          title=${press.title ?? nothing}
           ?disabled=${press.disabled}
           @click=${press.run}
         >
-          <span class="lf-fp-row-notice-face"
-            >${says}<span class="lf-fp-row-notice-sep" aria-hidden="true">·</span
-            ><span class="lf-fp-row-notice-act">${press.label}</span></span
-          >
-        </button>` : html`<span class="lf-fp-row-notice-face">${says}</span>`;
+          ${face2}
+        </button>`;
   }
   leaf.addEventListener("click", () => {
     if (host.dataset.rest === "mark") {
@@ -8831,17 +9343,15 @@ function createFloatingPanel({
   });
   function paintPeek() {
     const folded = host.dataset.rest === "mark";
-    const notice2 = noticeReading();
+    const notice2 = passing();
     const telling = notice2.visible && (folded || overView && !menuOpen);
     const reading = status();
-    render(
-      telling ? notice2.message : statusParts(
-        reading.explanationParts ?? [
-          { text: reading.explanation || reading.summary }
-        ]
-      ),
-      peek
-    );
+    const parts = reading.explanationParts ?? [
+      { text: reading.explanation || reading.summary }
+    ];
+    if (!folded || !peekAsked || !readingIsContinuous()) peekReading = null;
+    if (folded && peekAsked && !telling && pagePresented()) peekReading ??= parts;
+    render(telling ? notice2.message : statusParts(peekReading ?? parts), peek);
     keeps(peek, "data-shown", telling || folded && peekAsked ? "" : null);
   }
   const showPeek = (on) => {
@@ -8863,6 +9373,13 @@ function createFloatingPanel({
           paint();
         }
       };
+    if (menuOpen && menuAt)
+      return {
+        root: host,
+        title: "back to menu",
+        description: "Go back from the list to the page menu",
+        out: () => showMenuAt(null)
+      };
     if (menuOpen)
       return {
         root: host,
@@ -8878,9 +9395,11 @@ function createFloatingPanel({
       root: host,
       title: `close ${titleOf2(trail.at(-1)).toLowerCase()}`,
       description: `Close ${titleOf2(trail.at(-1))}`,
+      // Putting a view away returns the user to the page, where the view's thread or
+      // list took them from, as closing the banner's Threads panel does.
       out: () => {
         close();
-        focusDestination(leaf, "return");
+        letGo();
       }
     };
   });
@@ -8911,6 +9430,28 @@ function createFloatingPanel({
         position: () => null,
         landed: (row2) => rove(listRows(), row2)
       }).map((row2) => ({ ...row2, when: () => !menuOpen && inList() })),
+      // → goes into the list a row opens, as its chevron points, and ← back to the menu.
+      {
+        id: "panel.floating.menu.level",
+        keys: ["ArrowLeft", "ArrowRight"],
+        routes: [
+          { id: "panel.floating.menu.level-left", binding: "ArrowLeft", title: "left" },
+          {
+            id: "panel.floating.menu.level-right",
+            binding: "ArrowRight",
+            title: "right"
+          }
+        ],
+        description: "Open the list a row of the page menu leads to, or go back to the menu",
+        title: "open or leave a list",
+        when: () => menuOpen && renderedUnder(focused(), menu),
+        run: (binding) => {
+          const [backward] = rowArrows(menu);
+          if (binding === backward) {
+            if (menuAt) showMenuAt(null);
+          } else if (focused()?.hasAttribute("data-opens")) focused().click();
+        }
+      },
       // Tab leaves the menu as it leaves a menu button's menu: the menu goes, and the
       // browser moves the user on from the leaf that opened it, either way.
       ["Tab", "Shift+Tab"].map((key) => ({
@@ -8991,7 +9532,7 @@ function createFloatingPanel({
   versionMenu.addEventListener("beforetoggle", (event) => {
     if (event.newState !== "open") return;
     event.preventDefault();
-    open({ view: "versions" }, { reopen: true });
+    showMenuAt({ view: "versions" });
   });
   const pageComment2 = Object.freeze({
     get box() {
@@ -9041,14 +9582,36 @@ function createFloatingPanel({
     document.addEventListener(UPGRADE, () => paint(), { once: true });
     registerApprovalPresentation({ target: approvalControl, arrive: arriveAtApproval });
     registerNoticePresentation(() => paint());
+    registerStatusContextPresentation(() => paint());
     watchBannerRows(() => paint());
     versionPicker.watch(() => paint());
     document.addEventListener("lf-chrome-preference", () => paint());
+    onReadingInterrupted(() => {
+      peekReading = null;
+      paintPeek();
+    });
     watching = watchProjection(host, paintPanel);
     paint();
   }
   return { host, mount, open, close, enter, pageComment: pageComment2 };
 }
+
+// runtime/chrome-choice.js
+var root = document.documentElement;
+var floating = () => root.lfChrome.mode === "floating";
+if (!root.lfSample)
+  pageCommand({
+    id: "chrome.switch",
+    keys: [],
+    title: () => floating() ? "use the banner" : "use the Leaf panel",
+    description: () => floating() ? "Read every page with the banner and bottom bar in place of the Leaf panel" : "Read every page with the Leaf panel in place of the banner and bottom bar",
+    touch: () => floating() ? "Use the banner" : "Use the Leaf panel",
+    menu: "page",
+    run: () => {
+      root.lfChrome.set("mode", floating() ? "classic" : "floating");
+      location.reload();
+    }
+  });
 
 // runtime/thread/narrowing.js
 var choice = (kind, value, label2, className = "") => Object.freeze({ kind, value, label: label2, className });
@@ -9330,7 +9893,7 @@ function createThreadNarrowing({ view, listRoot, readThreads: readThreads2, repa
 }
 
 // runtime/thread/thread-list.js
-var readDescriptors = readPart((root) => root.document.descriptors);
+var readDescriptors = readPart((root2) => root2.document.descriptors);
 function createThreadListController({ panel: panel2, threadsBox: threadsBox2, narrowingView: narrowingView2 }) {
   const threadCards = () => [...threadsBox2.querySelectorAll(":scope > .lf-thread")];
   const openThreadsInPageOrder = () => threadsBox2.inPageOrder(
@@ -10405,15 +10968,15 @@ function createAskView({
   }
   function askContext(origin) {
     const record = askAt(readAsks().all, hostIn(origin, document));
-    let root = null;
+    let root2 = null;
     for (let node = origin; record && node; node = upFrom(node)) {
       if (askAt(readAsks().all, node)?.id !== record.id) break;
-      root = node;
+      root2 = node;
       if (node.hasAttribute("data-lf-thread-surface")) break;
     }
-    if (!root) return null;
+    if (!root2) return null;
     return {
-      root,
+      root: root2,
       declarations: () => {
         const source = sourceNode(record);
         return source ? commandDeclarationsWithin(source).filter(
@@ -10649,7 +11212,7 @@ function createQueueWalk({
     if (focused(document) === approvalTarget())
       return list.find((stop) => stop.kind === "approval") ?? null;
     const held = threadHere();
-    const thread = held?.dataset.id ?? held?.dataset.thread;
+    const thread = drawnThreadId(held);
     if (thread) {
       const stop = list.find(
         (candidate) => candidate.kind === "thread" && candidate.id === thread
@@ -10895,7 +11458,7 @@ function createQueuePanel({
   const wherePart = (text, feedback = null) => ({ text, feedback });
   function when(item, thread) {
     if (itemNoun(item) === "ask")
-      return [wherePart(thread && shortAgo(threadSummary(thread).latest))];
+      return [wherePart(thread && shortAgo(lastMovedAt(thread)))];
     const feedback = item.workflow?.detail && item.workflow.input ? {
       input_id: item.workflow.input,
       reply_id: null,
@@ -11163,7 +11726,7 @@ function createCommandHints({ presentedControl }) {
       (visible.right - visible.left) / 4,
       (visible.bottom - visible.top) / 4
     );
-    const root = bindingBadge.getRootNode();
+    const root2 = bindingBadge.getRootNode();
     return [
       [x, y],
       [x, visible.top + inset],
@@ -11171,7 +11734,7 @@ function createCommandHints({ presentedControl }) {
       [visible.left + inset, y],
       [visible.right - inset, y]
     ].every(([atX, atY]) => {
-      const stack2 = root.elementsFromPoint(atX, atY);
+      const stack2 = root2.elementsFromPoint(atX, atY);
       const at = stack2.indexOf(bindingBadge);
       return at >= 0 && stack2.slice(0, at).every((over) => renderedUnder(over, control));
     });
@@ -12365,362 +12928,6 @@ pageRung("page", () => {
   } : null;
 });
 
-// runtime/keyboard/shortcut-bar.js
-var shortcutBarEl = el("div", "lf-ui lf-shortcut-bar");
-shortcutBarEl.id = "lf-shortcut-bar";
-shortcutBarEl.setAttribute("data-lf-reflow", "controls");
-var bottomStatusEl = el("div", "lf-ui lf-bottom-status");
-var activateShortcutMore = null;
-var EMPTY_STATUS_CONTEXT = Object.freeze({ goTo: null, walk: null });
-var EMPTY_BAR = Object.freeze({
-  items: Object.freeze([]),
-  more: Object.freeze({
-    hidden: true,
-    binding: null,
-    line: "more",
-    title: "More keyboard shortcuts",
-    expanded: false,
-    ariaLabel: "More keyboard shortcuts"
-  }),
-  tail: null,
-  expanded: false
-});
-var bottomStatusTemplate = (model) => html`
-  <span class="lf-go-to-status" aria-hidden="true" ?hidden=${!model.goTo}
-    >${model.goTo ?? nothing}</span
-  >
-  <span
-    class="lf-walk-position"
-    aria-hidden="true"
-    ?hidden=${!model.walk?.shown}
-    data-kind=${model.walk?.shown ? model.walk.kind : nothing}
-    ?data-lf-boundary=${model.walk?.shown ? model.walk.boundary : false}
-    >${model.walk?.text ?? nothing}</span
-  >
-  <span class=${`lf-ui lf-notice${model.notice.visible ? " show" : ""}`}
-    >${model.notice.message || nothing}</span
-  >
-`;
-var shortcutBarTemplate = (model) => html`${model.items.map(
-  (item) => html`
-        <span
-          class=${`lf-shortcut${item.sequenceControl ? " lf-sequence-command" : ""}`}
-          aria-hidden="true"
-          data-lf-command-ids=${item.commandIds}
-          >${keySequenceTemplate(item.sequence)}${item.said ? html`<span>${item.said}</span>` : nothing}</span
-        >
-      `
-)}<button
-      type="button"
-      class="lf-shortcut-more"
-      title=${model.more.title}
-      aria-label=${model.more.ariaLabel}
-      aria-expanded=${String(model.more.expanded)}
-      ?hidden=${model.more.hidden}
-    >
-      <kbd class="lf-key-badge">${model.more.binding}</kbd
-      ><span>${model.more.line}</span></button
-    >${model.tail ? html`<span class="lf-shortcut" aria-hidden="true"
-            >${keySequenceTemplate(model.tail.sequence)}<span
-              >${model.tail.said}</span
-            ></span
-          >` : nothing}`;
-var bottomStatusContext = EMPTY_STATUS_CONTEXT;
-var renderBottomStatus = () => {
-  const model = Object.freeze({
-    ...bottomStatusContext,
-    notice: noticeReading()
-  });
-  render(bottomStatusTemplate(model), bottomStatusEl);
-};
-renderBottomStatus();
-render(shortcutBarTemplate(EMPTY_BAR), shortcutBarEl);
-var walkPositionEl = bottomStatusEl.querySelector(".lf-walk-position");
-var goToStatusEl = bottomStatusEl.querySelector(".lf-go-to-status");
-var shortcutBarMore = shortcutBarEl.querySelector(".lf-shortcut-more");
-registerNoticePresentation(renderBottomStatus);
-var boxesOf = (nodes) => nodes.filter((node) => getComputedStyle(node).position === "fixed").map((node) => node.getBoundingClientRect()).filter((box) => box.height > 0 && box.width > 0);
-var fixedStatus = () => !walkPositionEl.hidden || !goToStatusEl.hidden;
-var fixedStatusBox = null;
-var fixedStatusBoxes = () => {
-  if (!fixedStatus()) {
-    fixedStatusBox = null;
-    return [];
-  }
-  if (!noticeVisible()) [fixedStatusBox = null] = boxesOf([bottomStatusEl]);
-  return fixedStatusBox ? [fixedStatusBox] : [];
-};
-var bottomChromeBoxes = () => [...boxesOf([shortcutBarEl]), ...fixedStatusBoxes()];
-declareWindowChrome(bottomChromeBoxes, [shortcutBarEl, bottomStatusEl]);
-var sourceRows = /* @__PURE__ */ new WeakMap();
-var sourceRow = (row) => sourceRows.get(row) ?? row;
-var effectiveRow = (row, declared, active) => {
-  if (active.length === declared.length) return row;
-  const routes = commandRoutes(row).filter((route2) => active.includes(route2.binding));
-  const route = routes.length === 1 ? routes[0] : null;
-  const projected = {
-    ...row,
-    ready: () => commandReady(row),
-    keys: active,
-    routes,
-    // A custom group label cannot describe a binding removed by a nearer scope. A route
-    // may supply the short word for its remaining direction; otherwise the row's shared
-    // word still describes the reduced binding set.
-    label: route?.label,
-    title: route?.title ?? row.title,
-    description: route?.description ?? row.description,
-    line: route?.line ?? row.line
-  };
-  sourceRows.set(projected, row);
-  return projected;
-};
-function lineRows(scopes) {
-  const escape = lineOwner("Escape");
-  const named = /* @__PURE__ */ new Set();
-  const nearer = shadow();
-  const rows2 = [];
-  for (const scope of scopes) {
-    const reachable = scope.rows.flatMap((row) => {
-      if (row.line === false || !scope.sequence && word(row.lineWhen) === false)
-        return [];
-      const bound = bindings(row);
-      const active = bound.filter(
-        (binding) => binding === "Escape" ? escape?.visible && scopeIdentity(escape.scope) === scopeIdentity(scope) && escape.row === row : !named.has(binding) && !nearer.takes(binding, row, scope)
-      );
-      return active.length ? [effectiveRow(row, bound, active)] : [];
-    });
-    for (const row of activeRows(reachable, scope.title ?? "the page's keys")) {
-      if (!lineOf(row)) continue;
-      const active = bindings(row).filter(
-        (binding) => !named.has(binding) && commandEntries(row, [binding]).length
-      );
-      if (!active.length) continue;
-      const source = sourceRow(row);
-      for (const binding of active) named.add(binding);
-      rows2.push(effectiveRow(source, bindings(source), active));
-    }
-    nearer.past(scope);
-  }
-  return rows2;
-}
-var shortcutBarIsExpanded = false;
-var lastWalkPresentation = null;
-var shortcutHelpAvailable = () => bindings(SHORTCUT_HELP).length > 0;
-var arrange = (rows2) => {
-  const referenceAt = rows2.findIndex((row) => sourceRow(row) === SHORTCUT_HELP);
-  const reference = referenceAt === -1 ? null : rows2[referenceAt];
-  const withoutReference = referenceAt === -1 ? rows2 : [...rows2.slice(0, referenceAt), ...rows2.slice(referenceAt + 1)];
-  const candidates = withoutReference;
-  const first = candidates[0];
-  const wayOut = candidates.find(
-    (row) => bindings(row).includes("Escape") && word(row.promoteEscape) !== false
-  );
-  const second = wayOut && wayOut !== first ? wayOut : candidates.find((row) => row !== first);
-  const short = new Set([first, second].filter(Boolean));
-  const tail = withoutReference.includes(COLLAPSE_SHORTCUT_BAR) ? COLLAPSE_SHORTCUT_BAR : null;
-  return { candidates, reference, short, tail, wayOut };
-};
-var completeLine = (scopes, candidates) => {
-  const scope = scopes.find((candidate) => candidate.sequence);
-  if (!scope) return null;
-  const owned = new Set(scope.rows);
-  const rows2 = new Set(candidates.filter((row) => owned.has(sourceRow(row))));
-  if (!rows2.size) return null;
-  return {
-    scope,
-    rows: rows2
-  };
-};
-var openCompleteReference = () => openCommandReference((id) => executeCommand(id, beforeShortcutCommand));
-var keyboardSettings = el("button", "lf-btn", "Keyboard shortcuts");
-keyboardSettings.type = "button";
-keyboardSettings.addEventListener("click", () => {
-  closeLayer(dismissBannerControls, () => {
-    const door = bannerControlDoor(keyboardSettings);
-    if (door) focusDestination(door, "return");
-  });
-  openCompleteReference();
-});
-registerBannerControl({
-  key: "keyboard",
-  control: keyboardSettings,
-  rank: BANNER_CONTROL_RANK.keyboard,
-  seat: "menu",
-  row: { label: "Keyboard shortcuts", shortcut: ["?"], group: "page" }
-});
-function advanceShortcutHelp() {
-  if (!shortcutHelpAvailable() || shortcutBarIsExpanded || !shortcutBarEl.checkVisibility())
-    return openCompleteReference();
-  const scopes = stack();
-  const { candidates, short } = arrange(lineRows(scopes));
-  const shown = completeLine(scopes, candidates)?.rows ?? short;
-  if (!candidates.some((row) => !shown.has(row))) return openCompleteReference();
-  shortcutBarIsExpanded = true;
-  repaint();
-  announce(
-    "Shortcut bar expanded. Press question mark again for Command reference, or Escape to collapse it."
-  );
-}
-function collapseShortcutBar({ silent = false } = {}) {
-  if (!shortcutBarIsExpanded) return;
-  shortcutBarIsExpanded = false;
-  repaint();
-  if (!silent) announce("Shortcut bar collapsed.");
-}
-function renderShortcutBar(goToStatus) {
-  if (!pageUpgraded()) return;
-  const scopes = stack();
-  const rows2 = lineRows(scopes);
-  if (!shortcutHelpAvailable()) shortcutBarIsExpanded = false;
-  const expanded = shortcutBarIsExpanded && !commandReferenceOpen();
-  const { candidates, reference, short, tail, wayOut } = arrange(rows2);
-  const complete = completeLine(scopes, candidates);
-  const shown = complete?.rows ?? short;
-  const position = walkPosition();
-  const goToReading = goToStatus();
-  if (position)
-    lastWalkPresentation = Object.freeze({
-      kind: position.kind,
-      text: position.text,
-      boundary: position.boundary
-    });
-  bottomStatusContext = Object.freeze({
-    goTo: goToReading,
-    // A retired walk hides but keeps its last wording, matching the native status
-    // surface's continuity while transient notice text occupies the same seat.
-    walk: lastWalkPresentation ? Object.freeze({ ...lastWalkPresentation, shown: Boolean(position) }) : null
-  });
-  setNoticeContext(Boolean(goToReading));
-  renderBottomStatus();
-  const projected = expanded || complete ? candidates : [...shown, ...candidates.filter((row) => !shown.has(row))];
-  const projectedRows = projected.filter((row) => !expanded || row !== tail);
-  const referenceRows = reference ? [reference] : [];
-  const ordered = [...projectedRows, ...referenceRows];
-  const referenceBinding = reference ? bindings(reference)[0] : null;
-  const referenceTitle = titleOf(SHORTCUT_HELP);
-  const referenceLine = lineOf(SHORTCUT_HELP);
-  const sequenceScope = complete?.scope;
-  const sequence = word(sequenceScope?.sequence) ?? [];
-  const presentations = ordered.map((row) => {
-    const inSequence = sequence.length && !row.sequenceControl;
-    const steps = inSequence ? [sequence[0], ...rowSteps(row)] : rowSteps(row);
-    const states = inSequence ? progressStates(steps, sequence) : neutralStates(steps);
-    const active = bindings(row);
-    return Object.freeze({
-      sequenceControl: Boolean(row.sequenceControl),
-      sequence: keySequenceModel(steps, states),
-      said: lineOf(row),
-      commandIds: commandPresentations(row, active).map(({ id }) => id).join(" "),
-      wayOut: row === wayOut,
-      hidden: sourceRow(row) === SHORTCUT_HELP || !expanded && !shown.has(row)
-    });
-  });
-  const model = Object.freeze({
-    items: Object.freeze(presentations),
-    more: Object.freeze({
-      hidden: commandReferenceOpen() || !referenceBinding,
-      binding: referenceBinding ? spell(referenceBinding) : null,
-      line: referenceLine,
-      title: referenceTitle,
-      expanded,
-      ariaLabel: referenceBinding ? `${spell(referenceBinding)} ${referenceLine}` : referenceTitle
-    }),
-    tail: expanded && tail ? Object.freeze({
-      sequence: keySequenceModel(rowSteps(tail), neutralStates(rowSteps(tail))),
-      said: lineOf(tail)
-    }) : null,
-    expanded
-  });
-  keeps(shortcutBarEl, "data-lf-expanded", model.expanded);
-  render(shortcutBarTemplate(model), shortcutBarEl);
-  const rowSpans = shortcutBarEl.querySelectorAll(":scope > .lf-shortcut");
-  const drawn2 = model.items.map((presentation, index) => ({
-    presentation,
-    span: rowSpans[index]
-  }));
-  const barStyle = getComputedStyle(shortcutBarEl);
-  const gap = parseFloat(barStyle.columnGap);
-  const [status] = expanded ? [] : fixedStatusBoxes();
-  const reserved = status ? status.width + gap : 0;
-  const outer = (node) => {
-    const style = getComputedStyle(node);
-    return node.getBoundingClientRect().width + parseFloat(style.marginLeft) + parseFloat(style.marginRight);
-  };
-  const line = shortcutBarEl.getBoundingClientRect().width - parseFloat(barStyle.borderLeftWidth) - parseFloat(barStyle.borderRightWidth) - parseFloat(barStyle.paddingLeft) - parseFloat(barStyle.paddingRight) + (parseFloat(shortcutBarEl.style.getPropertyValue("--lf-status-room")) || 0);
-  const eligible = new Map(
-    drawn2.map(({ span, presentation }) => [span, !presentation.hidden])
-  );
-  const widths = new Map(
-    [...shortcutBarEl.children].filter((node) => eligible.get(node) ?? !node.hidden).map((node) => [node, outer(node)])
-  );
-  const trimmed = /* @__PURE__ */ new Set();
-  const rowsUsed = (room2) => {
-    let rows3 = 0;
-    let used = Infinity;
-    for (const [node, width] of widths) {
-      if (trimmed.has(node)) continue;
-      used += gap + width;
-      if (used > line - room2) {
-        rows3 += 1;
-        used = width;
-      }
-    }
-    return rows3;
-  };
-  const ceiling = expanded ? 2 : 1;
-  const removable = drawn2.filter(({ presentation }) => !presentation.hidden && !presentation.wayOut).map(({ span }) => span).toReversed();
-  while (rowsUsed(reserved) > ceiling && removable.length)
-    trimmed.add(removable.shift());
-  for (const span of [...trimmed].toReversed()) {
-    trimmed.delete(span);
-    if (rowsUsed(reserved) > ceiling) trimmed.add(span);
-  }
-  const room = reserved && rowsUsed(reserved) > ceiling ? 0 : reserved;
-  shortcutBarEl.style.setProperty("--lf-status-room", `${room}px`);
-  for (const { presentation, span } of drawn2)
-    span.toggleAttribute("data-lf-off-line", presentation.hidden || trimmed.has(span));
-}
-var shortcutBarExpanded = () => shortcutBarIsExpanded && shortcutHelpAvailable();
-function mountShortcutBar({ setGoToSequence, setReact }) {
-  activateShortcutMore = () => {
-    setGoToSequence(false);
-    setReact(false);
-    advanceShortcutHelp();
-  };
-  repaint();
-}
-var SHORTCUT_HELP = pageCommand({
-  id: "command.reference.open",
-  touch: false,
-  runFromCommandReference: false,
-  keys: ["?"],
-  title: () => shortcutBarExpanded() ? "Command reference" : "More keyboard shortcuts",
-  line: () => shortcutBarExpanded() ? "command reference" : "more",
-  control: () => shortcutBarMore,
-  run: () => activateShortcutMore?.()
-});
-var COLLAPSE_SHORTCUT_BAR = {
-  id: "shortcut.bar.collapse",
-  keys: ["Escape"],
-  title: "Fewer keyboard shortcuts",
-  line: "less",
-  commandReferenceWhen: () => false,
-  runFromCommandReference: false,
-  run: () => collapseShortcutBar()
-};
-pageScope("expanded shortcut bar", {
-  title: "In the expanded shortcut bar",
-  escape: "inner",
-  root: () => shortcutBarEl,
-  at: () => Boolean(shortcutBarExpanded()),
-  rows: [COLLAPSE_SHORTCUT_BAR]
-});
-declareExpandedBarBehindReference(shortcutBarExpanded);
-var beforeShortcutCommand = (row) => {
-  if (shortcutBarExpanded() && !commandReferenceOpen() && row !== SHORTCUT_HELP && row !== COLLAPSE_SHORTCUT_BAR)
-    collapseShortcutBar({ silent: true });
-};
-
 // runtime/keyboard/controller.js
 function mountKeyboard({
   goToSequenceActive,
@@ -12879,7 +13086,7 @@ var threadWalk = (panelIsOpen2, { threadsBox: threadsBox2, openThreadsInPageOrde
 };
 var currentThread = (threads, threadHere) => {
   const held = threadHere();
-  const id = held?.dataset.id ?? held?.dataset.thread;
+  const id = drawnThreadId(held);
   return threads.find((thread) => thread.dataset.id === id);
 };
 var threadPosition = (threadHere, panelIsOpen2, narrowing2, list) => {
@@ -13346,7 +13553,6 @@ var focusForNavigation = (node, cause, options) => app?.overlay?.focusForNavigat
 var anchorTravel = createAnchorTravel({
   anchors: anchorPlacement,
   surfaces: auxiliarySurfaces,
-  currentThreads: allThreads,
   refreshThread: () => app.refreshThread(),
   focusForNavigation,
   threadFocusTarget: (id, options) => app.threadDestinations.threadFocusTarget(id, options),
@@ -13540,7 +13746,8 @@ var floatingPanel = document.documentElement.lfChrome?.mode === "floating" ? cre
     open: (id) => app.openAsk(id)
   },
   queueActions: app.queueActions,
-  withdraw: app.withdraw
+  withdraw: app.withdraw,
+  settlement: app.settlement
 }) : null;
 var generalComment = floatingPanel?.pageComment ?? pageComment;
 var passageSelection = createPassageSelection({

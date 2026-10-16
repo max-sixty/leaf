@@ -73,13 +73,13 @@ has tried; settle that before building it.
   result is hidden. Decide whether a page needs one progress reading across On me,
   board work, and version approval. Test a concrete first task before changing the
   public home page's prompt.
-- **#28 — Finish the floating panel.** The opt-in floating panel
-  (`?lf-chrome=floating`, off by default) was rebuilt on 12 October to the sketch the
-  user configured ([its goal](notes/floating-panel/GOAL.md), "The overhaul"). Work
-  through its remaining list (status in the field, opened sizes, the menu's rows, the
-  On me count, motion) before making it the default or removing the banner,
+- **#28 — Finish the floating panel.** The floating panel, rebuilt on 12 October to
+  the sketch the user configured ([its goal](notes/floating-panel/GOAL.md), "The
+  overhaul"), is the default chrome since 16 October; **Use the banner** in the leaf's
+  menu switches back. Work through its remaining list before removing the banner,
   bottom bar, and preference. The phone waits until the desktop design is firm, and
-  where a passage thread opens from Threads waits until later.
+  where a passage thread opens from Threads waits until later. The suite and the
+  `leaf-dev` tools that drive the banner still pin it (`CLASSIC_CHROME`).
 - **Give "update" one meaning on screen.** It names the user's input ("Undo the
   latest update", "Stalled update", "1 update to send again", the On panel's
   Update rows) and, since the floating card's held-news notice, the agent's progress

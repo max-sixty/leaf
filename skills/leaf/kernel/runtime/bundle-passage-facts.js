@@ -170,7 +170,8 @@ var GENERATED = ".lf-ui, [data-lf-gen]";
 var DATUM = "[data-lf-projection][data-lf-datum]";
 var inChrome = (node) => Boolean(node && closestAcross(node, ".lf-chrome"));
 var showsWords = (block) => block.checkVisibility({ visibilityProperty: true });
-var leafSurface = (node) => node ? closestAcross(node, ".lf-chrome, [data-lf-runtime]") : null;
+var LEAF_SURFACE = ".lf-chrome, [data-lf-runtime]";
+var leafSurface = (node) => node ? closestAcross(node, LEAF_SURFACE) : null;
 var pageWords = (node) => Boolean(node) && !inChrome(node) && !inUi(node);
 var bareTextRefusal = (n) => {
   const host = shadowHost(n.getRootNode());
@@ -829,6 +830,7 @@ export {
   DATUM,
   inChrome,
   showsWords,
+  LEAF_SURFACE,
   leafSurface,
   pageWords,
   elementOver,

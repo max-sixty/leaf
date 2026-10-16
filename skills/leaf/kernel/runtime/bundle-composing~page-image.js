@@ -1,5 +1,6 @@
 import {
-  pageImage
+  pageImage,
+  pageRenderer
 } from "./bundle-composing~page-image-2.js";
 import "./bundle-sample-2.js";
 import "./bundle-dress.js";
@@ -13,5 +14,6 @@ import "./bundle-sample-visibility.js";
 import "./bundle-queued-work.js";
 import "./bundle-__export.js";
 export {
-  pageImage
+  pageImage,
+  pageRenderer
 };

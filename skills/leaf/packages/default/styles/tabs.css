@@ -555,12 +555,18 @@
       margin-block: 0;
       --lf-full-height: inherit;
     }
-    :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow="page"] > .lf-tabstrip { flex: none; }
+    :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow="page"] > .lf-tabstrip {
+      flex: none;
+    }
     :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow="page"] > lf-tab:not([hidden]) {
       flex: 1 0 auto;
     }
     :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow="page"]
-      > lf-tab:not([hidden]):has(> :nth-child(1 of :not(script, style, template)):nth-last-child(1 of :not(script, style, template))) {
+      > lf-tab:not([hidden]):has(
+        > :nth-child(1 of :not(script, style, template)):nth-last-child(
+            1 of :not(script, style, template)
+          )
+      ) {
       flex: 1 1 0;
       min-block-size: 0;
       display: flex;
@@ -569,7 +575,9 @@
     }
     :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow="page"]
       > lf-tab:not([hidden])
-      > :nth-child(1 of :not(script, style, template)):nth-last-child(1 of :not(script, style, template)) {
+      > :nth-child(1 of :not(script, style, template)):nth-last-child(
+        1 of :not(script, style, template)
+      ) {
       flex: 1 1 0;
       margin-block: 0;
     }
@@ -645,22 +653,36 @@
      * paint, so the opening tab's playground does not grow when the module upgrades. */
     @container style(--lf-full-height: 1) {
       :scope:is(lf-tabs):not(.lf-rendered):nth-child(1 of lf-tabs):not(
-      [list="side"]):has(> lf-tab) {
+          [list="side"]
+        ):has(> lf-tab) {
         display: flex;
         flex-direction: column;
         min-block-size: 0;
         margin-block: 0;
         --lf-full-height: inherit;
-        &::before { flex: none; }
-        & > lf-tab[data-lf-opening] { flex: 1 0 auto; }
-        & > lf-tab[data-lf-opening]:has(> :nth-child(1 of :not(script, style, template)):nth-last-child(1 of :not(script, style, template))) {
+        &::before {
+          flex: none;
+        }
+        & > lf-tab[data-lf-opening] {
+          flex: 1 0 auto;
+        }
+        &
+          > lf-tab[data-lf-opening]:has(
+            > :nth-child(1 of :not(script, style, template)):nth-last-child(
+                1 of :not(script, style, template)
+              )
+          ) {
           flex: 1 1 0;
           min-block-size: 0;
           display: flex;
           flex-direction: column;
           --lf-full-height: inherit;
         }
-        & > lf-tab[data-lf-opening] > :nth-child(1 of :not(script, style, template)):nth-last-child(1 of :not(script, style, template)) {
+        &
+          > lf-tab[data-lf-opening]
+          > :nth-child(1 of :not(script, style, template)):nth-last-child(
+            1 of :not(script, style, template)
+          ) {
           flex: 1 1 0;
           margin-block: 0;
         }

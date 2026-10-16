@@ -75,10 +75,9 @@ on.
 
 Most pages are read top to bottom and use the reading column,
 `<main class="layout-column">`, where text stays within the measure and wider blocks
-extend beside it. Without a Layout class, the page
-lays out as plain HTML. A diagram or board declares its width; `data-width` asks for
-one on other blocks, such as a wide table (`page-layout.md`, "Bounds and widths").
-Compose the page from these:
+extend beside it. Without a Layout class, the page lays out as plain HTML. A diagram or
+board declares its width; `data-width` asks for one on other blocks, such as a wide
+table (`page-layout.md`, "Bounds and widths"). Compose the page from these:
 
 - **Prose read in order**, such as a plan, review or decision, is plain semantic HTML.
 - **Independent status tiles** are a block with `class="layout-tiles"`, whose children
@@ -93,9 +92,9 @@ Compose the page from these:
   below the opening prose, with edges that match neither the title nor the prose, which
   suits a figure a document cites but not the page's main item. Reading that supports the
   surface, such as the review behind a design the reader tunes, goes in page tabs after
-  the surface's own. A document read top to bottom beside a panel kept
-  in view, such as a postmortem beside its timeline, is a `layout-sidebar` page
-  (`page-layout.md`, "A sidebar page").
+  the surface's own. A document read top to bottom beside a panel kept in view, such as
+  a postmortem beside its timeline, is a `layout-sidebar` page (`page-layout.md`, "A
+  sidebar page").
 - **Several views of one artifact** are one `lf-tabs` set. Page tabs hold project-scale
   views that share one history, Threads panel and set of asks; a tabbed section holds
   local alternatives within a view. The `lf-tabs` entry says which placement makes

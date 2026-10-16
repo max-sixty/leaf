@@ -69,11 +69,21 @@
  * body scrolls, where a playground, which fits its parts to any height it is given,
  * says it may shrink (playground/theme.css). */
 @container style(--lf-full-height: 1) {
-  :scope:is(lf-ask) { display: flex; flex-direction: column; }
-  :scope:is(lf-ask):has(> :nth-last-child(1 of :not(script, style, template)):not(:nth-child(1 of :not(script, style, template)))) {
+  :scope:is(lf-ask) {
+    display: flex;
+    flex-direction: column;
+  }
+  :scope:is(lf-ask):has(
+      > :nth-last-child(1 of :not(script, style, template)):not(
+          :nth-child(1 of :not(script, style, template))
+        )
+    ) {
     --lf-full-height: inherit;
   }
-  :scope:is(lf-ask) > :nth-last-child(1 of :not(script, style, template)):not(:nth-child(1 of :not(script, style, template))) {
+  :scope:is(lf-ask)
+    > :nth-last-child(1 of :not(script, style, template)):not(
+      :nth-child(1 of :not(script, style, template))
+    ) {
     flex: 1 1 0;
     margin-block: 0;
   }

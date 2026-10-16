@@ -10,7 +10,7 @@
 # distinguishes.
 description: playground-takes-the-room
 metadata:
-  purpose: 'Playground: a page whose subject is a playground is a workspace whose body is the playground''s Ask.'
+  purpose: "Playground: a page whose subject is a playground is a workspace whose body is the playground's Ask."
   tags:
     - playground
     - layout

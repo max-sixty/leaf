@@ -4,10 +4,10 @@
 # Result context was added after a real review offered no useful preset moments.
 description: playwright-trace-review
 metadata:
-  purpose: 'Author a commentable imported browser journey with the optional Playwright package.'
+  purpose: "Author a commentable imported browser journey with the optional Playwright package."
   tags:
-  - evidence
-  - packages
+    - evidence
+    - packages
 vars:
   prompt: |
     Write a Leaf section for reviewing a browser journey recorded by Playwright.
@@ -26,9 +26,9 @@ vars:
     author instructions under the Leaf skill's base directory, then reply with
     the section's HTML.
 assert:
-- type: llm-rubric
-  metric: keeps-captured-evidence
-  value: The section shows the imported journey in one `lf-trace` with an `id` and `source="release-journey"`, whose only children are `lf-trace-bookmark` elements, with no custom playback module or reconstruction of the recorded application's live behavior. Its prose does not claim that image pixels and saved accessibility boxes were captured simultaneously, or that matching accessible names uniquely identifies a button.
-- type: llm-rubric
-  metric: reachable-results
-  value: Both successful outcomes are directly reachable as named lf-trace-bookmark members targeting the supplied After identities. Their labels describe the documentation and API results. Surrounding prose introduces the evidence rather than teaching playback, timeline or zoom controls.
+  - type: llm-rubric
+    metric: keeps-captured-evidence
+    value: The section shows the imported journey in one `lf-trace` with an `id` and `source="release-journey"`, whose only children are `lf-trace-bookmark` elements, with no custom playback module or reconstruction of the recorded application's live behavior. Its prose does not claim that image pixels and saved accessibility boxes were captured simultaneously, or that matching accessible names uniquely identifies a button.
+  - type: llm-rubric
+    metric: reachable-results
+    value: Both successful outcomes are directly reachable as named lf-trace-bookmark members targeting the supplied After identities. Their labels describe the documentation and API results. Surrounding prose introduces the evidence rather than teaching playback, timeline or zoom controls.

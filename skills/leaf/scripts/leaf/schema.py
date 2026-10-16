@@ -7,7 +7,7 @@ from .state import EVENTS_FILE
 
 # A session-managed server gives a replacement session one short poll window to
 # claim the page before it closes. The external claim record is the ownership
-# source; a standing lifetime ignores it and remains enabled until `server stop`.
+# source; a persistent lifetime ignores it and remains enabled until `server stop`.
 ORPHAN_GRACE_SECS = 1
 # The harness-neutral name of an agent nothing names: a page's when no claimant
 # supplies one, and an agent-authored event's that carries no `agent` (`agent_name`).
@@ -86,7 +86,7 @@ _RECORD_VALUE = {
 }
 
 # A `when` predicate selects instances by attribute values (or by a flag's being
-# present or absent). One condition shape serves Questions and threads because they
+# present or absent). One condition shape serves asks and threads because they
 # ask the same question of the same authored attributes.
 AWAITING_CONDITION = {
     "type": "object",
@@ -99,11 +99,11 @@ AWAITING_CONDITION = {
     },
 }
 
-# When a local Question is answered: a map from each answering x-state verb to the
-# condition its standing state meets. An empty condition means the verb's state stands
-# (a non-empty attribute or value record, otherwise a standing action). `when` narrows
+# When a local ask is answered: a map from each answering x-state verb to the
+# condition its current state meets. An empty condition means the verb's state stands
+# (a non-empty attribute or value record, otherwise an action in force). `when` narrows
 # the verb to instances whose attributes match; `empty` holds when the one member
-# container it names inside the widget is left with no members by the standing
+# container it names inside the widget is left with no members by the current
 # positions. One map, so every answer is a reading of state the fold already keeps.
 ANSWERED_SCHEMA = {
     "type": "object",
@@ -284,7 +284,7 @@ _ATTRIBUTE_NAME = {"type": "string", "pattern": f"^{HTML_NAME}$"}
 EXTENSION_SCHEMA = {
     "type": "object",
     "properties": {
-        "x-question-context": {"const": True},
+        "x-ask-context": {"const": True},
         "x-awaits": AWAITS_SCHEMA,
         "x-thread-seat": {
             "type": "object",
@@ -338,8 +338,6 @@ EXTENSION_SCHEMA = {
                     "type": "object",
                     "properties": {
                         "parts": _ATTRIBUTE_NAME,
-                        "all": {"type": "string", "pattern": "^\\S+$"},
-                        "complete": {"const": True},
                     },
                     "required": ["parts"],
                     "additionalProperties": False,
@@ -359,24 +357,11 @@ EXTENSION_SCHEMA = {
                 },
             ]
         },
-        "x-space": {"enum": ["column", "wide", "available"]},
+        "x-space": {"enum": ["wide", "available"]},
         "x-bound": {"enum": ["start", "end"]},
         # A default height in CSS pixels, or `true` for a widget that has none and
         # reserves only what an occurrence's data-height states.
         "x-height": {"oneOf": [{"const": True}, {"type": "integer", "minimum": 1}]},
-        # Child selectors, each matched inside the element, for the painted boxes that
-        # draw its own face: a margin pin whose target is the element may stand on them.
-        # Only a light-DOM child by tag and classes, so a malformed selector is refused
-        # here rather than throwing in the browser's layout pass.
-        "x-face": {
-            "type": "array",
-            "items": {
-                "type": "string",
-                "pattern": r"^:scope > (?:[a-z][a-z0-9-]*(?:\.[A-Za-z_][\w-]*)*|(?:\.[A-Za-z_][\w-]*)+)$",
-            },
-            "minItems": 1,
-            "uniqueItems": True,
-        },
         "x-history": {"const": True},
         # A captured classic bundle registering one synchronous DOM producer. Delivery
         # runs it after each occurrence closes; the module adopts its existing nodes.
@@ -408,6 +393,11 @@ EXTENSION_SCHEMA = {
         },
         "x-views": {"const": True},
         "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+        "x-within": {
+            "type": "array",
+            "items": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
+            "minItems": 1,
+        },
         "x-word": {"enum": ["module"]},
         "x-name": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-work": {"const": True},
@@ -415,6 +405,7 @@ EXTENSION_SCHEMA = {
     "required": ["x-content", "x-upgrade"],
     "dependentRequired": {
         "x-retired-when": ["x-owners"],
+        "x-within": ["x-owners"],
         "x-measured": ["x-data"],
     },
     # Only an upgraded container has members its module could leave in place.
@@ -557,7 +548,7 @@ ATTRIBUTE_KEYS = (
 # one member at a time (x-views). Neither a stylesheet nor the prepaint, which runs
 # before the registry has loaded (`runtime/prepaint.js`), can read the registry, so
 # each is painted where a selector can ask. `authored` is
-# the attribute an occurrence writes to override its tag's or idiom's declaration, and
+# the attribute an occurrence writes to override its tag's declaration, and
 # `authored_on` where that override means something, so elsewhere it is inert:
 # `content`, a block inside `main`, since the room and the bound size a block in the
 # page's flow and on `main` or `body` would size the page itself; `declared`, an element
@@ -568,10 +559,10 @@ ATTRIBUTE_KEYS = (
 # each is the element's own fact wherever it renders, except the room and the margin
 # posture, which are the document's to hand out; a message renders in the panel, whose
 # width bounds it and which has no margin.
-# `idiom` says a selector entry may declare the mark for the elements its selector
-# matches, as `.callout` declares the room: the mark's every reader reads its paint and
-# nothing paints it in a message, so delivery's paint is the whole of it. The others
-# are also read by tag (the Questions fold, the render checks, the runtime's descriptors).
+#
+# The room is only ever past the measure: a widget read as lines of text keeps to the
+# measure in its own stylesheet (`max-inline-size: var(--lf-measure)`), so `x-space`
+# names a breakout and nothing else.
 #
 # Delivery paints a page's document from this (`revision_delivery.mark_declared`).
 # Composition stamps it into the vocabulary as `$marks` (`registry.layer.
@@ -586,7 +577,6 @@ DECLARED_MARKS = {
         "authored": "data-width",
         "authored_on": "content",
         "message": False,
-        "idiom": True,
     },
     "x-inline": {"paint": "data-lf-inline", "message": True},
     "x-exhibit": {"paint": "data-lf-exhibit", "message": True},
@@ -610,6 +600,8 @@ DECLARED_MARKS = {
 SKILL_ROOT = Path(__file__).resolve().parent.parent.parent
 PLUGIN_ROOT = SKILL_ROOT.parent.parent
 ASSETS = SKILL_ROOT / "assets"
+# The kernel compiled from ASSETS's modules, committed beside them (`layer.current_kernel`).
+KERNEL = SKILL_ROOT / "kernel"
 BUNDLED_PACKAGES = SKILL_ROOT / "packages"
 DEFAULT_PACKAGE = BUNDLED_PACKAGES / "default"
 VENDORED_FILES = ("leaf.js", "theme.css", "shadow.css", "registry.json", "icon.svg")
@@ -650,7 +642,7 @@ DATA_FILE = "data.json"
 FILE_BINDINGS_FILE = "files.json"
 DATA_DIR = "data"
 # The diagnostic request and interaction trace (`interaction_log.py`).
-INTERACTIONS_FILE = "interactions.jsonl"
+INTERACTIONS_FILE = "observations.jsonl"
 PREVIEW_FILE = "preview.json"
 VIEWED_FILE = "viewed.json"
 USER_VIEWS_FILE = "user-views.json"
@@ -671,7 +663,6 @@ WAITER_LOCK = "waiter.lock"
 SESSION_FILES = (
     STATUS_FILE,
     WAITER_LOCK,
-    CURSOR_FILE,
     VIEWED_FILE,
     USER_VIEWS_FILE,
     USER_VIEWS_LOCK,
@@ -679,10 +670,15 @@ SESSION_FILES = (
     SERVER_LOCK,
     PREVIEW_FILE,
 )
+# Acknowledgement belongs to the log, and survives replacement of its reader.
+LOG_STATE_FILES = (CURSOR_FILE,)
+# Process declarations, leases, browser observations and diagnostics are disposable.
+PAGE_PROCESS_FILES = (*SESSION_FILES, INTERACTIONS_FILE)
 # The files Leaf writes in a page directory as it runs. With the author's index.html,
 # the vendored files, and PAGE_OWNED_DIRS, the whole of page-storage.md's "Files".
 PAGE_STATE_FILES = (
     EVENTS_FILE,
+    *LOG_STATE_FILES,
     INTERACTIONS_FILE,
     DATA_FILE,
     FILE_BINDINGS_FILE,
@@ -703,15 +699,32 @@ VERSION_NAME = r"v(?P<version>[1-9][0-9]*)"
 # names with the endpoints under it.
 SESSION_ROUTE_DIRS = (MEDIA_DIR, "revisions", "versions", RENDER_CHECKS_DIR)
 PAGE_ROUTE_DIRS = ("api", *BROWSER_DIRS, *SESSION_ROUTE_DIRS)
+CONTENT_TYPES = {
+    ".js": "application/javascript",
+    ".mjs": "application/javascript",
+    ".css": "text/css",
+    ".json": "application/json",
+    ".html": "text/html",
+    **MEDIA_TYPES,
+}
+JAVASCRIPT_SUFFIXES = frozenset(
+    suffix for suffix, mime in CONTENT_TYPES.items() if mime == "application/javascript"
+)
+MODULE_EXTENSION = (
+    "(?:" + "|".join(re.escape(suffix) for suffix in sorted(JAVASCRIPT_SUFFIXES)) + ")"
+)
+# Helper modules have package-owned names; only widget entry names follow tag syntax.
+# Share safe path segments with vendor files, excluding traversal segments.
+BROWSER_FILE = r"(?:(?!\.{1,2}/)[^/\\\x00-\x20?#]+/)*(?!\.{1,2}$)[^/\\\x00-\x20?#]+"
 # What the server exposes from a page: the browser layer, media, immutable revisions,
 # and event-backed version addresses. Agent-side instructions stay vendored but are read
 # only through the CLI.
 # The dir patterns are keyed by the public directories themselves, so growing
 # that surface without saying what it may serve fails here, at import.
 DIR_FILES = {
-    "runtime": r"(?:[A-Za-z0-9-]+/)*[A-Za-z0-9-]+\.(?:js|css)",
-    "widgets": r"(?:[a-z0-9-]+/)*[a-z0-9-]+\.js",
-    "vendor": (r"(?:(?!\.{1,2}/)[A-Za-z0-9._-]+/)*" r"(?!\.{1,2}$)[A-Za-z0-9._-]+"),
+    "runtime": rf"{BROWSER_FILE}(?:{MODULE_EXTENSION}|\.css)",
+    "widgets": rf"{BROWSER_FILE}{MODULE_EXTENSION}",
+    "vendor": BROWSER_FILE,
     MEDIA_DIR: rf"[a-f0-9]{{{MEDIA_DIGEST}}}(?:"
     + "|".join(re.escape(e) for e in MEDIA_TYPES)
     + ")",
@@ -726,13 +739,6 @@ SERVED_PATH = re.compile(
     )
     + ")"
 )
-CONTENT_TYPES = {
-    ".js": "application/javascript",
-    ".css": "text/css",
-    ".json": "application/json",
-    ".html": "text/html",
-    **MEDIA_TYPES,
-}
 BINARY_TYPES = frozenset(MEDIA_TYPES.values()) - {"image/svg+xml"}
 
 

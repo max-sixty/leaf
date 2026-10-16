@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$PLUGIN_ROOT/bin/leaf\" hook --harness codex || exit 1",
+            "command": "\"$PLUGIN_ROOT/bin/leaf\" hook --harness codex --if-claimed || exit 1",
             "timeout": 20
           }
         ]

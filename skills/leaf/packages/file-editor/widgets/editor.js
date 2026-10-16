@@ -25,6 +25,7 @@ import {
   HighlightStyle,
   syntaxHighlighting,
   indentOnInput,
+  placeholder,
   bracketMatching,
   tags,
 } from "/vendor/codemirror.esm.js";
@@ -58,6 +59,7 @@ const theme = EditorView.theme({
     backgroundColor: "color-mix(in srgb, var(--accent) 6%, transparent)",
   },
   ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--accent)" },
+  ".cm-placeholder": { color: "var(--muted)" },
   "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection":
     { backgroundColor: "color-mix(in srgb, var(--accent) 24%, transparent)" },
   ".cm-matchingBracket": {
@@ -108,6 +110,10 @@ const isMarkdown = (filename) => langForPath(filename) === "markdown";
 
 /** Create a file editor. External text changes use CodeMirror transactions,
  * mapping selection and local undo history through the dependency's diff.
+ * @param {HTMLElement} parent
+ * @param {{text?: string, filename?: string, original?: string | null, readOnly?: boolean,
+ *   label?: string, description?: string, onChange?: (text: string) => void,
+ *   onSave?: () => void}} [options]
  */
 export function createEditor(
   parent,
@@ -123,7 +129,9 @@ export function createEditor(
   } = {},
 ) {
   const editable = new Compartment(),
-    language = new Compartment();
+    language = new Compartment(),
+    hint = new Compartment();
+  let shownHint = "";
   let readonly = readOnly,
     markdown = isMarkdown(filename),
     conflict = original,
@@ -144,6 +152,7 @@ export function createEditor(
         drawSelection(),
         keymap.of([...defaultKeymap, ...historyKeymap]),
         language.of(markdown ? new LanguageSupport(markdownLanguage) : []),
+        hint.of([]),
         syntaxHighlighting(highlighting),
         theme,
         // Only the primary editor needs line coordinates and an active line.
@@ -207,15 +216,16 @@ export function createEditor(
     if (view) view.dispatch(spec);
     else retained = retained.update(spec).state;
   };
+  const revealCaret = () =>
+    dispatch({
+      effects: EditorView.scrollIntoView(reading().selection.main.head, {
+        y: "nearest",
+      }),
+    });
   const resize =
     original === null
       ? sizeObserver(() => {
-          if (view?.hasFocus)
-            dispatch({
-              effects: EditorView.scrollIntoView(reading().selection.main.head, {
-                y: "nearest",
-              }),
-            });
+          if (view?.hasFocus) revealCaret();
         })
       : null;
   resize?.observe(view.scrollDOM);
@@ -251,6 +261,12 @@ export function createEditor(
     get readOnly() {
       return readonly;
     },
+    // Words an empty editor shows in place of the file, such as why no file is there.
+    set placeholder(text) {
+      if (shownHint === text) return;
+      shownHint = text;
+      dispatch({ effects: hint.reconfigure(text ? placeholder(text) : []) });
+    },
     set readOnly(value) {
       if (readonly === value) return;
       readonly = value;
@@ -279,6 +295,9 @@ export function createEditor(
       );
       dispatch({ effects: originalDocChangeEffect(reading(), changes) });
     },
+    // Bring the caret into the editor's view, as a landing on the editor does: its room
+    // may have shrunk under the caret while the reader stood elsewhere.
+    revealCaret,
     // A move by `moveBefore` collapses the native selection in the view it keeps.
     placeSelection() {
       view?.placeSelection();

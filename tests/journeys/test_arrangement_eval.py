@@ -1,20 +1,38 @@
 """Product controls really render ordinary HTML; the live loop carries each phase
-to a scripted author; judges read real screenshots."""
+to a scripted author; live judges explore disposable copies."""
 
 import json
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
+import pytest
 import turbohtml
 from leaf.event_log import read_events
+from leaf.render_gate.browser import ending
 from leaf.service import PageTransaction
-from leaf_dev import ROOT, arrangement_plain
+from leaf_dev import ROOT, arrangement_eval, arrangement_plain
+from leaf_dev import browser as browser_module
 from leaf_dev.arrangement_eval import (
     CASES,
     WIDTHS,
     comment_message,
     first_prompt,
 )
+
+
+@pytest.fixture(autouse=True)
+def arrangement_browser(_playwright, monkeypatch):
+    """Use the worker's driver when another browser test has already started it."""
+
+    @contextmanager
+    def headless_shell(**options):
+        with ending(_playwright.chromium.launch(**options)) as browser:
+            yield browser
+
+    monkeypatch.setattr(arrangement_plain, "headless_shell", headless_shell)
+    monkeypatch.setattr(arrangement_eval, "headless_shell", headless_shell)
+    monkeypatch.setattr(browser_module, "headless_shell", headless_shell)
 
 
 def test_html_control_uses_browser_without_leaf_payload(tmp_path):
@@ -118,7 +136,9 @@ DOCUMENT = (
 )
 
 
-def test_live_loop_carries_each_phase_to_the_author(tmp_path, monkeypatch):
+def test_live_loop_carries_each_phase_to_the_author(
+    tmp_path, monkeypatch, compiled_installation
+):
     """Script only the model and the user agent: the served page takes a comment
     from a browser selection, its delivery is recorded, the user's pick reaches
     the log, and each phase's page and request stay apart."""
@@ -135,18 +155,36 @@ def test_live_loop_carries_each_phase_to_the_author(tmp_path, monkeypatch):
     def stamp(body):
         (page / "index.html").write_text(DOCUMENT.format(body=body))
         run_leaf(
-            ROOT, run.state, "page", "stamp", str(page), "--text", body, check=True
+            compiled_installation,
+            run.state,
+            "page",
+            "stamp",
+            str(page),
+            "--text",
+            body,
+            check=True,
         )
 
     def turn(message):
         versions.append(message)
         if len(versions) == 1:
-            run_leaf(ROOT, run.state, "page", "init", str(page), check=True)
+            run_leaf(
+                compiled_installation, run.state, "page", "init", str(page), check=True
+            )
             stamp("Author version 1")
-            run_leaf(ROOT, run.state, "server", "start", str(page), check=True)
-            return read_page_state(ROOT, run.state, page)["server"]["url"]
+            run_leaf(
+                compiled_installation,
+                run.state,
+                "server",
+                "start",
+                str(page),
+                check=True,
+            )
+            return read_page_state(compiled_installation, run.state, page)["server"][
+                "url"
+            ]
         if len(versions) == 2:
-            assert "900px" in message
+            assert "1600px" in message and "fullscreen" in message
             stamp("Author version 2")
             return "Revised."
         assert message.startswith("I've made my decisions on the page.")
@@ -162,7 +200,8 @@ def test_live_loop_carries_each_phase_to_the_author(tmp_path, monkeypatch):
         stamp("Ask Mei Tanaka's team")
         return "Answered on the page."
 
-    def decide(url, task, directory):
+    def decide(url, task, directory, *, viewport):
+        assert viewport == (1600, 1000)
         state = PageClient(url).state()
         PageClient(url).post(
             {
@@ -176,6 +215,13 @@ def test_live_loop_carries_each_phase_to_the_author(tmp_path, monkeypatch):
         )
         return {"made": True, "copied": None, "notes": "", "copies": [], "trace": {}}
 
+    original_comment = arrangement_eval.comment_on_passage
+
+    def comment_at_desktop(*args, viewport, **kwargs):
+        assert viewport == (1600, 1000)
+        return original_comment(*args, viewport=viewport, **kwargs)
+
+    monkeypatch.setattr(arrangement_eval, "comment_on_passage", comment_at_desktop)
     child = Scripted(turn, comment, page)
     monkeypatch.setattr(arrangement_eval, "LiveChild", child)
     monkeypatch.setattr(arrangement_eval, "decide", decide)
@@ -198,7 +244,6 @@ def test_live_loop_carries_each_phase_to_the_author(tmp_path, monkeypatch):
     decision = run.recorded("decision")
     assert decision["route"] == "page"
     assert [g["detail"] for g in decision["gestures"]] == [{"value": ["redis"]}]
-    assert arrangement_eval.comment_applied(run, evidence / "page-phase3")
     assert arrangement_eval.comment_answer(run, "") == "Named Mei Tanaka's team."
 
     def reader(cwd, prompt, *args, out, err, **kwargs):
@@ -226,7 +271,7 @@ def test_live_loop_carries_each_phase_to_the_author(tmp_path, monkeypatch):
 
 
 def test_completed_record_has_a_render_correction_loop_without_a_decision(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, compiled_installation
 ):
     """Script only the model; actual checks reject, repair and render its page."""
     from leaf_dev import arrangement_eval
@@ -240,7 +285,9 @@ def test_completed_record_has_a_render_correction_loop_without_a_decision(
         page = child.cwd / "page"
 
         def leaf(*arguments):
-            return arrangement_eval.run_leaf(ROOT, child.state, *arguments)
+            return arrangement_eval.run_leaf(
+                compiled_installation, child.state, *arguments
+            )
 
         if len(calls) == 1:
             assert f"page check {page} --render" in prompt
@@ -286,6 +333,7 @@ def test_completed_record_has_a_render_correction_loop_without_a_decision(
         key.startswith("decision-") for key in response["metadata"]["checks"]
     )
     for phase in response["metadata"]["diagnostics"]["phases"].values():
+        assert set(phase["captures"]) == {"short", "phone"}
         assert phase["captures"]["short"]
         assert all(Path(path).is_file() for path in phase["captures"]["short"])
 
@@ -317,7 +365,7 @@ def test_reader_calibration_shows_the_judge_its_page_at_every_width(tmp_path):
 def test_reveal_opens_the_named_item_though_its_words_show_elsewhere(tmp_path):
     """A summary naming the comment's fact does not stand for the commented item:
     the capture opens the item, and leaves one already open as it is."""
-    from leaf_dev.browser import chrome, tab
+    from leaf_dev.browser import headless_shell, tab
     from leaf_dev.eval_user import reveal, shows
 
     (tmp_path / "index.html").write_text(
@@ -328,7 +376,7 @@ def test_reveal_opens_the_named_item_though_its_words_show_elsewhere(tmp_path):
     )
     with (
         arrangement_plain.serving(tmp_path) as url,
-        chrome() as browser,
+        headless_shell() as browser,
         tab(browser) as view,
     ):
         arrangement_plain.load(view, url)

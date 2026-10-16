@@ -252,7 +252,7 @@ def test_input_after_a_settled_response_batch_does_not_revive_older_inputs(page_
     ]
 
 
-def test_unrelated_agent_update_does_not_clear_a_standing_user_ask(page_dir):
+def test_unrelated_agent_update_does_not_clear_an_open_user_ask(page_dir):
     publish(page_dir)
     root = append_carried_log_record(
         page_dir,

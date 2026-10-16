@@ -104,12 +104,20 @@ jobs:
       - name: Check bundles, browser, runtime, Worker and eval assertions
         run: pnpm run check
 
-      # Hooks only check source, so they can overlap Python and the private website
-      # build.
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+
+      # Hooks rewrite what they flag, so they run in a worktree of their own: a rewrite
+      # must not reach the Python tests and website build reading this checkout.
       - name: 🔍 Pre-commit hooks
         id: lint
         background: true
-        uses: pre-commit/action@v3.0.1
+        run: |
+          git worktree add --detach "$RUNNER_TEMP/lint"
+          cd "$RUNNER_TEMP/lint"
+          uv run --project "$GITHUB_WORKSPACE" pre-commit run --all-files --show-diff-on-failure --color=always
 
       # The synchronous gates fail before Python spends its runner time.
       # The runner's four vCPUs sat ~41% idle under two workers; four left 7% idle
@@ -129,8 +137,16 @@ jobs:
         # meanwhile: a pull request builds the website beside it.
         run: |
           mkdir -p .tmp/test-results
+          # Fail normally before the six-hour job deadline, which cancels the run
+          # and never summons tend-ci-fix. Leave time for termination, profiles,
+          # uploads and the website gates.
+          # Keep the shell alive through INT while pytest and py-spy finalize. Shell
+          # background jobs inherit INT ignored, so reset it at both child entries.
+          timeout --verbose --signal=INT --kill-after=1m 5h bash -euo pipefail <<'SUITE' > >(tee .tmp/test-results/output.log) 2>&1
+          trap '' INT
+          export PYTHONUNBUFFERED=1
           # Each worker charges its tests' CPU to a cgroup of its own under this one
-          # (`dev/leaf_dev/suite_profile.py`). Owning it lets the workers make and join
+          # (`dev/leaf_dev/commands/suite_profile.py`). Owning it lets the workers make and join
           # theirs without root, and this shell joins it so pytest starts inside.
           export SUITE_PROFILE_CGROUP=/sys/fs/cgroup/leaf-suite
           sudo mkdir "$SUITE_PROFILE_CGROUP"
@@ -141,13 +157,13 @@ jobs:
             sudo touch /var/log/account/suite
             sudo accton /var/log/account/suite
           fi
-          uv run pytest tests -n 3 -v --junitxml=.tmp/test-results/results.xml \
+          env --default-signal=INT uv run pytest tests -n 3 -v --junitxml=.tmp/test-results/results.xml \
             ${{ github.event_name == 'pull_request' && '--changed-since HEAD^1' || github.event_name == 'push' && '--run-main' || '--run-nightly' }} &
           tests=$!
           until pgrep -P "$tests" >/dev/null || ! kill -0 "$tests" 2>/dev/null; do
             sleep 0.1
           done
-          uvx py-spy@0.4.2 record --pid "$tests" --subprocesses --idle --nonblocking \
+          env --default-signal=INT uvx py-spy@0.4.2 record --pid "$tests" --subprocesses --idle --nonblocking \
             --function --rate "$PY_SPY_RATE" --format raw --output .tmp/test-results/stacks.txt &
           profiler=$!
           wait "$tests" && status=0 || status=$?
@@ -163,6 +179,7 @@ jobs:
             sa -a -c -i /var/log/account/suite > .tmp/test-results/cpu-by-command.txt
           fi
           exit "$status"
+          SUITE
 
       # The website build can overlap Python; Docker must wait because its host
       # interface changes interrupt Chrome's loopback requests in browser tests.
@@ -181,12 +198,12 @@ jobs:
           pnpm --dir .. exec wrangler --cwd worker deploy --dry-run --outdir ../.tmp/worker-deploy
         working-directory: worker
 
-      - name: Measure the bundled release in Chrome
+      - name: Measure the bundled release in a browser
         if: github.event_name == 'pull_request'
         run: uv run leaf-dev verify-site website-worker
 
       - name: Summarize where the suite's time went
-        if: success() || failure()
+        if: (success() || failure()) && hashFiles('.tmp/test-results/results.xml') != ''
         run: |
           uv run leaf-dev suite-profile .tmp/test-results | tee .tmp/test-results/summary.txt
           { echo '```'; cat .tmp/test-results/summary.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

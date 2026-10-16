@@ -1,9 +1,12 @@
-/* A playground is an instrument laid out as a sidebar page's body beside its aside: the real
- * preview is the stage and owns the larger field, and the controls stand above the
- * instruction they write, with its actions, in a rail beside it. Its regions are three
- * generated panes (data-lf-reading-role="pane", the kernel's theme.css), whose bodies
- * scroll where a workspace Layout fills the window (layouts.css); here the playground
- * only places the panes and draws them.
+/* A playground is an instrument laid out as a sidebar page's body beside its aside: the
+ * real preview is the stage and owns the larger field, and the controls that change all
+ * of it stand above the instruction they write, with its actions, in a rail beside it. A
+ * control written inside the preview stands there, beside the item it changes, and the
+ * rail then holds only what is left. With all controls inline, presets precede
+ * the full-width preview and its instruction follows. Its regions are up to three generated panes
+ * (data-lf-reading-role="pane", the kernel's theme.css), whose bodies scroll where a
+ * workspace Layout fills the window (layouts.css); here the playground only places the
+ * panes and draws them.
  *
  * Each region is drawn once. The playground itself is no card: the stage is the
  * preview's own well, and each rail pane is a panel as a sidebar page draws its regions
@@ -15,9 +18,9 @@
   grid-template-columns: minmax(0, 1fr);
   gap: var(--sp-4);
   box-sizing: border-box;
-  /* A grid box keeps the width it states, so it states the room's
-   * (`--lf-breakout-width`, layouts.css), which a granted `data-width` widens. */
-  width: var(--lf-breakout-width);
+  /* A grid box keeps the width it states, so it fills its holder, and a granted
+   * `data-width` widens it (layouts.css). */
+  width: 100%;
   margin: var(--sp-4) 0;
   container-type: inline-size;
 }
@@ -28,7 +31,7 @@
   grid-template-rows: minmax(0, 1fr);
 }
 
-/* The stage beside a rail: the preview takes two thirds and spans the rail's two rows; the
+/* With shared controls, the preview takes two thirds and spans the rail's two rows; the
  * controls take their content's height and the instruction stands under them. Narrower
  * than 43.5rem, a document's column included, a rail would be too narrow for the controls
  * it holds, so the regions stack in reading order: the stage, the controls, the
@@ -40,12 +43,13 @@
 }
 
 @container (min-width: 43.5rem) {
-  .lf-playground-split {
+  .lf-playground-split:has(> .lf-playground-controls-region > .lf-playground-controls) {
     grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
     grid-template-rows: auto 1fr;
   }
 
-  .lf-playground-preview-region {
+  .lf-playground-split:has(> .lf-playground-controls-region > .lf-playground-controls)
+    > .lf-playground-preview-region {
     grid-row: 1 / span 2;
     align-self: stretch;
   }
@@ -75,8 +79,27 @@
       --lf-full-height: inherit;
     }
 
+    /* Below the combined floors, the ancestor scrolls both the inline evidence
+     * and the instruction rather than hiding either one. */
+    .lf-playground-split:not(
+      :has(> .lf-playground-controls-region > .lf-playground-controls)
+    ) {
+      grid-template-rows: minmax(12rem, 1fr) minmax(9rem, auto);
+    }
+
+    .lf-playground-split:has(> .lf-playground-controls-region):not(
+        :has(> .lf-playground-controls-region > .lf-playground-controls)
+      ) {
+      grid-template-rows: minmax(min-content, auto) minmax(12rem, 1fr) minmax(
+          9rem,
+          auto
+        );
+    }
+
     @container (min-width: 43.5rem) {
-      .lf-playground-split {
+      .lf-playground-split:has(
+        > .lf-playground-controls-region > .lf-playground-controls
+      ) {
         grid-template-rows: minmax(12rem, 1fr) auto;
       }
 
@@ -131,16 +154,9 @@
   padding: 12px 18px;
 }
 
-.lf-playground-controls-region > .lf-playground-presets {
+.lf-playground-controls-region > header.lf-playground-presets {
   padding-bottom: 14px;
   border-bottom: 1px solid var(--rule);
-}
-
-.lf-playground-instruction-title {
-  color: var(--muted);
-  font: 600 var(--t-6)/1.3 var(--sans);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
 
 .lf-playground-controls {
@@ -152,10 +168,6 @@
 
 .lf-playground-controls-title {
   margin: 0;
-  color: var(--muted);
-  font: 600 var(--t-6)/1.3 var(--sans);
-  letter-spacing: 0.065em;
-  text-transform: uppercase;
 }
 
 :scope:is(lf-playground-control) {
@@ -241,7 +253,6 @@
 .lf-playground-choice-face:has(> input[data-lf-focus]) {
   outline: var(--focus-ring);
   outline-offset: 2px;
-  --lf-focus-ring: playground-choice;
 }
 
 .lf-playground-presets {
@@ -335,8 +346,9 @@
   color: var(--danger-ink);
 }
 
-/* A quoted playground is its preview and instruction as authored. */
-:scope:is(lf-playground).lf-playground-quoted > lf-playground-control,
+/* A quoted playground is its preview and instruction as authored, without the controls
+ * written in either place. */
+:scope:is(lf-playground).lf-playground-quoted lf-playground-control,
 :scope:is(lf-playground).lf-playground-quoted > lf-playground-preset {
   display: none;
 }

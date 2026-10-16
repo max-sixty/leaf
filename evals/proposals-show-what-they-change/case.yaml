@@ -10,7 +10,7 @@
 # Tool-capable authoring now registers real files and grades the saved page;
 # drawings no longer substitute for an unavailable capture.
 # At 35c660aee base passed 0/6 (draws-the-change 1/6, shows-today 0/3); the
-# shape-shown-inside-the-ask rule in authoring-questions.md passed 3/3, drawing the
+# shape-shown-inside-the-ask rule in authoring-asks.md passed 3/3, drawing the
 # change 6/6. The wording guardrail held 12/12.
 description: proposals-show-what-they-change
 metadata:

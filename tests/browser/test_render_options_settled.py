@@ -24,6 +24,7 @@ from render_harness import (
     page_registry,
     panel_settled,
     round_trip,
+    said,
     select,
     undo,
     write,
@@ -116,7 +117,7 @@ def test_a_comparison_mark_that_failed_on_return_keeps_following_the_comparison(
     expect(page.locator("#transport .lf-settled-diff")).to_have_count(0)
     # The paint reports the failure, and nothing else does: no uncaught throw.
     errors = consume_browser_errors(page, "the marks failed once")
-    assert len(errors) == 1 and errors[0].startswith("leaf: paint failed"), errors
+    assert len(errors) == 1 and said(errors[0]).startswith("leaf: paint failed"), errors
     compare_with(page, 1)
     expect(page.locator("#transport .lf-settled-diff")).to_have_text("Δ1")
     expect(mark).to_have_text("Δ1")
@@ -246,7 +247,7 @@ def test_a_settled_ask_reconciles_added_options_into_its_disclosure(browser, ser
     """A replayed option stays inside the settled disclosure it belongs to.
 
     The disclosure's count and controls describe the complete current option set,
-    including options reconstructed from their standing `add`, and follow the undo
+    including options reconstructed from their `add` in force, and follow the undo
     that takes that `add` back.
     """
     page = open_page(browser, serve(SETTLED_ASK_PAGE))

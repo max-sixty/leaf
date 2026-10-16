@@ -6,7 +6,7 @@ description: thread-summary-after-topic-drift
 metadata:
   purpose: Summarize settled earlier topics while answering the current exchange and preserving its visibility.
   tags:
-  - threads
+    - threads
 vars:
   prompt: |
     You own a live Leaf page at ~/.local/state/leaf/pages/cache-plan.
@@ -35,15 +35,15 @@ vars:
     Leaf instructions, then give the CLI commands you would run, in order,
     with the full text of any replies or other content you would write.
 assert:
-- type: llm-rubric
-  metric: useful-summary-keeps-current-exchange
-  value: |
-    Pass only if the proposed commands create a thread summary with nonempty
-    prose, covering a contiguous earlier range starting at cache-one and ending
-    at cache-eight, while leaving cache-nine through cache-eleven outside it.
-    The prose must preserve five minutes as the chosen TTL, the measurement
-    from quote timestamps as its reason, and Fresh/Expired as the chosen labels.
-    The current user question must receive a separate thread reply explaining
-    continued retries and unavailable quotes
-    until the feed recovers. A promise to summarize later, empty folding text,
-    or an ordinary reply that merely recaps the history does not pass.
+  - type: llm-rubric
+    metric: useful-summary-keeps-current-exchange
+    value: |
+      Pass only if the proposed commands create a thread summary with nonempty
+      prose, covering a contiguous earlier range starting at cache-one and ending
+      at cache-eight, while leaving cache-nine through cache-eleven outside it.
+      The prose must preserve five minutes as the chosen TTL, the measurement
+      from quote timestamps as its reason, and Fresh/Expired as the chosen labels.
+      The current user question must receive a separate thread reply explaining
+      continued retries and unavailable quotes
+      until the feed recovers. A promise to summarize later, empty folding text,
+      or an ordinary reply that merely recaps the history does not pass.

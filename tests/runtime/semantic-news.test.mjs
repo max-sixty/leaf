@@ -169,7 +169,7 @@ test("structural questions own their thread obligation and reopening starts a ne
       ["user_obligation", "t", "choice"],
     ],
   );
-  assert.equal(semanticNewsNotice(current), "2 items need your input");
+  assert.equal(semanticNewsNotice(current), "2 items waiting on me");
   assert.deepEqual(combineSemanticNews(reopened.news, reopened.news), reopened.news);
   assert.deepEqual(observeSemanticNews(reopened.observed, owed).news, []);
 });
@@ -547,4 +547,66 @@ test("editing a prose ask creates news for its new content version", () => {
     [["user_obligation", "same", "t"]],
   );
   assert.deepEqual(observeSemanticNews(changed.observed, edited).news, []);
+});
+
+test("held producer batches preserve interrupted news and merge later arrivals", async (t) => {
+  const { notice, noticeReading, holdStatus, liveEl } =
+    await import("/runtime/notifications.js");
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  t.after(() => window.happyDOM.cancelAsync());
+  const announcements = [];
+  let delivered;
+  const observer = new MutationObserver(() => {
+    const words = liveEl.textContent;
+    if (!words) return;
+    announcements.push(words);
+    delivered?.resolve();
+  });
+  observer.observe(liveEl, { childList: true, subtree: true });
+  t.after(() => observer.disconnect());
+  const news = ["a", "b", "a", "b"].map((thread, index) => ({
+    kind: "agent_content",
+    key: `content:queued-${index}`,
+    thread,
+    version: `queued-${index}`,
+    message: message(`queued-${index}`, { agent: "Codex" }),
+  }));
+  const announce = async (value) => {
+    delivered = Promise.withResolvers();
+    notice(semanticNewsNotice(value), {
+      background: true,
+      group: {
+        key: "semantic-news",
+        value,
+        combine: combineSemanticNews,
+        format: semanticNewsNotice,
+      },
+    });
+    t.mock.timers.tick(30);
+    await delivered.promise;
+  };
+  await announce(news.slice(0, 2));
+  assert.equal(noticeReading().message, "2 replies in 2 threads");
+  assert.equal(noticeReading().visible, true);
+  holdStatus(10000);
+  assert.equal(noticeReading().visible, false);
+  for (const item of news.slice(2)) await announce([item]);
+  assert.equal(noticeReading().visible, false);
+  assert.deepEqual(announcements, [
+    "2 replies in 2 threads",
+    "Codex replied",
+    "Codex replied",
+  ]);
+  const before = [...announcements];
+  holdStatus(1);
+  t.mock.timers.tick(1);
+  assert.equal(noticeReading().message, "4 replies in 2 threads");
+  assert.equal(noticeReading().visible, true);
+  t.mock.timers.tick(30);
+  await window.happyDOM.whenAsyncComplete();
+  assert.deepEqual(
+    announcements,
+    before,
+    "showing deferred news must not announce it again",
+  );
 });

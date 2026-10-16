@@ -2,16 +2,17 @@
 
 Bounded readings of exact CSS text keep state requests from reparsing unchanged
 stylesheets. Their results are read-only; edits select a new cache entry.
+
+Each stylesheet is parsed on its own, matching browser EOF recovery. Composition
+serializes that reading before adding wrappers, so a missing delimiter cannot put
+the wrapper or a later sheet inside this sheet's last block, string or comment.
 """
 
 from functools import lru_cache
 
 import tinycss2
 
-# tinycss2 reads every stylesheet and style="" here. Patterns over the text came first,
-# and each was right only about the grammar it was written against: a brace walk that
-# knew a comment's braces are not braces still read a `}` inside `content: "}"` as the
-# end of the block. The dependency buys the grammar whole.
+from .findings import Finding
 
 
 def css_block(css):
@@ -20,55 +21,20 @@ def css_block(css):
     return tinycss2.parse_blocks_contents(css, skip_comments=True, skip_whitespace=True)
 
 
-def _css_unclosed_blocks(css: str) -> int:
-    """How many blocks a stylesheet leaves open at end of file.
-
-    The CSS parser auto-closes these (so tinycss2 reports no error), which is
-    exactly what makes one dangerous here: stylesheets are layer sources that
-    concatenate, so a block left open swallows every rule after it — the rest
-    of the file's and every later layer's — into its own scope. Counted
-    outside comments and strings; an over-closed sheet floors at zero, since
-    the stray brace is a parse error tinycss2 already names."""
-    depth = 0
-    i = 0
-    while i < len(css):
-        ch = css[i]
-        if css.startswith("/*", i):
-            end = css.find("*/", i + 2)
-            i = len(css) if end == -1 else end + 2
-        elif ch in "\"'":
-            quote = ch
-            i += 1
-            while i < len(css) and css[i] not in (quote, "\n"):
-                i += 2 if css[i] == "\\" else 1
-            i += 1
-        else:
-            if ch == "{":
-                depth += 1
-            elif ch == "}":
-                depth = max(0, depth - 1)
-            i += 1
-    return depth
+@lru_cache(maxsize=32)
+def css_stylesheet(css: str):
+    """One independent stylesheet's read-only syntax tree, including EOF recovery."""
+    return tinycss2.parse_stylesheet(css)
 
 
 @lru_cache(maxsize=32)
-def css_syntax_errors(css: str, source: str, *, block=False) -> tuple[str, ...]:
-    """Every parse error in a stylesheet or declaration block, including nested rules."""
-    parse = (
-        css_block
-        if block
-        else lambda value: tinycss2.parse_stylesheet(
-            value, skip_comments=True, skip_whitespace=True
-        )
-    )
+def css_syntax_errors(css: str, source: str, *, block=False) -> tuple[Finding, ...]:
+    """Every parse error in a stylesheet or declaration block, including nested rules.
+    `source` names the sheet as its author finds it: a file, the page's <style>, or
+    one element's style attribute."""
+    parse = css_block if block else css_stylesheet
     errors = []
     seen = set()
-    if not block and (depth := _css_unclosed_blocks(css)):
-        errors.append(
-            f"{source}: {depth} block(s) left open at end of file — every rule "
-            "after the unclosed brace, this stylesheet's or a later layer's, "
-            "lands inside its scope"
-        )
 
     def record(node):
         key = (node.source_line, node.source_column, node.message)
@@ -76,8 +42,15 @@ def css_syntax_errors(css: str, source: str, *, block=False) -> tuple[str, ...]:
             return
         seen.add(key)
         errors.append(
-            f"{source} syntax error at "
-            f"{node.source_line}:{node.source_column}: {node.message}"
+            Finding(
+                "css-syntax",
+                values={
+                    "sheet": source,
+                    "row": node.source_line,
+                    "column": node.source_column,
+                    "message": node.message,
+                },
+            )
         )
 
     def walk_tokens(tokens):

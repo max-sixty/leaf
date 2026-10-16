@@ -12,8 +12,8 @@ description: playground-takes-the-room
 metadata:
   purpose: 'Playground: a page whose subject is a playground is a workspace whose body is the playground''s Ask.'
   tags:
-  - playground
-  - layout
+    - playground
+    - layout
 vars:
   prompt: |
     The user wants to choose between two empty-state designs for the project list:
@@ -26,12 +26,12 @@ vars:
     directory. The page directory is not reachable here, so reply with the page's
     HTML and any page module it needs.
 assert:
-- type: llm-rubric
-  metric: playground-takes-the-room
-  value: |
-    Pass only if `main` is a `layout-workspace` whose body, the element between its
-    `header` and any `footer`, is the `lf-ask` holding the `lf-playground`, and the
-    `lf-playground` carries `data-width="available"`, so the playground takes the
-    window rather than breaking out beside a column. Fail if `main` is a
-    `layout-column` or `layout-sidebar` page, or if the playground stands in a section
-    or other wrapper inside the body.
+  - type: llm-rubric
+    metric: playground-takes-the-room
+    value: |
+      Pass only if `main` is a `layout-workspace` whose body, the element between its
+      `header` and any `footer`, is the `lf-ask` holding the `lf-playground`, and the
+      `lf-playground` carries `data-width="available"`, so the playground takes the
+      window rather than breaking out beside a column. Fail if `main` is a
+      `layout-column` or `layout-sidebar` page, or if the playground stands in a section
+      or other wrapper inside the body.

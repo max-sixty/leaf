@@ -16,6 +16,22 @@ export const TEXT_FIELD = "leaf-text";
 // goes down alone, ahead of the key it modifies. The dispatcher's sequence asks this to tell
 // half a press from a key of its own, and a label press keeps its hold through one.
 export const MODIFIER_KEYS = ["Shift", "Alt", "Control", "Meta"];
+// The keys that move a caret through text, and with Shift extend the selection from it:
+// what a text box keeps from its ancestors' bindings, and what tells a reader of the
+// caret or the selection that the keyboard has moved it.
+export const CARET_KEYS = [
+  "ArrowLeft",
+  "ArrowRight",
+  "ArrowUp",
+  "ArrowDown",
+  "Home",
+  "End",
+  "PageUp",
+  "PageDown",
+];
+// Select All under either platform's modifier. With Shift also held the key reads "A".
+export const selectsAll = (event) =>
+  event.key.toLowerCase() === "a" && (event.metaKey || event.ctrlKey);
 export const TEXT_BOX = `textarea, ${TEXT_FIELD}`;
 
 // What the platform puts in the tab order without being asked, which is what a layout

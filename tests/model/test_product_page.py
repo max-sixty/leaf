@@ -18,7 +18,8 @@ from leaf.registry import validation as registry_validation
 from leaf.registry.schema import check_schema
 from leaf.structure import SourceDocument
 from leaf.validation import composition as validation_model
-from leaf_dev import docs, record_demo
+from leaf_dev import docs
+from leaf_dev.commands import record_demo
 from leaf_dev.example_data import document_metadata
 from leaf_dev.page_fixtures import authored_markup
 from unidiff import PatchSet
@@ -83,10 +84,10 @@ def test_every_published_source_says_what_its_page_is():
         parsed = SourceDocument(page.read_text())
         described = [
             meta["content"]
-            for meta in parsed.named_metas
+            for meta in parsed.authoring.named_metas
             if meta["name"] == "description"
         ]
-        assert parsed.title.strip(), page.name
+        assert parsed.authoring.title.strip(), page.name
         assert len(described) == 1, page.name
         assert described[0].strip(), page.name
         descriptions[page.name] = described[0]

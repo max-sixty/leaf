@@ -4,9 +4,9 @@ metadata:
   purpose: Read current content, decisions and hidden surfaces; distinguish unavailable
     viewer state.
   tags:
-  - workflow
+    - workflow
   conditions:
-  - leaf
+    - leaf
   executor: leaf_dev.usability_eval
   scenario: reading
 variants:
@@ -30,10 +30,10 @@ variants:
     metadata:
       scenario: reading-external-data
       purpose: Read the isolated external-data surface.
-  standing-action:
+  action-in-force:
     metadata:
-      scenario: reading-standing-action
-      purpose: Read the isolated standing-action surface.
+      scenario: reading-action-in-force
+      purpose: Read the isolated action-in-force surface.
   view:
     metadata:
       scenario: reading-view

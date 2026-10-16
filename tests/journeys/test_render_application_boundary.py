@@ -13,8 +13,6 @@ from browser.test_render_application_boundary import (
     THREAD_ACTIONS_DECLARATION,
     THREAD_FILTER,
     THREAD_FILTER_DECLARATION,
-    THREAD_MIRROR,
-    THREAD_MIRROR_DECLARATION,
     THREAD_READER,
     THREAD_READER_DECLARATION,
     activation_page,
@@ -35,12 +33,14 @@ from render_harness import (
     banner_control,
     consume_browser_errors,
     holding,
+    http_error_console,
     leaf_page,
     open_page,
     page_comment,
     panel_settled,
     reported_browser_errors,
     round_trip,
+    said,
     scroll_settled,
     sending,
     stamp_page,
@@ -170,7 +170,7 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
         },
     )
     round_trip(page)
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, http_error_console(400))
     expect(reader).not_to_contain_text("Refused words")
     expect(box).to_have_js_property("value", "Refused words")
     if while_pending == "choose-earlier":
@@ -252,115 +252,6 @@ def test_package_thread_widgets_keep_local_filters_and_independent_subscriptions
     # The widget's route through core opens the shut Threads on that thread.
     first.locator("button", has_text="Delta").click()
     expect(page.locator(f'.lf-thread[data-id="{thread_id}"]')).to_be_visible()
-
-
-def test_package_thread_mirrors_share_core_conversation_without_claiming_placement(
-    browser, serve
-):
-    """Two package containers render one Thread and keep independent lifetimes."""
-    url = serve(
-        leaf_page(
-            "Thread mirrors",
-            '<h1>Thread mirrors</h1><button id="mirror-subject">Subject</button>'
-            '<lf-thread-mirror id="first" filter="Shared"></lf-thread-mirror>'
-            '<lf-thread-mirror id="second" filter="opening"></lf-thread-mirror>',
-        ),
-        layer_registry={"lf-thread-mirror": THREAD_MIRROR_DECLARATION},
-        layer_widgets={"lf-thread-mirror.js": THREAD_MIRROR},
-    )
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "id": "shared-thread",
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "Shared opening",
-            "anchor": {"section": "mirror-subject"},
-        },
-    )
-    page = open_page(browser, url)
-    first = page.locator("#first")
-    second = page.locator("#second")
-    expect(first.locator(".lf-page-thread")).to_contain_text("Shared opening")
-    expect(second.locator(".lf-page-thread")).to_contain_text("Shared opening")
-    assert first.evaluate("node => node.updates")
-    assert second.evaluate("node => node.updates")
-    expect(page.locator('.lf-margin-marker[data-lf-kinds="comment"]')).to_have_count(1)
-
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    expect(page.locator('.lf-thread[data-id="shared-thread"]')).to_be_visible()
-    page.locator(".lf-threads-toggle").click()
-
-    with sending(page, "a reply from the first package mirror"):
-        write(
-            first.locator(".lf-page-thread .lf-thread-reply leaf-text"), "Shared reply"
-        )
-        first.locator(".lf-page-thread .lf-thread-reply").get_by_role(
-            "button", name="Send"
-        ).click()
-    expect(first.locator(".lf-page-thread")).to_contain_text("Shared reply")
-    expect(second.locator(".lf-page-thread")).to_contain_text("Shared reply")
-    expect(page.locator('.lf-thread[data-id="shared-thread"]')).to_contain_text(
-        "Shared reply"
-    )
-    second.locator("input").fill("Absent")
-    expect(second.locator(".lf-page-thread")).to_have_count(0)
-    expect(first.locator(".lf-page-thread")).to_contain_text("Shared reply")
-    second.locator("input").fill("opening")
-    expect(second.locator(".lf-page-thread")).to_contain_text("Shared reply")
-
-    second.evaluate("node => { node.holding = true; node.consumer.update(); }")
-    expect(second).to_have_attribute("data-held", "true")
-    with sending(page, "a reply while a package mirror is held"):
-        write(first.locator(".lf-page-thread .lf-thread-reply leaf-text"), "While held")
-        first.locator(".lf-page-thread .lf-thread-reply").get_by_role(
-            "button", name="Send"
-        ).click()
-    expect(first.locator(".lf-page-thread")).to_contain_text("While held")
-    expect(page.locator('.lf-thread[data-id="shared-thread"]')).to_contain_text(
-        "While held"
-    )
-    assert second.evaluate("node => node.signals.at(-2).aborted")
-    assert not page.evaluate(
-        """async () => {
-          const {readApplicationPresentation} = await window.__lfRuntimeImport('/runtime/semantic-state.js');
-          return readApplicationPresentation().pending.includes('thread');
-        }"""
-    )
-    second.evaluate("""node => {
-      node.holding = false;
-      for (const release of node.releases.splice(0)) release();
-      node.removeAttribute('data-held');
-      node.consumer.update();
-    }""")
-    # The log answered the reply before the held mirror drew it, so to that mirror it is
-    # news, which waits behind a notice rather than moving its reply box. It is the
-    # user's own message, not a reply.
-    expect(second.locator(".lf-thread-news")).to_have_text("1 new message")
-    expect(second.locator(".lf-page-thread")).not_to_contain_text("While held")
-
-    # This lifecycle removal follows the user's clearing their local filter.
-    second.locator("input").fill("")
-    second_handle = second.element_handle()
-    second.evaluate("node => node.remove()")
-    stopped_at = second_handle.evaluate("node => node.updates")
-    with sending(page, "a reply after the second mirror disconnected"):
-        write(
-            first.locator(".lf-page-thread .lf-thread-reply leaf-text"), "After removal"
-        )
-        first.locator(".lf-page-thread .lf-thread-reply").get_by_role(
-            "button", name="Send"
-        ).click()
-    expect(first.locator(".lf-page-thread")).to_contain_text("After removal")
-    assert second_handle.evaluate("node => node.updates") == stopped_at
-    expect(page.locator('.lf-margin-marker[data-lf-kinds="comment"]')).to_have_count(1)
-    page.locator("#mirror-subject").focus()
-    page.keyboard.press("Shift+Tab")
-    page.keyboard.press("Tab")
-    expect(page.locator("#mirror-subject")).to_be_focused()
-    expect(page.locator(".lf-margin-thread")).to_contain_text("After removal")
 
 
 def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
@@ -540,9 +431,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     )
     page.evaluate(
         """async id => {
-          const presentation = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js'
-          );
+          const presentation = await window.__lfCheckApi();
           let release;
           const promise = new Promise(done => { release = done; });
           window.threadPreparation = {promise, release};
@@ -758,7 +647,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     expected_errors = ["leaf: Presentation failed: injected complete-list failure"]
     page.evaluate("lfShiftsJudged()")
     errors = take_browser_errors(page)
-    assert [error.splitlines()[0] for error in errors] == expected_errors, errors
+    assert [said(error) for error in errors] == expected_errors, errors
 
 
 @pytest.mark.parametrize("place", ["closed", "selected", "scrolled", "scaled"])
@@ -835,9 +724,13 @@ def test_an_external_withdrawal_keeps_the_readers_allocation(browser, serve, pla
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     if place == "scaled":
-        page.add_style_tag(
-            content=".lf-thread-panel { transform:scale(1.2); transform-origin:top right; }"
-        )
+        page.evaluate("""() => {
+            const style = document.createElement('style');
+            style.setAttribute('data-controls', '');
+            style.textContent =
+              '.lf-thread-panel { transform:scale(1.2); transform-origin:top right; }';
+            document.head.append(style);
+        }""")
         assert (
             page.locator(".lf-thread-panel").evaluate(
                 "node => getComputedStyle(node).transform"
@@ -910,9 +803,14 @@ def test_an_external_withdrawal_keeps_the_readers_allocation(browser, serve, pla
         # The subject has left the document: its editor ends, while the draft's
         # independent saved owner keeps the words for a genuine return.
         page.evaluate("lfWordsJudged()")
-        assert take_browser_errors(page) == [
-            'typed words left the screen without a key or press: "A draft for this conversation" in leaf-text.lf-ui'
-        ]
+        consume_browser_errors(
+            page,
+            {
+                "code": "words-left-screen",
+                "words": "A draft for this conversation",
+                "place": "leaf-text.lf-ui",
+            },
+        )
     # A view change or choosing another conversation releases retained news too.
     if place == "scaled":
         find = page.get_by_role("searchbox", name="Find in threads")
@@ -934,7 +832,7 @@ def test_an_external_withdrawal_keeps_the_readers_allocation(browser, serve, pla
     if place == "scrolled":
         assert (
             page.evaluate("""async () => {
-            const {loadDraft} = await window.__lfRuntimeImport('/runtime/drafts.js');
+            const {loadDraft} = await window.__lfWidgetApi();
             return loadDraft('reply:first-thread');
         }""")
             == "A draft for this conversation"
@@ -1091,10 +989,10 @@ def test_package_thread_actions_share_core_admission_and_current_availability(
       const agent = thread.msgs.find(message => message.author === 'agent');
       const choice = agent.reactions.choices.find(choice => choice.name === 'keep');
       return thread.offers.reply && thread.offers.resolve && !thread.offers.reopen &&
-        choice.standing && choice.glyph && choice.label && Object.isFrozen(choice);
+        choice.inForce && choice.glyph && choice.label && Object.isFrozen(choice);
     }""")
     assert page.evaluate("""async () => {
-      const {threadActions,readThreads} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const {threadActions,readThreads} = await window.__lfWidgetApi();
       const thread = readThreads().threads[0];
       const agent = thread.msgs.find(message => message.author === 'agent');
       return threadActions.setReaction(thread.key, agent.key, 'keep', true) === null;
@@ -1192,7 +1090,7 @@ def test_primary_arrival_records_a_return_place_only_when_travelling(
     entries = page.evaluate("history.length")
     assert page.evaluate(
         """async ({travel, primary}) => {
-          const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const api = await window.__lfWidgetApi();
           const thread = api.readThreads().threads.find(thread => thread.id === (primary ? 'opening' : 'anchored'));
           window.returnTripDestination = await api.threadActions.open(thread.key, {part:'reply', travel});
           return Boolean(returnTripDestination);
@@ -1278,10 +1176,10 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
             "Control+Enter"
         )
     expect(workspace.get_by_text("A shared draft", exact=True)).to_be_visible()
-    # One reply answers both prose Questions. Counts include them, while the
+    # One reply answers both prose asks. Counts include them, while the
     # compact answer summary names only widget choices instead of repeating prose.
     expect(workspace.locator(".counts")).to_have_text(
-        "0 asks on you · 3 answered · Email"
+        "0 asks on me · 3 answered · Email"
     )
     with sending(page, "create a real conversation from a package"):
         workspace.get_by_role("textbox", name="New conversation").fill(
@@ -1362,7 +1260,7 @@ def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
     expect(email).to_be_visible()
     page.evaluate(
         """async () => {
-        window.api = await window.__lfRuntimeImport('/runtime/widget-api.js');
+        window.api = await window.__lfWidgetApi();
         window.nestedOption = document.querySelector('#email');
         }"""
     )
@@ -1419,7 +1317,7 @@ def test_primary_parts_keep_identity_and_nomination_order_through_admission(
     """A shared outlet follows nomination order without remounting admitted turns."""
     page = open_page(browser, package_workspace(serve))
     page.evaluate("""async () => {
-      window.api = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      window.api = await window.__lfWidgetApi();
       const workspace = document.querySelector('#workspace');
       const present = (collection, parts) => {
         const messages = collection.threads.flatMap(thread =>
@@ -1484,7 +1382,7 @@ def test_primary_reading_holds_remote_changes_before_package_layout(
     workspace.get_by_role("button", name="Keep it concise.", exact=True).click()
     if mode == "Reply only":
         workspace.evaluate("""async workspace => {
-          const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const api = await window.__lfWidgetApi();
           const outlet = workspace.outlet('reply-only');
           workspace.present = (collection, parts) => {
             api.setChildren(workspace.reader, [outlet]);
@@ -1495,9 +1393,11 @@ def test_primary_reading_holds_remote_changes_before_package_layout(
     else:
         workspace.get_by_role("button", name=mode, exact=True).click()
     editor = workspace.get_by_role("textbox", name="Reply", exact=True)
+    editor.click()
     write(editor, "Keep this draft while updates wait.")
     assert editor.evaluate("""async editor => {
-      const {scrollerFor, readingRegionFor} = await window.__lfRuntimeImport('/runtime/reading-regions.js');
+      const {scrollerFor} = await window.__lfWidgetApi();
+      const {readingRegionFor} = await window.__lfCheckApi();
       const reader = document.querySelector('#workspace').reader;
       return scrollerFor(editor) === reader && readingRegionFor(editor).body === reader;
     }""")

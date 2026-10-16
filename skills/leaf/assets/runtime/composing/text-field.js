@@ -35,13 +35,12 @@
  * the clipboard's text, including text carried beside a picture.
  * `naturalBlockSize` reads the field's intrinsic border-box block size in CSS pixels,
  * before the host's block size or its minimum and maximum constrain the writing room.
- * `writingInlineSize` reads the editor's allocated writing measure, including room
- * reserved for its trailing action, in CSS pixels. `writingEndRoom` reads that room's
- * exact width so a sent message can keep the same writing measure.
  *
  * The placeholder is a layer under the words, shown while the field is empty. It reads
  * the `placeholder` attribute, and a child in slot `placeholder` stands in its place when
  * a box wants more than one run of text there, such as a label and the key that sends.
+ * It is drawn in the theme's muted ink; a box that wants another face for it styles
+ * `::part(placeholder)`, which a slotted child inherits.
  *
  * The editor lives while the element is in a document. A field removed and not put
  * back in the same task keeps its state and destroys its view, which releases the
@@ -83,6 +82,7 @@
  * reading pane the user scrolled away from it.
  */
 import { scrollIntoView } from "../landing-scroll.js";
+import { landingInsets } from "../geometry.js";
 import {
   EditorView,
   EditorState,
@@ -161,6 +161,15 @@ sheet.replaceSync(`
     text-underline-offset: var(--link-underline-offset); }
   .lf-md-quote { border-inline-start: var(--quote-rule); font-style: var(--quote-style);
     padding-inline-start: var(--quote-inset); color: var(--muted); }
+  /* A bullet item's marker is drawn as the message's bullet, in a box as wide as the
+     marker and its space, which the item's wrapped lines hang under. The dash it stands
+     for keeps that box while the caret touches it, so revealing it moves no word. */
+  .lf-md-item { padding-inline-start: 1.25em; text-indent: -1.25em; }
+  .lf-md-bullet { display: inline-block; inline-size: 1.25em; text-indent: 0;
+    white-space: pre; }
+  .lf-md-bullet:not(.lf-md-mark) { color: transparent; position: relative; }
+  .lf-md-bullet:not(.lf-md-mark)::before { content: "•"; position: absolute;
+    inset-inline-start: 0; color: var(--ink); }
   .lf-md-code-block { font-family: var(--mono); font-size: var(--code-size);
     line-height: var(--code-line); color: var(--code-ink); background: var(--pre-bg);
     font-variant-ligatures: none; border-inline: 1px solid var(--code-border);
@@ -178,6 +187,8 @@ const ownerStep = StateEffect.define();
 const hide = Decoration.replace({});
 const dim = Decoration.mark({ class: "lf-md-mark" });
 const link = Decoration.mark({ class: "lf-md-link" });
+const bullet = Decoration.mark({ class: "lf-md-bullet" });
+const shownBullet = Decoration.mark({ class: "lf-md-bullet lf-md-mark" });
 const line = (cls) => Decoration.line({ class: cls });
 
 // The inline constructs the preview draws, by the renderer's token type: each as the
@@ -264,8 +275,15 @@ function decorate(state, placed) {
         if (mark) add(each.from, each.from + mark[0].length, dim);
       });
     } else if (token.type === "list_item_open") {
-      const mark = text.match(/^ {0,3}(?:[*+-]|\d{1,9}[.)])/);
-      if (mark) add(from, from + mark[0].length, dim);
+      const item = text.match(/^([ \t]*)(?:([*+-])[ \t]?|\d{1,9}[.)])/);
+      if (!item) continue;
+      const at = from + item[1].length;
+      const end = from + item[0].length;
+      if (!item[2]) add(at, end, dim);
+      else {
+        out.push(line("lf-md-item").range(state.doc.lineAt(from).from));
+        add(at, end, touches(state, at, end) ? shownBullet : bullet);
+      }
     }
   }
   return Decoration.set(out, true);
@@ -318,6 +336,7 @@ const lastLineRoom = EditorView.decorations.compute(["doc"], (state) => {
   return last ? Decoration.set([lastLine.range(last.from)]) : Decoration.none;
 });
 
+/** @typedef {LeafText} LeafTextElement For its tag (`runtime-globals.d.ts`). */
 class LeafText extends HTMLElement {
   // The field's one model. Until the element first connects it is a bare EditorState,
   // which holds the value, selection and configuration without a DOM; connecting hands
@@ -344,20 +363,34 @@ class LeafText extends HTMLElement {
           const caret = view.coordsAtPos(view.state.selection.main.head);
           const box = this.getBoundingClientRect();
           const { scaleX, scaleY } = view;
+          // The caret's whole line, its leading as well as the caret, lands inside
+          // the host's `scroll-padding`, as a landing does.
+          const inset = landingInsets(this);
+          const leading = caret
+            ? Math.max(
+                0,
+                (parseFloat(getComputedStyle(this).lineHeight) * scaleY -
+                  (caret.bottom - caret.top)) /
+                  2,
+              )
+            : 0;
           return {
             caret,
             scaleX,
             scaleY,
-            top: box.top + this.clientTop * scaleY,
-            left: box.left + this.clientLeft * scaleX,
+            top: box.top + (this.clientTop + inset.top) * scaleY + leading,
+            left: box.left + (this.clientLeft + inset.left) * scaleX,
             // client dimensions round fractional CSS sizes. Keep the trailing
             // edges on the actual box, inset by its native border and scrollbar.
             bottom:
               box.bottom -
-              (this.offsetHeight - this.clientTop - this.clientHeight) * scaleY,
+              (this.offsetHeight - this.clientTop - this.clientHeight + inset.bottom) *
+                scaleY -
+              leading,
             right:
               box.right -
-              (this.offsetWidth - this.clientLeft - this.clientWidth) * scaleX,
+              (this.offsetWidth - this.clientLeft - this.clientWidth + inset.right) *
+                scaleX,
           };
         },
         write: ({ caret, top, left, bottom, right, scaleX, scaleY }) => {
@@ -406,6 +439,7 @@ class LeafText extends HTMLElement {
     this.#frame.className = "lf-field";
     this.#placeholderLayer.className = "lf-field-placeholder";
     this.#placeholderLayer.setAttribute("aria-hidden", "true");
+    this.#placeholderLayer.setAttribute("part", "placeholder");
     const hint = document.createElement("slot");
     hint.name = "placeholder";
     hint.append(this.#placeholderText);
@@ -456,9 +490,19 @@ class LeafText extends HTMLElement {
               insertNewline(view),
           },
           { key: "Shift-Enter", run: insertNewlineContinueMarkup },
+          // Outside a list or quote, a plain new line, which asks to be seen as typing
+          // does, so a field at its height limit scrolls to it.
           {
             key: "Shift-Enter",
-            run: (view) => (view.dispatch(view.state.replaceSelection("\n")), true),
+            run: (view) => (
+              view.dispatch(
+                view.state.update(view.state.replaceSelection("\n"), {
+                  scrollIntoView: true,
+                  userEvent: "input",
+                }),
+              ),
+              true
+            ),
           },
           ...standardKeymap.filter(
             ({ key }) => key !== "Escape" && key !== "Enter" && key !== "Mod-Enter",
@@ -556,8 +600,8 @@ class LeafText extends HTMLElement {
 
   #describe() {
     const content = this.#view?.contentDOM;
-    if (!content || !("ariaDescribedByElements" in content)) return;
-    const root = this.getRootNode();
+    if (!content) return;
+    const root = /** @type {Document | ShadowRoot} */ (this.getRootNode());
     content.ariaDescribedByElements = (this.getAttribute("aria-describedby") ?? "")
       .split(/\s+/)
       .filter(Boolean)
@@ -623,16 +667,11 @@ class LeafText extends HTMLElement {
   }
 
   // Where the field holds its action's room now: `every-line`, `last-line` after its
-  // last words, or `none` while its last line is blank. A sent message keeping the
-  // draft's wrapping holds the same.
+  // last words, or `none` while its last line is blank.
   get endRoom() {
     if (parseFloat(getComputedStyle(this.#frame).paddingInlineEnd) > 0)
       return "every-line";
     return lastWithWords(this.#state) ? "last-line" : "none";
-  }
-
-  get writingEndRoom() {
-    return parseFloat(getComputedStyle(this).getPropertyValue("--lf-field-end-room"));
   }
 
   get value() {
@@ -675,11 +714,6 @@ class LeafText extends HTMLElement {
       parseFloat(host.borderBlockStartWidth) +
       parseFloat(host.borderBlockEndWidth)
     );
-  }
-
-  get writingInlineSize() {
-    const frame = getComputedStyle(this.#frame);
-    return parseFloat(frame.inlineSize) + parseFloat(frame.paddingInlineEnd);
   }
 
   set value(text) {

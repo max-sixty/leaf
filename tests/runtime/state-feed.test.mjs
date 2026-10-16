@@ -13,7 +13,7 @@ canonical.rel = "canonical";
 canonical.dataset.lfRuntime = "";
 canonical.href = "https://leaf.test/";
 document.head.append(canonical);
-const { createStateFeed } = await import("/runtime/state-feed.js");
+const { beginRead, createStateFeed } = await import("/runtime/state-feed.js");
 const { readingIsContinuous, readingReturn, completeReadingReturn } =
   await import("/runtime/reading-continuity.js");
 
@@ -25,6 +25,7 @@ const state = (reading) => ({
   reading,
   layer: { generation: "test" },
   active: { revision: 1 },
+  data: { version: null, sources: {} },
   events: [],
   workflows: [],
   activity: null,
@@ -128,7 +129,6 @@ test("a return stays interrupted until its refreshed reading is actually present
       const preparation = Promise.withResolvers();
       const paint = Promise.withResolvers();
       const painted = [];
-      const statuses = [];
       const receiveState = async (answer) => {
         if (answer.reading === "initial") {
           applicationState.adopt(answer);
@@ -151,7 +151,6 @@ test("a return stays interrupted until its refreshed reading is actually present
         invalidateDom: async () => {},
         receiveState,
         prepareActivation: async () => null,
-        renderStatus: (status) => statuses.push(status),
       });
       feed.startFeed(async () => {}, Promise.resolve({ state: state("initial") }));
       await setImmediate();
@@ -163,13 +162,16 @@ test("a return stays interrupted until its refreshed reading is actually present
       assert.equal(readingIsContinuous(), false);
 
       if (mode === "rejected") {
-        assert.equal(statuses.at(-1)?.message, "state presentation failed");
+        assert.equal(applicationState.read().reach, "broken");
         return;
       }
       if (mode !== "painting") news = "second";
       looks.at(-1)();
       await setImmediate();
       assert.equal(reads, mode === "painting" ? 1 : 2);
+      // A read that brings nothing says so to whatever reads the server's reach.
+      if (mode === "offline")
+        assert.equal(applicationState.read().reach, "unreachable");
       if (mode === "overtaken") {
         preparation.resolve();
         await setImmediate();
@@ -181,4 +183,21 @@ test("a return stays interrupted until its refreshed reading is actually present
       assert.equal(readingIsContinuous(), true);
     });
   }
+});
+
+test("a read keeps the data it named when the answer leaves its sources out", async (t) => {
+  const held = {
+    version: "v1",
+    sources: { builds: { contract: "c", value: "green" } },
+  };
+  applicationState.acceptData(held, ++taken);
+  // The read's bound would otherwise hold the test open for two minutes.
+  t.mock.method(globalThis.AbortSignal, "timeout", () => new AbortController().signal);
+  t.mock.method(globalThis, "fetch", async (url, init) => {
+    assert.equal(new URL(url).pathname, "/api/state");
+    assert.equal(init.headers["Leaf-Data-Version"], "v1");
+    return Response.json({ ...state("unmoved"), data: { version: "v1" } });
+  });
+  const { state: answer } = await beginRead();
+  assert.deepEqual(answer.data, held);
 });

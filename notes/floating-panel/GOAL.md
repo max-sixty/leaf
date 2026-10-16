@@ -1,9 +1,68 @@
 # Goal: the floating Leaf panel
 
-> **Status (2026-10-12): needs an overhaul (TODO #28).** Checkpoints 1–3 landed
-> on `main` behind the preference, off by default, so work can continue there.
-> The behavior is in place, but the user doesn't like the aesthetic: the next
-> round redesigns how the panel looks rather than adding scope.
+> **Status (2026-10-13): rebuilt and opt-in (TODO #28).** Checkpoints 1–3 landed
+> on `main` behind the preference, off by default. The user disliked their look, so
+> a second round redesigned it from a sketch they tried and configured (below, "The
+> overhaul"). The rebuilt panel remains non-default while its remaining work is done.
+>
+> On 13 October the user retired the Codex reference: the panel is judged by Leaf's
+> own aesthetic and the user's eye, not against the Codex app. The phone waits until
+> the desktop design is firm, and gets no work before then.
+
+## The overhaul
+
+On 12 October the user reviewed the build as landed ("it doesn't seem elegant
+generally, nor that consistent with our aesthetic. The menus are quite bad, very
+large spacing. Things like 'layout' should not need to be selectable in a menu;
+they should be embedded into the design"), then tried a sketch of a redesign and
+chose its configuration: the page's own ground (Paper), 12px corners, the compact
+width, a sans status line, the folded leaf in the window's corner, no folding on
+scroll, a badge on the folded leaf for what waits plus a dot for news, and opened
+views that close on a press on the page. The sketch's page is kept at
+`~/.tmp/leaf.floating-panel/overhaul/source/playground.html`. What it changed, and
+what the module header of `runtime/floating-panel.js` now states:
+
+- **Three sizes, chosen by what the user does.** Folded (the leaf in the corner),
+  the row, and a view opened above the row. The Layout row, the Minimal and Moderate
+  displays and the Classic choice are gone from the panel; the preference keeps only
+  where the panel was left (`rest`).
+- **The field holds the status**, a thread's turn in a thread, and passing notices,
+  which no longer stand at the window's head (`--lf-notice-seat: panel`).
+- **Marks with counts in the row**: the question mark and the thread mark with a
+  dot for news. Send stands in their place while the user types. (The pen that
+  opened Annotations left the row on 13 October: "remove the pen, keep
+  annotations".) Annotations leaves out Select element, which the user starts on
+  the page by selecting words or pressing `s` ("I don't think we need the select
+  mode").
+- **The leaf's menu is a small menu** of one-line rows with each row's shortcut
+  (the toolbar row contract's `shortcut`), the agent's state at its head. A row that
+  opens a list of its own ends in a chevron. Navigate holds All pages and Search
+  page; Page Map, Resume writing, Restore selection and Align current item at top
+  keep their keys and leave the menu (the row group `keys`); where no keyboard is
+  there to reach them, a finger finds them under Navigate.
+- **Where the user is sits at a view's top edge**, with its filters, search,
+  Resolve and Close beside it; the destination line and the thread-actions row went.
+- **Motion moves no layout**: every change of size takes effect in one step and a
+  separate surface layer follows by a clip, so the shift watch sees no tween.
+
+The sketch's breathing leaf was left out: `skills/leaf/assets/AGENTS.md`,
+"Motion", allows one continuous animation. On 13 October the user had the working
+status carry that one sheen instead, asked for the resting status to read dimmer
+than body text ("currently it's too 'normal text'"), and for the focused field's
+placeholder to say where the words go. Later that day the line over the field lost
+its recipient ("I don't think we need 'To Agent' (who else might we be sending it
+to??)"), menu rows drew their keys as key caps, and About's copy rows took Leaf's copy
+icon.
+
+### Follow-ups the user named
+
+- **Selected words go to the anchored comment box, not the field.** The fresh review
+  found that clicking the panel's field with words selected drops the selection and
+  comments on the page as a whole. The user declined carrying the selection into the
+  field (14 October): "at the moment we should encourage using the anchored comment
+  box; though we may change our mind", since that box becomes the anchored comment and
+  stands beside its passage. If the drop needs treating, steer toward that box rather
+  than giving the field a second way to anchor.
 
 Build an opt-in alternative to Leaf's chrome: one panel that hovers over the
 bottom of the page, like the Codex app's floating chat panel, and replaces both
@@ -43,19 +102,18 @@ Choose **Leaf** in the tabs at the sample's top, and Minimal or Moderate beside
 them. **Full view** fits the sample to the window. The prototype runs on its own
 2026-10-10 runtime, which is why it is served from that tree rather than this one.
 
-
 Reference images are in `~/.tmp/leaf/floating-controls-reference/`:
 
 - `prototype/`: stills of the approved Leaf arrangement, Minimal and Moderate:
   at rest, menu open, Threads, Threads filtered to Unread, a thread with its
-  reply field, Questions and writing, at 1440×900, plus rest and writing at
+  reply field, the On view and writing, at 1440×900, plus rest and writing at
   390×844 touch. `scripts/stills.py` beside it regenerates them.
 - `codex-floating-panel.png`: the Codex app's panel, the user's inspiration.
 - `codex-app-study.md`: how Codex builds that panel. It covers the states, the
   motion, the geometry and dragging, read from the app's own source. Study it
   for the mechanics behind its polish. Don't copy its code.
-- `questions-panel-liked.png`: the Questions panel as it was. The user liked
-  it, because questions are answered right there in the panel.
+- `questions-panel-liked.png`: the On panel as it was, then called Questions.
+  The user liked it, because questions are answered right there in the panel.
 - `rejected-production-composer.png`: what the previous attempt shipped. It is
   the failure to avoid (see "What went wrong last time").
 
@@ -66,7 +124,7 @@ prototype. Each stays a requirement unless the user changes it.
 
 **One panel replacing both bars.** "Turning this into something like the codex
 floating panel … as part of removing the top and bottom bars." It needs a way to
-reach everything the banner and bottom bar offer today: threads, Questions,
+reach everything the banner and bottom bar offer today: threads, the On panel,
 Versions, the agent's status, approval, page comments, modes, the page's other
 controls, and keyboard shortcuts. These "pop out a panel above"; letting the
 user move the panel, and pop it out downward, is welcome but optional.
@@ -76,7 +134,7 @@ to start a new page thread, and also in the box is the current status." Later:
 "Have the most minimalist just be the comment box, maybe with only a questions
 button + annotation." And after the last attempt dropped it: "what happened to
 our resting comment box?" At rest the panel is one compact row. It holds the
-leaf mark, a one-line comment field, the Questions count, the count of new
+leaf mark, a one-line comment field, the On me count, the count of new
 replies, and, on a desk, a door to annotating. "If it's not possible to glance
 and see how many unread there are, then we need to resolve that." The empty
 field shows the agent's status where a placeholder would say "Comment…": the
@@ -104,7 +162,7 @@ basic, and then extensible."
   row offers Minimal, Moderate and Classic, and the choice persists (see "The
   preference").
 
-**Threads and Questions inside the panel.** The user asked to "think about the
+**Threads and the On lists inside the panel.** The user asked to "think about the
 full lifecycle of threads: creating them, resolving them; being able to find
 them."
 
@@ -112,7 +170,7 @@ them."
   can be on a single line." The inventory has search and All / Unread / Drafts /
   Resolved filters. A thread opens inside the panel, where it can be answered,
   resolved and reopened.
-- Questions are answered inline, as in the liked image: "there are things there
+- Asks on On me are answered inline, as in the liked image: "there are things there
   we can actually answer inline (whereas threads need to be clicked into)."
 - Threads anchored to a passage keep their markers and thread cards beside the
   text, as today. The panel's inventory lists every thread, anchored or not.
@@ -151,39 +209,56 @@ Full-page dialogs were liked but are not this project.
 ## Intended departures from the prototype
 
 Reviewers get this list, so that a departure on it is not reported as a
-shortfall. Add each improvement you make, with its reason.
+shortfall. Add each improvement you make, with its reason. Where an item here and
+"The overhaul" above disagree, the overhaul holds; the items it replaced say so.
 
 - **The resting row holds the comment field.** The Leaf arrangement rests as the
   mark with counts and opens the field on the first click. The user asked for
   the field at rest (see "A resting box"). The prototype's **Line** arrangement
-  shows a resting field, with Questions and annotating beside it; use it as the
+  shows a resting field, with On me and annotating beside it; use it as the
   reference for this row. The user chose Leaf over Line on 10 October and asked
   for the box back on 11 October. So everything except the resting row follows
   the Leaf arrangement: the mark, its menu, and how everything opens above the
   row.
-- **The box resizes from its foot, one tween.** The card follows its content's
-  height with the Codex panel's 300 ms `cubic-bezier(.23,1,.32,1)`, the row staying
-  put; the leaving view fades out (80 ms) before the arriving one fades in. The
-  prototype's views slid sideways; this reads as one box.
-- **The focused field shows a quiet ground, not a frame.** A dark frame around the
-  field was the previous attempt's "form" look.
-- **While the field holds the caret or words, it takes the whole row,** and the counts
-  stand on the line naming where the words go, as the prototype seats them; a draft
-  keeps that layout when the caret leaves, so nothing moves under the next press.
-- **In a thread the destination line reads "Reply in this thread · to {agent}"**
-  rather than repeating the title the row above already shows.
-- **A short thread reserves its "New reply · Show" slot,** so arriving news moves
-  nothing.
+- **The box resizes from its foot, in one step, and its surface follows.** The row
+  stays put; the leaving view fades out (60 ms) before the arriving one fades in (90
+  ms), and the surface layer follows the box's outline by a clip on the Codex panel's
+  `cubic-bezier(.23,1,.32,1)`: 300 ms as the field grows a line, 120 ms as a view
+  opens or closes, since the user found views slow to appear (15 October). (The first
+  build tweened the card's height; a layout tween's last frame landed outside CI's
+  input window as a shift.)
+- **The focused field shows no frame and no ground**: one quiet line opens above it,
+  with the keys that send. A dark frame around the field was the previous attempt's
+  "form" look.
+- **While the user types, Send stands in the counts' place;** the counts come back
+  when the caret leaves, and the line naming where the words go stays while the field
+  holds words. (Replaces the first build's counts on the destination line.)
+- **The line over the field names where the words go only once they hide the
+  placeholder that said it,** in the placeholder's words ("Comment on the page"), and
+  never who reads them: the page has one agent. It shows only with no view open; over
+  a view it repeated the view's head, so the user dropped it there (#2913).
+- **The answer the user waits for grows the thread's view,** up to its height limit,
+  with New reply only past it; other news in an open thread still moves nothing. The
+  user chose growth over a reserved New reply slot on 14 October (#2916).
 - **Answers are the widget's own choices** (a multiple-choice ask shows its options and
-  Done), recorded exactly as on the page; Questions has On you / On {agent} / Done.
+  Done), recorded exactly as on the page; the On view has On me / On {agent} / Done.
 - **Messages draw with Leaf's own reader** (the panel is a registered thread
   presentation), so asks, reactions and HTML replies work in the panel.
-- **The menu carries the banner's whole inventory,** drawn from each contributor's
-  declared row, so Questions, Undo and About this page appear there too.
+- **The menu carries the banner's inventory,** drawn from each contributor's declared
+  row, less what the row and its views already hold (Threads, On me, the page
+  comment, approval). Navigate, Annotations, About and Versions take the menu's place
+  in the same box, sliding in from the right under a head that goes back; Threads and
+  On, which are read rather than chosen from, open as views. The user chose this on 15
+  October ("expecting it to feel like it's navigating right … and then there's no way
+  to go back"), over the view keeping its place with a "‹ Menu /" crumb.
 - **On a phone, a count at rest is its number beside an icon,** so the agent's status
   keeps the field ("numbers next to icons rather than saying whole words").
-- **Passing notices stand centred at the window's head,** since the panel's foot is
-  where the user writes and its height changes.
+- **Passing notices are said in the empty field** (the overhaul); a walk's position
+  still stands centred at the window's head.
+- **The panel shows no key hints**, neither the bottom bar's resting hints nor the
+  `g` sequence's destination list: the menu's rows carry their shortcuts and `?` opens
+  the full reference. The user chose this over one or two hints in the line above the
+  field on 13 October, to keep the panel quietest.
 
 ## What went wrong last time
 
@@ -214,7 +289,7 @@ the defects.
 ## How to build it
 
 **Same state and commands, new presentation.** The floating panel is another
-presentation of what Leaf already owns. Threads, Questions, Tasks, status and
+presentation of what Leaf already owns. Threads, the On lists, status and
 versions come from the application publication. The panel's controls come from
 the banner toolbar's contributor inventory (`banner-toolbar.js`) and the command
 registry behind the shortcut bar. A control that a package contributes appears
@@ -259,8 +334,8 @@ comments as they arrive. Give them a new checkpoint at each milestone:
 
 - the resting panel, the leaf mark's status, and the menu;
 - Threads, opening, answering and resolving a thread, and writing in the one box;
-- Questions answered inline, Versions, approval, modes, and the Moderate display;
-- motion and polish, measured against the Codex reference.
+- asks answered inline in the On view, Versions, approval, modes, and the Moderate display;
+- motion and polish.
 
 Budget about eight hours of work. If the user hasn't answered a checkpoint
 after two more milestones, stop adding scope. Polish what they have seen, and
@@ -271,7 +346,6 @@ subagents, running Opus or Fable, the following:
 
 - this file, including "Intended departures";
 - the prototype, live and in stills;
-- the Codex reference;
 - your build.
 
 Each reviewer uses the prototype and the build through the same journeys, at

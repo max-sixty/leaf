@@ -1,49 +1,30 @@
-/* A seated Ask whose press paints optimistically before dispatching settlement.
- * seatAttribute lets the revision case declare a conditional thread seat without
- * rewriting the implementation; the registry in that case declares the same rule. */
+/* A seated Ask whose press paints optimistically before dispatching settlement. */
 import {
   keeps,
   keepsText,
   threadBox,
   offer,
-  once,
-  widgetController,
+  LeafElement,
+  nothing,
 } from "/runtime/widget-api.js";
 
-export function defineSeatedAsk({ seatAttribute = null } = {}) {
+export function defineSeatedAsk() {
   customElements.define(
     "lf-verdict",
-    class extends HTMLElement {
-      #controller;
-      #stop = null;
-
-      connectedCallback() {
-        this.#controller ??= widgetController(this);
-        if (!once(this)) {
-          this.#stop ??= this.#controller.subscribe(() => {});
-          return;
-        }
+    class extends LeafElement {
+      setup() {
         this.press = offer("button", "lf-settle", "Accept");
         this.press.onclick = () => {
           this.settled();
-          this.#controller.dispatch({
+          this.controller.dispatch({
             kind: "action",
             verb: "settle",
             detail: { answer: "yes" },
           });
         };
         this.append(this.press);
-        const seat =
-          seatAttribute === null || this.hasAttribute(seatAttribute)
-            ? threadBox(this, "Say something about this")
-            : null;
+        const seat = threadBox(this, "Say something about this");
         if (seat) this.append(seat);
-        this.#stop ??= this.#controller.subscribe(() => {});
-      }
-
-      disconnectedCallback() {
-        this.#stop?.();
-        this.#stop = null;
       }
 
       settled() {
@@ -51,12 +32,13 @@ export function defineSeatedAsk({ seatAttribute = null } = {}) {
         keeps(this.press, "aria-pressed", true);
       }
 
-      renderState(state) {
-        if (state.settle.value) this.settled();
+      render() {
+        if (this.state.settle.value) this.settled();
         else {
           keepsText(this.press, "Accept");
           keeps(this.press, "aria-pressed", false);
         }
+        return nothing;
       }
     },
   );

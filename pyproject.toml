@@ -33,9 +33,6 @@
 # watchfiles supplies the native subscriptions shared by page maintenance,
 # delivery waits and developer previews, avoiding repeated idle filesystem scans.
 #
-# packaging and tomllib read a package script's inline
-# metadata when `package check` holds it to the dependency policy (`packages.py`).
-#
 # Playwright is a runtime dependency because the skill's own flow runs the
 # browser: `page check --render` gates every finished page and `version
 # export` copies one. Its wheel lands in each version's environment as links
@@ -49,13 +46,12 @@ version = "0"
 requires-python = ">=3.12"
 dependencies = [
   "anyio>=4.10",
-  "click>=8",
+  "click>=8.2",
   "jmespath>=1",
   "jsonschema>=4.18",
   "linkify-it-py>=2",
   "markdown-it-py>=4",
   "mdit-py-plugins>=0.4",
-  "packaging>=22",
   "playwright>=1.63",
   "psutil>=6",
   "pywhatwgurl>=0.1.2",
@@ -94,6 +90,9 @@ dev = [
   "pytest-regtest>=2.7",
   # The YAML snapshots `interact_support.yaml_document` writes.
   "pyyaml>=6",
+  # Reads bundled package scripts' declared dependencies, to hold them to the
+  # dependency policy (`test_interact_layer.py`).
+  "packaging>=22",
   # Reads the example review's captured patch by line (`test_product_page.py`).
   "unidiff>=1",
   # The developer tooling package in `dev/`.
@@ -113,6 +112,15 @@ members = ["dev", "worker"]
 leaf-dev = { workspace = true }
 leaf-website = { workspace = true }
 
+[tool.ruff]
+# Apply the same scope to directory scans and filenames passed by pre-commit.
+force-exclude = true
+extend-exclude = [
+  "skills/leaf/assets/vendor",
+  "skills/leaf/packages/**/vendor",
+  "evals/ui-review-detection/fixtures",
+]
+
 # SessionEnd runs before a managed environment exists (bin/leaf), on system Python.
 [tool.ruff.per-file-target-version]
 "skills/leaf/scripts/leaf/state.py" = "py39"
@@ -126,8 +134,9 @@ leaf-website = { workspace = true }
 # runner sets its count in ci.yaml.
 # `-n0` to debug a single test.
 [tool.pytest.ini_options]
-addopts = "-n 2 --dist loadgroup --regtest-consider-line-endings --image-snapshot-save-diff -p leaf_dev.thread_snapshot_plugin -p leaf_dev.suite_profile"
+addopts = "-n 2 --dist loadgroup --regtest-consider-line-endings --image-snapshot-save-diff -p leaf_dev.thread_snapshot_plugin -p leaf_dev.commands.suite_profile"
 markers = [
+  "network: requires external network access after development setup",
   "shifts_unsurveyed: its browser tests await a shift survey, so they do not reject unsolicited layout shifts",
   "watch_shifts: a surveyed test marked `shifts_unsurveyed` rejects unsolicited layout shifts and typing that carries its field",
 ]
@@ -136,7 +145,9 @@ markers = [
 # thread's stack, which names the call that blocked, and exits; xdist reports the test
 # as crashed and starts a fresh worker for the rest. Without this, a call with no
 # deadline of its own (`page.evaluate`, a new page, a lock) holds the run until the CI
-# job's six-hour limit.
+# job's six-hour limit. Pytest cancels this timer when a test reports a failure,
+# so it does not bound that test's cleanup. CI also bounds the whole Python/profile
+# command, including failed-test cleanup, before the job deadline.
 faulthandler_timeout = 1800
 faulthandler_exit_on_timeout = true
 
@@ -174,9 +185,12 @@ ignore_names = [
   "log_message",
   "daemon_threads",
   "handlers",
+  # a reference held only so its page stays in the recent pages (samples.py)
+  "parent_memory",
   # click, uvicorn, markdown-it
   "get_command",
   "format_commands",
+  "command_class",
   "main_loop",
   "validateLink",
 ]

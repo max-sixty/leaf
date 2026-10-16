@@ -1,6 +1,6 @@
 /* A native command control retains one activation across attachment and DOM lifetimes. */
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { beforeEach } from "node:test";
 import {
   commandScope,
   commandsOn,
@@ -11,7 +11,241 @@ import {
   reflectFirstScopes,
   reflectKeys,
 } from "../../skills/leaf/assets/runtime/keyboard/scopes.js";
-import { setQuickShortcuts } from "../../skills/leaf/assets/runtime/keyboard/bindings.js";
+import {
+  activeRows,
+  commandAvailable,
+  commandEntries,
+  commandReady,
+  answers as bindingAnswers,
+  canonicalBinding,
+  decisionControls,
+  savedReadingSettled,
+  setQuickShortcuts,
+} from "../../skills/leaf/assets/runtime/keyboard/bindings.js";
+import {
+  dispatchKey,
+  keyReady,
+} from "../../skills/leaf/assets/runtime/keyboard/dispatch.js";
+import { registerCoveringAuxiliarySurface } from "../../skills/leaf/assets/runtime/keyboard/register.js";
+import { applicationState } from "../../skills/leaf/assets/runtime/semantic-state.js";
+
+// Ordinary control tests begin with saved input available; startup tests withhold it.
+beforeEach(() => applicationState.setPhase("ready"));
+
+test("saved-reading commands retain their key until their input is known", async () => {
+  registerCoveringAuxiliarySurface(() => null);
+  const { applicationState, readApplication } =
+    await import("../../skills/leaf/assets/runtime/semantic-state.js");
+  const phase = readApplication().phase;
+  const owner = document.createElement("button");
+  document.body.append(owner);
+  const row = {
+    id: "readiness.saved-version",
+    ready: savedReadingSettled,
+    contextKeys: ["1"],
+    title: "Open saved version",
+    keys: ["Shift+v"],
+    when: () => readApplication().phase === "ready",
+    run: () => {},
+  };
+  keys(owner, "Saved version", [row], { when: row.when, ready: savedReadingSettled });
+  owner.focus();
+  const press = () =>
+    new window.KeyboardEvent("keydown", {
+      key: "V",
+      shiftKey: true,
+      cancelable: true,
+    });
+  try {
+    applicationState.setPhase("waiting");
+    document.body.setAttribute("data-lf-presented", "1");
+    assert.equal(commandReady(row), false);
+    assert.deepEqual(commandEntries(row), []);
+    assert.equal(keyReady(press()), false);
+    assert.equal(keyReady(new window.KeyboardEvent("keydown", { key: "1" })), false);
+    applicationState.setPhase("offline");
+    assert.equal(commandReady(row), true);
+    assert.equal(keyReady(press()), true);
+    assert.deepEqual(commandEntries(row), []);
+    applicationState.setPhase("ready");
+    document.body.removeAttribute("data-lf-presented");
+    assert.equal(commandReady(row), true);
+    assert.equal(keyReady(press()), true);
+  } finally {
+    applicationState.setPhase(phase);
+    document.body.removeAttribute("data-lf-presented");
+    owner.remove();
+  }
+});
+
+test("unavailable alternatives stay off the command line until they are live", () => {
+  const rows = [
+    {
+      id: "readiness.first",
+      title: "First",
+      keys: ["x"],
+      ready: savedReadingSettled,
+      when: () => true,
+    },
+    {
+      id: "readiness.second",
+      title: "Second",
+      keys: ["x"],
+      ready: savedReadingSettled,
+      when: () => false,
+    },
+  ];
+  applicationState.setPhase("waiting");
+  assert.deepEqual(activeRows(rows), []);
+  applicationState.setPhase("ready");
+  assert.deepEqual(activeRows(rows), [rows[0]]);
+  rows[1].when = () => true;
+  assert.throws(() => activeRows(rows), /two live meanings/);
+});
+
+test("unread command input defers its key without promising a native action", () => {
+  registerCoveringAuxiliarySurface(() => null);
+  const owner = document.createElement("section");
+  const control = document.createElement("button");
+  owner.append(control);
+  document.body.append(owner);
+  let ready = false;
+  let available = false;
+  let runs = 0;
+  const row = {
+    id: "readiness.apply",
+    title: "Apply",
+    keys: ["x"],
+    control,
+    ready: () => ready,
+    when: () => available,
+    run: () => runs++,
+  };
+  keys(owner, commandScope("Readiness", [row]));
+  control.focus();
+  const press = () =>
+    new window.KeyboardEvent("keydown", { key: "x", cancelable: true });
+  try {
+    assert.equal(keyReady(press()), false);
+    assert.equal(commandAvailable(row), false);
+    control.click();
+    assert.equal(runs, 0);
+    ready = true;
+    assert.equal(keyReady(press()), true);
+    assert.equal(commandAvailable(row), false);
+    available = true;
+    assert.equal(commandAvailable(row), true);
+    dispatchKey(press(), {});
+    assert.equal(runs, 1);
+  } finally {
+    owner.remove();
+  }
+});
+
+test("a document-ready scope retains commands whose own input needs saved state", () => {
+  registerCoveringAuxiliarySurface(() => null);
+  const owner = document.createElement("button");
+  document.body.append(owner);
+  const runs = [];
+  const local = {
+    id: "readiness.local-search",
+    title: "Find local thread",
+    keys: ["a"],
+    run: () => runs.push("local"),
+  };
+  const saved = {
+    id: "readiness.saved-filter",
+    title: "Filter threads waiting on you",
+    keys: ["w"],
+    ready: savedReadingSettled,
+    when: savedReadingSettled,
+    run: () => runs.push("saved"),
+  };
+  keys(owner, commandScope("Local threads", [local, saved], { ready: () => true }));
+  owner.focus();
+  const press = (key) => new window.KeyboardEvent("keydown", { key, cancelable: true });
+  try {
+    applicationState.setPhase("waiting");
+    assert.equal(commandReady(local), true);
+    assert.equal(keyReady(press("a")), true);
+    dispatchKey(press("a"), {});
+    assert.equal(keyReady(press("w")), false);
+    dispatchKey(press("w"), {});
+    assert.deepEqual(runs, ["local"]);
+    applicationState.setPhase("ready");
+    assert.equal(keyReady(press("w")), true);
+    dispatchKey(press("w"), {});
+    assert.deepEqual(runs, ["local", "saved"]);
+  } finally {
+    owner.remove();
+  }
+});
+
+test("mixed routes and their context aliases retain each Decision's readiness", async () => {
+  registerCoveringAuxiliarySurface(() => null);
+  const { applicationState } =
+    await import("../../skills/leaf/assets/runtime/semantic-state.js");
+  const phase = applicationState.read().phase;
+  const owner = document.createElement("section");
+  const decision = document.createElement("button");
+  const inspect = document.createElement("button");
+  owner.append(decision, inspect);
+  document.body.append(owner);
+  const runs = [];
+  const row = {
+    id: "readiness.mixed",
+    title: "Mixed commands",
+    keys: ["x", "y"],
+    routes: [
+      {
+        id: "readiness.decide",
+        title: "Decide",
+        binding: "x",
+        contextKeys: ["1"],
+        decision: true,
+        control: decision,
+      },
+      {
+        id: "readiness.inspect",
+        title: "Inspect",
+        binding: "y",
+        contextKeys: ["2"],
+        control: inspect,
+      },
+    ],
+    run: (binding) => runs.push(binding),
+  };
+  keys(owner, commandScope("Mixed readiness", [row], { ready: () => true }));
+  const press = (key) => new window.KeyboardEvent("keydown", { key, cancelable: true });
+  try {
+    applicationState.setPhase("waiting");
+    decision.focus();
+    reflectFirstScopes();
+    for (const key of ["x", "1"]) {
+      assert.equal(keyReady(press(key)), false, key);
+      dispatchKey(press(key), {});
+    }
+    decision.click();
+    assert.deepEqual(runs, []);
+    for (const key of ["y", "2"]) {
+      assert.equal(keyReady(press(key)), true, key);
+      dispatchKey(press(key), {});
+    }
+    assert.deepEqual(runs, ["y", "y"]);
+    applicationState.setPhase("ready");
+    paintKeys();
+    reflectKeys();
+    for (const key of ["x", "1"]) {
+      assert.equal(keyReady(press(key)), true, key);
+      dispatchKey(press(key), {});
+    }
+    decision.click();
+    assert.deepEqual(runs, ["y", "y", "x", "x", "x"]);
+  } finally {
+    applicationState.setPhase(phase);
+    owner.remove();
+  }
+});
 
 test("quick shortcuts withdraw character routes while native commands and modified keys remain", () => {
   const owner = document.createElement("section");
@@ -1019,4 +1253,162 @@ test("template scopes follow current rows and retire without removing projected 
   render(nothing, root);
   assert.equal(commandsWithin(root).length, 0);
   root.remove();
+});
+
+// Titles describe a declared action, so validating them needs no rendered browser.
+test("decision rows and routes reject computed titles with their command identity", () => {
+  const source = document.createElement("section");
+  const control = document.createElement("button");
+  source.append(control);
+  for (const row of [
+    {
+      id: "test.invalid-row-name",
+      keys: [],
+      control,
+      decision: true,
+      title: () => true,
+    },
+    {
+      id: "test.route-family",
+      keys: ["ArrowLeft"],
+      title: "Inspect",
+      control,
+      routes: [
+        {
+          id: "test.invalid-route-name",
+          binding: "ArrowLeft",
+          decision: true,
+          title: () => true,
+        },
+      ],
+    },
+  ]) {
+    const id = row.routes?.[0].id ?? row.id;
+    assert.throws(
+      () => decisionControls([{ source, row }], "the test Ask"),
+      (error) => error.message.includes(id) && error.message.includes("title"),
+    );
+  }
+});
+
+test("command declarations reject malformed identity, labels, and bindings at their owner", () => {
+  const control = document.createElement("button");
+  document.body.append(control);
+  const invalid = [
+    [{ keys: ["F5"], title: "Anonymous" }, /not a stable command id/],
+    [
+      { id: "Sentence shaped identity", keys: ["F5"], title: "Named badly" },
+      /not a stable command id/,
+    ],
+    [
+      { id: "test.noncanonical", keys: ["Shift+Mod+x"], title: "Work" },
+      /write the canonical Mod\+Shift\+x/,
+    ],
+    [
+      { id: "test.named-space", keys: ["Space"], title: "Work" },
+      /write the canonical " "/,
+    ],
+    [
+      { id: "test.bad-context", contextKeys: ["Ctrl+1"], title: "Work" },
+      /Ctrl is no modifier/,
+    ],
+    [
+      { id: "test.bad-description", keys: ["F6"], title: "Work", description: true },
+      /description/,
+    ],
+    [
+      {
+        id: "test.invalid-decision",
+        keys: [],
+        control,
+        decision: "Invalid",
+        title: "Work",
+      },
+      /decision/i,
+    ],
+    [
+      {
+        id: "test.invalid-decision-family",
+        keys: ["ArrowLeft"],
+        control,
+        title: "Work",
+        routes: [
+          {
+            id: "test.invalid-decision-route",
+            binding: "ArrowLeft",
+            decision: "Invalid",
+            title: "Work",
+          },
+        ],
+      },
+      /decision/i,
+    ],
+    [
+      { id: "test.empty-decision", keys: [], control, decision: true, title: "  " },
+      /title/i,
+    ],
+    [{ id: "test.invisible-command", keys: [] }, /title/i],
+    [{ id: "test.empty-label", keys: [], label: "  ", title: "" }, /title/i],
+  ];
+  try {
+    for (const [row, error] of invalid)
+      assert.throws(() => keys(control, "Invalid declaration", [row]), error);
+    assert.throws(
+      () =>
+        keys(control, "Duplicate declaration", [
+          { id: "test.same", keys: ["F5"], title: "First" },
+          { id: "test.same", keys: ["F6"], title: "Second" },
+        ]),
+      /declares test.same twice/,
+    );
+  } finally {
+    control.remove();
+  }
+});
+
+test("command aliases conflict by their canonical meaning while shifted Space stays distinct", () => {
+  for (const [keys, meaning] of [
+    [["Mod+Shift+x", "Shift+Mod+x"], "Shift+Mod+x"],
+    [["a", "A"], "A"],
+    [["?", "Shift+?"], "Shift+?"],
+  ]) {
+    assert.throws(
+      () =>
+        activeRows(
+          keys.map((key, index) => ({
+            keys: [key],
+            title: `Meaning ${index}`,
+          })),
+          "Alias meanings",
+        ),
+      (error) => error.message.includes(`two live meanings for ${meaning}`),
+    );
+  }
+  assert.equal(
+    activeRows([
+      { keys: [" "], title: "Read down" },
+      { keys: ["Shift+ "], title: "Read up" },
+    ]).length,
+    2,
+  );
+  assert.deepEqual(
+    [canonicalBinding(" "), canonicalBinding("Shift+ ")],
+    [" ", "Shift+ "],
+  );
+  for (const [binding, shiftKey, expected] of [
+    [" ", false, true],
+    [" ", true, false],
+    ["Shift+ ", true, true],
+    ["Shift+ ", false, false],
+  ])
+    assert.equal(
+      bindingAnswers(binding, {
+        key: " ",
+        metaKey: false,
+        ctrlKey: false,
+        altKey: false,
+        shiftKey,
+      }),
+      expected,
+    );
 });

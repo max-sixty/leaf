@@ -2,9 +2,9 @@
  * search marks, and status are synchronous Lit projections over native controller state. */
 import { anchoringIsReady } from "../anchor-resolution.js";
 import { bindings, bindingEnabled, cycledRow } from "../keyboard/bindings.js";
-import { el, LAYOUT, reserve, searchField } from "../widget-elements.js";
+import { el, LAYOUT, searchField } from "../widget-elements.js";
 import { coarsePointer } from "../pointer.js";
-import { html, nothing, render } from "../../vendor/browser-runtime.js";
+import { html, nothing, render } from "/vendor/browser-runtime.js";
 
 import {
   contextAround,
@@ -16,7 +16,8 @@ import {
   selectEnds,
   segmentBlock,
 } from "../passages.js";
-import { bannerFoot, shownBox, shownParts } from "../geometry.js";
+import { bannerFoot, shownBox } from "../geometry.js";
+import { visibleTargetParts } from "../visible-target-parts.js";
 import { repaint } from "../repaint.js";
 import { intersect, union } from "../rect.js";
 import { anchorFor } from "../css-anchors.js";
@@ -42,7 +43,7 @@ import {
   progressStates,
 } from "../keyboard/key-sequence.js";
 import { announce } from "../notifications.js";
-import { keepsHidden } from "../keeps.js";
+import { keeps, keepsHidden } from "../keeps.js";
 import { beginWalk, walkPosition } from "../walk-position.js";
 
 import {
@@ -72,6 +73,8 @@ pageSearchInput.maxlength = 160;
 const pageSearchStatus = el("span", "lf-page-search-status");
 pageSearchStatus.setAttribute("role", "status");
 pageSearchStatus.slot = "end";
+const pageSearchWords = el("span");
+pageSearchStatus.append(pageSearchWords);
 pageSearchInput.append(pageSearchStatus);
 pageSearchSurface.append(pageSearchInput);
 const noMatches = "No matches";
@@ -92,7 +95,10 @@ const searchCount = (position, total) => `${position} of ${total}`;
 // walk, the scroll freeze, and the paint. What this module declares is which members the
 // map holds and where each chip sits among them. An ancestor and descendant painting the
 // same visible box name one target, and the innermost remains, matching direct aim. A
-// target's chip sits outside its own box, keeping controls and their labels readable. Shared hint seating separates those faces without moving page content.
+// target's chip sits outside its own box, keeping controls and their labels readable.
+// Shared hint seating separates those faces without moving page content, and steps
+// each chip before a nest of targets out by its level in that nest, so a group's chip
+// and its members' chips read as an outline (`nestOutsets`, hints.js).
 // Admission and clipping stay with key-badge-placement.js.
 //
 // `/` opens a real search input over the whole page reading, either directly from the
@@ -151,11 +157,7 @@ export function createTargetPicker({
     );
   const targetShown = (target) => {
     const element = hintElement(target);
-    return (
-      element.checkVisibility() ||
-      (getComputedStyle(element).display === "contents" &&
-        shownParts(element).some((part) => part.checkVisibility()))
-    );
+    return visibleTargetParts(element).length > 0;
   };
 
   function firstShown(range, owner, reading) {
@@ -248,10 +250,15 @@ export function createTargetPicker({
     pageSearchOpen = on;
     keepsHidden(pageSearchSurface, !on);
     if (on) {
-      // A nonempty query cannot match more often than there are characters. Reserve
-      // the whole reading's count before editing, so narrowing never resizes the field.
+      // A nonempty query cannot match more often than there are characters. Hold the
+      // room of the whole reading's count before editing, so narrowing never resizes
+      // the field.
       const maximum = pageText().raw.length;
-      reserve(pageSearchStatus, [noMatches, searchCount(maximum, maximum)]);
+      keeps(
+        pageSearchStatus,
+        "data-lf-room",
+        `${noMatches}\n${searchCount(maximum, maximum)}`,
+      );
       focusDestination(pageSearchInput, "move");
       presentSearchStatus();
       announce("Search the page.");
@@ -303,7 +310,7 @@ export function createTargetPicker({
       : matches.length
         ? searchCount(active + 1, matches.length)
         : noMatches;
-    render(html`${status}`, pageSearchStatus);
+    render(html`${status}`, pageSearchWords);
   }
 
   function sameMatch(left, right) {
@@ -389,7 +396,7 @@ export function createTargetPicker({
     return true;
   }
 
-  // Layout invalidation is the mechanical source of a standing walk's refresh: a reflow
+  // Layout invalidation is the mechanical source of an active walk's refresh: a reflow
   // moves the marked line boxes even where the words stand, so the walk repaints either
   // way. The read handed to the shared walk remains a cheap cached lookup.
   function refreshMatchWalk() {
@@ -453,7 +460,7 @@ export function createTargetPicker({
     announce(
       `Selected match: ${quote}. ${
         coarsePointer.matches || !bindingEnabled("c")
-          ? "Comment on selection on the banner comments on it."
+          ? "Comment on selection comments on it."
           : "Press n for next, Shift+n for previous, or c to comment."
       }`,
     );
@@ -685,34 +692,13 @@ export function createTargetPicker({
     claims: targetingClaims,
     rows: [
       TARGET_HINT_TYPE,
-      {
-        id: "target.picker.hint.walk",
-        keys: ["Tab", "Shift+Tab"],
-        routes: [
-          {
-            id: "target.picker.hint.next",
-            binding: "Tab",
-            title: "Hear the next visible target",
-          },
-          {
-            id: "target.picker.hint.previous",
-            binding: "Shift+Tab",
-            title: "Hear the previous visible target",
-          },
-        ],
-        title: "browse hints",
-        repeat: true,
-        when: () => hints.candidates().length > 0,
-        run: (binding) => hints.walk(binding === "Tab" ? 1 : -1),
-      },
-      {
-        id: "target.picker.target.choose",
-        keys: ["Enter"],
-        description: "Choose the target just announced",
-        title: "choose target",
-        when: hints.walking,
-        run: hints.choose,
-      },
+      ...hints.walkRows({
+        id: "target.picker.hint",
+        choose: {
+          description: "Choose the target just announced",
+          title: "choose target",
+        },
+      }),
       TARGETING_BACK,
     ],
   };
@@ -788,7 +774,8 @@ export function createTargetPicker({
     // the route off the short line while a target is in hand.
     lineWhen: () => !Boolean(fabAnchorAt()),
     when: canChoose,
-    run: (...args) => openTargetPicker(...args),
+    run: (/** @type {Parameters<typeof openTargetPicker>} */ ...args) =>
+      openTargetPicker(...args),
   });
   // Search remains one press from the expanded shortcut bar and named in full by the
   // reference.

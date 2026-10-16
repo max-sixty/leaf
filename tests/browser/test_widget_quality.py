@@ -7,13 +7,41 @@ import json
 import re
 
 import pytest
+from click.testing import CliRunner
 from interact_support import SKILL_ROOT
+from leaf import cli as cli_model
 from leaf import exporting as exporting_model
 from leaf.render_checks import wait_until_ready
+from leaf.render_gate.widget_quality import UnreadablePage, widget_findings
 from leaf.revision_delivery import json_script
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_harness import ROOT, consume_browser_errors, displayed
+
+
+def test_package_render_check_refuses_a_failed_async_paint(tmp_path, browser):
+    """A settled example whose public reading paint rejected was not drawn."""
+    package = tmp_path / "package"
+    made = CliRunner().invoke(
+        cli_model.cli,
+        ["package", "init", str(package), "--widget", "lf-async-panel"],
+    )
+    assert made.exit_code == 0, made.output
+    (package / "widgets/lf-async-panel.js").write_text("""\
+import { once, readingPaint, whileConnected } from "/runtime/widget-api.js";
+customElements.define("lf-async-panel", class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    const paint = readingPaint(this, async () => {
+      await Promise.resolve();
+      throw new Error("The instrument paint failed");
+    });
+    whileConnected(this, () => { paint("instrument"); });
+  }
+});
+""")
+    with pytest.raises(UnreadablePage, match="The instrument paint failed"):
+        widget_findings(browser.unwatched, package)
 
 
 def grows_at_upgrade(tag: str, style: str) -> str:

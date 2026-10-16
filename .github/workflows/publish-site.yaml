@@ -9,36 +9,36 @@ on:
     branches:
       - main
     paths:
-      - 'docs/**'
-      - 'examples/**'
+      - "docs/**"
+      - "examples/**"
       # The whole skill payload: the site serves a vendored layer, and that is merged
       # from the kernel and bundled package alike — a change to either
       # is a change to what a visitor loads.
-      - 'skills/leaf/**'
+      - "skills/leaf/**"
       # The hosted agent installs the complete prepared plugin, including its
       # harness registrations and skill discovery manifests.
-      - 'hooks/**'
-      - '.agents/plugins/**'
-      - '.claude-plugin/**'
-      - '.codex-plugin/**'
-      - '.claude/skills/developing-leaf/**'
-      - '.claude/skills/ui-sweep/**'
-      - 'bin/leaf'
-      - 'pyproject.toml'
-      - 'uv.lock'
-      - 'leaf-assets.json'
+      - "hooks/**"
+      - ".agents/plugins/**"
+      - ".claude-plugin/**"
+      - ".codex-plugin/**"
+      - ".claude/skills/developing-leaf/**"
+      - ".claude/skills/ui-sweep/**"
+      - "bin/leaf"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "leaf-assets.json"
       # The site build and the deploy gate that verifies it are leaf_dev code.
-      - 'dev/**'
-      - 'worker/**'
+      - "dev/**"
+      - "worker/**"
       # The site build compiles the runtime through build.mjs, which loads the
       # rest of build/ (the bundle table, its entries and the registry generators).
-      - 'build/**'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - 'pnpm-workspace.yaml'
-      - 'Dockerfile.website'
-      - 'Dockerfile.website.dockerignore'
-      - '.github/workflows/publish-site.yaml'
+      - "build/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "Dockerfile.website"
+      - "Dockerfile.website.dockerignore"
+      - ".github/workflows/publish-site.yaml"
   workflow_dispatch:
 
 concurrency:
@@ -76,6 +76,11 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # verify-site and the journey drive the headless shell matching the locked
+      # Playwright (`leaf_dev.browser`), not the runner's installed Chrome.
+      - name: Install Chromium headless shell
+        run: uv run playwright install --with-deps chromium --only-shell
+
       - name: 🖼 Build site
         run: |
           release=$(printf '%s:%s:%s' "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" | sha256sum | cut -d' ' -f1)
@@ -87,7 +92,7 @@ jobs:
 
       # Exercise the bundled graph through the same Worker and container boundary
       # before a deployment can make it public.
-      - name: Verify the bundled release locally in Chrome
+      - name: Verify the bundled release locally in a browser
         run: uv run leaf-dev verify-site website-worker
 
       - name: Build and push the exact container image
@@ -121,7 +126,7 @@ jobs:
       # at a time, so a coherent sample is what ends it — and the agent journey that
       # follows runs the deployed turn alone rather than re-sampling readings the wait
       # settled.
-      - name: Verify the exact public release in Chrome
+      - name: Verify the exact public release in a browser
         run: |
           release=$(jq --raw-output .release .tmp/site/_leaf/site.json)
           uv run leaf-dev verify-site --release "$release" --wait 900

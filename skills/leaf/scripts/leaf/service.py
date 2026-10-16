@@ -3,12 +3,15 @@
 The transaction holds the page's append lease; what may be appended under it is
 `event_contracts`' to say. Cold harness hooks read claims, and Codex's tool hook
 opens a transaction after every tool call, so process inspection and page-event
-semantics are imported only by their callers. A transaction imports the page model
-only to finish an interrupted publication."""
+semantics are imported only by their callers. A transaction finishes interrupted
+publications before admitting a reader. Hosts may declare LEAF_PAGE_COMMIT as a
+module:function provider; successful completion calls it under the same append
+lease, and provider failure prevents the caller from acknowledging success."""
 
 from __future__ import annotations
 
 import hashlib
+import importlib
 import os
 import secrets
 import sys
@@ -24,11 +27,11 @@ from leaf.event_log import (
     read_cursor,
 )
 from leaf.files import read_json, unfinished_publications
-from leaf.machine import pid_alive, state_home
+from leaf.interaction_log import session_context
+from leaf.machine import pid_alive, sandbox_remedy, state_home
 from leaf.refusals import Refused
 from leaf.schema import STATUS_FILE
 from leaf.state import (
-    CLAIMED_SUFFIX,
     EVENTS_FILE,
     chat_exists,
     ensure_session,
@@ -36,7 +39,7 @@ from leaf.state import (
     fsync_parents,
     now_iso,
     page_key,
-    session_file,
+    session_claims,
     session_lock_path,
     session_record,
     write_json,
@@ -61,16 +64,11 @@ def claim_path(page_dir: Path) -> Path:
     return state_home().resolve() / "claims" / f"{page_key(page_dir)}.json"
 
 
-def session_claims(session_id: str) -> Path:
-    """This session's discovery locators; payloads remain canonical by page."""
-    return state_home().resolve() / "claims" / session_file(session_id, "claims").stem
-
-
 def publish_claim(page_dir: Path, claim: dict) -> None:
     """Prepare discovery, then commit ownership in the canonical payload.
 
     Discovery validates the payload's owner against the partition. A transfer's
-    old locator therefore stops standing at the canonical commit, which also
+    old locator therefore stops being current at the canonical commit, which also
     admits the prepared new locator. Failed preparation leaves ownership intact.
     Resident writers retain the same flat payload path, so their atomic updates
     cannot destroy discovery.
@@ -142,12 +140,9 @@ def page_claim(page_dir: Path) -> dict | None:
 
 
 def claim_is_active(claim: dict | None) -> bool:
-    """Whether a claim still names a live owner: the job record a background
-    job's claim points at, the native source a persisted `chat` stands on, or
-    the process every other claim's pid names (`Harness.lifetime`). The only
-    reading of that rule: cold hooks and the CLI both call it, so a harness that
-    states its lifetime a new way joins here alone, beside the one constructor
-    above that writes what this reads."""
+    """Whether a claim still names a live owner: its session's generation, not
+    ended, with a lifetime that still lives (`lifetime_is_live`). Cold hooks and
+    the CLI both call it."""
     if not claim:
         return False
     record = session_record(claim["id"])
@@ -157,11 +152,31 @@ def claim_is_active(claim: dict | None) -> bool:
         or record["ended"] is not None
     ):
         return False
-    if "job" in claim:
-        return (Path(claim["job"]) / "state.json").is_file()
-    if claim.get("chat") is True:
+    return lifetime_is_live(claim, record)
+
+
+def lifetime_is_live(lifetime: dict, record: dict | None) -> bool:
+    """Whether the owner a `Harness.lifetime` names still lives: the job record a
+    background job's lifetime points at, the native source a persisted `chat`
+    stands on (`record`, the session's), or the process every other lifetime's pid
+    names. The only reading of that rule: a claim and the sandbox bridge's
+    registrations both carry a lifetime, so a harness that states its lifetime a
+    new way joins here alone."""
+    if "job" in lifetime:
+        return (Path(lifetime["job"]) / "state.json").is_file()
+    if lifetime.get("chat") is True:
         return chat_exists(record)
-    return "pid" in claim and pid_alive(claim["pid"])
+    return "pid" in lifetime and pid_alive(lifetime["pid"])
+
+
+def dead_session(claim: dict) -> str:
+    """Why a claim just prepared has no live session. Its session can end between
+    preparing and publishing, but where a sandbox runs the command in a process
+    namespace of its own, as Claude Code's does on Linux, the session's process
+    was never visible to it, and only a command run outside the sandbox can claim."""
+    if "pid" in claim and not pid_alive(claim["pid"]) and (remedy := sandbox_remedy()):
+        return f"the session's process ({claim['pid']}) is not visible here: {remedy}"
+    return "the prepared acquisition no longer has a live session"
 
 
 def claim_names_session(claim: dict | None, session_id: str) -> bool:
@@ -280,7 +295,12 @@ class PageTransaction:
         return self
 
     def __exit__(self, exc_type, exc, traceback):
-        return self._lock.__exit__(exc_type, exc, traceback)
+        try:
+            if exc_type is None and (provider := os.environ.get("LEAF_PAGE_COMMIT")):
+                module, name = provider.split(":", 1)
+                getattr(importlib.import_module(module), name)(self)
+        finally:
+            self._lock.__exit__(exc_type, exc, traceback)
 
     @property
     def claim(self) -> dict | None:
@@ -291,7 +311,7 @@ class PageTransaction:
         claim = self.claim
         return claim if claim_is_active(claim) else None
 
-    def standing_reply_reservation(self, responds: str) -> dict | None:
+    def open_reply_reservation(self, responds: str) -> dict | None:
         """The reply reservation on `responds` while the claim turn it names is open
         (`delivery` header)."""
         from leaf.activity import reply_reservation_stands
@@ -345,13 +365,10 @@ class PageTransaction:
         with flocked(session_lock_path(claim["id"])):
             projected = readable_claim(claim)
             if not claim_is_active(projected):
-                raise Refused("the prepared acquisition no longer has a live session")
+                raise Refused(dead_session(projected))
             previous = self.claim
             yield previous, projected
             publish_claim(self.page_dir, claim)
-            # Lets Codex's tool hook skip a session that never held a page
-            # (`state.hook_needed`).
-            session_file(claim["id"], CLAIMED_SUFFIX).touch()
 
     def restore_claim(self, expected: dict, previous: dict | None) -> None:
         """Roll back one failed claim without erasing a successor's."""
@@ -401,7 +418,7 @@ class PageTransaction:
 
         The work the agent has in hand is no status: it is the log's `start` events,
         and the `put_down` that `leaf status` writes beside a declaration takes them
-        back (`tasks`). The stream the harness observes carries across a `waiting`,
+        back (`todos`). The stream the harness observes carries across a `waiting`,
         and `idle` clears it with the leaf."""
         status = {"state": state, "detail": detail, "ts": now_iso()}
         if state != "idle" and (stream := self.status.get("stream")):
@@ -419,7 +436,7 @@ class PageTransaction:
         stream = dict(status.get("stream") or {})
         now = now_iso()
         after = self.events[-1]["seq"] if self.events else 0
-        standing = stream.get("activity")
+        previous = stream.get("activity")
         observed = {
             "session": session_id,
             "turn": turn_id,
@@ -429,13 +446,13 @@ class PageTransaction:
             "after": after,
         }
         if (
-            standing
+            previous
             and (
-                standing["session"],
-                standing["turn"],
-                standing.get("kind"),
-                standing.get("detail"),
-                standing["after"],
+                previous["session"],
+                previous["turn"],
+                previous.get("kind"),
+                previous.get("detail"),
+                previous["after"],
             )
             == (
                 observed["session"],
@@ -444,7 +461,7 @@ class PageTransaction:
                 observed.get("detail"),
                 observed["after"],
             )
-            and datetime.fromisoformat(now) - datetime.fromisoformat(standing["ts"])
+            and datetime.fromisoformat(now) - datetime.fromisoformat(previous["ts"])
             < STREAM_ACTIVITY_RENEWAL
         ):
             return
@@ -486,10 +503,10 @@ class PageTransaction:
         """Replace the provisional reply owned by one delivered response."""
         status = dict(self.status)
         stream = dict(status.get("stream") or {})
-        standing = stream.get("reply") or {}
+        previous = stream.get("reply") or {}
         timestamp = (
-            standing.get("ts")
-            if standing.get("session") == session_id and standing.get("turn") == turn_id
+            previous.get("ts")
+            if previous.get("session") == session_id and previous.get("turn") == turn_id
             else None
         )
         updated_at = now_iso()
@@ -508,7 +525,7 @@ class PageTransaction:
             "updated_at": updated_at,
         }
         reservations = self._reserved(stream, session_id, responds, attempt, turn_id)
-        if standing == reply and reservations == stream.get("reply_reservations"):
+        if previous == reply and reservations == stream.get("reply_reservations"):
             return
         stream["reply"] = reply
         stream["reply_reservations"] = reservations
@@ -550,8 +567,8 @@ class PageTransaction:
         in `turn_id`, refusing an address another delivery's reservation holds while
         it stands (`activity.reply_reservation_stands`)."""
         reservations = dict(stream.get("reply_reservations") or {})
-        standing = self.standing_reply_reservation(responds)
-        if standing is not None and not _held_by(standing, session_id, attempt):
+        reserved = self.open_reply_reservation(responds)
+        if reserved is not None and not _held_by(reserved, session_id, attempt):
             raise RuntimeError(
                 f"response {responds!r} is already reserved by another delivery"
             )
@@ -660,7 +677,12 @@ class PageTransaction:
         is the one caller — every writer reaches the log through that door, and
         nothing else here may append."""
         try:
-            return _append_event_unlocked(self._log, event, self.events)
+            return _append_event_unlocked(
+                self._log,
+                event,
+                self.events,
+                context=session_context(event.get("session"), self.claim),
+            )
         finally:
             self._events = None
 
@@ -707,7 +729,7 @@ def take_page_claim(page_dir: Path) -> tuple[dict | None, dict] | None:
     """Make the harness session the page's watcher, if a harness supplied one.
 
     `server start` and `page claim` claim; waiting and authoring commands do not.
-    A bare-shell serve makes no claim and therefore starts as standing.
+    A bare-shell serve makes no claim and therefore starts as persistent.
     """
     from leaf.harness import session_harness
 

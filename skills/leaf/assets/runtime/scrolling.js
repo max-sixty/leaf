@@ -40,7 +40,7 @@ export function placeKept(...boxes) {
 document.addEventListener(
   "scrollend",
   ({ target }) => {
-    const box = target === document ? pageScroller : target;
+    const box = target === document ? pageScroller : /** @type {Element} */ (target);
     if (kept.get(box) !== box.scrollTop) chooseScroll(box);
     kept.delete(box);
   },
@@ -63,8 +63,28 @@ export const scrollToEnd = (box, behavior = "instant") =>
 // lets document reading continuity and anchor travel share the operation without either
 // owning the other's default destination. A move of less than a pixel is none: written,
 // it would still stop a smooth scroll under way in the box.
+//
+// A box stores a whole-pixel offset, rounding a fractional one (Chromium to the nearest,
+// WebKit down: measured in both, at device pixel ratios 1 and 2), and words stand at
+// fractions of a pixel. So an instant move lands less than a pixel off its aim,
+// and the box remembers its aim while it stands where the move left it (`aimedTop`).
+// A place read there, and a keeper's next correction, start from the aim: started
+// from where the box landed, each move's rounding would add to the last, and a line
+// would creep across the screen revision by revision, or frame by frame of a fold.
+const aims = new WeakMap();
 export const moveScrollerBy = (box, top, behavior = "instant") => {
+  const aim = box.scrollTop + top;
   if (Math.abs(top) >= 0.5) box.scrollBy({ top, behavior });
+  if (behavior === "instant" && Math.abs(aim - box.scrollTop) < 1)
+    aims.set(box, { aim, at: box.scrollTop });
+  else aims.delete(box);
+};
+// Where Leaf last aimed `box`, while it stands where that move left it, else its offset.
+// A move that landed a pixel or more off was cut off by the box's range, and names no
+// position the box stands at.
+export const aimedTop = (box) => {
+  const kept = aims.get(box);
+  return kept?.at === box.scrollTop ? kept.aim : box.scrollTop;
 };
 
 // How much of a move a box can make from where it stands: a box at its end moves no

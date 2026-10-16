@@ -9,7 +9,7 @@
    the thread out of a view it leaves (thread-card.js, `#goWithThread`). */
 import { randomId } from "../ids.js";
 import { paintKeys } from "../keyboard/scopes.js";
-import { foldDuration, motion } from "../motion.js";
+import { foldBlock } from "../motion.js";
 import { pendingForParent } from "../pending/model.js";
 import { bindQueuedWork } from "../queued-work.js";
 import { whenDocumentPresented } from "../semantic-state.js";
@@ -37,16 +37,16 @@ export async function settleThread({
   await landGesture({
     landing,
     answer,
-    standing: () => Boolean(pendingSettlement(pendingEntries(), parent())),
+    pending: () => Boolean(pendingSettlement(pendingEntries(), parent())),
   });
 }
 
 /** Carry the user where a sent gesture leaves them, and back if the log refuses it.
  *
  * `landing` is the surface's {optimistic, reverse}, or null; `answer` the send's
- * answer; `standing` whether the gesture is still on its way, so a landing the log
+ * answer; `pending` whether the gesture is still on its way, so a landing the log
  * answered before the page presented the gesture waits for that answer. */
-export async function landGesture({ landing, answer, standing }) {
+export async function landGesture({ landing, answer, pending }) {
   const land = async (step) => {
     try {
       return Boolean(await step?.());
@@ -57,7 +57,7 @@ export async function landGesture({ landing, answer, standing }) {
   // These are the command's two deferred invocations, rather than the native async
   // tail that waits for them. Capture both before presentation yields the gesture.
   const startLanding = bindQueuedWork(() =>
-    standing() ? land(landing?.optimistic) : false,
+    pending() ? land(landing?.optimistic) : false,
   );
   const finishLanding = bindQueuedWork((accepted, landed) => {
     if (!accepted) return land(landing?.reverse);
@@ -79,26 +79,11 @@ export async function landGesture({ landing, answer, standing }) {
 // panels, each with its own node, disclosure, and animation lifetime.
 const folding = new Map();
 export function foldOut(node, repaintThread) {
-  const standing = folding.get(node);
-  if (standing && node.isConnected) return true;
+  const running = folding.get(node);
+  if (running && node.isConnected) return true;
   folding.delete(node);
-  standing?.played.cancel();
-  const style = getComputedStyle(node);
-  // Every length holding the box open folds to nothing: an open panel card's floor
-  // (`min-height`, chrome.css) as well as its height.
-  const from = {
-    height: node.getBoundingClientRect().height + "px",
-    minHeight: style.minHeight,
-    marginBottom: style.marginBottom,
-    borderTopWidth: style.borderTopWidth,
-    borderBottomWidth: style.borderBottomWidth,
-    paddingTop: style.paddingTop,
-    paddingBottom: style.paddingBottom,
-    opacity: 1,
-  };
-  const to = Object.fromEntries(Object.keys(from).map((key) => [key, "0px"]));
-  to.opacity = 0;
-  const played = motion(node, [from, to], foldDuration());
+  running?.played.cancel();
+  const played = foldBlock(node);
   if (!played) return false;
   const record = { played };
   folding.set(node, record);

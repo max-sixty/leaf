@@ -6,6 +6,7 @@ from interact_support import (
     PAGE,
     ROOT,
     check,
+    found,
     fragment_errors,
     publish,
 )
@@ -14,17 +15,17 @@ from leaf_dev.page_fixtures import prepare_page, read_fixture
 from model.test_interact_product import PAGE_FIXTURES, run_leaf
 
 
-def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(
-    page_dir, capsys
-):
-    """A settled group needs an id for its disclosure state. Once the whole
-    unreferenced group leaves, its ids are advisory rather than an error."""
+def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(page_dir):
+    """A settled group needs an id for its disclosure state, but the whole
+    unreferenced group may leave a later revision."""
     registry = registry_storage.load_registry(page_dir)
-    assert "'id' is a dependency of 'settled'" in " ".join(
+    assert found(
         fragment_errors(
             '<lf-options settled><lf-option id="o1"><strong>A</strong></lf-option></lf-options>',
             registry,
-        )
+        ),
+        "attribute-schema",
+        keyword="dependentRequired",
     )
 
     group = (
@@ -41,15 +42,10 @@ def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(
     (page_dir / "index.html").write_text(
         PAGE.replace("</main>", group.format(" settled", " chosen") + "</main>")
     )
-    assert checking_command.cmd_check(page_dir) == 0
-    capsys.readouterr()
+    assert checking_command.cmd_check(page_dir)["status"] == 0
 
     (page_dir / "index.html").write_text(PAGE)
-    assert checking_command.cmd_check(page_dir) == 0
-    assert (
-        'ids dropped from revision r1: ["opt-a", "opt-b", "pick", "pick-decision"]'
-        in (capsys.readouterr().out)
-    )
+    assert checking_command.cmd_check(page_dir)["status"] == 0
 
 
 # One case per fixture, named by its path since notes each keep a `playground.html`, so

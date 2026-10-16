@@ -1,7 +1,7 @@
 /* lf-activity: the page's history as a feed, newest first.
  *
  * The server's history reading is the only semantic input: every
- * reading of `watchHistory` restates the whole feed. A row says who acted (You for the
+ * reading of `readHistory` restates the whole feed. A row says who acted (You for the
  * user, Page for what the page did by itself, and otherwise the name the server serves
  * the row under), what they did, the thing they did it to, and how long ago.
  *
@@ -52,8 +52,9 @@ import {
   once,
   threadActions,
   readThreads,
+  readHistory,
   relabel,
-  watchHistory,
+  watchProjection,
   whileConnected,
   keeps,
   keepsHidden,
@@ -94,7 +95,7 @@ const reaction = (token) => layerFact("$reactions")?.tokens?.[token]?.glyph ?? t
 
 const actorOf = (row) =>
   row.author === "user"
-    ? "You"
+    ? "Me"
     : row.author === "page"
       ? "Page"
       : (row.agent ?? row.author);
@@ -210,9 +211,10 @@ customElements.define(
       whileConnected(this, (signal) => {
         paper.addEventListener("change", printing, { signal });
       });
-      this.#watching = watchHistory(this, (history, { ready }) => {
-        this.#ready = ready;
-        this.#render(history);
+      this.#watching = watchProjection(this, () => {
+        const history = readHistory();
+        this.#ready = history.phase === "ready";
+        this.#render(history.events);
         // Excerpts painted from the source take the parser's words once it lands.
         if (!markdownReady())
           loadMarkdown().then((loaded) => {

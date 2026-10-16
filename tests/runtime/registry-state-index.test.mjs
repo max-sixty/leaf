@@ -14,6 +14,7 @@ import test from "node:test";
 import {
   adoptRegistry,
   elementDeclarations,
+  layerFact,
   recordedWidgetSelector,
   registry,
   stateSpecs,
@@ -56,9 +57,13 @@ test("authoring selectors and shared facts never enter widget state", () => {
 // fingerprint, so no two vocabularies here share one either.
 test("both writers contribute, and only recorded declarations own a selector", () => {
   load("writers", {
-    "lf-index-action": { "x-state": { set: { record: { role: "value" } } } },
+    "lf-index-action": {
+      "x-state": { set: { record: { kind: "value", attr: "phase" } } },
+    },
     "lf-index-report": {
-      "x-state": { measure: { writer: "agent", record: { role: "value" } } },
+      "x-state": {
+        measure: { writer: "agent", record: { kind: "value", attr: "phase" } },
+      },
     },
     "lf-index-recordless": { "x-state": { settle: {} } },
   });
@@ -71,10 +76,10 @@ test("both writers contribute, and only recorded declarations own a selector", (
       ["lf-index-recordless", "settle", false],
     ],
   );
-  assert.deepEqual(recordedWidgetSelector().split(","), [
-    "lf-index-action",
-    "lf-index-report",
-  ]);
+  assert.deepEqual(
+    recordedWidgetSelector({ kind: "value", attr: "phase" }).split(","),
+    ["lf-index-action", "lf-index-report"],
+  );
 });
 
 test("a later generation inherits nothing from the index warmed before it", () => {
@@ -89,5 +94,15 @@ test("a later generation inherits nothing from the index warmed before it", () =
     stateSpecs().map(({ tag }) => tag),
     ["lf-index-fresh"],
   );
-  assert.equal(recordedWidgetSelector(), "");
+  assert.equal(recordedWidgetSelector({ kind: "value", attr: "phase" }), "");
+});
+
+test("a layer fact is the registry's own value, which a module cannot change", () => {
+  load("frozen", { $work: { widgets: { "lf-task": { role: "goal" } } } });
+  const work = layerFact("$work");
+  assert.equal(layerFact("$work"), work);
+  assert.throws(() => {
+    work.widgets["lf-task"].role = "worker";
+  }, TypeError);
+  assert.equal(registry.$work.widgets["lf-task"].role, "goal");
 });

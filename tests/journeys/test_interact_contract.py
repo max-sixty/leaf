@@ -19,10 +19,12 @@ from interact_support import (
     append_carried_log_record,
     assert_revendor_serializes_writer,
     check,
+    check_findings,
     decide,
     declare_data_input,
     element_declaration,
     fetch,
+    found,
     live_versions,
     page_packages,
     publish,
@@ -188,29 +190,31 @@ def test_withdrawal_may_name_an_outcome_that_retires_no_slots(trial_page):
     assert result.exit_code == 0, result.output
     registry["lf-trial"]["x-withdrawn-as"] = "missing"
     (trial_page / "registry.json").write_text(json.dumps(registry))
-    invalid = check(trial_page)
-    assert invalid.exit_code != 0
-    assert "not a deciding outcome" in invalid.output
+    status, findings = check_findings(trial_page)
+    assert status != 0
+    assert found(findings, "withdrawn-as", "<lf-trial>", outcome="missing")
 
 
 @pytest.mark.parametrize(
     ("arrangement", "refusal"),
     [
         ("own-verb", None),
-        ("recording-column", "'card' is not owned by action widget 'board'"),
+        ("recording-column-value", None),
+        ("recording-column-position", "'card' is not owned by action widget 'board'"),
     ],
 )
 def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
     server, page_dir, arrangement, refusal
 ):
-    """A card has one place and the nearest recording widget above it records it. A
-    verb the card records of its own is a coordinate of the card's, so the board still
-    moves it. A column that records stands between the board and the card."""
+    """A card's place belongs to the nearest ancestor recording that position slot.
+
+    Scalar records on the card or its column coexist with the board's position
+    record. A column recording positions takes that slot from the board."""
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["lf-column"]["properties"]["tint"] = {"type": "string"}
     card_verbs = {"flag": _value_verb("flag")}
     recorders = {"lf-card": ("flag", card_verbs)}
-    if arrangement == "recording-column":
+    if arrangement.startswith("recording-column"):
         recorders["lf-column"] = ("tint", {"tint": _value_verb("tint")})
     for tag, (attr, verbs) in recorders.items():
         entry = registry[tag]
@@ -222,6 +226,11 @@ def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
         entry["x-state"] = verbs
         entry["x-upgrade"] = True
         (page_dir / "widgets" / f"{tag}.js").write_text("export default class {}\n")
+    if arrangement == "recording-column-position":
+        registry["lf-column"]["x-state"]["move"] = {
+            "unit": "unit",
+            "record": {"kind": "position", "within": "lf-column"},
+        }
     (page_dir / "registry.json").write_text(json.dumps(registry))
     result = check(page_dir)
     assert result.exit_code == 0, result.output
@@ -284,9 +293,9 @@ def test_check_names_a_media_reference_the_directory_cannot_answer(page_dir):
             '<h2>Plan</h2><p><img alt="x" src="/media/deadbeefdeadbeef.png"></p>',
         )
     )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "/media/deadbeefdeadbeef.png isn't in the page directory" in result.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert found(findings, "missing-media", ref="/media/deadbeefdeadbeef.png")
 
     # A mention is not a reference: a page explaining leaf writes one of these
     # paths in its prose, and reading the markup rather than the attributes would
@@ -315,14 +324,16 @@ def test_sample_body_declarations_use_the_child_document_boundary(page_dir):
         (page_dir / "index.html").write_text(source)
         parser = structure_model.SourceDocument(source)
         [sample] = parser.samples
-        result = check(page_dir)
-        assert (result.exit_code == 0) is valid, result.output
+        status, findings = check_findings(page_dir)
         if valid:
+            assert status == 0, findings
             assert structure_model.annotation_mode(sample["document"]) == mode
             assert structure_model.annotation_mode(parser) == "overlay"
         else:
-            assert "sample 'practice'" in result.output
-            assert "invalid value" in result.output
+            assert status == 1
+            assert [(f.code, f.samples, f.values["value"]) for f in findings] == [
+                ("allocation-value", ("practice",), "unknown")
+            ]
 
 
 def test_check_keeps_parent_and_sibling_sample_ids_independent(page_dir):
@@ -404,10 +415,11 @@ def test_sample_references_see_only_selected_threads(
             f'<template id="practice" data-sample{selection}>{child}</template></main>',
         )
     )
-    result = check(page_dir)
-    assert (result.exit_code == 0) == seeded, result.output
+    status, findings = check_findings(page_dir)
+    assert (status == 0) == seeded, findings
     if not seeded:
-        assert "names no thread in this document" in result.output
+        samples = ("practice", "nested") if nested else ("practice",)
+        assert [(f.code, f.samples) for f in findings] == [("unknown-thread", samples)]
 
 
 def test_check_tokenizes_only_the_page_stylesheet(page_dir, monkeypatch):

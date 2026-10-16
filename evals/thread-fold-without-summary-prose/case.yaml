@@ -9,7 +9,7 @@ description: thread-fold-without-summary-prose
 metadata:
   purpose: Fold earlier progress messages under a requested label without summary prose, preserving their originals.
   tags:
-  - threads
+    - threads
 vars:
   prompt: |
     You own a live Leaf page at ~/.local/state/leaf/pages/layout-review.
@@ -27,12 +27,12 @@ vars:
     Nothing here can execute writes. Read the relevant Leaf instructions, then
     reply with the exact one-line CLI command you would run.
 assert:
-- type: llm-rubric
-  metric: folds-original-messages-without-prose
-  value: |
-    Pass only if the command is one `leaf thread summarize` on the layout-review
-    page covering exactly the two progress messages (`--from progress-one` and
-    `--through progress-two`), with `--label "Previous progress messages"` and an
-    explicitly empty `--text` (`''` or `""`), so the originals fold behind the label
-    with no summary prose. Any spelling of the launcher passes. Fail if the range
-    takes in user-request or final-answer, or the label is given as summary text.
+  - type: llm-rubric
+    metric: folds-original-messages-without-prose
+    value: |
+      Pass only if the command is one `leaf thread summarize` on the layout-review
+      page covering exactly the two progress messages (`--from progress-one` and
+      `--through progress-two`), with `--label "Previous progress messages"` and an
+      explicitly empty `--text` (`''` or `""`), so the originals fold behind the label
+      with no summary prose. Any spelling of the launcher passes. Fail if the range
+      takes in user-request or final-answer, or the label is given as summary text.

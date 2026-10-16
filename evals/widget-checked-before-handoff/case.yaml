@@ -6,8 +6,8 @@ description: widget-checked-before-handoff
 metadata:
   purpose: A finished package widget is checked with package check --render, whose findings are advice.
   tags:
-  - packages
-  - widgets
+    - packages
+    - widgets
 vars:
   prompt: |
     I'm building a Leaf package at packages/timeline with one upgraded widget,
@@ -19,14 +19,14 @@ vars:
 
     Answer in a short reply with the exact commands.
 assert:
-- type: regex
-  metric: runs-the-report
-  value: package check\s+\S*timeline\S*\s+--render|package check\s+--render\s+\S*timeline
-- type: llm-rubric
-  metric: findings-are-advice
-  value: |
-    Pass only if the reply says the command's findings are advice for the widget's
-    author that do not block the widget or a page using it (the command does not fail
-    on them), and names at least one thing a finding can report about the widget, such
-    as its box changing between first paint and upgrade or a tag no worked example
-    shows. Fail if it says a finding blocks shipping or makes the command fail.
+  - type: llm-rubric
+    metric: runs-the-report
+    value: The reply proposes a leaf package check command for packages/timeline with --render enabled. Read the command's arguments, allowing valid quoting and flag order; merely mentioning the command does not pass.
+  - type: llm-rubric
+    metric: findings-are-advice
+    value: |
+      Pass only if the reply says the command's findings are advice for the widget's
+      author that do not block the widget or a page using it (the command does not fail
+      on them), and names at least one thing a finding can report about the widget, such
+      as its box changing between first paint and upgrade or a tag no worked example
+      shows. Fail if it says a finding blocks shipping or makes the command fail.

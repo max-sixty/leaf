@@ -11,14 +11,17 @@
    hands to its placement as a frame to adopt (comment-placement.js, `adopt`), the same
    handoff a sent comment's box makes to its card, so from then on the surface stands
    where the user put it relative to what it is about, and scrolling carries it there.
-   The move lasts as long as that placement holds its side: a resize, another thread, or
-   closing the surface chooses afresh.
+   The carry stays in place until the owner commits that placement and calls `placed`;
+   clearing it before the asynchronous solve returns briefly restores the old box and
+   loses the grip's hover. The move lasts as long as that placement holds its side:
+   a resize, another thread, or closing the surface chooses afresh.
 
    A press on the grip takes no focus, so the comment being written keeps its caret. The
    move is presentation, not a decision, so nothing reaches the log. */
 import { el } from "../widget-elements.js";
 import { clamp } from "../rect.js";
 import { cancelAnimation, nextAnimation } from "../rendering.js";
+import { layoutPx } from "../keeps.js";
 
 // Below this travel a press is not a move, and the surface goes back to where its
 // placement stands it.
@@ -28,10 +31,17 @@ export function surfaceGrip({ surface, bounds, dropped }) {
   const grip = el("div", "lf-ui lf-surface-grip");
   grip.title = "Drag to move";
   let held = null;
+  let offset = { x: 0, y: 0 };
+  const placed = () => {
+    if (held) return;
+    if (surface.style.translate) surface.style.removeProperty("translate");
+    surface.removeAttribute("data-lf-carried");
+    offset = { x: 0, y: 0 };
+  };
   // Stands the surface at its grabbed box plus the pointer's travel, inside the
   // boundary as far as it fits, from wherever its placement has it now.
   function follow() {
-    const { box, travel, offset } = held;
+    const { box, travel } = held;
     const boundary = bounds();
     held.moved ||= Math.hypot(travel.x, travel.y) >= SLOP;
     const now = surface.getBoundingClientRect();
@@ -50,11 +60,11 @@ export function surfaceGrip({ surface, bounds, dropped }) {
       x: now.left - offset.x * scale.x,
       y: now.top - offset.y * scale.y,
     };
-    held.offset = {
+    offset = {
       x: (spot.x - placed.x) / scale.x,
       y: (spot.y - placed.y) / scale.y,
     };
-    const translate = `${held.offset.x}px ${held.offset.y}px`;
+    const translate = `${layoutPx(offset.x)} ${layoutPx(offset.y)}`;
     if (surface.style.translate !== translate) surface.style.translate = translate;
   }
   // Each frame of the carry, since anchoring moves the surface with no event to say so.
@@ -70,7 +80,6 @@ export function surfaceGrip({ surface, bounds, dropped }) {
       pointerId: event.pointerId,
       start: { x: event.clientX, y: event.clientY },
       travel: { x: 0, y: 0 },
-      offset: { x: 0, y: 0 },
       box: surface.getBoundingClientRect(),
       moved: false,
     };
@@ -91,11 +100,10 @@ export function surfaceGrip({ surface, bounds, dropped }) {
     cancelAnimation(held.frame);
     held = null;
     const box = surface.getBoundingClientRect();
-    surface.style.removeProperty("translate");
-    surface.removeAttribute("data-lf-carried");
+    if (!moved || event.type !== "pointerup") placed();
     dropped(moved && event.type === "pointerup" ? box : null);
   };
   for (const ending of ["pointerup", "pointercancel", "lostpointercapture"])
     grip.addEventListener(ending, finish);
-  return grip;
+  return { grip, placed };
 }

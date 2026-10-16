@@ -158,8 +158,25 @@ def _validator(canonical: str) -> Draft202012Validator:
 
 def schema_error(schema: dict, instance) -> str | None:
     """The first deterministic complaint about an instance, if it is invalid."""
+    complaint = schema_complaint(schema, instance)
+    return complaint["error"] if complaint else None
+
+
+def schema_complaint(schema: dict, instance) -> dict | None:
+    """`schema_error` with the place it concerns: `field`, the JSON pointer of the
+    value it is about (empty for the instance itself), and `rule`, the schema keyword
+    that value breaks, beside `error`."""
     error = min(json_validator(schema).iter_errors(instance), key=str, default=None)
-    return schema_error_message(error) if error else None
+    if error is None:
+        return None
+    return {
+        "field": "".join(
+            f"/{str(part).replace('~', '~0').replace('/', '~1')}"
+            for part in error.absolute_path
+        ),
+        "rule": error.validator if error.schema is not False else "false",
+        "error": schema_error_message(error),
+    }
 
 
 def json_value(value) -> str:
@@ -198,6 +215,16 @@ def schema_error_message(error) -> str:
     }:
         return f"{actual} does not satisfy {error.validator}: {expected}"
     return error.message
+
+
+def schema_reading(error) -> dict:
+    """A validator's complaint as a finding's values: the schema `keyword` it broke,
+    the `path` into the instance it read, and its words (`schema_error_message`)."""
+    return {
+        "keyword": error.validator,
+        "path": list(error.absolute_path),
+        "reason": schema_error_message(error),
+    }
 
 
 def unresolved_schema_reference(schema: dict) -> str | None:

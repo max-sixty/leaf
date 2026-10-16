@@ -7,6 +7,7 @@ run commands and check rendering; this executor independently checks the final
 page without repairing it. Existing assertions read the authored HTML, not a
 claim in the reply. Page files, prompts and native traces survive in the sample's
 evidence directory. Reading and instruction-only probes stay with native providers.
+The shared authoring prompt lives in `evals/workflows/authoring_eval.yaml`.
 """
 
 import hashlib
@@ -26,6 +27,7 @@ from leaf_dev.arms import (
     scratch,
     trace_summary,
 )
+from leaf_dev.eval_cases import definition
 from leaf_dev.leaf_assets import pinned_copy
 
 
@@ -99,12 +101,8 @@ def execute(
             }
         run_leaf(payload, state, "page", "init", str(page), check=True)
         setup_seconds = time.monotonic() - started
-        request = (
-            f"{prompt}\n\n"
-            f"Author the page in {page}/index.html. The page is initialized and writable. "
-            f"Your working directory is {cwd}; cited capture files are relative to it. "
-            f"$LEAF is {payload}/bin/leaf. You can use native tools to read the registry, "
-            "edit files, register or prepare media, and check the page."
+        request = definition("authoring_eval")["prompt"].format(
+            prompt=prompt, page=page, cwd=cwd, payload=payload
         )
         (evidence / "prompt.txt").write_text(request)
         try:

@@ -27,7 +27,7 @@
    context menu, and Option/Alt aims at the item. Such a press is left to the platform
    and the control's own click handling. A modifier arriving before the release ends the
    hold without this gesture's press and leaves the press to the browser's own click. */
-import { plainPress } from "./pointer.js";
+import { plainPress, pressIsKeyboardActivation } from "./pointer.js";
 
 export const HOLDS_WORD = "lf-holds-word";
 
@@ -77,7 +77,7 @@ export function holdToRead() {
       if (!event.isPrimary || !plainPress(event)) return;
       const holder = holderIn(event);
       if (!holder || holder.matches(":disabled, [aria-disabled='true']")) return;
-      const origin = event.composedPath()[0];
+      const origin = /** @type {Partial<Element>} */ (event.composedPath()[0]);
       if (origin.hasPointerCapture?.(event.pointerId))
         origin.releasePointerCapture(event.pointerId);
       hold = {
@@ -105,7 +105,13 @@ export function holdToRead() {
   document.addEventListener(
     "click",
     (event) => {
-      if (!released || !event.isTrusted || !event.detail || !holderIn(event)) return;
+      if (
+        !released ||
+        !event.isTrusted ||
+        pressIsKeyboardActivation(event) ||
+        !holderIn(event)
+      )
+        return;
       released = null;
       event.preventDefault();
       event.stopImmediatePropagation();

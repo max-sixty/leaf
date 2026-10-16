@@ -2,10 +2,11 @@
    retains their command scopes and presented controls, independently of the renderer
    that seats them. Every projection uses this directory for control, focus and
    containment, so a producer updates one registration whichever surface shows it. */
-import { html, render } from "../vendor/browser-runtime.js";
+import { html, render } from "/vendor/browser-runtime.js";
 import { iconElement } from "./icons.js";
 import { elementDirective, offer } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
+import { pressIsKeyboardActivation } from "./pointer.js";
 import { focusDestination } from "./focus.js";
 import { agentArrivalDuration, reducedMotion } from "./motion.js";
 import { isCommandScope, projectCommandScope } from "./keyboard/scopes.js";
@@ -491,7 +492,7 @@ export function activateContributionControl(
   return offered.registration.activate(entry.key, {
     origin: control,
     surface,
-    input: event.detail === 0 ? "keyboard" : "pointer",
+    input: pressIsKeyboardActivation(event) ? "keyboard" : "pointer",
     focus: (key) => {
       const destination = offered.registration.control(key, surface, true);
       if (!destination) return false;

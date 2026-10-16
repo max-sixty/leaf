@@ -1,165 +1,119 @@
 # Page authoring
 
-- [Read the registry](#read-the-registry)
-- [Document scaffold](#document-scaffold)
-- [Composing a page](#composing-a-page)
-- [Draw the subject](#draw-the-subject)
-- [Theme and vocabulary](#theme-and-vocabulary)
-- [Page behavior](#page-behavior)
-- [Live samples](#live-samples)
-- [Stable anchors](#stable-anchors)
-- [Reading cost](#reading-cost)
-- [Pre-handover review](#pre-handover-review)
+This reference covers what every page needs. Choices only some pages make have their
+own references, named where each choice comes up.
 
-## Read the registry
+## Show the subject
 
-Write semantic HTML and use the registry's elements and class idioms. The vendored
-theme owns palette, type, spacing, headings, tables, code, and widget presentation.
-Use a page-local `<style>` only for presentation unique to this page.
+Before writing a view's words, decide what it shows. Ask what the user would otherwise
+have to picture from a description, and put that thing on the page in its own form:
 
-Read the shared author instructions, when the page's packages carry any, before
-choosing vocabulary:
+- An existing interface is a screenshot, cropped or marked so the eye lands on the
+  point, with crops cutting through background rather than text. A visual change
+  between two versions is an `lf-shot` before-and-after pair, and captures that vary
+  along other axes go in a table of captures (`authoring-evidence.md`, "Source files
+  and media").
+- A behavior, such as an interaction, a motion or a process over time, runs: in a live
+  sample the user operates (`live-samples.md`), or in a page module that draws it with
+  controls to pause and scrub, so each moment stays readable and commentable.
+- A proposal or mechanism nothing can show yet is drawn: where things sit, what
+  contains, calls or feeds what, how a state changes, today beside the proposal, and
+  alternatives in one frame at one scale.
+- Numbers whose shape is the point, such as a trend, a ranking or groups on one scale,
+  are an `lf-chart`, even when they compare the same measures across items. Label the
+  values the argument cites, and put exact values in a table in `<details>` below it
+  when readers need them.
+- Wording the user judges, such as code, a command or a message, is shown as the text
+  itself. When the point is what code does, such as what it draws or which rule wins,
+  show that effect in one of the forms above, with the code beside it.
 
-```bash
-leaf page instructions <page> | jq -r '.author // empty'
-```
+Pages that decide, plan or review show their subject the same way: a work item that
+fixes a visible fault shows the fault, and an ask's options show what each answer gives
+the user (`authoring-asks.md`). A table or list whose rows say where things sit, how
+large they are or what connects to what should be a drawing.
 
-`<page>/registry.json` is the vocabulary `page init` vendored; a
-`page/registry.json` the page writes adds to it or replaces its entries ("Page
-behavior"). Ordinary keys are authoring vocabulary: custom-element names or CSS
-selectors. `$` keys are shared layer facts. Discover all vocabulary by purpose:
+A drawing or chart makes its point through its geometry: where its marks sit, their
+sizes, and what contains or links them. One that only restates the words or numbers
+beside it, as boxes holding its sentences or a mark or bar per counted item, shows
+nothing. When the user has nothing to picture, as when they weigh a refactor's reasons
+and cost, leave the case in words and draw nothing.
 
-```bash
-registry="<page>/registry.json"
-jq 'with_entries(select(.key | startswith("$") | not))
-    | map_values(.description)' "$registry"
-```
+Use a table for looking up values, for mixed units that can't share an axis, or for
+comparisons with text-heavy cells. Use native sections for a few alternatives read as
+wholes, and `lf-options` when the user must choose among them. Use images only when
+they carry information. `authoring-evidence.md` says which element draws each kind of
+evidence, and how to draw a figure of your own.
 
-Read a selected entry's complete example and instructions. Elements also carry
-an attribute schema; idioms show the semantic HTML and classes the theme styles.
-Both use the same lookup and the same `x-example` and `x-instructions` fields:
+Prose says only what the page can't show: the claim, why it holds, its cost, and the
+question the page asks. That takes a few sentences. A longer section is carrying
+something the page should show, or backing that belongs in `<details>`.
 
-```bash
-jq '.["lf-options"], .[".eyebrow"]' "$registry"
-```
+## Reading cost
 
-Before writing markup, read the composed author instructions for the entries you
-will use, including examples you copy:
+Readers skip collapsed text unless they go looking. Keep open everything the page asks
+the reader to take in or answer: the finding, its evidence, and what they are asked to
+review, decide or comment on, including a proposed plan. Collapse what they can skip
+and still do that, such as history, method, source excerpts, transcripts and raw
+output. Leaf opens a disclosure when a comment lands inside it.
 
-```bash
-leaf page instructions <page> --use lf-options --use .eyebrow | jq -r '.author // empty'
-```
+The title names the page, and the lede under it states the finding. A section that
+reaches a finding states it in its heading, short enough to scan in an `lf-toc`; put
+qualifications in the first sentence. A `<summary>` and an option's `<strong>` do the
+same. "Why the prefixes matter" and "What we learned" promise a finding and withhold
+it. Use a plain label only where there is no finding, as over a list, table or board
+that speaks for itself.
 
-Each repeated `--use` selects an element or idiom. The command includes shared
-package instructions, the selected entries' instructions, elements and idioms used in
-their examples, and declared data contracts. It returns one JSON map from audience
-to complete text. Whoever takes another role, you or an agent you assign, reads
-that audience's value for the same selection before acting. Inspect the map's
-keys to see the roles it carries; `--contract` selects a data contract directly.
-"Package contract" in `packages.md` defines composition.
+Write for what the user has seen: this conversation and the page so far. Introduce the
+names a decision depends on, show evidence for any claim they could doubt, and drop the
+story of how you got there.
 
-Read each `$` fact the page relies on in full:
-
-```bash
-jq '.["$series"]' "$registry"
-```
-
-`description` identifies purpose and when an entry helps. The schema and
-`x-example` state its form; `x-instructions` carries authoring choices and
-obligations the schema cannot express. Implementation contracts live beside
-their owning modules. Package-defined elements, idioms, and `$` facts join the
-same registry.
-
-## Document scaffold
-
-Write a complete HTML document. The authored head names and describes the page;
-Leaf adds the encoding, identity, theme, runtime, and canonical address when it
-delivers the document. Put page-specific CSS in `<style>` and JavaScript in
-`<script>` ("Page behavior"). Every `lf-*` element has an explicit end tag.
-
-Delivery also supplies `width=device-width, initial-scale=1, viewport-fit=cover`
-when the head has no viewport meta. This lets Leaf's chrome use the device's
-safe-area insets. An authored viewport is preserved and replaces that policy.
-
-The title and description are what the page says it is anywhere outside itself: a
-tab, a search result, a link someone pastes into a chat. Write a description that
-stands alone, since whoever reads it there has none of the page around it.
-
-```html
-<!doctype html>
-<html lang="en">
-<head>
-  <title>…</title>
-  <meta name="description" content="…">
-</head>
-<body>
-  <main class="layout-column">…</main>
-</body>
-</html>
-```
+Use `lf-gloss` for a local term, acronym or premise the reader can open beside a
+phrase. Keep citations as links and keep visible any qualification the argument rests
+on.
 
 ## Composing a page
 
-Most pages are read top to bottom and use a reading column,
-`<main class="layout-column">`. Text stays within the column's measure; wider blocks
-extend beside it without moving the prose. Without a Layout class, `main`'s blocks fill the window's width. A diagram or board
-declares its preferred width in the registry; `data-width` makes the same request
-for other blocks, such as a wide table ("Bounds and widths", below). Compose the page
-from these:
+Most pages are read top to bottom and use the reading column,
+`<main class="layout-column">`, where text stays within the measure and wider blocks
+extend beside it. Without a Layout class, the page
+lays out as plain HTML. A diagram or board declares its width; `data-width` asks for
+one on other blocks, such as a wide table (`page-layout.md`, "Bounds and widths").
+Compose the page from these:
 
-- **Prose read in order** — a plan, a review, a write-up, a decision — is plain
-  semantic HTML, with nothing declared.
-- **Independent status tiles** are a block with `class="layout-tiles"`, which sets its
-  children in equal cells, as many to a row as fit. Each cell holds a surface — a
-  metric, chart, table, list or log, with at most a caption — rather than paragraphs;
-  a row of headline numbers can use ordinary `dl` elements in one. Tiles of paragraphs are prose
-  cut into columns, and read worse than the column.
-- **A comparison** is a table or native sections arranged by the page's CSS.
-- **Controls beside evidence** is a playground, which declares how its controls
-  operate its preview.
-- **A screen the reader moves through rather than scrolls**, like a mail client or a
-  dashboard, such as a queue worked one item at a time, a run's log beside the chart
-  it explains, or a playground that is the page's subject, is a workspace (below): the
-  surface fills the window and starts at the title's left edge. Broken out of a column,
-  the same surface would stand below the column's opening prose, and its left edge would
-  not align with the title or the prose, which suits a figure the document cites but not
-  the page's main item.
-  Reading that supports the surface, such as the review behind a design the reader
-  tunes, goes in page tabs after the surface's own. A document read top to bottom
-  beside a panel kept in view, such as a postmortem beside its timeline, is instead a
-  `layout-sidebar` page whose `aside` sticks ("A sidebar page", below).
-- **Several views of one artifact** are one `lf-tabs` set: page tabs for
-  project-scale views that share one history, Threads panel, ask inventory, and
-  revision sequence, and a tabbed section for local alternatives within the
-  surrounding view. Page tabs are sections of one page: each panel takes the page's
-  width, so a Layout class on `main` widens every tab, and a sidebar stands beside
-  them as on any page. The `lf-tabs` entry says which placement makes which, and how
-  to order and retire views.
+- **Prose read in order**, such as a plan, review or decision, is plain semantic HTML.
+- **Independent status tiles** are a block with `class="layout-tiles"`, whose children
+  sit in equal cells. Each cell holds a metric, chart, table, list or log, with at most
+  a caption; tiles of paragraphs read worse than the column.
+- **A comparison** is a table, or native sections arranged by the page's CSS.
+- **Controls beside evidence** is a playground.
+- **A screen the reader works in rather than scrolls**, like a mail client, a queue
+  worked one item at a time, a log beside its chart, or a playground that is the page's
+  subject, is a workspace (`page-layout.md`, "A workspace"). Its surface fills the
+  window from the title's left edge. Broken out of a column, the same surface would sit
+  below the opening prose, with edges that match neither the title nor the prose, which
+  suits a figure a document cites but not the page's main item. Reading that supports the
+  surface, such as the review behind a design the reader tunes, goes in page tabs after
+  the surface's own. A document read top to bottom beside a panel kept
+  in view, such as a postmortem beside its timeline, is a `layout-sidebar` page
+  (`page-layout.md`, "A sidebar page").
+- **Several views of one artifact** are one `lf-tabs` set. Page tabs hold project-scale
+  views that share one history, Threads panel and set of asks; a tabbed section holds
+  local alternatives within a view. The `lf-tabs` entry says which placement makes
+  which.
 
-A page grows without changing its Layout: a report that gains live status gains a row of
-tiles, and its comments and anchors stay put.
+A page can grow without changing its Layout: a report that gains live status gains a
+row of tiles. Leaf's banner and bottom bar take their own space, and comment markers go
+in the margin or over their targets, so leave room for neither.
 
-Compose worker readings with a page-owned adapter when multiple workers report
-to one orchestrator. Declare their report verbs and use the public work projection
-for task and worker state. On a one-agent page, the banner carries that activity. A revisited
-page with several contributors, such as a working board, command hub, or long
-review, can use `lf-activity` to show recent changes; a read-once page needs no
-activity feed.
+## Contents navigation
 
-The banner and bottom bar reserve fixed space in the window. Leaf's annotation
-rail occupies the margin beside the column without moving its content ("The rail
-and the margin", below).
-
-### Contents navigation
-
-Long scrolling documents include a contents outline. It gives the reader a
-persistent route between sections and shows where they are in the document. A short
-document that can be read at a glance needs no outline. Keep navigation available at
-the desktop opening and while the document scrolls; in a narrow window, place it
-before the substantive reading.
+Give a long scrolling document a contents outline so the reader can move between
+sections and see where they are; a document short enough to take in at a glance needs
+none. The outline should be reachable from the top of the page on a desktop and while
+the document scrolls, and in a narrow window it comes before the main reading.
 
 Write an empty `lf-toc` with a stable id. On a column page, put it in an
-`aside.sidebar`, directly inside `main` near the opening:
+`aside.sidebar` directly inside `main`, near the top:
 
 ```html
 <aside class="sidebar" id="contents-sidebar">
@@ -167,656 +121,117 @@ Write an empty `lf-toc` with a stable id. On a column page, put it in an
 </aside>
 ```
 
-With room in the desktop margin, Leaf presents the column's outline as the contents
-spine; in a narrow window it is an open outline in the page's flow ("The rail and the
-margin"). On a sidebar page, keep the outline and short verdict or status available
-in the opening overview inside the Layout's `aside` ("A sidebar page"). Keep that
-overview short enough to fit the window, with detailed evidence and history in the
-body or behind a disclosure. Workspaces and root page tabs use their own navigation.
+Leaf shows it in the desktop margin when there is room, and as an open outline in the
+page's flow in a narrow window. On a sidebar page, put the outline and a short verdict
+or status at the top of the `aside` (`page-layout.md`, "A sidebar page"), short enough
+to fit the window, and put detailed evidence and history in the body or behind a
+disclosure. Workspaces and root page tabs have their own navigation.
 
-### Layouts
+## Read the registry
 
-A Layout is a class that arranges the box it is on. Three set the page's shape, on
-`main` alone:
+Write semantic HTML using the registry's elements and class idioms. The vendored theme
+styles colours, type, spacing, headings, tables, code and widgets; use a page `<style>`
+only for presentation unique to this page.
 
-| Class | The page |
-| --- | --- |
-| `layout-column` | the reading column, and a block's breakout beside it |
-| `layout-sidebar` | a body beside its `aside`, with a `header` and `footer` across both |
-| `layout-workspace` | a screen filling the window: `header`, one body, `footer` |
+First read the shared author instructions of the page's packages, which can steer
+which entries you pick:
 
-One arranges a block's children:
+```bash
+leaf page instructions <page> | jq -r '.author // empty'
+```
 
-| Class | Arranges |
-| --- | --- |
-| `layout-tiles` | equal cells, as many to a row as fit |
+`<page>/registry.json` is the vocabulary `page init` vendored, and a
+`page/registry.json` the page writes adds entries to it; an element entry there
+replaces the layer's entry for that tag (`page-behavior.md`). Ordinary keys are
+element names or CSS selectors; `$` keys are facts shared across the layer. List the
+vocabulary by purpose, then read the entries you pick, and any `$` fact you rely on, in
+full:
 
-Wide content on a column page breaks out of the column by its own declaration: a board
-or a diagram declares its width, and `data-width` asks for one on any other block, such
-as a table, a trace or a playground ("Bounds and widths"). The
-prose keeps its axis around it.
+```bash
+registry="<page>/registry.json"
+jq 'with_entries(select(.key | startswith("$") | not))
+    | map_values(.description)' "$registry"
+jq '.["lf-options"], .[".eyebrow"], .["$series"]' "$registry"
+```
 
-On a sidebar page or a workspace, every block, the title included, starts at one left
-edge and takes its region's width, while text keeps the reading measure, as does a
-widget read as text, such as an option list or a draft. A sidebar page is capped at the
-widest page and sets its title larger; a workspace takes the whole window and leaves its
-title to the theme.
+`description` says what an entry is for and when it helps; the schema and `x-example`
+give its form; `x-instructions` gives choices and obligations the schema can't express.
 
-An `lf-ask` and a callout keep the reading measure in every Layout. Give the chart,
-table, playground or other surface inside one that needs more room its own
-`data-width`.
+Before writing markup, read the author instructions for the entries you will use,
+including any example you copy:
 
-A Layout is a starting point. The page's own `<style>` comes after it in the cascade, so
-an ordinary rule adjusts it — a different track share, a gap, an order — and a page
-whose arrangement no Layout fits writes its own grid or flex rules on its own boxes.
-Where a Layout fits, use it rather than rebuilding it, since its tracks already hold
-the widths and wrapping every page needs.
+```bash
+leaf page instructions <page> --use lf-options --use .eyebrow | jq -r '.author // empty'
+```
 
-### A sidebar page
+The output is a JSON map from audience to text. It includes the packages' shared
+instructions, the named entries' instructions, and those of the elements and contracts
+their examples use. When you or an agent you assign takes another role, such as a
+data producer, read that audience's text for the same selection; `--contract` selects
+a data contract directly (`packages.md`, "Package contract").
 
-When the regions are the page rather than exhibits in an argument — a board with its
-status, a release dashboard, a long review whose contents and verdict stay beside the
-code — widen the page itself. `<main class="layout-sidebar">` sets what the reader
-works through beside what they keep an eye on — status, counts, the verdict's
-follow-ups, the contents — which is the Layout's `aside`, with the page's `header` above
-both:
+## Document scaffold
+
+Write a complete HTML document whose head has a title and description; Leaf adds the
+encoding, theme, runtime and viewport when it serves the page. Put page CSS in
+`<style>` and JavaScript in `<script>` (`page-behavior.md`). Give every `lf-*` element
+an explicit end tag.
+
+The title and description represent the page outside it, in a tab, a search result or
+a pasted link, so write a description that makes sense on its own.
 
 ```html
-<main class="layout-sidebar">
-  <header><h1>…</h1><p class="lede">…</p></header>
-  <aside id="status">
-    <div class="overview">
-      <lf-toc id="contents"></lf-toc>
-      <p>…</p>                 <!-- short verdict or status -->
-    </div>
-  </aside>
-  <div id="body">…</div>        <!-- document and supporting evidence -->
-</main>
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>…</title>
+    <meta name="description" content="…" />
+  </head>
+  <body>
+    <main class="layout-column">…</main>
+  </body>
+</html>
 ```
 
-The body takes two parts of the row and the track one. They stand side by side in a
-window down to about 870px, and below that, as on a phone, they stack in the order they
-are written. They stack in a wider window too where the body could not keep the width its
-content declares: a board whose columns need the room gets the page's whole width rather
-than clipping. So write the `aside` where a reader of the stacked page needs it: before
-the body when it is what they read first, such as a code review's verdict and the list of
-files it covers, where it also stands on the left; after it when it follows the work, such
-as a dashboard's checks and log, where it stands on the right. A page read in order is not
-one of these for its length alone: its contents stand in the margin beside the column
-("The rail and the margin"), and its figures keep the column's measure. It is one when
-the reader keeps a panel of its own in view while reading, such as a verdict with the
-changes and questions it asks beside the document it judges; that panel is the
-`aside`, and sticks (below). Stack each
-track's regions inside it, so every region stands on the same two vertical lines, rather
-than a new split per row whose edges land somewhere new each time.
-
-"Contents navigation" sets where the overview's outline goes at each width.
-
-To keep the track in view while the body scrolls beside it, put everything the track
-holds in one block, as the `div` in the example above does. While the track stands
-beside the body, the Layout sticks that block just below Leaf's banner and any page tab
-strip, and a block taller than the window scrolls on its own, so its end stays
-reachable. Where the two stack, the block scrolls with the page, and a track of several
-blocks always does. Write no `position`, `top`, height or overflow for the track or the
-blocks in it.
-
-Draw each region the same way, as a `section.panel` with a short heading, and keep a
-`.callout` with a status tone (`warn`, `danger`, `ok`) for the one thing the reader must
-act on; a row of `.tag` chips in the same tones under the lede says the page's state at a
-glance.
-
-### A workspace
-
-`<main class="layout-workspace">` is a screen: it fills the window's height below the
-banner, and the reader moves through it, choosing what its regions show, rather than
-scrolling it. Its `header` and `footer` take what they hold, and its one body between
-them takes the rest. The header is one row, the title with the page's state beside it,
-so the regions keep the window: `.tag` chips for what you state, such as how the items
-divide, and an `lf-tally` for how many of the page's asks are left, which the page
-counts as the user answers. Write no lede, eyebrow or legend there, and put what a
-lede would say at the top of the region it is about, or in a footer of a line or two.
-The body is one `lf-pane`, a
-widget that composes its own regions, or the page's own grid of panes, such as a run's
-log beside the chart it explains, which the page's `<style>` places:
-
-```html
-<main class="layout-workspace density-working">
-  <header><h1>…</h1><p><span class="tag warn">…</span></p></header>
-  <div id="regions">
-    <lf-pane id="log" label="Log">…</lf-pane>
-    <lf-pane id="chart" label="Chart">…</lf-pane>
-  </div>
-</main>
-```
-
-```css
-#regions { display: grid; grid-template-columns: minmax(16rem, 1fr) 2fr; }
-@media (width < 720px) { #regions { grid-template-columns: 1fr; } }
-```
-
-Stack the panes below 720px, where the Layout lets the page scroll: panes stacked in a
-wider window still share its one height.
-
-`density-working` is a style, not a Layout: on any block it sets smaller type, tighter
-spacing and options as rows, for a surface the reader operates rather than reads down.
-A workspace usually takes it, and so can a dense pane or table on a column page.
-
-A queue whose items open one at a time beside it, such as tickets, cases or findings to
-decide, is one `lf-tabs list="side"` as the body: its list is the queue and each item an
-`lf-tab`, so one opens beside the list and a link or an ask opens its own, and each
-row marks its item's asks: open until they are all answered, then a check, with the
-picked answer beside it where the item holds one ask. Write no script to select, hide
-or mark an item; the tab set does all three. Say how much of the queue is left with an
-`lf-tally` naming it in the header, with `next` for a control to the next open ask: it
-counts the asks as the user answers them, where a count written into a chip or the
-prose is wrong after the first answer. Where the items fall into kinds the user works
-through in turn, such as merge, close and FYI, give each `lf-tab` its kind as `group`
-and keep each kind's items together: the list sets each run under a heading of its
-group.
-
-The page itself does not scroll; a region does, where what it holds runs past it. Each
-pane's body scrolls on its own, and a widget that fills the body, such as a playground's
-stage, grows to the window's height. The `lf-pane` entry says what a pane holds. Let the
-Layout allocate the height: page-specific positioning should not be needed to keep a
-pane or footer reachable. Where the window is too small to hold the regions, they take
-their natural height and the page scrolls.
-
-Keep a region's decision visible with its supporting content: trim or split a pane
-whose body runs past its region. A region for reading long content, such as a source
-file or log, can keep its scrolling.
-
-### Bounds and widths
-
-Prefer one document scroll: let reading content and evidence grow in flow, with
-disclosures for supporting detail. Internal vertical scrolling needs a task that
-benefits from keeping a region in view while its contents move, as in a workspace,
-or a live stream whose newest entry the reader follows. Length alone is no reason
-to bound a listing or an inspection widget.
-
-For a live stream that needs a bounded reading region, use `data-bound`, naming
-the end its newest entry is at. A list that grows downward takes
-`data-bound="end"`, which follows its last line while the user is at the end and
-leaves them where they scrolled back to otherwise. A newest-first list takes
-`data-bound="start"`, which opens at the top, as the page's activity feed does.
-Don't make a box scroll vertically with page CSS: Leaf keeps no reading position
-in a scroller it did not make.
-
-An individual block or section may request a responsive allocation with
-`data-width="wide"` or `data-width="available"`, which overrides a widget's or idiom's
-default. `wide` uses the shared evidence width, `--wide`, in every Layout: past a
-column it grows to that width, and in a wider body or pane it holds to it at its
-start. A narrower frame still bounds it. `available` uses all room left by the page
-shell, frames, chrome, and a margin resident that takes its side, such as a sidebar
-standing in the margin or the contents map's spine; the markers beside it then stand as
-pins on it, and it moves below a note hanging level with it. A native `table` given
-either takes its columns' natural width up to that room: one that fits where it stands
-starts where the text around it starts, and a wider one grows evenly about the prose
-axis, or to the right where a sidebar stands in the left margin. A block in a list item
-or another indented block takes its room from the column, so it stands where the same
-block in the page's flow would, however deep the indent. A block the page places
-itself, as an item of its own grid or flex row, in an inline block, or inside one,
-keeps to the box it is given, since the room beside that box is the page's: a table
-there scrolls its columns inside it.
-An `lf-ask` or a callout keeps the column: a block of its own that declares a width
-breaks out of it on a column page, and widens it in a wider flow.
-Use these names on the semantic block itself, including a native `table`, `lf-code`, or
-`lf-diff`; do not reproduce their responsive widths in page CSS.
-
-A widget whose entry declares `x-height`, such as `lf-chart` or `lf-diagram`, is drawn
-by its module at a height the page holds before the drawing arrives: the entry's
-number, or an occurrence's `data-height`, in CSS pixels. `lf-chart` draws at that
-height. A widget whose drawing has a height of its own, such as `lf-diagram` or
-`lf-diff`, has no number, so what follows it moves when it is drawn unless the
-occurrence states that height. `page check --render` advises the height to state
-wherever a drawing differs from what the page held.
-
-Show evidence at the scale needed to judge it. For a local change, supply an aligned
-detail view with the complete object available for context; use whole frames when their
-composition is the subject. A fitted thumbnail is an overview, not a substitute for
-readable detail. Let the package provide inspection controls and Leaf allocate space and
-scrolling; page-local width overrides and wheel handlers should not be needed.
-
-### The rail and the margin
-
-Lay out the page without reserving space for Leaf's annotation markers. With room
-beside the content, Leaf puts markers in a rail; otherwise it puts them near their
-targets on the page. Pins can overlap text in a crowded view. The user hides pins
-and passage marks with `o`, or Hide annotations in the banner's More menu under
-a finger, to read the content beneath them. Padding a heading for its pin leaves
-unused space when the marker is in the rail.
-
-On a column page, write its contents outline in the first `aside.sidebar` and
-short notes in `aside.sidenote`. Leaf moves them into the margin when they fit;
-in a narrow window they stay where you authored them. A `layout-sidebar` page
-instead has an authored body and `aside` region ("A sidebar page").
-
-For CSS that depends on a margin resident, use `main`'s `data-lf-margin` tokens
-(`rail`, `map`, `sidebar`, `note`), such as
-`main:not([data-lf-margin~="sidebar"]) #route { display: none }`. Verify the
-page at the widths where a resident returns to the document flow.
-
-`data-rail="right"` on `body` keeps a rail on a sidebar page or a workspace.
-`data-rail="none"` gives a column page's right margin to the page's own content.
-A marker beside a hanging `aside.sidenote` already appears as a pin, so notes
-need neither override.
-
-### Page-owned annotations
-
-Leaf's default draws markers, passage marks and contextual replies over the page.
-For an arrangement that places annotations in the document instead, select
-`data-annotations="page"` on `body`. This choice omits the overlay's modules,
-styles and geometry. Exact comments, asks, decisions, Undo, live revisions and
-drawing capture still use the shared Leaf mechanisms. Changing the selection
-replaces the document through the ordinary revision lifetime.
-
-With nothing more, comments open in Threads, which remains the complete
-conversation index, and selection offers the banner's Comment on selection control.
-A page or package that shows conversations and actions in its own layout registers
-a presentation through "Page annotation presentation" in `module-authoring.md`; do
-not reconstruct the event log or annotation inventory in page code.
-
-## Draw the subject
-
-Decide what each view draws before writing its words. Most of what a page explains
-has a shape, and the user takes in a picture of it at a glance, where a description
-has to be rebuilt in their head:
-
-- where things sit, and what bounds, covers, or moves what: a layout, a page's
-  regions, the same page at two widths;
-- what contains, calls, or feeds what: a structure, an architecture, a data flow;
-- how a state changes: a sequence, a lifecycle, a plan's phases;
-- how two states differ: today beside proposed, before beside after;
-- how alternatives differ, when they differ in arrangement or mechanism.
-
-A page deciding, planning, or reviewing one of these draws it too. A table or list whose
-rows name places, sizes, or connections is a drawing written out.
-
-Show a visible subject with an image instead of describing its appearance: an
-interface with a screenshot, cropped or marked where the point sits so the eye lands
-there, and a visual change with an `lf-shot` before-and-after capture. A proposal or
-a mechanism has nothing to capture yet, so draw it. A process that unfolds over time
-is a diagram that moves: draw it in a page module from its state and the moment,
-with controls to pause and scrub, so every moment stays readable and its parts stay
-commentable. For fixed recordings and screen captures,
-follow `authoring-evidence.md`, "Source files and media". When the shape of numbers is
-the point — a trend, ranking, groups on one scale, or series moving together —
-lead with an `lf-chart`, even if the numbers compare the same dimensions across
-items. The chart labels the values the page's argument cites (`lf-chart`'s
-instructions); put the rest in a table below it in `<details>` when readers also
-need exact values.
-Use a table for value lookup, mixed units that cannot share an axis, or comparisons
-with text-heavy cells; use native sections for a few alternatives read as wholes,
-and `lf-options` when the user must choose among them. A headline measurement is
-a metric. Grouped cards form a board; its registry entry guides when to use it.
-Use images only when they carry information.
-`authoring-evidence.md` says which element draws each kind, and how to draw a figure
-of your own.
-
-For `lf-diagram`, omit `parts` when the whole drawing is one Comment target. When
-individual boxes need their own targets, list every nameable box in `parts`;
-`page check --render` reports a partial list so adjacent boxes do not behave differently.
-
-The prose beside a shape says only what the shape cannot. What is left for prose is
-the claim, the reason it holds, and the question the page is asking. A few sentences
-hold all three. A section that runs longer is carrying either a structure with a
-shape of its own or backing that belongs under `<details>`.
-
-## Theme and vocabulary
-
-For a page-specific inset, use the frame declaration in `references/packages.md`,
-"A theme change".
-
-The page's own CSS reaches the page's content and leaves Leaf's apparatus alone: the
-banner, the thread panel, and the controls a widget builds. A rule for `button` or
-`input` dresses the page's own buttons and fields, and a face set on `body` stops at
-those controls. To change them on purpose, name the widget they stand in or Leaf's
-class for them: `lf-options button`, `lf-board .lf-btn`, or, for controls a page
-module builds with `offer`, the page's own element (`my-explorer .toolbar`). A token
-such as `--accent` on `:root` changes every surface that reads it.
-
-A control the page writes itself matches Leaf's own when it carries Leaf's class:
-`class="button"` on a button, `class="button primary"` on the committing action, and
-`class="field"` on a text input or select. Without one, a control in `main` takes
-Leaf's type and keeps the browser's frame.
-
-Widget attributes carry scalars; children carry prose; a titled compound member uses a
-leading `<strong>`. A data-bodied widget such as `lf-code` holds escaped
-notation in `<pre>`, because its whitespace is part of the data. Escape `&`
-first, then `<` and `>`; any other order can silently decode entity text.
-
-Format filenames and paths as inline code, using backticks in Markdown and
-`<code>` in HTML; use an authored link when the file has a known destination.
-
-Display source snippets as `<pre><code class="language-javascript">…</code></pre>`,
-or `lf-code language="javascript"` for a line-numbered walkthrough, naming the actual
-language from `$languages.names`. Format illustrative code with the language's usual
-indentation and line breaks, preserving its behavior when you reformat an example.
-Keep brevity in the surrounding prose rather than packing distinct statements or
-fields onto a line. The runtime colors the declared language and preserves authored
-whitespace. Verbatim source quotations keep their exact text; logs and transcripts
-stay literal and uncolored when they are not source code.
-
-The runtime injects the status banner, thread panel, Versions menu, keyboard
-shortcuts, live-leaves drawer, and Questions panel. `conversation-loop.md`,
-"Questions and Tasks", owns what belongs in those lists and how to inspect them.
-Readers can turn off **Quick keyboard shortcuts** under **More → Keyboard shortcuts**.
-This preference persists across pages on the same origin and removes Leaf's character
-shortcuts and their hints; commands and ordinary control navigation remain available.
-A package can arrange conversations and obligations with the canonical APIs in
-`module-authoring.md`, "Owning the primary conversation presentation" and "Reading
-asks and obligation queues". Leaf owns their state, rendering, and activation;
-page composition can choose their layout.
-
-Keep content within its allocated column, visual surface, or pane. The theme scrolls a `<pre>` or a table
-that runs wider than its container and fits an image or SVG to it, so none of them needs a
-width. A table that scrolls has every column at its longest unbreakable run, so prose
-that wraps in it wraps a word a line while the reader also scrolls sideways. The
-browser gate advises on each width from a 360px phone up where a table scrolls with a
-cell in it wrapped: put an identifier in `<code>`, where it breaks inside its cell,
-rather than bare, where it holds its column and squeezes the prose beside it, and keep
-the columns to what the measure holds at the narrowest width the page's readers use. Widgets whose element declaration requests wider space size
-themselves within the page's available room. Preserve the meaningful detail in a diagram
-or comparison rather than shrinking its source solely to fit the prose column.
-
-## Page behavior
-
-Write page-specific behavior in an inline `<script type="module">` or in browser-ready
-modules below `page/`, referenced through `/page/…`. A library that ships only a classic
-script loads with `<script defer src>`, from `page/` or any server; every script runs after
-Leaf has read the page, so an inline classic, parser-blocking, or `async` script is
-refused. Page stylesheets and their local dependencies may live below `page/` too.
-Relative imports stay within `page/`; a module that integrates with Leaf may import the
-public `/runtime/widget-api.js`. Leaf captures
-the complete local dependency graph, effective registry, and selected layer bytes in the
-same immutable revision as the markup they control.
-
-Content and style changes update the open document when its registry and JavaScript
-are unchanged. Unchanged widgets keep their elements and local interaction state;
-changed widgets are replaced. An edit inside an element whose children a page module
-moved or detached also replaces that element. Give elements stable ids when their
-identity must survive a rewrite ("Stable anchors").
-
-Changing the registry or JavaScript opens a fresh document. Leaf restores reading
-position, recoverable drafts, and comparison state. It can also restore focus and
-supported control state when an element keeps its authored id and tag. Element
-instances and arbitrary module state do not survive the reload. Reloads wait while
-the user is composing. An in-place revision can arrive during selection, commenting,
-or editing when it preserves every selected passage or comment's complete authored
-anchor scope and every active native editor. Thread replies keep their editing session
-independently of the page's authored content. Otherwise the revision waits until
-composition ends. Both update paths wait during dragging or undoing, while a gesture
-awaits server admission, or while the version menu is open.
-
-Page modules follow `references/module-authoring.md`, "What a behavior module owes". In
-particular, its `once()`, `quoted()`, `offer()`, `layoutChanged()`, and durable-state
-rules keep authored controls correct after reconnection and thread quoting.
-
-A page module that shows the state of the asks in each card, section or item of its
-own layout reads them from Leaf rather than keeping a copy: `watchQuestions()` with
-`asksIn(region)` selects each region's asks, answered or open, by the rule `lf-tabs`
-rows and `lf-tally` read, and `questionActions.next({within})` steps to the next one
-waiting on the user (`references/module-authoring.md`, "Reading asks and obligation
-queues").
-
-`leaf page check` runs a page's own code, a script or a page widget the
-document places, once in the host's browser, and a page with a data widget such as a
-chart or a diagram, whose body only its module can read: through upgrade,
-presentation, and one frame after it. It fails on every error the page would report to
-you through the watcher, an uncaught exception or a rejected promise with the source
-location it came from, or a widget that could not draw its body, so a module that
-throws on its first paint or a chart that does not parse is found before the URL goes
-out. Code that runs only after a gesture or a timer is
-not reached; operate it in the pre-handover review. A page with neither is checked
-without a browser. On a host with no browser the run is skipped with a note; the page
-still reports those errors to you once a browser draws it.
-
-`page/registry.json` may contribute declarations using the package registry language.
-Its element entry replaces the selected layer's complete entry; shared `$` declarations
-compose at their declared grain. Declaration and implementation ownership are separate:
-a page declaration keeps the package widget unless `page/widgets/<tag>.js` exists, and a
-page widget may replace the package implementation without restating its declaration.
-Both choices are fixed in the revision manifest.
-
-Use a package when behavior, styling, or vocabulary is reused across pages. A one-page
-explorer or playground keeps its code in `page/`. Leaf captures the local files a
-page's scripts and stylesheets name literally, so import a page file by a literal URL;
-a computed `import()` reaches a module on another server, named by its full URL. Leaf
-refuses unresolved imports, filesystem escapes, and anything declared about the whole
-document (a `<base>`, an http-equiv `<meta>`, an import map), which would send the
-runtime's requests elsewhere or leave its modules unresolved.
-
-A script, stylesheet, font, image, or frame may also come from another server, named
-by its absolute `http(s)://` URL, and a page's code may fetch from anywhere. The page
-loads it as written, so it arrives only while the user is online. Data the page
-presents belongs in a `data/` source instead (`references/packages.md`, "External or
-derived data"), where the log and an export hold it.
-
-Typed data and media remain inert inputs. Read them through their Leaf/browser APIs;
-do not turn their contents into source code or markup.
-
-## Live samples
-
-Use `lf-sample` with one direct `template[data-sample]` to let the user
-operate a complete Leaf page inside the surrounding document. Give both the
-element and template stable ids. Put the child's content and styles directly in
-the template; Leaf supplies the document and its `main`:
-
-```html
-<lf-sample id="practice" label="practice release note">
-  <template id="practice-page" data-sample>
-    <h1>Weekend service</h1>
-    <p id="service-note">The sample shuttle runs every hour.</p>
-  </template>
-</lf-sample>
-```
-
-The sample's gutter contains only the content being demonstrated. Keep labels,
-host controls, and instructions about using the sample outside that gutter;
-instructions that belong to the demonstrated page remain inside it.
-
-The child uses the parent's selected layer and starts with its own event log. It
-stands in the surrounding page as a block as tall as its content, with only the
-Threads row of its chrome. When the window itself is what the sample shows, such as
-Leaf's banner, bottom bar, or drawers, the boolean `window` attribute makes the child
-a whole Leaf window instead, chrome included, at a fixed height that scrolls inside.
-A click or Tab reaches the child directly; its normal widget controls, keyboard
-routes, comments, and replies work there. Escape closes the child's open controls
-before returning to the surrounding page. Every live sample supplies **Full view**,
-which expands the same child to a whole Leaf window at viewport size. **Return to
-page**, or Escape after closing the child's controls, restores the embedded view
-with its choices, drafts, and history intact. Reset creates a fresh page from the template.
-Child decisions and comments do not change the parent's log or ask inventory.
-Set a page-wide body declaration, such as `data-annotations="page"`, on the sample
-template when the child needs it. Leaf carries that declaration onto the child's
-body; the surrounding page keeps its own choice.
-Host-driven view changes preserve focus. Programmatic navigation inside a sample
-scrolls only that child document.
-The child is temporary: use an ordinary Leaf page when its history must outlive
-the sample. A live sample needs a server, so a page declaring one cannot be
-exported (`references/serving-pages.md`, "Exported files").
-
-A thread message's `--markup` can carry a live sample too, and the user operates it
-in the thread. Its child is checked as the message is posted and uses the layer of
-the version showing the message; that version's captured files are the only page
-files it can load, so keep its code inline in the template. Its
-`data-sample-threads` cannot name the thread the message is in, since the copy would
-hold the same sample again.
-
-To start with fictional conversations or decisions, author an inert JSON script
-in the parent and name its id in the template's `data-sample-events`:
-
-```html
-<script id="service-history" type="application/json">
-[
-  {"id":"service-question","kind":"comment","author":"user",
-   "anchor":{"section":"service-note"},"text":"Does Sunday keep the same timetable?"},
-  {"kind":"reply","author":"agent","parent":"service-question",
-   "text":"Yes, both weekend days use this timetable."}
-]
-</script>
-<lf-sample id="service-window" label="weekend service" window>
-  <template id="service-page" data-sample data-sample-events="service-history">
-    <h1>Weekend service</h1>
-    <p id="service-note">The shuttle runs every hour.</p>
-  </template>
-</lf-sample>
-```
-
-The array contains ordinary event commands, checked against the child document
-at `page check` and admitted before its first presentation. Give an event an explicit
-`id` when a later command references it; omitted ids and timestamps are supplied,
-and the history belongs to revision 1. Several samples can name the same script;
-each gets an independent copy. Reset restores that authored history. The script
-must be inline `application/json` in the markup declaring the template: the page, or
-the message carrying it. Its events
-never appear in the outer log: leave fictional fixture anchors inside the template,
-and use this declaration rather than posting setup events from a page module.
-
-To begin with threads from the parent, set `data-sample-threads` on the
-template to their space-separated thread ids. The declaration selects from the
-parent's standing log rather than requiring it: a page whose log does not hold one
-of those threads yet — a first version, or a copy made from the source alone — opens
-the sample without that thread. Their anchored content must exist in the
-child. Reset copies those threads again from the parent; subsequent child
-replies remain independent. A template chooses either `data-sample-events` or
-`data-sample-threads`, never both.
-
-The child is a separate document in a sandbox. A `<style>` or module script in the
-template applies only to the child, and the surrounding page's styles and scripts do
-not reach it; neither page can read the other's DOM, browser storage, or runtime
-functions. Scripts, embedded frames, forms, popups, and downloads work in the child,
-and native resource loaders and module-relative URLs reach its own captured assets. A
-page module can await the element's `ready` promise for the current child's
-presentation; Reset, and the child leaving its page, each replace that promise. `await
-sample.reset()` replaces the child with a fresh copy of its initial state, and a
-reload inside the child reconnects the same child. When the child cannot be loaded,
-`ready` rejects and the sample shows the error with Reset available. The bubbling
-`lf-sample-ready` event carries `detail.sample` after each presentation, including
-Reset and a reload, so host controls can reapply a selected view without inspecting
-the Reset button. Once the child leaves its Leaf page, `ready` waits for the next one,
-which a reload brings. The containing page cannot tell a reload from a link to another
-document, so after such a link the wait lasts until Reset, which rejects it with
-`AbortError`.
-To select a conversation, call `await sample.showThread(id)` with its root event id;
-this shows the same page destination as its marker. To inspect it in Threads,
-call `await sample.showThread(id, {surface: "panel"})`. The panel view accepts
-`status: "open" | "resolved" | "all"` and `waiting: "user" | "agent" | "all"`;
-omitted values restore Open and unrestricted waiting. A panel view may omit the
-id to show its list. Completion means the selected view has presented; it returns
-false when a newer selection or Reset supersedes it. A selection the child leaves
-before presenting waits for the next document, as `ready` does. Outer controls keep keyboard
-focus. Use this method instead of clicking the child's private chrome or observing
-its DOM. Reapply the selected view on `lf-sample-ready` after Reset or reload.
-Author child content in the
-template rather than copying rendered controls from the parent. Ordinary
-`lf-sample` children, without a template, remain static quoted material.
-
-An ordinary served Leaf page can appear in a plain `<iframe src="…">`, keeping
-that page's durable history. Use its existing served URL. The parent and child
-must share the browser origin: scheme, hostname, and port. Another local port
-is a different origin. Leaf blocks cross-origin parents so another site cannot
-place an authenticated Leaf control beneath a misleading interface. Framing
-does not copy or reset the page.
+## Markup
+
+Widget attributes carry scalars and children carry prose; a titled member of a compound
+widget starts with a `<strong>`. A widget whose body is data, such as `lf-code`, holds
+escaped text in a `<pre>`. Escape `&` first, then `<` and `>`; any other order can
+silently decode entity text.
+
+Format filenames and paths as inline code, and link a file that has a known
+destination.
+
+Show source snippets as `<pre><code class="language-javascript">…</code></pre>`, or as
+`lf-code language="javascript"` for a line-numbered walkthrough, naming the actual
+language from `$languages.names`. Format example code with the language's usual
+indentation and line breaks rather than packing several statements or fields onto one
+line, and keep it working when you reformat it. Quote source verbatim when quoting it;
+logs and transcripts that aren't source code stay literal and uncoloured.
+
+The theme scrolls a `<pre>` or table wider than its container and fits an image or SVG
+to it, so none needs a width. In a table that scrolls sideways, prose wraps a word per
+line, and the render check reports each width from a 360px phone up where that happens.
+Put identifiers in `<code>`, which can break inside a cell, and keep the columns to
+what fits at the narrowest width the page's readers use. Keep a diagram's detail rather
+than shrinking it to fit the column.
 
 ## Stable anchors
 
-Give each section, major block, and Leaf element a stable, meaningful `id` at the
-tightest semantic boundary a user can distinguish. Where a sole child fills a
-transparent wrapper, let the child carry the pair's one id.
-Group a heading with its eyebrow or subtitle in `<hgroup>` so the complete title
-has one box. Put its stable address on the group; the heading supplies the contents
-label, while the group supplies the destination and position. When the title leads
-an identified section, that section owns the public address instead: put its id on
-the `<section>`, so a link arrives at the whole section, eyebrow included.
-An id a heading needs for an internal
-relationship such as `aria-labelledby` is not the section's public address.
-Threads and reading position attach to those ids across versions, and so does a
-user comparing this version with an earlier one: the id is how the comparison
-finds what the block said before, so a rewritten paragraph keeps the id it had.
-Stay out of the `lf-` prefix: it is the runtime's
-namespace for ids and for classes alike, and `data-lf-` is the same for
-attributes. `page check` refuses all three, including a name the runtime does
-not write today — the namespace is reserved, not the list of names in it.
-An id also must not look like the ids the event log mints, exactly eight lowercase
-hex digits such as `4f9e2a1c`: a command's id argument names a widget or a message,
-so `page check` refuses that shape too.
+Give each section, major block and Leaf element a stable, meaningful `id` on the
+smallest element a user would point at. A code block, table, figure or aside a user
+will point at as a whole needs one too, on itself or its immediate container. Where a
+wrapper holds only one child that fills it, put the id on the child.
 
-A code block, table, figure, or aside that a user will point at as a whole also
-needs a tight id, either on itself or on its immediate semantic container.
+Group a heading with its eyebrow or subtitle in `<hgroup>` and put the id on the group.
+When that title starts a section with an id, the `<section>` carries the address
+instead. An id a heading needs for `aria-labelledby` is not the section's address.
 
-## Reading cost
+Threads, reading position and version comparison all find a block by its id, so a
+rewritten paragraph keeps its id.
 
-Open words are read; collapsed words are read only by a user who goes looking
-for them. So whatever the page asks its readers to take in or answer stands open:
-the finding, the evidence it rests on, and what they are asked to review, decide,
-or comment on, a proposed plan included. A disclosure holds what they can skip and
-still do that: history, method, source excerpts, exhaustive support, transcripts,
-and raw output. Collapsed words stay quotable, and the runtime opens the
-disclosure when a comment or a walk lands inside one.
-
-The title names the page, and the lede under it carries the finding. A section
-that reaches a finding says it in the heading, briefly enough to scan in an
-`lf-toc` margin; supporting qualifications belong in the opening sentence. A
-`<summary>` and an option's `<strong>` do the same for what they cover.
-"Why the prefixes matter" and "What we learned" promise a finding and withhold
-it. A name that only says what it holds is right where there is no finding to
-state, over a list, a table, or a board that speaks for itself.
-
-Write for what the user has seen, which is this conversation and the page so
-far. Introduce the names a decision depends on, put evidence on the page for a
-claim they could doubt, and drop the journey once the conclusion replaces it.
-
-Use `lf-gloss` for a local term, acronym, or premise the reader can open beside a
-phrase. Citations remain links; argument-bearing qualifications remain visible.
-Longer asides belong in prose, a disclosure, or a sidenote.
-
-## Pre-handover review
-
-The main skill's "Review and stamp a record" step decides when a page takes this review.
-Every source activation already runs the deterministic markup check; this review adds
-the browser gate and a reading:
-
-```bash
-leaf page check <page> --render
-```
-
-It runs the browser gate in both color schemes, including when the host gives you
-no separate browser tool. Fix every failure; a screenshot is not a substitute.
-
-A clean check saves labeled screens at desktop, widest-window, and phone widths,
-up to eight screens down the page at each width. If the page extends beyond those,
-inspect its end separately. It also saves a screen just before each layout
-transition, such as a sidebar stacking or tiles wrapping. Read every screen for
-illegible or oversized drawing labels, isolated tiles, pins covering headings,
-and summaries arriving too late on a phone. Fix problems the page controls, then
-check again.
-
-Before handoff, give a subagent only the user's request and the labeled saved
-screens. Have it report anything it cannot follow, must guess, or has to picture
-from a description; fix those findings. The reader needs none of your research or
-notes, since the user has not seen them either. In your own reading, check that
-headings state their findings, claims have evidence, decisions have controls,
-drawings add information, and visible prose is needed by the user. Draw any subject
-the page currently explains only in words when a picture would convey it.
-
-For a page with contents, start at its opening at desktop and phone widths and
-jump to a later section without first scrolling through the article to find the
-navigation. Follow the page's links and operate its navigation with pointer and keyboard.
-At each destination, check that the visible content and focus leave the user
-oriented and able to continue; compare equivalent moves across the page's views.
-
-For a page with asks, the check also saves the window at each of the first eight
-as `q` reaches it from the top, which is how a user working the page meets each
-question (`conversation-loop.md`, "Questions and Tasks"). At each arrival, confirm
-that the question, shared premise, alternatives, and evidence that distinguishes them
-are visible together, the displayed numbers match the available actions, and the next
-press of `q` reaches the next item on Questions while the complete page remains
-visible.
-
-Without a way to inspect the rendered page, read `leaf page state <page>`'s
-`state` and `todos` alongside the active HTML to review the words, evidence, and
-available choices. Report the render command's result separately from the visual
-and keyboard review you could not perform. If the command cannot launch a browser,
-it says so and goes on: report the render check as unfinished, and, where it also
-says the page's code was not run, that run as well. A text reading does not establish
-layout or interaction quality.
+Don't start an id or class with `lf-`, or an attribute with `data-lf-`: Leaf reserves
+those prefixes, and `page check` refuses any name in them. It also refuses an id of
+exactly eight lowercase hex digits, such as `4f9e2a1c`, the shape of the message ids
+the event log creates.

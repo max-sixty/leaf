@@ -3,7 +3,7 @@
 # rather than relying on a pixel offset or making eyebrow text part of the heading.
 description: grouped-title-address
 metadata:
-  purpose: 'Stable anchors: a title and its eyebrow share one addressed group.'
+  purpose: "Stable anchors: a title and its eyebrow share one addressed group."
   tags:
     - authoring
     - navigation
@@ -34,15 +34,16 @@ variants:
   status-label:
     description: grouped-title-address/status-label
     metadata:
-      purpose: A status and date above a new title uses the shared label idiom without an
+      purpose:
+        A status and date above a new title uses the shared label idiom without an
         explicit class request.
     vars:
       prompt: >-
-        Write a short Leaf handover for the Questions contract change. Use the title
-        "Questions lists everything the agent needs from you". Put "Implemented locally
-        · October 9, 2026" directly above the title. Explain that Questions contains
-        every current request for the user, zero Questions means nothing is needed from
-        them, and Tasks can still contain the agent's work. Include a short verification
+        Write a short Leaf handover for the On me contract change. Use the title
+        "On me lists everything the agent needs from you". Put "Implemented locally
+        · October 9, 2026" directly above the title. Explain that On me contains
+        every current request for the user, an empty On me means nothing is needed from
+        them, and On Claude can still contain the agent's work. Include a short verification
         paragraph: focused Python and browser checks passed. There is no decision to collect
         here. The page has already been initialized with the default Leaf layer; delivery
         supplies its theme and runtime. The page directory is outside this read-only environment.

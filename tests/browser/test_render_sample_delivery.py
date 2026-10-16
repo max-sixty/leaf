@@ -30,7 +30,7 @@ def test_sample_view_selection_waits_across_a_reload(browser, serve):
     sample.evaluate("async sample => await sample.ready")
     child = sample.locator("iframe").element_handle().content_frame()
     child.evaluate("""async () => {
-      const {registerSampleCommand} = await __lfRuntimeImport('/runtime/sample-child.js');
+      const {registerSampleCommand} = await window.__lfCheckApi();
       registerSampleCommand('thread', () => {
         window.waitingCommand = true;
         return new Promise(() => {});

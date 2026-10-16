@@ -26,7 +26,7 @@
 
    Anchor placement's read is the one writer of the points (anchor-placement.js,
    `placePoints`, beside its resolution of every thread's anchor): it takes in what sends handed over, keeps a row
-   still standing, finds one a re-render or a revision replaced again by its words, once
+   still present, finds one a re-render or a revision replaced again by its words, once
    per page reading, and forgets the points of threads the log does not hold. A settled
    thread keeps its point, so undoing the settle brings it back where it stood. Everything
    else reads the result off the placement record. A point whose words no longer
@@ -55,8 +55,8 @@ const WITHIN_A_LINE = /^(inline|contents$)/;
 // the climb goes on past a block it found to see whether a cell holds it.
 //
 // The target's first line is none either: the target's own margin row stands there
-// already, so a comment pointed at a Question's heading joins the Question's row rather than
-// standing as a second one pushed below it. First is read off the document, as nothing
+// already, so a comment pointed at an ask's heading joins the ask's row rather than
+// appearing as a second one pushed below it. First is read off the document, as nothing
 // drawn coming before it in the target, so no reflow, zoom or font moves a comment
 // between the two rows.
 export function pointInto(target, node) {
@@ -93,8 +93,8 @@ const drawn = (node) =>
       node.checkVisibility() &&
       [...node.getClientRects()].some((box) => box.width && box.height);
 
-// A point still standing inside `target` with a box to stand by, or null.
-export function standingPoint(target, point) {
+// A point still present inside `target` with a box to stand by, or null.
+export function livePoint(target, point) {
   return target &&
     point?.isConnected &&
     point !== target &&
@@ -131,14 +131,11 @@ export function placePoints(threads, known) {
   for (const { key, target } of threads) {
     const point = points.get(key);
     if (!point) continue;
-    let element = standingPoint(target, point.element);
+    let element = livePoint(target, point.element);
     if (!element && point.passage && point.readFor !== text) {
       point.readFor = text;
       const found = resolveAnchor(point.passage);
-      element = standingPoint(
-        target,
-        pointInto(target, targetSegments(found)[0]?.node),
-      );
+      element = livePoint(target, pointInto(target, targetSegments(found)[0]?.node));
       if (element) point.element = element;
     }
     if (element)

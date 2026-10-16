@@ -101,6 +101,7 @@ export function scrollbarClearance() {
       // scrollHeight rounds to integer CSS pixels; tolerate that rounding alone.
       if (clear < required - 1)
         found.push({
+          code: "scrollbar-clearance",
           at: at(box),
           place: place(box),
           clear: Math.round(clear),

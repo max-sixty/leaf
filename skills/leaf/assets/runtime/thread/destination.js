@@ -17,7 +17,7 @@
    A native continuation (`focus: false`) returns its presented route under session
    availability even after Tab supersedes positioning; it never takes focus, and the
    original intent alone permits scrolling or another reveal gesture.
-   Addressed part and focus are independent. Materializing a thread Question asks
+   Addressed part and focus are independent. Materializing a thread ask asks
    for its message part without focus; a native editing continuation asks for the
    reply part without focus. Omitting part follows each surface's ordinary route.
    A focused primary arrival uses page travel's ordinary arrival, which clears a
@@ -46,6 +46,7 @@ import { renderedUnder } from "../shadow.js";
 import { threadKey, threadNames } from "./model.js";
 import { openMessageEditIn } from "./message-edit.js";
 import { THREAD } from "./selectors.js";
+import { threadPlace as placementOf } from "./placement.js";
 
 export function createThreadDestinations({
   placedAt,
@@ -71,6 +72,12 @@ export function createThreadDestinations({
     };
   }
   const threadTarget = (id) => placedAt(id)?.place ?? null;
+  // Where the thread stands in the page's order, as the list sorts it: its target, or
+  // the section its anchor names where the passage no longer resolves.
+  const threadPlace = (id) => {
+    const thread = allThreads().find((candidate) => candidate.id === id);
+    return thread ? placementOf(thread, placedAt) : null;
+  };
   const threadHere = () => heldThread() ?? preview?.accompanied() ?? null;
   // Discussion identity precedes the view that realizes it. Reply availability
   // narrows an editable destination without erasing the user's standing thread.
@@ -107,7 +114,7 @@ export function createThreadDestinations({
       flash = true,
       scroll = true,
       intent = retainUserIntent(),
-      transition = null,
+      origin = null,
     } = {},
   ) {
     if (!intent()) return null;
@@ -223,7 +230,7 @@ export function createThreadDestinations({
       let opened = null;
       if (preview)
         intent.handoff(() => {
-          opened = preview.open(id, { transition });
+          opened = preview.open(id, { origin });
         });
       if (opened) {
         if (trip) {
@@ -272,26 +279,34 @@ export function createThreadDestinations({
   // (`message-edit.js`). Landed on the thread instead, a long one's landing on its
   // latest turn took the view away from a rewrite it had just opened higher up.
   async function openThreadDraft(context, intent) {
+    const thread = threadHolding(context);
+    if (!thread) return null;
+    if (context.startsWith("reply:"))
+      return openPageThread(thread.id, { part: "reply", intent });
     const name = context.slice(context.indexOf(":") + 1);
-    if (context.startsWith("reply:")) {
-      const thread = allThreads().find((each) => threadKey(each) === name);
-      return thread ? openPageThread(thread.id, { part: "reply", intent }) : null;
-    }
-    if (!allThreads().some((each) => each.msgs.some(({ id }) => id === name)))
-      return null;
     const landed = await openPageThread(name, { part: "message", intent });
     const card = landed && closestAcross(landed, THREAD);
     return card ? openMessageEditIn(card, name) : null;
+  }
+  // The thread a thread-held draft is written under: the thread a reply is keyed by, or
+  // the one holding the message a rewrite is of; none once it has left the log's reading.
+  function threadHolding(context) {
+    const name = context.slice(context.indexOf(":") + 1);
+    return context.startsWith("reply:")
+      ? allThreads().find((each) => threadKey(each) === name)
+      : allThreads().find((each) => each.msgs.some(({ id }) => id === name));
   }
 
   return {
     register,
     openPageThread,
     openThreadDraft,
+    holdsThreadDraft: (context) => Boolean(threadHolding(context)),
     threadFocusTarget,
     threadHere,
     threadAtStanding,
     replyThreadAtStanding,
     threadTarget,
+    threadPlace,
   };
 }

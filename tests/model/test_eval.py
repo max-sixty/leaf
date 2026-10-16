@@ -2,13 +2,15 @@
 
 import json
 import os
+import subprocess
+import sys
 from pathlib import Path
 
 import click
 import pytest
 import yaml
-from leaf_dev.eval import catalog, native_provider, prepare, select_cases
-from leaf_dev.review_detection_eval import grading, summarize
+from leaf_dev.commands.eval import catalog, native_provider, prepare, select_cases
+from leaf_dev.commands.eval_ui_review import grading, summarize
 
 
 @pytest.mark.usefixtures("codex_cli")
@@ -133,7 +135,7 @@ def test_library_cases_supply_a_task_and_native_promptfoo_assertions(address):
 def test_catalog_rejects_execution_modes_conflicting_after_variant_inheritance(
     tmp_path, monkeypatch
 ):
-    from leaf_dev import eval as module
+    from leaf_dev.commands import eval as module
 
     path = tmp_path / "evals" / "example" / "case.yaml"
     path.parent.mkdir(parents=True)
@@ -157,7 +159,7 @@ def test_catalog_rejects_execution_modes_conflicting_after_variant_inheritance(
 def test_authoring_instruction_sources_stay_per_sample_with_the_task(
     tmp_path, monkeypatch
 ):
-    from leaf_dev import eval as module
+    from leaf_dev.commands import eval as module
 
     sources = {
         "first": ".claude/skills/developing-leaf/SKILL.md",
@@ -242,6 +244,59 @@ def test_native_columns_isolate_each_harness_and_arm(tmp_path, monkeypatch):
     assert brief["description"] == "brief-document-needs-no-outline"
     assert brief["vars"]["prompt"].startswith("Use the Leaf skill")
     assert [assertion["metric"] for assertion in brief["assert"]] == ["judgment"]
+
+    # Exercise Promptfoo's actual Python prompt loader and provider selection
+    # without a model. Echo retains the native input exactly as rendered.
+    config["providers"] = [{"id": "echo", "label": label} for label in labels]
+    config.pop("defaultTest")
+    for test in config["tests"]:
+        test["assert"] = [{"type": "javascript", "value": "true"}]
+    config_path = tmp_path / "promptfoo.json"
+    config_path.write_text(json.dumps(config))
+    results = tmp_path / "results.json"
+    root = Path(__file__).parents[2]
+    subprocess.run(
+        [
+            str(root / "node_modules/.bin/promptfoo"),
+            "eval",
+            "-c",
+            str(config_path),
+            "--no-cache",
+            "--no-share",
+            "-o",
+            str(results),
+        ],
+        env={
+            **os.environ,
+            "PROMPTFOO_PYTHON": sys.executable,
+            "PROMPTFOO_DISABLE_TELEMETRY": "1",
+            "PROMPTFOO_DISABLE_UPDATE_CHECK": "1",
+        },
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    rows = json.loads(results.read_text())["results"]["results"]
+    assert len(rows) == len(labels) * len(config["tests"])
+    for row in rows:
+        label = row["provider"]["label"]
+        output = row["response"]["output"]
+        address = row["testCase"]["metadata"]["case"]
+        task = catalog()[address]["vars"]["prompt"]
+        if label.startswith("codex/"):
+            skill, text = json.loads(output)
+            assert skill == {
+                "type": "skill",
+                "name": "leaf",
+                "path": config["prompts"][0]["config"]["leaf_skills"][label],
+            }
+            assert (
+                Path(skill["path"]).read_text() == f"{label.split('/')[1]} instructions"
+            )
+            assert text == {"type": "text", "text": task}
+        else:
+            assert output.endswith(task)
+            assert output.startswith("Use the Leaf skill")
 
 
 @pytest.mark.usefixtures("codex_cli")
@@ -351,6 +406,7 @@ def test_internal_instruction_cases_receive_their_arms_source(
         assert injected.endswith(f"{arm} maintainer instructions")
     assert [check["type"] for check in config["tests"][0]["assert"]] == ["llm-rubric"]
     assert config["tests"][0]["vars"]["prompt"] == catalog()[address]["vars"]["prompt"]
+    assert config["prompts"][0]["config"]["leaf_skills"] == {}
 
 
 def test_instruction_cases_selected_together_each_receive_their_own_source(tmp_path):
@@ -392,7 +448,7 @@ def test_native_codex_discovers_the_complete_arm_with_root_relative_access(
     payloads = arms(tmp_path, "candidate")
     work = tmp_path / "work"
     work.mkdir()
-    provider = native_provider("codex", payloads["candidate"], work)
+    provider, installed_skill = native_provider("codex", payloads["candidate"], work)
     settings = provider["config"]
     home = Path(settings["cli_env"]["CODEX_HOME"])
     registry = next(home.rglob("registry.json"), None)
@@ -400,13 +456,14 @@ def test_native_codex_discovers_the_complete_arm_with_root_relative_access(
     assert json.loads(registry.read_text()) == {"arm": "candidate"}
     skill = registry.parent.parent
     assert (skill / "SKILL.md").read_text() == "candidate instructions"
+    assert installed_skill == skill / "SKILL.md"
     assert (skill / "../../bin/leaf").read_text() == "candidate launcher"
 
 
 def test_native_javascript_assertions_and_asset_addresses_survive_preparation(
     tmp_path, monkeypatch
 ):
-    import leaf_dev.eval as module
+    import leaf_dev.commands.eval as module
 
     case = tmp_path / "evals" / "example" / "case.yaml"
     case.parent.mkdir(parents=True)
@@ -468,13 +525,17 @@ def test_catalog_contexts_keep_complete_original_check_coverage():
 
 
 def test_sidebar_primary_scores_rendered_work_and_retains_instruction_diagnostics():
-    from leaf_dev.arrangement_eval import expected_checks, rubrics
+    from leaf_dev.arrangement_eval import expected_checks
+    from leaf_dev.eval_cases import definition
 
     cases = catalog()
     task = "sidebar-page-at-900px"
     assert cases[task]["metadata"]["executor"] == "leaf_dev.arrangement_eval"
     assert not any(check.startswith("choice-") for check in expected_checks(task))
-    assert any("completed rollout" in rubric["value"] for rubric in rubrics(task))
+    assert any(
+        "completed rollout" in rubric.get("config", {}).get("rubric", rubric["value"])
+        for rubric in definition("arrangement_eval")["cases"][task]["assert"]
+    )
     for variant in ("instructions", "live"):
         case = cases[f"{task}/{variant}"]
         assert case["metadata"]["executor"] is None
@@ -485,7 +546,8 @@ def test_sidebar_primary_scores_rendered_work_and_retains_instruction_diagnostic
 def test_workflows_run_declared_conditions_harnesses_and_fixed_checks(
     tmp_path, monkeypatch
 ):
-    from leaf_dev.arrangement_eval import expected_checks, rubrics
+    from leaf_dev.arrangement_eval import expected_checks
+    from leaf_dev.eval_cases import definition
 
     login = tmp_path / "harness-login"
     login.mkdir()
@@ -535,19 +597,20 @@ def test_workflows_run_declared_conditions_harnesses_and_fixed_checks(
         assert test["vars"] == {"prompt": "document"}
         assert [check["metric"] for check in test["assert"]] == [
             *expected_checks("document", condition=condition),
-            *(rubric["metric"] for rubric in rubrics("document")),
+            *(
+                rubric["metric"]
+                for rubric in definition("arrangement_eval")["cases"]["document"][
+                    "assert"
+                ]
+            ),
         ]
-        # The screenshot judge may read the run's screenshots and nothing else
-        # outside the runtime and its own executable.
-        judge = test["assert"][-1]["provider"]["config"]
-        assert "sandbox_mode" not in judge
-        profile = (Path(judge["cli_env"]["CODEX_HOME"]) / "config.toml").read_text()
-        assert [line for line in profile.splitlines() if line.endswith('"read"')] == [
-            '":minimal" = "read"',
-            f'"{tmp_path / "screenshots"}/**" = "read"',
-            f'"{codex.resolve()}" = "read"',
-        ]
-        assert judge["codex_path_override"] == str(codex.resolve())
+        # Complete authoring criteria use the native live-page Python provider.
+        visual = next(
+            check for check in test["assert"] if check.get("config", {}).get("judge")
+        )
+        judge = visual["config"]["judge"]
+        assert judge["id"].endswith("/dev/leaf_dev/arrangement_eval.py")
+        assert Path(judge["config"]["pythonExecutable"]).is_file()
     assert "tools" not in config["defaultTest"]["options"]["provider"]["config"]
     html = next(
         provider["config"]
@@ -584,8 +647,6 @@ def test_python_provider_gives_each_call_its_own_evidence(tmp_path, monkeypatch)
             return {"output": "{}"}
 
     class Judged:
-        rubrics = staticmethod(lambda scenario: [{"type": "agent-rubric"}])
-
         @staticmethod
         def execute_scenario(case, payload, work, *, shots, harness, condition):
             observed.append(shots)
@@ -607,11 +668,12 @@ def test_python_provider_gives_each_call_its_own_evidence(tmp_path, monkeypatch)
     context = {
         "vars": {"prompt": "document/resume"},
         "test": {
+            "assert": [],
             "metadata": {
                 "case": "document/resume",
                 "executor": "leaf_dev.usability_eval",
                 "scenario": "resume",
-            }
+            },
         },
     }
     responses = [scenario_provider.call_api("", options, context) for _ in range(2)]
@@ -629,13 +691,16 @@ def test_python_provider_gives_each_call_its_own_evidence(tmp_path, monkeypatch)
         )
         assert work.parent == tmp_path / "samples"
         assert work.name.startswith("document-resume-")
-    # A judged executor's screenshots go to the judge's tree, beside nothing else.
+    # Capture setup belongs to the executor's API; removing its screenshot rubric
+    # still supplies the directory it requires. A grader reads that same tree.
     context["test"]["metadata"]["executor"] = "leaf_dev.reader_eval"
-    response = scenario_provider.call_api("", options, context)
-    assert (
-        observed[-1]
-        == tmp_path / "screenshots" / Path(response["metadata"]["work"]).name
-    )
+    for assertions in ([], [{"type": "agent-rubric"}]):
+        context["test"]["assert"] = assertions
+        response = scenario_provider.call_api("", options, context)
+        assert (
+            observed[-1]
+            == tmp_path / "screenshots" / Path(response["metadata"]["work"]).name
+        )
 
 
 def test_authoring_provider_preserves_per_call_evidence_and_the_original_prompt(
@@ -689,7 +754,7 @@ def test_command_passes_promptfoo_options_and_status_without_api_keys(
     """The command's own edges: case/option split, the optional base arm, the
     environment Promptfoo gets, and its exit status."""
     from click.testing import CliRunner
-    from leaf_dev import eval as module
+    from leaf_dev.commands import eval as module
 
     promptfoo = tmp_path / "promptfoo"
     calls = tmp_path / "calls"
@@ -712,7 +777,7 @@ def test_command_passes_promptfoo_options_and_status_without_api_keys(
     def run(*args):
         return CliRunner().invoke(module.eval, ["--harness", "claude-code", *args])
 
-    result = run("task-outlasts-the-turn", "--repeat", "3")
+    result = run("todo-outlasts-the-turn", "--repeat", "3")
     assert result.exit_code == 100, result.output
     assert built == [None]
     assert calls.read_text().strip().endswith("--repeat 3 key=none")
@@ -721,16 +786,16 @@ def test_command_passes_promptfoo_options_and_status_without_api_keys(
     )
     assert [p["label"] for p in config["providers"]] == ["claude-code/candidate"]
     assert config["description"].endswith(
-        "(working tree on 012345678): task-outlasts-the-turn"
+        "(working tree on 012345678): todo-outlasts-the-turn"
     )
 
     built.clear()
     # A named ref, since CI's checkout has no local main to take a merge base from.
-    assert run("task-outlasts-the-turn", "--base", "HEAD").exit_code == 100
+    assert run("todo-outlasts-the-turn", "--base", "HEAD").exit_code == 100
     assert built == ["HEAD", None]
 
     built.clear()
-    result = run("--base", "task-outlasts-the-turn")
+    result = run("--base", "todo-outlasts-the-turn")
     assert result.exit_code == 2 and "put cases before --base" in result.output
     assert built == []
 

@@ -4,5 +4,7 @@ exit: 1
 
 stdout: ''
 
-stderr: |
-  Error: delivery no longer owns its page: <page>
+stderr:
+  - error: >-
+      delivery no longer owns its page: <page>
+    findings: []

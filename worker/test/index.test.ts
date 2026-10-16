@@ -1,4 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
+import { unpackTar } from "modern-tar";
+import { sqliteStorage } from "./sqlite";
+
+const forwardedContainerFetch = vi.hoisted(() =>
+  vi.fn(async () => new Response("container")),
+);
 
 const containerHandlers = vi.hoisted(
   () => new Map<string, Record<string, (...args: never[]) => Promise<Response>>>(),
@@ -6,6 +12,14 @@ const containerHandlers = vi.hoisted(
 
 vi.mock("@cloudflare/containers", () => ({
   Container: class {
+    constructor(
+      public ctx: unknown,
+      public env: unknown,
+    ) {}
+
+    fetch(request: Request) {
+      return forwardedContainerFetch(request);
+    }
     static get outboundByHost() {
       return containerHandlers.get(this.name);
     }
@@ -21,10 +35,7 @@ vi.mock("@cloudflare/containers", () => ({
 }));
 
 import { getContainer } from "@cloudflare/containers";
-import worker, {
-  LeafWebsiteSession,
-  type Env,
-} from "../src/index";
+import worker, { LeafWebsiteSession, type Env } from "../src/index";
 
 const RELEASE = "a".repeat(64);
 const LAYER = "edge-layer";
@@ -121,7 +132,6 @@ const MANIFEST = {
 };
 
 const startupReport = (overrides: Record<string, unknown> = {}) => ({
-  version: 2,
   loadId: "123e4567e89b42d3a456426614174000",
   release: RELEASE,
   layer: LAYER,
@@ -137,7 +147,8 @@ const startupReport = (overrides: Record<string, unknown> = {}) => ({
 });
 const cookieKey = (root: string) =>
   root === "/" ? "root" : `page-${root.slice(1).replaceAll("/", "_")}`;
-const activeMarker = (root: string) => `__Host-leaf-active-${cookieKey(root)}=1`;
+const activeMarker = (root: string, release = RELEASE) =>
+  `__Host-leaf-active-${cookieKey(root)}=${release}`;
 const containerId = (sessionId: string) => `${RELEASE}:${sessionId}`;
 
 function environment(overrides: Partial<Env> = {}): Env {
@@ -163,7 +174,6 @@ function environment(overrides: Partial<Env> = {}): Env {
   return {
     ASSETS: { fetch } as unknown as Fetcher,
     PAGES: {} as DurableObjectNamespace<LeafWebsiteSession>,
-    AGENT_PREWARM: "false",
     WEBSITE_EVENTS: { writeDataPoint: vi.fn() },
     SOURCE_AGENT_RATE_LIMITER: allow,
     OPENAI_API_KEY: "test-key",
@@ -194,22 +204,41 @@ describe("product-site delivery", () => {
     const allocated = `/examples/triage-board/api/samples/${sampleId}/`;
     const sample = `/examples/triage-board/api/samples/${sampleId}~${objectId}`;
     const id = { toString: () => objectId } as DurableObjectId;
-    const allocationFetch = vi.fn(async () => Response.json({ url: allocated, page: `/api/samples/${sampleId}` }));
+    const allocationFetch = vi.fn(async () =>
+      Response.json({ url: allocated, page: `/api/samples/${sampleId}` }),
+    );
     vi.mocked(getContainer).mockReturnValue({ fetch: allocationFetch } as never);
     const containerFetch = vi.fn(async (request: Request) => {
-      if (request.method === "POST" && new URL(request.url).pathname.endsWith("/api/samples"))
-        return Response.json({ url: `${new URL(request.url).pathname}/${"07".repeat(16)}/`, page: `/api/samples/${sampleId}~${objectId}/api/samples/${"07".repeat(16)}` }, {
-          headers: { "Access-Control-Allow-Origin": "*" },
-        });
+      if (
+        request.method === "POST" &&
+        new URL(request.url).pathname.endsWith("/api/samples")
+      )
+        return Response.json(
+          {
+            url: `${new URL(request.url).pathname}/${"07".repeat(16)}/`,
+            page: `/api/samples/${sampleId}~${objectId}/api/samples/${"07".repeat(16)}`,
+          },
+          {
+            headers: { "Access-Control-Allow-Origin": "*" },
+          },
+        );
       if (request.method === "OPTIONS")
-        return new Response(null, { status: 204, headers: {
-          "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Headers": "*",
-        } });
-      return Response.json({ ok: true }, { headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Set-Cookie": "parent-cookie-must-not-reach-the-child=1",
-      } });
+        return new Response(null, {
+          status: 204,
+          headers: {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Headers": "*",
+          },
+        });
+      return Response.json(
+        { ok: true },
+        {
+          headers: {
+            "Access-Control-Allow-Origin": "*",
+            "Set-Cookie": "parent-cookie-must-not-reach-the-child=1",
+          },
+        },
+      );
     });
     const pages = {
       idFromName: vi.fn(() => id),
@@ -219,12 +248,19 @@ describe("product-site delivery", () => {
     const env = environment({ PAGES: pages as unknown as Env["PAGES"] });
     const waitUntil = vi.fn();
     const ctx = { waitUntil } as unknown as ExecutionContext;
-    const allocation = await worker.fetch(new Request("https://leaf.page/examples/triage-board/api/samples", {
-      method: "POST",
-      headers: { Cookie: `__Host-leaf-page=${sessionId}` },
-      body: JSON.stringify({ template: "practice" }),
-    }), env, ctx);
-    expect(await allocation.json()).toEqual({ url: `${sample}/`, page: `/api/samples/${sampleId}~${objectId}` });
+    const allocation = await worker.fetch(
+      new Request("https://leaf.page/examples/triage-board/api/samples", {
+        method: "POST",
+        headers: { Cookie: `__Host-leaf-page=${sessionId}` },
+        body: JSON.stringify({ template: "practice" }),
+      }),
+      env,
+      ctx,
+    );
+    expect(await allocation.json()).toEqual({
+      url: `${sample}/`,
+      page: `/api/samples/${sampleId}~${objectId}`,
+    });
     expect(pages.idFromName).toHaveBeenCalledExactlyOnceWith(containerId(sessionId));
 
     const paths = [
@@ -240,11 +276,15 @@ describe("product-site delivery", () => {
     for (const [method, path] of paths) {
       // A different browser's optional cookie must not reassign the capability.
       for (const cookie of [null, `__Host-leaf-page=${"08".repeat(16)}`]) {
-        const response = await worker.fetch(new Request(`https://leaf.page${path}`, {
-          method,
-          headers: { Origin: "null", ...(cookie ? { Cookie: cookie } : {}) },
-          ...(method === "POST" ? { body: JSON.stringify({ kind: "comment" }) } : {}),
-        }), env, ctx);
+        const response = await worker.fetch(
+          new Request(`https://leaf.page${path}`, {
+            method,
+            headers: { Origin: "null", ...(cookie ? { Cookie: cookie } : {}) },
+            ...(method === "POST" ? { body: JSON.stringify({ kind: "comment" }) } : {}),
+          }),
+          env,
+          ctx,
+        );
         expect(response.status).toBe(method === "OPTIONS" ? 204 : 200);
         expect(response.headers.get("Set-Cookie")).toBeNull();
         expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
@@ -258,7 +298,9 @@ describe("product-site delivery", () => {
     expect(allocationFetch).toHaveBeenCalledOnce();
     expect(containerFetch).toHaveBeenCalledTimes(paths.length * 2);
     expect(pages.idFromString).toHaveBeenCalledTimes(paths.length * 2);
-    expect(pages.idFromString.mock.calls.every(([value]) => value === objectId)).toBe(true);
+    expect(pages.idFromString.mock.calls.every(([value]) => value === objectId)).toBe(
+      true,
+    );
     expect(pages.get.mock.calls.every(([value]) => value === id)).toBe(true);
     expect(waitUntil).not.toHaveBeenCalled();
     expect(env.WEBSITE_EVENTS.writeDataPoint).not.toHaveBeenCalled();
@@ -268,9 +310,12 @@ describe("product-site delivery", () => {
     const objectId = "06".repeat(32);
     const pages = { idFromString: vi.fn(), get: vi.fn() };
     const env = environment({ PAGES: pages as unknown as Env["PAGES"] });
-    const response = await worker.fetch(new Request(
-      `https://leaf.page/examples/triage-board/api/state?sample=${"04".repeat(16)}~${objectId}`,
-    ), env);
+    const response = await worker.fetch(
+      new Request(
+        `https://leaf.page/examples/triage-board/api/state?sample=${"04".repeat(16)}~${objectId}`,
+      ),
+      env,
+    );
     expect(response.headers.get("Leaf-Session")).toBe("passive");
     expect(pages.idFromString).not.toHaveBeenCalled();
     expect(pages.get).not.toHaveBeenCalled();
@@ -278,13 +323,18 @@ describe("product-site delivery", () => {
 
   it("refuses an invalid namespace object ID before starting a sample container", async () => {
     const pages = {
-      idFromString: vi.fn(() => { throw new TypeError("invalid Durable Object ID"); }),
+      idFromString: vi.fn(() => {
+        throw new TypeError("invalid Durable Object ID");
+      }),
       get: vi.fn(),
     };
     const env = environment({ PAGES: pages as unknown as Env["PAGES"] });
-    const response = await worker.fetch(new Request(
-      `https://leaf.page/api/samples/${"04".repeat(16)}~${"06".repeat(32)}/api/state`,
-    ), env);
+    const response = await worker.fetch(
+      new Request(
+        `https://leaf.page/api/samples/${"04".repeat(16)}~${"06".repeat(32)}/api/state`,
+      ),
+      env,
+    );
     expect(response.status).toBe(404);
     expect(response.headers.get("Set-Cookie")).toBeNull();
     expect(pages.get).not.toHaveBeenCalled();
@@ -340,9 +390,6 @@ describe("product-site delivery", () => {
           headers: {
             Cookie: `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board")}`,
             "Content-Type": "text/plain;charset=UTF-8",
-            "User-Agent":
-              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
-              "AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36",
           },
           body: JSON.stringify(startupReport()),
         }),
@@ -358,9 +405,6 @@ describe("product-site delivery", () => {
         reference: "318445474579",
         route: "/examples/triage-board",
         currentRelease: RELEASE,
-        browser: "chrome",
-        browserVersion: 140,
-        platform: "windows",
         presentedMs: 310,
         firstContentfulPaintMs: 115,
         upgradedMs: 180,
@@ -379,41 +423,101 @@ describe("product-site delivery", () => {
     // Container admission is the credential boundary; projection remains at the edge.
     const containerFetch = vi.fn(async (request: Request) => {
       forwarded.push(await request.text());
-      return new Response(null, { status: 204, headers: {
-        "Access-Control-Allow-Origin": "*", "Cache-Control": "no-store",
-        "Set-Cookie": "private-parent-cookie=1",
-      } });
+      return new Response(null, {
+        status: 204,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Cache-Control": "no-store",
+          "Set-Cookie": "private-parent-cookie=1",
+        },
+      });
     });
-    const env = environment({ PAGES: {
-      idFromString: vi.fn(() => ({})), get: vi.fn(() => ({ fetch: containerFetch })),
-    } as unknown as Env["PAGES"] });
+    const env = environment({
+      PAGES: {
+        idFromString: vi.fn(() => ({})),
+        get: vi.fn(() => ({ fetch: containerFetch })),
+      } as unknown as Env["PAGES"],
+    });
     const entries = [
-      { ts: "2026-10-10T12:00:00.000Z", sequence: 1, type: "sample", phase: "failed",
-        sample: nested, error: { name: "AuthoredSampleError", status: 503, stack: "stack-secret" } },
-      { ts: "2026-10-10T12:00:01.000Z", sequence: 1, type: "click", target: ["button#private-secret"] },
+      {
+        monotonic_ms: 123,
+        visibility: "visible",
+        observed_at: "2026-10-10T12:00:00.000Z",
+        sequence: 1,
+        type: "sample",
+        phase: "failed",
+        sample: nested,
+        error: { name: "AuthoredSampleError", status: 503, stack: "stack-secret" },
+      },
+      {
+        monotonic_ms: 123,
+        visibility: "visible",
+        observed_at: "2026-10-10T12:00:01.000Z",
+        sequence: 1,
+        type: "click",
+        target: ["button#private-secret"],
+      },
     ];
     try {
       for (const [index, path] of [sample, nested].entries()) {
-        const body = JSON.stringify({ session: String(index).repeat(32), entries: [entries[index]] });
-        const response = await worker.fetch(new Request(`https://leaf.page/examples/triage-board${path}/api/interaction`, {
-          method: "POST", headers: { Origin: "null" }, body,
-        }), env);
+        const body = JSON.stringify({
+          session: String(index).repeat(32),
+          entries: [entries[index]],
+        });
+        const response = await worker.fetch(
+          new Request(
+            `https://leaf.page/examples/triage-board${path}/api/interaction`,
+            {
+              method: "POST",
+              headers: { Origin: "null" },
+              body,
+            },
+          ),
+          env,
+        );
         expect(response.status).toBe(204);
         expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
         expect(response.headers.get("Set-Cookie")).toBeNull();
         expect(forwarded[index]).toBe(body);
       }
-      expect(logged.mock.calls.map(call => call[0])).toStrictEqual([
+      expect(logged.mock.calls.map((call) => call[0])).toStrictEqual([
         {
-          component: "leaf-interaction", event: "client_batch", route: "/examples/triage-board",
-          release: RELEASE, sampleReference: "645988520964", session: "0".repeat(32),
-          entries: [{ ts: entries[0].ts, sequence: 1, type: "sample", phase: "failed",
-            sampleReference: "380479911687", error: { name: "AuthoredSampleError", status: 503 } }],
+          component: "leaf-interaction",
+          event: "client_batch",
+          route: "/examples/triage-board",
+          release: RELEASE,
+          sampleReference: "645988520964",
+          session: "0".repeat(32),
+          entries: [
+            {
+              monotonic_ms: 123,
+              visibility: "visible",
+              observed_at: entries[0].observed_at,
+              sequence: 1,
+              type: "sample",
+              phase: "failed",
+              sampleReference: "380479911687",
+              error: { name: "AuthoredSampleError", status: 503 },
+            },
+          ],
         },
         {
-          component: "leaf-interaction", event: "client_batch", route: "/examples/triage-board",
-          release: RELEASE, sampleReference: "380479911687", session: "1".repeat(32),
-          entries: [{ ts: entries[1].ts, sequence: 1, type: "click", target: ["button"] }],
+          component: "leaf-interaction",
+          event: "client_batch",
+          route: "/examples/triage-board",
+          release: RELEASE,
+          sampleReference: "380479911687",
+          session: "1".repeat(32),
+          entries: [
+            {
+              monotonic_ms: 123,
+              visibility: "visible",
+              observed_at: entries[1].observed_at,
+              sequence: 1,
+              type: "click",
+              target: ["button"],
+            },
+          ],
         },
       ]);
       const emitted = JSON.stringify(logged.mock.calls);
@@ -422,7 +526,9 @@ describe("product-site delivery", () => {
       expect(emitted).not.toContain("06".repeat(32));
       expect(emitted).not.toContain("07".repeat(16));
       expect(getContainer).not.toHaveBeenCalled();
-    } finally { logged.mockRestore(); }
+    } finally {
+      logged.mockRestore();
+    }
   });
 
   it("does not log refused or invalid opaque sample batches", async () => {
@@ -430,34 +536,64 @@ describe("product-site delivery", () => {
     let admittedStatus = 204;
     const containerFetch = vi.fn(async (request: Request) => {
       await request.text();
-      return new Response(null, { status: admittedStatus, headers: { "Access-Control-Allow-Origin": "*" } });
+      return new Response(null, {
+        status: admittedStatus,
+        headers: { "Access-Control-Allow-Origin": "*" },
+      });
     });
-    const env = environment({ PAGES: {
-      idFromString: vi.fn(() => ({})), get: vi.fn(() => ({ fetch: containerFetch })),
-    } as unknown as Env["PAGES"] });
-    const entry = { ts: "2026-10-10T12:00:00.000Z", sequence: 1, type: "click" };
+    const env = environment({
+      PAGES: {
+        idFromString: vi.fn(() => ({})),
+        get: vi.fn(() => ({ fetch: containerFetch })),
+      } as unknown as Env["PAGES"],
+    });
+    const entry = {
+      monotonic_ms: 123,
+      visibility: "visible",
+      observed_at: "2026-10-10T12:00:00.000Z",
+      sequence: 1,
+      type: "click",
+    };
     const batch = { session: "1".repeat(32), entries: [entry] };
     const cases = [
       { status: 404, body: JSON.stringify(batch), expected: 404 },
       { status: 503, body: JSON.stringify(batch), expected: 503 },
       { status: 204, body: "{", expected: 204 },
-      { status: 204, body: JSON.stringify({ ...batch, entries: [{ type: "click" }] }), expected: 204 },
-      { status: 204, body: JSON.stringify({ ...batch, entries: Array(101).fill(entry) }), expected: 204 },
+      {
+        status: 204,
+        body: JSON.stringify({ ...batch, entries: [{ type: "click" }] }),
+        expected: 204,
+      },
+      {
+        status: 204,
+        body: JSON.stringify({ ...batch, entries: Array(101).fill(entry) }),
+        expected: 204,
+      },
       { status: 204, body: "x".repeat(128 * 1024 + 1), expected: 204 },
     ];
     try {
       for (const item of cases) {
         admittedStatus = item.status;
-        const response = await worker.fetch(new Request(`https://leaf.page/examples/triage-board/api/samples/${"04".repeat(16)}~${"06".repeat(32)}/api/interaction`, {
-          method: "POST", headers: { Origin: "null" }, body: item.body,
-        }), env);
+        const response = await worker.fetch(
+          new Request(
+            `https://leaf.page/examples/triage-board/api/samples/${"04".repeat(16)}~${"06".repeat(32)}/api/interaction`,
+            {
+              method: "POST",
+              headers: { Origin: "null" },
+              body: item.body,
+            },
+          ),
+          env,
+        );
         expect(response.status).toBe(item.expected);
         expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
         expect(response.headers.get("Set-Cookie")).toBeNull();
       }
       expect(logged).not.toHaveBeenCalled();
       expect(containerFetch).toHaveBeenCalledTimes(cases.length);
-    } finally { logged.mockRestore(); }
+    } finally {
+      logged.mockRestore();
+    }
   });
 
   it("retains safe sample lifecycle evidence in edge interaction batches", async () => {
@@ -465,77 +601,191 @@ describe("product-site delivery", () => {
     const sample = `/api/samples/${"04".repeat(16)}~${"06".repeat(32)}`;
     const entries = [
       {
-        ts: "2026-10-10T12:00:00.000Z", sequence: 1, type: "sample",
-        phase: "admission", host: 2, allocation: 3, revision: 4, elapsed: 23.5,
-        sample, document: "12345678-1234-4234-8234-123456789abc",
-        template: "private-template-secret", status: 200, leafDocument: "4",
+        monotonic_ms: 123,
+        visibility: "visible",
+        observed_at: "2026-10-10T12:00:00.000Z",
+        sequence: 1,
+        type: "sample",
+        phase: "admission",
+        host: 2,
+        allocation: 3,
+        revision: 4,
+        elapsed: 23.5,
+        sample,
+        document: "12345678-1234-4234-8234-123456789abc",
+        template: "private-template-secret",
+        status: 200,
+        leafDocument: "4",
       },
       {
-        ts: "2026-10-10T12:00:01.000Z", sequence: 2, type: "sample",
-        phase: "failed", host: 2, allocation: 3, revision: 4, elapsed: 99,
-        sample, document: "12345678-1234-4234-8234-123456789abc",
-        operation: "release", reason: "reset", reloading: true,
-        error: { name: "TypeError", status: 503, message: "message-secret", stack: "stack-secret", body: "body-secret" },
+        monotonic_ms: 123,
+        visibility: "visible",
+        observed_at: "2026-10-10T12:00:01.000Z",
+        sequence: 2,
+        type: "sample",
+        phase: "failed",
+        host: 2,
+        allocation: 3,
+        revision: 4,
+        elapsed: 99,
+        sample,
+        document: "12345678-1234-4234-8234-123456789abc",
+        operation: "release",
+        reason: "reset",
+        reloading: true,
+        error: {
+          name: "TypeError",
+          status: 503,
+          message: "message-secret",
+          stack: "stack-secret",
+          body: "body-secret",
+        },
       },
       {
-        ts: "2026-10-10T12:00:02.000Z", sequence: 3, type: "sample",
-        phase: "retired", host: 2, allocation: 3, revision: 4, elapsed: 101,
-        sample: `/api/samples/${"04".repeat(16)}`, document: null, reason: "destroyed",
+        monotonic_ms: 123,
+        visibility: "visible",
+        observed_at: "2026-10-10T12:00:02.000Z",
+        sequence: 3,
+        type: "sample",
+        phase: "retired",
+        host: 2,
+        allocation: 3,
+        revision: 4,
+        elapsed: 101,
+        sample: `/api/samples/${"04".repeat(16)}`,
+        document: null,
+        reason: "destroyed",
         leafDocument: null,
       },
       {
-        ts: "2026-10-10T12:00:03.000Z", sequence: 4, type: "sample",
-        phase: "phase secret", host: -1, allocation: Infinity, revision: "4", elapsed: -1,
-        sample: "/?token=capability-secret", document: "document-secret",
-        leafDocument: "header-secret", reason: "reason secret", operation: "operation secret",
+        monotonic_ms: 123,
+        visibility: "visible",
+        observed_at: "2026-10-10T12:00:03.000Z",
+        sequence: 4,
+        type: "sample",
+        phase: "phase secret",
+        host: -1,
+        allocation: Infinity,
+        revision: "4",
+        elapsed: -1,
+        sample: "/?token=capability-secret",
+        document: "document-secret",
+        leafDocument: "header-secret",
+        reason: "reason secret",
+        operation: "operation secret",
         error: { name: "name-secret", status: "503", message: "message-secret" },
       },
       {
-        ts: "2026-10-10T12:00:04.000Z", sequence: 5, type: "sample",
-        phase: "recovering", reason: "parent_left", operation: "retry-start",
+        monotonic_ms: 123,
+        visibility: "visible",
+        observed_at: "2026-10-10T12:00:04.000Z",
+        sequence: 5,
+        type: "sample",
+        phase: "recovering",
+        reason: "parent_left",
+        operation: "retry-start",
         error: { name: "QuotaExceededError" },
       },
       {
-        ts: "2026-10-10T12:00:05.000Z", sequence: 6, type: "sample",
-        phase: "retrying", sample: `${sample}/api/samples/${"07".repeat(16)}`,
+        monotonic_ms: 123,
+        visibility: "visible",
+        observed_at: "2026-10-10T12:00:05.000Z",
+        sequence: 6,
+        type: "sample",
+        phase: "retrying",
+        sample: `${sample}/api/samples/${"07".repeat(16)}`,
         error: { name: "AuthoredSampleError" },
       },
     ];
     try {
-      const response = await worker.fetch(new Request("https://leaf.page/examples/triage-board/api/interaction", {
-        method: "POST", headers: { Cookie: `__Host-leaf-page=${"17".repeat(16)}` },
-        body: JSON.stringify({ session: "a".repeat(32), entries }),
-      }), environment());
+      const response = await worker.fetch(
+        new Request("https://leaf.page/examples/triage-board/api/interaction", {
+          method: "POST",
+          headers: { Cookie: `__Host-leaf-page=${"17".repeat(16)}` },
+          body: JSON.stringify({ session: "a".repeat(32), entries }),
+        }),
+        environment(),
+      );
       expect(response.status).toBe(204);
       const batch = logged.mock.calls[0][0] as { entries: unknown[] };
       expect(batch.entries).toStrictEqual([
         {
-          ts: entries[0].ts, sequence: 1, type: "sample", phase: "admission",
-          host: 2, allocation: 3, revision: 4, elapsed: 23.5,
-          sampleReference: "645988520964", documentReference: "706379782844",
-          status: 200, leafDocument: 4,
+          monotonic_ms: 123,
+          visibility: "visible",
+          observed_at: entries[0].observed_at,
+          sequence: 1,
+          type: "sample",
+          phase: "admission",
+          host: 2,
+          allocation: 3,
+          revision: 4,
+          elapsed: 23.5,
+          sampleReference: "645988520964",
+          documentReference: "706379782844",
+          status: 200,
+          leafDocument: 4,
         },
         {
-          ts: entries[1].ts, sequence: 2, type: "sample", phase: "failed",
-          host: 2, allocation: 3, revision: 4, elapsed: 99,
-          sampleReference: "645988520964", documentReference: "706379782844",
-          operation: "release", reason: "reset", reloading: true,
+          monotonic_ms: 123,
+          visibility: "visible",
+          observed_at: entries[1].observed_at,
+          sequence: 2,
+          type: "sample",
+          phase: "failed",
+          host: 2,
+          allocation: 3,
+          revision: 4,
+          elapsed: 99,
+          sampleReference: "645988520964",
+          documentReference: "706379782844",
+          operation: "release",
+          reason: "reset",
+          reloading: true,
           error: { name: "TypeError", status: 503 },
         },
         {
-          ts: entries[2].ts, sequence: 3, type: "sample", phase: "retired",
-          host: 2, allocation: 3, revision: 4, elapsed: 101,
-          sampleReference: "645988520964", documentReference: null, reason: "destroyed",
+          monotonic_ms: 123,
+          visibility: "visible",
+          observed_at: entries[2].observed_at,
+          sequence: 3,
+          type: "sample",
+          phase: "retired",
+          host: 2,
+          allocation: 3,
+          revision: 4,
+          elapsed: 101,
+          sampleReference: "645988520964",
+          documentReference: null,
+          reason: "destroyed",
           leafDocument: null,
         },
-        { ts: entries[3].ts, sequence: 4, type: "sample" },
         {
-          ts: entries[4].ts, sequence: 5, type: "sample", phase: "recovering",
-          reason: "parent_left", operation: "retry-start", error: { name: "QuotaExceededError" },
+          monotonic_ms: 123,
+          visibility: "visible",
+          observed_at: entries[3].observed_at,
+          sequence: 4,
+          type: "sample",
         },
         {
-          ts: entries[5].ts, sequence: 6, type: "sample", phase: "retrying",
-          sampleReference: "380479911687", error: { name: "AuthoredSampleError" },
+          monotonic_ms: 123,
+          visibility: "visible",
+          observed_at: entries[4].observed_at,
+          sequence: 5,
+          type: "sample",
+          phase: "recovering",
+          reason: "parent_left",
+          operation: "retry-start",
+          error: { name: "QuotaExceededError" },
+        },
+        {
+          monotonic_ms: 123,
+          visibility: "visible",
+          observed_at: entries[5].observed_at,
+          sequence: 6,
+          type: "sample",
+          phase: "retrying",
+          sampleReference: "380479911687",
+          error: { name: "AuthoredSampleError" },
         },
       ]);
       const emitted = JSON.stringify(logged.mock.calls[0][0]);
@@ -558,7 +808,9 @@ describe("product-site delivery", () => {
       session: "a".repeat(32),
       entries: [
         {
-          ts: "2026-09-25T12:00:00.000Z",
+          monotonic_ms: 123,
+          visibility: "visible",
+          observed_at: "2026-09-25T12:00:00.000Z",
           sequence: 1,
           type: "click",
           target: ["button#save", "div"],
@@ -568,7 +820,9 @@ describe("product-site delivery", () => {
           pointer: { x: 12, y: 24, button: 0, secret: "pointer-secret" },
         },
         {
-          ts: "2026-09-25T12:00:01.000Z",
+          monotonic_ms: 123,
+          visibility: "visible",
+          observed_at: "2026-09-25T12:00:01.000Z",
           sequence: 2,
           type: "input",
           target: ['input[name="private-token"]:nth-of-type(2)'],
@@ -586,7 +840,9 @@ describe("product-site delivery", () => {
           arbitrarySecret: "arbitrary-secret",
         },
         {
-          ts: "2026-09-25T12:00:02.000Z",
+          monotonic_ms: 123,
+          visibility: "visible",
+          observed_at: "2026-09-25T12:00:02.000Z",
           sequence: 3,
           type: "command",
           id: "navigation.back",
@@ -594,7 +850,9 @@ describe("product-site delivery", () => {
           label: "command-secret",
         },
         {
-          ts: "2026-09-25T12:00:03.000Z",
+          monotonic_ms: 123,
+          visibility: "visible",
+          observed_at: "2026-09-25T12:00:03.000Z",
           sequence: 4,
           type: "event_response",
           kind: "action",
@@ -603,14 +861,30 @@ describe("product-site delivery", () => {
           error: "response-secret",
         },
         {
-          ts: "2026-09-25T12:00:04.000Z",
+          monotonic_ms: 123,
+          visibility: "visible",
+          observed_at: "2026-09-25T12:00:04.000Z",
           sequence: 5,
-          type: "interaction_part",
+          type: "interaction_omitted",
           originalType: "input",
-          partOf: 2,
-          part: 0,
-          parts: 2,
+          bytes: 50_200,
+          reason: "record_exceeds_limit",
           json: "part-secret",
+        },
+        {
+          monotonic_ms: 234,
+          visibility: "visible",
+          observed_at: "2026-09-25T12:00:05.000Z",
+          sequence: 6,
+          type: "reply_visible",
+          input_id: "abcdef01",
+          reply_id: "12345678",
+          attempt: "b".repeat(32),
+          presentation_kind: "message_words",
+          reply_kind: "failure",
+          surface: "panel",
+          text: "reply-secret",
+          targetId: "authored-secret",
         },
       ],
     };
@@ -630,7 +904,9 @@ describe("product-site delivery", () => {
         session: "a".repeat(32),
         entries: [
           {
-            ts: "2026-09-25T12:00:00.000Z",
+            monotonic_ms: 123,
+            visibility: "visible",
+            observed_at: "2026-09-25T12:00:00.000Z",
             sequence: 1,
             type: "click",
             target: ["button", "div"],
@@ -640,33 +916,53 @@ describe("product-site delivery", () => {
             pointer: { x: 12, y: 24, button: 0 },
           },
           {
-            ts: "2026-09-25T12:00:01.000Z",
+            monotonic_ms: 123,
+            visibility: "visible",
+            observed_at: "2026-09-25T12:00:01.000Z",
             sequence: 2,
             type: "input",
             target: ["input:nth-of-type(2)"],
           },
           {
-            ts: "2026-09-25T12:00:02.000Z",
+            monotonic_ms: 123,
+            visibility: "visible",
+            observed_at: "2026-09-25T12:00:02.000Z",
             sequence: 3,
             type: "command",
             id: "navigation.back",
             binding: "Mod+ArrowLeft",
           },
           {
-            ts: "2026-09-25T12:00:03.000Z",
+            monotonic_ms: 123,
+            visibility: "visible",
+            observed_at: "2026-09-25T12:00:03.000Z",
             sequence: 4,
             type: "event_response",
             kind: "action",
             status: 200,
           },
           {
-            ts: "2026-09-25T12:00:04.000Z",
+            monotonic_ms: 123,
+            visibility: "visible",
+            observed_at: "2026-09-25T12:00:04.000Z",
             sequence: 5,
-            type: "interaction_part",
+            type: "interaction_omitted",
             originalType: "input",
-            partOf: 2,
-            part: 0,
-            parts: 2,
+            bytes: 50_200,
+            reason: "record_exceeds_limit",
+          },
+          {
+            monotonic_ms: 234,
+            visibility: "visible",
+            observed_at: "2026-09-25T12:00:05.000Z",
+            sequence: 6,
+            type: "reply_visible",
+            input_id: "abcdef01",
+            reply_id: "12345678",
+            attempt: "b".repeat(32),
+            presentation_kind: "message_words",
+            reply_kind: "failure",
+            surface: "panel",
           },
         ],
       });
@@ -697,7 +993,10 @@ describe("product-site delivery", () => {
         new Request(url, {
           method: "POST",
           headers,
-          body: JSON.stringify({ ...batch, entries: Array(101).fill(batch.entries[0]) }),
+          body: JSON.stringify({
+            ...batch,
+            entries: Array(101).fill(batch.entries[0]),
+          }),
         }),
         env,
       );
@@ -982,111 +1281,65 @@ describe("product-site delivery", () => {
       "public, max-age=31536000, immutable",
     );
     expect(response.headers.get("Leaf-Release")).toBe(RELEASE);
-    const preflight = await worker.fetch(new Request(
-      `https://leaf.page/_leaf-release/${RELEASE}/examples--triage-board/runtime/state-feed.js`,
-      { method: "OPTIONS", headers: { Origin: "null", "Access-Control-Request-Headers": "leaf-layer" } },
-    ), env);
+    const preflight = await worker.fetch(
+      new Request(
+        `https://leaf.page/_leaf-release/${RELEASE}/examples--triage-board/runtime/state-feed.js`,
+        {
+          method: "OPTIONS",
+          headers: { Origin: "null", "Access-Control-Request-Headers": "leaf-layer" },
+        },
+      ),
+      env,
+    );
     expect(preflight.status).toBe(204);
     expect(preflight.headers.get("Access-Control-Allow-Origin")).toBe("*");
-    expect(preflight.headers.get("Access-Control-Allow-Methods")).toBe("GET, HEAD, OPTIONS");
+    expect(preflight.headers.get("Access-Control-Allow-Methods")).toBe(
+      "GET, HEAD, OPTIONS",
+    );
     expect(preflight.headers.get("Access-Control-Allow-Headers")).toBe("*");
     expect(assetFetch).toHaveBeenCalledOnce();
     expect(getContainer).not.toHaveBeenCalled();
   });
 
-  it("prewarms a fresh user's container while returning the edge document", async () => {
-    const started = Promise.resolve();
-    const start = vi.fn(() => started);
-    vi.mocked(getContainer).mockReturnValue({ start } as never);
+  it("serves a browser navigation without starting a container", async () => {
     const waitUntil = vi.fn();
-    const env = environment({
-      AGENT_PREWARM: "true",
-      ASSETS: {
-        fetch: async () =>
-          new Response("<!doctype html><title>Leaf</title>", {
-            headers: { "Content-Type": "text/html; charset=utf-8" },
-          }),
-      } as unknown as Fetcher,
-    });
-
     const response = await worker.fetch(
       new Request("https://leaf.page/examples/triage-board/", {
-        headers: {
-          "CF-Connecting-IP": "203.0.113.8",
-          "Sec-Fetch-Dest": "document",
-        },
+        headers: { "Sec-Fetch-Dest": "document" },
       }),
-      env,
+      environment({
+        ASSETS: {
+          fetch: async () =>
+            new Response("<title>Leaf</title>", {
+              headers: { "Content-Type": "text/html" },
+            }),
+        } as unknown as Fetcher,
+      }),
       { waitUntil } as unknown as ExecutionContext,
     );
-
-    expect(await response.text()).toContain("<title>Leaf</title>");
-    const sessionId = response.headers
-      .get("Set-Cookie")
-      ?.match(/^__Host-leaf-page=([0-9a-f]{32});/)?.[1];
-    expect(sessionId).toBeDefined();
-    expect(waitUntil).toHaveBeenCalledOnce();
-    await waitUntil.mock.calls[0][0];
-
-    expect(env.SOURCE_AGENT_RATE_LIMITER.limit).toHaveBeenCalledWith({
-      key: "prewarm:203.0.113.8",
-    });
-    expect(getContainer).toHaveBeenCalledWith(env.PAGES, containerId(sessionId!));
-    expect(start).toHaveBeenCalledOnce();
-  });
-
-  it("does not prewarm an HTML probe that is not a browser navigation", async () => {
-    const env = environment({
-      AGENT_PREWARM: "true",
-      ASSETS: {
-        fetch: async () =>
-          new Response("<!doctype html><title>Leaf</title>", {
-            headers: { "Content-Type": "text/html; charset=utf-8" },
-          }),
-      } as unknown as Fetcher,
-    });
-    const waitUntil = vi.fn();
-
-    const response = await worker.fetch(
-      new Request("https://leaf.page/"),
-      env,
-      { waitUntil } as unknown as ExecutionContext,
-    );
-
-    expect(response.status).toBe(200);
+    expect(response.headers.get("Set-Cookie")).toContain("__Host-leaf-page=");
     expect(getContainer).not.toHaveBeenCalled();
     expect(waitUntil).not.toHaveBeenCalled();
   });
 
-  it("does not allocate a container when a source exhausts its prewarm limit", async () => {
-    const deny = vi.fn(async () => ({ success: false }));
+  it("does not prewarm an HTML probe that is not a browser navigation", async () => {
     const env = environment({
-      AGENT_PREWARM: "true",
       ASSETS: {
         fetch: async () =>
           new Response("<!doctype html><title>Leaf</title>", {
             headers: { "Content-Type": "text/html; charset=utf-8" },
           }),
       } as unknown as Fetcher,
-      SOURCE_AGENT_RATE_LIMITER: { limit: deny } as RateLimit,
     });
     const waitUntil = vi.fn();
 
-    const response = await worker.fetch(
-      new Request("https://leaf.page/", {
-        headers: {
-          "CF-Connecting-IP": "203.0.113.9",
-          "Sec-Fetch-Dest": "document",
-        },
-      }),
-      env,
-      { waitUntil } as unknown as ExecutionContext,
-    );
-    await waitUntil.mock.calls[0][0];
+    const response = await worker.fetch(new Request("https://leaf.page/"), env, {
+      waitUntil,
+    } as unknown as ExecutionContext);
 
     expect(response.status).toBe(200);
-    expect(deny).toHaveBeenCalledWith({ key: "prewarm:203.0.113.9" });
     expect(getContainer).not.toHaveBeenCalled();
+    expect(waitUntil).not.toHaveBeenCalled();
   });
 
   it.each(["/media/upload.png", "/examples/triage-board/media/upload.png"])(
@@ -1176,7 +1429,7 @@ describe("product-site delivery", () => {
     expect(response.headers.get("Leaf-Session")).toBe("active");
   });
 
-  it("keeps documents at the edge except for one marked private-revision reload", async () => {
+  it("loads an active page's private document on every navigation", async () => {
     const sessionId = "19".repeat(16);
     const assetFetch = vi.fn(
       async () =>
@@ -1212,9 +1465,7 @@ describe("product-site delivery", () => {
       }),
       env,
     );
-    // Startup recovery marks the one document it asks for so it can tell a replacement
-    // from the copy it already has. That mark asks nothing of the Worker, so the edge
-    // answers it as it answers any other document.
+    // Runtime reload markers do not change which private record owns the document.
     const recovered = await worker.fetch(
       new Request("https://leaf.page/examples/triage-board/?_leaf-recovered=", {
         headers,
@@ -1222,14 +1473,14 @@ describe("product-site delivery", () => {
       env,
     );
 
-    expect(await ordinary.text()).toContain("Built");
+    expect(await ordinary.text()).toContain("Published revision");
     expect(await neighbor.text()).toContain("Built");
     expect(await marked.text()).toContain("Published revision");
-    expect(await recovered.text()).toContain("Built");
-    expect(assetFetch).toHaveBeenCalledTimes(3);
-    expect(getContainer).toHaveBeenCalledOnce();
+    expect(await recovered.text()).toContain("Published revision");
+    expect(assetFetch).toHaveBeenCalledOnce();
+    expect(getContainer).toHaveBeenCalledTimes(3);
     expect(getContainer).toHaveBeenCalledWith(env.PAGES, containerId(sessionId));
-    expect(containerFetch).toHaveBeenCalledOnce();
+    expect(containerFetch).toHaveBeenCalledTimes(3);
     expect(marked.headers.get("Leaf-Session")).toBe("active");
   });
 
@@ -1294,6 +1545,80 @@ describe("product-site delivery", () => {
     expect(getContainer).not.toHaveBeenCalled();
   });
 
+  it("keeps an earlier release's active page passive after deployment", async () => {
+    const sessionId = "1c".repeat(16);
+    const cookie = `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board", "b".repeat(64))}`;
+    const env = environment({
+      ASSETS: {
+        fetch: async () =>
+          new Response("<!doctype html><title>New published release</title>", {
+            headers: { "Content-Type": "text/html; charset=utf-8" },
+          }),
+      } as unknown as Fetcher,
+    });
+    const document = await worker.fetch(
+      new Request("https://leaf.page/examples/triage-board/", {
+        headers: { Cookie: cookie },
+      }),
+      env,
+    );
+    expect(await document.text()).toContain("New published release");
+    expect(document.headers.get("Leaf-Release")).toBe(RELEASE);
+    const state = await worker.fetch(
+      new Request("https://leaf.page/examples/triage-board/api/state", {
+        headers: { Cookie: cookie },
+      }),
+      env,
+    );
+    expect(state.headers.get("Leaf-Session")).toBe("passive");
+    expect(await state.json()).toMatchObject({
+      reading: "published",
+      release: RELEASE,
+    });
+    expect(getContainer).not.toHaveBeenCalled();
+  });
+
+  it("keeps optional geometry reports passive until their page is active", async () => {
+    const sessionId = "1d".repeat(16);
+    const env = environment();
+    const containerFetch = vi.fn(async () => new Response(null, { status: 204 }));
+    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    const report = (cookie?: string) =>
+      worker.fetch(
+        new Request("https://leaf.page/examples/triage-board/api/user-view", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(cookie ? { Cookie: cookie } : {}),
+          },
+          body: "{}",
+        }),
+        env,
+      );
+    for (const cookie of [
+      undefined,
+      `__Host-leaf-page=${sessionId}`,
+      `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board", "b".repeat(64))}`,
+      `__Host-leaf-page=${sessionId}; ${activeMarker("/")}`,
+    ]) {
+      const response = await report(cookie);
+      expect(response.status).toBe(204);
+      expect(response.headers.get("Leaf-Session")).not.toBe("active");
+      expect(response.headers.get("Set-Cookie")).toBeNull();
+    }
+    expect(getContainer).not.toHaveBeenCalled();
+    expect(containerFetch).not.toHaveBeenCalled();
+
+    const active = await report(
+      `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board")}`,
+    );
+    expect(active.status).toBe(204);
+    expect(active.headers.get("Leaf-Session")).toBe("active");
+    expect(active.headers.get("Set-Cookie")).toBeNull();
+    expect(getContainer).toHaveBeenCalledWith(env.PAGES, containerId(sessionId));
+    expect(containerFetch).toHaveBeenCalledOnce();
+  });
+
   it("activates a container for a private read the edge cannot answer", async () => {
     const sessionId = "1b".repeat(16);
     const containerFetch = vi.fn(async () =>
@@ -1316,7 +1641,7 @@ describe("product-site delivery", () => {
     expect(response.headers.get("Leaf-Session")).toBe("active");
     expect(response.headers.get("Leaf-Session-Reference")).toBe("610422516507");
     expect(response.headers.get("Set-Cookie")).toBe(
-      "__Host-leaf-active-page-examples_triage-board=1; Path=/; Secure; HttpOnly; SameSite=Lax",
+      `__Host-leaf-active-page-examples_triage-board=${RELEASE}; Path=/; Secure; HttpOnly; SameSite=Lax`,
     );
   });
 
@@ -1363,7 +1688,7 @@ describe("product-site delivery", () => {
       expect(response.headers.get("Leaf-Session")).toBe("active");
       expect(response.headers.get("Leaf-Session-Reference")).toBe(reference);
       expect(response.headers.get("Set-Cookie")).toBe(
-        "__Host-leaf-active-page-examples_triage-board=1; Path=/; Secure; HttpOnly; SameSite=Lax",
+        `__Host-leaf-active-page-examples_triage-board=${RELEASE}; Path=/; Secure; HttpOnly; SameSite=Lax`,
       );
     }
   });
@@ -1497,9 +1822,6 @@ describe("page faults", () => {
           // A tab still on the release before a deploy, so the record tells the
           // document's release apart from the edge's.
           "Leaf-Release": "b".repeat(64),
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
-            "AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36",
         },
         body: JSON.stringify(body),
       }),
@@ -1533,8 +1855,6 @@ describe("page faults", () => {
         release: "b".repeat(64),
         currentRelease: RELEASE,
         revision: 3,
-        browser: "chrome",
-        platform: "windows",
       });
       expect(record.reason).toHaveLength(300);
       expect(record.reason.startsWith("syntax highlight failed: x")).toBe(true);
@@ -1550,10 +1870,13 @@ describe("page faults", () => {
     );
     vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
 
-    await send(`__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board")}`, {
-      kind: "error",
-      text: "a widget failed",
-    });
+    await send(
+      `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board")}`,
+      {
+        kind: "error",
+        text: "a widget failed",
+      },
+    );
     await send(`__Host-leaf-page=${sessionId}`, {
       kind: "comment",
       attempt: "a-comment",
@@ -1569,13 +1892,208 @@ describe("page faults", () => {
 });
 
 describe("website page agent", () => {
+  it("recalls saved content and private resources without starting the container", async () => {
+    const { storage, close } = sqliteStorage();
+    try {
+      const ctx = { storage, container: { running: false } };
+      const session = new LeafWebsiteSession(ctx as never, environment());
+      const responses: Record<
+        string,
+        { status: number; headers: Record<string, string>; chunks: string[] }
+      > = {};
+      const blobs = new Map<string, Uint8Array>();
+      for (const [path, body] of [
+        [
+          "api/state?revision=2",
+          JSON.stringify({ saved: "comment and choice", taken: 1 }),
+        ],
+        ["api/news", "saved-reading"],
+        ["api/deferred?source=table&source_revision=one&key=row", "saved-detail"],
+        [
+          "api/deferred?source=table&source_revision=one&key=a~b%2Acaf%C3%A9+%2F%2B",
+          "special-detail",
+        ],
+        ["revisions/r3-private.html", "<p>Private revision</p>"],
+      ]) {
+        const bytes = new TextEncoder().encode(body);
+        const digest = Buffer.from(
+          await crypto.subtle.digest("SHA-256", bytes),
+        ).toString("hex");
+        blobs.set(digest, bytes);
+        responses[path] = { status: 200, headers: {}, chunks: [digest] };
+      }
+      const publication = {
+        root: "/examples/triage-board",
+        release: RELEASE,
+        record: {},
+        responses,
+      };
+      for (const digest of await session.preparePublication(publication)) {
+        await session.saveBlob(digest, blobs.get(digest)!.slice().buffer);
+      }
+      await session.savePublication(publication);
+      forwardedContainerFetch.mockClear();
+      const state = await session.fetch(
+        new Request("https://leaf.page/examples/triage-board/api/state", {
+          headers: { "Leaf-View-Revision": "2" },
+        }),
+      );
+      expect(state.headers.get("Leaf-State-Source")).toBe("durable");
+      expect(await state.json()).toMatchObject({ saved: "comment and choice" });
+      expect(
+        await (
+          await session.fetch(
+            new Request("https://leaf.page/examples/triage-board/api/news"),
+          )
+        ).text(),
+      ).toBe("saved-reading");
+      expect(
+        await (
+          await session.fetch(
+            new Request(
+              "https://leaf.page/examples/triage-board/api/deferred?key=row&source=table&source_revision=one",
+            ),
+          )
+        ).text(),
+      ).toBe("saved-detail");
+      const deferred = new URL("https://leaf.page/examples/triage-board/api/deferred");
+      deferred.search = new URLSearchParams({
+        key: "a~b*café /+",
+        source_revision: "one",
+        source: "table",
+        through_seq: "12",
+      }).toString();
+      const detail = await session.fetch(new Request(deferred));
+      expect(detail.headers.get("Leaf-State-Source")).toBe("durable");
+      expect(await detail.text()).toBe("special-detail");
+      expect(
+        await (
+          await session.fetch(
+            new Request(
+              "https://leaf.page/examples/triage-board/revisions/r3-private.html",
+            ),
+          )
+        ).text(),
+      ).toContain("Private revision");
+      expect(
+        (
+          await session.fetch(
+            new Request("https://leaf.page/examples/triage-board/api/user-view", {
+              method: "POST",
+              body: "{}",
+            }),
+          )
+        ).status,
+      ).toBe(204);
+      expect(forwardedContainerFetch).not.toHaveBeenCalled();
+      ctx.container.running = true;
+      expect(
+        await (
+          await session.fetch(
+            new Request("https://leaf.page/examples/triage-board/api/news"),
+          )
+        ).text(),
+      ).toBe("container");
+      expect(forwardedContainerFetch).toHaveBeenCalledOnce();
+    } finally {
+      close();
+    }
+  });
+
+  it("stores bounded binary chunks in the outbound proxy's owning session", async () => {
+    const { storage, close } = sqliteStorage();
+    try {
+      const env = environment();
+      const session = new LeafWebsiteSession({ storage } as never, env);
+      const get = vi.fn(() => session);
+      const idFromString = vi.fn((id: string) => id);
+      env.PAGES = { get, idFromString } as never;
+      const handler =
+        containerHandlers.get("LeafWebsiteSession")!["leaf-state.internal"];
+      const bytes = new TextEncoder().encode("private saved bytes");
+      const digest = Buffer.from(await crypto.subtle.digest("SHA-256", bytes)).toString(
+        "hex",
+      );
+      const context = { containerId: "trusted-owner", className: "LeafWebsiteSession" };
+      const absent = "f".repeat(64);
+      const missing = () =>
+        handler(
+          new Request("https://leaf-state.internal/prepare", {
+            method: "PUT",
+            body: JSON.stringify({
+              root: "/examples/triage-board",
+              release: RELEASE,
+              record: {
+                "events.jsonl": { chunks: [digest, absent], modified: 1_700_000_000 },
+              },
+              responses: {},
+            }),
+          }) as never,
+          env as never,
+          context as never,
+        );
+      expect(await (await missing()).json()).toEqual({ missing: [digest, absent] });
+      const put = await handler(
+        new Request(`https://leaf-state.internal/blobs/${digest}`, {
+          method: "PUT",
+          body: bytes,
+          headers: { Cookie: "__Host-leaf-page=another-user" },
+        }) as never,
+        env as never,
+        context as never,
+      );
+      expect(put.status).toBe(204);
+      expect(await (await missing()).json()).toEqual({ missing: [absent] });
+      const publication = {
+        root: "/examples/triage-board",
+        release: RELEASE,
+        record: { "events.jsonl": { chunks: [digest], modified: 1_700_000_000 } },
+        responses: {},
+      };
+      await session.preparePublication(publication);
+      await session.savePublication(publication);
+      const answer = await handler(
+        new Request("https://leaf-state.internal/records") as never,
+        env as never,
+        context as never,
+      );
+      expect(answer.headers.get("Content-Type")).toBe("application/x-tar");
+      const entries = await unpackTar(answer.body!);
+      expect(entries.map(({ header }) => header.name)).toEqual([
+        "records.json",
+        digest,
+      ]);
+      expect(JSON.parse(new TextDecoder().decode(entries[0].data!))).toEqual({
+        "/examples/triage-board": publication.record,
+      });
+      expect(new TextDecoder().decode(entries[1].data!)).toBe("private saved bytes");
+      expect(idFromString.mock.calls.every(([id]) => id === "trusted-owner")).toBe(
+        true,
+      );
+      await expect(
+        handler(
+          new Request(`https://leaf-state.internal/blobs/${digest}`, {
+            method: "PUT",
+            body: new Uint8Array(1024 * 1024 + 1),
+          }) as never,
+          env as never,
+          context as never,
+        ),
+      ).rejects.toThrow("exceeds 1 MiB");
+    } finally {
+      close();
+    }
+  });
+
   it("keeps the OpenAI secret in the trusted outbound handler", async () => {
     const env = environment();
-    const session = new LeafWebsiteSession({} as never, env);
+    const { storage, close } = sqliteStorage();
+    const session = new LeafWebsiteSession({ storage } as never, env);
+    close();
 
     expect(session.enableInternet).toBe(false);
     expect(session.interceptHttps).toBe(true);
-    expect(session.allowedHosts).toEqual(["api.openai.com"]);
+    expect(session.allowedHosts).toEqual(["api.openai.com", "leaf-state.internal"]);
     expect(session.envVars).toMatchObject({
       LEAF_AGENT: "Agent",
       OPENAI_API_KEY: "leaf-outbound-proxy",

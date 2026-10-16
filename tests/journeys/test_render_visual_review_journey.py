@@ -13,6 +13,7 @@ from playwright.sync_api import expect
 from render_cases_navigation import source_revision
 from render_harness import (
     consume_browser_errors,
+    http_error_console,
     leaf_page,
     open_page,
     resized,
@@ -111,7 +112,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     response = denied.goto(f"{base_target.origin}/versions/v1.html")
     assert response and response.status == 401
     # The refusal is the point of this page: the reviewer has no capture credential.
-    consume_browser_errors(denied, "401")
+    consume_browser_errors(denied, http_error_console(401))
     denied.close()
 
     context = browser.new_context(
@@ -308,11 +309,11 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     expect(second).to_be_focused()
     user.keyboard.press("g")
     user.keyboard.press("Shift+t")
-    expect(user.get_by_role("dialog")).to_be_visible()
+    expect(user.get_by_role("region", name="Threads")).to_be_visible()
     expect(user.locator(".lf-threads")).to_be_focused()
     expect(user.locator(".lf-auxiliary-envelope:modal")).to_have_count(1)
     user.keyboard.press("Escape")
-    expect(user.get_by_role("dialog")).to_be_hidden()
+    expect(user.get_by_role("region", name="Threads")).to_be_hidden()
     assert user.evaluate("() => document.activeElement === document.body")
     user.keyboard.press("g")
     user.keyboard.press("i")
@@ -331,11 +332,11 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     expect(second).to_be_focused()
     user.keyboard.press("g")
     user.keyboard.press("Shift+t")
-    expect(user.get_by_role("dialog")).to_be_visible()
+    expect(user.get_by_role("region", name="Threads")).to_be_visible()
     expect(user.locator(".lf-threads")).to_be_focused()
     expect(user.locator(".lf-auxiliary-envelope:modal")).to_have_count(0)
     user.keyboard.press("Escape")
-    expect(user.get_by_role("dialog")).to_be_hidden()
+    expect(user.get_by_role("region", name="Threads")).to_be_hidden()
     assert user.evaluate("() => document.activeElement === document.body"), (
         user.evaluate("() => document.activeElement.outerHTML.slice(0, 300)")
     )
@@ -441,7 +442,7 @@ def test_visual_review_leads_with_evidence_and_walks_only_remaining_cases(
     widget = page.locator("#visual-review-run")
     selected = widget.locator(".lf-vr-case-select")
     first_id = selected.evaluate("node => node.value")
-    case = widget.locator(".lf-vr-case:not([hidden])")
+    case = widget.locator(".lf-vr-case[data-selected]")
     expect(widget.locator(".lf-vr-inspection")).not_to_have_attribute("open", "")
     geometry = case.evaluate("""node => {
       const box = selector => node.querySelector(selector).getBoundingClientRect();

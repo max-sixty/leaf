@@ -44,17 +44,24 @@ def _text(node) -> str:
     return "".join(_text(child) for child in node["content"])
 
 
-def leading_title(node: dict) -> str:
+def leading_title_node(node: dict) -> dict | None:
+    """The element that titles `node`: its first title element, looking inside a
+    leading <header> or <hgroup> and past other elements, until text intervenes."""
     for child in node["content"]:
         if isinstance(child, str):
             if child.strip():
-                return ""
+                return None
             continue
         if child["tag"] in TITLES:
-            return collapse(_text(child))
+            return child
         if child["tag"] in {"header", "hgroup"}:
-            return leading_title(child)
-    return ""
+            return leading_title_node(child)
+    return None
+
+
+def leading_title(node: dict) -> str:
+    title = leading_title_node(node)
+    return collapse(_text(title)) if title else ""
 
 
 def element_name(node: dict, registry: dict) -> str:
@@ -113,14 +120,19 @@ class GestureWords:
             if document["kind"] == "thread":
                 structure = thread_structure(self.events)
                 self._documents[revision] = _Document(
-                    [fragment.content for fragment in structure.fragments.values()],
+                    [
+                        fragment.authoring.content
+                        for fragment in structure.fragments.values()
+                    ],
                     frozen_thread_reading(self.events, self.registry).spoken,
                     self.registry,
                 )
             else:
                 reading = self.revisions(revision)
                 self._documents[revision] = _Document(
-                    [reading.document.content], reading.spoken, reading.registry
+                    [reading.document.authoring.content],
+                    reading.spoken,
+                    reading.registry,
                 )
         return self._documents[revision]
 

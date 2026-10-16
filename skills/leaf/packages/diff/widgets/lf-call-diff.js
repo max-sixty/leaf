@@ -18,14 +18,15 @@ import {
   el,
   keeps,
   keepsText,
+  LeafElement,
   navigateToDatum,
+  nothing,
   offer,
   projectData,
   setChildLists,
   setChildren,
-  watchData,
-  once,
   plainPress,
+  focused,
 } from "/runtime/widget-api.js";
 
 import { diffLocationKey } from "./diff-coordinates.js";
@@ -210,16 +211,18 @@ function labelOf(record) {
 
 customElements.define(
   "lf-call-diff",
-  class extends HTMLElement {
-    connectedCallback() {
-      if (!once(this)) return;
-      watchData(this, "document", (snapshot) => this.show(snapshot));
+  class extends LeafElement {
+    render() {
+      this.show(this.data("document"));
+      return nothing;
     }
 
     message(key, message, snapshot) {
       this.groups = new Map();
       this.rows = new Map();
-      const node = (this.messageNode ??= el("div", "lf-call-line"));
+      /** @type {HTMLElement} */
+      this.messageNode = this.messageNode ?? el("div", "lf-call-line");
+      const node = this.messageNode;
       keeps(
         node,
         "class",
@@ -308,9 +311,11 @@ customElements.define(
       });
       // Placed at once, a row changing groups, even to a newly arriving root, moves
       // straight across and keeps its controls live; its group opens to show it.
-      const focused = this.getRootNode().activeElement;
+      const standing = focused(this.getRootNode());
       for (const { group, body, children } of placements)
-        if (children.some((node) => node.parentNode !== body && node.contains(focused)))
+        if (
+          children.some((node) => node.parentNode !== body && node.contains(standing))
+        )
           group.open = true;
       setChildLists([
         [

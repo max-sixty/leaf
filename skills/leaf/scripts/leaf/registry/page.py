@@ -13,7 +13,7 @@ from collections.abc import Collection
 from copy import deepcopy
 from typing import NamedTuple
 
-from .contract import RegistryError, is_element_name
+from .contract import is_element_name, registry_error
 from .layer import merge_layer_declarations, stamp_composition
 from .validation import validate_registry
 
@@ -47,7 +47,7 @@ def compose_page_registry(
     upgraded element. Inputs and their nested declarations remain untouched.
     """
     if "$layer" in page_declarations:
-        raise RegistryError(f"{source}: $layer belongs to the selected layer")
+        raise registry_error("page-layer", source)
     registry = deepcopy(layer_registry)
     merge_layer_declarations(registry, deepcopy(page_declarations))
     if registry != validated:
@@ -72,9 +72,8 @@ def compose_page_registry(
         candidates = (f"page/widgets/{tag}.js", f"widgets/{tag}.js")
         implementation = next((path for path in candidates if path in available), None)
         if implementation is None:
-            raise RegistryError(
-                f"{source}: <{tag}> is upgraded but its module is missing; "
-                f"expected {candidates[0]} or {candidates[1]}"
+            raise registry_error(
+                "missing-module", source, tag, expected=list(candidates)
             )
         widget_sources[tag] = implementation
     return PageRegistry(registry, declaration_sources, widget_sources)

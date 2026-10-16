@@ -7,7 +7,7 @@
    they did, so it is sent on its own, once, and a failure costs only a fact the page
    will observe again; it neither waits behind a gesture nor holds one up. */
 import { runtime } from "./context.js";
-import { postEvent, reportCarried } from "./layer-client.js";
+import { completeData, postEvent, reportCarried } from "./layer-client.js";
 import { notice } from "./notifications.js";
 import { afterScript } from "./rendering.js";
 
@@ -47,8 +47,9 @@ export function createDelivery({
       if (!ledger.nameEvents(entry)) return { accepted: null };
       const { event } = entry;
       if (entry.admitted) return { accepted: entry.admitted };
+      const held = runtime.data;
       const sent = await Promise.race([
-        postEvent(event).then(
+        postEvent(event, held).then(
           (response) => ({ response }),
           (error) => ({ error }),
         ),
@@ -60,8 +61,8 @@ export function createDelivery({
         // than promising a retry that cannot succeed on its own.
         await retry(
           runtime.keyRefused
-            ? "Key refused — open Leaf's link in a new tab and your change will send"
-            : "Connection lost — retrying your change…",
+            ? "Key refused — open Leaf's link in a new tab and the change will send"
+            : "Connection lost — retrying the change…",
         );
         continue;
       }
@@ -71,7 +72,7 @@ export function createDelivery({
       // The loop already retries; what it reported without this was the failed decode
       // of a plain-text body rather than what the server said.
       if (sent.response.status === 503) {
-        await retry("The server isn't ready yet — retrying your change…");
+        await retry("The server isn't ready yet — retrying the change…");
         continue;
       }
       const decoded = await Promise.race([
@@ -83,7 +84,7 @@ export function createDelivery({
       ]);
       if (decoded.accepted) return { accepted: decoded.accepted };
       if (decoded.error) {
-        await retry("Couldn't read the answer — retrying your change…");
+        await retry("Couldn't read the answer — retrying the change…");
         continue;
       }
       const answer = decoded.answer;
@@ -97,7 +98,10 @@ export function createDelivery({
       if (accepted)
         return {
           accepted,
-          application: applyAnswerState(applyAcceptedState, answer.state),
+          application: applyAnswerState(
+            applyAcceptedState,
+            completeData(answer.state, held),
+          ),
         };
       if (
         reading === "refused" &&
@@ -106,11 +110,11 @@ export function createDelivery({
       ) {
         return {
           accepted: null,
-          state: answer.state,
+          state: completeData(answer.state, held),
           refusal: `Couldn't send — ${answer.error || "the server refused it"}`,
         };
       }
-      await retry("Server answer was incomplete — retrying your change…");
+      await retry("Server answer was incomplete — retrying the change…");
     }
   }
 
@@ -170,9 +174,10 @@ export function createDelivery({
 // "accepted" once that state is applied, "refused" when the server's answer is final,
 // and "unreached" when no complete answer came back, which a later send may still get.
 export async function deliverBookkeeping(event, applyState) {
+  const held = runtime.data;
   let response;
   try {
-    response = await postEvent(event);
+    response = await postEvent(event, held);
   } catch {
     return "unreached";
   }
@@ -184,6 +189,7 @@ export async function deliverBookkeeping(event, applyState) {
     return "unreached";
   }
   const reading = readEventAnswer(response, answer);
-  if (answer?.state) await applyAnswerState(applyState, answer.state);
+  if (answer?.state)
+    await applyAnswerState(applyState, completeData(answer.state, held));
   return reading === "incomplete" ? "unreached" : reading;
 }

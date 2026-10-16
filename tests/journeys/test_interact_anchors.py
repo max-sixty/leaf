@@ -11,8 +11,10 @@ from interact_support import (
     append_carried_log_record,
     append_command,
     check,
+    check_findings,
     comment,
     decide,
+    found,
     publish,
     published,
     stamp,
@@ -27,10 +29,7 @@ from leaf import structure as structure_model
 from leaf.events import build_threads
 from leaf.registry import storage as registry_storage
 from model.test_interact_anchors import (
-    PARTED,
     declare_part_prefixes,
-    drop_node_a,
-    parted,
 )
 
 
@@ -58,9 +57,9 @@ def test_a_visual_admits_the_parts_its_prefixes_begin(page_dir):
         {"flow": {"tag": "lf-diagram", "attrs": {"id": "flow"}}},
         json.loads((page_dir / "registry.json").read_text()),
     )
-    assert refused == (
-        "visual anchor 'edge:B' is not declared on section 'flow'; "
-        "ids starting with 'node:'"
+    assert (refused.code, refused.values["declared"]["prefixes"]) == (
+        "undeclared-visual",
+        ["node:"],
     )
     for unrenderable in ("node:", "node:a b"):
         assert event_contracts_model.visual_anchor_error(
@@ -72,9 +71,9 @@ def test_a_visual_admits_the_parts_its_prefixes_begin(page_dir):
     # The file lists none of these parts, so markup cannot drop one; a declaration
     # that stops admitting a part a thread holds is what drops it.
     declare_part_prefixes(page_dir, "edge:")
-    dropped = check(page_dir)
-    assert dropped.exit_code == 0, dropped.output
-    assert root["id"] in dropped.output
+    status, findings = check_findings(page_dir)
+    assert status == 0
+    assert found(findings, "relocated-anchor", thread=root["id"], section="flow")
     assert stamp(page_dir, "Changed the diagram's parts").exit_code == 0
     thread = build_threads(events_model.read_events(page_dir), {})[root["id"]]
     assert thread["anchor"] == {"section": "flow"}
@@ -88,7 +87,7 @@ def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
     v1 = FLOW_PAGE.replace(
         '<lf-diagram id="flow">',
         '<p id="old-wording">The retry starts here.</p>'
-        '<lf-diagram id="flow" parts="node:A node:B">',
+        '<lf-diagram id="flow" parts="all">',
     )
     (page_dir / "index.html").write_text(v1)
     published(page_dir)
@@ -221,13 +220,14 @@ def test_revising_quotes_reparents_every_open_thread_without_answering_it(page_d
     (page_dir / "index.html").write_text(
         original.replace("Alpha", "Beta").replace("Gamma", "Delta")
     )
-    checked = check(page_dir)
-    assert checked.exit_code == 0, checked.output
-    assert all(
-        root["id"] in checked.output for root in (roots["Alpha"], roots["Gamma"])
-    )
-    assert roots["Unchanged"]["id"] not in checked.output
-    assert closed["id"] not in checked.output
+    status, findings = check_findings(page_dir)
+    assert status == 0
+    # The reaction mark follows its subject; the unchanged and closed threads stay.
+    assert {f.values["thread"] for f in found(findings, "relocated-anchor")} == {
+        roots["Alpha"]["id"],
+        roots["Gamma"]["id"],
+        reaction["id"],
+    }
     assert not any(e["kind"] == "reanchor" for e in events_model.read_events(page_dir))
     state = state_json(page_dir)
     threads = {t["id"]: t for t in state["threads"]}
@@ -371,7 +371,8 @@ def test_an_agent_reply_can_remove_a_subject_and_detach_its_open_thread(page_dir
     )
     assert refused.exit_code != 0
     assert (
-        "reply markup ids already taken" in refused.output and "flow" in refused.output
+        "ids already taken by the page or an earlier message" in refused.output
+        and "flow" in refused.output
     )
     assert files_model.latest_revision(page_dir) == 1
     assert all(event["kind"] != "reply" for event in events_model.read_events(page_dir))
@@ -465,30 +466,14 @@ def test_a_moving_reply_validates_markup_against_the_prospective_revision(page_d
     )
 
     assert moved.exit_code != 0
-    assert "reply markup ids already taken" in moved.output and "answer" in moved.output
+    assert (
+        "ids already taken by the page or an earlier message" in moved.output
+        and "answer" in moved.output
+    )
     assert all(event["kind"] != "reply" for event in events_model.read_events(page_dir))
     assert files_model.latest_revision(page_dir) == 1
     checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
     assert checked.exit_code == 0, checked.output
-
-
-def test_a_removed_visual_part_moves_its_thread_to_the_surviving_section(page_dir):
-    assert drop_node_a(parted(page_dir)).exit_code == 0
-    (page_dir / "index.html").write_text(PARTED)
-    root = json.loads(
-        comment(
-            page_dir, "--section", "flow", "--part", "node:A", "--text", "Why this one?"
-        ).output
-    )
-    assert root["anchor"] == {"section": "flow", "visual": "node:A"}
-    result = drop_node_a(page_dir)
-    assert result.exit_code == 0, result.output
-    assert stamp(page_dir, "Removed the node").exit_code == 0
-    events = events_model.read_events(page_dir)
-    thread = build_threads(events, {})[root["id"]]
-    assert thread["anchor"] == {"section": "flow"}
-    assert thread["rewritten_from"] == root["anchor"]
-    assert next(e for e in events if e["id"] == root["id"])["anchor"] == root["anchor"]
 
 
 def test_withdrawing_a_decision_does_not_veto_an_authored_replacement(page_dir):

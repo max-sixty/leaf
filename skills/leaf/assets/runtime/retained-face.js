@@ -11,7 +11,7 @@
    the presenter that paints several faces for one region decides whether an attempt
    committed, so its faces commit or retain together. A face that keeps the user on
    its rows across a repaint holds them with a keyed `holdFocus` (focus.js). */
-import { LitElement } from "../vendor/browser-runtime.js";
+import { LitElement } from "/vendor/browser-runtime.js";
 
 export class RetainedFace extends LitElement {
   static properties = { model: { attribute: false } };

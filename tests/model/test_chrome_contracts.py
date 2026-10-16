@@ -5,6 +5,7 @@ import time
 
 import pytest
 from browser.test_chrome_contracts import _ProblemPage
+from leaf.findings import Finding
 from leaf.render_checks import SERVED_TIMEOUT_MS
 from render_harness import (
     Traffic,
@@ -13,6 +14,11 @@ from render_harness import (
     consume_browser_errors,
     watched,
 )
+
+
+def said(text):
+    """A console error saying `text`, as the browser fixture records one."""
+    return Finding("console-error", values={"text": text, "url": ""})
 
 
 def test_browser_health_rejects_an_unconsumed_problem():
@@ -24,7 +30,7 @@ def test_browser_health_rejects_an_unconsumed_problem():
         ),
         clean_browser(),
     ):
-        watched(_ProblemPage()).append("unexpected browser fault")
+        watched(_ProblemPage()).append(said("unexpected browser fault"))
 
 
 def test_consuming_browser_problems_accounts_for_every_entry():
@@ -32,7 +38,7 @@ def test_consuming_browser_problems_accounts_for_every_entry():
 
     with clean_browser():
         page = _ProblemPage()
-        watched(page).extend(["expected fault", "unrelated fault"])
+        watched(page).extend([said("expected fault"), said("unrelated fault")])
         with pytest.raises(AssertionError, match="unrelated fault"):
             consume_browser_errors(page, "expected fault")
 

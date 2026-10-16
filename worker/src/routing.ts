@@ -7,7 +7,7 @@ export const HTTP_ACTIVE_COOKIE_PREFIX = "leaf-active-local";
 
 const SESSION_ID = /^[0-9a-f]{32}$/;
 
-// The manifest `leaf-dev site` writes beside the assets (`dev/leaf_dev/site.py`), which
+// The manifest `leaf-dev site` writes beside the assets (`dev/leaf_dev/commands/site.py`), which
 // ships in the same release as this Worker. The build constructs each field: the asset
 // path from the release, the state from the page's current revision, the image from a
 // media file `check_links` proves resolves, and the title and description from the
@@ -143,24 +143,22 @@ export function sessionFromCookie(
   return null;
 }
 
+/** Activation selects a private record in one release, like its Durable Object key. */
 export function activeFromCookie(
   cookie: string | null,
   secure: boolean,
   pageRoot: string,
+  release: string,
 ): boolean {
   if (cookie === null) return false;
   const prefix = secure ? ACTIVE_COOKIE_PREFIX : HTTP_ACTIVE_COOKIE_PREFIX;
   const expected = pageCookieName(prefix, pageRoot);
-  return cookie
-    .split(";")
-    .some((item) => item.trim() === `${expected}=1`);
+  return cookie.split(";").some((item) => item.trim() === `${expected}=${release}`);
 }
 
 function pageCookieName(prefix: string, pageRoot: string): string {
   const suffix =
-    pageRoot === "/"
-      ? "root"
-      : `page-${pageRoot.slice(1).replaceAll("/", "_")}`;
+    pageRoot === "/" ? "root" : `page-${pageRoot.slice(1).replaceAll("/", "_")}`;
   return `${prefix}-${suffix}`;
 }
 
@@ -187,13 +185,17 @@ function pageActiveCookie(secure: boolean, pageRoot: string, value: string): str
   return `${name}=${value}; Path=/${security}; HttpOnly; SameSite=Lax`;
 }
 
-export function activeCookie(secure: boolean, pageRoot: string): string {
-  return pageActiveCookie(secure, pageRoot, "1");
+export function activeCookie(
+  secure: boolean,
+  pageRoot: string,
+  release: string,
+): string {
+  return pageActiveCookie(secure, pageRoot, release);
 }
 
-// The marker says the page's private state lives in a container, so it has to go when
+// The marker selects the page's private record, so it has to go when
 // the user is put back on the published projection; leaving it and ignoring it would
-// send the next read to the container again.
+// send the next read to that private record again.
 export function clearActiveCookie(secure: boolean, pageRoot: string): string {
   return `${pageActiveCookie(secure, pageRoot, "")}; Max-Age=0`;
 }

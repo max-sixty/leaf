@@ -8,6 +8,7 @@ from click.testing import CliRunner
 from interact_support import (
     _interaction_prompt_evidence,
     append_carried_log_record,
+    command_refusal,
     consume_pending_input,
     delivered,
     last_deliverable_seq,
@@ -135,13 +136,21 @@ def test_thread_summary_is_admitted_as_one_ordered_thread_range(page_dir):
             ],
         )
 
-    reversed_range = summarize(second["id"], root["id"])
-    assert reversed_range.exit_code != 0
-    assert "at least two messages in thread order" in reversed_range.output
+    def refused(start: str, end: str) -> str:
+        return command_refusal(
+            "thread",
+            "summarize",
+            page_dir,
+            "--from",
+            start,
+            "--through",
+            end,
+            "--text",
+            "The first exchange.",
+        ).code
 
-    cross_thread = summarize(root["id"], neighbor["id"])
-    assert cross_thread.exit_code != 0
-    assert "endpoints must name spoken turns in one thread" in cross_thread.output
+    assert refused(second["id"], root["id"]) == "summary-order"
+    assert refused(root["id"], neighbor["id"]) == "summary-endpoints"
 
     reaction = append_carried_log_record(
         page_dir,
@@ -152,20 +161,13 @@ def test_thread_summary_is_admitted_as_one_ordered_thread_range(page_dir):
             "token": "mark",
         },
     )
-    standing_reaction_range = summarize(third["id"], reaction["id"])
-    assert standing_reaction_range.exit_code != 0
-    assert (
-        "endpoints must name spoken turns in one thread"
-        in standing_reaction_range.output
-    )
+    assert refused(third["id"], reaction["id"]) == "summary-endpoints"
 
     append_carried_log_record(
         page_dir,
         {"kind": "undo", "author": "user", "undoes": reaction["id"]},
     )
-    withdrawn_range = summarize(third["id"], reaction["id"])
-    assert withdrawn_range.exit_code != 0
-    assert "endpoints must name spoken turns in one thread" in withdrawn_range.output
+    assert refused(third["id"], reaction["id"]) == "summary-endpoints"
 
     described = summarize(second["id"], third["id"])
     assert described.exit_code == 0, described.output

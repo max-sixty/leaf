@@ -561,7 +561,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   }
   /* The actions' ground hides words scrolling past beside a head. It stands beneath the
      head's own controls, which stop short of the actions by its padding, so a focused
-     control's ring stays whole over that ground. */
+     control's ring stays whole over that ground. A notice of held news stands first
+     in the row, whole (thread-card.js); the card keeps its width while it holds news
+     (thread-preview.js), so the notice takes its room from the heads' track, and the
+     actions after it keep their places. */
   .lf-margin-thread .lf-page-thread > .lf-margin-thread-controls {
     grid-column: 2;
     grid-row: 2;
@@ -570,22 +573,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     display: flex;
     align-items: center;
     gap: 4px;
-    min-height: var(--lf-msg-head-height);
-    padding-inline-start: var(--sp-2);
-    background: var(--paper);
-  }
-  /* A held-news notice stands beside the actions over the end of the head beneath it,
-     message controls included, rather than narrowing that head, since news must not
-     rewrap it; pressing it shows the news. */
-  .lf-margin-thread .lf-page-thread > .lf-margin-thread-news {
-    grid-column: 1;
-    grid-row: 2;
-    justify-self: end;
-    align-self: start;
-    min-width: 0;
-    z-index: 3;
-    display: flex;
-    align-items: center;
     min-height: var(--lf-msg-head-height);
     padding-inline-start: var(--sp-2);
     background: var(--paper);
@@ -602,6 +589,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     z-index: 1;
     background-color: var(--lf-msg-ground);
     padding-inline-end: 0;
+  }
+  /* The heads' track narrows while the actions row holds a notice, so a short name
+     keeps its whole width even where the shared cap (components/surfaces.css) would
+     cut it; the time gives way first. */
+  .lf-margin-thread .lf-thread-transcript .lf-msg-head > b {
+    max-inline-size: max(40%, 5em);
   }
   /* Only the writer's name and the time stick. The head's annotations (a progress
      disclosure, a delivery receipt, a failure, a suggestion or edited label) belong

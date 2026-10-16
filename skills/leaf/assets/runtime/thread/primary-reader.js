@@ -30,7 +30,12 @@ import { HeldNews, newsNotice } from "./held-news.js";
    (focus.js, `threadPart`), as the floating panel declares its field. A reply part takes
    the presentation's words for its box and its own landing of a send (replies.js,
    `createReplyView`). The thread itself, where a walk or a notice lands the keyboard, is
-   the drawing the presentation declares around the parts, as the panel's view is. */
+   the drawing the presentation declares around the parts, as the panel's view is.
+   The notice of what the reader holds back (held-news.js) stands where the
+   presentation nominates it (`parts.news`), as the floating panel stands it in its
+   view's head with the thread's other facts. Where it nominates none, the notice
+   stands at the end of the first part's head, in room every such head keeps for it,
+   so news arriving moves none of the head's words. */
 export function createPrimaryReader(
   owner,
   render,
@@ -211,6 +216,7 @@ export function createPrimaryReader(
           message: (key, id, outlet) => nominate("message", key, id, outlet),
           reply: (key, outlet, options) =>
             nominate("reply", key, null, outlet, options),
+          news: (key, outlet) => nominate("news", key, null, outlet),
         }),
       );
       if (rendering?.then)
@@ -254,7 +260,10 @@ export function createPrimaryReader(
       if (!view) {
         if (item.kind === "thread")
           view = new ThreadView("outlet", { ...commands, nativeAuthored: true });
-        else {
+        else if (item.kind === "news") {
+          const notice = newsNotice();
+          view = { node: notice.node, notice, dispose() {} };
+        } else {
           const node = document.createElement("div");
           node.className = "lf-page-thread lf-ui lf-primary-part";
           node.dataset.lfPart = item.kind;
@@ -274,9 +283,13 @@ export function createPrimaryReader(
               message,
               messageKey: item.message,
               reading: null,
+              // Whether the thread's notice stands in this message's head.
+              headNotice: true,
               // Draws the message again at once, as its rewrite opens or closes.
               draw() {
-                message.present(this.reading, { headerControls: this.notice.node });
+                message.present(this.reading, {
+                  headerControls: this.headNotice ? this.notice.node : undefined,
+                });
                 message.commit();
               },
               dispose: () => message.retire(),
@@ -307,18 +320,26 @@ export function createPrimaryReader(
       if (item.kind === "thread") {
         view.present(shown.get(item.key));
         view.commit();
+      } else if (item.kind === "news") {
+        const news = shown.get(item.key)?.news;
+        if (news) view.notice.set(news);
+        keepsHidden(view.node, !news);
       } else {
         keeps(view.node, "data-thread", item.thread.id);
         keeps(view.node, "data-attempt", item.thread.root.attempt ?? null);
         const news = shown.get(item.key)?.news;
+        const nominated = selected.some(
+          (part) => part.key === item.key && part.kind === "news",
+        );
         const first =
           selected.find((part) => part.key === item.key && part.kind === "message") ??
           selected.find((part) => part.key === item.key);
-        const notice = Boolean(news) && first === item;
+        const notice = Boolean(news) && !nominated && first === item;
         if (notice) view.notice.set(news);
         keepsHidden(view.notice.node, !notice);
         if (item.kind === "message") {
           const message = item.thread.msgs.find((entry) => entry.key === item.message);
+          view.headNotice = !nominated;
           view.reading = messageReading(message, {
             panel: false,
             nativeAuthored: true,
@@ -335,7 +356,8 @@ export function createPrimaryReader(
           );
         } else {
           keepsHidden(view.node, !replyAvailable(item.thread));
-          if (view.notice.node.parentNode !== view.node)
+          if (nominated) view.notice.node.remove();
+          else if (view.notice.node.parentNode !== view.node)
             move(view.node, view.notice.node, null);
         }
       }
@@ -363,6 +385,8 @@ export function createPrimaryReader(
       for (const slot of slots.splice(depth)) slot.remove();
       keeps(view.node, "slot", previous?.name ?? null);
       place(destination, view.node);
+      // The notice is no part of the thread that a reading or a landing stands on.
+      if (item.kind === "news") continue;
       const parts = destinations.get(item.key) ?? [];
       parts.push(view);
       destinations.set(item.key, parts);

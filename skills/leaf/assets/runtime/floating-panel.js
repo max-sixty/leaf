@@ -149,7 +149,7 @@ import {
   standingIn,
 } from "./focus.js";
 import { rowWalk } from "./walk-position.js";
-import { sizeObserver } from "./rendering.js";
+import { nextRender, sizeObserver } from "./rendering.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { moveScrollerBy, SCROLL_SLACK, scrollLimit, scrollToEnd } from "./scrolling.js";
 import { declareOccluder, declareWindowChrome } from "./geometry.js";
@@ -324,6 +324,38 @@ export function createFloatingPanel({
   const mark = el("span", "lf-dot");
   leaf.append(mark);
   const field = el("div", "lf-fp-field");
+  // A long draft offers more room, by the user's press rather than on its own: past
+  // three lines a quiet mark stands over the field's end, and pressing it widens the
+  // panel and lets the field take most of the window, so the words re-wrap because the
+  // user asked. It folds back when the field empties, a send included, or on a second
+  // press. The user chose this on 15 October over the panel widening by itself at the
+  // third line, which re-wraps every line under the caret; no composer they compared
+  // widens on its own (Open WebUI and Zulip offer the same press once text is long).
+  const expand = el("button", "lf-fp-expand");
+  expand.type = "button";
+  let expanded = false;
+  // A pointer's press leaves the caret in the words, as the microphone's does.
+  expand.addEventListener("mousedown", (event) => event.preventDefault());
+  expand.addEventListener("click", () => {
+    expanded = !expanded;
+    paint();
+  });
+  // Whether the draft in the field runs past three lines, read from the editor's own
+  // height as the field's size changes.
+  let long = false;
+  const lengthWatch = sizeObserver(() => {
+    const input = fieldInput();
+    const lines = input
+      ? (input.getBoundingClientRect().height - 10) /
+        Number.parseFloat(getComputedStyle(input).lineHeight)
+      : 0;
+    if (lines > 3.5 === long) return;
+    long = lines > 3.5;
+    // The mark's strip resizes the field this watches, so it paints in the next frame
+    // rather than inside the observer's delivery.
+    nextRender(paint);
+  });
+  lengthWatch.observe(field);
   const rowNoticeSeat = el("div", "lf-fp-row-notice");
   const quick = el("div", "lf-fp-quick");
   row.append(leaf, field, rowNoticeSeat, quick);
@@ -377,7 +409,8 @@ export function createFloatingPanel({
   let query = "";
   let searching = false;
   let writing = false;
-  // Whether the user is typing, as the row last showed it: Send in the counts' place.
+  // Whether the user is typing, as the row last showed it: Send in the field's corner,
+  // the counts stepped aside.
   let typing = false;
   // The thread the reader lands at the end of, once Leaf has drawn more than `after`
   // of its messages: the whole of it on opening, or past the turn the user just sent.
@@ -2108,7 +2141,9 @@ export function createFloatingPanel({
     // (`focusView`); an editor leaving with the caret otherwise leaves it on the leaf.
     const thread = top?.view === "thread" ? threadByKey(top.thread) : null;
     const replying = top?.view === "thread";
-    const shown = replying ? [replyOutlet, resolvedLine] : [pageEditor().box];
+    const shown = replying
+      ? [replyOutlet, resolvedLine, expand]
+      : [pageEditor().box, expand];
     if (field.firstElementChild !== shown[0]) {
       const had = standingIn(field);
       field.replaceChildren(...shown);
@@ -2121,9 +2156,18 @@ export function createFloatingPanel({
     const input = fieldInput();
     if (input) syncInput(input);
     keeps(host, "data-writing", writing ? "" : null);
-    // While the user types, Send stands in the counts' place.
+    // While the user types, Send stands in the field's corner and the counts step
+    // aside for the field.
     typing = writing && Boolean(draftOf(input).trim());
     keeps(host, "data-typing", typing ? "" : null);
+    if (!draftOf(input).trim()) expanded = false;
+    // The mark stays while the field is wide, where the draft may fit three lines again.
+    keeps(host, "data-long", (long || expanded) && !resting ? "" : null);
+    keeps(host, "data-expanded", expanded ? "" : null);
+    keeps(expand, "aria-pressed", String(expanded));
+    keeps(expand, "aria-label", expanded ? "Less room to write" : "More room to write");
+    keeps(expand, "title", expanded ? "Less room to write" : "More room to write");
+    render(iconTemplate(expanded ? "fit" : "expand", "lf-action-icon"), expand);
     // Whose reading the empty field says, which its face follows: a status dims, and
     // carries the sheen while the agent works, unless it asks the user to act, such as
     // to nudge the agent in its terminal, which it says in its tone's ink

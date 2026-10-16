@@ -230,9 +230,16 @@ shortfall. Add each improvement you make, with its reason. Where an item here an
 - **The focused field shows no frame and no ground**: one quiet line opens above it,
   with the keys that send. A dark frame around the field was the previous attempt's
   "form" look.
-- **While the user types, Send stands in the counts' place;** the counts come back
-  when the caret leaves, and the line naming where the words go stays while the field
-  holds words. (Replaces the first build's counts on the destination line.)
+- **While the user types, Send floats in the field's end corner,** as an anchored
+  comment box's does, and the counts step aside for the field; they come back when
+  the caret leaves, and the line naming where the words go stays while the field holds
+  words. Every line but the last runs the field's width. (The user chose the corner on
+  15 October over Send standing beside the words, which kept its width empty beside
+  every line.)
+- **A long draft offers more room at a press:** past three lines a mark over the
+  field's end widens the panel to 760px and lets the field take most of the window;
+  it folds back when the field empties. The user chose this on 15 October over the
+  panel widening by itself, which re-wraps every line under the caret.
 - **The line over the field names where the words go only once they hide the
   placeholder that said it,** in the placeholder's words ("Comment on the page"), and
   never who reads them: the page has one agent. It shows only with no view open; over

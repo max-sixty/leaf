@@ -21,6 +21,7 @@ from pathlib import Path
 
 import click
 from leaf.schema import MEDIA_TYPES
+from PIL import Image
 
 from leaf_dev import LEAF_COMMAND
 from leaf_dev.arms import observed_sum
@@ -110,7 +111,7 @@ def discovery_evidence(page: Path, attempt: Path, paths: list[str], anchor: str)
     added = media_paths(page, images)
     figures = "".join(
         f'<figure id="{anchor}-capture-{index}"><figcaption>{escape(path.name)}</figcaption>'
-        + shot(added[path], f"Discovery evidence: {path.name}", lazy=True)
+        + shot(page, added[path], f"Discovery evidence: {path.name}", lazy=True)
         + "</figure>"
         for index, path in enumerate(images, 1)
     )
@@ -126,19 +127,24 @@ def discovery_evidence(page: Path, attempt: Path, paths: list[str], anchor: str)
     )
 
 
-def shot(path: str, alt: str, lazy: bool = False) -> str:
+def shot(page: Path, path: str, alt: str, lazy: bool = False) -> str:
+    with Image.open(page / path.lstrip("/")) as image:
+        width, height = image.size
     loading = ' loading="lazy"' if lazy else ""
-    return f'<a href="{path}"><img src="{path}" alt="{escape(alt)}"{loading}></a>'
+    return (
+        f'<a href="{path}"><img src="{path}" alt="{escape(alt)}"'
+        f' width="{width}" height="{height}"{loading}></a>'
+    )
 
 
 def column_figure(
-    anchor: str, label: str, sample: str, paths: list[str], width: str
+    page: Path, anchor: str, label: str, sample: str, paths: list[str], width: str
 ) -> str:
     if not paths:
         return f'<figure id="{anchor}"><figcaption>{escape(label)}</figcaption><p>No screens.</p></figure>'
     alt = f"{label} page, {width}"
     rest = "".join(
-        shot(p, f"{alt}, screen {i}", True) for i, p in enumerate(paths[1:], 2)
+        shot(page, p, f"{alt}, screen {i}", True) for i, p in enumerate(paths[1:], 2)
     )
     more = (
         f"<details><summary>{len(paths) - 1} more screens</summary>{rest}</details>"
@@ -147,7 +153,7 @@ def column_figure(
     )
     return (
         f'<figure id="{anchor}"><figcaption>{escape(label)} <code>{escape(sample)}</code></figcaption>'
-        f"{shot(paths[0], alt + ', first screen')}{more}</figure>"
+        f"{shot(page, paths[0], alt + ', first screen')}{more}</figure>"
     )
 
 
@@ -202,6 +208,7 @@ def pair_section(page: Path, subject: str, n: int, pair: dict | None, x, y) -> s
         f'<lf-tab id="{sid}-{width}" label="{widths[width]}"><div class="pair-shots">'
         + "".join(
             column_figure(
+                page,
                 f"{sid}-{width}-{index}",
                 label,
                 s["sample"],
@@ -234,6 +241,7 @@ def pair_section(page: Path, subject: str, n: int, pair: dict | None, x, y) -> s
             '<div class="pair-shots">'
             + "".join(
                 column_figure(
+                    page,
                     f"{sid}-before-{index}",
                     label,
                     s["sample"],
@@ -347,7 +355,10 @@ def task_section(page: Path, subject: str, columns: dict, pairs: list[dict]) -> 
     ]
     table = (
         f'<table id="{subject}-measures"><thead><tr><th scope="col">Measure</th>'
-        + "".join(f'<th scope="col">{escape(label)}</th>' for label, _ in measured)
+        + "".join(
+            f'<th scope="col"><code>{escape(label)}</code></th>'
+            for label, _ in measured
+        )
         + "</tr></thead><tbody>"
         + "".join(rows)
         + "</tbody></table>"

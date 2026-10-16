@@ -441,6 +441,7 @@ def test_report_keeps_candidate_identity_and_the_saved_task(tmp_path, monkeypatc
 def test_discovery_report_embeds_exact_screenshot_evidence(tmp_path, monkeypatch):
     """Only declared evidence paths become media; missing and other files stay explicit."""
     from leaf_dev.commands import eval_report
+    from PIL import Image
 
     run = tmp_path / "run"
     attempt = run / "discovery" / "sample" / "attempt-one"
@@ -449,7 +450,7 @@ def test_discovery_report_embeds_exact_screenshot_evidence(tmp_path, monkeypatch
     relative = attempt / "relative.png"
     prose_only = attempt / "not-declared.png"
     for image in (absolute, relative, prose_only):
-        image.write_bytes(b"retained screenshot")
+        Image.new("RGB", (320, 200)).save(image)
     (attempt / "response.json").write_text(
         json.dumps(
             {
@@ -481,8 +482,14 @@ def test_discovery_report_embeds_exact_screenshot_evidence(tmp_path, monkeypatch
     imported = []
 
     def media(*args):
+        import shutil
+
         assert args[:2] == ("page", "media")
         imported.extend(args[3:])
+        destination = Path(args[2]) / "media"
+        destination.mkdir(parents=True, exist_ok=True)
+        for path in args[3:]:
+            shutil.copyfile(path, destination / Path(path).name)
         return "\n".join(
             json.dumps({"source": path, "path": f"media/{Path(path).name}"})
             for path in args[3:]
@@ -494,6 +501,7 @@ def test_discovery_report_embeds_exact_screenshot_evidence(tmp_path, monkeypatch
     for name in ("absolute.png", "relative.png"):
         assert f'href="media/{name}"' in rendered
         assert f'src="media/{name}"' in rendered
+    assert 'width="320" height="200" loading="lazy"' in rendered
     assert "File is missing" in rendered and "missing.png" in rendered
     assert "Supplementary evidence; not an image" in rendered
     assert "response.json" in rendered

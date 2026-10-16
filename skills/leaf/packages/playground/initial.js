@@ -162,7 +162,7 @@ function render(host, { tabStore, offer, keeps }) {
   if (interactive) {
     const railed = controls.filter((control) => control.parentElement === host);
     const panel = node("div", "lf-playground-controls");
-    const panelTitle = node("p", "lf-playground-controls-title", "Controls");
+    const panelTitle = node("p", "lf-playground-controls-title lf-label", "Controls");
     panelTitle.id = `${host.id}-controls-title`;
     panel.setAttribute("role", "group");
     panel.setAttribute("aria-labelledby", panelTitle.id);
@@ -273,17 +273,19 @@ function render(host, { tabStore, offer, keeps }) {
     // The rail's controls pane holds the controls written there and the presets; a
     // playground whose every control stands in its preview and that offers no preset
     // has none.
+    if (!railed.length && presetBar)
+      split.append(pane("controls", "Controls", null, presetBar));
     split.append(
       pane("preview", "Preview", null, previewBody),
-      ...(railed.length
-        ? [pane("controls", "Controls", presetBar, panel)]
-        : presetBar
-          ? [pane("controls", "Controls", null, presetBar)]
-          : []),
+      ...(railed.length ? [pane("controls", "Controls", presetBar, panel)] : []),
       pane(
         "instruction",
         "Instruction to agent",
-        node("header", "lf-playground-instruction-title", "Instruction to agent"),
+        node(
+          "header",
+          "lf-playground-instruction-title lf-label",
+          "Instruction to agent",
+        ),
         output,
         actions,
       ),

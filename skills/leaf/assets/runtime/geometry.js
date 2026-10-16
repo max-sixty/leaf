@@ -14,7 +14,6 @@ import {
 } from "./rect.js";
 import { cancelRender, nextRender, sizeObserver } from "./rendering.js";
 import { watchScrolls } from "./arrivals.js";
-import { sampleVisibility } from "./sample-visibility.js";
 
 /* Shared readings of the boxes the page actually shows.
 
@@ -47,9 +46,9 @@ import { sampleVisibility } from "./sample-visibility.js";
      of the box it belongs to;
    - `clippedContents` when the subject has no element box of its own;
    - `placeBox` and `clippedPlace` for a destination that is an element or a Range;
-   - `presented`, `frameView` and `containingView` for whether the page puts a box
-     before the user at all and what the pages holding this one show of its window, and
-     `watchRoom` for when any of those readings may have changed.
+   - `presented` and `frameView` for whether the page puts a box before the user at all
+     and what this page shows of a sample it holds, and `watchRoom` for when any of
+     those readings may have changed.
 
    `skipped` is asked first by a reading that can leave out a box the browser is not
    drawing, since reading one in skipped content forces that content's style and layout.
@@ -226,7 +225,7 @@ export function shownBand(el) {
 // container: `auto` and `scroll`, and `hidden` too, which a script or a landing can
 // scroll though the user cannot, and which is the scroller a sticky box inside it sticks
 // in. The runtime asks it of what a motion scrolls and which boxes scroll what they
-// hold (scroll-motion.js, `scrollsContent`), and of the boxes that hold sticky headers
+// hold (`scrollsContent`), and of the boxes that hold sticky headers
 // (`scrollContainer`). `userScrollport` is the same test without `hidden`: what the
 // user, rather than a script, can scroll, which keyboard stops and edge marks read
 // (reach.js, `paintSlot`), and the render checks asking what a reader can reach.
@@ -238,6 +237,17 @@ const scrolls = (el) => scrollsBy(getComputedStyle(el));
 // A scroll container: the document's own scroller, or a box whose overflow scrolls.
 export const scrollContainer = (box) =>
   box === box.ownerDocument.scrollingElement || scrolls(box);
+// Whether `box` scrolls what it holds: it clips into a scrollport, `hidden` included,
+// which a script or focus can scroll, and holds more than that scrollport shows on that
+// axis. An inline SVG drawing clips what it draws but scrolls none of it.
+export function scrollsContent(box) {
+  if (!(box instanceof Element) || box instanceof SVGElement) return false;
+  const style = getComputedStyle(box);
+  return (
+    (scrollport(style.overflowX) && box.scrollWidth > box.clientWidth) ||
+    (scrollport(style.overflowY) && box.scrollHeight > box.clientHeight)
+  );
+}
 // How far below the top of `scroller`'s band the view of `el` starts, past the sticky
 // headers stuck over it. Each header adds its stated height to `--lf-top` for what it
 // stands over (theme.css), so where the `--lf-top` computed at `el` exceeds the
@@ -283,6 +293,31 @@ export function visibleBand(scroller, item = null) {
   const top = band.top + headerInset(item, scroller);
   const bottom = band.bottom - footerInset(item, scroller);
   return bottom > top ? { ...band, top, bottom } : null;
+}
+// The cuts the declared sticky headers and footers over `item` make, read by the clip
+// walk paint reads its bands from (`paintClips`), so a box passing under them and the
+// paint over `item` agree, a fixed or absolute box escaping the scrollers around it
+// included: one for each box that scrolls `item` where a header stands over its top or
+// a footer over its foot, the document's included, outermost first. Each is
+// `{box, band}`, with `band` cut at the header's foot and the footer's top and open
+// past the box's other edges, so it holds whatever size the box grows to, or null
+// where they cover all of it. A header that is not stuck stands above what it heads,
+// so the cut holds at every scroll. `clips` is the walk's cache, shared by a pass that
+// reads many.
+const OPEN = 100000;
+export function headerCuts(item, clips = new Map()) {
+  return clipWalk(item, clips, false)
+    .cuts.filter(({ covered, footed }) => covered || footed)
+    .reverse()
+    .map(({ box, band, covered, footed }) => ({
+      box,
+      band: band && {
+        left: band.left - OPEN,
+        right: band.right + OPEN,
+        top: covered ? band.top : band.top - OPEN,
+        bottom: footed ? band.bottom : band.bottom + OPEN,
+      },
+    }));
 }
 // The sticky box holding `node` while it is stuck, else null. A stuck box stands at the
 // edge of the scroller it sticks in, or is pushed past it by its holder's end, rather
@@ -482,7 +517,7 @@ export function seenRect(item, clips) {
 }
 // Whether the page puts `node` before the user at all, before any question of where:
 // drawn and visible, not inert, inside the topmost modal, and not hidden with
-// `aria-hidden`. Exposure asks it of a message body and of each frame holding the page.
+// `aria-hidden`. Exposure asks it of a message body and of a sample's frame.
 export function presented(node) {
   if (
     !node.checkVisibility({ visibilityProperty: true }) ||
@@ -494,11 +529,12 @@ export function presented(node) {
     if (at.getAttribute?.("aria-hidden") === "true") return false;
   return true;
 }
-// What this page shows of a frame it holds, in the frame's own viewport coordinates:
-// the frame's `seenRect`, within `within`, what the pages holding this one show of its
-// window (`containingView`), or null where the user sees none of it. The frame's page
-// cannot read this itself: only this page's module knows the banner, bottom bar and
-// occluders standing over the frame, which cut it as they cut any of this page's boxes.
+// What this page shows of a sample's frame it holds, in the frame's own viewport
+// coordinates: the frame's `seenRect`, within `within`, the window or what this page's
+// own holder shows of it, or null where the user sees none of it. The sample cannot
+// read this itself: only this page's module knows the banner, bottom bar and occluders
+// standing over the frame, which cut it as they cut any of this page's boxes. A page in
+// an ordinary iframe reads only its own window.
 export function frameView(frame, within) {
   const seen = seenRect(frame, new Map());
   const shown = seen && intersect(seen, within);
@@ -515,46 +551,16 @@ export function frameView(frame, within) {
     bottom: y(shown.bottom),
   };
 }
-// What the pages holding this one show of its window, in its own coordinates: the whole
-// window at the top, and in a same-origin frame what the holding page reads of that
-// frame (`frameView`), asked through the holder's document, where its own geometry
-// answers and asks its own holder in turn. Null where no holder answers: a cross-origin
-// holder hides the frame element, and one without Leaf declares none of its chrome, so
-// nothing it shows is evidence. An isolated sample's holder answers over the sample's
-// port instead (sample-visibility.js), from the same `frameView`.
-const FRAME_VIEW = Symbol.for("leaf.frameView");
-Object.defineProperty(document, FRAME_VIEW, {
-  value: (frame) => {
-    const within = presented(frame) && containingView();
-    return within ? frameView(frame, within) : null;
-  },
-});
-// The frame holding this page, where its holder is of this origin. An isolated sample's
-// holder is another origin, which answers over the sample's port, and WebKit reports
-// even reading `frameElement` there as a sandbox violation.
-const holdingFrame = () => (sampleVisibility() ? null : window.frameElement);
-export function containingView() {
-  const frame = holdingFrame();
-  if (!frame) return window === window.top ? layoutWindow() : null;
-  return frame.ownerDocument[FRAME_VIEW]?.(frame) ?? null;
-}
-// Everything besides a reader's own boxes that changes what `seenRect` and
-// `containingView` read, so a reader of what the user sees watches it here rather than
-// keeping its own list: a scroll, a shadow stage's included (`watchScrolls`); a resize;
-// the visual viewport, which a soft keyboard or a pinch-pan moves without either; a
-// native layer opening or closing, which changes what a modal admits
-// (`watchLayerChanges`); and chrome the room is measured against changing size or
-// ending a slide (`ROOM_MOVED`). In a same-origin frame it watches the same of the
-// holding page, through its document, and of the pages holding that one in turn, and
-// the frame moving in its holder's viewport, which no event in either page announces.
-// Returns the call that stops watching.
+// Everything besides a reader's own boxes that changes what `seenRect` reads, so a
+// reader of what the user sees watches it here rather than keeping its own list: a
+// scroll, a shadow stage's included (`watchScrolls`); a resize; the visual viewport,
+// which a soft keyboard or a pinch-pan moves without either; a native layer opening or
+// closing, which changes what a modal admits (`watchLayerChanges`); and chrome the room
+// is measured against changing size or ending a slide (`ROOM_MOVED`). Returns the call
+// that stops watching.
 const ROOM_MOVED = "lf-room-moved";
 export const announceRoom = (target) =>
   target.dispatchEvent(new Event(ROOM_MOVED, { bubbles: true, composed: true }));
-const WATCH_ROOM = Symbol.for("leaf.watchRoom");
-Object.defineProperty(document, WATCH_ROOM, {
-  value: (callback) => watchRoom(callback),
-});
 export function watchRoom(callback) {
   const viewport = window.visualViewport;
   /** @type {[EventTarget, string, boolean?][]} */
@@ -574,27 +580,6 @@ export function watchRoom(callback) {
         target.removeEventListener(type, callback, capture);
     },
   ];
-  const frame = holdingFrame();
-  const holder = frame?.ownerDocument[WATCH_ROOM];
-  if (holder) {
-    // What this page leaves in its holder goes with the page, whether or not the
-    // watcher ever stops, so a reloaded frame leaves no listener of its old self there.
-    const moves = new frame.ownerDocument.defaultView.IntersectionObserver(callback, {
-      threshold: [0, 1],
-    });
-    moves.observe(frame);
-    const unhold = holder(callback);
-    const leave = (event) => {
-      if (!event.persisted) stopHolding();
-    };
-    const stopHolding = () => {
-      moves.disconnect();
-      unhold();
-      window.removeEventListener("pagehide", leave);
-    };
-    window.addEventListener("pagehide", leave);
-    stops.push(stopHolding);
-  }
   return () => {
     for (const stop of stops) stop();
   };
@@ -882,6 +867,7 @@ function clipWalk(item, clips, held) {
         axes: c.axes,
         scrolls: c.scrolls,
         covered: c.axes.y && covered > c.band.top,
+        footed: c.axes.y && footed < c.band.bottom,
         band:
           c.axes.y && covered >= footed
             ? null
@@ -1022,6 +1008,9 @@ export const clippedPlace = (where, clips, box = placeBox(where)) =>
 // Where a box stacks among the page's root-level layers: the z-index of its outermost
 // positioned ancestor that sets one, and above all of them in the top layer. Both are
 // read up the tree as rendered, where a slotted box stacks inside its slot's ancestors.
+// For anything in `main` that ancestor is `main`, a stacking context at 0 (theme.css,
+// at the ladder), so a page box reads 0 whatever z-index it or a box around it sets,
+// unless it stands in the top layer.
 export function stackLevel(node) {
   let level = 0;
   for (let a = node; a; a = renderedParent(a)) {

@@ -1,10 +1,13 @@
 """Native filesystem subscriptions for quiet page and session maintenance.
 
 The files remain authority; notifications only schedule another canonical read.
-A subscription is installed before its first observation, and a generation taken
-before that observation retains writes arriving during it. Clock-only lifetime
-and activity transitions still have bounded timed reads. Diagnostics never wake
-the page subscribers. watchfiles owns platform notifications and polling fallback.
+Every follower of page files waits on a subscription from here rather than
+polling stamps. A subscription is installed before its constructor returns, and a
+generation taken before an observation retains writes arriving during it.
+Clock-only lifetime and activity transitions still have bounded timed reads. A
+page's subscription accepts exactly the inputs its reading stamps
+(`served_state.reading`), so diagnostics never wake it. watchfiles' public
+`watch` owns platform notifications and polling fallback.
 """
 
 import os
@@ -12,19 +15,27 @@ import threading
 import weakref
 from pathlib import Path
 
-from watchfiles._rust_notify import WatchfilesRustInternalError
-from watchfiles.main import (
-    RustNotify,
-    _default_debug,
-    _default_force_polling,
-    _default_ignore_permission_denied,
-    _default_poll_delay_ms,
-)
+from watchfiles import watch
 
-from .files import STAGED
 from .page_memory import memo
-from .refusals import Refused
-from .schema import INTERACTIONS_FILE, USER_VIEWS_FILE, USER_VIEWS_LOCK
+from .served_state.reading import outside_inputs, page_input
+
+
+class _Started:
+    """The stop event a `watch` generator reads, which also says it has started.
+
+    `watch` installs its native watcher when the generator first runs and only then
+    looks up its stop event's `is_set`, so that first lookup marks the subscription
+    installed, a step sooner than its first call would."""
+
+    def __init__(self, stop: threading.Event):
+        self.stop = stop
+        self.installed = threading.Event()
+
+    @property
+    def is_set(self):
+        self.installed.set()
+        return self.stop.is_set
 
 
 class FileChanges:
@@ -37,7 +48,6 @@ class FileChanges:
         self.pending = set() if collect else None
         self.stop = threading.Event()
         self.threads = []
-        self.watchers = []
         self.roots = {}
         try:
             # Keep the directory objects alive for exactly their subscription.
@@ -48,28 +58,26 @@ class FileChanges:
                     recursive,
                     os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC),
                 )
-            polling = _default_force_polling(None)
+            starts = []
             for recursive in (False, True):
                 paths = [path for path, nested in roots.items() if nested == recursive]
                 if not paths:
                     continue
-                watcher = RustNotify(
-                    [str(path) for path in paths],
-                    _default_debug(None),
-                    polling,
-                    _default_poll_delay_ms(300),
-                    recursive,
-                    _default_ignore_permission_denied(None),
-                )
-                self.watchers.append(watcher)
+                started = _Started(self.stop)
                 thread = threading.Thread(
-                    target=self._run, args=(watcher, accepts), daemon=True
+                    target=self._run,
+                    args=(paths, recursive, accepts, started),
+                    daemon=True,
                 )
                 thread.start()
                 self.threads.append(thread)
-        except BaseException as error:
+                starts.append(started)
+            for started in starts:
+                started.installed.wait()
+            if self.error:
+                raise self.error
+        except BaseException:
             self.close()
-            _refuse_exhausted_watcher(error)
             raise
 
     def matches(self, roots: dict[Path, bool]) -> bool:
@@ -88,31 +96,31 @@ class FileChanges:
                 return False
         return True
 
-    def _run(self, watcher, accepts):
+    def _run(self, paths, recursive, accepts, started):
         try:
-            while not self.stop.is_set():
-                changes = watcher.watch(25, 50, 0, self.stop)
-                if changes == "stop":
-                    return
-                if changes == "signal":
-                    raise RuntimeError("the filesystem subscription was interrupted")
-                if changes == "timeout":
-                    continue
+            for changes in watch(
+                *paths,
+                watch_filter=lambda _change, path: accepts(Path(path)),
+                debounce=25,
+                step=50,
+                stop_event=started,
+                rust_timeout=0,
+                raise_interrupt=False,
+                recursive=recursive,
+            ):
                 with self.condition:
-                    paths = {path for _change, path in changes if accepts(Path(path))}
-                    if paths:
-                        if self.pending is not None:
-                            self.pending.update(paths)
-                        self.generation += 1
-                        self.condition.notify_all()
+                    if self.pending is not None:
+                        self.pending.update(path for _change, path in changes)
+                    self.generation += 1
+                    self.condition.notify_all()
+            if not self.stop.is_set():
+                raise RuntimeError("the filesystem subscription was interrupted")
         except Exception as error:  # noqa: BLE001 - propagate watcher failures to its owner
             with self.condition:
-                try:
-                    _refuse_exhausted_watcher(error)
-                except Refused as refusal:
-                    error = refusal
                 self.error = error
                 self.condition.notify_all()
+        finally:
+            started.installed.set()
 
     def mark(self) -> int:
         with self.condition:
@@ -120,7 +128,7 @@ class FileChanges:
                 raise self.error
             return self.generation
 
-    def wait(self, generation: int, timeout: float) -> bool:
+    def wait(self, generation: int, timeout: float | None) -> bool:
         with self.condition:
             changed = self.condition.wait_for(
                 lambda: (
@@ -140,8 +148,6 @@ class FileChanges:
             self.condition.notify_all()
         for thread in self.threads:
             thread.join()
-        for watcher in self.watchers:
-            watcher.close()
         while self.roots:
             _path, (_recursive, descriptor) = self.roots.popitem()
             os.close(descriptor)
@@ -162,16 +168,6 @@ class FileChanges:
             return paths
 
 
-def _refuse_exhausted_watcher(error: BaseException) -> None:
-    """Name the Linux resource limit when native watcher creation exhausts it."""
-    if isinstance(error, WatchfilesRustInternalError) and "os error 24" in str(error):
-        raise Refused(
-            "Could not start a filesystem watcher: the inotify instance limit "
-            "may be reached. Check fs.inotify.max_user_instances and close unused "
-            "watching processes."
-        ) from error
-
-
 def existing_root(path: Path) -> Path:
     """The nearest directory whose notifications can discover a missing child."""
     while not path.is_dir():
@@ -179,19 +175,12 @@ def existing_root(path: Path) -> Path:
     return path
 
 
-def page_change(page: Path, changed: Path) -> bool:
-    """Application files and authored trees, excluding diagnostic writes."""
-    if changed == page or changed in page.parents:
-        return True
-    try:
-        relative = changed.relative_to(page)
-    except ValueError:
-        return False
-    if STAGED.fullmatch(changed.name):
-        return False
-    if len(relative.parts) == 1:
-        return changed.name not in {INTERACTIONS_FILE, USER_VIEWS_FILE, USER_VIEWS_LOCK}
-    return relative.parts[0] in {"page", "data"}
+def target_paths(targets: set[Path]) -> frozenset[Path]:
+    """The notifications that can move a target file: its own, and those of each
+    directory above it, which a rename, replacement or creation of that directory
+    reports by the directory's path. Writes to a directory's other entries report
+    those entries, so a target's neighbours stay quiet."""
+    return frozenset(path for target in targets for path in (target, *target.parents))
 
 
 class _PageChanges:
@@ -208,7 +197,7 @@ class _PageChanges:
         self.release = None
 
     def connect(self, page: Path) -> FileChanges:
-        targets = page_targets(page)
+        targets = outside_inputs(page)
         roots = {existing_root(target.parent): False for target in targets}
         roots[existing_root(page.parent)] = False
         roots[existing_root(page)] = True
@@ -220,9 +209,10 @@ class _PageChanges:
             ):
                 if self.release is not None:
                     self.release()
+                watched = target_paths(targets)
                 self.changes = FileChanges(
                     roots,
-                    lambda changed: page_change(page, changed) or changed in targets,
+                    lambda changed: page_input(page, changed) or changed in watched,
                 )
                 # Threads retain FileChanges, never this memo owner. Discarding
                 # an unheld page memory therefore closes and joins its provider.
@@ -232,19 +222,6 @@ class _PageChanges:
 
 
 def page_changes(page: Path) -> FileChanges:
-    """The process's shared page subscription, refreshed on ownership transfer."""
+    """The process's shared page subscription, refreshed when the claim or the
+    page's file grants move what it watches outside the page."""
     return memo(page, _PageChanges).connect(page)
-
-
-def page_targets(page: Path) -> set[Path]:
-    """External publications this page reads, regardless of its observer's owner."""
-    from .service import claim_path, page_claim, session_claims
-    from .state import SESSION_SUFFIX, session_file
-
-    path = claim_path(page)
-    targets = {path}
-    owner = page_claim(page)
-    if owner:
-        targets.add(session_file(owner["id"], SESSION_SUFFIX).resolve())
-        targets.add(session_claims(owner["id"]) / path.name)
-    return targets

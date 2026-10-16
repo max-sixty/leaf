@@ -64,6 +64,7 @@ import {
   render,
   repeat,
   scrollerFor,
+  scrollIntoView,
   scrollLimit,
   sizeObserver,
   whileConnected,
@@ -75,6 +76,7 @@ import {
 const HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
 // The lens is never shorter than this, or than 1.2% of the map, so it stays in sight.
 const LENS_FLOOR = 14;
+// Firefox lacks ScrollTimeline.
 const SCROLL_TIMELINE = "ScrollTimeline" in globalThis;
 // Without a scroll timeline the lens's animation lasts this many milliseconds over the
 // whole scroll, long enough that no browser's clamped timer precision steps it.
@@ -156,6 +158,7 @@ customElements.define(
       const floor = Math.min(
         ...headings.map(({ heading }) => Number(heading.localName.slice(1))),
       );
+      /** @type {{heading: any, label: string, destination: any, depth: number, row?: Element, link?: Element}[]} */
       const items = headings.map(({ heading, label }, index) => ({
         heading,
         label,
@@ -187,7 +190,9 @@ customElements.define(
             aria-label="On this page"
             ${ref(this.#navRef)}
           >
-            <p class="lf-toc-heading" data-lf-gen="1" data-lf-said>On this page</p>
+            <p class="lf-toc-heading lf-label" data-lf-gen="1" data-lf-said>
+              On this page
+            </p>
             <div class="lf-toc-rows" ${ref(this.#rowsRef)}>
               <span
                 class="lf-toc-window"
@@ -360,6 +365,7 @@ customElements.define(
       this.#mapHeight = track.height;
 
       const readLabels = () => {
+        /** @type {{index: number, ideal: number, height: number, center: number, prefix?: number}[]} */
         const labels = this.#sections.flatMap(({ row, link }, index) =>
           this.#shown[index]
             ? [
@@ -407,14 +413,8 @@ customElements.define(
           this.#focusedLink === focused(document) &&
           this.#focusedVisible &&
           this.#nav.getBoundingClientRect().height < this.#navHeight - 1
-        ) {
-          const link = focused(document).getBoundingClientRect();
-          const viewport = this.#nav.getBoundingClientRect();
-          if (link.bottom > viewport.bottom)
-            this.#nav.scrollTop += link.bottom - viewport.bottom;
-          else if (link.top < viewport.top)
-            this.#nav.scrollTop += link.top - viewport.top;
-        }
+        )
+          scrollIntoView(this.#focusedLink, { block: "nearest", within: this.#nav });
         return shifts;
       }
 

@@ -11,7 +11,7 @@ from leaf.event_log import read_events
 from leaf.leases import take_lease, waiter_lease_path
 from leaf.render_checks import rendered
 from leaf.thread import ProviderFinal, cmd_resolve, post_reply
-from leaf_dev import example_previews, journey, verify_site
+from leaf_dev.commands import journey, refresh_previews, verify_site
 from playwright.sync_api import expect
 from process.test_website_server import (
     ROOT,
@@ -281,7 +281,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
 
 
 def test_the_preview_generator_bootstraps_a_new_catalog_entry(tmp_path, monkeypatch):
-    pinned = example_previews.pinned_assets()
+    pinned = refresh_previews.pinned_assets()
     current = tmp_path / "current"
     (current / "examples").mkdir(parents=True)
     shutil.copytree(pinned / "demo", current / "demo")
@@ -289,22 +289,22 @@ def test_the_preview_generator_bootstraps_a_new_catalog_entry(tmp_path, monkeypa
     shutil.copy2(next((pinned / "examples").glob("example-*.jpg")), existing)
     source = ROOT / "examples" / "ideas-to-implement.html"
     sources = [source]
-    monkeypatch.setattr(example_previews, "pinned_assets", lambda: current)
-    monkeypatch.setattr(example_previews, "catalog_sources", lambda: sources)
-    monkeypatch.setattr(example_previews.site_build, "catalog_sources", lambda: sources)
+    monkeypatch.setattr(refresh_previews, "pinned_assets", lambda: current)
+    monkeypatch.setattr(refresh_previews, "catalog_sources", lambda: sources)
+    monkeypatch.setattr(refresh_previews.site_build, "catalog_sources", lambda: sources)
     monkeypatch.setattr(
-        example_previews.site_build, "published_page_sources", lambda: sources
+        refresh_previews.site_build, "published_page_sources", lambda: sources
     )
 
-    assets = example_previews.bootstrap_assets(tmp_path / "assets")
+    assets = refresh_previews.bootstrap_assets(tmp_path / "assets")
     site = tmp_path / "site"
-    example_previews.site_build.build_examples(
-        site, example_previews.site_build.checkout_leaf(), assets=assets
+    refresh_previews.site_build.build_examples(
+        site, refresh_previews.site_build.checkout_leaf(), assets=assets
     )
 
     assert (
         assets / "examples" / "example-ideas-to-implement.jpg"
     ).read_bytes() == existing.read_bytes()
-    with example_previews.serve_examples(site) as root:
+    with refresh_previews.serve_examples(site) as root:
         state = json.loads(get(f"{root}/examples/ideas-to-implement/api/state")[0])
     assert state["publication"]["kind"] == "example"

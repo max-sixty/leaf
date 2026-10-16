@@ -71,7 +71,7 @@ from leaf.structure import (
     script_kind,
 )
 
-PUBLIC_MODULES = ("/runtime/widget-api.js",)
+PUBLIC_MODULES = ("/runtime/widget-api.js", "/vendor/floating-ui.esm.js")
 
 
 RESOURCE_TYPES = {
@@ -690,7 +690,7 @@ def _capture_artifact(
     documents = [document]
     for authored in documents:
         documents.extend(sample["document"] for sample in authored.samples)
-        for script in authored.inline_scripts:
+        for script in authored.authoring.inline_scripts:
             if script_kind(script["attrs"]) not in {"module", "classic"}:
                 continue
             for _, _, specifier in javascript_imports(
@@ -699,7 +699,7 @@ def _capture_artifact(
                 entries.append(
                     resolve_dependency(specifier, "/index.html", module=True)
                 )
-        for script in authored.external_scripts:
+        for script in authored.authoring.external_scripts:
             if script_kind(script["attrs"]) not in {"module", "classic"}:
                 continue
             path = resolve_dependency(
@@ -710,7 +710,7 @@ def _capture_artifact(
             if not path.startswith("/page/"):
                 raise ArtifactError(f"{path}: authored scripts must be under /page/")
             entries.append(path)
-        for link in links_with_rel(authored.links, "stylesheet"):
+        for link in links_with_rel(authored.authoring.links, "stylesheet"):
             path = resolve_dependency(link["attrs"].get("href", ""), "/index.html")
             if path is None:
                 continue
@@ -719,15 +719,16 @@ def _capture_artifact(
                     f"{path}: a stylesheet dependency must have CSS MIME type"
                 )
             entries.append(path)
-        for specifier in _css_dependencies(authored.css):
-            entries.append(resolve_dependency(specifier, "/index.html"))
-        for inline in authored.inline_styles:
+        for sheet in authored.authoring.style_blocks:
+            for specifier in _css_dependencies(sheet["css"]):
+                entries.append(resolve_dependency(specifier, "/index.html"))
+        for inline in authored.authoring.inline_styles:
             for specifier in _css_dependencies(inline["style"], declarations=True):
                 entries.append(resolve_dependency(specifier, "/index.html"))
-        entries.extend(authored.media_refs)
+        entries.extend(authored.authoring.media_refs)
         entries.extend(
             resolve_dependency(specifier, "/index.html")
-            for specifier in authored.page_resource_refs
+            for specifier in authored.authoring.page_resource_refs
         )
     entries = [entry for entry in entries if entry is not None]
     for entry in entries:
@@ -781,7 +782,10 @@ def _capture_artifact(
                         "body": _digest(script.get("body", "").encode("utf-8")),
                     }
                     for script in sorted(
-                        [*document.inline_scripts, *document.external_scripts],
+                        [
+                            *document.authoring.inline_scripts,
+                            *document.authoring.external_scripts,
+                        ],
                         key=lambda script: script["position"],
                     )
                 ],
@@ -815,7 +819,7 @@ def _capture_artifact(
     manifest = _canonical_json(
         {
             "html": _digest(document.data),
-            "title": document.title.strip(),
+            "title": document.authoring.title.strip(),
             "entries": sorted(set(entries)),
             "executable": executable,
             "widgets": widgets,

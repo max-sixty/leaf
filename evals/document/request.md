@@ -42,24 +42,24 @@ day,p95_ms
 
 **Options.**
 
-1. *Stay on managed Redis, shorten TTL to 7 days.* Frees about 70% of memory, so no
+1. _Stay on managed Redis, shorten TTL to 7 days._ Frees about 70% of memory, so no
    resize. Cost goes up 38% at renewal regardless. Does nothing for logout lag.
-2. *Postgres (`accounts-db`), sessions table with an index on user id.* Logout is one
+2. _Postgres (`accounts-db`), sessions table with an index on user id._ Logout is one
    `DELETE … WHERE user_id = $1`, consistent immediately. Read p95 in a load test was
    3.1 ms (vs 1.9 ms now). Adds ~9k QPS to a database at 40% CPU. Cost: roughly zero
    marginal. Migration: dual-write for 30 days, then cut reads over.
-3. *Signed stateless tokens (15 min) plus a revocation list in Postgres.* No session
+3. _Signed stateless tokens (15 min) plus a revocation list in Postgres._ No session
    reads on the hot path at all. Logout-everywhere waits up to 15 minutes unless every
    service checks the revocation list, which puts us back at option 2's read load.
    Largest change: every service that reads a session changes.
 
-| | Stay on Redis | Postgres | Stateless + revocation |
-|---|---|---|---|
-| Read p95 | 1.9 ms | 3.1 ms | 0 ms (hot path) |
-| Logout-everywhere | lags up to 90 s | immediate | up to 15 min, or option 2's load |
-| Yearly cost | $148k | ~$0 marginal | ~$0 marginal |
-| Services changed | 0 | 1 (auth) | 23 |
-| Migration length | none | 30 days dual-write | 1–2 quarters |
+|                   | Stay on Redis   | Postgres           | Stateless + revocation           |
+| ----------------- | --------------- | ------------------ | -------------------------------- |
+| Read p95          | 1.9 ms          | 3.1 ms             | 0 ms (hot path)                  |
+| Logout-everywhere | lags up to 90 s | immediate          | up to 15 min, or option 2's load |
+| Yearly cost       | $148k           | ~$0 marginal       | ~$0 marginal                     |
+| Services changed  | 0               | 1 (auth)           | 23                               |
+| Migration length  | none            | 30 days dual-write | 1–2 quarters                     |
 
 **Risks.**
 

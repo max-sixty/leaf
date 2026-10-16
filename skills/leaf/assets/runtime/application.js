@@ -31,11 +31,10 @@ import { createAnnotationView } from "./annotation-view.js";
 import { createInlineContributions } from "./inline-contributions.js";
 import { presentingContributions, watchContributions } from "./contributions.js";
 import { watchProjection } from "./projection-watch.js";
-import { clocked } from "./presence.js";
 import { createThreadDestinations } from "./thread/destination.js";
 import { createThreadActions } from "./thread/actions.js";
 import { createQueueActions } from "./queue-api.js";
-import { registerMirrorConsumer, createPrimaryReader } from "./thread/mirrors.js";
+import { createPrimaryReader } from "./thread/primary-reader.js";
 import { createReadTracking } from "./thread/read.js";
 import { renderMarginThread } from "./thread/inline.js";
 import { showHeld } from "./thread/held-news.js";
@@ -134,13 +133,7 @@ export function mountApplication(dependencies) {
     return presentDocument();
   };
 
-  // The drag that deferred the projection has ended: present the reading it held.
-  const projection = createProjectionPresentation({
-    onDeferredReady: () => {
-      invalidateDom();
-      releasePendingSafely("deferred pending release");
-    },
-  });
+  const projection = createProjectionPresentation();
   const dataProjection = createDataProjection({ invalidateDom });
 
   let delivery;
@@ -271,18 +264,28 @@ export function mountApplication(dependencies) {
     dependencies.annotationCommands.renderPageMapDialog(entries);
     return entries;
   }
-  const renderAnnotations = clocked(document.body, () => {
+  // The margin's annotations, which the thread presentation, the margin's own geometry
+  // and contributions also redraw directly. `refresh()` redraws them once they have
+  // been drawn.
+  let annotationsDrawn = false;
+  const renderAnnotations = () => {
+    annotationsDrawn = true;
     if (!onPaper.matches) {
       const entries = refreshAnnotationInventory();
       overlay?.paint(entries);
     }
-  });
+  };
+  renderAnnotations.refresh = () => {
+    if (annotationsDrawn) renderAnnotations();
+  };
   // The inventory lists the marks the projection's chrome paints, reading their nodes,
   // which the watcher cannot track, so it reads the parts that move them itself, and
-  // reads them once that region has committed.
+  // reads them once that region has committed. The ages the margin shows are followed
+  // with the rest of what this paint reads, so the clock repaints them by the same
+  // proof.
   const annotationInputs = readPart(annotationSelection);
   const mountAnnotations = () => {
-    watchProjection(
+    const watching = watchProjection(
       document.body,
       () => {
         annotationInputs();
@@ -291,8 +294,10 @@ export function mountApplication(dependencies) {
       () => projectionRegionsPresented([]),
     );
     document.addEventListener("lf-comparison", renderAnnotations);
+    // A paint on paper read no ages, so the return to screen paints through the
+    // watcher, which follows them again.
     onPaper.addEventListener("change", () => {
-      if (!onPaper.matches) renderAnnotations.refresh();
+      if (!onPaper.matches) watching.refresh();
     });
     watchContributions(({ immediate }) => {
       renderAnnotations();
@@ -356,6 +361,9 @@ export function mountApplication(dependencies) {
         flash: false,
         intent,
       }),
+    // The thread a margin entry stands for, which a user on it goes on with when the
+    // thread leaves the margin.
+    threadAt: (node) => overlay?.entryThread(node) ?? null,
     read,
   });
   const registerThreadPanel = ({ controller, threadsBox, view }) =>
@@ -384,9 +392,7 @@ export function mountApplication(dependencies) {
     acceptData: dependencies.state.acceptData,
     notifyDataSubscribers: dependencies.state.notifyDataSubscribers,
     isSignoffDeclared: dependencies.state.isSignoffDeclared,
-    renderStatus: dependencies.state.renderStatus,
     stateSignoff: dependencies.state.stateSignoff,
-    renderOthers: dependencies.state.renderOthers,
     accountPending,
   });
 
@@ -436,7 +442,6 @@ export function mountApplication(dependencies) {
 
   const feed = createStateFeed({
     prepareActivation: dependencies.state.prepareActivation,
-    renderStatus: dependencies.state.renderStatus,
     stateApplying,
     invalidateDom,
     receiveState,
@@ -483,8 +488,6 @@ export function mountApplication(dependencies) {
     requirePageAnnotations();
     return registerPageConsumer(owner, render, threadSurfaceCommands);
   };
-  const mountThreadViews = (owner, render) =>
-    registerMirrorConsumer(owner, render, { commands: inlineView });
 
   // One reader is the page's primary at a time (thread/destination.js). Leaf's own
   // chrome registers one that yields (`registerChromeThreadPresentation`, which the
@@ -494,9 +497,15 @@ export function mountApplication(dependencies) {
   // chrome's `yielded`, asked before its reader goes, returns how to hand the reader
   // taking its place the conversation it shows, which runs once the package holds its
   // registration, as that reader may ask it to present.
-  const attachPresentation = (owner, { render, reveal }) => {
-    const reader = createPrimaryReader(owner, render, inlineView, () =>
-      threadPresenter.present(),
+  // A presentation that makes room for the agent's answer to the user's last turn
+  // itself says so (`answersAtOnce`), and its reader draws that answer at once.
+  const attachPresentation = (owner, { render, reveal, answersAtOnce = false }) => {
+    const reader = createPrimaryReader(
+      owner,
+      render,
+      inlineView,
+      () => threadPresenter.present(),
+      { answersAtOnce },
     );
     const detachDestination = threadDestinations.register(owner, reveal, reader);
     let detachPresentation;
@@ -598,7 +607,6 @@ export function mountApplication(dependencies) {
     watchThreadSurfaces,
     placePageThreads,
     consumeAnnotations,
-    mountThreadViews,
     registerThreadPanel,
     retireProjectionCoverage: projection.retireProjectionCoverage,
     threadActions,
@@ -636,7 +644,6 @@ export const post = commandDispatch.post;
 export const projectData = (...args) => app().projectData(...args);
 export const placePageThreads = (...args) => app().placePageThreads(...args);
 export const consumeAnnotations = (...args) => app().consumeAnnotations(...args);
-export const mountThreadViews = (...args) => app().mountThreadViews(...args);
 export const registerThreadPresentation = (...args) =>
   app().registerThreadPresentation(...args);
 export const threadActions = Object.freeze({

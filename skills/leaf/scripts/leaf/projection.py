@@ -372,13 +372,50 @@ def frozen_thread_reading(
     )
 
 
-def recorded_owner(unit: str, byid: dict, spk: dict, registry: dict):
-    """The nearest enclosing widget whose element declaration records state."""
-    for candidate in reversed(spk.get(unit, EMPTY).within):
-        rec = byid.get(candidate)
-        entry = registry.get(rec["tag"], {}) if rec else {}
-        if any(spec.get("record") for _, spec in state_specs(entry)):
-            return candidate
+def projected_action_holders(
+    projection: StateProjection, byid: dict, registry: dict
+) -> dict[str, dict]:
+    """Unit id → its enclosing vocabulary widget after position records in force
+    no later revision has absorbed; an absorbed move leaves its unit where the
+    markup has it."""
+    holders = {}
+    for (_owner, unit, _verb), (event, spec) in projection.desired.items():
+        record = spec.get("record") or {}
+        if record.get("kind") != "position" or event["id"] in projection.absorbed:
+            continue
+        target = byid.get(event["detail"]["value"])
+        unit_rec = byid.get(unit)
+        if target and unit_rec:
+            holder = target if target["tag"] in registry else target.get("holder")
+            permitted = (registry.get(unit_rec["tag"]) or {}).get("x-owners", [])
+            if holder and holder["tag"] in permitted:
+                holders[unit] = holder
+    return holders
+
+
+def recorded_owner(
+    unit: str, record: dict, byid: dict, registry: dict, *, holders: dict | None = None
+):
+    """The nearest ancestor recording this physical member-state slot.
+
+    Attribute sets own one attribute; positions own one place. Other attributes
+    and record kinds coexist, including scalar state on a member or container.
+    A member's own records never claim its membership from its parent. Optional
+    holder overrides read current membership after position records in force.
+    """
+    holders = holders or {}
+    node = byid.get(unit)
+    while node is not None:
+        node = holders.get(node["attrs"].get("id"), node.get("holder"))
+        if node is None:
+            break
+        entry = registry.get(node["tag"], {})
+        if any(
+            (spec.get("record") or {}).get("kind") == record["kind"]
+            and (spec.get("record") or {}).get("attr") == record.get("attr")
+            for _, spec in state_specs(entry)
+        ):
+            return node["attrs"].get("id")
     return None
 
 
@@ -402,7 +439,7 @@ def markup_value(unit: str, spec: dict, byid: dict, spk: dict, registry: dict):
             for oid, orec in byid.items()
             if record["attr"] in orec["attrs"]
             and unit in spk.get(oid, EMPTY).within[:-1]
-            and recorded_owner(oid, byid, spk, registry) == unit
+            and recorded_owner(oid, record, byid, registry) == unit
         )
     if record["kind"] == "value":
         rec = byid.get(unit)
@@ -420,7 +457,7 @@ def authored_positions(
         cid: rec
         for cid, rec in byid.items()
         if rec["tag"] == record["within"]
-        and recorded_owner(cid, byid, spk, registry) == owner
+        and recorded_owner(cid, record, byid, registry) == owner
     }
     order = {cid: [] for cid in containers}
     for uid, rec in byid.items():
@@ -674,15 +711,22 @@ def generated_children(desired: dict, authored_ids: set) -> dict:
 
 
 def record_members(
-    owner: str, projection: StateProjection, byid: dict, spk: dict, registry: dict
+    owner: str,
+    record: dict,
+    projection: StateProjection,
+    byid: dict,
+    registry: dict,
 ) -> set:
-    """The ids an attribute record on `owner` may name: the authored elements it
-    records, and the children its actions in force created."""
+    """The current members an attribute record may name, including created children.
+
+    Position records in force determine membership, so moving a member changes the
+    container that can select it in the same authoritative reading.
+    """
+    holders = projected_action_holders(projection, byid, registry)
     authored = {
         oid
         for oid in byid
-        if owner in spk.get(oid, EMPTY).within[:-1]
-        and recorded_owner(oid, byid, spk, registry) == owner
+        if recorded_owner(oid, record, byid, registry, holders=holders) == owner
     }
     created = generated_children(projection.desired, set(byid)).get(owner, [])
     return authored | {child["id"] for child in created}

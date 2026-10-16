@@ -1,12 +1,10 @@
-/* A registered visual with staged reveals and explicit render-gate faults.
- * Every case shares the drawing and inventory; configuration changes only the tag,
- * initial part visibility, opening fill, or a deliberately invalid surface. */
+/* A registered visual whose parts can be drawn together or revealed in stages. */
 import { once, registerVisualParts } from "/runtime/widget-api.js";
 
 export function defineVisualFixture({
   tag = "lf-test-visual",
   staged = false,
-  outsideSurfaceFor = null,
+  invalidPartId = false,
 } = {}) {
   customElements.define(
     tag,
@@ -38,12 +36,9 @@ export function defineVisualFixture({
         const htmlSurface = this.querySelector("#html-surface");
         this.parts = [
           {
-            id: "outer",
+            id: invalidPartId ? "two words" : "outer",
             element: outer,
-            surface:
-              this.id === outsideSurfaceFor
-                ? document.querySelector("#title")
-                : outerSurface,
+            surface: outerSurface,
             label: "Outer store",
           },
           { id: "inner", element: inner, label: "Inner decision" },

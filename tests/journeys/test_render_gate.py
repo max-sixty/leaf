@@ -572,6 +572,12 @@ classDiagram
         )
         == "Jobs"
     )
+    assert (
+        drawn.locator("#er-quoted-name").evaluate(
+            "e => e.visualParts.get('node:Line%20Item').label"
+        )
+        == "Line Item"
+    )
 
 
 def test_the_readiness_wait_names_the_stage_a_page_still_owes(browser, serve):
@@ -881,14 +887,12 @@ def test_scrollbar_clearance_reads_generic_content_and_open_shadow_words(
     ) == {name: reading["width"] for name, reading in before.items()}
 
 
-def test_a_table_fills_its_declared_allocation_or_frame_and_a_bare_one_keeps_its_content(
-    browser, serve
-):
-    """A table directly in a panel runs its rules to the panel's inner edge, where they
-    used to stop short and read as a table cut off. An explicit allocation on the
-    table's figure also sizes the painted rows, not just their scrollport. The same
-    table with no allocation keeps to what its columns hold, and so does one granted the
-    room itself, which is a limit rather than a size: its rows stand where the prose
+def test_a_table_keeps_its_columns_natural_width_wherever_it_stands(browser, serve):
+    """A table's rows are as wide as its columns hold wherever it stands: bare in the
+    column, in a panel, in a figure granted the page's room, granted the room itself,
+    which is a limit rather than a size, and in an Ask, even an Ask inside the granted
+    figure. Spreading the columns over a frame worked in Chrome alone, since Firefox
+    never widens a table's grid to its caption. One granted room stands where the prose
     starts. A table too wide for the panel still scrolls inside it.
     Code in a cell is set relative to the cell's text rather than at the chip size."""
     page = open_page(browser, serve(FRAMED_TABLES_PAGE))
@@ -903,6 +907,11 @@ def test_a_table_fills_its_declared_allocation_or_frame_and_a_bare_one_keeps_its
         const wide = document.querySelector('#wide-framed');
         const cell = framed.querySelector('td'), code = cell.querySelector('code');
         const own = document.querySelector('#allocated');
+        const asked = ['asked-table', 'figure-asked-table'].map(id => {
+            const table = document.getElementById(id);
+            return {short: Math.round(inner(table.parentElement) - rowEnd(table)),
+                    scrolls: table.scrollWidth - table.clientWidth};
+        });
         const allocated = ['figure-table'].map(id => {
             const table = document.getElementById(id);
             return Math.round(inner(table) - rowEnd(table));
@@ -914,6 +923,7 @@ def test_a_table_fills_its_declared_allocation_or_frame_and_a_bare_one_keeps_its
             ownShort: Math.round(inner(own) - rowEnd(own)),
             ownStart: Math.round(own.querySelector('tr').getBoundingClientRect().left
                 - bare.querySelector('tr').getBoundingClientRect().left),
+            asked,
             wideScrolls: wide.scrollWidth - wide.clientWidth,
             wideInside: Math.round(inner(wide.parentElement) - wide.getBoundingClientRect().right),
             codeRatio: parseFloat(getComputedStyle(code).fontSize)
@@ -921,10 +931,13 @@ def test_a_table_fills_its_declared_allocation_or_frame_and_a_bare_one_keeps_its
         };
     }"""
     )
-    assert abs(measured["framedShort"]) <= 1, measured
-    assert all(abs(short) <= 1 for short in measured["allocated"]), measured
+    assert measured["framedShort"] > 100, measured
+    assert all(short > 100 for short in measured["allocated"]), measured
     assert measured["bareShort"] > 100, "the bare table fills its column"
     assert measured["ownShort"] > 100 and measured["ownStart"] == 0, measured
+    assert all(a["short"] > 100 and a["scrolls"] == 0 for a in measured["asked"]), (
+        measured
+    )
     assert measured["wideScrolls"] > 0 and measured["wideInside"] >= 0, measured
     assert measured["codeRatio"] == pytest.approx(0.9, abs=0.01), measured
     assert root_overflow(page) == 0

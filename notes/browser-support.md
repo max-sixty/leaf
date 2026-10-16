@@ -23,6 +23,20 @@ what fails and what still works.
 
 ## Supported APIs checked
 
+### Feedback clearance above a covering thread panel
+
+- **Owner:** `styles/chrome.css`. Native `anchor-size()` reads the panel foot and
+  selected reply, while `anchor()` reads the list's foot; feedback keeps one
+  clearance through list scrolling and draft growth. The list opens one chosen
+  thread, so it supplies one visible reply anchor.
+- **Observed 2026-10-14:** installed Playwright Chromium 153.0.8010.12, Firefox 155
+  and WebKit 26.6 match the former measured placement within one pixel for short
+  and multiline replies at both scroll ends, reply selection changes, an empty
+  list, a multiline page-mode foot composer, and the panel beside the page.
+  Empty lists use the foot anchor alone; a reply's presence adds its clearance.
+- **Disposition:** adopted without a fallback. These are installed engine checks,
+  rather than a current stable-browser compatibility survey.
+
 ### Help search result relationships
 
 - **Owner:** `runtime/keyboard/command-reference.js`. The shared input keeps its
@@ -78,7 +92,7 @@ what fails and what still works.
 
 ### Shadow-tree startup and draw-mode rules
 
-- **Owner:** `runtime/shadow.js` (`SHADOW_STARTUP_CSS`) and
+- **Owner:** `runtime/shadow.js` (`SHADOW_LEADING_CSS`) and
   `styles/components/integration.css`. A declared shadow tree hides its generated
   interface until upgrade, holds transitions until presentation, and shows draw
   mode's crosshair under `main`. Its selectors cannot see the document's stamps, so
@@ -98,7 +112,49 @@ what fails and what still works.
   and runs the pseudo-element's transition, so nothing visible differs.
 - **Disposition:** adopted without a fallback.
 
+### Folds, composed selections and anchor scopes without a feature check
+
+- **Owners:** widgets that fold with `hidden="until-found"` (`lf-tabs`,
+  `lf-options`, `lf-trace-compare`); `runtime/passages.js` (`pageRange`, through
+  `Selection.getComposedRanges`); `runtime/css-anchors.js` (`anchor-scope`) and the
+  Page Map toggle in `styles/chrome.css` (anchor positioning).
+- **Compatibility checked 2026-10-14:** `hidden="until-found"` and `beforematch`
+  support Chrome 102+, Firefox 139+ and Safari 26.2+; `getComposedRanges` Chrome
+  137+, Firefox 142+ and Safari 17+; `anchor-name` Chrome 125+ and `anchor-scope`
+  Chrome 131+, both Firefox 147+ and Safari 26+, according to
+  [MDN's compatibility data](https://github.com/mdn/browser-compat-data) 8.1.5.
+  It marks Safari's `until-found` partial: find-in-page reveals the match but
+  [does not scroll to it correctly](https://webkit.org/b/304174).
+- **Observed:** installed Playwright Chromium 153.0.8010.12, Firefox 155 and
+  WebKit 26.6 each expose `onbeforematch`, `getComposedRanges`, `anchor-name` and
+  `anchor-scope`.
+- **Disposition:** adopted without a fallback. An engine without `until-found`
+  reads the unknown value as plain `hidden`, which is what the removed check chose.
+
 ## Known gaps
+
+### Intrinsic block retirement motion
+
+- **Owner:** `runtime/motion.js` (`foldBlock`), used by resolved thread cards and
+  block suggestion slots. The browser interpolates the ordinary intrinsic block
+  size to zero with `calc-size(auto, size)`; the other block metrics start at their
+  underlying CSS values. Neither caller measures or reconstructs the starting box.
+- **Checked 2026-10-14:** installed Playwright Chromium 153.0.8010.12 supports
+  `calc-size()` and `interpolate-size`; Firefox 155 and WebKit 26.6 expose neither.
+  These are installed test engines, not a current stable Firefox/Safari survey.
+  [Chrome's documentation](https://developer.chrome.com/docs/css-ui/animate-to-height-auto)
+  describes native intrinsic interpolation and its progressive enhancement model.
+- **Observed:** card, native details and block-slot probes preserve their exact
+  first size, shrink to zero, and restore their ordinary size when canceled in
+  Chromium. Retired-slot styling applies padding changes only to the survivor, so
+  the outgoing slot starts at its actual pre-decision shape. Inline suggestions
+  do not animate. Reduced motion skips the effect, and the shared motion owner
+  finishes a running fold when that preference changes.
+- **Disposition:** accepted visual difference. Without `calc-size()` the same
+  semantic retirement completes immediately, as it does under reduced motion.
+  The runtime explicitly declines the animation rather than letting unsupported
+  intrinsic-size interpolation jump halfway through a fade. Content, Undo and
+  Reopen remain available through their ordinary paths.
 
 ### Browser dictation in comment boxes
 
@@ -195,7 +251,7 @@ what fails and what still works.
   native destination and Reset. A valid Leaf reload reconnects; a non-Leaf document
   stays visible without a private port. The opaque parent cannot classify a later
   failed reload separately from authored departure. The author-facing contract is
-  [Live samples](../skills/leaf/references/page-authoring.md#live-samples).
+  [Live samples](../skills/leaf/references/live-samples.md).
 
 - **Observed, 2026-10-13:** Playwright Chromium 153.0.8010.12 rejects an
   opaque sample's pending icon, registry, and state fetches during a second native
@@ -268,6 +324,24 @@ what fails and what still works.
   `test_a_row_at_a_frame_edge_holds_the_trim_by_declaring_it` hold the required
   wrapper and row behavior. Parser support alone does not establish it.
 
+### Scroll-state containers
+
+- **Disposition: scroll-state is progressive.** A `container-type` naming
+  `scroll-state` is written after the same declaration without it, so an engine
+  without scroll-state keeps the size container.
+- **Owner:** the table rules in
+  [`reading.css`](../skills/leaf/assets/styles/components/reading.css) and the
+  granted-room table in [`layouts.css`](../skills/leaf/assets/layouts.css).
+- **Observed, 2026-10-14:** Firefox 157 (a user's page) and Playwright's Firefox and
+  WebKit 26.6 drop `container-type: inline-size scroll-state` whole, so the table was
+  no size container and the 100cqi a caption read measured the window: an Ask's
+  two-column table laid its rows out 1728px wide in a 720px column and cut off its
+  second column. Chrome 155 keeps it. Firefox also never widens a table grid to a
+  caption wider than its columns' natural width, so Leaf no longer widens a table's
+  columns to its frame in any engine.
+- **Recheck:** `test_a_table_of_prose_wraps_inside_its_box_in_every_engine` holds
+  the size container in all three engines.
+
 ### State-preserving content reordering (review #22)
 
 - **Impact: state preservation; functional fallback implemented.** Retained-node
@@ -300,6 +374,16 @@ what fails and what still works.
   threads. Selection stays with that allocation until dismissal, another choice,
   a view change, or safe departure. Complete-list rollback restores native content
   and editors from the same committed reading.
+- **Stale native `:focus-within`, observed 2026-10-12 in Playwright's Chromium
+  153.0.8010.12:** a focused element that `moveBefore` carries into a hidden
+  (`display: none`) parent and out again still matches `:focus`, and its new
+  ancestors match `:focus-within`, but the element itself no longer matches
+  `:focus-within`. A reply editor waiting in `thread/replies.js`'s park between a
+  seat and the margin card takes that route. No Leaf style reads it: focus paints
+  through `data-lf-focus-within`, which `focus.js` derives from the rendered
+  ancestry. A selector for the focused editor uses `:focus`. Reproduce with a
+  focused `<input>`, a hidden `<div>` and a visible one, two `moveBefore` calls, and
+  `input.matches(":focus-within")`.
 - **Fallback limit:** insertion blurs a focused descendant and reloads an iframe.
   `move` restores the focus and caret, but cannot preserve iframe documents. The
   native guarantee for Leaf's retained moves is described in the
@@ -418,3 +502,101 @@ application. Recheck the affected Leaf journey when resolving this entry.
 - **Recheck:** set `anchor-name` on a document element, attach a shadow root after
   it, and compare a fixed child's `getBoundingClientRect()` against the anchor in
   each engine.
+
+The reverse direction works: a box in a widget's shadow tree can be named from the
+document, and the runtime relies on it (next entry).
+
+### Naming a shadow-tree box from the document
+
+- **Disposition: supported one tree deep; deeper boxes anchor through their host.**
+  `runtime/css-anchors.js` (`anchorReading`, `anchorElement`) adds a part spelled as
+  the anchor's name, `lf-a7` for `--lf-a7`, to a box inside a widget's shadow tree,
+  and a document sheet it owns declares `::part(lf-a7) { anchor-name: --lf-a7 }`, so
+  margin rows, target paint and the floating card follow a scroller inside the tree.
+  A name the tree itself declares reaches no box outside it.
+- **Observed, 2026-10-14:** a fixed chrome box anchored to such a part follows the
+  part through the shadow scroller's scroll, and a frame anchored to that scroller
+  and cut with `clip-path: inset(0)` cuts it at the scroller's edge, in Playwright
+  Chromium 153.0.8010.12, installed Chrome 155, Firefox 155 and WebKit 26.6. A part
+  re-exported through a nested host's `exportparts` anchors in Chromium and WebKit
+  and stays at its fallback in Firefox 155, so the runtime names no box deeper than
+  the first shadow tree; no shipped widget nests one. One `::part(lf-anchor)` rule
+  reading every name from `attr(data-lf-anchor type(<custom-ident>))` anchors in
+  Chromium 153 and Firefox 155 and leaves the box at its fallback in WebKit 26.6,
+  which resolves the same `attr()` outside a `::part()` rule, so the runtime writes
+  one rule per name. Words alone in a shadow scroller anchor to the start of what it
+  holds the same way, through `::part(lf-a7)::before { content: ""; anchor-name:
+--lf-a7 }`, which anchors and follows the scroller's scroll in all three engines.
+- **Recheck:** attach a shadow root holding a scroller with a `part`-named child,
+  declare `#host::part(name) { anchor-name: --x }` in the document, and compare a
+  fixed `position-anchor: --x` box's rectangle with the child's after scrolling the
+  inner scroller, in each engine; repeat with the child one host deeper behind
+  `exportparts`.
+
+### A stuck sticky anchor in Firefox
+
+- **Disposition: accepted.** Every box that follows scrolled content is anchored
+  (`runtime/css-anchors.js`); a script that placed boxes after each scroll and
+  scroll-driven layers were removed rather than kept for this case. Revisit if
+  readers report marks missing from stuck headers in Firefox.
+- **Affected:** a margin row, highlight, aim or floating card whose target stands in
+  a sticky box while it is stuck, such as an `lf-diff` file header, a table's
+  sticky caption or a sticky `lf-tabs` strip.
+- **Observed, 2026-10-14, Firefox 155:** a box anchored to a sticky element, or to
+  an element inside one, is placed where the anchor would stand without sticking:
+  with its scroller scrolled 300 px, the stuck anchor reads 300 px from the window's
+  top and the anchored box 20 px, outside the frame that cuts it, so the mark
+  disappears until the header unsticks. A header stuck to the document's top reads
+  10 px with its box at -200 px. Chromium 153, Chrome 155 and WebKit
+  26.6 place it on the stuck anchor. Writing the stuck position into the inset with
+  `max(anchor(--t top), calc(anchor(--scroller top) + inset))` does not help:
+  Firefox resolves anchors before applying scroll compensation.
+- **Effect:** the mark, pin or card for a stuck target is not drawn, or is drawn
+  where the target stood before it stuck; controls stay reachable through Threads
+  and the Page Map.
+- **Recheck:** in a scroller 220 px tall, a `position: sticky; top: 0` header holding
+  an element named `--t`, and a `position: fixed` box with
+  `position-anchor: --t; top: anchor(top)` after the scroller; scroll the scroller
+  past the header's start and compare the two rectangles' tops.
+
+### An anchor under a fixed box in WebKit
+
+- **Disposition: accepted.** As above, no script or scroll-driven layer answers it.
+  Revisit if a page puts marks inside fixed panels for Safari readers, such as a
+  contents list or side panel that is `position: fixed` and holds commented or
+  highlighted targets.
+- **Affected:** a margin row, highlight or floating card whose target stands in a
+  `position: fixed` box, while the document is scrolled.
+- **Observed, 2026-10-14, WebKit 26.6:** a box anchored to an element inside a
+  fixed panel moves with the root scroll as well: with the page scrolled 120 px and
+  the panel 40 px, the anchor reads 160 px from the window's top and the anchored
+  box 40 px, the root's scroll applied a second time. Chromium 153, Chrome 155 and
+  Firefox 155 place it on the anchor. Standing the box in a fixed frame anchored to
+  the panel and cut with `clip-path` does not change WebKit's answer.
+- **Effect:** in Safari, the mark or row for a target in a fixed panel drifts from
+  its target as the page scrolls, and comes back at the top of the page. Leaf's own
+  fixed chrome holds no page targets.
+- **Recheck:** a `position: fixed; overflow: auto` panel holding an element named
+  `--t`, a `position: fixed` box with `position-anchor: --t; top: anchor(top)`
+  after it, and a document tall enough to scroll; scroll the document and the panel
+  and compare the two rectangles' tops.
+
+### Native reveal bounded to its scroller
+
+- **Disposition: worked around in Leaf.** Leaf reveals an item inside one box
+  through `scrollIntoView(node, {within})` in `runtime/landing-scroll.js`, which
+  moves only that box and the boxes inside it, in all three engines (Chromium 153,
+  Firefox 155, WebKit 26.6, checked 2026-10-14 on a stuck tab strip and a contents
+  outline). Revisit if every engine honours `container` and Leaf's walk could
+  hand the bounded case to it.
+- **Affected:** a tab strip, contents outline or page map list bringing its item
+  into view while the page stays where the user reads.
+- **Observed, 2026-10-14:** `scrollIntoView({block: "nearest", inline: "nearest",
+container: "nearest"})` on a button in a sideways strip whose foot stands 1 px
+  below its scroller's band scrolls the strip alone in Chromium 153 and WebKit 26.6,
+  and the outer scroller by 2 px as well in Firefox 155, whether the outer scroller
+  is the root or a nested box. An earlier check on another page also saw WebKit
+  scroll the outer box.
+- **Recheck:** a 600 px scroller holding a 300 px `overflow-x: auto` strip of
+  twenty 120 px buttons; scroll so the strip's foot is just past the band, call
+  the native reveal on the sixteenth button, and read both scroll offsets.

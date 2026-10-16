@@ -215,6 +215,12 @@ affected Leaf code or workflow, the concrete benefit or breakage, and a proposed
 next step. Distinguish confirmed behavior from an integration hypothesis. When
 nothing qualifies, keep the result in the run summary; do not post a digest.
 
+## Nightly: regular maintenance
+
+In the rolling survey, apply `/developing-leaf`, "Regular maintenance", to each file
+you review. Propose a removal that takes a feature away in an issue for the
+maintainer; a consolidation or delegation that keeps behavior is an ordinary fix.
+
 ## Weekly: test tier budgets
 
 Read the latest daily `ci` run that finished (`gh run list -w ci -e schedule`): its

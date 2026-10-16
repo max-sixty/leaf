@@ -10,10 +10,10 @@
 # every card to one height, which cards-keep-their-height catches.
 description: playground-candidates-line-up
 metadata:
-  purpose: 'Playground: candidates compared side by side line up part for part, whatever
-    their labels and notes wrap to.'
+  purpose: "Playground: candidates compared side by side line up part for part, whatever
+    their labels and notes wrap to."
   tags:
-  - playground
+    - playground
 vars:
   prompt: |
     The user asks: "When a later version rewrites the passage a thread quoted,
@@ -55,25 +55,25 @@ vars:
     with the page's HTML, including its <style>. Show one case's cards; the other
     cases can be placeholders.
 assert:
-- type: llm-rubric
-  metric: candidates-line-up
-  value: |
-    Read the page's CSS and the markup of the candidates in the preview. Consider
-    every width at which two or more candidates stand side by side in one row,
-    including widths where a candidate's name or note wraps to more lines than its
-    neighbour's. Pass only if, in each such row, every candidate's card begins at
-    the same height as its neighbours' whatever its name and note wrap to, so the
-    user compares the cards straight across. Any mechanism that holds this counts:
-    for example subgrid rows shared across the row, labels and cards placed in
-    shared grid rows, or names and notes set where they cannot change the cards'
-    starting line. Fail if each candidate is one grid or flex cell that stacks its
-    name, note and card by content height, so the cards line up only while every
-    note happens to take the same number of lines. A layout that never puts two
-    candidates side by side also fails.
-- type: llm-rubric
-  metric: cards-keep-their-height
-  value: |
-    Read the page's CSS for the candidates' cards. Pass if each card is as tall as
-    its own content, so a candidate that adds a line draws a taller card than one
-    that doesn't. Fail if the CSS stretches the cards in a row to one height, pads
-    them to a common height, or clips them to one.
+  - type: llm-rubric
+    metric: candidates-line-up
+    value: |
+      Read the page's CSS and the markup of the candidates in the preview. Consider
+      every width at which two or more candidates stand side by side in one row,
+      including widths where a candidate's name or note wraps to more lines than its
+      neighbour's. Pass only if, in each such row, every candidate's card begins at
+      the same height as its neighbours' whatever its name and note wrap to, so the
+      user compares the cards straight across. Any mechanism that holds this counts:
+      for example subgrid rows shared across the row, labels and cards placed in
+      shared grid rows, or names and notes set where they cannot change the cards'
+      starting line. Fail if each candidate is one grid or flex cell that stacks its
+      name, note and card by content height, so the cards line up only while every
+      note happens to take the same number of lines. A layout that never puts two
+      candidates side by side also fails.
+  - type: llm-rubric
+    metric: cards-keep-their-height
+    value: |
+      Read the page's CSS for the candidates' cards. Pass if each card is as tall as
+      its own content, so a candidate that adds a line draws a taller card than one
+      that doesn't. Fail if the CSS stretches the cards in a row to one height, pads
+      them to a common height, or clips them to one.

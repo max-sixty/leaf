@@ -15,7 +15,7 @@ from interact_support import (
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import schema as schema_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
 from leaf.render_gate.scheme import console_finding
 from PIL import Image, ImageChops, ImageStat
 from playwright.sync_api import expect
@@ -63,6 +63,7 @@ from render_harness import (
     TOKEN,
     consume_browser_errors,
     held_frames,
+    http_error_console,
     leaf_page,
     margins_laid_out,
     nudge,
@@ -124,6 +125,10 @@ def test_sort_film_readout_and_narration(browser, serve):
     """Changing step numbers hold their space, and narration renders inline Markdown."""
     example = next(path for path in EXAMPLES if path.stem == "rust-sort")
     page = open_page(browser, serve(example))
+    assert (
+        "collapse(): merge when a clause is true"
+        in page.locator("#sort-film svg[role='img']").text_content()
+    )
     readings = page.evaluate(
         """async () => {
           const imports = JSON.parse(document.querySelector('script[type="importmap"]').textContent).imports;
@@ -1296,11 +1301,11 @@ def test_a_widget_that_declares_width_takes_the_room_and_the_column_stays_put(
 
 
 def test_authored_blocks_choose_wide_or_available_space(browser, serve):
-    """One authored width contract applies to native and package blocks. Column remains
-    the prose measure when nested in a wider section rather than inheriting its
-    containing block's allocation: there a block declared the column by its widget
-    (lf-options) starts at the section's edge as the section's text does, rather than
-    centred in the room."""
+    """One authored width contract applies to native and package blocks. A widget read
+    as text keeps the prose measure when nested in a wider section rather than taking
+    its containing block's allocation: there an option list starts at the section's
+    edge and keeps the measure, as the section's text does, rather than centred in the
+    room."""
     source = leaf_page(
         "Authored block widths",
         """
@@ -1329,7 +1334,7 @@ def test_authored_blocks_choose_wide_or_available_space(browser, serve):
     assert at["table"]["space"] == "available"
     assert at["wide"]["width"] > at["prose"]["width"]
     assert at["table"]["width"] == pytest.approx(at["wide"]["width"], abs=1)
-    assert at["options"]["space"] == "column"
+    assert at["options"]["space"] is None
     assert at["wide"]["left"] < at["prose"]["left"]
     for column in ("nested-prose", "options"):
         assert at[column]["width"] == pytest.approx(at["prose"]["width"], abs=1)
@@ -1453,9 +1458,9 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     # The widened Ask frames its table, which stands wider than the measure.
     assert at["holds-t"]["width"] > 720, at
 
-    # The Ask spans its block wherever the block breaks out: from a list item, which
-    # stands in from the column, and from an Ask granted the room itself, whose block
-    # then keeps it; where the page arranged the Ask, in a grid track, neither grows.
+    # The Ask spans its block wherever the block breaks out, and an Ask granted the room
+    # itself holds its block in that room. In a list item, which stands in from the
+    # column, and where the page arranged the Ask, in a grid track, neither grows.
     extras = (
         "<ol><li>"
         + ask.format(id="listed", width="", table=table.format(id="listed"))
@@ -1466,12 +1471,32 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
         + '<div style="display: grid; grid-template-columns: 350px 1fr">'
         + ask.format(id="tracked", width="", table=table.format(id="tracked"))
         + "<p>Beside.</p></div>"
+        + ask.format(
+            id="narrow",
+            width="",
+            table='<table data-width="wide"><tr><td>a</td><td>b</td></tr></table>',
+        )
+        + '<div id="wrapper" data-width="wide">'
+        + ask.format(
+            id="wrapped",
+            width="",
+            table=f'<table data-width="available"><tr>{cells}</tr></table>',
+        )
+        + "</div>"
+        + '<div id="pulled" style="margin-inline: -150px">Pulled words.'
+        + '<div data-width="available">Room.</div></div>'
+        + '<div><span id="spilled" style="margin-left: -150px">Spilled words.'
+        + '<div data-width="wide">Room.</div></span></div>'
+        + '<div id="padded" style="margin-inline: -600px; padding-inline: 600px">'
+        + '<div data-width="wide">Room.</div></div>'
     )
     column = open_page(browser, serve(leaf_page("Column", body + extras)))
     resized(column, 1726, 900)
     at = column.evaluate(
         measure.replace(
-            "'list']", "'list', 'listed', 'listed-t', 'both', 'both-t', 'tracked']"
+            "'list']",
+            "'list', 'listed', 'listed-t', 'both', 'both-t', 'tracked', 'wrapper',"
+            " 'wrapped']",
         )
     )
     assert at["holds-t"]["width"] == 1080, at
@@ -1481,10 +1506,25 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     assert round(heading["x"]) == at["prose"]["left"], (heading, at)
     assert at["ask"] == at["prose"], at
     assert at["listed"] == at["listed-t"], at
+    assert at["listed"]["width"] < at["prose"]["width"], at
     assert at["both"] == at["both-t"] == {"width": 1080, "left": at["holds"]["left"]}, (
         at
     )
     assert at["tracked"]["width"] == 350, at
+    # An Ask inside a breakout takes its holder's room, as any block
+    # there does, however much room its own block asks for.
+    assert at["wrapped"] == at["wrapper"], at
+    # An Ask that spans its block is a breakout the theme grows, so the gate reads it as
+    # one, even where it reaches further than a table of two columns does; a box the
+    # page pulls out of the column by its margins, an inline one, or one it grows round
+    # its block by margins and padding of its own, still stands in the margin.
+    misplaced = evaluate_probe(column, "misplacedBoxes")
+    assert [(m["code"], m["at"]) for m in misplaced] == [
+        ("past-column", "<div id=pulled>"),
+        ("past-column", "<span id=spilled>"),
+        ("past-column", "<div id=padded>"),
+        ("clipped-out", "<div id=padded>"),
+    ], misplaced
 
     board = (
         '<lf-board id="board"><lf-column id="board-c" label="Open">'
@@ -1549,14 +1589,15 @@ NOTE = '<aside class="sidenote" id="note"><p>A note that needs a sidenote.</p></
 def test_a_table_granted_room_stands_on_the_prose_axis(
     request, serve, resident, posture, engine, direction
 ):
-    """A table given `data-width` keeps its columns' natural width and stands centred on
-    the prose axis, however unevenly the margins share the room: a contents map's spine
-    or a column moved over for a sidenote leaves one side narrower. One that fits the
-    column keeps its natural width and starts where the prose starts. Where a sidebar
-    stands in the left margin the room is all on the right, so the table starts at the
-    prose's left edge and grows right. In a right-to-left page the same holds with the
-    narrow table at the prose's right edge, where its text starts; the sidebar stands
-    on the left there too.
+    """A table given `data-width` keeps its columns' natural width and stands where any
+    breakout of that width stands: centred on the prose axis while both margins have
+    room for it, the freer side taking what the narrower lacks, as where a contents
+    map's spine or a column moved over for a sidenote leaves one side narrower. One that
+    fits the column keeps its natural width and starts where the prose starts. Where a
+    sidebar stands in the left margin the room is all on the right, so the table starts
+    at the prose's left edge and grows right. In a right-to-left page the same holds
+    with the narrow table at the prose's right edge, where its text starts; the sidebar
+    stands on the left there too.
 
     A table written in the other direction from its holder stands there too, since the
     browser keeps an over-wide box at its holder's start, not its own. Where the page
@@ -1575,6 +1616,7 @@ def test_a_table_granted_room_stands_on_the_prose_axis(
         '<p id="prose">A paragraph at the measure, long enough to fill the column it '
         "stands in from one edge to the other.</p>"
         f'<table id="wide" data-width="available">{grid}</table>'
+        '<div id="room" data-width="available">The room.</div>'
         '<table id="narrow" data-width="available"><tr><th>Plan</th><td>60</td></tr>'
         "</table>"
         f'<table id="turned" dir="{other}" data-width="available">{grid}</table>'
@@ -1602,6 +1644,7 @@ def test_a_table_granted_room_stands_on_the_prose_axis(
       return {
         margin: document.querySelector('main').getAttribute('data-lf-margin') ?? '',
         prose: edges(document.getElementById('prose')),
+        room: edges(document.getElementById('room')),
         wide: grid('wide'),
         narrow: grid('narrow'),
         turned: grid('turned'),
@@ -1616,16 +1659,21 @@ def test_a_table_granted_room_stands_on_the_prose_axis(
     prose = at["prose"]
     start = "left" if direction == "ltr" else "right"
     assert at["narrow"][start] == pytest.approx(prose[start], abs=1), at
-    assert at["wide"]["right"] - at["wide"]["left"] > prose["right"] - prose["left"], at
+    width = lambda box: box["right"] - box["left"]
+    over = width(at["wide"]) - width(prose)
+    assert 0 < over <= width(at["room"]) - width(prose) + 1, at
+    free_left = prose["left"] - at["room"]["left"]
+    free_right = at["room"]["right"] - prose["right"]
+    grown = max(max(0, over - free_right), min(over / 2, free_left))
+    assert at["wide"]["left"] == pytest.approx(prose["left"] - grown, abs=1), at
     if posture == "sidebar":
         assert at["wide"]["left"] == pytest.approx(prose["left"], abs=1), at
-    else:
+    elif posture == "even":
         assert at["wide"]["centre"] == pytest.approx(prose["centre"], abs=1), at
     for edge in ("left", "right"):
         assert at["turned"][edge] == pytest.approx(at["wide"][edge], abs=1), at
         for kept in ("celled", "itemed"):
             assert at[kept][edge] == pytest.approx(at["cell"][edge], abs=1), (kept, at)
-    width = lambda box: box["right"] - box["left"]
     assert width(at["beside"]) == pytest.approx(width(at["cell"]), abs=1), at
     assert root_overflow(page) == 0
 
@@ -1639,8 +1687,7 @@ def test_a_scrolling_breakout_table_keeps_its_caption_in_its_scrollport(
     container its caption reads its width from; the caption is held to the box instead.
     On a phone, where the room is the column and an eight-column table scrolls, a long
     caption stays inside the scrollport at either end of the scroll: in the page's flow,
-    in a list item, whose table is measured from the column as the bound is, and in a
-    quotation, whose frame holds it."""
+    and in a list item and a quotation, which hold it to their own width."""
     cells = "".join(f"<td>measured value {i}</td>" for i in range(8))
     caption = "Services in the migration, by stage, with their owners and windows"
     table = (
@@ -1670,6 +1717,46 @@ def test_a_scrolling_breakout_table_keeps_its_caption_in_its_scrollport(
         at = table.evaluate(reading)
         assert at["caption"][0] >= at["box"][0] - 1, (end, at)
         assert at["caption"][1] <= at["box"][1] + 1, (end, at)
+    assert root_overflow(page) == 0
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+def test_a_table_of_prose_wraps_inside_its_box_in_every_engine(request, serve, engine):
+    """A table whose cells hold sentences wraps them inside the box it stands in, and
+    scrolls nothing: in an Ask, in a panel, and in a figure granted the page's room.
+    Firefox and WebKit have no scroll-state container and dropped the table's
+    `container-type: inline-size scroll-state` whole, so the width its caption reads
+    (100cqi) was the window's: an Ask's two-column table laid its rows out 1728px wide
+    in a 720px column and cut its second column off."""
+    sentence = (
+        "When a new copy is installed, the update copies each commit and records it. "
+    )
+    row = f"<tr><td>{sentence * 2}</td><td>{sentence}</td></tr>"
+    table = f'<table id="{{id}}"><caption>{sentence * 3}</caption>'
+    table += "<thead><tr><th>Decides</th><th>Can do</th></tr></thead>"
+    table += f"<tbody>{row * 2}</tbody></table>"
+    body = (
+        "<h1>Tables of prose</h1>"
+        '<lf-ask id="asked"><h2>Which copy should a session read?</h2>'
+        + table.format(id="in-ask")
+        + '<lf-options id="asked-choice" choose>'
+        '<lf-option id="asked-reload"><strong>Reload</strong> Ask for a reload.</lf-option>'
+        '<lf-option id="asked-leave"><strong>Leave</strong> Keep the old copy.</lf-option>'
+        "</lf-options></lf-ask>"
+        '<section class="panel" id="panel"><h2>Framed</h2>'
+        + table.format(id="in-panel")
+        + "</section>"
+        '<figure data-width="available">' + table.format(id="in-figure") + "</figure>"
+    )
+    page = open_page(request.getfixturevalue(engine), serve(leaf_page("Prose", body)))
+    resized(page, 1440, 900)
+    at = page.evaluate("""() => Object.fromEntries(['in-ask', 'in-panel', 'in-figure']
+      .map(id => { const t = document.getElementById(id), box = t.getBoundingClientRect();
+        const end = t.querySelector('tbody tr').getBoundingClientRect().right;
+        return [id, {scrolls: t.scrollWidth - t.clientWidth,
+                     past: Math.round(end - box.right)}]; }))""")
+    for held in at.values():
+        assert held["scrolls"] <= 1 and held["past"] <= 1, at
     assert root_overflow(page) == 0
 
 
@@ -1738,28 +1825,26 @@ INDENTED_PAGE = leaf_page(
     ],
 )
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
-def test_a_breakout_in_an_indented_holder_measures_its_room_from_the_column(
+def test_a_breakout_grows_only_from_a_holder_that_spans_the_column(
     request, serve, direction, posture, engine
 ):
-    """A holder that stands in from the column, however it got there, gives a block
-    that breaks out of it the column's room: three nested list items, a step list whose
-    items pad themselves, a list the page resets to no indent, and a page's own indented
-    block. The runtime reads how far each holder stands in rather than each kind of
-    holder declaring it, so a wide or available block in any of them takes the same box
-    as one in the page's flow, on the prose axis, beside a contents map and with a
-    sidebar in the margin as on a plain column, and on a phone. A table wider than its
-    holder stands where one in the page's flow does: centred on the prose axis, or from
-    the prose's left edge beside a margin sidebar. One that fits its holder stays with
-    it, starting where the holder's text starts. Nothing the page scrolls sideways, in
-    Chromium, Firefox and WebKit: Firefox had counted where a table stood before it was
-    moved over, 10px past a phone's window.
+    """A block breaks out only from a holder whose content box is the column's, and
+    keeps to any other: its holder's axis is not the prose's, and the room beside it is
+    not the page's to give. A list whose items stand at the column's edges, as one the
+    page resets to no indent does, lets a wide or available block grow as one in the
+    page's flow does, on the prose axis, beside a contents map and with a sidebar in the
+    margin as on a plain column, and on a phone. Three nested list items, a step list and
+    a page's own indented block stand in from the column, so each block in them, a table
+    granted room included, takes its holder's width, and a narrow table starts where the
+    holder's text starts. Nothing the page scrolls sideways, in Chromium, Firefox and
+    WebKit.
 
-    A box the page arranges itself is no holder of that kind, since the room beside it is
-    the page's own: a block that is an item of the page's grid takes its track, one in a
-    flex row takes its share of the row beside its sibling, a table in an inline
-    block scrolls inside it, and a block in a holder's second column keeps to that
-    column. A link or a span around a block is no such box: the browser sets the block
-    in the column's flow, so it grows as one in the flow does."""
+    A box the page arranges itself is no such holder either: a block that is an item of
+    the page's grid takes its track, one in a flex row takes its share of the row beside
+    its sibling, a table in an inline block scrolls inside it, and a block in a holder's
+    second column keeps to that column. A link or a span around a block is no holder:
+    the browser sets the block in the column's flow, so it grows as one in the flow
+    does."""
     browser = request.getfixturevalue(engine)
     source = INDENTED_PAGE
     if posture == "map":
@@ -1791,11 +1876,13 @@ def test_a_breakout_in_an_indented_holder_measures_its_room_from_the_column(
         const box = el.getBoundingClientRect();
         return {left: box.left, right: box.right, centre: (box.left + box.right) / 2};
       };
-      const textStart = (el) => {
+      const content = (el) => {
         const box = el.getBoundingClientRect(), style = getComputedStyle(el);
-        return direction === 'rtl'
-          ? box.right - parseFloat(style.paddingRight) - parseFloat(style.borderRightWidth)
-          : box.left + parseFloat(style.paddingLeft) + parseFloat(style.borderLeftWidth);
+        return {
+          left: box.left + parseFloat(style.paddingLeft) + parseFloat(style.borderLeftWidth),
+          right: box.right - parseFloat(style.paddingRight)
+            - parseFloat(style.borderRightWidth),
+        };
       };
       const reading = {
         margin: document.querySelector('main').getAttribute('data-lf-margin') ?? '',
@@ -1805,9 +1892,9 @@ def test_a_breakout_in_an_indented_holder_measures_its_room_from_the_column(
         reading[name] = {
           wide: edges(document.getElementById(`${name}-wide`)),
           available: edges(document.getElementById(`${name}-available`)),
-          table: edges(document.querySelector(`#${name}-table tr`)),
+          table: edges(document.getElementById(`${name}-table`)),
           narrow: edges(document.querySelector(`#${name}-narrow tr`)),
-          text: textStart(document.getElementById(`${name}-narrow`).parentElement),
+          holder: content(document.getElementById(`${name}-narrow`).parentElement),
         };
       reading.arranged = Object.fromEntries([
         'gridded-track', 'gridded-wide', 'gridded-available', 'flexed-beside',
@@ -1822,23 +1909,32 @@ def test_a_breakout_in_an_indented_holder_measures_its_room_from_the_column(
         assert posture in at["margin"].split(), at
     control, prose = at["control"], at["prose"]
     start = "left" if direction == "ltr" else "right"
-    assert abs(at["nested"]["text"] - control["text"]) >= 70, at
-    for name in ("nested", "steps", "plain", "inset"):
+    assert abs(at["nested"]["holder"][start] - control["holder"][start]) >= 70, at
+    for edge in ("left", "right"):
+        assert control["holder"][edge] == pytest.approx(prose[edge], abs=1), at
+    for name in ("control", "nested", "steps", "plain", "inset"):
         holder = at[name]
-        for block in ("wide", "available", "table"):
-            for edge in ("left", "right"):
-                assert holder[block][edge] == pytest.approx(
-                    control[block][edge], abs=1
-                ), (name, block, edge, at)
-        assert holder["narrow"][start] == pytest.approx(holder["text"], abs=1), (
+        assert holder["narrow"][start] == pytest.approx(
+            holder["holder"][start], abs=1
+        ), (
             name,
             at,
         )
+    for block in ("wide", "available", "table"):
+        for edge in ("left", "right"):
+            assert at["plain"][block][edge] == pytest.approx(
+                control[block][edge], abs=1
+            ), (block, edge, at)
+            for name in ("nested", "steps", "inset"):
+                assert at[name][block][edge] == pytest.approx(
+                    at[name]["holder"][edge], abs=1
+                ), (name, block, edge, at)
+    if posture != "phone":
+        assert control["available"]["right"] - control["available"]["left"] > (
+            prose["right"] - prose["left"] + 100
+        ), at
     if posture in ("even", "map"):
         assert control["wide"]["centre"] == pytest.approx(prose["centre"], abs=1), at
-        assert control["table"]["centre"] == pytest.approx(prose["centre"], abs=1), at
-    elif posture == "sidebar":
-        assert control["table"]["left"] == pytest.approx(prose["left"], abs=1), at
     arranged = at["arranged"]
     for block in ("gridded-wide", "gridded-available"):
         for edge in ("left", "right"):
@@ -1870,218 +1966,66 @@ def test_a_breakout_in_an_indented_holder_measures_its_room_from_the_column(
     assert root_overflow(page) == 0
 
 
-RESTYLED = """async ([selector, how]) => {
-  const holder = document.querySelector(selector);
-  const edges = (id) => {
-    const box = document.getElementById(id).getBoundingClientRect();
-    return {left: box.left, right: box.right};
-  };
-  // The next rendering update, read in a ResizeObserver made after the runtime's: after
-  // its frame callbacks, layout and the runtime's own observers, and before it paints.
-  const update = () => new Promise((resolve) => {
-    const sentinel = document.createElement('div');
-    sentinel.style.cssText = 'position: fixed; width: 1px; height: 1px';
-    document.body.append(sentinel);
-    const observer = new ResizeObserver(() => {
-      observer.disconnect();
-      sentinel.remove();
-      resolve();
-    });
-    observer.observe(sentinel);
-  });
-  // Frame callbacks are held, so after one update and a task none the runtime asked for
-  // before the change is left to run in the update that lays the change out.
-  await update();
-  await new Promise((resolve) => setTimeout(resolve));
-  if (how === 'class') holder.classList.add('deeper');
-  else if (how === 'style') holder.style.paddingInlineStart = '64px';
-  else if (how === 'remove' || how === 'unhold') {
-    // Unwatched by the removal itself, in the microtask it queues, before a rendering
-    // update could report the removed box's size: the holder's list, or only the
-    // breakouts it held, leaving the holder in place.
-    if (how === 'remove') holder.closest('main > ul').remove();
-    else for (const breakout of holder.querySelectorAll(':scope > [data-lf-space]'))
-      breakout.remove();
-    await null;
-    return {replaced: window.lfWatchedHolder(holder)};
-  }
-  else {
-    // As a revision replaces a passage: the list holding the holder, anew, with one
-    // more list inside.
-    const list = holder.closest('main > ul');
-    const copy = list.cloneNode(true);
-    copy.querySelector(selector).insertAdjacentHTML('beforeend', '<ul><li id="late">Four'
-      + '<div id="late-wide" data-lf-space="wide">Wide.</div>'
-      + '<table id="late-narrow" data-lf-space="available"><tr><th>Plan</th>'
-      + '<td>60</td></tr></table></li></ul>');
-    list.replaceWith(copy);
-  }
-  const watched = window.lfWatchedHolder;
-  await update();
-  const name = how === 'insert' ? 'late' : holder.id;
-  return {
-    moved: edges(`${name}-narrow`),
-    wide: edges(`${name}-wide`),
-    control: edges('control-wide'),
-    replaced: watched(holder),
-    current: watched(document.getElementById(name)),
-  };
-}"""
-
-
-# Which elements some ResizeObserver watches, kept from before the runtime makes one.
-WATCHED_HOLDERS = """(() => {
-  const watched = new Map();
-  const {observe, unobserve, disconnect} = ResizeObserver.prototype;
-  ResizeObserver.prototype.observe = function (target, options) {
-    if (!watched.has(this)) watched.set(this, new Set());
-    watched.get(this).add(target);
-    return observe.call(this, target, options);
-  };
-  ResizeObserver.prototype.unobserve = function (target) {
-    watched.get(this)?.delete(target);
-    return unobserve.call(this, target);
-  };
-  ResizeObserver.prototype.disconnect = function () {
-    watched.delete(this);
-    return disconnect.call(this);
-  };
-  window.lfWatchedHolder = (target) =>
-    [...watched.values()].some((targets) => targets.has(target));
-})();"""
-
-
-@pytest.mark.parametrize("how", ["class", "style", "insert", "remove", "unhold"])
-def test_a_breakout_moved_in_after_load_re_lands_before_it_paints(browser, serve, how):
-    """A breakout whose holder stands further in after load stays on the prose axis
-    from the first paint that shows it, without waiting for a frame's margin pass or
-    the next resize: one a revision's replacement puts a list deeper, and a holder a
-    class or an inline style pads anew, which inserts nothing. A holder a revision
-    removes, with or without a replacement, or one whose breakouts a revision removes,
-    is no longer watched. Each is read again in the rendering update
-    that lays the change out, before that update paints."""
-    source = INDENTED_PAGE.replace(
-        " .inset { padding-left: 40px; }",
-        " .inset { padding-left: 40px; } .inset.deeper { padding-left: 100px; }",
-        1,
-    )
-    page = open_page(browser, serve(source), init_script=WATCHED_HOLDERS)
+def test_a_breakout_a_revision_inserts_deeper_lands_before_it_paints(browser, serve):
+    """A revision's replacement can put a breakout in a list deeper than the one it
+    replaced. The breakout keeps to its list item from the first paint that shows it,
+    without waiting for a frame's margin pass or the next resize: it is read in the
+    microtask its insertion queues, before the rendering update that lays it out
+    paints. Unread, it would grow out of the column as one in the page's flow does."""
+    page = open_page(browser, serve(INDENTED_PAGE))
     resized(page, 1440, 900)
     margins_laid_out(page)
-    holder = "#inset" if how == "class" else "#nested"
     before = page.evaluate(
-        "(id) => document.getElementById(id).getBoundingClientRect().left",
-        f"{holder[1:]}-narrow",
-    )
-    assert page.evaluate(
-        "(selector) => lfWatchedHolder(document.querySelector(selector))", holder
+        "() => document.getElementById('nested-narrow').getBoundingClientRect().left"
     )
     with held_frames(page):
-        at = page.evaluate(RESTYLED, [holder, how])
-    # The holders watched for a change of width are the ones the reading measured: a
-    # revision's replacement, or a removal alone, leaves a holder it removed, or one
-    # that holds no breakout now, unwatched.
-    assert at["replaced"] == (how in ("class", "style")), at
-    if how in ("remove", "unhold"):
-        return
-    assert at["current"], at
-    assert at["moved"]["left"] > before + 20, ("the holder was not padded", at)
-    for edge in ("left", "right"):
-        assert at["wide"][edge] == pytest.approx(at["control"][edge], abs=1), at
-    if how != "insert":
-        return
-    # A holder a revision brings and then takes away again, with no reading after the
-    # removal to replace one, is held by nothing the runtime keeps. An authored holder
-    # is no test of this, since the authored copy of the document maps back to every
-    # node the page was written with (prepaint.js, `origins`), nor is a table, which
-    # other owners release on their next frame.
-    with held_frames(page):
-        page.evaluate("""async () => {
-          // Let a frame requested before the hold run, so no reading follows below.
-          await new Promise((resolve) => {
+        at = page.evaluate("""async () => {
+          const edges = (id) => {
+            const box = document.getElementById(id).getBoundingClientRect();
+            return {left: box.left, right: box.right};
+          };
+          // The next rendering update, read in a ResizeObserver made after the
+          // runtime's: after its frame callbacks, layout and the runtime's own
+          // observers, and before it paints.
+          const update = () => new Promise((resolve) => {
+            const sentinel = document.createElement('div');
+            sentinel.style.cssText = 'position: fixed; width: 1px; height: 1px';
+            document.body.append(sentinel);
             const observer = new ResizeObserver(() => {
               observer.disconnect();
-              setTimeout(resolve);
+              sentinel.remove();
+              resolve();
             });
-            observer.observe(document.body);
+            observer.observe(sentinel);
           });
-          const lf = document.documentElement.lfInitial;
-          window.lfReadings = 0;
-          for (const name of ['residency', 'indents']) {
-            const read = lf[name];
-            lf[name] = () => (window.lfReadings++, read());
-          }
-          const main = document.querySelector('main');
-          main.insertAdjacentHTML('beforeend', '<ul><li id="gone">Gone'
-            + '<div data-lf-space="wide">Wide.</div></li></ul>');
-          const gone = document.getElementById('gone');
-          await null;
-          if (!window.lfWatchedHolder(gone)) throw new Error('never watched');
-          window.lfRemovedHolder = new WeakRef(gone);
-          gone.parentElement.remove();
+          // Frame callbacks are held, so after one update and a task none the runtime
+          // asked for before the change is left to run in the update that lays the
+          // change out.
+          await update();
+          await new Promise((resolve) => setTimeout(resolve));
+          // As a revision replaces a passage: the list holding the holder, anew, with
+          // one more list inside.
+          const list = document.getElementById('nested').closest('main > ul');
+          const copy = list.cloneNode(true);
+          copy.querySelector('#nested').insertAdjacentHTML('beforeend',
+            '<ul><li id="late">Four'
+            + '<div id="late-wide" data-lf-space="wide">Wide.</div>'
+            + '<table id="late-narrow" data-lf-space="available"><tr><th>Plan</th>'
+            + '<td>60</td></tr></table></li></ul>');
+          list.replaceWith(copy);
+          await update();
+          const item = document.getElementById('late');
+          const box = item.getBoundingClientRect(), style = getComputedStyle(item);
+          return {
+            moved: edges('late-narrow'),
+            wide: edges('late-wide'),
+            holder: {left: box.left + parseFloat(style.paddingLeft),
+                     right: box.right - parseFloat(style.paddingRight)},
+          };
         }""")
-        page.context.new_cdp_session(page).send("HeapProfiler.collectGarbage")
-        assert page.evaluate(
-            "() => [window.lfReadings, window.lfRemovedHolder.deref() === undefined]"
-        ) == [1, True]
-
-
-MOVED_PAGE = leaf_page(
-    "Moved holders",
-    '<h1>Holders</h1><p id="prose">A paragraph at the measure, long enough to fill '
-    "the column it stands in from one edge to the other.</p>"
-    '<div id="control" data-width="wide">Wide.</div>'
-    '<div class="fixed" id="shift"><p>A holder of its own width.</p>'
-    '<div id="shift-wide" data-width="wide">Wide.</div></div>'
-    '<div class="inset gone" id="reveal"><p>A holder the page shows later.</p>'
-    '<div id="reveal-wide" data-width="wide">Wide.</div></div>',
-    head="<style>.fixed { width: 600px; } .fixed.moved { margin-left: 80px; }"
-    " .inset { padding-left: 60px; } .gone { display: none; }</style>",
-)
-
-
-@pytest.mark.parametrize("how", ["shift", "reveal"])
-def test_a_breakout_whose_block_moves_re_lands(browser, serve, how):
-    """A block can move with nothing inserted, no attribute Leaf knows changed and its
-    holder no wider or narrower: a class gives a holder of fixed width a margin, which
-    carries its breakout 80px across, or stops hiding a holder, which draws a breakout
-    never read before. Either breakout stands back on the prose axis, beside one in the
-    page's flow, with every frame callback held, so neither the margin pass nor a
-    resize read it."""
-    page = open_page(browser, serve(MOVED_PAGE))
-    resized(page, 1440, 900)
-    margins_laid_out(page)
-    off = """(how) => {
-      const box = document.getElementById(`${how}-wide`).getBoundingClientRect();
-      const control = document.getElementById('control').getBoundingClientRect();
-      return Math.max(Math.abs(box.left - control.left),
-        Math.abs(box.right - control.right));
-    }"""
-    with held_frames(page):
-        moved = page.evaluate(
-            f"""async (how) => {{
-          // Frame callbacks are held, so after one rendering update and a task none the
-          // runtime asked for before the change is left to run after it.
-          await new Promise((resolve) => {{
-            const observer = new ResizeObserver(() => {{
-              observer.disconnect();
-              setTimeout(resolve);
-            }});
-            observer.observe(document.body);
-          }});
-          const lf = document.documentElement.lfInitial;
-          const read = lf.residency;
-          window.lfPasses = 0;
-          lf.residency = () => (window.lfPasses++, read());
-          if (how === 'shift') document.getElementById('shift').classList.add('moved');
-          else document.getElementById('reveal').classList.remove('gone');
-          return ({off})(how);
-        }}""",
-            how,
-        )
-        assert moved >= 20, ("the change did not move the breakout", moved)
-        page.wait_for_function(f"(how) => ({off})(how) < 1", arg=how, polling=50)
-        assert page.evaluate("window.lfPasses") == 0
+    assert at["moved"]["left"] > before + 20, ("the list was not deeper", at)
+    for edge in ("left", "right"):
+        assert at["wide"][edge] == pytest.approx(at["holder"][edge], abs=1), at
 
 
 def test_a_sample_fills_the_room_its_authored_width_takes(browser, serve):
@@ -3319,7 +3263,7 @@ def test_a_page_refuses_a_browser_that_never_had_the_link(browser, serve):
 
     assert schema_model.NO_KEY in page.locator("body").inner_text()
     # The refusal is the subject: a user without the key is answered 401.
-    consume_browser_errors(page, {"code": "failed-load", "status": 401})
+    consume_browser_errors(page, http_error_console(401))
 
 
 @pytest.mark.parametrize(

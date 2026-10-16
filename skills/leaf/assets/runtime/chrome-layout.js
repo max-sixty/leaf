@@ -41,13 +41,12 @@
 import { sizeObserver } from "./rendering.js";
 import { landEdgesWith, restateEdges, sideEdge } from "./drawn-edge.js";
 import { standsBeside } from "./auxiliary-surfaces.js";
-import { layoutWindow, rightCover } from "./geometry.js";
+import { rightCover } from "./geometry.js";
 import { scheduleResidency } from "./content-layout.js";
 import { syncLayoutRegion } from "./reading-regions.js";
 
 export function createChromeLayout({
-  panelIsOpen,
-  elements: { panel, closeBtn, panelFoot, threadsBox, shortcutBarEl, bottomStatusEl },
+  elements: { panel, closeBtn, panelFoot, shortcutBarEl, bottomStatusEl },
   scheduleThreadPreviewPosition,
   syncAuxiliarySurfaces,
   syncReactLayout,
@@ -56,11 +55,6 @@ export function createChromeLayout({
   repaint,
   repaintPage,
 }) {
-  // The panel stands over the page and takes no room from it. It covers the page — the
-  // modal boundary that makes the page inert — only where what it leaves beside it is
-  // less than a usable page, the rule every surface that may stand beside the page shares
-  // (`standsBeside`).
-  const panelCovers = () => panelIsOpen() && !standsBeside();
   // The edges restated, then the chrome laid out. The restatement runs on every pass
   // because the side panel's default width is the page stylesheet's to change. A change of
   // an edge's width or of the window's restates the edges itself, then the auxiliary
@@ -75,13 +69,6 @@ export function createChromeLayout({
     syncLayoutRegion();
     scheduleResidency();
     scheduleThreadPreviewPosition?.();
-    // Over a live page, the side panel, Threads or On, owns the right of the
-    // window all the way to its foot. Cap the line's room at its edge rather than letting
-    // a long hint cross into it, so swapping the two views moves nothing in the bar.
-    const sideLive = standsBeside() && rightCover() !== Infinity;
-    const panelRoom = (sideLive ? sideEdge.width() : 0) + "px";
-    shortcutBarEl.style.setProperty("--lf-shortcut-bar-right", panelRoom);
-    bottomStatusEl.style.setProperty("--lf-shortcut-bar-right", panelRoom);
     // Over a live page the right edge's surface, Threads or On, stands over the
     // page's right margin at any window short of about 1700px, and over the pins at the
     // column's edge at the same widths. The markers are still drawn, under the surface;
@@ -98,37 +85,7 @@ export function createChromeLayout({
         row.getBoundingClientRect().right > panelLeft,
     );
     panel.closest(".lf-chrome")?.toggleAttribute("data-lf-rail-covered", railCovered);
-    // The status stands in the bottom bar (chrome.css) and rises above a covering panel's
-    // foot, which stands over the bar's right end: unlike the inert shortcut guide, what
-    // it shows there is live feedback from the foreground action. The stylesheet places it
-    // by the panel's modal state and the foreground clearance below it.
-    syncBottomStatus();
     syncFloats();
-  }
-  // The status renderer calls this synchronously after its words arrive or expire.
-  // Over a covering panel the status shows only transient feedback, a notice or an empty
-  // Go to, never a walk's position (chrome.css). It clears the visible reply rather than
-  // taking room from the list: the list keeps its whole height for the thread.
-  function syncBottomStatus() {
-    let occupied = panelFoot.getBoundingClientRect().height;
-    if (panelCovers() && bottomStatusEl.checkVisibility()) {
-      const list = threadsBox.getBoundingClientRect();
-      const padding = parseFloat(getComputedStyle(threadsBox).paddingBottom);
-      // Reply rows can pin at the list's foot. Their height defines the clearance,
-      // whatever the current scroll position: reading through a long thread must not
-      // move a notice when its reply enters or leaves the viewport.
-      for (const reply of threadsBox.querySelectorAll(
-        ":scope > .lf-thread[open] > .lf-thread-reply",
-      )) {
-        const box = reply.getBoundingClientRect();
-        if (reply.checkVisibility())
-          occupied = Math.max(
-            occupied,
-            layoutWindow().bottom - list.bottom + padding + box.height,
-          );
-      }
-    }
-    bottomStatusEl.style.setProperty("--lf-panel-foot-h", `${occupied}px`);
   }
   // The response bar lives in the viewport plane, and syncLayout is where its usable
   // reading boundary changes shape — a resize moves every rect. Re-place it against the
@@ -203,7 +160,6 @@ export function createChromeLayout({
 
   return {
     syncLayout,
-    syncBottomStatus,
     mountLayoutObservers,
   };
 }

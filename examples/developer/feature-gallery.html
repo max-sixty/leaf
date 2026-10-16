@@ -10,6 +10,10 @@
     <style>
       @import url("/page/theme.css");
 
+      #bg-style-access :is([role="checkbox"], a) {
+        color: var(--mark-ink);
+      }
+
       #bg-metrics > dl {
         margin: 0;
         padding: var(--sp-3);
@@ -178,6 +182,11 @@
 
       main:not([data-lf-margin~="map"], [data-lf-margin~="sidebar"]) #bg-sidebar {
         display: none;
+      }
+    </style>
+    <style data-controls>
+      #bg-style-allowed .lf-pick {
+        color: var(--accent);
       }
     </style>
     <script id="bg-margin-layer-status-history" type="application/json">
@@ -779,8 +788,11 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <ul id="bg-drawing-comments-steps">
                 <li>
                   Look at the comment box: it pictures the page beneath the drawing,
-                  beside Undo last stroke and Remove drawing. Send the drawing alone, or
-                  add words first.
+                  beside Undo last stroke and Remove drawing. Click the drawing to
+                  inspect its frozen page context and ink; <kbd>z</kbd> toggles fit and
+                  native size when the image is larger than the window. Close Image
+                  preview to return to the same draft. Send the drawing alone, or add
+                  words first.
                 </li>
                 <li>
                   In the box, press <kbd>⌘Z</kbd> and <kbd>⌘⇧Z</kbd>: strokes and words
@@ -1507,10 +1519,12 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 Choose “Progress messages” in the practice page, then use “Show 2
                 progress messages” beside the answer’s timestamp with a press or Enter.
                 Expanded progress runs have an inset border and ordinary message headers
-                on the page’s normal background. User replies separate the groups. The
-                later room check has no answer yet, so it stands as a dim working
-                message above the reply box rather than as a reply, and counts nothing
-                unread.
+                on the page’s normal background. User replies separate the groups.
+                “Hide” returns the space to the page instead of leaving a gap above the
+                reply box. Disclosures inside interactive replies return their room the
+                same way. The later room check has no answer yet, so it stands as a dim
+                working message above the reply box rather than as a reply, and counts
+                nothing unread. Its header keeps its author and posting time visible.
               </p>
               <p id="bg-thread-unread">
                 <strong>Unread replies.</strong> The seeded agent replies start unread,
@@ -1563,6 +1577,28 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             <div class="callout" id="bg-theme-conclusion">
               <p id="bg-theme-conclusion-copy">The comparison is ready for review.</p>
             </div>
+          </section>
+
+          <section id="bg-style-access">
+            <h2><strong>A stylesheet explicitly chooses control access</strong></h2>
+            <p id="bg-style-access-guide">
+              The ordinary page rule colors this
+              <a href="#bg-style-allowed">page link</a>, while the first pair keeps
+              Leaf's ink. A separate stylesheet marked <code>data-controls</code>
+              colors the second pair's selection marks with the accent. Pick by click,
+              tap, or Tab and Space; Undo restores the earlier choice without changing
+              either face.
+            </p>
+            <h3>Ordinary page stylesheet</h3>
+            <lf-options id="bg-style-protected" choose>
+              <lf-option id="bg-style-protected-one"><strong>First</strong></lf-option>
+              <lf-option id="bg-style-protected-two"><strong>Second</strong></lf-option>
+            </lf-options>
+            <h3>Stylesheet with control access</h3>
+            <lf-options id="bg-style-allowed" choose>
+              <lf-option id="bg-style-allowed-one"><strong>First</strong></lf-option>
+              <lf-option id="bg-style-allowed-two"><strong>Second</strong></lf-option>
+            </lf-options>
           </section>
 
           <section id="bg-user-view">
@@ -1931,11 +1967,12 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 </lf-board>
               </template>
             </lf-sample>
-            <figure id="bg-margin-layer-figure" data-width="available">
-              <table id="bg-margin-layer-table">
+            <figure id="bg-margin-layer-figure">
+              <table id="bg-margin-layer-table" data-width="available">
                 <thead>
                   <tr>
                     <th>Session</th>
+                    <th>Room</th>
                     <th>Mon</th>
                     <th>Tue</th>
                     <th>Wed</th>
@@ -1948,21 +1985,23 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 <tbody>
                   <tr>
                     <td>Practice</td>
-                    <td>9:00</td>
-                    <td>9:00</td>
+                    <td>Workshop hall, east wing</td>
+                    <td>9:00–11:00</td>
+                    <td>9:00–11:00</td>
                     <td>—</td>
-                    <td>9:00</td>
-                    <td>9:00</td>
+                    <td>9:00–11:00</td>
+                    <td>9:00–11:00</td>
                     <td>—</td>
                     <td>—</td>
                   </tr>
                   <tr>
                     <td>Debugging</td>
-                    <td>13:30</td>
+                    <td>Lab 2, second floor</td>
+                    <td>13:30–15:00</td>
                     <td>—</td>
-                    <td>13:30</td>
+                    <td>13:30–15:00</td>
                     <td>—</td>
-                    <td>13:30</td>
+                    <td>13:30–15:00</td>
                     <td>—</td>
                     <td>—</td>
                   </tr>
@@ -2717,6 +2756,54 @@ gallery/
                 before="/media/051bee487bfb5d13.png"
                 after="/media/051bee487bfb5d13.png"
               ></lf-shot>
+              <p id="bg-capture-table-guide">
+                Captures that differ by something other than a version, such as the
+                moments of one journey, share a table whose heads name each column's and
+                each row's value once. Open a capture: Image preview names it by its
+                column and its row.
+              </p>
+              <table id="bg-capture-table" data-width="wide">
+                <thead>
+                  <tr>
+                    <td></td>
+                    <th scope="col">Opened</th>
+                    <th scope="col">Documentation reviewed</th>
+                    <th scope="col">API changes reviewed</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <th scope="row">Release review</th>
+                    <td>
+                      <a href="/media/c9f9c30f168dd264.png"
+                        ><img
+                          src="/media/c9f9c30f168dd264.png"
+                          width="960"
+                          height="640"
+                          alt="the release review with both sections pending"
+                      /></a>
+                    </td>
+                    <td>
+                      <a href="/media/298268218fde4619.png"
+                        ><img
+                          src="/media/298268218fde4619.png"
+                          width="960"
+                          height="640"
+                          alt="the release review with documentation reviewed and API changes pending"
+                      /></a>
+                    </td>
+                    <td>
+                      <a href="/media/006a318b091c6d1d.png"
+                        ><img
+                          src="/media/006a318b091c6d1d.png"
+                          width="960"
+                          height="640"
+                          alt="the release review with both sections reviewed"
+                      /></a>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </section>
           </section>
 
@@ -2844,7 +2931,8 @@ switch --readers checkout-api,orders-api</code></pre>
               </h3>
               <p id="bg-source-guide">
                 The document follows its source's current value. Its caption names the
-                captured file and line range.
+                captured file and line range. The source uses the same numbered,
+                syntax-colored presentation as a diff; selecting it copies only source.
               </p>
               <lf-text-document
                 id="bg-source-live"

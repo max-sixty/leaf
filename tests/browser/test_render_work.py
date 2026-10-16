@@ -109,11 +109,9 @@ def test_a_page_owned_goal_joins_the_public_projection(browser, serve):
             }
         },
     }
-    module = """import {keeps, once, widgetController} from "/runtime/widget-api.js";
-customElements.define("lf-project-milestone", class extends HTMLElement {
-  #controller = widgetController(this);
-  connectedCallback() { if (once(this)) this.#controller.subscribe(() => {}); }
-  renderState(state) { keeps(this, "phase", state.phase.value); }
+    module = """import {LeafElement, keeps} from "/runtime/widget-api.js";
+customElements.define("lf-project-milestone", class extends LeafElement {
+  render() { keeps(this, "phase", this.state.phase.value); }
 });"""
     source = leaf_page(
         "local work role",

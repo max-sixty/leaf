@@ -1,10 +1,10 @@
-/* Generated from skills/leaf/assets/styles/shadow.css by build/styles.mjs. */
+/* @noformat Generated from skills/leaf/assets/styles/shadow.css by build/styles.mjs. */
 /* skills/leaf/assets/styles/components/surfaces.css */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
-    animation-duration: .01ms !important;
+    animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition: none !important;
   }
@@ -101,10 +101,10 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 }
 .lf-external-mark {
   display: inline-block;
-  width: .75em;
-  height: .75em;
-  margin-inline-start: .24em;
-  vertical-align: .03em;
+  width: 0.75em;
+  height: 0.75em;
+  margin-inline-start: 0.24em;
+  vertical-align: 0.03em;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.5;
@@ -116,7 +116,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 }
 :where([data-lf-focus]) {
   outline: var(--focus-ring);
-  --lf-focus-ring: focus;
   outline-offset: var(--focus-ring-gap);
 }
 :where(:focus, [data-lf-focus]) {
@@ -136,11 +135,10 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 }
 [data-lf-offer]:where(:not([data-lf-offer=""])):is([aria-disabled=true], :disabled) {
   cursor: default;
-  opacity: .55;
+  opacity: 0.55;
 }
 [data-lf-offer]:where(:not([data-lf-offer=""]))[data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: pressable;
   outline-offset: var(--focus-ring-gap);
 }
 [data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer=checkbox], [data-lf-offer=radio], .lf-skip)),
@@ -210,7 +208,6 @@ summary {
   pointer-events: none;
   border-radius: inherit;
   outline: var(--focus-ring);
-  --lf-focus-ring: page-thread;
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 @media (forced-colors: active) {
@@ -234,13 +231,13 @@ summary {
   margin-top: 0;
 }
 .lf-page-thread + :is(.lf-page-thread, .lf-resolved-threads) {
-  margin-top: calc(2 * var(--sp-3));
+  margin-top: var(--sp-3);
 }
 .lf-page-thread + :is(.lf-page-thread, .lf-resolved-threads)::before {
   content: "";
   position: absolute;
   inset-inline: var(--sp-1);
-  inset-block-start: calc(-1 * var(--sp-3));
+  inset-block-start: calc(-1 * var(--sp-2));
   border-top: 1px solid var(--rule);
   pointer-events: none;
 }
@@ -273,7 +270,7 @@ summary {
 .lf-msg {
   margin: 16px 0 0;
   --lf-msg-rest-ground: transparent;
-  --lf-msg-ground: color-mix(in srgb, var(--hi-tint) calc(var(--lf-msg-arrival) * 100%), var(--lf-msg-rest-ground));
+  --lf-msg-ground: color-mix( in srgb, var(--hi-tint) calc(var(--lf-msg-arrival) * 100%), var(--lf-msg-rest-ground) );
   background-color: var(--lf-msg-ground);
 }
 .lf-thread-transcript > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) {
@@ -321,7 +318,8 @@ summary {
   text-overflow: ellipsis;
 }
 :is(.lf-msg-head, .lf-thread-working-head) b {
-  flex: 0 1 auto;
+  flex: 0 0 auto;
+  max-inline-size: 40%;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -331,9 +329,6 @@ summary {
 }
 .lf-thread-checkpoint {
   margin-block: 16px;
-}
-.lf-thread-checkpoint[hidden] {
-  display: none;
 }
 .lf-thread-checkpoint[data-expanded=true] {
   position: relative;
@@ -407,36 +402,34 @@ summary {
 .lf-summary-originals {
   min-width: 0;
 }
-.lf-summary-originals[hidden] {
-  display: none;
-}
 .lf-summary-originals > .lf-msg {
   margin-block: 8px;
 }
 .lf-thread-working {
   margin-top: 16px;
-  --lf-working-dim: color-mix(in oklab, var(--muted) 80%, var(--paper));
 }
 .lf-thread-working-words {
   margin-top: var(--lf-msg-body-gap);
   inline-size: fit-content;
   max-inline-size: 100%;
   font: max(var(--entry-floor), var(--t-5))/1.5 var(--sans);
-  color: var(--lf-working-dim);
+  color: color-mix(in oklab, var(--muted) 80%, var(--paper));
 }
 .lf-thread-working[data-lf-live] .lf-thread-working-words {
-  color: transparent;
-  background:
-    linear-gradient(
-      110deg,
-      var(--lf-working-dim) 42%,
-      var(--ink) 50%,
-      var(--lf-working-dim) 58%);
-  background-size: 200% 100%;
-  background-clip: text;
-  animation: lf-working-sheen 2s ease-in-out infinite alternate;
+  animation: lf-sheen 2s ease-in-out infinite alternate;
 }
-@keyframes lf-working-sheen {
+@keyframes lf-sheen {
+  from, to {
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    background-image:
+      linear-gradient(
+        110deg,
+        currentColor 42%,
+        var(--ink) 50%,
+        currentColor 58%);
+    background-size: 200% 100%;
+  }
   from {
     background-position: 100% 0;
   }
@@ -444,24 +437,15 @@ summary {
     background-position: 0% 0;
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  .lf-thread-working[data-lf-live] .lf-thread-working-words {
-    animation: none;
-    background: none;
-    color: var(--lf-working-dim);
-  }
-}
 @media (forced-colors: active) {
-  .lf-thread-working-words,
-  .lf-thread-working[data-lf-live] .lf-thread-working-words {
-    animation: none;
-    background: none;
-    color: GrayText;
+  @keyframes lf-sheen {
+    from, to {
+      -webkit-text-fill-color: currentColor;
+    }
   }
 }
 .lf-thread-disclosure[data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: summary-fold;
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 .lf-msg-head > .lf-held-header-item {
@@ -505,7 +489,7 @@ summary {
   --lf-thread-message-control-room: calc(max(26px, var(--aim-floor)) + var(--sp-2));
 }
 .lf-thread-content:has(> .lf-thread-controls):has(> .lf-thread-transcript > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-msg-body > .lf-msg-editor) {
-  --lf-thread-message-control-room: calc(max(52px, var(--aim-floor)) + 4px + max(40px, var(--aim-floor)) + var(--sp-2));
+  --lf-thread-message-control-room: calc( max(52px, var(--aim-floor)) + 4px + max(40px, var(--aim-floor)) + var(--sp-2) );
 }
 .lf-thread-content:has(> .lf-thread-controls) > .lf-thread-transcript > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-msg-head {
   anchor-name: --lf-thread-headline, --lf-msg-head;
@@ -523,7 +507,7 @@ summary {
 .lf-thread-controls > .lf-thread-news {
   position: absolute;
   inset-inline-start: calc(var(--lf-thread-news-start, 0px) + var(--sp-2));
-  inline-size: var(--lf-reserved-width, max-content);
+  inline-size: max-content;
   max-inline-size: max(0px, min(calc(100% - var(--lf-thread-news-start, 0px) - 2 * var(--sp-2) - var(--lf-thread-action-room) - var(--lf-thread-message-control-room)), calc(var(--lf-thread-news-visible-end, 100%) - var(--lf-thread-news-start, 0px) - var(--sp-2))));
   box-sizing: border-box;
   min-width: 0;
@@ -556,7 +540,6 @@ button.lf-thread-notice {
 }
 button.lf-thread-notice[data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: thread-notice;
   outline-offset: 1px;
 }
 .lf-thread-news {
@@ -656,31 +639,13 @@ button.lf-thread-notice[data-lf-focus] {
 :where(:root, .lf-thread-transcript) table {
   display: block;
   overflow-x: auto;
+  container-type: inline-size;
   container-type: inline-size scroll-state;
   --lf-top: 0px;
   border-collapse: collapse;
   font: var(--t-5)/1.5 var(--sans);
   margin: 18px 0;
   font-variant-numeric: tabular-nums;
-}
-@property --lf-fills-frame { syntax: "<integer>"; inherits: false; initial-value: 0; }
-:where(:root, .lf-thread-transcript) table:where([data-lf-space], [data-lf-space] *) {
-  --lf-fills-frame: 1;
-}
-:where(:root, .lf-thread-transcript) table:where([data-lf-space]:not([data-lf-space=column])) {
-  --lf-fills-frame: 0;
-}
-@container style(--lf-block-frame: 1) {
-  :where(:root, .lf-thread-transcript) table {
-    --lf-fills-frame: 1;
-  }
-}
-@container style(--lf-fills-frame: 1) {
-  :where(:root, .lf-thread-transcript) table::before {
-    content: "";
-    display: table-caption;
-    min-inline-size: 100cqi;
-  }
 }
 :where(:root, .lf-thread-transcript) :is(th, td) code:not(pre code) {
   padding: 0;
@@ -725,6 +690,13 @@ button.lf-thread-notice[data-lf-focus] {
 }
 :where(:root, .lf-thread-transcript) th[scope=row] {
   font-weight: 600;
+}
+:where(:root, .lf-thread-transcript) table:has(> * > tr > td > img:only-child, > * > tr > td > a:only-child > img:only-child) > * > tr > :is(th, td) {
+  vertical-align: middle;
+}
+:where(:root, .lf-thread-transcript) table:has(> * > tr > td > img:only-child, > * > tr > td > a:only-child > img:only-child) > * > tr > th:not([scope=row]) {
+  text-align: center;
+  color: var(--ink);
 }
 :where(:root, .lf-thread-transcript) :is(ul, ol) {
   margin: 10px 0;
@@ -834,7 +806,7 @@ leaf-text.lf-fab-input,
   cursor: pointer;
   padding: max(var(--sp-1), (var(--aim-floor) - 1lh) / 2) var(--sp-1);
   color: var(--muted);
-  font: 600 var(--t-5)/var(--lf-ui-lh) var(--sans);
+  font: var(--t-6)/var(--lf-ui-lh) var(--sans);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -848,14 +820,14 @@ leaf-text.lf-fab-input,
 :is(.lf-page-thread :is(.lf-btn, summary), .lf-resolved-summary)[data-lf-focus] {
   outline: var(--focus-ring);
   outline-offset: 1px;
-  --lf-focus-ring: thread;
 }
 @media print {
   .lf-page-thread,
+  .lf-resolved-threads,
   .lf-page-thread .lf-msg {
     display: block !important;
   }
-  .lf-page-thread :is(.lf-thread-reply, .lf-say, button, .lf-msg-sending) {
+  .lf-page-thread :is(button, .lf-msg-sending) {
     display: none !important;
   }
 }
@@ -887,7 +859,6 @@ leaf-text.lf-fab-input,
 }
 .lf-outline-chip[data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: chip;
   outline-offset: 1px;
 }
 .lf-msg-control {
@@ -921,7 +892,7 @@ leaf-text.lf-fab-input,
   background: var(--card);
 }
 .lf-react[aria-busy=true] {
-  opacity: .55;
+  opacity: 0.55;
 }
 .lf-react {
   touch-action: none;
@@ -941,12 +912,12 @@ leaf-text.lf-fab-input,
   translate: -50% 0;
   width: max-content;
   max-width: 220px;
-  padding: 4px 7px;
-  border-radius: 4px;
-  background: var(--ink);
-  color: var(--paper);
-  box-shadow: 0 2px 8px var(--shade);
-  font: 500 var(--t-6)/1.2 var(--sans);
+  padding: var(--tip-pad);
+  border-radius: var(--tip-r);
+  background: var(--tip-bg);
+  color: var(--tip-ink);
+  box-shadow: var(--raise-1);
+  font: var(--tip-font);
   white-space: nowrap;
   pointer-events: none;
 }
@@ -979,7 +950,7 @@ leaf-text.lf-fab-input,
   scroll-margin-block-end: var(--sp-2);
 }
 .lf-msg:has(> .lf-msg-body > .lf-msg-editor) > .lf-msg-head {
-  --lf-msg-control-room: calc(max(52px, var(--aim-floor)) + 4px + max(40px, var(--aim-floor)));
+  --lf-msg-control-room: calc( max(52px, var(--aim-floor)) + 4px + max(40px, var(--aim-floor)) );
 }
 .lf-msg:has(> .lf-msg-body > .lf-msg-editor) > .lf-msg-head > .lf-msg-meta {
   display: none;
@@ -1063,7 +1034,7 @@ svg[data-lf-icon] {
   border: 1px solid var(--border-2);
   border-radius: var(--r);
   background: var(--card);
-  box-shadow: 0 4px 12px var(--shade);
+  box-shadow: var(--raise-2);
 }
 :where(.lf-react-strip > .lf-react-palette:popover-open) > .lf-react {
   box-sizing: border-box;
@@ -1091,7 +1062,6 @@ svg[data-lf-icon] {
 }
 .lf-msg-sending {
   color: var(--muted);
-  font-weight: 600;
   white-space: nowrap;
 }
 .lf-msg-sending::before {
@@ -1157,7 +1127,8 @@ svg[data-lf-icon] {
   }
 }
 @media print {
-  details:not([open])::details-content {
+  details:not([open])::details-content,
+  [hidden=until-found] {
     content-visibility: visible;
   }
   details > summary {
@@ -1168,18 +1139,33 @@ svg[data-lf-icon] {
   }
 }
 :is(.lf-btn, .button) {
-  width: var(--lf-reserved-width, auto);
   padding: max(4px, (var(--aim-floor) - 1lh) / 2 - 1px) 10px;
   border: 1px solid var(--border-2);
   border-radius: 6px;
   background: var(--card);
   cursor: pointer;
-  white-space: nowrap;
   color: var(--ink);
   display: inline-block;
 }
-:is(.lf-btn, .button)[hidden]:not([hidden=until-found]) {
-  display: none;
+:where([data-lf-room]) {
+  display: inline-block;
+  max-inline-size: 100%;
+}
+[data-lf-room]::before {
+  content: attr(data-lf-room);
+  display: block;
+  block-size: 0;
+  overflow: hidden;
+  visibility: hidden;
+  white-space: pre-line;
+}
+[data-lf-room] > * {
+  display: block;
+  inline-size: 0;
+  min-inline-size: 100%;
+  overflow: clip;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 :is(.lf-btn, .button):not(:disabled, [aria-disabled=true]):hover {
   background: var(--chip);
@@ -1193,7 +1179,7 @@ svg[data-lf-icon] {
 }
 :is(.lf-btn, .button):disabled,
 :is(.lf-btn, .button)[aria-disabled=true] {
-  opacity: .55;
+  opacity: 0.55;
   cursor: default;
 }
 :is(.lf-btn, .button).primary:is(:disabled, [aria-disabled=true]) {
@@ -1204,7 +1190,6 @@ svg[data-lf-icon] {
 }
 :is(.lf-btn, .button)[data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: btn;
   outline-offset: 2px;
 }
 
@@ -1260,7 +1245,7 @@ svg[data-lf-icon] {
   padding-inline-end: var(--lf-compose-pad-inline-start);
 }
 .lf-compose-field:where(:has(> .lf-compose-submit)) > leaf-text:not(.lf-fab-input) {
-  --lf-field-end-room: calc(var(--lf-icon-action-hit) + 12px - var(--lf-compose-pad-inline-start));
+  --lf-field-end-room: calc( var(--lf-icon-action-hit) + 12px - var(--lf-compose-pad-inline-start) );
 }
 .lf-icon-action {
   box-sizing: border-box;
@@ -1272,9 +1257,6 @@ svg[data-lf-icon] {
   display: grid;
   place-items: center;
   border-radius: var(--r);
-}
-.lf-icon-action[hidden] {
-  display: none;
 }
 .lf-action-icon {
   position: relative;
@@ -1383,9 +1365,6 @@ svg[data-lf-icon] {
   padding: 2px;
   box-sizing: border-box;
 }
-.lf-composer-media[hidden] {
-  display: none !important;
-}
 .lf-composer-media-item {
   flex: none;
   display: flex;
@@ -1412,7 +1391,6 @@ button.lf-media-open {
 }
 .lf-media-open[data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: media;
   outline-offset: 2px;
 }
 .lf-composer-media-open {
@@ -1469,7 +1447,6 @@ button.lf-media-open {
 }
 .lf-composer-media-item > button:not(.lf-media-open)[data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: composer-media;
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 .lf-composer-media-item > button:not(.lf-media-open) > svg {
@@ -1488,13 +1465,12 @@ button.lf-media-open {
 .lf-comment-box > .lf-compose-field:has(> leaf-text[data-lf-focus]),
 .lf-response-control[data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: text-box;
   outline-offset: 0;
   border-color: transparent;
 }
 .lf-page-comment-card,
 .lf-response-control {
-  filter: drop-shadow(0 2px 4px var(--shade));
+  filter: drop-shadow(var(--raise-1));
 }
 .lf-comment-box > .lf-compose-field > leaf-text {
   padding: var(--lf-compose-pad-block) var(--lf-compose-pad-inline-start);
@@ -1523,9 +1499,6 @@ button.lf-media-open {
 }
 .lf-thread-transcript .lf-msg-editor {
   margin-inline-start: calc(-1 * var(--lf-thread-text-inset));
-}
-.lf-msg-editor > .lf-compose-field:has(> leaf-text[data-lf-focus]) {
-  outline-offset: calc(-1 * var(--focus-ring-w));
 }
 .lf-msg-edit-foot {
   display: block;
@@ -1568,9 +1541,11 @@ button.lf-media-open {
 }
 :is(.lf-fab-bar, .lf-margin-preview) {
   --lf-thread-text-pad-block: calc((var(--lf-response-height) - 1lh) / 2);
-  --lf-comment-text-pad-end: var(--lf-thread-text-inset);
-  --lf-comment-send-inset: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2);
-  --lf-comment-send-room: calc(var(--lf-icon-action-hit) + var(--lf-comment-send-inset) - var(--lf-comment-text-pad-end));
+  --lf-comment-send-inset: calc( (var(--lf-response-height) - var(--lf-icon-action-hit)) / 2 );
+  --lf-comment-text-end: calc(var(--lf-icon-action-hit) + var(--lf-comment-send-inset));
+}
+.lf-margin-preview .lf-msg-text {
+  padding-inline-end: var(--lf-comment-text-end);
 }
 .lf-fab-bar .lf-compose-field,
 .lf-response-control {
@@ -1584,11 +1559,14 @@ button.lf-media-open {
   line-height: inherit;
   padding-block: var(--lf-compose-pad-block);
 }
+leaf-text.lf-response-control {
+  scroll-padding-block: var(--lf-compose-pad-block);
+}
 leaf-text.lf-fab-input {
+  display: none;
   width: 100%;
   min-width: 0;
-  padding-inline: var(--lf-compose-pad-inline-start) calc(var(--lf-comment-text-pad-end) - 1px);
-  --lf-field-end-room: var(--lf-comment-send-room);
+  padding-inline: var(--lf-compose-pad-inline-start) calc(var(--lf-comment-text-end) - 1px);
   overflow-y: auto;
 }
 .lf-fab-bar :is(.lf-compose-submit, .lf-compose-dictate) {
@@ -1604,9 +1582,6 @@ leaf-text.lf-fab-input {
   gap: 0;
   white-space: nowrap;
   cursor: pointer;
-}
-.lf-response-action[hidden] {
-  display: none;
 }
 .lf-response-action:hover {
   border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
@@ -1647,11 +1622,23 @@ leaf-text.lf-fab-input {
   min-width: 0;
   flex-wrap: wrap;
 }
+.lf-composer {
+  display: none;
+}
+.lf-composer[data-lf-open] {
+  display: contents;
+}
+.lf-composer[data-lf-open] leaf-text.lf-fab-input {
+  display: block;
+}
 .lf-fab-bar {
+  display: none;
   font: var(--t-5)/1.5 var(--sans);
 }
+.lf-fab-bar:is([data-lf-target-only], :has(> .lf-composer[data-lf-open])) {
+  display: var(--lf-response-display, inline-flex);
+}
 .lf-fab-bar[data-lf-presentation=inline] {
-  display: inline-flex;
   position: static;
   box-sizing: border-box;
   align-items: flex-end;
@@ -1666,14 +1653,10 @@ leaf-text.lf-fab-input {
 .lf-fab-bar[data-lf-presentation=inline] *::after {
   box-sizing: inherit;
 }
-.lf-fab-bar[data-lf-presentation=inline] .lf-composer {
-  display: contents;
-}
 .lf-fab-bar[data-lf-presentation=inline] .lf-composer > :not(.lf-compose-field, .lf-composer-media) {
   display: none !important;
 }
 .lf-fab-bar[data-lf-presentation=inline] leaf-text.lf-fab-input {
-  display: block;
   max-width: none;
   max-height: 50vh;
   margin: 0;
@@ -1758,6 +1741,13 @@ html[data-lf-draw-mode] main {
 .lf-code-copy.lf-code-copy-away {
   display: none;
 }
+.lf-code-copy-cut {
+  pointer-events: none;
+  z-index: 1;
+}
+.lf-code-copy-cut > .lf-code-copy {
+  position: fixed;
+}
 :not(.lf-chrome):is(:hover, [data-lf-focus-within]) > .lf-code-copy,
 .lf-code-copy-hover,
 .lf-code-copy-focused,
@@ -1781,12 +1771,6 @@ html[data-lf-draw-mode] main {
 }
 .lf-code-copy::part(lf-focus) {
   outline: var(--focus-ring);
-  --lf-focus-ring: code-copy;
-}
-@media print {
-  .lf-code-copy {
-    display: none;
-  }
 }
 .lf-msg-body a.detached {
   color: var(--muted-2);
@@ -1807,11 +1791,13 @@ html[data-lf-draw-mode] main {
 .lf-reply-continuity:not(details) {
   display: flex;
   flex-direction: column;
-  min-block-size: var(--lf-thread-body-extent, 0px);
+  min-block-size: 0;
 }
 .lf-reply-space {
-  flex: 1 0 0;
+  flex: 0 1 auto;
+  block-size: var(--lf-reply-space, 0px);
   min-block-size: 0;
+  max-block-size: 100%;
 }
 .lf-reply-continuity > .lf-thread-reply leaf-text:not(:state(placeholder-shown)) {
   block-size: var(--lf-reply-writing-room, auto);

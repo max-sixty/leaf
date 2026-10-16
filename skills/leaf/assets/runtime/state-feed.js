@@ -19,6 +19,8 @@ import { offlineInteractive, offlineState, pageUrl, runtime } from "./context.js
 import { applicationState } from "./semantic-state.js";
 import { completeReadingReturn, readingReturn } from "./reading-continuity.js";
 import {
+  completeData,
+  dataHeaders,
   layerHeaders,
   admitResponse,
   reportCarried,
@@ -38,10 +40,11 @@ async function readState(bound) {
   try {
     if (offlineInteractive) return offlineState();
     const signal = globalThis.AbortSignal.timeout(bound);
+    const held = runtime.data;
     let res;
     try {
       res = await fetch(pageUrl("api/state"), {
-        headers: layerHeaders(),
+        headers: layerHeaders(dataHeaders(held)),
         // Coalescing bounds concurrency; this bounds its other dimension. A proxy that
         // never answers cannot own the page's single read slot forever.
         signal,
@@ -60,7 +63,7 @@ async function readState(bound) {
     // recourse the user takes (`runtime.keyRefused`).
     if (!res.ok) return null;
     try {
-      return await res.json();
+      return completeData(await res.json(), held);
     } catch (error) {
       if (signal.aborted) return null;
       throw error;
@@ -96,7 +99,6 @@ export function createStateFeed({
   invalidateDom,
   receiveState,
   prepareActivation,
-  renderStatus,
 }) {
   let readAnswered = false;
 
@@ -105,11 +107,11 @@ export function createStateFeed({
   function failed(error) {
     readAnswered = false;
     reportCarried(error, `read failed`);
-    renderStatus(error);
+    applicationState.setReach("broken");
   }
 
-  // The clock has no state to replay, and a projection a drag deferred is retried by
-  // the drag's release; time-dependent paints remember their own displayed readings.
+  // The clock has no state to replay; time-dependent paints remember their own
+  // displayed readings.
   async function tick() {
     if (stateApplying()) return;
     // A repaint through a reading paint has already reported its own failure.
@@ -122,7 +124,7 @@ export function createStateFeed({
   async function readNothing() {
     readAnswered = false;
     if (runtime.statePhase === "waiting") applicationState.setPhase("offline");
-    renderStatus(null);
+    applicationState.setReach(runtime.keyRefused ? "refused" : "unreachable");
     await invalidateDom();
     await tick();
   }
@@ -382,7 +384,7 @@ const FIRST_READ_TIMEOUT_MS = 120_000;
 
 // How long every read after that may take. These have no wait beside them, and the
 // banner's one honesty mechanism about the server runs through a read that *completed*
-// with nothing: `renderStatus(null)` is the only path to OFFLINE_LINE, and a read still
+// with nothing: its `unreachable` reach is the only path to OFFLINE_LINE, and a read still
 // in flight holds the slot, so freshness or a clock tick only queues a trailing read
 // behind it. This bound is therefore the whole time a user watching a live page can be
 // shown a reading the server has stopped standing behind, which is a user's timescale

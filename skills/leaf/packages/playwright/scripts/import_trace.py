@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --script --quiet
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["click>=8", "pillow>=12.1"]
+# dependencies = ["click>=8.2", "pillow>=12.1"]
 # ///
 """Index an immutable Playwright format-9 archive for Leaf's playwright-trace.
 

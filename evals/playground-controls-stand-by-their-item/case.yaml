@@ -6,10 +6,10 @@
 # whole preview stay in the rail.
 description: playground-controls-stand-by-their-item
 metadata:
-  purpose: 'Playground: a control that changes one item of several stands beside that item in the preview, and a setting shared by every item stays in the rail.'
+  purpose: "Playground: a control that changes one item of several stands beside that item in the preview, and a setting shared by every item stays in the rail."
   tags:
-  - playground
-  - layout
+    - playground
+    - layout
 vars:
   prompt: |
     The user runs four alerts for the checkout service and wants to retune them. For
@@ -35,13 +35,13 @@ vars:
     directory. The page directory is not reachable here, so reply with the page's
     HTML and any page module it needs.
 assert:
-- type: llm-rubric
-  metric: controls-stand-by-their-item
-  value: |
-    Pass only if each alert's threshold and route are `lf-playground-control`
-    elements written inside `lf-playground-preview`, next to that alert's own replay,
-    and the page budget is an `lf-playground-control` that is a direct child of
-    `lf-playground`, outside the preview. Fail if every control is a direct child of
-    `lf-playground` (so all of them stand together in the rail), if the per-alert
-    settings are hand-built inputs rather than playground controls, or if the budget
-    is repeated beside each alert.
+  - type: llm-rubric
+    metric: controls-stand-by-their-item
+    value: |
+      Pass only if each alert's threshold and route are `lf-playground-control`
+      elements written inside `lf-playground-preview`, next to that alert's own replay,
+      and the page budget is an `lf-playground-control` that is a direct child of
+      `lf-playground`, outside the preview. Fail if every control is a direct child of
+      `lf-playground` (so all of them stand together in the rail), if the per-alert
+      settings are hand-built inputs rather than playground controls, or if the budget
+      is repeated beside each alert.

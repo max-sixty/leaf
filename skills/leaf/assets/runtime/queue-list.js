@@ -15,7 +15,7 @@
    A row whose to-do the user ends with Done carries a Done button beside it, which Tab
    reaches from the row and a finger taps, and `x` on the row presses it. Pressing it
    puts focus on its row first, so focus follows the list as the row leaves for Done. */
-import { html, nothing, repeat } from "../vendor/browser-runtime.js";
+import { html, nothing, repeat } from "/vendor/browser-runtime.js";
 import { PRESS } from "./keyboard/bindings.js";
 import { commandsOn } from "./keyboard/scopes.js";
 import { RetainedFace } from "./retained-face.js";
@@ -61,7 +61,9 @@ const rowTemplate = (row, activate, finish, end) =>
     >
       <span class="lf-queue-kind">${row.word}</span>
       <span class="lf-queue-title">${row.title}</span>
-      <span class="lf-queue-where">${row.where}</span>
+      <span class="lf-queue-where"
+        >${row.where.map((part, index) => html`${index ? " · " : ""}${part.feedback ? html`<span class="lf-queue-feedback">${part.text}</span>` : part.text}`)}</span
+      >
     </button>
     ${
       row.done
@@ -95,6 +97,8 @@ class QueueList extends RetainedFace {
   #activate = null;
   #finish = null;
   #fallback = null;
+  #observeFeedback = null;
+  #feedbackStops = [];
   // Across a repaint the user keeps their row, or the nearest that survived it
   // (focus.js, keyed `holdFocus`); a panel opened from its edge lands on its first stop.
   #restoreFocus = null;
@@ -104,10 +108,11 @@ class QueueList extends RetainedFace {
     super(EMPTY_MODEL);
   }
 
-  configure({ activate, finish, fallback }) {
+  configure({ activate, finish, fallback, observeFeedback }) {
     this.#activate = activate;
     this.#finish = finish;
     this.#fallback = fallback;
+    this.#observeFeedback = observeFeedback;
   }
 
   willUpdate(changed) {
@@ -134,6 +139,18 @@ class QueueList extends RetainedFace {
   };
 
   updated() {
+    for (const stop of this.#feedbackStops) stop();
+    this.#feedbackStops = [];
+    if (this.#observeFeedback) {
+      for (const row of this.model.queue.rows) {
+        const feedback = row.where.find((part) => part.feedback)?.feedback;
+        if (!feedback) continue;
+        const words = this.querySelector(
+          `${ROW}[${QUEUE_ROW}="${CSS.escape(row.key)}"] .lf-queue-feedback`,
+        );
+        this.#feedbackStops.push(this.#observeFeedback(words, feedback));
+      }
+    }
     const [landing, restore] = [this.#landing, this.#restoreFocus];
     [this.#landing, this.#restoreFocus] = [false, null];
     if (landing) {
@@ -141,6 +158,12 @@ class QueueList extends RetainedFace {
       if (place) focusDestination(place, "move");
     }
     restore?.(this.#fallback);
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    for (const stop of this.#feedbackStops) stop();
+    this.#feedbackStops = [];
   }
 
   #activateRow = (event) => {
@@ -166,7 +189,7 @@ class QueueList extends RetainedFace {
       ${
         done.rows.length
           ? html`<details class="lf-queue-group lf-queue-done" data-lf-queue="done">
-              <summary class="lf-queue-heading">${done.label}</summary>
+              <summary class="lf-queue-heading lf-label">${done.label}</summary>
               ${rowsTemplate(done.rows, this.#activateRow, this.#finishRow, this.#end)}
             </details>`
           : nothing

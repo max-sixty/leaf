@@ -2,11 +2,13 @@
 
 from leaf.asks import asking, local_ask_entry, quoted_in
 from leaf.findings import Finding, element_at
-from leaf.projection import enclosing_widgets
+from leaf.gesture_words import leading_title_node
+from leaf.projection import enclosing_widgets, recorded_owner
 from leaf.registry.contract import (
     is_element_name,
     registry_path,
     retirement_slots,
+    state_specs,
 )
 from leaf.registry.schema import json_validator, schema_reading
 from leaf.structure import AUTHORED_ALLOCATIONS, SourceDocument
@@ -114,6 +116,48 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
                 )
             if rec["text"]:
                 errors.append(found_at("loose-text", rec))
+    byid = {rec["attrs"]["id"]: rec for rec in lf_elements if rec["attrs"].get("id")}
+    return errors + attribute_slot_errors(lf_elements, byid, registry)
+
+
+def attribute_slot_errors(
+    elements, byid: dict, registry: dict, *, holders: dict | None = None
+) -> list[Finding]:
+    """Scalar records cannot share their node's attribute with a parent's selection.
+
+    Declarations remain reusable in unrelated compositions. Ownership follows the
+    canonical physical-slot reading, including holder overrides for a proposed move.
+    Callers select the elements whose composition they are validating.
+    """
+    errors = []
+    for rec in elements:
+        identity = rec["attrs"].get("id")
+        if identity is None:
+            continue
+        for verb, spec in state_specs(registry.get(rec["tag"], {})):
+            record = spec.get("record") or {}
+            if record.get("kind") != "value":
+                continue
+            attribute = {"kind": "attribute", "attr": record["attr"]}
+            owner = recorded_owner(identity, attribute, byid, registry, holders=holders)
+            if owner is None:
+                continue
+            owner_verb = next(
+                verb
+                for verb, spec in state_specs(registry[byid[owner]["tag"]])
+                if spec.get("record") == attribute
+            )
+            errors.append(
+                found_at(
+                    "member-record-slot",
+                    rec,
+                    id=identity,
+                    attr=record["attr"],
+                    value_verb=verb,
+                    owner=owner,
+                    owner_verb=owner_verb,
+                )
+            )
     return errors
 
 
@@ -164,7 +208,7 @@ def unasked(rec: dict, entry: dict) -> dict:
     }
 
 
-def ask_context_errors(lf_elements: list, registry: dict) -> list[Finding]:
+def ask_context_errors(document: SourceDocument, registry: dict) -> list[Finding]:
     """A context supplies a leading title and arrival region for nested asks.
 
     Context never owns ask identity or registration. Any number of sources
@@ -184,6 +228,7 @@ def ask_context_errors(lf_elements: list, registry: dict) -> list[Finding]:
             None,
         )
 
+    lf_elements = document.lf_elements
     regions = [
         rec for rec in lf_elements if registry.get(rec["tag"], {}).get("x-ask-context")
     ]
@@ -208,17 +253,12 @@ def ask_context_errors(lf_elements: list, registry: dict) -> list[Finding]:
                 for rec, lacks in framed[id(region)]
             ]
             errors.append(found_at("empty-ask-context", region, widgets=widgets))
-        headings = [
-            child
-            for child in region["children"]
-            if child in {f"h{n}" for n in range(1, 7)}
-        ]
-        if len(headings) != 1:
-            errors.append(found_at("ask-context-headings", region, headings=headings))
-        elif region["direct"][0] != headings[0]:
-            errors.append(
-                found_at("ask-context-heading-first", region, first=region["direct"][0])
-            )
+        # The ask's title is what the shared name rule reads, so this asks that rule
+        # rather than restating a shape it accepts. It must be a heading as well, the
+        # question's place in the outline and in heading navigation.
+        title = leading_title_node(document.authoring.node_of(region))
+        if not title or title["tag"] not in {f"h{n}" for n in range(1, 7)}:
+            errors.append(found_at("ask-context-title", region))
     return errors
 
 
@@ -479,14 +519,15 @@ def suggestion_errors(
     return errors
 
 
-def instance_errors(lf_elements: list, registry: dict) -> list[Finding]:
+def instance_errors(document: SourceDocument, registry: dict) -> list[Finding]:
     """Every instance check that needs only the registry, no id namespace, so a new
     check of that kind reaches page source and message markup alike."""
+    lf_elements = document.lf_elements
     return (
         widget_errors(lf_elements, registry)
         + layout_errors(lf_elements, registry)
         + addressable_instance_errors(lf_elements, registry)
-        + ask_context_errors(lf_elements, registry)
+        + ask_context_errors(document, registry)
         + declared_word_errors(lf_elements, registry)
         + unique_errors(lf_elements, registry)
     )
@@ -499,4 +540,4 @@ def fragment_errors(parser: SourceDocument, registry: dict) -> list[Finding]:
     <lf-code language=…> is colored by the same tokenizer a version's is, and its chips
     are tinted by the same theme, and nothing else would now refuse either a word its
     layer doesn't know."""
-    return structure_errors(parser) + instance_errors(parser.lf_elements, registry)
+    return structure_errors(parser) + instance_errors(parser, registry)

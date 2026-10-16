@@ -36,7 +36,7 @@ Each check has one name in `CHECKS`, which is the code of the finding
   taken after `changedBoxes`, last on the page.
 - `shows-context-keys`: a command that declares context keys, the aliases a widget
   offers for pressing a control from elsewhere, also declares a `bindingBadge`, so the
-  page shows the key it adds (`../../references/module-authoring.md`, "Commands and
+  page shows the key it adds (`../../references/module-input.md`, "Commands and
   keyboard routes"). Its reading is `unshownContextKeys` in `render-checks/widgets.js`,
   which reads the declarations rather than the keys reachable now.
 """
@@ -66,7 +66,9 @@ from leaf.vendoring import start_throwaway_page
 
 from .preview import preview_server
 from .scheme import (
+    answer_reports,
     arm_interception,
+    collect_page_errors,
     served,
     start_with_pre_upgrade_proof,
 )
@@ -174,11 +176,17 @@ def _readings(
     page = browser.new_page(viewport=RENDER_VIEWPORT)
     arm_interception(page)
     install_driver(page)
+    errors = []
+    collect_page_errors(page, errors)
+    # Runtime reports already reach the console; an example's preview writes no log.
+    answer_reports(page, lambda text: None)
     try:
         if faults := start_with_pre_upgrade_proof(page, url):
             raise UnreadablePage("; ".join(map(str, faults)))
         wait_until_ready(page, served(page, url, "/api/state").json())
         wait_for_probe(page, "pageSettled")
+        if errors:
+            raise UnreadablePage("; ".join(map(str, errors)))
         changed = evaluate_probe(page, "changedBoxes")
         unshown = evaluate_probe(page, "unshownContextKeys", tags)
         return changed, unshown, evaluate_probe(page, "heldScrollers", tags)
@@ -204,7 +212,7 @@ def _page_findings(
         candidate = read_page_registry(page_dir)
         (page_dir / MEDIA_DIR).mkdir(exist_ok=True)
         for layout, document in pages:
-            for reference in sorted(document.media_refs):
+            for reference in sorted(document.authoring.media_refs):
                 # Only a name the server serves gets a stand-in, which also keeps
                 # every write inside the page: a name cannot hold a directory.
                 if not MEDIA_REFERENCE.fullmatch(reference):

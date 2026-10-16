@@ -7,6 +7,7 @@ import re
 import struct
 import zlib
 from types import SimpleNamespace
+from weakref import WeakKeyDictionary
 
 from axe_playwright_python.sync_playwright import Axe
 from browser_sources import browser_function
@@ -1361,12 +1362,7 @@ PANEL_DIFF_MARKUP = WIDE_DIFF_PAGE[
 
 def serious_axe_violations(page):
     """Serious/critical WCAG A/AA findings in accessible documents, with a report."""
-    # The adapter injects only its document. Install axe in child documents too,
-    # then let axe's frame traversal preserve the parent's accessibility boundary
-    # and inspect exposed child documents without auditing hidden placeholders.
     axe = Axe()
-    for frame in page.frames:
-        frame.evaluate(axe.axe_script)
     options = {
         "runOnly": {
             "type": "tag",
@@ -1380,11 +1376,12 @@ def serious_axe_violations(page):
             ],
         },
         "resultTypes": ["violations"],
+        "iframes": False,
     }
-    result = axe.run(page, options=options)
     violations = [
-        {**violation, "document": page.url}
-        for violation in result.response["violations"]
+        {**violation, "document": frame.url}
+        for frame in accessible_documents(page)
+        for violation in axe.run(frame, options=options).response["violations"]
         if violation["impact"] in {"serious", "critical"}
     ]
     report = "\n\n".join(
@@ -1404,6 +1401,30 @@ def serious_axe_violations(page):
         for violation in violations
     )
     return violations, report
+
+
+def accessible_documents(page):
+    """The root and visible child documents Axe must inspect individually.
+
+    Parent-to-child messages warn on sandboxed frames with opaque origins. Running
+    each exposed frame directly reads it without that cross-origin message path.
+    """
+
+    def exposed(frame):
+        yield frame
+        for child in frame.child_frames:
+            element = child.frame_element()
+            if element.is_visible() and element.evaluate(
+                """element => {
+                  for (let current = element; current; current = current.getRootNode().host) {
+                    if (current.closest('[aria-hidden="true"], [inert]')) return false;
+                  }
+                  return true;
+                }"""
+            ):
+                yield from exposed(child)
+
+    yield from exposed(page.main_frame)
 
 
 # The element at an axe target's selector within one document: a list is a chain of
@@ -1444,43 +1465,32 @@ def overlapped_words(page):
 
     Axe answers these as incomplete, not as violations, so a sweep keeping violations
     alone passes words it never measured. A window-sized transparent layer over the
-    first screen hid every word under it this way (#2559). The run is
-    `serious_axe_violations`' frame traversal, so it reads the same exposed documents."""
+    first screen hid every word under it this way (#2559). The run reads the same
+    exposed documents as `serious_axe_violations`."""
     axe = Axe()
-    for frame in page.frames:
-        frame.evaluate(axe.axe_script)
-    result = axe.run(
-        page,
-        options={
-            "runOnly": {"type": "rule", "values": ["color-contrast"]},
-            "resultTypes": ["incomplete"],
-        },
-    )
     unread = []
-    for rule in result.response["incomplete"]:
-        for node in rule["nodes"]:
-            if not any(
-                isinstance(check.get("data"), dict)
-                and check["data"].get("messageKey") == "bgOverlap"
-                for check in node["any"]
-            ):
-                continue
-            # One selector per document, each frame's inside the one before it.
-            *frames, words = node["target"]
-            frame = page.main_frame
-            for hop in frames:
-                frame = (
-                    frame.evaluate_handle(AXE_TARGET, hop).as_element().content_frame()
-                )
-            if frame.evaluate(
-                UNDER_EMPTY_BOXES, frame.evaluate_handle(AXE_TARGET, words)
-            ):
-                unread.append(
-                    " ".join(
-                        sel if isinstance(sel, str) else " >>> ".join(sel)
-                        for sel in node["target"]
-                    )
-                )
+    for frame in accessible_documents(page):
+        result = axe.run(
+            frame,
+            options={
+                "runOnly": {"type": "rule", "values": ["color-contrast"]},
+                "resultTypes": ["incomplete"],
+                "iframes": False,
+            },
+        )
+        for rule in result.response["incomplete"]:
+            for node in rule["nodes"]:
+                if not any(
+                    isinstance(check.get("data"), dict)
+                    and check["data"].get("messageKey") == "bgOverlap"
+                    for check in node["any"]
+                ):
+                    continue
+                words = node["target"]
+                if frame.evaluate(
+                    UNDER_EMPTY_BOXES, frame.evaluate_handle(AXE_TARGET, words)
+                ):
+                    unread.append(f"{frame.url}: {' >>> '.join(words)}")
     return unread
 
 
@@ -1591,9 +1601,6 @@ def in_threads_scrollport(page, selector):
     )
 
 
-RING_NAMES = browser_function("focus_rings.js", "ringNames", using="control_name.js")
-
-
 RINGS_DRAWN = browser_function("focus_rings.js", "ringsDrawn", using="control_name.js")
 
 
@@ -1608,9 +1615,137 @@ COVERED_TOP = """() => {
 }"""
 
 
+# Which focus ring a box wears is which rule drew it, and the browser says so: the
+# DevTools protocol's matched styles for a node already resolve nesting, `@scope`,
+# shadow trees, adopted sheets and pseudo-elements, the cases a test re-matching the
+# layer's selectors got wrong one after another. So a rule draws a ring and names none,
+# and a test asks the browser which rule drew the one it sees. Chromium only.
+#
+# A ring is identified by its winning rule's selector as matched: the one selector of
+# the rule's list that matched the box, under the nesting and `@scope` it sits in.
+# That survives what leaves the ring alone (another declaration, a reordered sheet,
+# another selector added to the list, the rule moving file) and changes when what
+# selects the ring does. Tests assert on the part of it that makes the rule the
+# control's own, such as `.lf-skip`, rather than on the whole text.
+#
+# Only a declaration that draws with the ring's own token is a ring rule: `--focus-ring`
+# for an outline, `--focus-shadow` for the band cast as a shadow. A contour written out
+# as `2px solid var(--accent)`, such as an element mark's pointer feedback, paints the
+# same pixels and is not one.
+RING_CARRIERS = {
+    "outline": ("outline", "outline-style"),
+    "box-shadow": ("box-shadow",),
+}
+RING_TOKEN = {
+    "outline": re.compile(r"--focus-ring(?![\w-])"),
+    "box-shadow": re.compile(r"--focus-shadow(?![\w-])"),
+}
+_ring_sessions = WeakKeyDictionary()
+
+
+def _ring_session(page):
+    cdp = _ring_sessions.get(page)
+    if cdp is None:
+        cdp = _ring_sessions[page] = page.context.new_cdp_session(page)
+        cdp.send("DOM.enable")
+        cdp.send("CSS.enable")
+    return cdp
+
+
+def _matched_selector(match):
+    rule = match["rule"]
+    if rule["origin"] == "inline":
+        return "style attribute"
+    selectors = rule["selectorList"]["selectors"]
+    said = ", ".join(selectors[i]["text"] for i in match["matchingSelectors"])
+    context = [f"@scope {scope['text']}" for scope in rule.get("scopes", [])]
+    context += reversed(rule.get("nestingSelectors", []))
+    return " { ".join([*context, said])
+
+
+def _winning_declaration(matches, carrier):
+    """The match and value of the declaration that wins `carrier` among `matches`,
+    which the protocol lists in cascade order. Important beats normal; within each,
+    the later wins. Important declarations in different cascade layers would reverse
+    that order, which no ring rule in the layer meets."""
+    won = {}
+    for match in matches:
+        for prop in match["rule"]["style"]["cssProperties"]:
+            # The longhands the protocol expands a shorthand into carry no source text.
+            if (
+                "text" in prop
+                and prop["name"] in RING_CARRIERS[carrier]
+                and not prop.get("disabled")
+                and prop.get("parsedOk", True)
+            ):
+                won[bool(prop.get("important"))] = (match, prop["value"])
+    return won.get(True) or won.get(False)
+
+
+def ring_rules(page, wants):
+    """For each box the last probe stashed (`stash`, focus_rings.js), the selector of
+    the rule that drew its ring with the ring's token, or "" where none did.
+
+    `wants` holds one `(pseudo, carrier)` pair per box: the pseudo-element the ring is
+    on, if any, and whether it is an outline or a box shadow."""
+    if not wants:
+        return []
+    cdp = _ring_session(page)
+    cdp.send("DOM.getDocument", {"depth": 0})
+    group = {"objectGroup": "lf-rings"}
+    boxes = cdp.send(
+        "Runtime.evaluate", {"expression": "globalThis.__lfRingBoxes", **group}
+    )["result"]["objectId"]
+    cdp.send("Runtime.evaluate", {"expression": "delete globalThis.__lfRingBoxes"})
+    listed = cdp.send(
+        "Runtime.getProperties", {"objectId": boxes, "ownProperties": True}
+    )["result"]
+    ids = {
+        int(p["name"]): p["value"]["objectId"] for p in listed if p["name"].isdigit()
+    }
+    rules = []
+    for index, (pseudo, carrier) in enumerate(wants):
+        node = cdp.send("DOM.requestNode", {"objectId": ids[index]})["nodeId"]
+        styles = cdp.send("CSS.getMatchedStylesForNode", {"nodeId": node})
+        if pseudo:
+            matches = next(
+                entry["matches"]
+                for entry in styles["pseudoElements"]
+                if entry["pseudoType"] == pseudo
+            )
+        else:
+            matches = list(styles["matchedCSSRules"])
+            if inline := styles.get("inlineStyle"):
+                matches.append({"rule": {"origin": "inline", "style": inline}})
+        won = _winning_declaration(matches, carrier)
+        drew = won and RING_TOKEN[carrier].search(won[1])
+        rules.append(_matched_selector(won[0]) if drew else "")
+    cdp.send("Runtime.releaseObjectGroup", group)
+    return rules
+
+
+def ring_rule(target, pseudo=None, carrier="outline"):
+    """The selector of the rule drawing the ring on `target`, a locator, as
+    `ring_rules` reads it."""
+    target.evaluate("(box) => { globalThis.__lfRingBoxes = [box]; }")
+    return ring_rules(target.page, [(pseudo, carrier)])[0]
+
+
 def rings_drawn(page):
-    """Every focus ring the page is drawing, each with what is wrong with it."""
-    return page.evaluate(RINGS_DRAWN)
+    """Every focus ring the page is drawing, each with the rule that drew it (`rule`,
+    as `ring_rules` reads it) and what is wrong with it.
+
+    A non-focused element mark painting the band with no ring rule behind it is the
+    pointer's feedback contour rather than a ring, so it is left out."""
+    answers = page.evaluate(RINGS_DRAWN)
+    rules = ring_rules(page, [(seen["pseudo"], seen["carrier"]) for seen in answers])
+    drawn = []
+    for seen, rule in zip(answers, rules, strict=True):
+        if seen.pop("mark") and not seen["focused"] and not rule:
+            continue
+        seen["rule"] = rule
+        drawn.append(seen)
+    return drawn
 
 
 def standing_ring(page):

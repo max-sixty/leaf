@@ -39,7 +39,7 @@ import {
   render,
   offered,
   nothing,
-  once,
+  LeafElement,
   offer,
   TEXT_FIELD,
   paintKeys,
@@ -53,7 +53,6 @@ import {
   clearDraft,
   watchDraft,
   whileConnected,
-  widgetController,
   pressIsKeyboardActivation,
   reachedForWords,
   paintMarkdown,
@@ -92,13 +91,12 @@ function caretAt(body, x, y) {
 
 customElements.define(
   "lf-draft",
-  class extends HTMLElement {
+  class extends LeafElement {
     // What the ask was answered with: the current words.
     static answerWords(value) {
       return markdownWords(value).trim() || "Empty";
     }
 
-    #controller = widgetController(this);
     #body;
     #editor = null;
     #sending = false;
@@ -108,9 +106,7 @@ customElements.define(
     #resumeProjection = null;
     #recovered = false;
 
-    connectedCallback() {
-      if (!once(this)) return;
-
+    setup() {
       this.#body = this.querySelector(":scope > .lf-markdown-body");
       if (this.childNodes.length !== 1 || this.firstChild !== this.#body)
         this.replaceChildren(this.#body);
@@ -119,14 +115,9 @@ customElements.define(
       // A quoted draft is an exhibit: the same formatted text, none of the doors —
       // no controls, box press or editing shortcuts. Quoting
       // gates the action channel, not presentation.
-      if (quoted(this)) {
-        this.#subscribeReading();
-        return;
-      }
+      if (quoted(this)) return;
 
       this.#offerControls();
-
-      this.#subscribeReading();
 
       // A click opens the exact source at its rendered caret. Native controls,
       // links and completed word selections own their own gestures.
@@ -136,7 +127,7 @@ customElements.define(
         if (
           pressIsKeyboardActivation(ev) ||
           ev.button !== 0 ||
-          ev.target.closest("[data-lf-offer], a, button")
+          /** @type {Element} */ (ev.target).closest("[data-lf-offer], a, button")
         )
           return;
         if (reachedForWords(this)) return;
@@ -156,9 +147,9 @@ customElements.define(
         if (
           this.#editor &&
           !this.#resumeProjection &&
-          this.#controller.read().actions.edit.available
+          this.controller.read().actions.edit.available
         )
-          this.#resumeProjection = this.#controller.defer();
+          this.#resumeProjection = this.controller.defer();
         return () => {
           stopDraft?.();
           this.#resumeProjection?.();
@@ -167,27 +158,14 @@ customElements.define(
       });
     }
 
-    #subscribeReading() {
-      const interactive = !quoted(this);
-      this.#controller.subscribe((reading) => {
-        if (!interactive) return;
-        // Recovery chooses the first action face: an unsent editor opens with Save
-        // and Cancel, without briefly publishing the resting Edit control.
-        this.#recoverEdit();
-        this.#paintFooter();
-        if (this.#editor && !this.#resumeProjection && reading.actions.edit.available)
-          this.#resumeProjection = this.#controller.defer();
-      });
-    }
-
     #recoverEdit() {
       if (this.#recovered) return;
       this.#recovered = true;
       // A recovered edit outranks the authored text: the user typed it and never got
       // it sent, so it must survive exactly as the composer's drafts do. This runs in
-      // the first complete controller publication, after renderState established the
-      // source-authored body. A live revision's replacement nodes connect before their
-      // atomic document adoption and deliberately receive no partial semantic reading.
+      // the first complete reading, after the render established the source-authored
+      // body. A live revision's replacement nodes connect before their atomic document
+      // adoption and deliberately receive no partial semantic reading.
       //
       // An edit coming back is not the user arriving, though, so the box does not take
       // the focus. A revision that rewrote this draft connects it again while the user
@@ -235,7 +213,7 @@ customElements.define(
         this.#footer,
         copyBlock(
           this,
-          () => this.#editor?.value ?? this.#controller.read().state.edit.value,
+          () => this.#editor?.value ?? this.controller.read().state.edit.value,
           "Markdown",
         ),
       );
@@ -314,11 +292,11 @@ customElements.define(
     }
 
     #available() {
-      return Boolean(this.#controller.read().actions.edit?.available);
+      return Boolean(this.controller.read().actions.edit?.available);
     }
 
     #dispatch(text, attempt) {
-      return this.#controller.dispatch({
+      return this.controller.dispatch({
         kind: "action",
         verb: "edit",
         detail: { value: text },
@@ -332,12 +310,12 @@ customElements.define(
         notice("Wait for the current edit to finish sending");
         return;
       }
-      if (this.#available()) this.#resumeProjection ??= this.#controller.defer();
+      if (this.#available()) this.#resumeProjection ??= this.controller.defer();
       const editor = offer(TEXT_FIELD, "lf-draft-edit");
       editor.dataset.lfRuntime = "";
       // Words another tab's open editor holds outrank the current text: they are the
       // same unsent edit.
-      const effective = this.#controller.read().state.edit.value;
+      const effective = this.controller.read().state.edit.value;
       editor.value = seed ?? loadEdit(this.id) ?? effective;
       editor.setAttribute("aria-label", `Edit ${this.id}`);
       editor.addEventListener("input", () => {
@@ -402,7 +380,7 @@ customElements.define(
       if (!this.#editor || this.#sending) return;
       if (!this.#available()) return;
       const text = this.#editor.value;
-      if (text === this.#controller.read().state.edit.value) {
+      if (text === this.controller.read().state.edit.value) {
         this.#close(true);
         return;
       }
@@ -436,8 +414,17 @@ customElements.define(
     }
 
     // A live editor owns its transient text; the complete state waits for it.
-    renderState(state) {
+    render() {
+      const { state, actions } = this.reading;
       paintMarkdown(this.#body, state.edit.value);
+      if (quoted(this)) return nothing;
+      // Recovery chooses the first action face: an unsent editor opens with Save
+      // and Cancel, without briefly publishing the resting Edit control.
+      this.#recoverEdit();
+      this.#paintFooter();
+      if (this.#editor && !this.#resumeProjection && actions.edit.available)
+        this.#resumeProjection = this.controller.defer();
+      return nothing;
     }
   },
 );

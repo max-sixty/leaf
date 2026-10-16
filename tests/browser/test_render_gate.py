@@ -102,6 +102,7 @@ from render_harness import (
     plant_quiet_word,
     primed,
     reader_state,
+    reported_browser_errors,
     resized,
     root_overflow,
     scroll_followers,
@@ -595,12 +596,34 @@ def test_a_released_entry_that_never_arrives_is_named_like_any_other_file(
     assert stopped.value.finding.values["requesting"] == [entry_path]
 
 
+def test_browser_like_console_words_remain_console_diagnostics(browser):
+    """An authored message cannot establish an HTTP failure by imitating Chrome."""
+    page = browser.new_page()
+    text = (
+        "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    )
+    page.evaluate("text => console.error(text)", text)
+    [problem] = reported_browser_errors(page, text)
+    assert problem.code == "console-error"
+    assert problem.values == {"text": text, "url": ""}
+    assert str(problem) == text
+    page.evaluate(
+        "console.error('ordinary failure')\n//# sourceURL=http://page/author.js"
+    )
+    [problem] = reported_browser_errors(page, "ordinary failure")
+    assert problem.values == {
+        "text": "ordinary failure",
+        "url": "http://page/author.js",
+    }
+    assert str(problem) == "ordinary failure — http://page/author.js"
+
+
 def test_a_refused_document_reports_the_status_beside_the_wait_that_stopped(
     browser, serve, monkeypatch
 ):
     """A server that refuses the document leaves the proof with nothing to wait for
-    and the page with no console message of its own. The status the gate collected is
-    the only thing that says why the wait stopped, so the named wait carries it."""
+    and the page with no authored console message. The browser's native diagnostic
+    explains the refusal, so the named wait retains its complete text and URL."""
     real_proof = render_gate_scheme.start_with_pre_upgrade_proof
 
     def promptly(page, url):
@@ -620,9 +643,12 @@ def test_a_refused_document_reports_the_status_beside_the_wait_that_stopped(
     assert (failure.code, failure.scheme) == ("never-reached", "light")
     assert failure.values["arrival"] == "an authored main"
     assert {
-        "code": "failed-load",
+        "code": "console-error",
         "severity": "error",
-        "values": {"status": 401, "url": refused},
+        "values": {
+            "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+            "url": refused,
+        },
     } in failure.values["console"], failure
 
 
@@ -950,24 +976,27 @@ def test_arrival_reading_reports_a_deterministic_transition(browser, serve):
     )
 
 
-def test_shadow_stage_withholds_package_transitions_until_presentation(browser, serve):
+def test_shadow_stage_withholds_package_transitions_until_presentation(
+    browser, serve, tmp_path
+):
     """The shared shadow stage suppresses a package transition during arrival."""
+    theme = tmp_path / "transition-theme"
+    theme.mkdir()
+    (theme / "shadow.css").write_text("details { transition: color 60s linear; }\n")
     page = browser.new_page()
     held = []
     page.route("**/api/state*", lambda route: held.append(route))
-    page.goto(serve(PANEL_PAGE), wait_until="load")
+    page.goto(
+        serve(PANEL_PAGE, packages=(*EXAMPLE_PACKAGES, "./transition-theme")),
+        wait_until="load",
+    )
     render_checks_model.wait_for_probe(page, "upgraded")
     assert held, "the state read completed before the shadow guard was observed"
     assert page.locator("body").get_attribute("data-lf-presented") is None
     assert (
         page.evaluate(
-            """() => {
-                  const root = document.querySelector("#how-patch").shadowRoot;
-                  const style = document.createElement("style");
-                  style.textContent = "details { transition: color 60s linear; }";
-                  root.append(style);
-                  return getComputedStyle(root.querySelector("details")).transitionProperty;
-                }"""
+            """() => getComputedStyle(document.querySelector("#how-patch")
+                  .shadowRoot.querySelector("details")).transitionProperty"""
         )
         == "none"
     )
@@ -1040,14 +1069,16 @@ def test_the_render_gate_requires_a_declared_threads_host_and_a_defined_element(
     registry_path.write_text(json.dumps(registry, indent=2))
     module = package / "widgets" / "lf-callout.js"
     source = module.read_text()
-    runtime_import = 'import { once } from "/runtime/widget-api.js";'
-    once = "      if (!once(this)) return;\n"
-    assert source.count(runtime_import) == 1 and source.count(once) == 1
+    runtime_import = 'import { LeafElement } from "/runtime/widget-api.js";'
+    starter = "class extends LeafElement {},"
+    assert source.count(runtime_import) == 1 and source.count(starter) == 1
     module.write_text(
         source.replace(
-            runtime_import, 'import { threadBox, once } from "/runtime/widget-api.js";'
+            runtime_import,
+            'import { LeafElement, threadBox } from "/runtime/widget-api.js";',
         ).replace(
-            once, '      if (once(this)) this.append(threadBox(this, "Question"));\n'
+            starter,
+            'class extends LeafElement { setup() { this.append(threadBox(this, "Question")); } },',
         )
     )
     page = CUSTOM_WIDGET_PAGE.replace(
@@ -1080,7 +1111,7 @@ def test_the_render_gate_requires_a_declared_threads_host_and_a_defined_element(
 def test_the_render_gate_refuses_visual_inventories_it_cannot_trust(
     browser, serve, tmp_path, monkeypatch
 ):
-    """A provider must register a valid inventory whose ids its prefixes admit."""
+    """A provider registers its inventory and declares which generated ids it admits."""
     monkeypatch.chdir(tmp_path)
     add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     callout = json.loads((tmp_path / ".leaf" / "registry.json").read_text())[
@@ -1097,13 +1128,10 @@ def test_the_render_gate_refuses_visual_inventories_it_cannot_trust(
         },
         "lf-callout": callout,
     }
-    widgets = visual_widgets(outside_surface_for="outside") | visual_widgets(
-        tag="lf-test-visual-prefixed"
-    )
+    widgets = visual_widgets() | visual_widgets(tag="lf-test-visual-prefixed")
     markup = CUSTOM_WIDGET_PAGE.replace(
         "</main>",
-        """<lf-test-visual id="outside" parts="all"></lf-test-visual>
-<lf-test-visual-prefixed id="prefixed"></lf-test-visual-prefixed>
+        """<lf-test-visual-prefixed id="prefixed"></lf-test-visual-prefixed>
 </main>""",
     )
     failures = render_gate_model.render_version(
@@ -1122,18 +1150,6 @@ def test_the_render_gate_refuses_visual_inventories_it_cannot_trust(
     assert {problem["kind"] for _, _, problem in problems("lf-callout")} == {
         "unregistered"
     }, failures
-    visual = problems("lf-test-visual")
-    assert [(scheme, at, problem["kind"]) for scheme, at, problem in visual] == [
-        (scheme, "<lf-test-visual id=outside>", "unreadable")
-        for scheme in ("light", "dark")
-    ], failures
-    unread = [problem["error"] for _, _, problem in visual if "error" in problem]
-    assert len(unread) == 2, failures
-    assert all(
-        "Visual part outer has no descendant Element surface" in error
-        and "TypeError:" in error
-        for error in unread
-    ), unread
     assert problems("lf-test-visual-prefixed") == [
         (
             scheme,
@@ -1149,10 +1165,9 @@ def test_replay_findings_keep_the_throw_site(browser, serve):
     page = open_page(browser, serve(SHORT_SUGGESTION))
     page.evaluate("""async () => {
       const {validationWidgetStates} = await window.__lfCheckApi();
-      const widget = validationWidgetStates().find(s => s.widget?.renderState).widget;
-      window.restoreReplay = () => { widget.renderState = original; };
-      const original = widget.renderState;
-      widget.renderState = function replayProjection() { throw new TypeError('replay rejected'); };
+      const widget = validationWidgetStates().find(s => s.widget?.redraw).widget;
+      window.restoreReplay = () => { delete widget.render; };
+      widget.render = function replayProjection() { throw new TypeError('replay rejected'); };
     }""")
     try:
         findings = render_checks_model.evaluate_probe(page, "relativeReplays")
@@ -1296,7 +1311,7 @@ flowchart TD
 
     assert page.locator("#identities").evaluate("e => [...e.visualParts.keys()]") == [
         "node:123",
-        "node:Ω",
+        "node:%CE%A9",
     ]
 
 
@@ -1941,13 +1956,10 @@ def _author_stateful_verbatim_widget(tmp_path):
         "});\n"
     )
     (tmp_path / ".leaf" / "widgets" / "lf-stateful.js").write_text(
-        'import { keepsText, once, widgetController } from "/runtime/widget-api.js";\n'
-        'customElements.define("lf-stateful", class extends HTMLElement {\n'
-        "  controller = widgetController(this);\n"
-        "  stop;\n"
-        "  connectedCallback() { once(this); this.stop ??= this.controller.subscribe(() => {}); }\n"
-        "  disconnectedCallback() { this.stop?.(); this.stop = null; }\n"
-        "  renderState(state) {\n"
+        'import { LeafElement, keepsText } from "/runtime/widget-api.js";\n'
+        'customElements.define("lf-stateful", class extends LeafElement {\n'
+        "  render() {\n"
+        "    const { state } = this;\n"
         '    if (state.change.value === "corrupt" || state.status.value === "corrupt")\n'
         '      keepsText(this.closest("lf-shell")?.querySelector(":scope > p")'
         ' ?? this.querySelector("p"), "State replaced unrelated prose.");\n'
@@ -2582,6 +2594,11 @@ def resize_findings(page, path):
         ]
 
     left_alone(page)
+    # A sample can hold its child's growth while the reader sees the frame. Resizing
+    # interrupts that reading and releases the held height; take the baseline after
+    # that first release, so the return trip compares settled layouts at each width.
+    resized(page, path[-1], 900)
+    resized(page, path[0], 900)
     said = {width: at_width(width) for width in path}
     for width in path[-2::-1]:
         if changes := state_changes(said[width], at_width(width)):
@@ -2904,6 +2921,25 @@ def test_frame_edges_pass_through_whatever_stands_at_them(browser, serve):
     ]
 
 
+def test_the_page_edge_is_no_frame(browser, serve):
+    """A page with no Layout keeps the browser's margin on its body, and the live root
+    scrolls, so the root holds that margin in. The root draws no frame, its edge
+    being the window's, so the reading has nothing to ask of it, where it named the
+    root of every such page. A root that draws padding is a frame like any box."""
+    page = open_page(
+        browser, serve(leaf_page("No Layout", "<p>Plain prose.</p>", layout=None))
+    )
+    margin = page.evaluate("() => getComputedStyle(document.body).marginTop")
+    trapped = render_checks_model.evaluate_probe(page, "trappedMargins")
+    page.evaluate("() => document.documentElement.style.padding = '12px'")
+    framed = render_checks_model.evaluate_probe(page, "trappedMargins")
+    page.close()
+
+    assert margin == "8px", "the body lost the browser's margin, so this tests nothing"
+    assert trapped == [], trapped
+    assert [f["at"] for f in framed] == ["<html>", "<html>"], framed
+
+
 @pytest.mark.parametrize("display", ("flex", "grid"))
 @pytest.mark.parametrize("frame", ("1", "trim", "propagated"))
 def test_a_row_at_a_frame_edge_holds_the_trim_by_declaring_it(
@@ -3074,6 +3110,7 @@ RELOCATE_ADOPTED = """async () => {
     const order = [...document.styleSheets].map((sheet) => sheet.cssRules[0])
         .find((rule) => rule instanceof CSSLayerStatementRule);
     const style = document.createElement('style');
+    style.setAttribute('data-controls', '');
     style.textContent = [order, ...rules].map((rule) => rule.cssText).join('\\n');
     // A copy: adoptedStyleSheets is a live array, so the assignment below would empty
     // the saved reference along with it.
@@ -3545,7 +3582,23 @@ FRAMED_TABLES_PAGE = leaf_page(
 <table id="allocated" data-width="wide"><tr><th>Session</th><td>9:00</td></tr></table>
 <figure data-width="available">
 <table id="figure-table"><tr><th>Session</th><td>9:00</td></tr></table>
+<lf-ask id="figure-asked">
+<h2>Which session ends?</h2>
+<table id="figure-asked-table"><tr><th>Session</th><td>17:00</td></tr></table>
+<lf-options id="figure-asked-choice" choose>
+<lf-option id="figure-asked-early"><strong>Early</strong> End it at 16:00.</lf-option>
+<lf-option id="figure-asked-late"><strong>Late</strong> End it at 18:00.</lf-option>
+</lf-options>
+</lf-ask>
 </figure>
+<lf-ask id="asked">
+<h2>Which session moves?</h2>
+<table id="asked-table"><tr><th>Session</th><td>9:00</td></tr></table>
+<lf-options id="asked-choice" choose>
+<lf-option id="asked-early"><strong>Early</strong> Move it to 8:00.</lf-option>
+<lf-option id="asked-late"><strong>Late</strong> Move it to 10:00.</lf-option>
+</lf-options>
+</lf-ask>
 <section class="panel" id="checks">
 <h2>Checks</h2>
 <table id="framed"><thead><tr><th>Check</th><th>Observed</th></tr></thead>
@@ -3952,7 +4005,8 @@ def test_a_breakout_takes_the_rooms_width_unless_the_page_sizes_it(browser, serv
     edge but short of the room is off the axis too, and a room inside a scroller is
     read inside its scrollbar gutter, which a styled scrollbar keeps classic headless. The reading asks only of a
     box the margins grew that the user can see: a positioned frame is placed by its
-    own offsets, and its parent is not what holds it."""
+    own offsets, and its parent is not what holds it. A link around a frame holds it
+    no more than a wrapper drawing no box does, so the room is read past the link."""
     source = leaf_page(
         "Sized breakouts",
         """
@@ -3962,6 +4016,7 @@ def test_a_breakout_takes_the_rooms_width_unless_the_page_sizes_it(browser, serv
 <iframe id="granted" title="Granted" data-width="wide" style="display: block"></iframe>
 <iframe id="sized" class="sized" title="Sized" data-width="wide" style="display: block"></iframe>
 <iframe id="wider" title="Wider" data-width="wide" style="display: block; width: 130%"></iframe>
+<a href="#prose"><iframe id="linked" title="Linked" data-width="wide" style="display: block"></iframe></a>
 <style>#gutter::-webkit-scrollbar { width: 15px; height: 15px; }</style>
 <div id="gutter" style="overflow: scroll; scrollbar-gutter: stable">
   <iframe id="guttered" title="Guttered" data-width="wide" style="display: block"></iframe>
@@ -3988,6 +4043,52 @@ def test_a_breakout_takes_the_rooms_width_unless_the_page_sizes_it(browser, serv
     assert at["granted"]["right"] - at["prose"]["right"] == pytest.approx(grown, abs=1)
     off = [m["at"] for m in misplaced if m["code"] == "off-axis"]
     assert off == ["<iframe id=sized>", "<iframe id=wider>"], misplaced
+
+
+def test_an_ask_spanning_its_block_is_a_breakout(browser, serve):
+    """An Ask allocated the column spans the wide block it holds, so its ring goes round
+    the block, and the gate named it as set out in the margin on every page with one.
+    The theme says which boxes it lets stand past their holders, so the gate reads the
+    Ask as the breakout it is. A page width on an Ask moves its edges off the column's,
+    so its block keeps to it and neither stands past the column. A box padded or sized
+    past the column without that leave is named, whether or not it paints there or a
+    breakout fills it."""
+    ask = """<lf-ask id="{id}"><h2>Which one?</h2>
+  <figure data-width="wide"><p>Evidence the room holds.</p></figure>
+  <lf-options id="{id}-o" choose><lf-option id="{id}-a">This one</lf-option></lf-options>
+</lf-ask>"""
+    source = leaf_page(
+        "Reaching past the column",
+        f"""
+<h1>Reaching past the column</h1>
+<style>#sized-ask {{ max-width: 36rem; }}</style>
+<p>Prose sets the column.</p>
+{ask.format(id="ask")}
+{ask.format(id="sized-ask")}
+<div id="bare" style="margin: 0 -120px; padding: 0 120px; text-indent: -120px">Out.</div>
+<div id="tinted" style="margin: 0 -120px; padding: 0 120px; background: #eee">Tint.</div>
+<div id="sized" style="width: calc(100% + 120px); background: #eee; --lf-block-frame: 1">
+  <figure data-width="wide"><p>Evidence that fills the box.</p></figure>
+</div>
+""",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1440, 900)
+    grown = page.evaluate("""() => {
+      const ask = document.getElementById('ask').getBoundingClientRect();
+      const prose = document.querySelector('main > p').getBoundingClientRect();
+      return prose.left - ask.left;
+    }""")
+    misplaced = render_checks_model.evaluate_probe(page, "misplacedBoxes")
+    page.close()
+
+    assert grown > 100, "the Ask never spanned its block, so nothing here was tested"
+    found = sorted((m["code"], m["at"]) for m in misplaced)
+    assert found == [
+        ("past-column", "<div id=bare>"),
+        ("past-column", "<div id=sized>"),
+        ("past-column", "<div id=tinted>"),
+    ], misplaced
 
 
 def test_a_change_level_with_a_note_is_decided_on_the_change(browser, serve):
@@ -4415,16 +4516,19 @@ def test_an_authored_project_widget_loads_through_the_real_layer(
     )
     module = widgets / "lf-callout.js"
     source = module.read_text()
-    runtime_import = 'import { once } from "/runtime/widget-api.js";'
+    runtime_import = 'import { LeafElement } from "/runtime/widget-api.js";'
     assert source.count(runtime_import) == 1
     source = source.replace(
         runtime_import,
         runtime_import + '\nimport { label } from "./callout-label.js";',
     )
-    once = "      if (!once(this)) return;"
-    assert source.count(once) == 1
+    starter = "class extends LeafElement {},"
+    assert source.count(starter) == 1
     module.write_text(
-        source.replace(once, "      if (once(this)) this.dataset.helper = label;")
+        source.replace(
+            starter,
+            "class extends LeafElement { setup() { this.dataset.helper = label; } },",
+        )
     )
 
     url = serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
@@ -4476,6 +4580,7 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
         """() => {
              const s = document.createElement('style');
              s.id = 'trap';
+             s.setAttribute('data-controls', '');
              s.textContent =
                '.lf-thread { padding-top: 8px !important }'
                + '.lf-thread > .lf-thread-summary { margin-block-start: 9px !important }';

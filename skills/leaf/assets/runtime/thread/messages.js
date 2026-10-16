@@ -14,7 +14,7 @@
    admission and later descriptor paints never replay the cue.
    The fragment is captured inertly before its first upgrade; panel
    presentation waits for preparation before capturing typed authored state. */
-import { html, render, nothing } from "../../vendor/browser-runtime.js";
+import { html, render, nothing } from "/vendor/browser-runtime.js";
 import {
   loadMarkdown,
   markdownReady,

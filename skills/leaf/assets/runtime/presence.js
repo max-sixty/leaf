@@ -1,137 +1,35 @@
 // Every timestamp the page renders was written by its server. Keep the browser's one
 // measured offset here, beside the two public readings that depend on it, so no seat can
 // accidentally render against a second clock.
+import { outsideReading } from "/vendor/browser-runtime.js";
 import { watchOwner } from "./arrivals.js";
 import { reportPageError } from "./layer-client.js";
 
 let clockSkew = 0;
-let clockReads = null;
-const clockPaints = new Set();
+// Every follower of a time reading, called on each tick of the shared clock.
+const ticks = new Set();
+const onTick = (moved) => {
+  ticks.add(moved);
+  return () => ticks.delete(moved);
+};
 export const serverNow = () => Date.now() + clockSkew;
 // When a gesture was made, on the clock every other reading of a message uses. A
 // message this page paints before the log names it still has to say when it was said,
 // and the browser's own clock is the one reading that can disagree with the rest.
 export const saidNow = () => new Date(serverNow()).toISOString();
 
-// A clock reading is a displayed value or a temporal predicate, not raw wall time.
-// Remember the readings made by each synchronous paint so the shared tick can wake
-// only the paints whose answers changed. The callback receives the calibrated server-now
-// milliseconds used by the comparison. Nested paints own their own dependencies.
-export function clockValue(read) {
-  const value = read(serverNow());
-  clockReads?.push({ read, value });
-  return value;
-}
-
-// A deferred presenter supplies `invalidate` to claim its next pass synchronously.
-// A paint that reads the time after it waits resumes there through `resume`.
-// Only calling the returned paint replaces its dependencies; invalidation retains
-// them while that pass is queued or awaiting preparation. The claim's return is
-// ignored: its presenter owns completion and failure; the clock owns direct paints.
-// The paint's time readings follow its owner's lifetime (`watchOwner`): they pause
-// while it is away and its return puts them back on the clock, so the next tick
-// repaints what aged. `stop()` takes the paint off the clock and retires its lifetime
-// until it paints again. The lifetime is held from construction, so a first paint
-// made while its owner's subscriptions are connecting starts no subscription of its own.
-export function clocked(owner, paint, invalidate) {
-  let args;
-  let painted = false;
-  let reads = [];
-  let generation = 0;
-  let connected = false;
-  let stopLifetime = null;
-  const entry = {
-    owner,
-    changed: () => reads.some(({ read, value }) => read(serverNow()) !== value),
-    refresh: () => {
-      if (!painted) return;
-      if (invalidate) invalidate();
-      else return render(...args);
-    },
-  };
-  const listen = () => {
-    if (connected && reads.length) clockPaints.add(entry);
-    else clockPaints.delete(entry);
-  };
-  const follow = () =>
-    watchOwner(owner, {
-      connect() {
-        connected = true;
-        listen();
-      },
-      disconnect() {
-        connected = false;
-        listen();
-      },
-    });
-  stopLifetime = follow();
-  // The collection this paint's time readings go to while it runs, its own render's
-  // or a continuation's; another paint rendering inside it collects into its own.
-  let collecting = null;
-  function render(...next) {
-    const painting = ++generation;
-    args = next;
-    painted = true;
-    const outer = clockReads;
-    clockReads = [];
-    const outerCollecting = collecting;
-    collecting = clockReads;
-    try {
-      return paint(...args);
-    } finally {
-      collecting = outerCollecting;
-      const nextReads = clockReads;
-      clockReads = outer;
-      if (painting === generation) {
-        reads = nextReads;
-        stopLifetime ??= follow();
-        listen();
-      }
-    }
-  }
-  render.stop = () => {
-    generation += 1;
-    reads = [];
-    stopLifetime?.();
-    stopLifetime = null;
-  };
-  render.refresh = entry.refresh;
-  // A paint that waits wraps each continuation in `resume`, called while it renders or
-  // inside a continuation it resumed, so the time readings the continuation makes join
-  // that paint's. Called anywhere else, or once a later paint has replaced this one, it
-  // adds nothing.
-  render.resume = (run) => {
-    const painting = collecting ? generation : null;
-    return (...more) => {
-      // Run where this paint is already collecting, its readings go in with the rest.
-      if (painting !== generation || (collecting && clockReads === collecting))
-        return run(...more);
-      const outer = clockReads;
-      clockReads = [];
-      const outerCollecting = collecting;
-      collecting = clockReads;
-      try {
-        return run(...more);
-      } finally {
-        collecting = outerCollecting;
-        const resumed = clockReads;
-        clockReads = outer;
-        // Still inside this paint's own run, the readings join the collection it will
-        // keep; after it, they join what it kept.
-        if (collecting) collecting.push(...resumed);
-        else if (painting === generation) {
-          reads = [...reads, ...resumed];
-          listen();
-        }
-      }
-    };
-  };
-  return render;
-}
+// A clock reading is a displayed value or a temporal predicate, not raw wall time. It is
+// recorded in the collection of whatever paint reads it, beside the parts of the
+// publication that paint read (`outsideReading`), so a watcher or a region follows the
+// time it shows by the rule it follows those by, and the shared tick wakes only the
+// paints whose answers changed. The callback receives the calibrated server-now
+// milliseconds used by the comparison.
+export const clockValue = (read) =>
+  outsideReading(() => read(serverNow()), onTick).read();
 
 /** The paint of one reading at a time, kept across the owner's departures, and the one
  * rule for what a returning owner is drawn again and for a draw that fails. Calling
- * `paint(key, ...args)` draws `draw(...args)` through `clocked`, unless `key` names the
+ * `paint(key, ...args)` draws `draw(...args)`, unless `key` names the
  * reading already painted: a return repaints only what changed while away. A draw whose
  * returned promise does not settle while its owner stands was cut short, and the next
  * call draws it again. A draw that throws or rejects while its owner stands is reported
@@ -140,12 +38,12 @@ export function clocked(owner, paint, invalidate) {
  * caller may hand to a presentation or ignore. A drawn reading stands, failed or not,
  * so a refusal is not reported twice, and the next changed reading draws again. One cut
  * short is not reported, since its return draws it again. Every draw takes this rule,
- * whether a call, `refresh()` or the clock started it. `owes(key)` says whether
- * `paint(key)` would draw, `forget()` owes the next call a draw, `refresh()` redraws the
- * last reading, at once or on the return, and `stop()` retires the paint. Its owner's
- * subscriptions stay the caller's. A deferred presenter passes `invalidate`, as to
- * `clocked`. */
-export function readingPaint(owner, draw, invalidate) {
+ * whether a call or `refresh()` started it. `owes(key)` says whether `paint(key)` would
+ * draw, `forget()` owes the next call a draw, `refresh()` redraws the last reading, at
+ * once or on the return, and `stop()` retires the paint. Following what a draw reads,
+ * the time included, is the caller's: `watchProjection` draws through this and follows
+ * everything its paint read. */
+export function readingPaint(owner, draw) {
   let painted = false;
   let key;
   // The latest draw still running, which a departure leaves owed, and every draw still
@@ -165,41 +63,40 @@ export function readingPaint(owner, draw, invalidate) {
       reason,
       `paint failed for ${owner.localName}${owner.id ? `#${owner.id}` : ""}`,
     );
-  const render = clocked(
-    owner,
-    (...args) => {
-      pending = null;
-      let result;
-      try {
-        result = draw(...args);
-      } catch (error) {
-        failed(error);
-        const refused = Promise.reject(error);
-        refused.catch(() => {});
-        return refused;
-      }
-      if (typeof result?.then === "function") {
-        /** @type {{cut?: boolean}} */
-        const mark = (pending = {});
-        running.add(mark);
-        const settled = (reason, rejected) => {
-          running.delete(mark);
-          mark.cut ||= !owner.isConnected;
-          if (pending === mark) {
-            pending = null;
-            if (mark.cut) painted = false;
-          }
-          if (rejected && !mark.cut) failed(reason);
-        };
-        result.then(
-          () => settled(),
-          (reason) => settled(reason, true),
-        );
-      }
-      return result;
-    },
-    invalidate,
-  );
+  // The arguments of the last draw, which `refresh()` draws again.
+  let last = null;
+  const render = (...args) => {
+    last = args;
+    pending = null;
+    let result;
+    try {
+      result = draw(...args);
+    } catch (error) {
+      failed(error);
+      const refused = Promise.reject(error);
+      refused.catch(() => {});
+      return refused;
+    }
+    if (typeof result?.then === "function") {
+      /** @type {{cut?: boolean}} */
+      const mark = (pending = {});
+      running.add(mark);
+      const settled = (reason, rejected) => {
+        running.delete(mark);
+        mark.cut ||= !owner.isConnected;
+        if (pending === mark) {
+          pending = null;
+          if (mark.cut) painted = false;
+        }
+        if (rejected && !mark.cut) failed(reason);
+      };
+      result.then(
+        () => settled(),
+        (reason) => settled(reason, true),
+      );
+    }
+    return result;
+  };
   const owes = (next) => !painted || key !== next;
   const paint = (next, ...args) => {
     if (stopped || !owes(next)) return undefined;
@@ -216,26 +113,22 @@ export function readingPaint(owner, draw, invalidate) {
   // A refresh asked for while the owner is away is owed to its return.
   paint.refresh = () => {
     if (stopped) return undefined;
-    if (owner.isConnected) return render.refresh();
+    if (owner.isConnected) return last ? render(...last) : undefined;
     painted = false;
   };
   paint.stop = () => {
     stopped = true;
     stopLifetime();
-    render.stop();
   };
   return paint;
 }
 
 export async function tickClock(reportError) {
-  // Package paints are independent subscribers. A bad clock read or repaint must
-  // not starve later subscribers or turn a healthy state feed back into polling.
+  // Package paints are independent followers. A bad clock read or repaint must not
+  // starve later followers or turn a healthy state feed back into polling.
+  const round = {};
   const settled = await Promise.allSettled(
-    [...clockPaints].map(async (entry) => {
-      // An owner removed before its departure reaches the arrival batch stays on the
-      // clock until it does, and is not painted meanwhile.
-      if (entry.owner.isConnected && entry.changed()) return entry.refresh();
-    }),
+    [...ticks].map(async (moved) => moved(round)),
   );
   for (const result of settled)
     if (result.status === "rejected") reportError(result.reason, "clock paint failed");

@@ -9,7 +9,7 @@
    the thread out of a view it leaves (thread-card.js, `#goWithThread`). */
 import { randomId } from "../ids.js";
 import { paintKeys } from "../keyboard/scopes.js";
-import { foldDuration, motion } from "../motion.js";
+import { foldBlock } from "../motion.js";
 import { pendingForParent } from "../pending/model.js";
 import { bindQueuedWork } from "../queued-work.js";
 import { whenDocumentPresented } from "../semantic-state.js";
@@ -83,23 +83,7 @@ export function foldOut(node, repaintThread) {
   if (running && node.isConnected) return true;
   folding.delete(node);
   running?.played.cancel();
-  const style = getComputedStyle(node);
-  // Every length holding the box open folds to nothing: an open panel card's floor
-  // (`min-height`, chrome.css) as well as its height.
-  const from = {
-    height: node.getBoundingClientRect().height + "px",
-    minHeight: style.minHeight,
-    marginBottom: style.marginBottom,
-    borderTopWidth: style.borderTopWidth,
-    borderBottomWidth: style.borderBottomWidth,
-    paddingTop: style.paddingTop,
-    paddingBottom: style.paddingBottom,
-    opacity: 1,
-  };
-  /** @type {Record<string, string | number>} */
-  const to = Object.fromEntries(Object.keys(from).map((key) => [key, "0px"]));
-  to.opacity = 0;
-  const played = motion(node, [from, to], foldDuration());
+  const played = foldBlock(node);
   if (!played) return false;
   const record = { played };
   folding.set(node, record);

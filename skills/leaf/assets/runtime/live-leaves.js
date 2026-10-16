@@ -1,11 +1,13 @@
 /* This module derives the machine's immutable Leaves presentation and owns its walk. */
-import { clocked } from "./presence.js";
+import { watchProjection } from "./projection-watch.js";
+import { runtime } from "./context.js";
 import { pagePresented } from "./page-paint.js";
 import { liveLeavesList, drawerIsOpen, othersPanel } from "./drawers.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
 import { activityFacts, leafRow } from "./activity-words.js";
 import { rowWalk } from "./walk-position.js";
 
+/** @type {readonly any[]} */
 let others = [];
 let rows = Object.freeze([]);
 
@@ -26,6 +28,10 @@ const presentationModel = () =>
     rows,
   });
 export const presentLeaves = () => liveLeavesList.present(presentationModel());
+// How many rows the drawer lists, for a menu row that names the drawer beside its count.
+// It reads the state itself, so a paint drawing the count follows it as neighbours come
+// and go.
+export const leavesCount = () => listedPages(runtime.state).length;
 
 // The drawer's own scope. The walk is the drawer's rather than the page's, because the
 // arrows, Home and End anywhere else are the page's own scroll and stay so; Enter is the
@@ -70,28 +76,32 @@ const rowAccount = (entry, title, line) =>
     .filter(Boolean)
     .join("\n");
 
-function renderOthersNow(state) {
-  const offeredBefore = leavesOffered();
-  // Null is the explicit pre-read state. It has no self presence to draw, and recovery
-  // from a refused first reading must remove every row that candidate introduced.
-  // `others` holds live neighbours only: a closed one leaves it (presence.py).
-  others = state === null ? [] : state.others;
-  // A neighbour's row is its page, keyed by `page_key`, and its link is wherever that
-  // page is served now. A server restarted on another port keeps the row, and the focus
-  // on it, where they were; only the destination changes.
-  const wanted = state
-    ? [
+// The pages the drawer lists for a state reading: this page's own, then each live
+// neighbour. A neighbour's row is its page, keyed by `page_key`, and its link is wherever
+// that page is served now. A server restarted on another port keeps the row, and the
+// focus on it, where they were; only the destination changes.
+const listedPages = (state) =>
+  state === null
+    ? []
+    : [
         { key: "self", href: null, title: document.title, entry: state },
-        ...others.map((entry) => ({
+        ...state.others.map((entry) => ({
           key: entry.page_key,
           href: entry.url,
           title: entry.title,
           entry,
         })),
-      ]
-    : [];
+      ];
+
+function paintOthers() {
+  const state = runtime.state;
+  const offeredBefore = leavesOffered();
+  // Null is the explicit pre-read state. It has no self presence to draw, and recovery
+  // from a refused first reading must remove every row that candidate introduced.
+  // `others` holds live neighbours only: a closed one leaves it (presence.py).
+  others = state === null ? [] : state.others;
   rows = Object.freeze(
-    wanted.map(({ key, href, title, entry }) => {
+    listedPages(state).map(({ key, href, title, entry }) => {
       const { tone, line } = leafRow(entry);
       return Object.freeze({
         key,
@@ -108,7 +118,8 @@ function renderOthersNow(state) {
   return presentLeaves();
 }
 
-// Clocked on the list rather than on the body: the body never leaves, so a clock owned
-// by it would go on repainting a drawer that has, and the owner argument is exactly the
-// question of whose departure ends the paint.
-export const renderOthers = clocked(liveLeavesList, renderOthersNow);
+// Owned by the list rather than the body: the body never leaves, so a clock owned by it
+// would go on repainting a drawer that has, and the owner argument is exactly the
+// question of whose departure ends the paint. An offline page never mounts the list,
+// so it draws no rows.
+watchProjection(liveLeavesList, paintOthers);

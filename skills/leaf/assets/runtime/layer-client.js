@@ -33,7 +33,7 @@
    work. Code running inside a sample's child page reports to the child's own
    disposable log, not the page that embeds it. */
 
-import { describeFailure } from "../vendor/browser-runtime.js";
+import { describeFailure } from "/vendor/browser-runtime.js";
 import { countTraffic } from "./traffic.js";
 import { recordInteraction } from "./interaction-log.js";
 import { DELIVERY, offlineInteractive, pageUrl, runtime } from "./context.js";
@@ -129,6 +129,17 @@ export function layerHeaders(headers = {}) {
   };
 }
 
+// A state request names the data reading the tab holds, and an answer whose data is
+// still that version leaves out its sources (http.py, `page_state`): data moves only
+// when an agent sets it, so a gesture's answer need not carry back every source value.
+// The answer's reader restores them from the reading its request named.
+/** @param {{version: string | null}} held */
+export const dataHeaders = (held) =>
+  held.version === null ? {} : { "Leaf-Data-Version": held.version };
+/** @param {{version: string | null}} held */
+export const completeData = (state, held) =>
+  state && !state.data.sources ? { ...state, data: held } : state;
+
 // An answer `admitResponse` refused: it came from another delivery, and whether the page
 // reloads is already settled there. Each caller says what that means for its request.
 export class LayerRefused extends Error {}
@@ -158,9 +169,11 @@ export async function requestJson(url, init, what) {
     } catch (error) {
       throw failed(`${what}: HTTP ${response.status}`, error);
     }
+  // `said` is the server's own words for the refusal, where it gave any.
   if (!response.ok)
     throw Object.assign(failed(answer?.error ?? `${what}: HTTP ${response.status}`), {
       current: answer?.current,
+      said: answer?.error,
     });
   return answer;
 }
@@ -195,9 +208,7 @@ export function admitResponse(response) {
 // its canonical root; another page or deployment has a separate saved record.
 let sessionMode = release ? "unknown" : "active";
 const sessionChannel =
-  release &&
-  !document.documentElement.lfSample &&
-  typeof window.BroadcastChannel !== "undefined"
+  release && !document.documentElement.lfSample
     ? new window.BroadcastChannel(`leaf-session:${release}:${pageUrl("")}`)
     : null;
 
@@ -241,7 +252,7 @@ export { revealLayer };
 // deliberately doesn't — and what they share is the request rather than anything about
 // the sending: same path, same method, same encoding, so a door that moved would move
 // for both. Whether a send waits on the one before it belongs to the caller.
-export const postEvent = async (event) => {
+export const postEvent = async (event, held = runtime.data) => {
   if (offlineInteractive)
     throw new Error("no agent or server is available in an interactive export");
   await layerReady;
@@ -253,6 +264,7 @@ export const postEvent = async (event) => {
       method: "POST",
       headers: layerHeaders({
         "Content-Type": "application/json",
+        ...dataHeaders(held),
       }),
       body: JSON.stringify(event),
     });

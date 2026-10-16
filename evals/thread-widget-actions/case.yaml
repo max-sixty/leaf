@@ -4,8 +4,8 @@ description: thread-widget-actions
 metadata:
   purpose: A package gives its own Thread controls the same typed actions as Leaf's controls.
   tags:
-  - packages
-  - threads
+    - packages
+    - threads
 vars:
   prompt: |
     Write a Leaf package widget module for `<lf-thread-queue>`. It shows the current
@@ -16,11 +16,12 @@ vars:
 
     The page directory is not reachable from here. Reply with the JavaScript module.
 assert:
-- type: llm-rubric
-  metric: judgment
-  value: |
-    Pass only if the JavaScript uses `watchThreads` for the shared Thread collection,
-    keeps its own selected Thread by `thread.key`, calls `threadActions.reply` for Send
-    and `threadActions.resolve` or `threadActions.reopen` for settlement, and stops its
-    subscription on disconnect. It must not post raw events, use a private runtime
-    module, or mount Leaf's built-in Thread view.
+  - type: llm-rubric
+    metric: judgment
+    value: |
+      Pass only if the JavaScript reads the shared Thread collection with `readThreads()`
+      in a `watchProjection` paint,
+      keeps its own selected Thread by `thread.key`, calls `threadActions.reply` for Send
+      and `threadActions.resolve` or `threadActions.reopen` for settlement, and stops its
+      subscription on disconnect. It must not post raw events, use a private runtime
+      module, or mount Leaf's built-in Thread view.

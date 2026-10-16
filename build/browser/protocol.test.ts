@@ -35,12 +35,8 @@ type Takes<New, Old> = [Old] extends [New] ? true : false;
 const commandsKeepTheirFields: None<
   Dropped<Vendored.BrowserCommandMap, Current.BrowserCommandMap>
 > = true;
-const commandsStillAdmitted: Takes<
-  Current.BrowserCommand,
-  Vendored.BrowserCommand
-> = true;
+const commandsStillAdmitted: Takes<Current.BrowserCommand, Vendored.BrowserCommand> =
+  true;
 // What the page's log holds, which the current Leaf must read.
-const recordsKeepTheirFields: None<
-  Dropped<Vendored.EventMap, Current.EventMap>
-> = true;
+const recordsKeepTheirFields: None<Dropped<Vendored.EventMap, Current.EventMap>> = true;
 const recordsStillRead: Takes<Current.Event, Vendored.Event> = true;

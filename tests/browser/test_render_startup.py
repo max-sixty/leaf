@@ -49,7 +49,6 @@ from render_cases_layout import (
 from render_cases_navigation import (
     _CARD,
     DRAFT_EDITED,
-    DRAFT_TEXT,
     FIRST_PRESENTATION,
     JOURNEY_V1,
     JOURNEY_V2,
@@ -60,6 +59,7 @@ from render_cases_navigation import (
     _card_done,
     _draft_says,
     _publish,
+    actions,
     composer_quote,
     data_projection_page,
     live_watcher,
@@ -69,10 +69,10 @@ from render_cases_widgets import (
     CHART_PAGE,
     GENERIC_VISUAL_LAYER,
     GENERIC_VISUAL_PAGE,
-    GENERIC_VISUAL_WIDGETS,
     MANIFEST_DIFF_PAGE,
     MULTI_HUNK_PATCH,
     TYPED_PARTS_PAGE,
+    visual_widgets,
 )
 from render_harness import (
     EXAMPLES,
@@ -88,6 +88,7 @@ from render_harness import (
     expect_asks_answered,
     expect_banner_control_offered,
     holding,
+    http_error_console,
     is_problem,
     leaf_page,
     nudge,
@@ -421,7 +422,7 @@ def test_a_website_example_shows_its_public_session_reference(browser, serve):
         (
             {"status": 503, "body": ""},
             "Server offline — reconnecting",
-            {"code": "failed-load", "status": 503},
+            http_error_console(503),
         ),
         (
             {"status": 200, "body": "{"},
@@ -1888,7 +1889,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
     suggestion_accept = page.locator("[data-lf-margin-for='sug'] .lf-sug-accept")
     expect(suggestion_accept).to_be_disabled()
     assert suggestion_accept.evaluate(
-        """button => {
+        """button => lfUnwatched(() => {
               const glyph = button.firstElementChild;
               const widget = document.getElementById('sug');
               const parent = widget.parentNode;
@@ -1896,7 +1897,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
               widget.remove();
               parent.insertBefore(widget, next);
               return button.firstElementChild === glyph;
-            }"""
+            })"""
     ), "an unchanged availability paint rebuilt the suggestion control"
     suggestion_accept.dispatch_event("click")
     expect(suggestion_accept).to_be_disabled()
@@ -2535,83 +2536,23 @@ def test_visual_comments_arrive_with_the_initialized_document(browser, serve):
     assert all(page.evaluate("() => window.__lfVisualActionInsertions"))
 
 
-@pytest.mark.parametrize("phase", ["initial", "history", "ready", "anchored"])
-def test_malformed_visual_inventory_withholds_its_actions_at_each_presentation_phase(
-    browser, serve, phase
-):
-    """A malformed visual cannot offer comment controls at any startup phase."""
+def test_invalid_visual_part_ids_report_the_package_error(browser, serve):
+    """An invalid package inventory fails through the ordinary startup reporter."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    state_ready = phase in {"ready", "anchored"}
-    held = []
-    page.add_init_script(VISUAL_ACTION_TIMING)
-    if phase == "initial":
-        page.add_init_script(
-            """document.addEventListener('lf-page-interface', event => {
-          event.detail.present(new Promise(resolve => window.releaseInterface = resolve));
-        });"""
+    with page.expect_console_message(
+        predicate=lambda message: "page failed to start" in message.text
+    ):
+        page.goto(
+            serve(
+                GENERIC_VISUAL_PAGE,
+                layer_registry=GENERIC_VISUAL_LAYER,
+                layer_widgets=visual_widgets(invalid_part_id=True),
+            ),
+            wait_until="load",
         )
-    page.route("**/api/state*", lambda route: held.append(route))
-    page.goto(
-        serve(
-            GENERIC_VISUAL_PAGE,
-            layer_registry=GENERIC_VISUAL_LAYER,
-            layer_widgets=GENERIC_VISUAL_WIDGETS,
-            events=[
-                {
-                    "id": "visual-comment",
-                    "kind": "comment",
-                    "author": "user",
-                    "revision": 1,
-                    "text": "A comment on this visual part.",
-                    "anchor": {"section": "visual", "visual": "outer"},
-                }
-            ]
-            if phase == "anchored"
-            else [],
-        ),
-        wait_until="load",
-    )
-    page.wait_for_function(
-        "() => document.querySelector('lf-test-visual')?.parts?.length === 3"
-    )
-    if phase != "initial":
-        page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
-        expect(page.locator(".lf-visual-actions")).to_have_count(1)
-    assert held, "the first state read completed before the visual was malformed"
-    if state_ready:
-        held.pop(0).continue_()
-        expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
-    page.locator("lf-test-visual").evaluate(
-        """visual => {
-          visual.validParts = visual.parts;
-          visual.parts = [visual.parts[0], {...visual.parts[0]}, visual.parts[2]];
-        }"""
-    )
-    if phase == "initial":
-        page.evaluate("() => window.releaseInterface()")
-    if state_ready:
-        page.locator("lf-test-visual").evaluate(
-            "visual => visual.visualRegistration.update()"
-        )
-    else:
-        held.pop(0).continue_()
-
-    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
-    expect(page.locator(".lf-visual-actions")).to_have_count(0)
-    if phase == "initial":
-        assert page.evaluate("() => window.__lfVisualActionInsertions") == []
-
-    if phase != "initial":
-        page.locator("lf-test-visual").evaluate(
-            """visual => {
-              visual.parts = visual.validParts;
-              visual.visualRegistration.update();
-            }"""
-        )
-        expect(page.locator(".lf-visual-actions")).to_have_count(1)
-        expect(page.locator(".lf-visual-action")).to_have_count(4)
-    if phase == "anchored":
-        consume_browser_errors(page, "registered part outer twice")
+    expect(page.locator(".lf-status-detail")).to_contain_text("reload")
+    expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+    consume_browser_errors(page, "Visual part 1 has no single-token id")
 
 
 def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):
@@ -2891,17 +2832,34 @@ def test_user_overrides_identify_state_that_differs_from_authored_inputs(
     ), "the user's own honored drag marked as a change"
 
 
-def test_foreign_state_waits_until_a_live_drag_releases_the_page(browser, serve):
-    """A poll may finish while Sortable owns real page nodes. Reconciliation leaves
-    the whole page alone until the pointer releases them, then paints the same logged
-    edit on the next pass."""
-    page = open_page(browser, serve(JOURNEY_V1))
+def test_foreign_state_draws_beside_a_live_drag(browser, serve):
+    """A poll may finish while Sortable owns the dragged card. The board's gesture holds
+    only the board's drawing (`defer`); another widget draws the foreign edit at once,
+    even one above the board that grows, and the card still lands where it is dropped."""
+    draft = JOURNEY_V1.index('<lf-draft id="draft-ops">')
+    draft_end = JOURNEY_V1.index("</lf-draft>", draft) + len("</lf-draft>")
+    board = JOURNEY_V1.index('<lf-board id="board">')
+    html = (
+        JOURNEY_V1[:board]
+        + JOURNEY_V1[draft:draft_end]
+        + "\n"
+        + JOURNEY_V1[board:draft]
+        + JOURNEY_V1[draft_end:]
+    )
+    page = open_page(browser, serve(html))
     grip = page.locator("#card-x .lf-grip").bounding_box()
     page.mouse.move(grip["x"] + grip["width"] / 2, grip["y"] + grip["height"] / 2)
     page.mouse.down()
-    page.mouse.move(grip["x"] + grip["width"] / 2 + 12, grip["y"] + 12, steps=4)
+    done = page.locator("#col-done").bounding_box()
+    page.mouse.move(
+        done["x"] + done["width"] / 2, done["y"] + done["height"] / 2, steps=8
+    )
     page.wait_for_function(DRAG_HELD)
+    before = page.locator("#draft-ops").bounding_box()["height"]
 
+    foreign = "\n\n".join(
+        f"Foreign paragraph {n} held beside the drag." for n in range(6)
+    )
     append_command(
         serve.page_dir,
         {
@@ -2910,20 +2868,25 @@ def test_foreign_state_waits_until_a_live_drag_releases_the_page(browser, serve)
             "revision": 1,
             "widget": "draft-ops",
             "action": "edit",
-            "detail": {"value": "Foreign words held behind the drag."},
+            "detail": {"value": foreign},
         },
     )
     told(page)
-    expect(page.locator("#draft-ops .lf-draft-body")).to_have_text(
-        DRAFT_TEXT, use_inner_text=True
+    expect(page.locator("#draft-ops .lf-draft-body")).to_contain_text(
+        "Foreign paragraph 5"
     )
-    expect(page.locator("body")).to_have_attribute("data-lf-applied", "0")
+    assert page.evaluate(DRAG_HELD), "the foreign edit ended the drag"
+    assert page.locator("#draft-ops").bounding_box()["height"] > before + 50, (
+        "the draft above the board did not grow, so nothing moved under the drag"
+    )
 
     page.mouse.up()
     told(page)
-    expect(page.locator("#draft-ops .lf-draft-body")).to_have_text(
-        "Foreign words held behind the drag."
-    )
+    expect(page.locator("#col-done #card-x")).to_have_count(1)
+    moves = [e for e in actions(serve.page_dir) if e["action"] == "move"]
+    assert [(m["detail"]["unit"], m["detail"]["value"]) for m in moves] == [
+        ("card-x", "col-done")
+    ]
 
 
 def test_the_diff_marks_a_card_the_author_relocated(browser, serve):
@@ -3784,20 +3747,104 @@ def test_the_first_read_and_the_user_s_later_ones_are_bounded_apart(browser, ser
     assert 0 < bounds[1] < bounds[0], bounds
 
 
+def test_a_widget_presents_its_authored_state_offline_and_the_log_on_recovery(
+    browser, serve
+):
+    """A first read that fails presents each widget at its authored state, and the
+    read that recovers draws the choice the log holds."""
+    url = serve(
+        leaf_page(
+            "Offline choice",
+            '<h1>Offline choice</h1><lf-ask id="ask"><h2>Which?</h2>'
+            '<lf-options id="options" choose><lf-option id="one">First</lf-option>'
+            '<lf-option id="two">Second</lf-option></lf-options></lf-ask>',
+        )
+    )
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "options",
+            "action": "choose",
+            "detail": {"value": ["two"]},
+        },
+    )
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.route("**/api/state*", refuse)
+    page.goto(url, wait_until="load")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    expect(page.locator(".lf-status-detail")).to_contain_text("Server offline")
+    expect(page.locator("#options .lf-pick")).to_have_count(2)
+    expect(page.locator("#two")).not_to_have_attribute("chosen", "")
+    page.unroute("**/api/state*")
+    told(page)
+    expect(page.locator("#two")).to_have_attribute("chosen", "")
+
+
+def test_a_widget_draws_its_authored_state_while_its_first_read_waits(browser, serve):
+    """Before the first state read answers, a widget's reading is its authored state,
+    whole, so it draws that rather than nothing or a guess; the read draws the log's
+    choice."""
+    url = serve(
+        leaf_page(
+            "Waiting choice",
+            '<h1>Waiting choice</h1><lf-ask id="ask"><h2>Which?</h2>'
+            '<lf-options id="options" choose><lf-option id="one">First</lf-option>'
+            '<lf-option id="two">Second</lf-option></lf-options></lf-ask>',
+        )
+    )
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "options",
+            "action": "choose",
+            "detail": {"value": ["two"]},
+        },
+    )
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    held = []
+    page.route("**/api/state*", lambda route: held.append(route))
+    page.goto(url, wait_until="load")
+    holding(page, held, 1, "the first state read")
+    waiting = page.evaluate(
+        """async () => {
+          const {widgetController} = await window.__lfWidgetApi();
+          const options = document.querySelector('#options');
+          await options.updateComplete;
+          const {state} = widgetController(options).read();
+          return {
+            verbs: Object.keys(state).sort(),
+            chosen: state.choose.value,
+            drawn: [...options.querySelectorAll('lf-option[chosen]')].map((o) => o.id),
+          };
+        }"""
+    )
+    assert waiting == {"verbs": ["add", "answer", "choose"], "chosen": [], "drawn": []}
+    page.unroute("**/api/state*")
+    for route in held:
+        route.continue_()
+    told(page)
+    expect(page.locator("#two")).to_have_attribute("chosen", "")
+
+
 def test_a_pending_offline_paint_does_not_block_a_recovery_read(browser, serve):
     """The network slot ends with the read, not an unbounded package repaint."""
     page = open_page(browser, serve(LONG_PAGE))
     page.evaluate(
         """async () => {
-          const {clocked, clockValue} = await window.__lfWidgetApi();
+          const {watchProjection, clockValue} = await window.__lfWidgetApi();
           window.probeVersion = 0;
           window.probePaints = 0;
-          const paint = clocked(document.body, () => {
+          watchProjection(document.body, () => {
             clockValue(() => window.probeVersion);
             window.probePaints += 1;
             return new Promise(() => {});
-          });
-          paint();
+          }).refresh();
           window.probeVersion = 1;
         }"""
     )
@@ -3815,7 +3862,7 @@ def test_a_pending_offline_paint_does_not_block_a_recovery_read(browser, serve):
     expect(page.locator(".lf-status-detail")).not_to_contain_text(
         "Server offline — reconnecting"
     )
-    consume_browser_errors(page, {"code": "failed-load", "status": 503})
+    consume_browser_errors(page, http_error_console(503))
 
 
 def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
@@ -4762,20 +4809,19 @@ def test_a_comment_on_an_identified_datum_follows_the_subject_across_replacement
         },
     }
     module = """
-import {projectData, watchData, setChildren} from '/runtime/widget-api.js';
-customElements.define('lf-feed', class extends HTMLElement {
-  connectedCallback() {
-    this.stopWatching ??= watchData(this, 'rows', snapshot => {
-      const datums = (snapshot?.value?.rows ?? []).map(row => {
-        const node = document.createElement('p');
-        node.textContent = `${row.label} ${row.updated}`;
-        return {node, key: `${row.id}-${row.updated}`, identity: row.id};
-      });
-      setChildren(this, datums.map(({node}) => node));
-      projectData(this, datums, {snapshot});
+import {LeafElement, nothing, projectData, setChildren} from '/runtime/widget-api.js';
+customElements.define('lf-feed', class extends LeafElement {
+  render() {
+    const snapshot = this.data('rows');
+    const datums = (snapshot?.value?.rows ?? []).map(row => {
+      const node = document.createElement('p');
+      node.textContent = `${row.label} ${row.updated}`;
+      return {node, key: `${row.id}-${row.updated}`, identity: row.id};
     });
+    setChildren(this, datums.map(({node}) => node));
+    projectData(this, datums, {snapshot});
+    return nothing;
   }
-  disconnectedCallback() { this.stopWatching?.(); this.stopWatching = null; }
 });
 """
     url = serve(
@@ -4970,7 +5016,10 @@ customElements.define('lf-test-surface', class extends HTMLElement {
       return this.failure === 'hidden' ? null : placement.datumElement.outlet;
     });
     for (const row of this.children) {
-      if (this.failure === 'moved') document.querySelector('main').append(row.outlet);
+      if (this.failure === 'moved') {
+        const main = document.querySelector('main');
+        if (row.outlet.parentElement !== main) main.append(row.outlet);
+      }
       if (this.failure === 'detached') row.outlet.remove();
     }
     if (this.failure === 'target-removed') {
@@ -5158,7 +5207,8 @@ customElements.define('lf-test-surface', class extends HTMLElement {
         page.keyboard.press("Escape")
         broken.evaluate("""widget => {
             widget.failure = null;
-            for (const row of widget.children) row.append(row.outlet);
+            for (const row of widget.children)
+              if (row.outlet.parentElement !== row) row.append(row.outlet);
         }""")
         append_carried_log_record(
             serve.page_dir,
@@ -5620,18 +5670,21 @@ def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
     expect(timestamp).to_have_text("1h ago")
 
 
-def test_data_subscribers_receive_each_publication_and_recover(browser, serve):
+def test_a_data_widget_draws_each_publication_and_recovers(browser, serve):
     """A same-value rerun reaches a package with its own durable run receipt.
 
     Repeated reads stay quiet; corruption and clearing remove the reading, and a
-    later valid publication restores the same subscription.
+    later valid publication draws again in the same widget.
     """
     page = open_page(browser, data_projection_page(serve))
-    page.evaluate("""async () => {
-      const {watchData} = await window.__lfWidgetApi();
-      window.publications = [];
-      window.stopPublications = watchData(document.querySelector('lf-feed'), 'rows',
-        snapshot => window.publications.push(snapshot));
+    page.evaluate("""() => {
+      const feed = document.querySelector('lf-feed');
+      const show = feed.show;
+      window.publications = [feed.data('rows')];
+      feed.show = function (snapshot) {
+        if (snapshot !== window.publications.at(-1)) window.publications.push(snapshot);
+        return show.call(this, snapshot);
+      };
     }""")
 
     def read():
@@ -5680,7 +5733,6 @@ def test_data_subscribers_receive_each_publication_and_recover(browser, serve):
     assert len(deliveries) == 6, deliveries
     assert deliveries[-1]["revision"] == first["revision"]
     assert deliveries[-1]["run"] not in {first["run"], second["run"], recovered["run"]}
-    page.evaluate("window.stopPublications()")
 
 
 def test_data_consumers_clear_and_recover_across_contract_only_rebindings(
@@ -5689,7 +5741,7 @@ def test_data_consumers_clear_and_recover_across_contract_only_rebindings(
     """Active and frozen consumers keep their declarations as a source is rebound.
 
     A changed contract must reach the browser even with identical value bytes, clear
-    the incompatible consumer, and leave its subscription able to recover.
+    the incompatible consumer, and leave it able to recover.
     """
 
     def entry(tag, contract):
@@ -5709,19 +5761,16 @@ def test_data_consumers_clear_and_recover_across_contract_only_rebindings(
         }
 
     def module(tag):
-        return """import {watchData} from '/runtime/widget-api.js';
-customElements.define(TAG, class extends HTMLElement {
-  connectedCallback() {
-    if (this.started) return;
-    this.started = true;
+        return """import {LeafElement, nothing} from '/runtime/widget-api.js';
+customElements.define(TAG, class extends LeafElement {
+  render() {
+    const snapshot = this.data('data');
     window.dataDeliveries ??= [];
-    this.stop = watchData(this, 'data', snapshot => {
-      window.dataDeliveries.push({id: this.id, snapshot});
-      const text = JSON.stringify(snapshot?.value ?? null);
-      if (this.textContent !== text) this.textContent = text;
-    });
+    window.dataDeliveries.push({id: this.id, snapshot});
+    const text = JSON.stringify(snapshot?.value ?? null);
+    if (this.textContent !== text) this.textContent = text;
+    return nothing;
   }
-  disconnectedCallback() { this.stop?.(); }
 });""".replace("TAG", json.dumps(tag))
 
     authored = leaf_page(
@@ -5770,7 +5819,7 @@ customElements.define(TAG, class extends HTMLElement {
     page.keyboard.press("c")
     expect(page.locator("#page-feed")).to_have_text('["same bytes"]')
     expect(page.locator("#thread-feed")).to_have_text("null")
-    consume_browser_errors(page, "watchData(lf-object-feed, data) requires other-rows")
+    consume_browser_errors(page, "<lf-object-feed> input data requires other-rows")
 
     def read():
         nudge(serve.page_dir)
@@ -5797,7 +5846,7 @@ customElements.define(TAG, class extends HTMLElement {
         == rebound["sources"]["shared"]["revision"]
     )
     assert original["version"] != rebound["version"]
-    consume_browser_errors(page, "watchData(lf-array-feed, data) requires rows")
+    consume_browser_errors(page, "<lf-array-feed> input data requires rows")
 
     calls = page.evaluate("window.dataDeliveries.length")
     read()
@@ -5808,58 +5857,19 @@ customElements.define(TAG, class extends HTMLElement {
     rebind("rows", ["same bytes"])
     expect(page.locator("#page-feed")).to_have_text('["same bytes"]')
     expect(page.locator("#thread-feed")).to_have_text("null")
-    consume_browser_errors(page, "watchData(lf-object-feed, data) requires other-rows")
+    consume_browser_errors(page, "<lf-object-feed> input data requires other-rows")
 
     rebind("other-rows", {"new": "object meaning"})
     expect(page.locator("#page-feed")).to_have_text("null")
     expect(page.locator("#thread-feed")).to_have_text('{"new":"object meaning"}')
-    consume_browser_errors(page, "watchData(lf-array-feed, data) requires rows")
-
-
-def test_a_returning_subscriber_is_repainted_only_where_its_departure_cut_the_paint(
-    browser, serve
-):
-    """A widget abandons its unfinished paint when it leaves, so its return owes that
-    reading again. A finished paint stands, so a refused reading is not refused and
-    reported a second time."""
-    page = open_page(browser, data_projection_page(serve))
-    result = page.evaluate(
-        """async () => {
-          const {watchData} = await window.__lfWidgetApi();
-          const widget = document.querySelector('lf-feed');
-          const leaveAndReturn = async () => {
-            const parent = widget.parentNode;
-            const next = widget.nextSibling;
-            widget.remove();
-            await new Promise((resolve) => setTimeout(resolve));
-            parent.insertBefore(widget, next);
-            await new Promise((resolve) => setTimeout(resolve));
-          };
-          let paints = 0;
-          let finish;
-          const finished = new Promise((resolve) => { finish = resolve; });
-          const stop = watchData(widget, 'rows', () => {
-            paints += 1;
-            return finished;
-          });
-          await leaveAndReturn();
-          const interrupted = paints;
-          finish();
-          await finished;
-          await leaveAndReturn();
-          const kept = paints;
-          stop();
-          return {interrupted, kept};
-        }"""
-    )
-    assert result == {"interrupted": 2, "kept": 2}
+    consume_browser_errors(page, "<lf-array-feed> input data requires rows")
 
 
 def test_a_returning_projection_subscriber_reads_again_only_where_its_departure_cut_the_paint(
     browser, serve
 ):
     """A projection reading that failed stands across a departure and return, so the
-    author is told once, as a data subscriber's is; a paint the departure cut short is
+    author is told once, as a widget's is; a paint the departure cut short is
     owed again."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
     result = page.evaluate(
@@ -5880,13 +5890,14 @@ def test_a_returning_projection_subscriber_reads_again_only_where_its_departure_
           };
           const failed = {};
           const stops = [];
-          for (const name of ['watchAsks', 'watchReports', 'watchHistory']) {
+          for (const name of ['throwing', 'rejecting']) {
             const owner = owned(`failing-${name}`);
             failed[name] = 0;
-            stops.push(api[name](owner, () => {
+            stops.push(api.watchProjection(owner, () => {
               failed[name] += 1;
+              api.readAsks();
               // A paint that fails later is told the same way as one that throws.
-              if (name === 'watchHistory')
+              if (name === 'rejecting')
                 return Promise.reject(new Error(`${name} paint failed`));
               throw new Error(`${name} paint failed`);
             }));
@@ -5897,8 +5908,9 @@ def test_a_returning_projection_subscriber_reads_again_only_where_its_departure_
           let paints = 0;
           let finish;
           const finished = new Promise((resolve) => { finish = resolve; });
-          stops.push(api.watchAsks(owner, () => {
+          stops.push(api.watchProjection(owner, () => {
             paints += 1;
+            api.readAsks();
             return finished;
           }));
           await settle();
@@ -5913,7 +5925,7 @@ def test_a_returning_projection_subscriber_reads_again_only_where_its_departure_
         }"""
     )
     assert result == {
-        "failed": {"watchAsks": 1, "watchReports": 1, "watchHistory": 1},
+        "failed": {"throwing": 1, "rejecting": 1},
         "interrupted": 2,
         "kept": 2,
     }
@@ -5921,7 +5933,7 @@ def test_a_returning_projection_subscriber_reads_again_only_where_its_departure_
     reported = sorted(said(error) for error in errors)
     assert reported == sorted(
         f"leaf: paint failed for div#failing-{name}: {name} paint failed"
-        for name in ["watchAsks", "watchReports", "watchHistory"]
+        for name in ["throwing", "rejecting"]
     )
 
 
@@ -5942,7 +5954,7 @@ def test_a_held_reading_shows_once_unseen_after_its_owner_returns(browser, serve
           let shown = null;
           let watching;
           const held = new api.HeldReading(owner, () => [region], () => watching.refresh());
-          watching = api.watchAsks(owner, () => { shown = held.hold(current); });
+          watching = api.watchProjection(owner, () => { shown = held.hold(current); });
           await settle();
           current = 'second';
           watching.refresh();
@@ -5990,65 +6002,74 @@ def test_a_text_document_projects_its_current_source_provenance(browser, serve):
         expect(projection.locator("code")).to_have_text(text)
 
 
-def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
-    """The data stamp proves that every asynchronous subscriber has settled.
+def test_data_readiness_settles_and_reports_failed_drawings(browser, serve):
+    """The data stamp proves that every drawing a delivery holds has settled.
 
-    A rejected mount and a later failed update are each reported once, at that
-    subscriber's paint. Neither turns every subsequent poll into the same page-wide
-    read failure or prevents the accepted revision becoming ready.
+    A rejected drawing at mount, a rejected drawing on a later delivery, and a draw
+    that throws are each reported once. None turns every subsequent poll into the same
+    page-wide read failure or prevents the accepted revision becoming ready.
     """
     page = open_page(browser, data_projection_page(serve))
     page.evaluate("""async () => {
-      const {watchData} = await window.__lfWidgetApi();
+      const {nothing} = await window.__lfWidgetApi();
       const widget = document.querySelector('lf-feed');
       window.beforeDataVersion = document.body.dataset.lfDataVersion;
       window.mountDeliveries = 0;
-      window.stopMount = watchData(widget, 'rows', () => {
+      widget.render = () => {
+        widget.data('rows');
         mountDeliveries += 1;
-        return Promise.reject(new Error('mount projection failed'));
-      });
+        widget.drawing(Promise.reject(new Error('mount projection failed')));
+        return nothing;
+      };
+      widget.requestUpdate();
     }""")
     for _ in range(2):
         nudge(serve.page_dir)
         told(page)
-    page.evaluate("""async () => {
-      stopMount();
-      window.afterMountDataVersion = document.body.dataset.lfDataVersion;
-      const {watchData} = await window.__lfWidgetApi();
-      const widget = document.querySelector('lf-feed');
-      window.updateDeliveries = 0;
-      window.throwingDeliveries = 0;
-      window.stopUpdate = watchData(widget, 'rows', () => {
-        if (++updateDeliveries > 1)
-          return Promise.reject(new Error('update projection failed'));
-      });
-      window.stopThrowing = watchData(widget, 'rows', () => {
-        if (++throwingDeliveries > 1)
-          throw new Error('synchronous update projection failed');
-      });
-    }""")
-    data_model.cmd_data_set(
-        serve.page_dir, "deployments", [{"key": "api", "value": "Updated"}]
-    )
-    told(page)
+
+    def deliver(value, failure):
+        page.evaluate(
+            """async (failure) => {
+              const {nothing} = await window.__lfWidgetApi();
+              const widget = document.querySelector('lf-feed');
+              window.afterMountDataVersion ??= document.body.dataset.lfDataVersion;
+              window.draws ??= {};
+              widget.render = () => {
+                widget.data('rows');
+                draws[failure] = (draws[failure] ?? 0) + 1;
+                const error = new Error(`${failure} projection failed`);
+                if (failure === 'update') widget.drawing(Promise.reject(error));
+                else throw error;
+                return nothing;
+              };
+            }""",
+            failure,
+        )
+        data_model.cmd_data_set(
+            serve.page_dir, "deployments", [{"key": "api", "value": value}]
+        )
+        told(page)
+
+    deliver("Updated", "update")
+    deliver("Updated again", "synchronous update")
     nudge(serve.page_dir)
     told(page)
-    result = page.evaluate("""() => {
-      stopUpdate(); stopThrowing();
-      return {before: beforeDataVersion, mountDeliveries, throwingDeliveries,
-        afterMount: afterMountDataVersion, afterUpdate: document.body.dataset.lfDataVersion};
-    }""")
+    result = page.evaluate("""() => ({
+      before: beforeDataVersion, mountDeliveries, draws,
+      afterMount: afterMountDataVersion, afterUpdate: document.body.dataset.lfDataVersion,
+    })""")
     result["version"] = page.request.get(urljoin(page.url, "/api/state")).json()[
         "data"
     ]["version"]
     assert result["mountDeliveries"] == 1, result
-    assert result["throwingDeliveries"] == 2, result
+    assert result["draws"] == {"update": 1, "synchronous update": 1}, result
     assert result["afterMount"] == result["before"], result
     assert result["afterUpdate"] == result["version"], result
-    errors = consume_browser_errors(page, "paint failed")
+    errors = consume_browser_errors(page, "projection failed")
     assert {said(error) for error in errors} == {
-        f"leaf: paint failed for lf-feed#deployments: {message} projection failed"
-        for message in ("mount", "update", "synchronous update")
+        'leaf: <lf-feed id="deployments"> failed: mount projection failed',
+        'leaf: <lf-feed id="deployments"> failed: update projection failed',
+        'leaf: <lf-feed id="deployments"> failed: synchronous update projection failed',
     }
     texts = [error.values["text"] for error in errors]
     assert len(texts) == 3 and all("\n" in text for text in texts), texts
@@ -6062,15 +6083,13 @@ def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
 
 
 def test_widget_errors_keep_exception_evidence(browser, serve):
-    """A failed Lit paint can recover; the agent retains the actual throw site."""
+    """A failed paint recovers at the widget's next draw; the agent retains the actual
+    throw site."""
     page = open_page(browser, data_projection_page(serve))
     page.evaluate(
         """async () => {
           const {failSoft} = await window.__lfWidgetApi();
-          const {html, render} = await window.__lfWidgetApi();
           const widget = document.querySelector('lf-feed');
-          window.paintRecoveredWidget = text => render(html`<p>${text}</p>`, widget);
-          window.paintRecoveredWidget('Before failure');
           function widgetProjection() { throw new TypeError('projection rejected'); }
           let error;
           try { widgetProjection(); } catch (caught) { error = caught; }
@@ -6096,8 +6115,11 @@ def test_widget_errors_keep_exception_evidence(browser, serve):
         if event["kind"] == "error"
     ]
     assert any("widgetProjection" in error for error in agent_errors), agent_errors
-    page.evaluate("window.paintRecoveredWidget('Recovered reading')")
-    expect(page.locator("lf-feed")).to_have_text("Recovered reading")
+    data_model.cmd_data_set(
+        serve.page_dir, "deployments", [{"key": "api", "value": "Recovered reading"}]
+    )
+    told(page)
+    expect(page.locator("lf-feed")).to_contain_text("Recovered reading")
     expect(page.locator("lf-feed .lf-error")).to_have_count(0)
 
 

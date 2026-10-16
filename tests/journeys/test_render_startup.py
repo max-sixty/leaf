@@ -431,7 +431,7 @@ def test_thread_timestamps_age_without_new_state(browser, serve):
 
 
 def test_an_idle_page_keeps_its_dom_and_data_subscriptions_at_rest(browser, serve):
-    """An unchanged clock must not render state or redeliver an unchanged source.
+    """An unchanged clock must not render state or redraw an unchanged source.
 
     Observe mutations over two actual timer ticks instead of imposing a machine-speed
     budget. Clock aging has its own rendered-word test in the projection suite.
@@ -441,11 +441,13 @@ def test_an_idle_page_keeps_its_dom_and_data_subscriptions_at_rest(browser, serv
     page.evaluate(
         """async () => {
           await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-          const {watchData} = await window.__lfWidgetApi();
+          const feed = document.querySelector('lf-feed');
+          const show = feed.show;
           window.idleDeliveries = 0;
-          window.stopIdleData = watchData(document.querySelector('lf-feed'), 'rows', () => {
+          feed.show = function (snapshot) {
             window.idleDeliveries++;
-          });
+            return show.call(this, snapshot);
+          };
           window.idleMutations = 0;
           window.idleObserver = new MutationObserver(records => window.idleMutations += records.length);
           window.idleObserver.observe(document.documentElement,
@@ -457,10 +459,9 @@ def test_an_idle_page_keeps_its_dom_and_data_subscriptions_at_rest(browser, serv
     assert page.evaluate(
         """() => {
           window.idleObserver.disconnect();
-          window.stopIdleData();
           return {mutations: window.idleMutations, deliveries: window.idleDeliveries};
         }"""
-    ) == {"mutations": 0, "deliveries": 1}
+    ) == {"mutations": 0, "deliveries": 0}
 
 
 def test_failed_clock_paints_do_not_starve_other_widgets_or_restart_polling(
@@ -469,10 +470,10 @@ def test_failed_clock_paints_do_not_starve_other_widgets_or_restart_polling(
     page = open_page(browser, serve(LONG_PAGE))
     page.evaluate(
         """async () => {
-          const {clocked, clockValue} = await window.__lfWidgetApi();
+          const {watchProjection, clockValue} = await window.__lfWidgetApi();
           window.clockVersion = 0;
           for (const stage of ['read', 'paint', 'async']) {
-            const paint = clocked(document.body, () => {
+            watchProjection(document.body, () => {
               const version = clockValue(() => {
                 if (stage === 'read' && window.clockVersion)
                   throw new Error('read broke');
@@ -481,12 +482,11 @@ def test_failed_clock_paints_do_not_starve_other_widgets_or_restart_polling(
               if (!version) return;
               if (stage === 'async') return Promise.reject(new Error('async broke'));
               throw new Error('paint broke');
-            });
-            paint();
+            }).refresh();
           }
-          clocked(document.body, () => {
+          watchProjection(document.body, () => {
             window.healthyClock = clockValue(() => window.clockVersion);
-          })();
+          }).refresh();
           window.clockVersion = 1;
         }"""
     )
@@ -500,16 +500,18 @@ def test_failed_clock_paints_do_not_starve_other_widgets_or_restart_polling(
     ticked(page)
     assert page.evaluate("window.healthyClock") == 2
     assert _traffic(page).asked == asked
-    consume_browser_errors(page, "clock paint failed:")
+    consume_browser_errors(page, "read broke", "paint broke", "async broke")
     errors = [
         e["text"]
         for e in events_model.read_events(serve.page_dir)
         if e["kind"] == "error"
     ]
-    assert {error.splitlines()[0] for error in errors} == {
-        "clock paint failed: read broke",
-        "clock paint failed: paint broke",
-        "clock paint failed: async broke",
+    # Each failure is reported, through whichever route met it: the clock's tick, the
+    # paint's own rule (`readingPaint`), or the page's error handler.
+    assert {error.splitlines()[0].rsplit(": ", 1)[-1] for error in errors} == {
+        "read broke",
+        "paint broke",
+        "async broke",
     }
     assert all("\n" in error for error in errors), errors
 

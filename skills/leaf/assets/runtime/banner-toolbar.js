@@ -38,12 +38,15 @@
  * face is the window's, the stylesheet-owned --lf-banner-face that also dresses
  * the banner, so the partition changes only when the window crosses that width.
  *
- * Each contribution also says what it is as one line of a menu (`row`): its `label`,
- * a terse `value` such as a count, the `shortcut` that reaches it from the keyboard,
- * spelled as a key chip spells it (by default the one that reaches its control,
- * keyboard/control-keys.js), the `group` of controls it belongs with, the text its
- * press copies where it copies one (`copies`), which a presentation shows for the user
- * to select as well, and the `press` that acts as the control would, given the place
+ * Each contribution also says what it is as one line of a menu (`row`): its `label`
+ * (for a row that copies, the text it copies named as it reads mid-sentence, such as
+ * "link", which a presentation puts after "Copy" and capitalizes to head a line),
+ * a terse `value` such as a count, the `shortcut` that reaches it from the keyboard as
+ * its steps, each spelled as a key chip spells it (by default the one that reaches its
+ * control, keyboard/control-keys.js), the `group` of controls it belongs with, the text
+ * it copies where it copies one (`copies`), which a presentation shows for the user to
+ * select beside its own copy control (copy-control.js) in place of a press, and the
+ * `press` that acts as the control would, given the place
  * the presentation held when the user opened it (history.js, `readPlace`). The floating
  * panel (floating-panel.js) draws the run from these rows rather than from the native
  * nodes, so a control appears there without the panel naming it. `bannerRows` reads the run's rows in order, and
@@ -184,7 +187,7 @@ const rowOf = (entry, shortcuts) => {
     key: entry.key,
     label: read(entry.row.label),
     value: read(entry.row.value) ?? "",
-    shortcut: read(entry.row.shortcut) ?? shortcuts.get(entry.focusTarget) ?? "",
+    shortcut: read(entry.row.shortcut) ?? shortcuts.get(entry.focusTarget) ?? EMPTY,
     group: entry.row.group,
     copies: read(entry.row.copies) ?? "",
     urgent: entry.urgent,

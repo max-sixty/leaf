@@ -34,6 +34,7 @@ from render_harness import (
     compare_with,
     consume_browser_errors,
     holding,
+    http_error_console,
     leaf_page,
     nudge,
     open_page,
@@ -112,7 +113,7 @@ def test_refusal_notice_clears_live_reply_through_wrapping_and_expiry(
         },
     )
     round_trip(page)
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(page, http_error_console(400))
     notice = page.locator(".lf-notice")
     expect(notice).to_contain_text("Couldn't send")
     expect(notice).to_be_visible()
@@ -1228,7 +1229,7 @@ def test_a_news_resolved_card_keeps_its_place_after_an_offscreen_draft_is_cleare
     expect(card).to_have_attribute("data-resolved", "true")
     expect(reply).to_have_count(0)
     with sending(page, "explicitly reopen the saved reply"):
-        card.get_by_role("button", name="Reopen", exact=True).click()
+        card.get_by_role("button", name=re.compile(r"· Reopen$")).click()
     expect(reply).to_be_focused()
     expect(reply).to_have_js_property("value", words)
     append_carried_log_record(

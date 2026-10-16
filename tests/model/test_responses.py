@@ -68,11 +68,10 @@ def test_reply_is_fenced_to_the_exact_current_obligation(page_dir):
             reference,
             "--text",
             "Used A.",
-            "--json",
         ],
     )
     assert stale.exit_code != 0
-    assert refused_on(stale.stdout).code == "superseded-reply"
+    assert refused_on(stale.stderr).code == "superseded-reply"
 
     current = CliRunner().invoke(
         cli_model.cli,
@@ -280,8 +279,7 @@ def test_response_refuses_stale_replaced_foreign_and_reserved_inputs(
         args = ["response", "reply", "--done", reference, "--text", text]
         refused = CliRunner().invoke(cli_model.cli, args)
         assert refused.exit_code == 1
-        assert refused.stderr.startswith("Error: ")
-        assert reason in refused.stderr
+        assert reason in json.loads(refused.stderr)["error"]
         assert isinstance(refused.exception, SystemExit)
         launched = subprocess.run(
             [*LEAF_COMMAND, *args], capture_output=True, text=True, check=False

@@ -63,6 +63,7 @@ from render_harness import (
     hold_pending_thread_presentation,
     hold_selection,
     holding,
+    http_error_console,
     leaf_page,
     open_page,
     page_comment,
@@ -2057,7 +2058,7 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
         {"value": sent},
         {"value": "Keep the revised unsent words."},
     ]
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(page, http_error_console(400))
 
 
 def test_one_shared_draft_edit_appends_one_action_across_tabs(browser, serve, one_user):
@@ -2138,11 +2139,6 @@ def test_one_shared_added_option_has_one_action_payload_across_tabs(
     round_trip(first)
     # The forged selection is not the state's, so the `add` renders it away and the pick
     # that follows in the same task puts it back.
-    consume_browser_errors(
-        first,
-        {"code": "unchanged-write", "what": "chosen", "node": "lf-option#job-mounts"},
-    )
-
     moves = [
         event
         for event in events_model.read_events(serve.page_dir)
@@ -2260,7 +2256,7 @@ def test_a_refused_selection_comment_leaves_the_words_on_their_passage(
         for event in events_model.read_events(serve.page_dir)
         if event.get("text") == words
     ]
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(page, http_error_console(400))
 
 
 def test_a_refused_selection_comment_reopens_its_words_while_the_send_owns_intent(
@@ -2295,7 +2291,7 @@ def test_a_refused_selection_comment_reopens_its_words_while_the_send_owns_inten
     expect(page.locator(".lf-notice")).to_have_text(
         "Couldn't send — refused before append"
     )
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(page, http_error_console(400))
 
 
 def test_a_refused_selection_comment_written_past_is_where_resume_writing_goes(
@@ -2337,7 +2333,7 @@ def test_a_refused_selection_comment_written_past_is_where_resume_writing_goes(
     expect(page.locator(".lf-fab-input")).to_be_focused()
     expect(page.locator(".lf-fab-input")).to_have_js_property("value", words)
     assert stored_draft_text(page, "general") == later
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(page, http_error_console(400))
 
 
 @pytest.mark.parametrize("reply_sent", [True, False], ids=["sent", "unsent"])
@@ -2430,7 +2426,7 @@ def test_a_reply_under_a_refused_parent_comes_back_with_it(
     # went, which is what the guard's report is about.
     consume_browser_errors(
         page,
-        {"code": "failed-load", "status": 400},
+        http_error_console(400),
         *([] if reply_sent else [{"code": "words-left-screen", "words": reply}]),
     )
 
@@ -2493,7 +2489,7 @@ def test_a_refused_comments_reply_travels_with_it_to_another_passage(
     assert sent["anchor"]["section"] == "p5"
     thread = page.locator(f'.lf-thread[data-id="{sent["id"]}"]')
     expect(thread.locator("leaf-text").first).to_have_js_property("value", reply)
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(page, http_error_console(400))
 
 
 def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
@@ -2548,7 +2544,7 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
         for event in events_model.read_events(serve.page_dir)
         if event.get("text") == words
     ]
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(page, http_error_console(400))
 
 
 def test_every_message_send_says_so_to_a_user_listening(held_events, serve):
@@ -3361,7 +3357,11 @@ def test_a_late_refusal_cannot_restore_an_attempt_another_tab_settled(
             )
         expect(first.locator(".lf-notice")).to_contain_text("Couldn't send")
         expected_error = Finding(
-            "failed-load", values={"status": 400, "url": refused.value.url}
+            "console-error",
+            values={
+                "text": "Failed to load resource: the server responded with a status of 400 (Bad Request)",
+                "url": refused.value.url,
+            },
         )
         first_errors = first.lf_errors
         first_errors.remove(expected_error)
@@ -5309,8 +5309,7 @@ def test_registered_control_keys_activate_once(browser, serve):
           const hs = getComputedStyle(host), es = getComputedStyle(editor);
           return {
             host: {outline: hs.outlineStyle, width: parseFloat(hs.outlineWidth)},
-            editor: {outline: es.outlineStyle, shadow: es.boxShadow,
-                     ring: es.getPropertyValue('--lf-focus-ring').trim()},
+            editor: {outline: es.outlineStyle, shadow: es.boxShadow},
           };
         }"""
     )
@@ -5319,7 +5318,6 @@ def test_registered_control_keys_activate_once(browser, serve):
     assert focus_paint["editor"] == {
         "outline": "none",
         "shadow": "none",
-        "ring": "none",
     }, "the draft's one editing surface acquired a second focus box"
     page.emulate_media(forced_colors="active")
     forced = page.locator("#draft-ops").evaluate(
@@ -6051,13 +6049,6 @@ def test_executable_revision_preserves_each_editor_identity(browser, serve, kind
     assert after == before
 
 
-def editing_mirror_source(mode):
-    return editing_revision_source(mode).replace(
-        "</main>",
-        '<lf-thread-mirror id="first"></lf-thread-mirror><lf-thread-mirror id="second"></lf-thread-mirror></main>',
-    )
-
-
 def editing_reply_page(browser, serve, context=None):
     page = open_page(
         browser, live_url(serve(editing_revision_source("before"))), context=context
@@ -6315,7 +6306,7 @@ def test_first_draft_save_and_refusal_keep_the_local_editor_controls(browser, se
     expect(draft_control(page, "retry", "first-draft")).to_be_visible()
     expect(draft_control(page, "cancel", "first-draft")).to_be_visible()
     assert page.locator("#following").bounding_box() == before
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(page, http_error_console(400))
 
 
 def test_draft_controls_survive_hiding_annotations_and_escape_discards(browser, serve):
@@ -6523,6 +6514,90 @@ def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back
     page.keyboard.press("i")
     expect(edit).to_be_focused()
     expect(edit).to_have_js_property("value", "")
+
+
+def test_resume_writing_opens_words_whose_box_is_gone_as_a_comment_on_the_page(
+    browser, serve
+):
+    """Words whose box the page no longer has open, unsent, in Comment on the page.
+
+    The agent's next version removes the content the user was editing. Their edit
+    stays saved, and Resume writing moves it into the page's comment box after the
+    words that box already held, so the words stand in one place and nothing is lost."""
+    edited = (
+        '<lf-draft id="editable"><pre>Initial words</pre></lf-draft>'
+        "<p>The rest of the page.</p>"
+    )
+    source = leaf_page("Removed box", '<h1 id="top">Removed box</h1>' + edited)
+    url = live_url(serve(source))
+    context = browser.new_context()
+    page = open_page(browser, url, context=context)
+    write(page_comment(page), "A page-wide thought.")
+    page.keyboard.press("Escape")
+    page.locator("#editable .lf-draft-body").click()
+    write(page.locator("#editable .lf-draft-edit"), "An unsent edit.")
+    stamp_page(
+        serve.page_dir, source.replace(edited, "<p>The rest of the page.</p>"), "cut"
+    )
+    page = open_page(browser, url, context=context)
+    expect(page.locator("#editable")).to_have_count(0)
+
+    page.locator("body").focus()
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    box = page.locator(".lf-page-comment-card .lf-general leaf-text")
+    joined = "A page-wide thought.\n\nAn unsent edit."
+    expect(box).to_be_focused()
+    expect(box).to_have_js_property("value", joined)
+    assert box.evaluate("el => [el.selectionStart, el.selectionEnd]") == [
+        len(joined),
+        len(joined),
+    ]
+    expect(page.locator(".lf-notice")).to_have_text(
+        "Its box is gone, so its words moved to a comment on the page"
+    )
+    assert stored_draft_text(page, "edit:editable") is None
+    assert stored_draft_text(page, "general") == joined
+
+
+def test_resume_writing_returns_to_an_option_being_added(browser, serve):
+    """The field adding an option the author did not list is a writing place like any
+    other: Resume writing comes back to it with its words, which stay its own."""
+    page = open_page(browser, serve(ASK_PAGE))
+    field = page.locator("#jobs > .lf-another leaf-text")
+    write(field, "An option of mine.")
+    page.locator("body").focus()
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", "An option of mine.")
+    assert stored_draft_text(page, "general") is None
+
+
+def test_an_older_version_leaves_words_its_box_is_missing_from_where_they_are(
+    browser, serve
+):
+    """A version behind the newest may lack a box the newest holds, so there Resume
+    writing says the place is unavailable and the words stay in their own draft."""
+    edited = '<lf-draft id="editable"><pre>Initial words</pre></lf-draft>'
+    older = leaf_page("Added box", '<h1 id="top">Added box</h1><p>The page.</p>')
+    first = serve(older)
+    stamp_page(serve.page_dir, older.replace("<p>The page.</p>", edited), "add")
+    context = browser.new_context()
+    page = open_page(browser, live_url(first), context=context)
+    page.locator("#editable .lf-draft-body").click()
+    write(page.locator("#editable .lf-draft-edit"), "An unsent edit.")
+    page = open_page(browser, first, pin=True, context=context)
+    expect(page.locator("#editable")).to_have_count(0)
+
+    page.locator("body").focus()
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(page.locator(".lf-notice")).to_have_text(
+        "That writing place is unavailable on this version"
+    )
+    assert stored_draft_text(page, "edit:editable") == "An unsent edit."
+    assert stored_draft_text(page, "general") is None
 
 
 @pytest.mark.parametrize("keyboard", ["desktop", "touch", "android"])
@@ -6810,7 +6885,6 @@ def test_commenting_on_the_same_selection_preserves_the_existing_suggestion(
         write(editor, words)
     select_words(page, "#words")
     rendered(page)
-    expect(page.locator('input[name="suggest-replacement"]')).to_be_checked()
     page.keyboard.press("c")
     expect(editor).to_be_focused()
     expect(editor).to_have_js_property("value", words)

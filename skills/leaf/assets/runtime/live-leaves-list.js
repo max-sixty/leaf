@@ -10,7 +10,7 @@
    Each assigned reading opens one Leaves presentation region before either face
    schedules an update. A failed update restores both committed faces before the
    coordinator reports and settles the attempt. */
-import { html, repeat } from "../vendor/browser-runtime.js";
+import { html, repeat } from "/vendor/browser-runtime.js";
 import {
   attachApplicationPresentation,
   failSoftAfterRetention,
@@ -97,7 +97,6 @@ class LiveLeavesList extends RetainedFace {
   configure(control) {
     if (this.#face) throw new Error("Leaves presentation is already configured");
     this.#face = document.createElement(FACE_TAG);
-    this.#face.style.display = "contents";
     control.append(this.#face);
   }
 

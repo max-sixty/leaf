@@ -3,8 +3,8 @@ description: Short Chat Answer
 metadata:
   purpose: Answer a short question without creating an unnecessary Leaf page.
   tags:
-  - workflow
+    - workflow
   conditions:
-  - leaf
+    - leaf
   executor: leaf_dev.usability_eval
   scenario: near-miss

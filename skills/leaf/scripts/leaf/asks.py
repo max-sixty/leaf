@@ -41,6 +41,7 @@ from leaf.projection import (
     frozen_thread_reading,
     markup_value,
     page_reading,
+    projected_action_holders,
     state_projection,
 )
 from leaf.read_state import content_version
@@ -488,27 +489,6 @@ def quoted_in(rec: dict, registry: dict) -> bool:
     )
 
 
-def projected_action_holders(
-    projection: StateProjection, byid: dict, registry: dict
-) -> dict[str, dict]:
-    """Unit id → its enclosing vocabulary widget after the position records in force
-    no later revision has absorbed; an absorbed move leaves its unit where the
-    markup has it."""
-    holders = {}
-    for (_owner, unit, _verb), (event, spec) in projection.desired.items():
-        record = spec.get("record") or {}
-        if record.get("kind") != "position" or event["id"] in projection.absorbed:
-            continue
-        target = byid.get(event["detail"]["value"])
-        unit_rec = byid.get(unit)
-        if target and unit_rec:
-            holder = target if target["tag"] in registry else target.get("holder")
-            permitted = (registry.get(unit_rec["tag"]) or {}).get("x-owners", [])
-            if holder and holder["tag"] in permitted:
-                holders[unit] = holder
-    return holders
-
-
 def container_empty(
     owner: dict,
     empty: dict,
@@ -623,7 +603,7 @@ class _AskReducer:
         self.nodes = {
             node["attrs"]["id"]: node
             for document in documents
-            for node in nodes(document.content)
+            for node in nodes(document.authoring.content)
             if node["attrs"].get("id")
         }
         self.records = [record for record in elements if self._is_declared(record)]

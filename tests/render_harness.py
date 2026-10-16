@@ -77,6 +77,7 @@ from leaf_dev.page_fixtures import (
     example_media,
     prepare_page,
     read_fixture,
+    record_run_context,
 )
 from leaf_dev.thread_snapshot_plugin import (
     image_snapshot,  # noqa: F401 — fixture for comparisons and explicit captures
@@ -489,7 +490,7 @@ TOKEN = "test-page-key"
 
 
 @pytest.fixture
-def serve(tmp_path, monkeypatch, initialized_page):
+def serve(tmp_path, monkeypatch, initialized_page, request):
     """Publish HTML as the newest version of a fresh page directory and serve it,
     as the real server does — vendoring included, so the assets under test are this
     repo's. Markup is one version; an example is every version it ships, stamped
@@ -602,12 +603,19 @@ def serve(tmp_path, monkeypatch, initialized_page):
         if not fixture:
             html = source
             (d / "index.html").write_text(html)
-            references = structure_model.SourceDocument(html).media_refs
+            references = structure_model.SourceDocument(html).authoring.media_refs
             for reference in references:
                 fixture_media = example_media() / reference.removeprefix("/media/")
                 if fixture_media.is_file():
                     (d / "media").mkdir(exist_ok=True)
                     shutil.copy2(fixture_media, d / "media" / fixture_media.name)
+        record_run_context(
+            d,
+            purpose="test",
+            run=tmp_path,
+            authored_source=example,
+            test=request.node.nodeid,
+        )
         for name, content in (page_files or {}).items():
             path = d / "page" / name
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -1363,7 +1371,7 @@ def watched(page, *, java_script_enabled=True):
     (`leaf/findings.py`) a test reads by its fields.
 
     The browser's own reports, taken from Playwright's events as the render gate takes
-    them: console warnings and errors, a failed response, and uncaught exceptions.
+    them: console warnings and errors, and uncaught exceptions.
     Window errors without exceptions join them, installed through the same
     `install_window_errors` helper the render gate uses, and so do the health
     sensors' findings, which each sensor hands over as a record through the
@@ -1490,11 +1498,18 @@ def take_browser_errors(page):
     return errors
 
 
+def http_error_console(status):
+    """Chrome's diagnostic prefix for an HTTP error a test arranges.
+
+    This names expected console text; response facts come from the response itself.
+    """
+    return f"Failed to load resource: the server responded with a status of {status}"
+
+
 def said(problem):
     """The first line of what the page itself said in a browser problem: a console
-    entry, an uncaught exception, or a window error. None for a problem the browser or
-    a health sensor reports in fields of its own, such as a failed response's `status`
-    and `url`."""
+    entry, an uncaught exception, or a window error. None for a health sensor's
+    structured finding."""
     text = problem.values.get("text")
     return None if text is None else text.splitlines()[0]
 
@@ -1508,8 +1523,8 @@ def is_problem(problem, expected):
     A string is a fragment of what the page said (`said`), so stack locations cannot
     authorize a problem. A dict names the record as a probe returns one,
     `{code, at, ...values}`: its `code`, and each field the test cares about, equal to
-    what was found, such as `{"code": "failed-load", "status": 400}`. A function of the
-    record answers for itself, for a field read other than by equality."""
+    what was found, such as `{"code": "console-error", "url": "http://page/api/event"}`.
+    A function of the record answers for itself, for a field read other than by equality."""
     if callable(expected):
         return expected(problem)
     if isinstance(expected, str):
@@ -2705,9 +2720,8 @@ def left_alone(page):
 
     rendered(page)
     prepare_children(page.main_frame)
-    notice = page.locator(".lf-notice.show")
     deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
-    while notice.count():
+    while any(frame.locator(".lf-notice.show").count() for frame in page.frames):
         assert time.monotonic() < deadline, "the arrival notice never retired"
         # still_page fixes Date.now but its timer clock otherwise runs in real time.
         # Run every callback until the notice retires; fast_forward would skip ticks.

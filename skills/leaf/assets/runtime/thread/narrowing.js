@@ -32,7 +32,7 @@
    presentation only while no newer user gesture has chosen another reading place. */
 import { anchorLabel } from "./messages.js";
 import { awaitsAgent, awaitsUser } from "./model.js";
-import { agentLabel, agentName } from "../semantic-state.js";
+import { agentName } from "../semantic-state.js";
 import { retainUserIntent } from "../user-intent.js";
 import { bindQueuedWork } from "../queued-work.js";
 
@@ -42,7 +42,8 @@ const group = (kind, label, choices) =>
   Object.freeze({ kind, label, choices: Object.freeze(choices) });
 
 // Labels and choices are declarations, not facts recovered from rendered buttons.
-// The agent's choice is named as every surface names it, read when it renders.
+// The agent choice keeps a fixed face while the named agent may change with news.
+// The summary and empty state name the current agent below the controls.
 const FACETS = Object.freeze([
   group("status", "Status", [
     choice("status", "open", "Open"),
@@ -50,7 +51,7 @@ const FACETS = Object.freeze([
   ]),
   group("waiting", "Waiting on", [
     choice("waiting", "user", "Me", "lf-needs"),
-    choice("waiting", "agent", agentLabel),
+    choice("waiting", "agent", "Agent"),
   ]),
   group("scope", "Location", [
     choice("scope", "page", "Page"),
@@ -320,7 +321,7 @@ export function createThreadNarrowing({ view, listRoot, readThreads, repaint }) 
     // either outcome because event listeners can discard this ticket.
     void ticket.then(
       () => {
-        if (mayReset()) listRoot.scrollTop = 0;
+        if (mayReset()) listRoot.scrollTo({ top: 0, behavior: "instant" });
       },
       () => {},
     );

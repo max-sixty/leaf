@@ -1,4 +1,4 @@
-/* Generated from skills/leaf/packages/visual-review/styles/theme.css by build/styles.mjs. */
+/* @noformat Generated from skills/leaf/packages/visual-review/styles/theme.css by build/styles.mjs. */
 /* skills/leaf/packages/visual-review/styles/theme.css */
 :scope:is(lf-visual-review) {
   --lf-block-frame: 1;
@@ -27,12 +27,6 @@
 .lf-vr-provenance,
 .lf-vr-progress {
   margin: 0;
-}
-.lf-vr-case-position {
-  color: var(--muted);
-  font: 600 var(--t-6) / 1.35 var(--sans);
-  letter-spacing: .055em;
-  text-transform: uppercase;
 }
 .lf-vr-title {
   margin-top: 2px;
@@ -135,12 +129,6 @@
     isolation: isolate;
   }
 }
-.lf-vr-inspector[hidden] {
-  display: none;
-}
-.lf-vr-inspector-group[hidden] {
-  display: none;
-}
 .lf-vr-inspector-group {
   min-width: 0;
 }
@@ -154,10 +142,6 @@
 }
 .lf-vr-inspector-label {
   margin-right: var(--sp-2);
-  color: var(--muted);
-  font: 600 var(--t-6) / 1.3 var(--sans);
-  letter-spacing: .04em;
-  text-transform: uppercase;
   white-space: nowrap;
 }
 .lf-vr-opacity-control {
@@ -201,8 +185,10 @@
   min-width: 0;
   padding: var(--sp-2) var(--sp-3);
 }
-.lf-vr-case[hidden] {
-  display: none;
+@media screen {
+  .lf-vr-case:not([data-selected]) {
+    display: none;
+  }
 }
 .lf-vr-case-head {
   min-width: 0;
@@ -220,7 +206,7 @@
 .lf-vr-claim {
   display: grid;
   grid-template-areas: "action-term result-term" "action result";
-  grid-template-columns: minmax(0, .7fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1fr);
   gap: 0 var(--sp-4);
   margin: 0;
 }
@@ -254,12 +240,12 @@
 .lf-vr-links > a {
   display: inline-flex;
   align-items: center;
-  gap: .35em;
+  gap: 0.35em;
   text-decoration: none;
 }
 .lf-vr-links .lf-external-mark {
-  width: .9em;
-  height: .9em;
+  width: 0.9em;
+  height: 0.9em;
   margin: 0;
   vertical-align: 0;
 }
@@ -310,7 +296,7 @@
   color: var(--muted);
   font: var(--t-6) / 1.4 var(--sans);
 }
-.lf-vr-detail:not([hidden]) {
+.lf-vr-detail {
   display: grid;
   align-content: start;
   gap: 1px;
@@ -374,7 +360,7 @@
 }
 .lf-vr-empty {
   margin: 0;
-  padding: var(--sp-5);
+  padding: var(--sp-4);
   color: var(--muted);
   font: var(--t-5) var(--sans);
   text-align: center;
@@ -428,9 +414,6 @@
   .lf-vr-queue,
   .lf-vr-inspection {
     display: none !important;
-  }
-  .lf-vr-case[hidden] {
-    display: grid !important;
   }
   .lf-vr-case + .lf-vr-case {
     border-top: 1px solid var(--rule);

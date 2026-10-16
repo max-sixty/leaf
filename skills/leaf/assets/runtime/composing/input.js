@@ -43,13 +43,14 @@ import {
   advertisesKeys,
   submitBindings,
   submitLabel,
+  spell,
   PRESS,
 } from "../keyboard/bindings.js";
 import { readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "../media.js";
 import { announce, notice } from "../notifications.js";
 import { iconElement, iconTemplate } from "../icons.js";
 import { drawingThumbnail } from "./drawing-context.js";
-import { LitElement, html } from "../../vendor/browser-runtime.js";
+import { LitElement, html, render as renderHint } from "/vendor/browser-runtime.js";
 import "./text-field.js";
 import { followBoxGrowth, readBoxPlace } from "../thread/reply-landing.js";
 import { focusDestination, focused } from "../focus.js";
@@ -60,6 +61,9 @@ import { applicationState } from "../semantic-state.js";
 const inputDrafts = new WeakMap();
 
 const MEDIA_SHELF_TAG = "leaf-attached-media-shelf";
+// Another tab's copy of a drawing is a different object holding the same strokes.
+const sameDrawing = (a, b) => a === b || JSON.stringify(a) === JSON.stringify(b);
+let thumbnailVersion = 0;
 
 // What the draft carries beside its words: the drawing a stroke attached, then each attached
 // image. Each shows itself rather than its transport and each comes off with its own
@@ -80,12 +84,24 @@ class AttachedMediaShelf extends LitElement {
     this.removeIcon = iconElement("cross", "lf-action-icon");
     // The picture is rebuilt only when the drawing changes, so a repaint that changes
     // nothing about it leaves its node in place.
-    this.pictured = { drawing: null, node: null };
+    this.pictured = { drawing: null, target: null, node: null };
   }
 
   picture(drawing) {
-    if (drawing !== this.pictured.drawing)
-      this.pictured = { drawing, node: drawingThumbnail(drawing, this.model.target) };
+    if (
+      !sameDrawing(drawing, this.pictured.drawing) ||
+      this.model.target !== this.pictured.target
+    ) {
+      const node = drawingThumbnail(drawing, this.model.target);
+      // A canvas's changed pixels are not reflected in its markup. Give each rebuilt
+      // picture an identity so DOM readers can distinguish its new ink from the old.
+      node.dataset.lfDrawingVersion = String(++thumbnailVersion);
+      this.pictured = {
+        drawing,
+        target: this.model.target,
+        node,
+      };
+    }
     return this.pictured.node;
   }
 
@@ -110,12 +126,34 @@ class AttachedMediaShelf extends LitElement {
       drawing
         ? html`
             <span class="lf-composer-media-item lf-composer-drawing">
-              <span
-                class="lf-composer-media-open"
-                role="img"
-                aria-label=${`Drawing, ${strokes} ${strokes === 1 ? "stroke" : "strokes"}`}
-                >${this.picture(drawing)}</span
+              <button
+                type="button"
+                class="lf-media-open lf-composer-media-open"
+                data-lf-media-canvas
+                aria-label=${`Inspect drawing, ${strokes} ${strokes === 1 ? "stroke" : "strokes"}`}
+                title="Inspect drawing"
+                @click=${(event) => {
+                  const canvas = this.picture(drawing);
+                  keeps(
+                    event.currentTarget,
+                    "data-lf-media-alt",
+                    canvas.dataset.lfDrawingContext === "ready"
+                      ? "Drawing over its frozen page context"
+                      : "Drawing",
+                  );
+                  keeps(
+                    event.currentTarget,
+                    "data-lf-media-caption",
+                    canvas.dataset.lfDrawingContext === "ready"
+                      ? ""
+                      : canvas.dataset.lfDrawingContext === "pending"
+                        ? "Drawing only; page preview was not ready when opened."
+                        : "Drawing only; page preview unavailable.",
+                  );
+                }}
               >
+                ${this.picture(drawing)}
+              </button>
               <button
                 type="button"
                 aria-label="Undo last stroke"
@@ -208,6 +246,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     ta,
     {
       hint,
+      // A structured visual hint can mark the exact words its owner observes. It
+      // shares the existing placeholder slot and send key; null keeps the plain hint.
+      hintParts = null,
       accessibleName = null,
       save,
       send,
@@ -254,6 +295,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     visibleHint.append(hintLabel, hintKey);
     field.append(ta);
     (submitIn ?? field).append(sendBtn);
+    // Firefox lacks speech recognition; WebKit has it only under its prefix.
     const Recognition =
       globalThis.SpeechRecognition ?? globalThis.webkitSpeechRecognition;
     const mic =
@@ -314,8 +356,6 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // reaches across drafts or takes back another tab's change.
     let shelfSeen = null;
     let arrivals = 0;
-    // Another tab's copy of the same drawing is a different object holding the same one.
-    const sameDrawing = (a, b) => a === b || JSON.stringify(a) === JSON.stringify(b);
     const putDrawing = (drawn) => {
       shelfSeen = { ...shelfSeen, drawing: drawn };
       drawing.replace(drawn);
@@ -386,12 +426,16 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     hydrate(ta.value);
     // Keep the full native placeholder, but paint a copy so only the key can use mono.
     // The accessible name stays independent of that changing hint. The send button's
-    // tooltip spells out its key. A focused box claims the send key; an unfocused box
+    // tooltip spells out its keys. A focused box claims the send key; an unfocused box
     // may show the contextual key that enters it; a finger is shown neither
     // (`advertisesKeys`). Labels can change while a box stands.
     const label = () => (typeof hint === "function" ? hint() : hint);
     const name = () =>
       typeof accessibleName === "function" ? accessibleName() : accessibleName;
+    // The field can become visible before its first scheduled paint. Give a static
+    // name to the native control in the task that constructs it.
+    const initialName = name();
+    if (initialName) keeps(ta, "aria-label", initialName);
     const sendWord = () => (typeof sends === "function" ? sends() : sends);
     const sendLabel = () => {
       const word = sendWord();
@@ -419,8 +463,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const word = status || label();
       const placeholder = suffix && !status ? `${word} ${suffix}` : word;
       if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
-      if (suffix && !status) {
-        keepsText(hintLabel, word);
+      const parts = status ? null : hintParts?.();
+      if (hintParts) renderHint(parts ?? word, hintLabel);
+      if ((suffix && !status) || (parts !== null && parts !== undefined)) {
+        if (!hintParts) keepsText(hintLabel, word);
         keepsText(hintKey, suffix);
         if (visibleHint.parentNode !== ta) move(ta, visibleHint, null);
       } else visibleHint.remove();
@@ -428,7 +474,11 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       if (ariaLabel) keeps(ta, "aria-label", ariaLabel);
       const action = sendLabel();
       keeps(sendBtn, "aria-label", action);
-      keeps(sendBtn, "title", sendKeys ? `${action} (${sendKeys})` : action);
+      // Where Return sends, a line breaks with Shift+Return, which the hover name says
+      // beside the send key, since nothing in the box does.
+      const newline =
+        sendKeys === spell("Enter") ? ` · ${spell("Shift+Enter")} new line` : "";
+      keeps(sendBtn, "title", sendKeys ? `${action} (${sendKeys})${newline}` : action);
       // These native input actions keep their focus seat while refusing a send.
       keeps(sendBtn, "aria-disabled", !canSend());
       if (altBtn) keeps(altBtn, "aria-disabled", !canSend());

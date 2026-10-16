@@ -9,12 +9,12 @@
  *
  * The agent's On count (`queues`) is the view's second box, which the banner places
  * beside the status rather than inside it, so the banner can give it whichever row
- * leaves the sentence its room (chrome.css). The box is reserved for the count it
- * usually reaches (`queuesWidest`), so the sentence changing never carries it and its
- * changing moves nothing. A count past that widens the box once, and it keeps the width
- * while the page is open. The count is a press, one of the On panel's doors
- * (drawers.js wires it), so the panel listing what it counts is one press from where they
- * are counted.
+ * leaves the sentence its room (chrome.css). Its words hold the room of the count it
+ * usually reaches (`queuesWidest`, as `data-lf-room`), so the sentence changing never
+ * carries it and its changing moves nothing; a count past that is cut there, and the
+ * status's explanation and the On panel count every item. The count is a press, one of
+ * the On panel's doors (drawers.js wires it), so the panel listing what it counts is one
+ * press from where they are counted.
  *
  * A passing notice shares the words' box (`presentNotice`), and on a phone stands over
  * them while it lasts; elsewhere the bottom status shows it, or in the floating panel
@@ -27,8 +27,8 @@ import {
   classMap,
   createRef,
   ref,
-} from "../vendor/browser-runtime.js";
-import { el, reserve } from "./widget-elements.js";
+} from "/vendor/browser-runtime.js";
+import { el } from "./widget-elements.js";
 import { keeps, keepsHidden } from "./keeps.js";
 import { focusDestination, focused } from "./focus.js";
 import { agentName } from "./semantic-state.js";
@@ -45,31 +45,19 @@ class BannerStatusView extends HTMLElement {
   #onToggle = null;
   #notice = { message: "", visible: false };
   #model = null;
+  #observeFeedback = null;
+  #feedbackStops = [];
   #queues = el("button", "lf-status-queues");
-  #queuesWidest = "";
-  #queuesReserved = "";
   #presentQueues = () => {
     const model = this.#model;
-    render(model.queues, this.#queues);
+    render(
+      html`<span data-lf-room=${model.queuesWidest}
+        ><span>${model.queues}</span></span
+      >`,
+      this.#queues,
+    );
     keeps(this.#queues, "title", `Show or hide what's on me and on ${agentName()}`);
     keepsHidden(this.#queues, !model.queues);
-    // The reservation only grows: its digits are tabular, so the longest counts yet
-    // shown are the widest, and a box that shrank back would move them on the next.
-    if (model.queues) {
-      const kept =
-        model.queuesWidest === this.#queuesWidest
-          ? this.#queuesReserved
-          : model.queuesWidest;
-      const reserved = model.queues.length > kept.length ? model.queues : kept;
-      if (
-        model.queuesWidest !== this.#queuesWidest ||
-        reserved !== this.#queuesReserved
-      ) {
-        this.#queuesWidest = model.queuesWidest;
-        this.#queuesReserved = reserved;
-        reserve(this.#queues, [reserved]);
-      }
-    }
   };
 
   constructor() {
@@ -88,6 +76,16 @@ class BannerStatusView extends HTMLElement {
   configure({ onToggle, initial }) {
     this.#onToggle = onToggle;
     this.present(initial);
+  }
+
+  trackFeedback(observe) {
+    this.#observeFeedback = observe;
+    this.#paint();
+  }
+
+  disconnectedCallback() {
+    for (const stop of this.#feedbackStops) stop();
+    this.#feedbackStops = [];
   }
 
   get dot() {
@@ -127,6 +125,12 @@ class BannerStatusView extends HTMLElement {
           >${this.#notice.message}</span
         ></span
       >`;
+    const parts = (reading) =>
+      reading.map((part) =>
+        part.source
+          ? html`<span class="lf-status-feedback">${part.text}</span>`
+          : part.text,
+      );
     const summary = publication
       ? html`<span class="lf-publication-copy">${publication.copy}</span>${
             publication.examplesUrl
@@ -137,7 +141,7 @@ class BannerStatusView extends HTMLElement {
           }<a class="lf-publication-install" href=${publication.installUrl}
             >${publication.install}</a
           >`
-      : model.summary;
+      : parts(model.summaryParts ?? [{ text: model.summary }]);
     const status = html`${dot}${words(summary)}`;
     render(
       publication
@@ -162,10 +166,30 @@ class BannerStatusView extends HTMLElement {
               @toggle=${this.#toggled}
               ${ref(this.#detail)}
             >
-              ${model.explanation}
+              ${parts(model.explanationParts ?? [{ text: model.explanation }])}
             </div>`,
       this,
     );
+    for (const stop of this.#feedbackStops) stop();
+    this.#feedbackStops = [];
+    if (this.#observeFeedback && !publication) {
+      const sources = [
+        ...(model.summaryParts ?? []),
+        ...(model.explanationParts ?? []),
+      ].filter((part) => part.source);
+      const words = this.querySelectorAll(".lf-status-feedback");
+      sources.forEach((part, index) => {
+        this.#feedbackStops.push(
+          this.#observeFeedback(words[index], {
+            input_id: part.source.item,
+            reply_id: part.source.event_id,
+            reply_kind: "work",
+            presentation_kind: "banner_words",
+            surface: "banner",
+          }),
+        );
+      });
+    }
   }
 }
 

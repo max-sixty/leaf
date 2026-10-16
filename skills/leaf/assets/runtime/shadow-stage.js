@@ -18,7 +18,7 @@
    The root is infrastructure owned here, not a template render container. Stage a
    concrete container and render templates inside it; retaining that container across
    stage updates keeps Lit's markers, native editors, and directive lifetimes intact. */
-import { SHADOW_STARTUP_CSS, shadowRules } from "./shadow.js";
+import { SHADOW_LEADING_CSS, shadowRules } from "./shadow.js";
 import {
   annotationMarkSheets,
   constructSheet,
@@ -71,7 +71,7 @@ export function shadowStage(host, nodes) {
   watchDisclosures(root);
   watchLayers(root);
   watchStandingIn(root);
-  const rules = SHADOW_STARTUP_CSS + shadowRules;
+  const rules = SHADOW_LEADING_CSS + shadowRules;
   let style = stageStyles.get(root);
   if (style?.textContent !== rules) {
     style = document.createElement("style");

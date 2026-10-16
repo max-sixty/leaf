@@ -1,5 +1,6 @@
 """Markdown transcript of a page's exchange."""
 
+from collections.abc import Iterator
 from pathlib import Path
 
 from leaf.event_log import read_events
@@ -33,19 +34,19 @@ def _revision_title(page_dir: Path) -> tuple[int | None, str]:
     title = ""
     revision = latest_revision(page_dir)
     if revision is not None:
-        title = read_revision(page_dir, revision).document.title.strip()
+        title = read_revision(page_dir, revision).document.authoring.title.strip()
     return revision, title
 
 
-def _print_versions(events: list) -> None:
+def _versions(events: list) -> Iterator[str]:
     notes = [e for e in events if e["kind"] == "note"]
     if notes:
-        print("\n### Versions\n")
+        yield "\n### Versions\n"
         for e in notes:
-            print(f"- v{e['version']}: {e['text']}")
+            yield f"- v{e['version']}: {e['text']}"
 
 
-def _print_edits(page_dir: Path, events: list, registry: dict) -> None:
+def _edits(page_dir: Path, events: list, registry: dict) -> Iterator[str]:
     # The user's direct edits are outcomes of the exchange; without them the transcript
     # understates it whenever a changelog note doesn't restate them. So
     # is a version taking one back, which is the same understatement the other
@@ -65,13 +66,11 @@ def _print_edits(page_dir: Path, events: list, registry: dict) -> None:
         if e["kind"] in WIDGET_KINDS or (e["kind"] == "note" and e.get("restated"))
     ]
     if edits:
-        print("\n### Edits\n")
+        yield "\n### Edits\n"
         for e in edits:
             if e["kind"] == "note":
                 for wid in e["restated"]:
-                    print(
-                        f"- `{wid}`: rewritten by v{e['version']}, retracting what was decided on it"
-                    )
+                    yield f"- `{wid}`: rewritten by v{e['version']}, retracting what was decided on it"
                 continue
             detail = " ".join(f"{k}={json_value(v)}" for k, v in e["detail"].items())
             verb = f"{e['action']} {detail}".strip()  # a bare answer carries no detail
@@ -81,7 +80,7 @@ def _print_edits(page_dir: Path, events: list, registry: dict) -> None:
                 verb += " — " + "; ".join(f"“{shown(w)}”" for w in said.values())
             if e["kind"] == "report":
                 # A worker's provisional news is an outcome too, under its own name.
-                print(
+                yield (
                     f"- `{e['widget']}`: {e.get('agent', 'a worker')} reported "
                     f"{verb} (on {revision_label(events, e['revision'])})"
                 )
@@ -90,7 +89,7 @@ def _print_edits(page_dir: Path, events: list, registry: dict) -> None:
                 # understatement the other way round: shown as it stands it reads
                 # as final, and left out it reads as never made.
                 took = " — taken back" if e["id"] in withdrawn else ""
-                print(
+                yield (
                     f"- `{e['widget']}`: {verb} "
                     f"(on {revision_label(events, e['revision'])}){took}"
                 )
@@ -136,14 +135,13 @@ def _thread_heading(thread: dict) -> str:
     return head
 
 
-def _print_message(message: dict, registry: dict) -> None:
+def _message(message: dict, registry: dict) -> str:
     who = agent_name(message) or "User"
     if is_reaction(message):
         # A mark rather than a turn: the token's glyph and word.
         entry = reaction_tokens(registry).get(message["token"]) or {}
         said = f"{entry.get('glyph', '')} {message['token']}".strip()
-        print(f"- **{who}** reacted: {said}")
-        return
+        return f"- **{who}** reacted: {said}"
     edited = " *(edited)*" if message.get("edited") else ""
     body = message.get("text", "")
     if drawing := message.get("drawing"):
@@ -151,33 +149,37 @@ def _print_message(message: dict, registry: dict) -> None:
         body += f"\n_(drawing attached{over})_"
     if message.get("markup"):
         body += f"\n{message['markup']}"
-    print(f"- **{who}**{edited}: " + body.replace("\n", "\n  "))
+    return f"- **{who}**{edited}: " + body.replace("\n", "\n  ")
 
 
-def _print_threads(events: list, within: dict, registry: dict) -> None:
+def _threads(events: list, within: dict, registry: dict) -> Iterator[str]:
     threads = build_threads(events, within)
     if threads:
-        print("\n### Threads\n")
+        yield "\n### Threads\n"
     for thread in threads.values():
-        print(_thread_heading(thread))
+        yield _thread_heading(thread)
         for message in thread["msgs"]:
-            _print_message(message, registry)
-        print()
+            yield _message(message, registry)
+        yield ""
 
 
-def _print_approvals(events: list) -> None:
+def _approvals(events: list) -> Iterator[str]:
     for approval in approvals_in_force(events):
-        print(f"Approved v{approval['version']} at {approval['ts']}.")
+        yield f"Approved v{approval['version']} at {approval['ts']}."
 
 
-def cmd_transcript(page_dir: Path) -> None:
+def cmd_transcript(page_dir: Path) -> str:
     """The page's exchange as Markdown, for reuse in a PR description."""
     events = read_events(page_dir)
     registry = active_registry(page_dir) or {}
     revision, title = _revision_title(page_dir)
-    print(f"## Leaf: {title or page_dir.name}")
-    _print_versions(events)
-    _print_edits(page_dir, events, registry)
     within = _published_within(page_dir, registry, revision)
-    _print_threads(events, within, registry)
-    _print_approvals(events)
+    return "\n".join(
+        [
+            f"## Leaf: {title or page_dir.name}",
+            *_versions(events),
+            *_edits(page_dir, events, registry),
+            *_threads(events, within, registry),
+            *_approvals(events),
+        ]
+    )

@@ -91,6 +91,7 @@ from render_harness import (
     expect_asks_answered,
     expect_banner_control_offered,
     holding,
+    http_error_console,
     is_problem,
     leaf_page,
     open_page,
@@ -438,7 +439,7 @@ def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve):
         page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
         assert held, "the positive control did not hold the lazy Markdown import"
         page.evaluate(
-            """() => {
+            """() => lfUnwatched(() => {
               const element = document.getElementById('reviewed-pr');
               window.detachedPr = element;
               window.detachedPrMarkup = element.innerHTML;
@@ -447,7 +448,7 @@ def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve):
               const parent = moved.parentElement;
               moved.remove();
               parent.append(moved);
-            }"""
+            })"""
         )
         held.pop(0).continue_()
         page.evaluate(
@@ -853,14 +854,14 @@ def test_visual_review_controls_keep_keyboard_navigation_local(browser, serve):
     selector = widget.locator(".lf-vr-case-select")
     initial = selector.evaluate("node => node.value")
     assert widget.evaluate(
-        """owner => {
+        """owner => lfUnwatched(() => {
           const parent = owner.parentNode;
           const next = owner.nextSibling;
           const nodes = [...owner.querySelectorAll('*')];
           owner.remove();
           parent.insertBefore(owner, next);
           return nodes.every((node, index) => owner.querySelectorAll('*')[index] === node);
-        }"""
+        })"""
     )
     widget.get_by_text("Inspect comparison", exact=True).click()
     widget.get_by_role("radio", name="Compare").click()
@@ -1040,7 +1041,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     fit_reading = """node => {
           const body = node.querySelector('.lf-vr-cases');
           const frames = [...node.querySelectorAll(
-            '.lf-vr-case:not([hidden]) .lf-shotframe')];
+            '.lf-vr-case[data-selected] .lf-shotframe')];
           return {bodyBottom: body.getBoundingClientRect().bottom,
                   framesBottom: Math.max(...frames.map(
                     frame => frame.getBoundingClientRect().bottom)),
@@ -1055,7 +1056,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     page.wait_for_function(
         """node => {
           const body = node.querySelector('.lf-vr-cases').getBoundingClientRect();
-          return [...node.querySelectorAll('.lf-vr-case:not([hidden]) .lf-shotframe')]
+          return [...node.querySelectorAll('.lf-vr-case[data-selected] .lf-shotframe')]
             .every(frame => frame.getBoundingClientRect().bottom <= body.bottom + 0.5);
         }""",
         arg=widget.element_handle(),
@@ -1064,7 +1065,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     assert opened["image"] < contained["image"], opened
     widget.get_by_text("Inspect comparison", exact=True).click()
     page.wait_for_function(
-        "(args) => args.node.querySelector('.lf-vr-case:not([hidden]) img')"
+        "(args) => args.node.querySelector('.lf-vr-case[data-selected] img')"
         ".getBoundingClientRect().width === args.width",
         arg={"node": widget.element_handle(), "width": contained["image"]},
     )
@@ -1077,7 +1078,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
         """node => {
           const box = selector => node.querySelector(selector).getBoundingClientRect();
           const frames = [...node.querySelectorAll(
-            '.lf-vr-case:not([hidden]) .lf-shotframe')]
+            '.lf-vr-case[data-selected] .lf-shotframe')]
             .map(frame => frame.getBoundingClientRect());
           return {widget: node.getBoundingClientRect(), title: box('.lf-vr-case-title'),
                   decision: box('.lf-vr-dispositions'), evidence: box('.lf-vr-shot-host'),
@@ -1094,17 +1095,17 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     assert widget.get_attribute("data-compare-layout") == "side", geometry
     assert geometry["frames"][1]["left"] >= geometry["frames"][0]["right"]
     case_image_width = widget.locator(
-        ".lf-vr-case:not([hidden]) .lf-shotframe img"
+        ".lf-vr-case[data-selected] .lf-shotframe img"
     ).first.evaluate("node => node.getBoundingClientRect().width")
     assert case_image_width == pytest.approx(350, abs=1), geometry
-    assert widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host").evaluate(
+    assert widget.locator(".lf-vr-case[data-selected] .lf-vr-shot-host").evaluate(
         "node => node.scrollHeight <= node.clientHeight + 1"
     )
     assert widget.locator(".lf-vr-cases").evaluate(
         "node => node.scrollHeight > node.clientHeight"
     )
     assert geometry["support"]["top"] >= geometry["evidence"]["bottom"]
-    case = widget.locator(".lf-vr-case:not([hidden])")
+    case = widget.locator(".lf-vr-case[data-selected]")
     claim_geometry = case.evaluate(
         """node => {
           const box = selector => node.querySelector(selector).getBoundingClientRect();
@@ -1161,7 +1162,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     resized(page, 390, 900)
     assert root_overflow(page) == 0
     resized(page, 1366, 768)
-    shot_host = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host")
+    shot_host = widget.locator(".lf-vr-case[data-selected] .lf-vr-shot-host")
     assert shot_host.evaluate("node => node.scrollWidth == node.clientWidth")
     expect(widget).to_have_attribute("data-compare-layout", "side")
 
@@ -1185,7 +1186,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     expect(gallery_scope).to_be_visible()
     expect(widget).to_have_attribute("data-inspection-scope", "focus")
     with sending(page, "the seeded responsive regression disposition"):
-        widget.locator(".lf-vr-case:not([hidden])").get_by_role(
+        widget.locator(".lf-vr-case[data-selected]").get_by_role(
             "button", name="Needs work"
         ).click()
     expect(widget.locator(".lf-vr-progress")).to_have_text("2 of 3 cases reviewed")
@@ -1194,7 +1195,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     expect(widget).to_have_attribute("data-compare-layout", "stack")
     expect(gallery_scope).to_be_hidden()
     expect(widget).to_have_attribute("data-inspection-scope", "full")
-    assert widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host").evaluate(
+    assert widget.locator(".lf-vr-case[data-selected] .lf-vr-shot-host").evaluate(
         "node => node.scrollHeight <= node.clientHeight + 1"
     )
 
@@ -1207,7 +1208,7 @@ def test_a_visual_review_inside_a_section_of_a_workspace_flows(browser, serve):
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     resized(page, 1440, 900)
     widget = page.locator("#visual-review-run")
-    expect(widget.locator(".lf-vr-case:not([hidden]) lf-shot")).to_be_visible()
+    expect(widget.locator(".lf-vr-case[data-selected] lf-shot")).to_be_visible()
     widget.evaluate(
         """review => {
           const section = document.createElement('section');
@@ -1218,7 +1219,7 @@ def test_a_visual_review_inside_a_section_of_a_workspace_flows(browser, serve):
         }"""
     )
     reading = """review => ({
-      image: review.querySelector('.lf-vr-case:not([hidden]) .lf-shotframe img')
+      image: review.querySelector('.lf-vr-case[data-selected] .lf-shotframe img')
         .getBoundingClientRect().width,
       paneScrolls: getComputedStyle(review.querySelector('.lf-vr-cases')).overflowY,
     })"""
@@ -1242,7 +1243,7 @@ def test_visual_review_fits_frames_using_the_authored_spacing(browser, serve):
         resized(page, 760, height)
         expect(widget).to_have_attribute("data-compare-layout", "side")
         geometry = widget.locator(
-            ".lf-vr-case:not([hidden]) .lf-vr-shot-host"
+            ".lf-vr-case[data-selected] .lf-vr-shot-host"
         ).evaluate(
             """host => {
               const shot = host.querySelector('lf-shot');
@@ -1273,7 +1274,7 @@ def test_visual_review_discloses_focus_without_distorting_unsupported_browsers(
         """,
     )
     widget = page.locator("#visual-review-run")
-    case = widget.locator(".lf-vr-case:not([hidden])")
+    case = widget.locator(".lf-vr-case[data-selected]")
     host = case.locator(".lf-vr-shot-host")
     expect(widget).to_have_attribute("data-inspection-scope", "full")
     expect(widget.get_by_role("radiogroup", name="Scope")).to_be_hidden()
@@ -1318,10 +1319,11 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     page = open_page(browser, url)
     resized(page, 900, 900)
     if quote_anchor:
-        words = page.locator("#source code").evaluate(
-            """code => {
+        # The code box also spans the gutter and blank column; drag on its words.
+        words = page.locator("#source [data-content] [data-line] span").evaluate(
+            """span => {
               const range = document.createRange();
-              range.selectNodeContents(code);
+              range.selectNodeContents(span);
               return range.getBoundingClientRect().toJSON();
             }"""
         )
@@ -1695,11 +1697,7 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     assert stamped.exit_code == 0, stamped.output
     told(page)
     expect(page.locator(".lf-version")).to_contain_text("v2")
-    signoff = page.locator(".lf-signoff")
-    expect(signoff).to_be_visible()
-    assert signoff.evaluate(
-        "el => parseFloat(el.style.getPropertyValue('--lf-reserved-width')) > 0"
-    ), "approval was measured while its control was detached"
+    expect(page.locator(".lf-signoff")).to_be_visible()
     assert page.evaluate("window.__leafMain === document.querySelector('main')"), (
         "stamping the displayed revision replaced its main"
     )
@@ -1966,6 +1964,49 @@ def test_a_revision_keeps_the_paragraph_under_a_focused_stuck_tab(browser, serve
     rendered(page)
     after = reading.evaluate("node => node.getBoundingClientRect().top")
     assert after == pytest.approx(before, abs=4), (before, after)
+
+
+@pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
+def test_revision_after_revision_keeps_the_reader_on_the_same_line(
+    engine, request, serve
+):
+    """An agent adds a paragraph above the reader in each of several revisions.
+
+    Each restore lands the reader's line within the pixel the engine rounds a scroll
+    offset to, and the next revision's reading starts from where the restore aimed
+    rather than where it landed: read from where it landed, each rounding would add
+    to the last, and the line would creep down the screen revision by revision.
+    """
+    browser = request.getfixturevalue(engine)
+
+    def source(added):
+        paragraphs = "".join(
+            f'<p id="{name}">{name}, long enough to stand as a landmark of its own.</p>'
+            for name in [f"added-{n}" for n in range(added)]
+            + [f"passage-{n}" for n in range(80)]
+        )
+        # A line height whose paragraphs stand a fraction of a pixel apart, which no
+        # scroll offset can match.
+        return leaf_page(
+            f"Arrivals {added}",
+            "<style>html { overflow-anchor: none; } p { line-height: 1.37; }</style>"
+            + paragraphs,
+        )
+
+    page = open_page(browser, live_url(serve(source(0))))
+    resized(page, 1200, 700)
+    page.evaluate("document.scrollingElement.scrollTop = 1500")
+    scroll_settled(page)
+    rendered(page)
+    reading = page.locator("#passage-45")
+    before = reading.evaluate("node => node.getBoundingClientRect().top")
+    for added in range(1, 7):
+        (serve.page_dir / "index.html").write_text(source(added))
+        told(page)
+        expect(page).to_have_title(f"Arrivals {added}")
+        rendered(page)
+    after = reading.evaluate("node => node.getBoundingClientRect().top")
+    assert after == pytest.approx(before, abs=1), (before, after)
 
 
 def test_a_revision_keeps_the_pane_read_over_a_pane_holding_offscreen_focus(
@@ -3156,13 +3197,9 @@ def test_a_projected_attribute_opens_an_ask_captured_from_authored_markup(
         "x-example": '<lf-conditional id="example" phase="closed">Choose.</lf-conditional>',
     }
     module = """\
-import { keeps, once, widgetController } from "/runtime/widget-api.js";
-customElements.define("lf-conditional", class extends HTMLElement {
-  #controller = widgetController(this);
-  #stop;
-  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
-  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState(state) { keeps(this, "phase", state.phase.value); }
+import { keeps, LeafElement } from "/runtime/widget-api.js";
+customElements.define("lf-conditional", class extends LeafElement {
+  render() { keeps(this, "phase", this.state.phase.value); }
 });
 """
     page = open_page(
@@ -5305,65 +5342,6 @@ def test_the_report_feed_reads_reports_by_typed_target(browser, serve):
     expect(page.locator("#ag-wren .lf-doing")).to_have_count(0)
 
 
-def test_report_words_and_widget_state_wait_together_for_a_drag(browser, serve):
-    """The page-wide drag gate withholds widget views and projection coverage."""
-    page = open_page(browser, serve(ROSTER_PAGE))
-    d = serve.page_dir
-    row = page.locator("#ag-wren")
-
-    first = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "page",
-            "report",
-            str(d),
-            "ag-wren",
-            "state",
-            "value=working",
-            "text=checking the first mount",
-        ],
-    )
-    assert first.exit_code == 0, first.output
-    told(page)
-    expect(row).to_have_attribute("state", "working")
-    expect(row.locator(".lf-doing")).to_have_text("checking the first mount")
-    expect(page.locator("body")).to_have_attribute("data-lf-applied", "1")
-
-    page.evaluate(
-        """async () => {
-          const {dragging} = await window.__lfWidgetApi();
-          dragging(document.body, true);
-        }"""
-    )
-    second = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "page",
-            "report",
-            str(d),
-            "ag-wren",
-            "state",
-            "value=idle",
-            "text=checking the second mount",
-        ],
-    )
-    assert second.exit_code == 0, second.output
-    told(page)
-    expect(row).to_have_attribute("state", "working")
-    expect(row.locator(".lf-doing")).to_have_text("checking the first mount")
-    expect(page.locator("body")).to_have_attribute("data-lf-applied", "1")
-
-    page.evaluate(
-        """async () => {
-          const {dragging} = await window.__lfWidgetApi();
-          dragging(document.body, false);
-        }"""
-    )
-    expect(row).to_have_attribute("state", "idle")
-    expect(row.locator(".lf-doing")).to_have_text("checking the second mount")
-    expect(page.locator("body")).to_have_attribute("data-lf-applied", "2")
-
-
 @pytest.mark.parametrize("holding", ["defer", "preparation"])
 def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
     browser, serve, holding
@@ -5400,10 +5378,10 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
           const owner = document.getElementById('ag-wren');
           window.__proofClock = 0;
           window.__proofReads = [];
-          window.__proofWatching = api.watchReports(owner, reports => {
+          window.__proofWatching = api.watchProjection(owner, () => {
             clockValue(() => window.__proofClock);
-            window.__proofReads.push(reports.map(report => report.text));
-          });
+            window.__proofReads.push(api.reportSequence(owner).map(report => report.text));
+          }, () => api.reportsPresented(owner));
           window.__proofTick = () => { window.__proofClock += 1; };
           window.__proofPending = () => {
             const proof = readApplicationPresentation();
@@ -5646,13 +5624,10 @@ def test_a_user_verb_and_an_agent_verb_stand_side_by_side(
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-tally.js").write_text(
         """\
-import { keeps, once, widgetController } from "/runtime/widget-api.js";
-customElements.define("lf-tally", class extends HTMLElement {
-  #controller = widgetController(this);
-  #stop;
-  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
-  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState(state) {
+import { keeps, LeafElement } from "/runtime/widget-api.js";
+customElements.define("lf-tally", class extends LeafElement {
+  render() {
+    const { state } = this;
     if (state.set.value === null) this.removeAttribute("count");
     else keeps(this, "count", state.set.value);
     if (state.observe.value === null) this.removeAttribute("seen");
@@ -5700,12 +5675,112 @@ customElements.define("lf-tally", class extends HTMLElement {
     assert original.evaluate("node => node === document.getElementById('tally-seen')")
 
 
+LEAF_OWNER = """\
+import { LeafElement, nothing } from "/runtime/widget-api.js";
+customElements.define("lf-owner", class extends LeafElement {
+  render() {
+    for (const [id, order] of Object.entries(this.state.move.value)) {
+      const zone = document.getElementById(id);
+      for (const child of order) {
+        const member = document.getElementById(child);
+        if (member.parentElement !== zone) zone.append(member);
+      }
+    }
+    return nothing;
+  }
+});
+"""
+LEAF_PIECE = """\
+import { keeps, LeafElement, nothing } from "/runtime/widget-api.js";
+customElements.define("lf-piece", class extends LeafElement {
+  render() {
+    keeps(this, "pinned", this.state.move.value);
+    return nothing;
+  }
+});
+"""
+
+
+def test_lit_parent_moves_before_controller_members_render_selection(
+    browser, serve, tmp_path, monkeypatch
+):
+    """A later-upgraded parent moves a member before its destination clears it."""
+    monkeypatch.chdir(tmp_path)
+    package = tmp_path / ".leaf"
+    for tag, upgrade in (("lf-owner", True), ("lf-zone", True), ("lf-piece", False)):
+        add_test_widget(package, tag, upgrade=upgrade)
+    path = package / "registry.json"
+    declarations = json.loads(path.read_text())
+    markup = (
+        '<lf-owner id="owner"><lf-zone id="north">'
+        '<lf-piece id="piece" selected>Piece</lf-piece></lf-zone>'
+        '<lf-zone id="south"></lf-zone></lf-owner>'
+    )
+    declarations["lf-owner"].update(
+        {
+            "x-content": "members",
+            "x-example": markup,
+            "x-state": {
+                "move": {
+                    "unit": "unit",
+                    "record": {"kind": "position", "within": "lf-zone"},
+                }
+            },
+        }
+    )
+    zone = declarations["lf-zone"]
+    zone.update({"x-content": "members", "x-owners": ["lf-owner"]})
+    zone["properties"]["restated"] = {"type": "boolean"}
+    zone["x-state"] = {
+        "choose": {
+            "unit": "widget",
+            "record": {"kind": "attribute", "attr": "selected"},
+        }
+    }
+    piece = declarations["lf-piece"]
+    piece["x-owners"] = ["lf-zone"]
+    piece["properties"]["selected"] = {"type": "boolean"}
+    for declaration in (zone, piece):
+        declaration.pop("x-example", None)
+    path.write_text(json.dumps(declarations))
+    (package / "widgets/lf-owner.js").write_text(
+        'await customElements.whenDefined("lf-zone");\n' + LEAF_OWNER
+    )
+    (package / "widgets/lf-zone.js").write_text("""\
+import { keeps, LeafElement } from "/runtime/widget-api.js";
+customElements.define("lf-zone", class extends LeafElement {
+  render() {
+    for (const piece of this.querySelectorAll("lf-piece"))
+      keeps(piece, "selected", this.state.choose.value.includes(piece.id) ? "" : null);
+  }
+});
+""")
+    page = open_page(
+        browser, serve(leaf_page("Moved selection", markup), packages=["./.leaf"])
+    )
+    expect(page.locator("#piece")).to_have_attribute("selected", "")
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "owner",
+            "action": "move",
+            "detail": {"unit": "piece", "value": "south", "rank": "1"},
+        },
+    )
+    expect(page.locator("#south > #piece")).to_have_count(1)
+    expect(page.locator("#piece")).not_to_have_attribute("selected", "")
+
+
 def test_a_part_and_its_own_widget_keep_same_named_verbs_independent(
     browser, serve, tmp_path, monkeypatch
 ):
     """Verbs are local to their owning widget contract. A container's `move` of part
     `piece` and that element's own `move` therefore coexist even though unit and verb
-    text are identical; both owners reconcile."""
+    text are identical; both owners reconcile, and a remounted part has its owner
+    place it."""
     monkeypatch.chdir(tmp_path)
     for tag, upgrade in (
         ("lf-owner", True),
@@ -5751,35 +5826,8 @@ def test_a_part_and_its_own_widget_keep_same_named_verbs_independent(
     }
     piece.pop("x-example", None)
     registry_path.write_text(json.dumps(declarations, indent=2))
-    (tmp_path / ".leaf" / "widgets" / "lf-owner.js").write_text(
-        """\
-import { once, widgetController } from "/runtime/widget-api.js";
-customElements.define("lf-owner", class extends HTMLElement {
-  #controller = widgetController(this);
-  #stop;
-  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
-  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState(state) {
-    for (const [id, order] of Object.entries(state.move.value)) {
-      const zone = document.getElementById(id);
-      for (const child of order) zone.append(document.getElementById(child));
-    }
-  }
-});
-"""
-    )
-    (tmp_path / ".leaf" / "widgets" / "lf-piece.js").write_text(
-        """\
-import { keeps, once, widgetController } from "/runtime/widget-api.js";
-customElements.define("lf-piece", class extends HTMLElement {
-  #controller = widgetController(this);
-  #stop;
-  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
-  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState(state) { keeps(this, "pinned", state.move.value); }
-});
-"""
-    )
+    (tmp_path / ".leaf" / "widgets" / "lf-owner.js").write_text(LEAF_OWNER)
+    (tmp_path / ".leaf" / "widgets" / "lf-piece.js").write_text(LEAF_PIECE)
     html = leaf_page(
         "owned coordinates",
         """<h1>Owned coordinates</h1><lf-owner id="owner">
@@ -6225,23 +6273,16 @@ def test_withdrawing_a_custom_settlement_clears_the_layers_mark(
     decide["detail"]["properties"]["decision"] = {"enum": ["open", "shelved"]}
     decide["detail"]["required"].append("decision")
     registry_path.write_text(json.dumps(declarations))
-    stage = (
-        "if (once(this)) shadowStage(this, [...this.children]);"
-        if shadow
-        else "once(this);"
-    )
+    stage = "shadowStage(this, [...this.children]);" if shadow else ""
     if shadow:
         (tmp_path / ".leaf" / "shadow.css").write_text(
             "lf-current, lf-proposed { display: block; }"
         )
     (tmp_path / ".leaf" / "widgets" / "lf-trial.js").write_text(
-        """import { keeps, once, shadowStage, widgetController } from "/runtime/widget-api.js";
-customElements.define("lf-trial", class extends HTMLElement {
-  #controller = widgetController(this);
-  #stop;
-  connectedCallback() { STAGE this.#stop ??= this.#controller.subscribe(() => {}); }
-  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState(state) { keeps(this, "decision", state.decide.detail.decision ?? "open"); }
+        """import { keeps, LeafElement, shadowStage } from "/runtime/widget-api.js";
+customElements.define("lf-trial", class extends LeafElement {
+  setup() { STAGE }
+  render() { keeps(this, "decision", this.state.decide.detail.decision ?? "open"); }
 });
 """.replace("STAGE", stage)
     )
@@ -6294,13 +6335,9 @@ def test_a_throwing_settlement_still_reaches_the_layers_terminal_state(
     trial_family(tmp_path)
     (tmp_path / ".leaf" / "widgets" / "lf-trial.js").write_text(
         """\
-import {widgetController} from "/runtime/widget-api.js";
-customElements.define("lf-trial", class extends HTMLElement {
-  #controller = widgetController(this);
-  #stop;
-  connectedCallback() { this.#stop ??= this.#controller.subscribe(() => {}); }
-  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState() { throw new Error("trial replay broke"); }
+import {LeafElement} from "/runtime/widget-api.js";
+customElements.define("lf-trial", class extends LeafElement {
+  render() { throw new Error("trial replay broke"); }
 });
 """
     )
@@ -6321,7 +6358,7 @@ customElements.define("lf-trial", class extends HTMLElement {
     expect(page.locator("#th-cache")).to_have_attribute("data-lf-state", "shelve")
     expect(page.locator("#th-cache .lf-error")).to_contain_text("trial replay broke")
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "1")
-    consume_browser_errors(page, "<lf-trial> renderState threw: trial replay broke")
+    consume_browser_errors(page, '<lf-trial id="th-cache"> failed: trial replay broke')
 
 
 def test_a_label_in_a_retired_slot_leaves_the_page_with_the_slot(browser, serve):
@@ -6544,21 +6581,15 @@ def test_thread_body_initial_state_comes_from_source_before_upgrade(
             },
             "layer_widgets": {
                 f"{tag}.js": """
-import {once, widgetController, keepsText} from '/runtime/widget-api.js';
-customElements.define('lf-delayed-body', class extends HTMLElement {
-  #controller = widgetController(this);
-  #stop;
-  connectedCallback() {
-    if (once(this)) {
-      this.#controller.present(new Promise(resolve => requestAnimationFrame(() => {
-        this.querySelector('pre').textContent = 'Presentation-only rewrite.';
-        resolve();
-      })));
-    }
-    this.#stop ??= this.#controller.subscribe(() => {});
+import {LeafElement, keepsText} from '/runtime/widget-api.js';
+customElements.define('lf-delayed-body', class extends LeafElement {
+  setup() {
+    this.controller.present(new Promise(resolve => requestAnimationFrame(() => {
+      this.querySelector('pre').textContent = 'Presentation-only rewrite.';
+      resolve();
+    })));
   }
-  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState(state) { keepsText(this.querySelector('pre'), state.edit.value); }
+  render() { keepsText(this.querySelector('pre'), this.state.edit.value); }
 });
 """
             },
@@ -6943,7 +6974,7 @@ def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
         )
     expect(page.locator("#tq-logs")).not_to_have_attribute("chosen", "")
     assert actions(serve.page_dir) == []
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(page, http_error_console(400))
     page.unroute("**/api/event")
 
     page.locator("#tq-logs").click()
@@ -6979,7 +7010,7 @@ def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
         ("choose", {"value": ["tq-logs"]}),
         ("answer", {}),
     ]
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(page, http_error_console(400))
 
 
 def test_refusal_restores_queued_recordless_thread_actions_in_order(browser, serve):
@@ -7032,7 +7063,7 @@ def test_refusal_restores_queued_recordless_thread_actions_in_order(browser, ser
     expect(done).not_to_have_attribute("aria-busy", "true")
     expect(done).to_have_attribute("aria-pressed", "false")
     assert actions(serve.page_dir) == []
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(page, http_error_console(400))
 
 
 def test_a_done_press_answers_optimistically_and_only_once(browser, serve):

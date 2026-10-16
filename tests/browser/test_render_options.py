@@ -14,7 +14,6 @@ from interact_support import (
 )
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
-from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
@@ -45,6 +44,7 @@ from render_harness import (
     _traffic,
     _until,
     compare_with,
+    consume_browser_errors,
     expect_asks_answered,
     expect_banner_control_offered,
     hold_selection,
@@ -453,6 +453,52 @@ def test_markdown_option_state_change_has_no_inline_text_diff(browser, serve):
     expect(change).not_to_have_attribute("aria-controls", re.compile(".*"))
 
 
+def test_a_failed_draw_keeps_the_options_and_the_next_reading_draws_over_it(
+    browser, serve
+):
+    """A draw that throws shows its failure beside the authored options it paints, so
+    the next reading still has them to draw on."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Failed draw",
+                '<h1>Failed draw</h1><lf-ask id="ask"><h2>Which?</h2>'
+                '<lf-options id="options" choose><lf-option id="one">First</lf-option>'
+                '<lf-option id="two">Second</lf-option></lf-options></lf-ask>',
+            )
+        ),
+    )
+    page.evaluate("""async () => {
+      const options = document.getElementById('options');
+      options.render = function () {
+        this.state;
+        throw new Error('an intentional draw failure');
+      };
+      options.requestUpdate();
+      await options.updateComplete;
+      delete options.render;
+    }""")
+    expect(page.locator("#options .lf-error")).to_have_count(1)
+    # The report names the widget, which is how the agent that wrote it finds it.
+    consume_browser_errors(page, '<lf-options id="options"> failed')
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "options",
+            "action": "choose",
+            "detail": {"value": ["two"]},
+        },
+    )
+    told(page)
+    expect(page.locator("#two")).to_have_attribute("chosen", "")
+    expect(page.locator("#options .lf-error")).to_have_count(0)
+    expect(page.locator("#options .lf-pick")).to_have_count(2)
+
+
 def test_option_controls_hold_presentation_without_replacing_authored_nodes(
     browser, serve
 ):
@@ -516,10 +562,14 @@ def test_option_controls_hold_presentation_without_replacing_authored_nodes(
 
     group.evaluate(
         """holder => {
-          const parent = holder.parentNode;
-          const next = holder.nextSibling;
+          window.optionsReturn = [holder.parentNode, holder.nextSibling];
           holder.remove();
-          parent.insertBefore(holder, next);
+        }"""
+    )
+    page.evaluate(
+        """() => {
+          const [parent, next] = window.optionsReturn;
+          parent.insertBefore(optionGroup, next);
           window.reconnectedOptionsReady = false;
           void whenOptionsPresented().then(() => {
             reconnectedOptionsReady = true;
@@ -2054,22 +2104,37 @@ def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve
 
 
 def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_path):
-    """A customization may deliberately give a container member a content seat.
-    The runtime's generated margin entry is still apparatus rather than that member's own
-    gesture: clicking status about an option must not choose the option."""
-    option = json.loads((schema_model.DEFAULT_PACKAGE / "registry.json").read_text())[
-        "lf-option"
-    ]
-    option["x-work"] = True
+    """A work-bearing block inside an option does not turn its margin entry into a pick."""
     layer = tmp_path / ".leaf"
     layer.mkdir()
-    (layer / "registry.json").write_text(json.dumps({"lf-option": option}))
+    (layer / "registry.json").write_text(
+        json.dumps(
+            {
+                "lf-work-point": {
+                    "description": "A block that can hold a local agent task.",
+                    "type": "object",
+                    "properties": {"id": {"type": "string"}},
+                    "required": ["id"],
+                    "additionalProperties": False,
+                    "x-content": "markup",
+                    "x-work": True,
+                    "x-upgrade": False,
+                }
+            }
+        )
+    )
+    page_source = ASK_PAGE.replace(
+        "Replace the <code>M8</code> mounts</lf-option>",
+        '<lf-work-point id="mount-work">Replace the <code>M8</code> mounts</lf-work-point></lf-option>',
+    )
 
-    page = open_page(browser, serve(ASK_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf")))
-    working(serve.page_dir, "checking the mount", subject="job-mounts")
+    page = open_page(
+        browser, serve(page_source, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
+    )
+    working(serve.page_dir, "checking the mount", subject="mount-work")
     told(page)
 
-    work_button = page.locator('[data-lf-margin-for="job-mounts"] > .lf-margin-marker')
+    work_button = page.locator('[data-lf-margin-for="mount-work"] > .lf-margin-marker')
     expect(work_button).to_have_attribute("data-lf-kinds", "activity")
     work_button.click()
 

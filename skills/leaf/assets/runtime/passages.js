@@ -279,8 +279,8 @@ export const showsWords = (block) =>
 // marks itself `data-lf-runtime`, so the reading travels with the node rather than with
 // the place it stands. A press mode that comments on or chooses the page leaves these
 // working.
-export const leafSurface = (node) =>
-  node ? closestAcross(node, ".lf-chrome, [data-lf-runtime]") : null;
+export const LEAF_SURFACE = ".lf-chrome, [data-lf-runtime]";
+export const leafSurface = (node) => (node ? closestAcross(node, LEAF_SURFACE) : null);
 // The two together, which is what an affordance acting on where the pointer or the caret
 // is actually needs: the page's own words, as against the layer over them and as against
 // the apparatus inside them. Either half alone leaves a hole, and the hole `.lf-ui` left
@@ -715,11 +715,9 @@ export const pageQueryAll = (selector) =>
 // from the page's prose into a widget's shadow is exactly what the fences already refuse.
 export function pageRange(sel) {
   const plain = sel.getRangeAt(0);
-  if (typeof sel.getComposedRanges !== "function") return plain;
   const shadowRoots = pageShadowRoots();
   if (!shadowRoots.length) return plain;
   const [composed] = sel.getComposedRanges({ shadowRoots });
-  if (!composed) return plain;
   const { startContainer, startOffset, endContainer, endOffset } = composed;
   if (startContainer.getRootNode() !== endContainer.getRootNode()) return plain;
   const range = document.createRange();

@@ -12,10 +12,9 @@ export { styleMap } from "lit/directives/style-map.js";
 export { unsafeHTML } from "lit/directives/unsafe-html.js";
 export { effect, signal } from "@preact/signals-core";
 export { createSemanticApplication } from "./application.js";
-export { collectReads, share, untracked } from "./snapshot.js";
+export { collectReads, outsideReading, share, untracked } from "./snapshot.js";
 export {
   createPresentationCoordinator,
   createPresentationSchedule,
   describeFailure,
-  PRESENTATION_HELD,
 } from "./presentation.js";

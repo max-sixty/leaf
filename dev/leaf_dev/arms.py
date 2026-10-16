@@ -52,7 +52,7 @@ from leaf.todos import start_reading
 
 from leaf_dev import ROOT
 from leaf_dev.browser import shell_executable
-from leaf_dev.page_fixtures import prepare_page, read_fixture
+from leaf_dev.page_fixtures import prepare_page, read_fixture, record_run_context
 
 # The uv project names this package's `pyproject.toml` as a workspace member, so uv
 # needs that file to read the lock. The package itself stays out: the launcher never
@@ -106,7 +106,10 @@ def environment(**extra: str) -> dict[str, str]:
     identity: its id, job directory, effort level and App Server endpoint. A `leaf`
     command would sign events as that session, and a child would use its transport
     and settings. An inherited LEAF_HOST_LAUNCHER would override the arm's launcher.
-    `CLAUDE_CONFIG_DIR` stays, since it names where the login lives.
+    `CLAUDE_CONFIG_DIR` stays, since it names where the login lives. Nor does PATH
+    keep `uv run`'s environment or the bin directory of a Leaf tree, such as the
+    one the session's harness added for its own Leaf plugin: the `leaf` in either
+    would shadow the launcher a child harness puts on PATH for the arm's plugin.
 
     A child names the pinned headless shell as its browser through
     LEAF_BROWSER_EXECUTABLE (`shell_executable`), unless that variable is already
@@ -121,6 +124,13 @@ def environment(**extra: str) -> dict[str, str]:
     }
     if browser_model.VARIABLE not in env:
         env[browser_model.VARIABLE] = shell_executable()
+    venv = os.environ.get("VIRTUAL_ENV")
+    env["PATH"] = os.pathsep.join(
+        entry
+        for entry in env["PATH"].split(os.pathsep)
+        if not (venv and entry == str(Path(venv) / "bin"))
+        and not (Path(entry).parent / "skills" / "leaf").is_dir()
+    )
     return {**env, **extra}
 
 
@@ -169,30 +179,27 @@ def serving(arm: Path, state: Path, page: Path):
         server.wait()
 
 
-def build_source(
-    arm: Path, state: Path, source: Path, page: Path, *, compiled: bool = True
-) -> None:
+def build_source(arm: Path, state: Path, source: Path, page: Path) -> None:
     """Build the authored `source` into the page directory `page` with the arm's own
     launcher under the state home `state`. The checkout is an arm too: `ROOT` runs
-    its working tree. Developer pages use the same compiled kernel as the website;
-    `compiled=False` supplies an explicit source baseline for startup comparisons.
+    its working tree. Developer pages use the same compiled kernel as the website.
     """
-    from leaf_dev.distribution import cached_installation
+    from leaf_dev.commands.distribution import cached_installation
 
-    payload = cached_installation(arm) if compiled else arm
     prepare_page(
         page,
         read_fixture(source, runtime=arm, env=environment(XDG_STATE_HOME=str(state))),
-        partial(run_leaf, payload, state, check=True),
+        partial(run_leaf, cached_installation(arm), state, check=True),
     )
+    record_run_context(page, purpose="automated", run=state, authored_source=source)
 
 
 @contextmanager
-def serving_source(arm: Path, source: Path, scratch: Path, *, compiled: bool = True):
+def serving_source(arm: Path, source: Path, scratch: Path):
     """Build `source` into a page under `scratch` (`build_source`), serve it
     (`serving`), and yield the address."""
     state, page = scratch / "state", scratch / "page"
-    build_source(arm, state, source, page, compiled=compiled)
+    build_source(arm, state, source, page)
     with serving(arm, state, page) as address:
         yield address
 
@@ -1001,20 +1008,6 @@ def commands(record: dict) -> list[str]:
         or " ".join(filter(None, [block["name"], block["input"].get("file_path")]))
         for block in (content if isinstance(content, list) else ())
         if block.get("type") == "tool_use"
-    ]
-
-
-def waits_started(record: dict) -> list[str]:
-    """The ids of the backgrounded `leaf wait` calls one stream record makes, however
-    the command spells the launcher: `leaf`, its path, or a variable holding it."""
-    content = (record.get("message") or {}).get("content")
-    return [
-        block["id"]
-        for block in (content if isinstance(content, list) else ())
-        if block.get("type") == "tool_use"
-        and block["name"] == "Bash"
-        and re.search(r"(\bleaf|\$\{?\w+\}?) wait\b", block["input"].get("command", ""))
-        and block["input"].get("run_in_background")
     ]
 
 

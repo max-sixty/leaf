@@ -18,13 +18,13 @@ import {
   el,
   keeps,
   keepsText,
+  LeafElement,
   navigateToDatum,
+  nothing,
   offer,
   projectData,
   setChildLists,
   setChildren,
-  watchData,
-  once,
   plainPress,
   focused,
 } from "/runtime/widget-api.js";
@@ -211,16 +211,18 @@ function labelOf(record) {
 
 customElements.define(
   "lf-call-diff",
-  class extends HTMLElement {
-    connectedCallback() {
-      if (!once(this)) return;
-      watchData(this, "document", (snapshot) => this.show(snapshot));
+  class extends LeafElement {
+    render() {
+      this.show(this.data("document"));
+      return nothing;
     }
 
     message(key, message, snapshot) {
       this.groups = new Map();
       this.rows = new Map();
-      const node = (this.messageNode ??= el("div", "lf-call-line"));
+      /** @type {HTMLElement} */
+      this.messageNode = this.messageNode ?? el("div", "lf-call-line");
+      const node = this.messageNode;
       keeps(
         node,
         "class",

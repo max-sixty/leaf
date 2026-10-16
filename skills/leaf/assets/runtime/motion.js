@@ -11,7 +11,7 @@
 //
 // Projection composes the complete final state before rendering. Ordered containers
 // measure once around that composition and show one FLIP from the current layout to the
-// final layout. A live drag defers the whole correction.
+// final layout. A widget whose drag moves its own nodes defers its correction.
 
 import { pagePresented } from "./page-paint.js";
 import { LEAVING, announceRoom } from "./geometry.js";
@@ -101,6 +101,44 @@ export function backgroundFlash(el, ms) {
 // resolved thread's place in the list are both room the user watches come back —
 // and two numbers would be that reason written down twice, free to disagree.
 export const foldDuration = () => time("--lf-motion-fold");
+
+// Give a block's room back from its ordinary CSS shape. Native intrinsic-size
+// interpolation supplies the starting height, and the other lengths start at their
+// underlying stylesheet values. No measured box or temporary inline styles survive
+// the effect. `display` keeps an already-retired slot drawn until its pixels finish;
+// semantic retirement is still true from the first frame.
+// Clip without creating a scroller, so a folding thread's title stays sticky to its list.
+// Without intrinsic interpolation, which Firefox and WebKit lack, use the caller's
+// immediate retirement path rather than a discrete height jump half way through an
+// opacity animation.
+export function foldBlock(el) {
+  if (!CSS.supports("block-size", "calc-size(auto, size)")) return null;
+  return motion(
+    el,
+    [
+      {
+        blockSize: "calc-size(auto, size)",
+        display: "block",
+        overflow: "clip",
+        opacity: 1,
+      },
+      {
+        blockSize: "0px",
+        minBlockSize: "0px",
+        marginBlockStart: "0px",
+        marginBlockEnd: "0px",
+        paddingBlockStart: "0px",
+        paddingBlockEnd: "0px",
+        borderBlockStartWidth: "0px",
+        borderBlockEndWidth: "0px",
+        display: "block",
+        overflow: "clip",
+        opacity: 0,
+      },
+    ],
+    foldDuration(),
+  );
+}
 
 // An edge-held auxiliary surface slides in from the edge it is held to, the drawers from the
 // left and the thread panel from the right, and a drawer slides back out to it. It stands over the page, so the

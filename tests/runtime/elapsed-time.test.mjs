@@ -1,173 +1,41 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  createPresentationCoordinator,
-  createPresentationSchedule,
-} from "../../skills/leaf/assets/vendor/browser-runtime.js";
-import {
   ago,
   shortAgo,
-  clocked,
   clockValue,
   tickClock,
 } from "../../skills/leaf/assets/runtime/presence.js";
+import { watchProjection } from "../../skills/leaf/assets/runtime/projection-watch.js";
 
 const before = (ms) => new Date(Date.now() - ms).toISOString();
 const MINUTE = 60 * 1000;
 
-test("a clock invalidation leaves an unrecovered paint failure with its presenter", async () => {
-  const owner = document.createElement("div");
-  document.body.append(owner);
-  const reports = [];
-  let clock = 0;
-  let claimed;
-  const coordinator = createPresentationCoordinator({
-    reportFailure: (error) => reports.push(error.message),
-  });
-  const schedule = createPresentationSchedule((callback) => callback);
-  const publication = coordinator.begin({}, 0);
-  const paint = clocked(
-    owner,
-    () => {
-      clockValue(() => clock);
-      if (clock) throw new Error("paint and retention both failed");
-      return clock;
-    },
-    () => (claimed = presenter.sync(clock)),
-  );
-  const presenter = schedule.presenter({
-    attach: () => coordinator.attach("queue", owner),
-    paint,
-    failSoft: (error) => {
-      throw error;
-    },
-  });
-  const initial = presenter.sync(0);
-  coordinator.seal(publication);
-  await initial;
-  clock = 1;
-  await tickClock((message) => reports.push(message));
-  await assert.rejects(claimed, /paint and retention both failed/);
-  assert.deepEqual(reports, ["paint and retention both failed"]);
-  assert.deepEqual(coordinator.read().pending, ["queue"]);
-  paint.stop();
-  owner.remove();
-});
-
-test("clock invalidation retains dependencies until a deferred paint replaces them", async () => {
+test("a watcher another stops during a tick stays stopped", async () => {
   const owner = document.createElement("div");
   document.body.append(owner);
   let clock = 0;
-  let invalidations = 0;
-  const shown = [];
-  const paint = clocked(
-    owner,
-    () => shown.push(clockValue(() => Math.floor(clock / 10))),
-    () => invalidations++,
-  );
-  const tick = () =>
-    tickClock((message) => {
+  const calls = { first: 0, second: 0 };
+  let second;
+  const first = watchProjection(owner, () => {
+    calls.first += 1;
+    clockValue(() => clock);
+    if (calls.first > 1) second();
+  });
+  second = watchProjection(owner, () => {
+    calls.second += 1;
+    clockValue(() => clock);
+  });
+  await Promise.resolve();
+  for (let round = 0; round < 2; round += 1) {
+    clock += 1;
+    await tickClock((message) => {
       throw new Error(message);
     });
-  paint();
-  clock = 9;
-  await tick();
-  assert.equal(invalidations, 0);
-  clock = 10;
-  await tick();
-  clock = 20;
-  await tick();
-  assert.equal(invalidations, 2);
-  assert.deepEqual(shown, [0], "claiming work must not paint it");
-  paint();
-  await tick();
-  assert.equal(invalidations, 2, "the actual paint replaces its prior readings");
-  clock = 30;
-  await tick();
-  assert.equal(invalidations, 3);
-  paint.stop();
-  clock = 40;
-  await tick();
-  assert.equal(invalidations, 3);
-  owner.remove();
-});
-
-test("a paint stopped inside its callback stays off the clock until rendered again", async () => {
-  const owner = document.createElement("div");
-  document.body.append(owner);
-  let clock = 0;
-  let calls = 0;
-  const paint = clocked(owner, () => {
-    calls += 1;
-    clockValue(() => clock);
-    if (calls === 2) paint.stop();
-  });
-  paint();
-  paint();
-  clock += 1;
-  await tickClock((message) => {
-    throw new Error(message);
-  });
-  assert.equal(calls, 2);
-  paint();
-  clock += 1;
-  await tickClock((message) => {
-    throw new Error(message);
-  });
-  assert.equal(calls, 4);
-  paint.stop();
-  owner.remove();
-});
-
-test("a time read after a paint waits stays on the clock where the paint resumes", async () => {
-  const owner = document.createElement("div");
-  document.body.append(owner);
-  let clock = 0;
-  const seen = { resumed: [], bare: [], synchronous: [] };
-  const paints = Object.entries(seen).map(([name, shown]) => {
-    const paint = clocked(owner, async () => {
-      const after = () => shown.push(clockValue(() => clock));
-      if (name === "synchronous") return paint.resume(after)();
-      const continued = name === "resumed" ? paint.resume(after) : after;
-      await null;
-      continued();
-    });
-    return paint;
-  });
-  await Promise.all(paints.map((paint) => paint()));
-  clock += 1;
-  await tickClock((message) => {
-    throw new Error(message);
-  });
-  assert.deepEqual(seen, { resumed: [0, 1], bare: [0], synchronous: [0, 1] });
-  for (const paint of paints) paint.stop();
-  owner.remove();
-});
-
-test("a resumed time reading made inside another paint stays with its own paint", async () => {
-  const owner = document.createElement("div");
-  document.body.append(owner);
-  let clock = 0;
-  const calls = { outer: 0, inner: 0 };
-  let continued = null;
-  const inner = clocked(owner, () => {
-    calls.inner += 1;
-    continued?.();
-  });
-  const outer = clocked(owner, () => {
-    calls.outer += 1;
-    continued = outer.resume(() => clockValue(() => clock));
-    inner();
-  });
-  outer();
-  continued = null;
-  clock += 1;
-  await tickClock((message) => {
-    throw new Error(message);
-  });
-  assert.deepEqual(calls, { outer: 2, inner: 2 });
-  outer.stop();
-  inner.stop();
+    await Promise.resolve();
+  }
+  assert.deepEqual(calls, { first: 3, second: 1 });
+  first();
   owner.remove();
 });
 

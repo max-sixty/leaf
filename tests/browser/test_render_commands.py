@@ -1,6 +1,7 @@
 """Render, shot, and browser-gate command tests."""
 
 import hashlib
+import json
 import os
 import re
 import subprocess
@@ -92,16 +93,20 @@ def test_a_driver_that_never_starts_is_reported_rather_than_raised(serve, tmp_pa
 
     def answered(result, node, reason):
         assert result.returncode == 0, result.stdout + result.stderr
-        assert "· render check: not run, Playwright's driver did not start: " in (
-            result.stderr
-        )
-        assert browser_model.DRIVER_VARIABLE in result.stderr
-        assert str(node) in result.stderr
-        assert reason in result.stderr
-        assert "Traceback" not in result.stderr
-        assert "_playwright" not in result.stderr
-        assert "_output" not in result.stderr
-        assert "Task exception was never retrieved" not in result.stderr
+        report = json.loads(result.stdout)
+        assert report["status"] == 0
+        assert report["browser"]["asked"] == ["render check"]
+        assert report["browser"]["ran"] == []
+        unavailable = report["browser"]["unavailable"]
+        assert "Playwright's driver did not start: " in unavailable
+        assert browser_model.DRIVER_VARIABLE in unavailable
+        assert str(node) in unavailable
+        assert reason in unavailable
+        assert result.stderr == ""
+        assert "Traceback" not in result.stdout
+        assert "_playwright" not in result.stdout
+        assert "_output" not in result.stdout
+        assert "Task exception was never retrieved" not in result.stdout
 
     def ran(node, *command):
         return subprocess.run(
@@ -955,10 +960,15 @@ def test_render_reads_widget_chrome_where_it_stands(
     package = tmp_path / ".leaf"
     add_test_widget(package, "lf-badge", upgrade=True)
     module = package / "widgets" / "lf-badge.js"
+    source = module.read_text()
+    starter = "class extends LeafElement {},"
+    assert source.count(starter) == 1
     module.write_text(
-        module.read_text().replace(
-            "      if (!once(this)) return;",
-            "      if (!once(this)) return;\n" + BADGE_CHROME,
+        source.replace(
+            starter,
+            "class extends LeafElement {\n    setup() {\n"
+            + BADGE_CHROME
+            + "\n    }\n  },",
         )
     )
     narrow = solid_png(400, 300, (235, 215, 205))

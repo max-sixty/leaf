@@ -21,7 +21,6 @@ from conftest import LEAF_COMMAND
 from interact_support import (
     HELD_LEASES,
     STATED_TIMEOUT,
-    Prose,
     _interaction_prompt_evidence,
     append_carried_log_record,
     append_command,
@@ -37,6 +36,7 @@ from interact_support import (
     publish,
     receive_through,
     record_claim,
+    said,
     serving,
     vendored_at_another_protocol,
     wait_for,
@@ -502,13 +502,13 @@ def test_wait_restarts_a_server_that_died_under_it(
     assert "server had died; restarted" in printed.err
     snapshot.check(
         yaml_document(
-            "A wait revives its server, reports recovery on stderr, and delivers input.\n"
+            "A wait revives its server, notes the recovery, and delivers input.\n"
             "The URL's dynamic port and access token are represented by <served-url>.",
             _interaction_prompt_evidence(
                 page_dir,
                 {
                     "exit": 0,
-                    "stderr": printed.err.replace(info["url"], "<served-url>"),
+                    "stderr": said(printed.err.replace(info["url"], "<served-url>")),
                 },
             ),
         )
@@ -726,12 +726,12 @@ def test_wait_ends_when_the_leaf_does(page_dir, capsys, snapshot):
                     "still served": {
                         "exit": 2,
                         "stdout": served.out,
-                        "stderr": served.err,
+                        "stderr": said(served.err),
                     },
                     "server stopped": {
                         "exit": 2,
                         "stdout": stopped.out,
-                        "stderr": stopped.err,
+                        "stderr": said(stopped.err),
                     },
                 },
             ),
@@ -750,7 +750,6 @@ def test_one_wait_watches_every_page_the_session_holds(
     leases_model.mark_hooks("s9")  # its harness runs Leaf's hooks
     second = tmp_path / "second"
     vendoring_model.cmd_init(second)
-    capsys.readouterr()
     session_model.cmd_waiting(second, "")
     session_model.cmd_waiting(page_dir, "")
     serving(page_dir, 1)
@@ -1233,7 +1232,6 @@ def test_a_page_served_mid_wait_joins_the_running_watch(
     assert service_model.claim_page(page_dir)
     joined = tmp_path / "joined"
     vendoring_model.cmd_init(joined)
-    capsys.readouterr()
     session_model.cmd_waiting(joined, "")
     serving(joined, 2)
 
@@ -1277,7 +1275,7 @@ def test_wait_with_nothing_to_watch_says_so(monkeypatch, capsys, snapshot):
     snapshot.check(
         yaml_document(
             "An unnamed wait exits when the session owns no page.",
-            {"exit": 2, "stdout": printed.out, "stderr": Prose(printed.err)},
+            {"exit": 2, "stdout": printed.out, "stderr": said(printed.err)},
         )
     )
 

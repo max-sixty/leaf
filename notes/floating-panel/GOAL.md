@@ -49,7 +49,20 @@ The sketch's breathing leaf was left out: `skills/leaf/assets/AGENTS.md`,
 "Motion", allows one continuous animation. On 13 October the user had the working
 status carry that one sheen instead, asked for the resting status to read dimmer
 than body text ("currently it's too 'normal text'"), and for the focused field's
-placeholder to say where the words go.
+placeholder to say where the words go. Later that day the line over the field lost
+its recipient ("I don't think we need 'To Agent' (who else might we be sending it
+to??)"), menu rows drew their keys as key caps, and About's copy rows took Leaf's copy
+icon.
+
+### Follow-ups the user named
+
+- **Selected words go to the anchored comment box, not the field.** The fresh review
+  found that clicking the panel's field with words selected drops the selection and
+  comments on the page as a whole. The user declined carrying the selection into the
+  field (14 October): "at the moment we should encourage using the anchored comment
+  box; though we may change our mind", since that box becomes the anchored comment and
+  stands beside its passage. If the drop needs treating, steer toward that box rather
+  than giving the field a second way to anchor.
 
 Build an opt-in alternative to Leaf's chrome: one panel that hovers over the
 bottom of the page, like the Codex app's floating chat panel, and replaces both
@@ -88,7 +101,6 @@ env LEAF_PREVIEWS_ROOT=$HOME/.tmp/leaf/approved-prototype-446de2cb2/.tmp/preview
 Choose **Leaf** in the tabs at the sample's top, and Minimal or Moderate beside
 them. **Full view** fits the sample to the window. The prototype runs on its own
 2026-10-10 runtime, which is why it is served from that tree rather than this one.
-
 
 Reference images are in `~/.tmp/leaf/floating-controls-reference/`:
 
@@ -213,16 +225,19 @@ shortfall. Add each improvement you make, with its reason. Where an item here an
   the surface layer follows the box's outline by a clip on the Codex panel's 300 ms
   `cubic-bezier(.23,1,.32,1)`. (The first build tweened the card's height; a layout
   tween's last frame landed outside CI's input window as a shift.)
-- **The focused field shows no frame and no ground**: the line naming where the words
-  go opens above it. A dark frame around the field was the previous attempt's "form"
-  look.
+- **The focused field shows no frame and no ground**: one quiet line opens above it,
+  with the keys that send. A dark frame around the field was the previous attempt's
+  "form" look.
 - **While the user types, Send stands in the counts' place;** the counts come back
   when the caret leaves, and the line naming where the words go stays while the field
   holds words. (Replaces the first build's counts on the destination line.)
-- **In a thread the destination line reads "Reply in {thread} · to {agent}",** since
-  the thread's name now heads the view rather than standing just above the field.
-- **A short thread reserves its "New reply · Show" slot,** so arriving news moves
-  nothing.
+- **The line over the field names where the words go only once they hide the
+  placeholder that said it,** in the placeholder's words ("Comment on the page"), and
+  never who reads them: the page has one agent. It shows only with no view open; over
+  a view it repeated the view's head, so the user dropped it there (#2913).
+- **The answer the user waits for grows the thread's view,** up to its height limit,
+  with New reply only past it; other news in an open thread still moves nothing. The
+  user chose growth over a reserved New reply slot on 14 October (#2916).
 - **Answers are the widget's own choices** (a multiple-choice ask shows its options and
   Done), recorded exactly as on the page; the On view has On me / On {agent} / Done.
 - **Messages draw with Leaf's own reader** (the panel is a registered thread
@@ -234,6 +249,10 @@ shortfall. Add each improvement you make, with its reason. Where an item here an
   keeps the field ("numbers next to icons rather than saying whole words").
 - **Passing notices are said in the empty field** (the overhaul); a walk's position
   still stands centred at the window's head.
+- **The panel shows no key hints**, neither the bottom bar's resting hints nor the
+  `g` sequence's destination list: the menu's rows carry their shortcuts and `?` opens
+  the full reference. The user chose this over one or two hints in the line above the
+  field on 13 October, to keep the panel quietest.
 
 ## What went wrong last time
 

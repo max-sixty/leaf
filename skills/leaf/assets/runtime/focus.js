@@ -323,7 +323,8 @@ export const focused = (tree = null) => {
 // The selection the user drew in the tree `node` stands in, where the browser keeps it.
 const selectionOf = (node) => {
   const root = node.getRootNode();
-  // Chromium's shadow roots answer their own selection.
+  // Only Chromium's shadow roots answer their own selection; Firefox and WebKit
+  // keep it on the document.
   const own = /** @type {{getSelection?: () => Selection}} */ (root);
   return (root instanceof ShadowRoot && own.getSelection?.()) || getSelection();
 };
@@ -470,8 +471,10 @@ let paintedFocus = null;
 let paintedWithin = new Set();
 function markFocus(node, name, present) {
   keeps(node, `data-lf-${name}`, present ? "" : null);
-  if (!present) node.part?.remove(`lf-${name}`);
-  else if (
+  // Removing an absent token still rewrites the attribute.
+  if (!present) {
+    if (node.part?.contains(`lf-${name}`)) node.part.remove(`lf-${name}`);
+  } else if (
     node.getRootNode().nodeType === Node.DOCUMENT_FRAGMENT_NODE &&
     node.hasAttribute("part")
   )

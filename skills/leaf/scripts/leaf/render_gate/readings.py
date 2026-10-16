@@ -279,7 +279,7 @@ def _scheme_findings(context: _SchemeContext) -> list[Finding]:
         if replayed:
             silent = evaluate_probe(page, "silentWords", declarations)
             # Behind the same wait, because reconciliation is one of the two
-            # writers: a renderState states one declared fact whole, and a
+            # writers: a widget's render states one declared fact whole, and a
             # record form is exactly the attribute it may state that fact in.
             undeclared_attrs = evaluate_probe(page, "undeclaredAttrs", declarations)
             # Behind it too: the settlement mark is replay's own write, so a

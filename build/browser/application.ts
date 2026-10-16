@@ -68,10 +68,9 @@ import type {
  * `sending` and `accepted` are drawn from the gesture; from `:logged` on, the log's
  * own event draws it. An entry leaves in exactly two ways. A refused one waits for
  * `release`, once the reading it restores is on the page. An accepted one leaves on
- * reaching `accepted:presented`, unless it is an action: an action's widget and the
- * projection chrome can hold a reading past the document pass (a drag, a deferred
- * widget), so an action waits there for `release`, which its owner calls once those
- * regions have committed. A signal a state has no edge for leaves it where it is. */
+ * reaching `accepted:presented`, unless it is an action: an action's widget can hold a
+ * reading past the document pass (a deferred widget), so an action waits there for
+ * `release`, which its owner calls once those regions have committed. A signal a state has no edge for leaves it where it is. */
 type GestureState =
   | "sending"
   | "sending:logged"
@@ -186,7 +185,8 @@ interface WireProjection {
  * identity includes its kind so authored ids and message ids cannot collide. */
 interface AskRecord {
   id: string;
-  source: { kind: "widget" | "reply"; id: string; tag?: string }
+  source:
+    | { kind: "widget" | "reply"; id: string; tag?: string }
     | { kind: "approval"; version: number };
   thread: string | null;
   message: string | null;
@@ -328,7 +328,7 @@ export interface SemanticDocument {
       [name: string]: unknown;
     }
   > & {
-    $reactions?: { tokens: Record<string, {glyph: string; settles?: boolean}> };
+    $reactions?: { tokens: Record<string, { glyph: string; settles?: boolean }> };
     $states: Record<string, Record<string, StampedState>>;
   };
   authored: AuthoredMap;
@@ -367,6 +367,12 @@ interface AuthoritativeState {
   /** Each bound file's stamp, by binding, which moves when the file may have. */
   files: Record<string, string>;
   workflows: WireWorkflow[];
+  /** The machine's other live pages, each its compact activity summary
+   * (`server_rows.py`). */
+  others: ({ page_key: string; url: string; title: string } & Record<
+    string,
+    unknown
+  >)[];
   browser: {
     basis: { through_seq: number };
     views: Record<
@@ -482,47 +488,63 @@ function normalizedAsks(
 ): WireAsks {
   const page = view?.document.asks;
   const thread = view?.thread.asks;
-  const all = [...(page?.all ?? []), ...(thread?.all ?? [])].map(
-    (ask): AskRecord => {
-      if (ask.source.kind === "approval") {
-        const version = ask.source.version;
-        const undone = new Set(local.flatMap(({ event }) =>
-          event.kind === "undo" ? [event.undoes] : []));
-        const approving = local.some(({ event }) =>
-          event.kind === "done" && event.version === version);
-        if (approving) return { ...ask, answer: { value: true, event: null },
-          status: "answered", next_actor: null };
-        if (ask.answer?.event && undone.has(ask.answer.event.id))
-          return { ...ask, answer: null, status: "open", next_actor: "user" };
-        return ask;
-      }
-      if (ask.source.kind !== "widget") return ask;
-      const sourceId = ask.source.id;
-      const widget = widgets.get(sourceId);
-      const declaration = document.descriptors.get(ask.source.id)?.declaration["x-awaits"] as
-        { value?: string } | undefined;
-      const verb = declaration?.value;
-      if (!verb || !widget) return ask;
-      const completed = ask.status === "answered" &&
-        !(ask.answer?.event && projection.pendingWithdrawals.has(ask.answer.event.id));
-      const { value, present } = askValue(widget, verb, completed);
-      const pendingValue = (widget.entries as { e: Event }[]).some(({ e }) =>
-        e.action === verb && !Number.isInteger(e.seq)) ||
-        [...projection.pendingWithdrawals.values()].some(({ e }) =>
+  const all = [...(page?.all ?? []), ...(thread?.all ?? [])].map((ask): AskRecord => {
+    if (ask.source.kind === "approval") {
+      const version = ask.source.version;
+      const undone = new Set(
+        local.flatMap(({ event }) => (event.kind === "undo" ? [event.undoes] : [])),
+      );
+      const approving = local.some(
+        ({ event }) => event.kind === "done" && event.version === version,
+      );
+      if (approving)
+        return {
+          ...ask,
+          answer: { value: true, event: null },
+          status: "answered",
+          next_actor: null,
+        };
+      if (ask.answer?.event && undone.has(ask.answer.event.id))
+        return { ...ask, answer: null, status: "open", next_actor: "user" };
+      return ask;
+    }
+    if (ask.source.kind !== "widget") return ask;
+    const sourceId = ask.source.id;
+    const widget = widgets.get(sourceId);
+    const declaration = document.descriptors.get(ask.source.id)?.declaration[
+      "x-awaits"
+    ] as { value?: string } | undefined;
+    const verb = declaration?.value;
+    if (!verb || !widget) return ask;
+    const completed =
+      ask.status === "answered" &&
+      !(ask.answer?.event && projection.pendingWithdrawals.has(ask.answer.event.id));
+    const { value, present } = askValue(widget, verb, completed);
+    const pendingValue =
+      (widget.entries as { e: Event }[]).some(
+        ({ e }) => e.action === verb && !Number.isInteger(e.seq),
+      ) ||
+      [...projection.pendingWithdrawals.values()].some(
+        ({ e }) =>
           e.widget === sourceId &&
-          (e.action === verb || e.id === ask.answer?.event?.id));
-      const answer = present
-        ? { value, event: pendingValue ? null : ask.answer?.event ?? null }
-        : null;
-      return { ...ask, answer };
-    },
-  );
+          (e.action === verb || e.id === ask.answer?.event?.id),
+      );
+    const answer = present
+      ? { value, event: pendingValue ? null : (ask.answer?.event ?? null) }
+      : null;
+    return { ...ask, answer };
+  });
   const selection = (kind: "user" | "unanswered") => {
-    const admitted = new Set([...(page?.[kind] ?? []), ...(thread?.[kind] ?? [])]
-      .map((ask) => ask.id));
-    return all.filter((ask) => ask.source.kind === "approval"
-      ? kind === "user" ? ask.next_actor === "user" : ask.status === "open"
-      : admitted.has(ask.id));
+    const admitted = new Set(
+      [...(page?.[kind] ?? []), ...(thread?.[kind] ?? [])].map((ask) => ask.id),
+    );
+    return all.filter((ask) =>
+      ask.source.kind === "approval"
+        ? kind === "user"
+          ? ask.next_actor === "user"
+          : ask.status === "open"
+        : admitted.has(ask.id),
+    );
   };
   return { all, user: selection("user"), unanswered: selection("unanswered") };
 }
@@ -531,10 +553,7 @@ function normalizedAsks(
  * user is ending stands ended in the gesture's own turn, and one whose Done they are
  * undoing stands open again; a refused gesture leaves the ledger and so puts the to-do
  * back as the log has it. */
-function localTodos(
-  state: AuthoritativeState | null,
-  local: readonly LedgerEntry[],
-) {
+function localTodos(state: AuthoritativeState | null, local: readonly LedgerEntry[]) {
   const ending = new Set(
     local.flatMap(({ event }) => (event.kind === "todo_end" ? [event.todo] : [])),
   );
@@ -567,6 +586,57 @@ function localTodos(
 }
 
 const NO_QUEUES: WireQueues = { on_user: [], on_agent: [], done: [] };
+
+/** Attribute-set owners depend on the members their total render paints, as well
+ * as on the selected ids. Capture supplies authored parentage; the complete
+ * position fold supplies current parentage for declared descendants. Flat creates
+ * supply additional members to their creator without becoming widget owners. */
+function currentWidgetRelations(
+  document: SemanticDocument,
+  widgets: ReturnType<typeof foldWidgetStates>,
+  projection: ReturnType<typeof foldProjection>,
+) {
+  const parents = new Map(
+    [...document.descriptors].map(([id, descriptor]) => [id, descriptor.parent?.id]),
+  );
+  const owners = new Map<string, Set<string>>();
+  const memberships = new Map<string, Record<string, string[]>>();
+  for (const [id, widget] of widgets) {
+    for (const [verb, spec] of widget.specs) {
+      const record = spec.record;
+      if (record?.kind === "attribute") {
+        const named = owners.get(record.attr) ?? new Set<string>();
+        named.add(id);
+        owners.set(record.attr, named);
+        const slots = memberships.get(id) ?? {};
+        slots[record.attr] = [];
+        memberships.set(id, slots);
+      } else if (record?.kind === "position") {
+        const state = widget.state[verb];
+        if (state && "ranks" in state)
+          for (const [container, units] of Object.entries(state.value))
+            for (const unit of units) parents.set(unit, container);
+      }
+    }
+  }
+  for (const [attr, named] of owners) {
+    for (const id of document.descriptors.keys()) {
+      const seen = new Set<string>([id]);
+      for (let parent = parents.get(id); parent; parent = parents.get(parent)) {
+        if (seen.has(parent)) break;
+        seen.add(parent);
+        if (!named.has(parent)) continue;
+        memberships.get(parent)![attr]!.push(id);
+        break;
+      }
+    }
+    for (const { e, unit, spec } of projection.desired.values())
+      if (spec.creates && named.has(e.widget) && !document.descriptors.has(unit))
+        memberships.get(e.widget)![attr]!.push(unit);
+    for (const owner of named) memberships.get(owner)![attr]!.sort();
+  }
+  return { parents, memberships };
+}
 
 /* What is on the user (On me), what is on the agent (On <agent>), and what is done:
  * the view's served lists (`served_state.queues`), with this tab's unresolved sends
@@ -639,15 +709,17 @@ function localQueues(
   // An ask item carries this tab's record of its ask.
   const current = <T extends QueueItem>(item: T): T =>
     item.kind === "ask" ? { ...item, ask: askOf(item) } : item;
-  const asOpen = ({ state: _state, ended: _ended, detail: _detail, ...item }: DoneItem) =>
-    current(item as QueueItem);
+  const asOpen = ({
+    state: _state,
+    ended: _ended,
+    detail: _detail,
+    ...item
+  }: DoneItem) => current(item as QueueItem);
   const asDone = (item: QueueItem): DoneItem => ({
     ...current(item),
     live: false,
     state:
-      item.kind === "ask" && askOf(item).status === "withdrawn"
-        ? "dropped"
-        : "done",
+      item.kind === "ask" && askOf(item).status === "withdrawn" ? "dropped" : "done",
     ended: null,
     detail: null,
   });
@@ -657,7 +729,16 @@ function localQueues(
   const resend = (id: string, subject: QueueItem["subject"], thread: string | null) =>
     listed.has(`resend:${id}`)
       ? []
-      : [{ kind: "resend" as const, id, owner: "user" as const, subject, thread, live: false }];
+      : [
+          {
+            kind: "resend" as const,
+            id,
+            owner: "user" as const,
+            subject,
+            thread,
+            live: false,
+          },
+        ];
   const reopenedFor = (owner: "user" | "agent") =>
     served.done.filter((item) => item.owner === owner && reopened(item));
   return {
@@ -677,7 +758,9 @@ function localQueues(
     ].toSorted(
       (a, b) =>
         onUserRank(a) - onUserRank(b) ||
-        (a.kind === "ask" && b.kind === "ask" ? asked.get(a.id)! - asked.get(b.id)! : 0),
+        (a.kind === "ask" && b.kind === "ask"
+          ? asked.get(a.id)! - asked.get(b.id)!
+          : 0),
     ),
     on_agent: [
       ...served.on_agent.filter((item) => item.kind !== "todo" && standsOpen(item)),
@@ -718,7 +801,9 @@ type MapValue<M> = M extends ReadonlyMap<unknown, infer V> ? V : never;
 interface WidgetEntries {
   readonly classified: readonly MapValue<RootProjection["classified"]>[];
   readonly desired: readonly MapValue<RootProjection["actions"]>[];
-  readonly undo: readonly NonNullable<SemanticRoot["effective"]["view"]>["undo"][number]["event"][];
+  readonly undo: readonly NonNullable<
+    SemanticRoot["effective"]["view"]
+  >["undo"][number]["event"][];
 }
 interface WidgetIndex {
   readonly byWidget: ReadonlyMap<string, WidgetEntries>;
@@ -739,12 +824,15 @@ function widgetIndex(root: SemanticRoot): WidgetIndex {
   const byWidget = new Map<string, Group>();
   const group = (widget: string) => {
     let entries = byWidget.get(widget);
-    if (!entries) byWidget.set(widget, (entries = { classified: [], desired: [], undo: [] }));
+    if (!entries)
+      byWidget.set(widget, (entries = { classified: [], desired: [], undo: [] }));
     return entries;
   };
   for (const entry of projection.classified.values())
-    if (!entry.terminal && entry.e.kind === "action") group(entry.e.widget).classified.push(entry);
-  for (const entry of projection.actions.values()) group(entry.e.widget).desired.push(entry);
+    if (!entry.terminal && entry.e.kind === "action")
+      group(entry.e.widget).classified.push(entry);
+  for (const entry of projection.actions.values())
+    group(entry.e.widget).desired.push(entry);
   for (const { event } of root.effective.view?.undo ?? [])
     if (event.kind === "action" && !projection.pendingWithdrawals.has(event.id))
       group(event.widget).undo.push(event);
@@ -772,6 +860,7 @@ function widgetInputs(
     registered: root.document.descriptors.get(id),
     states: root.document.registry.$states[tag],
     current: root.effective.widgets.get(id),
+    memberships: root.effective.memberships.get(id),
     authored: root.document.authored.get(id),
     hostAvailable: root.effective.hostAvailable,
     ready: root.phase === "ready",
@@ -836,6 +925,7 @@ function widgetReading(
   return {
     authored: authored ?? {},
     state: current?.state ?? {},
+    memberships: currentDescriptor ? (inputs.memberships ?? {}) : {},
     thread: { heldBy: inputs.heldBy },
     provenance,
     actions,
@@ -868,6 +958,11 @@ export function createSemanticApplication({
     // `unresolved` ledger; each leaves once the answer carrying it is applied.
     markingRead: [] as ContentVersion[],
     phase: "waiting",
+    // How the server answered the page's latest read: not yet (`waiting`), with a
+    // reading the page adopted (`reached`), with nothing (`unreachable`, or `refused`
+    // where it refused this tab's key), or with one the page could not apply
+    // (`broken`). It is what the banner says about the server, and no semantic epoch.
+    reach: "waiting" as "waiting" | "reached" | "unreachable" | "refused" | "broken",
     hostAvailable: true,
     data: { version: null as string | null, sources: {} as Record<string, unknown> },
     effective: derive(
@@ -929,12 +1024,14 @@ export function createSemanticApplication({
     const localProjections = local.flatMap((entry): PendingProjection[] => {
       const projection = entry.projection;
       if (!projection) return [];
-      if (projection.kind !== "undo") return drawsAction(projection.e) ? [projection] : [];
+      if (projection.kind !== "undo")
+        return drawsAction(projection.e) ? [projection] : [];
       const { target } = projection;
       const targetId = admittedId(entry.undoTarget, unresolved, receipts);
       const pending = !Number.isInteger(target.e.seq);
       const draws =
-        classifiedIds.has(targetId ?? target.e.id) || (pending && drawsAction(target.e));
+        classifiedIds.has(targetId ?? target.e.id) ||
+        (pending && drawsAction(target.e));
       return draws ? [{ ...projection, targetId }] : [];
     });
     const projection = foldProjection({
@@ -958,6 +1055,11 @@ export function createSemanticApplication({
     );
     const folded = foldThreads(view?.thread.threads ?? [], gestures);
     const widgets = foldWidgetStates(document.authored, projection);
+    const { parents: widgetParents, memberships } = currentWidgetRelations(
+      document,
+      widgets,
+      projection,
+    );
     const asks = ready
       ? normalizedAsks(view, widgets, document, projection, local)
       : NO_ASKS;
@@ -1126,10 +1228,16 @@ export function createSemanticApplication({
         // Historical system rows are event narration, never current approval state.
         approvalHistory: [
           ...(state?.browser.approval_history ?? []),
-          ...local.flatMap(({ event, localId, timestamp }) => event.kind === "done"
-            ? [{ ...event, id: localId, ts: timestamp }] : []),
-        ].filter((event) => !local.some(({ event: gesture }) =>
-          gesture.kind === "undo" && gesture.undoes === event.id)),
+          ...local.flatMap(({ event, localId, timestamp }) =>
+            event.kind === "done" ? [{ ...event, id: localId, ts: timestamp }] : [],
+          ),
+        ].filter(
+          (event) =>
+            !local.some(
+              ({ event: gesture }) =>
+                gesture.kind === "undo" && gesture.undoes === event.id,
+            ),
+        ),
         collection: {
           phase,
           threads: threads.filter(discussed),
@@ -1150,6 +1258,8 @@ export function createSemanticApplication({
       // Part of the effective reading, so a read that changes only the view's
       // reports, publication time, or undo list opens an epoch and reaches its readers.
       view,
+      memberships,
+      widgetParents,
       // The attempts still waiting for their POST's answer, in ledger order.
       sending: unresolved
         .filter((entry) => SENDING.has(entry.state))
@@ -1232,12 +1342,16 @@ export function createSemanticApplication({
     );
   };
 
+  // The ledger's own readings select their parts, so a paint that reads one follows
+  // the ledger and the receipts rather than every publication.
+  const unresolvedPart = publisher.select((root) => root.unresolved);
+  const receiptsPart = publisher.select(
+    (root) => root.authoritative?.browser.receipts ?? [],
+  );
+  const widgetsPart = publisher.select((root) => root.effective.widgets);
   const entry = (attempt: string) =>
-    publisher.read().unresolved.find((item) => item.event.attempt === attempt);
-  const ledgerAndReceipts = () => {
-    const { unresolved, authoritative } = publisher.read();
-    return [unresolved, authoritative?.browser.receipts ?? []] as const;
-  };
+    unresolvedPart.read().find((item) => item.event.attempt === attempt);
+  const ledgerAndReceipts = () => [unresolvedPart.read(), receiptsPart.read()] as const;
   const update = (attempt: string, change: (entry: LedgerEntry) => LedgerEntry) =>
     publish({
       unresolved: publisher
@@ -1284,7 +1398,7 @@ export function createSemanticApplication({
     // Render checks compare authored, carried, and current states. The event filter is
     // a semantic selection of the same root, not a presentation-owned partial fold.
     selectWidgets(eventIds: string[] | null = null) {
-      if (eventIds === null) return publisher.read().effective.widgets;
+      if (eventIds === null) return widgetsPart.read();
       const wanted = new Set(eventIds);
       return publisher
         .select((root) =>
@@ -1350,6 +1464,10 @@ export function createSemanticApplication({
     },
     setPhase(phase: string) {
       return publish({ phase });
+    },
+    setReach(reach: typeof initial.reach) {
+      if (publisher.peek().reach === reach) return publisher.peek();
+      return publish({ reach });
     },
     // Source revisions are digests with no order, so a reading's data is ordered by
     // the moment the server took it: an answer taken before the one already accepted
@@ -1417,6 +1535,7 @@ export function createSemanticApplication({
         authoritative,
         unresolved,
         phase: "ready",
+        reach: "reached",
       });
       return true;
     },
@@ -1526,7 +1645,7 @@ export function createSemanticApplication({
       const ledger = publisher.peek().unresolved;
       const gone = [refused.localId];
       const dependents: string[] = [];
-      for (let grew = true; grew; ) {
+      for (let grew = true; grew;) {
         grew = false;
         for (const item of ledger)
           if (
@@ -1555,10 +1674,10 @@ export function createSemanticApplication({
     },
     // The entries no document pass has presented yet.
     unpresented: () =>
-      publisher.read().unresolved.filter((item) => UNPRESENTED.has(item.state)),
+      unresolvedPart.read().filter((item) => UNPRESENTED.has(item.state)),
     // The entries `release` would retire now, in ledger order.
     releasable: () =>
-      publisher.read().unresolved.filter((item) => RELEASABLE.has(item.state)),
+      unresolvedPart.read().filter((item) => RELEASABLE.has(item.state)),
     // Retire those of `attempts` still in a releasable state.
     release(attempts: Set<string>) {
       return publish({
@@ -1585,7 +1704,8 @@ export function createSemanticApplication({
       if (event !== item.event)
         update(attempt, (item) => ({
           ...item,
-          ...(event.parent !== item.event.parent && typeof item.event.parent === "string"
+          ...(event.parent !== item.event.parent &&
+          typeof item.event.parent === "string"
             ? { namedParent: item.event.parent }
             : {}),
           event,

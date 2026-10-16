@@ -58,10 +58,11 @@ import {
   queueName,
   queuePanel,
   queueTabs,
+  queueWords,
   drawerIsOpen,
 } from "./drawers.js";
 import { markBannerControl } from "./banner-toolbar.js";
-import { clocked, shortAgo } from "./presence.js";
+import { shortAgo } from "./presence.js";
 import { elementById, inChrome } from "./passages.js";
 import { PRESENTATION } from "./presentation.js";
 import { standsAt } from "./queue-list.js";
@@ -128,7 +129,13 @@ function sectionWords(element) {
   return words ? `§ ${words}` : "";
 }
 
-export function createQueuePanel({ actions, next, announce, agentDoor }) {
+export function createQueuePanel({
+  actions,
+  next,
+  announce,
+  agentDoor,
+  observeFeedback,
+}) {
   const reading = readQueues;
   const threadOf = (id) =>
     id === null
@@ -140,7 +147,7 @@ export function createQueuePanel({ actions, next, announce, agentDoor }) {
   // Until the log has answered, the door claims no count, as the Threads door claims none.
   function nameDoor() {
     const count = reading().phase === "ready" ? reading().on_user.length : null;
-    keepsText(queueBtn, count === null ? "On me" : `On me: ${count}`);
+    keepsText(queueWords, count === null ? "On me" : `On me: ${count}`);
     keeps(queueBtn, "aria-label", count === null ? "On me" : `On me: ${count}`);
     keeps(queueBtn, "data-lf-key-title", `Show or hide what's on me and on ${agent()}`);
   }
@@ -170,19 +177,31 @@ export function createQueuePanel({ actions, next, announce, agentDoor }) {
   }
   // The rest of where: how long it has stood or how far a reply has got, after the
   // place; and before it, how a finished item ended, which is what a Done row is for.
+  const wherePart = (text, feedback = null) => ({ text, feedback });
   function when(item, thread) {
     if (itemNoun(item) === "ask")
-      return thread && shortAgo(threadSummary(thread).latest);
-    // An update in hand says the line the agent last gave for it, as its thread's
-    // working message does.
-    const state = [workflowLabel(item.workflow), item.workflow?.detail];
-    if (item.kind === "answer") return state.filter(Boolean).join(" · ");
-    if (item.kind === "work")
-      return [...state, shortAgo(item.workflow?.ts)].filter(Boolean).join(" · ");
-    // A to-do the agent has in hand says the line its start gave, as an update in hand does.
+      return [wherePart(thread && shortAgo(threadSummary(thread).latest))];
+    // Agent-authored detail has its own span and exact input identity. A generic
+    // stage or a to-do title is never evidence of visible agent words.
+    const feedback =
+      item.workflow?.detail && item.workflow.input
+        ? {
+            input_id: item.workflow.input,
+            reply_id: null,
+            reply_kind: "work",
+            presentation_kind: "queue_words",
+            surface: "queue",
+          }
+        : null;
+    const state = [
+      wherePart(workflowLabel(item.workflow)),
+      wherePart(item.workflow?.detail, feedback),
+    ];
+    if (item.kind === "answer") return state;
+    if (item.kind === "work") return [...state, wherePart(shortAgo(item.workflow?.ts))];
     if (item.kind === "todo" && item.running)
-      return [item.running.text, shortAgo(item.running.ts)].filter(Boolean).join(" · ");
-    return "";
+      return [wherePart(item.running.text), wherePart(shortAgo(item.running.ts))];
+    return [];
   }
   // An ask names how it ended, a to-do its outcome, and a reply that it was sent.
   function ended(item) {
@@ -195,11 +214,9 @@ export function createQueuePanel({ actions, next, announce, agentDoor }) {
     const word = noun === "ask" ? askWord(item) : wordOf(item, noun);
     const where = (
       list === "done"
-        ? [ended(item), place(item, thread)]
-        : [place(item, thread), when(item, thread)]
-    )
-      .filter(Boolean)
-      .join(" · ");
+        ? [wherePart(ended(item)), wherePart(place(item, thread))]
+        : [wherePart(place(item, thread)), ...when(item, thread)]
+    ).filter((part) => part.text);
     const words = queueTitle(item);
     // The element a row stands at: an ask, or a page widget whose action the user must send
     // again. A reply the agent owes an update stands nowhere, so an ask's own row is the one
@@ -224,7 +241,12 @@ export function createQueuePanel({ actions, next, announce, agentDoor }) {
       // A to-do on the user that no widget answers ends at their Done, which its row
       // carries.
       done: item.offers.done,
-      account: [word, words, where, list === "done" ? item.detail : ""]
+      account: [
+        word,
+        words,
+        where.map((part) => part.text).join(" · "),
+        list === "done" ? item.detail : "",
+      ]
         .filter(Boolean)
         .join(" · "),
     });
@@ -301,10 +323,6 @@ export function createQueuePanel({ actions, next, announce, agentDoor }) {
     });
   }
 
-  // Clock changes claim the same presenter as publications. Its scheduled paint
-  // captures the new row ages, and owns their commit and retention on failure.
-  const model = clocked(queueList, readModel, () => present());
-
   async function paintQueue(current) {
     const open = drawerIsOpen("queue");
     if (wasOpen && !open) tab = "you";
@@ -317,7 +335,9 @@ export function createQueuePanel({ actions, next, announce, agentDoor }) {
     // an approval is open.
     markBannerControl(queueBtn, waiting ? "items on me" : null);
     repaint();
-    const next = model();
+    // The row ages it reads are followed with its parts, so a clock change claims the
+    // region as a publication does, and its paint owns their commit and retention.
+    const next = readModel();
     try {
       const painted = await queueList.present(next);
       if (!current()) return [];
@@ -372,7 +392,12 @@ export function createQueuePanel({ actions, next, announce, agentDoor }) {
     const entry = rows.get(key);
     if (entry?.done) actions.done(queueItemKey(entry.item));
   }
-  queueList.configure({ activate: goTo, finish, fallback: queuePanel });
+  queueList.configure({
+    activate: goTo,
+    finish,
+    fallback: queuePanel,
+    observeFeedback,
+  });
   queueNextBtn.onclick = () => next();
 
   // A row stands at the element it names rather than in the panel.

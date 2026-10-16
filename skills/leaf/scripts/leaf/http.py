@@ -70,7 +70,6 @@ from .schema import (
 )
 from .served_state.service import LivePage, PageSource, PageStateService
 from .server import preview_metadata
-from .state import now_iso
 from .structure import FRAME_ANCESTORS_CSP
 from .user_views import observe_user_view
 
@@ -360,7 +359,7 @@ class PageEndpoint:
                     [
                         {
                             "source": "server",
-                            "ts": now_iso(),
+                            "type": "request",
                             "method": self.method,
                             "path": self.path,
                             "status": answer.status_code,
@@ -422,10 +421,18 @@ class PageEndpoint:
         Where the Leaf this server runs is another than the one that vendored the
         page, `leaf` names it, and the banner shows it beside the page's own
         (`AGENTS.md`, "Pages across Leaf updates").
+
+        A tab names the data version it holds in `Leaf-Data-Version`, and an answer
+        whose data is still that version leaves out its sources, which the tab
+        restores from the reading it named (`completeData` in `layer-client.js`).
+        Data moves only when an agent sets it, so without this every gesture's
+        answer would carry back each source value the tab already holds.
         """
         state = self._state_service().page_state(view_revision)
         if not same_leaf(state["layer"].get("producer", {}), self.server.leaf):
             state["leaf"] = self.server.leaf
+        if self.headers.get("Leaf-Data-Version") == state["data"]["version"]:
+            state["data"] = {"version": state["data"]["version"]}
         return state
 
     def page_browser_view(self, view_revision: int, through_seq: int) -> dict:
@@ -998,7 +1005,7 @@ class PageEndpoint:
         path = self.path
         if match := re.fullmatch(r"/api/files/([^/]+)", path):
             if not self.source.writable:
-                return self._refuse("Captured previews cannot read live files.", 403)
+                return self._json(None)
             try:
                 return self._json(read_file(self.page_dir, match[1]))
             except FileBindingError as error:
@@ -1323,11 +1330,8 @@ def page_endpoint(
     The key has no default: every server over a page directory is reachable by
     whatever reached the machine, so there is no construction that should quietly go
     without one."""
-    identity = (
-        page_snapshot.context.layer
-        if page_snapshot is not None
-        else layer_metadata(page_dir)
-    )
+    # The registry first: its reader refuses a layer at another protocol before any
+    # check of a shape that is this Leaf's protocol's, as the identity's reader does.
     registry = (
         page_snapshot.context.registry
         if page_snapshot is not None
@@ -1335,6 +1339,11 @@ def page_endpoint(
     )
     if refusal := incompatible_layer(page_dir, registry):
         raise Rejected([refusal])
+    identity = (
+        page_snapshot.context.layer
+        if page_snapshot is not None
+        else layer_metadata(page_dir)
+    )
     return partial(
         endpoint,
         page_dir=page_dir,

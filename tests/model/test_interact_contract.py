@@ -60,6 +60,7 @@ from interact_support import (
     registry_refusal,
     styled,
     wait_for,
+    words,
     yaml_block,
     yaml_document,
 )
@@ -85,7 +86,7 @@ from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
-from leaf.findings import Finding
+from leaf.findings import Finding, Rejected
 from leaf.registry import contract as registry_contract
 from leaf.registry import layer as registry_layer
 from leaf.registry import page as registry_page
@@ -2012,7 +2013,8 @@ def test_the_registry_door_validates_data_contracts(page_dir, contracts, message
     result = check(page_dir)
 
     assert result.exit_code != 0
-    assert "$data" in result.output and message in result.output
+    said = words(result.output)
+    assert "$data" in said and message in said
 
 
 def test_layer_facts_read_names_whole_and_an_absent_records_as_null():
@@ -2520,6 +2522,54 @@ def test_data_binding_inventory_keeps_each_documents_captured_registry(
     }
 
 
+@pytest.mark.parametrize(
+    "publishing",
+    [{"validate_source": True}, {"section": "plan"}],
+    ids=["check", "move"],
+)
+def test_a_reply_publishing_saved_edits_checks_its_markup_under_their_registry(
+    page_dir, publishing
+):
+    """A reply that publishes saved edits, whether it checks them first or moves
+    its thread onto them, is stored against the revision they make, so its markup is
+    checked under that revision's registry. Checked under the active one, a contract
+    the edits changed let one fragment bind a source under two contracts, and
+    nothing reads it for that again: a conflict lies within one document, so no
+    later check rereads the log's fragments."""
+    declare_data_input(
+        page_dir, "shared", {"type": "array"}, contract="rows", activate=False
+    )
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["lf-test-other"] = deepcopy(registry["lf-test-data"])
+    registry["$data"]["contracts"]["other-rows"] = deepcopy(
+        registry["$data"]["contracts"]["rows"]
+    )
+    registry_path.write_text(json.dumps(registry))
+    (page_dir / "index.html").write_text(PAGE)
+    assert revisioning_model.activate_source(page_dir).error is None
+    # The saved edit moves one widget type to another contract and uses neither.
+    registry["lf-test-other"]["x-data"]["data"]["contract"] = "other-rows"
+    registry_path.write_text(json.dumps(registry))
+    opened = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "Show both."}
+    )
+
+    with pytest.raises(Rejected) as refused:
+        thread_model.post_reply(
+            page_dir,
+            {"to": opened["id"], "for": opened["id"]},
+            "Both views of one feed.",
+            '<lf-test-data id="rows-view" source="shared"></lf-test-data>'
+            '<lf-test-other id="other-view" source="shared"></lf-test-other>',
+            **publishing,
+        )
+    assert [finding.code for finding in refused.value.findings] == ["contract-conflict"]
+    assert not any(
+        event["kind"] == "reply" for event in events_model.read_events(page_dir)
+    )
+
+
 @pytest.mark.parametrize("change", ["description", "empty-resources"])
 def test_page_owned_data_contract_can_change_without_changing_source_meaning(
     page_dir, change
@@ -2817,8 +2867,8 @@ def test_a_work_seat_declaration_is_checked_whole(page_dir, mutate, message):
         (_report_authored_detail, "registry extensions are invalid"),
         # `overruled` is how a version keeps its state over a report; without it
         # every contradiction is unpublishable.
-        (_report_without_overruled, "not the boolean `overruled`"),
-        # Reports replay through renderState, so the widget must upgrade.
+        (_report_without_overruled, "no boolean `overruled` attribute"),
+        # Reports replay through the widget's render(), so the widget must upgrade.
         (_report_without_upgrade, "declares x-state"),
         # Only an agent verb declares `text`.
         (_user_verb_text, "registry extensions are invalid"),
@@ -3635,7 +3685,9 @@ def test_check_refuses_a_key_naming_an_attribute_the_widget_has_not_got(
 
     result = check(page_dir)
     assert result.exit_code != 0
-    assert f'<{tag}> {key} names undeclared attributes ["{missing}"]' in result.output
+    assert f'<{tag}> {key} names undeclared attributes ["{missing}"]' in words(
+        result.output
+    )
 
 
 @pytest.mark.parametrize(
@@ -3782,11 +3834,24 @@ def test_the_events_reference_names_the_fields_each_kind_declares():
     describes once for every kind: the fields all kinds require, `revision`, and
     the posting session's `agent` and `session`.
     """
+    from markdown_it import MarkdownIt
+
     kinds = json.loads((schema_model.ASSETS / "registry.json").read_text())["$events"][
         "kinds"
     ]
     text = Path(schema_model.__file__).with_name("events.md").read_text()
-    opening, table = text.split("\n| Kind |", 1)
+    tokens = MarkdownIt("commonmark").enable("table").parse(text)
+    start = next(
+        index for index, token in enumerate(tokens) if token.type == "table_open"
+    )
+    end = next(
+        index
+        for index in range(start, len(tokens))
+        if tokens[index].type == "table_close"
+    )
+    opening = "\n".join(text.splitlines()[: tokens[start].map[0]])
+    cells = [token.content for token in tokens[start:end] if token.type == "inline"]
+    assert cells[:5] == ["Kind", "Author", "Door", "Fields", "Meaning"]
     shared = set.intersection(
         *(set(kind["record"]["required"]) for kind in kinds.values())
     )
@@ -3794,10 +3859,7 @@ def test_the_events_reference_names_the_fields_each_kind_declares():
     assert {name for name in described_once if f"`{name}`" not in opening} == set()
 
     listed, rows = [], {}
-    for line in table.split("\n\n", 1)[0].splitlines()[2:]:
-        kind, _author, _door, cell, _meaning = (
-            part.strip() for part in line.strip().strip("|").split("|")
-        )
+    for kind, _author, _door, cell, _meaning in itertools.batched(cells[5:], 5):
         while (bare := re.sub(r"\([^()]*\)", "", cell)) != cell:
             cell = bare
         listed.append(kind.strip("`"))
@@ -4301,16 +4363,16 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
     queued = codex_model.offer_delivery(
         path, codex_model.read_record(path), transport="queue"
     )
-    delivery_model.cmd_delivery_read(queued.payload["id"])
-    read = capsys.readouterr().out
+    read = json.dumps(
+        delivery_model.cmd_delivery_read(queued.payload["id"]), ensure_ascii=False
+    )
 
     thread = "codex-thread"
     prepared = codex_model.prepare_codex_delivery(
         page_dir, harness_model.EmbeddedHarness(thread, "Codex", os.getpid())
     )
     started = codex_model.app_server_turn_start_params(thread, prepared.payload)
-    delivery_model.cmd_delivery_read(prepared.payload["id"])
-    reader = json.loads(capsys.readouterr().out)
+    reader = delivery_model.cmd_delivery_read(prepared.payload["id"])
     assert json.loads(started["toolOutput"]["output"]) == prepared.payload
     assert reader["batches"] == prepared.payload["batches"]
     assert f"leaf delivery ack {prepared.payload['id']}" in reader["acknowledge"]
@@ -4443,7 +4505,7 @@ def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path)
         ],
     )
     assert result.exit_code != 0
-    assert 'unadmitted ["x-nope"]' in result.output
+    assert 'unadmitted ["x-nope"]' in words(result.output)
 
     (overlay / "registry.json").write_text(
         json.dumps({"$keys": {"x-space": "wider, in this project"}})
@@ -4621,6 +4683,7 @@ def test_a_fresh_server_does_not_revalidate_the_active_revisions_inputs(
     parses the vendored sheets: together they were most of a cold first read."""
     from leaf.validation import source as source_model
 
+    (page_dir / "index.html").write_text(styled("main { color: red; }"))
     assert revisioning_model.activate_source(page_dir).error is None
     validated, linted = [], []
     real_validate = registry_page.validate_registry
@@ -4642,7 +4705,7 @@ def test_a_fresh_server_does_not_revalidate_the_active_revisions_inputs(
     with fresh_process():
         assert revisioning_model.activate_source(page_dir).error is None
     assert validated == []
-    assert linted == ["page <style>"]
+    assert linted == ["page <style> (line 5)"]
 
 
 def test_media_names_a_file_by_its_bytes_and_serves_it(page_dir, tmp_path, server):
@@ -4701,7 +4764,7 @@ def test_source_reading_preserves_foreign_graphics_as_exact_markup():
     )
     html = "<main>Préface\r\n" + graphic + '<p id="after">After</p></main>'
     parser = structure_model.SourceDocument(html)
-    [main] = parser.content
+    [main] = parser.authoring.content
     _, image, after = main["content"]
     assert image["markup"] == graphic
     assert image["content"] == []
@@ -4721,13 +4784,13 @@ def test_source_reading_keeps_a_sample_out_of_its_parent_identity_space():
     )
     parser = structure_model.SourceDocument(html)
 
-    assert parser.errors == []
+    assert parser.authoring.errors == []
     assert parser.lf_elements == []
     assert "nested-options" not in parser.by_id
     assert passages_model.page_passages(parser).text == "Visible words."
     [sample] = parser.samples
     assert "nested-options" in sample["document"].by_id
-    assert sample["document"].main_elements == [(1, True)]
+    assert sample["document"].authoring.main_elements == [(1, True)]
     assert structure_model.page_layout(sample["document"]) == "column"
 
 
@@ -4872,20 +4935,22 @@ def test_sample_checks_available_history_beside_forward_thread_references(
 
 def test_check_reports_css_syntax_errors_in_every_source_the_page_writes(page_dir):
     """The page's own <style> and each inline style. Chrome drops a malformed
-    declaration without a word, so the author hears of it here or not at all."""
+    declaration without a word, so the author hears of it here or not at all.
+    An earlier style's EOF-terminated comment cannot hide a later style's errors.
+    """
     (page_dir / "index.html").write_text(
         styled(
             '.page { color: "unterminated\n; }',
-            '<p style="color red">Every CSS input is malformed.</p>',
-        )
+            '<p style="color red">Independent stylesheets are checked.</p>',
+        ).replace("<style>", "<style>/*</style>\n<style>", 1)
     )
 
     status, findings = check_findings(page_dir)
 
     assert status == 1
     assert [f.values["sheet"] for f in found(findings, "css-syntax")] == [
-        "page <style>",
-        "<p style> (line 10)",
+        "page <style> (line 6)",
+        "<p style> (line 11)",
     ]
 
 
@@ -4977,7 +5042,7 @@ def test_x_awaits_names_the_verbs_that_answer_it(page_dir):
     result = check(page_dir)
 
     assert result.exit_code == 1
-    assert 'x-awaits answers with verbs ["missing"], which are not x-state' in (
+    assert 'x-awaits answers with verbs ["missing"], which are not x-state' in words(
         result.output
     )
 
@@ -5861,3 +5926,240 @@ def test_state_definition_identity_ignores_only_annotations(case):
         for key in ("before", "after")
     ]
     assert same_state_definition(*definitions) is case["same"]
+
+
+def _independent_member_records():
+    """An unfamiliar package composes selection, positions and scalar member state."""
+    registry = deepcopy(model_layer())
+    for tag in ("lf-audit-board", "lf-audit-zone", "lf-audit-card"):
+        registry[tag] = element_declaration(tag, upgrade=True)
+        registry[tag]["properties"]["restated"] = {"type": "boolean"}
+        registry[tag].pop("x-example", None)
+    board, zone, card = (
+        registry[tag] for tag in ("lf-audit-board", "lf-audit-zone", "lf-audit-card")
+    )
+    board["x-content"] = "members"
+    board["x-state"] = {
+        "move": {
+            "unit": "unit",
+            "record": {"kind": "position", "within": "lf-audit-zone"},
+        }
+    }
+    zone["x-owners"] = ["lf-audit-board"]
+    zone["x-content"] = "members"
+    zone["x-state"] = {
+        "choose": {
+            "unit": "widget",
+            "record": {"kind": "attribute", "attr": "selected"},
+        },
+    }
+    card["x-owners"] = ["lf-audit-zone"]
+    card["properties"].update(selected={"type": "boolean"}, phase={"type": "string"})
+    card["x-state"] = {
+        "phase": {"unit": "widget", "record": {"kind": "value", "attr": "phase"}}
+    }
+    registry_validation.validate_registry(registry, "independent member records")
+    markup = """<lf-audit-board id="outer">
+<lf-audit-zone id="one"><lf-audit-card id="card" selected phase="idle">
+<lf-audit-board id="inner"><lf-audit-zone id="inner-zone">
+<lf-audit-card id="inner-card" selected phase="idle">Inner</lf-audit-card>
+</lf-audit-zone></lf-audit-board></lf-audit-card></lf-audit-zone>
+<lf-audit-zone id="two"></lf-audit-zone></lf-audit-board>"""
+    return ModelPage(markup, registry=registry)
+
+
+def test_member_records_compose_without_claiming_each_others_state(tmp_path):
+    from leaf.construction import constructed_content
+    from leaf.projection import page_reading
+
+    page = _independent_member_records()
+    reading = page.reading(1, page.registry(1))
+    commands = [
+        {
+            "kind": "action",
+            "widget": "one",
+            "action": "choose",
+            "detail": {"value": ["card"]},
+        },
+        {
+            "kind": "action",
+            "widget": "card",
+            "action": "phase",
+            "detail": {"value": "running"},
+        },
+        {
+            "kind": "action",
+            "widget": "outer",
+            "action": "move",
+            "detail": {"unit": "card", "value": "two", "rank": "1"},
+        },
+    ]
+
+    def card_attributes(commands):
+        events = model.served_reading(
+            reading.document.html, commands, registry=reading.registry
+        )["events"]
+        pending = constructed_content(
+            reading.document,
+            page_reading(reading, events, 1).projection,
+            reading.spoken,
+            reading.registry,
+            {"sources": {}},
+            tmp_path,
+            retired=set(),
+            thread="thread",
+        )
+        while pending:
+            node = pending.pop()
+            if isinstance(node, dict):
+                if node["attrs"].get("id") == "card":
+                    return node["attrs"]
+                pending.extend(node["content"])
+        pytest.fail("The moved card disappeared")
+
+    # The destination's unchanged empty selection clears the incoming member;
+    # its unrelated scalar state survives both moving and undoing the move.
+    assert card_attributes(commands) == {"id": "card", "phase": "running"}
+    assert card_attributes([*commands, {"kind": "undo", "undoes": "e3"}]) == {
+        "id": "card",
+        "selected": "",
+        "phase": "running",
+    }
+    with pytest.raises(events_model.EventRefused) as refused:
+        card_attributes(
+            [
+                *commands,
+                {
+                    "kind": "action",
+                    "widget": "one",
+                    "action": "choose",
+                    "detail": {"value": ["card"]},
+                },
+            ]
+        )
+    assert refused_on(refused.value).code == "unknown-members"
+
+
+def test_nested_member_records_refuse_foreign_selection_and_position():
+    page = _independent_member_records()
+    for widget, action, detail in (
+        ("one", "choose", {"value": ["inner-card"]}),
+        ("outer", "move", {"unit": "inner-card", "value": "two", "rank": "1"}),
+        ("outer", "move", {"unit": "card", "value": "inner-zone", "rank": "1"}),
+    ):
+        with pytest.raises(events_model.EventRefused):
+            event_contracts_model.admitted_event(
+                page,
+                [],
+                {
+                    "kind": "action",
+                    "author": "user",
+                    "revision": 1,
+                    "widget": widget,
+                    "action": action,
+                    "detail": detail,
+                },
+            )
+
+
+def test_member_scalar_and_parent_selection_cannot_share_an_attribute():
+    from leaf.validation.instances import widget_errors
+
+    page = _independent_member_records()
+    registry = page.registry(1)
+    registry["lf-audit-zone"]["x-state"]["choose"]["record"]["attr"] = "phase"
+    registry_validation.validate_registry(registry, "reusable record declarations")
+    reading = page.reading(1, registry)
+    findings = widget_errors(reading.document.lf_elements, registry)
+    assert {finding.code for finding in findings} == {"member-record-slot"}
+
+    # These declarations are valid until a move changes their actual composition.
+    zone = registry["lf-audit-zone"]
+    zone.pop("x-state")
+    zone["x-owners"] = ["lf-audit-left", "lf-audit-right"]
+    for tag, attr in (("lf-audit-left", "selected"), ("lf-audit-right", "phase")):
+        holder = element_declaration(tag, upgrade=True)
+        holder["x-content"] = "members"
+        holder["x-owners"] = ["lf-audit-board"]
+        holder["properties"]["restated"] = {"type": "boolean"}
+        holder["x-state"] = {
+            "choose": {"unit": "widget", "record": {"kind": "attribute", "attr": attr}}
+        }
+        registry[tag] = holder
+    registry_validation.validate_registry(registry, "movable record compositions")
+    page = ModelPage(
+        '<lf-audit-board id="board"><lf-audit-left id="left">'
+        '<lf-audit-zone id="one"><lf-audit-card id="card" phase="idle">Card</lf-audit-card>'
+        '</lf-audit-zone></lf-audit-left><lf-audit-right id="right">'
+        '<lf-audit-zone id="two"></lf-audit-zone></lf-audit-right></lf-audit-board>',
+        registry=registry,
+    )
+    assert widget_errors(page.document(1).lf_elements, registry) == []
+    with pytest.raises(events_model.EventRefused) as refused:
+        model.reading(
+            page.document(1).html,
+            [
+                {
+                    "kind": "action",
+                    "widget": "board",
+                    "action": "move",
+                    "detail": {"unit": "card", "value": "two", "rank": "1"},
+                }
+            ],
+            registry=registry,
+        )
+    finding = refused_on(refused.value)
+    assert finding.code == "member-record-slot"
+    assert finding.values["owner"] == "right"
+
+
+def test_creates_targets_are_members_while_authored_widgets_keep_owner_capabilities():
+    registry = deepcopy(model_layer())
+    child = registry["lf-option"]
+    child.update({"x-upgrade": True, "x-shadow": True, "x-visual": "whole"})
+    registry_validation.validate_registry(registry, "presentation members")
+    child["properties"].update(phase={"type": "string"}, restated={"type": "boolean"})
+    child["x-state"] = {"phase": _value_verb("phase")}
+    with pytest.raises(registry_contract.RegistryError) as refused:
+        registry_validation.validate_registry(registry, "independent created owner")
+    assert refused.value.findings[0].code == "creates-semantic-owner"
+
+    del registry["lf-options"]["x-state"]["add"]
+    registry_validation.validate_registry(registry, "independent authored owner")
+
+
+def test_created_ids_cannot_collide_across_page_and_frozen_content():
+    markup = (
+        '<p id="reserved">Page</p><lf-options id="page-options" choose></lf-options>'
+    )
+    commands = [
+        {"kind": "comment", "text": "Pick a seed."},
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": "e1",
+            "text": "Seeds",
+            "markup": '<lf-options id="thread-options" choose></lf-options>',
+        },
+        {
+            "kind": "action",
+            "widget": "thread-options",
+            "action": "add",
+            "detail": {"option": "elm", "text": "Elm"},
+        },
+    ]
+    for widget, identity in (("page-options", "elm"), ("thread-options", "reserved")):
+        with pytest.raises(events_model.EventRefused) as refused:
+            model.reading(
+                markup,
+                [
+                    *commands,
+                    {
+                        "kind": "action",
+                        "widget": widget,
+                        "action": "add",
+                        "detail": {"option": identity, "text": "Duplicate"},
+                    },
+                ],
+            )
+        assert refused_on(refused.value).code == "created-exists"

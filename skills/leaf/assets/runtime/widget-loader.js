@@ -26,14 +26,14 @@ import {
 import { offlineInteractive, runtimeModule, runtimeResource } from "./context.js";
 import { loadDeclaredMarkdown, formatDeclaredMarkdown } from "./markdown.js";
 import { initialOrigin, initialSource } from "./initial-render.js";
-import { registeredTags, widgetImports } from "./widget-imports.js";
+import { widgetImports } from "./widget-imports.js";
 
 /* Registry loading and the one initial widget-upgrade lifecycle.
 
    A page loads what it uses. `importWidgetModules` is the one import-on-demand door: it takes
    the markup about to be upgraded, imports each declared tag standing in it once per
-   tab. Shared dependency preparation loads shadow rules only where an `x-shadow`
-   widget is among them, alongside any declared Markdown parser. Three
+   tab. Shared dependency preparation loads shadow rules where the scope
+   holds or declares creation of an `x-shadow` widget, alongside any declared Markdown parser. Three
    boundaries introduce markup and all three use it — startup with the document, a
    version activation with the incoming `main`, and the state application with the frozen
    markup an agent's reply carries, ahead of the panel building a body. Each of them
@@ -141,15 +141,12 @@ const widgetUrl = (tag) =>
 async function loadWidgetDependencies(scope) {
   // Before the modules import, because a widget's first render asks for these rules and
   // an async stage would put every x-shadow widget's look a fetch behind its own nodes.
-  // Asked of the same scope for the same reason, and that is what makes the narrowing
-  // safe: `shadowStage` is reachable only from a module, a module loads only where its
-  // tag stands in some scope, and a tag declaring x-shadow brings the rules in on that
-  // same call. The theme is read once for the tab however many scopes ask.
+  // The creating module imports its child's constructor; its declaration brings the
+  // child's shared rules in before even the first child exists. The rules are read
+  // once for the tab however many scopes ask.
   await Promise.all([
     loadDeclaredMarkdown(scope),
-    ...(registeredTags(scope, registry).some((tag) => registry[tag]["x-shadow"])
-      ? [loadShadowRules()]
-      : []),
+    ...(widgetImports(scope, registry).shadow ? [loadShadowRules()] : []),
   ]);
 }
 

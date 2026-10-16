@@ -67,6 +67,9 @@ renamed_classes = [{ from = "LeafExampleSession", to = "LeafWebsiteSession" }]
 [observability]
 enabled = true
 
+[observability.logs]
+invocation_logs = true
+
 [[routes]]
 pattern = "leaf.page"
 custom_domain = true
@@ -123,3 +126,6 @@ routes = []
 
   [env.dev.observability]
   enabled = true
+
+    [env.dev.observability.logs]
+    invocation_logs = true

@@ -45,11 +45,15 @@
       color-mix(in srgb, var(--ink) 19%, transparent)
     );
     --lf-fp-muted: color-mix(in srgb, var(--ink) 60%, transparent);
-    --lf-fp-quiet: color-mix(in srgb, var(--ink) 38%, transparent);
+    --lf-fp-quiet: color-mix(in srgb, var(--ink) 48%, transparent);
     --lf-fp-faint: color-mix(in srgb, var(--ink) 8%, transparent);
     --lf-fp-hover: color-mix(in srgb, var(--ink) 5%, transparent);
     --lf-fp-radius: 12px;
     --lf-fp-folded: 42px;
+    /* The row's one line: the leaf, each mark and press beside the field, and the
+       field's first line of words are each this tall, and the row stands them all on
+       its foot, so every one of them is centred on the line the words are written on. */
+    --lf-fp-line: 32px;
     --lf-fp-width: min(
       540px,
       calc(100vw - 24px - var(--lf-safe-left) - var(--lf-safe-right))
@@ -61,14 +65,14 @@
   }
 
   /* The surface: a layer over the whole window, cut to the box's outline by the
-     panel's script, with a ring a pixel outside it and one soft shadow around both. */
+     panel's script, with a ring a pixel outside it and one soft shadow around both,
+     cast at the height of what opens over the page. */
   .lf-fp-ground {
     position: fixed;
     inset: 0;
     z-index: calc(var(--lf-z-banner) - 1);
     pointer-events: none;
-    filter: drop-shadow(0 12px 14px color-mix(in srgb, var(--shade) 70%, transparent))
-      drop-shadow(0 1px 1px color-mix(in srgb, var(--shade) 30%, transparent));
+    filter: drop-shadow(var(--raise-2));
   }
   .lf-fp-ring,
   .lf-fp-fill {
@@ -127,10 +131,10 @@
     cursor: default;
     background: none;
   }
-  :where(.lf-floating-panel) :is(button, input, textarea):focus-visible {
+  :where(.lf-floating-panel)
+    :is(button, input, textarea, .lf-fp-on-item):focus-visible {
     outline: var(--focus-ring);
     outline-offset: -2px;
-    --lf-focus-ring: floating-panel;
   }
   .lf-floating-panel .lf-action-icon {
     width: 16px;
@@ -138,11 +142,13 @@
   }
 
   /* ---------- the row ---------- */
+  /* One alignment for the whole row: everything in it, the field's presses
+     included, stands on the row's foot and is a line tall (`--lf-fp-line`), so a field
+     grown to several lines keeps them beside its last. */
   .lf-fp-row {
     display: flex;
     align-items: flex-end;
     gap: 2px;
-    min-height: 44px;
     padding: 6px;
     box-sizing: border-box;
   }
@@ -151,7 +157,7 @@
     display: grid;
     place-items: center;
     width: 32px;
-    min-height: 32px;
+    min-height: var(--lf-fp-line);
     padding: 0;
   }
   .lf-fp-leaf .lf-dot {
@@ -184,17 +190,13 @@
     margin: 0;
     box-shadow: none;
   }
-  .lf-fp-reply[hidden],
-  .lf-fp-reply > .lf-primary-part[hidden] {
-    display: none;
-  }
   .lf-fp-field .lf-compose-field:has(> leaf-text[data-lf-focus]) {
     outline: none;
   }
   .lf-fp-resolved {
     flex: 1;
     margin: 0;
-    padding: 5px 6px;
+    padding: calc((var(--lf-fp-line) - 22px) / 2) 6px;
     color: var(--lf-fp-quiet);
     font: 14px / 22px var(--sans);
   }
@@ -204,8 +206,8 @@
     border: 0;
     background: none;
     box-shadow: none;
-    padding: 5px 6px;
-    min-height: 32px;
+    padding: calc((var(--lf-fp-line) - 22px) / 2) 6px;
+    min-height: var(--lf-fp-line);
     max-height: 30dvh;
     box-sizing: border-box;
     font: 14px / 22px var(--sans);
@@ -219,7 +221,7 @@
   /* The empty field's words read dimmer than anything written in it: the agent's
      status, a thread's turn, and, once the caret is in, where the words go. A passing
      notice is news, so it reads a step brighter until it passes. While the agent works,
-     its status carries the sheen that marks work under way (chrome.css), from its own
+     its status carries the sheen that marks work under way (surfaces.css), from its own
      dim face to ink and back. The face is the field's placeholder part, so it holds
      whether the words come with a key drawn beside them or alone. */
   .lf-fp-field leaf-text::part(placeholder) {
@@ -229,31 +231,58 @@
     color: var(--lf-fp-muted);
     font-weight: 500;
   }
-  .lf-floating-panel[data-says="status"][data-tone="working"]
+  /* The shared reduced-motion guard (surfaces.css) stops at the field's closed tree. */
+  @media (prefers-reduced-motion: no-preference) {
+    .lf-floating-panel[data-says="status"][data-tone="working"]:not([data-asks])
+      .lf-fp-field
+      leaf-text::part(placeholder) {
+      animation: lf-sheen 2s ease-in-out infinite alternate;
+    }
+  }
+  /* A status that asks the user to act reads in its tone's ink at full strength, the
+     leaf's colour made legible as words, so a request stands apart from a report. */
+  .lf-floating-panel[data-says="status"][data-asks]
     .lf-fp-field
     leaf-text::part(placeholder) {
-    color: transparent;
-    background: linear-gradient(
-      110deg,
-      var(--lf-fp-quiet) 42%,
-      var(--ink) 50%,
-      var(--lf-fp-quiet) 58%
-    );
-    background-size: 200% 100%;
-    background-clip: text;
-    animation: lf-runtime-4f3c2a8d-sheen 2s ease-in-out infinite alternate;
+    color: var(--lf-fp-asks);
+    font-weight: 500;
+  }
+  .lf-floating-panel[data-asks] {
+    --lf-fp-asks: var(--ink);
+  }
+  .lf-floating-panel[data-asks][data-tone="working"] {
+    --lf-fp-asks: var(--accent);
+  }
+  .lf-floating-panel[data-asks][data-tone="listening"] {
+    --lf-fp-asks: var(--ok-ink);
+  }
+  .lf-floating-panel[data-asks][data-tone="away"] {
+    --lf-fp-asks: var(--warn-ink);
+  }
+  .lf-floating-panel[data-asks][data-tone="offline"] {
+    --lf-fp-asks: var(--danger-ink);
   }
   .lf-fp-field .lf-compose-placeholder kbd {
     display: none;
   }
+  /* The field's presses stand in the row's flow beside the words, rather than over the
+     words' end where a card's composer floats them, so the row's one alignment places
+     them too. Each is a line square, as the leaf is, in place of a composer's own
+     hit box, so Send stays round. */
+  .lf-fp-field :is(.lf-compose-submit, .lf-compose-dictate) {
+    position: relative;
+    inset: auto;
+    flex: none;
+    place-items: center;
+    width: var(--lf-fp-line);
+    min-width: 0;
+    height: var(--lf-fp-line);
+    min-height: 0;
+    padding: 0;
+  }
   /* Send stands in the counts' place while the user types, as a round ink press. */
   .lf-fp-field .lf-compose-submit {
-    flex: none;
     display: none;
-    place-items: center;
-    width: 32px;
-    min-height: 32px;
-    padding: 0;
     border-radius: 50%;
     background: var(--ink);
     color: var(--lf-fp-surface);
@@ -267,13 +296,8 @@
   .lf-floating-panel[data-typing] .lf-fp-quick:not([data-steps]) {
     display: none;
   }
-  .lf-fp-field .lf-compose-dictate:not([hidden]) {
-    flex: none;
+  .lf-fp-field .lf-compose-dictate {
     display: grid;
-    place-items: center;
-    width: 32px;
-    min-height: 32px;
-    padding: 0;
   }
   /* Dictation is offered while the user writes in the panel, not at rest. Writing lasts
      while they stay in the panel (floating-panel.js, `writing`), so Tab from the field
@@ -296,7 +320,7 @@
     justify-content: center;
     gap: 4px;
     min-width: 32px;
-    min-height: 32px;
+    min-height: var(--lf-fp-line);
     padding: 0 7px;
     color: var(--lf-fp-muted);
     font-variant-numeric: tabular-nums;
@@ -328,8 +352,76 @@
     background: var(--accent);
     box-shadow: 0 0 0 1.5px var(--lf-fp-surface);
   }
-  .lf-fp-news[hidden] {
+  /* The row's one small notice, beside the marks (floating-panel.js, `rowNotice`): a
+     tinted chip of the qualifying size, whose press is the word that ends it. The
+     field gives up the room it takes, so the marks keep their seats, and while the
+     user types it stands aside with the counts. */
+  .lf-fp-row-notice {
+    flex: none;
+    display: flex;
+    align-items: center;
+    min-height: var(--lf-fp-line);
+  }
+  .lf-floating-panel[data-typing] .lf-fp-row-notice {
     display: none;
+  }
+  /* The press takes the row's whole line, as every mark does, so a finger finds it;
+     the chip's face is drawn inside it. */
+  .lf-fp-row-notice-press {
+    padding: 0;
+  }
+  :where(.lf-floating-panel) .lf-fp-row-notice-press:hover {
+    background: none;
+  }
+  /* Its tone tints it: a failed save in danger, an older version in warning, the
+     website's notice in the accent, an approval in ok. */
+  .lf-fp-row-notice-face {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 26px;
+    padding: 0 9px;
+    border-radius: 7px;
+    background: var(--lf-fp-notice-tint);
+    color: var(--ink);
+    font-size: 12px;
+    &[data-tone="danger"] {
+      --lf-fp-notice-tint: var(--danger-tint);
+      --lf-fp-notice-ink: var(--danger-ink);
+    }
+    &[data-tone="warn"] {
+      --lf-fp-notice-tint: var(--warn-tint);
+      --lf-fp-notice-ink: var(--warn-ink);
+    }
+    &[data-tone="accent"] {
+      --lf-fp-notice-tint: var(--accent-tint);
+      --lf-fp-notice-ink: var(--accent);
+    }
+    &[data-tone="ok"] {
+      --lf-fp-notice-tint: var(--ok-tint);
+      --lf-fp-notice-ink: var(--ok-ink);
+    }
+  }
+  .lf-fp-row-notice-press:hover .lf-fp-row-notice-face {
+    background: color-mix(
+      in srgb,
+      var(--lf-fp-notice-ink) 16%,
+      var(--lf-fp-notice-tint)
+    );
+  }
+  a.lf-fp-row-notice-press {
+    display: inline-flex;
+    align-items: center;
+    color: inherit;
+    text-decoration: none;
+  }
+  .lf-fp-row-notice-sep {
+    color: var(--lf-fp-quiet);
+  }
+  .lf-fp-row-notice-act {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
   }
   /* A gesture's next step, in the counts' place while the gesture holds it. */
   .lf-fp-step {
@@ -338,35 +430,22 @@
     padding-inline: 10px;
   }
 
-  /* Clicking in names where the words go, on one quiet line above the field. While a
-     view is open its room stands empty until then, so the line arriving moves nothing
-     at the view's head and cuts nothing off the view's foot. */
+  /* One quiet line over the field, there only while it has something to say and no
+     view is open (floating-panel.js): where the words go once they hide the
+     placeholder, or a notice the placeholder has given up. It is one line tall
+     whatever it says, and stands above the row, with nothing above it to move. */
   .lf-fp-context {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
+    box-sizing: content-box;
+    height: 1lh;
     padding: 8px 14px 0;
     color: var(--lf-fp-muted);
     font-size: 12px;
     white-space: nowrap;
-  }
-  .lf-fp-context[hidden] {
-    display: none;
-  }
-  .lf-floating-panel[data-open] .lf-fp-context[hidden] {
-    display: flex;
-    visibility: hidden;
-  }
-  .lf-fp-dest {
-    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .lf-fp-dest[data-notice] {
+  .lf-fp-context[data-notice] {
     color: var(--ink);
-  }
-  .lf-fp-keys {
-    flex: none;
   }
 
   /* ---------- folded to the leaf, in the window's corner ---------- */
@@ -376,6 +455,7 @@
     right: calc(20px + var(--lf-safe-right));
     margin: 0;
     .lf-fp-field,
+    .lf-fp-row-notice,
     .lf-fp-quick,
     .lf-fp-context,
     .lf-fp-opened {
@@ -405,6 +485,46 @@
     from {
       opacity: 0;
     }
+  }
+  /* The pointer's fold: a small round button riding the box's top-right corner, shown
+     while the pointer is over the unfolded panel. It fades rather than moves, so
+     nothing shifts under the pointer. */
+  .lf-fp-minimize {
+    position: absolute;
+    top: -9px;
+    right: -9px;
+    display: grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    min-height: 0;
+    padding: 0;
+    border-radius: 50%;
+    background: var(--lf-fp-surface);
+    box-shadow:
+      0 0 0 1px var(--lf-fp-ring),
+      var(--raise-1);
+    color: var(--lf-fp-muted);
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      opacity 120ms,
+      visibility 0s 120ms;
+  }
+  @media (hover: hover) {
+    .lf-floating-panel[data-rest="row"]:hover .lf-fp-minimize {
+      opacity: 1;
+      visibility: visible;
+      transition: opacity 120ms;
+    }
+  }
+  .lf-fp-minimize:hover {
+    background: var(--lf-fp-surface);
+    color: var(--ink);
+  }
+  .lf-fp-minimize-icon {
+    width: 12px;
+    height: 12px;
   }
   /* What waits on the user, on the folded leaf: a count, and a dot for news. */
   .lf-fp-badge,
@@ -532,13 +652,17 @@
   .lf-fp-filters [aria-pressed="true"] {
     background: var(--lf-fp-faint);
   }
-  /* Room for two digits, so news changing a count moves no tab beside it. */
+  /* Room for two digits, so news changing a count moves no tab beside it; a count of
+     nothing says 0 in the quieter ink, so the room never stands blank. */
   .lf-fp-count {
     display: inline-block;
     min-width: 2ch;
     margin-left: 1px;
     text-align: start;
     font-variant-numeric: tabular-nums;
+  }
+  .lf-fp-count[data-zero] {
+    color: var(--lf-fp-muted);
   }
   .lf-fp-icon-btn {
     display: grid;
@@ -626,6 +750,38 @@
     padding-top: 8px;
     mask-image: linear-gradient(to bottom, transparent 0, #000 12px);
   }
+  /* An answer waiting below the fold (floating-panel.js, `fitAnswer`): a press at the
+     view's foot, where the answer begins, standing on the panel's ground, which fades
+     in above it so what passes under reads as under a layer. The ground runs down to
+     the view's edge through the view's padding, which the foot's margin gives back, so
+     at the view's end the foot stands where it stuck and the room it takes is the
+     press's alone. A sticky box sticks at its scroller's content edge, inside that
+     padding, so it sticks the padding's depth lower, or what scrolls under it would
+     show through the padding below the press. */
+  .lf-fp-foot {
+    position: sticky;
+    bottom: -6px;
+    margin: 0 -6px -6px;
+    padding: 10px 0 6px;
+    background: linear-gradient(transparent, var(--lf-fp-surface) 10px);
+  }
+  .lf-fp-new-reply {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin: 0 auto;
+    padding: 0 12px 0 8px;
+    border-radius: 14px;
+    background: var(--lf-fp-surface);
+    box-shadow:
+      0 0 0 1px var(--lf-fp-ring),
+      var(--raise-1);
+    color: var(--ink);
+    font-size: 12px;
+  }
+  :where(.lf-floating-panel) .lf-fp-new-reply:hover {
+    background: color-mix(in srgb, var(--ink) 5%, var(--lf-fp-surface));
+  }
 
   /* Rows of a list, one line each. */
   .lf-fp-list {
@@ -660,10 +816,6 @@
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
-  .lf-fp-key {
-    color: var(--lf-fp-muted);
-    font: 12px var(--sans);
-  }
   /* A row's end: its value or key, then the chevron of a row that opens a list. */
   .lf-fp-end {
     display: inline-flex;
@@ -671,14 +823,33 @@
     align-items: center;
     gap: 8px;
   }
+  /* A row that copies is the copy control's face, as wide as the menu's other rows,
+     with its copy icon ending it where a value would. The control lays its face out in
+     an inline flex box of its own, which a percentage cannot reach across, so the face
+     takes the control's width as a container's; and the host is only the face's box, so
+     its own words would give it an empty line under the face. */
+  .lf-fp-copy-item {
+    display: block;
+    container-type: inline-size;
+    font-size: 0;
+    line-height: 0;
+  }
+  .lf-fp-copy-item > .lf-fp-item {
+    width: 100cqi;
+    font: 13px / 1.45 var(--sans);
+  }
+  .lf-fp-copy-item wa-icon {
+    color: var(--lf-fp-muted);
+    font-size: 13px;
+  }
   .lf-fp-chevron {
     width: 12px;
     height: 12px;
     margin-inline-end: -2px;
     color: var(--lf-fp-muted);
   }
-  /* A row whose press copies a text: its name over the text, selectable, with Copy
-     beside it, and what the text is beneath. */
+  /* A row whose press copies a text: its name over the text, selectable, with Leaf's
+     copy control beside it, and what the text is beneath. */
   .lf-fp-copy {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -705,12 +876,33 @@
     resize: none;
     scrollbar-width: none;
   }
-  .lf-fp-copy .lf-fp-quiet {
+  /* The copy control is the text's one line tall, an icon at the size of the panel's
+     others, quiet until the pointer is on it. */
+  .lf-fp-copy-press {
     align-self: start;
+    width: 28px;
+    height: 28px;
+    color: var(--lf-fp-muted);
+    /* The host is only the press's box; its words would give it a line of their own. */
+    font-size: 0;
+    line-height: 0;
   }
-  .lf-fp-copy .lf-fp-quiet {
-    padding: 0 8px;
-    font-size: 12px;
+  .lf-fp-copy-press::part(button) {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: inherit;
+    font-size: 16px;
+    cursor: pointer;
+  }
+  .lf-fp-copy-press::part(button):hover {
+    background: var(--lf-fp-hover);
+    color: var(--ink);
   }
   .lf-fp-copy-note {
     grid-column: 1 / -1;
@@ -747,6 +939,24 @@
   }
   .lf-fp-version[data-current] .lf-fp-label {
     font-weight: 600;
+  }
+  /* What the check found in the agent's latest save, over the versions. */
+  .lf-fp-failed {
+    padding: 6px 8px 8px;
+    color: var(--danger-ink);
+  }
+  .lf-fp-failed-error {
+    margin: 4px 0 0;
+    max-height: 8lh;
+    overflow-y: auto;
+    color: var(--ink);
+    font: 12px / 1.45 var(--mono);
+    white-space: pre-wrap;
+  }
+  .lf-fp-note {
+    margin-inline-start: 8px;
+    color: var(--lf-fp-muted);
+    font-weight: 400;
   }
   .lf-fp-compare {
     flex: none;
@@ -860,7 +1070,7 @@
     background: var(--lf-fp-surface);
     box-shadow:
       0 0 0 1px var(--lf-fp-ring),
-      0 12px 24px -12px var(--shade);
+      var(--raise-2);
   }
   .lf-floating-panel:not([data-menu]) .lf-fp-menu {
     display: none;
@@ -893,6 +1103,15 @@
     white-space: normal;
     text-wrap: pretty;
   }
+  /* While the menu stands, each part keeps the lines its first status took
+     (floating-panel.js, `holdMenu`). */
+  .lf-fp-state[data-held] > span {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: var(--lines);
+    overflow: hidden;
+    height: calc(var(--lines) * 1lh);
+  }
   .lf-fp-state[data-tone="working"] b {
     color: var(--accent);
   }
@@ -906,7 +1125,9 @@
     color: var(--danger);
   }
 
-  /* The status in full, on hover or focus of the folded leaf. */
+  /* The status in full, on hover or focus of the folded leaf; and a passing notice,
+     over the folded leaf or, unfolded, over an open view's foot from the leaf's left
+     edge, where it reads along the panel rather than out past its side. */
   .lf-fp-leaf {
     anchor-name: --lf-fp-leaf;
   }
@@ -922,12 +1143,16 @@
     background: var(--lf-fp-surface);
     box-shadow:
       0 0 0 1px var(--lf-fp-ring),
-      0 8px 20px -10px var(--shade);
+      var(--raise-1);
     color: var(--lf-fp-muted);
     font-size: 12px;
     pointer-events: none;
     display: none;
     transition: opacity 120ms;
+  }
+  .lf-floating-panel[data-rest="row"] .lf-fp-peek {
+    right: auto;
+    left: anchor(left);
   }
   /* It fades in where it stands: a peek that rose into place would move its words
      under nobody's input. */
@@ -943,9 +1168,6 @@
     :is(.lf-floating-panel, .lf-fp-ground) {
       --lf-fp-width: calc(100vw - 20px - var(--lf-safe-left) - var(--lf-safe-right));
     }
-    .lf-fp-keys {
-      display: none;
-    }
     .lf-floating-panel[data-rest="mark"] {
       right: calc(16px + var(--lf-safe-right));
     }
@@ -953,9 +1175,9 @@
   @media (pointer: coarse) {
     :is(.lf-floating-panel, .lf-fp-ground) {
       --lf-fp-folded: 46px;
+      --lf-fp-line: 34px;
     }
     .lf-fp-row {
-      min-height: 48px;
       padding: 7px;
     }
     .lf-fp-item,
@@ -968,20 +1190,12 @@
     .lf-fp-leaf,
     .lf-fp-chip {
       min-width: 34px;
-      min-height: 34px;
     }
   }
   @media (prefers-reduced-motion: reduce) {
     .lf-floating-panel[data-rest="mark"]
       :is(.lf-fp-leaf, .lf-fp-badge, .lf-fp-news-dot) {
       animation: none;
-    }
-    .lf-floating-panel[data-says="status"][data-tone="working"]
-      .lf-fp-field
-      leaf-text::part(placeholder) {
-      animation: none;
-      background: none;
-      color: var(--lf-fp-quiet);
     }
     .lf-fp-peek,
     .lf-floating-panel[data-menu] .lf-fp-menu {
@@ -998,13 +1212,6 @@
     .lf-fp-menu,
     .lf-fp-peek {
       border: 1px solid CanvasText;
-    }
-    .lf-floating-panel[data-says="status"][data-tone="working"]
-      .lf-fp-field
-      leaf-text::part(placeholder) {
-      animation: none;
-      background: none;
-      color: GrayText;
     }
   }
 }

@@ -8,7 +8,7 @@ conventionally ~/.local/state/leaf/pages/<slug>/ — and is self-contained,
 so an approved version can't change under its user; re-running `page init`
 is the explicit re-vendor, which restarts a served page's server when its installed
 layer or serving code changes
-(`../../references/serving-pages.md`, "Re-vendoring and layer epochs"). One
+(`../../references/serving-pages.md`, "Re-vendoring"). One
 transition covers start, stop, init, contract-bearing CLI writes, and preview reads.
 Stop retains it through the server's release, so no operation can cross the old
 process's contract.
@@ -73,7 +73,9 @@ the server relies on. The page carries the number in the `$events` it was vendor
 with, which no layer can change, and every page server — durable, temporary, the
 gate's ephemeral one, and the website's — and the one append door compare it with
 the running Leaf's own when they bind the page or admit an event
-(`layer.incompatible_layer`), refusing another number and naming `leaf page init`.
+(`layer.incompatible_layer`), refusing another number. For a lower number the refusal
+names `leaf page init`; for a higher one it names the newer Leaf that vendored the page,
+since this Leaf does not re-vendor a page down.
 The same reading refuses a layer whose `$keys` document an x- key this Leaf no longer
 admits, since this Leaf would read the key's new name and drop what the page declares
 under the old one; a key this Leaf added and the layer lacks refuses nothing.
@@ -131,7 +133,7 @@ Every composition writes these facts the browser reads instead of deriving
   event records, which the browser compares a recorded definition with;
 - `$marks`, each declaration a stylesheet reads, with the attribute it is painted as,
   the attribute an occurrence overrides it with, and whether it holds in a thread
-  message, and whether an idiom may declare it (`schema.DECLARED_MARKS`).
+  message (`schema.DECLARED_MARKS`).
 
 `page init` stamps them into the layer, and a page's composition stamps them again
 over its own declarations, overwriting any declared `$decisions`, `$states` or

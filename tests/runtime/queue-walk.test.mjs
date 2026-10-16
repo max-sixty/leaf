@@ -1,8 +1,8 @@
 /* The queue walk repaints the keys as On me empties or fills.
 
    The m/M row stands on On me, and Done on the to-dos it holds, so the walk watches
-   the list the publication serves (`effective.queues.on_user`) and asks for the frame
-   that repaints the keys when what it offers changes. */
+   the queues the publication serves (`readQueues`) and asks for the frame that
+   repaints the keys when what it offers changes. */
 import assert from "node:assert/strict";
 import test from "node:test";
 import { applicationState } from "/runtime/semantic-state.js";
@@ -86,6 +86,8 @@ test("a to-do arriving on On me repaints the keys", async () => {
 
   applicationState.adopt(reading([todo]));
   assert.equal(applicationState.read().effective.queues.on_user.length, 1);
+  // The walk's watcher reads the queues on the microtask after the publication.
+  await null;
   await frame();
   assert.ok(frames > before, "the keys repaint once On me holds the to-do");
 });

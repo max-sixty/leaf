@@ -94,8 +94,9 @@ test("a deferred manifest refuses a rebound contract or invalid source at the sa
 });
 
 test("an async projection retains its captured source provenance after acceptance advances", async () => {
-  const { watchData, notifyDataSubscribers } = await import("/runtime/data.js");
+  const { notifyDataSubscribers } = await import("/runtime/data.js");
   const { whenApplicationPresented } = await import("/runtime/semantic-state.js");
+  const { LeafElement, nothing } = await import("/runtime/widget-api.js");
   adoptRegistry({
     "lf-source": {
       "x-data": { document: { contract: "text-document", source: "source" } },
@@ -111,6 +112,20 @@ test("an async projection retains its captured source provenance after acceptanc
     ),
   };
   acceptData(initial, 1);
+  // A widget drawing each delivery asynchronously, as an author's renderer may.
+  customElements.define(
+    "lf-source",
+    class extends LeafElement {
+      render() {
+        this.snapshot = this.data("document");
+        return nothing;
+      }
+      updated(changed) {
+        super.updated(changed);
+        this.drawing(paint(this)(this.snapshot));
+      }
+    },
+  );
   document.body.innerHTML =
     '<main><lf-source id="live" source="document"></lf-source><lf-source id="pinned" source="pinned"></lf-source></main>';
   const { projectData } = createDataProjection({ invalidateDom() {} });
@@ -132,15 +147,14 @@ test("an async projection retains its captured source provenance after acceptanc
     projectData(node, [{ key: "document", node: code }], { snapshot });
     if (mounting) firstProjection.resolve();
   };
-  const live = document.querySelector("#live"),
-    pinned = document.querySelector("#pinned");
-  const stopLive = watchData(live, "document", paint(live));
-  const stopPinned = watchData(pinned, "document", paint(pinned));
+  const live = document.querySelector("#live");
+  const pinned = document.querySelector("#pinned");
+  await new Promise((resolve) => setTimeout(resolve, 0));
   await whenApplicationPresented();
   const mounted = live.cloneNode(false);
   mounted.id = "mounted-source";
   live.after(mounted);
-  const stopMounted = watchData(mounted, "document", paint(mounted));
+  await new Promise((resolve) => setTimeout(resolve, 0));
   const newer = structuredClone(initial);
   newer.version = "projection-newer";
   newer.sources.document.revision = "newer-revision";
@@ -178,8 +192,5 @@ test("an async projection retains its captured source provenance after acceptanc
       pinned: { ...old, source: "pinned" },
     },
   );
-  stopMounted();
-  stopLive();
-  stopPinned();
   document.body.replaceChildren();
 });

@@ -70,6 +70,7 @@ from leaf.findings import Finding
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_model
 from leaf_dev.browser import (
+    CLASSIC_CHROME,
     scroll_settled,
 )
 from leaf_dev.example_data import regression_sources
@@ -1416,6 +1417,9 @@ def watched(page, *, java_script_enabled=True):
         "__leafWatchFinding", lambda _source, found: errors.append(Finding.read(found))
     )
     page.add_init_script(path=WRITE_WATCH_SOURCE)
+    # The suite reads with the banner unless a test chooses the panel, whose own file
+    # holds its journeys.
+    page.add_init_script(script=CLASSIC_CHROME)
     # One init script keeps cause tracking installed before its words subscriber;
     # Playwright does not promise an order between separately registered scripts.
     page.add_init_script(

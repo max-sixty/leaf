@@ -394,7 +394,7 @@ def shoot_stills(browser, url: str, page_dir: Path, into: Path) -> None:
     cmd_waiting(page_dir, "")
 
     for name, size, scheme in STILLS:
-        with tab(browser, size, scheme) as page:
+        with tab(browser, size, scheme, classic=True) as page:
             page.goto(url)
             # Hold the server's state and authored revision before taking the still.
             state = wait_for_listening(page)
@@ -458,7 +458,10 @@ def record_demo(output: Path | None) -> None:
         url = started.url
         waiter = DemoWaiter(page_dir)
         try:
-            with headless_shell() as browser, tab(browser, GIF_SIZE) as page:
+            with (
+                headless_shell() as browser,
+                tab(browser, GIF_SIZE, classic=True) as page,
+            ):
                 page.goto(url)
                 frames, durations = record(page, waiter, page_dir)
                 write_gif(frames, durations, recording / "demo.gif")

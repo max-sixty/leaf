@@ -1,6 +1,6 @@
 /* The floating panel: Leaf's chrome as one box hovering over the foot of the page, in
- * place of the banner and the bottom bar, which a reader has only by asking for them
- * (prepaint.js, `lfChrome`). It is another presentation of what the banner, the bottom
+ * place of the banner and the bottom bar, unless the reader chose those
+ * (prepaint.js, `lfChrome`; chrome-choice.js). It is another presentation of what the banner, the bottom
  * bar, Threads and the On panel already own, so it reads their readings and calls their
  * commands: the status (`statusReading`), the toolbar's rows (`bannerRows`), the threads
  * (`readThreads`), the queues (`readQueues`), the versions (`versionPicker`), the
@@ -187,6 +187,9 @@ const OWN_VIEWS = Object.freeze(["threads", "queue", "versions"]);
 // its views, or, for picking an element to comment on, by the page itself, where
 // selecting words or pressing `s` already starts it.
 const FOLD = "panel.floating.fold";
+// The row trading this chrome for the banner (chrome-choice.js), which stands at the
+// menu's foot with the panel's own rows.
+const SWITCH = "chrome.switch";
 const HELD_ELSEWHERE = Object.freeze([
   "threads",
   "queue",
@@ -194,6 +197,7 @@ const HELD_ELSEWHERE = Object.freeze([
   "approval",
   "keyboard",
   `command:${FOLD}`,
+  `command:${SWITCH}`,
   "command:target.picker.open",
 ]);
 // A row the menu or a group lists: neither held elsewhere nor the next step of a
@@ -1199,6 +1203,7 @@ export function createFloatingPanel({
       );
     const keyboard = all.find((entry) => entry.key === "keyboard");
     const fold = all.find((entry) => entry.key === `command:${FOLD}`);
+    const swap = all.find((entry) => entry.key === `command:${SWITCH}`);
     const groups = Object.keys(GROUPS).filter((group) =>
       all.some((entry) => groupOf(entry) === group && listed(entry)),
     );
@@ -1246,7 +1251,7 @@ export function createFloatingPanel({
           ),
       })),
       { key: "", draw: () => html`<hr />` },
-      ...[keyboard, fold].filter(Boolean).map(seat),
+      ...[keyboard, fold, swap].filter(Boolean).map(seat),
     ];
     const now = new Map(offered.map((row) => [row.key, row]));
     seats = held?.seats ?? offered;

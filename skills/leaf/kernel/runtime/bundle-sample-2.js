@@ -7,8 +7,8 @@ import {
   widgetDescriptor
 } from "./bundle-widget-upgrade.js";
 import {
-  containingView,
   frameView,
+  layoutWindow,
   presented,
   recordInteraction,
   requestJson,
@@ -143,7 +143,7 @@ function mountSample(frame, { template, window: asWindow = false, chrome = void 
     try {
       const outer = await readSampleVisibility();
       if (channel !== port) return;
-      const within = outer ? outer.visible && outer : containingView();
+      const within = outer ? outer.visible && outer : layoutWindow();
       const view = admitted() && within && frameView(frame, within);
       port.postMessage({
         type: "visibility-reading",

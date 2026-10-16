@@ -14,7 +14,6 @@ import {
 } from "./rect.js";
 import { cancelRender, nextRender, sizeObserver } from "./rendering.js";
 import { watchScrolls } from "./arrivals.js";
-import { sampleVisibility } from "./sample-visibility.js";
 
 /* Shared readings of the boxes the page actually shows.
 
@@ -47,9 +46,9 @@ import { sampleVisibility } from "./sample-visibility.js";
      of the box it belongs to;
    - `clippedContents` when the subject has no element box of its own;
    - `placeBox` and `clippedPlace` for a destination that is an element or a Range;
-   - `presented`, `frameView` and `containingView` for whether the page puts a box
-     before the user at all and what the pages holding this one show of its window, and
-     `watchRoom` for when any of those readings may have changed.
+   - `presented` and `frameView` for whether the page puts a box before the user at all
+     and what this page shows of a sample it holds, and `watchRoom` for when any of
+     those readings may have changed.
 
    `skipped` is asked first by a reading that can leave out a box the browser is not
    drawing, since reading one in skipped content forces that content's style and layout.
@@ -518,7 +517,7 @@ export function seenRect(item, clips) {
 }
 // Whether the page puts `node` before the user at all, before any question of where:
 // drawn and visible, not inert, inside the topmost modal, and not hidden with
-// `aria-hidden`. Exposure asks it of a message body and of each frame holding the page.
+// `aria-hidden`. Exposure asks it of a message body and of a sample's frame.
 export function presented(node) {
   if (
     !node.checkVisibility({ visibilityProperty: true }) ||
@@ -530,11 +529,12 @@ export function presented(node) {
     if (at.getAttribute?.("aria-hidden") === "true") return false;
   return true;
 }
-// What this page shows of a frame it holds, in the frame's own viewport coordinates:
-// the frame's `seenRect`, within `within`, what the pages holding this one show of its
-// window (`containingView`), or null where the user sees none of it. The frame's page
-// cannot read this itself: only this page's module knows the banner, bottom bar and
-// occluders standing over the frame, which cut it as they cut any of this page's boxes.
+// What this page shows of a sample's frame it holds, in the frame's own viewport
+// coordinates: the frame's `seenRect`, within `within`, the window or what this page's
+// own holder shows of it, or null where the user sees none of it. The sample cannot
+// read this itself: only this page's module knows the banner, bottom bar and occluders
+// standing over the frame, which cut it as they cut any of this page's boxes. A page in
+// an ordinary iframe reads only its own window.
 export function frameView(frame, within) {
   const seen = seenRect(frame, new Map());
   const shown = seen && intersect(seen, within);
@@ -551,46 +551,16 @@ export function frameView(frame, within) {
     bottom: y(shown.bottom),
   };
 }
-// What the pages holding this one show of its window, in its own coordinates: the whole
-// window at the top, and in a same-origin frame what the holding page reads of that
-// frame (`frameView`), asked through the holder's document, where its own geometry
-// answers and asks its own holder in turn. Null where no holder answers: a cross-origin
-// holder hides the frame element, and one without Leaf declares none of its chrome, so
-// nothing it shows is evidence. An isolated sample's holder answers over the sample's
-// port instead (sample-visibility.js), from the same `frameView`.
-const FRAME_VIEW = Symbol.for("leaf.frameView");
-Object.defineProperty(document, FRAME_VIEW, {
-  value: (frame) => {
-    const within = presented(frame) && containingView();
-    return within ? frameView(frame, within) : null;
-  },
-});
-// The frame holding this page, where its holder is of this origin. An isolated sample's
-// holder is another origin, which answers over the sample's port, and WebKit reports
-// even reading `frameElement` there as a sandbox violation.
-const holdingFrame = () => (sampleVisibility() ? null : window.frameElement);
-export function containingView() {
-  const frame = holdingFrame();
-  if (!frame) return window === window.top ? layoutWindow() : null;
-  return frame.ownerDocument[FRAME_VIEW]?.(frame) ?? null;
-}
-// Everything besides a reader's own boxes that changes what `seenRect` and
-// `containingView` read, so a reader of what the user sees watches it here rather than
-// keeping its own list: a scroll, a shadow stage's included (`watchScrolls`); a resize;
-// the visual viewport, which a soft keyboard or a pinch-pan moves without either; a
-// native layer opening or closing, which changes what a modal admits
-// (`watchLayerChanges`); and chrome the room is measured against changing size or
-// ending a slide (`ROOM_MOVED`). In a same-origin frame it watches the same of the
-// holding page, through its document, and of the pages holding that one in turn, and
-// the frame moving in its holder's viewport, which no event in either page announces.
-// Returns the call that stops watching.
+// Everything besides a reader's own boxes that changes what `seenRect` reads, so a
+// reader of what the user sees watches it here rather than keeping its own list: a
+// scroll, a shadow stage's included (`watchScrolls`); a resize; the visual viewport,
+// which a soft keyboard or a pinch-pan moves without either; a native layer opening or
+// closing, which changes what a modal admits (`watchLayerChanges`); and chrome the room
+// is measured against changing size or ending a slide (`ROOM_MOVED`). Returns the call
+// that stops watching.
 const ROOM_MOVED = "lf-room-moved";
 export const announceRoom = (target) =>
   target.dispatchEvent(new Event(ROOM_MOVED, { bubbles: true, composed: true }));
-const WATCH_ROOM = Symbol.for("leaf.watchRoom");
-Object.defineProperty(document, WATCH_ROOM, {
-  value: (callback) => watchRoom(callback),
-});
 export function watchRoom(callback) {
   const viewport = window.visualViewport;
   /** @type {[EventTarget, string, boolean?][]} */
@@ -610,27 +580,6 @@ export function watchRoom(callback) {
         target.removeEventListener(type, callback, capture);
     },
   ];
-  const frame = holdingFrame();
-  const holder = frame?.ownerDocument[WATCH_ROOM];
-  if (holder) {
-    // What this page leaves in its holder goes with the page, whether or not the
-    // watcher ever stops, so a reloaded frame leaves no listener of its old self there.
-    const moves = new frame.ownerDocument.defaultView.IntersectionObserver(callback, {
-      threshold: [0, 1],
-    });
-    moves.observe(frame);
-    const unhold = holder(callback);
-    const leave = (event) => {
-      if (!event.persisted) stopHolding();
-    };
-    const stopHolding = () => {
-      moves.disconnect();
-      unhold();
-      window.removeEventListener("pagehide", leave);
-    };
-    window.addEventListener("pagehide", leave);
-    stops.push(stopHolding);
-  }
   return () => {
     for (const stop of stops) stop();
   };

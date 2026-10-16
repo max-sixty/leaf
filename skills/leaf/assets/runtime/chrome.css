@@ -163,7 +163,9 @@
     box-shadow: none;
   }
   .lf-fp-field .lf-compose-field:has(> leaf-text[data-lf-focus]) {
-    outline: none;
+    outline: var(--focus-ring);
+    outline-offset: 0;
+    border-radius: var(--r);
   }
   .lf-fp-box {
     flex-wrap: wrap;

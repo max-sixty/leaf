@@ -214,8 +214,12 @@
     margin: 0;
     box-shadow: none;
   }
+  /* The caret in the field wears the ring an anchored comment box wears (response.css),
+     so a key that moves it there, `c` among them, shows where the words will go. */
   .lf-fp-field .lf-compose-field:has(> leaf-text[data-lf-focus]) {
-    outline: none;
+    outline: var(--focus-ring);
+    outline-offset: 0;
+    border-radius: var(--r);
   }
   /* An attached image's shelf takes a line of its own over the page's words, as it does
      over a thread's reply (response.css). */

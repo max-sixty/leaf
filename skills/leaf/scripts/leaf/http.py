@@ -274,8 +274,8 @@ class PageEndpoint:
         # Empty on the ordinary one-page server. A published site and a sample's child
         # serve beneath a prefix, and only Leaf-owned routes are rewritten under it.
         self.page_root = page_root
-        # The generation this answer speaks, which a route narrows to the revision it
-        # actually served.
+        # The generation this answer speaks: the tab's own once it is authorized
+        # (`_answer`), narrowed by a route to the revision it actually served.
         self.response_layer = self.layer
         # The revision a POST's layer gate held it to (`_layer_gate`): the one the tab
         # named, or the active one when it named none. None until that gate runs.
@@ -753,6 +753,7 @@ class PageEndpoint:
                 if prepare:
                     self.body_unread = True
                 return self._json({"error": NO_KEY}, 401)
+            self.response_layer = self._named_layer()
             if prepare:
                 self.posted, self.posted_error = prepare()
                 prepared = True
@@ -860,6 +861,27 @@ class PageEndpoint:
 
     def _registry(self, revision: int) -> dict:
         return self._reading(revision).registry
+
+    def _named_layer(self) -> str:
+        """The generation an answer speaks unless its route serves another: the
+        layer of the revision the tab names, where that is not the page's own.
+
+        A tab whose page was re-vendored under it still holds a revision of the older
+        layer, and can read an answer that carries nothing newer, such as a freshness
+        token, in that layer. The newer layer reaches it as a revision whose executable
+        changed, which the tab installs once the user is not in the middle of
+        something (`version.js`). Named in the page's newer layer, the same answer
+        would be refused and reload the tab at once (`layer-client.js`). A tab on the
+        page's own layer needs no lookup."""
+        if self.headers.get("Leaf-Layer", self.layer) == self.layer:
+            return self.layer
+        try:
+            revision = self.requested_view_revision()
+        except ValueError:
+            return self.layer
+        if revision is None or revision not in self.source.revision_names:
+            return self.layer
+        return self._registry(revision)["$layer"]["generation"]
 
     def _artifact_root(self, revision: int) -> str:
         return self._named_root(self._revision_name(revision).removesuffix(".html"))

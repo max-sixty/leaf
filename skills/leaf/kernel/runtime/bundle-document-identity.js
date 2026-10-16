@@ -5059,6 +5059,7 @@ function createStateFeed({
         const returned = readingReturn();
         try {
           const response = await fetch(pageUrl("api/news"), {
+            headers: layerHeaders(),
             signal: globalThis.AbortSignal.any([
               interval.signal,
               globalThis.AbortSignal.timeout(STATE_READ_TIMEOUT_MS)

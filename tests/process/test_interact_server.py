@@ -1350,6 +1350,41 @@ def test_historical_deferred_reads_keep_the_document_revision_and_layer(
     assert deferred["value"] == patch
 
 
+def test_a_tab_on_a_re_vendored_page_hears_news_in_its_own_layer(page_dir):
+    """A re-vendor replaces the page's server, and a tab still open on the older layer
+    keeps hearing news it can read, so it takes the newer layer as a revision once the
+    user has finished what they are doing. Named in the newer layer, the token was
+    refused and reloaded the tab mid-keystroke."""
+    first = revisioning_model.activate_source(page_dir)
+    first_layer = artifact_model.read_revision(page_dir, first.revision).registry[
+        "$layer"
+    ]["generation"]
+    theme = page_dir / "theme.css"
+    theme.write_text(theme.read_text() + "\n/* repair installed edit */\n")
+    vendoring_model.cmd_init(page_dir)
+    (page_dir / "index.html").write_text(PAGE.replace("Plan", "Revised plan"))
+    second = revisioning_model.activate_source(page_dir)
+    assert second.error is None and second.revision != first.revision
+
+    def news_layer(**headers):
+        connection = http.client.HTTPConnection(address.hostname, address.port)
+        connection.request("GET", f"/api/news?t={TOKEN}", headers=headers)
+        response = connection.getresponse()
+        response.read()
+        connection.close()
+        assert response.status == 200
+        return response.getheader("Leaf-Layer")
+
+    with hosting_model.TemporaryPageServer(page_dir, token=TOKEN) as replaced:
+        address = urllib.parse.urlsplit(replaced.origin)
+        stale = news_layer(
+            **{"Leaf-Layer": first_layer, "Leaf-View-Revision": str(first.revision)}
+        )
+        current = news_layer()
+    assert stale == first_layer
+    assert current != first_layer
+
+
 def test_a_bad_source_save_keeps_the_last_revision_live_and_reports_the_error(
     server, page_dir
 ):

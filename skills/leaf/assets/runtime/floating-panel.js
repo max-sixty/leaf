@@ -1710,7 +1710,7 @@ export function createFloatingPanel({
         id="lf-fp-quote"
         class=${`lf-quote lf-fp-quote${quote.anchored && !quote.found ? " detached" : ""}`}
         data-expanded=${String(expanded)}
-        title=${quote.title ?? nothing}
+        title=${(quote.anchored && !quote.found && quote.title) || nothing}
       >
         <span class="lf-quote-label">${quote.label}</span>${
           quote.outdated

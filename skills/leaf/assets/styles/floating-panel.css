@@ -1019,8 +1019,13 @@
     gap: 4px;
     margin: 0 0 12px;
   }
+  /* The quote here only says what the thread is about: "On the page" in the head is the
+     way to the words, so it takes no press, no aim's room and no title naming a jump; a
+     detached quote's title still says where its words went. */
   .lf-fp-quote {
     margin: 0;
+    min-width: 0;
+    min-height: 0;
     cursor: default;
     display: -webkit-box;
     -webkit-box-orient: vertical;

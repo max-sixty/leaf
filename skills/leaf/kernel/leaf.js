@@ -8961,7 +8961,7 @@ function createFloatingPanel({
         id="lf-fp-quote"
         class=${`lf-quote lf-fp-quote${quote.anchored && !quote.found ? " detached" : ""}`}
         data-expanded=${String(expanded2)}
-        title=${quote.title ?? nothing}
+        title=${quote.anchored && !quote.found && quote.title || nothing}
       >
         <span class="lf-quote-label">${quote.label}</span>${quote.outdated ? html`<span class="lf-anchor-status">Earlier data</span>` : quote.changed ? html`<span class="lf-anchor-status">Changed</span>` : nothing}
       </blockquote>

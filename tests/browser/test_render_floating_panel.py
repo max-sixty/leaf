@@ -2508,6 +2508,11 @@ def test_a_draft_draws_a_bullet_list_as_the_message_will(browser, serve):
     near = reading()
     assert near["marks"][0]["drawn"] == "none", near
     assert near["marks"][0]["left"] == away["marks"][0]["left"]
+    # A nested item keeps its indentation and is drawn as a bullet too.
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.insert_text("- parent\n    - child")
+    nested = reading()
+    assert [mark["drawn"] for mark in nested["marks"]] == ['"•"', '"•"'], nested
 
 
 def test_send_stands_in_the_counts_place_while_the_user_types(browser, serve):

@@ -850,7 +850,7 @@ function decorate(state, placed) {
         if (mark) add(each.from, each.from + mark[0].length, dim);
       });
     } else if (token.type === "list_item_open") {
-      const item = text.match(/^( {0,3})(?:([*+-])[ \t]?|\d{1,9}[.)])/);
+      const item = text.match(/^([ \t]*)(?:([*+-])[ \t]?|\d{1,9}[.)])/);
       if (!item) continue;
       const at = from + item[1].length;
       const end = from + item[0].length;

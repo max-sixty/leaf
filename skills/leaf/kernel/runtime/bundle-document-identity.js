@@ -1008,9 +1008,16 @@ var LeafText = class extends HTMLElement {
             run: (view) => this.dispatchEvent(new Event("lf-edit-return", { cancelable: true })) && insertNewline(view)
           },
           { key: "Shift-Enter", run: insertNewlineContinueMarkup },
+          // Outside a list or quote, a plain new line, which asks to be seen as typing
+          // does, so a field at its height limit scrolls to it.
           {
             key: "Shift-Enter",
-            run: (view) => (view.dispatch(view.state.replaceSelection("\n")), true)
+            run: (view) => (view.dispatch(
+              view.state.update(view.state.replaceSelection("\n"), {
+                scrollIntoView: true,
+                userEvent: "input"
+              })
+            ), true)
           },
           ...standardKeymap.filter(
             ({ key }) => key !== "Escape" && key !== "Enter" && key !== "Mod-Enter"

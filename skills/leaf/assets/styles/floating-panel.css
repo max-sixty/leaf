@@ -208,12 +208,47 @@
     box-shadow: none;
     padding: calc((var(--lf-fp-line) - 22px) / 2) 6px;
     min-height: var(--lf-fp-line);
-    max-height: 30dvh;
+    /* Half the window: a long comment reads whole before the field scrolls. */
+    max-height: 50dvh;
     box-sizing: border-box;
     font: 14px / 22px var(--sans);
     /* Send and the microphone stand beside the words rather than over their end, so
        neither the words nor the status saying what the agent does keep room for them. */
     --lf-field-end-room: 0px;
+  }
+  /* Words running past the field's top or bottom edge fade into it, so a glance says
+     there is more above or below, in place of a scrollbar, whose overlay flashed with
+     every line the field scrolled to. Where no scroll timeline drives the fade, the
+     scrollbar stays. */
+  @supports (animation-timeline: scroll()) {
+    .lf-fp-field .lf-compose-field > leaf-text:state(scrolls) {
+      scrollbar-width: none;
+      mask-image: linear-gradient(
+        to bottom,
+        transparent 0,
+        #000 var(--lf-fp-fade-top),
+        #000 calc(100% - var(--lf-fp-fade-bottom)),
+        transparent 100%
+      );
+      animation: lf-fp-field-edges linear both;
+      animation-timeline: scroll(self);
+    }
+  }
+  @keyframes lf-fp-field-edges {
+    0% {
+      --lf-fp-fade-top: 0px;
+      --lf-fp-fade-bottom: 16px;
+    }
+    4% {
+      --lf-fp-fade-top: 16px;
+    }
+    96% {
+      --lf-fp-fade-bottom: 16px;
+    }
+    100% {
+      --lf-fp-fade-top: 16px;
+      --lf-fp-fade-bottom: 0px;
+    }
   }
   .lf-fp-field .lf-compose-field > leaf-text[data-lf-focus] {
     outline: none;
@@ -268,7 +303,7 @@
   /* The field's presses stand in the row's flow beside the words, rather than over the
      words' end where a card's composer floats them, so the row's one alignment places
      them too. Each is a line square, as the leaf is, in place of a composer's own
-     hit box, so Send stays round. */
+     hit box. */
   .lf-fp-field :is(.lf-compose-submit, .lf-compose-dictate) {
     position: relative;
     inset: auto;
@@ -280,15 +315,10 @@
     min-height: 0;
     padding: 0;
   }
-  /* Send stands in the counts' place while the user types, as a round ink press. */
+  /* Send stands in the counts' place while the user types, in every composer's face:
+     the accent arrow, not a press of its own. */
   .lf-fp-field .lf-compose-submit {
     display: none;
-    border-radius: 50%;
-    background: var(--ink);
-    color: var(--lf-fp-surface);
-  }
-  .lf-fp-field .lf-compose-submit:hover {
-    background: var(--ink);
   }
   .lf-floating-panel[data-typing] .lf-fp-field .lf-compose-submit {
     display: grid;
@@ -487,8 +517,8 @@
     }
   }
   /* The pointer's fold: a small round button riding the box's top-right corner, shown
-     while the pointer is over the unfolded panel. It fades rather than moves, so
-     nothing shifts under the pointer. */
+     while the pointer is near that corner (floating-panel.js, `data-corner`). It fades
+     rather than moves, so nothing shifts under the pointer. */
   .lf-fp-minimize {
     position: absolute;
     top: -9px;
@@ -512,7 +542,7 @@
       visibility 0s 120ms;
   }
   @media (hover: hover) {
-    .lf-floating-panel[data-rest="row"]:hover .lf-fp-minimize {
+    .lf-floating-panel[data-rest="row"][data-corner] .lf-fp-minimize {
       opacity: 1;
       visibility: visible;
       transition: opacity 120ms;

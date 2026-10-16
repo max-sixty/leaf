@@ -276,7 +276,6 @@ import {
   clipsPastSurfaces,
   closeNativeLayer,
   completeData,
-  containingView,
   countTraffic,
   dataHeaders,
   el,
@@ -290,6 +289,7 @@ import {
   landingInsets,
   layerHeaders,
   layoutChanged,
+  layoutWindow,
   matchesWhen,
   notice,
   offer,
@@ -6765,7 +6765,7 @@ function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
   };
   function scan(sampleBand) {
     if (document.visibilityState !== "visible") return;
-    const band = sampleBand ?? containingView();
+    const band = sampleBand ?? layoutWindow();
     if (!band || sampleBand?.visible === false) return;
     const candidates = new Map(
       (threadsPresented ? actionableUnread() : []).map(({ item }) => [

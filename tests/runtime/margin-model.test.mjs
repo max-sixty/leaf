@@ -264,6 +264,21 @@ test("a thread's margin entry and Page Map row say the word Threads gives it", (
   );
   assert.equal(threadMarks(busy).workflowReceipt, working);
   assert.deepEqual(said(busy), ["2 unread", "2 unread"]);
+  // A failed response paints no progress, so the line says Threads' word for it.
+  const failed = Object.freeze({
+    id: "f",
+    stage: "picked_up",
+    condition: { kind: "failed", operation: "response" },
+  });
+  assert.deepEqual(
+    said(
+      thread(
+        { kind: "waiting", reason: "workflow", workflow: "f" },
+        { workflows: [failed] },
+      ),
+    ),
+    ["Not answered", "Not answered"],
+  );
   const onUser = thread(
     { kind: "needs_user", reason: "ask", workflow: null },
     { unread: 1 },

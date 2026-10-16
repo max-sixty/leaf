@@ -1236,7 +1236,7 @@ function threadMarks(thread) {
   const onUser = attention?.kind === "needs_user";
   const receipt = attention?.kind === "waiting" ? attention.workflow : null;
   const unread = thread.unread.length;
-  const line = attention && !receipt && attention.label || (unread ? `${unread} unread` : null);
+  const line = attention && (!receipt || receipt.condition) && attention.label || (unread ? `${unread} unread` : null);
   return {
     userAttention: onUser ? { label: attention.label, reason: thread.attention?.reason ?? "workflow" } : null,
     unread,

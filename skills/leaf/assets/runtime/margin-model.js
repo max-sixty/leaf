@@ -233,14 +233,16 @@ export const unreadIn = (items) =>
 // paints as its status: whose turn it is; the workflow its progress decoration paints
 // while the thread waits on the agent, saying that workflow's word (`workflowLabel`);
 // and its line, the thread's word wherever no such receipt says it, else how many of
-// its messages the user has not read.
+// its messages the user has not read. A receipt under a condition, such as a response
+// that failed, paints no progress (`progressFace`), so the line says its word.
 export function threadMarks(thread) {
   const attention = threadAttention(thread);
   const onUser = attention?.kind === "needs_user";
   const receipt = attention?.kind === "waiting" ? attention.workflow : null;
   const unread = thread.unread.length;
   const line =
-    (attention && !receipt && attention.label) || (unread ? `${unread} unread` : null);
+    (attention && (!receipt || receipt.condition) && attention.label) ||
+    (unread ? `${unread} unread` : null);
   return {
     userAttention: onUser
       ? { label: attention.label, reason: thread.attention?.reason ?? "workflow" }

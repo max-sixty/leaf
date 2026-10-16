@@ -690,7 +690,7 @@ function sentDrawing(drawing) {
 }
 
 // runtime/protocol.js
-var recordFormat = (kind) => `leaf-${kind}/7`;
+var recordFormat = (kind) => `leaf-${kind}/8`;
 
 // runtime/composing/text-field.js
 import {

@@ -2400,8 +2400,14 @@ def test_the_row_s_marks_and_presses_share_the_words_line(browser, serve):
     for mark in ("leaf", "send"):
         assert abs(seats[mark] - seats["line"]) < 0.5, (mark, seats)
     assert seats["press"]["right"] == pytest.approx(seats["field"], abs=1), seats
+    # The lines above Send's own may run past its left edge (where words end depends
+    # on how they wrap); the last line's words stop short of it.
+    first_line = field(page).evaluate(
+        "host => window.editorRoots.get(host).querySelector('.cm-line')"
+        ".getBoundingClientRect().right"
+    )
+    assert first_line > seats["press"]["left"], (first_line, seats)
     lines = field(page).evaluate(WORD_LINES)
-    assert lines[0] > seats["press"]["left"], (lines, seats)
     assert lines[-1] <= seats["press"]["left"], (lines, seats)
 
 

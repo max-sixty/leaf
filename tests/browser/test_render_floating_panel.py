@@ -417,8 +417,8 @@ def test_the_field_is_the_thread_s_reply_box(browser, serve):
     page.locator(".lf-fp-settle").focus()
     with sending(page, "the resolve"):
         page.keyboard.press("Enter")
-    expect(field(page)).to_be_hidden()
-    expect(page.locator(".lf-fp-resolved")).to_have_text("Resolved · reopen to reply")
+    expect(page.locator(".lf-fp-view[data-view=threads]")).to_be_visible()
+    expect(field(page)).to_have_attribute("name", "comment")
 
 
 def test_the_thread_walk_stands_on_each_thread_it_opens(browser, serve):
@@ -2433,6 +2433,8 @@ def test_skip_to_leaf_controls_lands_in_the_panel(browser, serve):
     settle = page.locator(".lf-fp-settle")
     with sending(page, "the resolve"):
         settle.click()
+    page.locator(".lf-fp-filters button", has_text="Resolved").click()
+    page.locator(".lf-fp-view[data-view=threads] .lf-fp-thread").first.click()
     expect(settle).to_have_text("Reopen", use_inner_text=True)
     skip.focus()
     page.keyboard.press("Enter")

@@ -188,7 +188,7 @@
     font: 14px / 22px var(--sans);
     --lf-field-end-room: 0px;
   }
-  .lf-fp-field .lf-compose-field > leaf-text:state(scrolls) {
+  .lf-fp-field .lf-compose-field > leaf-text[data-scrolls] {
     --lf-fp-fade-top: 0px;
     --lf-fp-fade-bottom: 0px;
     scrollbar-width: none;

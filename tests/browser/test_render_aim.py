@@ -1470,7 +1470,7 @@ def test_a_side_comment_rechooses_its_rail_after_horizontal_target_motion(
     assert not [
         write
         for write in scroll_writes(page, (5, 5, -5, 5))
-        if "lf-fab" in write["target"]
+        if any("lf-fab" in step for step in write["target"])
     ]
 
 
@@ -4181,9 +4181,11 @@ def test_a_scroll_carries_paint_over_targets_and_writes_it_once_settled(
     # reinserting the same box every frame is still a scroll follower.
     painted = []
     for mutation in writes:
-        if not PAINT.search(mutation["target"]):
+        if not any(PAINT.search(step) for step in mutation["target"]):
             continue
-        if mutation["type"] == "childList" and "lf-paint-carrier" in mutation["target"]:
+        if mutation["type"] == "childList" and any(
+            "lf-paint-carrier" in step for step in mutation["target"]
+        ):
             painted.extend(
                 {**mutation, "key": f"{mutation['key']} {node}"}
                 for node in mutation["nodes"]

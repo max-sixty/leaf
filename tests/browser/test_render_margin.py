@@ -8872,11 +8872,15 @@ def test_a_card_a_panes_edge_holds_stays_put_as_the_pane_scrolls(browser, serve)
     writes = scroll_writes(
         page, (5, 5, -5, 5), scroller="document.getElementById('pane-body')"
     )
-    assert [w for w in writes if "lf-margin-preview" in w["target"]] == [], writes
+    assert not [
+        w for w in writes if any("lf-margin-preview" in step for step in w["target"])
+    ], writes
     assert page.evaluate(reading)["card"] == pytest.approx(before["card"], abs=0.5)
     before = page.evaluate(reading)
     writes = scroll_writes(page, (5, 5, -5, 5))
-    assert [w for w in writes if "lf-margin-preview" in w["target"]] == [], writes
+    assert not [
+        w for w in writes if any("lf-margin-preview" in step for step in w["target"])
+    ], writes
     expect(card).to_have_attribute("data-lf-thread-placement", "below")
     after = page.evaluate(reading)
     assert after["card"] - after["foot"] == pytest.approx(
@@ -8939,7 +8943,9 @@ def test_a_card_an_outer_panes_edge_holds_stands_in_that_panes_plane(browser, se
     writes = scroll_writes(
         page, (5, 5, -5, 5), scroller="document.getElementById('pane-body')"
     )
-    assert [w for w in writes if "lf-margin-preview" in w["target"]] == [], writes
+    assert not [
+        w for w in writes if any("lf-margin-preview" in step for step in w["target"])
+    ], writes
     assert page.evaluate(reading)["card"] == pytest.approx(before["card"], abs=0.5)
 
 
@@ -8984,7 +8990,10 @@ def test_the_paint_over_a_target_in_panes_rides_each_panes_scroll(browser, serve
         painted = [
             w
             for w in writes
-            if re.search(r"lf-(target-trace|visual-mark|paint)", w["target"])
+            if any(
+                re.search(r"lf-(target-trace|visual-mark|paint)", step)
+                for step in w["target"]
+            )
         ]
         assert painted == [], (scroller, painted)
         assert page.evaluate(offsets) == pytest.approx(at, abs=0.5), scroller

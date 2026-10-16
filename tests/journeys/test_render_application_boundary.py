@@ -808,7 +808,7 @@ def test_an_external_withdrawal_keeps_the_readers_allocation(browser, serve, pla
             {
                 "code": "words-left-screen",
                 "words": "A draft for this conversation",
-                "place": "leaf-text.lf-ui",
+                "place": ["leaf-text.lf-ui"],
             },
         )
     # A view change or choosing another conversation releases retained news too.

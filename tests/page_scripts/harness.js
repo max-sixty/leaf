@@ -141,7 +141,7 @@
             window.lfWrites.push({
               type: record.type,
               attribute: record.attributeName,
-              target: record.target.localName ?? record.target.nodeName,
+              target: [record.target.localName ?? record.target.nodeName],
             });
       };
       const observer = new MutationObserver(capture);

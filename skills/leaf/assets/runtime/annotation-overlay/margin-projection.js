@@ -1551,8 +1551,8 @@ export function createMarginProjection({
   const threadIdsOf = (entry) =>
     threadReading(entry).items.map((item) => sourceItem(item).thread.id);
   // Only a page-owned seat or an exact widget-local placement takes the thread's
-  // page position. A package mirror uses the same card DOM but leaves that position
-  // and its margin preview available.
+  // page position. The same card DOM drawn in the margin or by a primary reader leaves
+  // that position and its margin preview available.
   const seatedOnPage = (id) =>
     claimed(id) ||
     [

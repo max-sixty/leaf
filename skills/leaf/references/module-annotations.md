@@ -144,28 +144,6 @@ thread about it, built with `threadBox(this, hint)`. It returns `null` in Leaf's
 interface or in quoted markup, and throws for a widget without an id or outside the
 declaration's `when`.
 
-### Rendering Threads in a widget
-
-A Thread list or dashboard can show Leaf's conversation view in containers of its own.
-Register `mountThreadViews(owner, render)` in `whileConnected` and call `unregister()`
-from its cleanup:
-
-```js
-this.threads = mountThreadViews(this, (collection, surfaces) => {
-  for (const thread of collection.threads) {
-    const outlet = this.outletFor(thread.key);
-    if (outlet) surfaces.thread(thread.key, outlet);
-  }
-});
-```
-
-Leaf calls `render` with the `readThreads()` collection whenever the threads change, and
-fills each outlet `surfaces.thread(key, outlet)` names with the messages, reply editor,
-reactions and receipts. The widget creates and lays out its outlets, inside itself. These
-views are copies: the Thread also stays where it is on the page. An asynchronous `render`
-checks `surfaces.signal` before changing its UI, and the handle's `update()` asks for a
-new call after a local layout change.
-
 ### Owning the primary conversation presentation
 
 A package that provides the page's main conversation reader, such as a shelf of

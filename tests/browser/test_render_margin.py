@@ -4071,6 +4071,13 @@ def test_a_thread_an_open_to_do_holds_says_so_beside_the_page(browser, serve):
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     )
+    named = "Can these share one visit?"
+    # Until the agent answers, the On panel lists the answer it owes by the same name.
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    page.locator(".lf-queue-tab").nth(1).click()
+    expect(page.locator(".lf-queue-panel .lf-queue-title")).to_have_text([named])
+    page.keyboard.press("Escape")
     # The agent's answer settles the comment and opens the to-do that holds it.
     append_carried_log_record(
         serve.page_dir,
@@ -4090,7 +4097,6 @@ def test_a_thread_an_open_to_do_holds_says_so_beside_the_page(browser, serve):
     expect(marker.locator(".lf-margin-entry-context")).to_have_text("To-do open")
     expect(marker).to_have_attribute("aria-label", re.compile(r"^Thread, To-do open,"))
 
-    named = "Can these share one visit?"
     page.locator("#feed .lf-activity-news").click()
     feed = page.locator("#feed .lf-activity-row", has_text="replied in")
     expect(feed).to_contain_text(f"replied in “{named}”")

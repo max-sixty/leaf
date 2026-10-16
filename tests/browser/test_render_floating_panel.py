@@ -9,6 +9,7 @@ folding the panel to the leaf in the window's corner and back."""
 
 import base64
 import re
+from datetime import datetime, timedelta
 
 import pytest
 from interact_support import (
@@ -33,6 +34,7 @@ from render_harness import (
     open_page,
     sending,
     stamp_page,
+    ticked,
     told,
     write,
 )
@@ -1350,6 +1352,86 @@ def test_floating_status_records_feedback_only_when_its_words_show(
     assert rows[0]["presentation_kind"] == "banner_words"
     assert rows[0]["surface"] == "panel"
     assert "text" not in rows[0]
+
+
+def test_a_folded_status_keeps_its_reading_until_the_next_exposure(
+    browser, serve, request
+):
+    """A clock tick cannot move tooltip words; the leaf stays live and reopening
+    reads current status. A notice answering a gesture still shows immediately."""
+    from browser.test_render_threads import claim_for_codex
+
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Can we simplify the logging?")
+    claim_for_codex(serve.page_dir, request)
+    page = floating(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press(".")
+    progress = thread_model.post_reply(
+        serve.page_dir,
+        {"to": root, "for": root},
+        "Reading the diagnostic transport.",
+        ephemeral=True,
+        identity={"agent": "Codex", "session": "codex-thread"},
+    )
+    told(page)
+    peek = page.locator(".lf-fp-peek")
+    leaf = page.locator(".lf-fp-leaf")
+    leaf.hover()
+    expect(peek).to_contain_text("Reading the diagnostic transport.")
+    words = peek.inner_text()
+    before = peek.bounding_box()
+    now = datetime.fromisoformat(progress["ts"]) + timedelta(minutes=1)
+
+    # The response uses the same advanced time, so later state reads cannot
+    # recalibrate the browser back across the shared clock's age boundary.
+    def aged_state(route):
+        response = route.fetch()
+        state = response.json()
+        state["now"] = now.isoformat()
+        route.fulfill(response=response, json=state)
+
+    page.route("**/api/state*", aged_state)
+    page.clock.set_fixed_time(now)
+    expect(leaf).to_have_attribute("aria-label", re.compile("1m ago"))
+    assert peek.inner_text() == words
+    assert peek.bounding_box() == before
+    page.mouse.move(5, 5)
+    expect(peek).to_be_hidden()
+    leaf.hover()
+    expect(peek).to_contain_text("(1m ago)")
+    # A hidden tab ends this exposure even when the pointer never leaves the leaf.
+    page.evaluate("""() => {
+      window.__lfTestVisibility = 'hidden';
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true, get: () => window.__lfTestVisibility,
+      });
+      document.dispatchEvent(new Event('visibilitychange'));
+    }""")
+    thread_model.post_reply(
+        serve.page_dir,
+        {"to": root, "for": root},
+        "Tracing the reply acknowledgements.",
+        ephemeral=True,
+        identity={"agent": "Codex", "session": "codex-thread"},
+    )
+    with page.expect_request("**/api/news"):
+        page.evaluate("""() => {
+          window.__lfTestVisibility = 'visible';
+          document.dispatchEvent(new Event('visibilitychange'));
+        }""")
+    told(page)
+    expect(peek).to_contain_text("Tracing the reply acknowledgements.")
+    ticked(page)
+    words = peek.inner_text()
+    now += timedelta(minutes=1)
+    page.clock.set_fixed_time(now)
+    expect(leaf).to_have_attribute("aria-label", re.compile("2m ago"))
+    assert peek.inner_text() == words
+    page.evaluate(
+        "async () => (await window.__lfWidgetApi()).notice('Saved for later')"
+    )
+    expect(peek).to_have_text("Saved for later")
 
 
 def test_floating_menu_tracks_stalled_detail_hidden_by_a_draft(browser, serve, request):

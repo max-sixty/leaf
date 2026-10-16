@@ -14,6 +14,11 @@
  *   user folds it from the leaf's menu or with `.`, or by a pointer with the small round
  *   button that rides the box's top-right corner while the pointer is near it; a
  *   press on the leaf unfolds it, and it stays as it was left across pages (`rest`).
+ *   Once the page presents, its status tooltip keeps the explanation it opened for
+ *   one pointer or focus exposure, so news and aging words cannot move text being
+ *   read. The next exposure, including a return from a hidden tab, reads the current
+ *   status. The leaf's tone, counts and accessible name stay live, and notices
+ *   answering a gesture show immediately.
  * - **The row**: the leaf, the comment field, and marks with counts for On me and
  *   Threads, with at most one small notice beside the marks for a state the user should
  *   not miss, such as a failed save or reading an older version, tinted by its tone and
@@ -140,6 +145,7 @@ import { UPGRADE } from "./presentation.js";
 import { noticeReading, registerNoticePresentation } from "./notifications.js";
 import { reducedMotion } from "./motion.js";
 import { pagePresented } from "./page-paint.js";
+import { onReadingInterrupted, readingIsContinuous } from "./reading-continuity.js";
 import {
   focusDestination,
   focused,
@@ -267,6 +273,7 @@ export function createFloatingPanel({
   peek.id = "lf-fp-peek";
   peek.setAttribute("role", "tooltip");
   let peekAsked = false; // the pointer or focus asking the folded leaf's peek to show
+  let peekReading = null;
   // A notice answering the user that the line over the field would say, were a view not
   // open (`paintPeek`).
   let overView = false;
@@ -2388,16 +2395,12 @@ export function createFloatingPanel({
     const notice = noticeReading();
     const telling = notice.visible && (folded || (overView && !menuOpen));
     const reading = status();
-    render(
-      telling
-        ? notice.message
-        : statusParts(
-            reading.explanationParts ?? [
-              { text: reading.explanation || reading.summary },
-            ],
-          ),
-      peek,
-    );
+    const parts = reading.explanationParts ?? [
+      { text: reading.explanation || reading.summary },
+    ];
+    if (!folded || !peekAsked || !readingIsContinuous()) peekReading = null;
+    if (folded && peekAsked && !telling && pagePresented()) peekReading ??= parts;
+    render(telling ? notice.message : statusParts(peekReading ?? parts), peek);
     keeps(peek, "data-shown", telling || (folded && peekAsked) ? "" : null);
   }
   const showPeek = (on) => {
@@ -2679,6 +2682,10 @@ export function createFloatingPanel({
     // A comparison started or stopped changes the versions without a publication.
     versionPicker.watch(() => paint());
     document.addEventListener("lf-chrome-preference", () => paint());
+    onReadingInterrupted(() => {
+      peekReading = null;
+      paintPeek();
+    });
     watching = watchProjection(host, paintPanel);
     paint();
   }

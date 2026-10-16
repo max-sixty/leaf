@@ -12,7 +12,7 @@
  * - **Folded**, the leaf alone in the window's corner, coloured by the agent's state,
  *   with a badge counting what waits on the user and a dot for threads with news. The
  *   user folds it from the leaf's menu or with `.`, or by a pointer with the small round
- *   button that rides the box's top-right corner while the pointer is over the panel; a
+ *   button that rides the box's top-right corner while the pointer is near it; a
  *   press on the leaf unfolds it, and it stays as it was left across pages (`rest`).
  * - **The row**: the leaf, the comment field, and marks with counts for On me and
  *   Threads, with at most one small notice beside the marks for a state the user should
@@ -154,11 +154,17 @@ import { closestAcross } from "./passages.js";
 const prefs = () => document.documentElement.lfChrome;
 // The Codex panel's tween: one strong ease-out for every change of size and fade.
 const EASE = "cubic-bezier(.23, 1, .32, 1)";
+// The box growing as the words do, a line at a time, takes the tween's full length, which
+// the user singled out as the panel's best motion (15 October).
 const RESIZE_MS = 300;
-const FADE_MS = 180;
+// A view the user opened, or put away, is what they asked to see, so it arrives almost at
+// once, as the menu does: its outline in a third of the tween, its words faded in at
+// once after the leaving view's. The user found the full tween slow here (15 October).
+const VIEW_RESIZE_MS = 120;
+const FADE_MS = 90;
 // The view leaving is gone before the one arriving shows, so the two never read
 // through each other.
-const OUT_MS = 80;
+const OUT_MS = 60;
 
 // The menu's groups, each opened as a view of the toolbar rows declaring it.
 const GROUPS = Object.freeze({
@@ -276,6 +282,21 @@ export function createFloatingPanel({
       .press(null),
   );
   host.append(minimize);
+  // It shows only while the pointer is near the corner it rides, so the panel at rest,
+  // and under a pointer passing over the field or the marks, carries no control the user
+  // did not reach for (15 October). Near is the box's top-right corner, a mark's width in
+  // and half a row down, or the button itself.
+  const CORNER = { across: 64, down: 24 };
+  host.addEventListener("pointermove", (event) => {
+    const box = card.getBoundingClientRect();
+    const near =
+      event.target === minimize ||
+      minimize.contains(event.target) ||
+      (event.clientX >= box.right - CORNER.across &&
+        event.clientY <= box.top + CORNER.down);
+    keeps(host, "data-corner", near ? "" : null);
+  });
+  host.addEventListener("pointerleave", () => keeps(host, "data-corner", null));
   // The row stands over the window's foot as the bottom bar did, so what the page
   // reveals stands clear of it. A view opened above it is itself read, and stands over
   // the page only while it is used, so it leaves the page's room alone; but what it
@@ -604,6 +625,10 @@ export function createFloatingPanel({
   // same outline, so they appear as the surface reaches them. The first outline, and
   // any under reduced motion, is taken as it is.
   let outline = null;
+  // Until when a change of outline is a view arriving or leaving (`transition`), which
+  // takes the shorter tween: the view's own change, and the one when the view it
+  // replaced is gone after its fade.
+  let viewMovingUntil = 0;
   const outlineClip = (box, grow = 0) =>
     `inset(${box.top - grow}px ${box.right - grow}px ${box.bottom - grow}px ${
       box.left - grow
@@ -630,6 +655,7 @@ export function createFloatingPanel({
     )
       return;
     outline = next;
+    const duration = performance.now() < viewMovingUntil ? VIEW_RESIZE_MS : RESIZE_MS;
     for (const [layer, grow] of [
       [ring, 1],
       [fill, 0],
@@ -639,7 +665,7 @@ export function createFloatingPanel({
       keeps(layer, "style", `clip-path: ${outlineClip(next, grow)}`);
       if (!was || reducedMotion() || !pagePresented()) continue;
       layer.animate([{ clipPath: from }, { clipPath: outlineClip(next, grow) }], {
-        duration: RESIZE_MS,
+        duration,
         easing: EASE,
       });
     }
@@ -656,7 +682,7 @@ export function createFloatingPanel({
     };
     card.animate(
       [{ clipPath: outlineClip(within) }, { clipPath: `inset(0 round ${radius}px)` }],
-      { duration: RESIZE_MS, easing: EASE },
+      { duration, easing: EASE },
     );
   }
   const fit = sizeObserver(() => fitAnswer());
@@ -882,6 +908,7 @@ export function createFloatingPanel({
     // The view going away fades where it stood, closing included, so the box shrinking
     // under it never shows an empty ground.
     leaving = changed && before && after ? before : null;
+    if (changed) viewMovingUntil = performance.now() + OUT_MS + VIEW_RESIZE_MS;
     paint();
     // The reader draws what the view arriving holds, and lets go of what the one
     // leaving held: a thread's messages, or the asks On shows as messages.

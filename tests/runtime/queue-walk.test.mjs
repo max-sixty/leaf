@@ -35,7 +35,6 @@ const reading = (onUser) => ({
       session: null,
       outcome: null,
     })),
-    ended_todos: [],
     version_notes: {},
     views: {
       1: {

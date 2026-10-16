@@ -451,6 +451,7 @@ export function createAnnotationInventory({
     for (const todo of runtime.todos) {
       if (
         todo.owner !== "agent" ||
+        todo.state !== "open" ||
         (todo.subject.kind !== "widget" && todo.subject.kind !== "element") ||
         todo.revision > runtime.currentRevision
       )

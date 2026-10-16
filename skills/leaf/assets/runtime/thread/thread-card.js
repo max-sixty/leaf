@@ -150,11 +150,11 @@ function workingMessage(thread, attention, messages) {
   const stopped = workflows.find(
     (workflow) => STOPPED.has(workflow.condition?.kind) && workflow.detail,
   );
-  const todo = (thread.todos ?? []).find(({ line }) => line);
+  const todo = thread.todos.find((open) => open.running);
   const [words, live, condition, agent] = running
     ? [running.detail || said, true, null, running.agent]
     : todo
-      ? [todo.line, true, null, null]
+      ? [todo.running.text, true, null, null]
       : stopped
         ? [stopped.detail, false, workflowLabel(stopped), stopped.agent]
         : [said, false, null, null];
@@ -209,7 +209,7 @@ export function threadReading(thread, surface, commands, options) {
   // An answer says what it leaves (`--ask`, `--todo`); its head says so while that
   // stands: the prose ask the user still owes, the to-do still open on the thread.
   const asking = thread.user_prompt?.message;
-  const openTodos = new Set((thread.todos ?? []).map(({ id }) => id));
+  const openTodos = new Set(thread.todos.map(({ id }) => id));
   const leaves = (message) =>
     message.ask && message.id === asking
       ? "Waiting on me"

@@ -262,9 +262,10 @@ export type Workflow = Omit<WireWorkflow, "quiet" | "dropped" | "stage"> & {
 };
 
 /** One to-do, as `served_state.browser` serves it (`work_reading.WorkReading.page_todos`): `todos` holds
- * the open ones on either side and `ended_todos` the ones that ended, with their
- * outcome. Asks are separate records and never appear in this list. */
-interface WireTodo {
+ * every to-do on either side, open or ended, an ended one with its outcome. It is the
+ * one record of each; the queue items and thread readings the browser draws select
+ * from it. Asks are separate records and never appear in this list. */
+export interface WireTodo {
   id: string;
   owner: "agent" | "user";
   subject: { kind: "thread" | "widget" | "element"; id: string } | { kind: "page" };
@@ -422,7 +423,6 @@ interface AuthoritativeState {
      * (`thread_context.thread_memberships`). */
     thread_memberships: Record<string, string[]>;
     todos: WireTodo[];
-    ended_todos: WireTodo[];
     /** Each version's note, by version (`served_state.browser`). */
     version_notes: Record<string, string>;
     /** The newest events as a history feed reads them, sent only to a page holding a
@@ -560,8 +560,9 @@ function localTodos(state: AuthoritativeState | null, local: readonly LedgerEntr
   const undoing = new Set(
     local.flatMap(({ event }) => (event.kind === "undo" ? [event.undoes] : [])),
   );
-  const served = state?.browser.todos ?? [];
-  const ended = state?.browser.ended_todos ?? [];
+  const all = state?.browser.todos ?? [];
+  const served = all.filter((todo) => todo.state === "open");
+  const ended = all.filter((todo) => todo.state !== "open");
   const reopened = (todo: WireTodo) =>
     todo.outcome !== null && undoing.has(todo.outcome.id ?? "");
   const open = [
@@ -1199,6 +1200,7 @@ export function createSemanticApplication({
       document,
       widgets,
       workflows,
+      todos.open,
       markingRead,
       ready,
     );

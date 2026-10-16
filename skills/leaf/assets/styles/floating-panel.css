@@ -1093,6 +1093,8 @@
     max-height: -webkit-fill-available;
     max-height: stretch;
     overflow-y: auto;
+    /* A list sliding in from the side shows no scrollbar across. */
+    overflow-x: hidden;
     width: 248px;
     padding: 6px;
     box-sizing: border-box;
@@ -1113,6 +1115,36 @@
     transition:
       opacity 120ms linear,
       translate 200ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  /* Versions' notes and Compare want more of a line than the menu's rows. */
+  .lf-fp-menu[data-level="versions"] {
+    width: min(360px, calc(100vw - 32px));
+  }
+  /* A list in the menu's place: its head, the way back, over its rows as the state
+     stands over the menu's. */
+  .lf-fp-menu-page {
+    display: grid;
+  }
+  .lf-fp-menu-back {
+    margin-bottom: 4px;
+    border-bottom: 1px solid var(--lf-fp-faint);
+    border-radius: 6px 6px 0 0;
+  }
+  .lf-fp-menu-back .lf-fp-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .lf-fp-menu-back .lf-fp-chevron {
+    flex: none;
+    margin: 0;
+    scale: -1 1;
+  }
+  .lf-fp-menu-back b {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 600;
   }
   .lf-fp-state {
     display: grid;

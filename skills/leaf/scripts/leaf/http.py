@@ -871,8 +871,10 @@ class PageEndpoint:
         token, in that layer. The newer layer reaches it as a revision whose executable
         changed, which the tab installs once the user is not in the middle of
         something (`version.js`). Named in the page's newer layer, the same answer
-        would be refused and reload the tab at once (`layer-client.js`). A tab on the
-        page's own layer needs no lookup."""
+        would be refused and reload the tab at once (`layer-client.js`), which is
+        what a revision this Leaf can no longer admit input against needs
+        (`incompatible_revision`): holding there would strand the user's send. A tab
+        on the page's own layer needs no lookup."""
         if self.headers.get("Leaf-Layer", self.layer) == self.layer:
             return self.layer
         try:
@@ -881,7 +883,10 @@ class PageEndpoint:
             return self.layer
         if revision is None or revision not in self.source.revision_names:
             return self.layer
-        return self._registry(revision)["$layer"]["generation"]
+        registry = self._registry(revision)
+        if incompatible_revision(revision, registry):
+            return self.layer
+        return registry["$layer"]["generation"]
 
     def _artifact_root(self, revision: int) -> str:
         return self._named_root(self._revision_name(revision).removesuffix(".html"))

@@ -1186,6 +1186,7 @@ function createMarginProjection({
     targetFor,
     entryPoint,
     entryPlace,
+    entryPassage,
     sourceItem,
     workflowReceipt,
     threadIdsAt,
@@ -1328,6 +1329,7 @@ function createMarginProjection({
     return {
       anchor: () => targetFor(row.lfEntry),
       point: () => entryPoint(row.lfEntry),
+      passage: () => entryPassage(row.lfEntry),
       order,
       fold: {
         able: () => canFold(row.lfEntry, {
@@ -2169,9 +2171,9 @@ function createMarginProjection({
   ].some((seat) => closestAcross(seat, ".lf-thread-seat[data-lf-thread-seat]"));
   const threadEntryAt = (node) => {
     const ids = threadIdsAt(node);
-    return pageInventory.find(
-      (entry) => threadReading(entry) && threadIdsOf(entry).some((id) => ids.includes(id)) && !seatedOnPage(threadIdOf(entry))
-    ) ?? null;
+    const here = (entry) => threadReading(entry) && threadIdsOf(entry).some((id) => ids.includes(id)) && !seatedOnPage(threadIdOf(entry));
+    const shown = previewOpen() && card.selection()?.entry?.key;
+    return pageInventory.find((entry) => entry.key === shown && here(entry)) ?? pageInventory.find(here) ?? null;
   };
   let standingUnfolded = null;
   const byKeyboard = () => !pressLed();

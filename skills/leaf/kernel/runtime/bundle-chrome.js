@@ -282,11 +282,13 @@ var targetRange = (resolved) => {
 };
 function rangeGeometry(range) {
   return {
+    range,
     contextNode: range.startContainer.nodeType === Node.TEXT_NODE ? range.startContainer : range.startContainer.childNodes[range.startOffset] ?? range.startContainer,
     box: range.getBoundingClientRect(),
     attachment: [...range.getClientRects()].find((rect) => rect.width > 0 && rect.height > 0) ?? null
   };
 }
+var passageBoxes = (resolved) => targetRange(resolved) ? targetSegments(resolved).flatMap((segment) => [...rangeOf([segment]).getClientRects()]).filter((box) => box.width && box.height) : [];
 function passageGeometry(resolved) {
   const range = targetRange(resolved);
   return range && rangeGeometry(range);
@@ -1371,6 +1373,7 @@ export {
   exactTarget,
   targetRange,
   rangeGeometry,
+  passageBoxes,
   passageGeometry,
   targetSurface,
   targetParts,

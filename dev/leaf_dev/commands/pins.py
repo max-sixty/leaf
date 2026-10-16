@@ -57,7 +57,6 @@ SCALE = 2
 
 # Each viewport's size and whether a finger, rather than a mouse, drives it.
 VIEWPORTS = {"desktop": ((1280, 800), False), "phone": ((390, 844), True)}
-EVERY = tuple(VIEWPORTS)
 
 
 @dataclass(frozen=True)
@@ -109,12 +108,6 @@ def _tiles(prefix: str, count: int) -> str:
     )
 
 
-# Why the passage cases accept a far pin; seating it by the passage's own lines is open.
-PASSAGE = (
-    "A passage's pin stands by the element holding it, not by the passage, so it can"
-    " stand a window's width from the words quoted."
-)
-
 CASES = (
     Case(
         "paragraph",
@@ -139,24 +132,49 @@ CASES = (
         "A passage in the middle of a line of a full-width paragraph.",
         f'<p id="quote-mid-line-p">{WORDS} {MORE}</p>',
         ({"section": "quote-mid-line-p", "quote": "before it seats the pin"},),
-        allow={"far": EVERY},
-        why=PASSAGE,
+        allow={"far": ("phone",)},
+        why="Where a phone's narrower line puts the passage between full lines, as Linux's"
+        " fonts do, every seat by it is on words, so the pin takes its paragraph's"
+        " clear corner rather than covering them.",
     ),
     Case(
         "quote-paragraph-end",
         "A passage that ends its paragraph, short of the window's edge.",
         f'<p id="quote-paragraph-end-p">{WORDS}</p>',
         ({"section": "quote-paragraph-end-p", "quote": "to read them."},),
-        allow={"far": EVERY},
-        why=PASSAGE,
+    ),
+    Case(
+        "quote-deep",
+        "A passage in the middle line of a long paragraph, full lines above and below.",
+        f'<p id="quote-deep-p">{WORDS} {MORE} {WORDS} {MORE} The pin for a passage'
+        f" deep in a paragraph has words on every side. {MORE} {WORDS}</p>",
+        ({"section": "quote-deep-p", "quote": "deep in a paragraph"},),
+        allow={"far": ("desktop", "phone")},
+        why="Every seat touching the words, and the end of their line, is on words, so"
+        " the pin takes its paragraph's clear corner rather than covering them; the"
+        " words' highlight says which they are.",
+    ),
+    Case(
+        "quote-long",
+        "A passage in the middle of a paragraph taller than the window, words all round.",
+        f'<p id="quote-long-p">{f"{WORDS} {MORE} " * 7}The pin for a passage'
+        f" deep in a long paragraph has words on every side. {f'{MORE} {WORDS} ' * 3}"
+        "</p>",
+        ({"section": "quote-long-p", "quote": "deep in a long paragraph"},),
+        allow={"far": ("desktop",), "words": ("phone",)},
+        why="On a desktop the paragraph's corner is within half a window of the words,"
+        " so the pin takes it; on a phone it is not, and a pin there would be off screen"
+        " whenever the words are on it, so the pin covers words beside them instead.",
     ),
     Case(
         "one-word",
         "A single word inside a sentence.",
         f'<p id="one-word-p">{WORDS}</p>',
         ({"section": "one-word-p", "quote": "seats"},),
-        allow={"far": EVERY},
-        why=PASSAGE,
+        allow={"far": ("phone",)},
+        why="On a phone every seat touching the word is on words, so the pin takes its"
+        " paragraph's clear corner rather than covering them; the word's highlight"
+        " says which it is.",
     ),
     Case(
         "list-items",
@@ -187,8 +205,6 @@ CASES = (
             {"section": "two-comments-p", "quote": "Placement reads the room"},
             {"section": "two-comments-p", "quote": "to read them."},
         ),
-        allow={"far": EVERY},
-        why="Both comments' pins stand together, by the paragraph holding them.",
     ),
     Case(
         "image",
@@ -330,6 +346,11 @@ def source() -> str:
 """
 
 
+def _says(case: Case, index: int) -> str:
+    """The words of the comment on `case`'s anchor at `index`."""
+    return f"Comment {index} on {case.name}"
+
+
 def events() -> list[dict]:
     """One comment per anchor, as a command states it."""
     return [
@@ -337,7 +358,7 @@ def events() -> list[dict]:
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "text": f"Comment {index} on {case.name}",
+            "text": _says(case, index),
             "anchor": anchor,
         }
         for case in CASES
@@ -382,8 +403,15 @@ READING = """async (anchors) => {
   };
   const target = document.getElementById(anchors[0].section);
   const box = target.closest('.pin-case');
-  // Below the banner, with room above the case for a pin seated over it.
-  document.scrollingElement.scrollTop += box.getBoundingClientRect().top - 160;
+  // Below the banner, with room above the case for a pin seated over it; a case taller
+  // than the window is scrolled to its first passage instead, mid-window.
+  const first = anchors[0].quote
+    ? quoted(target, anchors[0].quote).getBoundingClientRect().top
+    : -Infinity;
+  document.scrollingElement.scrollTop += Math.max(
+    box.getBoundingClientRect().top - 160,
+    first - innerHeight / 2,
+  );
   await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
   const words = [];
   const walk = document.createTreeWalker(box, NodeFilter.SHOW_TEXT);
@@ -402,10 +430,15 @@ READING = """async (anchors) => {
       : el.getClientRects();
     return {for: anchor.section, parts: boxes(el, rects)};
   });
-  const pins = [...new Set(anchors.map((anchor) => anchor.section))].map((id) => {
-    const row = document.querySelector(`[data-lf-margin-for="${id}"]`);
+  // Each comment's row: the one among its target's that holds the comment's words.
+  const rows = [...document.querySelectorAll('[data-lf-margin-for]')];
+  const pins = anchors.map((anchor, index) => {
+    const row = rows.find((candidate) =>
+      candidate.dataset.lfMarginFor === anchor.section &&
+      candidate.lfEntry?.items.some((item) => item.text === anchor.says));
     return {
-      for: id,
+      for: anchor.section,
+      row: rows.indexOf(row),
       place: row?.dataset.lfPlace ?? null,
       entries: row ? [...row.querySelectorAll('.lf-margin-entry')]
         .filter((entry) => entry.checkVisibility())
@@ -428,7 +461,13 @@ READING = """async (anchors) => {
 
 def read(page, case: Case) -> dict:
     """Scroll `case` into view on an open page and read it (`READING`)."""
-    return page.evaluate(READING, list(case.anchors))
+    return page.evaluate(
+        READING,
+        [
+            {**anchor, "says": _says(case, index)}
+            for index, anchor in enumerate(case.anchors)
+        ],
+    )
 
 
 def _meets(a: dict, b: dict) -> bool:
@@ -454,16 +493,14 @@ def faults(reading: dict) -> list[tuple[str, str]]:
     no pin shown at all (`hidden`)."""
     found = []
     seated = [
-        (pin["for"], entry) for pin in reading["pins"] for entry in pin["entries"]
+        (pin["row"], entry) for pin in reading["pins"] for entry in pin["entries"]
     ]
-    for pin in reading["pins"]:
+    for pin, target in zip(reading["pins"], reading["targets"], strict=True):
         name = pin["for"]
         if not pin["entries"]:
             found.append(("hidden", name))
             continue
-        parts = [
-            part for t in reading["targets"] if t["for"] == name for part in t["parts"]
-        ]
+        parts = target["parts"]
         for entry in pin["entries"]:
             if parts and min(_distance(entry, part) for part in parts) > REACH:
                 found.append(("far", name))
@@ -474,7 +511,7 @@ def faults(reading: dict) -> list[tuple[str, str]]:
             for kind in ("words", "controls", "media"):
                 if any(_meets(entry, box) for box in reading[kind]):
                     found.append((kind, name))
-            if any(other != name and _meets(entry, box) for other, box in seated):
+            if any(other != pin["row"] and _meets(entry, box) for other, box in seated):
                 found.append(("overlap", name))
     return sorted(set(found))
 

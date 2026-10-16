@@ -15,10 +15,11 @@ import { marginInventory, threadMarks } from "./margin-model.js";
 import { livePoint } from "./pointed-place.js";
 import { ago } from "./presence.js";
 import { runtime } from "./context.js";
-import { elementById, inChrome } from "./passages.js";
+import { elementById, inChrome, quoteFrom, textNodesUnder } from "./passages.js";
 import { addressableLabel, addressableWord } from "./addressable-names.js";
 import { threadList } from "./thread/state.js";
 import { threadKey } from "./thread/model.js";
+import { targetSegments } from "./resolved-target.js";
 import { projectionOrigins, stateCoordinate } from "./projection/model.js";
 import { authoredStates } from "./projection/authored.js";
 import { currentProjection } from "./projection/state.js";
@@ -103,6 +104,12 @@ export function createAnnotationInventory({
     return `${prefix}${from}${steps.reverse().join("/")}`;
   }
 
+  // What a group stands by, for its place in the page's order: passages in one text
+  // node by where in it they start.
+  const standsBy = (group) =>
+    group.point ?? targetSegments(group.passage)[0]?.node ?? group.target;
+  const startsAt = (group) => targetSegments(group.passage)[0]?.start ?? -1;
+
   function comesBefore(left, right) {
     if (left === right) return 0;
     if (!left) return 1;
@@ -123,6 +130,10 @@ export function createAnnotationInventory({
   const entryPoint = (entry) =>
     entry ? livePoint(targetFor(entry), points.get(entry.key)) : null;
   const entryPlace = (entry) => entryPoint(entry) ?? targetFor(entry);
+  // The passage a quoting entry stands by (groupFor), as anchor-placement last resolved
+  // it (resolved-target.js).
+  const passages = new Map();
+  const entryPassage = (entry) => (entry ? (passages.get(entry.key) ?? null) : null);
   // A pointed row is named by its words as the page reads them, cells and blocks apart.
   const pointName = (words) => {
     const excerpt = words && excerptWords(words, 32);
@@ -150,22 +161,25 @@ export function createAnnotationInventory({
       ),
     );
   };
-  // One group per target, and one more for each row inside it that pointing gestures
-  // stood threads at (pointed-place.js): those threads stand there together, and
-  // everything else about the target (its other threads, an ask's marker, a widget's
-  // actions) keeps the target's own row. `pointed` is `{ key, element, words }`: the
-  // row's key, which its first comment gave it and later ones share, the element it is,
-  // and its words as the page reads them, which name it.
+  // One group per target, one more for each row inside it that pointing gestures stood
+  // threads at (pointed-place.js), and one more for each passage threads quote: those
+  // threads stand there together, by what they are about, and everything else about the
+  // target (its other threads, an ask's marker, a widget's actions) keeps the target's
+  // own row. `pointed` is `{ key, element, passage, words }`: the row's key (a pointed
+  // row's its first comment gave it, a passage's from its words, `passageRow`), the
+  // element it is or the passage it stands by (a resolved anchor), and its words, which
+  // name it.
   function groupFor(groups, target, pointed = null) {
-    const slot = pointed ? `point:${pointed.key}` : target;
+    const key = pointed ? `${targetPath(target)}@${pointed.key}` : targetPath(target);
+    const slot = pointed ? `point:${key}` : target;
     let group = groups.get(slot);
     if (!group) {
-      const key = pointed ? `${targetPath(target)}@${pointed.key}` : targetPath(target);
       const word = addressableWord(target);
       group = {
         key,
         target,
         point: pointed?.element ?? null,
+        passage: pointed?.passage ?? null,
         pointWords: pointed?.words ?? null,
         word,
         subject: null,
@@ -176,6 +190,22 @@ export function createAnnotationInventory({
       groups.set(slot, group);
     }
     return group;
+  }
+
+  // The row key for threads quoting `passage` of `target`: its words as the page reads
+  // them, and which occurrence of those words in the target's reading it is. Threads
+  // quoting the same words share it, and none settling or arriving changes it, so the
+  // row and a card open on it outlive them. A re-render that removes an earlier
+  // occurrence renumbers it and builds the row again, as a shifted path does an id-less
+  // target's.
+  function passageRow(target, passage) {
+    const segments = targetSegments(passage);
+    const page = textNodesUnder(target);
+    const at = page.findIndex(({ node }) => node === segments[0].node);
+    const before =
+      at < 0 ? page : [...page.slice(0, at), { ...page[at], end: segments[0].start }];
+    const words = quoteFrom(segments);
+    return JSON.stringify([words, quoteFrom(before).split(words).length - 1]);
   }
 
   function add(groups, target, item, pointed = null) {
@@ -266,7 +296,13 @@ export function createAnnotationInventory({
       const point = livePoint(target, placement?.point);
       const pointed = point
         ? { key: placement.pointRow, element: point, words: placement.pointWords }
-        : null;
+        : targetSegments(placement).length
+          ? {
+              key: passageRow(target, placement),
+              passage: placement,
+              words: thread.anchor.quote,
+            }
+          : null;
       add(
         groups,
         target,
@@ -476,15 +512,19 @@ export function createAnnotationInventory({
       .map((group) => group.target);
     targets.clear();
     points.clear();
+    passages.clear();
     entries = marginInventory(
       collected
-        .sort((left, right) =>
-          comesBefore(left.point ?? left.target, right.point ?? right.target),
+        .sort(
+          (left, right) =>
+            comesBefore(standsBy(left), standsBy(right)) ||
+            startsAt(left) - startsAt(right),
         )
         .map((group) => {
           const subject = outlineSubjectFor(group.target, subjects, outline);
           targets.set(group.key, group.target);
           if (group.point) points.set(group.key, group.point);
+          if (group.passage) passages.set(group.key, group.passage);
           return Object.freeze({
             key: group.key,
             targetId: group.target.id,
@@ -535,6 +575,7 @@ export function createAnnotationInventory({
     targetFor,
     entryPoint,
     entryPlace,
+    entryPassage,
     sourceItem,
     workflowReceipt,
     targetPath,

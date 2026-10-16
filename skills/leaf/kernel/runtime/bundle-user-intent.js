@@ -8319,6 +8319,7 @@ export {
   replyAvailable,
   restoreReplyEditing,
   createReplyView,
+  settleThread,
   finishFold,
   hasFolding,
   whenFolded,

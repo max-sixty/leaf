@@ -608,6 +608,7 @@ const floatingPanel =
         },
         queueActions: app.queueActions,
         withdraw: app.withdraw,
+        settlement: app.settlement,
       })
     : null;
 // The page's general comment box: the card under the banner's control, or the floating

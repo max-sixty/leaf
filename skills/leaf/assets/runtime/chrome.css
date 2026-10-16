@@ -4,15 +4,9 @@
   html[data-lf-floating-chrome] :scope {
     --lf-notice-seat: panel;
     .lf-banner,
-    .lf-shortcut-bar {
-      display: none !important;
-    }
+    .lf-shortcut-bar,
     .lf-bottom-status {
-      top: calc(12px + var(--lf-safe-top));
-      bottom: auto;
-      right: auto;
-      left: 50%;
-      translate: -50% 0;
+      display: none !important;
     }
     .lf-page-search {
       top: auto;
@@ -130,23 +124,18 @@
     align-items: flex-end;
   }
   .lf-fp-expand {
-    position: absolute;
-    top: 0;
-    inset-inline-end: 4px;
+    flex: none;
     display: none;
     place-items: center;
     width: 24px;
     min-height: 0;
-    height: 24px;
+    height: 1lh;
     padding: 0;
     color: var(--lf-fp-muted);
   }
   .lf-fp-expand .lf-action-icon {
     width: 14px;
     height: 14px;
-  }
-  .lf-floating-panel[data-long] .lf-fp-field {
-    padding-top: 24px;
   }
   .lf-floating-panel[data-long] .lf-fp-expand {
     display: grid;
@@ -392,10 +381,16 @@
   }
   .lf-fp-context {
     box-sizing: content-box;
+    display: flex;
+    gap: 8px;
     height: 1lh;
-    padding: 8px 14px 0;
+    padding: 8px 10px 0 14px;
     color: var(--lf-fp-muted);
     font-size: 12px;
+  }
+  .lf-fp-context-words {
+    flex: 1;
+    min-width: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

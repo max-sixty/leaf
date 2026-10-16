@@ -7736,6 +7736,7 @@ function mountApplication(dependencies) {
     retireProjectionCoverage: projection.retireProjectionCoverage,
     threadActions: threadActions2,
     queueActions: queueActions2,
+    settlement: settlementView,
     openAsk(id) {
       const ask = readAsks().all.find((item) => item.id === id);
       if (!ask) return Promise.resolve(false);

@@ -11,21 +11,14 @@
    colour is the agent's state. Every row is one line. */
 @scope (.lf-chrome) {
   html[data-lf-floating-chrome] :scope {
-    /* A passing notice is said in the panel's empty field (floating-panel.js), so the
-       foot's status line keeps only a walk's position (chrome.css), which stands at the
-       window's head, centred: the panel's foot is where the user is writing, and its
-       height changes. */
+    /* What passes, a notice, the Go-to filter's word or a walk's position, is said in
+       the panel's one seat for it (floating-panel.js, `passing`), so the bars and the
+       foot's status line stand down. */
     --lf-notice-seat: panel;
     .lf-banner,
-    .lf-shortcut-bar {
-      display: none !important;
-    }
+    .lf-shortcut-bar,
     .lf-bottom-status {
-      top: calc(12px + var(--lf-safe-top));
-      bottom: auto;
-      right: auto;
-      left: 50%;
-      translate: -50% 0;
+      display: none !important;
     }
     /* Page search's box stands over the panel's row, centred on it as the row is,
        where Previous, Next and Close search stand while it is open, rather than at the
@@ -172,27 +165,22 @@
     align-items: flex-end;
   }
   /* More room for a long draft (floating-panel.js, `expand`): past three lines the
-     field takes a strip over its words, where the mark stands at its end, so the mark
-     covers no word and the words below it stay where they were, the panel rising by
-     the strip. Pressed, the panel widens and the field may take most of the window. */
+     mark stands at the end of the line over the field, or of an open view's head, so
+     it takes no room the panel had not already given that line. Pressed, the panel
+     widens and the field may take most of the window. */
   .lf-fp-expand {
-    position: absolute;
-    top: 0;
-    inset-inline-end: 4px;
+    flex: none;
     display: none;
     place-items: center;
     width: 24px;
     min-height: 0;
-    height: 24px;
+    height: 1lh;
     padding: 0;
     color: var(--lf-fp-muted);
   }
   .lf-fp-expand .lf-action-icon {
     width: 14px;
     height: 14px;
-  }
-  .lf-floating-panel[data-long] .lf-fp-field {
-    padding-top: 24px;
   }
   .lf-floating-panel[data-long] .lf-fp-expand {
     display: grid;
@@ -501,10 +489,16 @@
      whatever it says, and stands above the row, with nothing above it to move. */
   .lf-fp-context {
     box-sizing: content-box;
+    display: flex;
+    gap: 8px;
     height: 1lh;
-    padding: 8px 14px 0;
+    padding: 8px 10px 0 14px;
     color: var(--lf-fp-muted);
     font-size: 12px;
+  }
+  .lf-fp-context-words {
+    flex: 1;
+    min-width: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

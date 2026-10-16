@@ -8056,12 +8056,16 @@ function createFloatingPanel({
         mayRestore = retainUserIntent();
         return true;
       },
-      // The undo door passes the intent of the press that asked for it (undo.js).
+      // Taking the resolve back stands the user on the thread's row, where they are
+      // back at Threads; it opens no view, since the reopening arrives with the
+      // server's reading and a view opening then would move the panel under no
+      // press. The undo door passes the intent of the press that asked for it.
       reverse: (may = mayRestore) => {
-        if (!may()) return;
-        open(route, { replace: true, focus: false });
-        const view = shownView();
-        if (view) focusDestination(view, "move");
+        if (!may() || trail.at(-1)?.view !== "threads") return;
+        const row2 = shownView()?.querySelector(
+          `.lf-fp-thread[data-key="${CSS.escape(thread.key)}"]`
+        );
+        if (row2) focusDestination(row2, "move");
       }
     };
   }
@@ -8625,6 +8629,7 @@ function createFloatingPanel({
       (thread) => html`<button
                   type="button"
                   class="lf-fp-thread"
+                  data-key=${thread.key}
                   ?data-unread=${unread(thread)}
                   ?data-resolved=${thread.resolved}
                   ?data-yours=${threadAttention(thread)?.kind === "needs_user"}
@@ -9153,7 +9158,7 @@ function createFloatingPanel({
     }
     const thread = top?.view === "thread" ? threadByKey(top.thread) : null;
     const replying = top?.view === "thread";
-    const shown = replying ? [replyOutlet, resolvedLine, expand] : [pageEditor().box, expand];
+    const shown = replying ? [replyOutlet, resolvedLine] : [pageEditor().box];
     if (field.firstElementChild !== shown[0]) {
       const had = standingIn(field);
       field.replaceChildren(...shown);

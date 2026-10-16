@@ -5432,8 +5432,7 @@ function createUndo({ post: post2, stateApplying, unaccountedGesture }) {
       notice(WAIT);
       return null;
     }
-    const reversal = reversals.get(event.attempt);
-    const reverse = reversal ? bindQueuedWork(reversal) : null;
+    const reverse = reversals.get(event.attempt);
     const mayLand = retainUserIntent();
     const answer = post2({ kind: "undo", undoes: event.id }).then((accepted) => {
       if (accepted)

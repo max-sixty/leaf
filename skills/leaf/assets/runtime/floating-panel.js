@@ -674,8 +674,9 @@ export function createFloatingPanel({
   // panel does (thread-card.js, `#prepareLanding`): to the open thread after it, or
   // before it at the end, standing on its view so `r`, `t` and Escape go on from there;
   // or, with none left, back to the list. A thread opened from elsewhere goes back to
-  // where it came from. Taking the resolve back, or the log refusing it, returns the
-  // user to the thread, while they have not acted since (folding.js, `settleThread`).
+  // where it came from. Taking the resolve back, or the log refusing it, stands the
+  // user on its row in Threads, while they have not acted since (folding.js,
+  // `settleThread`).
   function resolveLanding(thread) {
     const route = trail.at(-1);
     const fromThreads = trail.at(-2)?.view === "threads";
@@ -697,12 +698,16 @@ export function createFloatingPanel({
         mayRestore = retainUserIntent();
         return true;
       },
-      // The undo door passes the intent of the press that asked for it (undo.js).
+      // Taking the resolve back stands the user on the thread's row, where they are
+      // back at Threads; it opens no view, since the reopening arrives with the
+      // server's reading and a view opening then would move the panel under no
+      // press. The undo door passes the intent of the press that asked for it.
       reverse: (may = mayRestore) => {
-        if (!may()) return;
-        open(route, { replace: true, focus: false });
-        const view = shownView();
-        if (view) focusDestination(view, "move");
+        if (!may() || trail.at(-1)?.view !== "threads") return;
+        const row = shownView()?.querySelector(
+          `.lf-fp-thread[data-key="${CSS.escape(thread.key)}"]`,
+        );
+        if (row) focusDestination(row, "move");
       },
     };
   }
@@ -1506,6 +1511,7 @@ export function createFloatingPanel({
                 html`<button
                   type="button"
                   class="lf-fp-thread"
+                  data-key=${thread.key}
                   ?data-unread=${unread(thread)}
                   ?data-resolved=${thread.resolved}
                   ?data-yours=${threadAttention(thread)?.kind === "needs_user"}
@@ -2221,9 +2227,7 @@ export function createFloatingPanel({
     // (`focusView`); an editor leaving with the caret otherwise leaves it on the leaf.
     const thread = top?.view === "thread" ? threadByKey(top.thread) : null;
     const replying = top?.view === "thread";
-    const shown = replying
-      ? [replyOutlet, resolvedLine, expand]
-      : [pageEditor().box, expand];
+    const shown = replying ? [replyOutlet, resolvedLine] : [pageEditor().box];
     if (field.firstElementChild !== shown[0]) {
       const had = standingIn(field);
       field.replaceChildren(...shown);

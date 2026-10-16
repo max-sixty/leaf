@@ -97,7 +97,7 @@ def field(page):
 def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve):
     """The field clicked at rest is the field written in. Sending a page comment opens
     its new thread above the row, the same field now replying there, and resolving the
-    thread from its head moves the user on to Threads, until `z` takes it back. The focused field names where the
+    thread from its head moves the user on to Threads, where `z` stands them on its row. The focused field names where the
     words go, and once they hide that, the line above it does, in the same words, while
     no view is open; over the thread, whose head names it, nothing does. The banner and
     the bottom bar are gone, and Escape, once the caret has left the field, puts the
@@ -153,6 +153,9 @@ def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve
     with sending(page, "the undo"):
         page.keyboard.press("z")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
+    row = page.locator(".lf-fp-view[data-view=threads] .lf-fp-thread")
+    expect(row).to_be_focused()
+    page.keyboard.press("Enter")
     expect(settle).to_have_text("Resolve", use_inner_text=True)
 
     field(page).focus()
@@ -233,8 +236,8 @@ def test_a_thread_s_keys_answer_in_its_view(browser, serve):
     reply is the field and its Resolve stands in the view's head: Enter on the view puts
     the caret back in the reply with its words, `r` resolves the thread from the view, a
     message in it or its Resolve and moves the user on, as the banner's Threads does,
-    here back to Threads with no other thread open, `z` takes the resolve back to the
-    thread, Enter on a resolved thread reopens it, and `e` on a message opens the agent's
+    here back to Threads with no other thread open, `z` takes the resolve back and
+    stands on its row, Enter on a resolved thread reopens it, and `e` on a message opens the agent's
     reactions."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Is the window long enough?")
@@ -275,8 +278,10 @@ def test_a_thread_s_keys_answer_in_its_view(browser, serve):
     expect(threads).to_be_visible()
     with sending(page, "the undo"):
         page.keyboard.press("z")
+    row = threads.locator(".lf-fp-thread")
+    expect(row).to_be_focused()
+    page.keyboard.press("Enter")
     expect(thread).to_be_visible()
-    expect(thread).to_be_focused()
     expect(settle).to_have_text("Resolve", use_inner_text=True)
 
     # A click on a message's words stands on the part of the thread drawing it.
@@ -2576,6 +2581,7 @@ def test_a_long_draft_offers_more_room_at_a_press(browser, serve):
     page.keyboard.press("g")
     page.keyboard.press("Shift+T")
     expect(page.locator(".lf-fp-head .lf-fp-expand")).to_be_visible()
+    expect(page.locator(".lf-fp-field .lf-fp-expand")).to_have_count(0)
     page.keyboard.press("Escape")
     field(page).click()
     expect(page.locator(".lf-fp-context .lf-fp-expand")).to_be_visible()

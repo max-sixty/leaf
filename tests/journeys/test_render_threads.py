@@ -46,10 +46,8 @@ from render_harness import (
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
-from browser.test_render_threads import (
-    BARE_PAGE,
-    BURIED_TITLE,
-    CAPTURE_SAMPLE_PAGE,
+from browser.threads import (
+    CHANGE_HEAD,
     CHANGE_PAGE,
     IN_LANDING_BAND,
     LANDING_WORDS,
@@ -70,6 +68,39 @@ from browser.test_render_threads import (
     stream_reply,
     summarize_thread,
     thread_mark_fault,
+)
+from render_harness import leaf_page
+
+# The same page with the change taken out of it, for the arm that carries the change
+# in a message instead: the two must differ in which document holds it and in nothing
+# else.
+BARE_PAGE = leaf_page("doc-change", CHANGE_HEAD)
+
+
+# The first closed title the list's top edge cuts, and how deep. The test above reads
+# the list's first card, which it opens; a title is the box the edge cuts once every
+# card but one is shut.
+BURIED_TITLE = """() => {
+  const list = document.querySelector('.lf-threads');
+  const top = list.getBoundingClientRect().top + list.clientTop;
+  for (const card of list.querySelectorAll('.lf-thread:not([open])')) {
+    const title = card.querySelector('.lf-thread-summary').getBoundingClientRect();
+    if (title.top < top && title.bottom > top)
+      return {covered: top - title.top, box: title.toJSON(), id: card.dataset.id};
+  }
+  return null;
+}"""
+
+
+CAPTURE_SAMPLE_PAGE = leaf_page(
+    "Capture a live sample",
+    """<h1>Capture a live sample</h1>
+<lf-sample id="capture-sample" label="practice">
+  <template id="capture-sample-page" data-sample>
+    <h1>Practice</h1>
+    <section id="child-paint" style="height:200px;background:rgb(200,40,40)"></section>
+  </template>
+</lf-sample>""",
 )
 
 

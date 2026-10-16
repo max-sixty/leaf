@@ -3,7 +3,7 @@
 import json
 
 import pytest
-from browser.test_render_threads import hold_visible_thread_presentation
+from browser.threads import hold_visible_thread_presentation
 from leaf import event_log as events_model
 from leaf.findings import Finding
 from leaf.render_checks import wait_until_ready

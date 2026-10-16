@@ -19,7 +19,7 @@ arms' crops of a case cover the same rectangle, so the pair lines up. Each run r
 that one page, so a running `--user` preview of it shows the new run as a revision, with
 the threads left on it where they were. It prints the command that starts that preview.
 
-The same catalogue is a test: `test_render_margin.py` asserts that every case at
+The same catalogue is a test: `tests/browser/margin/test_pins.py` asserts that every case at
 every viewport has no fault beyond the kinds its `allow` accepts. So a case that
 shows a bad placement goes into `CASES`; the test then fails until the placement is
 fixed, or the case accepts that fault and says why in `why`, which the page shows.

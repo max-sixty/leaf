@@ -992,7 +992,7 @@ def test_a_streaming_answer_grows_the_view_until_it_outgrows_its_cap(
     step past the view's cap, such as the durable answer completing it with longer
     words, leaves New reply at the view's foot."""
     # The threads suite imports this one, so its stream helpers come in at run time.
-    from browser.test_render_threads import claim_for_codex, stream_reply
+    from browser.threads import claim_for_codex, stream_reply
 
     url = serve(LONG_PAGE)
     root = panel_comment(
@@ -1288,7 +1288,7 @@ def test_floating_status_records_feedback_only_when_its_words_show(
     """Authored status words retain their exact source through the native placeholder
     slot and folded peek. A draft, focus, or folded panel cannot claim them visible.
     """
-    from browser.test_render_threads import claim_for_codex
+    from browser.threads import claim_for_codex
 
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Can we simplify the logging?")
@@ -1359,7 +1359,7 @@ def test_a_folded_status_keeps_its_reading_until_the_next_exposure(
 ):
     """A clock tick cannot move tooltip words; the leaf stays live and reopening
     reads current status. A notice answering a gesture still shows immediately."""
-    from browser.test_render_threads import claim_for_codex
+    from browser.threads import claim_for_codex
 
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Can we simplify the logging?")
@@ -1438,7 +1438,7 @@ def test_floating_menu_tracks_stalled_detail_hidden_by_a_draft(browser, serve, r
     """The stalled summary carries no authored detail; its menu's Last said words do.
     A draft keeps the row's placeholder hidden, so that menu is their first exposure.
     """
-    from browser.test_render_threads import claim_for_codex
+    from browser.threads import claim_for_codex
 
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Can we simplify the logging?")

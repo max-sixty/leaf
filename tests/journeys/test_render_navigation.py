@@ -57,13 +57,45 @@ from render_harness import (
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
-from browser.test_render_navigation import (
+from browser.navigation import (
     EXPANDED,
     KEY_LINE_HINTS,
-    QUICK_KEYS_PAGE,
     READING_REGIONS_PAGE,
     STANDING,
     color_cue_markup,
+)
+
+# An ask's digits beside a page-scoped command with a context key of its own,
+# registered the way an authored module does.
+QUICK_KEYS_PAGE = leaf_page(
+    "quick keys",
+    """
+<h1 id="title">Field day</h1>
+<lf-ask id="map-ask">
+  <h3>Which map should the sample team carry?</h3>
+  <lf-options id="map" choose>
+    <lf-option id="map-street">Street map</lf-option>
+    <lf-option id="map-trail">Trail map</lf-option>
+  </lf-options>
+</lf-ask>
+<div id="local-shortcuts" tabindex="0">
+  <button id="shortcut-focus-note" type="button">Write sample note</button>
+  <label>Sample note <input id="shortcut-note" type="text" /></label>
+</div>
+""",
+    head="""<script type="module">
+import { commands } from "/runtime/widget-api.js";
+const note = document.querySelector("#shortcut-note");
+commands(document.querySelector("#local-shortcuts"), "In the note sample", [{
+  id: "note.focus",
+  contextKeys: ["1"],
+  control: document.querySelector("#shortcut-focus-note"),
+  bindingBadge: null,
+  title: "Write note",
+  description: "Focus the sample note",
+  run: () => note.focus(),
+}]);
+</script>""",
 )
 
 

@@ -2438,19 +2438,35 @@ ROW_CENTRES = """() => {
     dictate: centre('.lf-fp-field .lf-compose-dictate svg'),
     send: centre('.lf-fp-field .lf-compose-submit svg'),
     count: centre('.lf-fp-on-user svg'),
-    words: text.right,
+    field: text.right,
     press: document.querySelector('.lf-fp-field .lf-compose-submit')
-      .getBoundingClientRect().left,
+      ?.getBoundingClientRect().toJSON(),
   };
+}"""
+# The right end of each line of words in the field, top to bottom.
+WORD_LINES = """host => {
+  const rows = [];
+  for (const line of window.editorRoots.get(host).querySelectorAll('.cm-line')) {
+    const range = document.createRange();
+    range.selectNodeContents(line);
+    for (const r of range.getClientRects()) {
+      if (r.width < 0.5) continue;
+      const row = rows.find(o => Math.abs(o.top - r.top) < 4);
+      if (row) row.right = Math.max(row.right, r.right);
+      else rows.push({top: r.top, right: r.right});
+    }
+  }
+  return rows.sort((a, b) => a.top - b.top).map((row) => row.right);
 }"""
 
 
 def test_the_row_s_marks_and_presses_share_the_words_line(browser, serve):
     """Everything in the row stands on the one line the words are written on: the
-    leaf, Dictate beside the field, the counts, and Send where they stood while the user
-    types, each centred on the field's last line of words, however many lines it holds.
-    Send and Dictate stand beside the words rather than over their end."""
-    page = floating(browser, serve(LONG_PAGE))
+    leaf, Dictate, the counts, and Send while the user types, each centred on the
+    field's last line of words, however many lines it holds. Send floats in the field's
+    end corner, as an anchored comment box's does: the words above its line run past
+    it, and the last line keeps room for it."""
+    page = open_page(browser, serve(LONG_PAGE), init_script=FLOATING + EDITOR_ROOTS)
     field(page).click()
     settled(page)
     seats = page.evaluate(ROW_CENTRES)
@@ -2465,7 +2481,43 @@ def test_the_row_s_marks_and_presses_share_the_words_line(browser, serve):
     assert field(page).bounding_box()["height"] > 40, "the words wrapped"
     for mark in ("leaf", "send"):
         assert abs(seats[mark] - seats["line"]) < 0.5, (mark, seats)
-    assert seats["press"] >= seats["words"], seats
+    assert seats["press"]["right"] == pytest.approx(seats["field"], abs=1), seats
+    # The lines above Send's own may run past its left edge (where words end depends
+    # on how they wrap); the last line's words stop short of it.
+    first_line = field(page).evaluate(
+        "host => window.editorRoots.get(host).querySelector('.cm-line')"
+        ".getBoundingClientRect().right"
+    )
+    assert first_line > seats["press"]["left"], (first_line, seats)
+    lines = field(page).evaluate(WORD_LINES)
+    assert lines[-1] <= seats["press"]["left"], (lines, seats)
+
+
+def test_a_long_draft_offers_more_room_at_a_press(browser, serve):
+    """Past three lines the field offers more room, by a press rather than on its own:
+    a mark stands over the field's end, in a strip that leaves the words where they
+    were. Pressing it widens the panel and keeps the caret in the words; emptying the
+    field folds it back."""
+    page = floating(browser, serve(LONG_PAGE))
+    panel = page.locator(".lf-floating-panel")
+    expand = page.locator(".lf-fp-expand")
+    field(page).click()
+    page.keyboard.type("A line of words long enough to wrap in the panel's field, " * 2)
+    expect(expand).to_be_hidden()
+    narrow = panel.bounding_box()["width"]
+    page.keyboard.type("A line of words long enough to wrap in the panel's field, " * 2)
+    expect(expand).to_be_visible()
+    expect(expand).to_have_attribute("aria-pressed", "false")
+    expand.click()
+    expect(expand).to_have_attribute("aria-pressed", "true")
+    expect(field(page)).to_be_focused()
+    settled(page)
+    assert panel.bounding_box()["width"] > narrow + 100
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.press("Backspace")
+    expect(expand).to_be_hidden()
+    settled(page)
+    assert panel.bounding_box()["width"] == pytest.approx(narrow, abs=1)
 
 
 def test_a_finger_finds_the_keyboard_s_conveniences_under_navigate(browser, serve):

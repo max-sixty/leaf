@@ -15,8 +15,6 @@
    widget seats that survive final validation claim first, then the selected page presentation.
    Source coverage and outlet containment are separate: an authored page rail can
    show a target elsewhere in the document.
-   Ordinary mirrors live
-   in mirrors.js and cannot hold that presentation open.
 
    A thread the widget would draw in a seat it has not opened yet, while that would move
    what the reader reads, is held out of what the widget is handed (`HeldArrivals`,

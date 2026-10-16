@@ -49,7 +49,6 @@ import {
   capturePlace,
   claimed,
   clearDraft,
-  clearThreadMirrors,
   commandShortcut,
   commitThreadSeats,
   completeReadingReturn,
@@ -118,7 +117,6 @@ import {
   renderMarginThread,
   renderSeats,
   renderSurfaces,
-  renderThreadMirrors,
   replaceEntry,
   replyAvailable,
   replyDestination,
@@ -6236,103 +6234,7 @@ function createThreadActions({
   });
 }
 
-// runtime/thread/mirrors.js
-var registrations = /* @__PURE__ */ new WeakMap();
-function registerMirrorConsumer(owner, render, { commands }) {
-  if (registrations.has(owner))
-    throw new Error(`mountThreadViews(${owner.localName}) registered twice`);
-  let active = true;
-  let generation = 0;
-  let pending = null;
-  let queued = false;
-  let outlets = /* @__PURE__ */ new Set();
-  const clear = () => {
-    for (const outlet of outlets) {
-      clearThreadMirrors(outlet);
-      delete outlet.dataset.lfThreadSurface;
-    }
-    outlets = /* @__PURE__ */ new Set();
-  };
-  const report = (error) => reportPageError(error, `Thread mirrors in ${owner.localName}#${owner.id} failed`);
-  async function reconcile() {
-    const current = ++generation;
-    pending?.abort();
-    const abort = new AbortController();
-    pending = abort;
-    const cancelled = aborted(abort.signal);
-    const collection = readThreads();
-    const byKey = new Map(collection.threads.map((thread) => [thread.key, thread]));
-    const selected = /* @__PURE__ */ new Map();
-    let accepting = true;
-    const mirrors = {
-      signal: abort.signal,
-      thread(key, outlet) {
-        if (!accepting || abort.signal.aborted)
-          throw new Error("Thread mirrors belong to their current render callback");
-        const thread = byKey.get(key);
-        if (!thread) throw new Error(`No Thread has key ${key}`);
-        if ([...selected.values()].some((threads2) => threads2.includes(thread)))
-          throw new Error("A consumer may render a Thread only once");
-        const threads = selected.get(outlet) ?? [];
-        threads.push(thread);
-        selected.set(outlet, threads);
-      }
-    };
-    try {
-      const rendering = render(collection, mirrors);
-      if (rendering?.then) await Promise.race([rendering, cancelled]);
-      accepting = false;
-      if (!active || current !== generation || abort.signal.aborted) return;
-      if (!owner.isConnected) return;
-      for (const outlet of selected.keys()) {
-        if (!outlet.isConnected) selected.delete(outlet);
-        else if (!under(outlet, owner))
-          throw new Error(
-            `mountThreadViews(${owner.localName}) returned an outlet outside its widget`
-          );
-      }
-      for (const outlet of outlets)
-        if (!selected.has(outlet)) {
-          clearThreadMirrors(outlet);
-          delete outlet.dataset.lfThreadSurface;
-        }
-      outlets = new Set(selected.keys());
-      for (const [outlet, threads] of selected) {
-        outlet.toggleAttribute("data-lf-thread-surface", true);
-        renderThreadMirrors(outlet, threads, commands);
-      }
-    } catch (error) {
-      if (!active || current !== generation || abort.signal.aborted) return;
-      clear();
-      report(error);
-    } finally {
-      accepting = false;
-    }
-  }
-  const update = () => {
-    if (!active || queued) return;
-    queued = true;
-    queueMicrotask(() => {
-      queued = false;
-      if (active && owner.isConnected) void reconcile();
-    });
-  };
-  const stop = watchProjection(owner, reconcile);
-  const handle = Object.freeze({
-    update,
-    unregister() {
-      if (!active) return;
-      active = false;
-      ++generation;
-      pending?.abort();
-      stop();
-      registrations.delete(owner);
-      clear();
-    }
-  });
-  registrations.set(owner, handle);
-  return handle;
-}
+// runtime/thread/primary-reader.js
 function createPrimaryReader(owner, render, commands, update, { answersAtOnce = false } = {}) {
   let active = true;
   let generation = 0;
@@ -7681,7 +7583,6 @@ function mountApplication(dependencies) {
     requirePageAnnotations();
     return placePageThreads(owner, render, threadSurfaceCommands);
   };
-  const mountThreadViews2 = (owner, render) => registerMirrorConsumer(owner, render, { commands: inlineView });
   const attachPresentation = (owner, { render, reveal: reveal3, answersAtOnce = false }) => {
     const reader = createPrimaryReader(
       owner,
@@ -7787,7 +7688,6 @@ function mountApplication(dependencies) {
     watchThreadSurfaces: watchThreadSurfaces2,
     placePageThreads: placePageThreads3,
     consumeAnnotations: consumeAnnotations2,
-    mountThreadViews: mountThreadViews2,
     registerThreadPanel,
     retireProjectionCoverage: projection.retireProjectionCoverage,
     threadActions: threadActions2,
@@ -7821,7 +7721,6 @@ var post = commandDispatch.post;
 var projectData = (...args) => app().projectData(...args);
 var placePageThreads2 = (...args) => app().placePageThreads(...args);
 var consumeAnnotations = (...args) => app().consumeAnnotations(...args);
-var mountThreadViews = (...args) => app().mountThreadViews(...args);
 var registerThreadPresentation = (...args) => app().registerThreadPresentation(...args);
 var threadActions = Object.freeze({
   open: (...args) => app().threadActions.open(...args),
@@ -8402,7 +8301,6 @@ export {
   projectData,
   placePageThreads2 as placePageThreads,
   consumeAnnotations,
-  mountThreadViews,
   registerThreadPresentation,
   threadActions,
   askActions,

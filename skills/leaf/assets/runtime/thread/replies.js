@@ -20,8 +20,8 @@
    history, but not the user. A route's view also puts the row in place of its own
    (`carry`), taking it from a view that holds it out of sight. A closed card whose
    thread is still in the margin, and a hidden panel, keep their rows, since the user
-   goes on there when they open again. A view that cannot draw another row, a package
-   mirror, takes the session and caret into its own. */
+   goes on there when they open again. A view that cannot draw another row, a primary
+   reader's reply part (primary-reader.js), takes the session and caret into its own. */
 import {
   captureDraftEditing,
   loadDraft,
@@ -201,7 +201,7 @@ function handOver(target, owner) {
 // Once no view shows the session's row, the view now drawing its thread puts that row
 // in place of its own, and the user goes on in their own editor, with its undo history.
 // A view holding the row out of sight gives it up and draws a fresh one. A view that
-// cannot draw another row, a package mirror, keeps its own.
+// cannot draw another row, a primary reader's reply part, keeps its own.
 function carry(target, owner) {
   const giver = owner.binding;
   if (

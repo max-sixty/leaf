@@ -6048,13 +6048,6 @@ def test_executable_revision_preserves_each_editor_identity(browser, serve, kind
     assert after == before
 
 
-def editing_mirror_source(mode):
-    return editing_revision_source(mode).replace(
-        "</main>",
-        '<lf-thread-mirror id="first"></lf-thread-mirror><lf-thread-mirror id="second"></lf-thread-mirror></main>',
-    )
-
-
 def editing_reply_page(browser, serve, context=None):
     page = open_page(
         browser, live_url(serve(editing_revision_source("before"))), context=context

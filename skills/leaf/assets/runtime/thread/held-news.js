@@ -156,8 +156,8 @@ import { watchOwner } from "../arrivals.js";
 // Whether this page's ledger holds a gesture of the user's on `thread`, of any kind, the
 // refusal that takes one back included until the reading it restores is drawn: the
 // application publisher says which thread each stands in (`thread.gestured`). Their
-// words from another tab, or a turn a seat first draws after the log answered it, as a
-// package mirror whose render waited on work of its own does, arrive like the agent's.
+// words from another tab, or a turn a seat first draws after the log answered it, arrive
+// like the agent's.
 export const gesturedOn = (thread) => threadState().gestured.includes(thread.id);
 
 // Whether the user acts in the thread a seat draws under `key` (`gesturedOn`).
@@ -219,7 +219,7 @@ function messageChange(prior, message) {
 // foot (`footFold`) it changes only that foot, as the answer's arrival does. `answers`
 // says the news is the agent answering the user, who had the last turn as drawn: all of
 // it, the reply, the work under way on it and that work's fold, lies after that turn,
-// which a presentation may show at once (mirrors.js, `answersAtOnce`). A message the log
+// which a presentation may show at once (primary-reader.js, `answersAtOnce`). A message the log
 // took back is no news: it goes. Null where nothing differs.
 function difference(was, now, { progressOpen = false } = {}) {
   const drawn = new Map(was.messages.map((message) => [message.key, message]));

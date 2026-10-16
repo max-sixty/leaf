@@ -1,4 +1,4 @@
-# Guards local placement separately from independent dashboard mirrors.
+# Guards local placement through the threadOutlets protocol.
 description: widget-thread-outlets
 metadata:
   purpose: A package resolves seats for its own data without reimplementing Thread placement.
@@ -27,5 +27,4 @@ assert:
       endThreadSurface around the batch. It must let core retain the Thread/composer
       identities and perform placement, rather than enumerating/filtering the complete
       Thread collection, placing by Thread key, or placing the composer separately. Fail
-      if it mounts independent mirrored conversations or hand builds conversation/editor
-      DOM.
+      if it hand builds conversation/editor DOM.

@@ -95,7 +95,6 @@ export {
   threadBox,
   placePageThreads,
   consumeAnnotations,
-  mountThreadViews,
   registerThreadPresentation,
   threadActions,
 } from "./application.js";

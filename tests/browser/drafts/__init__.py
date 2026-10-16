@@ -48,12 +48,13 @@ def editing_revision_source(mode, body=None):
     module = """<script type="module">
 window.__rendererLifetime={birth:performance.timeOrigin,hits:0,version:'MODE'};
 addEventListener('renderer-lifetime-probe',()=>window.__rendererLifetime.hits++);
-// Native prototype activation route: activate the offered Latest control without
-// transferring the editor's focus to the toolbar before the carry is captured.
+// Native prototype activation route: activate the panel's offered Latest, its row
+// notice's press, without transferring the editor's focus to the panel before the
+// carry is captured.
 addEventListener('keydown',event=>{
   if(event.code==='KeyR' && event.ctrlKey && event.altKey){
     event.preventDefault();
-    document.querySelector('.lf-latest-chip')?.click();
+    document.querySelector('.lf-floating-panel .lf-fp-row-notice-press')?.click();
   }
 });
 </script>""".replace("MODE", mode)

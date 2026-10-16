@@ -53,23 +53,6 @@ def color_cue_markup():
     )
 
 
-# Every way into the Threads list while it shows a thread, which hands focus on to that
-# thread's title.
-EXPANDED = ".lf-threads > .lf-thread:not([hidden])[open]"
-
-
-# What the shortcut bar is saying, chip by chip. The word is the chip's own trailing span —
-# `keySequence` builds the keycaps into a classed element and the word is the unclassed
-# one beside it — and the commands are what the row projects, so a duplicate can be
-# reported as the pair of rows that made it rather than as a word said twice.
-KEY_LINE_HINTS = """() => [...document.querySelectorAll('.lf-shortcut-bar .lf-shortcut')]
-  .filter(chip => !chip.hidden)
-  .map(chip => ({
-    commands: chip.dataset.lfCommandIds,
-    word: [...chip.children].filter(c => !c.className).map(c => c.textContent).join(''),
-  }))"""
-
-
 # Where the user is standing, in the terms the next Tab is decided by: the document
 # position of the focused element, and whether it is the first stop in the document.
 STANDING = """() => {

@@ -35,7 +35,6 @@ const reading = (events) => ({
     receipts: events,
     thread_memberships: {},
     todos: [],
-    ended_todos: [],
     views: {
       1: {
         basis: { revision: 1, through_seq: events.length },

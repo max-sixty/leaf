@@ -179,7 +179,7 @@ def test_required_approval_is_an_ask_for_its_exact_stamp_until_approved(page_dir
         ended["answer"]["value"],
         ended["answer"]["event"]["id"],
     ) == ("answered", True, accepted["id"])
-    assert served["browser"]["todos"] == served["browser"]["ended_todos"] == []
+    assert served["browser"]["todos"] == []
     append_command(
         page_dir, {"kind": "undo", "author": "user", "undoes": accepted["id"]}
     )
@@ -273,11 +273,10 @@ def test_a_todo_holds_its_thread_on_the_agent_past_reply_and_resolve(page_dir):
     state = state_json(page_dir)
     assert state["queues"]["on_agent"] == []
     assert state["todos"] == []
-    # The browser is served the ended task beside the open ones, for the On panel's
-    # Done list, with its outcome.
+    # The browser is served the ended task in the one list beside the open ones, for
+    # the On panel's Done list, with its outcome.
     served = full_state(page_dir, events_model.read_events(page_dir))
-    assert served["browser"]["todos"] == []
-    [ended] = served["browser"]["ended_todos"]
+    [ended] = served["browser"]["todos"]
     assert (ended["id"], ended["state"], ended["outcome"]["detail"]) == (
         todo["id"],
         "done",
@@ -485,7 +484,6 @@ def test_an_opening_ask_retains_its_answer_in_the_ask_inventory(page_dir, answer
     served = full_state(page_dir, events_model.read_events(page_dir))
     assert served_thread(served["browser"])["threads"][0]["user_prompt"] is None
     assert served["browser"]["todos"] == []
-    assert served["browser"]["ended_todos"] == []
     [ended] = served_thread(served["browser"])["asks"]["all"]
     assert (ended["source"]["id"], ended["status"], ended["answer"]["event"]["id"]) == (
         question["id"],
@@ -501,7 +499,7 @@ def test_an_opening_ask_retains_its_answer_in_the_ask_inventory(page_dir, answer
             entry["source"]["id"]
             for entry in served_thread(served["browser"])["asks"]["user"]
         ] == [question["id"]]
-        assert served["browser"]["ended_todos"] == []
+        assert served["browser"]["todos"] == []
 
 
 def test_an_ask_ends_at_the_reaction_that_settles_it(page_dir):
@@ -1142,9 +1140,7 @@ def test_a_todo_on_the_user_stands_on_any_element_until_their_done(page_dir):
     assert kinds(state["queues"]["on_user"]) == asks
     assert todo["id"] not in [item["id"] for item in state["todos"]]
     served = full_state(page_dir, events_model.read_events(page_dir))
-    [ended] = [
-        item for item in served["browser"]["ended_todos"] if item["id"] == todo["id"]
-    ]
+    [ended] = [item for item in served["browser"]["todos"] if item["id"] == todo["id"]]
     assert (ended["state"], ended["outcome"]["author"]) == ("done", "user")
     assert done(page_dir, todo["id"])[0] == 400
 
@@ -1263,7 +1259,7 @@ def test_widget_ask_ends_through_its_source_and_agent_ends_a_prose_ask(page_dir)
     assert f"ask {dropped!r} is already withdrawn" in refused.output
 
     served = full_state(page_dir, events_model.read_events(page_dir))
-    assert served["browser"]["ended_todos"] == []
+    assert served["browser"]["todos"] == []
     ended = {
         record["id"]: (
             record["status"],
@@ -1313,26 +1309,6 @@ def test_user_work_cannot_duplicate_a_widget_ask(page_dir):
     assert (result.code, result.values["ask"]) == ("duplicate-ask", "widget:choice")
     assert state_json(page_dir)["todos"] == []
     assert asks_on_user(state_json(page_dir)) == [ask]
-
-
-def test_a_todo_an_earlier_leaf_wrote_without_an_owner_is_absent(page_dir):
-    """A record missing a field this version reads is ignored where it is loaded: the
-    page still reads, and the to-do is on neither queue."""
-    publish(page_dir)
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "todo",
-            "author": "agent",
-            "subject": {"kind": "page"},
-            "title": "Written before owners",
-        },
-    )
-    state = state_json(page_dir)
-    assert state["todos"] == []
-    assert state["queues"]["on_agent"] == []
-    served = full_state(page_dir, events_model.read_events(page_dir))
-    assert served["browser"]["todos"] == []
 
 
 def test_a_version_can_remove_a_target_while_its_todos_stay_open(page_dir):

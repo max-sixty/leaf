@@ -125,12 +125,12 @@ export function threadAttention(thread) {
   // settled; its title says what the agent still owes, and while a start runs on it,
   // that start's line says what the agent is doing about it.
   if (thread.attention?.kind === "waiting" && thread.attention.reason === "todo") {
-    const { title, line } = thread.attention.todo;
+    const [{ title, running }] = thread.todos;
     return Object.freeze({
       kind: "waiting",
-      label: todoLabel(line),
+      label: todoLabel(running),
       workflow: null,
-      secondary: line ?? title,
+      secondary: running?.text ?? title,
     });
   }
   if (thread.attention?.kind === "waiting")

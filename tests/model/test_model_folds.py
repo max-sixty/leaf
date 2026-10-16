@@ -559,7 +559,6 @@ def test_frozen_ask_attention_comes_from_its_widget_without_a_prose_task():
     state = model.reading(HUB, events)
     assert model.threads(state)["e1"]["user_prompt"] is None
     assert state["todos"] == []
-    assert state["ended_todos"] == []
     [ask] = served_thread(state)["asks"]["all"]
     assert (ask["status"], ask["answer"]["value"]) == (
         "answered",

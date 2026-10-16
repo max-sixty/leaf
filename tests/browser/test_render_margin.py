@@ -306,22 +306,17 @@ def _layout_passes_batch_without_refolding_controls(page):
     pass (about 45 ms in local Chrome). Count the browser's work rather than time;
     the contributor's primary/overflow state must also remain untouched.
     """
-    # The corpus carries the gallery's contained frames, which `open_page` has waited
-    # through: a frame still arriving lays itself out in this page's own process, and
-    # counted against five dispatches that touch nothing that reads as the heartbeat
-    # forcing layout. The first layout pass after they arrive reconciles them, and on the
-    # corpus it costs 4 layouts and 21 style recalculations against the 2 and 3 of every
-    # pass after it — a resize costs 3 as well, so the reconciliation is page startup rather
-    # than the price of a changed pass. Spend it before the count starts: what this test
-    # bounds is the five passes below, which touch nothing.
+    # A placement delivery precedes deferred Reach and chrome paints. Finish the
+    # warmup invalidation before recording the work of the five passes below.
     margins_laid_out(page)
+    rendered(page)
     session = page.context.new_cdp_session(page)
     session.send("Performance.enable")
     before = {
         metric["name"]: metric["value"]
         for metric in session.send("Performance.getMetrics")["metrics"]
     }
-    reading = page.evaluate(
+    page.evaluate(
         """async () => {
           const {layoutChanged} = await window.__lfWidgetApi();
           const rows = [...document.querySelectorAll('.lf-margin-cluster')];
@@ -337,15 +332,20 @@ def _layout_passes_batch_without_refolding_controls(page):
           const observer = new MutationObserver(list => seen.push(...list));
           observer.observe(document.body, {subtree: true, attributes: true,
             attributeFilter: ['data-lf-margin-entry-primary', 'data-lf-margin-entry-overflow']});
+          window.__lfFinishMarginPasses = () => {
+            const mutations = seen.length + observer.takeRecords().length;
+            observer.disconnect();
+            delete window.__lfFinishMarginPasses;
+            return {before, after: boxes(), mutations};
+          };
           for (let i = 0; i < 5; i++) await new Promise(done => {
             document.addEventListener('lf-margin-layout', done, {once: true});
             layoutChanged(document.body);
           });
-          const mutations = seen.length + observer.takeRecords().length;
-          observer.disconnect();
-          return {before, after: boxes(), mutations};
         }"""
     )
+    rendered(page)
+    reading = page.evaluate("window.__lfFinishMarginPasses()")
     after = {
         metric["name"]: metric["value"]
         for metric in session.send("Performance.getMetrics")["metrics"]

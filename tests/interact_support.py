@@ -639,12 +639,11 @@ def registry_refusal(read: Callable) -> Finding:
     return finding
 
 
-def command_refusal(*args) -> Finding:
-    """The one finding the refusal of the leaf command `args`, run in process,
-    carries."""
+def command_findings(*args) -> list[Finding]:
+    """The findings the refusal of the leaf command `args`, run in process, carries:
+    none where the command succeeds."""
     result = CliRunner().invoke(cli_model.cli, [*map(str, args)], standalone_mode=False)
-    [finding] = result.exception.__cause__.findings
-    return finding
+    return [] if result.exception is None else result.exception.__cause__.findings
 
 
 def read_page_data(page_dir) -> dict:
@@ -1129,7 +1128,7 @@ def _mutated_registry_check(page_dir, mutate):
     registry = json.loads((page_dir / "registry.json").read_text())
     mutate(registry)
     (page_dir / "registry.json").write_text(json.dumps(registry))
-    return check(page_dir)
+    return check_findings(page_dir)
 
 
 def _report_body_record(registry):

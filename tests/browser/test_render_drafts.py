@@ -4217,6 +4217,10 @@ def test_comment_follows_a_thread_standing_instead_of_an_earlier_draft(
     Resume returns its words and caret before Comment answers the standing thread.
     """
     page = open_page(browser, serve(LONG_PAGE, anchored=[("p41", "Paragraph 41.")]))
+    # Slow the browser to expose Resume writing interrupting native smooth travel.
+    page.context.new_cdp_session(page).send(
+        "Emulation.setCPUThrottlingRate", {"rate": 6}
+    )
     thread = page.locator(".lf-margin-preview .lf-page-thread")
     if existing_reply:
         page.keyboard.press("t")
@@ -4248,6 +4252,7 @@ def test_comment_follows_a_thread_standing_instead_of_an_earlier_draft(
     page.keyboard.press("g")
     page.keyboard.press("i")
     expect(earlier).to_be_focused()
+    scroll_settled(page)
     expect(earlier).to_be_in_viewport()
     expect(page.locator("#p3")).to_be_in_viewport()
     expect(earlier).to_have_js_property("value", words)

@@ -4419,10 +4419,9 @@ def test_a_revision_saved_before_a_re_vendor_neither_opens_nor_takes_input(page_
     """A re-vendor across a protocol bump leaves the revisions the page saved before
     it in place, each with the runtime it was saved with. Served, that runtime would
     talk to this Leaf's server across the bump, so its address refuses, as does an
-    event made against it, a widget to-do opened on it as the newest included, while
-    the revision saved since serves and admits. An event made against no document,
-    such as a pickup, is judged by the page's layer, so it goes through before the
-    source saves again."""
+    event made against it, while the current revision activated by the re-vendor
+    serves and admits, a widget to-do opened on it as the newest included. An event
+    made against no document, such as a pickup, is judged by the page's layer."""
     board = PAGE.replace(
         "<h2>Plan</h2>",
         '<h2>Plan</h2>\n<lf-board id="rollout"><lf-column id="rollout-now" '
@@ -4470,11 +4469,7 @@ def test_a_revision_saved_before_a_re_vendor_neither_opens_nor_takes_input(page_
         "subject": {"kind": "widget", "id": "rollout-card"},
         "title": "Check the rollout",
     }
-    with pytest.raises(event_model.EventRefused) as unadmitted:
-        append_command(page_dir, todo)
-    assert refused_on(unadmitted.value).values["saved"] == foreign
-    (page_dir / "index.html").write_text(board.replace("Ship it", "Ship it now"))
-    revisioning_model.activate_source(page_dir)
+    assert append_command(page_dir, todo)["revision"] == 2
     old, new = (
         next((page_dir / "revisions").glob(f"r{n}-*.html")).name for n in (1, 2)
     )
@@ -4504,7 +4499,6 @@ def test_a_revision_saved_before_a_re_vendor_neither_opens_nor_takes_input(page_
         assert f"page protocol {foreign}" in body.decode()
         assert event_model.read_events(page_dir) == before
         assert commented(2)[0] == 200
-        assert append_command(page_dir, todo)["revision"] == 2
     finally:
         temporary.close()
 
@@ -4529,10 +4523,10 @@ def test_a_revision_saved_before_a_key_was_renamed_neither_opens_nor_takes_input
     vendored_before_the_ask_rename(page_dir)
     # Read as the next process does, which holds nothing of the revision saved above.
     with fresh_process():
-        _serve_after_the_ask_rename(page_dir, page)
+        _serve_after_the_ask_rename(page_dir)
 
 
-def _serve_after_the_ask_rename(page_dir, page):
+def _serve_after_the_ask_rename(page_dir):
     comment = {"kind": "comment", "author": "user", "text": "Which plan?"}
     with pytest.raises(event_model.EventRefused, match="x-question-context") as refused:
         append_command(page_dir, {**comment, "revision": 1})
@@ -4540,10 +4534,7 @@ def _serve_after_the_ask_rename(page_dir, page):
 
     reinitialized = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert reinitialized.exit_code == 0, reinitialized.output
-    (page_dir / "index.html").write_text(
-        page.replace("Which route?", "Which route now?")
-    )
-    revisioning_model.activate_source(page_dir)
+    # Re-vendoring activates valid source with the renamed vocabulary itself.
     [ask] = [
         ask
         for ask in page_state(page_dir)["browser"]["views"]["2"]["document"]["asks"][
@@ -4551,7 +4542,7 @@ def _serve_after_the_ask_rename(page_dir, page):
         ]
         if ask["source"]["id"] == "route"
     ]
-    assert ask["prompt"] == {"text": "Which route now?", "target": "route-ask"}
+    assert ask["prompt"] == {"text": "Which route?", "target": "route-ask"}
     old, new = (
         next((page_dir / "revisions").glob(f"r{n}-*.html")).name for n in (1, 2)
     )

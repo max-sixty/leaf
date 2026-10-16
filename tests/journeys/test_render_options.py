@@ -6,7 +6,7 @@ import re
 
 import pytest
 from interact_support import (
-    command_refusal,
+    command_findings,
     end_work_on,
     working,
 )
@@ -259,7 +259,9 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
         told(page)
 
     claim("card-migration", "checking the shard")
-    unsupported = command_refusal("task", "open", d, "jobs", "Price the alternatives")
+    [unsupported] = command_findings(
+        "task", "open", d, "jobs", "Price the alternatives"
+    )
     assert unsupported.code == "no-work-seat"
 
     card_button = page.locator(

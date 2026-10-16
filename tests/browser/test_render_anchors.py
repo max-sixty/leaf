@@ -1337,6 +1337,16 @@ def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
           attributeFilter:['data-lf-presented']});""",
     )
     expect(page.locator(".lf-chrome .lf-code-copy")).to_have_count(2)
+    page.locator("#source").hover()
+    page.locator(".lf-chrome .lf-code-copy").first.get_by_role("button").hover()
+    assert (
+        page.locator(".lf-chrome .lf-code-copy").evaluate_all(
+            "nodes => nodes.filter(node => getComputedStyle(node).opacity === '1').length"
+        )
+        == 1
+    ), "hovering one Copy control must not reveal the other blocks' controls"
+    page.mouse.move(2, 300)
+
     assert page.evaluate("window.copyAtPresentation") == 1
     page.evaluate(
         "window.detachedCodeSource = document.querySelector('#source'); detachedCodeSource.remove()"
@@ -1386,6 +1396,39 @@ def test_code_copy_reads_sources_before_positioning_many_controls(browser, serve
     assert events.count("read") >= 60
     assert "write" in events
     assert events.index("write") >= 60
+
+    # Opening unrelated chrome must not restyle every code control. Compare the
+    # browser's invalidated-element count at two populations, independent of time.
+    def restyled_on_chrome_insertion():
+        browser.start_tracing(page=page, categories=["devtools.timeline"])
+        try:
+            page.evaluate("""() => {
+              const chrome = document.querySelector('.lf-chrome');
+              const probe = document.createElement('div');
+              chrome.append(probe);
+              void probe.offsetWidth;
+              probe.remove();
+              void chrome.offsetWidth;
+            }""")
+        finally:
+            trace = json.loads(browser.stop_tracing())
+        restyled = [
+            event["args"]["elementCount"]
+            for event in trace["traceEvents"]
+            if event["name"] == "UpdateLayoutTree"
+        ]
+        assert restyled, "the chrome insertion must exercise style invalidation"
+        return sum(restyled)
+
+    rendered(page)
+    many = restyled_on_chrome_insertion()
+    page.locator("main pre").evaluate_all(
+        "nodes => nodes.slice(1).forEach(node => node.remove())"
+    )
+    expect(page.locator(".lf-chrome .lf-code-copy")).to_have_count(1)
+    rendered(page)
+    one = restyled_on_chrome_insertion()
+    assert many <= one, {"60 controls": many, "1 control": one}
 
 
 @pytest.mark.parametrize("holder", ["disclosure", "tab"])

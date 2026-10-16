@@ -45,7 +45,7 @@ Where the user is, every step alike, is the journey's one axis (`User.end`):
   checks, and every milestone a step is timed by, is on the page server's clock in
   the log;
 - in Chrome (`--browser`, a website's only end): every comment is typed as a user types it,
-  a page comment in the banner's card and an anchored one on its selected passage, each reply's showing is timed by the
+  a page comment in the floating panel's field and an anchored one on its selected passage, each reply's showing is timed by the
   page, and the release ask's reload is checked and profiled (`BrowserEnd`). This is
   the whole journey, what the page shows the user included.
 
@@ -57,8 +57,9 @@ The timings come from where each step happened. The page server records when it
 admitted a comment, recorded its pickup, titled its thread, activated the published
 revision and admitted the reply; `sinceAdmissionMs` reads those from the comment's
 admission, so every target and either end is timed on one clock, the page server's.
-In Chrome the browser also sees the POST's answer and the reply showing in Threads,
-which the page records itself (`shown_reply`); `sinceSendMs` reads those from the
+In Chrome the browser also sees the POST's answer and the reply showing, in the
+floating panel's view of its thread or on its card at its passage, which the page
+records itself (`shown_reply`); `sinceSendMs` reads those from the
 send. Where the journey runs the agent itself, its record of the session (Claude
 Code's transcript, Codex's App Server notifications, Pi's RPC events) also splits the
 agent's work from the comment's admission to its reply into delivery (until it is
@@ -135,11 +136,11 @@ TURN_ASKS = 2
 # The reload after the turn gets this long to present, then as long again to follow
 # the published revision: its container may take seconds to answer the first read.
 TURN_PRESENTATION = 120_000
-# How long Threads gets to draw a reply the container has admitted; the runtime's own
+# How long the page gets to draw a reply the container has admitted; the runtime's own
 # quiet-stream bound (`SILENCE_MS` in `runtime/state-feed.js`) is the same 30 s.
 VISIBLE_REPLY_PATIENCE = 30_000
-# How long a reply first shown by its row or its notice gets for its own message to
-# come into view, which in an open card is the next frame or two.
+# How long a reply first shown by its notice gets for its own message to come into
+# view, which in an open thread is the next frame or two.
 VISIBLE_MESSAGE_PATIENCE = 2
 # How long the page server gets to title the thread after the turn ends: its title
 # request's own limit (`TIMEOUT` in `thread_titles.py`).
@@ -396,7 +397,7 @@ def agent_profile(profile: AgentProfile, steps: dict) -> dict:
         "sinceSendMs": {
             "acknowledged": [ms(at) for at in profile.acknowledged],
             "responseVisible": ms(profile.visible_reply_s),
-            # The reply's own message in view, which a visible row precedes.
+            # The reply's own message in view, which a notice holding it precedes.
             "responseMessageVisible": ms(profile.visible_message_s),
         },
         "responseShownBy": profile.visible_reply_by,
@@ -522,18 +523,18 @@ def uncovered_word(page: Page, passage: str) -> list[float] | None:
 
 
 def write_comment(session: Session, text: str, passage: str | None = None) -> Locator:
-    """Write `text`, unsent, and return the box holding it: on the page, in the page
-    comment card under the banner, or on the element with id `passage`, by selecting its words and
+    """Write `text`, unsent, and return the box holding it: on the page, in the floating
+    panel's field, or on the element with id `passage`, by selecting its words and
     commenting on the selection."""
     page = session.page
     if passage is None:
-        # The page comment card under the banner is where a page thread starts; a
-        # send leaves it open, so an open card's box is pressed instead.
-        box = page.locator(".lf-page-comment-card leaf-text")
-        if page.locator(".lf-page-comment-card:popover-open").count():
-            box.click()
-        else:
-            page.locator(".lf-banner-actions > .lf-page-comment").click()
+        # The field writes a page comment while no view stands open over it. A send
+        # opens its thread there, the field becoming its reply box, so a later page
+        # comment closes that view first.
+        if page.locator(".lf-floating-panel[data-open]").count():
+            page.locator(".lf-fp-close").click()
+        box = page.locator(".lf-fp-field leaf-text")
+        box.click()
     else:
         select_passage(page, f"#{passage}")
         page.locator(".lf-fab-input").click()
@@ -696,8 +697,13 @@ def ask_until_answered(end: HttpEnd | BrowserEnd, marker: str) -> AgentAsks:
 
 def open_news(page: Page, thread: str) -> None:
     """Open the news `thread` holds back, if it shows any, as a reader waiting on it
-    does. The page times what it then shows, so when this runs changes no reading."""
-    news = page.locator(f'.lf-thread[data-id="{thread}"] .lf-thread-news')
+    does: in the floating panel's view of the thread or on its card at its passage.
+    The page times what it then shows, so when this runs changes no reading."""
+    news = page.locator(
+        f':is(.lf-thread[data-id="{thread}"],'
+        f' [data-lf-thread-view][data-thread="{thread}"])'
+        " .lf-thread-news"
+    )
     if news.count() and news.first.is_visible():
         try:
             news.first.click(timeout=1000)
@@ -712,24 +718,23 @@ def shown_reply(page: Page, answer: dict) -> dict | None:
     (`verify_site_browser.js`), or None where it has not."""
     return page.evaluate(
         "window.__leafVerifier.replyShownAt",
-        {"thread": answer["parent"], "id": answer["id"], "ts": answer["ts"]},
+        {"thread": answer["parent"], "id": answer["id"]},
     )
 
 
 def await_reply_shown(end: BrowserEnd, answer: dict) -> dict:
     """Hear the session until the page shows the user `answer`, opening any news its
     thread holds back, within `VISIBLE_REPLY_PATIENCE`; return when and how. A reply
-    its row or notice showed first is heard a little longer, within
-    `VISIBLE_MESSAGE_PATIENCE`, for when its own message came into view, which a folded
-    card never draws."""
+    its notice showed first is heard a little longer, within
+    `VISIBLE_MESSAGE_PATIENCE`, for when its own message came into view."""
     page = end.session.page
     deadline = time.monotonic() + VISIBLE_REPLY_PATIENCE / 1000
     while (shown := shown_reply(page, answer)) is None:
         if time.monotonic() >= deadline:
             debug = page.evaluate("window.__leafVerifier.visibleReplyDebug")
             raise RuntimeError(
-                f"{end.url} reply {answer['id']} never showed in Threads, its "
-                f"news opened; the page reports {json.dumps(debug)}"
+                f"{end.url} reply {answer['id']} never showed, its news opened; "
+                f"the page reports {json.dumps(debug)}"
             )
         open_news(page, answer["parent"])
         end.pause(0.5)
@@ -1033,7 +1038,7 @@ class HttpEnd:
 
 class BrowserEnd:
     """The user's end in Chrome: every comment typed as a user types it, a page comment
-    in the banner's card and an anchored one on its selected passage, its send and its reply showing timed by the page
+    in the floating panel's field and an anchored one on its selected passage, its send and its reply showing timed by the page
     (`shown_reply`), and the release ask's reload checked and profiled. This is the
     whole journey, what the page shows included."""
 
@@ -1057,10 +1062,8 @@ class BrowserEnd:
         return ask_to_record(self.session, marker, profile, ask)
 
     def opening(self) -> dict:
-        """The page's startup profile as the user found it, and Threads opened."""
-        page = startup_profile(startup_reading(self.session.page))
-        self.session.page.locator(".lf-threads-toggle").click()
-        return {"page": page}
+        """The page's startup profile as the user found it."""
+        return {"page": startup_profile(startup_reading(self.session.page))}
 
     def closing(self, published: dict, answer: dict, marker: str) -> dict:
         """Require a reload to present the published revision naming `marker`, and
@@ -1091,20 +1094,20 @@ class BrowserEnd:
         # revision it never reached.
         check(not failures, f"{url} reported browser errors: {said(failures)}")
         shown = page.evaluate("window.__leafVerifier.revision")
-        # The banner separates a page whose first read answered with an old revision
-        # from one that presented offline and was never told.
-        banner = page.evaluate("window.__leafVerifier.status")
+        # The page's status separates a page whose first read answered with an old
+        # revision from one that presented offline and was never told.
+        status = page.evaluate("window.__leafVerifier.status")
         check(
             (shown or "").isdigit() and int(shown) >= published["revision"],
             f"{url} stands on revision {shown} rather than following the published "
-            f"{published['revision']}, with the banner reading ‘{banner}’",
+            f"{published['revision']}, with its status reading ‘{status}’",
         )
         check(
             page.evaluate(
                 "window.__leafVerifier.revisionAtLeast", published["revision"]
             ),
             f"{url} reached revision {shown} but did not finish presenting it, "
-            f"with the banner reading ‘{banner}’",
+            f"with its status reading ‘{status}’",
         )
         rendered = page.locator("main").inner_text()
         check(
@@ -1127,10 +1130,6 @@ class BrowserEnd:
         """Write step `name`'s comment (`COMMENTS`) on its passage, unsent, as a user
         does before the moment they mean it for; return what sends it."""
         section, text = COMMENTS[name]
-        page = self.session.page
-        # Every reply is read in Threads, which the release step's reload may shut.
-        if page.locator('.lf-threads-toggle[aria-expanded="false"]').count():
-            page.locator(".lf-threads-toggle").click()
         box = write_comment(self.session, text, section)
 
         def send() -> tuple[str, AgentProfile]:
@@ -1148,7 +1147,7 @@ class BrowserEnd:
 
     def reading(self, profile: AgentProfile, steps: dict, answer: dict) -> dict:
         """A comment's reading: its milestones on the page server's clock, and from
-        its send, its acknowledgement and its reply showing in Threads, which must."""
+        its send, its acknowledgement and its reply showing, which must."""
         if profile.visible_reply_by is None:
             profile.show(await_reply_shown(self, answer))
         return agent_profile(profile, steps)
@@ -1314,8 +1313,7 @@ def working_version(commit: str) -> str:
 
 def local_session(browser, url: str) -> Session:
     """A user's session, in a desktop window, on the page a local server serves at
-    its keyed `url`. In the window's width Threads stands beside the page rather than
-    over the passages the user selects to comment on."""
+    its keyed `url`."""
     context = browser.new_context(viewport={"width": DESKTOP[0], "height": DESKTOP[1]})
     page = context.new_page()
     failures = observe_startup(page)

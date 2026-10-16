@@ -217,8 +217,8 @@ def comment_on_passage(
                 view.get_by_role("button", name="Comment on selection").click()
                 box = view.locator(".lf-composer leaf-text")
             else:
-                view.locator(".lf-banner-actions > .lf-page-comment").click()
-                box = view.locator(".lf-page-comment-card leaf-text")
+                box = view.locator(".lf-fp-field leaf-text")
+                box.click()
             box.focus()
             view.keyboard.insert_text(text if quote is not None else fallback)
             box.press("ControlOrMeta+Enter")

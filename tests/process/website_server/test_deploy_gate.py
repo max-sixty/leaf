@@ -292,16 +292,16 @@ class _FailedFirstTurn:
 
     def locator(self, selector: str):
         assert selector in {
-            ".lf-banner-actions > .lf-page-comment",
-            ".lf-page-comment-card leaf-text",
-            ".lf-page-comment-card:popover-open",
+            ".lf-floating-panel[data-open]",
+            ".lf-fp-close",
+            ".lf-fp-field leaf-text",
         }
         return self
 
     def count(self) -> int:
-        """The card is shut until a send leaves it open, and this page sends once
-        an ask."""
-        return 0
+        """A send opens its thread over the panel's field, which the next ask
+        closes."""
+        return int(bool(self.comments))
 
     def click(self) -> None:
         pass
@@ -578,14 +578,6 @@ class _PresentationWait:
         self.waits.append(timeout)
 
 
-class _Click:
-    def __init__(self, clicks: list[str]):
-        self.clicks = clicks
-
-    def click(self) -> None:
-        self.clicks.append("threads")
-
-
 class _Text:
     def __init__(self, text: str):
         self.text = text
@@ -621,7 +613,6 @@ class _DeployedPage:
         self.init_scripts: list[Path] = []
         self.presentation_waits: list[int] = []
         self.revision_waits: list[tuple[int, int]] = []
-        self.clicks: list[str] = []
 
     def add_init_script(self, *, path: Path) -> None:
         self.init_scripts.append(path)
@@ -652,8 +643,6 @@ class _DeployedPage:
     def locator(self, selector: str):
         if selector == "main":
             return _Text(self.recorded)
-        if selector == ".lf-threads-toggle":
-            return _Click(self.clicks)
         assert selector == "body[data-lf-presented]"
         return _PresentationWait(self.presentation_waits)
 
@@ -1096,7 +1085,6 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             "followedRevisionMs": 2500.0,
         },
     }
-    assert page.clicks == ["threads"]
 
     # A reload the container never answered is its own reading, taken before the wait.
     # Left unchecked it arrives as a presentation timeout, which is the message this

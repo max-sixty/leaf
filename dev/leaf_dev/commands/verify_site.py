@@ -756,14 +756,12 @@ def verify_saved_state(browser, worker: LocalWorker) -> dict[str, dict]:
     await_presentation(page, url, failures)
     page.locator("#saved-state-recall").wait_for(state="visible")
     page.locator("#heat-opt-window[chosen]").wait_for(state="visible")
-    page.locator(".lf-threads-toggle").click()
-    thread = page.locator(f'.lf-threads > .lf-thread[data-id="{seeded["comment"]}"]')
-    thread.wait_for(state="visible")
-    if thread.get_attribute("open") is None:
-        thread.locator(".lf-thread-summary").click()
-    thread.get_by_text("Saved before the container stopped.", exact=True).wait_for(
-        state="visible"
-    )
+    page.locator(".lf-fp-threads").click()
+    page.locator(".lf-fp-filters button", has_text="Open").click()
+    page.locator(f'.lf-fp-thread[data-key="{seeded["comment"]}"]').click()
+    page.locator(".lf-fp-view[data-view=thread]").get_by_text(
+        "Saved before the container stopped.", exact=True
+    ).wait_for(state="visible")
     state_response = answered(context.request.get(state_url), state_url)
     check(
         state_response.headers.get("leaf-state-source") == "durable",

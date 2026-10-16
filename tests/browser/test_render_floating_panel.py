@@ -2759,9 +2759,7 @@ def test_a_refused_page_comment_hands_its_words_back_to_the_field(browser, serve
     consume_browser_errors(page, http_error_console(400))
 
 
-def test_a_thread_whose_words_are_gone_keeps_its_quotation_in_the_panel(
-    browser, serve
-):
+def test_a_thread_whose_words_are_gone_keeps_its_quotation_in_the_panel(browser, serve):
     """A thread about words the page no longer holds opens in the panel, where the
     quotation it kept stands over its messages, marked as no longer on the page, in
     three lines; Full quote shows the rest, as a card's head does."""

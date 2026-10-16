@@ -518,7 +518,8 @@ export function createFloatingPanel({
         const handle = sendMessage(
           PAGE_DRAFT,
           owns,
-          (attempt) => (flight = threadActions.create({ attempt, text: raw })?.delivery),
+          (attempt) =>
+            (flight = threadActions.create({ attempt, text: raw })?.delivery),
         );
         if (!handle) return;
         // The box empties as the send leaves; the row reads it again once it has.

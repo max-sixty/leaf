@@ -73,7 +73,7 @@
 #
 # After changing what a route sends, re-record this file and review the diff:
 #
-#   uv run pytest --regtest-reset -n0 tests/model/test_interact_contract.py::test_each_route_hands_the_agent_what_the_snapshot_shows
+#   uv run pytest --regtest-reset -n0 tests/model/interact_contract/test_layer_contract.py::test_each_route_hands_the_agent_what_the_snapshot_shows
 
 leaf wait:
   output:

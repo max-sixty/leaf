@@ -38,8 +38,7 @@ from render_harness import (
     told,
     write,
 )
-
-from browser.test_render_controls import leaf_page as titled_page
+from render_harness import leaf_page as titled_page
 
 # A sample's child is an opaque origin with no storage, so the script asks nothing of it.
 FLOATING = "try { localStorage.setItem('lf-chrome', 'floating') } catch {}"

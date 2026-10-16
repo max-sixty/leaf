@@ -280,7 +280,7 @@
 #
 # After changing a clause, re-record this file and review the diff:
 #
-#   uv run pytest --regtest-reset -n0 tests/model/test_interact_contract.py::test_each_case_of_an_event_is_told_what_the_snapshot_shows
+#   uv run pytest --regtest-reset -n0 tests/model/interact_contract/test_layer_contract.py::test_each_case_of_an_event_is_told_what_the_snapshot_shows
 
 comment:
   event:

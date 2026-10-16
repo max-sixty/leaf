@@ -1,0 +1,363 @@
+"""How the log and a new version's markup combine: restated widgets, user overrides,
+author moves the diff marks, and the decision a thread follows."""
+
+import re
+
+import pytest
+from interact_support import append_command
+from leaf import event_log as events_model
+from leaf.render_checks import wait_until_ready
+from playwright.sync_api import expect
+from render_cases_interaction import live_url
+from render_cases_navigation import (
+    _CARD,
+    DRAFT_EDITED,
+    JOURNEY_V1,
+    JOURNEY_V2,
+    SUGGEST_BLOCK,
+    _card_done,
+    _draft_says,
+    _publish,
+    actions,
+)
+from render_harness import (
+    compare_with,
+    draft_control,
+    open_page,
+    round_trip,
+    told,
+    undo,
+    wait_for_revision,
+    write,
+)
+
+pytestmark = pytest.mark.shifts_unsurveyed
+
+
+DRAG_HELD = "async () => (await window.__lfCheckApi()).dragHeld()"
+
+
+def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
+    """The other end of the rule that the log outranks the markup. Since it does, a
+    version cannot revise a draft the user has rewritten — replay would paint
+    their words straight back over it, and Claude's correction would reach nobody.
+    `restated` is the one way markup wins: it retracts what came before it, so
+    the new words render and the user sees the widget identified as one whose
+    decision this version undid.
+
+    It costs a word, where losing a decision used to cost nothing, which is the
+    whole asymmetry: the failure that stays silent is now the one that needs
+    saying out loud."""
+    url = serve(JOURNEY_V1)
+    d = serve.page_dir
+    append_command(
+        d,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "draft-ops",
+            "action": "edit",
+            "detail": {"value": DRAFT_EDITED},
+        },
+    )
+    corrected = "Run the migration after deploying — it needs the new column."
+    _publish(
+        d,
+        2,
+        _draft_says(JOURNEY_V2, corrected, " restated"),
+        "0041 needs the column; rewrote the draft",
+    )
+
+    page = open_page(browser, url.replace("v1.html", "v2.html"))
+    body = page.locator("#draft-ops .lf-draft-body")
+    expect(body).to_have_text(corrected)
+    # And the user is told, rather than left to notice: their edit is gone, which
+    # without a reading looks exactly like a draft they never touched. The draft's
+    # existing controls keep their compact form; Page Map states the provenance,
+    # and the target keeps the local quiet word.
+    expect(page.locator("#draft-ops[data-lf-restated]")).to_have_count(1)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+p")
+    rewritten = page.get_by_role(
+        "button", name=re.compile(r"^Open rewritten: Rewritten")
+    )
+    expect(rewritten).to_be_visible()
+    page.keyboard.press("Escape")
+    assert (
+        page.locator("#draft-ops").evaluate("el => getComputedStyle(el).outlineStyle")
+        == "none"
+    )
+    assert "rewritten since the decision" in page.locator("#draft-ops").aria_snapshot()
+
+
+def test_user_overrides_identify_state_that_differs_from_authored_inputs(
+    browser, serve
+):
+    """Moves and edits retain their user origin across unrelated revisions.
+    Incorporating that state into source clears the override reading, and the
+    diff stays quiet about the user's own move."""
+    page = open_page(browser, live_url(serve(JOURNEY_V1)))
+
+    # A real drag — the pointer path, where the gesture gate and the poll meet.
+    grip = page.locator("#card-x .lf-grip").bounding_box()
+    dest = page.locator("#col-done").bounding_box()
+    page.mouse.move(grip["x"] + grip["width"] / 2, grip["y"] + grip["height"] / 2)
+    page.mouse.down()
+    page.mouse.move(
+        dest["x"] + dest["width"] / 2, dest["y"] + dest["height"] / 2, steps=15
+    )
+    page.mouse.up()
+    expect(page.locator("#card-x[data-lf-user-override]")).to_have_count(1)
+
+    draft = page.locator("#draft-ops")
+    draft.locator(".lf-draft-body").dblclick()
+    write(draft.locator("leaf-text"), DRAFT_EDITED)
+    draft_control(page, "save", "draft-ops").click()
+    expect(page.locator("#draft-ops[data-lf-user-override]")).to_have_count(1)
+
+    # Both actions must be in the log before the next version publishes, and the
+    # page is what says so: it sent them, and counts what has come back.
+    d = serve.page_dir
+    round_trip(page)
+
+    _publish(d, 2, JOURNEY_V2, "revise unrelated prose")
+    wait_for_revision(page, 2)
+    expect(page.locator("#card-x[data-lf-user-override]")).to_have_count(1)
+    expect(page.locator("#draft-ops[data-lf-user-override]")).to_have_count(1)
+
+    _publish(
+        d,
+        3,
+        _card_done(_draft_says(JOURNEY_V2, DRAFT_EDITED)),
+        "honors the move and the edit",
+    )
+    wait_for_revision(page, 3)
+    page.wait_for_function("() => document.querySelector('.lf-banner') !== null")
+    wait_until_ready(page)
+    expect(page.locator("[data-lf-user-override]")).to_have_count(0)
+
+    # The diff's state half is quiet about the honored move: base state is the
+    # base markup plus the fold as of it, which already has the card in Done.
+    compare_with(page)
+    page.wait_for_function("() => document.querySelector('.lf-version.on') !== null")
+    assert not page.evaluate(
+        "document.getElementById('card-x').classList.contains('lf-ins-block')"
+    ), "the user's own honored drag marked as a change"
+
+
+def test_foreign_state_draws_beside_a_live_drag(browser, serve):
+    """A poll may finish while Sortable owns the dragged card. The board's gesture holds
+    only the board's drawing (`defer`); another widget draws the foreign edit at once,
+    even one above the board that grows, and the card still lands where it is dropped."""
+    draft = JOURNEY_V1.index('<lf-draft id="draft-ops">')
+    draft_end = JOURNEY_V1.index("</lf-draft>", draft) + len("</lf-draft>")
+    board = JOURNEY_V1.index('<lf-board id="board">')
+    html = (
+        JOURNEY_V1[:board]
+        + JOURNEY_V1[draft:draft_end]
+        + "\n"
+        + JOURNEY_V1[board:draft]
+        + JOURNEY_V1[draft_end:]
+    )
+    page = open_page(browser, serve(html))
+    grip = page.locator("#card-x .lf-grip").bounding_box()
+    page.mouse.move(grip["x"] + grip["width"] / 2, grip["y"] + grip["height"] / 2)
+    page.mouse.down()
+    done = page.locator("#col-done").bounding_box()
+    page.mouse.move(
+        done["x"] + done["width"] / 2, done["y"] + done["height"] / 2, steps=8
+    )
+    page.wait_for_function(DRAG_HELD)
+    before = page.locator("#draft-ops").bounding_box()["height"]
+
+    foreign = "\n\n".join(
+        f"Foreign paragraph {n} held beside the drag." for n in range(6)
+    )
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "draft-ops",
+            "action": "edit",
+            "detail": {"value": foreign},
+        },
+    )
+    told(page)
+    expect(page.locator("#draft-ops .lf-draft-body")).to_contain_text(
+        "Foreign paragraph 5"
+    )
+    assert page.evaluate(DRAG_HELD), "the foreign edit ended the drag"
+    assert page.locator("#draft-ops").bounding_box()["height"] > before + 50, (
+        "the draft above the board did not grow, so nothing moved under the drag"
+    )
+
+    page.mouse.up()
+    told(page)
+    expect(page.locator("#col-done #card-x")).to_have_count(1)
+    moves = [e for e in actions(serve.page_dir) if e["action"] == "move"]
+    assert [(m["detail"]["unit"], m["detail"]["value"]) for m in moves] == [
+        ("card-x", "col-done")
+    ]
+
+
+def test_the_diff_marks_a_card_the_author_relocated(browser, serve):
+    """A pure state change has no text of its own, so the content diff was blind
+    to it: a card in a new column read as nothing changed. The state half
+    compares declared state, so the author moving a card between versions —
+    with no user action behind it — marks the card itself. The card alone:
+    an id'd element nested inside it rode along rather than changing columns,
+    and marking it too would double-tint one move."""
+    noted = _CARD.replace(
+        "</lf-card>", '<p id="card-x-note">A nested aside.</p></lf-card>'
+    )
+    v1 = JOURNEY_V1.replace(_CARD, noted)
+    url = serve(v1)
+    d = serve.page_dir
+    _publish(
+        d, 2, _card_done(JOURNEY_V1).replace(_CARD, noted), "moved the card to Done"
+    )
+    page = open_page(browser, url.replace("v1.html", "v2.html"))
+    compare_with(page)
+    page.wait_for_function(
+        "() => document.getElementById('card-x').classList.contains('lf-ins-block')"
+    )
+    assert not page.evaluate(
+        "document.getElementById('card-x-note').classList.contains('lf-ins-block')"
+    ), "the card's passenger marked as its own move"
+
+
+def test_the_diff_marks_the_card_the_author_reordered_and_no_other(browser, serve):
+    """A card moved within its column changes no words and no column, and the state
+    half still marks it. Only the card whose move explains the new order is marked:
+    the cards it passed kept their order among themselves."""
+    cards = {
+        name: f'<lf-card id="card-{name}"><strong>{name.title()}</strong></lf-card>'
+        for name in ("y", "z")
+    }
+    v1 = JOURNEY_V1.replace(_CARD, _CARD + cards["y"] + cards["z"])
+    url = serve(v1)
+    _publish(
+        serve.page_dir,
+        2,
+        JOURNEY_V1.replace(_CARD, cards["y"] + cards["z"] + _CARD),
+        "moved card x to the end",
+    )
+    page = open_page(browser, url.replace("v1.html", "v2.html"))
+    compare_with(page)
+    page.wait_for_function(
+        "() => document.getElementById('card-x').classList.contains('lf-ins-block')"
+    )
+    assert (
+        page.evaluate(
+            "['card-y', 'card-z'].filter(id =>"
+            " document.getElementById(id).classList.contains('lf-ins-block'))"
+        )
+        == []
+    )
+
+
+def test_accepting_a_suggestion_resolves_its_thread_in_one_event(browser, serve):
+    """Accepting answers the thread the change was written for, and the answer
+    rides the accept itself — the wrapper holding the `resolves` mapping is
+    retired by the honoring version, and a second POST could fail alone, leaving
+    the outcome and the resolution disagreeing with no repair path. One event,
+    read by both thread builders."""
+    url = serve(
+        JOURNEY_V1.replace('<h2 id="notes">', SUGGEST_BLOCK + '<h2 id="notes">'),
+        events=(
+            {
+                "kind": "comment",
+                "id": "c1",
+                "author": "user",
+                "revision": 1,
+                "text": "does this take downtime?",
+            },
+        ),
+    )
+    d = serve.page_dir
+    page = open_page(browser, url)
+    page.get_by_role("button", name=re.compile("^Accept the suggested change")).click()
+    page.locator(".lf-threads-toggle").click()
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
+    events = events_model.read_events(d)
+    accept = next(e for e in events if e.get("kind") == "action")
+    assert accept["action"] == "decide" and accept["detail"] == {"outcome": "accept"}
+    assert accept["meaning"]["answer"] == "c1"
+    assert not any(e.get("kind") == "resolve" for e in events)
+
+
+def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
+    """The panel reports where the question currently stands, not that it was once
+    answered. A second tab can reject a suggestion the first has already accepted —
+    the controls are gone in the tab that decided, not in the one that hasn't
+    polled — and the user who turned the fix down would otherwise find their
+    question filed away as answered by it, while the suggestion beside it read as
+    rejected. Both readings come off the same log; here is where they have to
+    agree in front of the user.
+
+    Then the same rule read the other way: `z` takes the reject back, the accept it
+    superseded is the widget's answer once more, and the thread closes under it. The
+    two ways an answer stops being in force compose, and nothing is written down to say so:
+    an `unresolve` posted where the thread reopened would be a second record of the
+    same fact, and taking the reject back would leave it in force against the accept."""
+    url = serve(
+        JOURNEY_V1.replace('<h2 id="notes">', SUGGEST_BLOCK + '<h2 id="notes">'),
+        events=(
+            {
+                "kind": "comment",
+                "id": "c1",
+                "author": "user",
+                "revision": 1,
+                "text": "does this take downtime?",
+            },
+        ),
+    )
+    d = serve.page_dir
+    page = open_page(browser, url)
+    page.get_by_role("button", name=re.compile("^Accept the suggested change")).click()
+    page.locator(".lf-threads-toggle").click()
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
+
+    # What the other tab's press leaves in the log, made against the same version:
+    # its own accept and reject controls are still shown, because it has not
+    # heard about this one's decision yet.
+    append_command(
+        d,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "sug-fix",
+            "action": "decide",
+            "detail": {"outcome": "reject"},
+        },
+    )
+    told(page)
+    expect(page.locator("#sug-fix")).to_have_attribute("data-lf-state", "reject")
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (0)")
+    reopened = page.locator('.lf-threads > .lf-thread[data-id="c1"]')
+    expect(reopened.locator(".lf-resolve")).to_have_count(1)
+
+    # Offered here because the log says the user made the reject; which tab they
+    # were in is not something the log records, and not something a withdrawal
+    # could turn on. The widget goes back to the markup and the surviving log is
+    # replayed onto it, so what the press restores is the accept, not a blank slate.
+    undo(page)
+    expect(page.locator("#sug-fix")).to_have_attribute("data-lf-state", "accept")
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
+    # The undo concerns this thread, so its resolved card leaves Open as the user's
+    # own move. Resolved still offers the conversation and its settled state.
+    expect(reopened).not_to_be_visible()
+    page.locator(".lf-thread-filter-toggle").click()
+    page.locator('[data-filter-value="resolved"]').click()
+    expect(reopened).to_have_attribute("data-resolved", "true")
+    # What the log holds is the three gestures and not one word about the thread:
+    # it was reopened and closed again by that log being read.
+    assert [
+        e["detail"]["outcome"] if e["kind"] == "action" else e["kind"]
+        for e in events_model.read_events(d)
+        if e["kind"] in ("action", "undo", "resolve", "unresolve")
+    ] == ["accept", "reject", "undo"]

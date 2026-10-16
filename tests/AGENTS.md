@@ -76,7 +76,7 @@ test to an earlier tier, make it cheaper. The user chose directory tiers (2026-1
 so that the landing gates stop growing with every test.
 
 A subject whose tests cross different boundaries has a module of the same name in each
-directory, such as `browser/test_render_drafts.py` and `journeys/test_render_drafts.py`.
+directory, such as `browser/test_render_aim.py` and `journeys/test_render_aim.py`.
 The module holding most of them keeps the helpers, and the others import from it; a
 module fixture they share is declared with `name=` and imported as `<name>_fixture`.
 `model/` and `process/` run in the same tier, so a subject's tests of both kinds stay in
@@ -85,7 +85,8 @@ one module.
 A subject too large to read as one module is a package in its directory, with a module
 per behavior, such as `browser/margin/` beside `journeys/test_render_margin.py`. A helper
 one module uses stays in it; the package's `__init__.py` holds those that several use or
-that other directories import.
+that other directories import, and its `conftest.py` imports the fixtures every module
+takes, as `process/website_server/` does for its autouse one.
 
 Broad discovery skips `browser/` and `journeys/`; `--run-main` adds `browser/` and
 `--run-nightly` runs every tier. An explicit directory, file, node id, `-k`, `-m` or

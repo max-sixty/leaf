@@ -487,7 +487,7 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
     draws it on the row its picks give up, and getComputedStyle(activeElement) reports
     'no ring' for a control whose ring is perfectly fine. Where nothing else claims one,
     the shared rule is what draws it, and that case is asserted on a request press in
-    test_render_projection.py, which is where the layer has a control no widget rings."""
+    projection/test_standing.py, which is where the layer has a control no widget rings."""
     page = open_page(browser, serve(CHIP_PAGE))
     state = """() => lfUnwatched(() => {
       // Whatever a control spends on saying it is live: the layer's wash, its own ink

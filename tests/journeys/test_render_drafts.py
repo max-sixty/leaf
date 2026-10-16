@@ -43,7 +43,7 @@ from render_harness import (
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
-from browser.test_render_drafts import (
+from browser.drafts import (
     cancel_draft,
     editing_reply_page,
     editing_revision_source,

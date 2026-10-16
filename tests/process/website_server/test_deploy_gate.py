@@ -706,9 +706,6 @@ class _DeployedContainer:
         self.request = self
         self.closed = False
 
-    def add_init_script(self, script: str) -> None:
-        pass
-
     def new_page(self) -> _DeployedPage:
         return self.page
 
@@ -744,9 +741,6 @@ class _RollingOutContainer:
         self.page = page
         self.request = self
         self.closed = False
-
-    def add_init_script(self, script: str) -> None:
-        pass
 
     def new_page(self) -> _DeployedPage:
         return self.page

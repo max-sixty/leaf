@@ -201,6 +201,19 @@ const projectDraftRecord = (ctx, record) =>
 // the newer local words. An unrelated attempt is later shared ownership and wins.
 const sharedIsBaseOf = (branch, shared) =>
   branch.base === null ? shared === null : shared?.attempt === branch.base;
+// The drafts a thread holds, named only here: its reply box, under the thread's key
+// (`threadKey`, a first message's attempt until the log names the thread), and a
+// rewrite of one of its messages, under that message's id (thread/message-edit.js).
+export const replyContext = (key) => `reply:${key}`;
+export const rewriteContext = (id) => `rewrite:${id}`;
+const THREAD_DRAFT = /^(reply|rewrite):(.*)$/s;
+// Which of them `ctx` is, with the key or id it is under; null for any other draft.
+export function threadDraft(ctx) {
+  const match = THREAD_DRAFT.exec(ctx);
+  return match ? { part: match[1], name: match[2] } : null;
+}
+const isReply = (ctx) => threadDraft(ctx)?.part === "reply";
+
 // A durable cache is a rendering convenience, never a claim that storage still holds
 // that generation. Refresh it immediately before sending or settling. If the
 // read itself is refused, the cache is the only copy available. A nondurable branch wins
@@ -336,7 +349,7 @@ export function transferDraft(from, to, text) {
   // A destination already holding a reply keeps it, with the source's after it.
   const held =
     [carriedHeld(to), carriedHeld(from)].filter(Boolean).join("\n\n") || null;
-  const durable = to.startsWith("reply:")
+  const durable = isReply(to)
     ? saveDraft(to, held ? `${text}\n\n${held}` : text, undefined, null)
     : saveDraft(to, text, undefined, held);
   keepWritingPlace({
@@ -464,9 +477,9 @@ export function sendMessage(ctx, owns, send) {
   // A first message opens a thread keyed by its attempt. Until the log takes it, the
   // draft it was sent from owns what is written under it, and a reply a refusal handed
   // back to that draft (`held`) stands in the box of the thread this send opens.
-  if (!ctx.startsWith("reply:")) {
+  if (!isReply(ctx)) {
     openedFrom.set(current.attempt, ctx);
-    const under = `reply:${current.attempt}`;
+    const under = replyContext(current.attempt);
     if (current.held && !activeDraftRecord(under)) {
       saveDraft(under, current.held);
       tellDraft(under, current.held);
@@ -479,7 +492,7 @@ export function sendMessage(ctx, owns, send) {
   const sentPlace =
     previousPlace?.context === ctx
       ? {
-          context: ctx.startsWith("reply:") ? ctx : `reply:${current.attempt}`,
+          context: isReply(ctx) ? ctx : replyContext(current.attempt),
           selection: [0, 0],
           generation: previousPlace.generation,
         }
@@ -593,7 +606,7 @@ export function keepRefusedWords(attempts) {
   for (const attempt of attempts) {
     const from = openedFrom.get(attempt);
     openedFrom.delete(attempt);
-    const under = `reply:${attempt}`;
+    const under = replyContext(attempt);
     const box = activeDraftRecord(under);
     if (from === undefined || !box || !holdReply(from, box.text)) continue;
     const resumed = writingPlace?.context === under;
@@ -660,11 +673,6 @@ export function registerWritingDestination(prefix, reveal) {
   return () => writingRoutes.delete(prefix);
 }
 
-// The drafts a thread view holds, which the thread's own destination reveals: its
-// reply box (`reply:<thread key>`) and a rewrite of one of its messages
-// (`rewrite:<message id>`, thread/message-edit.js).
-const THREAD_HELD = /^(reply|rewrite):/;
-
 // Words nothing on the active document holds a box for, as when a version removes the
 // content an edit was for, join the page's own draft after the words it already holds,
 // and Resume writing moves with them (`transferDraft`): one copy, sent or put away like
@@ -692,7 +700,7 @@ export function createWritingResume({
   holdsThreadDraft,
 }) {
   const holdsBox = (ctx) =>
-    THREAD_HELD.test(ctx)
+    threadDraft(ctx)
       ? holdsThreadDraft(ctx)
       : [...writingRoutes.keys()].some((prefix) => ctx.startsWith(prefix)) ||
         [...draftEditors].some((view) => view.ctx === ctx);
@@ -701,8 +709,8 @@ export function createWritingResume({
     if (!place) return;
     const intent = retainUserIntent();
     let input;
-    if (THREAD_HELD.test(place.context))
-      input = await revealInThread(place.context, intent);
+    // A thread view holds its own drafts, which the thread's destination reveals.
+    if (threadDraft(place.context)) input = await revealInThread(place.context, intent);
     else {
       const resolve = () => {
         const route = [...writingRoutes].find(([prefix]) =>

@@ -125,8 +125,8 @@ without being a pane, and its own stylesheet decides whether they scroll.
 | Term | Identity criterion |
 |---|---|
 | **Chrome** | Interface the runtime draws outside authored content, rooted at the one `.lf-chrome` container |
-| **Leaf panel** | Opt-in chrome (`?lf-chrome=floating`, `floating-panel.js`) that replaces the banner and bottom bar with one box floating at the window's foot: the leaf, which opens a menu of the page's controls, the comment field, and the On me and Threads marks |
-| **Banner** | The default chrome (`?lf-chrome=classic` restores it): the fixed row at the window's top with page status, the agent's count (**On Claude: 2**), the primary controls, and a More menu of the rest (`banner-toolbar.js`) |
+| **Leaf panel** | The default chrome (`floating-panel.js`) that replaces the banner and bottom bar with one box floating at the window's foot: the leaf, which opens a menu of the page's controls, the comment field, and the On me and Threads marks |
+| **Banner** | The other chrome, chosen with **Use the banner** in the leaf's menu (`chrome-choice.js`) or `?lf-chrome=classic`: the fixed row at the window's top with page status, the agent's count (**On Claude: 2**), the primary controls, and a More menu of the rest (`banner-toolbar.js`) |
 | **Page comment card** | The card under the banner's Comment on the page control, holding the page's general comment box, the one place a page thread starts (`thread/page-comment.js`) |
 | **Bottom bar** | Classic chrome's row at the window's foot, of fixed height (`--lf-bottom-bar-h`), holding the shortcut bar and the status |
 | **Auxiliary surface** | Chrome opened `beside`, `over` or `covering` the content frame |

@@ -1184,17 +1184,43 @@ def test_an_open_view_covers_the_page_beneath_it(browser, serve):
     assert whole
 
 
-def test_a_reader_who_chose_nothing_reads_with_the_classic_chrome(browser, serve):
-    """A reader without a chrome preference sees the banner and bottom bar. An unknown
-    stored value stands for no choice, overriding the test suite's own preference."""
+def test_a_reader_who_chose_nothing_reads_with_the_panel(browser, serve):
+    """A reader without a chrome preference sees the panel in place of the banner and
+    bottom bar. An unknown stored value stands for no choice, overriding the test
+    suite's own preference."""
     page = open_page(
         browser,
         serve(LONG_PAGE),
         init_script="try { localStorage.setItem('lf-chrome', '') } catch {}",
     )
-    expect(page.locator(".lf-floating-panel")).to_be_hidden()
+    expect(page.locator(".lf-floating-panel")).to_be_visible()
+    expect(page.locator(".lf-banner")).to_be_hidden()
+    expect(page.locator(".lf-shortcut-bar")).to_be_hidden()
+
+
+def test_each_chrome_offers_the_other_and_the_choice_holds(browser, serve):
+    """The banner's More menu offers the panel and the leaf's menu offers the banner
+    back, at its foot; either press reloads the page in the other chrome, which then
+    stays the reader's choice across a reload."""
+    page = open_page(browser, serve(LONG_PAGE))
     expect(page.locator(".lf-banner")).to_be_visible()
-    expect(page.locator(".lf-shortcut-bar")).to_be_visible()
+    page.locator(".lf-banner-more").click()
+    page.locator(".lf-banner-menu").get_by_role(
+        "button", name="Use the Leaf panel"
+    ).click()
+    expect(page.locator(".lf-floating-panel")).to_be_visible()
+    expect(page.locator(".lf-banner")).to_be_hidden()
+    page.reload()
+    expect(page.locator(".lf-floating-panel")).to_be_visible()
+
+    page.locator(".lf-fp-leaf").click()
+    rows = page.locator(".lf-fp-menu .lf-fp-item:not(:disabled)")
+    expect(rows.last).to_have_text(re.compile("Use the banner"))
+    rows.last.click()
+    expect(page.locator(".lf-banner")).to_be_visible()
+    expect(page.locator(".lf-floating-panel")).to_be_hidden()
+    page.reload()
+    expect(page.locator(".lf-banner")).to_be_visible()
 
 
 def test_a_page_s_own_conversation_reader_takes_the_panel_s_threads(browser, serve):
@@ -2218,7 +2244,7 @@ def test_the_leaf_s_menu_is_one_tab_stop_its_keys_walk(browser, serve):
     expect(rows.first).to_be_focused()
     page.keyboard.press("End")
     expect(rows.last).to_be_focused()
-    expect(rows.last).to_have_text(re.compile("Fold to the leaf"))
+    expect(rows.last).to_have_text(re.compile("Use the banner"))
     page.keyboard.press("Home")
     expect(rows.first).to_be_focused()
     page.keyboard.press("ArrowDown")

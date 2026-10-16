@@ -757,43 +757,47 @@ summary {
   inline-size: fit-content;
   max-inline-size: 100%;
   font: max(var(--entry-floor), var(--t-5))/1.5 var(--sans);
-  color: color-mix(in oklab, var(--muted) 80%, var(--paper));
+  /* Ink at the sheen's default rest (`lf-sheen`), so the words keep their face when
+     the work ends. */
+  color: color-mix(in srgb, var(--ink) 50%, transparent);
 }
 .lf-thread-working[data-lf-live] .lf-thread-working-words {
   animation: lf-sheen 2s ease-in-out infinite alternate;
 }
 /* The one continuous animation, which marks work under way (assets/AGENTS.md,
-   "Motion"): a highlight passing across words painted as a background clipped to their
-   glyphs, from the box's own colour to ink and back. A box runs it by naming it, and
-   everything it paints lives in the keyframes, so where it stops — the state ending,
-   or the shared reduced-motion guard's single near-instant pass — the words are left
-   in their own face with nothing to undo. Forced colours drop the gradient but keep
-   the animation, so there the keyframes leave the glyphs filled. */
+   "Motion"): a highlight passing across words, which are painted in ink and dimmed by
+   a mask to their rest face, ink at `--lf-sheen-rest`, but where the highlight
+   passes. A box runs it by naming it, and sets `--lf-sheen-rest` where its own colour
+   is not the default's; everything it paints lives in the keyframes, so where it stops
+   — the state ending, or the shared reduced-motion guard's single near-instant pass —
+   the words are left in their own face with nothing to undo. The words keep their
+   fill, so a line cut short keeps its ellipsis: Firefox drew no ellipsis under the
+   glyph-clipped background this replaced (notes/browser-support.md). Forced colours
+   drop the mask but keep the animation, so there the words stay whole. */
 @keyframes lf-sheen {
   from,
   to {
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    background-image: linear-gradient(
+    color: var(--ink);
+    mask-image: linear-gradient(
       110deg,
-      currentColor 42%,
-      var(--ink) 50%,
-      currentColor 58%
+      rgb(0 0 0 / var(--lf-sheen-rest, 0.5)) 42%,
+      #000 50%,
+      rgb(0 0 0 / var(--lf-sheen-rest, 0.5)) 58%
     );
-    background-size: 200% 100%;
+    mask-size: 200% 100%;
   }
   from {
-    background-position: 100% 0;
+    mask-position: 100% 0;
   }
   to {
-    background-position: 0% 0;
+    mask-position: 0% 0;
   }
 }
 @media (forced-colors: active) {
   @keyframes lf-sheen {
     from,
     to {
-      -webkit-text-fill-color: currentColor;
+      mask-image: none;
     }
   }
 }

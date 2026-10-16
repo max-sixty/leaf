@@ -41,12 +41,21 @@ script in the same markup as the template and name its id in `data-sample-events
 
 ```html
 <script id="service-history" type="application/json">
-[
-  {"id":"service-question","kind":"comment","author":"user",
-   "anchor":{"section":"service-note"},"text":"Does Sunday keep the same timetable?"},
-  {"kind":"reply","author":"agent","parent":"service-question",
-   "text":"Yes, both weekend days use this timetable."}
-]
+  [
+    {
+      "id": "service-question",
+      "kind": "comment",
+      "author": "user",
+      "anchor": { "section": "service-note" },
+      "text": "Does Sunday keep the same timetable?"
+    },
+    {
+      "kind": "reply",
+      "author": "agent",
+      "parent": "service-question",
+      "text": "Yes, both weekend days use this timetable."
+    }
+  ]
 </script>
 <lf-sample id="service-window" label="weekend service" window>
   <template id="service-page" data-sample data-sample-events="service-history">

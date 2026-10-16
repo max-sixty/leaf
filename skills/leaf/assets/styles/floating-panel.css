@@ -193,6 +193,11 @@
   .lf-fp-field .lf-compose-field:has(> leaf-text[data-lf-focus]) {
     outline: none;
   }
+  /* An attached image's shelf takes a line of its own over the page's words, as it does
+     over a thread's reply (response.css). */
+  .lf-fp-box {
+    flex-wrap: wrap;
+  }
   .lf-fp-resolved {
     flex: 1;
     margin: 0;
@@ -208,12 +213,35 @@
     box-shadow: none;
     padding: calc((var(--lf-fp-line) - 22px) / 2) 6px;
     min-height: var(--lf-fp-line);
-    max-height: 30dvh;
+    /* Half the window: a long comment reads whole before the field scrolls. */
+    max-height: 50dvh;
     box-sizing: border-box;
     font: 14px / 22px var(--sans);
     /* Send and the microphone stand beside the words rather than over their end, so
        neither the words nor the status saying what the agent does keep room for them. */
     --lf-field-end-room: 0px;
+  }
+  /* Words running past the field's top or bottom edge fade into it, so a glance says
+     there is more above or below, in place of a scrollbar, whose overlay flashed with
+     every line the field scrolled to. The field says which edges words run past
+     (text-field.js, `more-above`, `more-below`). */
+  .lf-fp-field .lf-compose-field > leaf-text:state(scrolls) {
+    --lf-fp-fade-top: 0px;
+    --lf-fp-fade-bottom: 0px;
+    scrollbar-width: none;
+    mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      #000 var(--lf-fp-fade-top),
+      #000 calc(100% - var(--lf-fp-fade-bottom)),
+      transparent 100%
+    );
+  }
+  .lf-fp-field .lf-compose-field > leaf-text:state(more-above) {
+    --lf-fp-fade-top: 16px;
+  }
+  .lf-fp-field .lf-compose-field > leaf-text:state(more-below) {
+    --lf-fp-fade-bottom: 16px;
   }
   .lf-fp-field .lf-compose-field > leaf-text[data-lf-focus] {
     outline: none;
@@ -236,16 +264,19 @@
     .lf-floating-panel[data-says="status"][data-tone="working"]:not([data-asks])
       .lf-fp-field
       leaf-text::part(placeholder) {
+      /* The quiet face is ink at 48% (`--lf-fp-quiet`). */
+      --lf-sheen-rest: 0.48;
       animation: lf-sheen 2s ease-in-out infinite alternate;
     }
   }
-  /* A status that asks the user to act reads in its tone's ink at full strength, the
-     leaf's colour made legible as words, so a request stands apart from a report. */
+  /* A status that asks the user to act reads in its tone's ink, the leaf's colour made
+     legible as words, so a request stands apart from a report. It stays quiet, at the
+     words' own weight and short of full strength: the user found full-strength
+     medium-weight green bold for a line that stands at rest (15 October). */
   .lf-floating-panel[data-says="status"][data-asks]
     .lf-fp-field
     leaf-text::part(placeholder) {
-    color: var(--lf-fp-asks);
-    font-weight: 500;
+    color: color-mix(in srgb, var(--lf-fp-asks) 70%, transparent);
   }
   .lf-floating-panel[data-asks] {
     --lf-fp-asks: var(--ink);
@@ -268,7 +299,7 @@
   /* The field's presses stand in the row's flow beside the words, rather than over the
      words' end where a card's composer floats them, so the row's one alignment places
      them too. Each is a line square, as the leaf is, in place of a composer's own
-     hit box, so Send stays round. */
+     hit box. */
   .lf-fp-field :is(.lf-compose-submit, .lf-compose-dictate) {
     position: relative;
     inset: auto;
@@ -280,15 +311,10 @@
     min-height: 0;
     padding: 0;
   }
-  /* Send stands in the counts' place while the user types, as a round ink press. */
+  /* Send stands in the counts' place while the user types, in every composer's face:
+     the accent arrow, not a press of its own. */
   .lf-fp-field .lf-compose-submit {
     display: none;
-    border-radius: 50%;
-    background: var(--ink);
-    color: var(--lf-fp-surface);
-  }
-  .lf-fp-field .lf-compose-submit:hover {
-    background: var(--ink);
   }
   .lf-floating-panel[data-typing] .lf-fp-field .lf-compose-submit {
     display: grid;
@@ -487,8 +513,8 @@
     }
   }
   /* The pointer's fold: a small round button riding the box's top-right corner, shown
-     while the pointer is over the unfolded panel. It fades rather than moves, so
-     nothing shifts under the pointer. */
+     while the pointer is near that corner (floating-panel.js, `data-corner`). It fades
+     rather than moves, so nothing shifts under the pointer. */
   .lf-fp-minimize {
     position: absolute;
     top: -9px;
@@ -512,7 +538,7 @@
       visibility 0s 120ms;
   }
   @media (hover: hover) {
-    .lf-floating-panel[data-rest="row"]:hover .lf-fp-minimize {
+    .lf-floating-panel[data-rest="row"][data-corner] .lf-fp-minimize {
       opacity: 1;
       visibility: visible;
       transition: opacity 120ms;
@@ -958,6 +984,19 @@
     color: var(--lf-fp-muted);
     font-weight: 400;
   }
+  /* Approval's reason, why a press would not approve yet, gives up its room before
+     the press's own words do, cut with an ellipsis and whole on hover. */
+  .lf-fp-approval .lf-fp-item {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .lf-fp-approval .lf-fp-end {
+    min-width: 0;
+    justify-content: end;
+  }
+  .lf-fp-approval .lf-fp-value {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   .lf-fp-compare {
     flex: none;
     font-size: 12px;
@@ -1063,6 +1102,8 @@
     max-height: -webkit-fill-available;
     max-height: stretch;
     overflow-y: auto;
+    /* A list sliding in from the side shows no scrollbar across. */
+    overflow-x: hidden;
     width: 248px;
     padding: 6px;
     box-sizing: border-box;
@@ -1083,6 +1124,36 @@
     transition:
       opacity 120ms linear,
       translate 200ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  /* Versions' notes and Compare want more of a line than the menu's rows. */
+  .lf-fp-menu[data-level="versions"] {
+    width: min(360px, calc(100vw - 32px));
+  }
+  /* A list in the menu's place: its head, the way back, over its rows as the state
+     stands over the menu's. */
+  .lf-fp-menu-page {
+    display: grid;
+  }
+  .lf-fp-menu-back {
+    margin-bottom: 4px;
+    border-bottom: 1px solid var(--lf-fp-faint);
+    border-radius: 6px 6px 0 0;
+  }
+  .lf-fp-menu-back .lf-fp-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .lf-fp-menu-back .lf-fp-chevron {
+    flex: none;
+    margin: 0;
+    scale: -1 1;
+  }
+  .lf-fp-menu-back b {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 600;
   }
   .lf-fp-state {
     display: grid;

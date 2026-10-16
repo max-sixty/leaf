@@ -147,6 +147,9 @@
   .lf-fp-field .lf-compose-field:has(> leaf-text[data-lf-focus]) {
     outline: none;
   }
+  .lf-fp-box {
+    flex-wrap: wrap;
+  }
   .lf-fp-resolved {
     flex: 1;
     margin: 0;
@@ -162,10 +165,28 @@
     box-shadow: none;
     padding: calc((var(--lf-fp-line) - 22px) / 2) 6px;
     min-height: var(--lf-fp-line);
-    max-height: 30dvh;
+    max-height: 50dvh;
     box-sizing: border-box;
     font: 14px / 22px var(--sans);
     --lf-field-end-room: 0px;
+  }
+  .lf-fp-field .lf-compose-field > leaf-text:state(scrolls) {
+    --lf-fp-fade-top: 0px;
+    --lf-fp-fade-bottom: 0px;
+    scrollbar-width: none;
+    mask-image:
+      linear-gradient(
+        to bottom,
+        transparent 0,
+        #000 var(--lf-fp-fade-top),
+        #000 calc(100% - var(--lf-fp-fade-bottom)),
+        transparent 100%);
+  }
+  .lf-fp-field .lf-compose-field > leaf-text:state(more-above) {
+    --lf-fp-fade-top: 16px;
+  }
+  .lf-fp-field .lf-compose-field > leaf-text:state(more-below) {
+    --lf-fp-fade-bottom: 16px;
   }
   .lf-fp-field .lf-compose-field > leaf-text[data-lf-focus] {
     outline: none;
@@ -179,12 +200,12 @@
   }
   @media (prefers-reduced-motion: no-preference) {
     .lf-floating-panel[data-says=status][data-tone=working]:not([data-asks]) .lf-fp-field leaf-text::part(placeholder) {
+      --lf-sheen-rest: 0.48;
       animation: lf-sheen 2s ease-in-out infinite alternate;
     }
   }
   .lf-floating-panel[data-says=status][data-asks] .lf-fp-field leaf-text::part(placeholder) {
-    color: var(--lf-fp-asks);
-    font-weight: 500;
+    color: color-mix(in srgb, var(--lf-fp-asks) 70%, transparent);
   }
   .lf-floating-panel[data-asks] {
     --lf-fp-asks: var(--ink);
@@ -217,12 +238,6 @@
   }
   .lf-fp-field .lf-compose-submit {
     display: none;
-    border-radius: 50%;
-    background: var(--ink);
-    color: var(--lf-fp-surface);
-  }
-  .lf-fp-field .lf-compose-submit:hover {
-    background: var(--ink);
   }
   .lf-floating-panel[data-typing] .lf-fp-field .lf-compose-submit {
     display: grid;
@@ -411,7 +426,7 @@
     transition: opacity 120ms, visibility 0s 120ms;
   }
   @media (hover: hover) {
-    .lf-floating-panel[data-rest=row]:hover .lf-fp-minimize {
+    .lf-floating-panel[data-rest=row][data-corner] .lf-fp-minimize {
       opacity: 1;
       visibility: visible;
       transition: opacity 120ms;
@@ -816,6 +831,17 @@
     color: var(--lf-fp-muted);
     font-weight: 400;
   }
+  .lf-fp-approval .lf-fp-item {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .lf-fp-approval .lf-fp-end {
+    min-width: 0;
+    justify-content: end;
+  }
+  .lf-fp-approval .lf-fp-value {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   .lf-fp-compare {
     flex: none;
     font-size: 12px;
@@ -910,6 +936,7 @@
     max-height: -webkit-fill-available;
     max-height: stretch;
     overflow-y: auto;
+    overflow-x: hidden;
     width: 248px;
     padding: 6px;
     box-sizing: border-box;
@@ -926,6 +953,33 @@
       translate: 0 6px;
     }
     transition: opacity 120ms linear, translate 200ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  .lf-fp-menu[data-level=versions] {
+    width: min(360px, calc(100vw - 32px));
+  }
+  .lf-fp-menu-page {
+    display: grid;
+  }
+  .lf-fp-menu-back {
+    margin-bottom: 4px;
+    border-bottom: 1px solid var(--lf-fp-faint);
+    border-radius: 6px 6px 0 0;
+  }
+  .lf-fp-menu-back .lf-fp-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .lf-fp-menu-back .lf-fp-chevron {
+    flex: none;
+    margin: 0;
+    scale: -1 1;
+  }
+  .lf-fp-menu-back b {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 600;
   }
   .lf-fp-state {
     display: grid;
@@ -2332,7 +2386,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-thread-topic[data-lf-pending-title] {
     justify-self: start;
     font-weight: 500;
-    color: color-mix(in oklab, var(--muted) 80%, var(--paper));
+    color: color-mix(in srgb, var(--ink) 50%, transparent);
     animation: lf-sheen 2s ease-in-out infinite alternate;
   }
   .lf-thread-meta {

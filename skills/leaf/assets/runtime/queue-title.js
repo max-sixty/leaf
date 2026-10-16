@@ -7,12 +7,12 @@ import { askHolding } from "./standing-target.js";
 import { askPlace } from "./asks/place.js";
 import { readAsks } from "./asks/model.js";
 import { readThreads } from "./thread/state.js";
-import { threadSummary } from "./thread/model.js";
+import { threadName } from "./thread/messages.js";
 
 export function queueTitle(item) {
   const thread = readThreads().threads.find((thread) => thread.id === item.thread);
   const own = elementById(item.subject.id);
-  const topic = thread ? threadSummary(thread).topic : "";
+  const topic = thread ? threadName(thread) : "";
   if (item.title) return item.title;
   if (item.kind === "work" && item.detail) return item.detail;
   // A reply the agent sent reads as its own words, since one thread holds many.

@@ -48,14 +48,19 @@ verdict and file list stay beside the code. The region kept in view is the `asid
 
 ```html
 <main class="layout-sidebar">
-  <header><h1>…</h1><p class="lede">…</p></header>
+  <header>
+    <h1>…</h1>
+    <p class="lede">…</p>
+  </header>
   <aside id="status">
     <div class="overview">
       <lf-toc id="contents"></lf-toc>
-      <p>…</p>                 <!-- short verdict or status -->
+      <p>…</p>
+      <!-- short verdict or status -->
     </div>
   </aside>
-  <div id="body">…</div>        <!-- document and supporting evidence -->
+  <div id="body">…</div>
+  <!-- document and supporting evidence -->
 </main>
 ```
 
@@ -92,7 +97,10 @@ grid of panes:
 
 ```html
 <main class="layout-workspace density-working">
-  <header><h1>…</h1><p><span class="tag warn">…</span></p></header>
+  <header>
+    <h1>…</h1>
+    <p><span class="tag warn">…</span></p>
+  </header>
   <div id="regions">
     <lf-pane id="log" label="Log">…</lf-pane>
     <lf-pane id="chart" label="Chart">…</lf-pane>
@@ -101,8 +109,15 @@ grid of panes:
 ```
 
 ```css
-#regions { display: grid; grid-template-columns: minmax(16rem, 1fr) 2fr; }
-@media (width < 720px) { #regions { grid-template-columns: 1fr; } }
+#regions {
+  display: grid;
+  grid-template-columns: minmax(16rem, 1fr) 2fr;
+}
+@media (width < 720px) {
+  #regions {
+    grid-template-columns: 1fr;
+  }
+}
 ```
 
 Stack the panes below 720px, where the page can scroll; above that, stacked panes share

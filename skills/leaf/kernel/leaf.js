@@ -134,6 +134,7 @@ import {
   dismissBannerControls,
   dismissReply,
   draftHasContent,
+  drawnThreadId,
   focusThread,
   focusedThreadTarget,
   followBoxGrowth,
@@ -174,6 +175,7 @@ import {
   rememberWriting,
   replyAvailable,
   replyCompositionHasDraft,
+  replyContext,
   replyDraftContext,
   replyDraftsHold,
   restoreBannerStanding,
@@ -200,6 +202,7 @@ import {
   threadFocusStop,
   threadHoldsDraft,
   threadList,
+  threadName,
   threadReading,
   threadState,
   touchPresses,
@@ -427,6 +430,7 @@ import {
   reveal,
   rightCover,
   routedCommand,
+  rowArrows,
   savedReadingSettled,
   saying,
   scopeIdentity,
@@ -547,6 +551,7 @@ import {
   html,
   itemNoun,
   itemOutcome,
+  lastMovedAt,
   noChange,
   nothing,
   observeQueuedWork,
@@ -555,8 +560,7 @@ import {
   repeat,
   sameAnchor,
   threadKey,
-  threadNames,
-  threadSummary
+  threadNames
 } from "./runtime/bundle-queued-work.js";
 import "./runtime/bundle-__export.js";
 
@@ -1199,7 +1203,9 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
       ta.readOnly = true;
       ta.setAttribute("aria-busy", "true");
       refresh();
-      notice(images.length === 1 ? "Adding image\u2026" : `Adding ${images.length} images\u2026`);
+      announce(
+        images.length === 1 ? "Adding image\u2026" : `Adding ${images.length} images\u2026`
+      );
       const attachedAt = arrivals;
       try {
         const paths = await Promise.all(images.map((image) => uploadMedia2(image)));
@@ -1211,7 +1217,7 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
         attachedMedia.push(...paths);
         renderMedia();
         draftChanged();
-        notice(images.length === 1 ? "Image added" : `${images.length} images added`);
+        announce(images.length === 1 ? "Image added" : `${images.length} images added`);
         return true;
       } catch (error) {
         notice(`Could not add image \u2014 ${error?.message ?? error}`);
@@ -2748,7 +2754,7 @@ function createResponseSurface({
     const threadId = threadAtStanding();
     const replyId = replyThreadAtStanding();
     const target = threadId && threadTarget(threadId);
-    const inlineBox = inline && (inline.dataset.thread ?? inline.dataset.id) === threadId && (!here || standingIn(inline) || target && under(target, heldAsk() ?? here.element)) && threadInput(inline);
+    const inlineBox = inline && drawnThreadId(inline) === threadId && (!here || standingIn(inline) || target && under(target, heldAsk() ?? here.element)) && threadInput(inline);
     const said = standingThread() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
     const subject = threadId && (!here || target && under(target, heldAsk() ?? here.element));
     const replySubject = subject && replyId;
@@ -7327,8 +7333,9 @@ function drawApproval() {
 var prefs = () => document.documentElement.lfChrome;
 var EASE = "cubic-bezier(.23, 1, .32, 1)";
 var RESIZE_MS = 300;
-var FADE_MS = 180;
-var OUT_MS = 80;
+var VIEW_RESIZE_MS = 120;
+var FADE_MS = 90;
+var OUT_MS = 60;
 var GROUPS = Object.freeze({
   navigate: "Navigate",
   annotate: "Annotations",
@@ -7409,6 +7416,13 @@ function createFloatingPanel({
     () => rows2().find((entry) => entry.key === `command:${FOLD}`).press(null)
   );
   host.append(minimize);
+  const CORNER = { across: 64, down: 24 };
+  host.addEventListener("pointermove", (event) => {
+    const box = card.getBoundingClientRect();
+    const near = event.target === minimize || minimize.contains(event.target) || event.clientX >= box.right - CORNER.across && event.clientY <= box.top + CORNER.down;
+    keeps(host, "data-corner", near ? "" : null);
+  });
+  host.addEventListener("pointerleave", () => keeps(host, "data-corner", null));
   declareWindowChrome(() => {
     const box = row.getBoundingClientRect();
     return box.width > 0 && box.height > 0 ? [box] : [];
@@ -7458,6 +7472,8 @@ function createFloatingPanel({
   let trail = [];
   let leaving = null;
   let menuOpen = false;
+  let menuAt = null;
+  let menuRoom = null;
   let filter = "open";
   let query = "";
   let searching = false;
@@ -7552,7 +7568,7 @@ function createFloatingPanel({
   const threadByKey = (key) => threads().find((thread) => thread.key === key || thread.id === key) ?? null;
   const threadTitle = (key) => {
     const thread = threadByKey(key);
-    return thread ? threadSummary(thread).topic : "this thread";
+    return thread ? threadName(thread) : "this thread";
   };
   const unread = (thread) => thread.unread.length > 0;
   const newCount = () => threads().filter(unread).length;
@@ -7572,7 +7588,7 @@ function createFloatingPanel({
     return [
       unread(thread) && "New",
       state,
-      draftHasContent(`reply:${thread.key}`) && "Draft"
+      draftHasContent(replyContext(thread.key)) && "Draft"
     ].filter((word2) => word2 && word2 !== said).join(" \xB7 ");
   };
   const rows2 = () => bannerRows();
@@ -7584,6 +7600,7 @@ function createFloatingPanel({
     thread: route.thread ? threadTitle(route.thread) : "",
     group: GROUPS[route.group]
   })[route.view];
+  const levelRow = (level) => level.view === "group" ? routeKey(level) : level.view;
   const pathTo = (route) => route.view === "thread" ? [{ view: "threads" }, route] : [route];
   function open(route, { replace = false, reopen = false, focus = true } = {}) {
     const before = trail.at(-1);
@@ -7643,10 +7660,42 @@ function createFloatingPanel({
   function setMenu(on) {
     if (menuOpen === on) return;
     menuOpen = on;
+    menuAt = null;
+    menuRoom = null;
     held = null;
     paint();
   }
+  function showMenuAt(level) {
+    const before = menuOpen ? menuAt : void 0;
+    if (before && level && routeKey(before) === routeKey(level)) return;
+    const outside = !standingIn(host);
+    if (renderedUnder(focused(), menu)) focusDestination(leaf, "return");
+    menuOpen = true;
+    menuAt = level;
+    menuRoom = null;
+    held = null;
+    paint();
+    if (level) {
+      menuRoom = menu.offsetHeight;
+      paint();
+    }
+    const page = menu.firstElementChild;
+    if (before !== void 0 && page && !reducedMotion()) {
+      const side = (level ? 1 : -1) * (getComputedStyle(menu).direction === "rtl" ? -1 : 1);
+      page.animate(
+        [
+          { translate: `${side * 16}px 0`, opacity: 0 },
+          { translate: "0 0", opacity: 1 }
+        ],
+        { duration: VIEW_RESIZE_MS, easing: EASE }
+      );
+    }
+    if (!keyed && !outside) return;
+    const target = level ? page?.querySelector(".lf-fp-item:not(.lf-fp-menu-back, :disabled)") : before && menu.querySelector(`[data-row="${levelRow(before)}"]`);
+    if (target) focusDestination(target, "move");
+  }
   let outline = null;
+  let viewMovingUntil = 0;
   const outlineClip = (box, grow = 0) => `inset(${box.top - grow}px ${box.right - grow}px ${box.bottom - grow}px ${box.left - grow}px round ${box.radius + grow}px)`;
   function followBox() {
     const room = ground.getBoundingClientRect();
@@ -7667,6 +7716,7 @@ function createFloatingPanel({
     ))
       return;
     outline = next;
+    const duration = performance.now() < viewMovingUntil ? VIEW_RESIZE_MS : RESIZE_MS;
     for (const [layer, grow] of [
       [ring, 1],
       [fill, 0]
@@ -7676,7 +7726,7 @@ function createFloatingPanel({
       keeps(layer, "style", `clip-path: ${outlineClip(next, grow)}`);
       if (!was || reducedMotion() || !pagePresented()) continue;
       layer.animate([{ clipPath: from }, { clipPath: outlineClip(next, grow) }], {
-        duration: RESIZE_MS,
+        duration,
         easing: EASE
       });
     }
@@ -7692,7 +7742,7 @@ function createFloatingPanel({
     };
     card.animate(
       [{ clipPath: outlineClip(within) }, { clipPath: `inset(0 round ${radius}px)` }],
-      { duration: RESIZE_MS, easing: EASE }
+      { duration, easing: EASE }
     );
   }
   const fit = sizeObserver(() => fitAnswer());
@@ -7830,6 +7880,7 @@ function createFloatingPanel({
     if (changed && before?.view === "thread")
       dismissReply(threadByKey(before.thread)?.key ?? before.thread);
     leaving = changed && before && after2 ? before : null;
+    if (changed) viewMovingUntil = performance.now() + OUT_MS + VIEW_RESIZE_MS;
     paint();
     const drawn2 = reading || before?.view === "queue" ? present({ release: reading }) : null;
     if (!changed || reducedMotion() || !pagePresented()) {
@@ -7917,7 +7968,7 @@ function createFloatingPanel({
       }));
       copy.addEventListener("wa-error", () => {
         copyRefused = true;
-        putAwayThen(() => open({ view: "group", group: "about" }));
+        showMenuAt({ view: "group", group: "about" });
       });
       copyItems.set(entry.key, copy);
     }
@@ -7947,11 +7998,9 @@ function createFloatingPanel({
       entry.label,
       rowEnd(entry),
       () => {
-        if (view) {
-          open({ view });
-          return;
-        }
-        putAwayThen(() => entry.press(heldStanding));
+        if (view === "versions") showMenuAt({ view });
+        else if (view) open({ view });
+        else putAwayThen(() => entry.press(heldStanding));
       },
       {
         urgent: Boolean(entry.urgent),
@@ -7963,6 +8012,24 @@ function createFloatingPanel({
     );
   }
   function menuTemplate() {
+    if (!menuAt)
+      return html`<div class="lf-fp-menu-page" role="none">${rootTemplate()}</div>`;
+    return html`<div class="lf-fp-menu-page" role="none">
+      <button
+        type="button"
+        role="menuitem"
+        class="lf-fp-item lf-fp-menu-back"
+        aria-label=${`Back to the page menu from ${titleOf2(menuAt)}`}
+        @click=${() => showMenuAt(null)}
+      >
+        <span class="lf-fp-label"
+          >${iconTemplate("next", "lf-fp-chevron")}<b>${titleOf2(menuAt)}</b></span
+        >
+      </button>
+      ${menuAt.view === "versions" ? versionsList() : groupList(menuAt.group)}
+    </div>`;
+  }
+  function rootTemplate() {
     const all = rows2();
     const lead = OWN_VIEWS;
     const page = all.filter((entry) => groupOf(entry) === "page" && listed(entry)).sort(
@@ -7994,8 +8061,8 @@ function createFloatingPanel({
         draw: (gone) => menuItem(
           GROUPS[group2],
           groupValue(group2) ? html`<span class="lf-fp-value">${groupValue(group2)}</span>` : nothing,
-          () => open({ view: "group", group: group2 }),
-          { opens: true, disabled: gone }
+          () => showMenuAt({ view: "group", group: group2 }),
+          { opens: true, disabled: gone, row: `group:${group2}` }
         )
       })),
       { key: "", draw: () => html`<hr />` },
@@ -8017,10 +8084,8 @@ function createFloatingPanel({
       ${seats2.map(({ key, draw }) => now.get(key)?.draw(false) ?? draw(true))}`;
   }
   const groupValue = (group2) => group2 === "annotate" ? rows2().find((entry) => entry.key === "command:annotations.toggle")?.label === "Show annotations" ? "Hidden" : "" : "";
-  function groupView(group2) {
-    return html`<div class="lf-fp-list">
-      ${rows2().filter((entry) => groupOf(entry) === group2 && listed(entry)).map((entry) => entry.copies ? copyRow(entry) : rowFor(entry))}
-    </div>`;
+  function groupList(group2) {
+    return rows2().filter((entry) => groupOf(entry) === group2 && listed(entry)).map((entry) => entry.copies ? copyRow(entry) : rowFor(entry));
   }
   const copies = /* @__PURE__ */ new Map();
   function copyFor(entry) {
@@ -8041,7 +8106,7 @@ function createFloatingPanel({
   }
   function copyRow(entry) {
     const field2 = `lf-fp-copy-${entry.key}`;
-    return html`<div class="lf-fp-copy">
+    return html`<div class="lf-fp-copy" role="none">
       <label class="lf-fp-copy-label" for=${field2}>${capital(entry.label)}</label>
       <textarea
         id=${field2}
@@ -8057,26 +8122,27 @@ function createFloatingPanel({
       ${entry.value ? html`<p class="lf-fp-copy-note">${entry.value}</p>` : nothing}
     </div>`;
   }
-  function versionsView() {
+  function versionsList() {
     const { rows: versions, picker, selection, latest } = versionsReading();
     const approval = approvalReading();
     const approved = approval?.approved;
-    return html`<div class="lf-fp-list">
-      ${latest.failed ? html`<div class="lf-fp-failed" role="status">
+    return html`
+      ${latest.failed ? html`<div class="lf-fp-failed" role="none">
               <b>${latest.label}</b>
               <p class="lf-fp-failed-error">${latest.error}</p>
             </div>` : nothing}
       ${repeat(
       versions,
       (entry) => `${entry.version === null ? "draft" : "version"}:${entry.revision}`,
-      (entry) => html`<div class="lf-fp-version" ?data-current=${entry.current}>
+      (entry) => html`<div class="lf-fp-version" role="none" ?data-current=${entry.current}>
             ${menuItem(
         html`${entry.name}${entry.note ? html`<span class="lf-fp-note">${entry.note}</span>` : nothing}`,
         entry.current ? html`<span class="lf-fp-value">Showing</span>` : nothing,
         () => putAwayThen(() => versionPicker.activate(entry)),
-        { role: null, title: entry.note }
+        { title: entry.note }
       )}${entry.comparable ? html`<button
                     type="button"
+                    role="menuitem"
                     class="lf-fp-quiet lf-fp-compare"
                     aria-pressed=${String(
         selection.on && selection.base === entry.version
@@ -8088,30 +8154,31 @@ function createFloatingPanel({
                   </button>` : nothing}
           </div>`
     )}
-      ${versions.length ? nothing : html`<p class="lf-fp-empty">Showing ${picker.token}</p>`}
+      ${versions.length ? nothing : html`<p class="lf-fp-empty" role="none">Showing ${picker.token}</p>`}
       ${approval ? html`<hr />
-              <div class="lf-fp-approval" title=${approval.reason ?? nothing}>
+              <div
+                class="lf-fp-approval"
+                role="none"
+                title=${approval.reason ?? nothing}
+              >
                 ${menuItem(
       approval.text,
       approval.reason ? html`<span class="lf-fp-value">${approval.reason}</span>` : nothing,
       () => approve(),
-      { disabled: Boolean(approval.reason) && !approved, role: null }
+      { disabled: Boolean(approval.reason) && !approved }
     )}
               </div>` : nothing}
-    </div>`;
+    `;
   }
   function shownThreads() {
     const words = query.trim().toLowerCase();
     return threads().filter((thread) => {
       if (words) {
-        const text = [
-          threadSummary(thread).topic,
-          ...thread.msgs.map((m) => m.text ?? "")
-        ].join(" ").toLowerCase();
+        const text = [threadName(thread), ...thread.msgs.map((m) => m.text ?? "")].join(" ").toLowerCase();
         return text.includes(words);
       }
       if (filter === "unread") return unread(thread);
-      if (filter === "drafts") return draftHasContent(`reply:${thread.key}`);
+      if (filter === "drafts") return draftHasContent(replyContext(thread.key));
       if (filter === "resolved") return thread.resolved;
       return !thread.resolved;
     });
@@ -8137,7 +8204,7 @@ function createFloatingPanel({
                   @click=${() => open({ view: "thread", thread: thread.key })}
                 >
                   <span class="lf-fp-news-mark" aria-hidden="true"></span>
-                  <span class="lf-fp-label">${threadSummary(thread).topic}</span>
+                  <span class="lf-fp-label">${threadName(thread)}</span>
                   <span class="lf-fp-value"
                     >${threadStatus(thread, query.trim() ? null : filter)}</span
                   >
@@ -8149,9 +8216,7 @@ function createFloatingPanel({
   const shownView = () => stage.querySelector(".lf-fp-view:not([data-leaving])");
   const LIST_ROWS = Object.freeze({
     threads: ".lf-fp-thread",
-    queue: ".lf-fp-on-item",
-    versions: ".lf-fp-item:not(:disabled), .lf-fp-compare",
-    group: ".lf-fp-item:not(:disabled)"
+    queue: ".lf-fp-on-item"
   });
   const listRows = () => {
     const rows3 = LIST_ROWS[trail.at(-1)?.view];
@@ -8194,7 +8259,7 @@ function createFloatingPanel({
   const openIn = (view) => {
     const top = trail.at(-1);
     const thread = top?.view === "thread" ? threadByKey(top.thread) : null;
-    return thread && !view.hasAttribute("data-leaving") && view.dataset.thread === thread.id ? thread : null;
+    return thread && !view.hasAttribute("data-leaving") && drawnThreadId(view) === thread.id ? thread : null;
   };
   const viewParts = Object.freeze({
     reply: (view) => {
@@ -8257,7 +8322,7 @@ function createFloatingPanel({
     const thread = item.thread ? threadByKey(item.thread) : null;
     const asking = ask?.source.kind === "reply" && thread ? thread.msgs.find((candidate) => candidate.id === ask.message) : null;
     const message = asking && presentation?.primary !== false ? asking : null;
-    const title = message ? thread.title ?? (thread.root.id === message.id ? "" : threadSummary(thread).topic) : asking ? threadSummary(thread).topic : queueTitle(item);
+    const title = message ? thread.title ?? (thread.root.id === message.id ? "" : threadName(thread)) : asking ? threadName(thread) : queueTitle(item);
     const said = message ? "" : asking ? messageReading(asking, { panel: false, reactions: [], workflows: [] }).body.plainText : ask?.prompt?.text;
     const prompt = said && said.trim() !== title.trim() ? said : "";
     const answered = ask && ask.status !== "open";
@@ -8397,10 +8462,6 @@ function createFloatingPanel({
         return threadView(route.thread);
       case "queue":
         return onView();
-      case "versions":
-        return versionsView();
-      case "group":
-        return groupView(route.group);
     }
     return nothing;
   }
@@ -8433,7 +8494,8 @@ function createFloatingPanel({
           query = "";
           paint();
         },
-        (name2) => name2 === "unread" ? news : null
+        // Open counts what the thread mark counts, so the mark's number is found here.
+        (name2) => name2 === "unread" ? news : name2 === "open" ? openCount() : null
       )}<button
           type="button"
           class="lf-fp-icon-btn"
@@ -8532,6 +8594,8 @@ function createFloatingPanel({
     prefs().set("rest", rest);
     trail = [];
     menuOpen = false;
+    menuAt = null;
+    menuRoom = null;
     held = null;
     transition2(before, { focus: false });
     if (inside) focusDestination(leaf, "return");
@@ -8605,6 +8669,9 @@ function createFloatingPanel({
     keeps(badge, "data-shown", onUser ? "" : null);
     keeps(newsDot, "data-shown", news ? "" : null);
     render(menuOpen ? menuTemplate() : nothing, menu);
+    keeps(menu, "data-level", menuOpen && menuAt ? menuAt.view : null);
+    keeps(menu, "style", menuOpen && menuRoom ? `height: ${menuRoom}px` : null);
+    keeps(menu, "role", menu.querySelector("textarea") ? "dialog" : "menu");
     if (menuOpen) {
       const rows3 = menuRows();
       rove(rows3, rows3.includes(focused()) ? focused() : rows3[0]);
@@ -8753,7 +8820,7 @@ function createFloatingPanel({
       press: {
         label: "Why",
         title: latest.error,
-        run: () => open({ view: "versions" }, { reopen: true })
+        run: () => showMenuAt({ view: "versions" })
       }
     };
   }
@@ -8860,6 +8927,13 @@ function createFloatingPanel({
           paint();
         }
       };
+    if (menuOpen && menuAt)
+      return {
+        root: host,
+        title: "back to menu",
+        description: "Go back from the list to the page menu",
+        out: () => showMenuAt(null)
+      };
     if (menuOpen)
       return {
         root: host,
@@ -8908,6 +8982,28 @@ function createFloatingPanel({
         position: () => null,
         landed: (row2) => rove(listRows(), row2)
       }).map((row2) => ({ ...row2, when: () => !menuOpen && inList() })),
+      // → goes into the list a row opens, as its chevron points, and ← back to the menu.
+      {
+        id: "panel.floating.menu.level",
+        keys: ["ArrowLeft", "ArrowRight"],
+        routes: [
+          { id: "panel.floating.menu.level-left", binding: "ArrowLeft", title: "left" },
+          {
+            id: "panel.floating.menu.level-right",
+            binding: "ArrowRight",
+            title: "right"
+          }
+        ],
+        description: "Open the list a row of the page menu leads to, or go back to the menu",
+        title: "open or leave a list",
+        when: () => menuOpen && renderedUnder(focused(), menu),
+        run: (binding) => {
+          const [backward] = rowArrows(menu);
+          if (binding === backward) {
+            if (menuAt) showMenuAt(null);
+          } else if (focused()?.hasAttribute("data-opens")) focused().click();
+        }
+      },
       // Tab leaves the menu as it leaves a menu button's menu: the menu goes, and the
       // browser moves the user on from the leaf that opened it, either way.
       ["Tab", "Shift+Tab"].map((key) => ({
@@ -8988,7 +9084,7 @@ function createFloatingPanel({
   versionMenu.addEventListener("beforetoggle", (event) => {
     if (event.newState !== "open") return;
     event.preventDefault();
-    open({ view: "versions" }, { reopen: true });
+    showMenuAt({ view: "versions" });
   });
   const pageComment2 = Object.freeze({
     get box() {
@@ -10646,7 +10742,7 @@ function createQueueWalk({
     if (focused(document) === approvalTarget())
       return list.find((stop) => stop.kind === "approval") ?? null;
     const held = threadHere();
-    const thread = held?.dataset.id ?? held?.dataset.thread;
+    const thread = drawnThreadId(held);
     if (thread) {
       const stop = list.find(
         (candidate) => candidate.kind === "thread" && candidate.id === thread
@@ -10892,7 +10988,7 @@ function createQueuePanel({
   const wherePart = (text, feedback = null) => ({ text, feedback });
   function when(item, thread) {
     if (itemNoun(item) === "ask")
-      return [wherePart(thread && shortAgo(threadSummary(thread).latest))];
+      return [wherePart(thread && shortAgo(lastMovedAt(thread)))];
     const feedback = item.workflow?.detail && item.workflow.input ? {
       input_id: item.workflow.input,
       reply_id: null,
@@ -12876,7 +12972,7 @@ var threadWalk = (panelIsOpen2, { threadsBox: threadsBox2, openThreadsInPageOrde
 };
 var currentThread = (threads, threadHere) => {
   const held = threadHere();
-  const id = held?.dataset.id ?? held?.dataset.thread;
+  const id = drawnThreadId(held);
   return threads.find((thread) => thread.dataset.id === id);
 };
 var threadPosition = (threadHere, panelIsOpen2, narrowing2, list) => {
@@ -13343,7 +13439,6 @@ var focusForNavigation = (node, cause, options) => app?.overlay?.focusForNavigat
 var anchorTravel = createAnchorTravel({
   anchors: anchorPlacement,
   surfaces: auxiliarySurfaces,
-  currentThreads: allThreads,
   refreshThread: () => app.refreshThread(),
   focusForNavigation,
   threadFocusTarget: (id, options) => app.threadDestinations.threadFocusTarget(id, options),

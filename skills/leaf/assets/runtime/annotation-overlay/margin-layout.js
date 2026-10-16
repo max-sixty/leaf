@@ -95,6 +95,7 @@ import { LAYOUT } from "../widget-elements.js";
 import { inChrome } from "../passages.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import {
+  anchorFor,
   anchorElement,
   anchorReading,
   carriedAnchor,
@@ -747,9 +748,9 @@ function standFolded(row, fold, on) {
 
 // The seats by one subject, in the order a pin takes them, `size` wide and as tall as
 // `home`, the pin's seat inside the subject's top-right corner; `parts` are the
-// subject's boxes, and `inline` whether it is a run of words, which adds the seat after
-// its last word.
-function seatsBy(parts, home, inline, cover, size) {
+// subject's boxes, `inline` whether it is a run of words, which adds the seat after
+// its last word, and `passage` whether the above seat hangs off quoted words.
+function seatsBy(parts, home, inline, passage, cover, size) {
   const height = home.bottom - home.top;
   const box = union(parts) ?? home;
   const end = parts.at(-1);
@@ -782,11 +783,11 @@ function seatsBy(parts, home, inline, cover, size) {
         ]
       : []),
     { ...home, left: home.right - size },
-    // Above the corner: a block's inside it, a run of words' hanging off it, so the
-    // pin's pointed foot meets the words' top-right corner rather than their middle.
+    // Above the corner: a quoted passage hangs off its words so the pin's pointed
+    // foot meets them. Other inline targets keep the inset seat inside their corner.
     {
-      left: inline ? box.right : home.right - size,
-      right: inline ? box.right + size : home.right,
+      left: passage ? box.right : home.right - size,
+      right: passage ? box.right + size : home.right,
       top: box.top - GAP - height,
       bottom: box.top - GAP,
     },
@@ -898,9 +899,9 @@ function pinSeating(rows, { bands, shell, pinInset }) {
       seat.top >= Math.min(...parts.map((part) => part.top)) - reach &&
       seat.bottom <= Math.max(...parts.map((part) => part.bottom)) + reach;
     const seatsAt = (size) => [
-      ...seatsBy(parts, home, inline, cover, size),
+      ...seatsBy(parts, home, inline, Boolean(words), cover, size),
       ...(block
-        ? seatsBy(block.parts, block.home, false, cover, size).filter(near)
+        ? seatsBy(block.parts, block.home, false, false, cover, size).filter(near)
         : []),
     ];
     /** @type {{left?: number, right?: number, top: number, bottom?: number}} */
@@ -1184,10 +1185,13 @@ export function layoutMarginRows() {
     // otherwise level with the target's top.
     const point = options.point?.() ?? null;
     const words = quotedBoxes(options);
+    const passageNode = words.length
+      ? targetSegments(options.passage?.())[0]?.node
+      : null;
     observeGeometry(point ?? target);
     present.push({
       row,
-      at: point ?? targetSegments(options.passage?.())[0]?.node ?? target,
+      at: point ?? passageNode ?? target,
     });
     const scroller = scrollerFor(target);
     const rootLane = scroller === pageScroller;
@@ -1220,6 +1224,7 @@ export function layoutMarginRows() {
       target,
       point,
       words: words.length ? words : null,
+      passageNode,
       block,
       anchor,
       whole,
@@ -1329,7 +1334,9 @@ export function layoutMarginRows() {
   for (const read of reads) {
     if (!read.target) continue;
     const subject = read.point ?? read.target;
-    read.carrier = carrierAnchor(subject, scrollSources(subject), read.scroller);
+    read.carrier =
+      (read.passageNode && anchorFor(read.passageNode)) ??
+      carrierAnchor(subject, scrollSources(subject), read.scroller);
     // The headers over the target cut its row, in frames the document's own scroll
     // does not carry, so a row they cut stands in a carrier the document's scroll does.
     read.cuts = headerLevels(subject, cutClips);

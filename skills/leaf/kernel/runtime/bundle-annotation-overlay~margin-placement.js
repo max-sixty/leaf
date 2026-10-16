@@ -619,7 +619,7 @@ function standFolded(row, fold, on) {
   else folded.delete(row);
   fold?.changed();
 }
-function seatsBy(parts, home, inline, cover, size) {
+function seatsBy(parts, home, inline, passage, cover, size) {
   const height = home.bottom - home.top;
   const box = union(parts) ?? home;
   const end = parts.at(-1);
@@ -646,11 +646,11 @@ function seatsBy(parts, home, inline, cover, size) {
       }
     ] : [],
     { ...home, left: home.right - size },
-    // Above the corner: a block's inside it, a run of words' hanging off it, so the
-    // pin's pointed foot meets the words' top-right corner rather than their middle.
+    // Above the corner: a quoted passage hangs off its words so the pin's pointed
+    // foot meets them. Other inline targets keep the inset seat inside their corner.
     {
-      left: inline ? box.right : home.right - size,
-      right: inline ? box.right + size : home.right,
+      left: passage ? box.right : home.right - size,
+      right: passage ? box.right + size : home.right,
       top: box.top - GAP - height,
       bottom: box.top - GAP
     },
@@ -709,8 +709,8 @@ function pinSeating(rows2, { bands, shell, pinInset }) {
     const reach2 = (stop === pageScroller ? innerHeight : stop.clientHeight) / 2;
     const near = (seat) => seat.top >= Math.min(...parts.map((part) => part.top)) - reach2 && seat.bottom <= Math.max(...parts.map((part) => part.bottom)) + reach2;
     const seatsAt = (size) => [
-      ...seatsBy(parts, home, inline, cover, size),
-      ...block ? seatsBy(block.parts, block.home, false, cover, size).filter(near) : []
+      ...seatsBy(parts, home, inline, Boolean(words), cover, size),
+      ...block ? seatsBy(block.parts, block.home, false, false, cover, size).filter(near) : []
     ];
     const within = stop === pageScroller ? rootBounds : contentBox(stop);
     const clipped = clippedBand(target, EVERYWHERE, bands, stop);
@@ -905,10 +905,11 @@ function layoutMarginRows() {
     anchors.set(row, anchor);
     const point = options.point?.() ?? null;
     const words = quotedBoxes(options);
+    const passageNode = words.length ? targetSegments(options.passage?.())[0]?.node : null;
     observeGeometry(point ?? target);
     present.push({
       row,
-      at: point ?? targetSegments(options.passage?.())[0]?.node ?? target
+      at: point ?? passageNode ?? target
     });
     const scroller = scrollerFor(target);
     const rootLane = scroller === pageScroller;
@@ -936,6 +937,7 @@ function layoutMarginRows() {
       target,
       point,
       words: words.length ? words : null,
+      passageNode,
       block,
       anchor,
       whole,
@@ -1012,7 +1014,7 @@ function layoutMarginRows() {
   for (const read of reads) {
     if (!read.target) continue;
     const subject = read.point ?? read.target;
-    read.carrier = carrierAnchor(subject, scrollSources(subject), read.scroller);
+    read.carrier = (read.passageNode && anchorFor(read.passageNode)) ?? carrierAnchor(subject, scrollSources(subject), read.scroller);
     read.cuts = headerLevels(subject, cutClips);
     read.cutKey = read.cuts.map(
       ({ anchor, band, at }) => anchor ? `${idOf(anchor)}:${band.top - at.top}:${band.bottom - at.top}` : `window:${band.top}:${band.bottom}`

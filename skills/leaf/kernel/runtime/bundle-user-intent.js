@@ -8340,6 +8340,7 @@ export {
   holdThreadPlace,
   readingIsContinuous,
   readingReturn,
+  onReadingInterrupted,
   completeReadingReturn,
   gesturedOn,
   newsNotice,

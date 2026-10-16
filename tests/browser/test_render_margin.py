@@ -8872,11 +8872,15 @@ def test_a_card_a_panes_edge_holds_stays_put_as_the_pane_scrolls(browser, serve)
     writes = scroll_writes(
         page, (5, 5, -5, 5), scroller="document.getElementById('pane-body')"
     )
-    assert [w for w in writes if "lf-margin-preview" in w["target"]] == [], writes
+    assert not [
+        w for w in writes if any("lf-margin-preview" in step for step in w["target"])
+    ], writes
     assert page.evaluate(reading)["card"] == pytest.approx(before["card"], abs=0.5)
     before = page.evaluate(reading)
     writes = scroll_writes(page, (5, 5, -5, 5))
-    assert [w for w in writes if "lf-margin-preview" in w["target"]] == [], writes
+    assert not [
+        w for w in writes if any("lf-margin-preview" in step for step in w["target"])
+    ], writes
     expect(card).to_have_attribute("data-lf-thread-placement", "below")
     after = page.evaluate(reading)
     assert after["card"] - after["foot"] == pytest.approx(
@@ -8939,7 +8943,9 @@ def test_a_card_an_outer_panes_edge_holds_stands_in_that_panes_plane(browser, se
     writes = scroll_writes(
         page, (5, 5, -5, 5), scroller="document.getElementById('pane-body')"
     )
-    assert [w for w in writes if "lf-margin-preview" in w["target"]] == [], writes
+    assert not [
+        w for w in writes if any("lf-margin-preview" in step for step in w["target"])
+    ], writes
     assert page.evaluate(reading)["card"] == pytest.approx(before["card"], abs=0.5)
 
 
@@ -8984,7 +8990,10 @@ def test_the_paint_over_a_target_in_panes_rides_each_panes_scroll(browser, serve
         painted = [
             w
             for w in writes
-            if re.search(r"lf-(target-trace|visual-mark|paint)", w["target"])
+            if any(
+                re.search(r"lf-(target-trace|visual-mark|paint)", step)
+                for step in w["target"]
+            )
         ]
         assert painted == [], (scroller, painted)
         assert page.evaluate(offsets) == pytest.approx(at, abs=0.5), scroller
@@ -11086,6 +11095,101 @@ def test_each_pin_case_seats_its_pins_by_their_targets_clear_of_what_they_hide(
         for case in pin_cases.CASES
     }
     assert not {name: faults for name, faults in found.items() if faults}
+    context.close()
+
+
+def test_a_quoted_passage_stands_its_own_rail_row_level_with_its_words(browser, serve):
+    """Comments quoting words deep in a long paragraph stand a margin row of their own,
+    level with the passage's first line rather than at the paragraph's top, where the
+    paragraph's own comment stands; comments quoting the same words share it."""
+    text = " ".join(
+        f"Sentence number {i} says something about the release." for i in range(40)
+    )
+    body = f'<h1>Passage rows</h1><p id="long">{text} Finally the last words land.</p>'
+    events = [
+        {"kind": "comment", "author": "user", "revision": 1, "text": says, "anchor": a}
+        for says, a in (
+            ("On the paragraph", {"section": "long"}),
+            ("On its end", {"section": "long", "quote": "the last words land"}),
+            ("On its end again", {"section": "long", "quote": "the last words land"}),
+        )
+    ]
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    page = open_page(
+        browser, serve(leaf_page("Passage rows", body), events=events), context=context
+    )
+    margins_laid_out(page)
+    read = page.evaluate("""() => {
+      const p = document.getElementById('long');
+      const node = p.firstChild;
+      const at = node.data.indexOf('the last words land');
+      const words = document.createRange();
+      words.setStart(node, at);
+      words.setEnd(node, at + 'the last words land'.length);
+      return {
+        paragraph: p.getBoundingClientRect().top,
+        line: words.getClientRects()[0].top,
+        rows: [...document.querySelectorAll('[data-lf-margin-for="long"]')]
+          .map((row) => ({
+            place: row.dataset.lfPlace,
+            top: row.getBoundingClientRect().top,
+            says: row.lfEntry.items.map((item) => item.text),
+          }))
+          .sort((a, b) => a.top - b.top),
+      };
+    }""")
+    assert [row["says"] for row in read["rows"]] == [
+        ["On the paragraph"],
+        ["On its end", "On its end again"],
+    ], read
+    whole, passage = read["rows"]
+    assert whole["place"] == passage["place"] == "rail", read
+    assert abs(whole["top"] - read["paragraph"]) < 1, read
+    assert abs(passage["top"] - read["line"]) < 1, read
+    context.close()
+
+
+@pytest.mark.parametrize(
+    "pane",
+    ['style="height:160px;overflow:auto"', 'data-bound="start" style="height:160px"'],
+    ids=["box", "reading-region"],
+)
+def test_a_quoted_passage_scrolled_out_of_its_pane_withholds_its_row(
+    browser, serve, pane
+):
+    """A passage's row is about its words, so where a pane shows its paragraph but has
+    scrolled the quoted words out of view, the row is withheld rather than standing
+    beside other words, and it comes back when the pane brings the words in."""
+    text = " ".join(
+        f"Sentence number {i} says something about the release." for i in range(40)
+    )
+    body = (
+        f'<h1>Pane</h1><div id="pane" {pane}>'
+        f'<p id="long">{text} Finally the last words land.</p></div>'
+    )
+    events = [
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "On its end",
+            "anchor": {"section": "long", "quote": "the last words land"},
+        }
+    ]
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    page = open_page(
+        browser, serve(leaf_page("Pane", body), events=events), context=context
+    )
+    margins_laid_out(page)
+    row = page.locator('[data-lf-margin-for="long"]')
+    expect(row).to_have_class(re.compile(r"\blf-withheld\b"))
+    page.locator("#pane").evaluate("pane => { pane.scrollTop = pane.scrollHeight; }")
+    margins_laid_out(page)
+    expect(row).not_to_have_class(re.compile(r"\blf-withheld\b"))
+    # Scrolling alone, with no layout announced, takes the words away again, within a
+    # frame or two rather than at some later pass.
+    page.locator("#pane").evaluate("pane => { pane.scrollTop = 0; }")
+    expect(row).to_have_class(re.compile(r"\blf-withheld\b"), timeout=2000)
     context.close()
 
 

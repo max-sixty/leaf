@@ -13,8 +13,9 @@
    (a diff's line, a paragraph in a section, a table's row), decided by how it lays out.
    Words, a link or code inline in the target's own lines have none, nor does a drawing's
    shape, nor the target's first line, where the target's own margin row already stands,
-   nor a press on the target's own box or a gesture with no pointer (`c`, a selection):
-   those stand at the target's top. Which line a point is comes from the document, and
+   nor a press on the target's own box or a gesture with no pointer (`c`): those stand
+   at the target's top. A selection points at the words it quotes, which stand a row of
+   their own (annotation-inventory.js, `groupFor`). Which line a point is comes from the document, and
    only its box is read afresh at every placement, so a reflow carries the place with the
    row and never moves a comment from one margin row to another.
 

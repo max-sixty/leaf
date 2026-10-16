@@ -259,6 +259,7 @@ import {
   pageDocument,
   pageParts,
   pageReadingVersion,
+  quoteFrom,
   rangeOf,
   readingFrom,
   selectEnds,
@@ -4052,6 +4053,8 @@ function createAnnotationInventory({
     }
     return `${prefix}${from}${steps.reverse().join("/")}`;
   }
+  const standsBy = (group) => group.point ?? targetSegments(group.passage)[0]?.node ?? group.target;
+  const startsAt = (group) => targetSegments(group.passage)[0]?.start ?? -1;
   function comesBefore(left, right) {
     if (left === right) return 0;
     if (!left) return 1;
@@ -4064,6 +4067,8 @@ function createAnnotationInventory({
   const points = /* @__PURE__ */ new Map();
   const entryPoint = (entry) => entry ? livePoint(targetFor(entry), points.get(entry.key)) : null;
   const entryPlace = (entry) => entryPoint(entry) ?? targetFor(entry);
+  const passages = /* @__PURE__ */ new Map();
+  const entryPassage = (entry) => entry ? passages.get(entry.key) ?? null : null;
   const pointName = (words2) => {
     const excerpt = words2 && excerptWords(words2, 32);
     return excerpt ? `\u201C${excerpt}\u201D` : null;
@@ -4088,15 +4093,16 @@ function createAnnotationInventory({
     );
   };
   function groupFor(groups, target, pointed = null) {
-    const slot = pointed ? `point:${pointed.key}` : target;
+    const key = pointed ? `${targetPath(target)}@${pointed.key}` : targetPath(target);
+    const slot = pointed ? `point:${key}` : target;
     let group = groups.get(slot);
     if (!group) {
-      const key = pointed ? `${targetPath(target)}@${pointed.key}` : targetPath(target);
       const word = addressableWord(target);
       group = {
         key,
         target,
         point: pointed?.element ?? null,
+        passage: pointed?.passage ?? null,
         pointWords: pointed?.words ?? null,
         word,
         subject: null,
@@ -4107,6 +4113,14 @@ function createAnnotationInventory({
       groups.set(slot, group);
     }
     return group;
+  }
+  function passageRow(target, passage) {
+    const segments = targetSegments(passage);
+    const page = textNodesUnder(target);
+    const at = page.findIndex(({ node }) => node === segments[0].node);
+    const before = at < 0 ? page : [...page.slice(0, at), { ...page[at], end: segments[0].start }];
+    const words2 = quoteFrom(segments);
+    return JSON.stringify([words2, quoteFrom(before).split(words2).length - 1]);
   }
   function add(groups, target, item, pointed = null) {
     if (!target?.isConnected || inChrome(target)) return;
@@ -4168,7 +4182,11 @@ function createAnnotationInventory({
       const target = placedAt(id)?.place;
       const placement = placedAt(id);
       const point = livePoint(target, placement?.point);
-      const pointed = point ? { key: placement.pointRow, element: point, words: placement.pointWords } : null;
+      const pointed = point ? { key: placement.pointRow, element: point, words: placement.pointWords } : targetSegments(placement).length ? {
+        key: passageRow(target, placement),
+        passage: placement,
+        words: thread.anchor.quote
+      } : null;
       add(
         groups,
         target,
@@ -4347,13 +4365,15 @@ function createAnnotationInventory({
     const subjects = collected.filter((group) => !group.subject).map((group) => group.target);
     targets.clear();
     points.clear();
+    passages.clear();
     entries = marginInventory(
       collected.sort(
-        (left, right) => comesBefore(left.point ?? left.target, right.point ?? right.target)
+        (left, right) => comesBefore(standsBy(left), standsBy(right)) || startsAt(left) - startsAt(right)
       ).map((group) => {
         const subject = outlineSubjectFor(group.target, subjects, outline);
         targets.set(group.key, group.target);
         if (group.point) points.set(group.key, group.point);
+        if (group.passage) passages.set(group.key, group.passage);
         return Object.freeze({
           key: group.key,
           targetId: group.target.id,
@@ -4397,6 +4417,7 @@ function createAnnotationInventory({
     targetFor,
     entryPoint,
     entryPlace,
+    entryPassage,
     sourceItem,
     workflowReceipt,
     targetPath,

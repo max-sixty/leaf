@@ -155,6 +155,7 @@ import {
   messageReading,
   mirrorDraft,
   mountHistory,
+  onReadingInterrupted,
   overflowMenu,
   pageCommand,
   pageRung,
@@ -7403,6 +7404,7 @@ function createFloatingPanel({
   peek.id = "lf-fp-peek";
   peek.setAttribute("role", "tooltip");
   let peekAsked = false;
+  let peekReading = null;
   let overView = false;
   inner.append(opened, context, row);
   card.append(inner);
@@ -8925,14 +8927,12 @@ function createFloatingPanel({
     const notice2 = noticeReading();
     const telling = notice2.visible && (folded || overView && !menuOpen);
     const reading = status();
-    render(
-      telling ? notice2.message : statusParts(
-        reading.explanationParts ?? [
-          { text: reading.explanation || reading.summary }
-        ]
-      ),
-      peek
-    );
+    const parts = reading.explanationParts ?? [
+      { text: reading.explanation || reading.summary }
+    ];
+    if (!folded || !peekAsked || !readingIsContinuous()) peekReading = null;
+    if (folded && peekAsked && !telling && pagePresented()) peekReading ??= parts;
+    render(telling ? notice2.message : statusParts(peekReading ?? parts), peek);
     keeps(peek, "data-shown", telling || folded && peekAsked ? "" : null);
   }
   const showPeek = (on) => {
@@ -9164,6 +9164,10 @@ function createFloatingPanel({
     watchBannerRows(() => paint());
     versionPicker.watch(() => paint());
     document.addEventListener("lf-chrome-preference", () => paint());
+    onReadingInterrupted(() => {
+      peekReading = null;
+      paintPeek();
+    });
     watching = watchProjection(host, paintPanel);
     paint();
   }

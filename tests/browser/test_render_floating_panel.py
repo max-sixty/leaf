@@ -2792,8 +2792,9 @@ def test_send_stands_in_the_counts_place_while_the_user_types(browser, serve):
 
 def test_writing_reaches_the_field_however_the_panel_stands(browser, serve):
     """Asking to write reaches the panel's field from any state it stands in: `c`
-    unfolds a panel folded to the leaf, and Resume writing comes back to a reply left
-    unsent in a thread the user has since closed, in the same field."""
+    unfolds a panel folded to the leaf and rings the field as an anchored comment box is
+    ringed, so the move shows, and Resume writing comes back to a reply left unsent in a
+    thread the user has since closed, in the same field."""
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Is the window long enough?")
     page = floating(browser, url)
@@ -2805,6 +2806,10 @@ def test_writing_reaches_the_field_however_the_panel_stands(browser, serve):
     page.keyboard.press("c")
     expect(panel).to_have_attribute("data-rest", "row")
     expect(field(page)).to_be_focused()
+    ring = page.locator(".lf-fp-field .lf-compose-field").evaluate(
+        "box => [getComputedStyle(box).outlineStyle, getComputedStyle(box).outlineWidth]"
+    )
+    assert ring == ["solid", "2px"], f"the field holding the caret wears {ring}"
     page.keyboard.press("Escape")
 
     page.locator("body").focus()

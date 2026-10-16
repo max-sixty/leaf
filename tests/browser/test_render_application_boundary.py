@@ -131,6 +131,7 @@ THREAD_FILTER_DECLARATION = {
     "x-example": '<lf-thread-filter id="example"></lf-thread-filter>',
 }
 
+
 def test_browser_interactions_are_recorded_beside_server_requests(browser, serve):
     """A user gesture remains visible even when it changes no semantic page state."""
     url = serve(

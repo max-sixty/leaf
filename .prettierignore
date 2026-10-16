@@ -4,8 +4,6 @@ skills/leaf/assets/vendor/
 skills/leaf/kernel/
 skills/leaf/packages/**/vendor/
 examples/corpus.*
-# Media publication writes the asset pin with its own serialization.
-leaf-assets.json
 # Package locks, Tend workflows, and recorded test output keep their producers' bytes.
 **/pnpm-lock.yaml
 .github/workflows/tend-*.yaml

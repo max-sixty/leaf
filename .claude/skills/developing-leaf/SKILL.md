@@ -127,7 +127,9 @@ To compare against an existing interface, cover the controls and states the name
 property affects, with this checkout's rendered interface as the baseline and
 candidates that differ from it only in the requested change. Build runtime candidates
 in the runtime and theme that own the surface; a separate sketch follows "Decision
-fidelity" in the playground author instructions. Drive the baseline and every candidate
+fidelity" in the playground author instructions, copying Leaf's mark from
+`skills/leaf/assets/icon.svg` as inline SVG and each icon's path from
+`skills/leaf/assets/runtime/icons.js`. Drive the baseline and every candidate
 through the same journey before handoff. For a live Leaf interface, embed each as an
 `lf-sample window` child (`skills/leaf/references/live-samples.md`) and start their
 histories with `data-sample-events`.

@@ -664,18 +664,18 @@ def test_copy_link_is_one_press_in_the_leaf_s_menu(browser, serve):
 
 def test_a_refused_copy_leaves_the_link_to_select_in_about(browser, serve):
     """A clipboard that refuses the write leaves the user the link all the same: the
-    press opens About on the link, in a field they can select, and the field says the
-    link was not copied."""
+    press turns the menu to About on the link, in a field they can select, and the field
+    says the link was not copied."""
     refuses = (
         "Clipboard.prototype.writeText = () => Promise.reject(new Error('refused'));"
     )
     page = open_page(browser, serve(LONG_PAGE), init_script=f"{FLOATING}\n{refuses}")
     page.locator(".lf-fp-leaf").click()
     page.locator(".lf-fp-menu").get_by_role("menuitem", name="Copy link").click()
-    about = page.locator(".lf-fp-view[data-view=group]")
+    about = page.locator(".lf-fp-menu[data-level=group]")
     link = about.get_by_label("Link", exact=True)
     expect(link).to_have_value(re.compile(r"^http://.*[?&]t="))
-    expect(page.locator(".lf-fp-head")).to_contain_text("About this page")
+    expect(about.locator(".lf-fp-menu-back")).to_contain_text("About this page")
     expect(field(page)).to_have_attribute("placeholder", re.compile("^Link not copied"))
 
 
@@ -1748,17 +1748,17 @@ def test_asks_are_answered_where_they_are_read_on_me(browser, serve):
 
 
 def test_versions_travel_and_approval_open_in_the_panel(browser, serve):
-    """Version travel opens the panel's Versions, whatever route asks for the versions
-    menu: the leaf's menu, whose row names the key as keys, apart from its value, and
-    that key. It lists each version with its note,
-    marks the one shown, travels to another, and holds the page's approval, which
-    records the sign-off."""
+    """Version travel turns the leaf's menu to Versions, whatever route asks for the
+    versions menu: the menu's row, which names the key as keys, apart from its value,
+    and that key, which stands the user on the first version. It lists each version
+    with its note, marks the one shown, travels to another, and holds the page's
+    approval, which records the sign-off."""
     url = serve(SIGN_OFF)
     stamp_page(
         serve.page_dir, SIGN_OFF.replace("Paragraph 0.", "Paragraph zero."), "two"
     )
     page = floating(browser, url)
-    view = page.locator(".lf-fp-view[data-view=versions]")
+    view = page.locator(".lf-fp-menu[data-level=versions]")
     page.locator(".lf-fp-leaf").click()
     row = page.locator(".lf-fp-menu .lf-fp-item", has_text="Versions")
     expect(row.locator(".lf-fp-value")).to_have_text(re.compile(r"^v\d+$"))
@@ -1781,14 +1781,12 @@ def test_versions_travel_and_approval_open_in_the_panel(browser, serve):
     expect(view.locator(".lf-fp-version .lf-fp-item").first).to_have_attribute(
         "title", "two"
     )
-    # The list is one stop for Tab, which the arrows walk through each version and its
-    # Compare to the approval.
-    stops = view.locator(".lf-fp-item:not(:disabled), .lf-fp-compare")
-    view.focus()
-    page.keyboard.press("ArrowDown")
-    expect(stops.first).to_be_focused()
-    page.keyboard.press("ArrowDown")
+    # The list is one stop for Tab, which the arrows walk from its way back through
+    # each version and its Compare to the approval.
+    stops = view.locator("button:not(:disabled)")
     expect(stops.nth(1)).to_be_focused()
+    page.keyboard.press("ArrowDown")
+    expect(stops.nth(2)).to_be_focused()
     page.keyboard.press("End")
     expect(stops.last).to_be_focused()
     expect(view.locator("[tabindex='0']")).to_have_count(1)
@@ -1853,7 +1851,7 @@ def test_the_row_says_the_version_shown_is_approved(browser, serve):
     expect(notice).to_be_hidden()
     page.locator(".lf-fp-leaf").click()
     page.locator(".lf-fp-menu .lf-fp-item", has_text="Versions").click()
-    view = page.locator(".lf-fp-view[data-view=versions]")
+    view = page.locator(".lf-fp-menu[data-level=versions]")
     with sending(page, "the approval"):
         view.locator(".lf-fp-item", has_text="Approve version").click()
     expect(notice).to_have_text(re.compile(r"^\s*✓ v1 approved\s*$"))
@@ -1882,7 +1880,7 @@ def test_the_row_says_when_the_latest_save_failed_and_why(browser, serve):
         "data-tone", "danger"
     )
     notice.locator("button").click()
-    failed = page.locator(".lf-fp-view[data-view=versions] .lf-fp-failed")
+    failed = page.locator(".lf-fp-menu[data-level=versions] .lf-fp-failed")
     expect(failed).to_contain_text("Latest edit couldn't be shown")
     expect(failed.locator(".lf-fp-failed-error")).not_to_be_empty()
     (serve.page_dir / "index.html").write_text(LIVE_V2)
@@ -2032,9 +2030,43 @@ def test_the_leaf_s_menu_marks_what_opens_a_list_and_leaves_key_conveniences_out
         menu.locator(".lf-fp-item[data-opens]", has_text="Keyboard shortcuts")
     ).to_have_count(0)
     menu.locator(".lf-fp-item", has_text="Navigate").click()
-    listed = page.locator(".lf-fp-view[data-view=group] .lf-fp-label")
+    listed = page.locator(
+        ".lf-fp-menu[data-level=group] .lf-fp-item:not(.lf-fp-menu-back) .lf-fp-label"
+    )
     expect(listed.filter(has_text="Search page")).to_have_count(1)
     assert set(listed.all_inner_texts()) <= {"All pages", "Search page"}
+
+
+def test_a_list_the_menu_leads_to_takes_its_place_and_goes_back(browser, serve):
+    """A menu row that opens a list turns the menu to that list in the same box, under a
+    head naming it, with no view rising from the field; the head, ← and Escape go back
+    to the menu, standing a keyboard user on the row that led there, and → on that row
+    goes in again, onto the list's first row."""
+    page = floating(browser, serve(LONG_PAGE, comments=1))
+    menu = page.locator(".lf-fp-menu")
+    back = menu.locator(".lf-fp-menu-back")
+    annotations = menu.locator(".lf-fp-item[data-row='group:annotate']")
+    page.locator(".lf-fp-leaf").click()
+    annotations.click()
+    expect(back).to_have_text("Annotations")
+    expect(menu.locator(".lf-fp-item", has_text="Draw mode")).to_be_visible()
+    expect(page.locator(".lf-fp-view")).to_have_count(0)
+    back.click()
+    expect(back).to_have_count(0)
+    expect(annotations).to_be_visible()
+
+    annotations.focus()
+    page.keyboard.press("ArrowRight")
+    expect(back).to_have_text("Annotations")
+    expect(menu.locator(".lf-fp-item", has_text="Draw mode")).to_be_focused()
+    page.keyboard.press("ArrowLeft")
+    expect(annotations).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(back).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(annotations).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(menu).to_be_hidden()
 
 
 def test_all_pages_in_the_menu_counts_the_pages_it_lists(
@@ -2047,7 +2079,9 @@ def test_all_pages_in_the_menu_counts_the_pages_it_lists(
     page = floating(browser, serve(LONG_PAGE))
     page.locator(".lf-fp-leaf").click()
     page.locator(".lf-fp-menu .lf-fp-item", has_text="Navigate").click()
-    row = page.locator(".lf-fp-view[data-view=group] .lf-fp-item", has_text="All pages")
+    row = page.locator(
+        ".lf-fp-menu[data-level=group] .lf-fp-item", has_text="All pages"
+    )
     expect(row.locator(".lf-fp-value")).to_have_text("3")
     cleanup_model.write_json(
         closing_dir / "status.json",
@@ -2241,15 +2275,15 @@ def test_skip_to_leaf_controls_lands_in_the_panel(browser, serve):
 
 def test_a_menu_row_that_puts_the_menu_away_leaves_the_user_on_the_leaf(browser, serve):
     """A row's press takes its row away with the menu, so the user stands on the leaf
-    that opened it: a row in a view the menu opened returns there, and folding stands
-    on the folded leaf."""
+    that opened it: a row in a list the menu turned to does too, and folding stands on
+    the folded leaf."""
     page = floating(browser, serve(LONG_PAGE, comments=1))
     leaf = page.locator(".lf-fp-leaf")
     menu = page.locator(".lf-fp-menu")
     leaf.click()
     menu.locator(".lf-fp-item", has_text="Annotations").click()
-    page.locator(".lf-fp-view[data-view=group] .lf-fp-item").last.click()
-    expect(page.locator(".lf-fp-view")).to_have_count(0)
+    menu.locator(".lf-fp-item").last.click()
+    expect(menu).to_be_hidden()
     expect(leaf).to_be_focused()
 
     leaf.click()
@@ -2344,7 +2378,9 @@ def test_a_finger_finds_the_keyboard_s_conveniences_under_navigate(browser, serv
     assert page.evaluate("() => matchMedia('(pointer: coarse)').matches")
     page.locator(".lf-fp-leaf").click()
     page.locator(".lf-fp-menu .lf-fp-item", has_text="Navigate").click()
-    listed = page.locator(".lf-fp-view[data-view=group] .lf-fp-label")
+    listed = page.locator(
+        ".lf-fp-menu[data-level=group] .lf-fp-item:not(.lf-fp-menu-back) .lf-fp-label"
+    )
     expect(listed.filter(has_text="Search page")).to_have_count(1)
     expect(listed.filter(has_text="Align current item at top")).to_have_count(1)
 

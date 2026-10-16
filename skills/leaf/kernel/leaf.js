@@ -430,6 +430,7 @@ import {
   reveal,
   rightCover,
   routedCommand,
+  rowArrows,
   savedReadingSettled,
   saying,
   scopeIdentity,
@@ -7469,6 +7470,8 @@ function createFloatingPanel({
   let trail = [];
   let leaving = null;
   let menuOpen = false;
+  let menuAt = null;
+  let menuRoom = null;
   let filter = "open";
   let query = "";
   let searching = false;
@@ -7595,6 +7598,7 @@ function createFloatingPanel({
     thread: route.thread ? threadTitle(route.thread) : "",
     group: GROUPS[route.group]
   })[route.view];
+  const levelRow = (level) => level.view === "group" ? routeKey(level) : level.view;
   const pathTo = (route) => route.view === "thread" ? [{ view: "threads" }, route] : [route];
   function open(route, { replace = false, reopen = false, focus = true } = {}) {
     const before = trail.at(-1);
@@ -7654,8 +7658,39 @@ function createFloatingPanel({
   function setMenu(on) {
     if (menuOpen === on) return;
     menuOpen = on;
+    menuAt = null;
+    menuRoom = null;
     held = null;
     paint();
+  }
+  function showMenuAt(level) {
+    const before = menuOpen ? menuAt : void 0;
+    if (before && level && routeKey(before) === routeKey(level)) return;
+    const outside = !standingIn(host);
+    if (renderedUnder(focused(), menu)) focusDestination(leaf, "return");
+    menuOpen = true;
+    menuAt = level;
+    menuRoom = null;
+    held = null;
+    paint();
+    if (level) {
+      menuRoom = menu.offsetHeight;
+      paint();
+    }
+    const page = menu.firstElementChild;
+    if (before !== void 0 && page && !reducedMotion()) {
+      const side = (level ? 1 : -1) * (getComputedStyle(menu).direction === "rtl" ? -1 : 1);
+      page.animate(
+        [
+          { translate: `${side * 16}px 0`, opacity: 0 },
+          { translate: "0 0", opacity: 1 }
+        ],
+        { duration: VIEW_RESIZE_MS, easing: EASE }
+      );
+    }
+    if (!keyed && !outside) return;
+    const target = level ? page?.querySelector(".lf-fp-item:not(.lf-fp-menu-back, :disabled)") : before && menu.querySelector(`[data-row="${levelRow(before)}"]`);
+    if (target) focusDestination(target, "move");
   }
   let outline = null;
   let viewMovingUntil = 0;
@@ -7931,7 +7966,7 @@ function createFloatingPanel({
       }));
       copy.addEventListener("wa-error", () => {
         copyRefused = true;
-        putAwayThen(() => open({ view: "group", group: "about" }));
+        showMenuAt({ view: "group", group: "about" });
       });
       copyItems.set(entry.key, copy);
     }
@@ -7961,11 +7996,9 @@ function createFloatingPanel({
       entry.label,
       rowEnd(entry),
       () => {
-        if (view) {
-          open({ view });
-          return;
-        }
-        putAwayThen(() => entry.press(heldStanding));
+        if (view === "versions") showMenuAt({ view });
+        else if (view) open({ view });
+        else putAwayThen(() => entry.press(heldStanding));
       },
       {
         urgent: Boolean(entry.urgent),
@@ -7977,6 +8010,24 @@ function createFloatingPanel({
     );
   }
   function menuTemplate() {
+    if (!menuAt)
+      return html`<div class="lf-fp-menu-page" role="none">${rootTemplate()}</div>`;
+    return html`<div class="lf-fp-menu-page" role="none">
+      <button
+        type="button"
+        role="menuitem"
+        class="lf-fp-item lf-fp-menu-back"
+        aria-label=${`Back to the page menu from ${titleOf2(menuAt)}`}
+        @click=${() => showMenuAt(null)}
+      >
+        <span class="lf-fp-label"
+          >${iconTemplate("next", "lf-fp-chevron")}<b>${titleOf2(menuAt)}</b></span
+        >
+      </button>
+      ${menuAt.view === "versions" ? versionsList() : groupList(menuAt.group)}
+    </div>`;
+  }
+  function rootTemplate() {
     const all = rows2();
     const lead = OWN_VIEWS;
     const page = all.filter((entry) => groupOf(entry) === "page" && listed(entry)).sort(
@@ -8008,8 +8059,8 @@ function createFloatingPanel({
         draw: (gone) => menuItem(
           GROUPS[group2],
           groupValue(group2) ? html`<span class="lf-fp-value">${groupValue(group2)}</span>` : nothing,
-          () => open({ view: "group", group: group2 }),
-          { opens: true, disabled: gone }
+          () => showMenuAt({ view: "group", group: group2 }),
+          { opens: true, disabled: gone, row: `group:${group2}` }
         )
       })),
       { key: "", draw: () => html`<hr />` },
@@ -8031,10 +8082,8 @@ function createFloatingPanel({
       ${seats2.map(({ key, draw }) => now.get(key)?.draw(false) ?? draw(true))}`;
   }
   const groupValue = (group2) => group2 === "annotate" ? rows2().find((entry) => entry.key === "command:annotations.toggle")?.label === "Show annotations" ? "Hidden" : "" : "";
-  function groupView(group2) {
-    return html`<div class="lf-fp-list">
-      ${rows2().filter((entry) => groupOf(entry) === group2 && listed(entry)).map((entry) => entry.copies ? copyRow(entry) : rowFor(entry))}
-    </div>`;
+  function groupList(group2) {
+    return rows2().filter((entry) => groupOf(entry) === group2 && listed(entry)).map((entry) => entry.copies ? copyRow(entry) : rowFor(entry));
   }
   const copies = /* @__PURE__ */ new Map();
   function copyFor(entry) {
@@ -8055,7 +8104,7 @@ function createFloatingPanel({
   }
   function copyRow(entry) {
     const field2 = `lf-fp-copy-${entry.key}`;
-    return html`<div class="lf-fp-copy">
+    return html`<div class="lf-fp-copy" role="none">
       <label class="lf-fp-copy-label" for=${field2}>${capital(entry.label)}</label>
       <textarea
         id=${field2}
@@ -8071,26 +8120,27 @@ function createFloatingPanel({
       ${entry.value ? html`<p class="lf-fp-copy-note">${entry.value}</p>` : nothing}
     </div>`;
   }
-  function versionsView() {
+  function versionsList() {
     const { rows: versions, picker, selection, latest } = versionsReading();
     const approval = approvalReading();
     const approved = approval?.approved;
-    return html`<div class="lf-fp-list">
-      ${latest.failed ? html`<div class="lf-fp-failed" role="status">
+    return html`
+      ${latest.failed ? html`<div class="lf-fp-failed" role="none">
               <b>${latest.label}</b>
               <p class="lf-fp-failed-error">${latest.error}</p>
             </div>` : nothing}
       ${repeat(
       versions,
       (entry) => `${entry.version === null ? "draft" : "version"}:${entry.revision}`,
-      (entry) => html`<div class="lf-fp-version" ?data-current=${entry.current}>
+      (entry) => html`<div class="lf-fp-version" role="none" ?data-current=${entry.current}>
             ${menuItem(
         html`${entry.name}${entry.note ? html`<span class="lf-fp-note">${entry.note}</span>` : nothing}`,
         entry.current ? html`<span class="lf-fp-value">Showing</span>` : nothing,
         () => putAwayThen(() => versionPicker.activate(entry)),
-        { role: null, title: entry.note }
+        { title: entry.note }
       )}${entry.comparable ? html`<button
                     type="button"
+                    role="menuitem"
                     class="lf-fp-quiet lf-fp-compare"
                     aria-pressed=${String(
         selection.on && selection.base === entry.version
@@ -8102,17 +8152,21 @@ function createFloatingPanel({
                   </button>` : nothing}
           </div>`
     )}
-      ${versions.length ? nothing : html`<p class="lf-fp-empty">Showing ${picker.token}</p>`}
+      ${versions.length ? nothing : html`<p class="lf-fp-empty" role="none">Showing ${picker.token}</p>`}
       ${approval ? html`<hr />
-              <div class="lf-fp-approval" title=${approval.reason ?? nothing}>
+              <div
+                class="lf-fp-approval"
+                role="none"
+                title=${approval.reason ?? nothing}
+              >
                 ${menuItem(
       approval.text,
       approval.reason ? html`<span class="lf-fp-value">${approval.reason}</span>` : nothing,
       () => approve(),
-      { disabled: Boolean(approval.reason) && !approved, role: null }
+      { disabled: Boolean(approval.reason) && !approved }
     )}
               </div>` : nothing}
-    </div>`;
+    `;
   }
   function shownThreads() {
     const words = query.trim().toLowerCase();
@@ -8160,9 +8214,7 @@ function createFloatingPanel({
   const shownView = () => stage.querySelector(".lf-fp-view:not([data-leaving])");
   const LIST_ROWS = Object.freeze({
     threads: ".lf-fp-thread",
-    queue: ".lf-fp-on-item",
-    versions: ".lf-fp-item:not(:disabled), .lf-fp-compare",
-    group: ".lf-fp-item:not(:disabled)"
+    queue: ".lf-fp-on-item"
   });
   const listRows = () => {
     const rows3 = LIST_ROWS[trail.at(-1)?.view];
@@ -8408,10 +8460,6 @@ function createFloatingPanel({
         return threadView(route.thread);
       case "queue":
         return onView();
-      case "versions":
-        return versionsView();
-      case "group":
-        return groupView(route.group);
     }
     return nothing;
   }
@@ -8543,6 +8591,8 @@ function createFloatingPanel({
     prefs().set("rest", rest);
     trail = [];
     menuOpen = false;
+    menuAt = null;
+    menuRoom = null;
     held = null;
     transition2(before, { focus: false });
     if (inside) focusDestination(leaf, "return");
@@ -8616,6 +8666,9 @@ function createFloatingPanel({
     keeps(badge, "data-shown", onUser ? "" : null);
     keeps(newsDot, "data-shown", news ? "" : null);
     render(menuOpen ? menuTemplate() : nothing, menu);
+    keeps(menu, "data-level", menuOpen && menuAt ? menuAt.view : null);
+    keeps(menu, "style", menuOpen && menuRoom ? `height: ${menuRoom}px` : null);
+    keeps(menu, "role", menu.querySelector("textarea") ? "dialog" : "menu");
     if (menuOpen) {
       const rows3 = menuRows();
       rove(rows3, rows3.includes(focused()) ? focused() : rows3[0]);
@@ -8764,7 +8817,7 @@ function createFloatingPanel({
       press: {
         label: "Why",
         title: latest.error,
-        run: () => open({ view: "versions" }, { reopen: true })
+        run: () => showMenuAt({ view: "versions" })
       }
     };
   }
@@ -8871,6 +8924,13 @@ function createFloatingPanel({
           paint();
         }
       };
+    if (menuOpen && menuAt)
+      return {
+        root: host,
+        title: "back to menu",
+        description: "Go back from the list to the page menu",
+        out: () => showMenuAt(null)
+      };
     if (menuOpen)
       return {
         root: host,
@@ -8919,6 +8979,28 @@ function createFloatingPanel({
         position: () => null,
         landed: (row2) => rove(listRows(), row2)
       }).map((row2) => ({ ...row2, when: () => !menuOpen && inList() })),
+      // → goes into the list a row opens, as its chevron points, and ← back to the menu.
+      {
+        id: "panel.floating.menu.level",
+        keys: ["ArrowLeft", "ArrowRight"],
+        routes: [
+          { id: "panel.floating.menu.level-left", binding: "ArrowLeft", title: "left" },
+          {
+            id: "panel.floating.menu.level-right",
+            binding: "ArrowRight",
+            title: "right"
+          }
+        ],
+        description: "Open the list a row of the page menu leads to, or go back to the menu",
+        title: "open or leave a list",
+        when: () => menuOpen && renderedUnder(focused(), menu),
+        run: (binding) => {
+          const [backward] = rowArrows(menu);
+          if (binding === backward) {
+            if (menuAt) showMenuAt(null);
+          } else if (focused()?.hasAttribute("data-opens")) focused().click();
+        }
+      },
       // Tab leaves the menu as it leaves a menu button's menu: the menu goes, and the
       // browser moves the user on from the leaf that opened it, either way.
       ["Tab", "Shift+Tab"].map((key) => ({
@@ -8999,7 +9081,7 @@ function createFloatingPanel({
   versionMenu.addEventListener("beforetoggle", (event) => {
     if (event.newState !== "open") return;
     event.preventDefault();
-    open({ view: "versions" }, { reopen: true });
+    showMenuAt({ view: "versions" });
   });
   const pageComment2 = Object.freeze({
     get box() {

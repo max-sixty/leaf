@@ -2073,12 +2073,13 @@ function createAnchorTravel({
           focus: input,
           caret,
           scroll: input ? [
-            { at: input, block: "nearest" },
+            { at: input, block: "nearest", behavior: "instant" },
             {
               at: current.where,
+              behavior: "instant",
               when: () => !readableDestination(current.where) || !readableDestination(input)
             }
-          ] : [{ at: current.where }]
+          ] : [{ at: current.where, behavior: "instant" }]
         };
       },
       {

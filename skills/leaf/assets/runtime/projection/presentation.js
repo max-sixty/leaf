@@ -1,29 +1,24 @@
-/* Coordinate, provenance, settlement, and chrome commit for the semantic projection.
+/* The marks Leaf paints on every widget, whatever the widget's own module renders.
 
-   Widget controllers run each module's own rendering of total state and own its
-   presentation proof. This adapter paints what the layer derives for every widget,
-   whether or not its module subscribed: the restated and origin marks and each
-   holder's settlement. Coverage and update narration consume the same coordinator
-   proof as widget rendering, asynchronous preparation, and pending release. It is an
-   epoch presenter and paints first
-   in the pass, because the words it materializes inside authored elements are nodes
-   the thread then resolves its passages over. Its one document-wide drag gate
-   withholds that global projection work while the gesture's own controller holds its
-   local reading; the region stays open until the gesture ends and a fresh claim
-   supersedes it. */
+   Each widget's module renders its own state. This module's `projection:chrome` region
+   paints the marks the layer derives for every widget: the restated mark, the
+   user-override and reported origin marks (`paintStateOrigins`), and each widget's
+   settlement (`paintSettlements`). It also stamps `document.body` with how many log
+   events the projection covers, once every widget they touch has painted; a waiter
+   outside the page reads that stamp to know the page has caught up. The region paints
+   first in each pass (`PRESENTATION_ORDER.projection`), because the thread then
+   resolves its passages over the words it writes into authored elements. */
 import { authoredStates } from "./authored.js";
 import { projectionOrigins } from "./model.js";
-import { projectionDeferred, setProjectionDeferred } from "./state.js";
 import {
   applicationPresenter,
   applicationState,
   projectionRegionsPresented,
   watchPresentation,
-  PRESENTATION_HELD,
   PRESENTATION_ORDER,
+  readPart,
 } from "../semantic-state.js";
 import { decisionFor } from "../registry.js";
-import { dragHeld, watchDragRelease } from "../widget-elements.js";
 import { widgetElement } from "../widget-descriptors.js";
 import {
   authored,
@@ -67,12 +62,12 @@ function paintStateOrigins(projection) {
   return touched;
 }
 
-// A holder's settlement is the registry's slot relation read against its deciding
-// verb's standing outcome, so the layer paints it for every holder whether or not its
-// module renders anything. A module with a choreography of its own (lf-suggestion's
-// fold) has already run it in the publication, before this pass writes the same mark.
-// A holder in a message's frozen markup is painted before the thread mounts it, so it
-// joins the panel settled and the thread's passages skip what it retired.
+// A widget whose tag has a deciding verb (`decisionFor`) is settled when that verb's
+// current outcome is one the registry says retires it. This marks every such widget,
+// whether or not its module renders anything. A module that animates its own settling,
+// as lf-suggestion does, has already run it in the publication before this writes the
+// same mark. A widget in a message's frozen markup is marked before the thread mounts
+// it, so it joins the panel settled and the thread's passages skip what it retired.
 function paintSettlements(widgets) {
   for (const [widgetId, { state }] of widgets) {
     const owner = widgetElement(widgetId);
@@ -88,29 +83,27 @@ function paintSettlements(widgets) {
   }
 }
 
-export function createProjectionPresentation({ onDeferredReady }) {
-  let stopWatchingDrag = null;
+const answered = readPart((root) => root.authoritative !== null);
+const phase = readPart((root) => root.phase);
+const currentProjection = readPart((root) => root.effective.projection);
+const widgetStates = readPart((root) => root.effective.widgets);
 
-  const presenter = applicationPresenter({
+export function createProjectionPresentation() {
+  // The region claims a paint synchronously as each publication is made, before the
+  // coordinator seals which regions the pass must paint. So its previous paint cannot
+  // stand for a new reading while frozen widget markup is still joining the document;
+  // the pass paints it afterwards. Before the server's first answer `reading` returns
+  // null, and there is nothing to paint. The coverage stamp below follows presentation
+  // (`watchPresentation`) rather than this region.
+  applicationPresenter({
     region: "projection:chrome",
     order: PRESENTATION_ORDER.projection,
-    current: () => {
-      const root = applicationState.read();
-      return root.authoritative === null ? null : root.effective.projection;
-    },
-    paint: () => paintReading(applicationState.read()),
+    reading: () => (answered() ? true : null),
+    paint: paintReading,
   });
 
-  // A semantic publication precedes the imperative adapter that paints it. The claim
-  // happens in the publisher's synchronous subscription phase, before it seals
-  // presentation membership, so an inherited commit cannot acknowledge the new reading
-  // while frozen widget markup is still joining the document; the pass paints it after.
-  // Every epoch owes one: the coverage stamp reads the server's view of the log beside
-  // the fold, so an unchanged fold is not an unchanged chrome reading.
-  applicationState.select((snapshot) => snapshot.semanticEpoch).subscribe(present);
-
-  // The stamp retains the last complete coverage. Only the widgets whose events
-  // it covers owe proof, so unrelated preparation cannot hold this log reading.
+  // The stamp keeps the last complete coverage. It waits only for the widgets whose
+  // events it covers to paint, so another widget's preparation cannot hold it back.
   const coverage = () => {
     const root = applicationState.read();
     if (
@@ -150,66 +143,36 @@ export function createProjectionPresentation({ onDeferredReady }) {
   const retireProjectionCoverage = () =>
     document.body.removeAttribute(PAGE_PAINT_ATTRIBUTE.applied);
 
-  // A drag holds the projection until the last one ends (widget-elements.js).
-  function watchProjectionDrag() {
-    stopWatchingDrag ??= watchDragRelease(() => {
-      unwatchProjectionDrag();
-      onDeferredReady();
-    });
-  }
-
-  function unwatchProjectionDrag() {
-    stopWatchingDrag?.();
-    stopWatchingDrag = null;
-  }
-
-  function presentCurrent(snapshot) {
-    const projection = snapshot.effective.projection;
-    // Before the first state or the offline fallback, authored capture has completed
-    // but the application still cannot know whether an action is available. Controllers
-    // independently present any complete authored widget state; this adapter has no
-    // authoritative projection coordinates or chrome to commit yet.
-    if (snapshot.phase === "waiting" || snapshot.authoritative === null) {
-      // This provisional epoch has no authoritative projection to withhold. Settling
-      // its chrome ticket lets document installation finish and start the state feed;
-      // adoption publishes a ready/offline epoch and claims a fresh ticket before any
-      // semantic or widget commit can become current.
-      setProjectionDeferred(false);
+  function presentCurrent() {
+    const projection = currentProjection();
+    // Until the server's first state or the offline fallback arrives, the page cannot
+    // know which actions are available, so there is no projection to paint; widget
+    // controllers already show each widget's authored state.
+    if (phase() === "waiting" || !answered()) {
+      // Returning here lets document installation finish and start the state feed. The
+      // ready or offline publication that follows claims a new paint before any
+      // widget's paint counts as current.
       return projection;
     }
-    if (dragHeld()) {
-      setProjectionDeferred(true);
-      watchProjectionDrag();
-      return projection;
-    }
-    unwatchProjectionDrag();
-    setProjectionDeferred(false);
     for (const entry of projection.classified.values())
       for (const id of entry.restated ?? [])
         keeps(elementById(id), PAGE_PAINT_ATTRIBUTE.restated, "1");
-    paintSettlements(snapshot.effective.widgets);
+    paintSettlements(widgetStates());
     const originTargets = paintStateOrigins(projection);
     renderQuiet(document.body, originTargets);
     return projection;
   }
 
-  // A throw leaves this region pending and preserves the application error boundary;
-  // the next claim supersedes the hold and tries the current semantic root again.
-  function paintReading(snapshot) {
-    const projection = presentCurrent(snapshot);
-    // A drag holds this region open at the user's own gesture rather than
-    // committing a document-wide reading their own controller has not taken yet.
-    return projectionDeferred() ? PRESENTATION_HELD : projection;
+  // If painting throws, the region stays unpainted and the error reaches the
+  // application's error boundary; the next claim tries the current state again.
+  function paintReading() {
+    return presentCurrent();
   }
 
-  function present() {
-    return presenter.present();
-  }
-
-  // `present` stays in here. The region has two ways in — its own subscription above,
-  // and `presentDocument` for a caller that changed the document and has no business
-  // knowing which regions are alive. A third, handed to one caller, is how the ask
-  // inventory came to be left out of a document-wide repaint.
+  // `present` is not returned. The region repaints from its own subscription above, or
+  // from `presentDocument` when a caller has changed the document. Handing one caller
+  // a third way in is how the ask inventory once got left out of a document-wide
+  // repaint.
   return {
     retireProjectionCoverage,
   };

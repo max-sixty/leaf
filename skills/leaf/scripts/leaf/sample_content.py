@@ -46,7 +46,7 @@ def _fixture_anchor(anchor: dict, readings: AdmissionReadings) -> dict:
 
     Browser admission receives targets already captured in a rendered document.
     A fixture has no such observation, so the existing file-side capture proves
-    its section and passage against the same standing projection instead.
+    its section and passage against the same current projection instead.
     """
     page = readings.page(1)
     document, projection = page.document, page.projection
@@ -116,7 +116,10 @@ def initial_sample_events(
         raise Rejected([Finding("sample-source-both")])
     scripts = [
         script
-        for script in [*holder.inline_scripts, *holder.external_scripts]
+        for script in [
+            *holder.authoring.inline_scripts,
+            *holder.authoring.external_scripts,
+        ]
         if script["attrs"].get("id") == reference
     ]
     if not reference or len(scripts) != 1:
@@ -159,7 +162,12 @@ def initial_sample_events(
             if "revision" in spec["properties"]:
                 event["revision"] = 1
             if error := command_error(event, kinds):
-                raise _refused("fixture-refused", reference, event=seq, error=error)
+                raise _refused(
+                    "fixture-event",
+                    reference,
+                    event=seq,
+                    findings=[error.json(text=False)],
+                )
             if aware_instant(event["ts"]) is None:
                 raise _refused("fixture-ts", reference, event=seq)
             if any(logged["id"] == event["id"] for logged in events):
@@ -214,9 +222,15 @@ def initial_sample_events(
                         "fixture-ids-taken", reference, event=seq, ids=sorted(collision)
                     )
             events.append(admitted_event(view, events, event))
-        except (ValueError, EventRefused) as error:
-            # The event contract's and the anchor capture's own refusals, in their
-            # words.
+        except EventRefused as error:
+            raise _refused(
+                "fixture-event",
+                reference,
+                event=seq,
+                findings=[found.json(text=False) for found in error.findings],
+            ) from error
+        except ValueError as error:
+            # The anchor capture's own refusal, in its words.
             raise _refused(
                 "fixture-refused", reference, event=seq, error=str(error)
             ) from error

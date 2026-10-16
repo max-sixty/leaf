@@ -21,7 +21,7 @@
       "section": "copier"
     },
     {
-      "surface": "standing-action",
+      "surface": "action-in-force",
       "section": "mode"
     },
     {
@@ -39,9 +39,7 @@
       "widget": "cutover-mode",
       "action": "choose",
       "detail": {
-        "value": [
-          "mode-shard"
-        ]
+        "value": ["mode-shard"]
       }
     },
     {
@@ -50,9 +48,7 @@
       "widget": "cutover-mode",
       "action": "choose",
       "detail": {
-        "value": [
-          "mode-dual"
-        ]
+        "value": ["mode-dual"]
       }
     },
     {

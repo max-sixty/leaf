@@ -54,7 +54,7 @@ export const shadowRootsIn = (root) =>
     .map(declaredRoot)
     .filter(Boolean);
 export const pageShadowRoots = () => shadowRootsIn(document);
-// Explicit inertness excludes a node through its composed ancestry. A standing native
+// Explicit inertness excludes a node through its composed ancestry. An open native
 // modal escapes inherited inertness outside itself, but an inert modal or descendant
 // remains excluded. Read node kind rather than realm-specific Element: a sample asks
 // this of the frame its containing document holds too.
@@ -129,20 +129,34 @@ export const inUi = (node) =>
 // rather than written here so a project override travels with the widget, and fetched
 // during upgrade so the stage below stays synchronous for its callers.
 export let shadowRules = "";
-// Every legitimate page shadow tree is built here, so repeat the generated-interface
-// boundary and transition suppression inside it. The shadow's ordinary contents paint
+// Every legitimate page shadow tree is built here, so repeat the theme's leading layer
+// inside it: `hidden` hiding whatever display a rule states (theme.css), the
+// generated-interface boundary, and transition suppression. The shadow's ordinary contents paint
 // immediately and its generated interface paints after upgrade, on the same boundaries
-// as authored and generated light DOM.
-export const SHADOW_STARTUP_CSS = `
+// as authored and generated light DOM. A selector in the tree cannot see body's stamps,
+// so the theme states each boundary as an inherited property these rules query with
+// `@container style()`, which Chrome, Firefox and Safari support; `:host-context()`,
+// which reads the stamps directly, has no Firefox or Safari support. The anonymous
+// layer leads the tree's sheets, so these important declarations outrank every later
+// layer.
+export const SHADOW_LEADING_CSS = `
 @layer {
+  [hidden]:not([hidden="until-found"]),
+  :host([hidden]:not([hidden="until-found"])) {
+    display: none !important;
+  }
   @media screen {
-    :host-context(body:not([data-lf-presented])) *,
-    :host-context(body:not([data-lf-presented])) *::before,
-    :host-context(body:not([data-lf-presented])) *::after {
-      transition: none !important;
+    @container style(--lf-before-presentation: 1) {
+      *,
+      *::before,
+      *::after {
+        transition: none !important;
+      }
     }
-    :host-context(body:not([data-lf-upgraded])) .lf-ui {
-      visibility: hidden !important;
+    @container style(--lf-before-upgrade: 1) {
+      .lf-ui {
+        visibility: hidden !important;
+      }
     }
   }
 }`;

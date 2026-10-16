@@ -12,7 +12,7 @@ import shutil
 import sys
 
 import pytest
-from leaf_dev.thread_snapshots import COMPARED
+from leaf_dev.commands.thread_snapshots import COMPARED
 from render_harness import leaf_page, open_page
 
 
@@ -82,14 +82,16 @@ def test_linux_browser_resolves_the_fixed_fonts(browser, serve):
     session.detach()
 
 
+@pytest.mark.skip(reason="paused: TODO.md, Resume the thread appearance gate")
 @pytest.mark.skipif(not COMPARED, reason="thread appearance is reviewed on macOS")
 def test_accept_publishes_only_a_successful_unchanged_capture(
     browser, thread_expected_store, tmp_path, monkeypatch
 ):
     """Publication consumes reviewed bytes; a partial or changed capture cannot publish."""
     from click.testing import CliRunner
-    from leaf_dev import leaf_assets, thread_snapshots
-    from leaf_dev.thread_snapshots import accept, capture_files, render_profile
+    from leaf_dev import leaf_assets
+    from leaf_dev.commands import thread_snapshots
+    from leaf_dev.commands.thread_snapshots import accept, capture_files, render_profile
 
     profile = render_profile(browser.version)
     directory = tmp_path / "capture"

@@ -172,6 +172,7 @@
     </style>
     <script type="module">
       import {
+        PAGE_INTERFACE,
         keeps,
         keepsText,
         layoutChanged,
@@ -287,13 +288,13 @@
         class extends HTMLElement {
           #banner = null;
           #strip = null;
-          #values = null;
+          #initialized = false;
           #cards = "";
 
           connectedCallback() {
             if (!once(this)) return;
             this.#build();
-            whileConnected(this, (signal) => void this.#connect(signal));
+            whileConnected(this, (signal) => this.#connect(signal));
           }
 
           #build() {
@@ -304,67 +305,59 @@
             this.append(candidates);
           }
 
-          async #connect(signal) {
-            await customElements.whenDefined("lf-playground");
-            if (signal.aborted) return;
+          #connect(signal) {
             const playground = this.closest("lf-playground");
-            if (!playground) return;
-            playground.addEventListener(
-              "lf-playground-change",
-              (event) => {
-                if (event.target !== playground) return;
-                this.#values = event.detail.values;
-                this.#render();
-              },
+            let unsubscribe;
+            const initialize = () => {
+              if (signal.aborted || unsubscribe) return;
+              unsubscribe = playground.subscribe((values) => this.#render(values));
+              this.#initialized = true;
+            };
+            document.addEventListener(
+              PAGE_INTERFACE,
+              (event) => event.detail.present(Promise.resolve().then(initialize)),
               { signal },
             );
-            this.#values = playground.values;
-            this.#render();
+            if (this.#initialized) initialize();
+            return () => unsubscribe?.();
           }
 
-          #render() {
-            if (!this.#values) return;
-            const events = EVENTS.slice(0, this.#values.events);
-            keeps(this, "data-tone", this.#values.tone);
-            keeps(this, "data-compact", this.#values.compact);
-            this.style.setProperty("--notification-accent", this.#values.accent);
-            this.style.setProperty("--notification-radius", `${this.#values.radius}px`);
+          #render(values) {
+            const events = EVENTS.slice(0, values.events);
+            keeps(this, "data-tone", values.tone);
+            keeps(this, "data-compact", values.compact);
+            this.style.setProperty("--notification-accent", values.accent);
+            this.style.setProperty("--notification-radius", `${values.radius}px`);
             this.#banner.figure.toggleAttribute(
               "data-selected",
-              this.#values.format === "banner",
+              values.format === "banner",
             );
             this.#strip.figure.toggleAttribute(
               "data-selected",
-              this.#values.format === "status strip",
+              values.format === "status strip",
             );
             // The cards read only the event count, the first title and the owner line;
-            // a colour or a radius leaves them standing.
+            // a colour or a radius leaves them unchanged.
             const cards = JSON.stringify([
-              this.#values.events,
-              this.#values.title,
-              this.#values["show-owner"],
+              values.events,
+              values.title,
+              values["show-owner"],
             ]);
             if (cards !== this.#cards) {
               this.#cards = cards;
               this.#banner.feed.replaceChildren(
                 ...events.map((event, index) =>
-                  notification(event, "banner", index, this.#values),
+                  notification(event, "banner", index, values),
                 ),
               );
               this.#strip.feed.replaceChildren(
                 ...events.map((event, index) =>
-                  notification(event, "status strip", index, this.#values),
+                  notification(event, "status strip", index, values),
                 ),
               );
             }
-            keepsText(
-              this.#banner.metric,
-              `${this.#values.events} cards · full detail`,
-            );
-            keepsText(
-              this.#strip.metric,
-              `${this.#values.events} rows · compact summary`,
-            );
+            keepsText(this.#banner.metric, `${values.events} cards · full detail`);
+            keepsText(this.#strip.metric, `${values.events} rows · compact summary`);
             layoutChanged(this);
           }
         },

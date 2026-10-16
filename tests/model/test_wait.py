@@ -21,7 +21,6 @@ from conftest import LEAF_COMMAND
 from interact_support import (
     HELD_LEASES,
     STATED_TIMEOUT,
-    Prose,
     _interaction_prompt_evidence,
     append_carried_log_record,
     append_command,
@@ -37,6 +36,7 @@ from interact_support import (
     publish,
     receive_through,
     record_claim,
+    said,
     serving,
     vendored_at_another_protocol,
     wait_for,
@@ -274,7 +274,7 @@ def test_a_wait_watches_a_stopped_server_until_its_page_ends(
             "bind": "127.0.0.1",
             "port": available_loopback_port(),
             "enabled": True,
-            "lifetime": "standing",
+            "lifetime": "persistent",
         },
     )
     session_model.cmd_waiting(page_dir, "review the page")
@@ -318,7 +318,7 @@ def test_a_revival_that_does_not_hold_ends_the_wait(
             "bind": "127.0.0.1",
             "port": available_loopback_port(),
             "enabled": True,
-            "lifetime": "standing",
+            "lifetime": "persistent",
         },
     )
     session_model.cmd_waiting(page_dir, "review the page")
@@ -502,13 +502,13 @@ def test_wait_restarts_a_server_that_died_under_it(
     assert "server had died; restarted" in printed.err
     snapshot.check(
         yaml_document(
-            "A wait revives its server, reports recovery on stderr, and delivers input.\n"
+            "A wait revives its server, notes the recovery, and delivers input.\n"
             "The URL's dynamic port and access token are represented by <served-url>.",
             _interaction_prompt_evidence(
                 page_dir,
                 {
                     "exit": 0,
-                    "stderr": printed.err.replace(info["url"], "<served-url>"),
+                    "stderr": said(printed.err.replace(info["url"], "<served-url>")),
                 },
             ),
         )
@@ -671,7 +671,7 @@ def test_session_end_cannot_be_overtaken_by_wait_revival(claimed, spawn):
 def test_a_revived_server_keeps_the_lifetime_it_was_serving_under(
     claimed, comment_once_served
 ):
-    """A standing page comes back standing. The lifetime is the page's record
+    """A persistent page comes back persistent. The lifetime is the page's record
     rather than the reviving process's, so the restarts a page doesn't choose —
     a crash, the revival a `leaf wait` makes under it — leave it as the serve
     that started it declared, and `leaf server stop` is still the one thing that
@@ -685,16 +685,16 @@ def test_a_revived_server_keeps_the_lifetime_it_was_serving_under(
             "bind": "127.0.0.1",
             "port": available_loopback_port(),
             "enabled": True,
-            "lifetime": "standing",
+            "lifetime": "persistent",
         },
     )
     comment_once_served(claimed)
     assert session_model.cmd_wait(claimed) == 0
     # The reviving session did claim the page, so a lifetime read off this
-    # launch would have said "session" — the claim is what the standing
+    # launch would have said "session" — the claim is what the persistent
     # record has to outrank.
     assert service_model.page_claim(claimed)["id"] == "s1"
-    assert files_model.read_json(claimed / "service.json")["lifetime"] == "standing"
+    assert files_model.read_json(claimed / "service.json")["lifetime"] == "persistent"
 
 
 def test_wait_ends_when_the_leaf_does(page_dir, capsys, snapshot):
@@ -726,12 +726,12 @@ def test_wait_ends_when_the_leaf_does(page_dir, capsys, snapshot):
                     "still served": {
                         "exit": 2,
                         "stdout": served.out,
-                        "stderr": served.err,
+                        "stderr": said(served.err),
                     },
                     "server stopped": {
                         "exit": 2,
                         "stdout": stopped.out,
-                        "stderr": stopped.err,
+                        "stderr": said(stopped.err),
                     },
                 },
             ),
@@ -750,7 +750,6 @@ def test_one_wait_watches_every_page_the_session_holds(
     leases_model.mark_hooks("s9")  # its harness runs Leaf's hooks
     second = tmp_path / "second"
     vendoring_model.cmd_init(second)
-    capsys.readouterr()
     session_model.cmd_waiting(second, "")
     session_model.cmd_waiting(page_dir, "")
     serving(page_dir, 1)
@@ -792,11 +791,7 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
     session_model.cmd_waiting(claimed, "")
     stop = {"hook_event_name": "Stop", "session_id": "s1"}
 
-    # Another watch holds the session's lease, or the hook names another session:
-    # nothing to watch, and nothing wakes.
-    lease = leases_model.take_lease(leases_model.waiter_lease_path(None, "s1"))
-    assert hooks_model.cmd_watch("claude-code", stop) is None
-    leases_model.release_lease(lease)
+    # The hook names another session: nothing to watch, and nothing wakes.
     assert hooks_model.cmd_watch("claude-code", {**stop, "session_id": "s2"}) is None
     # Under plain `--print` Claude Code would wait on the hook, holding the turn.
     launched = harness_model.process_argv
@@ -898,6 +893,111 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
     receive_through(claimed, last_deliverable_seq(claimed))
     declare_idle(claimed)
     assert hooks_model.cmd_watch("claude-code", stop) is None
+
+
+def test_the_newest_watch_takes_the_session_over(claimed, monkeypatch, capsys):
+    """Claude Code starts a watch at every turn's end and leaves the earlier one
+    running, so the newest takes the session's lease, and the watch it displaces
+    ends without waking anyone. That is how a Leaf update reaches the watch: the
+    earlier one may run a Leaf that cannot read a page the session now holds,
+    while the new one runs the Leaf the harness runs now. A `leaf wait` the
+    model left running gives way to it too."""
+    leases_model.mark_hooks("s1")
+    serving(claimed, 1)
+    session_model.cmd_waiting(claimed, "")
+    stop = {"hook_event_name": "Stop", "session_id": "s1"}
+    passed = {name: threading.Event() for name in ("wait", "older", "newer")}
+    await_news = session_model.Watch.await_news
+
+    def after_a_pass(watch, mark, *args, **kwargs):
+        passed[threading.current_thread().name].set()
+        return await_news(watch, mark, *args, **kwargs)
+
+    monkeypatch.setattr(session_model.Watch, "await_news", after_a_pass)
+
+    def started(name: str, run) -> tuple[threading.Thread, list]:
+        outcome = []
+        thread = threading.Thread(name=name, target=lambda: outcome.append(run()))
+        thread.start()
+        assert passed[name].wait(STATED_TIMEOUT), f"{name} never completed a pass"
+        assert leases_model.wait_is_live(claimed, "s1")
+        return thread, outcome
+
+    def ended(thread: threading.Thread, outcome: list):
+        thread.join(timeout=STATED_TIMEOUT)
+        assert not thread.is_alive(), f"{thread.name} went on watching"
+        [result] = outcome
+        return result
+
+    wait, waited = started("wait", session_model.cmd_wait)
+    older, olders = started("older", lambda: hooks_model.cmd_watch("claude-code", stop))
+    assert ended(wait, waited) == 2
+    assert "took over" in capsys.readouterr().err
+    newer, newers = started("newer", lambda: hooks_model.cmd_watch("claude-code", stop))
+    assert ended(older, olders) is None
+    append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "after"}
+    )
+    assert ended(newer, newers).startswith(f"{claimed} has new input")
+    assert not leases_model.wait_is_live(claimed, "s1")
+
+
+def test_a_watch_superseded_during_a_pass_leaves_its_input_to_the_newer(
+    claimed, monkeypatch
+):
+    """A watch the newer one displaces while it reads a page with input wakes
+    nobody: the newer one carries that input, and a second wake would open a turn
+    with nothing in it."""
+    leases_model.mark_hooks("s1")
+    serving(claimed, 1)
+    session_model.cmd_waiting(claimed, "")
+    cleanup_model.close_session_turn("s1")
+    append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "race"}
+    )
+    read_watch_pass = session_model.read_watch_pass
+    newer = session_model.Watch(harness_model.session_harness())
+
+    def displaced_mid_pass(watch, *args, **kwargs):
+        newer.acquire(supersede=True)
+        return read_watch_pass(watch, *args, **kwargs)
+
+    monkeypatch.setattr(session_model, "read_watch_pass", displaced_mid_pass)
+    try:
+        stop = {"hook_event_name": "Stop", "session_id": "s1"}
+        assert hooks_model.cmd_watch("claude-code", stop) is None
+        assert read_watch_pass(newer, None, lambda tick: tick.page_dir).delivered
+    finally:
+        newer.release()
+
+
+@pytest.mark.parametrize("newer_ends", [False, True])
+def test_a_lease_probe_reads_through_a_handoff(tmp_path, monkeypatch, newer_ends):
+    """A probe that opened the lease file before a newer watch put its own in place
+    asks again of the file the name reaches now. What the displaced file says is
+    out of date: the newer lease holds once the displaced holder lets its file go,
+    and has ended though the displaced holder still runs."""
+    path = tmp_path / "wait"
+    displaced = leases_model.take_lease(path)
+    newer = []
+    flock = leases_model.fcntl.flock
+
+    def handed_over_before_the_probe(record, operation):
+        probe = leases_model.fcntl.LOCK_SH | leases_model.fcntl.LOCK_NB
+        if operation == probe and not newer:
+            newer.append(leases_model.supersede_lease(path))
+            if newer_ends:
+                leases_model.release_lease(newer[0])
+            else:
+                leases_model.release_lease(displaced)
+        return flock(record, operation)
+
+    monkeypatch.setattr(leases_model.fcntl, "flock", handed_over_before_the_probe)
+    try:
+        assert leases_model.lock_is_held(path) is not newer_ends
+    finally:
+        monkeypatch.undo()
+        leases_model.release_lease(displaced if newer_ends else newer[0])
 
 
 def test_a_watch_at_an_interrupted_ending_wakes_only_for_later_input(
@@ -1132,7 +1232,6 @@ def test_a_page_served_mid_wait_joins_the_running_watch(
     assert service_model.claim_page(page_dir)
     joined = tmp_path / "joined"
     vendoring_model.cmd_init(joined)
-    capsys.readouterr()
     session_model.cmd_waiting(joined, "")
     serving(joined, 2)
 
@@ -1176,7 +1275,7 @@ def test_wait_with_nothing_to_watch_says_so(monkeypatch, capsys, snapshot):
     snapshot.check(
         yaml_document(
             "An unnamed wait exits when the session owns no page.",
-            {"exit": 2, "stdout": printed.out, "stderr": Prose(printed.err)},
+            {"exit": 2, "stdout": printed.out, "stderr": said(printed.err)},
         )
     )
 

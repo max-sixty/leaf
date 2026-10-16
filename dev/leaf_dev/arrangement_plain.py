@@ -14,7 +14,7 @@ from pathlib import Path
 
 from leaf.render_gate.scheme import collect_page_errors
 
-from leaf_dev.browser import chrome, tab
+from leaf_dev.browser import headless_shell, tab
 
 
 class StaticHandler(SimpleHTTPRequestHandler):
@@ -63,7 +63,7 @@ def load(view, url: str) -> None:
 def gate(page: Path, widths: dict) -> dict:
     """Check actual browser errors and root overflow at each comparison width."""
     findings = []
-    with serving(page) as url, chrome() as browser:
+    with serving(page) as url, headless_shell() as browser:
         for name, (viewport, _) in widths.items():
             with tab(browser, viewport=viewport, touch=name == "phone") as view:
                 errors = []

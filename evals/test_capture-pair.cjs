@@ -1,7 +1,7 @@
 /** Page validity cannot establish whether a pair uses the intended two captures. */
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { pair, outlinedPair } = require("./capture-pair.cjs");
+const { pair, outlinedPair, readablePair } = require("./capture-pair.cjs");
 
 test("capture pairs use the intended distinct views and the requested outlines", () => {
   const before = "/media/original.png";
@@ -85,5 +85,49 @@ test("registered derived captures reach visual grading while unregistered or dup
     const output = `<lf-shot before="${before}" after="${after}" outlines></lf-shot>`;
     assert.equal(pair(output, context), expected, output);
     assert.equal(outlinedPair(output, context), expected, output);
+  }
+});
+
+test("a readable pair keeps both frames near the column's width", () => {
+  const { mkdtempSync, writeFileSync } = require("node:fs");
+  const { join } = require("node:path");
+  const { tmpdir } = require("node:os");
+  const directory = mkdtempSync(join(tmpdir(), "capture-pair-"));
+  // Only the IHDR width at byte 16 is read.
+  const png = (name, width) => {
+    const bytes = Buffer.alloc(24);
+    bytes.writeUInt32BE(width, 16);
+    writeFileSync(join(directory, name), bytes);
+    return join(directory, name);
+  };
+  const input_media = {
+    "evals/case/captures/before.png": "/media/full-before.png",
+    "evals/case/captures/after.png": "/media/full-after.png",
+  };
+  const registered = {
+    "/media/full-before.png": png("full-before.png", 1440),
+    "/media/full-after.png": png("full-after.png", 1440),
+    "/media/crop-before.png": png("crop-before.png", 760),
+    "/media/crop-after.png": png("crop-after.png", 760),
+    "/media/wide-after.png": png("wide-after.png", 1440),
+  };
+  const shot = (before, after) =>
+    `<lf-shot before="/media/${before}.png" after="/media/${after}.png"></lf-shot>`;
+  const samples = [
+    [shot("crop-before", "crop-after"), true],
+    [shot("full-before", "full-after"), false],
+    [shot("crop-before", "wide-after"), false],
+    [
+      `<lf-shot before="/media/crop-before.png" after="/media/gone.png"></lf-shot>`,
+      false,
+    ],
+  ];
+  for (const [output, expected] of samples) {
+    const context = {
+      providerResponse: {
+        metadata: { input_media, capture_evidence: { media: registered } },
+      },
+    };
+    assert.equal(readablePair(output, context), expected, output);
   }
 });

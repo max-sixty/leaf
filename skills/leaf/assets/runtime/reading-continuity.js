@@ -16,12 +16,20 @@ export const readingReturn = () => (interrupted ? generation : null);
 
 // Presentation observers use the same boundary rather than a grace period after
 // visibilitychange: the first refreshed reading can take arbitrarily long to arrive.
+const CONTINUITY = "lf-reading-continuity";
 const changed = () =>
   document.dispatchEvent(
-    new CustomEvent("lf-reading-continuity", {
-      detail: { continuous: readingIsContinuous() },
-    }),
+    new CustomEvent(CONTINUITY, { detail: { continuous: readingIsContinuous() } }),
   );
+
+/** Call `interrupted` each time the reading breaks; returns the step that stops. */
+export function onReadingInterrupted(interrupted) {
+  const listener = () => {
+    if (!readingIsContinuous()) interrupted();
+  };
+  document.addEventListener(CONTINUITY, listener);
+  return () => document.removeEventListener(CONTINUITY, listener);
+}
 
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") {

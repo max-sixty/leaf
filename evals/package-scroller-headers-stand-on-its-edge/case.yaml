@@ -8,8 +8,8 @@ description: package-scroller-headers-stand-on-its-edge
 metadata:
   purpose: A padded package scroller states --lf-top-start so its sticky headers stand on its top edge.
   tags:
-  - packages
-  - styles
+    - packages
+    - styles
 vars:
   prompt: |
     I'm writing a Leaf package widget, lf-incidents, that lists a service's
@@ -22,18 +22,18 @@ vars:
     Read the references you need and show the widget's shadow.css for the list
     box, the week groups and their heading rows. Return CSS in your reply.
 assert:
-- type: llm-rubric
-  metric: headers-stand-on-the-edge
-  value: |
-    Pass only if the list box keeps its 12px top padding and sets `--lf-top-start`
-    to minus that padding (for example `calc(-1 * 12px)` or `-12px`) with
-    `--lf-top` read from it, so the heading rows stick flush with its top edge.
-    Fail if the list box drops its top padding, sets `--lf-top` to a negative value
-    without `--lf-top-start` (the runtime's restart replaces it with
-    `--lf-top-start`), or leaves the headings sticking 12px below its top edge.
-- type: llm-rubric
-  metric: headings-stick-at-the-slot
-  value: |
-    Pass only if the heading rows are `position: sticky` with `top` read from
-    `var(--lf-top)`, and the list box restarts `--lf-top` for what it holds. Fail if
-    a heading sticks at a fixed offset with no `--lf-top`.
+  - type: llm-rubric
+    metric: headers-stand-on-the-edge
+    value: |
+      Pass only if the list box keeps its 12px top padding and sets `--lf-top-start`
+      to minus that padding (for example `calc(-1 * 12px)` or `-12px`) with
+      `--lf-top` read from it, so the heading rows stick flush with its top edge.
+      Fail if the list box drops its top padding, sets `--lf-top` to a negative value
+      without `--lf-top-start` (the runtime's restart replaces it with
+      `--lf-top-start`), or leaves the headings sticking 12px below its top edge.
+  - type: llm-rubric
+    metric: headings-stick-at-the-slot
+    value: |
+      Pass only if the heading rows are `position: sticky` with `top` read from
+      `var(--lf-top)`, and the list box restarts `--lf-top` for what it holds. Fail if
+      a heading sticks at a fixed offset with no `--lf-top`.

@@ -77,7 +77,7 @@ export function holdToRead() {
       if (!event.isPrimary || !plainPress(event)) return;
       const holder = holderIn(event);
       if (!holder || holder.matches(":disabled, [aria-disabled='true']")) return;
-      const origin = event.composedPath()[0];
+      const origin = /** @type {Partial<Element>} */ (event.composedPath()[0]);
       if (origin.hasPointerCapture?.(event.pointerId))
         origin.releasePointerCapture(event.pointerId);
       hold = {

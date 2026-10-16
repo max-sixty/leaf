@@ -1,8 +1,13 @@
 /* Prose faces reach the document and the layer's reading regions in declared
  * shadow trees. A widget's own source or controls keep its own sheet. */
-:where(:root, .lf-thread-transcript) a { color: var(--accent); text-underline-offset: var(--link-underline-offset);
-    text-decoration-color: var(--link-underline); }
-:where(:root, .lf-thread-transcript) a:hover { text-decoration-color: currentColor; }
+:where(:root, .lf-thread-transcript) a {
+  color: var(--accent);
+  text-underline-offset: var(--link-underline-offset);
+  text-decoration-color: var(--link-underline);
+}
+:where(:root, .lf-thread-transcript) a:hover {
+  text-decoration-color: currentColor;
+}
 /* An identifier breaks where it must. A test name or a path is one word to the line
  * breaker, and a word a box cannot hold is either drawn past the box or holds the
  * box to its own width — in a table cell the latter: a column of 79-character test
@@ -26,24 +31,45 @@
    widget trees may carry a source renderer's bare code reset (Pierre's base layer
    sets block display, content containment and isolation); this reading face owns
    those properties too. */
-:where(:root, .lf-thread-transcript) code { background: var(--code-bg); border-radius: var(--code-inline-r);
-       padding: var(--code-inline-pad); font-size: var(--code-inline-size);
-       font-family: var(--mono); overflow-wrap: anywhere;
-       box-decoration-break: slice; display: inline; contain: none; isolation: auto; }
+:where(:root, .lf-thread-transcript) code {
+  background: var(--code-bg);
+  border-radius: var(--code-inline-r);
+  padding: var(--code-inline-pad);
+  font-size: var(--code-inline-size);
+  font-family: var(--mono);
+  overflow-wrap: anywhere;
+  box-decoration-break: slice;
+  display: inline;
+  contain: none;
+  isolation: auto;
+}
 /* A code block is sized by how many characters it takes across, which is why its size
  * is off the serif ladder above. At --code-size, the column keeps comfortably more
  * than the 80 characters most source is written to.
  *
  * The size and leading are tokens because plain blocks, upgraded widgets, and the diff's
  * shadow tree must keep one density through upgrade. */
-:where(:root, .lf-thread-transcript) pre { background: var(--pre-bg); border: 1px solid var(--code-border); border-radius: var(--r);
-      padding: 12px var(--pre-inset); overflow-x: auto; font-size: var(--code-size);
-      line-height: var(--code-line); font-family: var(--mono); color: var(--code-ink);
-      font-variant-ligatures: none;
-      /* A block that scrolls its own lines never sizes what holds it: without this a
+:where(:root, .lf-thread-transcript) pre {
+  background: var(--pre-bg);
+  border: 1px solid var(--code-border);
+  border-radius: var(--r);
+  padding: 12px var(--pre-inset);
+  overflow-x: auto;
+  font-size: var(--code-size);
+  line-height: var(--code-line);
+  font-family: var(--mono);
+  color: var(--code-ink);
+  font-variant-ligatures: none;
+  /* A block that scrolls its own lines never sizes what holds it: without this a
        * long line is every flex item's and grid track's minimum up the tree. */
-      contain: inline-size; container-type: scroll-state; }
-:where(:root, .lf-thread-transcript) pre > code { background: none; padding: 0; font-size: 100%; }
+  contain: inline-size;
+  container-type: scroll-state;
+}
+:where(:root, .lf-thread-transcript) pre > code {
+  background: none;
+  padding: 0;
+  font-size: 100%;
+}
 /* An overlay scrollbar paints over the scroller's own block end, and macOS widens it to
  * a 15px track under the pointer: a thread's code block, 8px of padding under its last
  * line, lost half that line to the bar the moment the user reached for it. So a box of
@@ -67,12 +93,21 @@
  * in the command hub's ask. A float leaves the lines where they were, and at the box's
  * full width it can only stand below the last of them. In a grid, which ignores the
  * float, it takes a row of its own across every track. */
-.lf-text-scroller { container-type: scroll-state; }
+.lf-text-scroller {
+  container-type: scroll-state;
+}
 @container scroll-state(scrollable: inline) {
-  .lf-text-scroller::after, :where(:root, .lf-thread-transcript) :is(pre, table)::after {
-    content: ""; float: inline-start; inline-size: 100%; block-size: 15px;
-    grid-column: 1 / -1; }
-  :where(:root, .lf-thread-transcript) :is(pre, table)::after { block-size: 8px; }
+  .lf-text-scroller::after,
+  :where(:root, .lf-thread-transcript) :is(pre, table)::after {
+    content: "";
+    float: inline-start;
+    inline-size: 100%;
+    block-size: 15px;
+    grid-column: 1 / -1;
+  }
+  :where(:root, .lf-thread-transcript) :is(pre, table)::after {
+    block-size: 8px;
+  }
 }
 /* Paper has no scrollbar, so a line past the column is not a scroll away but gone. Code
    wraps on the sheet whatever it does on screen, the trade lf-diff's own sheet already
@@ -84,11 +119,19 @@
    naming that box here would tie on specificity and lose on source order, and `@media`
    contributes nothing to break the tie. */
 @media print {
-  :where(:root, .lf-thread-transcript) pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+  :where(:root, .lf-thread-transcript) pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
 }
-:where(:root, .lf-thread-transcript) blockquote { margin: 18px 0; padding: 2px var(--quote-inset);
-             border-left: var(--quote-rule); color: var(--muted);
-             font-style: var(--quote-style); --lf-block-frame: 1; }
+:where(:root, .lf-thread-transcript) blockquote {
+  margin: 18px 0;
+  padding: 2px var(--quote-inset);
+  border-left: var(--quote-rule);
+  color: var(--muted);
+  font-style: var(--quote-style);
+  --lf-block-frame: 1;
+}
 /* A table's columns hold what is in them, and the space between two of them is
  * one gutter wide. `width: 100%` bought the opposite: the browser's auto layout
  * spreads leftover width across every column, so a four-column survey on the
@@ -125,49 +168,69 @@
 /* A table scrolls its own columns, so, like `pre`, its rows never size what holds it.
  * Scrolling sideways makes it the scroller for anything sticking inside it, which
  * sticks at the table's own top (`--lf-top`), and, like `pre`, leaves room under its
- * last row for an overlay scrollbar (shadow.css, beside `pre`). */
-:where(:root, .lf-thread-transcript) table { display: block; overflow-x: auto; container-type: inline-size scroll-state; --lf-top: 0px;
-        border-collapse: collapse;
-        font: var(--t-5)/1.5 var(--sans); margin: 18px 0; font-variant-numeric: tabular-nums; }
-/* A table's painted grid fills a drawn frame, or the allocation of a box holding it,
-   whose start edge the table shares with that box's other blocks. Otherwise the grid
-   keeps its columns' natural width; a frame that only trims draws no edge to fill
-   (`--lf-block-frame: trim`).
-
-   The grid is an anonymous box inside the scrolling block, so CSS cannot size it
-   directly. An empty caption as wide as the scrollport (100cqi) supplies its minimum;
-   automatic table layout distributes that width among the columns. Wider content
-   still scrolls. The claim stays on each table, so a nested table asks its own frame. */
-@property --lf-fills-frame { syntax: "<integer>"; inherits: false; initial-value: 0; }
-:where(:root, .lf-thread-transcript) table:where([data-lf-space], [data-lf-space] *) { --lf-fills-frame: 1; }
-/* A table granted room of its own (`data-width`) fills only a drawn frame: elsewhere it
-   keeps its columns' natural width within that room rather than spreading the room
-   between them, and layouts.css sizes its box to them. */
-:where(:root, .lf-thread-transcript) table:where([data-lf-space]:not([data-lf-space="column"])) {
-  --lf-fills-frame: 0; }
-@container style(--lf-block-frame: 1) {
-  :where(:root, .lf-thread-transcript) table { --lf-fills-frame: 1; }
-}
-@container style(--lf-fills-frame: 1) {
-  :where(:root, .lf-thread-transcript) table::before { content: ""; display: table-caption; min-inline-size: 100cqi; }
+ * last row for an overlay scrollbar (shadow.css, beside `pre`).
+ *
+ * The grid inside keeps its columns' natural width wherever the table stands, in a
+ * frame or a granted room too: the grid is an anonymous box, and the one way to widen
+ * it, an empty caption as wide as the box, works in Chrome alone, since Firefox never
+ * widens a grid to its caption.
+ *
+ * It is the inline-size container its caption reads (100cqi) in every engine: the size
+ * type is declared alone first, since an engine without scroll-state containers
+ * (Firefox, WebKit) drops a `container-type` naming it whole. */
+:where(:root, .lf-thread-transcript) table {
+  display: block;
+  overflow-x: auto;
+  container-type: inline-size;
+  container-type: inline-size scroll-state;
+  --lf-top: 0px;
+  border-collapse: collapse;
+  font: var(--t-5)/1.5 var(--sans);
+  margin: 18px 0;
+  font-variant-numeric: tabular-nums;
 }
 /* A cell already supplies the identifier's frame and spacing. The size is relative to
    the cell's own, so a name reads as a word of the row: at the chip size it stood
    11.5px beside 14px values. */
-:where(:root, .lf-thread-transcript) :is(th, td) code:not(pre code) { padding: 0; background: none; font-size: 0.9em; }
+:where(:root, .lf-thread-transcript) :is(th, td) code:not(pre code) {
+  padding: 0;
+  background: none;
+  font-size: 0.9em;
+}
 /* The caption stands inside the box that scrolls the columns, at the columns' full
    width, so on a narrow window it ran past the scrollport and read "What the final
    revision demonstrates and what rem…". It keeps to the part of the table on screen
    (the table is its own inline-size container) and stays there as the columns scroll. */
-:where(:root, .lf-thread-transcript) caption { text-align: left; font-size: var(--t-6); color: var(--muted);
-          margin-bottom: 6px; position: sticky; inset-inline-start: 0; max-inline-size: 100cqi; }
-:where(:root, .lf-thread-transcript) :is(th, td) { text-align: left; padding: 8px 14px; border-bottom: 1px solid var(--rule);
-         vertical-align: top; --lf-block-frame: 1; }
+:where(:root, .lf-thread-transcript) caption {
+  text-align: left;
+  font-size: var(--t-6);
+  color: var(--muted);
+  margin-bottom: 6px;
+  position: sticky;
+  inset-inline-start: 0;
+  max-inline-size: 100cqi;
+}
+:where(:root, .lf-thread-transcript) :is(th, td) {
+  text-align: left;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+  --lf-block-frame: 1;
+}
+@media screen and (max-width: 640px) {
+  :where(:root, .lf-thread-transcript) :is(th, td) {
+    padding-inline: 8px;
+  }
+}
 /* The padding is a gutter, and the columns at the two ends have no neighbour to
    keep away from: 10px of it there set every table's first word 10px right of
    the prose above it, and stopped the last column short of the same edge. */
-:where(:root, .lf-thread-transcript) tr > :first-child { padding-left: 0; }
-:where(:root, .lf-thread-transcript) tr > :last-child { padding-right: 0; }
+:where(:root, .lf-thread-transcript) tr > :first-child {
+  padding-left: 0;
+}
+:where(:root, .lf-thread-transcript) tr > :last-child {
+  padding-right: 0;
+}
 /* A cell the user stands on, as a thread's target once its card closes, wears the ring
  * inside its own box. The table scrolls its columns, so it clips to its own edges, and
  * the outer columns, the header row and the last row stand flush with them: the layer's
@@ -176,20 +239,66 @@
  * flush, as an x-bound box does. Inset, the ring stands where the card's target trace
  * outlined the cell, and like the trace it meets the words of an outer column, which
  * keeps no padding on its outer side. */
-:where(:root, .lf-thread-transcript) :where(th, td)[data-lf-focus] { outline-offset: calc(-1 * var(--focus-ring-w)); }
+:where(:root, .lf-thread-transcript) :where(th, td)[data-lf-focus] {
+  outline-offset: calc(-1 * var(--focus-ring-w));
+}
 /* Which kind of header a th is, asked of the author's own word for it rather
    than of where it sits: a header row written without a <thead> is still column
    headings, and `scope="row"` is what a row's name needs said anyway. Each rule
    says which kind it is for, so neither resets the other — a row's name shares its
    values' working face and size, while the
    column headings are quieter. Both keep the author's capitalization. */
-:where(:root, .lf-thread-transcript) th:not([scope="row"]) { font-size: var(--t-working-label);
-     color: var(--muted); font-weight: 600;
-     border-bottom-color: var(--border-2); }
-:where(:root, .lf-thread-transcript) th[scope="row"] { font-weight: 600; }
-:where(:root, .lf-thread-transcript) :is(ul, ol) { margin: 10px 0; padding-inline-start: 24px; }
-:where(:root, .lf-thread-transcript) li { margin: 6px 0; }
-:where(:root, .lf-thread-transcript) hr { border: none; border-top: 1px solid var(--rule); margin: 40px 0; }
+:where(:root, .lf-thread-transcript) th:not([scope="row"]) {
+  font-size: var(--t-working-label);
+  color: var(--muted);
+  font-weight: 600;
+  border-bottom-color: var(--border-2);
+}
+:where(:root, .lf-thread-transcript) th[scope="row"] {
+  font-weight: 600;
+}
+/* A table of captures (authoring-evidence.md, "Source files and media") labels each
+   axis once, so its heads are the only words saying which capture is which: a column's
+   stands centred over its captures in the row names' ink, and a row's name stands level
+   with its capture's middle rather than at its top edge. A head's longest word still
+   sets its column's least width, so a long head draws its captures a little larger
+   than their neighbours ("Documentation reviewed" over one of three equal captures, 11%
+   wider at 1440px); breaking heads anywhere evened the scale but split "Documentation"
+   mid-word on a phone. A table is one of captures where a cell of its own rows holds
+   nothing but an image, linked or not, so a table nested in a cell is read for itself. */
+:where(:root, .lf-thread-transcript)
+  table:has(
+    > * > tr > td > img:only-child,
+    > * > tr > td > a:only-child > img:only-child
+  )
+  > *
+  > tr
+  > :is(th, td) {
+  vertical-align: middle;
+}
+:where(:root, .lf-thread-transcript)
+  table:has(
+    > * > tr > td > img:only-child,
+    > * > tr > td > a:only-child > img:only-child
+  )
+  > *
+  > tr
+  > th:not([scope="row"]) {
+  text-align: center;
+  color: var(--ink);
+}
+:where(:root, .lf-thread-transcript) :is(ul, ol) {
+  margin: 10px 0;
+  padding-inline-start: 24px;
+}
+:where(:root, .lf-thread-transcript) li {
+  margin: 6px 0;
+}
+:where(:root, .lf-thread-transcript) hr {
+  border: none;
+  border-top: 1px solid var(--rule);
+  margin: var(--hr-margin-block) 0;
+}
 
 /* One owner for message type and spacing on every surface, including widget shadow
    trees. The editor and messages share the theme's entry-size floor. A contextual
@@ -197,27 +306,61 @@
    these rules.
    Paragraphs keep the editor's whitespace and a blank line between them through
    send, replies and reopening. */
-  :is(.lf-thread-transcript, .lf-thread-reply, .lf-general) { --quote-inset: 10px; --pre-inset: 10px; }
-  leaf-text.lf-fab-input, .lf-msg-body {
-          font: max(var(--entry-floor), var(--t-5))/1.5 var(--sans); color: var(--ink); }
-  .lf-msg-body { min-width: 0; margin: var(--lf-msg-body-gap) 0 0; overflow-wrap: anywhere; }
-  /* A message's words, or its rewrite standing where they stood (message-edit.js). */
-  :is(.lf-msg-text, .lf-msg-editor) { display: block;
-          padding-block: var(--lf-thread-text-pad-block, 0px); }
-  .lf-msg-text > :first-child { margin-top: 0; }
-  .lf-msg-body > :last-child, .lf-msg-text > :last-child { margin-bottom: 0; }
-  .lf-msg-body :is(p, ul, ol, pre, blockquote, table, hr) { margin: 6px 0; }
-  .lf-msg-text > p { font: inherit; white-space: break-spaces; margin-block: 1lh; }
-  /* Prose here breaks anywhere, because the thing a reply overflows on is a URL
+:is(.lf-thread-transcript, .lf-thread-reply, .lf-general) {
+  --quote-inset: 10px;
+  --pre-inset: 10px;
+}
+leaf-text.lf-fab-input,
+.lf-msg-body {
+  font: max(var(--entry-floor), var(--t-5))/1.5 var(--sans);
+  color: var(--ink);
+}
+/* A message keeps the column's measure on any page, as a Layout's text does
+     (`--lf-measure`, theme.css), however wide its panel is dragged. */
+.lf-msg-body {
+  min-width: 0;
+  margin: var(--lf-msg-body-gap) 0 0;
+  overflow-wrap: anywhere;
+  --lf-measure: var(--col);
+}
+.lf-msg-text {
+  display: block;
+  padding-block: var(--lf-thread-text-pad-block, 0px);
+}
+.lf-msg-text > :first-child {
+  margin-top: 0;
+}
+.lf-msg-body > :last-child,
+.lf-msg-text > :last-child {
+  margin-bottom: 0;
+}
+.lf-msg-body :is(p, ul, ol, pre, blockquote, table, hr) {
+  margin: 6px 0;
+}
+.lf-msg-text > p {
+  font: inherit;
+  white-space: break-spaces;
+  margin-block: 1lh;
+}
+/* Prose here breaks anywhere, because the thing a reply overflows on is a URL
      no wrap can help. A table is the one block in a reply with somewhere else to
      put the width — the theme makes it scroll inside itself — so breaking its
      cells to save that room spends the alignment the table was written for:
      "12,000" arrived as "12,0" over "00", in a column of figures to compare. */
-  .lf-msg-body :is(th, td) { overflow-wrap: normal; }
-  .lf-msg-body :is(h1, h2, h3, h4, h5, h6) { margin: 8px 0 4px;
-          font-size: inherit; line-height: inherit; }
-  .lf-msg-body li { margin: 2px 0; }
-  .lf-msg-body pre { padding-block: 8px; }
+.lf-msg-body :is(th, td) {
+  overflow-wrap: normal;
+}
+.lf-msg-body :is(h1, h2, h3, h4, h5, h6) {
+  margin: 8px 0 4px;
+  font-size: inherit;
+  line-height: inherit;
+}
+.lf-msg-body li {
+  margin: 2px 0;
+}
+.lf-msg-body pre {
+  padding-block: 8px;
+}
 
 /* Non-verbatim data widgets start as readable source. The registry's existing
  * content/verbatim declarations are painted by delivery and message rendering,

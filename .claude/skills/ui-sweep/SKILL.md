@@ -1,6 +1,6 @@
 ---
 name: ui-sweep
-description: Audits shipped examples in a real browser and fixes interaction and visual defects. Use after runtime or theme changes, or as a standing dispatch.
+description: Audits shipped examples in a real browser and fixes interaction and visual defects. Use after runtime or theme changes, or as a recurring dispatch.
 ---
 
 # UI sweep
@@ -24,7 +24,7 @@ the author's assessment.
 
 ## Derive
 
-For a standing sweep, start from a user workflow in the examples. Use
+For a recurring sweep, start from a user workflow in the examples. Use
 `skills/leaf/assets/AGENTS.md` for UI contracts, render gates, and the
 ownership map.
 Source access belongs in this audit, including when delegating it.

@@ -231,7 +231,7 @@ class TaskConnection:
     def working(self) -> bool:
         """Whether the last notification read left a turn of the task's running.
 
-        This comes off the standing subscription, so the delivery loop can hold back
+        This comes off the persistent subscription, so the delivery loop can hold back
         without opening a connection every second to ask. It can lag, which is why
         it only ever holds a delivery back: the status that lets one start is read
         on this subscription, one request before the start. A disconnected owner

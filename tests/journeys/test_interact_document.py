@@ -26,10 +26,12 @@ from interact_support import (
     fresh_process,
     publish,
     read_page_data,
+    refused_on,
     stamp,
     state_json,
     suggest,
 )
+from leaf import agent_state as agent_state_model
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import data_contracts as data_contracts_model
@@ -65,7 +67,7 @@ def test_check_accepts_authored_module_scripts(page_dir):
 
 
 def test_the_captured_executable_digest_separates_code_from_content(page_dir):
-    """What a standing document cannot take on in place, and nothing else.
+    """What the current document cannot take on in place, and nothing else.
 
     A user's open document keeps its module graph and its defined elements for as
     long as it lives, so the capture states which revisions can be given to that
@@ -230,10 +232,11 @@ def test_a_version_that_writes_the_move_owns_its_order(page_dir):
     assert check(page_dir).exit_code == 0, check(page_dir).output
     publish(page_dir)
     assert _todo_order(page_dir) == ["n", "a", "x", "b", "c"]
-    with pytest.raises(events_model.EventRefused, match="markup now places its unit"):
+    with pytest.raises(events_model.EventRefused) as refused:
         append_command(
             page_dir, {"kind": "undo", "author": "user", "undoes": move["id"]}
         )
+    assert refused_on(refused.value).code == "absorbed-move"
 
 
 def test_a_later_version_can_reposition_a_card_without_retracting_its_move(page_dir):
@@ -269,7 +272,7 @@ def test_a_reorder_the_next_version_wrote_survives_a_later_one(page_dir):
     assert result.exit_code == 0, result.output
 
 
-def test_a_later_authored_reorder_is_allowed_with_a_move_standing(page_dir):
+def test_a_later_authored_reorder_is_allowed_with_a_move_in_force(page_dir):
     """A card moved up its own column changes no container, so a reading of the
     column alone would take a version that ignores the move as recording it. At the
     top, no card both versions list precedes it."""
@@ -438,7 +441,7 @@ def test_the_live_source_can_honor_the_latest_revision_decision(page_dir):
     )
 
     # Once staged as index.html, these bytes are a new live revision after r3;
-    # the standing decision on r3 therefore licenses the honoring rewrite.
+    # the decision in force on r3 therefore licenses the honoring rewrite.
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<lf-options>",
@@ -601,10 +604,11 @@ def test_unreferenced_ids_and_widget_items_may_leave_the_page(page_dir):
     status, findings = check_findings(page_dir)
 
     assert status == 0
-    assert found(findings, "dropped-ids", revision=1, ids=["backfill-first", "plan"])
+    # Nothing reports the option the revision dropped.
+    assert not [f for f in findings if "backfill-first" in str(f.values)]
 
 
-def test_an_answered_ask_moves_into_a_collapsed_section_with_its_pick_standing(
+def test_an_answered_ask_moves_into_a_collapsed_section_with_its_pick_in_force(
     page_dir,
 ):
     """The route `authoring-revisions.md` gives finished work: the answered Ask goes
@@ -1105,18 +1109,20 @@ def test_check_advises_where_a_users_aim_has_nothing_to_land_on(page_dir):
 def test_a_state_read_never_materializes_a_revision_bundle(page_dir, monkeypatch):
     """One request must not re-read the whole page history to answer.
 
-    `GET /` and `GET /api/state` both activate the source under the page's exclusive
-    lock, and that validation asks every revision in the history what its own
-    document and registry said. A revision bundle holds a couple of hundred resource
-    files, so answering through `read_artifact` made one request cost the revision
-    count times the bundle: seconds per request where the page directory is on a
-    network filesystem, with every other reader queued behind the lock.
+    `GET /api/state` activates the source under the page's exclusive lock and then
+    asks every revision in the history what its own document and registry said, for
+    the ids, asks and data bindings it declared. A revision bundle holds a couple of
+    hundred resource files, so answering through `read_artifact` made one request
+    cost the revision count times the bundle: seconds per request where the page
+    directory is on a network filesystem, with every other reader queued behind the
+    lock.
 
     The active revision is no exception: whether the source is that revision is a
     question for its manifest's digest, not its bundle. So each revision opens the
-    files its reading asks for and no more — the document and the registry, and the
-    active revision its manifest besides. Exact counts are the control: a counter
-    that never saw a revision file would read zero for each.
+    files its reading asks for and no more: the document and registry, plus the
+    active revision's manifest for its executable identity. The bounded metadata
+    budget and filenames rule out materializing resource bodies, including after
+    the bundle descriptor cache has evicted them.
     """
     for edit in range(12):
         (page_dir / "index.html").write_text(
@@ -1132,20 +1138,31 @@ def test_a_state_read_never_materializes_a_revision_bundle(page_dir, monkeypatch
 
     def counted_open(self, *args, **kwargs):
         if found := re.search(r"/revisions/r([1-9][0-9]*)-", str(self)):
-            opens[int(found.group(1))] += 1
+            opens[int(found.group(1)), self.name] += 1
         return native_open(self, *args, **kwargs)
 
     monkeypatch.setattr(Path, "open", counted_open)
     # A server started now: it holds none of this test's readings.
     with fresh_process():
-        activated = revisioning_model.activate_source(page_dir)
+        state = agent_state_model.cmd_page_state(page_dir)
     monkeypatch.undo()
-    assert activated.error is None, activated.error
-    assert not activated.created
+    assert state["source"]["error"] is None, state["source"]
+    assert state["active"]["revision"] == revisions[-1]
 
     *history, active = revisions
-    assert opens[active] == 3
-    # One document and one registry apiece: the only two resources this reading reads.
-    assert {revision: opens[revision] for revision in history} == {
-        revision: 2 for revision in history
+    for revision in history:
+        metadata = {
+            name: count for (order, name), count in opens.items() if order == revision
+        }
+        marker = files_model.revision_path(page_dir, revision).name
+        assert set(metadata) == {marker, "registry.json"}
+        assert metadata[marker] == metadata["registry.json"] == 1
+    active_metadata = {
+        name: count for (order, name), count in opens.items() if order == active
     }
+    assert set(active_metadata) == {
+        files_model.revision_path(page_dir, active).name,
+        "registry.json",
+        "manifest.json",
+    }
+    assert sum(active_metadata.values()) == 3

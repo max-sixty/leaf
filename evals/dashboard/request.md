@@ -15,14 +15,14 @@ need to be able to tell you whether to resume, hold or roll back the paused regi
 
 **Rollout by region.** Stages are 1% → 10% → 50% → 100%.
 
-| Region | Stage | Since | Error rate | Status |
-|---|---|---|---|---|
-| us-east | 100% | 11:05 | 0.33% | done |
-| us-west | 100% | 11:50 | 0.35% | done |
-| ca-central | 100% | 12:30 | 0.30% | done |
-| eu-west | 50% | 13:10 | 0.91% | **paused 14:52** |
-| eu-central | 10% | 14:05 | 0.38% | waiting on eu-west |
-| ap-southeast | 1% | 14:40 | 0.29% | waiting on eu-west |
+| Region       | Stage | Since | Error rate | Status             |
+| ------------ | ----- | ----- | ---------- | ------------------ |
+| us-east      | 100%  | 11:05 | 0.33%      | done               |
+| us-west      | 100%  | 11:50 | 0.35%      | done               |
+| ca-central   | 100%  | 12:30 | 0.30%      | done               |
+| eu-west      | 50%   | 13:10 | 0.91%      | **paused 14:52**   |
+| eu-central   | 10%   | 14:05 | 0.38%      | waiting on eu-west |
+| ap-southeast | 1%    | 14:40 | 0.29%      | waiting on eu-west |
 
 **Error rate by region, % of requests, five-minute buckets since 14:00 UTC.**
 
@@ -52,18 +52,18 @@ time,us-east,eu-west,eu-central
 
 **Release checks.**
 
-| Check | Result |
-|---|---|
-| Unit and integration suite | pass |
-| Contract tests against billing | pass |
-| Schema migration 0412 applied | pass, all regions |
-| Canary synthetic login | pass |
-| Canary synthetic checkout | **fail in eu-west since 14:20** (timeout at payment step) |
-| Feature flag `new-cart` default | off everywhere |
-| Dependency `payments-sdk` 7.2 | rolled with 4.12 |
-| Memory per pod | +4% vs 4.11, within budget |
-| Cold start | 1.8 s vs 1.7 s |
-| Log volume | +11% (new debug line in cart service) |
+| Check                           | Result                                                    |
+| ------------------------------- | --------------------------------------------------------- |
+| Unit and integration suite      | pass                                                      |
+| Contract tests against billing  | pass                                                      |
+| Schema migration 0412 applied   | pass, all regions                                         |
+| Canary synthetic login          | pass                                                      |
+| Canary synthetic checkout       | **fail in eu-west since 14:20** (timeout at payment step) |
+| Feature flag `new-cart` default | off everywhere                                            |
+| Dependency `payments-sdk` 7.2   | rolled with 4.12                                          |
+| Memory per pod                  | +4% vs 4.11, within budget                                |
+| Cold start                      | 1.8 s vs 1.7 s                                            |
+| Log volume                      | +11% (new debug line in cart service)                     |
 
 **Event log (newest first).**
 

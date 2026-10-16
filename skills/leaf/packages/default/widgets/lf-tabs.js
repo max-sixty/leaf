@@ -53,7 +53,6 @@
  * there is no failSoft. */
 import {
   afterScript,
-  HIDDEN,
   PRESS,
   asksIn,
   askWords,
@@ -69,6 +68,7 @@ import {
   keepView,
   keeps,
   keepsText,
+  landingInsets,
   layoutChanged,
   listWalkPosition,
   frameFor,
@@ -90,8 +90,8 @@ import {
   setRuntimeRootStyle,
   sizeObserver,
   tabStore,
-  watchAsks,
   watchComparison,
+  watchProjection,
   focusDestination,
   fragmentTarget,
   rove,
@@ -146,7 +146,9 @@ customElements.define(
         return;
       }
       // Own panels only (a nested lf-tabs wires its own).
-      const panels = [...this.querySelectorAll(":scope > lf-tab")];
+      const panels = /** @type {HTMLElement[]} */ ([
+        ...this.querySelectorAll(":scope > lf-tab"),
+      ]);
       if (!panels.length) return;
       const side = this.getAttribute("list") === "side";
       this.#side = side;
@@ -416,7 +418,7 @@ customElements.define(
     // A side list's answers follow the page's ask reading.
     #listenForAsks() {
       if (!this.#side || !this.#buttons.size || this.#stopAsks) return;
-      this.#stopAsks = watchAsks(this, () => this.#marks());
+      this.#stopAsks = watchProjection(this, () => this.#marks());
     }
 
     #activate(active, reason) {
@@ -451,7 +453,7 @@ customElements.define(
         )
           replaceEntry(this.#locationFor(active));
         for (const [panel, btn] of this.#buttons) {
-          keeps(panel, "hidden", panel === active ? null : HIDDEN);
+          keeps(panel, "hidden", panel === active ? null : "until-found");
           // A tabpanel of prose has no focusable content, so Tab reaches the open
           // panel itself. hidden="until-found" skips only what a panel holds, not
           // the panel. A scrolling panel also takes a native browser stop without
@@ -573,35 +575,20 @@ customElements.define(
     #showTab(btn) {
       const strip = this.#strip;
       if (!btn) return;
-      if (strip.scrollHeight > strip.clientHeight) {
-        const room = strip.getBoundingClientRect();
-        const tab = btn.getBoundingClientRect();
-        const label = btn.parentElement.querySelector(":scope > .lf-tab-group");
-        const named = label && label.getBoundingClientRect();
-        const top =
-          named && tab.bottom - named.top <= room.height ? named.top : tab.top;
-        if (top < room.top) strip.scrollTop -= room.top - top;
-        else if (tab.bottom > room.bottom) strip.scrollTop += tab.bottom - room.bottom;
-      }
-      if (strip.scrollWidth <= strip.clientWidth) return;
-      const room = strip.getBoundingClientRect();
-      const { scrollPaddingLeft, scrollPaddingRight } = getComputedStyle(strip);
-      const left = room.left + (Number.parseFloat(scrollPaddingLeft) || 0);
-      const right = room.right - (Number.parseFloat(scrollPaddingRight) || 0);
-      const tab = btn.getBoundingClientRect();
       const label = btn.parentElement.querySelector(":scope > .lf-tab-group");
-      const named = label && label.getBoundingClientRect();
-      const box =
-        named &&
-        Math.max(named.right, tab.right) - Math.min(named.left, tab.left) <=
-          right - left
-          ? {
-              left: Math.min(named.left, tab.left),
-              right: Math.max(named.right, tab.right),
-            }
-          : tab;
-      if (box.left < left) strip.scrollLeft -= left - box.left;
-      else if (box.right > right) strip.scrollLeft += box.right - right;
+      const run = label && document.createRange();
+      run?.setStartBefore(label);
+      run?.setEndAfter(btn);
+      const span = run?.getBoundingClientRect();
+      const pad = landingInsets(strip);
+      // Only an axis the strip scrolls along has a room for the run to fit.
+      const fits =
+        span &&
+        (strip.scrollWidth <= strip.clientWidth ||
+          span.width <= strip.clientWidth - pad.left - pad.right) &&
+        (strip.scrollHeight <= strip.clientHeight ||
+          span.height <= strip.clientHeight - pad.top - pad.bottom);
+      scrollIntoView(fits ? run : btn, { block: "nearest", within: strip });
     }
 
     // The open tab stays in the row as the strip's width changes, and not only when a
@@ -681,7 +668,10 @@ customElements.define(
       } catch {
         // An unreadable place is no place.
       }
-      pageScroller.scrollTop = place ? start : Math.min(from, start);
+      pageScroller.scrollTo({
+        top: place ? start : Math.min(from, start),
+        behavior: "instant",
+      });
       if (place) restorePlace(place);
     }
 

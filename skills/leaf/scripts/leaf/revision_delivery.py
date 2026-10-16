@@ -63,6 +63,7 @@ from .structure import (
     SourceDocument,
     annotation_mode,
     element_attrs,
+    page_layout,
     rel_tokens,
     review_mode,
     rewrite_attribute_references,
@@ -150,7 +151,9 @@ def rebase_css(
 
 def rebase_module(data: bytes, base: str, address: Address) -> bytes:
     """Re-address every literal import of an authored module at `base`."""
-    return bind_imports(data, authored_imports(data, base), address)
+    return bind_imports(
+        data, authored_imports(data, base), lambda path: address(quote(path, safe="/"))
+    )
 
 
 def rebase_document(
@@ -207,11 +210,13 @@ def rebase_document(
                 and inline_stylesheet is not None
                 and (located := page_path(attrs.get("href", ""), "/index.html"))
             ):
+                # Preserve stylesheet declarations, including author access metadata;
+                # only the linked resource's address and fetch mechanism disappear.
                 kept = _attributes(
                     {
                         name: value
                         for name, value in attrs.items()
-                        if name in {"media", "title", "data-lf-runtime", "disabled"}
+                        if name not in {"rel", "href", "crossorigin", "integrity"}
                     }
                 )
                 css = _inline_css(inline_stylesheet(located[0]))
@@ -354,40 +359,34 @@ def mark_declared(
     module clones it, and a declarative shadow tree's content is its host's to style, so
     neither is marked.
 
-    A mark is declared by the element's tag or by a selector idiom whose selector
-    the element matches, as a `.callout` declares the room it takes; the tag's
-    declaration comes first.
+    A mark is declared by the element's tag, so a selector idiom declares none.
     """
     tree = turbohtml.parse(source, scripting=True, source_locations=True)
     index = source_index(source)
-    idioms = [
-        (selector, entry)
-        for selector, entry in registry.items()
-        if not selector.startswith("$")
-        and not is_element_name(selector)
-        and not entry.keys().isdisjoint(DECLARED_MARKS)
-    ]
     edits = []
     for element in tree.find_all(True):
         location = element.source_location
         if location is None or element.closest("template") is not None:
             continue
-        declarations = (
-            [registry.get(element.tag, {})] if is_element_name(element.tag) else []
-        ) + [entry for selector, entry in idioms if element.matches(selector)]
+        declaration = (
+            registry.get(element.tag, {}) if is_element_name(element.tag) else {}
+        )
         attrs = element_attrs(element)
         content = element.tag not in {"html", "body", "main"} and (
             element.closest("main") is not None
         )
         marks = {}
         for key, mark in DECLARED_MARKS.items():
-            declared = next((d[key] for d in declarations if d.get(key)), None)
+            declared = declaration.get(key)
             means = {"content": content, "declared": bool(declared)}
             authored = mark.get("authored")
             if authored in attrs and means[mark["authored_on"]]:
-                marks[mark["paint"]] = attrs[authored]
+                value = attrs[authored]
             elif declared:
-                marks[mark["paint"]] = "" if declared is True else str(declared)
+                value = "" if declared is True else str(declared)
+            else:
+                continue
+            marks[mark["paint"]] = value
         sizes = [
             size
             for value in attrs.values()
@@ -423,7 +422,8 @@ def mark_declared(
                     )
                 )
         if prepaint := prepaint_markup(registry, element.tag):
-            root = len(re.match(r"<[a-z][a-z0-9]*", prepaint)[0])
+            painted = turbohtml.parse(prepaint, scripting=True).find("body")
+            root = 1 + len(next(iter(painted.children)).tag)
             edits.append(
                 (
                     index(location.start_tag.end_line, location.start_tag.end_col),
@@ -591,7 +591,7 @@ def delivered_resource(
 
 
 def delivery_identity(
-    revision: int, version: int | None, executable: str | None, widgets: dict
+    revision: int, version: int | None, executable: str, widgets: dict
 ) -> str:
     """State which revision a delivered document is, and what it is made of.
 
@@ -608,18 +608,11 @@ def delivery_identity(
     Every delivered document carries this (`compose_document`). A document that says
     part of it is a document the next reader of the contract has to guess about.
     """
-    # A revision captured before these were recorded says neither, rather than saying it
-    # is something called "None". A document that does not state its executable identity
-    # is one an open page cannot take a revision from, which is the reload path.
     return (
         f'<meta name="lf-revision" data-lf-runtime content="{revision}">'
-        + (
-            f'<meta name="lf-executable" data-lf-runtime content="{executable}">'
-            f'<meta name="lf-widgets" data-lf-runtime '
-            f'content="{html.escape(json.dumps(widgets, separators=(",", ":")), quote=True)}">'
-            if executable is not None
-            else ""
-        )
+        f'<meta name="lf-executable" data-lf-runtime content="{executable}">'
+        f'<meta name="lf-widgets" data-lf-runtime '
+        f'content="{html.escape(json.dumps(widgets, separators=(",", ":")), quote=True)}">'
         + (
             f'<meta name="lf-version" data-lf-runtime content="{version}">'
             if version is not None
@@ -675,7 +668,7 @@ def delivery_prelude(
     document: SourceDocument,
     revision: int,
     version: int | None,
-    executable: str | None,
+    executable: str,
     widgets: dict,
 ) -> str:
     """Declare encoding, a device-width viewport, and immutable Leaf identity.
@@ -686,7 +679,10 @@ def delivery_prelude(
     """
     viewport = (
         ""
-        if any(meta["name"].lower() == "viewport" for meta in document.named_metas)
+        if any(
+            meta["name"].lower() == "viewport"
+            for meta in document.authoring.named_metas
+        )
         else '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
     )
     return (
@@ -728,7 +724,7 @@ def compose_document(
     revision: int,
     version: int | None,
     *,
-    executable: str | None,
+    executable: str,
     widgets: dict,
     resources: Mapping[str, Resource],
     registry: Mapping,
@@ -749,9 +745,10 @@ def compose_document(
     hears of it, so it comes before that. Used `x-initial` bundles follow it and
     register the package producers that the body's parser invocations run; and it
     stands before the theme, since a
-    script after a stylesheet still loading waits for it. The root carries the host's attributes and the page's
+    script after a stylesheet still loading waits for it. The root carries the host's attributes, the page's
     declared review (`data-lf-review`), which the render-blocking theme reads to
-    reserve the banner a sign-off page will draw before the runtime draws it. The
+    reserve the banner a sign-off page will draw before the runtime draws it, and the
+    page's Layout (`data-lf-layout`), whose body rules must hold before `main` is parsed. The
     import map precedes every script, since a browser reads no map once a module has
     begun to load.
     """
@@ -768,7 +765,7 @@ def compose_document(
         inline_stylesheet=delivery.inline_stylesheet,
     )
     document = SourceDocument(source)
-    if "head" not in document.wrapper_tags:
+    if "head" not in document.authoring.wrapper_tags:
         raise ValueError("document has no explicit <head>")
     theme = (
         f"<style data-lf-runtime>{_inline_css(delivery.inline_stylesheet('/theme.css'))}</style>"
@@ -822,7 +819,7 @@ def compose_document(
             else ""
         )
     )
-    head_start, head_end = document.wrapper_tags["head"]
+    head_start, head_end = document.authoring.wrapper_tags["head"]
     insertions = [(head_end, head)]
     if delivery.runtime is not None:
         # A classic parser checkpoint waits for every preceding stylesheet, including
@@ -831,18 +828,20 @@ def compose_document(
         # later task. It shares the same residency computation used after upgrade.
         insertions.append(
             (
-                document.wrapper_tags["body"][1],
+                document.authoring.wrapper_tags["body"][1],
                 "<script data-lf-runtime>document.documentElement.lfInitial.residency()</script>",
             )
         )
     root = dict(delivery.html_attributes)
     if (review := review_mode(document)) is not None:
         root["data-lf-review"] = review
+    if (layout := page_layout(document)) is not None:
+        root["data-lf-layout"] = layout
     if root:
         attributes = _attributes(root)
         insertions.append(
-            (document.wrapper_tags["html"][1] - 1, attributes)
-            if "html" in document.wrapper_tags
+            (document.authoring.wrapper_tags["html"][1] - 1, attributes)
+            if "html" in document.authoring.wrapper_tags
             # A source may leave <html> implicit; the tag is then written where the
             # parser would have implied it, before the head.
             else (head_start, f"<html{attributes}>")
@@ -850,7 +849,7 @@ def compose_document(
     if delivery.body_attributes:
         insertions.append(
             (
-                document.wrapper_tags["body"][1] - 1,
+                document.authoring.wrapper_tags["body"][1] - 1,
                 _attributes(delivery.body_attributes),
             )
         )

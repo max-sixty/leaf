@@ -5,7 +5,7 @@
    answered or not, wherever it is drawn: an ask frozen into a reply is where a user
    working it is, never the page ask its thread is about. A presentation can stand at the
    source target it shows in authored flow or chrome, as its owner declares (`declareSide`): the margin for its
-   cluster controls, the thread card, and a thread in the Threads panel; the Questions panel
+   cluster controls, the thread card, and a thread in the Threads panel; the On panel
    for its rows; the details shelf for the elements that name its notes. A side's answer
    drawn in the chrome itself, such as a margin control on a widget frozen into a reply,
    stands only where an ask holds it. Chrome no side
@@ -16,14 +16,16 @@
    ask source or unique context holding it, `c` and `e` its semantic target, the walks its place
    in the page's order. Every side answers alike: an open ask stood at from its card still wears its
    ring and takes its digits, `c` at an element whose own thread is shown continues it,
-   and `q` and `t` step from the target.
+   and `m` and `t` step from the target.
 
    The chrome stands over the page rather than in it and is appended after it,
    so a chrome node measured as a place would put the user behind every ask and thread
    there is; no reader measures from one that does not stand in an ask.
 
    Page walks share `walkOrigin`: focus, then the selection's ends, then the first
-   visible reading block. Every press reads the browser afresh; no walk remembers a
+   visible reading block. A selected tab starts a walk at its controlled panel,
+   where the user is reading, without changing comment targets.
+   Every press reads the browser afresh; no walk remembers a
    destination to use as the user's current place. They step from it by one rule,
    `stepFrom`, in the page's rendered order (`renderedOrder`, shadow-tree.js), so a place
    inside a widget's shadow tree is ordered among the places beside it there rather than
@@ -83,18 +85,20 @@ export function placeOf(node) {
   return inChrome(at) ? null : at;
 }
 
-// Where the user stands now: the first place on the page among where they stand
-// (`standingNodes`, focus.js), focus before a selection's ends.
-function standingPlace() {
+// A standing origin can step off its current stop. An `at` origin arrives at
+// its place; an `enter` origin starts inside its region, from either direction.
+// A selected tab enters its panel instead of standing on an ask it may hold.
+export function walkOrigin() {
   for (const node of standingNodes()) {
     const place = placeOf(node);
-    if (place) return place;
+    if (place) {
+      const tab = place.closest('[role="tab"][aria-selected="true"]');
+      const panel = tab?.ariaControlsElements?.[0];
+      return panel ? { place: panel, kind: "enter" } : { place, kind: "standing" };
+    }
   }
-  return null;
+  return { place: pageReadingBlock(), kind: "standing" };
 }
-
-// A page walk still has an origin when focus and selection name no page place.
-export const walkOrigin = () => standingPlace() ?? pageReadingBlock();
 
 // The item a walk over `list` steps to in direction `dir` from `here`, a place on the
 // page, and whether it came round an end to reach it. `list` is in page order with its
@@ -104,9 +108,17 @@ export const walkOrigin = () => standingPlace() ?? pageReadingBlock();
 // either way: the user is at it without standing on it, so the press arrives there. An
 // item with no place stands after every placed one, so it is ahead of any place. A
 // caller whose user stands on an item steps off it with `cycledRow` instead; with no
-// `here` the walk enters at the end it faces.
-export function stepFrom(list, here, dir, placeOfItem) {
+// `here` the walk enters at the end it faces. An `enter` origin reaches its
+// contained stops first, from the end the direction faces, before leaving it.
+export function stepFrom(list, { place: here, kind }, dir, placeOfItem) {
   if (!here) return cycledRow(list, null, dir);
+  if (kind === "enter") {
+    const inside = list.filter((item) => {
+      const place = placeOfItem(item);
+      return place && renderedUnder(place, here);
+    });
+    if (inside.length) return cycledRow(inside, null, dir);
+  }
   const reach = list.filter((item) => {
     const place = placeOfItem(item);
     if (!place) return dir > 0;

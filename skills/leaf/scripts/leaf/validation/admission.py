@@ -9,6 +9,7 @@ from leaf.data_contracts import data_binding_errors
 from leaf.events import build_threads
 from leaf.files import list_revisions
 from leaf.findings import Finding, Rejected
+from leaf.passages import SourceReading
 from leaf.registry.storage import require_registry
 from leaf.revision_artifact import read_revision
 from leaf.schema import MESSAGE_KINDS
@@ -17,7 +18,6 @@ from leaf.thread_context import thread_names, thread_structure
 
 from ..refusals import Refused
 from .instances import (
-    instance_errors,
     reference_errors,
     thread_markup_contract_errors,
 )
@@ -130,39 +130,12 @@ def version_ids(page_dir: Path) -> set:
     return ids
 
 
-def pinned_thread_markup_errors(
-    page_dir: Path, fragment: SourceDocument
-) -> list[Finding]:
-    """Refuse thread markup an immutable page cannot render.
-
-    Thread markup has no revision boundary: every open historical document
-    receives it.  Admission against only the active registry can therefore freeze a
-    newly introduced widget into the log even though an older pinned document has no
-    declaration or implementation for it.  Ask every captured registry at the append
-    door, while the message can still be refused, and group equal failures so a long
-    page history does not produce one copy per revision. A live sample's child is
-    allocated from the revision showing the message, so its document's vocabulary
-    answers to each captured registry too.
-    """
-    documents = [fragment]
-    for document in documents:
-        documents.extend(sample["document"] for sample in document.samples)
-    failures: dict[Finding, list[int]] = {}
-    for revision in list_revisions(page_dir)[:-1]:
-        registry = read_revision(page_dir, revision).registry
-        for error in thread_markup_contract_errors(fragment, registry) + [
-            error
-            for child in documents[1:]
-            for error in instance_errors(child.lf_elements, registry)
-        ]:
-            failures.setdefault(error, []).append(revision)
-    return [
-        Finding(
-            "pinned-unrenderable",
-            values={"revisions": revisions, "finding": error.json(text=False)},
-        )
-        for error, revisions in failures.items()
-    ]
+def revision_publication(page_dir: Path, revision: int | None) -> SourceReading:
+    """What a message stored at `revision` is published against: that revision, or
+    before the page has one, the candidate's vocabulary over an empty document."""
+    if revision is not None:
+        return read_revision(page_dir, revision)
+    return SourceReading(SourceDocument(""), require_registry(page_dir))
 
 
 def check_markup(
@@ -171,39 +144,28 @@ def check_markup(
     markup: str,
     events: list,
     *,
-    page: SourceDocument | None = None,
+    publication: SourceReading,
     thread: str | None = None,
 ) -> SourceDocument:
-    """A message's HTML fragment, validated against the vendored registry at post
-    time — the discussion-side `page check`, and the field's one gate: the browser
+    """A message's HTML fragment, validated against the registry it is published
+    with — the discussion-side `page check`, and the field's one gate: the browser
     door refuses `markup` outright, so nothing reaches the log under that name
     unvalidated. Text needs no vocabulary gate — the runtime renders it with every tag
     escaped, so it cannot claim a widget — but its Markdown can still point at a file,
     which `read_text_arg` asks about wherever a body arrives. `thread` is the thread
     a reply joins; a comment opens one whose id is not yet assigned. Refuses with
-    what's wrong."""
-    registry = require_registry(page_dir)
+    what's wrong.
+
+    `publication` is the document and registry the message is stored with, which
+    its writer decides before the check: the revision it names
+    (`revision_publication`), or the candidate where a reply publishes saved edits
+    it has checked (`thread.post_reply`). No later check reads the fragment for a
+    conflicting binding again (`data_contracts.data_binding_errors`), so it is
+    checked here under the registry it is stored with."""
+    registry, page = publication.registry, publication.document
     frag = SourceDocument(markup)
-    # Frozen markup also renders in historical documents. Validate their captured
-    # vocabularies before admission; message_markup_errors owns the fragment checks
-    # shared with sample histories, alongside each caller's data bindings and ids.
-    pinned_errors = pinned_thread_markup_errors(page_dir, frag)
-    revisions = list_revisions(page_dir)
-    if page is None:
-        page = (
-            read_revision(page_dir, revisions[-1]).document
-            if revisions
-            else SourceDocument("")
-        )
-    extra_errors = (
-        pinned_errors
-        + ([Finding("pinned-vocabulary")] if pinned_errors else [])
-        + data_binding_errors(
-            page_dir,
-            registry,
-            events,
-            incoming=[(frag, f"incoming {kind} markup")],
-        )
+    extra_errors = data_binding_errors(
+        page_dir, registry, [(frag, f"incoming {kind} markup")]
     )
     if errors := message_markup_errors(
         page_dir,
@@ -233,7 +195,7 @@ def message_markup_errors(
 ) -> list[Finding]:
     """The shared message-fragment gate for a stored or newly constructed page.
 
-    Callers supply their lifetime's binding and pinned-vocabulary checks. The
+    Callers supply their lifetime's binding checks. The
     fragment's structure, vocabulary, presentation, media, ids, references and
     live sample children have one gate regardless of whether its page has been
     allocated yet. `thread_id` is the thread the message joins, where known. Each

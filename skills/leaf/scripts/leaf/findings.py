@@ -1,16 +1,21 @@
-"""A finding: one thing a check found, as a record its readers take fields from.
+"""A finding: one thing a check found, or a command says, as a record its readers take
+fields from.
 
 Every check behind `page check` and `package check` reports through this one type: the
 registry's validation, the markup checks, a sample's initial history, the capture of a
 revision, the page-code run, the render gate in each color scheme and viewport, its
 width sweep and advice, and the widget quality report. The suite's browser fixture
 reports through it too: what the browser said, and what its health sensors
-(`tests/*_watch.js`) found. A refusal raised with what a check found (`Rejected`, such
-as `RegistryError` and `ArtifactError`) carries the records, so a command that reports
-it reads them from it. Each is produced where it is detected, the browser probes and
-sensors included, which return records rather than sentences, and its words are written
-here and nowhere else. The command boundary prints `str(finding)` for a reader and
-`finding.json()` for `--json`, and a failing test prints the words; every
+(`tests/*_watch.js`) found. So does every gate that refuses one event at the append
+door (`event_contracts.admitted_event`). A refusal raised with what a check found
+(`Rejected`, such as `RegistryError`, `ArtifactError` or `event_log.EventRefused`)
+carries the records, so a command that reports it reads them from it. So does every
+note a command gives beside its result, such as why a `leaf wait` ended. Each is
+produced where it is detected, the browser probes and sensors included, which return
+records rather than sentences, and its words are written here and nowhere else. A
+command prints `finding.json()`, its words as `text`, in its result or as a note on
+stderr (`note`), as the event door's refusal answer carries it, and a failing test
+prints the words; every
 other reader, the gate's retry policy and the suite among them, reads the fields.
 
 - `code` names what was found, and decides the words (`_TEXT`).
@@ -36,10 +41,10 @@ finding and the same fault at another width is another.
 """
 
 import json
+import sys
 from dataclasses import dataclass, field, replace
 
 from leaf.refusals import Refused
-from leaf.registry.schema import json_value
 
 SEVERITIES = ("error", "advice")
 
@@ -124,6 +129,25 @@ class Finding:
         return replace(self, **changes)
 
 
+def _json(value) -> str:
+    """`registry.schema.json_value`, imported when words are written: the event log
+    raises findings, and a hook that reads a quiet page imports the log but never
+    the schema validator behind that module."""
+    from leaf.registry.schema import json_value
+
+    return json_value(value)
+
+
+def note(*found: Finding) -> None:
+    """Say each finding beside a command's result, as one JSON line on stderr
+    (`cli`), after whatever the result has printed."""
+    sys.stdout.flush()
+    for finding in found:
+        print(
+            json.dumps(finding.json(), ensure_ascii=False), file=sys.stderr, flush=True
+        )
+
+
 def element_at(tag: str, id: str = "") -> str:
     """How `locate.js` names an element known by its tag and authored id."""
     return f"<{tag} id={id}>" if id else f"<{tag}>"
@@ -142,16 +166,7 @@ def _visual_problem(problem: dict) -> str:
     kind = problem["kind"]
     if kind == "unregistered":
         return "did not call registerVisualParts"
-    if kind in ("unreadable", "unrevealable"):
-        verb = "read" if kind == "unreadable" else "reveal"
-        return f"could not {verb} visual parts: {problem['error']}"
-    said = {
-        "unregistered-parts": "did not register declared parts",
-        "unadmitted-parts": "registered parts its prefixes do not admit",
-        "unlisted-parts": "leaves nameable parts unlisted",
-        "unrevealed-parts": "did not reveal declared parts",
-    }[kind]
-    return f"{said} {', '.join(problem['parts'])}"
+    return f"registered parts its prefixes do not admit {', '.join(problem['parts'])}"
 
 
 def _verbatim(at: str, v: dict) -> str:
@@ -164,8 +179,8 @@ def _verbatim(at: str, v: dict) -> str:
         where = f" at {provenance[0]} {provenance[1]} occurrence {provenance[2] + 1}"
     return (
         f"{at}{where} declares x-verbatim but shows {v['says'][:80]!r} with owned "
-        f"structure {json_value(v['shown'])} where the file reads "
-        f"{json_value(v['expected'])}"
+        f"structure {_json(v['shown'])} where the file reads "
+        f"{_json(v['expected'])}"
     )
 
 
@@ -220,7 +235,7 @@ def _conditions(lacks: dict) -> str:
         " or ".join(
             f"{attr} is {'present' if value else 'absent'}"
             if isinstance(value, bool)
-            else f"{attr}={json_value(value)}"
+            else f"{attr}={_json(value)}"
             for value in values
         )
         for attr, values in lacks.items()
@@ -235,11 +250,9 @@ def _seat(seat: dict) -> str:
 
 
 def _reference_contract(at: str, v: dict) -> str:
-    expected = ", ".join(
-        f"{key}={json_value(value)}" for key, value in v["where"].items()
-    )
+    expected = ", ".join(f"{key}={_json(value)}" for key, value in v["where"].items())
     found = (
-        ", ".join(f"{key}={json_value(value)}" for key, value in v["found"].items())
+        ", ".join(f"{key}={_json(value)}" for key, value in v["found"].items())
         if v["found"] is not None
         else "no declaration"
     )
@@ -273,22 +286,42 @@ def _outside_main(content: list[dict]) -> list[str]:
     ]
 
 
-def _pinned(v: dict) -> str:
-    revisions = v["revisions"]
-    return (
-        "pinned revision"
-        + ("s " if len(revisions) > 1 else " ")
-        + ", ".join(f"r{revision}" for revision in revisions)
-        + f" cannot render this thread markup: {Finding.loads(v['finding'])}"
-    )
-
-
 # What the layer does with a word a widget declares from one of its lists, where the
 # word is on it (`instances.DECLARED_WORDS`).
 _HONORED = {
     "x-language": "a language this page's layer speaks",
     "x-tone": "a tone this page's layer paints",
 }
+
+
+def _unservable_layer(v: dict, why: str, action: str) -> str:
+    """Why this Leaf can neither serve a page nor write its log (`layer`)."""
+    return (
+        f"{v['page']} {why}, so it cannot serve the page or write its log. {action}"
+        f" with `leaf page init {v['page']}`."
+    )
+
+
+def _unservable_revision(v: dict, why: str) -> str:
+    """Why this Leaf can neither serve one revision nor admit input made on it."""
+    return (
+        f"Revision {v['revision']} {why}, so it cannot serve that revision or accept"
+        " input made against it. Revisions saved since the page was re-vendored still"
+        " open, and serving the page saves one from its source; where that fails,"
+        " `leaf page check` names why."
+    )
+
+
+def _invalid_record(v: dict) -> str:
+    """How the refusal of a record one widget's verb writes begins."""
+    return f"<{v['tag']}> {v['kind']} {v['verb']!r} is invalid: "
+
+
+def _visual_parts(declared: dict) -> str:
+    """The part ids a section admits, as `registry.contract.VisualParts` says them."""
+    from leaf.registry.contract import VisualParts
+
+    return str(VisualParts(tuple(declared["prefixes"]), declared["all"]))
 
 
 def _size(box: dict) -> str:
@@ -321,7 +354,7 @@ def _json_path(path: list) -> str:
 
 def _plain(value) -> str:
     """A declared value as the registry's words quote it: a word bare, else JSON."""
-    return value if isinstance(value, str) else json_value(value)
+    return value if isinstance(value, str) else _json(value)
 
 
 def _predicate(v: dict, says: str) -> str:
@@ -389,9 +422,10 @@ def _listed(findings: list[dict]) -> str:
 # of its own, it says "console: " first.
 _TEXT = {
     # What the browser's console and the page's window reported.
-    "console-error": lambda at, v: v["text"],
+    "console-error": lambda at, v: (
+        f"{v['text']} — {v['url']}" if v.get("url") else v["text"]
+    ),
     "console-warning": lambda at, v: f"warning: {v['text']}",
-    "failed-load": lambda at, v: f"{v['status']} {v['url']}",
     "page-exception": lambda at, v: v["text"],
     "window-error": lambda at, v: f"window error: {v['text']}",
     "resize-loop": lambda at, v: (
@@ -488,12 +522,12 @@ _TEXT = {
         + ", ".join(f"<{tag}>" for tag in v["tags"])
     ),
     "tiny-boxes": lambda at, v: (
-        f"widgets rendered with no usable size: {json_value(v['boxes'])}"
+        f"widgets rendered with no usable size: {_json(v['boxes'])}"
     ),
     "unmarkable": lambda at, v: (
         f"{at} shows {v['w']}x{v['h']}px of words and offers no box to mark: it draws"
         " none of its own and no element inside it draws one either, so a comment"
-        " anchored here would outline nothing and the Questions walk would travel to"
+        " anchored here would outline nothing and the On me walk would travel to"
         " the top of the page. Put the words in an element that takes a box"
     ),
     "undeclared-shadow": lambda at, v: (
@@ -504,7 +538,7 @@ _TEXT = {
         f"DevTools issue {v['issue']}"
         + (f" at {at}" if at else "")
         + (
-            f" ({', '.join(f'{k}={json_value(x)}' for k, x in v['details'])})"
+            f" ({', '.join(f'{k}={_json(x)}' for k, x in v['details'])})"
             if v["details"]
             else ""
         )
@@ -523,23 +557,23 @@ _TEXT = {
         " it, or write the state on the chrome the module built"
     ),
     "settlement-mark": lambda at, v: (
-        f"{at} wears data-lf-state={json_value(v['mark'])} where the log records "
+        f"{at} has data-lf-state={_json(v['mark'])} where the log records "
         + (f"`{v['outcome']}`" if v["outcome"] else "no decision")
-        + " — the mark is the layer's paint of a logged decision, so a module may say"
-        " only what the log decided"
+        + " — Leaf sets data-lf-state from the decision in the log, so a widget's"
+        " module must not set it to anything else"
     ),
     "retired-slot": lambda at, v: (
-        f"{at} settled `{v['outcome']}` and its <{v['slot']}> still shows"
-        f" {json_value(v['words'])} — those words have left the page's reading, so"
-        " the user can select what no comment can anchor to; the layer hides a"
-        " retired slot by default, so something in this family is showing it anyway"
+        f"{at} is settled `{v['outcome']}`, but its <{v['slot']}> still shows"
+        f" {_json(v['words'])}. Leaf hides a retired slot by default, so this"
+        " widget's styles or module show it anyway, and the user can select words no"
+        " comment can anchor to"
     ),
     "render-threw": lambda at, v: (
-        f"{at} renderState threw when the complete state was rendered a second time:"
+        f"{at} render() threw when the complete state was rendered a second time:"
         f" {v['error']}"
     ),
     "relative-render": lambda at, v: (
-        f"{at} renderState is relative — rendering the same complete state changed"
+        f"{at} render() is relative — rendering the same complete state changed"
         f" {', '.join(v['changed'])}. Render the supplied values without stepping"
         " from the DOM."
     ),
@@ -560,8 +594,13 @@ _TEXT = {
         f"{at} stands {v['past']}px past the room the page has for a wide widget"
     ),
     "over-margin": lambda at, v: (
-        f"{at} is drawn over {v['resident']}, which stands in the margin it grew into"
-        " — the side that holds it gives no room"
+        f"{at} grows into the margin and is drawn over {v['resident']}, which already"
+        " sits there; that side of the page has no free room for it"
+    ),
+    "off-axis": lambda at, v: (
+        f"{at} is drawn {v['drawn']}px wide where its width grants {v['granted']}px"
+        " of room, so it stands off the prose axis — a width or max-width set on it"
+        " overrides the room's"
     ),
     "clipped-out": lambda at, v: (
         f"{at} is drawn {v['past']}px outside {v['container']}, which does not show it"
@@ -582,23 +621,24 @@ _TEXT = {
         f'{at} paints {v["attr"]}="{v["value"]}" rather than saying it'
     ),
     "chrome-words": lambda at, v: (
-        f"{at} puts {json_value(v['words'])} under .lf-ui, where no comment can"
-        " reach it"
+        f"{at} puts {_json(v['words'])} under .lf-ui, where no comment can reach it"
     ),
     "form-control-words": lambda at, v: (
-        f"{at} says {json_value(v['words'])} inside a form control, where no selection"
+        f"{at} says {_json(v['words'])} inside a form control, where no selection"
         " can reach it"
     ),
     "apparatus-among-authored": lambda at, v: (
-        f"{at} stands among the children of {v['parent']}"
+        f"{at}, which Leaf adds, stands among the page's own elements inside"
+        f" {v['parent']}, so the page's rules that read its structure, such as"
+        " :first-child or h2 + p, match differently"
     ),
     "unread-syntax": lambda at, v: (
-        f"code styled {json_value(v['style'])} reads at {v['ratio']:.1f}:1 against the"
+        f"code styled {_json(v['style'])} reads at {v['ratio']:.1f}:1 against the"
         " block it is set on"
     ),
     "covered-words": lambda at, v: (
-        f"{at} draws {json_value(v['words'])} in the same place as {v['under']}'s"
-        f" {json_value(v['covered'])}"
+        f"{at} draws {_json(v['words'])} in the same place as {v['under']}'s"
+        f" {_json(v['covered'])}"
     ),
     # Advice: what the author decides.
     "squeezed-table": _squeezed,
@@ -651,7 +691,7 @@ _TEXT = {
     "fixture-publication": _fixture(
         lambda v: "publication is owned by the checked source publisher"
     ),
-    "fixture-kind": _fixture(lambda v: f"kind must be one of {json_value(v['kinds'])}"),
+    "fixture-kind": _fixture(lambda v: f"kind must be one of {_json(v['kinds'])}"),
     "fixture-ts": _fixture(lambda v: "ts must be an ISO timestamp with a time zone"),
     "fixture-id-repeated": _fixture(lambda v: f"event id {v['id']!r} already exists"),
     "fixture-id-taken": _fixture(
@@ -664,7 +704,10 @@ _TEXT = {
         lambda v: f"{v['kind']} markup doesn't validate:\n{_listed(v['findings'])}"
     ),
     "fixture-ids-taken": _fixture(
-        lambda v: f"message widget ids already taken by events: {json_value(v['ids'])}"
+        lambda v: f"message widget ids already taken by events: {_json(v['ids'])}"
+    ),
+    "fixture-event": _fixture(
+        lambda v: "; ".join(str(Finding.loads(found)) for found in v["findings"])
     ),
     "fixture-refused": _fixture(lambda v: v["error"]),
     "missing-vendored": lambda at, v: (
@@ -682,7 +725,7 @@ _TEXT = {
     ),
     "outside-main": lambda at, v: (
         "paintable authored content must stay inside the one <main> directly under"
-        f" <body>; found {json_value(_outside_main(v['content']))}"
+        f" <body>; found {_json(_outside_main(v['content']))}"
     ),
     "unclosed": lambda at, v: (
         "unclosed tags: "
@@ -714,24 +757,19 @@ _TEXT = {
     ),
     "unknown-meta": lambda at, v: (
         f'<meta name="{v["name"]}"> (line {v["line"]}): unknown lf- meta; known:'
-        f" {json_value(v['known'])}"
+        f" {_json(v['known'])}"
     ),
     "meta-content": lambda at, v: (
         f'<meta name="{v["name"]}"> (line {v["line"]}): content must be one of'
-        f" {json_value(v['allowed'])}, found {v['found']!r}"
+        f" {_json(v['allowed'])}, found {v['found']!r}"
     ),
     "allocation-value": lambda at, v: (
-        f"{_bearing(at, v, json_value(v['value']))} has an invalid value; expected "
+        f"{_bearing(at, v, _json(v['value']))} has an invalid value; expected "
         + (
             "a whole number of CSS pixels"
             if v["allowed"] is None
             else f"one of {', '.join(v['allowed'])}"
         )
-    ),
-    "css-unclosed": lambda at, v: (
-        f"{v['sheet']}: {v['depth']} block(s) left open at end of file — every rule"
-        " after the unclosed brace, this stylesheet's or a later layer's, lands inside"
-        " its scope"
     ),
     "css-syntax": lambda at, v: (
         f"{v['sheet']} syntax error at {v['row']}:{v['column']}: {v['message']}"
@@ -744,19 +782,18 @@ _TEXT = {
     ),
     # Ids and the runtime's own names.
     "duplicate-ids": lambda at, v: (
-        f"duplicate ids (anchors need unique targets): {json_value(v['ids'])}"
+        f"duplicate ids (anchors need unique targets): {_json(v['ids'])}"
     ),
     "spaced-ids": lambda at, v: (
-        "ids containing whitespace, which HTML forbids in an id:"
-        f" {json_value(v['ids'])}"
+        f"ids containing whitespace, which HTML forbids in an id: {_json(v['ids'])}"
     ),
     "reserved-ids": lambda at, v: (
         "ids in the runtime's own lf- namespace (it coins lf-composer-quote there, and"
-        f" points ARIA at them): {json_value(v['ids'])}"
+        f" points ARIA at them): {_json(v['ids'])}"
     ),
     "event-shaped-ids": lambda at, v: (
         "ids shaped like the event ids the log mints (eight hex digits), which"
-        f" commands would read as a message: {json_value(v['ids'])}"
+        f" commands would read as a message: {_json(v['ids'])}"
     ),
     "reserved-markers": lambda at, v: (
         f"{at} at line {v['line']} wears the runtime's own markers"
@@ -764,18 +801,27 @@ _TEXT = {
         " runtime's to write, whether or not it writes this name today"
     ),
     "ids-taken-by-messages": lambda at, v: (
-        f"ids already taken by message markup: {json_value(v['ids'])}"
+        f"ids already taken by message markup: {_json(v['ids'])}"
     ),
     "ids-taken": lambda at, v: (
-        f"ids already taken by the page or an earlier message: {json_value(v['ids'])}"
+        f"ids already taken by the page or an earlier message: {_json(v['ids'])}"
     ),
     # Widgets, against the registry that declares them.
     "unknown-widget": lambda at, v: (
         f"{_line(at, v)}: unknown widget — not in the vendored registry.json"
     ),
     "attribute-schema": lambda at, v: f"{_line(at, v)}: {v['reason']}",
+    "member-record-slot": lambda at, v: (
+        f"{_line(at, v)}: scalar verb `{v['value_verb']}` and `{v['owner']}`'s "
+        f"selection verb `{v['owner_verb']}` both write attribute `{v['attr']}`"
+    ),
     "not-member": lambda at, v: (
         f"{_line(at, v)}: must be a direct member of "
+        + " or ".join(f"<{owner}>" for owner in v["owners"])
+        + " or stand inside its "
+        + " or ".join(f"<{region}>" for region in v["within"])
+        if v["within"]
+        else f"{_line(at, v)}: must be a direct member of "
         + " or ".join(f"<{owner}>" for owner in v["owners"])
         + (f", found <{v['parent']}>" if v["parent"] else "")
     ),
@@ -790,8 +836,8 @@ _TEXT = {
         f"{_line(at, v)}: text outside its <pre> — the whole body goes inside it"
     ),
     "stray-members": lambda at, v: (
-        f"{_line(at, v)}: admits only {json_value(v['admits'])} members, found"
-        f" {json_value(v['found'])}"
+        f"{_line(at, v)}: admits only {_json(v['admits'])} members, found"
+        f" {_json(v['found'])}"
     ),
     "loose-text": lambda at, v: (
         f"{_line(at, v)}: loose text between its members isn't allowed"
@@ -809,31 +855,21 @@ _TEXT = {
     "pane-body": lambda at, v: (
         f"{_line(at, v)}: x-reading-role {v['role']} must contain exactly one direct"
         " body element between its header and footer, found "
-        + (json_value(v["body"]) if v["body"] else "nothing")
+        + (_json(v["body"]) if v["body"] else "nothing")
         + "; wrap several blocks in one <div> or <section>"
-    ),
-    "repeated-parts": lambda at, v: (
-        f"{_line(at, v)}: visual part ids must be unique, repeated"
-        f" {json_value(v['parts'])}"
     ),
     "needs-id": lambda at, v: (
         f"{_line(at, v)}: a matching {v['role']} instance requires an id"
     ),
     "empty-ask-context": _ask_context,
-    "ask-context-headings": lambda at, v: (
-        f"{_line(at, v)}: an ask context must have exactly one direct heading,"
-        f" found {json_value(v['headings']) if v['headings'] else 'none'}"
-    ),
-    "ask-context-heading-first": lambda at, v: (
-        f"{_line(at, v)}: an ask context's direct heading must be its first"
-        " content, found "
-        + ("text" if v["first"] == "#text" else f"<{v['first']}>")
-        + " first"
+    "ask-context-title": lambda at, v: (
+        f"{_line(at, v)}: an ask context needs a heading to title its ask, leading"
+        " its content alone or in an <hgroup> or <header>"
     ),
     "unknown-word": lambda at, v: (
         f"{_bearing(at, v, _quoted(v['value']))}: not {_HONORED[v['declares']]} —"
         " known:"
-        f" {json_value(v['known'])}"
+        f" {_json(v['known'])}"
     ),
     "repeated-key": lambda at, v: (
         f'{_line(at, v)}: {v["key"]}="{v["value"]}" repeats the {at} at line'
@@ -888,13 +924,8 @@ _TEXT = {
         "<link rel=stylesheet> in message markup dresses the whole document it is put"
         " into; the page serves the one vendored theme it was reviewed with"
     ),
-    "pinned-unrenderable": lambda at, v: _pinned(v),
-    "pinned-vocabulary": lambda at, v: (
-        "thread markup must use vocabulary shared by the active registry and every"
-        " pinned revision; otherwise ask with --text (and --ask for a reply)"
-    ),
     "sample-loop": lambda at, v: (
-        f"sample {json_value(v['samples'])} selects thread {v['thread']!r}, which"
+        f"sample {_json(v['samples'])} selects thread {v['thread']!r}, which"
         " holds this message, so its child would hold the same sample again; select"
         " other threads"
     ),
@@ -910,9 +941,6 @@ _TEXT = {
     "unpointable-wide": lambda at, v: (
         f"unpointable — {_line(at, v)} has no id, so a comment aimed at it lands on"
         f" the whole of #{v['enclosing']}"
-    ),
-    "dropped-ids": lambda at, v: (
-        f"ids dropped from revision r{v['revision']}: {json_value(v['ids'])}"
     ),
     "measurement-lag": lambda at, v: (
         f"measurement behind its source: {_line(at, v)} pins source {v['source']!r}"
@@ -937,7 +965,7 @@ _TEXT = {
     "registry-not-utf8": _declared(lambda v: "must be UTF-8", sep=" "),
     "registry-not-object": _declared(lambda v: "registry must be a JSON object"),
     "declaration-not-object": _declared(
-        lambda v: f"registry declarations must be objects: {json_value(v['names'])}"
+        lambda v: f"registry declarations must be objects: {_json(v['names'])}"
     ),
     "no-incoming-registry": _declared(
         lambda v: "the incoming layer has no registry.json"
@@ -972,8 +1000,8 @@ _TEXT = {
     "keys-documentation": _declared(
         lambda v: (
             "$keys must carry a description and one paragraph per x- key the"
-            f" lint admits — missing {json_value(v['missing'])}, unadmitted"
-            f" {json_value(v['unadmitted'])}"
+            f" lint admits — missing {_json(v['missing'])}, unadmitted"
+            f" {_json(v['unadmitted'])}"
         )
     ),
     "idiom-selector": _declared(
@@ -982,19 +1010,19 @@ _TEXT = {
     "idiom-fields": _declared(
         lambda v: (
             f"idiom {v['selector']!r} must carry a non-empty description and"
-            " x-example, with optional x-instructions and " + ", ".join(v["marks"])
+            " x-example, with optional x-instructions"
         )
     ),
     "idiom-value": _declared(
         lambda v: (
             f"idiom {v['selector']!r} declares"
-            f" {v['key']}={json_value(v['value'])}; the value must satisfy its $keys"
+            f" {v['key']}={_json(v['value'])}; the value must satisfy its $keys"
             " declaration"
         )
     ),
     "undeclared-language": _declared(
         lambda v: (
-            f"$languages.paths maps {json_value(v['extensions'])} to languages"
+            f"$languages.paths maps {_json(v['extensions'])} to languages"
             " $languages.names does not declare"
         )
     ),
@@ -1079,12 +1107,10 @@ _TEXT = {
         )
     ),
     "unknown-declarations": _declared(
-        lambda v: (
-            f"{v['key']} names unknown element declarations {json_value(v['names'])}"
-        )
+        lambda v: f"{v['key']} names unknown element declarations {_json(v['names'])}"
     ),
     "undeclared-attributes": _declared(
-        lambda v: f"{v['key']} names undeclared attributes {json_value(v['names'])}"
+        lambda v: f"{v['key']} names undeclared attributes {_json(v['names'])}"
     ),
     "reading-role-attr": _declared(
         lambda v: f"x-reading-role {v['role']} instances require a string {v['attr']}"
@@ -1095,7 +1121,7 @@ _TEXT = {
             " must declare a string `id` attribute"
         )
     ),
-    "ask-context-id": _declared(lambda v: "x-ask-context does not require an id"),
+    "ask-context-id": _declared(lambda v: "x-ask-context must require an id"),
     "ask-context-prose": _declared(
         lambda v: "x-ask-context must admit prose around the ask it frames"
     ),
@@ -1142,9 +1168,7 @@ _TEXT = {
     "refers-unmatched": _declared(
         lambda v: (
             f"x-refers `{v['attr']}` requires {v['via']} where "
-            + ", ".join(
-                f"{key}={json_value(value)}" for key, value in v["where"].items()
-            )
+            + ", ".join(f"{key}={_json(value)}" for key, value in v["where"].items())
             + ", but no declared widget matches"
         )
     ),
@@ -1153,9 +1177,6 @@ _TEXT = {
             "has addressable visual parts but does not require a string `id`"
             " for their anchor"
         )
-    ),
-    "visual-parts-attr": _declared(
-        lambda v: f"x-visual parts attribute `{v['attr']}` must be a non-empty string"
     ),
     "visual-upgrade": _declared(
         lambda v: (
@@ -1169,37 +1190,37 @@ _TEXT = {
     ),
     "predicate-not-flag": _declared(
         lambda v: _predicate(
-            v, f"as {json_value(v['value'])}, but that attribute is not a flag"
+            v, f"as {_json(v['value'])}, but that attribute is not a flag"
         )
     ),
     "predicate-flag": _declared(
         lambda v: (
-            f"{v['key']} tests flag `{v['attr']}` as {json_value(v['value'])};"
+            f"{v['key']} tests flag `{v['attr']}` as {_json(v['value'])};"
             " a flag is there or it isn't"
         )
     ),
     "predicate-enum": _declared(
         lambda v: _predicate(
-            v, f"at {json_value(v['value'])}, which its own enum does not admit"
+            v, f"at {_json(v['value'])}, which its own enum does not admit"
         )
     ),
     "predicate-schema": _declared(
         lambda v: _predicate(
             v,
-            f"at {json_value(v['value'])}, which its own schema does not admit:"
+            f"at {_json(v['value'])}, which its own schema does not admit:"
             f" {v['reason']}",
         )
     ),
     "seat-written": _declared(
         lambda v: (
             "x-thread-seat predicate attributes are authored and static, but"
-            f" {json_value(v['attrs'])} are written by value records"
+            f" {_json(v['attrs'])} are written by value records"
         )
     ),
     "binding-written": _declared(
         lambda v: (
             "x-data binding attributes are authored, but"
-            f" {json_value(v['attrs'])} are written by value records"
+            f" {_json(v['attrs'])} are written by value records"
         )
     ),
     "run-written": _declared(
@@ -1223,7 +1244,7 @@ _TEXT = {
     ),
     "awaits-verbs": _declared(
         lambda v: (
-            f"x-awaits answers with verbs {json_value(v['verbs'])}, which are"
+            f"x-awaits answers with verbs {_json(v['verbs'])}, which are"
             " not x-state verbs the user writes"
         )
     ),
@@ -1245,14 +1266,15 @@ _TEXT = {
     "unoverruled": _declared(
         lambda v: (
             "declares agent-written x-state verbs"
-            f" {json_value(v['verbs'])} but not the boolean `overruled` attribute a"
-            " version overrules a standing report with"
+            f" {_json(v['verbs'])} but no boolean `overruled` attribute, which a"
+            " version sets to overrule a worker's report"
         )
     ),
     "unrestated": _declared(
         lambda v: (
-            "declares user x-state verbs that fold on the widget but not the"
-            " boolean `restated` attribute a version retracts a decision with"
+            "declares user x-state verbs on the whole widget but no boolean"
+            " `restated` attribute, which a version sets to retract the user's"
+            " decision"
         )
     ),
     "reserved-resolves": _declared(
@@ -1279,7 +1301,7 @@ _TEXT = {
     "verb-detail-keys": _declared(
         lambda v: (
             f"x-state verb `{v['verb']}` detail schema declares"
-            f" {json_value(v['keys'])}; a detail states its type, properties, required"
+            f" {_json(v['keys'])}; a detail states its type, properties, required"
             " and additionalProperties and nothing else, so the keys a verb can carry"
             " are the ones it names"
         )
@@ -1313,6 +1335,13 @@ _TEXT = {
     "creates-id": _declared(
         lambda v: _created(
             v, "whose required id must use the canonical element-id schema"
+        )
+    ),
+    "creates-semantic-owner": _declared(
+        lambda v: _created(
+            v,
+            "which must be a parent-owned member without independent owner capabilities: "
+            + ", ".join(v["keys"]),
         )
     ),
     "shared-slot": _declared(
@@ -1353,7 +1382,7 @@ _TEXT = {
     "body-nested": _declared(
         lambda v: (
             f"x-state verb `{v['verb']}` records its body but admits nested"
-            f" widgets {json_value(v['widgets'])}; a text statement cannot reconstruct"
+            f" widgets {_json(v['widgets'])}; a text statement cannot reconstruct"
             " their state"
         )
     ),
@@ -1377,7 +1406,7 @@ _TEXT = {
     ),
     "deciding-verbs": _declared(
         lambda v: (
-            f"x-state verbs {json_value(v['verbs'])} all declare detail field"
+            f"x-state verbs {_json(v['verbs'])} all declare detail field"
             " `outcome`, a reserved name only one deciding verb may carry"
         )
     ),
@@ -1426,7 +1455,7 @@ _TEXT = {
     "answering-schema": _declared(
         lambda v: _answering(
             v,
-            f"tests <{v['within']}> `{v['attr']}` at {json_value(v['value'])}, which"
+            f"tests <{v['within']}> `{v['attr']}` at {_json(v['value'])}, which"
             f" its schema does not admit: {v['reason']}",
         )
     ),
@@ -1481,8 +1510,7 @@ _TEXT = {
     # The package check's refusal.
     "package": lambda at, v: v["text"],
     "leaf-version": lambda at, v: (
-        f"Leaf {v['vendored']} vendored this page; this is Leaf {v['running']}. If the"
-        f" page misbehaves, `leaf page init {v['page']}` re-vendors it."
+        f"Leaf {v['vendored']} vendored this page; this is Leaf {v['running']}."
     ),
     # The widget quality report, for a widget's author.
     "unreadable-examples": lambda at, v: (
@@ -1490,25 +1518,444 @@ _TEXT = {
     ),
     "example": lambda at, v: f"{at} example: no worked example shows it",
     "keeps-first-box": lambda at, v: (
-        f"{at} keeps-first-box: first painted {_size(v['first'])},"
-        f" {_size(v['now'])} once presented"
+        f"{at} keeps-first-box: in a {v['layout']} page, first painted"
+        f" {_size(v['first'])}, {_size(v['now'])} once presented"
     ),
     "shows-context-keys": lambda at, v: (
-        f"{at} shows-context-keys: {v['command']} declares context keys and no"
+        f"{at} shows-context-keys: in a {v['layout']} page, {v['command']} declares"
+        " context keys and no"
         " bindingBadge, so its key works with nothing on the page showing it; lend"
         " the command a face, or request a corner badge with bindingBadge: null"
     ),
     "grows-with-content": lambda at, v: (
-        f"{at} grows-with-content: {v['box']} holds {v['height']}px and scrolls"
+        f"{at} grows-with-content: in a {v['layout']} page, {v['box']} holds"
+        f" {v['height']}px and scrolls"
         " inside it; let it grow with its content, or declare --lf-holds-height: 1"
         " where the task needs its own scroll"
     ),
+    # The append door's refusals of one event (`event_contracts.admitted_event`). The
+    # door adds the refused event's `kind` to every one; the other values name what it
+    # concerns, and where a value was refused, what would have been admitted.
+    "attempt-conflict": lambda at, v: (
+        f"attempt {v['attempt']!r} already belongs to another event"
+    ),
+    "foreign-layer": lambda at, v: _unservable_layer(
+        v,
+        f"was vendored by a Leaf at page protocol {v['vendored']}, and this Leaf"
+        f" ({v['leaf']}) speaks protocol {v['protocol']}",
+        "Update the page's Leaf runtime",
+    ),
+    "newer-layer": lambda at, v: (
+        f"{v['page']} was vendored at page protocol {v['vendored']} by a newer Leaf"
+        f" ({v['vendored_by']}), and this Leaf ({v['leaf']}) speaks protocol"
+        f" {v['protocol']}, so it cannot serve the page or write its log, nor"
+        " re-vendor it to an older protocol. Use a Leaf at protocol"
+        f" {v['vendored']} or later. An agent session keeps the Leaf plugin it"
+        " loaded until it reloads it; in Claude Code, `/reload-plugins` loads an"
+        " installed update."
+    ),
+    "retired-layer": lambda at, v: _unservable_layer(
+        v,
+        f"was vendored by a Leaf that declares {', '.join(v['retired'])}, which this"
+        f" Leaf ({v['leaf']}) no longer admits",
+        "Re-vendor it",
+    ),
+    "foreign-revision": lambda at, v: _unservable_revision(
+        v,
+        f"was saved at page protocol {v['saved']}, and this Leaf speaks protocol"
+        f" {v['protocol']}",
+    ),
+    "retired-revision": lambda at, v: _unservable_revision(
+        v,
+        f"was saved by a Leaf that declares {', '.join(v['retired'])}, which this"
+        " Leaf no longer admits",
+    ),
+    "no-registry": lambda at, v: "the page has no registry.json",
+    "unknown-kind": lambda at, v: f"kind must be one of {_json(v['kinds'])}",
+    "invalid-event": lambda at, v: f"{v['kind']} event is invalid: {v['error']}",
+    "unknown-revision": lambda at, v: (
+        f"{v['kind']} revision must be one of {_json(v['revisions'])}"
+    ),
+    "publication-owner": lambda at, v: (
+        "publication is owned by the checked source publisher"
+    ),
+    "publication-revision": lambda at, v: (
+        "publication must name its checked candidate revision"
+    ),
+    # A sign-off.
+    "unstamped-version": lambda at, v: f"v{v['version']} is not a stamped version",
+    "not-sign-off": lambda at, v: (
+        f'v{v["version"]} does not declare <meta name="lf-review" content="sign-off">,'
+        " so it has no approval to record"
+    ),
+    "unanswered-asks": lambda at, v: (
+        f"v{v['version']} still has unanswered widget asks: {', '.join(v['asks'])}"
+    ),
+    # An action or a report, against its widget's declaration.
+    "unknown-sender": lambda at, v: (
+        f"unknown report widget {v['widget']!r} in revision r{v['revision']} — reports"
+        " name page widgets only; thread markup is frozen, so no version could ever"
+        " answer a report made there"
+        if v["kind"] == "report"
+        else f"unknown action widget {v['widget']!r} in revision r{v['revision']} or"
+        " agent-authored thread markup"
+    ),
+    "undeclared-tag": lambda at, v: (
+        f"registry no longer declares <{v['tag']}> for {v['kind']} widget"
+        f" {v['widget']!r}"
+    ),
+    "foreign-verb": lambda at, v: (
+        f"<{v['tag']}> {v['verb']!r} is a verb the {v['writer']} writes; this"
+        f" {v['kind']} came from the {v['sender']}"
+    ),
+    "undeclared-verb": lambda at, v: (
+        f"<{v['tag']}> does not declare {v['kind']} verb {v['verb']!r}"
+        + (
+            f"; it declares {_json(v['declared'])}"
+            if v["kind"] == "report" and v["declared"]
+            else ""
+        )
+    ),
+    "invalid-detail": lambda at, v: (
+        f"<{v['tag']}> {v['kind']} {v['verb']!r} detail is invalid: {v['error']}"
+    ),
+    "quoted-widget": lambda at, v: (
+        f"<{v['tag']}> {v['widget']!r} stands inside an exhibit (x-exhibit); quoted"
+        " material takes no input"
+    ),
+    "created-exists": lambda at, v: (
+        f"<{v['tag']}> action {v['verb']!r} creates {v['created']!r}, which already"
+        " names an authored element"
+    ),
+    "unknown-unit": lambda at, v: (
+        f"{_invalid_record(v)}position record names unknown unit {v['unit']!r}"
+    ),
+    "unknown-destination": lambda at, v: (
+        f"{_invalid_record(v)}position record names unknown destination"
+        f" {v['destination']!r}"
+    ),
+    "foreign-destination": lambda at, v: (
+        f"{_invalid_record(v)}position record destination {v['destination']!r} is"
+        f" <{v['found']}>, not <{v['within']}>"
+    ),
+    "foreign-unit": lambda at, v: (
+        f"{_invalid_record(v)}position record unit {v['unit']!r} is not owned by"
+        f" action widget {v['widget']!r}"
+    ),
+    "nested-unit": lambda at, v: (
+        f"{_invalid_record(v)}position record cannot put {v['unit']!r} inside itself"
+        f" or its descendant {v['destination']!r}"
+    ),
+    "outside-destination": lambda at, v: (
+        f"{_invalid_record(v)}position record destination {v['destination']!r} is"
+        f" outside action widget {v['widget']!r}"
+    ),
+    "unowned-placement": lambda at, v: (
+        f"{_invalid_record(v)}position record cannot put <{v['unit_tag']}>"
+        f" {v['unit']!r} within <{v['found']}> {v['destination']!r}"
+    ),
+    "unknown-members": lambda at, v: (
+        f"{_invalid_record(v)}{', '.join(v['strangers'])} name no member of"
+        f" {v['widget']!r}"
+    ),
+    "stale-move": lambda at, v: (
+        f"{v['kind']} {v['verb']!r} on {v['widget']!r} was made on r{v['revision']},"
+        f" and r{v['newest']} authors {v['container']!r} differently, so its rank no"
+        " longer names the gap it was dropped into"
+    ),
+    "unknown-reaction": lambda at, v: (
+        f"unknown reaction token {v['token']!r}; this layer declares"
+        f" {_json(v['tokens'])}"
+    ),
+    # A comment's anchor and hold.
+    "datum-unknown-section": lambda at, v: (
+        f"datum anchor names unknown section {v['section']!r}"
+    ),
+    "datum-unbound-source": lambda at, v: (
+        f"datum anchor source {v['source']!r} is not bound by section {v['section']!r}"
+    ),
+    "datum-unsupplied-source": lambda at, v: (
+        f"datum anchor source {v['source']!r} has never been supplied to this page"
+    ),
+    "hold-target": lambda at, v: (
+        "comment holds must name its exact-section anchor on a matching x-thread-seat"
+        " hold target"
+    ),
+    "visual-with-passage": lambda at, v: (
+        f"visual anchor {v['visual']!r} names a box rather than a passage, so it"
+        " cannot also carry a quote or a datum"
+    ),
+    "undeclared-visual": lambda at, v: (
+        f"visual anchor {v['visual']!r} is not declared on section {v['section']!r};"
+        f" {_visual_parts(v['declared'])}"
+    ),
+    # A message, an edit, and a thread's presentation.
+    "unknown-parent": lambda at, v: f"unknown parent {v['parent']!r}",
+    "withdrawn-parent": lambda at, v: f"parent {v['parent']!r} has been taken back",
+    "unknown-message": lambda at, v: f"unknown message {v['message']!r}",
+    "foreign-message": lambda at, v: (
+        f"message {v['message']!r} is not {v['author']}-authored"
+    ),
+    "wordless-message": lambda at, v: (
+        f"message {v['message']!r} has no words to revise"
+    ),
+    "stale-edit": lambda at, v: (
+        f"edit of {v['message']!r} was written over {v['base']!r}, and"
+        f" {v['latest']!r} has since revised it"
+    ),
+    "unchanged-edit": lambda at, v: (
+        f"edit of {v['message']!r} says what the message already says"
+    ),
+    "missing-thread": lambda at, v: f"unknown thread {v['thread']!r}",
+    "summary-endpoints": lambda at, v: (
+        "summary endpoints must name spoken turns in one thread"
+    ),
+    "summary-order": lambda at, v: (
+        "summary must cover at least two messages in thread order"
+    ),
+    "reanchor-thread": lambda at, v: "reanchor needs an open anchored thread",
+    "reanchor-section": lambda at, v: (
+        "reanchor must retain the thread's surviving section or detach it"
+    ),
+    "unknown-content-version": lambda at, v: (
+        f"{v['version']!r} is not a content version of agent message {v['message']!r}"
+    ),
+    # An undo (`events.UndoReading`): `undoes` names the gesture, `target` its kind.
+    "unknown-undo": lambda at, v: f"unknown undoes {v['undoes']!r}",
+    "foreign-gesture": lambda at, v: (
+        f"{v['target']} {v['undoes']} is not the user's own gesture"
+    ),
+    "withdrawn-gesture": lambda at, v: f"{v['undoes']} has already been taken back",
+    "said-message": lambda at, v: (
+        f"{v['target']} {v['undoes']} is not a reaction; a message with words in it"
+        " is said rather than unsaid"
+    ),
+    "answered-reaction": lambda at, v: (
+        f"reaction {v['undoes']} has been answered; withdraw it in the thread the"
+        " answer opened"
+    ),
+    "resolved-reaction": lambda at, v: (
+        f"reaction {v['undoes']} stands on a resolved thread"
+    ),
+    "unundoable": lambda at, v: (
+        f"{v['target']} events cannot be taken back (the kinds that can are"
+        f" {', '.join(v['undoable'])} and a reaction)"
+    ),
+    "absorbed-move": lambda at, v: (
+        f"move {v['undoes']} was made on r{v['revision']}, and a later revision's"
+        " markup now places its unit; move it again instead"
+    ),
+    # A to-do, a start and an ending (`tasks.task_error`, `work.widget_seat_error`).
+    "progress-parent": lambda at, v: (
+        f"this progress line replies to {v['parent']!r} but starts an update you owe"
+        f" no reply to {v['parent']!r} for; it may already be answered"
+    ),
+    "not-a-widget": lambda at, v: f"{v['widget']!r} is not a widget on this page",
+    "not-an-element": lambda at, v: f"{v['element']!r} is not an element on this page",
+    "hidden-widget": lambda at, v: (
+        f"{v['widget']} no longer shows on the page: a decision in the log retired it"
+        " or left it empty; open the to-do on another element or on `page`"
+    ),
+    "quoted-seat": lambda at, v: (
+        f"{v['widget']} is quoted exhibit content, not a live page widget"
+    ),
+    "no-work-seat": lambda at, v: (
+        f"{v['widget']} has no work seat; its widget declares no x-work and it holds"
+        " no unsettled action"
+    ),
+    "duplicate-ask": lambda at, v: (
+        f"{v['widget']!r} already has ask {v['ask']!r}; use that ask instead of"
+        " opening duplicate work"
+    ),
+    "unowed-start": lambda at, v: (
+        f"{v['item']!r} is neither an open to-do of yours nor an update you owe an"
+        " answer to; start the id a delivered update or `leaf task open` gave you"
+    ),
+    "approval-ask": lambda at, v: (
+        f"ask {v['todo']!r} requires the user's approval of v{v['version']}; it ends"
+        " at the page's Approval control"
+    ),
+    "widget-ask": lambda at, v: (
+        f"{v['todo']!r} is a widget ask; its source owns the answer, so retire it in"
+        " the document"
+    ),
+    "users-prose-ask": lambda at, v: (
+        "the user's reply or settling reaction answers a prose ask"
+    ),
+    "ended-ask": lambda at, v: f"ask {v['todo']!r} is already {v['status']}",
+    "failed-prose-ask": lambda at, v: (
+        "a prose ask ends `done` when the user answered it elsewhere, or `dropped`"
+        " when it no longer applies"
+    ),
+    "ended-todo": lambda at, v: f"to-do {v['todo']!r} has already ended ({v['state']})",
+    "todo-execution": lambda at, v: (
+        f"to-do {v['todo']!r} was last started by "
+        + (
+            f"session {v['session']!r}"
+            if v["session"] is not None
+            else "a sessionless command"
+        )
+        + f" (start {v['start']!r}); start it with `leaf task start`"
+        " before ending it from another session"
+    ),
+    "unknown-todo": lambda at, v: f"unknown to-do {v['todo']!r}",
+    "agents-todo": lambda at, v: (
+        f"to-do {v['todo']!r} is the agent's; the user ends only a to-do on them"
+    ),
+    # What other commands note beside their result (`note`). `status waiting` over
+    # updates it still owes an answer, each named by the command that answers it:
+    "waiting-owes": lambda at, v: (
+        f"{len(v['answers'])} user update{'s' if len(v['answers']) != 1 else ''} with"
+        f" no answer ({'; '.join(v['answers'])}); the page reads waiting once each"
+        " has one"
+    ),
+    # A re-vendor a command naming the page made (`vendoring.renew_layer`), and the
+    # service it held down (`hosting.restarting_server`).
+    "unready-revendor": lambda at, v: (
+        f"re-vendored {v['page']}, but index.html will not activate until"
+        " `leaf page check` passes:\n" + "\n".join(f"  - {e}" for e in v["errors"])
+    ),
+    "revendor-refused": lambda at, v: (
+        f"{v['page']} needs a re-vendor this Leaf could not make: {v['error']}"
+    ),
+    "server-stays-stopped": lambda at, v: (
+        f"{v['page']}'s server stays stopped; `leaf server start {v['page']}` serves"
+        " it again."
+    ),
+    "server-unowned": lambda at, v: (
+        f"{v['page']}'s server has no live session owner, so it stays stopped;"
+        f" `leaf server start {v['page']}` serves it for this one."
+    ),
+    "stopped-while-revendored": lambda at, v: (
+        f"{v['page']}'s server was stopped while it was re-vendored, so it stays"
+        " stopped."
+    ),
+    # A server just started (`hosting.started_server`).
+    "loopback-only": lambda at, v: (
+        "the URL reaches only this machine; re-serve with --host NAME for a user"
+        " elsewhere"
+    ),
+    # A `leaf wait` (`session.Watch`, `session.read_watch_pass`): a server it brought
+    # back or could not, and why it ended.
+    "server-restarted": lambda at, v: (
+        f"{v['page']}: server had died; restarted at {v['url']}"
+    ),
+    "revive-refused": lambda at, v: (
+        f"{v['page']}: server had died and did not start again: {v['error']}"
+    ),
+    "server-down": lambda at, v: (
+        f"{v['page']}: server is not running; restart it with"
+        f" `leaf server start {v['page']}`"
+    ),
+    "not-owned": lambda at, v: (
+        f"stopped watching {', '.join(v['pages'])}: this session no longer owns"
+        + (" it" if len(v["pages"]) == 1 else " them")
+    ),
+    "nothing-to-watch": lambda at, v: (
+        "nothing to watch: "
+        + (
+            f"{v['page']} is not claimed by this session"
+            if v["page"]
+            else "no page named and none claimed by this session"
+        )
+    ),
+    "pages-idle": lambda at, v: (
+        f"the {'page' if len(v['pages']) == 1 else 'pages'} closed;"
+        f" {', '.join(v['pages'])} {'is' if len(v['pages']) == 1 else 'are'} idle"
+    ),
+    "wait-active": lambda at, v: (
+        f"another `leaf wait` is already active for {v['target']}"
+    ),
+    "watch-taken-over": lambda at, v: (
+        "a watch between turns took over this session's pages"
+    ),
+    # The thread and task commands' refusals (`thread`, `tasks.cmd_open`), before or
+    # beside the append door's. `held` is what the log holds a refused id as
+    # (`validation.admission.logged_id`), and `answer` the command that answers an
+    # owed update (`activity.answer_command`).
+    "unknown-comment": lambda at, v: (
+        f"unknown comment id {v['name']!r}"
+        + (f"; {v['held']}" if v.get("held") else "")
+        + f"; known: {_json(v['known'])}"
+    ),
+    "widget-not-thread": lambda at, v: (
+        f"{v['name']} is a widget on the page, not a thread"
+    ),
+    "unknown-subject": lambda at, v: (
+        f"{v['subject']!r} names no widget or element on this page; `{v['page']}`"
+        " names the page as a whole"
+    ),
+    "invalid-source": lambda at, v: (
+        f"cannot {v['operation']} while index.html is invalid: {v['error']}"
+    ),
+    "unanchorable": lambda at, v: (
+        f"can't anchor in revision r{v['revision']}: {v['error']}"
+        + (
+            f"; {v['held']}, while `--section` takes an element id the page's markup"
+            " declares"
+            if v.get("held")
+            else ""
+        )
+    ),
+    "redeclared-answer": lambda at, v: (
+        f"{v['message']!r} already answered this with a different declaration; ask or"
+        " promise in a new message with `leaf thread reply`"
+    ),
+    "unowed-reply": lambda at, v: (
+        f"event {v['event']!r} takes no reply; "
+        + (v.get("held") or f"this page's log holds no event {v['event']!r}")
+    ),
+    "superseded-reply": lambda at, v: (
+        f"event {v['event']!r} no longer requires a reply to {v['to']!r}; "
+        + (v.get("held") or "read the current delivery or thread state")
+    ),
+    "reserved-answer": lambda at, v: (
+        f"event {v['event']!r} is answered by this turn's messages; "
+        + (
+            "failure receipts wait for this turn to release the answer; answer in your"
+            f" final message or use {v['command']} without `--failure`"
+            if v["failure"]
+            else f"use {v['command']} to commit an explicit answer"
+        )
+    ),
+    "owed-response": lambda at, v: (
+        f"thread {v['thread']!r} currently requires a response; {v['answer']} answers"
+        " it"
+    ),
+    "not-a-reply": lambda at, v: (
+        f"response {v['reference']!r} requires {v['answer']}, not a reply"
+    ),
+    "ephemeral-content": lambda at, v: (
+        "--ephemeral is for progress text; it cannot ask the user, open a to-do, carry"
+        " widgets, report failure, or move the thread"
+    ),
+    "detach-with-target": lambda at, v: (
+        "--detach cannot be combined with --quote, --section, or --part"
+    ),
+    "held-anchor": lambda at, v: (
+        f"thread {v['thread']!r} holds the widget its first comment was sent from, so"
+        " its anchor cannot be moved or detached"
+    ),
+    "no-anchor": lambda at, v: (
+        f"thread {v['thread']!r} has no current anchor to detach"
+    ),
+    "widget-ask-markup": lambda at, v: (
+        "--ask is for a prose ask; reply markup already declares a widget ask"
+        f" ({', '.join(f'<{tag}>' for tag in v['tags'])})"
+    ),
+    "detail-field": lambda at, v: f"detail fields are name=value, got {v['field']!r}",
+}
+
+# What a browser shows the person whose gesture a refusal turned down, where the
+# agent's words name internals that person never sees (`Rejected.user`).
+_USER = {
+    "stale-move": "The page changed while you moved this; move it again.",
+    "stale-edit": "The message changed while you edited it; edit it again.",
 }
 
 _CONSOLE = {
     "console-error",
     "console-warning",
-    "failed-load",
     "page-exception",
     "window-error",
     "resize-loop",
@@ -1524,13 +1971,17 @@ def _words(finding: Finding) -> str:
 
 class Rejected(Refused):
     """A refusal of what a check found: the words list the findings under `heading`,
-    or are the one finding's own where there is none, and `findings` keeps the
-    records for a reader that wants the facts."""
+    or are the findings' own where there is none, and `findings` keeps the records
+    for a reader that wants the facts. A browser shows the person whose gesture one
+    finding refuses its `_USER` words, where its code has them."""
 
     def __init__(self, findings: list[Finding], heading: str | None = None):
+        findings = list(findings)
         super().__init__(
             f"{heading}:\n" + "\n".join(f"  - {f}" for f in findings)
             if heading
             else "\n".join(map(str, findings))
         )
+        if not heading and len(findings) == 1 and findings[0].code in _USER:
+            self.user = _USER[findings[0].code]
         self.findings = findings

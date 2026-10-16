@@ -2,9 +2,9 @@
 # repair kept the exact URL in 2/2 runs, guarding the final handoff.
 description: page-url-followup-final
 metadata:
-  purpose: 'Handoff: a later turn''s final response keeps the exact existing page URL.'
+  purpose: "Handoff: a later turn's final response keeps the exact existing page URL."
   tags:
-  - handoff
+    - handoff
 vars:
   prompt: |
     You are a Codex desktop task. You previously handed over a Leaf playground at
@@ -19,12 +19,12 @@ vars:
     Use the leaf skill for the page workflow. Read whatever instructions you need.
     Only Skill and Read run here; write the requested chat message itself in your reply.
 assert:
-- type: regex
-  metric: page-url
-  value: http://127\.0\.0\.1:42041/\?t=abc#comment-growth
-- type: llm-rubric
-  metric: closing-message
-  value: |
-    Pass only if the reply closes the completed selection fix and tells the
-    user how to select the label text or operate the switch. It must not refuse
-    the task or replace the handoff with an explanation of the instructions.
+  - type: regex
+    metric: page-url
+    value: http://127\.0\.0\.1:42041/\?t=abc#comment-growth
+  - type: llm-rubric
+    metric: closing-message
+    value: |
+      Pass only if the reply closes the completed selection fix and tells the
+      user how to select the label text or operate the switch. It must not refuse
+      the task or replace the handoff with an explanation of the instructions.

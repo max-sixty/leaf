@@ -26,7 +26,7 @@ board projection policy.
 The source's registry declaration chooses the answer verb with `x-awaits.value`;
 `x-awaits.answered` separately defines completion. Asks, to-dos and card order
 remain different facts. The current contract lives in
-`skills/leaf/references/module-authoring.md`, "Reading asks and obligation
+`skills/leaf/references/module-reading.md`, "Reading asks and obligation
 queues", and `skills/leaf/references/packages.md`. `asks.py` owns the server
 inventory.
 

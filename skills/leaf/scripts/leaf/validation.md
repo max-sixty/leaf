@@ -6,7 +6,7 @@ directly:
 - an event, whether a browser posted it or a command wrote it, at the append door
   ([events.md, "Admission"](events.md#admission));
 - a page's authored source at `check_source` (`validation/source.py`), which `page
-  check`, activation, `page stamp`, and `page init` all run ("Static validation");
+check`, activation, `page stamp`, and `page init` all run ("Static validation");
 - message markup an agent hands in at `admission.check_markup`, which applies the same
   structure and vocabulary checks to an HTML fragment, with or without widgets;
 - a layer `page init` would vendor at `composition.incoming_registry`;
@@ -49,7 +49,6 @@ prospective log, so every thread it reopens is covered, and reads candidate
 passages at the candidate revision's cutoff. Required transitions journal the
 exact staged bundle before its marker appears. Every transaction completes
 interrupted publication from that bundle before it exposes page readings.
-
 
 That half has one piece plain `page check` runs too. A page that runs code of its
 own, a module script or a page widget the document places, or places a data widget
@@ -118,7 +117,7 @@ is a console error, since the page reports it);
 every widget upgraded, painted with values that resolve, and given real space;
 words a user can mark, reach, and select, with the registry's verbatim and shadow
 declarations honored; no sideways scroll, clipped control, or misplaced box; space below words and controls for a horizontal overlay scrollbar;
-and standing state that replays without conflict and idempotently.
+and current state that replays without conflict and idempotently.
 `render_gate/readings.py` is the list. Those readings run
 at a desktop and a phone viewport; once they are done, the loaded desktop page is
 resized through the widths from 360px to 1920px and sideways overflow, misplaced boxes,
@@ -157,11 +156,11 @@ variable; `render_gate/browser.py` owns browser and driver launch diagnostics.
 Every check behind `page check` reports what it finds as a record
 (`findings.py`): a code, the element it names, what it measured, and
 whether it refuses the version or advises. The browser probes return those records
-rather than sentences, and the words are written once, at the command boundary,
-which prints them, or with `--json` prints the records.
+rather than sentences, and the words are written once, in `findings.py`; the command
+prints each record with its words as `text`.
 
 The browser checks that rendering the same complete state twice is idempotent.
-A standing decision may paint over a changed authored baseline; this is the
+A decision in force may paint over a changed authored baseline; this is the
 state fold's behavior, not a reason to refuse the revision. `restated` explicitly
 retracts a decision when the agent needs a fresh answer.
 
@@ -192,8 +191,8 @@ later in the user's browser. Anchor on an opaque widget's element instead
 The render gate pairs each preserving owner with the file by its source and
 document-order occurrence, captured before upgrade. Page markup and each frozen thread
 event are separate sources, so this pairing does not require authored ids. It compares
-the rendered owner with the same projected passage a user can point at: standing
-user body rewrites replace authored words, retired slots contribute none, and
+the rendered owner with the same projected passage a user can point at: the
+user body rewrites in force replace authored words, retired slots contribute none, and
 declared generated children join their owner. Reports do not license a body rewrite.
 Page expectations stop at the rendered revision; frozen thread markup has no later
 authored version and uses the thread's whole action window.
@@ -217,6 +216,11 @@ Immutable inputs are read once for as long as the process keeps the page's memor
 (`page_memory`). A stored revision's document, captured vocabulary, and passage
 readings live on its one `RevisionReading` (`revision_artifact.read_revision`); a
 candidate's live on the one `SourceReading` its check takes, which the revision
-activation writes from it adopts. Each logged markup fragment is parsed once
+activation writes from it adopts. A `SourceDocument` builds its element index (ids,
+lf-* records, live samples) as it is read, and everything else on first use of
+`SourceDocument.authoring`. The revision inventory scans (ids, ask registrations,
+data consumers) read only the index of each revision, so they never build the rest;
+a reader that names a historical revision's elements, such as gesture naming,
+builds it for that revision. Each logged markup fragment is parsed once
 (`thread_context.logged_fragment`), while markup a writer hands in is parsed afresh at
 its gate.

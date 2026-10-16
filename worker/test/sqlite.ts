@@ -12,11 +12,17 @@ export function sqliteStorage(): { storage: DurableObjectStorage; close: () => v
           database.exec(query);
           return { toArray: () => [] };
         }
-        const rows = database.prepare(query).all(...bindings).map((row) =>
-          Object.fromEntries(Object.entries(row).map(([key, value]) => [
-            key, value instanceof Uint8Array ? value.slice().buffer : value,
-          ])),
-        );
+        const rows = database
+          .prepare(query)
+          .all(...bindings)
+          .map((row) =>
+            Object.fromEntries(
+              Object.entries(row).map(([key, value]) => [
+                key,
+                value instanceof Uint8Array ? value.slice().buffer : value,
+              ]),
+            ),
+          );
         return { toArray: () => rows };
       },
     },

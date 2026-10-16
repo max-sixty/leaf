@@ -33,6 +33,7 @@ from render_harness import (
     consume_browser_errors,
     example_media,
     holding,
+    http_error_console,
     open_page,
     panel_settled,
     resized,
@@ -149,7 +150,14 @@ def test_held_news_keeps_an_agent_header_and_resizes_its_notice(browser, serve):
         if notice_box is None:
             notice_box = news.bounding_box()
         else:
+            # The notice holds the room of the words it first showed, so longer news
+            # is cut there rather than widening it; its title keeps the words whole.
             assert news.bounding_box() == notice_box
+            expect(news).to_have_attribute("title", "2 new replies")
+            assert news.evaluate(
+                "n => { const w = n.querySelector('span');"
+                " return w.scrollWidth > w.clientWidth; }"
+            )
 
     resized(page, 360, 900)
     rendered(page)
@@ -611,7 +619,7 @@ def test_news_from_elsewhere_moves_nothing_in_a_short_panel_thread(browser, serv
         == widths
     )
 
-    # The press means the face it drew, so the reaction already standing sends
+    # The press means the face it drew, so the reaction already in force sends
     # nothing, and acting in the thread shows what it holds.
     logged = len(events_model.read_events(serve.page_dir))
     thread.locator(f'.lf-msg[data-mid="{answer}"]').hover()
@@ -833,7 +841,7 @@ def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, se
     expect(visible).to_have_count(5)
     expect(pick("status", "open")).to_have_text("Open (5)")
     expect(pick("status", "resolved")).to_have_text("Resolved (1)")
-    expect(pick("waiting", "user")).to_have_text("You (1)")
+    expect(pick("waiting", "user")).to_have_text("Me (1)")
     expect(pick("waiting", "agent")).to_have_text("Agent (3)")
     expect(pick("scope", "page")).to_have_text("Page (2)")
     expect(pick("scope", "local")).to_have_text("Anchored (3)")
@@ -854,7 +862,7 @@ def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, se
     pick("status", "resolved").click()
     expect(waiting_group).to_be_visible()
     expect(pick("waiting", "user")).to_have_attribute("aria-pressed", "false")
-    expect(pick("waiting", "user")).to_have_text("You (1)")
+    expect(pick("waiting", "user")).to_have_text("Me (1)")
     expect(pick("waiting", "agent")).to_have_text("Agent (3)")
     expect(pick("unplaced", "unplaced")).to_be_visible()
     expect(pick("unplaced", "unplaced")).to_be_disabled()
@@ -930,7 +938,7 @@ def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, se
     expect(pick("unplaced", "unplaced")).to_have_text("Not located (1)")
     page.locator(".lf-thread-filter-toggle").click()
     expect(page.locator(".lf-thread-view-summary")).to_have_text(
-        "1 of 5 open threads · On agent · Anchored · Content · Not located"
+        "1 of 5 open threads · On Claude · Anchored · Content · Not located"
     )
     page.get_by_role("button", name="Reset thread filters").click()
     expect(visible).to_have_count(5)
@@ -1399,16 +1407,15 @@ def test_agent_titles_update_without_losing_the_users_draft(browser, serve):
     expect(topic).to_have_text("Generating title")
     paint = """element => {
       const style = getComputedStyle(element);
-      return [style.animationName, style.backgroundClip, style.color];
+      return [style.animationName, style.backgroundClip, style.webkitTextFillColor];
     }"""
     sweep, clip, fill = topic.evaluate(paint)
-    assert sweep == "lf-title-sheen" and clip == "text"
+    assert (sweep, clip, fill) == ("lf-sheen", "text", "rgba(0, 0, 0, 0)")
     assert topic.evaluate("el => getComputedStyle(el).backgroundImage") != "none"
     # Reduced motion paints ordinary text instead of an animated clipped gradient.
     page.emulate_media(reduced_motion="reduce")
-    sweep, clip, fill = topic.evaluate(paint)
-    assert sweep == "none" and clip != "text"
-    assert fill != "rgba(0, 0, 0, 0)"
+    expect(topic).not_to_have_css("background-clip", "text")
+    assert topic.evaluate(paint)[2] != "rgba(0, 0, 0, 0)"
     page.emulate_media(reduced_motion="no-preference")
     focus_panel_thread(thread)
     editor = thread.locator("leaf-text")
@@ -1584,7 +1591,7 @@ def test_a_rewrite_never_replaces_words_it_did_not_see(browser, serve):
     b.keyboard.type("Saved in B.")
     b.keyboard.press("Enter")
     round_trip(b)
-    consume_browser_errors(b, {"code": "failed-load", "status": 400})
+    consume_browser_errors(b, http_error_console(400))
     # Refused, B's words wait as its rewrite.
     expect(in_b.locator(".lf-msg-editor")).to_have_count(0)
     expect(in_b.locator(".lf-msg-kept")).to_have_text("unsaved edit")

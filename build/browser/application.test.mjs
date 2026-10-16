@@ -78,16 +78,16 @@ const wireAsk = (
   status: "open",
   next_actor: "user",
 });
-// A view's asks as the served lists hold them: each the user owes on Questions, and
-// each that is no longer open, done.
+// A view's asks as the served lists hold them: each the user owes on their list, On me,
+// and each that is no longer open, done.
 const askQueues = (asks) => {
   const item = (ask) =>
     servedAskItem(ask, {
       subject: { kind: "widget", id: ask.source.id },
     });
   return {
-    questions: asks.filter((ask) => ask.next_actor === "user").map(item),
-    tasks: [],
+    on_user: asks.filter((ask) => ask.next_actor === "user").map(item),
+    on_agent: [],
     done: asks
       .filter((ask) => ask.status !== "open")
       .map((ask) => ({ ...item(ask), state: "done", ended: null, detail: null })),
@@ -126,7 +126,7 @@ const state = (taken, events = []) => ({
         undo: [],
         reports: [],
         published_at: null,
-        queues: { questions: [], tasks: [], done: [] },
+        queues: { on_user: [], on_agent: [], done: [] },
         approval_blocking: [],
         document: {
           asks: noAsks(),
@@ -200,7 +200,7 @@ const setup = (extraDescriptors = [], extraAuthored = []) => {
   app.adopt(state(1));
   return app;
 };
-// The standing decision's outcome, or null while the widget is undecided.
+// The outcome of the decision in force, or null while the widget is undecided.
 const outcomeOf = (state) => state?.decide.detail.outcome ?? null;
 const decision = (app) => outcomeOf(app.read().effective.widgets.get("choice").state);
 
@@ -310,7 +310,7 @@ test("one widget selection publishes optimistic state without writable access", 
   app.enqueue(action("first"), "now");
   assert.equal(selected.read().authored.decide.action, null);
   assert.equal(outcomeOf(selected.read().state), "accept");
-  assert.equal(seen.at(-1).actions.decide.standing[0].event.attempt, "first");
+  assert.equal(seen.at(-1).actions.decide.inForce[0].event.attempt, "first");
   assert.throws(() => {
     selected.read().actions.decide.available = false;
   }, TypeError);
@@ -323,6 +323,15 @@ test("one widget selection publishes optimistic state without writable access", 
   app.refuse("first");
   assert.equal(outcomeOf(selected.read().state), null);
   stop();
+});
+
+test("widget actions await a complete reading after loading or failed history", () => {
+  const app = setup();
+  const selected = app.selectWidget(descriptor);
+  for (const phase of ["waiting", "offline", "ready"]) {
+    app.setPhase(phase);
+    assert.equal(selected.read().actions.decide.available, phase === "ready", phase);
+  }
 });
 
 test("an offline document publishes every host command as unavailable", () => {
@@ -342,7 +351,7 @@ test("an offline document publishes every host command as unavailable", () => {
   assert.equal(outcomeOf(reading.state), "accept");
 });
 
-test("widget undo candidates name only exact currently standing attempts", () => {
+test("widget undo candidates name only exact attempts currently in force", () => {
   const app = setup();
   const selected = app.selectWidget(descriptor);
   const pending = app.enqueue(action("first"), "now");
@@ -1143,7 +1152,7 @@ test("refusal takes the gestures that depend on the refused one with it", () => 
 });
 
 test("thread acceptance is semantic before presentation can retire its local handle", () => {
-  const app = setup();
+  const app = capture();
   const comment = {
     kind: "comment",
     attempt: "comment",
@@ -1151,7 +1160,10 @@ test("thread acceptance is semantic before presentation can retire its local han
     revision: 1,
   };
   app.enqueue(comment, "now");
+  assert.equal(app.read().phase, "waiting");
   assert.equal(app.read().effective.thread.all[0].root.text, "Keep this");
+  assert.equal(app.read().effective.thread.collection.phase, "waiting");
+  assert.equal(app.read().effective.thread.collection.threads.length, 1);
   const accepted = { ...comment, id: "e1", author: "user", ts: "now" };
   const read = state(2);
   read.browser.receipts = [accepted];
@@ -1163,6 +1175,18 @@ test("thread acceptance is semantic before presentation can retire its local han
   app.present([accepted]);
   assert.equal(app.read().unresolved.length, 0);
   assert.equal(app.read().effective.thread.all[0].root.id, "e1");
+});
+
+test("refusal removes a local thread without requiring a saved reading", () => {
+  const app = capture();
+  app.enqueue(
+    { kind: "comment", attempt: "early", text: "Keep my words", revision: 1 },
+    "now",
+  );
+  assert.equal(app.read().effective.thread.collection.threads.length, 1);
+  app.refuse("early");
+  assert.equal(app.read().phase, "waiting");
+  assert.deepEqual(app.read().effective.thread.collection.threads, []);
 });
 
 test("widget selections publish the canonical held thread", () => {
@@ -1206,7 +1230,7 @@ for (const resolved of [null, { author: "user" }]) {
     };
     // The server owes nobody a turn in a resolved thread; an open one waits on the
     // user's answer.
-    const standing = resolved ? null : "needs_user";
+    const owed = resolved ? null : "needs_user";
     const accepted = state(2);
     accepted.browser.views[1].thread.threads = [
       servedThread([root], {
@@ -1222,7 +1246,7 @@ for (const resolved of [null, { author: "user" }]) {
       const thread = app.read().effective.thread.all[0];
       return [thread.attention?.kind ?? null, thread.resolved];
     };
-    assert.deepEqual(turn(), [standing, resolved]);
+    assert.deepEqual(turn(), [owed, resolved]);
 
     // The reply reopens the thread it joins, which the gesture settles by itself; whose
     // turn the thread is then waits for the log's reading.
@@ -1236,12 +1260,12 @@ for (const resolved of [null, { author: "user" }]) {
       },
       "now",
     );
-    assert.deepEqual(turn(), [standing, null]);
+    assert.deepEqual(turn(), [owed, null]);
     const answer = { kind: "reply", attempt: "answer", id: "e-answer" };
     app.accept("answer", answer);
     app.present([answer]);
     assert.deepEqual(app.read().unresolved, []);
-    assert.deepEqual(turn(), [standing, resolved]);
+    assert.deepEqual(turn(), [owed, resolved]);
 
     // A refused reply is the user's to send again.
     app.enqueue(
@@ -1259,9 +1283,9 @@ for (const resolved of [null, { author: "user" }]) {
   });
 }
 
-test("a pending gesture leaves asks and Questions as served until the log answers", () => {
+test("a pending gesture leaves asks and On me as served until the log answers", () => {
   // A settling reaction answered the agent's question, so the server lists the ask as
-  // done. Which asks taking it back reopens is the log's reading, so Questions moves
+  // done. Which asks taking it back reopens is the log's reading, so On me moves
   // when the server answers the undo, not before.
   const ask = {
     kind: "comment",
@@ -1304,7 +1328,7 @@ test("a pending gesture leaves asks and Questions as served until the log answer
   app.enqueue({ kind: "undo", undoes: kept.id, attempt: "take-back" }, "now");
   const pending = app.read().effective;
   assert.deepEqual(pending.asks.user, []);
-  assert.deepEqual(pending.queues.questions, []);
+  assert.deepEqual(pending.queues.on_user, []);
   assert.deepEqual(
     pending.queues.done.map(({ kind, id }) => [kind, id]),
     [["ask", answered.id]],
@@ -1328,7 +1352,7 @@ test("a pending gesture leaves asks and Questions as served until the log answer
   const { thread, queues } = app.read().effective;
   assert.equal(thread.all[0].attention.kind, "needs_user");
   assert.deepEqual(
-    queues.questions.map(({ kind, id }) => [kind, id]),
+    queues.on_user.map(({ kind, id }) => [kind, id]),
     [["ask", answered.id]],
   );
 });
@@ -1463,7 +1487,7 @@ test("a reaction root is not a spoken turn awaiting the user", () => {
   assert.equal(app.read().effective.thread.all[0].attention, null);
 });
 
-test("approval leaves Questions in its sending turn and undo restores the exact version", () => {
+test("approval leaves On me in its sending turn and undo restores the exact version", () => {
   const adopt = (name) => {
     const app = createSemanticApplication();
     app.identify(1);
@@ -1471,21 +1495,21 @@ test("approval leaves Questions in its sending turn and undo restores the exact 
     return app;
   };
   const app = adopt("approval");
-  const questions = () => app.read().effective.queues.questions;
+  const onUser = () => app.read().effective.queues.on_user;
   const record = () => app.read().effective.asks.all[0];
   const ask = record();
   assert.equal(ask.source.kind, "approval");
-  assert.equal(questions()[0].id, ask.id);
-  assert.equal(questions()[0].kind, "ask");
-  assert.equal(questions()[0].offers.done, false);
+  assert.equal(onUser()[0].id, ask.id);
+  assert.equal(onUser()[0].kind, "ask");
+  assert.equal(onUser()[0].offers.done, false);
   app.enqueue({ kind: "done", version: 2, attempt: "other-version" }, "now");
-  assert.equal(questions().length, 1);
+  assert.equal(onUser().length, 1);
   app.refuse("other-version");
   const pending = app.enqueue(
     { kind: "done", version: 1, attempt: "approve" },
     "queued-at",
   );
-  assert.equal(questions().length, 0);
+  assert.equal(onUser().length, 0);
   assert.equal(app.read().effective.queues.done[0].id, ask.id);
   assert.deepEqual(record().answer, { value: true, event: null });
   assert.equal(record().status, "answered");
@@ -1500,7 +1524,7 @@ test("approval leaves Questions in its sending turn and undo restores the exact 
   ]);
   app.refuse("approve");
   assert.deepEqual(app.read().effective.thread.approvalHistory, []);
-  assert.equal(questions().length, 1);
+  assert.equal(onUser().length, 1);
   assert.equal(record().answer, null);
 
   const approved = adopt("approved");
@@ -1509,9 +1533,9 @@ test("approval leaves Questions in its sending turn and undo restores the exact 
     approved.read().effective.thread.approvalHistory.map(({ id }) => id),
     [approval.id],
   );
-  assert.equal(approved.read().effective.queues.questions.length, 0);
+  assert.equal(approved.read().effective.queues.on_user.length, 0);
   approved.enqueue({ kind: "undo", undoes: approval.id, attempt: "undo" }, "now");
-  assert.equal(approved.read().effective.queues.questions[0].id, ask.id);
+  assert.equal(approved.read().effective.queues.on_user[0].id, ask.id);
   assert.equal(approved.read().effective.queues.done.length, 0);
   assert.equal(approved.read().effective.asks.all[0].answer, null);
   assert.equal(approved.read().effective.asks.all[0].status, "open");
@@ -1647,7 +1671,7 @@ test("An ask contains the local typed answer while completion waits for admissio
   assert.equal(pending.all[0].status, "open");
   assert.equal(pending.all[0], pending.user[0]);
   assert.equal(pending.all[0], pending.unanswered[0]);
-  assert.equal(app.read().effective.queues.questions[0].kind, "ask");
+  assert.equal(app.read().effective.queues.on_user[0].kind, "ask");
   app.refuse("typed");
   assert.equal(app.read().effective.asks.all[0].answer, null);
 });
@@ -1693,7 +1717,7 @@ test("empty completed answer and wrapper changes preserve ask identity", () => {
   reading.browser.views[1].queues = askQueues([ask]);
   app.adopt(reading);
   assert.deepEqual(app.read().effective.asks.all[0].answer.value, []);
-  assert.equal(app.read().effective.queues.questions.length, 0);
+  assert.equal(app.read().effective.queues.on_user.length, 0);
   assert.equal(app.read().effective.queues.done[0].kind, "ask");
   const wrapped = structuredClone(reading);
   wrapped.taken = 3;
@@ -1852,4 +1876,133 @@ test("pending undo removes a custom ask answer before authoritative completion c
   });
   app.refuse("re-pick");
   assert.equal(app.read().effective.asks.all[0].answer.event.id, accepted.id);
+});
+
+test("unchanged selection republishes when a move changes its members", () => {
+  const move = {
+    unit: "unit",
+    writer: "user",
+    record: { kind: "position", within: "lf-audit-lane" },
+  };
+  const choose = {
+    unit: "widget",
+    writer: "user",
+    record: { kind: "attribute", attr: "selected" },
+  };
+  const declared = (id, tag, verbs, parent = null) => ({
+    ...descriptor,
+    id,
+    tag,
+    declaration: { "x-state": verbs },
+    parent: parent && { id: parent, tag: "lf-audit-manifest" },
+    ancestors: [],
+  });
+  const board = declared("manifest", "lf-audit-manifest", { move });
+  const north = declared("north", "lf-audit-lane", { choose }, "manifest");
+  const south = declared("south", "lf-audit-lane", { choose }, "manifest");
+  const cargo = declared("cargo", "lf-audit-cargo", {}, "north");
+  const baseline = (owner, value) => [
+    owner.id,
+    {
+      tag: owner.tag,
+      specs: new Map([["choose", choose]]),
+      state: { choose: { action: null, value, detail: { value } } },
+    },
+  ];
+  const app = setup(
+    [board, north, south, cargo].map((owner) => [owner.id, owner]),
+    [
+      [
+        board.id,
+        {
+          tag: board.tag,
+          specs: new Map([["move", move]]),
+          state: {
+            move: {
+              value: { north: ["cargo"], south: [] },
+              units: {},
+              ranks: { cargo: "1" },
+            },
+          },
+        },
+      ],
+      baseline(north, ["cargo"]),
+      baseline(south, []),
+    ],
+  );
+  const destination = app.selectWidget(south);
+  const before = destination.read().state;
+  let paints = 0;
+  const stop = destination.subscribe(() => paints++);
+  const placed = app.enqueue(
+    {
+      kind: "action",
+      widget: "manifest",
+      action: "move",
+      detail: { unit: "cargo", value: "south", rank: "1" },
+      revision: 1,
+      attempt: "move",
+    },
+    "now",
+  );
+  assert.equal(paints, 2);
+  assert.deepEqual(destination.read().memberships, { selected: ["cargo"] });
+  assert.deepEqual(destination.read().state, before);
+  app.enqueue({ kind: "undo", undoes: placed.localId, attempt: "undo" }, "now");
+  assert.equal(paints, 3);
+  assert.deepEqual(destination.read().memberships, { selected: [] });
+  stop();
+});
+
+test("parent memberships include flat creations until undone", () => {
+  const sow = {
+    unit: "seed",
+    writer: "user",
+    creates: { child: "lf-seedling", words: "label" },
+  };
+  const choose = {
+    unit: "widget",
+    writer: "user",
+    record: { kind: "attribute", attr: "chosen" },
+  };
+  const tray = {
+    ...descriptor,
+    id: "tray",
+    tag: "lf-tray",
+    declaration: { "x-state": { sow, choose } },
+  };
+  const app = setup(
+    [[tray.id, tray]],
+    [
+      [
+        tray.id,
+        {
+          tag: tray.tag,
+          specs: new Map([
+            ["sow", sow],
+            ["choose", choose],
+          ]),
+          state: {
+            sow: { value: {}, units: {} },
+            choose: { action: null, value: [], detail: { value: [] } },
+          },
+        },
+      ],
+    ],
+  );
+  const selected = app.selectWidget(tray);
+  const created = app.enqueue(
+    {
+      kind: "action",
+      revision: 1,
+      widget: "tray",
+      action: "sow",
+      detail: { seed: "elm", label: "Elm" },
+      attempt: "sow-elm",
+    },
+    "now",
+  );
+  assert.deepEqual(selected.read().memberships.chosen, ["elm"]);
+  app.enqueue({ kind: "undo", undoes: created.localId, attempt: "undo-sow" }, "now");
+  assert.deepEqual(selected.read().memberships.chosen, []);
 });

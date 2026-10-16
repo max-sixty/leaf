@@ -1,18 +1,20 @@
-"""The durable work reading of one document and admitted log.
+"""`WorkReading`: the to-dos, asks and workflows one document and its log hold.
 
-To-dos, frozen thread asks, and exact-input workflows share one event basis.
-Admission constructs it under the sending vocabulary; serving constructs it under
-its active document, and each view of a pinned revision under that revision's
-(`viewing`). Neither adds claim liveness: activity enriches these facts
-once, and transports select that enriched reading without constructing a browser.
-This object is transaction-scoped and never written to disk.
+Its readings come from the event log and one revision's document and registry.
+Admission builds it against the newest revision, under the registry of the page that
+sent the event (`event_meaning.AdmissionReadings`), serving against
+the active revision (`served_state.work`), and a view pinned to an older revision
+calls `viewing` to read the same log under that revision's registry. It knows
+nothing about whether a session is live: `activity` adds that once, in
+`served_state.work`, and transports read the result without building the browser's
+state. A `WorkReading` lasts for one transaction and is never written to disk.
 """
 
 from functools import cached_property
 
 from .asks import collection, thread_ask_readings, thread_asks
 from .document_reading import read_document
-from .events import build_threads, standing_approvals
+from .events import approvals_in_force, build_threads
 from .projection import frozen_thread_reading
 from .todos import TodoReading
 
@@ -115,7 +117,7 @@ class WorkReading:
 
     @cached_property
     def approvals(self) -> list[dict]:
-        return standing_approvals(self.events, withdrawn=self.log.withdrawn)
+        return approvals_in_force(self.events, withdrawn=self.log.withdrawn)
 
     @cached_property
     def document(self):

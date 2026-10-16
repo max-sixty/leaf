@@ -24,11 +24,25 @@ export const elementDeclarations = () =>
 
 // Take in the fetched vocabulary. A verb's writer is read from `$states`
 // (`registry-contract.js`), where composition stamped it.
+// The layer-wide `$` declarations are frozen as they arrive, so `layerFact` hands a
+// package module the registry's own value, which it can read but not write.
 export function adoptRegistry(declarations) {
+  for (const [name, value] of Object.entries(declarations))
+    if (name.startsWith("$")) freeze(value);
   Object.assign(registry, declarations);
 }
 
+/** @param {unknown} value */
+function freeze(value) {
+  if (value === null || typeof value !== "object" || Object.isFrozen(value)) return;
+  for (const child of Object.values(value)) freeze(child);
+  Object.freeze(value);
+}
+
 let stateIndex;
+/** @param {import("../../../../build/browser/domain.ts").StateRecord} record */
+const recordSlot = (record) =>
+  JSON.stringify([record.kind, "attr" in record ? record.attr : null]);
 function indexedState() {
   const generation = registry.$layer?.generation;
   if (typeof generation !== "string" || !generation)
@@ -39,25 +53,31 @@ function indexedState() {
   for (const [tag, entry] of elementDeclarations())
     for (const [verb, spec] of Object.entries(entry["x-state"] ?? {}))
       specs.push({ tag, verb, spec });
-  stateIndex = {
-    generation,
-    recordedWidgetSelector: [
-      ...new Set(specs.filter(({ spec }) => spec.record).map(({ tag }) => tag)),
-    ].join(","),
-    specs,
-  };
+  const recordTags = new Map();
+  for (const { tag, spec } of specs) {
+    if (!spec.record) continue;
+    const slot = recordSlot(spec.record);
+    const tags = recordTags.get(slot) ?? new Set();
+    tags.add(tag);
+    recordTags.set(slot, tags);
+  }
+  const recordSelectors = new Map(
+    [...recordTags].map(([slot, tags]) => [slot, [...tags].join(",")]),
+  );
+  stateIndex = { generation, recordSelectors, specs };
   return stateIndex;
 }
 
 export const stateSpecs = () => indexedState().specs;
-export const recordedWidgetSelector = () => indexedState().recordedWidgetSelector;
+/** @param {import("../../../../build/browser/domain.ts").StateRecord} record */
+export const recordedWidgetSelector = (record) =>
+  indexedState().recordSelectors.get(recordSlot(record)) ?? "";
 
-// Shared `$` declarations belong to the layer rather than to one widget. Return a copy so
-// a package module can read its cross-widget vocabulary without a registry write path.
-export function layerFact(name) {
-  const value = registry[name];
-  return value === undefined ? undefined : structuredClone(value);
-}
+// Shared `$` declarations belong to the layer rather than to one widget. Each is frozen
+// on adoption, so a package module reads its cross-widget vocabulary without a registry
+// write path, and a reader called per element copies nothing.
+/** @param {string} name */
+export const layerFact = (name) => registry[name];
 
 export const declarationFor = (el, key) => registry[el?.localName]?.[key];
 

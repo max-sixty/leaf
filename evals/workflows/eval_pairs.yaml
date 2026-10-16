@@ -1,52 +1,81 @@
-# Pairwise reader judgement; the runner supplies the blinded brief and reachability contract.
+# Pairwise live-page judgment; the runner supplies blinded copies and task scope.
 prompt: |-
-  You are judging two web pages built for the same user request. Read the
-  brief at {brief}, then open every screenshot it lists with the Read tool before
-  judging. Open no other file.
+  You are judging two web pages built for the same user request. Explore their
+  supplied live versions at the provided window sizes before comparing them.
 
-  Judge as the user who made the request would, from what the screenshots show.
+  {brief}
+
+  Prescribed browser decision task:
+  <decision_task>
+  {decision_task}
+  </decision_task>
+
+  When a decision task applies, first perform it on each version before the
+  decision, through the page's offered completion route and preserving its
+  stated constraints, before making other exploratory changes. Report whether
+  the route completes. Additional exploration may reveal other behavior, but
+  must remain separate: changing decisions outside this task cannot establish
+  that the prescribed route works or repair a failure observed on it.
+
+  Judge as the user who made the request would, from the rendered pages and
+  the behavior you actually operate. Your inspection choices are not changes
+  the author made to the user's recorded final decisions.
   {reachable} Ignore which tool or framework made a page and any fixed viewer chrome
   outside the page's content; judge the content, its arrangement and its legibility.
 
   Compare A and B on:
   - evidence: the request's substantive facts are present and readable
-  - decisions: the user can see and take the decisions or navigation the request asks for
-  - width: at the 900px windows, the page follows the standing preference
-  - phone: the page is usable at 390px
+  - decisions: on the versions before the decision, the user can see and take the
+    prescribed decisions and complete the page's offered route; judge navigation
+    on the final versions
+  - layout: at the declared window sizes, the page uses the available space to support
+    the task and follows the user's recorded work environment and layout preference
   - comment: the final page carries the change the comment asked for where a reader
     of that passage would find it
-  - applied: the final page records the decisions the user made, as they made them
+  - applied: after the later decision message, the author's final revision preserves
+    the user's recorded decisions
+
+  Judge against the request and later messages. Where user intent has several
+  plausible readings, state the assumption behind a concern rather than treating
+  it as an established requirement. An aspect that does not apply to this task is
+  a tie, rather than missing evidence.
 
   Name the better page on each, and overall with its margin; list each page's
   defects; give your reason in two or three sentences.
+  Use status complete only when exploration supports the comparison. Otherwise
+  return insufficient_evidence and explain what remains unverified; do not turn
+  missing observation into a tie or an omission.
 aspects:
-- evidence
-- decisions
-- width
-- phone
-- comment
-- applied
+  - evidence
+  - decisions
+  - layout
+  - comment
+  - applied
 output_schema:
   type: object
   properties:
+    status:
+      type: string
+      enum:
+        - complete
+        - insufficient_evidence
     evidence: &id001
       type: string
       enum:
-      - A
-      - B
-      - tie
+        - A
+        - B
+        - tie
     decisions: *id001
-    width: *id001
-    phone: *id001
+    layout: *id001
     comment: *id001
     applied: *id001
     overall: *id001
     margin:
       type: string
       enum:
-      - slight
-      - clear
-      - strong
+        - slight
+        - clear
+        - strong
     defects_A: &id002
       type: array
       items:
@@ -55,17 +84,22 @@ output_schema:
     reason:
       type: string
   required:
-  - evidence
-  - decisions
-  - width
-  - phone
-  - comment
-  - applied
-  - overall
-  - margin
-  - defects_A
-  - defects_B
-  - reason
+    - status
+    - evidence
+    - decisions
+    - layout
+    - comment
+    - applied
+    - overall
+    - margin
+    - defects_A
+    - defects_B
+    - reason
   additionalProperties: false
-brief_intro: Pages A and B were each built for this request, then revised for each later message.
-  Below are screenshots of each final page at four window sizes, top to bottom with overlap.
+brief_intro:
+  Pages A and B were each built for this request, then revised for each later message.
+  A and B show the final revisions. When the task includes a decision,
+  A_before_decision and B_before_decision show the latest revisions before the
+  user made it. Operate decision controls on those earlier versions. Use A and B
+  to judge the final evidence, layout, comment response and recorded decisions.
+  Each live copy starts before your inspection actions.

@@ -24,7 +24,7 @@ Codex App Server receive delivery turns through that server. Read the owning
 [Claude Code](../skills/leaf/references/harness-claude-code.md),
 [Codex queue](../skills/leaf/references/harness-codex.md), and
 [App Server](../skills/leaf/references/harness-codex-app-server.md) contracts rather
-than deriving a handoff from this comparison. Serving, authentication, standing
+than deriving a handoff from this comparison. Serving, authentication, persistent
 lifetimes, and offline export belong to
 [serving-pages.md](../skills/leaf/references/serving-pages.md).
 
@@ -105,7 +105,7 @@ dense-prose fallback. No replacement policy was implemented or demonstrated.
 
 Proposals first checked against Leaf `486180b51888d8dd46584f6c84e3d2a96f2035cb`,
 then rechecked against `532be8f718f6a2f3bdf1391f936a4778fcf5735f` on October 5.
-IDs match the live report. Existing task starts, the Queue panel's Done list,
+IDs match the live report. Existing task starts, the On panel's Done list,
 persistence, free HTML, general composing, constrained panels and CSS-anchor
 following are the baseline, not proposed additions.
 
@@ -115,26 +115,17 @@ following are the baseline, not proposed additions.
   sends empty user input and a structured `leaf_delivery` tool result. Desktop
   access and rendering remain unverified. Prove agent wake-up and exact
   input/reply identity while keeping automatic user-message text out of chat.
-- **#3 — Prevent superseded executions from closing continued work.** Leaf
-  already preserves the task when a session ends, and `task start` records a
-  later execution's session on the same task, plus its turn when it holds the
-  page claim. Reuse those starts rather
-  than adding a Pause state or a second attempt record. The missing guard is at
-  completion: [todos.py](../skills/leaf/scripts/leaf/todos.py) admits an end from
-  an older session after a newer start. A direct fold/admission probe confirmed
-  this case. Test competing continuations and prevent an obsolete execution's
-  delayed result from silently closing the continued work.
-- **#4 — Make finished task results easy to read.** The Queue panel already
+- **#4 — Make finished task results easy to read.** The On panel already
   lists ended tasks under Done with their outcome. Their detail is in the row's
   native tooltip; show it as visible text or a disclosure usable by a finger.
   Test whether readers find the result after the active count drops. Retain
   navigation to an existing thread where one belongs to the task, including
-  resolved threads. Page and widget tasks may have no thread, so Queue remains
-  their result route. This displays the logged outcome rather than creating
+  resolved threads. Page and widget tasks may have no thread, so the On panel
+  remains their result route. This displays the logged outcome rather than creating
   independent evidence of completion.
 - **#6 — Canonical task selectors and list/board experiment.** Workbench's
   heading-driven board and [Sfora's map](https://www.sfora.ai/features/boards)
-  were operated, without persistence proof. Leaf's Queue already consumes
+  were operated, without persistence proof. Leaf's On panel already consumes
   canonical task readings; expose those through the existing package publication
   API. Prove list and board consume one task outcome without agent-maintained
   duplicate status markup. Preserve arbitrary authored HTML.
@@ -441,12 +432,12 @@ own semantics; an agent's process state does not establish who owes a response.
 Read from project repositories in August and revisited on 2026-09-22. These
 projects described how models compose a UI against declared components.
 
-| Project | Authoring and state model observed | Integration question for Leaf |
-| ------- | ---------------------------------- | ----------------------------- |
-| [json-render](https://github.com/vercel-labs/json-render) | A flat `root` and `elements` spec, with cataloged components, actions and functions; expressions and bindings update a local state model. | Its catalog-derived prompts and streaming compiler are useful mechanisms. A second store of user decisions would need to become part of Leaf's fold. |
-| [OpenUI](https://github.com/thesysdev/openui) | OpenUI Lang uses component calls with positional arguments in the catalog's schema order. The September read found OUI-1 and its public [benchmark](https://github.com/thesysdev/generative-ui-bench). | Measure authoring quality and token cost against actual HTML tasks; shorter notation alone does not supply revision, anchoring, or replay. |
-| [Hashbrown](https://github.com/liveloveapp/hashbrown) | TypeScript exposes components; streaming schemas identify props safe to render before generation finishes. | Partial rendering is a useful experiment, but Leaf's published passage identities must remain well-defined. |
-| [A2UI](https://github.com/a2ui-project/a2ui) | Versioned JSON messages create surfaces and update components and per-surface data. JSON Schema catalogs allow renderers on different toolkits. | Cross-platform rendering is the benefit; a catalog renderer does not itself provide Leaf's durable page and log. |
+| Project                                                   | Authoring and state model observed                                                                                                                                                                     | Integration question for Leaf                                                                                                                        |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [json-render](https://github.com/vercel-labs/json-render) | A flat `root` and `elements` spec, with cataloged components, actions and functions; expressions and bindings update a local state model.                                                              | Its catalog-derived prompts and streaming compiler are useful mechanisms. A second store of user decisions would need to become part of Leaf's fold. |
+| [OpenUI](https://github.com/thesysdev/openui)             | OpenUI Lang uses component calls with positional arguments in the catalog's schema order. The September read found OUI-1 and its public [benchmark](https://github.com/thesysdev/generative-ui-bench). | Measure authoring quality and token cost against actual HTML tasks; shorter notation alone does not supply revision, anchoring, or replay.           |
+| [Hashbrown](https://github.com/liveloveapp/hashbrown)     | TypeScript exposes components; streaming schemas identify props safe to render before generation finishes.                                                                                             | Partial rendering is a useful experiment, but Leaf's published passage identities must remain well-defined.                                          |
+| [A2UI](https://github.com/a2ui-project/a2ui)              | Versioned JSON messages create surfaces and update components and per-surface data. JSON Schema catalogs allow renderers on different toolkits.                                                        | Cross-platform rendering is the benefit; a catalog renderer does not itself provide Leaf's durable page and log.                                     |
 
 The September read found json-render v0.21.0 with an experimental
 [Jev](https://json-render.dev/docs/jev) choice model. A2UI's 1.0 remained a
@@ -502,7 +493,7 @@ page directory and event log remain the durable record.
   task; frameworks such as CopilotKit provide the application and agent runtime.
 - **Durable hosted collaboration.** leaf.page runs agents in private trial
   containers, but their storage is ephemeral and the site has no durable user
-  identity or state store ([website design](../docs/website.html)). A standing
+  identity or state store ([website design](../docs/website.html)). A persistent
   local server and an offline export do not supply that service either.
 - **Direct document editing.** Leaf's user comments or uses authored controls;
   unrestricted editing of the document calls for an editor rather than an
@@ -545,12 +536,12 @@ scope a fresh survey.
 Read on 2026-08-29 from documentation and published packages. This is a separate
 package-design lead, not evidence that an animation dependency is ready to adopt.
 
-| Project | Authoring model observed | Relevance to Leaf |
-| ------- | ------------------------ | ----------------- |
-| [Remotion](https://www.remotion.dev/) | React components evaluated by frame, with a Studio and render pipeline; first-party [agent skills](https://www.remotion.dev/docs/ai/skills). | Standalone branded video, captions and mixed media. |
-| [Manim Community](https://docs.manim.community/en/stable/) | Python mathematical scenes rendered to video. | Standalone mathematical and algorithmic explanations. |
-| [Markdy](https://markdy.com/docs/) | Browser nodes, groups, flows and beats, with layout and edge routing. | An animated-diagram authoring reference. On the read date, `@markdy/cli@1.1.1` could not install because `@markdy/compat` was missing from npm; retest before adoption. |
-| [Elucim](https://elucim.com/) | JSON or YAML scenes with SVG and mathematical primitives, timelines and state machines. | A browser explanation model to evaluate on a real authored example. |
+| Project                                                    | Authoring model observed                                                                                                                     | Relevance to Leaf                                                                                                                                                       |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Remotion](https://www.remotion.dev/)                      | React components evaluated by frame, with a Studio and render pipeline; first-party [agent skills](https://www.remotion.dev/docs/ai/skills). | Standalone branded video, captions and mixed media.                                                                                                                     |
+| [Manim Community](https://docs.manim.community/en/stable/) | Python mathematical scenes rendered to video.                                                                                                | Standalone mathematical and algorithmic explanations.                                                                                                                   |
+| [Markdy](https://markdy.com/docs/)                         | Browser nodes, groups, flows and beats, with layout and edge routing.                                                                        | An animated-diagram authoring reference. On the read date, `@markdy/cli@1.1.1` could not install because `@markdy/compat` was missing from npm; retest before adoption. |
+| [Elucim](https://elucim.com/)                              | JSON or YAML scenes with SVG and mathematical primitives, timelines and state machines.                                                      | A browser explanation model to evaluate on a real authored example.                                                                                                     |
 
 The useful common idea is separating semantic states from motion between them.
 A Leaf package experiment can test that model without first building video export,

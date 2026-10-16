@@ -11,7 +11,7 @@
 import { letGo } from "./focus.js";
 import { pageRung } from "./keyboard/register.js";
 import { slide } from "./motion.js";
-import { retainUserIntent } from "./user-intent.js";
+import { restrictUserIntent } from "./user-intent.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
 import { closestAcross } from "./passages.js";
 import { under } from "./shadow.js";
@@ -41,12 +41,14 @@ export function createThreadPanelController({
     if (open || panelIsOpen()) auxiliarySurfaces.select(open ? key : null, options);
   }
   let viewRequest = 0;
-  async function showView({ status, waiting, thread, signal } = {}) {
+  // The caller captures this intent before any wait for the requested view's inputs.
+  async function showView({ status, waiting, thread, signal, intent: retained }) {
     const request = ++viewRequest;
-    const intent = retainUserIntent({
-      available: () => request === viewRequest && !signal.aborted && panel.isConnected,
-      fallback: threadsBox,
-    });
+    const intent = restrictUserIntent(
+      retained,
+      () => request === viewRequest && !signal.aborted && panel.isConnected,
+    );
+    if (!intent()) return false;
     intent.handoff(() => setPanel(true));
     await narrowing.select({ status, waiting });
     if (!intent() || !panelIsOpen()) return false;

@@ -21,7 +21,7 @@ let walking = null; // {key, noun, read, target, boundary}; never a list snapsho
 let boundaryTimer = 0;
 
 // "Thread 2 of 5", or, for a walk over several kinds that names its list in the
-// qualifier, "2 of 5 waiting on you · Thread" with the kind given there instead.
+// qualifier, "2 of 5 waiting on me · Thread" with the kind given there instead.
 export function walkPositionLabel(noun, position, total, qualifier = "") {
   if (!noun && !qualifier) throw new Error("leaf: a walk position needs a noun");
   return [noun, `${position} of ${total}`, qualifier].filter(Boolean).join(" ");
@@ -80,6 +80,16 @@ export function walkPosition() {
 // document position.
 const STEPS = Object.freeze(["previous", "next", "first", "last"]);
 const capital = (word) => word[0].toUpperCase() + word.slice(1);
+/** @param {{
+ *   id: string,
+ *   noun: string,
+ *   plural: string,
+ *   rows: () => HTMLElement[],
+ *   position?: () => ReturnType<typeof listWalkPosition>,
+ *   steps?: readonly string[],
+ *   landed?: (row: HTMLElement) => void,
+ *   scroll?: boolean,
+ * }} walk */
 export function rowWalk({
   id,
   noun,
@@ -163,7 +173,7 @@ export function beginWalk(key, noun, read, wrapped = false) {
         repaint();
       }, BOUNDARY_MS)
     : 0;
-  const standing = walkPosition();
+  const shown = walkPosition();
   repaint();
-  return standing?.text ?? null;
+  return shown?.text ?? null;
 }

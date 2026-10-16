@@ -11,14 +11,13 @@ content inputs in their callers.
 import functools
 import json
 import shutil
-import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import Literal, Protocol
 
-import click
 from leaf.event_log import read_events
+from leaf.interaction_log import append_interactions
 from leaf.media import media_name
 from leaf.revision_artifact import Resource, capture_artifact, capture_local_resource
 from leaf.schema import CURSOR_FILE, MEDIA_DIR, MEDIA_TYPES
@@ -27,14 +26,12 @@ from leaf.structure import SourceDocument
 
 from leaf_dev import ROOT, docs
 from leaf_dev.example_data import (
-    capture_files,
-    data_file,
     data_operations,
     example_versions,
     page_files,
     seed_log,
 )
-from leaf_dev.leaf_assets import assets_lock, clone, pinned_assets, pinned_copy, publish
+from leaf_dev.leaf_assets import assets_lock, pinned_assets, pinned_copy
 
 DEFAULT_PACKAGES = ROOT / "examples" / "layer.json"
 
@@ -54,6 +51,41 @@ class PageFixture:
 class PreparedPage:
     data_sources: int
     versions: int
+
+
+def record_run_context(
+    page: Path,
+    *,
+    purpose: Literal["test", "automated", "user-review", "author-preview"],
+    run: Path,
+    authored_source: Path | None = None,
+    test: str | None = None,
+) -> None:
+    """Record a developer run's declared purpose in the page's diagnostic history.
+
+    Call at the boundary that knows why this page will be used, before its inputs,
+    including after a pooled page is copied or a retained preview resumes. Fixture
+    preparation alone says nothing about its eventual reader. `run` reuses that
+    caller's existing run, isolated state, or preview-slot path; neither this
+    declaration nor its absence identifies who makes an individual gesture.
+    """
+    append_interactions(
+        page,
+        [
+            {
+                "source": "developer",
+                "type": "run_context",
+                "purpose": purpose,
+                "run": str(run.resolve()),
+                **(
+                    {"authored_source": str(authored_source.resolve())}
+                    if authored_source is not None
+                    else {}
+                ),
+                **({"test": test} if test is not None else {}),
+            }
+        ],
+    )
 
 
 def source_manifest_candidates(source: Path) -> list[Path]:
@@ -103,36 +135,6 @@ def media_source(source: Path) -> Path:
     return layer_media(manifest) or media
 
 
-@click.command("publish-media")
-@click.argument(
-    "files", nargs=-1, required=True, type=click.Path(exists=True, dir_okay=False)
-)
-def publish_media(files: tuple[str, ...]) -> None:
-    """Publish media for the example pages to max-sixty/leaf-assets.
-
-    Each is named by its bytes, as `leaf page media` names it, and added beside the
-    catalog's other media; the pin moves to the new revision. Prints the path each
-    page names the media by."""
-    directory = DEFAULT_PACKAGES.parent.relative_to(ROOT) / "media"
-    paths = [Path(file) for file in files]
-    for path in paths:
-        if path.suffix.lower() not in MEDIA_TYPES:
-            raise click.BadParameter(
-                f"{path}: not a media type leaf serves — {', '.join(sorted(MEDIA_TYPES))}"
-            )
-    named = {media_name(path.read_bytes(), path.suffix): path for path in paths}
-    with tempfile.TemporaryDirectory(prefix="leaf-assets-") as raw:
-        checkout = clone(Path(raw))
-        target = checkout.path / directory
-        target.mkdir(parents=True, exist_ok=True)
-        for name, path in named.items():
-            shutil.copyfile(path, target / name)
-        revision = publish(checkout, f"Add {len(named)} example media file(s)")
-    for name, path in named.items():
-        click.echo(f"/{MEDIA_DIR}/{name}  {path}")
-    click.echo(f"  max-sixty/leaf-assets@{revision}")
-
-
 def authored_markup(path: Path, assets: Path | None = None) -> str:
     """The markup a builder installs for one authored version: the file as written, and
     for a product document, with what other sources own composed into it."""
@@ -166,21 +168,6 @@ def read_fixture(
         versions=tuple(example_versions(source)),
         seed=seed if seed.is_file() else None,
     )
-
-
-def fixture_history(source: Path) -> list[Path]:
-    """The inputs `prepare_page` installs once, as history rather than authored state.
-
-    The seeded log, the data values and the files they capture, and every earlier
-    version, each named whether or not it exists, so a reader of the list sees one
-    arrive.
-    """
-    return [
-        seed_log(source),
-        data_file(source),
-        *example_versions(source)[:-1],
-        *capture_files(source),
-    ]
 
 
 def package_selection_args(packages) -> list[str]:

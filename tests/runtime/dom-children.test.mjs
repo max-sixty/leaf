@@ -117,6 +117,36 @@ test("an unchanged authored editor moved outside main follows unrelated revision
   assert.equal(live.querySelector("p").textContent, "After");
 });
 
+// A moved element is laid out afresh, and Firefox then anchors its scrolling on
+// whatever ends the viewport: once a revision that removed a section above a reader at
+// the page's end had moved the two sections after it, everything they typed below
+// lifted the page. The whitespace that stood after the section may move instead.
+test("a revision removing a section moves none of the sections after it", () => {
+  const { live, install } = patch(
+    '<p id="a">A</p>\n\n<section id="gone">G</section>\n\n<section id="b">B</section>\n\n<section id="c">C</section>\n',
+    '<p id="a">A</p>\n\n<section id="b">B</section>\n\n<section id="c">C</section>\n',
+  );
+  const nativeMove = Element.prototype.moveBefore;
+  const moved = [];
+  Element.prototype.moveBefore = function (node, before) {
+    moved.push(node);
+    return this.insertBefore(node, before);
+  };
+  try {
+    install();
+  } finally {
+    Element.prototype.moveBefore = nativeMove;
+  }
+  assert.deepEqual(
+    moved.filter((node) => node.nodeType === Node.ELEMENT_NODE),
+    [],
+  );
+  assert.equal(
+    live.innerHTML,
+    '<p id="a">A</p>\n\n<section id="b">B</section>\n\n<section id="c">C</section>\n',
+  );
+});
+
 test("both the logical and current physical source owners must retain a moved editor", () => {
   for (const removed of [null, "logical", "physical"]) {
     const field = '<textarea id="note"></textarea>';
@@ -223,6 +253,30 @@ test("a node changing lists moves straight across, keeping its native state", ()
     ]);
     assert.deepEqual([...row.childNodes], [field, other]);
     assert.deepEqual(kept, [field, field]);
+  } finally {
+    Element.prototype.moveBefore = nativeMove;
+  }
+});
+
+test("a reorder moves only the nodes that left the run in place", () => {
+  const nativeMove = Element.prototype.moveBefore;
+  const moved = [];
+  Element.prototype.moveBefore = function (node, before) {
+    moved.push(node);
+    return this.insertBefore(node, before);
+  };
+  try {
+    const parent = document.createElement("div");
+    const [a, b, c, d] = ["a", "b", "c", "d"].map((id) => {
+      const node = document.createElement("p");
+      node.id = id;
+      return node;
+    });
+    parent.append(a, b, c, d);
+    document.body.replaceChildren(parent);
+    setChildren(parent, [b, c, d, a]);
+    assert.deepEqual([...parent.children], [b, c, d, a]);
+    assert.deepEqual(moved, [a]);
   } finally {
     Element.prototype.moveBefore = nativeMove;
   }

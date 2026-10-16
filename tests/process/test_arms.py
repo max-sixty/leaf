@@ -3,6 +3,7 @@
 import os
 import subprocess
 
+from interact_support import STATED_TIMEOUT
 from leaf_dev import ROOT
 from leaf_dev.arms import environment, scratch
 
@@ -49,7 +50,7 @@ with flocked(adapter_start_lock_path(session)):
                 text=True,
             )
             assert process.stdout.readline() == "ready\n"
-        output, errors = process.communicate(timeout=10)
+        output, errors = process.communicate(timeout=STATED_TIMEOUT)
         assert process.returncode == 0, errors
         assert output == ""
         assert retired.read_text() == "retired"
@@ -57,7 +58,7 @@ with flocked(adapter_start_lock_path(session)):
     finally:
         if process is not None and process.poll() is None:
             process.terminate()
-            process.communicate(timeout=10)
+            process.communicate(timeout=STATED_TIMEOUT)
 
 
 def test_codex_accepts_native_instruction_context_without_starting_a_model(

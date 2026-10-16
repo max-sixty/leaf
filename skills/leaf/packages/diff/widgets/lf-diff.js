@@ -3,7 +3,8 @@
  * rendered lines support selection anchors. A source revision updates evidence
  * under stable file owners: reader controls, disclosure and code scrollports stay
  * connected. The search reserves its current source's longest count label, so
- * filtering files leaves its field and controls in place. Changed file
+ * filtering files leaves its field and controls in place. A quiet press after the count
+ * opens every file the filter shows, or closes them once all are open. Changed file
  * evidence replaces only its inner presentation and hands
  * source focus to that same file; supplied thread/composer outlets keep core focus
  * ownership across replacement. Unchanged parsed files keep their rendering; changed files
@@ -15,7 +16,10 @@
  * on every fix. A source's evidence commits together after open files load. Lazy
  * disclosure joins the pending source render before reading its evidence, and a closed file shows
  * none of the previous revision while it loads current evidence. Line conversations
- * follow the visible reader width while source lines may scroll horizontally. Passage reveal
+ * follow the visible reader width while source lines may scroll horizontally. Pierre's
+ * ResizeManager owns those column dimensions, including the gutter, and its declarations
+ * size the conversations; each file with a line conversation keeps one manager until
+ * its last conversation leaves. Passage reveal
  * clears this widget's file filter; addressed datum reveal also hydrates its file.
  * All file evidence is read and checked before any listing metadata appears;
  * closed files retain that parse and defer only textual rendering. Native
@@ -32,6 +36,7 @@ import {
   focusDestination,
   holdFocus,
   html,
+  nothing,
   keyed,
   render,
   inChrome,
@@ -46,8 +51,9 @@ import {
   loadDeferred,
   listWalkPosition,
   move,
+  nextRender,
   offer,
-  once,
+  LeafElement,
   paintKeys,
   projectData,
   projectedDatum,
@@ -55,7 +61,6 @@ import {
   readingPaint,
   releaseOutlets,
   reportFailure,
-  reserve,
   retainUserIntent,
   scrollBehavior,
   scrollIntoReadingBand,
@@ -63,8 +68,6 @@ import {
   setChildren,
   shadowStage,
   sizeObserver,
-  widgetController,
-  watchData,
   whileConnected,
   scrollIntoView,
   layoutPx,
@@ -77,6 +80,7 @@ import {
   readDiffCoordinate,
 } from "./diff-coordinates.js";
 import "/vendor/webawesome.esm.js";
+import { pierre, markSyntax } from "/widgets/pierre.js";
 // Only a diff that is actually rendering has any use for Pierre's renderer —
 // an authored <lf-diff> bound to data
 // that has not arrived yet does not. So it is imported on first use rather than at
@@ -86,8 +90,6 @@ import "/vendor/webawesome.esm.js";
 // Metadata must be parsed before its row commits; unopened text needs no renderer.
 let parser = null;
 const parse = () => (parser ??= import("/vendor/pierre-parser.esm.js"));
-let renderer = null;
-const pierre = () => (renderer ??= import("/vendor/pierre-diffs.esm.js"));
 
 const OPTIONS = Object.freeze({
   diffStyle: "unified",
@@ -99,19 +101,6 @@ const OPTIONS = Object.freeze({
   overflow: "scroll",
 });
 
-// Keep Pierre's Shiki styles intact. The marker lets the render gate inspect
-// themed glyphs without prescribing their colors or translating them into roles.
-function markSyntax(root, foreground) {
-  for (const token of root.querySelectorAll("span[style]"))
-    if (
-      (token.style.color && token.style.color !== foreground) ||
-      token.style.fontStyle ||
-      token.style.fontWeight ||
-      token.style.textDecoration
-    )
-      token.dataset.lfSyn = "";
-}
-
 // The records every source form renders from, in the shape of the contract's file
 // manifest. A patch text is parsed once, strictly, so a malformed hunk never becomes
 // incomplete evidence, and each record carries its parsed file where a manifest's
@@ -119,21 +108,16 @@ function markSyntax(root, foreground) {
 // refuses a manifest that repeats one, and this refuses a patch text that does.
 async function sourceRecords(source) {
   if (typeof source !== "string") return source.files;
-  return (await parsedFiles(source)).map((file) => ({ ...file.record, parsed: file }));
+  return (await parsedFiles(source)).map((file) => ({ path: file.name, parsed: file }));
 }
 
-// A manifest record's patch must describe that one logical file, including both
-// native sections of a file-type replacement, and agree with its listing.
+// A deferred patch must describe its keyed logical file, including both native
+// sections of a file-type replacement. All display metadata comes from this parse.
 async function deferredFile(patch, record) {
   const { path } = record;
   const files = await parsedFiles(patch);
   if (files.length !== 1 || files[0].name !== path)
     throw new Error(`the deferred patch for ${path} does not contain that one file`);
-  const fields = new Set([...Object.keys(files[0].record), ...Object.keys(record)]);
-  fields.delete("patch");
-  for (const key of fields)
-    if (files[0].record[key] !== record[key])
-      throw new Error(`the deferred patch metadata for ${path} disagrees at ${key}`);
   return files[0];
 }
 
@@ -177,6 +161,7 @@ const hunkHeads = (entry) =>
 
 const LINE_KEY = "data-lf-line";
 
+/** @param {import("./diff-coordinates.js").DiffCoordinate} coordinate */
 const lineLabel = ({ path, side, oldLine, newLine }) => {
   const file = path || "(unnamed file)";
   if (side === "old") return `${file} · old line ${oldLine}`;
@@ -315,24 +300,6 @@ function unwatchPathCut(details) {
   for (const part of pathParts(details)) pathSizes.unobserve(part);
 }
 
-// Conversations belong to the reader's visible code column, not its longest line.
-// Observe the two owners of that width only once a line conversation opens. Keeping
-// their measured dimensions on the reader also keeps a thread visible while code pans.
-const threadSizes = sizeObserver((entries) => {
-  const readers = new Set(
-    entries.map(({ target }) => target.closest("code[data-code]")),
-  );
-  const widths = [...readers].map((reader) => ({
-    reader,
-    gutter: reader.querySelector("[data-gutter]").getBoundingClientRect().width,
-    width: reader.clientWidth,
-  }));
-  for (const { reader, gutter, width } of widths) {
-    reader.style.setProperty("--lf-diff-gutter-width", layoutPx(gutter));
-    reader.style.setProperty("--lf-diff-thread-width", layoutPx(width - gutter));
-  }
-});
-
 function filePathTemplate({ path, previousPath }) {
   const name = path || "(unnamed file)";
   // The held-word presentation uses generated content, so it needs a soft break
@@ -411,9 +378,7 @@ function summaryNode(record, open, verified = true) {
 function fileEntry(row) {
   const node = document.createElement("div");
   node.className = "lf-diff-file";
-  const actions = document.createElement("div");
-  actions.className = "lf-diff-file-actions lf-ui";
-  actions.dataset.lfGen = "1";
+  const actions = offer("div", "lf-diff-file-actions");
   node.append(actions, row);
   return {
     node,
@@ -508,6 +473,41 @@ function outletPlaces(content, rows, outlets) {
   return { lead, after };
 }
 
+// CSS anchors and focus can add shadow parts to rendered syntax spans. They are
+// presentation on the live row, not a change to the file's evidence.
+const runtimePart = /^lf-(?:a\d+|focus|focus-within)$/;
+const sameLineChildren = (held, wanted) =>
+  held.childNodes.length === wanted.childNodes.length &&
+  [...held.childNodes].every((child, index) =>
+    sameLineContent(child, wanted.childNodes[index]),
+  );
+function sameLineContent(held, wanted) {
+  if (held.nodeType !== wanted.nodeType) return false;
+  if (held.nodeType !== Node.ELEMENT_NODE) return held.nodeValue === wanted.nodeValue;
+  const attributes = (node, live) =>
+    [...node.attributes]
+      .map(({ name, value }) => [
+        name,
+        live && name === "part"
+          ? value
+              .split(/\s+/)
+              .filter((part) => !runtimePart.test(part))
+              .join(" ")
+          : value,
+      ])
+      .filter(
+        ([name, value]) => !(live && isPagePaint(name)) && (name !== "part" || value),
+      );
+  const left = attributes(held, true);
+  const right = attributes(wanted, false);
+  if (
+    left.length !== right.length ||
+    left.some(([name, value]) => right.find(([other]) => other === name)?.[1] !== value)
+  )
+    return false;
+  return sameLineChildren(held, wanted);
+}
+
 // A file's evidence goes under its kept disclosure, whose summary the record paints.
 function replaceFileContent(entry, rendered, pairs, outlets) {
   const restore = holdFileFocus(entry);
@@ -526,7 +526,12 @@ function replaceFileContent(entry, rendered, pairs, outlets) {
   );
   for (const next of rendered.lines) {
     const previous = prior.get(diffDatumKey(next));
-    if (!previous || previous.node.innerHTML !== next.node.innerHTML) continue;
+    if (!previous) continue;
+    if (
+      previous.node.innerHTML !== next.node.innerHTML &&
+      !sameLineChildren(previous.node, next.node)
+    )
+      continue;
     retained.set(next.node, previous.node);
     const nextGutter = nextPre.querySelector(
       `[data-gutter] [data-line-index="${next.node.dataset.lineIndex}"]`,
@@ -615,8 +620,16 @@ function diffTools(host) {
   progress.className = "lf-diff-progress";
   progress.dataset.lfGen = "1";
   progress.slot = "end";
-  search.append(progress);
-  return { search, progress };
+  const count = document.createElement("span");
+  progress.append(count);
+  // Opening every file is rare beside opening one, so it is a quiet icon after the count
+  // of the files it opens rather than a labelled button of its own (shadow.css).
+  const foldAll = offer("button", "lf-btn lf-icon-action lf-diff-fold-all");
+  foldAll.type = "button";
+  foldAll.slot = "end";
+  foldAll.addEventListener("click", () => host.foldAll());
+  search.append(progress, foldAll);
+  return { search, progress, count, foldAll };
 }
 
 function operationWord(record) {
@@ -809,10 +822,8 @@ function fileRecord(file, section) {
 // Pierre stylesheet joins `sharedStyles` once, for the stage to hold.
 async function renderFile(file, sharedStyles) {
   const lang = langForPath(file.name);
-  const [{ preloadDiffHTML }, { themeName, foreground }] = await Promise.all([
-    pierre(),
-    ensureSyntaxLanguage(lang),
-  ]);
+  const [{ preloadDiffHTML, ResizeManager }, { themeName, foreground }] =
+    await Promise.all([pierre(), ensureSyntaxLanguage(lang)]);
   const template = document.createElement("template");
   template.innerHTML = await preloadDiffHTML({
     fileDiff: { ...file, lang: lang ?? "text" },
@@ -826,7 +837,7 @@ async function renderFile(file, sharedStyles) {
   rendered.querySelector("svg[data-icon-sprite]")?.remove();
   for (const number of rendered.querySelectorAll("[data-line-number-content]")) {
     number.classList.add("lf-ui");
-    number.dataset.lfGen = "1";
+    number.setAttribute("data-lf-gen", "1");
     number.setAttribute("aria-hidden", "true");
   }
   for (const separator of rendered.querySelectorAll("[data-separator]"))
@@ -850,7 +861,7 @@ async function renderFile(file, sharedStyles) {
   viewport.setAttribute("aria-label", file.name || "diff");
 
   const lines = renderedLines(file, rendered);
-  return { nodes: [...rendered.children], pre, lines };
+  return { nodes: [...rendered.children], pre, lines, ResizeManager };
 }
 
 function replacementFile(files, parseDiffFromFile) {
@@ -958,15 +969,21 @@ function deferredError(details, error, retry) {
 
 customElements.define(
   "lf-diff",
-  class extends HTMLElement {
-    controller = widgetController(this);
+  class extends LeafElement {
     revealPassage = ({ detail }) => {
       const entry = this.fileEntries?.find(({ node }) => node.contains(detail.target));
       if (entry?.filtered) this.clearFilter();
     };
 
-    connectedCallback() {
-      if (!once(this)) return;
+    // The bound delivery the last render read, and the one whose rendering last
+    // started; a departure that cuts a rendering short forgets it, so the return draws
+    // it again.
+    #delivered;
+    #shown;
+    #showing = false;
+    threadSizeManagers = new Map();
+
+    setup() {
       commands(
         this,
         "In a diff review",
@@ -1066,7 +1083,7 @@ customElements.define(
       const paintInline = bound
         ? null
         : readingPaint(this, () => {
-            const rendering = (this.sourceRendering = this.render(this.inlineSource));
+            const rendering = (this.sourceRendering = this.show(this.inlineSource));
             this.present(rendering);
             return rendering;
           });
@@ -1077,37 +1094,55 @@ customElements.define(
         // which declares no such edge. The theme cannot ask that question from inside a shadow tree, so
         // the module answers it once with the layer's own predicate and paints the answer.
         this.toggleAttribute("data-lf-diff-pinned", !inChrome(this));
+        if (bound && this.#shown === undefined && this.hasUpdated) this.requestUpdate();
         if (paintInline) {
           // Not bodyText: a diff's trailing whitespace is content — a hunk's last line
           // can be a lone space, the context line for a blank source line — so only the
           // closing newline is the <pre>'s layout.
-          this.inlineSource ??= dataBody(this).replace(/^\n+/, "").replace(/\n$/, "");
+          /** @type {string} */
+          this.inlineSource =
+            this.inlineSource ?? dataBody(this).replace(/^\n+/, "").replace(/\n$/, "");
           paintInline(this.inlineSource);
         }
         return () => {
           this.rendering = (this.rendering ?? 0) + 1;
+          if (this.#showing) this.#shown = undefined;
           // Leaf retires this surface when it leaves, after this cleanup, and puts
           // core's views back, so every outlet goes.
           if (this.threadSeats) {
             for (const record of this.threadSeats.values()) record.active = false;
             this.retireThreadOutlets();
           }
-          this.threadSizeTargets = null;
           this.threadSeats = null;
           this.threadPairs = null;
         };
       });
-      if (bound)
-        watchData(this, "document", (snapshot) => {
-          const rendering = this.render(snapshot?.value ?? null, snapshot);
-          this.sourceRendering = rendering;
-          return rendering;
-        });
+    }
+
+    render() {
+      if (this.hasAttribute("source")) this.#delivered = this.data("document");
+      return nothing;
+    }
+
+    // A bound patch renders each delivery once, after the draw that read it, whose
+    // claim waits for the rendering.
+    updated(changed) {
+      super.updated(changed);
+      if (!this.hasAttribute("source") || this.#delivered === this.#shown) return;
+      const snapshot = (this.#shown = this.#delivered);
+      this.#showing = true;
+      const rendering = this.show(snapshot?.value ?? null, snapshot);
+      this.sourceRendering = rendering;
+      this.drawing(
+        rendering.finally(() => {
+          if (this.sourceRendering === rendering) this.#showing = false;
+        }),
+      );
     }
 
     // `snapshot` is the bound delivery, null when a bound source has no value, and
     // undefined for an inline patch.
-    async render(source, snapshot) {
+    async show(source, snapshot) {
       const rendering = (this.rendering ?? 0) + 1;
       this.rendering = rendering;
       try {
@@ -1133,7 +1168,7 @@ customElements.define(
           records.map(async (record) => {
             const evidence = await this.readEntry(snapshot, record);
             return {
-              record,
+              record: evidence.file?.record ?? record,
               evidence,
               previous: prior.get(record.path),
               prepared: evidence.error ? evidence : null,
@@ -1428,13 +1463,10 @@ customElements.define(
       for (const { outlet, pair } of this.threadSeats?.values() ?? [])
         if (pair && outlet.parentNode === pair.content)
           counts.set(pair, (counts.get(pair) ?? 0) + 1);
-      const targets = new Set();
+      const files = new Set();
       for (const pair of this.threadPairs?.values() ?? []) {
         const count = counts.get(pair) ?? 0;
-        if (count) {
-          targets.add(pair.content.closest("code[data-code]"));
-          targets.add(pair.gutter);
-        }
+        if (count && pair.content.isConnected) files.add(pair.content.closest("pre"));
         const contentRow = count
           ? `span ${pair.contentRows + count}`
           : pair.contentGridRow;
@@ -1444,11 +1476,23 @@ customElements.define(
         pair.content.style.gridRow = contentRow;
         pair.gutter.style.gridRow = gutterRow;
       }
-      for (const target of this.threadSizeTargets ?? [])
-        if (!targets.has(target)) threadSizes.unobserve(target);
-      for (const target of targets)
-        if (!this.threadSizeTargets?.has(target)) threadSizes.observe(target);
-      this.threadSizeTargets = targets;
+      // Static rendering does not start Pierre's managers. Give its column owner
+      // each live file that needs these declarations, and let it follow retained
+      // code/gutter nodes across revisions. Its global observer holds strong owners,
+      // so retiring the last line conversation explicitly releases the file.
+      for (const [pre, manager] of this.threadSizeManagers)
+        if (!files.has(pre)) {
+          manager.cleanUp();
+          this.threadSizeManagers.delete(pre);
+        }
+      for (const pre of files) {
+        let manager = this.threadSizeManagers.get(pre);
+        if (!manager) {
+          manager = new this.ResizeManager();
+          this.threadSizeManagers.set(pre, manager);
+        }
+        manager.setup(pre, { disableAnnotations: true });
+      }
     }
 
     async loadEntry(entry) {
@@ -1473,16 +1517,49 @@ customElements.define(
           entry.file ? { file: entry.file } : undefined,
         );
         if (rendering !== this.rendering || !this.isConnected) return;
-        entry.loading = null;
-        entry.prepared = prepared;
-        const restore = this.applyEntry(entry);
-        this.layoutThreadOutlets();
-        this.stageFiles();
-        this.projectFiles();
-        restore?.();
+        await this.commitLoaded(entry, prepared, rendering);
       })();
       entry.loading = { rendering, promise };
       return promise;
+    }
+
+    // Files whose loads finish before the next frame commit together in it. A commit
+    // lays out, stages and projects every loaded file, so a commit per file made
+    // opening many at once, as Expand all does, quadratic in their number; a commit
+    // per frame still shows each file in the frame after it is ready.
+    commitLoaded(entry, prepared, rendering) {
+      this.loadedQueue ??= new Map();
+      this.loadedQueue.set(entry, { prepared, rendering });
+      this.loadedCommit ??= new Promise((resolve, reject) =>
+        nextRender(() => {
+          const queue = this.loadedQueue;
+          this.loadedQueue = null;
+          this.loadedCommit = null;
+          try {
+            const ready = [...queue].filter(
+              ([entry, load]) =>
+                load.rendering === this.rendering &&
+                this.isConnected &&
+                this.fileEntries?.includes(entry),
+            );
+            for (const [entry] of ready) entry.loading = null;
+            const restores = ready.map(([entry, { prepared }]) => {
+              entry.prepared = prepared;
+              return this.applyEntry(entry);
+            });
+            if (ready.length) {
+              this.layoutThreadOutlets();
+              this.stageFiles();
+              this.projectFiles();
+            }
+            for (const restore of restores) restore?.();
+            resolve(undefined);
+          } catch (error) {
+            reject(error);
+          }
+        }),
+      );
+      return this.loadedCommit;
     }
 
     // Returns the focus restore for the caller to run once the file's evidence is staged.
@@ -1512,6 +1589,7 @@ customElements.define(
         return null;
       }
       entry.file = file;
+      entry.record = file.record;
       paintSummary(entry.details, entry.record);
       if (entry.record.hunkCount === 0) {
         const restore = replaceFileRendering(entry, metadataNode(entry.record));
@@ -1522,6 +1600,7 @@ customElements.define(
       const restore =
         rendered &&
         replaceFileContent(entry, rendered, this.threadPairs, this.threadSeats);
+      if (rendered) this.ResizeManager = rendered.ResizeManager;
       entry.renderKey = renderKey;
       entry.loaded = true;
       entry.details.querySelector("pre")?.toggleAttribute("hidden", false);
@@ -1530,7 +1609,7 @@ customElements.define(
       return restore;
     }
 
-    // Core can place a standing line thread at its file disclosure before that file's
+    // Core can place an existing line thread at its file disclosure before that file's
     // patch exists in the DOM. Navigation asks the second method to make the exact line
     // real, then the ordinary datum resolver and anchor painter take over.
     lfDataDatum(key, { outdated = false } = {}) {
@@ -1573,6 +1652,7 @@ customElements.define(
         const previous = entry.disclosureOpen;
         entry.disclosureOpen = entry.details.open;
         threadSurface(this).update();
+        this.paintFoldAll();
         if (previous === entry.disclosureOpen) return;
         if (!entry.details.open || !this.fileEntries?.includes(entry) || entry.refused)
           return;
@@ -1628,6 +1708,19 @@ customElements.define(
 
     filterFiles(query) {
       const needle = query.trim().toLocaleLowerCase();
+      // A query narrows the files without pulling up what the window shows: while it
+      // applies, the body keeps the height it reached on screen, down to the window's
+      // foot. What follows the diff in view stays put, and near the page's end the
+      // scroll cannot clamp the field out from under the caret; the room held is at
+      // most one window, below the files that match. Clearing the query lets go.
+      if (this.filesBody) {
+        const { top, height } = this.filesBody.getBoundingClientRect();
+        const hold = needle
+          ? layoutPx(Math.max(0, Math.min(height, innerHeight - top)))
+          : "";
+        if (this.filesBody.style.minBlockSize !== hold)
+          this.filesBody.style.minBlockSize = hold;
+      }
       for (const entry of this.fileEntries ?? []) {
         const paths = [entry.record.path, entry.record.previousPath ?? ""]
           .join("\n")
@@ -1651,13 +1744,41 @@ customElements.define(
       const total = this.fileEntries.length;
       const all = `${total} file${total === 1 ? "" : "s"}`;
       const matching = `${shown.length} of ${total}`;
-      // Filtering changes the count inside its reserved room, never its containing field.
-      if (this.diffTools.progressRoom !== total) {
-        this.diffTools.progressRoom = total;
-        reserve(this.diffTools.progress, [all, `${total} of ${total}`]);
-      }
-      keepsText(this.diffTools.progress, shown.length === total ? all : matching);
+      // Filtering changes the count inside its room, never its containing field.
+      keeps(this.diffTools.progress, "data-lf-room", `${all}\n${total} of ${total}`);
+      keepsText(this.diffTools.count, shown.length === total ? all : matching);
+      this.paintFoldAll();
       paintKeys();
+    }
+
+    // The files the filter shows: all opened while any is closed, and all closed once
+    // every one is open, so the press does what its face says.
+    foldAll() {
+      const folds = this.shownFolds();
+      const open = folds.some((details) => !details.open);
+      for (const details of folds) details.toggleAttribute("open", open);
+      this.paintFoldAll();
+      announce(`${open ? "Expanded" : "Collapsed"} all files`);
+    }
+
+    paintFoldAll() {
+      const button = this.diffTools?.foldAll;
+      if (!button) return;
+      const folds = this.shownFolds();
+      // With nothing to open it keeps its room, so the count beside it stays put.
+      button.toggleAttribute("inert", !folds.length);
+      const open = folds.some((details) => !details.open);
+      const icon = open ? "unfold" : "fold";
+      if (button.firstElementChild?.dataset.lfIcon !== icon)
+        button.replaceChildren(iconElement(icon, "lf-action-icon"));
+      // No number: the count beside it also counts files that have nothing to open.
+      const label = `${open ? "Expand" : "Collapse"} all files`;
+      keeps(button, "aria-label", label);
+      keeps(button, "title", label);
+    }
+
+    shownFolds() {
+      return this.shownEntries().flatMap(({ details }) => (details ? [details] : []));
     }
 
     shownEntries() {
@@ -1792,10 +1913,6 @@ customElements.define(
         this.fileEntries?.find(({ node }) => here && node.contains(here)) ?? null;
       if (focusedEntry) return focusedEntry;
       return this.fileEntries?.includes(this.fileCursor) ? this.fileCursor : null;
-    }
-
-    renderState() {
-      this.refreshDiffTools();
     }
   },
 );

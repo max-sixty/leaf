@@ -32,6 +32,7 @@ import { announce } from "./notifications.js";
 import { focusThread } from "./thread/focus.js";
 import { landWalkedThread } from "./thread/landing.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
+import { savedReadingSettled } from "./keyboard/bindings.js";
 
 // The walk's reading supplies both its destinations and their visible scope. In the
 // panel they are the cards its list walks (`walkRows`), which may show resolved threads
@@ -107,8 +108,9 @@ function stepThread(dir, destinations, panelIsOpen, narrowing, list) {
   const { threadsBox } = list;
   const { threadHere, threadAtStanding, threadPlace } = destinations;
   const { threads } = threadWalk(panelIsOpen, list);
+  const origin = walkOrigin();
   const current = currentThread(threads, threadHere);
-  const targetId = !current && threadAtStanding();
+  const targetId = !current && origin.kind === "standing" && threadAtStanding();
   const atTarget = targetId && threads.find((thread) => thread.dataset.id === targetId);
   // Focus on a list row the walk does not count, such as a withdrawn thread's notice.
   const atRow = panelIsOpen() && focused() !== threadsBox && standingIn(threadsBox);
@@ -117,10 +119,17 @@ function stepThread(dir, destinations, panelIsOpen, narrowing, list) {
     : atTarget
       ? { row: atTarget, wrapped: false }
       : atRow
-        ? stepFrom(threads, focused(), dir, (thread) => thread)
+        ? stepFrom(
+            threads,
+            { place: focused(), kind: "standing" },
+            dir,
+            (thread) => thread,
+          )
         : stepFrom(
             threads,
-            !panelIsOpen() || narrowing.listedInPageOrder() ? walkOrigin() : null,
+            !panelIsOpen() || narrowing.listedInPageOrder()
+              ? origin
+              : { place: null, kind: "enter" },
             dir,
             (thread) => threadPlace(thread.dataset.id),
           );
@@ -214,9 +223,10 @@ const seenScroller = (coveringAuxiliaryScroller) =>
 // region still wins where it is in that surface; its own scrollport may be nested
 // there. The covering scrollport catches everything else. Focus on a region's
 // apparatus follows its actual containing scrollport within the region while that
-// box overflows; otherwise the region's reading body takes the step. A preferred box
-// outside the visible band yields to its nearest visible enclosing region. Neither
-// fallback changes which region the user is reading.
+// box overflows; otherwise the region's reading body takes the step. The step then
+// walks that box's scroll chain (`stepAlong`), where a box outside the visible band
+// passes it on as a spent one does, so a floating thread scrolled off screen still
+// pages its document. Neither changes which region the user is reading.
 const readingStep = (box, clips) => {
   const shown = shownRect(box, clips);
   const band = shown && landingBand(box);
@@ -224,14 +234,9 @@ const readingStep = (box, clips) => {
   const { top, bottom } = intersect(shown, band, { y: true });
   return bottom > top ? { box, height: bottom - top } : null;
 };
-const stepScroller = (coveringAuxiliaryScroller) => {
+const stepStart = (coveringAuxiliaryScroller) => {
   const covering = coveringAuxiliaryScroller();
   const region = userReadingRegion();
-  const preferred =
-    covering && !(region && under(region.host, coveringAuxiliarySurface()))
-      ? covering
-      : effectiveScroller(region);
-  const clips = new Map();
   const at = focused();
   if (region && under(at, region.host) && !under(at, region.body)) {
     const containing = scrollersOf(at).next().value;
@@ -239,36 +244,29 @@ const stepScroller = (coveringAuxiliaryScroller) => {
       containing &&
       under(containing, region.host) &&
       containing.scrollHeight > containing.clientHeight &&
-      (!covering || under(containing, coveringAuxiliarySurface()))
-    ) {
-      const step = readingStep(containing, clips);
-      if (step) return step;
-    }
+      (!covering || under(containing, coveringAuxiliarySurface())) &&
+      readingStep(containing, new Map())
+    )
+      return containing;
   }
-  const step = readingStep(preferred, clips);
-  if (step) return step;
-  for (const box of scrollersOf(preferred)) {
-    if (box === preferred) continue;
-    const step = readingStep(box, clips);
-    if (step) return step;
-  }
-  return null;
+  return covering && !(region && under(region.host, coveringAuxiliarySurface()))
+    ? covering
+    : effectiveScroller(region);
 };
 function stepReading(amount, unit, coveringAuxiliaryScroller) {
-  const first = stepScroller(coveringAuxiliaryScroller);
-  if (first) stepAlong(first.box, amount, unit, first);
+  stepAlong(stepStart(coveringAuxiliaryScroller), amount, unit);
 }
-// The step walks the chain from `from` to the first box that can take it. A box that
-// contains its overscroll, or one a standing modal leaves outside, ends the walk. A
-// sample's chain runs on past its document into the containing page, as the wheel's
+// The step walks the chain from `from` to the first box that shows and can take it. A
+// box that contains its overscroll, or one an open modal leaves outside, ends the walk.
+// A sample's chain runs on past its document into the containing page, as the wheel's
 // does, so a chain spent without either boundary passes the step on, and the
 // containing page's navigation takes it up from the frame; outside a sample the notice
 // goes nowhere.
-function stepAlong(from, amount, unit, first = null) {
+function stepAlong(from, amount, unit) {
   const clips = new Map();
   for (const box of scrollChainOf(from)) {
     if (!nativeModalAdmits(box)) return;
-    const step = box === first?.box ? first : readingStep(box, clips);
+    const step = readingStep(box, clips);
     const canMove = amount > 0 ? !atScrollEnd(box) : box.scrollTop > 0;
     if (step && canMove) {
       const distance = unit === "page" ? amount * step.height : amount;
@@ -368,7 +366,7 @@ export function createNavigation({
     description:
       "Align the current reading item at the top, keeping focus and selection",
     touch: "Align current item at top",
-    menu: "navigate",
+    menu: "keys",
     retainStanding: true,
     covering: true,
     when: () => Boolean(currentItem()),
@@ -390,6 +388,10 @@ export function createNavigation({
   // reading, and t/T follows whichever surface is presenting the threads.
   pageCommand({
     id: "thread.walk",
+    // A walk needs a visible destination, not the complete saved inventory: local
+    // sends are usable destinations while the first reading is still loading.
+    ready: () =>
+      savedReadingSettled() || threadWalk(panelIsOpen, threadList).threads.length > 0,
     touch: false,
     // A walk's letter names its category; Shift reverses it. The page's walks therefore
     // share one compact, repeatable grammar.

@@ -16,6 +16,7 @@ from leaf.revision_artifact import (
     Resource,
     capture_artifact,
     capture_local_resource,
+    read_artifact,
 )
 from leaf.revision_delivery import (
     Delivery,
@@ -151,7 +152,7 @@ def test_initial_producers_are_captured_once_and_called_after_each_complete_host
         source,
         1,
         None,
-        executable=None,
+        executable="sha256:fixture",
         widgets={},
         resources=resources,
         registry=registry,
@@ -255,8 +256,8 @@ const lazy = () => import('/page/later.js');
     delivered = rebase_document(source, ADDRESS)
     parsed = SourceDocument(delivered)
 
-    assert parsed.external_scripts[0]["attrs"]["src"] == ROOT + "/page/app.js"
-    assert parsed.links[0]["attrs"]["href"] == ROOT + "/page/style.css"
+    assert parsed.authoring.external_scripts[0]["attrs"]["src"] == ROOT + "/page/app.js"
+    assert parsed.authoring.links[0]["attrs"]["href"] == ROOT + "/page/style.css"
     assert f'import "{ROOT}/page/inline.js";' in delivered
     assert f'import("{ROOT}/page/later.js")' in delivered
     assert parsed.tree.find("img").attrs["src"] == ROOT + "/page/caf%C3%A9.svg#leaf"
@@ -267,8 +268,8 @@ const lazy = () => import('/page/later.js');
     assert parsed.tree.find("video").attrs["poster"] == ROOT + "/page/poster.png"
     assert parsed.tree.find("image").attrs["href"] == ROOT + "/page/caf%C3%A9.svg#leaf"
     assert parsed.tree.find("feImage").attrs["href"] == ROOT + "/page/poster.png"
-    assert f"{ROOT}/page/background.svg#leaf" in parsed.css
-    assert ROOT + "/page/inline.svg" in parsed.inline_styles[0]["style"]
+    assert f"{ROOT}/page/background.svg#leaf" in parsed.authoring.style_blocks[0]["css"]
+    assert ROOT + "/page/inline.svg" in parsed.authoring.inline_styles[0]["style"]
     for unchanged in (
         "<title>🍂 route ./page/app.js</title>",
         "const prose = 'import \"./page/unused.js\"';",
@@ -282,19 +283,19 @@ const lazy = () => import('/page/later.js');
 
 def test_stylesheet_rel_is_case_insensitive_in_delivery_and_export():
     source = (
-        '<html><head><link rel="StyleSheet" href="/page/style.css"></head>'
+        '<html><head><link rel="StyleSheet" data-controls href="/page/style.css"></head>'
         "<body><main></main></body></html>"
     )
 
     delivered = SourceDocument(rebase_document(source, ADDRESS))
-    assert delivered.links[0]["attrs"]["href"] == ROOT + "/page/style.css"
+    assert delivered.authoring.links[0]["attrs"]["href"] == ROOT + "/page/style.css"
 
     embedded = AssetInliner(lambda url: Resource(b"main { color: green; }", "text/css"))
     exported = rebase_document(
         source, embedded.address, inline_stylesheet=embedded.stylesheet
     )
     assert "<link" not in exported
-    assert "<style>" in exported
+    assert "data-controls" in SourceDocument(exported).tree.find("style").attrs
     assert "main { color: green; }" in exported
 
 
@@ -448,6 +449,29 @@ const plain = "../helper.js";
     )
 
 
+def test_authored_lazy_positioning_import_uses_the_captured_public_provider(page_dir):
+    """Authored imports keep the provider vendored with their immutable revision."""
+    provider = "/vendor/floating-ui.esm.js"
+    module = f'export const position = () => import("{provider}");'
+    (page_dir / "page" / "position.js").write_text(module)
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "</head>",
+            '<script type="module" src="/page/position.js"></script></head>',
+        )
+    )
+    activated = revisioning_model.activate_source(page_dir)
+    assert activated.error is None, activated.error
+    artifact = read_artifact(page_dir, activated.revision)
+    resource = artifact.resources["/page/position.js"]
+    assert resource.dependencies == (provider,)
+    assert provider in json.loads(artifact.manifest)["public_modules"]
+    assert artifact.resources[provider].data == (page_dir / provider[1:]).read_bytes()
+    assert deliver_resource(
+        resource, "/page/position.js", ADDRESS
+    ).data.decode() == module.replace(provider, ROOT + provider)
+
+
 def test_media_has_one_address_wherever_a_page_names_it(tmp_path):
     """Media is the page's and shared across revisions, so every host serves it at the
     page root, and the runtime resolves a message's or a widget's media there too. A
@@ -502,8 +526,8 @@ def test_captured_document_entries_resolve_at_every_public_address(tmp_path):
     artifact = capture_artifact(tmp_path, SourceDocument(source), {})
     delivered = SourceDocument(rebase_document(source, ADDRESS))
     entries = [
-        delivered.external_scripts[0]["attrs"]["src"],
-        delivered.links[0]["attrs"]["href"],
+        delivered.authoring.external_scripts[0]["attrs"]["src"],
+        delivered.authoring.links[0]["attrs"]["href"],
         delivered.tree.find("image").attrs["href"],
         *(
             candidate.split()[0]
@@ -563,7 +587,7 @@ def test_a_host_marks_the_delivered_document_where_it_asks(explicit_html):
         source,
         1,
         None,
-        executable=None,
+        executable="sha256:fixture",
         widgets={},
         resources={},
         registry={},
@@ -580,7 +604,7 @@ def test_a_host_marks_the_delivered_document_where_it_asks(explicit_html):
     served = SourceDocument(delivered.removeprefix("﻿"))
     assert "data-lf-contained" in served.tree.find("html").attrs
     assert "inert" in served.tree.find("body").attrs
-    assert served.title == "T" and "<p>Text.</p>" in delivered
+    assert served.authoring.title == "T" and "<p>Text.</p>" in delivered
 
 
 def test_a_delivered_document_carries_its_declared_marks_in_the_source():
@@ -593,8 +617,8 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     in their shape before they decode. A widget declaring the structure its module will
     draw (`x-prepaint`) carries it as its first child, marked as delivery's, so the
     browser lays that structure out before the module runs, and one that first paints
-    as another widget will stand in it carries that widget's (`as`). An idiom declares
-    a mark by its selector, as a callout keeps the column. Markup inside a template is
+    as another widget will stand in it carries that widget's (`as`). A mark is its
+    tag's, so a selector idiom declares none. Markup inside a template is
     inert, and everything else in the source stays as written."""
 
     def png(width, height):
@@ -611,9 +635,8 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         "lf-plot": {"x-height": 400},
         "lf-meter": {"x-prepaint": '<span class="lf-meter-face">0 left</span>'},
         "lf-gauge": {"x-prepaint": {"as": "lf-meter"}},
-        ".callout": {"x-space": "column"},
-        "table": {"x-space": "wide"},
-        "lf-feed.selected": {"x-space": "column"},
+        "lf-face": {"x-prepaint": '<foo_bar class="face">Ready</foo_bar>'},
+        "table": {"description": "A table.", "x-example": "<table></table>"},
     }
     source = (
         "<!doctype html><html><head><title>T</title></head><body><main>"
@@ -628,6 +651,7 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         '<lf-pair id="pair" before="/media/a.png" after="/media/b.png"></lf-pair>'
         '<lf-meter id="meter" value="3"><p>3 left</p></lf-meter>'
         '<lf-gauge id="gauge"></lf-gauge>'
+        '<lf-face id="face"></lf-face>'
         "<template><lf-zone id=later label=Later><p>x</p></lf-zone>"
         "<lf-meter id=inert></lf-meter></template>"
         "</main></body></html>"
@@ -636,7 +660,7 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         source,
         1,
         None,
-        executable=None,
+        executable="sha256:fixture",
         widgets={},
         resources={"/media/a.png": png(1200, 750), "/media/b.png": png(1100, 800)},
         registry=registry,
@@ -655,13 +679,10 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     assert marks[("lf-zone", "queue")] == {"data-lf-reading-role": "pane"}
     assert marks[("lf-label", None)] == {"data-lf-inline": ""}
     assert marks[("lf-board", "board")] == {"data-lf-space": "available"}
-    assert marks[("aside", "note")] == {"data-lf-space": "column"}
+    assert marks[("aside", "note")] == {}
     assert marks[("aside", "chart-note")] == {"data-lf-space": "wide"}
-    assert marks[("lf-feed", "feed")] == {
-        "data-lf-bound": "end",
-        "data-lf-space": "column",
-    }
-    assert marks[("table", "native")] == {"data-lf-space": "wide"}
+    assert marks[("lf-feed", "feed")] == {"data-lf-bound": "end"}
+    assert marks[("table", "native")] == {}
     assert marks[("section", "wide")] == {"data-lf-space": "wide"}
     assert marks[("pre", None)] == {"data-lf-bound": "start"}
     assert marks[("lf-plot", "plot")] == {"data-lf-height": "400"}
@@ -681,18 +702,24 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         'class="lf-meter-face">0 left</span></lf-gauge>'
     ) in delivered
     assert "<lf-meter id=inert></lf-meter>" in delivered
+    face = served.tree.find("foo_bar")
+    assert face.attrs == {
+        "data-lf-prepaint": "",
+        "data-lf-gen": "1",
+        "class": ["face"],
+    }
+    assert face.text == "Ready"
     unmarked = delivered.replace(
         '<span data-lf-prepaint data-lf-gen="1" class="lf-meter-face">0 left</span>', ""
+    ).replace(
+        '<foo_bar data-lf-prepaint data-lf-gen="1" class="face">Ready</foo_bar>', ""
     )
     for mark in (
-        ' data-lf-space="column"',
         ' data-lf-space="wide"',
         ' data-lf-reading-role="pane"',
         ' data-lf-inline=""',
         ' data-lf-space="available"',
         ' data-lf-bound="end"',
-        ' data-lf-space="column"',
-        ' data-lf-space="wide"',
         ' data-lf-space="wide"',
         ' data-lf-bound="start"',
         ' data-lf-height="400"',

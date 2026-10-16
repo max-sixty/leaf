@@ -1,4 +1,4 @@
-"""A page server's lifetime: `server start`, `stop` and `run`, standing, session and
+"""A page server's lifetime: `server start`, `stop` and `run`, persistent, session and
 background-job lifetimes, the reaper that retires a server, and restarts across a
 re-vendor."""
 
@@ -162,7 +162,7 @@ def test_page_init_leaves_a_service_it_cannot_restart_for_this_session(
     assert ("has no live session owner" in result.output) == (service == "orphaned")
 
 
-@pytest.mark.parametrize("lifetime", ["standing", "session"])
+@pytest.mark.parametrize("lifetime", ["persistent", "session"])
 def test_init_restarts_a_served_page_onto_the_replacement_contract(
     page_dir, spawn, monkeypatch, lifetime
 ):
@@ -171,7 +171,7 @@ def test_init_restarts_a_served_page_onto_the_replacement_contract(
     publish(page_dir)
     old_plugin = install_payload(page_dir.parent / "old-plugin")
 
-    if lifetime == "standing":
+    if lifetime == "persistent":
         monkeypatch.delenv("CLAUDE_CODE_SESSION_ID")
         monkeypatch.delenv("CLAUDE_PID")
     old_server = spawn(
@@ -183,15 +183,16 @@ def test_init_restarts_a_served_page_onto_the_replacement_contract(
             "server",
             "run",
             str(page_dir),
-            *(["--standing"] if lifetime == "standing" else []),
+            *(["--persistent"] if lifetime == "persistent" else []),
         ],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
-    url = json.loads(old_server.stdout.readline())["url"]
+    reading = json.loads(old_server.stdout.readline())
+    url = reading["url"]
     assert url.startswith("http://127.0.0.1:")
-    assert old_server.stderr.readline().startswith(f"server   {lifetime}")
+    assert reading["lifetime"] == lifetime
     prior_status = service_model.read_status(page_dir)
     prior_owner = service_model.page_claim(page_dir)
 

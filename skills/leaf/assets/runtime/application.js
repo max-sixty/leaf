@@ -10,10 +10,11 @@ import {
   whenApplicationRegionsPresented,
   whenWidgetsPresented,
   presentDocument,
+  projectionRegionsPresented,
+  readPart,
 } from "./semantic-state.js";
 import { announce, notice } from "./notifications.js";
 import { readAsks } from "./asks/model.js";
-import { paintKeys } from "./keyboard/scopes.js";
 import { watchPendingTraffic } from "./traffic.js";
 import { createCommandDispatch } from "./pending/dispatch.js";
 import { createDelivery, deliverBookkeeping } from "./delivery.js";
@@ -22,16 +23,18 @@ import { createProjectionPresentation } from "./projection/presentation.js";
 import { createUndo } from "./undo.js";
 import { createDataProjection } from "./projection/data.js";
 import { createThreadPresentation } from "./thread/presentation.js";
-import { createAnnotationInventory } from "./annotation-inventory.js";
+import {
+  annotationSelection,
+  createAnnotationInventory,
+} from "./annotation-inventory.js";
 import { createAnnotationView } from "./annotation-view.js";
 import { createInlineContributions } from "./inline-contributions.js";
 import { presentingContributions, watchContributions } from "./contributions.js";
 import { watchProjection } from "./projection-watch.js";
-import { clocked } from "./presence.js";
 import { createThreadDestinations } from "./thread/destination.js";
 import { createThreadActions } from "./thread/actions.js";
 import { createQueueActions } from "./queue-api.js";
-import { registerMirrorConsumer, createPrimaryReader } from "./thread/mirrors.js";
+import { createPrimaryReader } from "./thread/primary-reader.js";
 import { createReadTracking } from "./thread/read.js";
 import { renderMarginThread } from "./thread/inline.js";
 import { showHeld } from "./thread/held-news.js";
@@ -102,10 +105,9 @@ export function mountApplication(dependencies) {
       .releasable()
       .filter((entry) => attempts.has(entry.event.attempt));
     // Widget updates and the thread, projection, and ask owners have now committed
-    // this surviving semantic reading. Paint its command surface while the same pending
-    // records still stand; removing an accounted record is then a semantic no-op.
+    // this surviving semantic reading; removing an accounted record is a semantic no-op,
+    // and a key whose liveness read the record hears it leave through its own reading.
     if (!released.length) return false;
-    paintKeys();
     ledger.release(released);
     return true;
   };
@@ -131,13 +133,7 @@ export function mountApplication(dependencies) {
     return presentDocument();
   };
 
-  // The drag that deferred the projection has ended: present the reading it held.
-  const projection = createProjectionPresentation({
-    onDeferredReady: () => {
-      invalidateDom();
-      releasePendingSafely("deferred pending release");
-    },
-  });
+  const projection = createProjectionPresentation();
   const dataProjection = createDataProjection({ invalidateDom });
 
   let delivery;
@@ -152,13 +148,12 @@ export function mountApplication(dependencies) {
   function afterEnqueue(entry) {
     // Enqueue has already published and claimed its presentation, whose coordinator
     // reports any failed paint. The entry's answer describes the server's durable
-    // decision, so a local announcement or key-paint failure is reported here rather
+    // decision, so a local announcement failure is reported here rather
     // than turning an accepted gesture into an apparent refusal, and it cannot strand
     // the gesture before transport or leave later sends behind an unanswered entry.
     try {
       if (isMessageEvent(entry.event)) announce("Message sent");
       if (entry.event.kind === "edit") announce("Message edited");
-      paintKeys();
     } catch (error) {
       reportPageError(error, "optimistic presentation");
     } finally {
@@ -269,17 +264,40 @@ export function mountApplication(dependencies) {
     dependencies.annotationCommands.renderPageMapDialog(entries);
     return entries;
   }
-  const renderAnnotations = clocked(document.body, () => {
+  // The margin's annotations, which the thread presentation, the margin's own geometry
+  // and contributions also redraw directly. `refresh()` redraws them once they have
+  // been drawn.
+  let annotationsDrawn = false;
+  const renderAnnotations = () => {
+    annotationsDrawn = true;
     if (!onPaper.matches) {
       const entries = refreshAnnotationInventory();
       overlay?.paint(entries);
     }
-  });
+  };
+  renderAnnotations.refresh = () => {
+    if (annotationsDrawn) renderAnnotations();
+  };
+  // The inventory lists the marks the projection's chrome paints, reading their nodes,
+  // which the watcher cannot track, so it reads the parts that move them itself, and
+  // reads them once that region has committed. The ages the margin shows are followed
+  // with the rest of what this paint reads, so the clock repaints them by the same
+  // proof.
+  const annotationInputs = readPart(annotationSelection);
   const mountAnnotations = () => {
-    watchProjection(document.body, renderAnnotations);
+    const watching = watchProjection(
+      document.body,
+      () => {
+        annotationInputs();
+        renderAnnotations();
+      },
+      () => projectionRegionsPresented([]),
+    );
     document.addEventListener("lf-comparison", renderAnnotations);
+    // A paint on paper read no ages, so the return to screen paints through the
+    // watcher, which follows them again.
     onPaper.addEventListener("change", () => {
-      if (!onPaper.matches) renderAnnotations.refresh();
+      if (!onPaper.matches) watching.refresh();
     });
     watchContributions(({ immediate }) => {
       renderAnnotations();
@@ -343,6 +361,9 @@ export function mountApplication(dependencies) {
         flash: false,
         intent,
       }),
+    // The thread a margin entry stands for, which a user on it goes on with when the
+    // thread leaves the margin.
+    threadAt: (node) => overlay?.entryThread(node) ?? null,
     read,
   });
   const registerThreadPanel = ({ controller, threadsBox, view }) =>
@@ -362,8 +383,7 @@ export function mountApplication(dependencies) {
     });
 
   const accountPending = (receipts) => {
-    const left = ledger.present(receipts);
-    if (left) paintKeys();
+    ledger.present(receipts);
     releasePendingSafely("receipt presentation");
   };
 
@@ -372,11 +392,8 @@ export function mountApplication(dependencies) {
     acceptData: dependencies.state.acceptData,
     notifyDataSubscribers: dependencies.state.notifyDataSubscribers,
     isSignoffDeclared: dependencies.state.isSignoffDeclared,
-    renderStatus: dependencies.state.renderStatus,
     stateSignoff: dependencies.state.stateSignoff,
-    renderOthers: dependencies.state.renderOthers,
     accountPending,
-    paintKeys,
   });
 
   const flushQueuedInvalidation = () => {
@@ -415,22 +432,16 @@ export function mountApplication(dependencies) {
         // ledger.accept; release itself waits for every owning presentation region
         // before undo and other semantic readers may observe the entry leave.
         releasePendingSafely("accepted event reconciliation");
-        // In that ordering a gesture that is not an action left on accept; the key
-        // repaint and descriptor invalidation accountPending gives an entry leaving on
-        // presentation belong to whichever edge actually retires it.
-        if (!applicationState.entry(entry.event.attempt)) {
-          paintKeys();
-          invalidateDom();
-        }
-        return;
+        // In that ordering a gesture that is not an action left on accept; the
+        // descriptor invalidation an entry leaving on presentation gets belongs to
+        // whichever edge actually retires it.
+        if (!applicationState.entry(entry.event.attempt)) invalidateDom();
       }
-      paintKeys();
     },
   });
 
   const feed = createStateFeed({
     prepareActivation: dependencies.state.prepareActivation,
-    renderStatus: dependencies.state.renderStatus,
     stateApplying,
     invalidateDom,
     receiveState,
@@ -477,16 +488,24 @@ export function mountApplication(dependencies) {
     requirePageAnnotations();
     return registerPageConsumer(owner, render, threadSurfaceCommands);
   };
-  const mountThreadViews = (owner, render) =>
-    registerMirrorConsumer(owner, render, { commands: inlineView });
 
-  const registerThreadPresentation = (owner, { render, reveal, replyBox = null }) => {
+  // One reader is the page's primary at a time (thread/destination.js). Leaf's own
+  // chrome registers one that yields (`registerChromeThreadPresentation`, which the
+  // runtime alone is handed): a reader the page's package registers
+  // takes the place while it stands, since the author's presentation outranks Leaf's
+  // defaults, and the chrome's returns when it leaves. `primary` says which holds it. The
+  // chrome's `yielded`, asked before its reader goes, returns how to hand the reader
+  // taking its place the conversation it shows, which runs once the package holds its
+  // registration, as that reader may ask it to present.
+  // A presentation that makes room for the agent's answer to the user's last turn
+  // itself says so (`answersAtOnce`), and its reader draws that answer at once.
+  const attachPresentation = (owner, { render, reveal, answersAtOnce = false }) => {
     const reader = createPrimaryReader(
       owner,
       render,
       inlineView,
       () => threadPresenter.present(),
-      replyBox,
+      { answersAtOnce },
     );
     const detachDestination = threadDestinations.register(owner, reveal, reader);
     let detachPresentation;
@@ -497,17 +516,66 @@ export function mountApplication(dependencies) {
       reader.unregister();
       throw error;
     }
+    return {
+      reader,
+      detach() {
+        detachDestination();
+        detachPresentation();
+      },
+    };
+  };
+  let yielding = null;
+  let authored = null;
+  const restoreYielding = () => {
+    if (yielding && !yielding.attached)
+      yielding.attached = attachPresentation(yielding.owner, yielding.spec);
+  };
+  const presentThreads = (owner, spec, yields) => {
+    const entry = { owner, spec, attached: null };
+    if (yields) {
+      if (yielding)
+        throw new Error("The page already has a yielding Thread presentation");
+      yielding = entry;
+      // A package's reader registered first keeps the place.
+      if (!authored) entry.attached = attachPresentation(owner, spec);
+    } else {
+      const displaced = yielding?.attached;
+      const handOff = displaced ? yielding.spec.yielded() : null;
+      if (displaced) {
+        displaced.detach();
+        yielding.attached = null;
+      }
+      try {
+        entry.attached = attachPresentation(owner, spec);
+      } catch (error) {
+        if (displaced) restoreYielding();
+        throw error;
+      }
+      authored = entry;
+      if (handOff)
+        queueMicrotask(() => {
+          if (authored === entry) handOff();
+        });
+    }
     let active = true;
     return Object.freeze({
+      get primary() {
+        return Boolean(entry.attached);
+      },
       update: ({ release = false } = {}) => {
-        if (release) reader.release();
+        if (release) entry.attached?.reader.release();
         return threadPresenter.present();
       },
       unregister() {
         if (!active) return;
         active = false;
-        detachDestination();
-        detachPresentation();
+        entry.attached?.detach();
+        entry.attached = null;
+        if (yielding === entry) yielding = null;
+        if (authored === entry) {
+          authored = null;
+          restoreYielding();
+        }
       },
     });
   };
@@ -527,7 +595,9 @@ export function mountApplication(dependencies) {
     read,
     mountThread: threadPresenter.mount,
     mountRead: read.mount,
-    registerThreadPresentation,
+    registerThreadPresentation: (owner, spec) => presentThreads(owner, spec, false),
+    registerChromeThreadPresentation: (owner, spec) =>
+      presentThreads(owner, spec, true),
     navigateToDatum: dependencies.anchorTravel.navigateToDatum,
     post,
     projectData: dataProjection.projectData,
@@ -537,7 +607,6 @@ export function mountApplication(dependencies) {
     watchThreadSurfaces,
     placePageThreads,
     consumeAnnotations,
-    mountThreadViews,
     registerThreadPanel,
     retireProjectionCoverage: projection.retireProjectionCoverage,
     threadActions,
@@ -555,7 +624,7 @@ export function mountApplication(dependencies) {
       }
       return dependencies.annotationCommands.goToAsk(ask, readAsks().all);
     },
-    // The Questions walk within one region (queue-walk.js), the walk an `lf-tally` steps.
+    // The On me walk within one region (queue-walk.js), the walk an `lf-tally` steps.
     nextAsk: (options) => dependencies.nextAskWithin(options),
     startFeed: feed.startFeed,
     wireInput: dependencies.wireInput,
@@ -565,7 +634,6 @@ export function mountApplication(dependencies) {
 
 export const threadBox = (...args) => app().threadBox(...args);
 export const dispatchWidget = commandDispatch.dispatchWidget;
-export const hasPending = (...args) => app().hasPending(...args);
 export const invalidateDom = (...args) => app().invalidateDom(...args);
 export const landInThread = (...args) => app().landInThread(...args);
 export const navigateToDatum = (...args) => app().navigateToDatum(...args);
@@ -574,14 +642,10 @@ export const navigateToDatum = (...args) => app().navigateToDatum(...args);
 export const openThread = (...args) => app().threadDestinations.openPageThread(...args);
 export const post = commandDispatch.post;
 export const projectData = (...args) => app().projectData(...args);
-export const readAndApply = (...args) => app().readAndApply(...args);
-export const refreshThread = (...args) => app().refreshThread(...args);
 export const placePageThreads = (...args) => app().placePageThreads(...args);
 export const consumeAnnotations = (...args) => app().consumeAnnotations(...args);
-export const mountThreadViews = (...args) => app().mountThreadViews(...args);
 export const registerThreadPresentation = (...args) =>
   app().registerThreadPresentation(...args);
-export const registerThreadPanel = (...args) => app().registerThreadPanel(...args);
 export const threadActions = Object.freeze({
   open: (...args) => app().threadActions.open(...args),
   create: (...args) => app().threadActions.create(...args),

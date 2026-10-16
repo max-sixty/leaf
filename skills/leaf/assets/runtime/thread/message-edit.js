@@ -27,10 +27,13 @@
    Rejected: Escape keeping them as an unsaved edit, as a reply box keeps its draft,
    which left the user a draft to find and drop that the message could barely show.
 
-   The editor takes the message's place without moving it. Its box surrounds the words
-   where they stood, and its Cancel and Save stand at the message's head, where the
-   message's own control stood (shadow.css, `.lf-msg-edit-actions`), so opening and
-   closing it moves nothing around the message, and a line wraps where it wrapped.
+   The editor takes the message's words' place, and is the thread's comment box, the
+   field its reply box is, at the reply box's width and padding (shadow.css,
+   `.lf-msg-editor`). Its Cancel and Save stand at the message's head, where the
+   message's own control stood (`.lf-msg-edit-actions`), so opening it grows the
+   message by the box's padding alone. Rejected: a box painted around the words where
+   they stood, with no padding of its own, so opening it moved nothing; beside the reply
+   box it read as a thinner, narrower field (the user's decision, 2026-10-13).
 
    A double click on the message or a press on its Edit control opens it. The keyboard
    opens it with ↑: from the thread's empty reply box, the user's latest message, and
@@ -76,7 +79,7 @@ import { revealEditor } from "./reply-landing.js";
 import { PENDING } from "./identity.js";
 import { keys } from "../keyboard/scopes.js";
 import { announce, notice } from "../notifications.js";
-import { sizeObserver } from "../rendering.js";
+import { afterScript, sizeObserver } from "../rendering.js";
 import { retainUserIntent } from "../user-intent.js";
 import { offer } from "../widget-elements.js";
 
@@ -156,7 +159,19 @@ export function openMessageEditIn(thread, id) {
  * answers the drawn thread around message `node`, which the user stands on once the
  * editor goes where the box is out of view; `opening(id)` is the reader's own share of
  * a rewrite of `id` opening, such as unfolding the summary that holds it; `thread`
- * answers the thread's key, which every reader of it shares. */
+ * answers the thread's key, which every reader of it shares.
+ *
+ * @param {{
+ *   thread: () => string,
+ *   views: () => any[],
+ *   send: (id: string, text: string, options: any) => any,
+ *   paint: (node: any) => void,
+ *   box: () => HTMLElement | null,
+ *   home: (node?: Element) => Element,
+ *   opening?: (id: string) => void,
+ *   landInThread?: any,
+ *   landSent?: any,
+ * }} reader */
 export function threadRewrites({
   thread,
   views,
@@ -244,30 +259,28 @@ export class MessageEditor {
   constructor(
     id,
     view,
-    { wireInput, said, base: standing, send, land, paint, previous, reveal },
+    { wireInput, said, base: currentBase, send, land, paint, previous, reveal },
   ) {
     const ctx = editContext(id);
     // The revision these words are written over, which the log holds the rewrite to: the
     // message as it stands now. Words kept from an earlier opening carry the revision
     // they were written over; where the message has changed since, the user is told what
     // it says now before the kept words go over it.
-    let base = standing();
+    let base = currentBase();
     const keptOver = loadDraftPayload(ctx)?.over;
     // Words kept over the user's own edit still sending name it by its pending id, which
     // is no change of anyone else's.
     if (keptOver && keptOver !== base && !keptOver.startsWith(PENDING))
-      notice(
-        `This message changed since you wrote your edit. It now says: “${said()}”`,
-      );
+      notice(`This message changed since this edit began. It now says: “${said()}”`);
     this.#reveal = reveal;
-    this.node = offer("div", "lf-msg-editor");
+    this.node = offer("div", "lf-msg-editor lf-comment-box");
     this.input = offer(TEXT_FIELD);
     this.input.name = "edit";
     const actions = offer("span", "lf-msg-edit-actions");
     const save = offer("button", "lf-msg-control lf-msg-edit-save");
     const cancel = offer("button", "lf-msg-control lf-msg-edit-cancel");
     cancel.type = "button";
-    cancel.title = "Cancel, discarding your changes";
+    cancel.title = "Cancel and discard changes";
     cancel.textContent = "Cancel";
     actions.append(cancel);
     // The box's last line, where the caret stands on opening: the field's own lines are
@@ -284,9 +297,9 @@ export class MessageEditor {
     // the log refuses.
     let opened = this.input.value;
     this.#follow = () => {
-      if (base === standing() || draftHasContent(ctx) || this.input.value !== opened)
+      if (base === currentBase() || draftHasContent(ctx) || this.input.value !== opened)
         return;
-      base = standing();
+      base = currentBase();
       this.input.value = opened = said();
     };
     // Words the message already says, exactly, and no words, are no change. Leading and
@@ -313,14 +326,18 @@ export class MessageEditor {
       });
     // Making way for another rewrite, as ↑ to an earlier message or opening one
     // elsewhere in the thread does, closes one the user has not changed; changed words
-    // stay in their box, which no key here meant to put away.
+    // stay in their box, which no key here meant to put away. The closed box is drawn
+    // away once the script ends, so a reader drawing the other one's opening meanwhile
+    // draws both in one paint, rather than the thread shrinking and growing back.
     const putAside = () => {
-      if (unchanged()) leave(true, { landing: false });
+      if (!unchanged()) return;
+      leave(true, { landing: false, painting: false });
+      afterScript(paint);
     };
     this.#putAside = putAside;
     const sync = wireInput(this.input, {
       hint: "Edit message",
-      accessibleName: () => `Edit your message: ${said().slice(0, 60)}`,
+      accessibleName: () => `Edit message: ${said().slice(0, 60)}`,
       sends: "save",
       icon: null,
       sendBtn: save,
@@ -356,7 +373,7 @@ export class MessageEditor {
           id: "message.edit.previous",
           keys: ["ArrowUp"],
           description:
-            "From the start of an unchanged box, edit your message before this one",
+            "From the start of an unchanged box, edit my message before this one",
           title: "edit previous message",
           // A walk passes over words as they stand: words the user changed hold ↑ for
           // the caret, as a reply box holding words does, until Save or Escape. It

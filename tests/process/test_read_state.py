@@ -2,7 +2,14 @@
 
 import json
 
-from interact_support import fetch, published, record_claim, served_thread, state_json
+from interact_support import (
+    fetch,
+    published,
+    record_claim,
+    refused_on,
+    served_thread,
+    state_json,
+)
 from leaf import event_endpoint as endpoint_model
 from leaf import event_log as event_log_model
 from leaf import harness as harness_model
@@ -132,7 +139,7 @@ def test_read_refuses_unknown_or_wrong_message_versions(page_dir, server):
     ):
         status, answer = _post_read(server, pair)
         assert status == 400, answer
-        assert "is not a content version" in answer["error"]
+        assert refused_on(answer).values == {"kind": "read", **pair}
     assert not any(
         event["kind"] == "read" for event in event_log_model.read_events(page_dir)
     )

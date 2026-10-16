@@ -11,11 +11,12 @@
    not read is news on the first reading too, since it arrived while they were away.
    Every other kind of news is a change between readings, so the first reading
    establishes it without announcing it. */
+import { agentLabel } from "./semantic-state.js";
 import { moved } from "./thread/model.js";
 
 const identity = (record) => record.attempt ?? record.id;
 
-// News reads the shown revision's view: the one the page just presented, whose Questions
+// News reads the shown revision's view: the one the page just presented, whose On me list
 // the drawer and banner count paint. While an activation waits (a gesture defers it, or
 // the document is a pinned version), an ask the active revision adds is not on this
 // page yet; it becomes news when a revision holding it is presented.
@@ -228,8 +229,8 @@ export function semanticNewsNotice(news) {
     clauses.push(
       obligations.length === 1
         ? "Input needed"
-        : `${plural(obligations.length, "item")} need your input`,
+        : `${plural(obligations.length, "item")} waiting on me`,
     );
-  if (availability.length) clauses.push("Agent active on this page");
+  if (availability.length) clauses.push(`${agentLabel()} active on this page`);
   return clauses.join("; ");
 }

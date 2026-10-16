@@ -199,20 +199,22 @@ def test_withdrawal_may_name_an_outcome_that_retires_no_slots(trial_page):
     ("arrangement", "refusal"),
     [
         ("own-verb", None),
-        ("recording-column", "'card' is not owned by action widget 'board'"),
+        ("recording-column-value", None),
+        ("recording-column-position", "'card' is not owned by action widget 'board'"),
     ],
 )
 def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
     server, page_dir, arrangement, refusal
 ):
-    """A card has one place and the nearest recording widget above it records it. A
-    verb the card records of its own is a coordinate of the card's, so the board still
-    moves it. A column that records stands between the board and the card."""
+    """A card's place belongs to the nearest ancestor recording that position slot.
+
+    Scalar records on the card or its column coexist with the board's position
+    record. A column recording positions takes that slot from the board."""
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["lf-column"]["properties"]["tint"] = {"type": "string"}
     card_verbs = {"flag": _value_verb("flag")}
     recorders = {"lf-card": ("flag", card_verbs)}
-    if arrangement == "recording-column":
+    if arrangement.startswith("recording-column"):
         recorders["lf-column"] = ("tint", {"tint": _value_verb("tint")})
     for tag, (attr, verbs) in recorders.items():
         entry = registry[tag]
@@ -224,6 +226,11 @@ def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
         entry["x-state"] = verbs
         entry["x-upgrade"] = True
         (page_dir / "widgets" / f"{tag}.js").write_text("export default class {}\n")
+    if arrangement == "recording-column-position":
+        registry["lf-column"]["x-state"]["move"] = {
+            "unit": "unit",
+            "record": {"kind": "position", "within": "lf-column"},
+        }
     (page_dir / "registry.json").write_text(json.dumps(registry))
     result = check(page_dir)
     assert result.exit_code == 0, result.output

@@ -13,7 +13,7 @@
 
     .margin-entry-gallery-group {
       display: grid;
-      grid-template-columns: minmax(7.5rem, .7fr) minmax(0, 3fr);
+      grid-template-columns: minmax(7.5rem, 0.7fr) minmax(0, 3fr);
       gap: var(--sp-3);
       align-items: start;
       padding-block: var(--sp-3);
@@ -79,7 +79,7 @@
     :scope:is(lf-margin-entry-gallery)
       .margin-entry-gallery-item
       .lf-margin-entry:not([data-margin-entry-label-live])
-    > .lf-margin-entry-label {
+      > .lf-margin-entry-label {
       display: none;
     }
 
@@ -91,7 +91,7 @@
 
     .margin-entry-gallery-projection {
       display: grid;
-      grid-template-columns: minmax(7.5rem, .7fr) minmax(0, 3fr);
+      grid-template-columns: minmax(7.5rem, 0.7fr) minmax(0, 3fr);
       gap: var(--sp-3);
       align-items: start;
       padding-block: var(--sp-3);

@@ -67,16 +67,16 @@ from leaf.codex import (
     stop_app_server,
 )
 from leaf.delivery import read_delivery, stream_reply_target
+from leaf.event_contracts import write_refusal
 from leaf.files import latest_revision, revision_path
 from leaf.harness import EmbeddedHarness
 from leaf.hosting import LeafHTTPServer
 from leaf.http import PageEndpoint, PostRoute, scope_page_urls
-from leaf.layer import incompatible_layer
 from leaf.leases import release_lease, take_lease, waiter_lease_path
 from leaf.page_memory import Slot, memo
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.refusals import Refused
-from leaf.registry.storage import layer_metadata, load_registry
+from leaf.registry.storage import layer_metadata
 from leaf.revision_artifact import read_revision
 from leaf.revision_delivery import Delivery
 from leaf.revisioning import activate_source
@@ -277,10 +277,11 @@ def page_binding(page_dir: Path) -> tuple[dict, dict | None]:
     (`leaf.page_memory`), refusing a page vendored at another protocol."""
 
     def bind() -> tuple[dict, dict | None]:
-        identity = layer_metadata(page_dir)
-        if refusal := incompatible_layer(page_dir, load_registry(page_dir)):
-            raise RuntimeError(refusal)
-        return identity, preview_metadata(page_dir)
+        # The protocol before the identity, whose reader checks a shape that is this
+        # Leaf's protocol's.
+        if refusal := write_refusal(page_dir):
+            raise RuntimeError(str(refusal))
+        return layer_metadata(page_dir), preview_metadata(page_dir)
 
     return memo(page_dir, _Binding).get(None, bind)
 
@@ -1059,7 +1060,7 @@ class WebsiteCodexHarness:
             # request made and never named. This harness owns the thread, so it tells
             # the provider to drop whatever it began rather than waiting to adopt it,
             # and gives up the delivery and any reply reservation it holds rather than
-            # leaving them standing, because both would otherwise block the
+            # leaving them held, because both would otherwise block the
             # `startup_failed` receipt the Worker writes when this raises — the
             # receipt that tells the user to send the message again.
             self._withdraw_delivery(

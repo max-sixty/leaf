@@ -73,7 +73,7 @@ test("workflow labels retain exact input progress and positive conditions", () =
   );
 });
 
-test("thread attention gives a standing user ask precedence over agent work", () => {
+test("thread attention gives an open user ask precedence over agent work", () => {
   const work = workflow("a", "working");
   const recovery = workflow("recovery", "sent", {
     condition: { kind: "failed" },
@@ -86,7 +86,7 @@ test("thread attention gives a standing user ask precedence over agent work", ()
   };
   assert.deepEqual(threadAttention(thread), {
     kind: "needs_user",
-    label: "On you to answer",
+    label: "My turn to answer",
     workflow: recovery,
     secondary: "Working",
   });
@@ -120,7 +120,7 @@ test("a frozen move that owes nothing leaves an owed thread on the user alone", 
   const [record] = readThreadRecords(threads, FROZEN_BOARD, new Map(), workflows);
   assert.deepEqual(threadAttention(record), {
     kind: "needs_user",
-    label: "On you to answer",
+    label: "My turn to answer",
     workflow: null,
     secondary: "",
   });
@@ -311,7 +311,7 @@ test("pending thread gestures fold in the order the user made them, as the log w
   for (const gesture of [reply, rewrite, keep, undo, resolve, unresolve])
     assert.deepEqual(fold({ attention: owed }, gesture).attention, owed, gesture.id);
   // A resolve after a turn closes the thread the turn reopened, and a turn after a
-  // resolve reopens it; a reaction is no turn, so it leaves a resolve standing.
+  // resolve reopens it; a reaction is no turn, so it leaves a resolve in force.
   const closed = { author: "user", pending: true };
   const resolved = { resolved: { id: "closed", kind: "resolve", author: "user" } };
   assert.deepEqual(fold({}, rewrite, resolve).resolved, closed);

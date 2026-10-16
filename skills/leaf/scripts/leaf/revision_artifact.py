@@ -55,7 +55,13 @@ from leaf.page_memory import Slot, memo
 from leaf.passages import SourceReading, enclosing_ids
 from leaf.registry.contract import is_element_name
 from leaf.render_checks import PROBE_SOURCES
-from leaf.schema import BROWSER_DIRS, CONTENT_TYPES, SERVED_PATH, VENDORED_FILES
+from leaf.schema import (
+    BROWSER_DIRS,
+    CONTENT_TYPES,
+    JAVASCRIPT_SUFFIXES,
+    SERVED_PATH,
+    VENDORED_FILES,
+)
 from leaf.state import fsync_parents
 from leaf.structure import (
     SourceDocument,
@@ -65,10 +71,11 @@ from leaf.structure import (
     script_kind,
 )
 
-PUBLIC_MODULES = ("/runtime/widget-api.js",)
+PUBLIC_MODULES = ("/runtime/widget-api.js", "/vendor/floating-ui.esm.js")
+
+
 RESOURCE_TYPES = {
     **CONTENT_TYPES,
-    ".mjs": "application/javascript",
     ".woff": "font/woff",
     ".woff2": "font/woff2",
     ".ttf": "font/ttf",
@@ -81,11 +88,6 @@ _IMPORT_NODES = Query(
     _JAVASCRIPT,
     "(import_statement) @node (export_statement) @node "
     "(call_expression function: (import)) @node",
-)
-JAVASCRIPT_SUFFIXES = frozenset(
-    suffix
-    for suffix, mime in RESOURCE_TYPES.items()
-    if mime == "application/javascript"
 )
 
 
@@ -195,22 +197,14 @@ class RevisionArtifact:
         }
 
     @cached_property
-    def executable(self) -> str | None:
-        """What this revision is as executable code, or nothing where it predates the field.
-
-        A revision saved before capture recorded this carries a manifest without it, and
-        those revisions are immutable: the addresses that still serve them — every
-        stamped version and every revision URL — can never be repaired by saving the page
-        again. So the absence is a reading rather than a fault. A document that does not
-        say what it is as code is one an open page cannot take a revision from, which is
-        the reload path, and a historical document never activates anything at all.
-        """
-        return json.loads(self.manifest).get("executable")
+    def executable(self) -> str:
+        """The captured module graph's executable identity."""
+        return json.loads(self.manifest)["executable"]
 
     @cached_property
     def widgets(self) -> dict:
         """What each declared widget in this revision's page was written as."""
-        return json.loads(self.manifest).get("widgets", {})
+        return json.loads(self.manifest)["widgets"]
 
 
 def dependency_path(specifier: str, importer: str, *, module=False) -> str | None:
@@ -705,7 +699,7 @@ def _capture_artifact(
     documents = [document]
     for authored in documents:
         documents.extend(sample["document"] for sample in authored.samples)
-        for script in authored.inline_scripts:
+        for script in authored.authoring.inline_scripts:
             if script_kind(script["attrs"]) not in {"module", "classic"}:
                 continue
             for _, _, specifier in javascript_imports(
@@ -714,7 +708,7 @@ def _capture_artifact(
                 entries.append(
                     resolve_dependency(specifier, "/index.html", module=True)
                 )
-        for script in authored.external_scripts:
+        for script in authored.authoring.external_scripts:
             if script_kind(script["attrs"]) not in {"module", "classic"}:
                 continue
             path = resolve_dependency(
@@ -725,24 +719,25 @@ def _capture_artifact(
             if not path.startswith("/page/"):
                 raise artifact_error("script-outside-page", path)
             entries.append(path)
-        for link in links_with_rel(authored.links, "stylesheet"):
+        for link in links_with_rel(authored.authoring.links, "stylesheet"):
             path = resolve_dependency(link["attrs"].get("href", ""), "/index.html")
             if path is None:
                 continue
             if Path(path).suffix != ".css":
                 raise artifact_error("stylesheet-type", path)
             entries.append(path)
-        for specifier in _css_dependencies(authored.css, "/index.html"):
-            entries.append(resolve_dependency(specifier, "/index.html"))
-        for inline in authored.inline_styles:
+        for sheet in authored.authoring.style_blocks:
+            for specifier in _css_dependencies(sheet["css"], "/index.html"):
+                entries.append(resolve_dependency(specifier, "/index.html"))
+        for inline in authored.authoring.inline_styles:
             for specifier in _css_dependencies(
                 inline["style"], "/index.html", declarations=True
             ):
                 entries.append(resolve_dependency(specifier, "/index.html"))
-        entries.extend(authored.media_refs)
+        entries.extend(authored.authoring.media_refs)
         entries.extend(
             resolve_dependency(specifier, "/index.html")
-            for specifier in authored.page_resource_refs
+            for specifier in authored.authoring.page_resource_refs
         )
     entries = [entry for entry in entries if entry is not None]
     for entry in entries:
@@ -757,7 +752,7 @@ def _capture_artifact(
         for tag, source in widget_sources.items()
     }
     layer = registry.get("$layer", {})
-    # Which of this capture's inputs a standing document cannot take on in place. A
+    # Which of this capture's inputs the current document cannot take on in place. A
     # module graph is evaluated once per document and a custom element is defined
     # once, so new bytes behind either need a new document. Stylesheets, media,
     # prose, and markup are absent because an open document can be given all of
@@ -796,7 +791,10 @@ def _capture_artifact(
                         "body": _digest(script.get("body", "").encode("utf-8")),
                     }
                     for script in sorted(
-                        [*document.inline_scripts, *document.external_scripts],
+                        [
+                            *document.authoring.inline_scripts,
+                            *document.authoring.external_scripts,
+                        ],
                         key=lambda script: script["position"],
                     )
                 ],
@@ -830,7 +828,7 @@ def _capture_artifact(
     manifest = _canonical_json(
         {
             "html": _digest(document.data),
-            "title": document.title.strip(),
+            "title": document.authoring.title.strip(),
             "entries": sorted(set(entries)),
             "executable": executable,
             "widgets": widgets,
@@ -1309,22 +1307,9 @@ def captured_imports(data: bytes, logical_path: str, resources: Mapping[str, Res
         yield from authored_imports(data, logical_path)
         return
     for start, end, specifier in javascript_imports(data, logical_path):
-        parsed = urlsplit(specifier)
-        if (
-            not specifier
-            or parsed.scheme
-            or parsed.netloc
-            or parsed.query
-            or parsed.fragment
-            or "\\" in specifier
-            or any(ord(char) < 33 for char in specifier)
-        ):
+        target = dependency_path(specifier, logical_path, module=True)
+        if target is None:
             raise artifact_error("layer-import-remote", logical_path, specifier)
-        target = posixpath.normpath(
-            parsed.path
-            if parsed.path.startswith("/")
-            else posixpath.join(posixpath.dirname(logical_path), parsed.path)
-        )
-        if not target.startswith("/") or target not in resources:
+        if target not in resources:
             raise artifact_error("layer-import-missing", logical_path, specifier)
         yield start, end, target

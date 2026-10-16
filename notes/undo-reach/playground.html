@@ -275,7 +275,12 @@
       }
     </style>
     <script type="module">
-      import { once, layoutChanged } from "/runtime/widget-api.js";
+      import {
+        PAGE_INTERFACE,
+        once,
+        layoutChanged,
+        whileConnected,
+      } from "/runtime/widget-api.js";
 
       const MINUTE = 1 / 1440;
       const PLACES = {
@@ -385,7 +390,7 @@
       const cap = (s) => s[0].toUpperCase() + s.slice(1);
 
       /* The log is the only state. Everything drawn is folded from it: a gesture
-         stands unless a standing undo names it, and an undo naming an undo is a redo. */
+         stands unless an undo in force names it, and an undo naming an undo is a redo. */
       function fold(log) {
         const byId = new Map(log.map((e) => [e.id, e]));
         const withdrawn = new Set();
@@ -405,7 +410,7 @@
             since.set(undo.undoes, Math.max(since.get(undo.undoes), e.idx));
         }
         // Each effect reads at its own log position, as Leaf's folds do: the last
-        // standing event on a unit decides it, and any reply reopens its thread.
+        // event in force on a unit decides it, and any reply reopens its thread.
         const unit = (e) => e.target;
         const effects = log.filter((e) => UNDOABLE.has(e.kind) || e.kind === "reply");
         const winner = (target) =>
@@ -447,7 +452,6 @@
       customElements.define(
         "undo-sim",
         class extends HTMLElement {
-          #values = { reach: "newest", name: false, redo: false, panel: false };
           #log = [];
           #now = 0;
           #visit = 0;
@@ -462,37 +466,41 @@
           #clock = null;
           #blocks = new Map();
           #playground = null;
-          #change = null;
+          #initialized = false;
+          #paintedValues = null;
           #shownPicks = "";
 
           connectedCallback() {
-            if (once(this)) {
-              this.#build();
-              this.#start();
-            }
-            this.#connect();
+            if (!once(this)) return;
+            this.#build();
+            this.#start();
+            whileConnected(this, (signal) => this.#connect(signal));
           }
 
-          disconnectedCallback() {
-            this.#playground?.removeEventListener("lf-playground-change", this.#change);
-            this.#playground = null;
-          }
-
-          async #connect() {
-            await customElements.whenDefined("lf-playground");
-            if (!this.isConnected) return;
-            this.#playground?.removeEventListener("lf-playground-change", this.#change);
+          #connect(signal) {
             this.#playground = this.closest("lf-playground");
-            if (!this.#playground) return;
-            this.#change = (event) => {
-              if (event.target !== this.#playground) return;
-              this.#values = event.detail.values;
-              this.#armed = null;
-              this.#render();
+            let unsubscribe;
+            const initialize = () => {
+              if (signal.aborted || unsubscribe) return;
+              if (!this.#initialized) {
+                this.#playground.registerInstructionProvider(instruction);
+                this.#initialized = true;
+              }
+              unsubscribe = this.#playground.subscribe((values) => {
+                if (values !== this.#paintedValues) {
+                  this.#armed = null;
+                  this.#paintedValues = values;
+                }
+                this.#render();
+              });
             };
-            this.#playground.addEventListener("lf-playground-change", this.#change);
-            this.#values = this.#playground.values;
-            this.#render();
+            document.addEventListener(
+              PAGE_INTERFACE,
+              (event) => event.detail.present(Promise.resolve().then(initialize)),
+              { signal },
+            );
+            if (this.#initialized) initialize();
+            return () => unsubscribe?.();
           }
 
           #start() {
@@ -600,7 +608,7 @@
                 }
                 // Only "What's in view" reads the view to pick a target, so a scroll
                 // redraws the bar and the panel only when it changes that pick.
-                if (this.#values.reach !== "here") return;
+                if (this.#playground.values.reach !== "here") return;
                 const picks = this.#picks();
                 if (picks === this.#shownPicks) return;
                 this.#renderBar();
@@ -657,7 +665,7 @@
 
           // Each design's reach, applied alike to z's target and Z's.
           #reach(when, target) {
-            const reach = this.#values.reach;
+            const reach = this.#playground.values.reach;
             if (reach === "visit") return when >= this.#visit;
             if (reach === "age") return this.#now - this.#log[when].t < 7;
             if (reach === "here") return this.#inView(target);
@@ -665,7 +673,7 @@
           }
 
           #undoTarget(state) {
-            const reach = this.#values.reach;
+            const reach = this.#playground.values.reach;
             if (reach === "walk") return state.undoList[0] ?? null;
             if (reach === "here") {
               const top = state.acts.find((e) => this.#inView(e.target));
@@ -677,7 +685,7 @@
           }
 
           #redoTarget(state) {
-            if (!this.#values.redo) return null;
+            if (!this.#playground.values.redo) return null;
             const head = state.redoList[0];
             // A new gesture after the undo ends the redo chain, as in Vim.
             if (!head || head.idx < state.lastNew) return null;
@@ -701,7 +709,8 @@
           // takes it.
           #needsReveal(act, target) {
             return (
-              this.#values.reach === "confirm" && (act.picked || !this.#inView(target))
+              this.#playground.values.reach === "confirm" &&
+              (act.picked || !this.#inView(target))
             );
           }
 
@@ -760,10 +769,13 @@
             this.#append({ kind: "undo", author: "user", undoes: event.id });
             this.#armed = null;
             this.#notice = {
-              text: `${this.#values.name ? cap(tookBack(event)) : TODAY[event.kind]} — sent`,
+              text: `${this.#playground.values.name ? cap(tookBack(event)) : TODAY[event.kind]} — sent`,
               tone: "",
             };
-            if (this.#values.reach === "confirm" || this.#values.panel)
+            if (
+              this.#playground.values.reach === "confirm" ||
+              this.#playground.values.panel
+            )
               this.#flashTarget(event.target);
             this.#render();
           }
@@ -773,7 +785,7 @@
             const undo = this.#redoTarget(state);
             if (!undo) {
               this.#notice = {
-                text: this.#values.redo
+                text: this.#playground.values.redo
                   ? "Z does nothing: no undo to put back since your last change."
                   : "There is no redo in this design.",
                 tone: "",
@@ -806,10 +818,13 @@
             this.#append({ kind: "undo", author: "user", undoes: undo.id });
             this.#armed = null;
             this.#notice = {
-              text: `${this.#values.name ? `Put back: ${did(target)}` : "Put back your last change"} — sent`,
+              text: `${this.#playground.values.name ? `Put back: ${did(target)}` : "Put back your last change"} — sent`,
               tone: "",
             };
-            if (this.#values.reach === "confirm" || this.#values.panel)
+            if (
+              this.#playground.values.reach === "confirm" ||
+              this.#playground.values.panel
+            )
               this.#flashTarget(target.target);
             this.#render();
           }
@@ -954,7 +969,7 @@
             if (undo) {
               chip(
                 "z",
-                this.#values.name
+                this.#playground.values.name
                   ? `${cap(takeBack(undo))} · ${age(this.#now - this.#log[state.since.get(undo.id)].t)}`
                   : "Take back the last change you made here",
                 () => this.#pressUndo(),
@@ -965,7 +980,7 @@
               const target = state.byId.get(redo.undoes);
               chip(
                 "Z",
-                this.#values.name
+                this.#playground.values.name
                   ? cap(putBack(target))
                   : "Put back what you took back",
                 () => this.#pressRedo(),
@@ -990,7 +1005,7 @@
             const undo = this.#undoTarget(state);
             const redo = this.#redoTarget(state);
 
-            if (this.#values.panel) {
+            if (this.#playground.values.panel) {
               const heading = document.createElement("h4");
               heading.textContent = "Your changes";
               const list = document.createElement("ul");
@@ -1049,14 +1064,14 @@
                   );
                 } else if (stands) {
                   keys.append("superseded");
-                } else if (this.#values.redo && state.wouldPaint(e)) {
-                  const standingUndo = this.#log.findLast(
+                } else if (this.#playground.values.redo && state.wouldPaint(e)) {
+                  const undoInForce = this.#log.findLast(
                     (u) => u.kind === "undo" && u.undoes === e.id && state.stands(u),
                   );
                   keys.append(
                     this.#button(
                       "Redo",
-                      () => this.#restore(standingUndo),
+                      () => this.#restore(undoInForce),
                       `toggle-${e.id}`,
                     ),
                   );
@@ -1141,32 +1156,29 @@
         here: "Scope z to the view: it takes back your newest gesture among the targets on screen, and does nothing when that gesture cannot be taken back.",
       };
 
-      customElements.whenDefined("lf-playground").then(() => {
-        const playground = document.getElementById("undo-playground");
-        playground.registerInstructionProvider((values) => {
-          const parts = [REACH[values.reach]];
-          if (values.name)
-            parts.push(
-              "Have the shortcut bar's z line and the notice name the gesture and its age rather than its kind alone, from words the server adds to each undo candidate.",
-            );
-          if (values.redo)
-            parts.push(
-              "Add redo on Shift+Z as an undo naming your own standing undo: taken_back counts an undo only while no standing undo names it, the append door admits a redo only when folding without the undo changes what the page shows, the served state carries a redo list beside the undo list, Z takes its head until you make a new gesture, as Vim's Ctrl-R does, and the readers that follow undoes one level (gesture words, browser coverage, the delivery's answer) follow the chain.",
-            );
-          if (values.panel)
-            parts.push(
-              "Add a Changes tray listing your gestures newest first, each linked to its place, with Undo on a gesture that stands" +
-                (values.redo ? " and Redo on one you took back" : "") +
-                ", marking the rows z" +
-                (values.redo ? " and Z" : "") +
-                " would take.",
-            );
+      function instruction(values) {
+        const parts = [REACH[values.reach]];
+        if (values.name)
           parts.push(
-            "Build it in this task's checkout, update events.md's Undo section and the notice words, and hand me a live preview of review-a-plan with the new behavior.",
+            "Have the shortcut bar's z line and the notice name the gesture and its age rather than its kind alone, from words the server adds to each undo candidate.",
           );
-          return parts.join(" ");
-        });
-      });
+        if (values.redo)
+          parts.push(
+            "Add redo on Shift+Z as an undo naming your own undo in force: taken_back counts an undo only while no undo in force names it, the append door admits a redo only when folding without the undo changes what the page shows, the served state carries a redo list beside the undo list, Z takes its head until you make a new gesture, as Vim's Ctrl-R does, and the readers that follow undoes one level (gesture words, browser coverage, the delivery's answer) follow the chain.",
+          );
+        if (values.panel)
+          parts.push(
+            "Add a Changes tray listing your gestures newest first, each linked to its place, with Undo on a gesture that stands" +
+              (values.redo ? " and Redo on one you took back" : "") +
+              ", marking the rows z" +
+              (values.redo ? " and Z" : "") +
+              " would take.",
+          );
+        parts.push(
+          "Build it in this task's checkout, update events.md's Undo section and the notice words, and hand me a live preview of review-a-plan with the new behavior.",
+        );
+        return parts.join(" ");
+      }
     </script>
   </head>
   <body>
@@ -1391,10 +1403,10 @@
           <code>taken_back</code> is a flat set, and the undo list skips undos.
         </p>
         <p>
-          Redo is an <code>undo</code> naming your own standing <code>undo</code>.
+          Redo is an <code>undo</code> naming your own <code>undo</code> in force.
           Nothing leaves the log and no counter-event is invented, so the invariant in
           <code>AGENTS.md</code> holds as written. <code>taken_back</code> changes so
-          that an undo counts only while no standing undo names it. The playground's
+          that an undo counts only while no undo in force names it. The playground's
           log, under the simulated page, folds exactly this way: turn on redo, press
           <kbd>z</kbd> then <kbd>Z</kbd>, and the second undo strikes through the first.
         </p>
@@ -1421,8 +1433,8 @@
         <p>
           Vim's undo tree differs in kind. <kbd>g-</kbd> and <kbd>g+</kbd> restore any
           past state, superseded branches included, where this redo restores only what
-          would still show. The Changes panel offers selective undo instead: any
-          standing gesture, in any order.
+          would still show. The Changes panel offers selective undo instead: any gesture
+          in force, in any order.
         </p>
       </section>
 
@@ -1468,7 +1480,7 @@
           <dt>Redo on <kbd>Z</kbd></dt>
           <dd>
             <code>taken_back</code> counts an undo only while it stands;
-            <code>UndoReading.error</code> admits an undo naming your own standing undo
+            <code>UndoReading.error</code> admits an undo naming your own undo in force
             when folding without it changes what the page shows;
             <code>document.py</code> serves a redo list;
             <code>projection/model.js</code> lets a local redo override the server's

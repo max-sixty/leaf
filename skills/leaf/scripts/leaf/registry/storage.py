@@ -7,8 +7,22 @@ from leaf.files import file_stamp, latest_revision, read_json
 from leaf.page_memory import Slot, memo
 
 from ..refusals import Refused
-from .contract import RegistryError, read_registry_declarations, registry_error
+from .contract import (
+    RegistryError,
+    read_registry_declarations,
+    read_registry_object,
+    registry_error,
+)
 from .layer import check_layer_facts
+
+
+class IncompatibleLayer(RegistryError):
+    """A vendored layer at another page protocol than this Leaf's, refused for its
+    protocol (`layer.protocol_refusal`) before its shape is validated, since the
+    shape a layer must have is its own protocol's. Its repair is the one that
+    refusal names rather than the re-vendor a shape fault names: a layer a newer
+    Leaf vendored would otherwise read as damaged, and its refusal would tell the
+    agent to take the page back to this Leaf."""
 
 
 class _Layer(Slot):
@@ -23,8 +37,9 @@ def load_registry(page_dir: Path):
     """The page's complete vendored layer, or None before `page init`.
 
     The layer is `page init`'s own output rather than anything an author writes, so a
-    reader that rejects it wants a re-vendor rather than an edit. It checks only that
-    the layer declares what every reader looks up. Its `$events` copy may be another
+    reader that rejects it wants a re-vendor rather than an edit. It refuses a layer
+    at another page protocol first (`IncompatibleLayer`), then checks only that the
+    layer declares what every reader looks up. Its `$events` copy may be another
     Leaf's at this protocol: it is the page runtime's, and admission reads the running
     Leaf's own (`registry.kernel`); `read_page_registry` validates the vocabulary where
     it is new.
@@ -39,10 +54,21 @@ def load_registry(page_dir: Path):
 
 
 def _read_layer(page_dir: Path, path: Path) -> dict | None:
+    from leaf.layer import protocol_refusal
+
+    try:
+        parsed = read_registry_object(path)
+    except RegistryError as error:
+        raise _revendor(page_dir, error) from None
+    if parsed is None:
+        return None
+    # The protocol before any check of what the entries hold, whose shape is this
+    # Leaf's protocol's.
+    if refusal := protocol_refusal(page_dir, parsed):
+        raise IncompatibleLayer(refusal)
     try:
         registry = read_registry_declarations(path)
-        if registry is not None:
-            check_layer_facts(registry, path)
+        check_layer_facts(registry, path)
     except RegistryError as error:
         raise _revendor(page_dir, error) from None
     return registry
@@ -173,10 +199,14 @@ def layer_metadata(page_dir: Path) -> dict:
     """The identity recorded by this page's complete vendored layer.
 
     `page init` writes it, so it is read as written; a layer vendored before this
-    identity existed is one `page init` replaces."""
+    identity existed is one `page init` replaces. It reads `$layer` alone, as
+    `layer_packages` reads its selection, so a layer at another protocol, whose other
+    entries may have another shape, still names the Leaf that vendored it."""
     path = page_dir / "registry.json"
-    layer = (read_registry_declarations(path) or {}).get("$layer", {})
-    if not (layer.get("generation") and layer.get("fingerprint")):
+    layer = (read_registry_object(path) or {}).get("$layer", {})
+    if not (
+        isinstance(layer, dict) and layer.get("generation") and layer.get("fingerprint")
+    ):
         raise registry_error("layer-identity", path)
     producer = {
         kind: value

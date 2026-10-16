@@ -15,10 +15,11 @@
 # 0/2 per arm; the Ask granularity criterion passed 2/2 per arm in both settings.
 description: proposals-get-individual-decisions
 metadata:
-  purpose: 'Asks: independent proposals each have explicit acceptance and rejection, and either answer
-    completes that proposal.'
+  purpose:
+    "Asks: independent proposals each have explicit acceptance and rejection, and either answer
+    completes that proposal."
   tags:
-  - asks
+    - asks
 vars:
   prompt: |
     I asked you to search our tests deeply for assertions that preserve bad or
@@ -47,29 +48,29 @@ vars:
     Write the Leaf review page. The page directory is not reachable from here,
     so reply with the complete `<main>` element's HTML rather than writing a file.
 assert:
-- type: llm-rubric
-  metric: judgment
-  value: |
-    Pass only if each of the three independent removal proposals has its own
-    lf-ask and an operable choice that explicitly accepts or rejects that proposal
-    (Remove / Keep, Accept / Reject, or equivalent). Each proposal begins
-    undecided. Either choice must complete that proposal's Ask without requiring
-    a Done or submit action shared with another proposal. Fail a checkbox list
-    that treats unchecked proposals as rejections, even if the copy explains that
-    meaning, and fail a single choice that decides the proposals as a batch.
-    Each proposal's evidence and removal scope must be available in its own Ask.
-- type: llm-rubric
-  metric: recommendation-markers
-  value: |
-    Each recommended removal needs a recommended small.tag on its Remove option,
-    with a reason in prose. Advice must remain distinct from the user's choice:
-    neither option starts chosen. Fail recommendations expressed only in prose.
-    Compact Remove / Keep controls need not have comparison chips; this case
-    checks the advice marker rather than the card treatment.
+  - type: llm-rubric
+    metric: judgment
+    value: |
+      Pass only if each of the three independent removal proposals has its own
+      lf-ask and an operable choice that explicitly accepts or rejects that proposal
+      (Remove / Keep, Accept / Reject, or equivalent). Each proposal begins
+      undecided. Either choice must complete that proposal's Ask without requiring
+      a Done or submit action shared with another proposal. Fail a checkbox list
+      that treats unchecked proposals as rejections, even if the copy explains that
+      meaning, and fail a single choice that decides the proposals as a batch.
+      Each proposal's evidence and removal scope must be available in its own Ask.
+  - type: llm-rubric
+    metric: recommendation-markers
+    value: |
+      Each recommended removal needs a recommended small.tag on its Remove option,
+      with a reason in prose. Advice must remain distinct from the user's choice:
+      neither option starts chosen. Fail recommendations expressed only in prose.
+      Compact Remove / Keep controls need not have comparison chips; this case
+      checks the advice marker rather than the card treatment.
 variants:
   checkbox-wording:
     metadata:
-      purpose: 'Diagnostic: the original checkbox request is ambiguous about partial-review outcomes.'
+      purpose: "Diagnostic: the original checkbox request is ambiguous about partial-review outcomes."
     vars:
       prompt: |
         I asked you to search our tests deeply for assertions that preserve bad or
@@ -102,7 +103,7 @@ variants:
   # page-end multi-select); defining a selected set by dependence passed 8/8.
   dispatch-from-sections:
     metadata:
-      purpose: 'Asks: independent items presented in their own sections are decided where each is presented, not in one selected set apart from them.'
+      purpose: "Asks: independent items presented in their own sections are decided where each is presented, not in one selected set apart from them."
     vars:
       prompt: |
         I asked you to sweep the repository for duplicated logic, where two modules
@@ -117,7 +118,7 @@ variants:
         sites, and the direction.
 
         #7 The server decides; the browser re-derives.
-        - CONFIRMED: the Questions panel shows a quiet agent's task as live while
+        - CONFIRMED: the On panel shows a quiet agent's task as live while
           the thread card says "Task open" (activity.py:422 marks it stale;
           queue-panel.js:184 ignores that).
         - CONFIRMED: accepting a suggestion that resolves a thread leaves that
@@ -136,14 +137,14 @@ variants:
         #9 Layers and modals.
         - CONFIRMED (probed): the margin treats everything in the always-open
           auxiliary dialog as an open layer, so cluster options never fold when
-          focus moves into the Questions panel (margin-projection.js:264).
+          focus moves into the On panel (margin-projection.js:264).
         - CONFIRMED: Page Map's modal has no Tab loop, so Tab from its last control
           leaves the page.
         - Direction: layer-stack.js owns "open layer"; one modal helper takes the
           Tab loop.
 
         #10 Walks and the working place.
-        - CONFIRMED: `t` skips a thread whose passage contains the caret, while `q`
+        - CONFIRMED: `t` skips a thread whose passage contains the caret, while `m`
           stops at it (navigation.js:62 vs queue-walk.js:186).
         - Direction: one walk over places, used by both keys.
 
@@ -166,25 +167,25 @@ variants:
         The page directory is not reachable from here, so reply with the complete
         `<main>` element's HTML rather than writing a file.
     assert:
-    - type: llm-rubric
-      metric: judgment
-      value: |
-        Read the page as a user who decides, workstream by workstream, whether to
-        dispatch it. Pass only if every one of #7–#12 can be decided without
-        leaving the material that decision rests on, in one of these forms:
-        (a) each workstream's section holds its own Ask (an lf-ask or answering
-            widget) for dispatching that workstream, with an explicit way to
-            decline it as well as to dispatch it; or
-        (b) one Ask dispatches several clear-cut workstreams together, and that Ask
-            itself states, for each workstream it covers, the confirmed effect that
-            makes it clear-cut; #11 and #12, whose verdicts are only plausible or
-            whose direction is unsettled, each get a separate Ask in or beside
-            their own section.
-        Every dispatch decision begins undecided. Fail a single multi-select or
-        checkbox list covering all six workstreams that stands apart from their
-        sections, such as at the end of the page, whose options name or point at
-        the workstreams rather than carry their case. Fail if #11 or #12 is
-        decided only inside a batch with the clear-cut workstreams.
+      - type: llm-rubric
+        metric: judgment
+        value: |
+          Read the page as a user who decides, workstream by workstream, whether to
+          dispatch it. Pass only if every one of #7–#12 can be decided without
+          leaving the material that decision rests on, in one of these forms:
+          (a) each workstream's section holds its own Ask (an lf-ask or answering
+              widget) for dispatching that workstream, with an explicit way to
+              decline it as well as to dispatch it; or
+          (b) one Ask dispatches several clear-cut workstreams together, and that Ask
+              itself states, for each workstream it covers, the confirmed effect that
+              makes it clear-cut; #11 and #12, whose verdicts are only plausible or
+              whose direction is unsettled, each get a separate Ask in or beside
+              their own section.
+          Every dispatch decision begins undecided. Fail a single multi-select or
+          checkbox list covering all six workstreams that stands apart from their
+          sections, such as at the end of the page, whose options name or point at
+          the workstreams rather than carry their case. Fail if #11 or #12 is
+          decided only inside a batch with the clear-cut workstreams.
   # Guardrail for dispatch-from-sections: a capacity limit ties the items together,
   # so the answer is genuinely one set. Both arms passed 3/3 at e1c3d2b3d. A
   # blunter rule (one Question per item, never a multi-select across items)
@@ -192,7 +193,7 @@ variants:
   # Reworded by #2506 (one ask); at 3fe3eb0af it passed 1/1 on Claude Code.
   dispatch-two-of-six:
     metadata:
-      purpose: 'Asks: a choice constrained across items stays one ask whose answer is the set.'
+      purpose: "Asks: a choice constrained across items stays one ask whose answer is the set."
     vars:
       prompt: |
         I asked you to sweep the repository for duplicated logic. Six workstreams
@@ -208,20 +209,20 @@ variants:
           and thread names across surfaces. Medium.
         - #9 Layers and modals: confirmed focus escape from Page Map's modal.
           Small.
-        - #10 Walks: `t` and `q` disagree on a caret's own thread. Small.
+        - #10 Walks: `t` and `m` disagree on a caret's own thread. Small.
         - #11 Data contracts: plausible only; owner unsettled. Small.
         - #12 Test fixtures: plausible only; touches every browser test. Large.
 
         The page directory is not reachable from here, so reply with the complete
         `<main>` element's HTML rather than writing a file.
     assert:
-    - type: llm-rubric
-      metric: judgment
-      value: |
-        Pass only if the pick of two is posed as one ask whose answer is the
-        set of chosen workstreams (for example an lf-options with multiple, or an
-        equivalent single answering widget), in which every option carries enough
-        of its workstream's case (effect, verdict, size) to compare them without
-        leaving the ask. The page must say two are to be picked. Fail six
-        separate dispatch/decline Asks, which cannot express the two-session limit,
-        and fail options that are bare names or links to sections elsewhere.
+      - type: llm-rubric
+        metric: judgment
+        value: |
+          Pass only if the pick of two is posed as one ask whose answer is the
+          set of chosen workstreams (for example an lf-options with multiple, or an
+          equivalent single answering widget), in which every option carries enough
+          of its workstream's case (effect, verdict, size) to compare them without
+          leaving the ask. The page must say two are to be picked. Fail six
+          separate dispatch/decline Asks, which cannot express the two-session limit,
+          and fail options that are bare names or links to sections elsewhere.

@@ -141,7 +141,7 @@ def run_hosted() -> None:
     from leaf.event_log import read_events
     from leaf.thread import successful_replies
 
-    from leaf_dev.preview import terminated
+    from leaf_dev.commands.preview import terminated
     from leaf_dev.review_scenario import post
 
     request = json.load(sys.stdin)

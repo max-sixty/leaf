@@ -97,7 +97,7 @@ export function threadAttention(thread) {
     );
     return Object.freeze({
       kind: "needs_user",
-      label: `On you to ${nextMove}`,
+      label: `My turn to ${nextMove}`,
       workflow,
       secondary: [answering ? "" : workflowLabel(workflow), workflowLabel(secondary)]
         .filter(Boolean)

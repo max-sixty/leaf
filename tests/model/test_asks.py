@@ -6,7 +6,10 @@ from pathlib import Path
 
 import model_folds as model
 import pytest
-from interact_support import served_thread
+from interact_support import (
+    refused_on,
+    served_thread,
+)
 from leaf import asks as asks_model
 from leaf.gesture_words import element_name
 from leaf.passages import SourceReading
@@ -227,7 +230,7 @@ def test_a_pinned_view_reads_its_frozen_threads_under_its_own_registry():
             [entry["event"]["id"] for entry in view["thread"]["projection"]["entries"]],
             (ask["id"], ask["status"]),
             thread["attention"],
-            [item["id"] for item in view["queues"]["questions"]],
+            [item["id"] for item in view["queues"]["on_user"]],
         )
 
     assert read(2) == (
@@ -327,13 +330,13 @@ def test_display_only_widget_does_not_suppress_a_prose_ask():
 
 
 def lists(state) -> tuple[list, list, list]:
-    """Questions and Tasks as served, and the open asks whose next move is the
+    """On me and On <agent> as served, and the open asks whose next move is the
     agent's."""
     queues = state["views"]["1"]["queues"]
     asks = [*page_asks(state)["all"], *state["views"]["1"]["thread"]["asks"]["all"]]
     return (
-        sorted(item["id"] for item in queues["questions"]),
-        sorted(item["id"] for item in queues["tasks"]),
+        sorted(item["id"] for item in queues["on_user"]),
+        sorted(item["id"] for item in queues["on_agent"]),
         sorted(
             ask["id"]
             for ask in asks
@@ -364,7 +367,7 @@ FRAMED = model.leaf_page(
 )
 def test_a_comment_on_an_ask_is_the_agents_turn_until_the_agent_replies(anchor, held):
     """The user's comment about an open ask hands it to the agent without answering
-    it: the ask leaves Questions while the comment's answer stands on Tasks, and comes
+    it: the ask leaves On me while the comment's answer stands on On <agent>, and comes
     back once the agent replies. A comment on one ask leaves its framed sibling with
     the user, one on the frame's heading or on a widget there that asks nothing is
     about both, and one elsewhere about none."""
@@ -702,8 +705,9 @@ def test_todo_validation_does_not_rewrite_ask_identity_and_refuses_bare_source()
     }
     admitted = admitted_event(door, events, command)
     assert command["todo"] == admitted["todo"] == "reply:prompt"
-    with pytest.raises(EventRefused, match="unknown to-do 'prompt'"):
+    with pytest.raises(EventRefused) as refused:
         admitted_event(door, events, {**command, "todo": "prompt"})
+    assert refused_on(refused.value).code == "unknown-todo"
 
 
 @pytest.mark.parametrize("state", ["answered", "withdrawn"])
@@ -793,7 +797,7 @@ def test_an_element_is_named_as_the_browser_names_it(case):
     """An ask's prompt is its element's name, read off the document by the rule
     the browser's `addressableName` reads off the live page."""
     document = SourceDocument(model.leaf_page("Names", case["markup"]))
-    node = _element(document.content, "it")
+    node = _element(document.authoring.content, "it")
     assert element_name(node, case.get("registry", {})) == case["name"]
 
 

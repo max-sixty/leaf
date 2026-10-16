@@ -1,15 +1,17 @@
-"""Agent-facing page state: the Questions and Tasks lists, and the asks and to-dos
+"""Agent-facing page state: the On me and On <agent> lists, and the asks and to-dos
 they select from.
 
-The reading uses one transaction and prints the two lists the active view serves
-(`served_state.queues`): Questions holds open asks, to-dos on the user and resends;
-Tasks holds the answers the agent owes, its work in hand and its to-dos. The ask
-inventory also retains finished records, whatever their `status` (`questions`). `source` states whether a
-document is live and whether an invalid source save leaves the last valid version
-active.
+The reading uses one transaction and holds the two lists the active view serves
+(`served_state.queues`): On me (`on_user`) holds open asks, to-dos on the user and
+resends; On <agent> (`on_agent`) holds the answers the agent owes, its work in hand
+and its to-dos. The ask inventory (`asks`) also retains finished records, whatever
+their `status`. `source` states whether a document is live and whether an invalid
+source save leaves the last valid version active. A page this Leaf cannot serve as
+vendored (`layer.incompatible_layer`) is still read, its `source.error` the refusal
+naming the re-vendor: the reading gives the agent the page's context, and the error
+says not to act on it before `page init`.
 """
 
-import json
 from pathlib import Path
 
 from .construction import constructed_content
@@ -38,8 +40,8 @@ from .work import page_subject
 HISTORY_LIMIT = 50
 
 
-def standing_entry(coordinate, e: dict, thread: str | None = None) -> dict:
-    """One standing action, in the shape `page state` reports every one of them.
+def state_entry(coordinate, e: dict, thread: str | None = None) -> dict:
+    """One action in force, in the shape `page state` reports every one of them.
 
     `revision` is the exact document the action was taken on, which for a widget an agent
     sent is a fact about the gesture and none about the widget: thread markup is
@@ -63,13 +65,13 @@ def cmd_page_state(
     *,
     after: int | None = None,
     limit: int | None = None,
-) -> None:
-    """Print the agent-side state from one transaction-consistent snapshot: the
-    page's, or the part `target` names — a thread with a page of its history, or a
+) -> dict:
+    """The agent-side state from one transaction-consistent snapshot: the page's,
+    or the part `target` names — a thread with a page of its history, or a
     widget."""
     with PageTransaction(page_dir) as page:
         activation = activate_source(page_dir, transaction=page)
-        _write_page_state(
+        return _page_state(
             page_dir,
             page.events,
             activation.error,
@@ -120,10 +122,10 @@ def _base_state(
         },
         "data_bindings": page_data_binding_inventory(page_dir, registry, events),
         "measurement_lag": [],
-        # What is on the user (Questions) and what is on the agent (Tasks), each item
+        # What is on the user (On me) and what is on the agent (On <agent>), each item
         # naming its kind and subject (`served_state.queues`); the to-dos on either
         # side; and the complete canonical ask inventory those lists select from.
-        "queues": {"questions": [], "tasks": []},
+        "queues": {"on_user": [], "on_agent": []},
         "todos": [],
         "asks": [],
         # Current semantic facts only. A thread's history belongs to
@@ -142,7 +144,7 @@ def _base_state(
             for thread_id, thread in threads.items()
             if not bare_reaction(thread)
         ],
-        # Every reaction still standing — the agent-side reading of the marks
+        # Every reaction still in force — the agent-side reading of the marks
         # the page paints. On the page (`anchor`, or none for the page whole) while
         # its thread is unresolved; in a thread (`parent`) while that thread is open.
         "reactions": [
@@ -172,7 +174,7 @@ def _apply_document_state(
 ) -> None:
     parser = document.document
     projection = document.projection
-    state["title"] = parser.title.strip()
+    state["title"] = parser.authoring.title.strip()
     state["elements"] = [
         {
             "tag": record["tag"],
@@ -183,7 +185,7 @@ def _apply_document_state(
         for record in parser.lf_elements
     ]
     state["state"] = [
-        standing_entry(coordinate, event)
+        state_entry(coordinate, event)
         for coordinate, (event, _) in projection.actions.items()
     ]
     state["measurement_lag"] = measurement_lag_entries(
@@ -220,7 +222,7 @@ def _apply_thread_state(state: dict, thread: FrozenThreadReading) -> None:
         key=lambda element: (element["thread"] or "", element["line"])
     )
     state["state"] += [
-        standing_entry(coordinate, event, thread_of[coordinate[0]])
+        state_entry(coordinate, event, thread_of[coordinate[0]])
         for coordinate, (event, _) in thread_actions.actions.items()
     ]
     state["state"].sort(
@@ -230,7 +232,7 @@ def _apply_thread_state(state: dict, thread: FrozenThreadReading) -> None:
 
 def _widget_state(state: dict, page_dir: Path, widget: str, enclosing: dict) -> dict:
     """The page reading narrowed to one widget on the page and what it holds: its
-    element, the actions and reports standing on it or on anything inside it, the
+    element, the actions and reports in force on it or on anything inside it, the
     workflows there, the reports aimed at them, the to-dos open on them, and the
     asks sourced by them."""
 
@@ -283,7 +285,7 @@ def _widget_state(state: dict, page_dir: Path, widget: str, enclosing: dict) -> 
     }
 
 
-def _write_page_state(
+def _page_state(
     page_dir: Path,
     events: list,
     source_error: str | None = None,
@@ -291,16 +293,16 @@ def _write_page_state(
     target: str | None = None,
     after: int = 0,
     limit: int | None = None,
-) -> None:
+) -> dict:
     """Where the page stands, as one JSON object — the agent-facing projection
     beside the browser projection in /api/state. A session picking a page up needs
-    the same reading; doing it in-head over `leaf page events` is how a standing
-    decision gets missed. So this prints the active revision's elements, the projection of
-    the user's standing state and the reports standing on the agent channel,
+    the same reading; doing it in-head over `leaf page events` is how a decision
+    in force gets missed. So this holds the active revision's elements, the projection of
+    the user's current state and the reports in force on the agent channel,
     authored measurements whose live source has run again
     (`measurement_lag_entries`), each comment thread's current state, attention, and
     the agent messages in it the user has not read, every open to-do on either side,
-    the asks, the two lists, Questions and Tasks, that they and the workflows add up
+    the asks, the two lists, On me and On <agent>, that they and the workflows add up
     to (`served_state.queues`, the banner's own counts), and presence beside what
     answers for it. It is a
     selection from the reading /api/state serves (`read_served_page`), computed on
@@ -382,7 +384,9 @@ def _write_page_state(
         state["asks"] = view["document"]["asks"]["all"] + view["thread"]["asks"]["all"]
         state["todos"] = browser["todos"]
         served_queues = view["queues"]
-        state["queues"] = {side: served_queues[side] for side in ("questions", "tasks")}
+        state["queues"] = {
+            side: served_queues[side] for side in ("on_user", "on_agent")
+        }
     subject = None
     if target is not None:
         subject = page_subject(page_dir, events, target)
@@ -415,7 +419,7 @@ def _write_page_state(
         elements = [
             element for element in state["elements"] if element["thread"] == thread_id
         ]
-        standing = [
+        in_force = [
             reading for reading in state["state"] if reading["thread"] == thread_id
         ]
         reports = [
@@ -510,7 +514,7 @@ def _write_page_state(
             "content_source": content_source,
             "content": content,
             "elements": elements,
-            "state": standing,
+            "state": in_force,
             "reactions": reactions,
             "reports": reports,
             "activity": {
@@ -522,4 +526,4 @@ def _write_page_state(
             "todos": [todo for todo in state["todos"] if todo["thread"] == thread_id],
             "asks": [ask for ask in state["asks"] if ask["thread"] == thread_id],
         }
-    print(json.dumps(state, indent=2, ensure_ascii=False))
+    return state

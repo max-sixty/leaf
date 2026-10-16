@@ -105,7 +105,7 @@ export const KINDS = Object.freeze(
         indication: true,
       },
       user: {
-        label: "Your change",
+        label: "My change",
         icon: "change",
         priority: 4,
         indication: true,

@@ -60,15 +60,21 @@ describe("website page routing", () => {
     expect(route("/examples/")).not.toBeNull();
     expect(isPageApiRequest(route("/examples/api/state"))).toBe(true);
     expect(isPageApiRequest(route("/examples/triage-board/api/state"))).toBe(true);
-    expect(isPageApiRequest(route("/examples/triage-board/runtime/state-feed.js"))).toBe(false);
+    expect(
+      isPageApiRequest(route("/examples/triage-board/runtime/state-feed.js")),
+    ).toBe(false);
     expect(isPageSessionFileRequest(route("/media/upload.png"), manifest)).toBe(true);
     expect(
       isPageSessionFileRequest(
-        route("/examples/triage-board/revisions/r3-aabbccdd.html"), manifest,
+        route("/examples/triage-board/revisions/r3-aabbccdd.html"),
+        manifest,
       ),
     ).toBe(true);
     expect(
-      isPageSessionFileRequest(route("/examples/triage-board/versions/v3.html"), manifest),
+      isPageSessionFileRequest(
+        route("/examples/triage-board/versions/v3.html"),
+        manifest,
+      ),
     ).toBe(true);
     // The layer's own files are routed to the page and served from it, rather than
     // held as session files. Both sheets: a page reads /theme.css, and an x-shadow
@@ -90,7 +96,9 @@ describe("website page routing", () => {
     expect(route("/robots.txt")).toBeNull();
     expect(route("/sitemap.xml")).toBeNull();
     expect(needsPageSlash("/extending", route("/extending")!)).toBe(true);
-    expect(needsPageSlash("/examples/triage-board/", route("/examples/triage-board/")!)).toBe(false);
+    expect(
+      needsPageSlash("/examples/triage-board/", route("/examples/triage-board/")!),
+    ).toBe(false);
     expect(route("/examples/api/event")).toEqual({
       root: "/examples",
       inside: "api/event",
@@ -102,29 +110,51 @@ describe("website page routing", () => {
       ...pages["/examples/triage-board"],
     });
     expect(isPrivatePageRequest("/_leaf/pages/index/index.html")).toBe(true);
-    expect(isPrivatePageRequest("/examples/triage-board/_leaf/agent/fail")).toBe(
-      true,
-    );
+    expect(isPrivatePageRequest("/examples/triage-board/_leaf/agent/fail")).toBe(true);
     expect(isPrivatePageRequest("/examples/triage-board/api/state")).toBe(false);
   });
 
   it("marks private state for only its page and release", () => {
     const root = "/examples/triage-board";
     const release = manifest.release;
-    expect(activeFromCookie(
-      `${ACTIVE_COOKIE_PREFIX}-page-examples_triage-board=${release}`, true, root, release,
-    )).toBe(true);
-    expect(activeFromCookie(
-      `${HTTP_ACTIVE_COOKIE_PREFIX}-page-examples_triage-board=${release}`, false, root, release,
-    )).toBe(true);
-    expect(activeFromCookie(
-      `${HTTP_ACTIVE_COOKIE_PREFIX}-page-examples_triage-board=${release}`, true, root, release,
-    )).toBe(false);
-    expect(activeFromCookie(
-      `${ACTIVE_COOKIE_PREFIX}-page-examples_triage-board=${"b".repeat(64)}`, true, root, release,
-    )).toBe(false);
-    expect(activeFromCookie(`${ACTIVE_COOKIE_PREFIX}-root=${release}`, true, root, release)).toBe(false);
-    expect(activeFromCookie(`${ACTIVE_COOKIE_PREFIX}=${release}`, true, root, release)).toBe(false);
+    expect(
+      activeFromCookie(
+        `${ACTIVE_COOKIE_PREFIX}-page-examples_triage-board=${release}`,
+        true,
+        root,
+        release,
+      ),
+    ).toBe(true);
+    expect(
+      activeFromCookie(
+        `${HTTP_ACTIVE_COOKIE_PREFIX}-page-examples_triage-board=${release}`,
+        false,
+        root,
+        release,
+      ),
+    ).toBe(true);
+    expect(
+      activeFromCookie(
+        `${HTTP_ACTIVE_COOKIE_PREFIX}-page-examples_triage-board=${release}`,
+        true,
+        root,
+        release,
+      ),
+    ).toBe(false);
+    expect(
+      activeFromCookie(
+        `${ACTIVE_COOKIE_PREFIX}-page-examples_triage-board=${"b".repeat(64)}`,
+        true,
+        root,
+        release,
+      ),
+    ).toBe(false);
+    expect(
+      activeFromCookie(`${ACTIVE_COOKIE_PREFIX}-root=${release}`, true, root, release),
+    ).toBe(false);
+    expect(
+      activeFromCookie(`${ACTIVE_COOKIE_PREFIX}=${release}`, true, root, release),
+    ).toBe(false);
     expect(activeFromCookie(null, true, root, release)).toBe(false);
     expect(activeCookie(true, root, release)).toBe(
       `${ACTIVE_COOKIE_PREFIX}-page-examples_triage-board=${release}; Path=/; Secure; HttpOnly; SameSite=Lax`,

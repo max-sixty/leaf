@@ -63,43 +63,58 @@ other page files and the external state listed below.
   captures the media its document names, but every host serves media at the page root,
   and documents, messages, and the runtime all address it there.
 
-- `events.jsonl` — append-only event log; an event's seq is its line number (1-based)
+- `events.jsonl` — append-only event log; an event's seq is its line number (1-based).
+  Stored rows include private native session `context` when available. Application readers
+  strip it before admission, projections, delivery or public event output.
+  Diagnostic queries read raw events using the current application rules.
 
-- `interactions.jsonl` — diagnostic JSON-lines trace of server requests and browser
-  interactions, including refused requests. It is separate from `events.jsonl` and
-  never enters page state or acknowledgement. `leaf page interactions` reads it
-  chronologically, deduplicates retries, reconstructs complete split records, and
-  reports missing sequences and incomplete records before applying time or type
-  filters. No final gap can be inferred from an unsent tail. Server requests have
-  no browser session association, so a session filter excludes them. Human output
-  uses the reader's local timezone and shortens long values; `--json` preserves
-  complete reconstructed values. The server appends request method, path without query, status, and
-  duration for every request except a successful `/api/news` look or delivery of a
-  resource's bytes (a module, stylesheet, or media file); `/api/interaction` appends browser batches with a session id, scoped
-  page address, and server receipt time. All descendant sample activity remains
-  in the containing authored page's trace, with complete root-relative sample
-  addresses; releasing any sample leaves its recorded activity intact. The diagnostic
-  file changes neither page/source reading nor presence cache keys. It is private page data and is never served as an asset.
-  Command records capture the selected command's title and description before
-  it runs, together with current focus and document scroll. Following focus and
-  scroll observations show its effect, including commands that change no page event.
-  A tab retries failed batches and may resend an in-flight batch on page hide;
-  `(session, sequence)` identifies duplicates. Large browser records arrive as
-  `interaction_part` rows whose `json` fields concatenate in `part` order.
-  A tab retains at most 512 pending browser records: when delivery falls behind,
-  it sheds resource timings and repeated input observations first, then older actions only to admit new
-  actions. New repeated observations yield to pending actions. Sequence gaps show
-  where records were lost; a single record too large to fit is marked
-  `interaction_omitted`. This is a best-effort diagnostic trace, not an audit
-  guarantee: an offline tab closed with unsent data may lose it. The semantic
-  event log remains the durable record of accepted decisions.
-  Browser admission validates the diagnostic transport fields (timestamps,
-  sequences, target paths, node identities, and split-record coordinates), while
-  observation types and other payload fields remain open. The reader trusts what
-  admission wrote: it skips a line a crash tore, keeps the first copy of a retried
-  row, and reassembles split records, marking a group whose parts join into no
-  entry as `interaction_unreadable`. Rows without a timestamp remain visible
-  under time filters as `unknown-time`.
+- `observations.jsonl` — private, best-effort diagnostic JSON-lines trace of
+  server requests, browser observations and developer run context. It never enters
+  page state or acknowledgement and is never served as an asset. The semantic
+  `events.jsonl` remains the durable record of accepted decisions.
+
+  Every stored row has a host-clock `ts`, assigned by the append door (internal
+  imports may supply `ts`). Browser observations retain their wall clock as
+  `observed_at`, a positive `sequence`, finite nonnegative `monotonic_ms`,
+  and `visibility` (`visible` or `hidden`). Admission validates these common fields
+  once; observation types and other payload fields remain open. `/api/interaction`
+  adds session identity and the scoped root-relative page address. Descendant sample
+  activity stays in the containing page's trace after a sample is released.
+  Server request rows have type `request`, method, path without query, status and
+  duration; successful news looks and resource-byte delivery are excluded.
+
+  `leaf page interactions` combines raw event records and private observations,
+  orders by host time and keeps the first copy of each
+  `(session, sequence)`. Its end cutoff defines observed history, then gap detection
+  precedes start, session and type filtering. Missing sequences remain visible under
+  a type filter; an unsent tail leaves no evidence. Server and developer records have
+  no browser session association. A torn append line is skipped. The command prints
+  each admitted observation or gap as one JSON line, retaining its complete payload.
+
+  Each browser sequence names one observation. A serialized observation over 40,000
+  UTF-8 bytes becomes `interaction_omitted`, retaining its original type, size and
+  common timing fields instead of its payload. There is no multipart transport or
+  reassembly. A tab retains at most 512 pending observations, shedding resource
+  timings and repeated input first, then older actions to admit new actions. New
+  repeated observations yield to pending actions. Failed batches retry; page hide
+  may resend an in-flight batch. Sequence gaps expose lost observations.
+
+  Command observations capture the selected title and description, focus and scroll
+  before execution. `event_submit` records local enqueue with its `attempt`;
+  `reply_visible` records actual message or working words entering a visible banner,
+  thread, or On list, with reply/input identity and presentation kind. Generic
+  delivery labels do not count. Compare monotonic values only within one browser
+  session; host receipt and browser wall time do not measure send-to-visible latency.
+  Native session context captures harness name, cwd, validated transcript path,
+  and the lifecycle's turn and `provider` flag as they stood at the event. The
+  timing query combines this with the event's recorded session and turn; it labels
+  a turn native or Leaf-created only when that turn matches the captured lifecycle.
+  A missing event turn remains unknown. Browser `session` identifies a document
+  and its clock, separately from native session identity.
+  Developer `run_context` declares `purpose`, `run` and optional authored source or
+  test identity before synthetic input or preview use. Purpose describes a run,
+  rather than proving a human gesture. `leaf-dev response-times` preserves missing
+  evidence and exports timing rows without message text.
 
 - `user-views.json` — replaceable per-document browser
   observations (`user_views.py`). These are author
@@ -114,7 +129,7 @@ other page files and the external state listed below.
   `data.py` owns storage and updates.
 
 - `files.json` — explicit local text-file grants, written by `leaf file bind PAGE
-  ID PATH` as `{ "bindings": { "ID": "/absolute/canonical/path" } }`.
+ID PATH` as `{ "bindings": { "ID": "/absolute/canonical/path" } }`.
   `file_bindings.py` owns the grants and current-file reads and writes. Browser
   requests name only a binding, never a path. The page's reading stamps each bound
   file and the state answer carries those stamps under `files`, so a tab hears a
@@ -193,7 +208,8 @@ other page files and the external state listed below.
 - `<state-home>/rows/<page-key>.json` — disposable delivery output of a serving
   page's own canonical activity. `server_rows.py` owns the record, producer and
   freshness contract. It is never read by a page's semantic fold; losing it only
-  hides that neighbor until the server's next maintenance look.
+  hides that neighbor until the server's next maintenance look. A neighbour
+  reading deletes a row whose server lease no process holds.
 
 ## Revision delivery
 
@@ -208,8 +224,9 @@ document or keeps its widgets (`revision_artifact.py`).
 `layer` object, shared with `/api/state`, reports the vendored generation,
 fingerprint, server identity, packages, and producer;
 `source` names `index.html`, whether that candidate is live, and any validation
-error. `active.file` names the immutable revision the live root actually
-shows when one exists; `data` names the contract file, the value directory, and any source whose
+error, including the refusal of a layer this Leaf cannot serve
+(`layer.incompatible_layer`). `active.file` names the immutable revision the live
+root actually shows when one exists; `data` names the contract file, the value directory, and any source whose
 value fails its contract.
 `active.executable`, shared with `/api/state`, gives the active revision's
 nullable executable digest. Delivery emits `<meta name="lf-executable">` when a
@@ -218,7 +235,7 @@ digest is available; `../../assets/runtime/version.js` owns the resulting instal
 `leaf page events --after`; it is distinct from the acknowledgement cursor.
 
 The page's document is not repeated in the reading: an agent reads the HTML at
-`active.file` beside `state`, which lists each standing user action by widget, unit and
+`active.file` beside `state`, which lists each user action in force by widget, unit and
 verb with the detail it carries, so where the two differ the page shows the action.
 `data_bindings` names each bound source and the widgets that read it, and
 `data/<source>.json` holds its publication.
@@ -229,13 +246,13 @@ messages, with bounded history selected by `--after` and `--limit`, and each
 message's frozen markup under
 `content` (`construction.py`), since that markup has no file of its own. An authored
 node keeps its `tag`, effective `attrs` and `content`, and `source` line and column; a
-standing event supplies its exact `state` and origin, and `authored` preserves the
+event in force supplies its exact `state` and origin, and `authored` preserves the
 input it replaced. Widget `inputs` join each binding to its source's current value,
 contract, source id and revision, or to the `error` a failing value reads as;
 contracts with a deferred record field expose the manifest plus the value file and
 its revision for their payload. The reading's `content_source` names the thread and
 vocabulary file. A widget on the page names itself: the reading is its `widget`
-element, the `state` and `reports` standing on it, the open `todos` on it,
+element, the `state` and `reports` in force on it, the open `todos` on it,
 the canonical `asks` sourced by it, and the `workflows` it is the subject of, with
 their `activity` obligations. Page ids
 and event ids share one address space, which is why `page check` refuses an authored

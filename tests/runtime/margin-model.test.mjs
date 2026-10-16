@@ -371,7 +371,7 @@ test("placement counts every secondary control beside the primary", () => {
 test("focused owner exposes only its complete declared controls", () => {
   const entry = inventory({
     offers: [
-      offer("standing", [control("primary")]),
+      offer("main", [control("primary")]),
       offer(
         "reaction",
         Array.from({ length: 6 }, (_, index) => control(String(index))),

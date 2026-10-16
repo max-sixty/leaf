@@ -23,14 +23,15 @@ from render_harness import (
     Traffic,
     _traffic,
     holding,
+    http_error_console,
     is_problem,
     leaf_page,
     open_page,
     panel_settled,
+    reported_browser_errors,
     round_trip,
     select,
     sending,
-    take_browser_errors,
     told,
     write,
 )
@@ -78,10 +79,11 @@ def _agent_update_reply(page_dir, root, number, for_event=None):
     )["id"]
 
 
-def test_main_reply_replaces_unread_progress_before_the_thread_is_opened(
+def test_progress_is_never_unread_and_reading_its_answer_leaves_it_folded(
     browser, serve
 ):
-    """Reading a main reply clears unread without unfolding its completed progress."""
+    """Pending progress pulls the user back to nothing; the answer that folds it is
+    the thread's one unread message, and reading it unfolds nothing."""
     url = serve(PANEL_PAGE)
     panel_comment(serve.page_dir, "An earlier conversation.")
     root = panel_comment(serve.page_dir, "Check the schedule.")
@@ -93,7 +95,7 @@ def test_main_reply_replaces_unread_progress_before_the_thread_is_opened(
     panel_settled(page)
     card = page.locator(f'.lf-thread[data-id="{root}"]')
     expect(card).not_to_have_attribute("open", "")
-    expect(card.locator(".lf-thread-unread")).to_have_text("1 unread")
+    expect(card.locator(".lf-thread-unread")).to_have_count(0)
 
     answer = thread_model.post_reply(
         serve.page_dir, {"to": root, "for": root}, "Both mounts fit."
@@ -275,7 +277,7 @@ def test_an_acknowledgement_neither_waits_for_nor_holds_up_a_gesture(browser, se
         == []
     )
     assert page.evaluate(
-        "async () => !(await window.__lfRuntimeImport('/runtime/application.js')).hasPending()"
+        "async () => (await window.__lfCheckApi()).readApplication().unresolved.length === 0"
     )
 
     card.get_by_role("button", name="Resolve thread").click()
@@ -303,10 +305,16 @@ def test_an_acknowledgement_neither_waits_for_nor_holds_up_a_gesture(browser, se
         "Couldn't send" in text
         for text in page.locator(".lf-notice").all_text_contents()
     )
-    assert all(
-        is_problem(error, "Failed to load")
-        or (error.code == "failed-load" and "/api/event" in error.values["url"])
-        for error in take_browser_errors(page)
+    reported_browser_errors(
+        page,
+        lambda error: (
+            is_problem(error, http_error_console(400))
+            and "/api/event" in error.values["url"]
+        ),
+        lambda error: (
+            is_problem(error, "Failed to load resource: net::ERR_FAILED")
+            and "/api/event" in error.values["url"]
+        ),
     )
 
 
@@ -589,78 +597,6 @@ def test_a_sample_in_a_native_modal_escapes_inherited_inertness(browser, serve):
     child.locator(".lf-threads-toggle").focus()
     _open_first_unread(page, child)
     _read_by_the_sample(page, child)
-
-
-def _framed_reader(browser, serve):
-    """A Leaf page framed by its own origin, below the containing page's first screen,
-    with its first unread message opened unseen. Returns the containing page, the
-    frame's locator and the framed page, which keeps a ledger of trips of its own."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Framed reading",
-                '<h1>Containing page</h1><div id="frame-gap"></div>',
-                head="<style>#frame-gap { height: 2000px; }"
-                " #framed-reader { display: block; width: 100%; height: 500px;"
-                " border: 0; margin-bottom: 2000px; }</style>",
-            ),
-            events=[
-                {
-                    "id": SAMPLE_READER,
-                    "kind": "comment",
-                    "author": "agent",
-                    "agent": "Agent",
-                    "revision": 1,
-                    "text": "A framed answer for the user.",
-                }
-            ],
-        ),
-    )
-    # Below the first screen, the framed page opens its first unread message unseen.
-    page.locator("#frame-gap").evaluate(
-        """async (gap, url) => {
-            const frame = document.createElement('iframe');
-            frame.id = 'framed-reader';
-            frame.src = url;
-            const loaded = new Promise(resolve =>
-                frame.addEventListener('load', resolve, {once: true}));
-            gap.after(frame);
-            await loaded;
-        }""",
-        page.url,
-    )
-    frame = page.locator("#framed-reader")
-    child = frame.element_handle().content_frame()
-    wait_until_ready(child)
-    child.lf_traffic = Traffic(child)
-    child.locator(".lf-threads-toggle").focus()
-    page.evaluate("scrollTo(0, 0)")
-    _open_first_unread(page, child)
-    _still_unread(page, child)
-    return page, frame, child
-
-
-def _framed_message_box(child):
-    return _message_body(child).evaluate(
-        "body => { const box = body.getBoundingClientRect();"
-        " return {top: box.top, height: box.height}; }"
-    )
-
-
-def _place_frame(frame, top):
-    """Scroll the containing page until the frame's top stands `top` down its window."""
-    frame.evaluate(
-        "(frame, at) => scrollBy(0, frame.getBoundingClientRect().top - at)", top
-    )
-
-
-def _framed_read(serve, child):
-    expect(child.locator(".lf-first-unread")).to_be_hidden()
-    round_trip(child)
-    assert _read_events(serve.page_dir)[-1]["messages"] == [
-        {"message": SAMPLE_READER, "version": SAMPLE_READER}
-    ]
 
 
 def _box_height(locator):
@@ -957,11 +893,11 @@ def _to_upper_third(locator):
 def test_a_reopening_in_a_folded_diff_thread_waits_in_its_summary(
     browser, serve, opening
 ):
-    """A resolved diff thread stands folded to its summary. An agent's reply that
-    reopened it unfolded it under the reader, and every diff line after it moved down by
-    the whole thread. It stays folded, its summary says what is waiting, and the
-    keyboard, left on the thread by the resolve, reaches the summary and opens it to the
-    thread, open, with the new turn."""
+    """A resolved diff thread stands folded in its outlet's Resolved disclosure. An
+    agent's reply that reopened it unfolded it under the reader, and every diff line
+    after it moved down by the whole thread. It stays folded, the disclosure's summary
+    says what is waiting, and the keyboard, which the resolve left on that summary,
+    opens it to the thread, open in the disclosure's place, with the new turn."""
     url = serve(LONG_LINE_DIFF_PAGE)
     data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
     page = open_page(browser, url)
@@ -976,38 +912,39 @@ def test_a_reopening_in_a_folded_diff_thread_waits_in_its_summary(
         if event["kind"] == "comment"
     )
     thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+    resolved = page.locator("lf-diff .lf-resolved-threads")
+    summary = resolved.locator(":scope > summary")
     # The send leaves the user on the thread, and Resolve is its first stop.
     page.keyboard.press("Tab")
     with sending(page, "the resolve"):
         page.keyboard.press("Enter")
-    expect(thread).to_be_focused()
-    summary = thread.locator(":scope > summary")
-    expect(summary).to_have_text("Resolved · 1 message")
-    _to_upper_third(thread)
-    height = _box_height(thread)
+    expect(summary).to_be_focused()
+    expect(summary).to_have_text("Resolved · 1")
+    expect(thread).to_be_hidden()
+    _to_upper_third(resolved)
+    height = _box_height(resolved)
     # Resolving answered the comment, so the agent's turn is one nothing asked for.
     reply = thread_model.post_reply(serve.page_dir, {"to": root}, "The route stays.")
     told(page)
-    expect(summary).to_have_text("Reopened · 1 new reply")
-    expect(thread).not_to_have_attribute("open", "")
-    assert _box_height(thread) == pytest.approx(height, abs=0.5)
+    expect(summary).to_have_text("Resolved · 1 · Reopened · 1 new reply")
+    expect(resolved).not_to_have_attribute("open", "")
+    assert _box_height(resolved) == pytest.approx(height, abs=0.5)
 
     # A native open-attribute checkpoint runs before paint. The first opened body
-    # must already contain the released news, rather than the older resolved layout.
-    thread.evaluate("""node => {
-      window.openedThread = null;
+    # must already draw the released news, the thread reopened in the disclosure's
+    # place, rather than the older resolved layout inside it.
+    resolved.evaluate("""node => {
+      window.openedResolved = null;
       new MutationObserver(() => {
-        if (!node.open || window.openedThread) return;
-        window.openedThread = {
-          messages: [...node.querySelectorAll('.lf-msg')].map(message => message.dataset.event),
-          reply: Boolean(node.querySelector(':scope > .lf-thread-reply leaf-text')),
+        if (!node.open || window.openedResolved) return;
+        window.openedResolved = {
+          shown: node.isConnected,
+          threads: node.querySelectorAll('.lf-page-thread').length,
         };
       }).observe(node, {attributeFilter:['open']});
     }""")
-    page.keyboard.press("Tab")
-    expect(summary).to_be_focused()
     if opening == "programmatic":
-        thread.evaluate("""node => {
+        resolved.evaluate("""node => {
           const open = document.createElement('button');
           open.textContent = 'Open disclosure';
           open.style.cssText = 'position:fixed;left:0;top:80px;z-index:9999';
@@ -1017,12 +954,11 @@ def test_a_reopening_in_a_folded_diff_thread_waits_in_its_summary(
         page.get_by_role("button", name="Open disclosure", exact=True).click()
     else:
         page.keyboard.press(opening)
-    assert page.evaluate("openedThread") == {
-        "messages": [root, reply["id"]],
-        "reply": True,
-    }
-    expect(thread).to_have_attribute("open", "")
-    expect(summary).to_be_hidden()
+    assert page.evaluate("openedResolved") == {"shown": False, "threads": 0}
+    expect(resolved).to_have_count(0)
+    if opening == "Enter":
+        expect(thread).to_be_focused()
+    expect(thread.locator(".lf-msg")).to_have_count(2)
     expect(thread.locator(f'.lf-msg[data-event="{reply["id"]}"]')).to_be_visible()
     expect(thread.locator(":scope > .lf-thread-reply leaf-text")).to_be_visible()
 
@@ -1270,16 +1206,12 @@ def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marke
         expect(threads.last).to_contain_text("And the handler's name?")
     if end == "replied":
         expect(threads.first).to_contain_text("Yes, for one release.")
-    if end == "settled":
-        expect(threads.first.locator(":scope > summary")).to_have_text(
-            "Resolved · 1 message"
-        )
-    if end == "keyboard":
+    if end in ("keyboard", "settled"):
         # The marker goes with what it held, and the user lands on the thread it showed,
-        # or on the summary a settled thread folds to.
+        # a settled one in its outlet's Resolved disclosure, which opens to show it.
         expect(threads.first).to_be_focused()
     if end == "settled":
-        expect(threads.first.locator(":scope > summary")).to_be_focused()
+        expect(outlet.locator(".lf-resolved-threads")).to_have_attribute("open", "")
 
 
 @pytest.mark.parametrize(("width", "under_panel"), [(900, True), (1920, False)])

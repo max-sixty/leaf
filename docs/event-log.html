@@ -36,7 +36,7 @@
           >
           and the package contract's
           <a
-            href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md#user-state"
+            href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/package-data.md#user-state"
             >User state</a
           >, which agents and package authors read.
         </p>
@@ -63,7 +63,7 @@ flowchart TD
   Door -- "record" --&gt; Log[("events.jsonl")]
   Log -- "derive state" --&gt; Fold["State"]
   Initial["Authored initial values"] --&gt; Fold
-  Fold -- "renderState" --&gt; Widget
+  Fold -- "render()" --&gt; Widget
 </pre>
         </lf-diagram>
         <table id="layers-table">
@@ -185,8 +185,7 @@ flowchart TD
             picked option. This effect also determines the payload:
             <code>detail.value</code>
             must be an array of owned option ids. The agent writes the pick into the
-            next version, and
-            <code>page check</code> refuses a version that contradicts it.</lf-note
+            next version.</lf-note
           >
           <lf-note at="11"
             >The unit is the value of <code>detail.option</code>, so each added option
@@ -201,7 +200,7 @@ flowchart TD
             <code>multiple</code> group.</lf-note
           >
           <lf-note at="17"
-            >The ask's typed answer comes from the standing
+            >The ask's typed answer comes from the current
             <code>choose</code> value.</lf-note
           >
           <lf-note at="18"
@@ -424,7 +423,7 @@ flowchart TD
           which updates the widget until a stamped version settles the report. The
           package contract's
           <a
-            href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md#user-state"
+            href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/package-data.md#user-state"
             >User state</a
           >
           gives the complete rules.
@@ -461,7 +460,7 @@ flowchart TD
           </li>
           <li>
             <a
-              href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md#user-state"
+              href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/package-data.md#user-state"
               >User state</a
             >: how a package declares <code>x-state</code> verbs,
             <code>x-awaits.answered</code>, <code>creates</code>, and agent-written

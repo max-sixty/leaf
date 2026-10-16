@@ -20,6 +20,8 @@ from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from known_widget_findings import KNOWN, PACKAGES
 from leaf import cli as cli_model
+from leaf import layer as layer_model
+from leaf import schema as schema_model
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate.widget_quality import widget_findings
 from model_folds import leaf_page
@@ -33,6 +35,11 @@ def test_bundled_widgets_meet_the_widget_quality_checks(browser, package):
     lists for it: a new finding is a regression to fix, and a listed one that no
     longer occurs was fixed, so its entry goes. The pages it reads are full of the
     shifts the check exists to find, so it reads them unwatched."""
+    # compiled_pages lends the browser tier a prepared kernel as its base layer.
+    # Read its assets there rather than adding the checkout's source assets as a
+    # second package over that kernel.
+    if package == schema_model.ASSETS:
+        package = layer_model.ASSETS
     findings = widget_findings(browser.unwatched, package)
     known = KNOWN.get(package.name, set())
     new = [
@@ -64,7 +71,8 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
     line runs past its height, so it scrolls vertically and is named.
 
     `lf-keyed` declares a context key with no `bindingBadge`, so the page never shows
-    it and it is named; `lf-badged` asks for a corner badge, so it is not."""
+    it and it is named; `lf-badged` asks for a corner badge, so it is not. Each finding
+    names the Layout it was read in, and each of these is read in both."""
     package = tmp_path / "package"
     for widget in (
         "lf-grow",
@@ -120,7 +128,7 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
     registry_path.write_text(json.dumps(registry))
 
     ran = subprocess.run(
-        [*LEAF_COMMAND, "package", "check", str(package), "--render", "--json"],
+        [*LEAF_COMMAND, "package", "check", str(package), "--render"],
         capture_output=True,
         text=True,
         check=False,
@@ -137,8 +145,15 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
     findings = report["findings"]
     assert {f["severity"] for f in findings} == {"advice"}, findings
     named = {}
+    layouts = {}
     for f in findings:
-        named.setdefault(f["code"], {})[f["at"]] = f["values"]
+        values = dict(f["values"])
+        if "layout" in values:
+            layouts.setdefault((f["code"], f["at"]), set()).add(values.pop("layout"))
+        named.setdefault(f["code"], {})[f["at"]] = values
+    # Each page of examples is read as a column document and in a workspace's pane, and
+    # these widgets behave alike in both.
+    assert all(seen == {"column", "workspace"} for seen in layouts.values()), layouts
     assert set(named) == {
         "example",
         "keeps-first-box",

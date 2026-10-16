@@ -26,7 +26,6 @@ from leaf_dev.arms import (
     read_trace,
     run_leaf,
     scratch,
-    waits_started,
 )
 from leaf_dev.eval_cases import definition
 from leaf_dev.review_scenario import REQUEST, prepare
@@ -87,7 +86,6 @@ def score(run: Path) -> list[dict]:
     """Read one run's page log and stream into one reading per comment it was sent."""
     events = read_events(run)
     stream = read_trace(run / "stream-1.jsonl")
-    waits = {wait for r in stream for wait in waits_started(r)}
     timed_out = (run / "timed-out").exists()
     turns = [record for record in stream if record["type"] == "result"]
     session_completed = bool(turns) and all(completed([turn]) for turn in turns)
@@ -126,16 +124,7 @@ def score(run: Path) -> list[dict]:
                 ended = moment(record)
                 turn_completed = completed([record])
                 break
-            if (
-                record.get("subtype") == "task_notification"
-                and record["tool_use_id"] in waits
-                and delivery is None
-            ):
-                delivery, transport = record, "notification"
-            elif (stop_blocked(record) or hook_delivered(record)) and transport in (
-                None,
-                "notification",
-            ):
+            if (stop_blocked(record) or hook_delivered(record)) and transport is None:
                 delivery = record
                 transport = f"{record['hook_event'].lower()} hook".replace(
                     "userpromptsubmit", "prompt"

@@ -67,6 +67,8 @@ const quotedBy = (element) => {
   return false;
 };
 
+/** @param {Document | Element | DocumentFragment} [root]
+ * @param {{kind: "page" | "thread", revision?: number, thread?: string, message?: string}} [documentContext] */
 export function stageWidgetDescriptors(
   root = document,
   documentContext = { kind: "page", revision: runtime.currentRevision },
@@ -76,14 +78,14 @@ export function stageWidgetDescriptors(
   for (const element of candidates(initialSource(root))) {
     if (!element.id) continue;
     const live = initialOrigin(element);
-    const standing = byElement.get(live);
+    const existing = byElement.get(live);
     if (
-      standing &&
-      standing.document.kind === documentContext.kind &&
+      existing &&
+      existing.document.kind === documentContext.kind &&
       (documentContext.kind === "thread" ||
-        standing.document.revision === documentContext.revision)
+        existing.document.revision === documentContext.revision)
     ) {
-      captured.set(element.id, standing);
+      captured.set(element.id, existing);
       continue;
     }
     const declaration = structuredClone(runtime.registry[element.localName]);

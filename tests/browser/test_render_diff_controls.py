@@ -13,6 +13,8 @@ from render_harness import (
     leaf_page,
     open_page,
     reported_browser_errors,
+    resized,
+    sending,
 )
 
 
@@ -273,6 +275,73 @@ diff --git a/other.md b/other.md
     expect(head.locator("..").locator("[data-line]").last).to_contain_text("new")
 
 
+def test_one_press_folds_every_shown_file_and_the_page_shows_between_them(
+    browser, serve
+):
+    """The filter's quiet press opens every file the filter shows while any is closed,
+    and closes them once all are open. The diff keeps the page's paper and ink between
+    its files after the first file brings the renderer's sheets, whose `:host` is one
+    file's box where here it is the whole diff."""
+    patch = "".join(
+        f"diff --git a/src/f{index}.py b/src/f{index}.py\n"
+        f"--- a/src/f{index}.py\n+++ b/src/f{index}.py\n@@ -1 +1 @@\n-old\n+new\n"
+        for index in range(3)
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Fold all",
+                f'<h1>Fold all</h1><lf-diff id="patch" collapsed><pre>{escape(patch)}'
+                "</pre></lf-diff>",
+            )
+        ),
+    )
+    diff = page.locator("#patch")
+    folds = diff.locator("details.lf-diff-fold")
+    editor = diff.locator(".lf-diff-search input")
+    press = diff.locator(".lf-diff-fold-all")
+    paints = """node => {
+      const style = getComputedStyle(node);
+      return [style.backgroundColor, style.color];
+    }"""
+    page_paint = diff.evaluate(paints)
+    assert page_paint[0] == "rgba(0, 0, 0, 0)"
+    folds.first.locator("summary").click()
+    rendered(page)
+    assert diff.evaluate(paints) == page_paint
+
+    expect(press).to_have_accessible_name("Expand all files")
+    press.click()
+    for index in range(3):
+        expect(folds.nth(index)).to_have_attribute("open", "")
+    rendered(page)
+    expect(folds.locator("[data-line]")).to_have_count(6)
+    expect(press).to_have_accessible_name("Collapse all files")
+
+    # Only what the filter shows, and the field's Tab order reaches the press.
+    editor.fill("f1")
+    expect(press).to_have_accessible_name("Collapse all files")
+    editor.press("Tab")
+    expect(press).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(folds.nth(1)).not_to_have_attribute("open", "")
+    expect(press).to_have_accessible_name("Expand all files")
+    # A filter that shows nothing to open idles the press in its room, so the count
+    # beside it does not move.
+    count = diff.locator(".lf-diff-progress")
+    place = count.bounding_box()
+    editor.fill("none")
+    expect(count).to_have_text("0 of 3")
+    expect(press).to_have_attribute("inert", "")
+    assert count.bounding_box() == place
+    editor.fill("")
+    expect(press).not_to_have_attribute("inert", "")
+    expect(folds.nth(0)).to_have_attribute("open", "")
+    expect(folds.nth(2)).to_have_attribute("open", "")
+    expect(press).to_have_accessible_name("Expand all files")
+
+
 PATH_PARTS = """head => {
   const path = head.querySelector('.lf-diff-path');
   const room = path.getBoundingClientRect();
@@ -327,7 +396,7 @@ def test_printed_diff_rows_hold_their_whole_paths(browser, serve):
 def test_closed_manifest_rows_judge_their_evidence_before_showing_metadata(
     browser, serve
 ):
-    """Closed files cannot advertise a copy, mode or count their Git evidence refuses."""
+    """Closed rows derive copy, mode and counts from checked Git evidence."""
     patch = """diff --git a/original.py b/copied.py
 similarity index 75%
 copy from original.py
@@ -341,12 +410,12 @@ new mode 100755
 +new = True
 """
     corruptions = {
-        "operation": "rename",
-        "previousPath": "wrong.py",
-        "binary": True,
-        "hunkCount": 2,
-        "newMode": "100644",
-        "additions": 9,
+        "copy": patch.replace("copy from original.py", "copy from wrong.py"),
+        "move": patch.replace("copy from original.py\n", ""),
+        "mode": patch.replace("old mode 100644\n", ""),
+        "hunk": patch.replace("@@ -1 +1 @@", "@@ -2 +2 @@").replace(
+            "+new = True", "+new = True\n+lost"
+        ),
     }
     ids = ["valid", *corruptions]
     url = serve(
@@ -362,13 +431,13 @@ new mode 100755
     for name in ids:
         manifest = patch_manifest(patch)
         if name != "valid":
-            manifest["files"][0][name] = corruptions[name]
+            manifest["files"][0]["patch"] = corruptions[name]
         data_model.cmd_data_set(serve.page_dir, f"source-{name.lower()}", manifest)
     page = open_page(browser, url)
     rendered(page)
     for name in corruptions:
         host = page.locator(f"#{name.lower()}")
-        expect(host.locator(".lf-error")).to_contain_text(f"disagrees at {name}")
+        expect(host.locator(".lf-error")).to_contain_text("cannot be shown")
         expect(host.locator(".lf-diff-stat")).to_have_count(0)
         expect(host.locator(".lf-diff-evidence")).to_have_count(0)
         expect(host.locator(".lf-diff-source-path")).to_have_count(0)
@@ -388,3 +457,67 @@ new mode 100755
     ), "checking closed evidence must not load the textual renderer"
     good.locator("summary").click()
     expect(good.locator("[data-line]").last).to_contain_text("new = True")
+
+
+def test_resolved_file_threads_share_the_file_disclosure_edge(browser, serve):
+    """A resolved file conversation keeps its disclosure on the file's edge.
+
+    The two disclosures use the same marker and inline inset at any width;
+    expanded history puts Reopen beside the first message, like Resolve.
+    """
+    patch = "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-old\n+new\n"
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Resolved file conversations",
+                f'<h1>Review app.py</h1><lf-diff id="patch" collapsed><pre>{escape(patch)}</pre></lf-diff>',
+            )
+        ),
+    )
+    diff = page.locator("#patch")
+    diff.locator(".lf-diff-file-comment").click()
+    field = diff.locator("leaf-text")
+    field.press("A")
+    with sending(page, "the file comment"):
+        field.press("ControlOrMeta+Enter")
+    thread = diff.locator(".lf-page-thread")
+    thread.get_by_role("button", name="Resolve thread", exact=True).focus()
+    with sending(page, "the resolution"):
+        page.keyboard.press("Enter")
+    summary = diff.locator(".lf-resolved-summary")
+    expect(summary).to_have_text("Resolved · 1")
+    for width in (1440, 390):
+        resized(page, width, 900)
+        rendered(page)
+        geometry = summary.evaluate("""summary => {
+          const file = summary.closest('.lf-diff-file').querySelector(':scope > details > summary');
+          const marker = node => {
+            const box = node.getBoundingClientRect(), style = getComputedStyle(node);
+            const arrow = getComputedStyle(node, '::before');
+            return {left: box.left + parseFloat(style.paddingLeft),
+              size: arrow.fontSize, content: arrow.content};
+          };
+          return {file: marker(file), resolved: marker(summary)};
+        }""")
+        assert geometry["file"]["left"] == pytest.approx(
+            geometry["resolved"]["left"], abs=0.5
+        ), geometry
+        assert geometry["file"]["size"] == geometry["resolved"]["size"], geometry
+        assert geometry["file"]["content"] == geometry["resolved"]["content"], geometry
+    summary.click()
+    expect(thread).to_be_visible()
+    reopen = thread.get_by_role("button", name="Reopen", exact=True)
+    expect(reopen).to_be_visible()
+    centers = reopen.evaluate("""button => {
+      const head = button.closest('.lf-page-thread').querySelector('.lf-msg-head').getBoundingClientRect();
+      const action = button.getBoundingClientRect();
+      return [head.top + head.height / 2, action.top + action.height / 2];
+    }""")
+    assert centers[0] == pytest.approx(centers[1], abs=0.5), centers
+    with sending(page, "the reopening"):
+        reopen.click()
+    expect(summary).to_have_count(0)
+    expect(
+        thread.get_by_role("button", name="Resolve thread", exact=True)
+    ).to_be_visible()

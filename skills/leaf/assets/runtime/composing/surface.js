@@ -76,7 +76,6 @@ import {
 import {
   composerOpen,
   createSelectionComposer,
-  fab,
   fabBar,
   fabInput,
   pendingAbout,
@@ -87,7 +86,7 @@ import {
   commandReferenceOpen,
 } from "../keyboard/command-reference.js";
 
-import { paintBarReactions } from "../reactions.js";
+import { paintBarReactions, reactionAvailable } from "../reactions.js";
 import { threadInput, standingThread } from "../thread/landing.js";
 import { replyDraftContext } from "../thread/replies.js";
 import { activeCommandLabel } from "../keyboard/dispatch.js";
@@ -135,7 +134,7 @@ import { heldAsk } from "../standing-target.js";
 import { coarsePointer, pointerAt, pressIsKeyboardActivation } from "../pointer.js";
 import { anchorLabel } from "../thread/messages.js";
 
-import { standingPoint } from "../pointed-place.js";
+import { livePoint } from "../pointed-place.js";
 import { keeps } from "../keeps.js";
 import { move } from "../dom-move.js";
 import { closeVersionMenu, versionMenuIsOpen } from "../version-picker.js";
@@ -170,7 +169,6 @@ export function createResponseSurface({
   pageComment,
   responseHome,
   revealResponseHome = null,
-  threadTransitionOrigin,
   createComment,
   landSent,
   wireInput,
@@ -271,7 +269,7 @@ export function createResponseSurface({
   function restoreFab({ place = true } = {}) {
     if (
       (placement || !place || !fabAnchor || !composerOpen) &&
-      (fabBar.parentElement === responseHome || placement?.holdsHome(responseHome)) &&
+      fabBar.parentElement === responseHome &&
       (!fabInlineOutlet || fabInlineOutlet === responseHome)
     )
       return false;
@@ -332,7 +330,7 @@ export function createResponseSurface({
   };
   const anchorStands = (anchor) => Boolean(responseTarget(anchor));
   const fabPointIn = (target) =>
-    fabAnchor?.quote ? null : standingPoint(target, fabPoint);
+    fabAnchor?.quote ? null : livePoint(target, fabPoint);
   const placement =
     createPlacement?.({
       bar: fabBar,
@@ -406,11 +404,6 @@ export function createResponseSurface({
   // chosen, the button is the affordance; once Comment is open, the input replaces it.
   function paintFab() {
     fabBar.toggleAttribute("data-lf-target-only", Boolean(fabAnchor && !composerOpen));
-    fabBar.style.display = fabAnchor
-      ? "var(--lf-response-display, inline-flex)"
-      : "none";
-    fabInput.style.display = fabAnchor && composerOpen ? "block" : "none";
-    fab.style.display = fabAnchor ? "" : "none";
     composer.syncResponseOptions(fabAnchor);
     if (!fabAnchor) return;
     const label = anchorLabel(fabAnchor, pendingAbout).replace(/^§\s*/, "");
@@ -509,7 +502,7 @@ export function createResponseSurface({
   // enclosing section, but the bar, margin row, note and reaction receipt all stand at
   // the resolved `place`, lifted out of a shadow root by `lightSeat`.
   //
-  // Asked of any anchor rather than only of the standing one: a draft the composer put
+  // Asked of any anchor rather than only of the current one: a draft the composer put
   // away carries its own anchor and nothing else in the runtime can say which block that
   // draft is about, which is what the route back to it has to travel to.
   const anchorTargetAt = (anchor) => {
@@ -689,7 +682,7 @@ export function createResponseSurface({
   //
   // The shared retained intent asks whether a newer gesture has begun, including
   // Escape before the queued frame. A pressed flag cannot answer that: a release
-  // stopped by a widget or let go off-window could leave it standing indefinitely.
+  // stopped by a widget or let go off-window could leave it in place indefinitely.
   let selectionUpdate = null;
   let selectionIntent = null;
   const deferSelectionUpdate = (update) => {
@@ -744,7 +737,7 @@ export function createResponseSurface({
     fabFocusHandoff = null;
   };
   // Every handoff lands here. It is marked at once and lands a frame or more later, and
-  // the user owns the page for the whole of that gap: a passage standing when it lands
+  // the user owns the page for the whole of that gap: a passage selected when it lands
   // that this composer did not open on is theirs, taken since, and focusing the field
   // would collapse it before anything could read it. Standing down releases the mark with
   // it, so the collapse the mark holds out cannot outlive the focus it was holding it for.
@@ -816,7 +809,7 @@ export function createResponseSurface({
   // a selection begun in a label whose pointer press is not a page-word gesture; growing
   // a selection that already stands needs no repaint on each drag frame.
   let selectionStood = false;
-  const reflectSelectionStanding = () => {
+  const reflectSelection = () => {
     const stands = Boolean(pageSelection());
     if (stands === selectionStood) return;
     selectionStood = stands;
@@ -960,9 +953,9 @@ export function createResponseSurface({
     panelIsOpen,
     setReact,
     reactionTokens,
+    reactionAvailable,
     designModeActive,
     openPageThread,
-    threadTransitionOrigin,
     anchorTravelAt,
     bringForward,
     fabAnchorAt,
@@ -1018,7 +1011,11 @@ export function createResponseSurface({
         actionPress =
           (selectionOffered && inChrome(target)) ||
           target === selectionComment ||
-          Boolean(target.closest?.(".lf-react-surface, .lf-composer"));
+          Boolean(
+            /** @type {Partial<Element>} */ (target).closest?.(
+              ".lf-react-surface, .lf-composer",
+            ),
+          );
       },
       true,
     );
@@ -1049,7 +1046,7 @@ export function createResponseSurface({
         rememberPointerSelection();
         if (coarsePointer.matches && pointerSelecting && !selectionGestureClaimed)
           rememberSelection();
-        reflectSelectionStanding();
+        reflectSelection();
         return;
       }
       // Focus and action handoffs own the captured target while the browser collapses
@@ -1074,7 +1071,7 @@ export function createResponseSurface({
         !composer.composerHolds()
       )
         putAwayFab();
-      reflectSelectionStanding();
+      reflectSelection();
     });
     document.addEventListener("mouseup", (ev) => {
       if (drawModeActive()) return;
@@ -1161,7 +1158,7 @@ export function createResponseSurface({
       // thread, and with Threads open the reply box it landed in collapsed the selection
       // the user had just made, so the words and the 💬 went with it.
       //
-      // Asked of what this press changed rather than of the standing selection those two
+      // Asked of what this press changed rather than of the current selection those two
       // have to read, because a mark is a painted range with no element to put the question
       // to — and because the state alone is too strict: a press landing inside words
       // already selected keeps them through its own mousedown, so it would refuse the press
@@ -1343,7 +1340,6 @@ export function createResponseSurface({
     keys: ["c"],
     // The surfaces name the destination in front of the user rather than the capability:
     // "Comment" covered all four and so promised none of them.
-    description: () => commentDestination().description,
     title: () => commentDestination().title,
     // A selection made before the anchor pass has run can't be quoted yet, and commenting
     // on the page instead is not what the user asked for — so the press waits, and the

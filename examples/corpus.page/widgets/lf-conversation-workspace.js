@@ -22,8 +22,7 @@ import {
   threadActions,
   threadSummary,
   threadTurns,
-  watchAsks,
-  watchQueues,
+  watchProjection,
   whileConnected,
 } from "/runtime/widget-api.js";
 
@@ -58,8 +57,7 @@ customElements.define(
           this.presentation.unregister();
         };
       });
-      watchAsks(this, () => this.paintObligations());
-      watchQueues(this, () => this.paintObligations());
+      watchProjection(this, () => this.paintObligations());
     }
     build() {
       this.mode = "Conversation";
@@ -84,7 +82,7 @@ customElements.define(
       .index button { width:100%; min-width:0; text-align:start; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
       .index ul { list-style:none; margin:0; padding:0; }
-      .index li { display:flex; gap:4px; margin:4px 0; }
+      .index li { display:flex; gap:4px; margin:4px 0; min-height:3rem; }
       .index li > button:first-child { flex:1; }
       .index li > button:last-child:not(:first-child) { width:auto; }
       .reader > div { margin-bottom:16px; }
@@ -116,8 +114,8 @@ customElements.define(
       this.list = offer("ul");
       this.counts = offer("p", "counts");
       this.queues = Object.fromEntries(
-        ["questions", "tasks", "done"].map((key, i) => {
-          const heading = offer("h4", "", ["Questions", "Tasks", "Done"][i]);
+        ["on_user", "on_agent", "done"].map((key, i) => {
+          const heading = offer("h4", "", ["On me", "On Claude", "Done"][i]);
           const list = offer("ul");
           const group = offer("div", "group");
           group.append(heading, list);
@@ -135,7 +133,7 @@ customElements.define(
         ["index", index],
         ["conversations", this.list],
         ...Object.entries(this.queues).map(([name, body]) => [
-          name.toLowerCase(),
+          name.replaceAll("_", "-"),
           body,
         ]),
       ];
@@ -207,7 +205,6 @@ customElements.define(
           this.rows.set(key, row);
         }
         keepsHidden(row.button, !thread);
-        row.node.style.minHeight = "3rem";
         if (thread) {
           keepsText(row.button, threadSummary(thread).topic);
           keeps(row.button, "aria-current", key === this.selected ? "true" : null);
@@ -282,7 +279,7 @@ customElements.define(
       keepsText(
         this.counts,
         [
-          `${asks.user.length} asks on you`,
+          `${asks.user.length} asks on me`,
           ...(answered.length ? [`${answered.length} answered`] : []),
           ...labels,
         ].join(" · "),
@@ -307,7 +304,6 @@ customElements.define(
             row = { node, open, done };
             this.queueRows.set(identity, row);
           }
-          row.node.style.minHeight = "3rem";
           if (!item) {
             setChildren(row.node, []);
             return row.node;

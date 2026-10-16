@@ -8,14 +8,14 @@ visitor's state lasts.
 
 The pieces this runbook names:
 
-| Path | What it is |
-| --- | --- |
-| `worker/src/index.ts` | The Cloudflare Worker: edge pages, routing to containers, the edge's log records |
-| `worker/src/agent.ts`, `worker/src/model-proxy.ts` | The hosted agent's dispatch and its outbound OpenAI handler |
-| `worker/leaf_website/` | The Python adapter each container runs in front of Leaf's server |
-| `worker/wrangler.toml` | Production (`leaf-website`) and the `dev` environment (`leaf-website-dev`) |
-| `Dockerfile.website` | The container image |
-| `.github/workflows/publish-site.yaml` | The only production deploy |
+| Path                                               | What it is                                                                       |
+| -------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `worker/src/index.ts`                              | The Cloudflare Worker: edge pages, routing to containers, the edge's log records |
+| `worker/src/agent.ts`, `worker/src/model-proxy.ts` | The hosted agent's dispatch and its outbound OpenAI handler                      |
+| `worker/leaf_website/`                             | The Python adapter each container runs in front of Leaf's server                 |
+| `worker/wrangler.toml`                             | Production (`leaf-website`) and the `dev` environment (`leaf-website-dev`)       |
+| `Dockerfile.website`                               | The container image                                                              |
+| `.github/workflows/publish-site.yaml`              | The only production deploy                                                       |
 
 `uv run leaf-dev site` builds the site into `.tmp/site`, with its edge assets in
 `.tmp/site-assets` and the prepared Leaf installation the image installs in
@@ -27,11 +27,11 @@ Leaf uses three Cloudflare tokens, one for each holder. None is stored in this
 repository, and each arrives as `CLOUDFLARE_API_TOKEN` wherever it is used. The
 permissions below use the names Cloudflare's token API reports:
 
-| Token | Reaches | Held by |
-| --- | --- | --- |
-| `Leaf agent administration` | `Individual Workers Editor` on `leaf-website` and `leaf-website-dev`; `Workers Routes Write` on the `leaf.page` zone; `Workers Containers Write`, `Workers Observability Read`, `Account Analytics Read`, and `Workers Metadata Read-Only` on the account | Agents on the maintainer's machine |
-| `Leaf site deploy (CI)` | `Individual Workers Editor` on `leaf-website`; `Workers Routes Write` on the `leaf.page` zone; `Workers Containers Write` and `Account Settings Read` on the account | `publish-site`, through the `cloudflare-deploy` environment |
-| `Leaf observability (Tend CI)` | `Workers Observability Read` and `Account Analytics Read` on the account | Tend's agent, through the `tend` environment |
+| Token                          | Reaches                                                                                                                                                                                                                                                   | Held by                                                     |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `Leaf agent administration`    | `Individual Workers Editor` on `leaf-website` and `leaf-website-dev`; `Workers Routes Write` on the `leaf.page` zone; `Workers Containers Write`, `Workers Observability Read`, `Account Analytics Read`, and `Workers Metadata Read-Only` on the account | Agents on the maintainer's machine                          |
+| `Leaf site deploy (CI)`        | `Individual Workers Editor` on `leaf-website`; `Workers Routes Write` on the `leaf.page` zone; `Workers Containers Write` and `Account Settings Read` on the account                                                                                      | `publish-site`, through the `cloudflare-deploy` environment |
+| `Leaf observability (Tend CI)` | `Workers Observability Read` and `Account Analytics Read` on the account                                                                                                                                                                                  | Tend's agent, through the `tend` environment                |
 
 The account also serves Workers and zones that are not Leaf's, so each token that edits
 a Worker lists the Workers it may edit. `Individual Workers Editor` deploys and
@@ -231,12 +231,12 @@ the Worker's, and the Worker answers each private request with `503` (`rollingOu
 Workers Observability holds the operational logs; Analytics Engine holds only
 aggregate product events. Each record type below has a `component` field:
 
-| `component` | Written by | One record per |
-| --- | --- | --- |
-| `leaf-startup` | Worker | Public document load |
-| `leaf-page-error` | Worker | Runtime fault reported from a page the visitor has not changed yet |
-| `leaf-interaction` | Worker | Batch of browser interaction metadata |
-| `leaf-agent` | Worker and container | Step of a request or hosted turn, and each `500` the adapter answers |
+| `component`        | Written by           | One record per                                                       |
+| ------------------ | -------------------- | -------------------------------------------------------------------- |
+| `leaf-startup`     | Worker               | Public document load                                                 |
+| `leaf-page-error`  | Worker               | Runtime fault reported from a page the visitor has not changed yet   |
+| `leaf-interaction` | Worker               | Batch of browser interaction metadata                                |
+| `leaf-agent`       | Worker and container | Step of a request or hosted turn, and each `500` the adapter answers |
 
 Workers Logs keeps records for at most seven days; a page directory's own `events.jsonl`
 lasts as long as its container. TODO(2026-09-25): Export interaction records to durable
@@ -296,16 +296,16 @@ sampled the result and records may be missing, so narrow the window and query ag
 Each accepted browser event also writes one data point to the `leaf_website_events`
 Analytics Engine dataset, without event content, widget ids, IP addresses, or cookies:
 
-| Field | Value |
-| --- | --- |
-| `index1` | Event id |
-| `blob1` | Public page route |
-| `blob2` | `product` or `example` |
-| `blob3` | Event kind |
-| `blob4` | Action verb, when present |
-| `blob5` | Site release id |
-| `blob6` | The session's 12-digit public reference |
-| `double1` | Page revision, or `0` when absent |
+| Field     | Value                                   |
+| --------- | --------------------------------------- |
+| `index1`  | Event id                                |
+| `blob1`   | Public page route                       |
+| `blob2`   | `product` or `example`                  |
+| `blob3`   | Event kind                              |
+| `blob4`   | Action verb, when present               |
+| `blob5`   | Site release id                         |
+| `blob6`   | The session's 12-digit public reference |
+| `double1` | Page revision, or `0` when absent       |
 | `double2` | `1` when the event needs an agent reply |
 
 Send a query to Cloudflare's Analytics Engine SQL API as the request body:
@@ -347,18 +347,18 @@ Each public document's inline bootstrap reports one `component=leaf-startup` rec
 also when the module graph fails to load. The deployed Worker logs it; the container
 never sees it, and a site served by `leaf_website` alone (the test suite, a local
 preview) acknowledges the report and keeps nothing. Filter by `reference`, `route`,
-browser, or `loadId`.
+or `loadId`. Browser evidence comes from the native request record described below.
 
-| Field | Meaning |
-| --- | --- |
-| `route`, `release`, `currentRelease` | The page, the release its document names, and the release the edge serves |
-| browser, platform, `navigationType` | Browser family and major version, platform, and how the load began |
-| `serverMs`, `firstByteMs`, `firstContentfulPaintMs` | Worker time, network time to the first byte, and first paint |
-| `upgradedMs` | First widget upgrade in the body |
-| `firstStateResponseMs` | First completed `api/state` response for the page (Resource Timing `responseEnd`) |
-| `presentedMs` | When the page came up |
-| `outcome` | How the record closed: `presented`, `failed` (the page reported it could not start), `timeout` (fifteen seconds passed without either), or `abandoned` (the user left first) |
-| `reason` | What went wrong during startup, when anything did |
+| Field                                               | Meaning                                                                                                                                                                                                    |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `route`, `release`, `currentRelease`                | The page, the release its document names, and the release the edge serves                                                                                                                                  |
+| `navigationType`                                    | How the load began                                                                                                                                                                                         |
+| `serverMs`, `firstByteMs`, `firstContentfulPaintMs` | Worker time, network time to the first byte, and first paint                                                                                                                                               |
+| `upgradedMs`                                        | First widget upgrade in the body                                                                                                                                                                           |
+| `firstStateResponseMs`                              | First completed `api/state` response for the page (Resource Timing `responseEnd`)                                                                                                                          |
+| `presentedMs`                                       | When authoritative state or the offline fallback presented                                                                                                                                                 |
+| `outcome`                                           | How the record closed: `presented`, `failed` (the page reported it could not start), `timeout` (fifteen seconds passed without widget upgrade or a declared failure), or `abandoned` (the user left first) |
+| `reason`                                            | What went wrong during startup, when anything did                                                                                                                                                          |
 
 `serverMs` is how long the Worker took to answer, from its `Server-Timing` header. Every
 other time is milliseconds since navigation started. A time not observed is `null`.
@@ -366,18 +366,67 @@ Widgets can upgrade while the first saved-state response still waits. The page
 presents after the state answer is applied, except that the offline fallback can
 present authored content with `firstStateResponseMs: null`.
 
-`presentedMs` says whether the page came up; `outcome` says only how the record closed.
-A page that comes up and then waits on a subresource reports `timeout`, or `abandoned`
-if the user leaves, with `presentedMs` set in both cases.
+`upgradedMs` says when the interface became usable, including new comments while
+saved state loads. `presentedMs` says when that read answered or failed; `outcome`
+says only how the record closed. A healthy state read can take more than fifteen
+seconds after upgrade without reporting a startup timeout.
+A page that presents while a native subresource still loads closes after native
+load, or as `abandoned` if the user leaves first, with `presentedMs` set.
 
 `reason` is at most 300 characters: the entry module or theme that failed to load, the
-message and source position of a script that threw before presentation, or what the
+message and source position of a script that threw before upgrade, or what the
 runtime said when it reported it could not start. A page that recovers and presents
 still carries it, so these records find faults in browsers this repository cannot run.
 Apart from `reason`, the record holds no page content, URL details, cookies, IP
 addresses, or private session id. `reason` is the runtime's own words, but an exception
 thrown while handling a value can quote that value, so treat `reason` as possibly
 containing user text.
+
+### Browser evidence
+
+Cloudflare's native invocation record owns the request headers. For a startup or
+passive page-fault record, take `$metadata.traceId`, then query that trace's
+`cf-worker-event` record. Its `$workers.event.request.headers` holds the raw
+`user-agent` and any `sec-ch-ua`, `sec-ch-ua-platform`, and `sec-ch-ua-mobile` values.
+Interpret those as reported evidence: UA tokens need not identify a unique browser,
+client hints may be absent, and hint brand lists may contain synthetic brands.
+Leaf derives no browser family, version or platform and requests no extra hints.
+
+Using the token and account from [Find a session's records](#find-a-sessions-records),
+query a narrow window around the diagnostic's timestamp:
+
+```sh
+trace_id=...
+from_ms=...
+to_ms=...
+
+jq -n \
+  --arg trace_id "$trace_id" \
+  --argjson from "$from_ms" \
+  --argjson to "$to_ms" \
+  '{queryId:"leaf-browser-evidence",timeframe:{from:$from,to:$to},view:"events",limit:100,parameters:{datasets:[],filterCombination:"and",filters:[{key:"$metadata.traceId",operation:"eq",type:"string",value:$trace_id},{key:"$metadata.type",operation:"eq",type:"string",value:"cf-worker-event"}]}}' \
+| curl --fail-with-body --silent --show-error \
+    --request POST \
+    --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+    --header "Content-Type: application/json" \
+    --data-binary @- \
+    "https://api.cloudflare.com/client/v4/accounts/$account_id/workers/observability/telemetry/query"
+```
+
+The native headers are at
+`.result.events.events[]["$workers"].event.request.headers` in the response. To start
+with a browser instead, use a substring filter on native
+`$workers.event.request.headers.user-agent` or a client-hint header, then query their
+trace IDs for startup or fault records. These occasional investigations take two
+queries; the semantic records do not duplicate the headers.
+
+Production and `dev` enable [Workers Logs](https://developers.cloudflare.com/workers/observability/logs/workers-logs/)
+and explicitly keep invocation logs enabled in `worker/wrangler.toml`; head
+sampling defaults to 100%. All logs for a sampled request are collected together and share the same retention
+(at most seven days). Check `result.statistics.abr_level` is `1` and narrow the
+query window if needed; a sampled query, a truncated log, or an expired record is
+not evidence that a browser sent no header. Request headers can contain OS,
+device and full-version detail; they are client-reported, not verified identity.
 
 ### Page faults
 
@@ -386,7 +435,7 @@ the server as a page `error` event (`reportPageError`). While the session has no
 changed the page, the Worker logs it as `component=leaf-page-error`,
 `event=browser_page_error` and starts no container. The record carries `reference`,
 `route`, the document's `release`, the edge's `currentRelease`, the document
-`revision`, browser, platform, and the first 300 characters of the runtime's message as
+`revision` and the first 300 characters of the runtime's message as
 `reason`, which may contain user text as above. The agent never sees these faults, even
 after the visitor's first comment activates the session. Once the page is active, its
 faults go to the container like any other event.
@@ -401,15 +450,19 @@ limit](https://developers.cloudflare.com/workers/platform/limits/#log-size).
 `worker/src/interactions.ts` lists exactly which fields a record keeps.
 
 A record carries the session `reference`, page `route`, site `release`, tab `session`,
-and the ordered interaction metadata: event type, time, sequence, pointer coordinates,
-element tags and positions, per-tab node ids, command ids and bindings, and response
-kinds and statuses. Sample lifecycle entries keep their phase, host, allocation and
+and the ordered interaction metadata: event type, browser `observed_at` and
+`monotonic_ms`, sequence, visibility, pointer coordinates, element tags and positions,
+per-tab node ids, command ids and bindings, and response kinds and statuses. The
+Cloudflare record supplies receipt time. Timing entries retain generated input/reply
+identities, command attempts, presentation kind and surface without message text.
+Sample lifecycle entries keep their phase, host, allocation and
 revisions, elapsed time, admission status, reload flag, retirement reason, release
 operation, and error name and status. The Worker drops element ids and names, labels,
 typed, pasted and selected text, URL details, template ids, exception messages, stacks,
-response bodies, and fields it does not recognize. An entry too large to log keeps its
-type and part numbers without its raw JSON; the page's `events.jsonl` and local
-interaction trace keep the raw content.
+response bodies, and fields it does not recognize. An observation over 40 KB becomes one
+`interaction_omitted` entry with its original type, byte count and reason. No
+transport or reader splits or reconstructs diagnostic observations; the page's
+`events.jsonl` owns admitted message content.
 
 A live sample, an embedded child page, sends its batches to its container first, which
 checks the sample's capability. The Worker logs the batch only after the container
@@ -441,22 +494,22 @@ completion.
 
 The records to read first:
 
-| Record | Says |
-| --- | --- |
-| `event_accepted` | The Worker accepted an event that needs a reply and is dispatching it; carries `eventId` |
-| `container_start_failed` | The turn could not be started; the Worker and the container each write one from their side |
-| `turn_start_acknowledged` | App Server started the turn; carries Codex's `turnId` |
-| `turn_delivery_bound` | The Leaf turn opened for that Codex turn |
-| `turn_reply_first_text_published` | First final-answer text reached the user's thread, the first thing the user sees |
-| `turn_stream_completed` | The turn ended, whether it finished, lost its connection, went silent, or failed; carries status, fault, `modelRequests`, `inputTokens`, `cachedInputTokens`, `outputTokens` |
-| `turn_reply_commit_failed` | Leaf could not validate or append the reply |
-| `turn_interrupted`, `turn_interrupt_failed` | The container stopped a turn it could no longer follow, or App Server refused, usually because the turn had already ended |
-| `turn_abandoned_interrupt_started`, `turn_abandoned_interrupt_completed` | The same for a turn found running on a resumed thread |
-| `turn_failure_reported` | How many of the turn's updates got a failure receipt, and how many could not; absent when the turn answered everything |
-| `turn_receipt_refused` | The page refused a failure receipt |
-| `container_continuation_receipted` | The container wrote `startup_failed` for a waiting message it could not start, and whether that settled it |
-| `thread_title_generated`, `thread_title_skipped`, `thread_title_failed` | The title request for an untitled thread |
-| `page_fault` | The adapter answered `500`: route, method, page path, exception class, and `detail` |
+| Record                                                                   | Says                                                                                                                                                                         |
+| ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `event_accepted`                                                         | The Worker accepted an event that needs a reply and is dispatching it; carries `eventId`                                                                                     |
+| `container_start_failed`                                                 | The turn could not be started; the Worker and the container each write one from their side                                                                                   |
+| `turn_start_acknowledged`                                                | App Server started the turn; carries Codex's `turnId`                                                                                                                        |
+| `turn_delivery_bound`                                                    | The Leaf turn opened for that Codex turn                                                                                                                                     |
+| `turn_reply_first_text_published`                                        | First final-answer text reached the user's thread, the first thing the user sees                                                                                             |
+| `turn_stream_completed`                                                  | The turn ended, whether it finished, lost its connection, went silent, or failed; carries status, fault, `modelRequests`, `inputTokens`, `cachedInputTokens`, `outputTokens` |
+| `turn_reply_commit_failed`                                               | Leaf could not validate or append the reply                                                                                                                                  |
+| `turn_interrupted`, `turn_interrupt_failed`                              | The container stopped a turn it could no longer follow, or App Server refused, usually because the turn had already ended                                                    |
+| `turn_abandoned_interrupt_started`, `turn_abandoned_interrupt_completed` | The same for a turn found running on a resumed thread                                                                                                                        |
+| `turn_failure_reported`                                                  | How many of the turn's updates got a failure receipt, and how many could not; absent when the turn answered everything                                                       |
+| `turn_receipt_refused`                                                   | The page refused a failure receipt                                                                                                                                           |
+| `container_continuation_receipted`                                       | The container wrote `startup_failed` for a waiting message it could not start, and whether that settled it                                                                   |
+| `thread_title_generated`, `thread_title_skipped`, `thread_title_failed`  | The title request for an untitled thread                                                                                                                                     |
+| `page_fault`                                                             | The adapter answered `500`: route, method, page path, exception class, and `detail`                                                                                          |
 
 A failure record carries `error`, the exception's class, and `detail`, the message the
 refusing code wrote, cut to its last 500 characters with a leading ellipsis. A
@@ -474,16 +527,16 @@ Codex falling back from its WebSocket probe to HTTP.
 
 When a hosted turn cannot answer, the user's update gets a failure receipt: a reply
 carrying `failure` in its thread for a message, or a failed pickup for an answer to an
-ask, which leaves the answer standing and lets the user answer again
+ask, which leaves the answer in force and lets the user answer again
 (`fail_answer` in `skills/leaf/scripts/leaf/thread.py`). The receipt's `failure` field holds one of three codes, and
 `worker/leaf_website/__init__.py` declares the words the user reads for each in
 `FAILURE_RECEIPTS`:
 
-| Code | Written by | When |
-| --- | --- | --- |
-| `rate_limited` | Worker | The source address was over its task-start limit |
-| `startup_failed` | Worker, or the container for a message it took up after a turn ended | The turn could not be started |
-| `turn_failed` | Container | A turn it followed ended without an answer |
+| Code             | Written by                                                           | When                                             |
+| ---------------- | -------------------------------------------------------------------- | ------------------------------------------------ |
+| `rate_limited`   | Worker                                                               | The source address was over its task-start limit |
+| `startup_failed` | Worker, or the container for a message it took up after a turn ended | The turn could not be started                    |
+| `turn_failed`    | Container                                                            | A turn it followed ended without an answer       |
 
 `leaf-dev journey`, the deploy's last check, retries once on `startup_failed` and fails
 at once on any other failure receipt.

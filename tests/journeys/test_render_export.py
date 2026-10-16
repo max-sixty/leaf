@@ -1,6 +1,7 @@
 """Preview and offline export tests."""
 
 import base64
+import contextlib
 import json
 import os
 import re
@@ -22,24 +23,27 @@ from interact_support import (
     STATED_TIMEOUT,
     append_carried_log_record,
     install_payload,
+    neighbour_page,
     wait_for,
+    woken,
 )
 from leaf import cli as cli_model
-from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf import files as files_model
 from leaf import harness as harness_model
 from leaf import hooks as hooks_model
 from leaf import leases as leases_model
+from leaf import machine as machine_model
 from leaf import server as server_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf.findings import Finding
 from leaf.render_checks import HANDOVER_DEADLINE_MS, wait_until_ready
 from leaf.schema import ELEMENT_ID
+from leaf.served_state.service import PageStateService
 from leaf.structure import SourceDocument
-from leaf_dev import preview as preview_model
+from leaf_dev.commands import preview as preview_model
 from playwright.sync_api import expect
 from render_harness import (
     REPLAYED_PAGE,
@@ -57,13 +61,36 @@ ROOT = Path(__file__).parents[2]
 PREVIEW = [sys.executable, "-m", "leaf_dev", "preview"]
 
 
+def test_export_omits_neighboring_pages_and_their_access_key(serve, tmp_path):
+    """Sharing an offline record grants no access to the machine's other pages."""
+    serve(leaf_page("Exported record", "<h1>Exported record</h1>"), packages=())
+    neighbor = machine_model.state_home() / "pages" / "private-neighbor"
+    url = neighbour_page(neighbor, title="Private neighboring page")
+    live = PageStateService(serve.page_dir).page_state(1)
+    assert any(row["url"] == url for row in live["others"])
+
+    output = tmp_path / "offline.html"
+    result = CliRunner().invoke(
+        cli_model.cli,
+        ["page", "export", str(serve.page_dir), "--out", str(output)],
+    )
+    assert result.exit_code == 0, result.output
+    exported = output.read_text(encoding="utf-8")
+    assert server_model.host_key() not in exported
+    assert "Private neighboring page" not in exported
+    assert any(
+        row["url"] == url
+        for row in PageStateService(serve.page_dir).page_state(1)["others"]
+    )
+
+
 @pytest.fixture(name="preview_slot")
 def preview_slot_fixture(tmp_path, monkeypatch):
     """A previews root of this test's own.
 
     `LEAF_PREVIEWS_ROOT` puts the slots under `tmp_path` instead of the checkout's
     `.tmp/previews`, which every run in this checkout shares: a run leaves nothing
-    behind there, and a preview a developer has standing is not a page these tests
+    behind there, and a preview a developer has running is not a page these tests
     find. A preview is a foreground process, so the `spawn` that started it ends it.
     """
     monkeypatch.setenv("LEAF_PREVIEWS_ROOT", str(tmp_path / "previews"))
@@ -167,7 +194,7 @@ def test_a_second_stop_signal_leaves_preview_cleanup_running(
     worker = tmp_path / "worker.py"
     worker.write_text(
         """import sys
-from leaf_dev import preview
+from leaf_dev.commands import preview
 
 stop = preview.PreviewService.stop
 
@@ -327,10 +354,11 @@ def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
     )
     prefix, default = preview_slot
     installed = install_payload(tmp_path / "other-runtime")
-    runtime_marker = "/* preview runtime marker */"
+    runtime_marker = "selected-preview-runtime"
     installed_runtime = installed / "skills" / "leaf" / "assets" / "leaf.js"
     installed_runtime.write_text(
-        installed_runtime.read_text(encoding="utf-8") + f"\n{runtime_marker}\n",
+        installed_runtime.read_text(encoding="utf-8")
+        + f"\nglobalThis.__previewRuntimeMarker = {json.dumps(runtime_marker)};\n",
         encoding="utf-8",
     )
     slots = [f"{prefix}-before", f"{prefix}-after"]
@@ -362,12 +390,13 @@ def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
     assert all(
         page.joinpath("index.html").read_text() == source.read_text() for page in pages
     )
-    assert runtime_marker not in pages[0].joinpath("leaf.js").read_text()
-    assert runtime_marker in pages[1].joinpath("leaf.js").read_text()
-
-    for url, runtime in zip(urls, runtimes, strict=True):
+    for url, runtime, expected_marker in zip(
+        urls, runtimes, [None, runtime_marker], strict=True
+    ):
         page = browser.new_page(viewport={"width": 1200, "height": 900})
         page.goto(url, wait_until="load")
+        wait_until_ready(page)
+        assert page.evaluate("globalThis.__previewRuntimeMarker") == expected_marker
         expect(page.locator(".lf-preview")).to_contain_text(f"Preview · {runtime.name}")
         expect(
             page.get_by_role("heading", name="Shared runtime comparison")
@@ -556,10 +585,15 @@ class Watched(NamedTuple):
     log: Path
 
 
-def watching(tmp_path, preview_slot, spawn, user: bool):
+def watching(tmp_path, preview_slot, spawn, user: bool, *, env=None):
     source = tmp_path / "watched.html"
     source.write_text(REPLAYED_PAGE, encoding="utf-8")
     runtime = install_payload(tmp_path / "watched-runtime")
+    # The runtime is a developer checkout for this preview: its compiler uses
+    # the development dependencies installed in the test checkout.
+    (runtime / "node_modules").symlink_to(
+        ROOT / "node_modules", target_is_directory=True
+    )
     slot, directory = preview_slot
     log = tmp_path / "preview.log"
     process, url = start_preview(
@@ -575,6 +609,7 @@ def watching(tmp_path, preview_slot, spawn, user: bool):
             *(["--user"] if user else []),
         ],
         log,
+        **({"env": env} if env is not None else {}),
     )
     return Watched(source, runtime, directory, process, url, log)
 
@@ -748,20 +783,51 @@ def test_preview_adds_immutable_media_before_stamping_source(watched_preview):
     assert (directory / "media" / image.name).read_bytes() == expected
 
 
-def test_terminating_a_preview_mid_update_leaves_no_service(served_preview):
-    """A SIGTERM during an update's stopped-service interval suppresses its restart."""
-    source, runtime, directory, process, _, _ = served_preview
-    # Real page-transaction contention pauses init after the watcher stops the service.
-    with cleanup_model.flocked(directory / "events.jsonl"):
+def test_terminating_a_preview_mid_update_leaves_no_service(
+    tmp_path, preview_slot, spawn
+):
+    """A SIGTERM after re-vendor stops the service leaves no restarted service."""
+    (tmp_path / "hold_update.py").write_text(
+        "import json, os, socket\n"
+        "def pause(page):\n"
+        "    record = page.page_dir / 'service.json'\n"
+        "    if not record.exists():\n"
+        "        return\n"
+        "    service = json.loads(record.read_text())\n"
+        "    theme = (page.page_dir / 'theme.css').read_text()\n"
+        "    if service.get('restart') and 'h1 { color: navy; }' in theme:\n"
+        "        port = int(os.environ['LEAF_TEST_UPDATE_BARRIER'])\n"
+        "        with socket.create_connection(('127.0.0.1', port)) as peer:\n"
+        "            if peer.recv(1) != b'x':\n"
+        "                os._exit(1)\n"
+    )
+    env = os.environ | {
+        "PYTHONPATH": os.pathsep.join(
+            filter(None, (str(tmp_path), os.environ.get("PYTHONPATH")))
+        ),
+        "LEAF_PAGE_COMMIT": "hold_update:pause",
+    }
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        listener.listen(1)
+        listener.settimeout(STATED_TIMEOUT)
+        env["LEAF_TEST_UPDATE_BARRIER"] = str(listener.getsockname()[1])
+        source, runtime, directory, process, _, log = watching(
+            tmp_path, preview_slot, spawn, user=True, env=env
+        )
         theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
         with theme.open("a", encoding="utf-8") as stream:
             stream.write("\nh1 { color: navy; }\n")
-        wait_for(
-            lambda: json.loads((directory / "service.json").read_text())["enabled"],
-            lambda enabled: not enabled,
-            failure="watcher did not begin the update",
-        )
-        os.killpg(process.pid, signal.SIGTERM)
+        try:
+            peer, _ = listener.accept()
+        except TimeoutError:
+            pytest.fail(f"watcher did not commit the updated layer: {log.read_text()}")
+        with peer:
+            assert "h1 { color: navy; }" in (directory / "theme.css").read_text()
+            assert not files_model.read_json(directory / "service.json")["enabled"]
+            os.killpg(process.pid, signal.SIGTERM)
+            with contextlib.suppress(BrokenPipeError, ConnectionResetError):
+                peer.sendall(b"x")
     process.wait(timeout=STATED_TIMEOUT)
     assert server_model.running_server(directory) is None
     assert (directory / "events.jsonl").is_file()
@@ -822,13 +888,9 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
         },
     )
     assert waiter.wait(timeout=STATED_TIMEOUT) == 0, waited.read_text()
-    lines = waited.read_text().splitlines()
-    start = next(i for i, line in enumerate(lines) if line.startswith("{"))
-    payload = json.loads("\n".join(lines[start:]))
+    payload, _, events = woken(waited.read_text(), session=session)
     assert f"leaf wait --ack {payload['id']}" in payload["acknowledge"]
-    delivery_model.receive(payload, session)
-    [batch] = payload["batches"]
-    assert [event["text"] for event in batch["events"]] == ["still there?"]
+    assert [event["text"] for event in events] == ["still there?"]
 
 
 def test_a_user_preview_brings_back_a_service_that_is_down_but_wanted(
@@ -915,26 +977,13 @@ def test_a_preview_relinquishes_a_service_another_session_claims(
 # ---------- export: the page as one file ----------
 
 OFFLINE_WIDGET = """\
-import { html, render, widgetController } from "/runtime/widget-api.js";
+import { html, LeafElement } from "/runtime/widget-api.js";
 
-customElements.define("lf-offline-test", class extends HTMLElement {
-  controller = widgetController(this);
-  reading = this.controller.read();
-  local = 0;
-  stop = null;
+customElements.define("lf-offline-test", class extends LeafElement {
+  #local = 0;
 
-  connectedCallback() {
-    if (!this.shadowRoot) this.attachShadow({mode: "open"});
-    this.stop ??= this.controller.subscribe(reading => {
-      this.reading = reading;
-      this.paint();
-    });
-    this.paint();
-  }
-
-  disconnectedCallback() {
-    this.stop?.();
-    this.stop = null;
+  createRenderRoot() {
+    return this.attachShadow({mode: "open"});
   }
 
   choose() {
@@ -943,22 +992,22 @@ customElements.define("lf-offline-test", class extends HTMLElement {
     });
   }
 
-  paint() {
-    const choice = this.reading.state.choose?.value ?? this.getAttribute("choice");
-    const action = this.reading.actions.choose;
+  render() {
+    const {state, actions} = this.reading;
+    const action = actions.choose;
     const unavailable = action.unavailable;
-    render(html`
+    return html`
       <style>#local { color: rgb(12, 34, 56); }</style>
-      <button id="local" @click=${() => { this.local += 1; this.paint(); }}>
+      <button id="local" @click=${() => { this.#local += 1; this.requestUpdate(); }}>
         Increment locally
       </button>
-      <output id="local-value">${this.local}</output>
+      <output id="local-value">${this.#local}</output>
       <button id="choose" ?disabled=${!action.available} @click=${this.choose}>
         Choose on host
       </button>
-      <output id="choice">${choice}</output>
+      <output id="choice">${state.choose.value}</output>
       ${unavailable ? html`<p id="unavailable">${unavailable}</p>` : null}
-    `, this.shadowRoot, {host: this});
+    `;
   }
 });
 """
@@ -1228,11 +1277,11 @@ def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
 
 
 def test_exporting_an_example_leaves_the_live_preview_untouched(
-    monkeypatch, page_dir, standing_server
+    monkeypatch, page_dir, persistent_server
 ):
     """An offline handoff can be made while its live preview keeps serving."""
     live_source = (page_dir / "index.html").read_bytes()
-    live_server = standing_server(page_dir)
+    live_server = persistent_server(page_dir)
     monkeypatch.setattr(preview_model, "TMP", page_dir.parent)
 
     try:

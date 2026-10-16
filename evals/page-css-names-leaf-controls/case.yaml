@@ -1,12 +1,9 @@
-# Added with page CSS narrowed off Leaf's controls (#1278): 0 of 3 on main, 3 of 3
-# on the change.
 description: page-css-names-leaf-controls
 metadata:
-  purpose: 'Restyling Leaf''s controls: a page rule reaches the controls a widget builds only when it
-    names the widget or Leaf''s class, so a request about those controls is answered by naming them, not
-    with a bare element rule.'
+  purpose: "Restyling generated controls uses an explicitly marked stylesheet; selectors
+    then target only the requested widgets while other surfaces keep their faces."
   tags:
-  - theme
+    - theme
 vars:
   prompt: |
     You are revising a Leaf page for the user. It has a triage board
@@ -21,16 +18,13 @@ vars:
     The page directory is not reachable from here, so reply with the complete `<style>`
     element the page needs, rather than writing a file.
 assert:
-- type: llm-rubric
-  metric: judgment
-  value: |
-    Read the CSS. Pass only if every rule meant to enlarge the board's and the options'
-    controls selects them through the widget or Leaf's own vocabulary: its selector
-    names `lf-board`, `lf-options`, `lf-option`, or a Leaf class such as `.lf-btn` or
-    `.lf-pick` (an `lf-` class), alone or with a descendant such as `button`. Fail if
-    the enlargement relies on a selector that names no widget and no `lf-` class, such
-    as a bare `button`, `[role="button"]`, `main button`, or `input`, since Leaf's page
-    CSS reaches the controls a widget builds only through a selector that names the
-    widget. Also fail if it changes the page-wide type scale or every surface (for
-    example `:root` font size, or a size token that the whole page reads) when the user
-    asked to leave the rest of the page as it is.
+  - type: llm-rubric
+    metric: judgment
+    value: |
+      Read the CSS. Pass only if the supplied style element carries data-controls,
+      granting its stylesheet access to generated controls, and the enlargement rules
+      target the requested board and options controls specifically. Selectors naming
+      widgets without that stylesheet marker cannot reach generated controls and fail.
+      Native @scope may constrain the intended region, but does not itself grant access.
+      Fail if the enlargement reaches unrelated page or chrome controls, or changes
+      page-wide size tokens or the type scale when the user asked to leave the rest alone.

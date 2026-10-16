@@ -189,6 +189,7 @@ import {
   scrollThreadIntoView,
   selectionAnchor,
   sendMessage,
+  settleThread,
   showBannerControl,
   showBannerControls,
   showHeld,
@@ -7330,6 +7331,372 @@ function drawApproval() {
   repaint();
 }
 
+// runtime/keyboard/shortcut-bar.js
+var shortcutBarEl = el("div", "lf-ui lf-shortcut-bar");
+shortcutBarEl.id = "lf-shortcut-bar";
+shortcutBarEl.setAttribute("data-lf-reflow", "controls");
+var bottomStatusEl = el("div", "lf-ui lf-bottom-status");
+var activateShortcutMore = null;
+var EMPTY_STATUS_CONTEXT = Object.freeze({ goTo: null, walk: null });
+var EMPTY_BAR = Object.freeze({
+  items: Object.freeze([]),
+  more: Object.freeze({
+    hidden: true,
+    binding: null,
+    line: "more",
+    title: "More keyboard shortcuts",
+    expanded: false,
+    ariaLabel: "More keyboard shortcuts"
+  }),
+  tail: null,
+  expanded: false
+});
+var bottomStatusTemplate = (model) => html`
+  <span class="lf-go-to-status" aria-hidden="true" ?hidden=${!model.goTo}
+    >${model.goTo ?? nothing}</span
+  >
+  <span
+    class="lf-walk-position"
+    aria-hidden="true"
+    ?hidden=${!model.walk?.shown}
+    data-kind=${model.walk?.shown ? model.walk.kind : nothing}
+    ?data-lf-boundary=${model.walk?.shown ? model.walk.boundary : false}
+    >${model.walk?.text ?? nothing}</span
+  >
+  <span class=${`lf-ui lf-notice${model.notice.visible ? " show" : ""}`}
+    >${model.notice.message || nothing}</span
+  >
+`;
+var shortcutBarTemplate = (model) => html`${model.items.map(
+  (item) => html`
+        <span
+          class=${`lf-shortcut${item.sequenceControl ? " lf-sequence-command" : ""}`}
+          aria-hidden="true"
+          data-lf-command-ids=${item.commandIds}
+          >${keySequenceTemplate(item.sequence)}${item.said ? html`<span>${item.said}</span>` : nothing}</span
+        >
+      `
+)}<button
+      type="button"
+      class="lf-shortcut-more"
+      title=${model.more.title}
+      aria-label=${model.more.ariaLabel}
+      aria-expanded=${String(model.more.expanded)}
+      ?hidden=${model.more.hidden}
+    >
+      <kbd class="lf-key-badge">${model.more.binding}</kbd
+      ><span>${model.more.line}</span></button
+    >${model.tail ? html`<span class="lf-shortcut" aria-hidden="true"
+            >${keySequenceTemplate(model.tail.sequence)}<span
+              >${model.tail.said}</span
+            ></span
+          >` : nothing}`;
+var bottomStatusContext = EMPTY_STATUS_CONTEXT;
+var contextPresenters = /* @__PURE__ */ new Set();
+var statusContextReading = () => bottomStatusContext;
+function registerStatusContextPresentation(invalidate) {
+  contextPresenters.add(invalidate);
+}
+var shownWalk = ({ walk }) => walk?.shown ? walk : null;
+var sameContext = (a, b) => a.goTo === b.goTo && shownWalk(a)?.text === shownWalk(b)?.text && shownWalk(a)?.boundary === shownWalk(b)?.boundary;
+var renderBottomStatus = () => {
+  const model = Object.freeze({
+    ...bottomStatusContext,
+    notice: noticeReading()
+  });
+  render(bottomStatusTemplate(model), bottomStatusEl);
+};
+renderBottomStatus();
+render(shortcutBarTemplate(EMPTY_BAR), shortcutBarEl);
+var walkPositionEl = bottomStatusEl.querySelector(".lf-walk-position");
+var goToStatusEl = bottomStatusEl.querySelector(".lf-go-to-status");
+var shortcutBarMore = shortcutBarEl.querySelector(".lf-shortcut-more");
+registerNoticePresentation(renderBottomStatus);
+var boxesOf = (nodes) => nodes.filter((node) => getComputedStyle(node).position === "fixed").map((node) => node.getBoundingClientRect()).filter((box) => box.height > 0 && box.width > 0);
+var fixedStatus = () => !walkPositionEl.hidden || !goToStatusEl.hidden;
+var fixedStatusBox = null;
+var fixedStatusBoxes = () => {
+  if (!fixedStatus()) {
+    fixedStatusBox = null;
+    return [];
+  }
+  if (!noticeVisible()) [fixedStatusBox = null] = boxesOf([bottomStatusEl]);
+  return fixedStatusBox ? [fixedStatusBox] : [];
+};
+var bottomChromeBoxes = () => [...boxesOf([shortcutBarEl]), ...fixedStatusBoxes()];
+declareWindowChrome(bottomChromeBoxes, [shortcutBarEl, bottomStatusEl]);
+var sourceRows = /* @__PURE__ */ new WeakMap();
+var sourceRow = (row) => sourceRows.get(row) ?? row;
+var effectiveRow = (row, declared, active) => {
+  if (active.length === declared.length) return row;
+  const routes = commandRoutes(row).filter((route2) => active.includes(route2.binding));
+  const route = routes.length === 1 ? routes[0] : null;
+  const projected = {
+    ...row,
+    ready: () => commandReady(row),
+    keys: active,
+    routes,
+    // A custom group label cannot describe a binding removed by a nearer scope. A route
+    // may supply the short word for its remaining direction; otherwise the row's shared
+    // word still describes the reduced binding set.
+    label: route?.label,
+    title: route?.title ?? row.title,
+    description: route?.description ?? row.description,
+    line: route?.line ?? row.line
+  };
+  sourceRows.set(projected, row);
+  return projected;
+};
+function lineRows(scopes) {
+  const escape = lineOwner("Escape");
+  const named = /* @__PURE__ */ new Set();
+  const nearer = shadow();
+  const rows2 = [];
+  for (const scope of scopes) {
+    const reachable = scope.rows.flatMap((row) => {
+      if (row.line === false || !scope.sequence && word(row.lineWhen) === false)
+        return [];
+      const bound = bindings(row);
+      const active = bound.filter(
+        (binding) => binding === "Escape" ? escape?.visible && scopeIdentity(escape.scope) === scopeIdentity(scope) && escape.row === row : !named.has(binding) && !nearer.takes(binding, row, scope)
+      );
+      return active.length ? [effectiveRow(row, bound, active)] : [];
+    });
+    for (const row of activeRows(reachable, scope.title ?? "the page's keys")) {
+      if (!lineOf(row)) continue;
+      const active = bindings(row).filter(
+        (binding) => !named.has(binding) && commandEntries(row, [binding]).length
+      );
+      if (!active.length) continue;
+      const source = sourceRow(row);
+      for (const binding of active) named.add(binding);
+      rows2.push(effectiveRow(source, bindings(source), active));
+    }
+    nearer.past(scope);
+  }
+  return rows2;
+}
+var shortcutBarIsExpanded = false;
+var lastWalkPresentation = null;
+var shortcutHelpAvailable = () => bindings(SHORTCUT_HELP).length > 0;
+var arrange = (rows2) => {
+  const referenceAt = rows2.findIndex((row) => sourceRow(row) === SHORTCUT_HELP);
+  const reference = referenceAt === -1 ? null : rows2[referenceAt];
+  const withoutReference = referenceAt === -1 ? rows2 : [...rows2.slice(0, referenceAt), ...rows2.slice(referenceAt + 1)];
+  const candidates = withoutReference;
+  const first = candidates[0];
+  const wayOut = candidates.find(
+    (row) => bindings(row).includes("Escape") && word(row.promoteEscape) !== false
+  );
+  const second = wayOut && wayOut !== first ? wayOut : candidates.find((row) => row !== first);
+  const short = new Set([first, second].filter(Boolean));
+  const tail = withoutReference.includes(COLLAPSE_SHORTCUT_BAR) ? COLLAPSE_SHORTCUT_BAR : null;
+  return { candidates, reference, short, tail, wayOut };
+};
+var completeLine = (scopes, candidates) => {
+  const scope = scopes.find((candidate) => candidate.sequence);
+  if (!scope) return null;
+  const owned = new Set(scope.rows);
+  const rows2 = new Set(candidates.filter((row) => owned.has(sourceRow(row))));
+  if (!rows2.size) return null;
+  return {
+    scope,
+    rows: rows2
+  };
+};
+var openCompleteReference = () => openCommandReference((id) => executeCommand(id, beforeShortcutCommand));
+var keyboardSettings = el("button", "lf-btn", "Keyboard shortcuts");
+keyboardSettings.type = "button";
+keyboardSettings.addEventListener("click", () => {
+  closeLayer(dismissBannerControls, () => {
+    const door = bannerControlDoor(keyboardSettings);
+    if (door) focusDestination(door, "return");
+  });
+  openCompleteReference();
+});
+registerBannerControl({
+  key: "keyboard",
+  control: keyboardSettings,
+  rank: BANNER_CONTROL_RANK.keyboard,
+  seat: "menu",
+  row: { label: "Keyboard shortcuts", shortcut: ["?"], group: "page" }
+});
+function advanceShortcutHelp() {
+  if (!shortcutHelpAvailable() || shortcutBarIsExpanded || !shortcutBarEl.checkVisibility())
+    return openCompleteReference();
+  const scopes = stack();
+  const { candidates, short } = arrange(lineRows(scopes));
+  const shown = completeLine(scopes, candidates)?.rows ?? short;
+  if (!candidates.some((row) => !shown.has(row))) return openCompleteReference();
+  shortcutBarIsExpanded = true;
+  repaint();
+  announce(
+    "Shortcut bar expanded. Press question mark again for Command reference, or Escape to collapse it."
+  );
+}
+function collapseShortcutBar({ silent = false } = {}) {
+  if (!shortcutBarIsExpanded) return;
+  shortcutBarIsExpanded = false;
+  repaint();
+  if (!silent) announce("Shortcut bar collapsed.");
+}
+function renderShortcutBar(goToStatus) {
+  if (!pageUpgraded()) return;
+  const scopes = stack();
+  const rows2 = lineRows(scopes);
+  if (!shortcutHelpAvailable()) shortcutBarIsExpanded = false;
+  const expanded = shortcutBarIsExpanded && !commandReferenceOpen();
+  const { candidates, reference, short, tail, wayOut } = arrange(rows2);
+  const complete = completeLine(scopes, candidates);
+  const shown = complete?.rows ?? short;
+  const position = walkPosition();
+  const goToReading = goToStatus();
+  if (position)
+    lastWalkPresentation = Object.freeze({
+      kind: position.kind,
+      text: position.text,
+      boundary: position.boundary
+    });
+  const before = bottomStatusContext;
+  bottomStatusContext = Object.freeze({
+    goTo: goToReading,
+    // A retired walk hides but keeps its last wording, matching the native status
+    // surface's continuity while transient notice text occupies the same seat.
+    walk: lastWalkPresentation ? Object.freeze({ ...lastWalkPresentation, shown: Boolean(position) }) : null
+  });
+  setNoticeContext(Boolean(goToReading));
+  renderBottomStatus();
+  if (!sameContext(bottomStatusContext, before))
+    for (const invalidate of contextPresenters) invalidate();
+  const projected = expanded || complete ? candidates : [...shown, ...candidates.filter((row) => !shown.has(row))];
+  const projectedRows = projected.filter((row) => !expanded || row !== tail);
+  const referenceRows = reference ? [reference] : [];
+  const ordered = [...projectedRows, ...referenceRows];
+  const referenceBinding = reference ? bindings(reference)[0] : null;
+  const referenceTitle = titleOf(SHORTCUT_HELP);
+  const referenceLine = lineOf(SHORTCUT_HELP);
+  const sequenceScope = complete?.scope;
+  const sequence = word(sequenceScope?.sequence) ?? [];
+  const presentations = ordered.map((row) => {
+    const inSequence = sequence.length && !row.sequenceControl;
+    const steps = inSequence ? [sequence[0], ...rowSteps(row)] : rowSteps(row);
+    const states = inSequence ? progressStates(steps, sequence) : neutralStates(steps);
+    const active = bindings(row);
+    return Object.freeze({
+      sequenceControl: Boolean(row.sequenceControl),
+      sequence: keySequenceModel(steps, states),
+      said: lineOf(row),
+      commandIds: commandPresentations(row, active).map(({ id }) => id).join(" "),
+      wayOut: row === wayOut,
+      hidden: sourceRow(row) === SHORTCUT_HELP || !expanded && !shown.has(row)
+    });
+  });
+  const model = Object.freeze({
+    items: Object.freeze(presentations),
+    more: Object.freeze({
+      hidden: commandReferenceOpen() || !referenceBinding,
+      binding: referenceBinding ? spell(referenceBinding) : null,
+      line: referenceLine,
+      title: referenceTitle,
+      expanded,
+      ariaLabel: referenceBinding ? `${spell(referenceBinding)} ${referenceLine}` : referenceTitle
+    }),
+    tail: expanded && tail ? Object.freeze({
+      sequence: keySequenceModel(rowSteps(tail), neutralStates(rowSteps(tail))),
+      said: lineOf(tail)
+    }) : null,
+    expanded
+  });
+  keeps(shortcutBarEl, "data-lf-expanded", model.expanded);
+  render(shortcutBarTemplate(model), shortcutBarEl);
+  const rowSpans = shortcutBarEl.querySelectorAll(":scope > .lf-shortcut");
+  const drawn2 = model.items.map((presentation, index) => ({
+    presentation,
+    span: rowSpans[index]
+  }));
+  const barStyle = getComputedStyle(shortcutBarEl);
+  const gap = parseFloat(barStyle.columnGap);
+  const [status] = expanded ? [] : fixedStatusBoxes();
+  const reserved = status ? status.width + gap : 0;
+  const outer = (node) => {
+    const style = getComputedStyle(node);
+    return node.getBoundingClientRect().width + parseFloat(style.marginLeft) + parseFloat(style.marginRight);
+  };
+  const line = shortcutBarEl.getBoundingClientRect().width - parseFloat(barStyle.borderLeftWidth) - parseFloat(barStyle.borderRightWidth) - parseFloat(barStyle.paddingLeft) - parseFloat(barStyle.paddingRight) + (parseFloat(shortcutBarEl.style.getPropertyValue("--lf-status-room")) || 0);
+  const eligible = new Map(
+    drawn2.map(({ span, presentation }) => [span, !presentation.hidden])
+  );
+  const widths = new Map(
+    [...shortcutBarEl.children].filter((node) => eligible.get(node) ?? !node.hidden).map((node) => [node, outer(node)])
+  );
+  const trimmed = /* @__PURE__ */ new Set();
+  const rowsUsed = (room2) => {
+    let rows3 = 0;
+    let used = Infinity;
+    for (const [node, width] of widths) {
+      if (trimmed.has(node)) continue;
+      used += gap + width;
+      if (used > line - room2) {
+        rows3 += 1;
+        used = width;
+      }
+    }
+    return rows3;
+  };
+  const ceiling = expanded ? 2 : 1;
+  const removable = drawn2.filter(({ presentation }) => !presentation.hidden && !presentation.wayOut).map(({ span }) => span).toReversed();
+  while (rowsUsed(reserved) > ceiling && removable.length)
+    trimmed.add(removable.shift());
+  for (const span of [...trimmed].toReversed()) {
+    trimmed.delete(span);
+    if (rowsUsed(reserved) > ceiling) trimmed.add(span);
+  }
+  const room = reserved && rowsUsed(reserved) > ceiling ? 0 : reserved;
+  shortcutBarEl.style.setProperty("--lf-status-room", `${room}px`);
+  for (const { presentation, span } of drawn2)
+    span.toggleAttribute("data-lf-off-line", presentation.hidden || trimmed.has(span));
+}
+var shortcutBarExpanded = () => shortcutBarIsExpanded && shortcutHelpAvailable();
+function mountShortcutBar({ setGoToSequence, setReact }) {
+  activateShortcutMore = () => {
+    setGoToSequence(false);
+    setReact(false);
+    advanceShortcutHelp();
+  };
+  repaint();
+}
+var SHORTCUT_HELP = pageCommand({
+  id: "command.reference.open",
+  touch: false,
+  runFromCommandReference: false,
+  keys: ["?"],
+  title: () => shortcutBarExpanded() ? "Command reference" : "More keyboard shortcuts",
+  line: () => shortcutBarExpanded() ? "command reference" : "more",
+  control: () => shortcutBarMore,
+  run: () => activateShortcutMore?.()
+});
+var COLLAPSE_SHORTCUT_BAR = {
+  id: "shortcut.bar.collapse",
+  keys: ["Escape"],
+  title: "Fewer keyboard shortcuts",
+  line: "less",
+  commandReferenceWhen: () => false,
+  runFromCommandReference: false,
+  run: () => collapseShortcutBar()
+};
+pageScope("expanded shortcut bar", {
+  title: "In the expanded shortcut bar",
+  escape: "inner",
+  root: () => shortcutBarEl,
+  at: () => Boolean(shortcutBarExpanded()),
+  rows: [COLLAPSE_SHORTCUT_BAR]
+});
+declareExpandedBarBehindReference(shortcutBarExpanded);
+var beforeShortcutCommand = (row) => {
+  if (shortcutBarExpanded() && !commandReferenceOpen() && row !== SHORTCUT_HELP && row !== COLLAPSE_SHORTCUT_BAR)
+    collapseShortcutBar({ silent: true });
+};
+
 // runtime/floating-panel.js
 var prefs = () => document.documentElement.lfChrome;
 var EASE = "cubic-bezier(.23, 1, .32, 1)";
@@ -7363,6 +7730,13 @@ var FILTERS = Object.freeze(["open", "unread", "drafts", "resolved"]);
 var LISTS = Object.freeze(["threads", "queue"]);
 var capital = (word2) => word2[0].toUpperCase() + word2.slice(1);
 var coarse = () => matchMedia("(pointer: coarse)").matches;
+function passing() {
+  const notice2 = noticeReading();
+  if (notice2.visible) return notice2;
+  const { goTo, walk } = statusContextReading();
+  const message = goTo ?? (walk?.shown ? walk.text : "");
+  return { message, visible: Boolean(message), news: false };
+}
 var TONE_WORDS = Object.freeze({
   working: "Working",
   listening: "Waiting on me",
@@ -7376,7 +7750,8 @@ function createFloatingPanel({
   observeFeedback,
   asks: askView,
   queueActions,
-  withdraw
+  withdraw,
+  settlement
 }) {
   const host = el("section", "lf-ui lf-floating-panel");
   host.setAttribute("aria-label", "Leaf");
@@ -7392,6 +7767,7 @@ function createFloatingPanel({
   const stage = el("div", "lf-fp-stage");
   opened.append(head, stage);
   const context = el("div", "lf-fp-context");
+  const contextWords = el("span", "lf-fp-context-words");
   const row = el("div", "lf-fp-row");
   const menu = el("div", "lf-fp-menu");
   menu.id = "lf-fp-menu";
@@ -7406,6 +7782,7 @@ function createFloatingPanel({
   let peekAsked = false;
   let peekReading = null;
   let overView = false;
+  context.append(contextWords);
   inner.append(opened, context, row);
   card.append(inner);
   host.append(card, menu, badge, newsDot, peek);
@@ -7505,7 +7882,7 @@ function createFloatingPanel({
     const thread = key ? threadByKey(key) : null;
     if (input === focused() && !thread?.resolved)
       return { says: "destination", words: whereTo(key) };
-    const notice2 = noticeReading();
+    const notice2 = passing();
     if (notice2.visible) return { says: "notice", words: notice2.message };
     if (thread?.resolved) return { says: "turn", words: "Resolved \xB7 reopen to reply" };
     if (!key) return { says: "status", words: status().summary };
@@ -7659,6 +8036,39 @@ function createFloatingPanel({
     setMenu(false);
     transition2(before);
     focusDestination(pageEditor().input, "move");
+  }
+  function resolveLanding(thread) {
+    const route = trail.at(-1);
+    const fromThreads = trail.at(-2)?.view === "threads";
+    const at = threads().filter((candidate) => !candidate.resolved).indexOf(thread);
+    const mayLand = retainUserIntent();
+    let mayRestore = () => false;
+    return {
+      optimistic: () => {
+        if (!mayLand() || trail.at(-1) !== route) return false;
+        const kept = threads().filter((candidate) => !candidate.resolved);
+        const next = fromThreads ? kept[at] ?? kept[at - 1] : null;
+        if (next) {
+          open({ view: "thread", thread: next.key }, { replace: true, focus: false });
+          const view = shownView();
+          if (view) focusDestination(view, "move");
+        } else back();
+        mayRestore = retainUserIntent();
+        return true;
+      },
+      // Taking the resolve back stands the user on the thread's row, where they are
+      // back at Threads. Where they moved on to the next thread, they stay on it, and
+      // the reopened thread waits in Threads: the reopening arrives with the server's
+      // reading, and a view opening or closing then would move the panel under no
+      // press. The undo door passes the intent of the press that asked for it.
+      reverse: (may = mayRestore) => {
+        if (!may() || trail.at(-1)?.view !== "threads") return;
+        const row2 = shownView()?.querySelector(
+          `.lf-fp-thread[data-key="${CSS.escape(thread.key)}"]`
+        );
+        if (row2) focusDestination(row2, "move");
+      }
+    };
   }
   function back() {
     const before = trail.at(-1);
@@ -8220,6 +8630,7 @@ function createFloatingPanel({
       (thread) => html`<button
                   type="button"
                   class="lf-fp-thread"
+                  data-key=${thread.key}
                   ?data-unread=${unread(thread)}
                   ?data-resolved=${thread.resolved}
                   ?data-yours=${threadAttention(thread)?.kind === "needs_user"}
@@ -8564,9 +8975,15 @@ function createFloatingPanel({
         !(thread.resolved ? thread.offers.reopen : thread.offers.resolve)
       )}
           @click=${() => {
-        if (thread.resolved) return threadActions.reopen(thread.key);
-        dismissReply(thread.key);
-        return threadActions.resolve(thread.key);
+        if (!thread.resolved) dismissReply(thread.key);
+        void settleThread({
+          parent: () => thread.id,
+          key: thread.key,
+          resolved: Boolean(thread.resolved),
+          prepareLanding: thread.resolved ? null : () => resolveLanding(thread),
+          ...settlement
+        }).catch(() => {
+        });
       }}
         >
           <span class="lf-fp-face" ?data-shown=${!thread.resolved}
@@ -8601,6 +9018,7 @@ function createFloatingPanel({
                   >` : nothing}`;
     return html`<div class="lf-fp-crumb">${crumb}</div>
       <div class="lf-fp-aux">${aux}</div>
+      ${expand}
       <button
         type="button"
         class="lf-fp-icon-btn lf-fp-close"
@@ -8733,6 +9151,7 @@ function createFloatingPanel({
       listed2.includes(focused()) ? focused() : listed2.find((row2) => row2.getAttribute("tabindex") === "0") ?? listed2[0]
     );
     render(top ? headTemplate(top) : nothing, head);
+    if (!top) move(context, expand, null);
     const heading = top ? shows(top) : null;
     for (const drawing2 of [head, replyOutlet]) {
       keeps(drawing2, "data-thread", heading);
@@ -8740,7 +9159,7 @@ function createFloatingPanel({
     }
     const thread = top?.view === "thread" ? threadByKey(top.thread) : null;
     const replying = top?.view === "thread";
-    const shown = replying ? [replyOutlet, resolvedLine, expand] : [pageEditor().box, expand];
+    const shown = replying ? [replyOutlet, resolvedLine] : [pageEditor().box];
     if (field.firstElementChild !== shown[0]) {
       const had = standingIn(field);
       field.replaceChildren(...shown);
@@ -8771,15 +9190,15 @@ function createFloatingPanel({
       reading.says === "status" ? status().explanation || status().summary : null
     );
     const empty = draftOf(input) === "";
-    const notice2 = noticeReading();
+    const notice2 = passing();
     const covered = notice2.visible && (!empty || reading.says === "destination");
     overView = Boolean(top) && covered && !notice2.news;
     keeps(context, "data-notice", covered ? "" : null);
     keepsText(
-      context,
+      contextWords,
       top ? "" : covered ? notice2.message : empty ? "" : whereTo(null)
     );
-    keepsHidden(context, !context.textContent);
+    keepsHidden(context, !contextWords.textContent);
     paintPeek();
     const standing2 = rowNotice();
     keepsHidden(rowNoticeSeat, !standing2);
@@ -8924,7 +9343,7 @@ function createFloatingPanel({
   });
   function paintPeek() {
     const folded = host.dataset.rest === "mark";
-    const notice2 = noticeReading();
+    const notice2 = passing();
     const telling = notice2.visible && (folded || overView && !menuOpen);
     const reading = status();
     const parts = reading.explanationParts ?? [
@@ -8976,9 +9395,11 @@ function createFloatingPanel({
       root: host,
       title: `close ${titleOf2(trail.at(-1)).toLowerCase()}`,
       description: `Close ${titleOf2(trail.at(-1))}`,
+      // Putting a view away returns the user to the page, where the view's thread or
+      // list took them from, as closing the banner's Threads panel does.
       out: () => {
         close();
-        focusDestination(leaf, "return");
+        letGo();
       }
     };
   });
@@ -9161,6 +9582,7 @@ function createFloatingPanel({
     document.addEventListener(UPGRADE, () => paint(), { once: true });
     registerApprovalPresentation({ target: approvalControl, arrive: arriveAtApproval });
     registerNoticePresentation(() => paint());
+    registerStatusContextPresentation(() => paint());
     watchBannerRows(() => paint());
     versionPicker.watch(() => paint());
     document.addEventListener("lf-chrome-preference", () => paint());
@@ -12506,362 +12928,6 @@ pageRung("page", () => {
   } : null;
 });
 
-// runtime/keyboard/shortcut-bar.js
-var shortcutBarEl = el("div", "lf-ui lf-shortcut-bar");
-shortcutBarEl.id = "lf-shortcut-bar";
-shortcutBarEl.setAttribute("data-lf-reflow", "controls");
-var bottomStatusEl = el("div", "lf-ui lf-bottom-status");
-var activateShortcutMore = null;
-var EMPTY_STATUS_CONTEXT = Object.freeze({ goTo: null, walk: null });
-var EMPTY_BAR = Object.freeze({
-  items: Object.freeze([]),
-  more: Object.freeze({
-    hidden: true,
-    binding: null,
-    line: "more",
-    title: "More keyboard shortcuts",
-    expanded: false,
-    ariaLabel: "More keyboard shortcuts"
-  }),
-  tail: null,
-  expanded: false
-});
-var bottomStatusTemplate = (model) => html`
-  <span class="lf-go-to-status" aria-hidden="true" ?hidden=${!model.goTo}
-    >${model.goTo ?? nothing}</span
-  >
-  <span
-    class="lf-walk-position"
-    aria-hidden="true"
-    ?hidden=${!model.walk?.shown}
-    data-kind=${model.walk?.shown ? model.walk.kind : nothing}
-    ?data-lf-boundary=${model.walk?.shown ? model.walk.boundary : false}
-    >${model.walk?.text ?? nothing}</span
-  >
-  <span class=${`lf-ui lf-notice${model.notice.visible ? " show" : ""}`}
-    >${model.notice.message || nothing}</span
-  >
-`;
-var shortcutBarTemplate = (model) => html`${model.items.map(
-  (item) => html`
-        <span
-          class=${`lf-shortcut${item.sequenceControl ? " lf-sequence-command" : ""}`}
-          aria-hidden="true"
-          data-lf-command-ids=${item.commandIds}
-          >${keySequenceTemplate(item.sequence)}${item.said ? html`<span>${item.said}</span>` : nothing}</span
-        >
-      `
-)}<button
-      type="button"
-      class="lf-shortcut-more"
-      title=${model.more.title}
-      aria-label=${model.more.ariaLabel}
-      aria-expanded=${String(model.more.expanded)}
-      ?hidden=${model.more.hidden}
-    >
-      <kbd class="lf-key-badge">${model.more.binding}</kbd
-      ><span>${model.more.line}</span></button
-    >${model.tail ? html`<span class="lf-shortcut" aria-hidden="true"
-            >${keySequenceTemplate(model.tail.sequence)}<span
-              >${model.tail.said}</span
-            ></span
-          >` : nothing}`;
-var bottomStatusContext = EMPTY_STATUS_CONTEXT;
-var renderBottomStatus = () => {
-  const model = Object.freeze({
-    ...bottomStatusContext,
-    notice: noticeReading()
-  });
-  render(bottomStatusTemplate(model), bottomStatusEl);
-};
-renderBottomStatus();
-render(shortcutBarTemplate(EMPTY_BAR), shortcutBarEl);
-var walkPositionEl = bottomStatusEl.querySelector(".lf-walk-position");
-var goToStatusEl = bottomStatusEl.querySelector(".lf-go-to-status");
-var shortcutBarMore = shortcutBarEl.querySelector(".lf-shortcut-more");
-registerNoticePresentation(renderBottomStatus);
-var boxesOf = (nodes) => nodes.filter((node) => getComputedStyle(node).position === "fixed").map((node) => node.getBoundingClientRect()).filter((box) => box.height > 0 && box.width > 0);
-var fixedStatus = () => !walkPositionEl.hidden || !goToStatusEl.hidden;
-var fixedStatusBox = null;
-var fixedStatusBoxes = () => {
-  if (!fixedStatus()) {
-    fixedStatusBox = null;
-    return [];
-  }
-  if (!noticeVisible()) [fixedStatusBox = null] = boxesOf([bottomStatusEl]);
-  return fixedStatusBox ? [fixedStatusBox] : [];
-};
-var bottomChromeBoxes = () => [...boxesOf([shortcutBarEl]), ...fixedStatusBoxes()];
-declareWindowChrome(bottomChromeBoxes, [shortcutBarEl, bottomStatusEl]);
-var sourceRows = /* @__PURE__ */ new WeakMap();
-var sourceRow = (row) => sourceRows.get(row) ?? row;
-var effectiveRow = (row, declared, active) => {
-  if (active.length === declared.length) return row;
-  const routes = commandRoutes(row).filter((route2) => active.includes(route2.binding));
-  const route = routes.length === 1 ? routes[0] : null;
-  const projected = {
-    ...row,
-    ready: () => commandReady(row),
-    keys: active,
-    routes,
-    // A custom group label cannot describe a binding removed by a nearer scope. A route
-    // may supply the short word for its remaining direction; otherwise the row's shared
-    // word still describes the reduced binding set.
-    label: route?.label,
-    title: route?.title ?? row.title,
-    description: route?.description ?? row.description,
-    line: route?.line ?? row.line
-  };
-  sourceRows.set(projected, row);
-  return projected;
-};
-function lineRows(scopes) {
-  const escape = lineOwner("Escape");
-  const named = /* @__PURE__ */ new Set();
-  const nearer = shadow();
-  const rows2 = [];
-  for (const scope of scopes) {
-    const reachable = scope.rows.flatMap((row) => {
-      if (row.line === false || !scope.sequence && word(row.lineWhen) === false)
-        return [];
-      const bound = bindings(row);
-      const active = bound.filter(
-        (binding) => binding === "Escape" ? escape?.visible && scopeIdentity(escape.scope) === scopeIdentity(scope) && escape.row === row : !named.has(binding) && !nearer.takes(binding, row, scope)
-      );
-      return active.length ? [effectiveRow(row, bound, active)] : [];
-    });
-    for (const row of activeRows(reachable, scope.title ?? "the page's keys")) {
-      if (!lineOf(row)) continue;
-      const active = bindings(row).filter(
-        (binding) => !named.has(binding) && commandEntries(row, [binding]).length
-      );
-      if (!active.length) continue;
-      const source = sourceRow(row);
-      for (const binding of active) named.add(binding);
-      rows2.push(effectiveRow(source, bindings(source), active));
-    }
-    nearer.past(scope);
-  }
-  return rows2;
-}
-var shortcutBarIsExpanded = false;
-var lastWalkPresentation = null;
-var shortcutHelpAvailable = () => bindings(SHORTCUT_HELP).length > 0;
-var arrange = (rows2) => {
-  const referenceAt = rows2.findIndex((row) => sourceRow(row) === SHORTCUT_HELP);
-  const reference = referenceAt === -1 ? null : rows2[referenceAt];
-  const withoutReference = referenceAt === -1 ? rows2 : [...rows2.slice(0, referenceAt), ...rows2.slice(referenceAt + 1)];
-  const candidates = withoutReference;
-  const first = candidates[0];
-  const wayOut = candidates.find(
-    (row) => bindings(row).includes("Escape") && word(row.promoteEscape) !== false
-  );
-  const second = wayOut && wayOut !== first ? wayOut : candidates.find((row) => row !== first);
-  const short = new Set([first, second].filter(Boolean));
-  const tail = withoutReference.includes(COLLAPSE_SHORTCUT_BAR) ? COLLAPSE_SHORTCUT_BAR : null;
-  return { candidates, reference, short, tail, wayOut };
-};
-var completeLine = (scopes, candidates) => {
-  const scope = scopes.find((candidate) => candidate.sequence);
-  if (!scope) return null;
-  const owned = new Set(scope.rows);
-  const rows2 = new Set(candidates.filter((row) => owned.has(sourceRow(row))));
-  if (!rows2.size) return null;
-  return {
-    scope,
-    rows: rows2
-  };
-};
-var openCompleteReference = () => openCommandReference((id) => executeCommand(id, beforeShortcutCommand));
-var keyboardSettings = el("button", "lf-btn", "Keyboard shortcuts");
-keyboardSettings.type = "button";
-keyboardSettings.addEventListener("click", () => {
-  closeLayer(dismissBannerControls, () => {
-    const door = bannerControlDoor(keyboardSettings);
-    if (door) focusDestination(door, "return");
-  });
-  openCompleteReference();
-});
-registerBannerControl({
-  key: "keyboard",
-  control: keyboardSettings,
-  rank: BANNER_CONTROL_RANK.keyboard,
-  seat: "menu",
-  row: { label: "Keyboard shortcuts", shortcut: ["?"], group: "page" }
-});
-function advanceShortcutHelp() {
-  if (!shortcutHelpAvailable() || shortcutBarIsExpanded || !shortcutBarEl.checkVisibility())
-    return openCompleteReference();
-  const scopes = stack();
-  const { candidates, short } = arrange(lineRows(scopes));
-  const shown = completeLine(scopes, candidates)?.rows ?? short;
-  if (!candidates.some((row) => !shown.has(row))) return openCompleteReference();
-  shortcutBarIsExpanded = true;
-  repaint();
-  announce(
-    "Shortcut bar expanded. Press question mark again for Command reference, or Escape to collapse it."
-  );
-}
-function collapseShortcutBar({ silent = false } = {}) {
-  if (!shortcutBarIsExpanded) return;
-  shortcutBarIsExpanded = false;
-  repaint();
-  if (!silent) announce("Shortcut bar collapsed.");
-}
-function renderShortcutBar(goToStatus) {
-  if (!pageUpgraded()) return;
-  const scopes = stack();
-  const rows2 = lineRows(scopes);
-  if (!shortcutHelpAvailable()) shortcutBarIsExpanded = false;
-  const expanded = shortcutBarIsExpanded && !commandReferenceOpen();
-  const { candidates, reference, short, tail, wayOut } = arrange(rows2);
-  const complete = completeLine(scopes, candidates);
-  const shown = complete?.rows ?? short;
-  const position = walkPosition();
-  const goToReading = goToStatus();
-  if (position)
-    lastWalkPresentation = Object.freeze({
-      kind: position.kind,
-      text: position.text,
-      boundary: position.boundary
-    });
-  bottomStatusContext = Object.freeze({
-    goTo: goToReading,
-    // A retired walk hides but keeps its last wording, matching the native status
-    // surface's continuity while transient notice text occupies the same seat.
-    walk: lastWalkPresentation ? Object.freeze({ ...lastWalkPresentation, shown: Boolean(position) }) : null
-  });
-  setNoticeContext(Boolean(goToReading));
-  renderBottomStatus();
-  const projected = expanded || complete ? candidates : [...shown, ...candidates.filter((row) => !shown.has(row))];
-  const projectedRows = projected.filter((row) => !expanded || row !== tail);
-  const referenceRows = reference ? [reference] : [];
-  const ordered = [...projectedRows, ...referenceRows];
-  const referenceBinding = reference ? bindings(reference)[0] : null;
-  const referenceTitle = titleOf(SHORTCUT_HELP);
-  const referenceLine = lineOf(SHORTCUT_HELP);
-  const sequenceScope = complete?.scope;
-  const sequence = word(sequenceScope?.sequence) ?? [];
-  const presentations = ordered.map((row) => {
-    const inSequence = sequence.length && !row.sequenceControl;
-    const steps = inSequence ? [sequence[0], ...rowSteps(row)] : rowSteps(row);
-    const states = inSequence ? progressStates(steps, sequence) : neutralStates(steps);
-    const active = bindings(row);
-    return Object.freeze({
-      sequenceControl: Boolean(row.sequenceControl),
-      sequence: keySequenceModel(steps, states),
-      said: lineOf(row),
-      commandIds: commandPresentations(row, active).map(({ id }) => id).join(" "),
-      wayOut: row === wayOut,
-      hidden: sourceRow(row) === SHORTCUT_HELP || !expanded && !shown.has(row)
-    });
-  });
-  const model = Object.freeze({
-    items: Object.freeze(presentations),
-    more: Object.freeze({
-      hidden: commandReferenceOpen() || !referenceBinding,
-      binding: referenceBinding ? spell(referenceBinding) : null,
-      line: referenceLine,
-      title: referenceTitle,
-      expanded,
-      ariaLabel: referenceBinding ? `${spell(referenceBinding)} ${referenceLine}` : referenceTitle
-    }),
-    tail: expanded && tail ? Object.freeze({
-      sequence: keySequenceModel(rowSteps(tail), neutralStates(rowSteps(tail))),
-      said: lineOf(tail)
-    }) : null,
-    expanded
-  });
-  keeps(shortcutBarEl, "data-lf-expanded", model.expanded);
-  render(shortcutBarTemplate(model), shortcutBarEl);
-  const rowSpans = shortcutBarEl.querySelectorAll(":scope > .lf-shortcut");
-  const drawn2 = model.items.map((presentation, index) => ({
-    presentation,
-    span: rowSpans[index]
-  }));
-  const barStyle = getComputedStyle(shortcutBarEl);
-  const gap = parseFloat(barStyle.columnGap);
-  const [status] = expanded ? [] : fixedStatusBoxes();
-  const reserved = status ? status.width + gap : 0;
-  const outer = (node) => {
-    const style = getComputedStyle(node);
-    return node.getBoundingClientRect().width + parseFloat(style.marginLeft) + parseFloat(style.marginRight);
-  };
-  const line = shortcutBarEl.getBoundingClientRect().width - parseFloat(barStyle.borderLeftWidth) - parseFloat(barStyle.borderRightWidth) - parseFloat(barStyle.paddingLeft) - parseFloat(barStyle.paddingRight) + (parseFloat(shortcutBarEl.style.getPropertyValue("--lf-status-room")) || 0);
-  const eligible = new Map(
-    drawn2.map(({ span, presentation }) => [span, !presentation.hidden])
-  );
-  const widths = new Map(
-    [...shortcutBarEl.children].filter((node) => eligible.get(node) ?? !node.hidden).map((node) => [node, outer(node)])
-  );
-  const trimmed = /* @__PURE__ */ new Set();
-  const rowsUsed = (room2) => {
-    let rows3 = 0;
-    let used = Infinity;
-    for (const [node, width] of widths) {
-      if (trimmed.has(node)) continue;
-      used += gap + width;
-      if (used > line - room2) {
-        rows3 += 1;
-        used = width;
-      }
-    }
-    return rows3;
-  };
-  const ceiling = expanded ? 2 : 1;
-  const removable = drawn2.filter(({ presentation }) => !presentation.hidden && !presentation.wayOut).map(({ span }) => span).toReversed();
-  while (rowsUsed(reserved) > ceiling && removable.length)
-    trimmed.add(removable.shift());
-  for (const span of [...trimmed].toReversed()) {
-    trimmed.delete(span);
-    if (rowsUsed(reserved) > ceiling) trimmed.add(span);
-  }
-  const room = reserved && rowsUsed(reserved) > ceiling ? 0 : reserved;
-  shortcutBarEl.style.setProperty("--lf-status-room", `${room}px`);
-  for (const { presentation, span } of drawn2)
-    span.toggleAttribute("data-lf-off-line", presentation.hidden || trimmed.has(span));
-}
-var shortcutBarExpanded = () => shortcutBarIsExpanded && shortcutHelpAvailable();
-function mountShortcutBar({ setGoToSequence, setReact }) {
-  activateShortcutMore = () => {
-    setGoToSequence(false);
-    setReact(false);
-    advanceShortcutHelp();
-  };
-  repaint();
-}
-var SHORTCUT_HELP = pageCommand({
-  id: "command.reference.open",
-  touch: false,
-  runFromCommandReference: false,
-  keys: ["?"],
-  title: () => shortcutBarExpanded() ? "Command reference" : "More keyboard shortcuts",
-  line: () => shortcutBarExpanded() ? "command reference" : "more",
-  control: () => shortcutBarMore,
-  run: () => activateShortcutMore?.()
-});
-var COLLAPSE_SHORTCUT_BAR = {
-  id: "shortcut.bar.collapse",
-  keys: ["Escape"],
-  title: "Fewer keyboard shortcuts",
-  line: "less",
-  commandReferenceWhen: () => false,
-  runFromCommandReference: false,
-  run: () => collapseShortcutBar()
-};
-pageScope("expanded shortcut bar", {
-  title: "In the expanded shortcut bar",
-  escape: "inner",
-  root: () => shortcutBarEl,
-  at: () => Boolean(shortcutBarExpanded()),
-  rows: [COLLAPSE_SHORTCUT_BAR]
-});
-declareExpandedBarBehindReference(shortcutBarExpanded);
-var beforeShortcutCommand = (row) => {
-  if (shortcutBarExpanded() && !commandReferenceOpen() && row !== SHORTCUT_HELP && row !== COLLAPSE_SHORTCUT_BAR)
-    collapseShortcutBar({ silent: true });
-};
-
 // runtime/keyboard/controller.js
 function mountKeyboard({
   goToSequenceActive,
@@ -13680,7 +13746,8 @@ var floatingPanel = document.documentElement.lfChrome?.mode === "floating" ? cre
     open: (id) => app.openAsk(id)
   },
   queueActions: app.queueActions,
-  withdraw: app.withdraw
+  withdraw: app.withdraw,
+  settlement: app.settlement
 }) : null;
 var generalComment = floatingPanel?.pageComment ?? pageComment;
 var passageSelection = createPassageSelection({

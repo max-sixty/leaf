@@ -75,9 +75,8 @@ export const shellRight = () => document.body.getBoundingClientRect().right;
 // The banner's foot is its painted edge, since its declared height (`--lf-banner-h`) is a
 // safe-area `calc()` whose serialized value is not a number. The other chrome is read as
 // the boxes standing in it rather than as a stated height (`--lf-bottom-bar-h`), because
-// the status rises above a covering panel's foot, and stands at the window's head over
-// the floating panel; each box bounds only the room it stands across, from the edge it
-// stands nearer.
+// the status rises above a covering panel's foot; each box bounds only the room it
+// stands across, from the edge it stands nearer.
 //
 // The visible viewport is the part of the window the user sees: pinch zoom and a phone's
 // software keyboard shrink it without resizing the layout viewport the page and its fixed

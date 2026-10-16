@@ -2670,6 +2670,72 @@ def test_a_page_thread_opens_in_the_panel_from_the_page_s_routes(browser, serve)
     expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile("open"))
 
 
+# The banner's surfaces, which no route opens now the panel is the only chrome: the
+# Threads panel, the Pages drawer and the On panel, the versions popover, and the page
+# comment card.
+CLASSIC_SURFACES = (
+    ".lf-thread-panel.open, .lf-drawer-panel.open, .lf-version-menu:popover-open,"
+    " .lf-page-comment-card:is(:popover-open, [open])"
+)
+PAGE_ANNOTATED = LONG_PAGE.replace("<body>", '<body data-annotations="page">', 1)
+
+
+def test_a_thread_the_page_draws_nowhere_opens_in_the_panel(browser, serve):
+    """On a page that draws no margin (`data-annotations="page"`), a thread about a
+    passage has nowhere on the page to open, so the panel is its home: `m` arrives at
+    the agent's question there, as `t` does at a thread, drawn by Leaf's reader in the
+    panel's thread view, and the banner's Threads panel stays shut (#91)."""
+    url = serve(PAGE_ANNOTATED)
+    panel_comment(
+        serve.page_dir,
+        "Should the rollout pause on Fridays?",
+        anchor={"section": "p3", "quote": "Paragraph 3."},
+        author="agent",
+    )
+    page = floating(browser, url)
+    reader = page.locator(".lf-fp-view[data-view=thread]")
+    page.locator("body").focus()
+    page.keyboard.press("m")
+    expect(reader.locator(".lf-msg")).to_contain_text("Should the rollout pause")
+    expect(page.locator(CLASSIC_SURFACES)).to_have_count(0)
+    page.keyboard.press("Escape")
+    expect(reader).to_have_count(0)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    expect(reader.locator(".lf-msg")).to_contain_text("Should the rollout pause")
+    expect(page.locator(CLASSIC_SURFACES)).to_have_count(0)
+
+
+def test_a_reply_its_card_cannot_draw_opens_in_the_panel(browser, serve):
+    """A route to one message needs the reader that draws a message whole, which is
+    Leaf's in the panel: a reply carrying a widget, which a thread's card beside its
+    passage offers to open, opens in the panel's thread view, widget and all, rather
+    than in the banner's Threads panel."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(
+        serve.page_dir,
+        "Which job should come first?",
+        {"section": "p3", "quote": "Paragraph 3."},
+    )
+    thread_model.post_reply(
+        serve.page_dir,
+        {"to": root, "for": root},
+        "Choose the first job.",
+        '<lf-ask id="first-job-decision"><h3>Which job first?</h3>'
+        '<lf-options id="first-job" choose>'
+        '<lf-option id="mounts">Put the mounts back</lf-option>'
+        '<lf-option id="camera">Install the camera</lf-option>'
+        "</lf-options></lf-ask>",
+    )
+    page = floating(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    page.locator(".lf-page-thread-open").click()
+    reader = page.locator(".lf-fp-view[data-view=thread]")
+    expect(reader.locator("#first-job")).to_be_visible()
+    expect(page.locator(CLASSIC_SURFACES)).to_have_count(0)
+
+
 def test_an_image_pasted_in_the_page_s_field_stands_over_its_words(browser, serve):
     """An image pasted into the page's field stands on a line of its own above the
     words, as it does over a thread's reply, leaving the field its width; its thumbnail

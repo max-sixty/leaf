@@ -882,6 +882,10 @@ export function createFloatingPanel({
   // Whether this opening of a thread has shown On the page, whose seat then stands
   // while the view does, so a revision detaching the thread moves nothing beside it.
   let onPageSeat = false;
+  // The threads about a passage the page last drew nowhere, which Leaf's destinations
+  // then handed the panel as their last resort (`reveal`): On the page has nowhere to
+  // take the user from those.
+  const unplaced = new Set();
   function holdRoom() {
     const top = trail.at(-1);
     if (!top || top.view === "thread" || rooms.has(routeKey(top))) return false;
@@ -1532,7 +1536,8 @@ export function createFloatingPanel({
   // agent-authored widgets, and holds news that would move what the reader is reading
   // behind its own notice. The reply is the thread's reply box, which the reader draws
   // in the field below rather than in the outlet. A thread anchored to a passage stays
-  // the page's: its card opens beside the words it is about.
+  // the page's where the page draws it: its card opens beside the words it is about,
+  // and the panel shows it only where nothing on the page does (`reveal`).
   let presentation = null;
   // The view standing open, rather than one still leaving.
   const shownView = () => stage.querySelector(".lf-fp-view:not([data-leaving])");
@@ -1961,7 +1966,7 @@ export function createFloatingPanel({
       // the action itself refuses a press meanwhile (thread/actions.js, `settle`).
       // Resolving leaves the reply's editing place, as a card's Resolve does, keeping
       // its draft (thread/replies.js), so the thread shows its way back instead.
-      onPageSeat ||= Boolean(thread.anchor);
+      onPageSeat ||= Boolean(thread.anchor) && !unplaced.has(thread.key);
       aux = html`${
           onPageSeat
             ? html`<button
@@ -2736,13 +2741,23 @@ export function createFloatingPanel({
           : null;
         return () => openInPackage(top.thread, { focus, message });
       },
-      // A thread about the whole page opens here; one about a passage opens beside it.
-      // Where the user lands in it is the route's (`request.part`), which Leaf's
-      // destinations take them to once it is drawn: the reply, a message, or the
-      // thread itself, the view, where the `t` walk goes on from.
-      reveal: (key) => {
+      // A thread about the whole page opens here; one about a passage opens beside it,
+      // where the page draws it, and here only for one of its messages, which Leaf's
+      // reader alone draws whole, or where nothing on the page shows it, as on a page
+      // drawing no margin, the destination's last resort (`request.last`,
+      // thread/destination.js). Where the user lands in it is the route's
+      // (`request.part`), which Leaf's destinations take them to once it is drawn: the
+      // reply, a message, or the thread itself, the view, where the `t` walk goes on from.
+      reveal: (key, { part, last }) => {
         const thread = threadByKey(key);
-        if (!thread || thread.anchor) return false;
+        if (!thread) return false;
+        if (thread.anchor && part !== "message") {
+          if (!last) {
+            unplaced.delete(thread.key);
+            return false;
+          }
+          unplaced.add(thread.key);
+        }
         open({ view: "thread", thread: thread.key }, { reopen: true, focus: false });
         return present({ release: true });
       },

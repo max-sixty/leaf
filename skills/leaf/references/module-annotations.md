@@ -112,7 +112,9 @@ threadActions.setReaction(thread.key, agentMessage.key, token, true);
 
 `open(key, {part, focus, travel, message})` takes the user to the Thread wherever a
 margin mark would: the page's primary reader ("Owning the primary conversation
-presentation"), else the open Threads panel, else beside its passage, else Threads.
+presentation"), which is the Leaf panel unless a package registers one. The panel leaves
+a Thread about a passage beside its passage, and takes it where nothing on the page
+shows it.
 `part` is `"thread"` for the card, `"reply"` for the reply editor, or `"message"` with
 `message: message.key` for one message. `travel: false` keeps the page where it is, and
 `focus: false` leaves focus alone. It resolves to the element it landed on, or `null` if
@@ -151,7 +153,7 @@ A package that provides the page's main conversation reader, such as a shelf of
 conversations or a feed of turns, registers
 `registerThreadPresentation(owner, {render, reveal})`, in `whileConnected`. A page has
 at most one. Leaf then opens threads there instead of in its floating panel, and widgets
-inside messages live there, with the Threads panel as fallback.
+inside messages live there.
 
 `render(shownCollection, parts)` names outlets inside the widget: a whole conversation
 with `parts.thread(thread.key, outlet)`, or its parts with
@@ -165,10 +167,12 @@ supplies Resolve and Reopen through `threadActions`.
 
 Await the handle's `update()` after a local layout change, or `update({release: true})`
 to show held news for a deliberate change of view. `reveal(key, request)` shows the
-requested part in the package's layout, or returns `false` to use the Threads panel;
-`request` carries `part`, `message`, `focus`, `signal` and `current()`. Leaf then handles
-focus, scrolling and arrival. The feature gallery's `lf-conversation-workspace` is the
-worked example.
+requested part in the package's layout, or returns `false` to leave a thread or reply
+part to the thread's place on the page, such as its margin card. Where nothing there
+shows it, Leaf asks again with `request.last` set, and a second `false` leaves the
+thread unopened. `request` also carries `part`, `message`, `focus`, `signal` and
+`current()`. Leaf then handles focus, scrolling and arrival. The feature gallery's
+`lf-conversation-workspace` is the worked example.
 
 ### Widget-local Thread placement
 

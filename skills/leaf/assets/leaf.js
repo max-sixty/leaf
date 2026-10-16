@@ -459,7 +459,6 @@ app = mountApplication({
   },
   landInThread: (...args) => landing.landInThread(...args),
   landSent: (...args) => landing.landSent(...args),
-  showThread: (...args) => landing.showThread(...args),
   panelIsOpen,
   registerReactSurface: (...args) => reactions.registerReactSurface(...args),
   sendReaction,

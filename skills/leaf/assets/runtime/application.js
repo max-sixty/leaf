@@ -327,8 +327,6 @@ export function mountApplication(dependencies) {
   const threadDestinations = createThreadDestinations({
     threadIdsAt: annotations.threadIdsAt,
     placedAt: dependencies.anchorPlacement.placedAt,
-    panelIsOpen: dependencies.panelIsOpen,
-    showThread: dependencies.showThread,
     scrollToThread: dependencies.anchorTravel.scrollToThread,
     arrive: dependencies.anchorTravel.arrive,
     prepareTrip: dependencies.anchorTravel.prepareTrip,

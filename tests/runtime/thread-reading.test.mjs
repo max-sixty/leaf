@@ -25,7 +25,6 @@ const {
 const { createThreadPanelElements } = await import("/runtime/thread/panel-elements.js");
 const { createThreadListController } = await import("/runtime/thread/thread-list.js");
 const { createThreadDestinations } = await import("/runtime/thread/destination.js");
-const { retainUserIntent } = await import("/runtime/user-intent.js");
 const { createThreadPanelController } = await import("/runtime/thread-panel.js");
 
 test("Thread destinations without a page preview retain canonical targets and shadow-held identity", async () => {
@@ -38,15 +37,9 @@ test("Thread destinations without a page preview retain canonical targets and sh
   thread.append(control);
   shadow.append(thread);
   document.body.append(owner);
-  const arrivals = [];
   const destinations = createThreadDestinations({
     threadIdsAt: () => [],
     placedAt: (id) => (id === thread.dataset.thread ? { place: owner } : null),
-    panelIsOpen: () => false,
-    showThread: async (id, options) => {
-      arrivals.push({ id, options });
-      return control;
-    },
   });
   control.focus();
   assert.equal(destinations.threadHere(), thread);
@@ -54,15 +47,6 @@ test("Thread destinations without a page preview retain canonical targets and sh
   assert.equal(destinations.threadTarget(thread.dataset.thread), owner);
   assert.equal(destinations.threadTarget("detached"), null);
   assert.equal(destinations.threadFocusTarget(thread.dataset.thread), null);
-  const intent = retainUserIntent();
-  assert.equal(await destinations.openPageThread("detached", { intent }), control);
-  assert.equal(arrivals[0].id, "detached");
-  assert.equal(arrivals[0].options.intent, intent);
-  assert.equal(arrivals[0].options.part, "reply");
-  assert.equal(arrivals[0].options.focus, true);
-  window.dispatchEvent(new Event("input"));
-  assert.equal(await destinations.openPageThread("detached", { intent }), null);
-  assert.equal(arrivals.length, 1);
   owner.remove();
 });
 
@@ -549,10 +533,7 @@ test("superseding a blocked primary destination completes its prior navigation",
       document.body.append(workspace);
       const reached = Promise.withResolvers();
       const blocked = Promise.withResolvers();
-      const router = createThreadDestinations({
-        panelIsOpen: () => true,
-        showThread: () => null,
-      });
+      const router = createThreadDestinations({});
       let calls = 0;
       const unregister = router.register(workspace, () => {}, {
         update: () =>
@@ -570,6 +551,40 @@ test("superseding a blocked primary destination completes its prior navigation",
     })(),
     true,
   );
+});
+
+test("a thread the primary declines and nothing on the page shows is asked of it again, last", async () => {
+  // The page the test before admitted, whose reading holds one thread.
+  const { readThreads } = await import("/runtime/thread/state.js");
+  const id = readThreads().threads[0].id;
+  const workspace = document.createElement("section");
+  const view = document.createElement("div");
+  workspace.append(view);
+  document.body.append(workspace);
+  const router = createThreadDestinations({
+    threadIdsAt: () => [],
+    placedAt: () => null,
+  });
+  // Declines until asked as the last resort, as the floating panel declines a thread
+  // about a passage.
+  const asked = [];
+  const unregister = router.register(
+    workspace,
+    (_key, request) => {
+      asked.push(request.last);
+      return request.last ? undefined : false;
+    },
+    {
+      update: () => Promise.resolve(),
+      destination: () => view,
+      ownsDestination: (node) => node === view,
+    },
+  );
+  const landed = await router.openPageThread(id, { focus: false });
+  unregister();
+  workspace.remove();
+  assert.deepEqual(asked, [false, true]);
+  assert.equal(landed, view);
 });
 
 test("prepared thread readings consume only their own held-news release", async () => {

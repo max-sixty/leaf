@@ -1638,11 +1638,11 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     font-weight: 600;
   }
   /* The sheen (surfaces.css) carries title generation without moving the lettering or
-     blanking it between passes. The muted base remains visible in every frame. */
+     blanking it between passes. Its dim base remains visible in every frame. */
   .lf-thread-topic[data-lf-pending-title] {
     justify-self: start;
     font-weight: 500;
-    color: color-mix(in oklab, var(--muted) 80%, var(--paper));
+    color: color-mix(in srgb, var(--ink) 50%, transparent);
     animation: lf-sheen 2s ease-in-out infinite alternate;
   }
   /* Status shares the title row. Its width may change the title's ellipsis,

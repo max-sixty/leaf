@@ -61,6 +61,18 @@ ASK_PAGE = leaf_page(
 )
 
 
+# Each field's closed shadow root, so a test can read inside it.
+EDITOR_ROOTS = """
+  window.editorRoots = new Map();
+  const attach = Element.prototype.attachShadow;
+  Element.prototype.attachShadow = function(options) {
+    const root = attach.call(this, options);
+    if (this.localName === 'leaf-text') window.editorRoots.set(this, root);
+    return root;
+  };
+"""
+
+
 def floating(browser, url):
     page = open_page(browser, url, init_script=FLOATING)
     expect(page.locator(".lf-floating-panel")).to_be_visible()
@@ -1407,20 +1419,23 @@ def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, 
     # work, the suite's Claude Code session (`presence.page_agent`).
     working(serve.page_dir, "Drafting the rollout")
     agent = "Claude"
-    page = floating(browser, url)
+    page = open_page(browser, url, init_script=FLOATING + EDITOR_ROOTS)
     status = re.compile(rf"^{agent} working\b.* — Drafting the rollout")
     expect(field(page)).to_have_attribute("placeholder", status)
-    # The sheen runs on the field's placeholder, inside the field's closed tree, where
-    # no animation list reaches: the words it paints over turn to their gradient, and
-    # the field reads differently from one moment to the next.
+    # The sheen runs on the field's placeholder part, inside the field's closed tree,
+    # where no animation list reaches: a moving mask dims the words, and the field reads
+    # differently from one moment to the next.
     words = page.locator(".lf-fp-field .lf-compose-placeholder > span")
     ink = """node => getComputedStyle(node).color"""
 
     def sheen(running):
         page.wait_for_function(
-            """running => (getComputedStyle(document.querySelector(
-              '.lf-fp-field .lf-compose-placeholder > span')).webkitTextFillColor
-              === 'rgba(0, 0, 0, 0)') === running""",
+            """running => {
+              const host = document.querySelector('.lf-fp-field leaf-text');
+              const part = window.editorRoots.get(host)
+                .querySelector('[part~="placeholder"]');
+              return (getComputedStyle(part).maskImage !== 'none') === running;
+            }""",
             arg=running,
         )
 
@@ -1436,8 +1451,7 @@ def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, 
     assert alpha < 0.5, f"the resting status reads at {alpha:.0%} of ink"
     page.emulate_media(reduced_motion="no-preference")
     sheen(True)
-    # Forced colours drop the gradient but keep the animation, so the words keep
-    # their fill rather than vanishing.
+    # Forced colours drop the mask but keep the animation, so the words stay whole.
     page.emulate_media(forced_colors="active")
     sheen(False)
     page.emulate_media(forced_colors="none")
@@ -1467,8 +1481,8 @@ def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, 
 
 def test_a_status_that_asks_the_user_to_act_stands_out(browser, serve):
     """A status that only reports reads in the dim face, and one that asks the user to
-    act, here to open Leaf's link once the server refuses this tab's key, reads at full
-    strength (`pageStatus`, `asks`). Pointing at the field says the status in full,
+    act, here to open Leaf's link once the server refuses this tab's key, reads stronger,
+    in its tone's ink (`pageStatus`, `asks`). Pointing at the field says the status in full,
     where its room would cut it short."""
     url = serve(LONG_PAGE)
     working(serve.page_dir, "Drafting the rollout")
@@ -1491,7 +1505,7 @@ def test_a_status_that_asks_the_user_to_act_stands_out(browser, serve):
     declare_idle(serve.page_dir)
     expect(field(page)).to_have_attribute("placeholder", re.compile("^Key refused"))
     expect(panel).to_have_attribute("data-asks", "")
-    assert alpha() == 1.0, "the status asking the user to act reads dimmed"
+    assert alpha() > 0.6, "the status asking the user to act reads as dim as a report"
     expect(page.locator(".lf-fp-field")).to_have_attribute(
         "title", re.compile("^The server no longer accepts this tab's key")
     )
@@ -2457,6 +2471,29 @@ def test_an_image_pasted_in_the_page_s_field_stands_over_its_words(browser, serv
     expect(field(page)).not_to_have_attribute("placeholder", re.compile("Image added"))
 
 
+def test_a_long_draft_fades_where_words_run_past_the_field(browser, serve):
+    """A draft taller than the field shows no scrollbar, whose overlay flashed with each
+    line; its words fade at whichever edge they run past, read from the field's scroll
+    rather than a scroll timeline, which Firefox lacks."""
+    page = floating(browser, serve(LONG_PAGE))
+    field(page).click()
+    for line in range(30):
+        page.keyboard.type(f"line {line}")
+        page.keyboard.press("Shift+Enter")
+
+    def shows(states):
+        page.wait_for_function(
+            f"() => document.querySelector('.lf-fp-field leaf-text').matches('{states}')"
+        )
+
+    expect(field(page)).to_have_css("scrollbar-width", "none")
+    shows(":state(more-above):not(:state(more-below))")
+    field(page).evaluate("box => box.scrollTop = 0")
+    shows(":state(more-below):not(:state(more-above))")
+    field(page).evaluate("box => box.scrollTop = 100")
+    shows(":state(more-below):state(more-above)")
+
+
 def test_a_draft_draws_a_bullet_list_as_the_message_will(browser, serve):
     """A draft's bullet item shows a bullet in place of its dash, with the item's
     wrapped line hanging under its words, as the sent message draws the list; the dash
@@ -2464,16 +2501,7 @@ def test_a_draft_draws_a_bullet_list_as_the_message_will(browser, serve):
     page = open_page(
         browser,
         serve(LONG_PAGE),
-        init_script=FLOATING
-        + """
-          window.editorRoots = new Map();
-          const attach = Element.prototype.attachShadow;
-          Element.prototype.attachShadow = function(options) {
-            const root = attach.call(this, options);
-            if (this.localName === 'leaf-text') window.editorRoots.set(this, root);
-            return root;
-          };
-        """,
+        init_script=FLOATING + EDITOR_ROOTS,
     )
     field(page).click()
     page.keyboard.type("- " + "an item long enough to wrap in the field " * 3)

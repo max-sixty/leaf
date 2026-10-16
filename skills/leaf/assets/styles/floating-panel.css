@@ -193,6 +193,11 @@
   .lf-fp-field .lf-compose-field:has(> leaf-text[data-lf-focus]) {
     outline: none;
   }
+  /* An attached image's shelf takes a line of its own over the page's words, as it does
+     over a thread's reply (response.css). */
+  .lf-fp-box {
+    flex-wrap: wrap;
+  }
   .lf-fp-resolved {
     flex: 1;
     margin: 0;

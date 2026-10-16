@@ -7,6 +7,7 @@ writing a page comment and replying in the same field, settling the thread, find
 threads and taking in news, answering asks, travelling between versions, and
 folding the panel to the leaf in the window's corner and back."""
 
+import base64
 import re
 
 import pytest
@@ -24,6 +25,7 @@ from leaf import thread as thread_model
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import LIVE_V1, LIVE_V2, live_url, panel_comment
+from render_cases_layout import solid_png
 from render_harness import (
     LONG_PAGE,
     consume_browser_errors,
@@ -2229,6 +2231,9 @@ def test_each_view_s_list_is_one_tab_stop_its_keys_walk(browser, serve):
     expect(rows.nth(1)).to_have_attribute("tabindex", "0")
     unread = page.locator(".lf-fp-filters button", has_text="Unread")
     expect(unread.locator(".lf-fp-count[data-zero]")).to_have_text("0")
+    # Open counts what the thread mark counts, so the mark's number is found here.
+    open_tab = page.locator(".lf-fp-filters button", has_text="Open")
+    expect(open_tab.locator(".lf-fp-count")).to_have_text("2")
 
     on_mark.click()
     expect(page.get_by_role("button", name="On me 2", exact=True)).to_be_visible()
@@ -2424,6 +2429,90 @@ def test_a_page_thread_opens_in_the_panel_from_the_page_s_routes(browser, serve)
     expect(reader).to_be_visible()
     expect(reader.locator(".lf-msg")).to_contain_text("Is the window long enough?")
     expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile("open"))
+
+
+def test_an_image_pasted_in_the_page_s_field_stands_over_its_words(browser, serve):
+    """An image pasted into the page's field stands on a line of its own above the
+    words, as it does over a thread's reply, leaving the field its width; its thumbnail
+    is the paste's result, so no notice says it was added."""
+    page = floating(browser, serve(LONG_PAGE))
+    field(page).click()
+    field(page).evaluate(
+        """(box, encoded) => {
+          const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
+          const transfer = new DataTransfer();
+          transfer.items.add(new File([bytes], 'pasted.png', {type: 'image/png'}));
+          box.dispatchEvent(new ClipboardEvent('paste', {
+            bubbles: true, cancelable: true, clipboardData: transfer,
+          }));
+        }""",
+        base64.b64encode(solid_png(40, 30, (255, 128, 64))).decode(),
+    )
+    shelf = page.locator(".lf-fp-box .lf-composer-media-item")
+    expect(shelf).to_have_count(1)
+    expect(field(page)).not_to_have_attribute("aria-busy", "true")
+    words = field(page).bounding_box()
+    assert words["width"] > 300, words
+    assert shelf.bounding_box()["y"] + shelf.bounding_box()["height"] <= words["y"]
+    expect(field(page)).not_to_have_attribute("placeholder", re.compile("Image added"))
+
+
+def test_a_draft_draws_a_bullet_list_as_the_message_will(browser, serve):
+    """A draft's bullet item shows a bullet in place of its dash, with the item's
+    wrapped line hanging under its words, as the sent message draws the list; the dash
+    shows again, in the same room, while the caret touches it."""
+    page = open_page(
+        browser,
+        serve(LONG_PAGE),
+        init_script=FLOATING
+        + """
+          window.editorRoots = new Map();
+          const attach = Element.prototype.attachShadow;
+          Element.prototype.attachShadow = function(options) {
+            const root = attach.call(this, options);
+            if (this.localName === 'leaf-text') window.editorRoots.set(this, root);
+            return root;
+          };
+        """,
+    )
+    field(page).click()
+    page.keyboard.type("- " + "an item long enough to wrap in the field " * 3)
+    page.keyboard.press("Shift+Enter")
+    page.keyboard.type("two")
+
+    def reading():
+        return field(page).evaluate(
+            """host => {
+              const root = window.editorRoots.get(host);
+              const marks = [...root.querySelectorAll('.lf-md-bullet')];
+              const words = document.createRange();
+              words.selectNodeContents(root.querySelector('.cm-line'));
+              const rows = [...words.getClientRects()];
+              return {
+                marks: marks.map((mark) => ({
+                  left: mark.getBoundingClientRect().left,
+                  drawn: getComputedStyle(mark, '::before').content,
+                  ink: getComputedStyle(mark).color,
+                })),
+                wrapped: rows.at(-1).left - rows[0].left,
+                markWidth: marks[0].getBoundingClientRect().width,
+              };
+            }"""
+        )
+
+    away = reading()
+    assert [mark["drawn"] for mark in away["marks"]] == ['"•"', '"•"'], away
+    assert away["marks"][0]["ink"] == "rgba(0, 0, 0, 0)", away
+    assert away["wrapped"] == pytest.approx(away["markWidth"], abs=1), away
+    page.keyboard.press("ControlOrMeta+Home")
+    near = reading()
+    assert near["marks"][0]["drawn"] == "none", near
+    assert near["marks"][0]["left"] == away["marks"][0]["left"]
+    # A nested item keeps its indentation and is drawn as a bullet too.
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.insert_text("- parent\n    - child")
+    nested = reading()
+    assert [mark["drawn"] for mark in nested["marks"]] == ['"•"', '"•"'], nested
 
 
 def test_send_stands_in_the_counts_place_while_the_user_types(browser, serve):

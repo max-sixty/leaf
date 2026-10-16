@@ -646,9 +646,11 @@ function seatsBy(parts, home, inline, cover, size) {
       }
     ] : [],
     { ...home, left: home.right - size },
+    // Above the corner: a block's inside it, a run of words' hanging off it, so the
+    // pin's pointed foot meets the words' top-right corner rather than their middle.
     {
-      left: home.right - size,
-      right: home.right,
+      left: inline ? box.right : home.right - size,
+      right: inline ? box.right + size : home.right,
       top: box.top - GAP - height,
       bottom: box.top - GAP
     },

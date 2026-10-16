@@ -737,29 +737,6 @@ function standFolded(row, fold, on) {
   fold?.changed();
 }
 
-// Prepares every pin's seats and what they must keep off, then supplies its posture
-// solver to the shared seating order. Each pin avoids the final rows and held labels
-// already placed, and writes its final seat into the entry's rect. The walk crosses the
-// shadow hosts holding the target, so their words and controls bound its seat just as
-// the document's do.
-//
-// A pin's seats, in the order it takes them, all touch its target (`seatRows`): just
-// outside the target's top-right corner; for a run of text or a quoted passage, whose
-// corner is its own words' rather than the block's, just after its last word, where a
-// reader finishes it; just inside the corner, on the target itself, or further down its
-// right edge; then just above that inside seat, which keeps the inset from the
-// window's edge, so a target as wide as the window still has room above it; and last
-// just below its bottom-right corner, at the same inset, where nothing stands level
-// with it under the target. Above and below come last because a pin there can read as
-// the neighbouring block's, and above stands outside what a pane shows when the pane is
-// scrolled to its target. Below is the one seat clear beside a full-width figure or
-// keypad that sits right under a paragraph. A quoted passage's pin then tries the same
-// seats by the block holding it, so it covers words only where the block's do too.
-//
-// A row that can fold (its `fold.able()`, margin-projection.js) is seated at both sizes,
-// which are worked out rather than read, since only the one it stands at is drawn:
-// unfolded its face is two controls, folded one, and opened `fold.controls()`, each a
-// square the row's height, beside the gaps and the focus ring's room the row keeps.
 // The seats by one subject, in the order a pin takes them, `size` wide and as tall as
 // `home`, the pin's seat inside the subject's top-right corner; `parts` are the
 // subject's boxes, and `inline` whether it is a run of words, which adds the seat after
@@ -805,9 +782,11 @@ function seatsBy(parts, home, inline, cover, size) {
         ]
       : []),
     { ...home, left: home.right - size },
+    // Above the corner: a block's inside it, a run of words' hanging off it, so the
+    // pin's pointed foot meets the words' top-right corner rather than their middle.
     {
-      left: home.right - size,
-      right: home.right,
+      left: inline ? box.right : home.right - size,
+      right: inline ? box.right + size : home.right,
       top: box.top - GAP - height,
       bottom: box.top - GAP,
     },
@@ -815,6 +794,29 @@ function seatsBy(parts, home, inline, cover, size) {
   ];
 }
 
+// Prepares every pin's seats and what they must keep off, then supplies its posture
+// solver to the shared seating order. Each pin avoids the final rows and held labels
+// already placed, and writes its final seat into the entry's rect. The walk crosses the
+// shadow hosts holding the target, so their words and controls bound its seat just as
+// the document's do.
+//
+// A pin's seats, in the order it takes them, all touch its target (`seatRows`): just
+// outside the target's top-right corner; for a run of text or a quoted passage, whose
+// corner is its own words' rather than the block's, just after its last word, where a
+// reader finishes it; just inside the corner, on the target itself, or further down its
+// right edge; then just above that inside seat, which keeps the inset from the
+// window's edge, so a target as wide as the window still has room above it; and last
+// just below its bottom-right corner, at the same inset, where nothing stands level
+// with it under the target. Above and below come last because a pin there can read as
+// the neighbouring block's, and above stands outside what a pane shows when the pane is
+// scrolled to its target. Below is the one seat clear beside a full-width figure or
+// keypad that sits right under a paragraph. A quoted passage's pin then tries the same
+// seats by the block holding it, so it covers words only where the block's do too.
+//
+// A row that can fold (its `fold.able()`, margin-projection.js) is seated at both sizes,
+// which are worked out rather than read, since only the one it stands at is drawn:
+// unfolded its face is two controls, folded one, and opened `fold.controls()`, each a
+// square the row's height, beside the gaps and the focus ring's room the row keeps.
 function pinSeating(rows, { bands, shell, pinInset }) {
   const main = marginColumn();
   // A scrollable document can reveal seats beyond the viewport, but none above its own

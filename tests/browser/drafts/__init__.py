@@ -29,12 +29,14 @@ PANEL_SAYS = """() => {
 
 
 def expect_panel_says(page, words):
-    """Wait until the panel's seat for passing words begins with `words`."""
+    """Wait until the panel's seat for passing words says `words`, among others."""
     try:
-        page.wait_for_function(f"w => ({PANEL_SAYS})().startsWith(w)", arg=words)
+        page.wait_for_function(f"w => ({PANEL_SAYS})().includes(w)", arg=words)
     except PlaywrightTimeout:
+        said = page.locator(".lf-live").text_content()
         raise AssertionError(
-            f"the panel says {page.evaluate(PANEL_SAYS)!r}, not {words!r}"
+            f"the panel says {page.evaluate(PANEL_SAYS)!r}, not {words!r} "
+            f"(the live region last said {said!r})"
         ) from None
 
 

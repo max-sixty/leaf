@@ -6,9 +6,12 @@
    The panel stands on the page's own ground, set off by a hairline and the faintest
    shadow, with 12px corners: part of the page rather than a widget laid on it. Its
    controls are set in the sans at 13px, with 12px for what qualifies them, and the
-   page's words (asks, messages) in the page's serif; two inks, full and 60%, and
-   the accent for what is on the user. The leaf is the one symbol at rest, and its
-   colour is the agent's state. Every row is one line. */
+   page's words (asks, messages) in the page's serif; two inks, full and 72%, and
+   the accent for what is on the user, with the empty field's status a step dimmer
+   at 62%. The dim inks are as dim as WCAG AA's 4.5:1 for text lets them be on the
+   panel's ground in the light scheme, whose paper is the brighter: 62% reads 4.7:1
+   there, where the 48% the status first wore read 3.1:1. The user chose a dim
+   status, so it stays the dimmest words in the panel. Every row is one line. */
 @scope (.lf-chrome) {
   html[data-lf-floating-chrome] :scope {
     /* What passes, a notice, the Go-to filter's word or a walk's position, is said in
@@ -37,8 +40,8 @@
       color-mix(in srgb, var(--ink) 13%, transparent),
       color-mix(in srgb, var(--ink) 19%, transparent)
     );
-    --lf-fp-muted: color-mix(in srgb, var(--ink) 60%, transparent);
-    --lf-fp-quiet: color-mix(in srgb, var(--ink) 48%, transparent);
+    --lf-fp-muted: color-mix(in srgb, var(--ink) 72%, transparent);
+    --lf-fp-quiet: color-mix(in srgb, var(--ink) 62%, transparent);
     --lf-fp-faint: color-mix(in srgb, var(--ink) 8%, transparent);
     --lf-fp-hover: color-mix(in srgb, var(--ink) 5%, transparent);
     --lf-fp-radius: 12px;
@@ -310,8 +313,8 @@
     .lf-floating-panel[data-says="status"][data-tone="working"]:not([data-asks])
       .lf-fp-field
       leaf-text::part(placeholder) {
-      /* The quiet face is ink at 48% (`--lf-fp-quiet`). */
-      --lf-sheen-rest: 0.48;
+      /* The quiet face is ink at 62% (`--lf-fp-quiet`). */
+      --lf-sheen-rest: 0.62;
       animation: lf-sheen 2s ease-in-out infinite alternate;
     }
   }

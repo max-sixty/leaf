@@ -16,8 +16,8 @@
   :is(.lf-floating-panel, .lf-fp-ground) {
     --lf-fp-surface: light-dark( var(--paper), color-mix(in srgb, var(--paper) 95%, white) );
     --lf-fp-ring: light-dark( color-mix(in srgb, var(--ink) 13%, transparent), color-mix(in srgb, var(--ink) 19%, transparent) );
-    --lf-fp-muted: color-mix(in srgb, var(--ink) 60%, transparent);
-    --lf-fp-quiet: color-mix(in srgb, var(--ink) 48%, transparent);
+    --lf-fp-muted: color-mix(in srgb, var(--ink) 72%, transparent);
+    --lf-fp-quiet: color-mix(in srgb, var(--ink) 62%, transparent);
     --lf-fp-faint: color-mix(in srgb, var(--ink) 8%, transparent);
     --lf-fp-hover: color-mix(in srgb, var(--ink) 5%, transparent);
     --lf-fp-radius: 12px;
@@ -232,7 +232,7 @@
   }
   @media (prefers-reduced-motion: no-preference) {
     .lf-floating-panel[data-says=status][data-tone=working]:not([data-asks]) .lf-fp-field leaf-text::part(placeholder) {
-      --lf-sheen-rest: 0.48;
+      --lf-sheen-rest: 0.62;
       animation: lf-sheen 2s ease-in-out infinite alternate;
     }
   }

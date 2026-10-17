@@ -2233,13 +2233,16 @@ function createAnchorTravel({
           where: current.where,
           focus: input,
           caret,
+          // The place the words are about comes into view first and the editor
+          // last, so a place taller than the window, as a reviewed case is on a
+          // phone, never scrolls the caret back out of it.
           scroll: input ? [
-            { at: input, block: "nearest", behavior: "instant" },
             {
               at: current.where,
               behavior: "instant",
               when: () => !readableDestination(current.where) || !readableDestination(input)
-            }
+            },
+            { at: input, block: "nearest", behavior: "instant" }
           ] : [{ at: current.where, behavior: "instant" }]
         };
       },

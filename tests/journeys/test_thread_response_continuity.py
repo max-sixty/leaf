@@ -327,13 +327,12 @@ def test_passive_reply_room_ends_at_native_edit_and_new_inline_measure(browser, 
             "Wrap this passage naturally at the editor's inline measure. " * 5,
         ]
     )
-    assert other.evaluate(
-        """async ({parent, value}) => {
-          const {saveDraft} = await window.__lfWidgetApi();
-          return saveDraft('reply:' + parent, value);
-        }""",
-        {"parent": parent, "value": replacement},
-    )
+    # The user goes on writing in the other tab, whose words this one mirrors.
+    other_editor = other.locator(selector)
+    other_editor.focus()
+    other.keyboard.press("ControlOrMeta+a")
+    other.keyboard.insert_text(replacement)
+    expect(other_editor).to_have_js_property("value", replacement)
     expect(editor).to_have_js_property("value", replacement)
     rendered(page)
     mirrored = reply_editing_pose(editor)

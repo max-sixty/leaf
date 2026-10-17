@@ -796,6 +796,8 @@ export function createMarginProjection({
       ...row,
       when: () => focused()?.matches?.(".lf-margin-marker") && visibleRows().length > 0,
     })),
+    // Tab from the entry a card hangs from enters the card (thread-preview.js).
+    ...card.openerKeys,
   ];
 
   function pressMarker(event) {

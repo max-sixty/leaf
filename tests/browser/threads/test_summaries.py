@@ -418,10 +418,12 @@ def test_progress_disclosure_keeps_its_words_visible_beside_margin_paging(
 
     expand = card.get_by_role("button", name="Show 3 progress messages", exact=True)
     expect_unclipped_words(expand)
-    # A keyboard arrival, from the card's next stop: the disclosure is its first.
+    # A keyboard arrival: the disclosure is the card's first stop, so Shift+Tab goes
+    # back to the margin entry the card hangs from and Tab comes into the card again.
     expand.focus()
-    page.keyboard.press("Tab")
     page.keyboard.press("Shift+Tab")
+    expect(page.locator(".lf-margin-marker").first).to_be_focused()
+    page.keyboard.press("Tab")
     expect(expand).to_be_focused()
     assert expand.evaluate("node => node.matches(':focus-visible')")
     page.keyboard.press("Enter")

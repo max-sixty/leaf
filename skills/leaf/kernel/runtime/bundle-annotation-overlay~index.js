@@ -197,10 +197,12 @@ import {
   onStanding,
   onUserInput,
   pressLed,
+  renderedOrder,
   renderedUnder,
   roomPx,
   rove,
   standingIn,
+  tabStops,
   under
 } from "./bundle-sample-visibility.js";
 import {
@@ -342,6 +344,58 @@ function createThreadPreview({
     }
   });
   preview.append(carry.grip, previewList);
+  const opener = () => previewSession?.control?.checkVisibility() ? previewSession.control : null;
+  const onOpener = () => Boolean(opener()) && focused() === opener();
+  const stopsBeside = (root, at, side) => tabStops(root).filter(
+    (stop) => stop !== at && !renderedUnder(at, stop) && Math.sign(renderedOrder(stop, at)) === side
+  );
+  const atCardEdge = (side) => Boolean(opener()) && stopsBeside(preview, focused(), side).length === 0;
+  keys(preview, null, [
+    {
+      id: "margin.card.back",
+      keys: ["Shift+Tab"],
+      title: "back to the margin entry",
+      description: "Leave the thread card for the margin entry it hangs from",
+      repeat: true,
+      runFromCommandReference: false,
+      when: () => atCardEdge(-1),
+      run: () => focusDestination(opener(), "step")
+    },
+    {
+      id: "margin.card.onward",
+      keys: ["Tab"],
+      title: "on past the margin entry",
+      description: "Leave the thread card for the stop after the margin entry",
+      native: true,
+      repeat: true,
+      runFromCommandReference: false,
+      when: () => atCardEdge(1),
+      run: () => focusDestination(opener(), "return")
+    }
+  ]);
+  const openerKeys = [
+    {
+      id: "margin.card.enter",
+      keys: ["Tab"],
+      title: "into the thread card",
+      description: "Enter the thread card the margin entry opened",
+      repeat: true,
+      runFromCommandReference: false,
+      when: () => onOpener() && tabStops(preview).length > 0,
+      run: () => focusDestination(tabStops(preview)[0], "step")
+    },
+    {
+      id: "margin.card.over",
+      keys: ["Shift+Tab"],
+      title: "back past the thread card",
+      description: "Go back from the margin entry to the stop before it",
+      native: true,
+      repeat: true,
+      runFromCommandReference: false,
+      when: () => onOpener() && under(stopsBeside(chromeRoot, opener(), -1).at(-1), preview),
+      run: () => focusDestination(preview, "return")
+    }
+  ];
   onUserInput((event) => {
     if (!previewSession || !["pointerdown", "touchstart", "keydown"].includes(event.type))
       return;
@@ -909,6 +963,7 @@ function createThreadPreview({
     close,
     focusThread,
     focusTarget,
+    openerKeys,
     thread: () => previewList.querySelector(".lf-page-thread"),
     accompanied: () => previewSession && !previewSession.away ? previewList.querySelector(".lf-page-thread") : null,
     closeFocused: () => focused() === previewClose,
@@ -1623,7 +1678,9 @@ function createMarginProjection({
     }).map((row) => ({
       ...row,
       when: () => focused()?.matches?.(".lf-margin-marker") && visibleRows().length > 0
-    }))
+    })),
+    // Tab from the entry a card hangs from enters the card (thread-preview.js).
+    ...card.openerKeys
   ];
   function pressMarker(event) {
     const marker = event.currentTarget;

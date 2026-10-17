@@ -1038,6 +1038,50 @@ def test_focusing_a_thread_margin_entry_does_not_open_its_card(browser, serve):
     expect(page.locator('.lf-target-trace[data-for="bracket"]')).to_be_hidden()
 
 
+def test_a_card_follows_the_margin_entry_it_hangs_from_in_the_tab_order(browser, serve):
+    """A card stands in the Tab order just after the margin entry that opened it, as a
+    popover stands after its invoker. Shift+Tab from the card's first stop goes back to
+    the entry, keeping the card open and the page still, rather than to the page's last
+    stop; Tab from the entry goes into the card; and leaving that pair either way
+    passes over the card rather than circling through it."""
+    page = open_page(
+        browser,
+        serve(PANEL_PAGE, events=[_comment_on("lede", "Check the schedule.")]),
+    )
+    resized(page, 1440, 900)
+    marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
+    preview = page.locator(".lf-margin-preview")
+    in_card = "() => document.querySelector('.lf-margin-preview').contains(document.activeElement)"
+    marker.focus()
+    page.keyboard.press("Enter")
+    expect(preview.locator(".lf-page-thread")).to_be_focused()
+    scrolled = page.evaluate("scrollY")
+
+    page.keyboard.press("Shift+Tab")
+    expect(marker).to_be_focused()
+    expect(preview).to_be_visible()
+    assert page.evaluate("scrollY") == scrolled
+    page.keyboard.press("Tab")
+    first = preview.get_by_role("button", name="Resolve thread", exact=True)
+    expect(first).to_be_focused()
+    page.keyboard.press("Shift+Tab")
+    expect(marker).to_be_focused()
+
+    # Out past the card's last stop, to the stop after the entry, and back to the entry.
+    page.keyboard.press("Tab")
+    for _ in range(10):
+        page.keyboard.press("Tab")
+        if not page.evaluate(in_card):
+            break
+    assert not page.evaluate(in_card), "Tab never left the card"
+    expect(marker).not_to_be_focused()
+    page.keyboard.press("Shift+Tab")
+    expect(marker).to_be_focused()
+    # Back from the entry to the page, over the card.
+    page.keyboard.press("Shift+Tab")
+    assert page.evaluate(ON_THE_PAGE)
+
+
 def test_an_open_desktop_preview_reconciles_arriving_meanings(browser, serve):
     """A pinned marker card stays current while its semantic location is retained."""
     page = open_page(

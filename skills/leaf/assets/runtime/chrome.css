@@ -276,7 +276,7 @@
   .lf-fp-field .lf-compose-submit {
     display: none;
   }
-  .lf-floating-panel[data-typing] .lf-fp-field .lf-compose-submit {
+  .lf-floating-panel[data-writing] .lf-fp-field .lf-compose-submit {
     display: grid;
   }
   .lf-floating-panel[data-typing] .lf-fp-quick:not([data-steps]) {

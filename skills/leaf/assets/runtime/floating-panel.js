@@ -462,8 +462,12 @@ export function createFloatingPanel({
   let searching = false;
   let writing = false;
   // Whether the user is typing, as the row last showed it: Send in the field's corner,
-  // the counts stepped aside.
+  // the counts stepped aside. The row takes that posture, or gives it up, only at the
+  // user's own move: typing, coming into or leaving the field, a view changing. Words
+  // a refused send hands back move nothing, so its action stays in the seat the empty
+  // field gave it, Dictate's, until the user types again; emptied words always end it.
   let typing = false;
+  let postureMoved = true;
   // The thread the reader lands at the end of, once Leaf has drawn more than `after`
   // of its messages: the whole of it on opening, or past the turn the user just sent.
   let landAtEnd = null;
@@ -599,6 +603,7 @@ export function createFloatingPanel({
     field.firstElementChild === replyOutlet ? replyInput() : pageEditor().input;
   // Words arriving in an empty field, or the last of them going, re-seat the row.
   function retype() {
+    postureMoved = true;
     if (Boolean(draftOf(fieldInput()).trim()) !== typing) paint();
   }
   field.addEventListener("input", retype);
@@ -1109,6 +1114,7 @@ export function createFloatingPanel({
   }
   function transition(before, { focus = true } = {}) {
     const after = trail.at(-1);
+    postureMoved = true;
     // The thread the user stands in as the change begins, on the page or in the panel,
     // read before the paint that may take its view away.
     const stoodIn = drawnThreadId(closestAcross(focused(), THREAD));
@@ -2481,7 +2487,9 @@ export function createFloatingPanel({
     keeps(host, "data-writing", writing ? "" : null);
     // While the user types, Send stands in the field's corner and the counts step
     // aside for the field.
-    typing = writing && Boolean(draftOf(input).trim());
+    const typed = writing && Boolean(draftOf(input).trim());
+    if (postureMoved || !typed) typing = typed;
+    postureMoved = false;
     keeps(host, "data-typing", typing ? "" : null);
     if (!draftOf(input).trim()) expanded = false;
     // The mark stays while the field is wide, where the draft may fit three lines again.
@@ -2900,6 +2908,7 @@ export function createFloatingPanel({
     const next = inside ? writing || node.localName === "leaf-text" : false;
     if (next === writing && !inside) return;
     writing = next;
+    postureMoved = true;
     paint();
   });
   // A press on the page puts away what stands open above the row. A press in a modal

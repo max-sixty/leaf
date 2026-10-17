@@ -6061,6 +6061,7 @@ function createFloatingPanel({
   let searching = false;
   let writing = false;
   let typing = false;
+  let postureMoved = true;
   let landAtEnd = null;
   function fieldReading(key, input) {
     const thread = key ? threadByKey(key) : null;
@@ -6154,6 +6155,7 @@ function createFloatingPanel({
   };
   const fieldInput = () => field.firstElementChild === replyOutlet ? replyInput() : pageEditor().input;
   function retype() {
+    postureMoved = true;
     if (Boolean(draftOf(fieldInput()).trim()) !== typing) paint();
   }
   field.addEventListener("input", retype);
@@ -6499,6 +6501,7 @@ function createFloatingPanel({
   }
   function transition(before, { focus = true } = {}) {
     const after2 = trail.at(-1);
+    postureMoved = true;
     const stoodIn = drawnThreadId(closestAcross(focused(), THREAD));
     const reading = [before, after2].some((route) => route?.view === "thread");
     if (after2?.view !== "queue") {
@@ -7482,7 +7485,9 @@ function createFloatingPanel({
     const input = fieldInput();
     if (input) syncInput(input);
     keeps(host, "data-writing", writing ? "" : null);
-    typing = writing && Boolean(draftOf(input).trim());
+    const typed = writing && Boolean(draftOf(input).trim());
+    if (postureMoved || !typed) typing = typed;
+    postureMoved = false;
     keeps(host, "data-typing", typing ? "" : null);
     if (!draftOf(input).trim()) expanded = false;
     keeps(host, "data-long", (long || expanded) && !resting ? "" : null);
@@ -7815,6 +7820,7 @@ function createFloatingPanel({
     const next = inside ? writing || node.localName === "leaf-text" : false;
     if (next === writing && !inside) return;
     writing = next;
+    postureMoved = true;
     paint();
   });
   document.addEventListener(

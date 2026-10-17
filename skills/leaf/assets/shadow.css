@@ -292,7 +292,7 @@ summary {
   flex: 0 1 auto;
   overflow: hidden;
 }
-.lf-primary-message > .lf-msg-head {
+.lf-primary-message > .lf-msg-head:has(> .lf-primary-news) {
   position: relative;
   --lf-msg-head-room: 5rem;
   padding-inline-end: var(--lf-msg-head-room);

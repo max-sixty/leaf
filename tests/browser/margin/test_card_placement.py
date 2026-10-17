@@ -285,6 +285,11 @@ def test_an_open_card_takes_news_without_moving_its_controls(browser, serve):
     )
     told(page)
     expect(notice).to_contain_text("new reply")
+    # It reads whole in the head row, before the card's actions.
+    expect(
+        preview.locator(".lf-margin-thread-controls .lf-thread-news")
+    ).to_be_visible()
+    assert notice.evaluate("node => node.scrollWidth <= node.clientWidth")
     rendered(page)
     assert preview.bounding_box() == pytest.approx(writing, abs=0.5)
     held = {name: control.bounding_box() for name, control in controls.items()}
@@ -300,6 +305,60 @@ def test_an_open_card_takes_news_without_moving_its_controls(browser, serve):
     for name, control in controls.items():
         assert control.bounding_box() == pytest.approx(held[name], abs=0.5), name
     assert editor.bounding_box()["y"] > held["editor"]["y"] + 20
+
+
+# Each visible message head's time against what could cut it: its own box, the
+# metadata it stands in and the head.
+TIMES_WHOLE = """card => [...card.querySelectorAll('.lf-msg-head')]
+  .filter((head) => head.checkVisibility())
+  .map((head) => {
+    const time = head.querySelector('time');
+    const right = time.getBoundingClientRect().right;
+    return {
+      text: time.textContent,
+      whole: time.scrollWidth <= time.clientWidth &&
+        right <= time.parentElement.getBoundingClientRect().right + 0.5 &&
+        right <= head.getBoundingClientRect().right + 0.5,
+    };
+  })"""
+
+
+def test_a_card_s_head_row_cuts_the_name_before_the_time(browser, serve):
+    """A card at its narrowest, with Previous and Next for its target's two threads,
+    holding news while the user writes: the notice reads whole beside the actions, the
+    message head's time stays whole, and the name gives up the room, with an ellipsis."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Make the banner quieter", {"section": "h-how"}
+    )
+    panel_comment(serve.page_dir, "Keep the logo where it is", {"section": "h-how"})
+    page = open_page(browser, url)
+    resized(page, 1200, 900)
+    page.locator(".lf-margin-marker").first.click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview.get_by_text("Make the banner quieter")).to_be_visible()
+    preview.get_by_role("textbox", name="Reply", exact=True).click()
+    page.keyboard.type("Also check the dark scheme")
+    rendered(page)
+    thread_model.post_reply(
+        serve.page_dir,
+        {"to": root, "for": root},
+        "The status line can drop one weight.",
+    )
+    thread_model.post_reply(
+        serve.page_dir, {"to": root}, "And the title the muted ink."
+    )
+    told(page)
+    notice = preview.locator(".lf-margin-thread-controls .lf-thread-news")
+    expect(notice).to_have_text("2 new replies")
+    rendered(page)
+    assert notice.evaluate("node => node.scrollWidth <= node.clientWidth")
+    card = preview.locator(f'.lf-page-thread[data-thread="{root}"]')
+    times = card.evaluate(TIMES_WHOLE)
+    assert times and all(time["whole"] for time in times), times
+    name = card.locator(".lf-msg-head b").first
+    assert name.evaluate("node => node.scrollWidth > node.clientWidth")
+    assert name.evaluate("node => getComputedStyle(node).textOverflow") == "ellipsis"
 
 
 @pytest.mark.watch_shifts

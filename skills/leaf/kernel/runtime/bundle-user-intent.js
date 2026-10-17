@@ -6523,7 +6523,12 @@ var ThreadView = class {
     this.#titleControl = titleControl;
     let threadActions = null;
     if (settlementPlace === "head" || settlementPlace === "margin") {
-      const actions = marginControls ? [marginControls.nav, settlement, marginControls.close].filter(Boolean) : [settlement].filter(Boolean);
+      const actions = marginControls ? [
+        model.news ? notice2.node : null,
+        marginControls.nav,
+        settlement,
+        marginControls.close
+      ].filter(Boolean) : [settlement].filter(Boolean);
       setChildren(this.#actions, actions);
       threadActions = actions.length || model.news ? this.#actions : null;
     }
@@ -6683,8 +6688,7 @@ var ThreadView = class {
               </blockquote>
             </header>` : nothing}
       ${this.#transcript}
-      ${threadActions ? marginControls ? html`${model.news ? html`<div class="lf-margin-thread-news">${news}</div>` : nothing}
-                <div class="lf-margin-thread-controls">${threadActions}</div>` : html`<div class="lf-thread-controls" data-lf-reflow="text">
+      ${threadActions ? marginControls ? html`<div class="lf-margin-thread-controls">${threadActions}</div>` : html`<div class="lf-thread-controls" data-lf-reflow="text">
                 ${news}${threadActions}
               </div>` : nothing}
     `;

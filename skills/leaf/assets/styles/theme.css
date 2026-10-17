@@ -1467,9 +1467,6 @@ aside.sidebar {
   margin: var(--sp-4) 0 30px;
   --lf-block-frame: trim;
 }
-main > aside.sidebar:nth-child(1 of aside.sidebar) {
-  --lf-sidebar-slot: margin;
-}
 
 /* A sidenote is a small indented block where it was written, and on paper; where it hangs
    in the column's margin is the column Layout's (layouts.css). */

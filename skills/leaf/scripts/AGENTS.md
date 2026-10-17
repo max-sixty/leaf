@@ -42,7 +42,7 @@ never prints it; `cli.LeafGroup` prints what it returns (`cli.py`'s header).
 - `work_reading`: the durable work state shared by admission, serving and delivery;
 - `workflows`, `activity`: unfinished updates with their evidence, and the page-level
   summary over workflows, to-dos, status, claim, turn and watcher;
-- `asks`: every widget and prose ask, with typed answers, completion and attention;
+- `asks`: every widget and sign-off ask, with typed answers, completion and attention;
 - `work`: what an id names, which widgets hold a to-do, and which widget to-dos a
   version would leave without a target;
 - `todos` (experimental): committed work on either side until it ends, the `start`

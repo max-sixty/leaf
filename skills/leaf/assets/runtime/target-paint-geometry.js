@@ -9,6 +9,7 @@
 
 import {
   anchorAt,
+  anchorBox,
   anchorElement,
   anchorReaches,
   anchorReading,
@@ -230,13 +231,7 @@ function standIn(stand, placed, anchored) {
 // `at` as `rect` was, or from `stood.origin`, the client point its containing frame's
 // corner stands at. Without a size, `rect` is a point, the box's corner, and the box
 // keeps its own size.
-export function standBox(
-  box,
-  rect,
-  stood,
-  anchor,
-  at = anchor?.getBoundingClientRect(),
-) {
+export function standBox(box, rect, stood, anchor, at = anchor && anchorBox(anchor)) {
   if (stood.anchored) {
     anchorAt(box, anchor, rect, at, stood.visibility ?? "always");
     return;
@@ -260,7 +255,7 @@ export function standBox(
 // Answers the stand and the anchor, read as `placed` was, for what stands beside it.
 export function standOver(stand, placed, borderRadius) {
   const anchor = anchoredBy(placed.surface, stand.root);
-  const at = anchor?.getBoundingClientRect();
+  const at = anchor && anchorBox(anchor);
   const stood = standIn(stand, placed, Boolean(anchor));
   standBox(stand.box, placed.rect, stood, anchor, at);
   Object.assign(stand.box.style, { display: "block", borderRadius });
@@ -431,7 +426,7 @@ export function paintSet(root, { onNear = () => {} } = {}) {
         plane,
         framed,
         anchor: carriedBy,
-        at: carriedBy?.getBoundingClientRect(),
+        at: carriedBy && anchorBox(carriedBy),
         key: keyOf(placed, carriedBy, plane, framed),
       };
     });

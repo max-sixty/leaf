@@ -143,13 +143,13 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
     expect(
         page.locator(
             ".lf-command-reference tr",
-            has_text="Next ask, thread, to-do or resend waiting on me",
+            has_text="Next item waiting on me",
         ).locator("kbd")
     ).to_have_text("m")
     expect(
         page.locator(
             ".lf-command-reference tr",
-            has_text="Previous ask, thread, to-do or resend waiting on me",
+            has_text="Previous item waiting on me",
         ).locator("kbd")
     ).to_have_text("M")
     expect(
@@ -323,7 +323,7 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
     page.keyboard.press("Escape")
 
     page.keyboard.press("m")
-    expect_walk_position(page, "1 of 4 waiting on me · Ask")
+    expect_walk_position(page, "1 of 4 waiting on me · Options")
 
 
 def test_a_page_at_rest_repaints_the_panel_only_when_the_state_moves(browser, serve):

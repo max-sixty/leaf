@@ -21,6 +21,7 @@ import {
   ADDRESSABLE,
   addressableWord,
   aimTargetAt,
+  anchorBox,
   anchorForPassage,
   anchorForRange,
   anchorReading,
@@ -980,6 +981,7 @@ function restorePlace(view, region = null, currentIntent = retainUserIntent()) {
 // runtime/asks/model.js
 var readAsks = readPart((root) => root.effective.asks);
 var askEntry = (ask) => registry[ask?.source.tag]?.["x-awaits"];
+var askedInWords = (ask) => Boolean(askEntry(ask)?.reply);
 var approvalBlockingAsks = readPart((root) => {
   const { asks, view } = root.effective;
   if (asks.phase !== "ready" || !view) return null;
@@ -1435,6 +1437,16 @@ function standUnderHeaders(copy, pre, levels) {
 }
 var revealed = (pre, copy) => {
   if (cuts.has(copy)) standUnderHeaders(copy, pre, headerLevels(pre));
+  const box = pre.getBoundingClientRect();
+  const at = anchorBox(pre);
+  for (const [property, length] of [
+    ["--lf-code-copy-dx", box.left - at.left],
+    ["--lf-code-copy-dy", box.top - at.top]
+  ]) {
+    const value = length ? layoutPx(length) : "";
+    if (copy.style.getPropertyValue(property) !== value)
+      copy.style.setProperty(property, value);
+  }
   refreshAnchorView(copy);
 };
 var COPY_SCOPE = /* @__PURE__ */ Symbol("code copy");
@@ -3534,8 +3546,9 @@ function messageReading(message, { nativeAuthored = false, reactions, workflows,
     // The agent's progress message (`ephemeral`): a step of work in hand, which the
     // thread shows as its working message until an answer folds it (thread-card.js).
     progress: Boolean(message.ephemeral),
-    // What an answer leaves standing, while it stands: "Waiting on me" for the prose ask the
-    // user owes, "To-do open" for work it promised and has not ended (thread-card.js).
+    // What an answer leaves standing, while it stands: "Waiting on me" for the question the
+    // user owes words to, "To-do open" for work it promised and has not ended
+    // (thread-card.js).
     leaves,
     version: message.content_version,
     seq: moved(message).seq,
@@ -5711,7 +5724,7 @@ function threadReading(thread, surface, commands2) {
   const attention = threadAttention(thread);
   const asking = thread.user_prompt?.message;
   const openTodos = new Set(thread.todos.map(({ id }) => id));
-  const leaves = (message) => message.ask && message.id === asking ? "Waiting on me" : message.todo && openTodos.has(message.id) ? "To-do open" : null;
+  const leaves = (message) => message.id === asking ? "Waiting on me" : message.todo && openTodos.has(message.id) ? "To-do open" : null;
   const messages = turns(thread).map(
     (message) => messageReading(message, {
       nativeAuthored: Boolean(commands2.nativeAuthored),
@@ -7139,6 +7152,7 @@ export {
   restorePlace,
   readAsks,
   askEntry,
+  askedInWords,
   approvalBlockingAsks,
   askPlace,
   asksIn,

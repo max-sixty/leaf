@@ -695,7 +695,7 @@ def test_admission_holds_approval_until_the_answer_is_in_the_log(browser, serve)
     # The leaf's menu holds the rows it opened with, so each reading is an opening.
     expect(panel_control(page, "approval")).to_be_disabled()
     expect(page.locator(".lf-fp-approval")).to_have_attribute(
-        "title", "Answer every ask before approving this work"
+        "title", "Answer every open widget before approving this work"
     )
     page.locator(".lf-fp-leaf").click()
     expect(page.locator(PANEL)).not_to_have_attribute("data-menu", "")

@@ -202,7 +202,7 @@ export const approvalReading = () => {
       : !pagePresented() || blockingAsks === null
         ? AWAITING_STATE
         : blockingAsks.length
-          ? "Answer every ask before approving this work"
+          ? "Answer every open widget before approving this work"
           : null;
   return {
     text: approved ? "✓ Version approved" : "Approve version",

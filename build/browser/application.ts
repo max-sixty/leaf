@@ -186,16 +186,16 @@ interface WireProjection {
 interface AskRecord {
   id: string;
   source:
-    | { kind: "widget" | "reply"; id: string; tag?: string }
-    | { kind: "approval"; version: number };
+    { kind: "widget"; id: string; tag: string } | { kind: "approval"; version: number };
   thread: string | null;
   message: string | null;
   prompt: { text: string | null; target: string };
   answer: { value: unknown; event: Event | null } | null;
-  /** `asks.py` owns the statuses; only a prose ask is `answered_elsewhere`. */
+  /** `asks.py` owns the statuses; only an ask answered in words is
+   * `answered_elsewhere`. */
   status: "open" | "answered" | "answered_elsewhere" | "withdrawn";
-  /** The agent's `leaf task end` that retired a prose ask: where the answer is, or why
-   * the ask no longer applies. */
+  /** The agent's `leaf task end` that retired an ask answered in words: where the
+   * answer is, or why the ask no longer applies. */
   end: { detail: string | null; event: Event } | null;
   next_actor: "user" | "agent" | null;
 }

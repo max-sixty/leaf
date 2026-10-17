@@ -1,5 +1,6 @@
 import { pageScroller, readingPosture, TEXT_BOX } from "/runtime/widget-api.js";
 import {
+  layoutBox,
   pageDocument,
   readingRegions,
   renderedParent,
@@ -56,7 +57,7 @@ function contentBox(el) {
 // never moves the column. Both a sweep sample and its breakpoint refinement read the
 // tokens the margin layout publishes, rather than rediscovering residency from boxes.
 export function marginResidents() {
-  return (pageDocument()?.getAttribute("data-lf-margin") ?? "")
+  return (layoutBox()?.getAttribute("data-lf-margin") ?? "")
     .split(" ")
     .filter((token) => token && token !== "rail")
     .join(" ");
@@ -138,7 +139,7 @@ export function arrangedBoxes(open) {
 // how many share some stretch of the page's height. One is a column of panes; a grid with
 // two stacked on the left of a tall third is two.
 export function heldPanes() {
-  const main = pageDocument();
+  const main = layoutBox();
   if (!main?.matches(".layout-workspace")) return [];
   const held =
     getComputedStyle(main).getPropertyValue("--lf-full-height").trim() === "1";
@@ -170,7 +171,7 @@ const AUTHORED_PANE = '[data-lf-reading-role="pane"]:not([data-lf-generated])';
 // no screen. Each comes back with its id, the name every finding uses, and how far its
 // body runs past its scrollport.
 export function overflowingRegions() {
-  const main = pageDocument();
+  const main = layoutBox();
   if (
     !main?.matches(".layout-workspace") ||
     getComputedStyle(main).getPropertyValue("--lf-full-height").trim() !== "1"
@@ -293,7 +294,7 @@ export function misplacedBoxes() {
   // apart — and because `overflow` is one of three ways to draw nothing past an edge.
   // (TRAPPED_MARGINS reads `contain` for the neighbouring question: which margins a
   // formatting context keeps in.)
-  const main = pageDocument();
+  const main = layoutBox();
   if (!main) return [];
   // The column belongs to the page. Visible Leaf chrome still has to fit it, but chrome
   // hidden with opacity or visibility has no box a user can lose. checkVisibility()
@@ -316,11 +317,19 @@ export function misplacedBoxes() {
   // scroll for it. So the question is the same one, asked
   // against the wider bound: this gate renders at one viewport with no panel open, and
   // the user's window is free to be narrower than this one.
-  const bodyStyle = getComputedStyle(document.body);
-  const bodyBox = document.body.getBoundingClientRect();
-  // Inside body's padding.
-  const roomLeft = bodyBox.left + parseFloat(bodyStyle.paddingLeft);
-  const roomRight = bodyBox.right - parseFloat(bodyStyle.paddingRight);
+  // The shell the Layout's box stands in: `body`, or a `main` holding it.
+  const shell = main.parentElement ?? document.body;
+  const shellStyle = getComputedStyle(shell);
+  const shellBox = shell.getBoundingClientRect();
+  // Inside the shell's border, scrollbar gutters and padding, which are in the shell's
+  // own pixels, scaled to the window's by any transform on the shell or around it.
+  const scale = shellBox.width / shell.offsetWidth || 1;
+  const roomLeft =
+    shellBox.left + (shell.clientLeft + parseFloat(shellStyle.paddingLeft)) * scale;
+  const roomRight =
+    shellBox.left +
+    (shell.clientLeft + shell.clientWidth - parseFloat(shellStyle.paddingRight)) *
+      scale;
   // Both readings that hand a box to an ancestor ask shownBand, or a box inside a
   // container that clips without saying so in `overflow` is named for a spill it is
   // drawn nowhere near and left unnamed for the loss it did take, the walk at the foot

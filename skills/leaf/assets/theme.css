@@ -623,9 +623,6 @@ aside.sidebar {
   margin: var(--sp-4) 0 30px;
   --lf-block-frame: trim;
 }
-main > aside.sidebar:nth-child(1 of aside.sidebar) {
-  --lf-sidebar-slot: margin;
-}
 aside.sidenote {
   font-size: var(--t-5);
   line-height: 1.45;

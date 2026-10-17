@@ -195,12 +195,13 @@ export function threadReading(thread, surface, commands) {
   const word = resolved ? "Reopen" : "Resolve";
   const label = resolved ? word : "Resolve thread";
   const attention = threadAttention(thread);
-  // An answer says what it leaves (`--ask`, `--todo`); its head says so while that
-  // stands: the prose ask the user still owes, the to-do still open on the thread.
+  // An answer says what it leaves (an lf-ask, `--todo`); its head says so while that
+  // stands: the question the user still owes words to, the to-do still open on the
+  // thread.
   const asking = thread.user_prompt?.message;
   const openTodos = new Set(thread.todos.map(({ id }) => id));
   const leaves = (message) =>
-    message.ask && message.id === asking
+    message.id === asking
       ? "Waiting on me"
       : message.todo && openTodos.has(message.id)
         ? "To-do open"

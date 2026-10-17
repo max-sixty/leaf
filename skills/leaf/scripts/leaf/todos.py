@@ -27,11 +27,11 @@ counts under `queues.on_agent` in `page state`, and shows in the page's status.
 A to-do on the user is a `todo` event opened with `--on user`, ended by the user's
 Done or by the agent. Asks are separate records (`asks`) that the lists read
 directly, never turned into to-dos. The agent's `todo_end` can also close an open
-prose ask by its ask id: `done` when the user answered it elsewhere, `dropped` when
-it no longer applies, never `failed`. Neither records an answer from the user
-(`asks.thread_asks`). A stamped version declaring `lf-review=sign-off` adds an
-approval ask for that version, which only an approval the user has not withdrawn
-answers.
+ask the user answers in words, such as an `lf-ask` in a reply, by its ask id: `done`
+when the user answered it elsewhere, `dropped` when it no longer applies, never
+`failed`. Neither records an answer from the user (`asks.settle_by_words`). A
+stamped version declaring `lf-review=sign-off` adds an approval ask for that
+version, which only an approval the user has not withdrawn answers.
 
 A start lasts until its item ends: the to-do's end, or for an update, the reply or
 stamped version that answers it (`workflows.canonical_workflows`). It names the turn
@@ -71,6 +71,7 @@ from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
 
+from .asks import replied
 from .events import note_settlements, taken_back
 from .findings import Finding, Rejected
 from .thread_context import thread_names
@@ -176,8 +177,8 @@ class TodoReading:
 
     @cached_property
     def ends(self) -> dict:
-        """The `todo_end` in force on each id it names, by that id: a to-do's, or a
-        prose ask's the agent retired (`asks.thread_asks`)."""
+        """The `todo_end` in force on each id it names, by that id: a to-do's, or an
+        ask's the agent ended unanswered (`asks.settle_by_words`)."""
         return {
             event["todo"]: {
                 "state": event["outcome"],
@@ -279,6 +280,7 @@ def todo_error(
     user_widget_error,
     owed: set[str],
     asks,
+    registry: dict,
 ) -> Finding | None:
     """Why the append door refuses a to-do, start or completion, or None.
 
@@ -287,8 +289,8 @@ def todo_error(
     schema keeps off a `todo` event. A start names an open agent to-do or an owed
     update. Both completion carriers share `TodoReading.completion_error`.
     Either side can end a to-do within its ownership rules. An agent end may
-    also withdraw an open prose ask by canonical id or source message id, while
-    widget asks remain owned by their declared state.
+    also end an open ask the user answers in words (`asks.replied`) by its id,
+    while an ask its widget's state answers stays owned by that state.
     """
     kind = event["kind"]
     if kind == "todo":
@@ -329,7 +331,7 @@ def todo_error(
                     "approval-ask",
                     values={**named, "version": ask["source"]["version"]},
                 )
-            if ask["source"]["kind"] == "widget":
+            if not replied(registry[ask["source"]["tag"]]):
                 return Finding("widget-ask", values=named)
             if event["author"] != "agent":
                 return Finding("users-prose-ask", values=named)

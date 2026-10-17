@@ -49,8 +49,9 @@ def test_thread_rows_name_action_in_existing_status(browser, serve):
 def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     """An open thread and a request to its user are different facts. A complete
     answer stays available for follow-up without the row saying the user owes one; a
-    reply carrying an explicit prose ask says so until the user answers. A widget ask
-    needs no duplicate flag: its own current projection puts the thread on the user."""
+    reply holding a question (`lf-ask`) says so until the user answers. A decision
+    widget says so the same way: its own current projection puts the thread on the
+    user."""
     url = serve(PANEL_PAGE)
     answered = panel_comment(serve.page_dir, "Why forty?", {"section": "how-cap"})
     asked = panel_comment(serve.page_dir, "What remains?", {"section": "how-store"})
@@ -62,8 +63,8 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     thread_model.post_reply(
         serve.page_dir,
         {"to": asked, "for": asked},
-        "One choice remains. Which store should own the result?",
-        ask=True,
+        "One choice remains.",
+        markup='<lf-ask id="store-owner">Which store should own the result?</lf-ask>',
     )
     page = open_page(browser, url)
     expect(thread_row(page, asked).locator(".lf-fp-value")).to_have_text(

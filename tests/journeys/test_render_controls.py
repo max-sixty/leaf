@@ -329,8 +329,13 @@ RING_CASES = (
                 (".lf-draft-edit", ".lf-draft-edit"),
             ),
             "heat-loss": ((".lf-visual-action", ".lf-visual-action"),),
+            # Working density, where a choice's gap is narrowest beside the next face.
+            "notification-playground": (
+                (".lf-playground-radio", ".lf-playground-choice-face"),
+            ),
             "review-a-plan": (("main details > summary", ":where([data-lf-focus])"),),
             "pr-walkthrough": (
+                ("#pr-flow-tab", ":where([data-lf-focus])"),
                 ("lf-gloss:visible > .lf-gloss-mark", ".lf-gloss-mark"),
                 (".lf-diff-search input", "wa-input::part"),
                 ("lf-diff summary", ".lf-diff-file > details > summary"),

@@ -303,7 +303,7 @@ def test_keys_answer_an_ask_from_its_marks(browser, serve):
     expect(nums.first).to_be_hidden()
 
     page.keyboard.press("m")
-    expect_walk_position(page, "1 of 4 waiting on me · Ask")
+    expect_walk_position(page, "1 of 4 waiting on me · Options")
     marks = page.locator("#live-question .lf-pick")
     # The arrival stands on the Ask, which wears its options' digits; the marks
     # are the next Tab stops.
@@ -329,7 +329,7 @@ def test_keys_answer_an_ask_from_its_marks(browser, serve):
     ).to_have_text(["1", "2"])
     page.keyboard.press("Tab")
     expect(marks.first).to_be_focused()
-    expect_walk_position(page, "1 of 4 waiting on me · Ask")
+    expect_walk_position(page, "1 of 4 waiting on me · Options")
     expect(
         page.locator(
             "#live-question > lf-option > .lf-key-badge[data-lf-binding-badge]"
@@ -384,7 +384,7 @@ def test_a_failed_ask_reveal_does_not_register_an_arrival(browser, serve):
     """A rejected reveal neither advances nor marks the existing Ask walk."""
     page = open_page(browser, serve(ASKS_PAGE))
     page.keyboard.press("m")
-    expect_walk_position(page, "1 of 4 waiting on me · Ask")
+    expect_walk_position(page, "1 of 4 waiting on me · Options")
     page.evaluate(
         """async () => {
           const {widgetController} = await window.__lfWidgetApi();
@@ -406,7 +406,7 @@ def test_a_failed_ask_reveal_does_not_register_an_arrival(browser, serve):
     page.wait_for_function("window.askRevealRejected === true")
     rendered(page)
     position = walk_position(page)
-    assert position["text"] == "1 of 4 waiting on me · Ask"
+    assert position["text"] == "1 of 4 waiting on me · Options"
     assert not position["boundary"]
     expect(page.locator("#live-question-decision")).to_be_focused()
     assert [said(error) for error in take_browser_errors(page)] == [
@@ -420,7 +420,7 @@ def test_a_delayed_ask_reveal_yields_to_programmatic_user_focus(browser, serve):
     page = open_page(browser, serve(ASKS_PAGE))
     page.keyboard.press("m")
     expect(page.locator("#live-question-decision")).to_be_focused()
-    expect_walk_position(page, "1 of 4 waiting on me · Ask")
+    expect_walk_position(page, "1 of 4 waiting on me · Options")
     page.evaluate(
         """() => {
           const held = new Promise(resolve => { window.releaseAskReveal = resolve; });
@@ -445,7 +445,7 @@ def test_a_delayed_ask_reveal_yields_to_programmatic_user_focus(browser, serve):
     expect(page.locator(".lf-fp-threads")).to_be_focused()
     # The user left the walk, so it says nothing more; it never says the next arrival.
     position = walk_position(page)
-    assert (position or {}).get("text") in (None, "1 of 4 waiting on me · Ask")
+    assert (position or {}).get("text") in (None, "1 of 4 waiting on me · Options")
 
 
 def test_a_selected_tab_enters_the_ask_it_controls(browser, serve):

@@ -361,8 +361,8 @@ def post_reply(
     claimed_session: str | None = None,
     failure: str | None = None,
     validate_source: bool = False,
-    ask: bool = False,
     todo: str | None = None,
+    asks_back: bool = False,
     ephemeral: bool = False,
     quote: str = "",
     section: str = "",
@@ -390,7 +390,6 @@ def post_reply(
     ``failure`` records a harness-owned failure code alongside its presentation text;
     ordinary agent answers omit it.
 
-    ``ask`` makes the reply a prose ask on the user (`asks`).
     ``todo`` titles work the reply promises and does not deliver: the reply opens
     that to-do on its thread, under the reply's own id (`todos.todo_reading`), so
     the user's message is answered and the work stays on the agent in one write.
@@ -431,7 +430,6 @@ def post_reply(
                 address,
                 ephemeral,
                 failure is not None,
-                ask,
                 todo,
             )
         ):
@@ -455,8 +453,8 @@ def post_reply(
             attempt=attempt,
             failure=failure,
             validate_source=validate_source,
-            ask=ask,
             todo=todo,
+            asks_back=asks_back,
             ephemeral=ephemeral,
             quote=quote,
             section=section,
@@ -472,7 +470,6 @@ def _repeated_reply(
     address: dict,
     ephemeral: bool,
     failed: bool,
-    ask: bool,
     todo: str | None,
 ) -> dict | None:
     """The reply an earlier write with this `attempt` appended, or None; refuses an
@@ -497,9 +494,9 @@ def _repeated_reply(
         or not same_scope
     ):
         raise Rejected([Finding("attempt-conflict", values={"attempt": attempt})])
-    if (bool(existing.get("ask")), existing.get("todo")) != (ask, todo):
-        # A repeat that asks or promises differently would otherwise return the
-        # first answer and drop what this one declares.
+    if existing.get("todo") != todo:
+        # A repeat that promises differently would otherwise return the first
+        # answer and drop what this one declares.
         raise Rejected(
             [Finding("redeclared-answer", values={"message": existing["id"]})]
         )
@@ -616,8 +613,8 @@ def _compose_and_append(
     attempt: str | None,
     failure: str | None,
     validate_source: bool,
-    ask: bool,
     todo: str | None,
+    asks_back: bool,
     ephemeral: bool,
     quote: str,
     section: str,
@@ -632,7 +629,7 @@ def _compose_and_append(
     to, thread_id, responds, in_hand = obligation
     opening = _messages(events)[thread_id]
     moving = bool(quote or section or part)
-    if ephemeral and (ask or todo or markup or failure or moving or detach):
+    if ephemeral and (todo or markup or failure or moving or detach):
         raise Rejected([Finding("ephemeral-content")])
     if detach and moving:
         raise Rejected([Finding("detach-with-target")])
@@ -727,20 +724,20 @@ def _compose_and_append(
             publication=publication,
             thread=thread_id,
         )
-        registry = publication.registry
-        structural = ask and sorted(
-            {
-                rec["tag"]
-                for rec in fragment.lf_elements
-                if local_ask_entry(registry.get(rec["tag"]) or {})
-                and asking(rec["attrs"], registry[rec["tag"]]["x-awaits"].get("when"))
-                and not quoted_in(rec, registry)
-            }
-        )
-        if structural:
-            raise Rejected(
-                [Finding("widget-ask-markup", values={"tags": list(structural)})]
+    # An answer that declares neither `--done` nor `--todo` asks the user back, so its
+    # markup holds a widget that asks.
+    if asks_back and not (
+        markup
+        and any(
+            local_ask_entry(publication.registry.get(rec["tag"]) or {})
+            and asking(
+                rec["attrs"], publication.registry[rec["tag"]]["x-awaits"].get("when")
             )
+            and not quoted_in(rec, publication.registry)
+            for rec in fragment.lf_elements
+        )
+    ):
+        raise Rejected([Finding("undeclared-answer")])
     event = {
         "kind": "reply",
         "author": "agent",
@@ -762,8 +759,6 @@ def _compose_and_append(
             "item": in_hand,
             **({"turn": turn} if turn else {}),
         }
-    if ask:
-        event["ask"] = True
     if todo is not None:
         event["todo"] = todo
     if markup:

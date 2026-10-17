@@ -21,8 +21,8 @@
 // while nested scrollports report on their elements. Use `scrollerFor(el)` where a widget
 // may be one an agent sent, since a widget in a message is scrolled by the view that
 // draws it. `--lf-room` and `--lf-sidebar-posture` are CSS-owned readings resolved on
-// `main`, which is the named `lf-content-frame` style container a margin resident asks
-// for them.
+// the box the page's Layout arranges (`main` or a child of it; layouts.css), which is
+// the named `lf-content-frame` style container a margin resident asks for them.
 
 // Application composition supplies feature-local geometry. This owner cannot open
 // surfaces, send commands, or reconcile thread DOM.

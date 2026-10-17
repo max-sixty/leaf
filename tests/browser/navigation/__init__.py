@@ -84,7 +84,7 @@ def walk_position(page):
 
 
 def expect_walk_position(page, text):
-    """Wait until the walk says `text` ("1 of 4 waiting on me · Ask"), or, with None,
+    """Wait until the walk says `text` ("1 of 4 waiting on me · Options"), or, with None,
     until no walk is under way."""
     page.evaluate(WALK_POSITION)
     page.wait_for_function(

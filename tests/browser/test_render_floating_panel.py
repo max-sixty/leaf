@@ -536,6 +536,7 @@ def test_on_shows_an_ask_as_its_message_and_reply_comes_back(browser, serve):
         "Which build should ship? These are the candidates:\n\n- #4813 schedule\n"
         "- #4812 manual",
         author="agent",
+        question="Which build should ship?",
     )
     page = floating(browser, url)
     page.locator(".lf-fp-on-user").click()
@@ -2377,7 +2378,7 @@ def test_the_leaf_s_menu_says_the_agent_s_state_once(browser, serve):
     expect(head.locator("b")).to_have_text("Working")
     expect(head.locator("span").first).to_have_text(line)
     expect(head.locator(".lf-fp-explain")).to_have_text(
-        re.compile(r"^Waiting on me: 2 asks\. Waiting on Claude: 1 to-do")
+        re.compile(r"^Waiting on me: 2 to answer\. Waiting on Claude: 1 to-do")
     )
 
 
@@ -2760,6 +2761,7 @@ def test_a_thread_the_page_draws_nowhere_opens_in_the_panel(browser, serve):
         "Should the rollout pause on Fridays?",
         anchor={"section": "p3", "quote": "Paragraph 3."},
         author="agent",
+        question="Pause on Fridays?",
     )
     page = floating(browser, url)
     reader = page.locator(".lf-fp-view[data-view=thread]")

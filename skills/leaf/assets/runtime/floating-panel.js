@@ -151,6 +151,7 @@ import { queueTitle } from "./queue-title.js";
 import { itemOutcome } from "./queues.js";
 import { shortAgo } from "./presence.js";
 import { askEnding } from "./asks/answer.js";
+import { askedInWords } from "./asks/model.js";
 import { versionPicker } from "./version-picker.js";
 import { versionsReading } from "./version.js";
 import { UPGRADE } from "./presentation.js";
@@ -245,7 +246,7 @@ const capital = (word) => word[0].toUpperCase() + word.slice(1);
 const coarse = () => matchMedia("(pointer: coarse)").matches;
 // What passes in the panel's one seat for words that pass: a notice while one shows,
 // else what the status line says between notices, the Go-to filter's word or a walk's
-// position ("1 of 3 waiting on me · Ask"). The user asked on 16 October that whatever
+// position ("1 of 3 waiting on me · Options"). The user asked on 16 October that whatever
 // is not anchored to the page stand at the panel rather than against the window.
 // `answers` marks a notice answering what the user did, the one kind the leaf's peek
 // says over an open view (`paintPeek`).
@@ -1668,7 +1669,7 @@ export function createFloatingPanel({
   const outletOf = () => openView()?.querySelector(".lf-fp-outlet") ?? null;
   function nominate(collection, parts) {
     const top = trail.at(-1);
-    // On draws each prose ask as its message, in its card's outlet.
+    // On draws each question asked in words as its message, in its card's outlet.
     if (top?.view === "queue") {
       for (const outlet of stage.querySelectorAll(
         ".lf-fp-view:not([data-leaving]) .lf-fp-asked",
@@ -1870,14 +1871,15 @@ export function createFloatingPanel({
   function onItemCard(item, list) {
     const ask = item.kind === "ask" ? item.ask : null;
     const thread = item.thread ? threadByKey(item.thread) : null;
-    // A prose ask is a message in its thread, and reads as that message, drawn whole by
-    // Leaf's reader as the thread draws it (`nominate`), images and all: its words cut
-    // to text would end at whatever they introduce. The thread names it above, where it
-    // has a name of its own rather than the message's opening words. Where the page's
-    // package draws its conversations instead, Leaf's reader draws none here, and the
-    // message's words stand for it under the thread's name.
+    // A question asked in words is a message in its thread, and reads as that message,
+    // drawn whole by Leaf's reader as the thread draws it (`nominate`), images and all:
+    // its words cut to text would end at whatever they introduce. The thread names it
+    // above, where it has a name of its own rather than the message's opening words.
+    // Where the page's package draws its conversations instead, Leaf's reader draws
+    // none here, and the message's words stand for it under the thread's name.
+    const inWords = ask !== null && askedInWords(ask);
     const asking =
-      ask?.source.kind === "reply" && thread
+      inWords && thread
         ? thread.msgs.find((candidate) => candidate.id === ask.message)
         : null;
     const message = asking && presentation?.primary !== false ? asking : null;
@@ -1894,7 +1896,9 @@ export function createFloatingPanel({
     const prompt = said && said.trim() !== title.trim() ? said : "";
     const answered = ask && ask.status !== "open";
     const choices =
-      ask && !answered && ask.source.kind === "widget" ? askView.choicesOf(ask) : null;
+      ask && !answered && ask.source.kind === "widget" && !inWords
+        ? askView.choicesOf(ask)
+        : null;
     const gesture = answered ? answerGesture(ask) : null;
     const discuss = thread
       ? html`<button
@@ -1970,7 +1974,7 @@ export function createFloatingPanel({
         >
           Done</button
         >${discuss}${arrive}`;
-    else if (ask?.source.kind === "reply" && thread)
+    else if (inWords && thread)
       answers = html`<button
         type="button"
         class="lf-fp-answer"

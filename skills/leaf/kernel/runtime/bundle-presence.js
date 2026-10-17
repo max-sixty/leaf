@@ -1,4 +1,5 @@
 import {
+  layoutBox,
   pageDocument
 } from "./bundle-passage-facts.js";
 import {
@@ -635,7 +636,7 @@ function registerReadingRegion({ id, host, body }) {
 var layoutRegions = /* @__PURE__ */ new Map();
 var marked = (box) => box.checkVisibility() && getComputedStyle(box).getPropertyValue("--lf-reading-region").trim() === "layout";
 function syncLayoutRegion() {
-  const main = pageDocument();
+  const main = layoutBox();
   const bodies = main ? [...main.children].flatMap((child) => {
     if (marked(child)) return [[child, child.id]];
     const only = child.childElementCount === 1 ? child.firstElementChild : null;

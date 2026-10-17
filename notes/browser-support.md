@@ -587,6 +587,30 @@ document, and the runtime relies on it (next entry).
   after it, and a document tall enough to scroll; scroll the document and the panel
   and compare the two rectangles' tops.
 
+### An anchor's transforms in Firefox
+
+- **Disposition: answered for translations.** `anchorBox` (`runtime/css-anchors.js`)
+  is where every inset Leaf writes against an anchor is measured from. In an engine
+  that leaves transforms out, read once, it takes off how far each translation on
+  the anchor or an ancestor moves its box, read from offsets, which leave
+  transforms out too. A scale, rotation or CSS zoom moves each point differently and
+  stays unanswered. Remove it when Firefox counts transforms. A probe anchored to
+  the same name was rejected: read straight after a scroll between it and the
+  anchor, it returns where the anchor stood before.
+- **Affected:** every box anchored in a table granted room, which `layouts.css`
+  translates into place, and in any box a page transforms: margin rows and pins,
+  the Alt outline, key chips, the comment box, the thread card, and a code block's
+  Copy, whose CSS-only anchor takes the shift on each reveal (`code-copy.js`).
+- **Observed, 2026-10-16, Firefox 155:** `anchor()` resolves to the anchor's box
+  as laid out, before the `transform`, `translate`, `rotate`, `scale` or
+  `offset-path` on it or an ancestor; relative positioning is counted. The spec counts transforms, as
+  Chromium 153 and WebKit 26.6 do. At 1728 px a `data-width="wide"` table stood
+  translated 300 px from its layout box, so the comment box for its header opened
+  over the row headers and the Alt outline stood 300 px left of the table.
+- **Recheck:** a box with `translate: 50px 0` named `--t`, and a `position: fixed`
+  box with `position-anchor: --t; left: anchor(left)` after it; compare the two
+  rectangles' lefts.
+
 ### Native reveal bounded to its scroller
 
 - **Disposition: worked around in Leaf.** Leaf reveals an item inside one box

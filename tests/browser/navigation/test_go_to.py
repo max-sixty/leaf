@@ -347,7 +347,9 @@ def test_a_transient_notice_does_not_move_generated_address_hints(browser, serve
     page.evaluate(
         "async () => (await window.__lfWidgetApi()).notice('Moved to Done — sent.')"
     )
-    expect(page.locator(PANEL)).to_have_attribute("data-says", "notice")
+    expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
+        "data-says", "notice"
+    )
     page.keyboard.press("g")
     expect(fixed_link_hint).to_be_visible()
     assert (
@@ -357,7 +359,9 @@ def test_a_transient_notice_does_not_move_generated_address_hints(browser, serve
         )
         == quiet_top
     )
-    expect(page.locator(PANEL)).to_have_attribute("data-says", "notice")
+    expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
+        "data-says", "notice"
+    )
 
 
 def test_generated_hints_spread_without_hiding_a_crowded_target(browser, serve):

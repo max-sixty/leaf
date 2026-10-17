@@ -36,7 +36,7 @@ THREAD_VIEW = ".lf-fp-view[data-view=thread]:not([data-leaving])"
 # Where the floating panel says a passing notice: in its empty field's place, on the
 # line over its field, or, while a view stands open, in the leaf's peek.
 NOTICE = (
-    ".lf-floating-panel[data-says=notice],"
+    ".lf-fp-field leaf-text[data-says=notice],"
     " .lf-fp-context[data-notice]:not([hidden]), .lf-fp-peek[data-shown]"
 )
 

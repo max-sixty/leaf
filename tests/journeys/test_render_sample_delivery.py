@@ -11,6 +11,8 @@ from leaf import interaction_log as interaction_model
 from leaf.render_checks import HANDOVER_DEADLINE_MS
 from playwright.sync_api import expect
 from render_harness import (
+    PANEL,
+    PANEL_THREAD,
     consume_browser_errors,
     holding,
     http_error_console,
@@ -18,6 +20,7 @@ from render_harness import (
     open_page,
     page_comment,
     said,
+    scroll_settled,
     take_browser_errors,
     write,
 )
@@ -54,7 +57,13 @@ def test_sample_upgrade_does_not_wait_for_child_saved_state(
     expect(child.locator("body")).to_have_attribute("data-lf-upgraded", "1")
     expect(child.locator("body")).not_to_have_attribute("inert")
     expect(child.locator("body")).not_to_have_attribute("data-lf-presented", "1")
-    expect(child.locator(".lf-status-text")).to_have_text("Loading saved state…")
+    expect(child.locator(".lf-fp-leaf")).to_have_attribute(
+        "aria-label", "Page menu · Loading saved state…"
+    )
+    # The page's own panel floats over the window's foot, where the sample's stands
+    # too until the page is scrolled to the foot room it keeps clear of its chrome.
+    page.evaluate("scrollTo(0, document.scrollingElement.scrollHeight)")
+    scroll_settled(page)
     outer_box = page_comment(page)
     write(outer_box, "Parent draft")
     page.keyboard.press("Escape")
@@ -94,19 +103,22 @@ def test_sample_upgrade_does_not_wait_for_child_saved_state(
     assert page.evaluate("window.sampleSelectionResult") is (not newer_input)
     expect(child.locator("body")).to_have_attribute("data-lf-presented", "1")
     expect(outer_box).to_have_js_property("value", "Parent draft")
-    expect(inner_box).to_have_js_property("value", child_words)
     if newer_input:
-        expect(child.locator(".lf-thread-panel")).not_to_have_class(
-            re.compile(r"\bopen\b")
-        )
+        expect(inner_box).to_have_js_property("value", child_words)
+        expect(child.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
         expect(inner_box).to_be_focused()
-    else:
-        destination = child.locator(
-            ".lf-thread-panel" if surface == "panel" else ".lf-page-thread"
-        )
-        expect(
-            destination.get_by_text("A saved child conversation.", exact=True)
-        ).to_be_visible()
+        return
+    destination = child.locator(
+        PANEL_THREAD if surface == "panel" else ".lf-page-thread"
+    )
+    expect(
+        destination.get_by_text("A saved child conversation.", exact=True)
+    ).to_be_visible()
+    if surface == "panel":
+        # The thread's view stands its reply in the field; the page comment keeps its
+        # words for when the view is put away.
+        child.locator(".lf-fp-close").click()
+    expect(inner_box).to_have_js_property("value", child_words)
 
 
 def interaction_records(page, page_dir, *, document=None):

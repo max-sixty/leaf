@@ -1601,7 +1601,7 @@ def _names_a_feature(compound):
 def test_no_has_rule_restyles_the_whole_document():
     """Chrome restyles a `:has()` that stands before the last combinator from the document
     root, selecting by the rightmost compound alone (assets/AGENTS.md states the rule).
-    `.lf-bottom-status:has(> .lf-notice.show) > :not(.lf-notice)` named nothing there, so
+    A status line's `:has(> .lf-notice.show) > :not(.lf-notice)` named nothing there, so
     every runtime write during a drag-select restyled all 21,600 elements of a large page:
     twelve long tasks of up to 175 ms per three drags, from a line of chrome that was not
     even showing."""
@@ -2395,8 +2395,8 @@ def test_page_check_names_an_older_leaf_beside_its_own(page_dir):
 
 def test_a_server_names_its_leaf_where_another_vendored_the_page(page_dir):
     """The served state names the Leaf the server runs only where it is another than
-    the page's, so the banner sets the two side by side exactly when they differ,
-    judged by the commit the Leaf records rather than its short label."""
+    the page's, so the leaf's About menu sets the two side by side exactly when they
+    differ, judged by the commit the Leaf records rather than its short label."""
     from leaf import hosting as hosting_model
 
     (page_dir / "index.html").write_text(PLAIN_PAGE, encoding="utf-8")

@@ -355,7 +355,7 @@ def test_c_comments_on_what_the_user_is_standing_in(browser, serve):
     expect(page.locator("#shape-decision")).to_have_attribute("data-lf-ask", "1")
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_be_visible()
-    expect(page.locator(".lf-composer")).to_contain_text("ask")
+    expect(page.locator(".lf-composer")).to_contain_text("question · Which material?")
     drop()
 
     # A settled group: not a decision at all, and the thread seat it still holds is

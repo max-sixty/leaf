@@ -210,7 +210,7 @@
     "runtime/thread/identity.js": "a108cf62a230a32aa426de09e2dcd11a5102ee0c8c40817585e40a9f97f7c00c",
     "runtime/thread/inline.js": "fe51802e85742248a18e914532b4d615195743cdb534013c24019d4e65596ad0",
     "runtime/thread/landing.js": "cd4dc1142356ba774b4c28ea06ecfa91d6c12df65abbf2459bc3b8824a0ab8ac",
-    "runtime/thread/message-edit.js": "33c3b78d2314cb8fbeb5938353828d42017ab2e298d28f28cb817a2452f1c60f",
+    "runtime/thread/message-edit.js": "683db1ad8b02145a24a6f26c2edfc1b2bbdc3a83d16c25604da8f5b634ca776b",
     "runtime/thread/messages.js": "7fd41375812a6e814b8234886b5e4cdc4ba3fa2369258386b357212240efdbc2",
     "runtime/thread/model.js": "9be8d2f5a8a45bf977e58bd3733db7ab2ca456e6acab9e710022948603250611",
     "runtime/thread/narrowing-view.js": "f29c95a1c4e824de77dcb3cf5ceb806725d6ecb9bb71158a16bd8cc3b157d858",

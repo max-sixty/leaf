@@ -978,6 +978,10 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     expect(inline).to_have_count(1)
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(0)
     panel_settled(page, open=False)
+    # It lands in the thread's reply there, as the field it left was; Escape steps out
+    # onto the thread, so the line can be selected.
+    expect(inline.locator(".lf-thread-reply leaf-text")).to_be_focused()
+    page.keyboard.press("Escape")
 
     selected = added.evaluate(
         """line => {

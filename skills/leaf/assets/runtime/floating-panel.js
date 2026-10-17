@@ -105,7 +105,7 @@ import {
   render,
   repeat,
 } from "/vendor/browser-runtime.js";
-import { el } from "./widget-elements.js";
+import { el, reveal } from "./widget-elements.js";
 import { iconElement, iconTemplate } from "./icons.js";
 import { copyControl } from "./copy-control.js";
 import { keeps, keepsHidden, keepsText } from "./keeps.js";
@@ -2175,8 +2175,20 @@ export function createFloatingPanel({
                 ?disabled=${!thread.anchor}
                 ?data-unoffered=${!thread.anchor}
                 @click=${() => {
+                  // The words come into view in the press's own task, so a widget
+                  // hiding them, as a diff's file filter does, gives them up to this
+                  // press rather than after the route's awaits (widget-elements.js,
+                  // `reveal`).
+                  const intent = retainUserIntent();
+                  const place = placedAt(thread.id)?.place;
+                  if (place) reveal(place, intent);
                   close();
-                  void threadActions.open(thread.key, { part: null });
+                  // The reply box the field drew goes back to the thread's drawing on
+                  // the page once the reader has drawn the view gone, and the route
+                  // lands in it there.
+                  void present({ release: true }).then(() =>
+                    threadActions.open(thread.key, { part: null, intent }),
+                  );
                 }}
               >
                 On the page

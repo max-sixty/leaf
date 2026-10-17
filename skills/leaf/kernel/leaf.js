@@ -7255,8 +7255,13 @@ function createFloatingPanel({
                 ?disabled=${!thread.anchor}
                 ?data-unoffered=${!thread.anchor}
                 @click=${() => {
+        const intent = retainUserIntent();
+        const place3 = placedAt(thread.id)?.place;
+        if (place3) reveal(place3, intent);
         close();
-        void threadActions.open(thread.key, { part: null });
+        void present({ release: true }).then(
+          () => threadActions.open(thread.key, { part: null, intent })
+        );
       }}
               >
                 On the page

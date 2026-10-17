@@ -229,7 +229,7 @@ class PageStateService:
         ):
             work = context.work
             title = (
-                context.revision(context.active["revision"]).document.title
+                context.revision(context.active["revision"]).document.authoring.title
                 if context.active is not None
                 else ""
             )

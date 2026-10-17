@@ -10,6 +10,10 @@
     <style>
       @import url("/page/theme.css");
 
+      #bg-style-access :is([role="checkbox"], a) {
+        color: var(--mark-ink);
+      }
+
       #bg-metrics > dl {
         margin: 0;
         padding: var(--sp-3);
@@ -178,6 +182,11 @@
 
       main:not([data-lf-margin~="map"], [data-lf-margin~="sidebar"]) #bg-sidebar {
         display: none;
+      }
+    </style>
+    <style data-controls>
+      #bg-style-allowed .lf-pick {
+        color: var(--accent);
       }
     </style>
     <script id="bg-margin-layer-status-history" type="application/json">
@@ -469,15 +478,15 @@
               </p>
             </section>
             <section id="bg-floating-panel">
-              <h3>The floating panel (experimental)</h3>
+              <h3>The floating panel and the banner</h3>
               <p>
-                Add <code>?lf-chrome=floating</code> to this page's address: the banner
-                and the bottom bar give way to one panel hovering over the foot of the
-                page, and the choice stays for every page until
-                <code>?lf-chrome=classic</code> restores them. A window sample shows the
-                chrome its <code>chrome</code> attribute names, whichever you chose.
-                Below, the same page in each: press the floating panel's leaf for the
-                menu, and its field to comment.
+                Leaf's controls stand in one panel hovering over the foot of the page.
+                <strong>Use the banner</strong>, at the foot of the leaf's menu, trades
+                it for the banner and the bottom bar on every page, and
+                <strong>Use the Leaf panel</strong> in the banner's More menu brings it
+                back. A window sample shows the chrome its <code>chrome</code> attribute
+                names, whichever you chose. Below, the same page in each: press the
+                floating panel's leaf for the menu, and its field to comment.
               </p>
               <lf-sample
                 id="bg-chrome-classic"
@@ -1570,6 +1579,28 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </div>
           </section>
 
+          <section id="bg-style-access">
+            <h2><strong>A stylesheet explicitly chooses control access</strong></h2>
+            <p id="bg-style-access-guide">
+              The ordinary page rule colors this
+              <a href="#bg-style-allowed">page link</a>, while the first pair keeps
+              Leaf's ink. A separate stylesheet marked <code>data-controls</code>
+              colors the second pair's selection marks with the accent. Pick by click,
+              tap, or Tab and Space; Undo restores the earlier choice without changing
+              either face.
+            </p>
+            <h3>Ordinary page stylesheet</h3>
+            <lf-options id="bg-style-protected" choose>
+              <lf-option id="bg-style-protected-one"><strong>First</strong></lf-option>
+              <lf-option id="bg-style-protected-two"><strong>Second</strong></lf-option>
+            </lf-options>
+            <h3>Stylesheet with control access</h3>
+            <lf-options id="bg-style-allowed" choose>
+              <lf-option id="bg-style-allowed-one"><strong>First</strong></lf-option>
+              <lf-option id="bg-style-allowed-two"><strong>Second</strong></lf-option>
+            </lf-options>
+          </section>
+
           <section id="bg-user-view">
             <h2><strong>The user's observed view</strong></h2>
             <p id="bg-user-view-guide">
@@ -1936,11 +1967,12 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 </lf-board>
               </template>
             </lf-sample>
-            <figure id="bg-margin-layer-figure" data-width="available">
-              <table id="bg-margin-layer-table">
+            <figure id="bg-margin-layer-figure">
+              <table id="bg-margin-layer-table" data-width="available">
                 <thead>
                   <tr>
                     <th>Session</th>
+                    <th>Room</th>
                     <th>Mon</th>
                     <th>Tue</th>
                     <th>Wed</th>
@@ -1953,21 +1985,23 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 <tbody>
                   <tr>
                     <td>Practice</td>
-                    <td>9:00</td>
-                    <td>9:00</td>
+                    <td>Workshop hall, east wing</td>
+                    <td>9:00–11:00</td>
+                    <td>9:00–11:00</td>
                     <td>—</td>
-                    <td>9:00</td>
-                    <td>9:00</td>
+                    <td>9:00–11:00</td>
+                    <td>9:00–11:00</td>
                     <td>—</td>
                     <td>—</td>
                   </tr>
                   <tr>
                     <td>Debugging</td>
-                    <td>13:30</td>
+                    <td>Lab 2, second floor</td>
+                    <td>13:30–15:00</td>
                     <td>—</td>
-                    <td>13:30</td>
+                    <td>13:30–15:00</td>
                     <td>—</td>
-                    <td>13:30</td>
+                    <td>13:30–15:00</td>
                     <td>—</td>
                     <td>—</td>
                   </tr>

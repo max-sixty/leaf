@@ -159,7 +159,7 @@ def test_authored_module_entry_exports_through_its_one_import_map_url(tmp_path, 
     ]
     entry = next(
         script
-        for script in composed.external_scripts
+        for script in composed.authoring.external_scripts
         if "data-lf-runtime" not in script["attrs"]
     )
     assert entry["attrs"]["src"] == import_map[f"leaf:{logical}"] == modules[logical]

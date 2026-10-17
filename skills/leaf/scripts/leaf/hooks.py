@@ -21,7 +21,9 @@ process's environment. Stop or Interrupt closes that observed turn, including a
 turn not yet claimed by any page; a newer prompt protects its own epoch. A payload
 that names no turn can state when the turn ended (`ended_at`, in POSIX seconds),
 as the Interrupt from Pi's extension or Leaf's Claude Code hooks module does, and
-then leaves a turn opened or renewed since open.
+then leaves a turn opened or renewed since open. The hooks module also sends
+WakeRefused, an event no harness has, when Claude Code refuses the prompt a
+watch's wake submitted; it nudges the session for the input instead.
 
 Most sessions with the plugin installed never claim a page, so in a session
 holding no claim the launcher answers each hook registered `--if-claimed`
@@ -78,6 +80,14 @@ def cmd_hook(harness: str, payload: dict) -> None:
         end_harness_instance(sid)
         return
     if not sid:
+        return
+    if event == "WakeRefused":
+        # Leaf's Claude Code hooks module sends this when Claude Code refuses the
+        # prompt a watch's wake submitted, leaving the input to the nudge
+        # (`hooks/claude-code.ts`).
+        from .session import nudge_pending
+
+        nudge_pending(sid)
         return
     from .harness import hook_harness
 

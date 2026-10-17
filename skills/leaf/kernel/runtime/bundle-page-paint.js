@@ -28,7 +28,6 @@ import {
   releaseFocus,
   renderedParent,
   renderedUnder,
-  sampleVisibility,
   shadowHost,
   sizeObserver,
   takesLetters,
@@ -76,9 +75,8 @@ var PAGE_PAINT_ATTRIBUTE = Object.freeze({
   goto: "data-lf-go-to-active",
   traffic: "data-lf-traffic",
   indicated: "data-lf-indicated",
-  // A breakout in a box the page arranged itself, which keeps to that box
-  // (prepaint.js, `indents`).
-  arranged: "data-lf-arranged",
+  // A breakout that keeps to its holder (prepaint.js, `breakouts`).
+  kept: "data-lf-kept",
   // Delivery's, not a runtime writer's: the size of the page media an element names
   // (revision_delivery.py, `mark_declared`).
   mediaWidth: "data-lf-media-width",
@@ -493,7 +491,14 @@ var registry = runtime.registry;
 var tokenEntry = (name) => registry.$reactions.tokens[name];
 var elementDeclarations = () => Object.entries(registry).filter(([tag]) => isElementName(tag));
 function adoptRegistry(declarations) {
+  for (const [name, value] of Object.entries(declarations))
+    if (name.startsWith("$")) freeze(value);
   Object.assign(registry, declarations);
+}
+function freeze(value) {
+  if (value === null || typeof value !== "object" || Object.isFrozen(value)) return;
+  for (const child of Object.values(value)) freeze(child);
+  Object.freeze(value);
 }
 var stateIndex;
 var recordSlot = (record) => JSON.stringify([record.kind, "attr" in record ? record.attr : null]);
@@ -522,10 +527,7 @@ function indexedState() {
 }
 var stateSpecs = () => indexedState().specs;
 var recordedWidgetSelector = (record) => indexedState().recordSelectors.get(recordSlot(record)) ?? "";
-function layerFact(name) {
-  const value = registry[name];
-  return value === void 0 ? void 0 : structuredClone(value);
-}
+var layerFact = (name) => registry[name];
 var declarationFor = (el2, key) => registry[el2?.localName]?.[key];
 var decisionFor = (tag) => registry.$decisions[tag] ?? null;
 var elementsDeclaring = (root2, key, { direct = false } = {}) => {
@@ -1753,25 +1755,35 @@ function prune() {
   }
 }
 function pushNativeLayer(node, source = null) {
-  const at = entries.findIndex((entry) => entry.root === node);
+  const at = entries.findIndex((entry2) => entry2.root === node);
   const existing = at < 0 ? null : entries[at];
-  if (existing?.active()) return;
+  if (existing?.active()) return existing;
   prune();
   const holding = focused();
-  entries.push({
+  const entry = {
     root: node,
+    opening: !isNativeLayer(node),
     get kind() {
       return nativeLayerKind(node);
     },
-    active: () => isNativeLayer(node),
+    active() {
+      return this.opening || isNativeLayer(node);
+    },
     fromNowhere: !holding || holding === document.body,
     opener: holding && holding !== document.body ? holding : null,
     source
-  });
+  };
+  if (entry.opening)
+    queueMicrotask(() => {
+      entry.opening = false;
+    });
+  entries.push(entry);
+  return entry;
 }
 function closing(event) {
   if (event.newState !== "closed") return;
   const entry = entries.find((candidate) => candidate.root === event.target);
+  if (entry) entry.opening = false;
   if (entry?.kind === "popover") {
     for (const layer of nativeLayers().toReversed())
       if (layer.kind === "modal" && renderedUnder(layer.root, event.target))
@@ -1781,14 +1793,21 @@ function closing(event) {
     releaseFocus();
 }
 HTMLDialogElement.prototype.showModal = function() {
-  if (nativeLayerKind(this) !== "modal") pushNativeLayer(this);
-  return nativeDialogShowModal.call(this);
+  const entry = nativeLayerKind(this) !== "modal" ? pushNativeLayer(this) : null;
+  try {
+    return nativeDialogShowModal.call(this);
+  } finally {
+    if (entry) entry.opening = false;
+  }
 };
 HTMLElement.prototype.showPopover = function(options) {
   const opening = nativeLayerKind(this) !== "popover";
-  if (opening) pushNativeLayer(this);
-  nativePopoverShow.call(this, options);
-  const entry = opening && entries.find((candidate) => candidate.root === this);
+  const entry = opening ? pushNativeLayer(this) : null;
+  try {
+    nativePopoverShow.call(this, options);
+  } finally {
+    if (entry) entry.opening = false;
+  }
   if (entry && options?.source) entry.source = options.source;
 };
 function showNativeLayer(layer, { source, modal = true } = {}) {
@@ -2377,25 +2396,8 @@ function frameView(frame2, within) {
     bottom: y2(shown.bottom)
   };
 }
-var FRAME_VIEW = /* @__PURE__ */ Symbol.for("leaf.frameView");
-Object.defineProperty(document, FRAME_VIEW, {
-  value: (frame2) => {
-    const within = presented(frame2) && containingView();
-    return within ? frameView(frame2, within) : null;
-  }
-});
-var holdingFrame = () => sampleVisibility() ? null : window.frameElement;
-function containingView() {
-  const frame2 = holdingFrame();
-  if (!frame2) return window === window.top ? layoutWindow() : null;
-  return frame2.ownerDocument[FRAME_VIEW]?.(frame2) ?? null;
-}
 var ROOM_MOVED = "lf-room-moved";
 var announceRoom = (target) => target.dispatchEvent(new Event(ROOM_MOVED, { bubbles: true, composed: true }));
-var WATCH_ROOM = /* @__PURE__ */ Symbol.for("leaf.watchRoom");
-Object.defineProperty(document, WATCH_ROOM, {
-  value: (callback) => watchRoom(callback)
-});
 function watchRoom(callback) {
   const viewport = window.visualViewport;
   const listening = [
@@ -2414,25 +2416,6 @@ function watchRoom(callback) {
         target.removeEventListener(type, callback, capture);
     }
   ];
-  const frame2 = holdingFrame();
-  const holder = frame2?.ownerDocument[WATCH_ROOM];
-  if (holder) {
-    const moves = new frame2.ownerDocument.defaultView.IntersectionObserver(callback, {
-      threshold: [0, 1]
-    });
-    moves.observe(frame2);
-    const unhold = holder(callback);
-    const leave = (event) => {
-      if (!event.persisted) stopHolding();
-    };
-    const stopHolding = () => {
-      moves.disconnect();
-      unhold();
-      window.removeEventListener("pagehide", leave);
-    };
-    window.addEventListener("pagehide", leave);
-    stops.push(stopHolding);
-  }
   return () => {
     for (const stop of stops) stop();
   };
@@ -2990,7 +2973,7 @@ var showingBackground = null;
 var waitingBackground = [];
 var userContext = false;
 var userHoldTimer = 0;
-var noticePresentation = Object.freeze({ message: "", visible: false, news: false });
+var noticePresentation = Object.freeze({ message: "", visible: false, draft: false });
 var noticePresenters = /* @__PURE__ */ new Set();
 var noticeReading = () => noticePresentation;
 var noticeVisible = () => noticePresentation.visible;
@@ -3000,8 +2983,8 @@ function registerNoticePresentation(invalidate) {
 var presentAll = () => {
   for (const invalidate of noticePresenters) invalidate();
 };
-var presentNotice = (message, visible, news = false) => {
-  noticePresentation = Object.freeze({ message, visible, news });
+var presentNotice = (message, visible, draft = false) => {
+  noticePresentation = Object.freeze({ message, visible, draft });
   if (visible) presentAll();
   else afterScript(presentAll);
 };
@@ -3012,8 +2995,8 @@ function announce(msg) {
     liveEl.append(msg);
   }, 30);
 }
-function showNotice(msg, background = null) {
-  presentNotice(msg, true, Boolean(background));
+function showNotice(msg, background = null, draft = false) {
+  presentNotice(msg, true, draft);
   showingBackground = background;
   clearTimeout(noticeTimer);
   noticeTimer = setTimeout(() => {
@@ -3052,7 +3035,7 @@ function queueBackground(entry, front = false) {
   if (front) waitingBackground.unshift(entry);
   else waitingBackground.push(entry);
 }
-function notice(msg, { background = false, announce: speak = true, group = null } = {}) {
+function notice(msg, { background = false, announce: speak = true, group = null, draft = false } = {}) {
   if (speak) announce(msg);
   if (background) {
     const entry = group ?? textBackground(msg);
@@ -3060,7 +3043,7 @@ function notice(msg, { background = false, announce: speak = true, group = null 
     return showBackground(entry);
   }
   if (showingBackground) queueBackground(showingBackground, true);
-  showNotice(msg);
+  showNotice(msg, null, draft);
 }
 function yieldNotice() {
   if (showingBackground) queueBackground(showingBackground, true);
@@ -3149,6 +3132,8 @@ function layerHeaders(headers = {}) {
     ...headers
   };
 }
+var dataHeaders = (held) => held.version === null ? {} : { "Leaf-Data-Version": held.version };
+var completeData = (state, held) => state && !state.data.sources ? { ...state, data: held } : state;
 var LayerRefused = class extends Error {
 };
 async function requestJson(url2, init, what) {
@@ -3217,7 +3202,7 @@ function observeKey(response) {
   runtime.keyRefused = response.status === KEY_REFUSED;
 }
 var { promise: layerReady, resolve: revealLayer } = Promise.withResolvers();
-var postEvent = async (event) => {
+var postEvent = async (event, held = runtime.data) => {
   if (offlineInteractive)
     throw new Error("no agent or server is available in an interactive export");
   await layerReady;
@@ -3228,7 +3213,8 @@ var postEvent = async (event) => {
     response = await fetch(pageUrl("api/event"), {
       method: "POST",
       headers: layerHeaders({
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        ...dataHeaders(held)
       }),
       body: JSON.stringify(event)
     });
@@ -3490,7 +3476,6 @@ export {
   seenRect,
   presented,
   frameView,
-  containingView,
   announceRoom,
   watchRoom,
   growthIsSeen,
@@ -3542,6 +3527,8 @@ export {
   holdStatus,
   setNoticeContext,
   layerHeaders,
+  dataHeaders,
+  completeData,
   LayerRefused,
   requestJson,
   sameLayer,

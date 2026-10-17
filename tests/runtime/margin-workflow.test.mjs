@@ -39,6 +39,24 @@ test("margin workflow paint distinguishes live work from conditioned history", (
   assert.equal(control.hasAttribute("data-lf-agent-workflow"), false);
 });
 
+test("a reply streaming paints the working face under its own word", () => {
+  // Threads says Replying for this receipt (`workflowLabel`); the margin and Page Map
+  // control carrying it says the same, under the face it shares with work.
+  const control = document.createElement("button");
+  presentContributionReceipts(control, workflow("replying"), false);
+  assert.equal(control.getAttribute("data-lf-agent-workflow"), "working");
+  assert.equal(
+    control.getAttribute("aria-description"),
+    "Replying · Preparing an update",
+  );
+  presentContributionReceipts(control, workflow("picked_up"), false);
+  assert.equal(control.getAttribute("data-lf-agent-workflow"), "picked_up");
+  assert.equal(
+    control.getAttribute("aria-description"),
+    "Picked up · Preparing an update",
+  );
+});
+
 test("template contribution hosts paint the retained-host contract and are found on their surface", async () => {
   const { html, render } = await import("/vendor/browser-runtime.js");
   const root = document.createElement("section");

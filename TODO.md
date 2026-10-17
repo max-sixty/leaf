@@ -73,13 +73,13 @@ has tried; settle that before building it.
   result is hidden. Decide whether a page needs one progress reading across On me,
   board work, and version approval. Test a concrete first task before changing the
   public home page's prompt.
-- **#28 — Finish the floating panel.** The opt-in floating panel
-  (`?lf-chrome=floating`, off by default) was rebuilt on 12 October to the sketch the
-  user configured ([its goal](notes/floating-panel/GOAL.md), "The overhaul"). Work
-  through its remaining list (status in the field, opened sizes, the menu's rows, the
-  On me count, motion) before making it the default or removing the banner,
+- **#28 — Finish the floating panel.** The floating panel, rebuilt on 12 October to
+  the sketch the user configured ([its goal](notes/floating-panel/GOAL.md), "The
+  overhaul"), is the default chrome since 16 October; **Use the banner** in the leaf's
+  menu switches back. Work through its remaining list before removing the banner,
   bottom bar, and preference. The phone waits until the desktop design is firm, and
-  where a passage thread opens from Threads waits until later.
+  where a passage thread opens from Threads waits until later. The suite and the
+  `leaf-dev` tools that drive the banner still pin it (`CLASSIC_CHROME`).
 - **Give "update" one meaning on screen.** It names the user's input ("Undo the
   latest update", "Stalled update", "1 update to send again", the On panel's
   Update rows) and, since the floating card's held-news notice, the agent's progress
@@ -113,7 +113,7 @@ has tried; settle that before building it.
   `leaf` with the arguments it is given, have a sandboxed refusal name it, and
   drop the README's Codex rule. Codex asks before each MCP tool call unless the
   user approves the tool or sets the server's `default_tools_approval_mode =
-  "approve"`; find whether a plugin can declare that itself. A session that never
+"approve"`; find whether a plugin can declare that itself. A session that never
   runs `leaf` should pay nothing for this, as Claude Code's do for the bridge, so
   find whether Codex starts a plugin's MCP server in every session or only on first
   use.
@@ -135,6 +135,15 @@ has tried; settle that before building it.
   default registry's `lf-options` example writes the reason into the recommended
   card (`<em>My take: …</em>`). The user accepted moving it into prose beside the
   options on 2026-10-12. Score the change with `evals/` before and after.
+- **Draw the agent's plan, and tell agents to write one.** `leaf task plan` records
+  the agent's breakdown as one outline whose steps are plain or name a to-do or ask
+  (`plans.py`), served as `plan` in the browser state and `page state`. Nothing draws
+  it yet. Draw it on the floating panel's On view: the goal, its steps in order with
+  done ones ticked in place, the current one marked, "2 of 5" and its elapsed time,
+  and an item on On me with its plan as context. In the same change, add the
+  instruction to write a plan to `conversation-loop.md` and score it with `evals/`,
+  since a plan nobody draws shows the user nothing. affectUI's
+  [Agent Plan](https://www.affectui.com/components/agent-plan) is the reference.
 - **Keep agent activity intelligible throughout a task.** Run the
   [status evaluations](notes/user-feedback-responsiveness.md) for delivery,
   multi-step work, and delegation. Show the plan as well as the current step;
@@ -284,6 +293,7 @@ and its chrome coordinate.
   edit reaches every surface, how the matrix stays small enough to run and to read,
   and which measurements become thresholds a test enforces rather than numbers a
   person reads.
+
 - **Offer the Page Map with the first paint.** The margin pass marks where markers are
   pins (`data-lf-pins`), and the banner's Map toggle follows it, so on a phone the
   toggle appears one pass after the banner rather than with it.
@@ -371,11 +381,6 @@ A queue is one `lf-tabs list="side"` beside its open item (`page-layout.md`, "A
 workspace"). The first real one, a 21-item triage page, showed these. Its list's
 height and where a switch lands wait on the workspace decision under Layout.
 
-- **Start `m` from the open item's ask.** From a row, `m` goes to the queue's first
-  open ask, and `1` then picks for an item the user isn't looking at. The walk
-  measures from focus (`queue-walk.js`), and the row precedes every
-  panel; `t` and `T` measure the same way. A tab could stand at the view it opens for
-  the walks (`standing-target.js`), while `c` on a row still names the row.
 - **Keep the open item's group named on a phone.** In the one-row strip a group's
   label stands before its run's first tab, so opening a later item in a long run
   (`alert-review`'s "Ledger consumer lag" at 390px) scrolls the label out of view. A
@@ -478,14 +483,6 @@ on 2026-10-07.
 
 ### Development velocity
 
-- **Format authored browser-framework TypeScript.** Extend Prettier's scope to
-  `build/browser/`, keeping the generated event and protocol declarations under
-  their generator. Rebuild the vendored JavaScript in the same change: the
-  compiler preserves source formatting, and the build gate compares its bytes.
-- **Set formatter conventions for authored CSS and Markdown.** Review what
-  Prettier changes in compact CSS rules and Markdown lists and tables, then
-  enable the formats where that layout is useful. Format CSS source entries
-  rather than the distribution sheets `build/styles.mjs` generates.
 - **Check what handing over on chosen tests costs.** Since 2026-10-04 a handover runs
   the tests the agent picks for its change, and the broad selection runs only at
   landing (`tests/AGENTS.md`, "Run what the change needs"). Before that, 25 of the
@@ -566,21 +563,9 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **Explore independent jobs.** Work out their identity, observer, continuation
   owner, and outcomes across background commands, delegates, and external waits.
   See the [Thread plan](notes/threads.md#independent-jobs-delegation-and-continuation).
-- **Model how work breaks into pieces.** A to-do links only to its thread, widget or
-  page. Most real work forms a fuzzy hierarchy: much of planning is breaking a goal into
-  pieces, and the breakdown changes as the work teaches what the goal needs, with
-  pieces split, merged, dropped or moved under another parent. Fixed trees, like Pi's
-  owned subtasks or a tracker's parent and child tickets, are too brittle for that.
-  Find a shape that holds a changing breakdown, and say what it means for the queues:
-  whether a parent ends when its children do, and whose queue shows a child. Two links
-  are already planned: none for a to-do answering the user's comment, and one back to
-  the dispatcher for work handed to another session (step 7 of
-  [What needs you](notes/what-needs-you/page.html#task-hierarchy)). Trigger: a page
-  whose work the user wants to see broken down.
 - **Tell the agent when to ask before ending its own to-do.** The agent ends its to-dos
-  itself, and asks first, with a widget ask or a prose ask in a thread, when the result
-  needs the user's sign-off
-  ([What needs you](notes/what-needs-you/page.html#task-done)). The shipped
+  itself, and asks first, with a widget ask or a question in a thread, when the result
+  needs the user's sign-off, as the user decided. The shipped
   instructions don't yet say when that is. Trigger: an agent ends a to-do as done that
   the user wanted to see first.
 - **Let the user edit items in the On panel.** The user's only edit today is Done
@@ -629,7 +614,7 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **Other harnesses:** add a blocking `leaf wait` route when another agent harness needs
   foreground handoff.
 - **Decide whether an exported page carries its threads.** `leaf page
-  export` writes a file that boots the page's own runtime offline, and that file
+export` writes a file that boots the page's own runtime offline, and that file
   embeds the page's threads in its state reading. The runtime turns the
   thread surface off offline (`threadAvailable: !offlineInteractive`
   in `leaf.js`), so a reader of the file sees no comments or agent replies.

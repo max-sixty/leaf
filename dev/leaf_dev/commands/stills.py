@@ -811,6 +811,13 @@ def contents_by_keyboard(page: Page) -> None:
     page.locator("lf-toc li a").first.focus()
 
 
+def contents_over_reading(page: Page) -> None:
+    """Reveal the margin map over a section, including its title's background."""
+    contents_by_keyboard(page)
+    page.locator("lf-toc li a").first.press("Enter")
+    page.locator("lf-toc .lf-toc-start a").focus()
+
+
 def widget_inline_hints(page: Page) -> None:
     """A standalone command scope with an active inline hint, outside an Ask."""
     page.locator("#bg-widget-shortcut-hints").scroll_into_view_if_needed()
@@ -903,6 +910,24 @@ def film_inspector(page: Page) -> None:
     )
 
 
+def live_sample_embedded(page: Page) -> None:
+    """The arrived practice page at its embedded content height."""
+    page.get_by_role("tab", name="Page & layout", exact=True).click()
+    sample = page.locator("#bg-live-sample")
+    expect(
+        sample.frame_locator("iframe").locator("#bg-live-sample-copy")
+    ).to_be_visible()
+    sample.scroll_into_view_if_needed()
+
+
+def live_sample_full_view(page: Page) -> None:
+    """The same practice frame promoted into its native full-view dialog."""
+    live_sample_embedded(page)
+    sample = page.locator("#bg-live-sample")
+    sample.get_by_role("button", name="Full view", exact=True).click()
+    expect(sample.get_by_role("dialog", name="practice release note")).to_be_visible()
+
+
 def trace_timeline_by_keyboard(page: Page) -> None:
     """The timeline focused, after tabbing away from it and back."""
     trace_controls(page)
@@ -992,6 +1017,26 @@ STATES = (
         viewport=(390, 844),
         touch=True,
         region="#merge-film .film-stage",
+    ),
+    State(
+        "live-sample-embedded",
+        "developer/feature-gallery",
+        live_sample_embedded,
+        region="#bg-live-sample",
+    ),
+    State(
+        "live-sample-embedded-phone",
+        "developer/feature-gallery",
+        live_sample_embedded,
+        viewport=(390, 844),
+        touch=True,
+        region="#bg-live-sample",
+    ),
+    State(
+        "live-sample-full-view",
+        "developer/feature-gallery",
+        live_sample_full_view,
+        region="#bg-live-sample .lf-sample-view",
     ),
     State(
         "trace-comparison-header",
@@ -1138,6 +1183,21 @@ STATES = (
     ),
     State("contents-spine", "developer/feature-gallery", at_rest),
     State("contents-spine-keyboard", "developer/feature-gallery", contents_by_keyboard),
+    State(
+        "contents-over-reading",
+        "developer/feature-gallery",
+        contents_over_reading,
+        viewport=(1100, 900),
+        region=".lf-toc-start a",
+    ),
+    State(
+        "contents-over-reading-dark",
+        "developer/feature-gallery",
+        contents_over_reading,
+        viewport=(1100, 900),
+        scheme="dark",
+        region=".lf-toc-start a",
+    ),
     State(
         "contents-spine-dark",
         "developer/feature-gallery",
@@ -1530,7 +1590,9 @@ def capture(browser, address: str, state: State, path: Path) -> dict | None:
     density of the displays its pairs are read on, so a crop shows text and hairlines
     as the reader's screen draws them."""
     scale = 2
-    with tab(browser, state.viewport, state.scheme, state.touch, scale=scale) as page:
+    with tab(
+        browser, state.viewport, state.scheme, state.touch, scale=scale, classic=True
+    ) as page:
         load(page, address)
         state.drive(page)
         settle(page)

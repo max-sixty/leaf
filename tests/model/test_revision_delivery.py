@@ -177,14 +177,17 @@ def test_initial_producers_are_captured_once_and_called_after_each_complete_host
 
 
 def test_capture_refuses_a_declared_initial_producer_that_is_absent(tmp_path):
-    with pytest.raises(
-        ArtifactError, match=r"/page/early\.js: cannot capture dependency"
-    ):
+    with pytest.raises(ArtifactError) as refused:
         capture_artifact(
             tmp_path,
             SourceDocument(PAGE),
             {"lf-early": {"x-initial": "/page/early.js"}},
         )
+    [finding] = refused.value.findings
+    assert (finding.code, finding.values["file"]) == (
+        "dependency-unreadable",
+        "/page/early.js",
+    )
 
 
 def test_capture_follows_deep_and_cyclic_dependencies_once(tmp_path):
@@ -253,8 +256,8 @@ const lazy = () => import('/page/later.js');
     delivered = rebase_document(source, ADDRESS)
     parsed = SourceDocument(delivered)
 
-    assert parsed.external_scripts[0]["attrs"]["src"] == ROOT + "/page/app.js"
-    assert parsed.links[0]["attrs"]["href"] == ROOT + "/page/style.css"
+    assert parsed.authoring.external_scripts[0]["attrs"]["src"] == ROOT + "/page/app.js"
+    assert parsed.authoring.links[0]["attrs"]["href"] == ROOT + "/page/style.css"
     assert f'import "{ROOT}/page/inline.js";' in delivered
     assert f'import("{ROOT}/page/later.js")' in delivered
     assert parsed.tree.find("img").attrs["src"] == ROOT + "/page/caf%C3%A9.svg#leaf"
@@ -265,8 +268,8 @@ const lazy = () => import('/page/later.js');
     assert parsed.tree.find("video").attrs["poster"] == ROOT + "/page/poster.png"
     assert parsed.tree.find("image").attrs["href"] == ROOT + "/page/caf%C3%A9.svg#leaf"
     assert parsed.tree.find("feImage").attrs["href"] == ROOT + "/page/poster.png"
-    assert f"{ROOT}/page/background.svg#leaf" in parsed.css
-    assert ROOT + "/page/inline.svg" in parsed.inline_styles[0]["style"]
+    assert f"{ROOT}/page/background.svg#leaf" in parsed.authoring.style_blocks[0]["css"]
+    assert ROOT + "/page/inline.svg" in parsed.authoring.inline_styles[0]["style"]
     for unchanged in (
         "<title>🍂 route ./page/app.js</title>",
         "const prose = 'import \"./page/unused.js\"';",
@@ -280,19 +283,19 @@ const lazy = () => import('/page/later.js');
 
 def test_stylesheet_rel_is_case_insensitive_in_delivery_and_export():
     source = (
-        '<html><head><link rel="StyleSheet" href="/page/style.css"></head>'
+        '<html><head><link rel="StyleSheet" data-controls href="/page/style.css"></head>'
         "<body><main></main></body></html>"
     )
 
     delivered = SourceDocument(rebase_document(source, ADDRESS))
-    assert delivered.links[0]["attrs"]["href"] == ROOT + "/page/style.css"
+    assert delivered.authoring.links[0]["attrs"]["href"] == ROOT + "/page/style.css"
 
     embedded = AssetInliner(lambda url: Resource(b"main { color: green; }", "text/css"))
     exported = rebase_document(
         source, embedded.address, inline_stylesheet=embedded.stylesheet
     )
     assert "<link" not in exported
-    assert "<style>" in exported
+    assert "data-controls" in SourceDocument(exported).tree.find("style").attrs
     assert "main { color: green; }" in exported
 
 
@@ -523,8 +526,8 @@ def test_captured_document_entries_resolve_at_every_public_address(tmp_path):
     artifact = capture_artifact(tmp_path, SourceDocument(source), {})
     delivered = SourceDocument(rebase_document(source, ADDRESS))
     entries = [
-        delivered.external_scripts[0]["attrs"]["src"],
-        delivered.links[0]["attrs"]["href"],
+        delivered.authoring.external_scripts[0]["attrs"]["src"],
+        delivered.authoring.links[0]["attrs"]["href"],
         delivered.tree.find("image").attrs["href"],
         *(
             candidate.split()[0]
@@ -546,10 +549,13 @@ def test_capture_refuses_a_missing_svg_resource(tmp_path):
         '<svg><image href="/page/missing.svg"></image></svg></main>',
     )
 
-    with pytest.raises(
-        ArtifactError, match=r"/page/missing\.svg: cannot capture dependency"
-    ):
+    with pytest.raises(ArtifactError) as refused:
         capture_artifact(tmp_path, SourceDocument(source), {})
+    [finding] = refused.value.findings
+    assert (finding.code, finding.values["file"]) == (
+        "dependency-unreadable",
+        "/page/missing.svg",
+    )
 
 
 def test_inert_json_cannot_end_or_reshape_its_script_element():
@@ -598,7 +604,7 @@ def test_a_host_marks_the_delivered_document_where_it_asks(explicit_html):
     served = SourceDocument(delivered.removeprefix("﻿"))
     assert "data-lf-contained" in served.tree.find("html").attrs
     assert "inert" in served.tree.find("body").attrs
-    assert served.title == "T" and "<p>Text.</p>" in delivered
+    assert served.authoring.title == "T" and "<p>Text.</p>" in delivered
 
 
 def test_a_delivered_document_carries_its_declared_marks_in_the_source():
@@ -611,8 +617,8 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     in their shape before they decode. A widget declaring the structure its module will
     draw (`x-prepaint`) carries it as its first child, marked as delivery's, so the
     browser lays that structure out before the module runs, and one that first paints
-    as another widget will stand in it carries that widget's (`as`). An idiom declares
-    a mark by its selector, as a callout keeps the column. Markup inside a template is
+    as another widget will stand in it carries that widget's (`as`). A mark is its
+    tag's, so a selector idiom declares none. Markup inside a template is
     inert, and everything else in the source stays as written."""
 
     def png(width, height):
@@ -630,9 +636,7 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         "lf-meter": {"x-prepaint": '<span class="lf-meter-face">0 left</span>'},
         "lf-gauge": {"x-prepaint": {"as": "lf-meter"}},
         "lf-face": {"x-prepaint": '<foo_bar class="face">Ready</foo_bar>'},
-        ".callout": {"x-space": "column"},
-        "table": {"x-space": "wide"},
-        "lf-feed.selected": {"x-space": "column"},
+        "table": {"description": "A table.", "x-example": "<table></table>"},
     }
     source = (
         "<!doctype html><html><head><title>T</title></head><body><main>"
@@ -675,13 +679,10 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     assert marks[("lf-zone", "queue")] == {"data-lf-reading-role": "pane"}
     assert marks[("lf-label", None)] == {"data-lf-inline": ""}
     assert marks[("lf-board", "board")] == {"data-lf-space": "available"}
-    assert marks[("aside", "note")] == {"data-lf-column": ""}
+    assert marks[("aside", "note")] == {}
     assert marks[("aside", "chart-note")] == {"data-lf-space": "wide"}
-    assert marks[("lf-feed", "feed")] == {
-        "data-lf-bound": "end",
-        "data-lf-column": "",
-    }
-    assert marks[("table", "native")] == {"data-lf-space": "wide"}
+    assert marks[("lf-feed", "feed")] == {"data-lf-bound": "end"}
+    assert marks[("table", "native")] == {}
     assert marks[("section", "wide")] == {"data-lf-space": "wide"}
     assert marks[("pre", None)] == {"data-lf-bound": "start"}
     assert marks[("lf-plot", "plot")] == {"data-lf-height": "400"}
@@ -714,14 +715,11 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         '<foo_bar data-lf-prepaint data-lf-gen="1" class="face">Ready</foo_bar>', ""
     )
     for mark in (
-        ' data-lf-column=""',
         ' data-lf-space="wide"',
         ' data-lf-reading-role="pane"',
         ' data-lf-inline=""',
         ' data-lf-space="available"',
         ' data-lf-bound="end"',
-        ' data-lf-column=""',
-        ' data-lf-space="wide"',
         ' data-lf-space="wide"',
         ' data-lf-bound="start"',
         ' data-lf-height="400"',

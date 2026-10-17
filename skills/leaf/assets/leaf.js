@@ -87,6 +87,7 @@ import {
 import { createThreadPanelKeys } from "./runtime/thread/panel.js";
 import { createPageComment } from "./runtime/thread/page-comment.js";
 import { createFloatingPanel } from "./runtime/floating-panel.js";
+import "./runtime/chrome-choice.js";
 import { standingThreadId } from "./runtime/thread/focus.js";
 import { createThreadListController } from "./runtime/thread/thread-list.js";
 import { createThreadNarrowing } from "./runtime/thread/narrowing.js";
@@ -375,7 +376,6 @@ const focusForNavigation = (node, cause, options) =>
 const anchorTravel = createAnchorTravel({
   anchors: anchorPlacement,
   surfaces: auxiliarySurfaces,
-  currentThreads: allThreads,
   refreshThread: () => app.refreshThread(),
   focusForNavigation,
   threadFocusTarget: (id, options) =>
@@ -608,6 +608,7 @@ const floatingPanel =
         },
         queueActions: app.queueActions,
         withdraw: app.withdraw,
+        settlement: app.settlement,
       })
     : null;
 // The page's general comment box: the card under the banner's control, or the floating

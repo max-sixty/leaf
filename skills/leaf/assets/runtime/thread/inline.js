@@ -284,16 +284,6 @@ export function clearThreadSurface(host) {
   seats.get(host)?.present(EMPTY);
 }
 
-// Package mirrors are independent of the core Thread batch. A slow package callback
-// may hold its own view, but cannot hold the panel, margin, or read presentation.
-export function renderThreadMirrors(host, threads, commands) {
-  seatFor(host, commands).present(seatReading(threads, "outlet", commands, null), null);
-}
-
-export function clearThreadMirrors(host) {
-  seats.get(host)?.present(EMPTY, null);
-}
-
 export function mountFirstMessage(host, editor) {
   const seat = seatFor(host, null, () => editor);
   seat.present(Object.freeze({ threads: Object.freeze([]), response: true }));

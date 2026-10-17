@@ -23,7 +23,7 @@ test("live verdicts select the saved phase and preserve gaps and native failures
           diagnostics: {
             payload: "/runtime",
             condition: "html",
-            widths: { narrow: [900, 900], phone: [390, 844] },
+            comparison: { widths: { desktop: [1600, 1000], phone: [390, 844] } },
             phases: { 2: { page: "/samples/page-phase2", captures: {} } },
           },
         },
@@ -45,7 +45,7 @@ test("live verdicts select the saved phase and preserve gaps and native failures
               assert.equal(request.vars.payload, "/runtime");
               assert.deepEqual(
                 request.vars.widths,
-                context.providerResponse.metadata.diagnostics.widths,
+                context.providerResponse.metadata.diagnostics.comparison.widths,
               );
               assert.deepEqual(request.vars.schema.properties.status.enum, [
                 "pass",
@@ -84,10 +84,10 @@ test("live verdicts select the saved phase and preserve gaps and native failures
       assert.fail("No page called model"),
     );
     assert.equal(absent.metadata.authoring_grade.status, "insufficient_evidence");
-    context.config.required_widths = ["narrow"];
+    context.config.required_widths = ["desktop"];
     const preference = await grade("Request", context, async () => ({
       callApi: async (_, request) => {
-        assert.deepEqual(request.vars.widths, { narrow: [900, 900] });
+        assert.deepEqual(request.vars.widths, { desktop: [1600, 1000] });
         return { output: { status: "pass", reason: "Required viewport explored." } };
       },
     }));

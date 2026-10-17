@@ -205,6 +205,7 @@ function advance(
 
 
 
+
 /** One served workflow, as `served_state.browser.served_workflows` serializes it;
  * `AuthoritativeState.workflows` lists them strongest first. */
 
@@ -260,9 +261,26 @@ function advance(
 
 
 
+/** One step of the agent's plan, as `plans.plan_reading` serves it: plain, or naming a
+ * to-do or ask whose title, owner and state it shows; `done` of `total` counts its
+ * children, dropped ones left out. */
+
+
+
+
+
+
+
+
+
+
+
+
+
 /** One to-do, as `served_state.browser` serves it (`work_reading.WorkReading.page_todos`): `todos` holds
- * the open ones on either side and `ended_todos` the ones that ended, with their
- * outcome. Asks are separate records and never appear in this list. */
+ * every to-do on either side, open or ended, an ended one with its outcome. It is the
+ * one record of each; the queue items and thread readings the browser draws select
+ * from it. Asks are separate records and never appear in this list. */
 
 
 
@@ -431,6 +449,16 @@ function advance(
 
 
 
+
+
+
+
+
+
+
+
+
+
 /** A server view with its basis, the transport identity, left off. */
 
 
@@ -484,47 +512,63 @@ function normalizedAsks(
 )           {
   const page = view?.document.asks;
   const thread = view?.thread.asks;
-  const all = [...(page?.all ?? []), ...(thread?.all ?? [])].map(
-    (ask)            => {
-      if (ask.source.kind === "approval") {
-        const version = ask.source.version;
-        const undone = new Set(local.flatMap(({ event }) =>
-          event.kind === "undo" ? [event.undoes] : []));
-        const approving = local.some(({ event }) =>
-          event.kind === "done" && event.version === version);
-        if (approving) return { ...ask, answer: { value: true, event: null },
-          status: "answered", next_actor: null };
-        if (ask.answer?.event && undone.has(ask.answer.event.id))
-          return { ...ask, answer: null, status: "open", next_actor: "user" };
-        return ask;
-      }
-      if (ask.source.kind !== "widget") return ask;
-      const sourceId = ask.source.id;
-      const widget = widgets.get(sourceId);
-      const declaration = document.descriptors.get(ask.source.id)?.declaration["x-awaits"]
-                                      ;
-      const verb = declaration?.value;
-      if (!verb || !widget) return ask;
-      const completed = ask.status === "answered" &&
-        !(ask.answer?.event && projection.pendingWithdrawals.has(ask.answer.event.id));
-      const { value, present } = askValue(widget, verb, completed);
-      const pendingValue = (widget.entries                  ).some(({ e }) =>
-        e.action === verb && !Number.isInteger(e.seq)) ||
-        [...projection.pendingWithdrawals.values()].some(({ e }) =>
+  const all = [...(page?.all ?? []), ...(thread?.all ?? [])].map((ask)            => {
+    if (ask.source.kind === "approval") {
+      const version = ask.source.version;
+      const undone = new Set(
+        local.flatMap(({ event }) => (event.kind === "undo" ? [event.undoes] : [])),
+      );
+      const approving = local.some(
+        ({ event }) => event.kind === "done" && event.version === version,
+      );
+      if (approving)
+        return {
+          ...ask,
+          answer: { value: true, event: null },
+          status: "answered",
+          next_actor: null,
+        };
+      if (ask.answer?.event && undone.has(ask.answer.event.id))
+        return { ...ask, answer: null, status: "open", next_actor: "user" };
+      return ask;
+    }
+    if (ask.source.kind !== "widget") return ask;
+    const sourceId = ask.source.id;
+    const widget = widgets.get(sourceId);
+    const declaration = document.descriptors.get(ask.source.id)?.declaration[
+      "x-awaits"
+    ]                                  ;
+    const verb = declaration?.value;
+    if (!verb || !widget) return ask;
+    const completed =
+      ask.status === "answered" &&
+      !(ask.answer?.event && projection.pendingWithdrawals.has(ask.answer.event.id));
+    const { value, present } = askValue(widget, verb, completed);
+    const pendingValue =
+      (widget.entries                  ).some(
+        ({ e }) => e.action === verb && !Number.isInteger(e.seq),
+      ) ||
+      [...projection.pendingWithdrawals.values()].some(
+        ({ e }) =>
           e.widget === sourceId &&
-          (e.action === verb || e.id === ask.answer?.event?.id));
-      const answer = present
-        ? { value, event: pendingValue ? null : ask.answer?.event ?? null }
-        : null;
-      return { ...ask, answer };
-    },
-  );
+          (e.action === verb || e.id === ask.answer?.event?.id),
+      );
+    const answer = present
+      ? { value, event: pendingValue ? null : (ask.answer?.event ?? null) }
+      : null;
+    return { ...ask, answer };
+  });
   const selection = (kind                       ) => {
-    const admitted = new Set([...(page?.[kind] ?? []), ...(thread?.[kind] ?? [])]
-      .map((ask) => ask.id));
-    return all.filter((ask) => ask.source.kind === "approval"
-      ? kind === "user" ? ask.next_actor === "user" : ask.status === "open"
-      : admitted.has(ask.id));
+    const admitted = new Set(
+      [...(page?.[kind] ?? []), ...(thread?.[kind] ?? [])].map((ask) => ask.id),
+    );
+    return all.filter((ask) =>
+      ask.source.kind === "approval"
+        ? kind === "user"
+          ? ask.next_actor === "user"
+          : ask.status === "open"
+        : admitted.has(ask.id),
+    );
   };
   return { all, user: selection("user"), unanswered: selection("unanswered") };
 }
@@ -533,18 +577,16 @@ function normalizedAsks(
  * user is ending stands ended in the gesture's own turn, and one whose Done they are
  * undoing stands open again; a refused gesture leaves the ledger and so puts the to-do
  * back as the log has it. */
-function localTodos(
-  state                           ,
-  local                        ,
-) {
+function localTodos(state                           , local                        ) {
   const ending = new Set(
     local.flatMap(({ event }) => (event.kind === "todo_end" ? [event.todo] : [])),
   );
   const undoing = new Set(
     local.flatMap(({ event }) => (event.kind === "undo" ? [event.undoes] : [])),
   );
-  const served = state?.browser.todos ?? [];
-  const ended = state?.browser.ended_todos ?? [];
+  const all = state?.browser.todos ?? [];
+  const served = all.filter((todo) => todo.state === "open");
+  const ended = all.filter((todo) => todo.state !== "open");
   const reopened = (todo          ) =>
     todo.outcome !== null && undoing.has(todo.outcome.id ?? "");
   const open = [
@@ -692,15 +734,17 @@ function localQueues(
   // An ask item carries this tab's record of its ask.
   const current =                      (item   )    =>
     item.kind === "ask" ? { ...item, ask: askOf(item) } : item;
-  const asOpen = ({ state: _state, ended: _ended, detail: _detail, ...item }          ) =>
-    current(item             );
+  const asOpen = ({
+    state: _state,
+    ended: _ended,
+    detail: _detail,
+    ...item
+  }          ) => current(item             );
   const asDone = (item           )           => ({
     ...current(item),
     live: false,
     state:
-      item.kind === "ask" && askOf(item).status === "withdrawn"
-        ? "dropped"
-        : "done",
+      item.kind === "ask" && askOf(item).status === "withdrawn" ? "dropped" : "done",
     ended: null,
     detail: null,
   });
@@ -710,7 +754,16 @@ function localQueues(
   const resend = (id        , subject                      , thread               ) =>
     listed.has(`resend:${id}`)
       ? []
-      : [{ kind: "resend"         , id, owner: "user"         , subject, thread, live: false }];
+      : [
+          {
+            kind: "resend"         ,
+            id,
+            owner: "user"         ,
+            subject,
+            thread,
+            live: false,
+          },
+        ];
   const reopenedFor = (owner                  ) =>
     served.done.filter((item) => item.owner === owner && reopened(item));
   return {
@@ -730,7 +783,9 @@ function localQueues(
     ].toSorted(
       (a, b) =>
         onUserRank(a) - onUserRank(b) ||
-        (a.kind === "ask" && b.kind === "ask" ? asked.get(a.id)  - asked.get(b.id)  : 0),
+        (a.kind === "ask" && b.kind === "ask"
+          ? asked.get(a.id)  - asked.get(b.id)
+          : 0),
     ),
     on_agent: [
       ...served.on_agent.filter((item) => item.kind !== "todo" && standsOpen(item)),
@@ -778,6 +833,8 @@ const onUserRank = (item           ) =>
 
 
 
+
+
 // Every widget's share of the root's action entries and threads, grouped once per
 // publication rather than filtered from the whole projection by each widget. The
 // publisher shares each widget's group across publications, so a widget whose entries
@@ -792,12 +849,15 @@ function widgetIndex(root              )              {
   const byWidget = new Map               ();
   const group = (widget        ) => {
     let entries = byWidget.get(widget);
-    if (!entries) byWidget.set(widget, (entries = { classified: [], desired: [], undo: [] }));
+    if (!entries)
+      byWidget.set(widget, (entries = { classified: [], desired: [], undo: [] }));
     return entries;
   };
   for (const entry of projection.classified.values())
-    if (!entry.terminal && entry.e.kind === "action") group(entry.e.widget).classified.push(entry);
-  for (const entry of projection.actions.values()) group(entry.e.widget).desired.push(entry);
+    if (!entry.terminal && entry.e.kind === "action")
+      group(entry.e.widget).classified.push(entry);
+  for (const entry of projection.actions.values())
+    group(entry.e.widget).desired.push(entry);
   for (const { event } of root.effective.view?.undo ?? [])
     if (event.kind === "action" && !projection.pendingWithdrawals.has(event.id))
       group(event.widget).undo.push(event);
@@ -989,12 +1049,14 @@ export function createSemanticApplication({
     const localProjections = local.flatMap((entry)                      => {
       const projection = entry.projection;
       if (!projection) return [];
-      if (projection.kind !== "undo") return drawsAction(projection.e) ? [projection] : [];
+      if (projection.kind !== "undo")
+        return drawsAction(projection.e) ? [projection] : [];
       const { target } = projection;
       const targetId = admittedId(entry.undoTarget, unresolved, receipts);
       const pending = !Number.isInteger(target.e.seq);
       const draws =
-        classifiedIds.has(targetId ?? target.e.id) || (pending && drawsAction(target.e));
+        classifiedIds.has(targetId ?? target.e.id) ||
+        (pending && drawsAction(target.e));
       return draws ? [{ ...projection, targetId }] : [];
     });
     const projection = foldProjection({
@@ -1018,7 +1080,11 @@ export function createSemanticApplication({
     );
     const folded = foldThreads(view?.thread.threads ?? [], gestures);
     const widgets = foldWidgetStates(document.authored, projection);
-    const { parents: widgetParents, memberships } = currentWidgetRelations(document, widgets, projection);
+    const { parents: widgetParents, memberships } = currentWidgetRelations(
+      document,
+      widgets,
+      projection,
+    );
     const asks = ready
       ? normalizedAsks(view, widgets, document, projection, local)
       : NO_ASKS;
@@ -1158,6 +1224,7 @@ export function createSemanticApplication({
       document,
       widgets,
       workflows,
+      todos.open,
       markingRead,
       ready,
     );
@@ -1187,10 +1254,16 @@ export function createSemanticApplication({
         // Historical system rows are event narration, never current approval state.
         approvalHistory: [
           ...(state?.browser.approval_history ?? []),
-          ...local.flatMap(({ event, localId, timestamp }) => event.kind === "done"
-            ? [{ ...event, id: localId, ts: timestamp }] : []),
-        ].filter((event) => !local.some(({ event: gesture }) =>
-          gesture.kind === "undo" && gesture.undoes === event.id)),
+          ...local.flatMap(({ event, localId, timestamp }) =>
+            event.kind === "done" ? [{ ...event, id: localId, ts: timestamp }] : [],
+          ),
+        ].filter(
+          (event) =>
+            !local.some(
+              ({ event: gesture }) =>
+                gesture.kind === "undo" && gesture.undoes === event.id,
+            ),
+        ),
         collection: {
           phase,
           threads: threads.filter(discussed),
@@ -1598,7 +1671,7 @@ export function createSemanticApplication({
       const ledger = publisher.peek().unresolved;
       const gone = [refused.localId];
       const dependents           = [];
-      for (let grew = true; grew; ) {
+      for (let grew = true; grew;) {
         grew = false;
         for (const item of ledger)
           if (
@@ -1657,7 +1730,8 @@ export function createSemanticApplication({
       if (event !== item.event)
         update(attempt, (item) => ({
           ...item,
-          ...(event.parent !== item.event.parent && typeof item.event.parent === "string"
+          ...(event.parent !== item.event.parent &&
+          typeof item.event.parent === "string"
             ? { namedParent: item.event.parent }
             : {}),
           event,

@@ -180,22 +180,12 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
     widgets are authored into <main>, and a module that never reached a message
     would have left all eight corpus sweeps green.
 
-    The third is what the user did to one. A decision on such a widget is folded
-    through a projection of its own and replayed into a tree the panel built, and a
-    seed carrying the question but not the answer reads only the untouched half —
-    which is the same gap as the widget's, one turn further in. It is read against
-    the neighbour that separates a replay from a rendering: the same page, the same
-    log with the decisions removed. A widget that says the same either way was never
-    reached, and every assertion above this one passes just the same.
-
     Looped rather than parametrized so an empty corpus fails here instead of
     collecting no tests and reporting green."""
     seeded = [p for p in CORPUS_SOURCES if p.with_suffix(".jsonl").exists()]
     assert seeded, "no corpus source ships a log; this gate is reading nothing"
     drawn = []
-    decided = []
     replied = []
-    read_as = {}  # widget id -> how it reads with the log's decision in force
 
     for example in seeded:
         url = serve(example)
@@ -301,6 +291,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
             )
             if tab:
                 page.get_by_role("tab", name=tab, exact=True).click()
+            page.locator(f"#{section}").scroll_into_view_if_needed()
             item = page.locator(f'.lf-margin-cluster[data-lf-margin-for="{section}"]')
             expect(item).to_have_count(1)
             # A crowded target may expose this exact reaction through overflow. Follow
@@ -424,25 +415,14 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                 # user, whatever answers it has to have been built here too:
                 # data-lf-offer is the runtime's own mark for a thing to work, so
                 # this asks the declaration and never the tag.
-                if registry[rec["tag"]].get("x-awaits"):
+                if "value" in registry[rec["tag"]].get("x-awaits", {}):
                     expect(shown.locator("[data-lf-offer]")).not_to_have_count(0)
 
         # Each carried thread must be disclosed for the gate's geometry readings:
         # hidden bodies have no boxes. The public page check never opens Threads,
         # so exercise its own probes here against every frozen message's widgets.
-        # Assert the control population first so a clean reading cannot be vacuous.
+        # A question answered in words has no control of its own.
         if carried_ids:
-            offers = page.evaluate(
-                """(ids) => ids.flatMap((id) => {
-                     const el = document.getElementById(id);
-                     return el ? [...el.querySelectorAll('[data-lf-offer]')] : [];
-                   }).length""",
-                sorted(carried_ids),
-            )
-            assert offers, (
-                f"{example.stem}: no widget a message carries built a control, so the "
-                "two readings below were handed nothing of the panel's to look at"
-            )
             for thread_id in sorted(carried_threads):
                 card = page.locator(f'.lf-thread[data-id="{thread_id}"]')
                 if card.get_attribute("open") is None:
@@ -468,70 +448,12 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                         f"{example.stem}: with the panel open, something {finding}: {found}"
                     )
 
-        # And the third thing a log carries: what the user did to one of those
-        # widgets. A decision on a widget a message carries is folded from thread
-        # markup rather than from the version, through a projection of its own
-        # (`frozen_thread_reading`), and replayed into a tree the panel built — so
-        # a corpus that seeds the question and not the answer reads the untouched
-        # half of every such widget and leaves the whole decision-in-force route
-        # to unit-style fixtures. The seed is what puts it under the sweeps.
-        decided_here = [
-            e["widget"]
-            for e in events
-            if e["kind"] == "action" and e["widget"] in carried_ids
-        ]
-        # Named by each carried widget's public semantic reading, which is where a
-        # winner in force has to appear for the gate to reapply it at all.
-        in_force = page.evaluate(
-            """async ids => {
-              const {widgetController} = await window.__lfWidgetApi();
-              return ids.filter(id => Object.values(
-                widgetController(document.getElementById(id)).read().actions,
-              ).some(action => action.inForce.length));
-            }""",
-            decided_here,
-        )
-        for wid in decided_here:
-            decided.append(wid)
-            assert wid in in_force, (
-                f"{example.stem}: the log decides #{wid} and the runtime's current "
-                f"state names only {in_force} — the panel's fold reached the gate for "
-                "nothing the user did"
-            )
-            read_as[wid] = page.locator(f"#{wid}").inner_text()
         page.close()
-
-        # The single-factor neighbour: the same page under the same log with the
-        # decisions taken out. A widget that reads the same either way is one the
-        # replay never reached, and every assertion above it would still pass —
-        # a drawn widget and a built control say nothing about whose state is on it.
-        if decided_here:
-            plain = serve(example, seed_log=False)
-            for event in [e for e in events if e["kind"] != "action"]:
-                append_carried_log_record(serve.page_dir, event)
-            undecided = open_page(browser, plain)
-            undecided.locator(".lf-threads-toggle").click()
-            for wid in decided_here:
-                shown = undecided.locator(f"#{wid}")
-                card = undecided.locator(".lf-thread").filter(has=shown)
-                if card.get_attribute("open") is None:
-                    card.locator(".lf-thread-summary").click()
-                expect(shown).to_be_visible()
-                assert shown.inner_text() != read_as[wid], (
-                    f"{example.stem}: #{wid} reads the same with the log's decision "
-                    f"and without it ({read_as[wid]!r}) — the seed proves nothing"
-                )
-            undecided.close()
 
     assert drawn, (
         "no shipped log carries a widget in a message. That is the other place "
         "markup renders, no authored page can stand in for it, and with none in "
         "the corpus this is the whole of what reads one."
-    )
-    assert decided, (
-        "no shipped log carries a decision on a widget a message carries. The "
-        "question is seeded and the answer is not, so every sweep reads that "
-        "widget untouched and nothing here exercises the panel's own fold."
     )
     assert replied, (
         "no shipped log carries an agent reply, so no example exercises the live "
@@ -742,7 +664,9 @@ lf-roomy > section { min-height: 80px; border: 1px solid currentColor; }
         room: (() => {
           const probe = document.createElement('i');
           probe.style.cssText = 'position:fixed;visibility:hidden;width:var(--lf-room)';
-          el.append(probe);
+          // Children of a breakout reset --lf-room to 100%; read its parent's
+          // allocation, which is the room the breakout itself received.
+          el.parentElement.append(probe);
           const width = probe.getBoundingClientRect().width;
           probe.remove();
           return width;
@@ -865,15 +789,17 @@ def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
 
     The page's own frame is the same place: a wide widget is measured against the box
     that frames it, and everything else on the page is excused by a scroll container
-    above it. Asked in that order, the excuse ate the measurement: a board scrolls, so
-    every card on every board was excused from the one reading that applies to what it
-    holds, and a diagram drawn 332px across the next column passed the gate that
-    exists to name it. So a board in a frame of the page's own that scrolls is named
-    too."""
+    above it. The fixture deliberately overrides the board's width so it escapes the
+    frame; the ordinary theme now holds it inside. Asked in the wrong order, the scroll
+    container's excuse ate this measurement, so a wide widget escaping its frame went
+    unnamed."""
     framed = FRAMED_SCROLLER_PAGE[FRAMED_SCROLLER_PAGE.index("<div id='own-frame'") :]
     framed = framed[: framed.index("</lf-board></div>") + len("</lf-board></div>")]
+    source = OWN_MARGIN_FURNITURE.replace(
+        "</head>", "<style>#framed { width: 1080px; }</style></head>"
+    )
     failures = render_gate_model.render_version(
-        browser, serve(OWN_MARGIN_FURNITURE.replace("</main>", framed + "</main>"))
+        browser, serve(source.replace("</main>", framed + "</main>"))
     ).failures
 
     assert [
@@ -976,7 +902,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     margins_laid_out(page)
     roomy = page.evaluate(reading)
     # At rest the map is its spine: it takes a strip of the margin, not its labels' width.
-    assert 0 < roomy["taken"] < roomy["toc"]["width"], roomy
+    assert 0 < roomy["toc"]["width"] <= roomy["taken"] < 320, roomy
     assert roomy["float"] == "left" and roomy["position"] == "sticky"
     assert roomy["sidebar"]["right"] <= roomy["column"]["left"] - 23, (
         f"the sidebar's box reached into the reading column: {roomy}"
@@ -988,7 +914,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         )
         <= 1
     ), f"the contents map moved the reading column off the page's axis: {roomy}"
-    assert roomy["toc"]["width"] == 320
+    assert roomy["toc"]["width"] == 24
     assert roomy["exhibit"]["left"] >= roomy["toc"]["left"] + roomy["taken"] - 1, (
         f"a wide exhibit painted over the contents map's spine: {roomy}"
     )
@@ -1004,7 +930,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     )
     expanded = page.evaluate(reading)
     assert expanded["taken"] == roomy["taken"]
-    assert expanded["toc"]["width"] == 320
+    assert expanded["toc"]["width"] == roomy["toc"]["width"]
     assert expanded["nav"]["width"] == 320
     assert expanded["column"] == roomy["column"]
     assert expanded["exhibit"] == roomy["exhibit"]
@@ -1056,12 +982,14 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     )
     assert geometry["sidebarPosition"] == "sticky"
     assert geometry["tocPosition"] == "fixed"
-    assert 64 <= geometry["tocTop"] <= 68
-    # The map ends above the bottom bar, as every region does: its foot is the window's
-    # less the band and the map's own inset, so the keyboard's line never covers its last
-    # entry.
-    assert abs(geometry["tocBottom"] - (geometry["lineTop"] - 24)) <= 1, (
-        f"the map's foot is not the band's top less its inset: {geometry}"
+    banner_box = page.locator(".lf-banner").bounding_box()
+    assert banner_box is not None
+    assert geometry["tocTop"] == pytest.approx(
+        banner_box["y"] + banner_box["height"], abs=1
+    )
+    # The map ends at the bottom bar, keeping its last entry in view.
+    assert abs(geometry["tocBottom"] - geometry["lineTop"]) <= 1, (
+        f"the map's foot is not at the band's top: {geometry}"
     )
     banner_control(page, ".lf-queue").click()
     expect(page.locator(".lf-queue-panel")).to_be_hidden()

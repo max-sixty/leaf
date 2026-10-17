@@ -49,7 +49,7 @@ import { landingBand, shownRect, skipped, userScrollport } from "./geometry.js";
 import { pageScroller } from "./scrolling.js";
 import { reachReadingScroller } from "./reach.js";
 import { under, renderedUnder, renderedParent } from "./shadow.js";
-import { pageDocument } from "./passages.js";
+import { layoutBox, pageDocument } from "./passages.js";
 import { deepFocus, onStanding, pressing } from "./focus.js";
 
 const regions = new Map();
@@ -130,7 +130,7 @@ const marked = (box) =>
   box.checkVisibility() &&
   getComputedStyle(box).getPropertyValue("--lf-reading-region").trim() === "layout";
 export function syncLayoutRegion() {
-  const main = pageDocument();
+  const main = layoutBox();
   const bodies = main
     ? [...main.children].flatMap((child) => {
         if (marked(child)) return [[child, child.id]];

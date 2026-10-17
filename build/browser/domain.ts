@@ -68,10 +68,7 @@ type Revision = (EventMap["edit"] | LocalEdit) & { was: string };
 /** What the ledger hands `foldThreads`: each message or rewrite as the thread draws it,
  * each settlement, and each undo. */
 export type ThreadGesture =
-  | LocalMessage
-  | LocalEdit
-  | Settlement
-  | Extract<Command, { kind: "undo" }>;
+  LocalMessage | LocalEdit | Settlement | Extract<Command, { kind: "undo" }>;
 /** A logged message as a served thread holds it, naming the id of its current content
  * version (`read_state.content_version`): its latest rewrite's, else its own. */
 type ServedMessage = MessageEvent & { content_version: string };
@@ -114,7 +111,6 @@ export interface Thread {
   })[];
   unread: readonly ContentVersion[];
   attention: Attention;
-  todos: readonly { id: string; title: string; line: string | null }[];
   settling?: "resolve" | "unresolve";
 }
 export type Settlement = Extract<Command, { kind: "resolve" | "unresolve" }> & {

@@ -925,10 +925,15 @@ def test_trace_frames_retain_saved_elements_and_disclosure_stays_closable(
         attributes: true, childList: true, characterData: true, subtree: true,
       });
     }""")
+    # Hold playback time while the driver reads the short recording and presses Pause.
+    # A slow driver must not let the film finish before that press is dispatched.
+    user.clock.install()
+    user.clock.pause_at(user.evaluate("Date.now()") / 1000 + 1)
     widget.get_by_role("button", name="Play", exact=True).click()
+    user.clock.run_for(300)
     expect(widget.locator(".lf-trace-input-badge")).to_have_text("Click")
-    user.wait_for_timeout(300)
     widget.get_by_role("button", name="Pause", exact=True).click()
+    user.clock.resume()
     texts = user.evaluate(
         "() => { window.badgeWatch.disconnect(); return window.badgeTexts }"
     )
@@ -1394,7 +1399,9 @@ def test_trace_images_stand_at_their_own_capture_times(browser, serve):
             assert float(shown[1]) <= at + 0.0005, (fraction, shown[1], at)
 
 
-def test_trace_comparison_keeps_native_playback_and_shares_image_inspection(browser, serve):
+def test_trace_comparison_keeps_native_playback_and_shares_image_inspection(
+    browser, serve
+):
     """Source switches pause native clocks, while explicit results and image zoom pair."""
     source = ROOT / "examples/developer/playwright-trace-gallery.html"
     record = json.loads(source.with_suffix(".data.json").read_text())["release-journey"]

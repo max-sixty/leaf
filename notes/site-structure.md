@@ -15,14 +15,14 @@ meaning; word counts describe the cut, not its quality.
 The current routes are `PRODUCT_ROUTES` in `dev/leaf_dev/commands/site.py`. The proposal
 gives each page one reader:
 
-| Route | Reader and purpose |
-|---|---|
-| `/` | Existing front page |
-| `/examples/` | Example users; package named on each card, developer galleries elsewhere |
-| `/using/` | People operating a page and reading its status |
-| `/how-it-works/` | Mechanism, incorporating the event log and one explanation of the fold |
-| `/pages/` | Authors choosing page contents and layouts |
-| `/extending/` | Package authors; ownership, package table and one worked extension |
+| Route            | Reader and purpose                                                       |
+| ---------------- | ------------------------------------------------------------------------ |
+| `/`              | Existing front page                                                      |
+| `/examples/`     | Example users; package named on each card, developer galleries elsewhere |
+| `/using/`        | People operating a page and reading its status                           |
+| `/how-it-works/` | Mechanism, incorporating the event log and one explanation of the fold   |
+| `/pages/`        | Authors choosing page contents and layouts                               |
+| `/extending/`    | Package authors; ownership, package table and one worked extension       |
 
 The proposal removes the public registry page. It predates `/threads/` and
 `/website/`, so it does not yet place them. Explain experimental status,

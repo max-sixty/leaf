@@ -26,6 +26,12 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # These names resolve to this workspace, not packages on PyPI. In particular,
+    # trying to upgrade the root leaf package to PyPI's leaf breaks uv lock.
+    ignore:
+      - dependency-name: leaf
+      - dependency-name: leaf-dev
+      - dependency-name: leaf-website
     groups:
       dependencies:
         patterns: ["*"]

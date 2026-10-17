@@ -92,7 +92,6 @@ import {
   signal,
   quoted,
   registerVisualParts,
-  rowArrows,
   scopedMediaUrl,
   retainUserIntent,
   scrollBehavior,
@@ -361,11 +360,13 @@ customElements.define(
       // Element command scopes leave with their element; a return keeps the declaration.
       if (!quoted(this))
         commands(this, "In a Playwright recording", [
-          // Back along the time scale is the arrow toward its start; the scale
-          // runs left to right in every text direction (theme.css).
+          // Back along the time scale is the arrow toward its start. The scale
+          // runs left to right in every text direction (theme.css), so its arrows
+          // are fixed rather than read from the computed direction, which would
+          // force a style recalculation each time the page's keys are reflected.
           {
             id: "trace.previous",
-            keys: () => [rowArrows(timeline)[0]],
+            keys: ["ArrowLeft"],
             title: "previous timeline point",
             control: this.#previous.value,
             when: () => this.#position() > 0 || this.#cursorTime !== null,
@@ -373,7 +374,7 @@ customElements.define(
           },
           {
             id: "trace.next",
-            keys: () => [rowArrows(timeline)[1]],
+            keys: ["ArrowRight"],
             title: "next timeline point",
             control: this.#next.value,
             when: () => this.#position() < this.#items().length - 1,
@@ -405,16 +406,14 @@ customElements.define(
           },
           {
             id: "trace.previous-event",
-            keys: () =>
-              standingIn(timeline) ? [`Shift+${rowArrows(timeline)[0]}`] : [],
+            keys: () => (standingIn(timeline) ? ["Shift+ArrowLeft"] : []),
             title: "previous input or moment",
             when: () => this.#eventStop(-1) !== null,
             run: () => this.#navigate(this.#eventStop(-1)),
           },
           {
             id: "trace.next-event",
-            keys: () =>
-              standingIn(timeline) ? [`Shift+${rowArrows(timeline)[1]}`] : [],
+            keys: () => (standingIn(timeline) ? ["Shift+ArrowRight"] : []),
             title: "next input or moment",
             when: () => this.#eventStop(1) !== null,
             run: () => this.#navigate(this.#eventStop(1)),
@@ -1911,7 +1910,7 @@ customElements.define(
             @click=${{ handleEvent: (event) => this.#inspect(event), capture: true }}
           >
             <div class="lf-trace-stage" ?data-ready=${!!trace} ${ref(this.#stage)}>
-              <div class="lf-trace-heading">
+              <div class="lf-trace-heading" ?hidden=${!trace}>
                 <div class="lf-trace-toolbar" ?hidden=${!trace}>
                   <div class="lf-trace-transport">
                     ${transport(this.#first, "Start", "start", q)}
@@ -2074,9 +2073,11 @@ customElements.define(
               >
                 <summary>Saved elements</summary>
                 <p class="lf-trace-tree-clock">
-                  ${tree
-                    ? `${tree.nodes.length} elements · ${PHASES[treePoint.phase]} checkpoint at ${this.#time(tree.timestamp, treePoint.action.stream)}. Saved element boxes may differ from the image.`
-                    : "No accessibility tree was saved at this point."}
+                  ${
+                    tree
+                      ? `${tree.nodes.length} elements · ${PHASES[treePoint.phase]} checkpoint at ${this.#time(tree.timestamp, treePoint.action.stream)}. Saved element boxes may differ from the image.`
+                      : "No accessibility tree was saved at this point."
+                  }
                 </p>
                 <ul class="lf-trace-nodes" ${ref(this.#treeList)}>
                   ${repeat(
@@ -2091,11 +2092,13 @@ customElements.define(
                 </ul>
               </details>
               <p class="lf-trace-readout">
-                ${!trace
-                  ? "Waiting for a Playwright recording."
-                  : !items.length
-                    ? "No recorded checkpoints or frames in this recording scope."
-                    : `Step ${this.#position() + 1} of ${items.length}`}
+                ${
+                  !trace
+                    ? "Waiting for a Playwright recording."
+                    : !items.length
+                      ? "No recorded checkpoints or frames in this recording scope."
+                      : `Step ${this.#position() + 1} of ${items.length}`
+                }
               </p>
               <p
                 class="lf-trace-action"
@@ -2103,17 +2106,21 @@ customElements.define(
                 .textContent=${metadataAction?.title ?? ""}
               ></p>
               <h3 class="lf-trace-phase" ${ref(this.#phaseHeading)}>
-                ${metadataAction
-                  ? `${PHASES[metadataPoint.phase]}${metadataAction.phases[metadataPoint.phase] ? " checkpoint" : ""} · ${this.#time(metadataPoint.timestamp, metadataAction.stream)}`
-                  : ""}
+                ${
+                  metadataAction
+                    ? `${PHASES[metadataPoint.phase]}${metadataAction.phases[metadataPoint.phase] ? " checkpoint" : ""} · ${this.#time(metadataPoint.timestamp, metadataAction.stream)}`
+                    : ""
+                }
               </h3>
               <p class="lf-trace-error" ?hidden=${!metadataAction?.error}>
                 ${metadataAction?.error ?? ""}
               </p>
               <p class="lf-trace-clock" ?hidden=${!origin}>
-                ${trace?.streams.length > 1
-                  ? `${clockLabel} · each stream has its own clock`
-                  : clockLabel}
+                ${
+                  trace?.streams.length > 1
+                    ? `${clockLabel} · each stream has its own clock`
+                    : clockLabel
+                }
               </p>
             </div>
           </div>

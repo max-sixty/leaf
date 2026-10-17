@@ -184,7 +184,7 @@ def test_live_loop_carries_each_phase_to_the_author(
                 "url"
             ]
         if len(versions) == 2:
-            assert "900px" in message
+            assert "1600px" in message and "fullscreen" in message
             stamp("Author version 2")
             return "Revised."
         assert message.startswith("I've made my decisions on the page.")
@@ -200,7 +200,8 @@ def test_live_loop_carries_each_phase_to_the_author(
         stamp("Ask Mei Tanaka's team")
         return "Answered on the page."
 
-    def decide(url, task, directory):
+    def decide(url, task, directory, *, viewport):
+        assert viewport == (1600, 1000)
         state = PageClient(url).state()
         PageClient(url).post(
             {
@@ -214,6 +215,13 @@ def test_live_loop_carries_each_phase_to_the_author(
         )
         return {"made": True, "copied": None, "notes": "", "copies": [], "trace": {}}
 
+    original_comment = arrangement_eval.comment_on_passage
+
+    def comment_at_desktop(*args, viewport, **kwargs):
+        assert viewport == (1600, 1000)
+        return original_comment(*args, viewport=viewport, **kwargs)
+
+    monkeypatch.setattr(arrangement_eval, "comment_on_passage", comment_at_desktop)
     child = Scripted(turn, comment, page)
     monkeypatch.setattr(arrangement_eval, "LiveChild", child)
     monkeypatch.setattr(arrangement_eval, "decide", decide)
@@ -325,6 +333,7 @@ def test_completed_record_has_a_render_correction_loop_without_a_decision(
         key.startswith("decision-") for key in response["metadata"]["checks"]
     )
     for phase in response["metadata"]["diagnostics"]["phases"].values():
+        assert set(phase["captures"]) == {"short", "phone"}
         assert phase["captures"]["short"]
         assert all(Path(path).is_file() for path in phase["captures"]["short"])
 

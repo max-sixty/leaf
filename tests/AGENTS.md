@@ -48,7 +48,7 @@ before testing to wait for it and see failures. A plain clone starts it with
 
 ```sh
 wt setup
-uv run pytest tests/browser/test_render_widgets.py -q -n0 -k board   # the tests a change needs
+uv run pytest tests/browser/widgets/test_boards.py -q -n0 -k lifecycle  # the tests a change needs
 pnpm run test:runtime                 # tests/runtime/, under Node
 uv run pytest tests                  # broad selection; the landing gate runs it (root AGENTS.md, "Working on the repository")
 uv run pytest --lf --lfnf=none -x -n0
@@ -76,11 +76,17 @@ test to an earlier tier, make it cheaper. The user chose directory tiers (2026-1
 so that the landing gates stop growing with every test.
 
 A subject whose tests cross different boundaries has a module of the same name in each
-directory, such as `browser/test_render_margin.py` and `journeys/test_render_margin.py`.
+directory, such as `browser/test_render_aim.py` and `journeys/test_render_aim.py`.
 The module holding most of them keeps the helpers, and the others import from it; a
 module fixture they share is declared with `name=` and imported as `<name>_fixture`.
 `model/` and `process/` run in the same tier, so a subject's tests of both kinds stay in
 one module.
+
+A subject too large to read as one module is a package in its directory, with a module
+per behavior, such as `browser/margin/` beside `journeys/test_render_margin.py`. A helper
+one module uses stays in it; the package's `__init__.py` holds those that several use or
+that other directories import, and its `conftest.py` imports the fixtures every module
+takes, as `process/website_server/` does for its autouse one.
 
 Broad discovery skips `browser/` and `journeys/`; `--run-main` adds `browser/` and
 `--run-nightly` runs every tier. An explicit directory, file, node id, `-k`, `-m` or
@@ -254,9 +260,9 @@ The `browser` fixture watches every page it makes and fails the test on any prob
 left at the end; don't install a second collector. Each problem is a record
 (`leaf/findings.py`). Consume an expected one where it happens with
 `consume_browser_errors`, or `reported_browser_errors` when it arrives in parts, naming
-it by its fields (`{"code": "failed-load", "status": 400}`) or by a fragment of the
-console message (`render_harness.is_problem`). For a recurring fault, close the page
-first and then consume. Filtering the collector is not an assertion.
+it by its fields (`{"code": "console-error", "url": "http://page/api/event"}`) or by a
+fragment of the console message (`render_harness.is_problem`). For a recurring fault,
+close the page first and then consume. Filtering the collector is not an assertion.
 
 Three watches report problems; a fourth, `input_work_watch.js`, tells them which input
 caused a change. Fix what they report rather than consuming it; there is no per-test
@@ -398,9 +404,10 @@ printed record), since the log's last event may be a `read` an open page appende
 ### Test-made noise
 
 Instrumentation must not add noise to the channel a test asserts is quiet; `refuse`
-uses the `aborted` reason for that. Assert a deliberate HTTP error through the
-collector's status-and-URL entry, and wrap a deliberate server restart in
-`restarting`, asserting any diagnostic inside that block.
+uses the `aborted` reason for that. Consume a deliberate HTTP error by the browser's
+diagnostic (`http_error_console`); where the status itself is under test, assert the
+response's status. Wrap a deliberate server restart in `restarting`, asserting any
+diagnostic inside that block.
 
 ## Frames, sequences, and instants
 

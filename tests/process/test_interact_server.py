@@ -1153,9 +1153,13 @@ def test_api_state_carries_each_sources_current_value(server, page_dir):
     }
     assert data["sources"]["builds"]["contract"] == "build-map"
     assert data["sources"]["builds"]["value"] == {"main": "green"}
+    # A tab naming the version it holds is not sent that version's sources again.
+    holding = {"Leaf-Data-Version": data["version"]}
+    unmoved = json.loads(fetch(f"{server}/api/state", headers=holding)[1])["data"]
+    assert unmoved == {"version": data["version"]}
 
     data_model.cmd_data_set(page_dir, "builds", {"main": "red"})
-    rewritten = json.loads(fetch(f"{server}/api/state")[1])["data"]
+    rewritten = json.loads(fetch(f"{server}/api/state", headers=holding)[1])["data"]
     assert rewritten["sources"]["builds"]["value"] == {"main": "red"}
     assert rewritten["version"] != data["version"]
     assert (
@@ -1346,6 +1350,111 @@ def test_historical_deferred_reads_keep_the_document_revision_and_layer(
     assert deferred["value"] == patch
 
 
+def news_layer(origin, **headers):
+    """The layer `/api/news` answers a tab sending these headers in."""
+    address = urllib.parse.urlsplit(origin)
+    connection = http.client.HTTPConnection(address.hostname, address.port)
+    connection.request("GET", f"/api/news?t={TOKEN}", headers=headers)
+    response = connection.getresponse()
+    response.read()
+    connection.close()
+    assert response.status == 200
+    return response.getheader("Leaf-Layer")
+
+
+def test_a_tab_on_a_re_vendored_page_hears_news_in_its_own_layer(page_dir):
+    """A re-vendor replaces the page's server, and a tab still open on the older layer
+    keeps hearing news it can read, so it takes the newer layer as a revision once the
+    user has finished what they are doing. Named in the newer layer, the token was
+    refused and reloaded the tab mid-keystroke."""
+    first = revisioning_model.activate_source(page_dir)
+    first_layer = artifact_model.read_revision(page_dir, first.revision).registry[
+        "$layer"
+    ]["generation"]
+    theme = page_dir / "theme.css"
+    theme.write_text(theme.read_text() + "\n/* repair installed edit */\n")
+    vendoring_model.cmd_init(page_dir)
+    (page_dir / "index.html").write_text(PAGE.replace("Plan", "Revised plan"))
+    second = revisioning_model.activate_source(page_dir)
+    assert second.error is None and second.revision != first.revision
+
+    with hosting_model.TemporaryPageServer(page_dir, token=TOKEN) as replaced:
+        stale = news_layer(
+            replaced.origin,
+            **{"Leaf-Layer": first_layer, "Leaf-View-Revision": str(first.revision)},
+        )
+        current = news_layer(replaced.origin)
+    assert stale == first_layer
+    assert current != first_layer
+
+
+def test_a_tab_on_a_revision_past_a_protocol_bump_hears_the_newer_layer(page_dir):
+    """Across a protocol bump the server admits nothing against the tab's revision,
+    so holding there for the user would strand their send. The tab hears the newer
+    layer instead and reloads at once, from its news and from a send alike."""
+    page_registry = registry_storage.read_page_registry(page_dir)
+    older = {
+        **page_registry.registry,
+        "$events": {
+            **page_registry.registry["$events"],
+            "protocol": page_registry.registry["$events"]["protocol"] - 1,
+        },
+        "$layer": {**page_registry.registry["$layer"], "generation": "older"},
+    }
+    document = structure_model.SourceDocument(PAGE)
+    artifact = artifact_model.capture_artifact(
+        page_dir,
+        document,
+        older,
+        declaration_sources=page_registry.declaration_sources,
+        widget_sources=page_registry.widget_sources,
+    )
+    artifact_model.write_artifact(
+        page_dir, 1, artifact, passages_model.SourceReading(document, older)
+    )
+    (page_dir / "index.html").write_text(PAGE.replace("Plan", "Revised plan"))
+    assert revisioning_model.activate_source(page_dir).error is None
+    with hosting_model.TemporaryPageServer(page_dir, token=TOKEN) as server:
+        stale = news_layer(
+            server.origin, **{"Leaf-Layer": "older", "Leaf-View-Revision": "1"}
+        )
+        assert stale == news_layer(server.origin)
+        status, answer = fetch(
+            f"{server.origin}/api/event",
+            data=json.dumps({"kind": "note", "author": "user"}).encode(),
+            layer="older",
+            headers={"Leaf-View-Revision": "1"},
+        )
+    assert (status, json.loads(answer)) == (200, {"layer": stale})
+
+
+def test_a_state_answer_speaks_the_layer_of_the_revision_it_read(page_dir):
+    """Reading state activates the page's source, so a state answer naming no
+    revision speaks the layer of the revision that activation left active, the one
+    its body describes."""
+    first = revisioning_model.activate_source(page_dir)
+    first_layer = artifact_model.read_revision(page_dir, first.revision).registry[
+        "$layer"
+    ]["generation"]
+    # A source that fails to save keeps the re-vendor from activating it, leaving
+    # the older layer's revision active until the repaired source is read.
+    (page_dir / "index.html").write_text(PAGE.replace("</section>", ""))
+    theme = page_dir / "theme.css"
+    theme.write_text(theme.read_text() + "\n/* repair installed edit */\n")
+    vendoring_model.cmd_init(page_dir)
+    (page_dir / "index.html").write_text(PAGE.replace("Plan", "Revised plan"))
+    with hosting_model.TemporaryPageServer(page_dir, token=TOKEN) as server:
+        address = urllib.parse.urlsplit(server.origin)
+        connection = http.client.HTTPConnection(address.hostname, address.port)
+        connection.request("GET", f"/api/state?t={TOKEN}")
+        response = connection.getresponse()
+        state = json.loads(response.read())
+        connection.close()
+    assert state["active"]["revision"] != first.revision
+    assert response.getheader("Leaf-Layer") == state["layer"]["generation"]
+    assert state["layer"]["generation"] != first_layer
+
+
 def test_a_bad_source_save_keeps_the_last_revision_live_and_reports_the_error(
     server, page_dir
 ):
@@ -1411,7 +1520,7 @@ def test_state_validation_follows_css_edits_and_recovers_cached_readings(
 
     path.write_text(source.replace("--probe-width: 700px", "--probe-width  700px"))
     assert (
-        "page <style> syntax error"
+        "page <style> (line 5) syntax error"
         in json.loads(fetch(f"{server}/api/state")[1])["source_error"]
     )
     path.write_text(source)
@@ -4072,6 +4181,7 @@ def test_a_page_reading_waits_out_an_append_in_progress(page_dir):
     crossing an in-place append can pair its modification time with the size before
     it, a state the log was never at, so the look waits for the log's lease, which
     every append holds, and then names the finished append as a state answer would."""
+    absence_window = 0.2  # This duration is the subject of the absence assertion.
     with ThreadPoolExecutor(max_workers=1) as executor:
         with cleanup_model.flocked(page_dir / "events.jsonl") as log:
             log.seek(0, os.SEEK_END)
@@ -4079,7 +4189,7 @@ def test_a_page_reading_waits_out_an_append_in_progress(page_dir):
             log.flush()
             look = executor.submit(served_reading.page_reading, page_dir)
             # The window is the subject of an absence assertion, not a deadline.
-            assert not wait_futures([look], timeout=0.2).done, (
+            assert not wait_futures([look], timeout=absence_window).done, (
                 "the look named the log while an append held it"
             )
             log.write(b'lf"}\n')
@@ -4364,25 +4474,37 @@ def test_a_server_start_re_vendors_an_older_page_and_refuses_a_newer_one(page_di
     the browser on every read. A page an older Leaf vendored the start re-vendors
     first, as the plugin update that left it there calls for. One a newer Leaf
     vendored, which this Leaf does not take back, is refused before the start claims
-    the page or records a service, and the refusal names the re-vendor that ends it.
-    A server already running over such a page is refused the same way rather than
-    handed out as this Leaf's."""
+    the page or records a service, and the refusal names the newer Leaf that would
+    serve it. A server already running over such a page is refused the same way
+    rather than handed out as this Leaf's."""
     from leaf.event_contracts import write_refusal
 
     runner = CliRunner()
+    stamp = page_dir / "registry.json"
+    vendored = stamp.read_text(encoding="utf-8")
     foreign = vendored_at_another_protocol(page_dir, newer=True)
 
     refused = runner.invoke(cli_model.cli, ["server", "start", str(page_dir)])
 
     assert refused.exit_code != 0, refused.output
-    assert f"page protocol {foreign}" in refused.output
-    assert f"leaf page init {page_dir}" in refused.output
+    assert f"Use a Leaf at protocol {foreign} or later" in refused.output
     assert not service_model.claim_path(page_dir).exists()
     assert files_model.read_json(page_dir / "service.json") is None
     assert not leases_model.lock_is_held(page_dir / "server.lock")
 
-    reinitialized = runner.invoke(cli_model.cli, ["page", "init", str(page_dir)])
-    assert reinitialized.exit_code == 0, reinitialized.output
+    # A newer protocol may reshape the layer past this Leaf's schema, which reads
+    # the protocol first.
+    newer = json.loads(stamp.read_text(encoding="utf-8"))
+    stamp.unlink()
+    stamp.write_text(json.dumps({**newer, "$future": 1}), encoding="utf-8")
+    reshaped = runner.invoke(
+        cli_model.cli, ["server", "start", "--persistent", str(page_dir)]
+    )
+    assert reshaped.exit_code != 0, reshaped.output
+    assert f"Use a Leaf at protocol {foreign} or later" in reshaped.output
+
+    stamp.unlink()
+    stamp.write_text(vendored, encoding="utf-8")
     vendored_at_another_protocol(page_dir)
     started = runner.invoke(cli_model.cli, ["server", "start", str(page_dir)])
     try:
@@ -4392,8 +4514,7 @@ def test_a_server_start_re_vendors_an_older_page_and_refuses_a_newer_one(page_di
         foreign = vendored_at_another_protocol(page_dir, newer=True)
         reused = runner.invoke(cli_model.cli, ["server", "start", str(page_dir)])
         assert reused.exit_code != 0, reused.output
-        assert f"page protocol {foreign}" in reused.output
-        assert f"leaf page init {page_dir}" in reused.output
+        assert f"Use a Leaf at protocol {foreign} or later" in reused.output
     finally:
         stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
         assert stopped.exit_code == 0, stopped.output
@@ -4403,10 +4524,9 @@ def test_a_revision_saved_before_a_re_vendor_neither_opens_nor_takes_input(page_
     """A re-vendor across a protocol bump leaves the revisions the page saved before
     it in place, each with the runtime it was saved with. Served, that runtime would
     talk to this Leaf's server across the bump, so its address refuses, as does an
-    event made against it, a widget to-do opened on it as the newest included, while
-    the revision saved since serves and admits. An event made against no document,
-    such as a pickup, is judged by the page's layer, so it goes through before the
-    source saves again."""
+    event made against it, while the current revision activated by the re-vendor
+    serves and admits, a widget to-do opened on it as the newest included. An event
+    made against no document, such as a pickup, is judged by the page's layer."""
     board = PAGE.replace(
         "<h2>Plan</h2>",
         '<h2>Plan</h2>\n<lf-board id="rollout"><lf-column id="rollout-now" '
@@ -4414,24 +4534,27 @@ def test_a_revision_saved_before_a_re_vendor_neither_opens_nor_takes_input(page_
         "</lf-board>",
     )
     (page_dir / "index.html").write_text(board)
-    foreign = vendored_at_another_protocol(page_dir)
-    # Build the capture an older Leaf left behind. This Leaf refuses to activate
-    # mutable source vendored at that older protocol.
+    # Build the capture an older Leaf left behind: this Leaf reads no layer vendored
+    # at that older protocol, so the capture takes this Leaf's vocabulary with the
+    # older number, and the layer then moves to that number too.
     page_registry = registry_storage.read_page_registry(page_dir)
+    foreign = page_registry.registry["$events"]["protocol"] - 1
+    older = {
+        **page_registry.registry,
+        "$events": {**page_registry.registry["$events"], "protocol": foreign},
+    }
     document = structure_model.SourceDocument(board)
     artifact = artifact_model.capture_artifact(
         page_dir,
         document,
-        page_registry.registry,
+        older,
         declaration_sources=page_registry.declaration_sources,
         widget_sources=page_registry.widget_sources,
     )
     artifact_model.write_artifact(
-        page_dir,
-        1,
-        artifact,
-        passages_model.SourceReading(document, page_registry.registry),
+        page_dir, 1, artifact, passages_model.SourceReading(document, older)
     )
+    vendored_at_another_protocol(page_dir)
     waiting = append_carried_log_record(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "Still there?"},
@@ -4451,11 +4574,7 @@ def test_a_revision_saved_before_a_re_vendor_neither_opens_nor_takes_input(page_
         "subject": {"kind": "widget", "id": "rollout-card"},
         "title": "Check the rollout",
     }
-    with pytest.raises(event_model.EventRefused) as unadmitted:
-        append_command(page_dir, todo)
-    assert refused_on(unadmitted.value).values["saved"] == foreign
-    (page_dir / "index.html").write_text(board.replace("Ship it", "Ship it now"))
-    revisioning_model.activate_source(page_dir)
+    assert append_command(page_dir, todo)["revision"] == 2
     old, new = (
         next((page_dir / "revisions").glob(f"r{n}-*.html")).name for n in (1, 2)
     )
@@ -4485,7 +4604,6 @@ def test_a_revision_saved_before_a_re_vendor_neither_opens_nor_takes_input(page_
         assert f"page protocol {foreign}" in body.decode()
         assert event_model.read_events(page_dir) == before
         assert commented(2)[0] == 200
-        assert append_command(page_dir, todo)["revision"] == 2
     finally:
         temporary.close()
 
@@ -4510,10 +4628,10 @@ def test_a_revision_saved_before_a_key_was_renamed_neither_opens_nor_takes_input
     vendored_before_the_ask_rename(page_dir)
     # Read as the next process does, which holds nothing of the revision saved above.
     with fresh_process():
-        _serve_after_the_ask_rename(page_dir, page)
+        _serve_after_the_ask_rename(page_dir)
 
 
-def _serve_after_the_ask_rename(page_dir, page):
+def _serve_after_the_ask_rename(page_dir):
     comment = {"kind": "comment", "author": "user", "text": "Which plan?"}
     with pytest.raises(event_model.EventRefused, match="x-question-context") as refused:
         append_command(page_dir, {**comment, "revision": 1})
@@ -4521,10 +4639,7 @@ def _serve_after_the_ask_rename(page_dir, page):
 
     reinitialized = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert reinitialized.exit_code == 0, reinitialized.output
-    (page_dir / "index.html").write_text(
-        page.replace("Which route?", "Which route now?")
-    )
-    revisioning_model.activate_source(page_dir)
+    # Re-vendoring activates valid source with the renamed vocabulary itself.
     [ask] = [
         ask
         for ask in page_state(page_dir)["browser"]["views"]["2"]["document"]["asks"][
@@ -4532,7 +4647,7 @@ def _serve_after_the_ask_rename(page_dir, page):
         ]
         if ask["source"]["id"] == "route"
     ]
-    assert ask["prompt"] == {"text": "Which route now?", "target": "route-ask"}
+    assert ask["prompt"] == {"text": "Which route?", "target": "route-ask"}
     old, new = (
         next((page_dir / "revisions").glob(f"r{n}-*.html")).name for n in (1, 2)
     )

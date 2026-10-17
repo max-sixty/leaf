@@ -23,14 +23,15 @@ from render_harness import (
     Traffic,
     _traffic,
     holding,
+    http_error_console,
     is_problem,
     leaf_page,
     open_page,
     panel_settled,
+    reported_browser_errors,
     round_trip,
     select,
     sending,
-    take_browser_errors,
     told,
     write,
 )
@@ -304,10 +305,16 @@ def test_an_acknowledgement_neither_waits_for_nor_holds_up_a_gesture(browser, se
         "Couldn't send" in text
         for text in page.locator(".lf-notice").all_text_contents()
     )
-    assert all(
-        is_problem(error, "Failed to load")
-        or (error.code == "failed-load" and "/api/event" in error.values["url"])
-        for error in take_browser_errors(page)
+    reported_browser_errors(
+        page,
+        lambda error: (
+            is_problem(error, http_error_console(400))
+            and "/api/event" in error.values["url"]
+        ),
+        lambda error: (
+            is_problem(error, "Failed to load resource: net::ERR_FAILED")
+            and "/api/event" in error.values["url"]
+        ),
     )
 
 
@@ -590,78 +597,6 @@ def test_a_sample_in_a_native_modal_escapes_inherited_inertness(browser, serve):
     child.locator(".lf-threads-toggle").focus()
     _open_first_unread(page, child)
     _read_by_the_sample(page, child)
-
-
-def _framed_reader(browser, serve):
-    """A Leaf page framed by its own origin, below the containing page's first screen,
-    with its first unread message opened unseen. Returns the containing page, the
-    frame's locator and the framed page, which keeps a ledger of trips of its own."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Framed reading",
-                '<h1>Containing page</h1><div id="frame-gap"></div>',
-                head="<style>#frame-gap { height: 2000px; }"
-                " #framed-reader { display: block; width: 100%; height: 500px;"
-                " border: 0; margin-bottom: 2000px; }</style>",
-            ),
-            events=[
-                {
-                    "id": SAMPLE_READER,
-                    "kind": "comment",
-                    "author": "agent",
-                    "agent": "Agent",
-                    "revision": 1,
-                    "text": "A framed answer for the user.",
-                }
-            ],
-        ),
-    )
-    # Below the first screen, the framed page opens its first unread message unseen.
-    page.locator("#frame-gap").evaluate(
-        """async (gap, url) => {
-            const frame = document.createElement('iframe');
-            frame.id = 'framed-reader';
-            frame.src = url;
-            const loaded = new Promise(resolve =>
-                frame.addEventListener('load', resolve, {once: true}));
-            gap.after(frame);
-            await loaded;
-        }""",
-        page.url,
-    )
-    frame = page.locator("#framed-reader")
-    child = frame.element_handle().content_frame()
-    wait_until_ready(child)
-    child.lf_traffic = Traffic(child)
-    child.locator(".lf-threads-toggle").focus()
-    page.evaluate("scrollTo(0, 0)")
-    _open_first_unread(page, child)
-    _still_unread(page, child)
-    return page, frame, child
-
-
-def _framed_message_box(child):
-    return _message_body(child).evaluate(
-        "body => { const box = body.getBoundingClientRect();"
-        " return {top: box.top, height: box.height}; }"
-    )
-
-
-def _place_frame(frame, top):
-    """Scroll the containing page until the frame's top stands `top` down its window."""
-    frame.evaluate(
-        "(frame, at) => scrollBy(0, frame.getBoundingClientRect().top - at)", top
-    )
-
-
-def _framed_read(serve, child):
-    expect(child.locator(".lf-first-unread")).to_be_hidden()
-    round_trip(child)
-    assert _read_events(serve.page_dir)[-1]["messages"] == [
-        {"message": SAMPLE_READER, "version": SAMPLE_READER}
-    ]
 
 
 def _box_height(locator):

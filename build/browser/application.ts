@@ -185,16 +185,17 @@ interface WireProjection {
  * identity includes its kind so authored ids and message ids cannot collide. */
 interface AskRecord {
   id: string;
-  source: { kind: "widget" | "reply"; id: string; tag?: string }
-    | { kind: "approval"; version: number };
+  source:
+    { kind: "widget"; id: string; tag: string } | { kind: "approval"; version: number };
   thread: string | null;
   message: string | null;
   prompt: { text: string | null; target: string };
   answer: { value: unknown; event: Event | null } | null;
-  /** `asks.py` owns the statuses; only a prose ask is `answered_elsewhere`. */
+  /** `asks.py` owns the statuses; only an ask answered in words is
+   * `answered_elsewhere`. */
   status: "open" | "answered" | "answered_elsewhere" | "withdrawn";
-  /** The agent's `leaf task end` that retired a prose ask: where the answer is, or why
-   * the ask no longer applies. */
+  /** The agent's `leaf task end` that retired an ask answered in words: where the
+   * answer is, or why the ask no longer applies. */
   end: { detail: string | null; event: Event } | null;
   next_actor: "user" | "agent" | null;
 }
@@ -260,10 +261,27 @@ export type Workflow = Omit<WireWorkflow, "quiet" | "dropped" | "stage"> & {
   dropped?: boolean;
 };
 
+/** One step of the agent's plan, as `plans.plan_reading` serves it: plain, or naming a
+ * to-do or ask whose title, owner and state it shows; `done` of `total` counts its
+ * children, dropped ones left out. */
+interface WirePlanStep {
+  /** An ask whose prompt has no text names no title. */
+  title: string | null;
+  state: "open" | "working" | "done" | "failed" | "dropped";
+  owner: "agent" | "user";
+  item: { kind: "todo" | "ask"; id: string } | null;
+  running: WireTodo["running"];
+  since: string | null;
+  steps: WirePlanStep[];
+  done: number;
+  total: number;
+}
+
 /** One to-do, as `served_state.browser` serves it (`work_reading.WorkReading.page_todos`): `todos` holds
- * the open ones on either side and `ended_todos` the ones that ended, with their
- * outcome. Asks are separate records and never appear in this list. */
-interface WireTodo {
+ * every to-do on either side, open or ended, an ended one with its outcome. It is the
+ * one record of each; the queue items and thread readings the browser draws select
+ * from it. Asks are separate records and never appear in this list. */
+export interface WireTodo {
   id: string;
   owner: "agent" | "user";
   subject: { kind: "thread" | "widget" | "element"; id: string } | { kind: "page" };
@@ -327,7 +345,7 @@ export interface SemanticDocument {
       [name: string]: unknown;
     }
   > & {
-    $reactions?: { tokens: Record<string, {glyph: string; settles?: boolean}> };
+    $reactions?: { tokens: Record<string, { glyph: string; settles?: boolean }> };
     $states: Record<string, Record<string, StampedState>>;
   };
   authored: AuthoredMap;
@@ -368,7 +386,10 @@ interface AuthoritativeState {
   workflows: WireWorkflow[];
   /** The machine's other live pages, each its compact activity summary
    * (`server_rows.py`). */
-  others: ({ page_key: string; url: string; title: string } & Record<string, unknown>)[];
+  others: ({ page_key: string; url: string; title: string } & Record<
+    string,
+    unknown
+  >)[];
   browser: {
     basis: { through_seq: number };
     views: Record<
@@ -418,7 +439,14 @@ interface AuthoritativeState {
      * (`thread_context.thread_memberships`). */
     thread_memberships: Record<string, string[]>;
     todos: WireTodo[];
-    ended_todos: WireTodo[];
+    /** The agent's plan in force, or null (`plans.plan_reading`). */
+    plan: {
+      id: string;
+      ts: string;
+      agent: string | null;
+      session: string | null;
+      steps: WirePlanStep[];
+    } | null;
     /** Each version's note, by version (`served_state.browser`). */
     version_notes: Record<string, string>;
     /** The newest events as a history feed reads them, sent only to a page holding a
@@ -484,47 +512,63 @@ function normalizedAsks(
 ): WireAsks {
   const page = view?.document.asks;
   const thread = view?.thread.asks;
-  const all = [...(page?.all ?? []), ...(thread?.all ?? [])].map(
-    (ask): AskRecord => {
-      if (ask.source.kind === "approval") {
-        const version = ask.source.version;
-        const undone = new Set(local.flatMap(({ event }) =>
-          event.kind === "undo" ? [event.undoes] : []));
-        const approving = local.some(({ event }) =>
-          event.kind === "done" && event.version === version);
-        if (approving) return { ...ask, answer: { value: true, event: null },
-          status: "answered", next_actor: null };
-        if (ask.answer?.event && undone.has(ask.answer.event.id))
-          return { ...ask, answer: null, status: "open", next_actor: "user" };
-        return ask;
-      }
-      if (ask.source.kind !== "widget") return ask;
-      const sourceId = ask.source.id;
-      const widget = widgets.get(sourceId);
-      const declaration = document.descriptors.get(ask.source.id)?.declaration["x-awaits"] as
-        { value?: string } | undefined;
-      const verb = declaration?.value;
-      if (!verb || !widget) return ask;
-      const completed = ask.status === "answered" &&
-        !(ask.answer?.event && projection.pendingWithdrawals.has(ask.answer.event.id));
-      const { value, present } = askValue(widget, verb, completed);
-      const pendingValue = (widget.entries as { e: Event }[]).some(({ e }) =>
-        e.action === verb && !Number.isInteger(e.seq)) ||
-        [...projection.pendingWithdrawals.values()].some(({ e }) =>
+  const all = [...(page?.all ?? []), ...(thread?.all ?? [])].map((ask): AskRecord => {
+    if (ask.source.kind === "approval") {
+      const version = ask.source.version;
+      const undone = new Set(
+        local.flatMap(({ event }) => (event.kind === "undo" ? [event.undoes] : [])),
+      );
+      const approving = local.some(
+        ({ event }) => event.kind === "done" && event.version === version,
+      );
+      if (approving)
+        return {
+          ...ask,
+          answer: { value: true, event: null },
+          status: "answered",
+          next_actor: null,
+        };
+      if (ask.answer?.event && undone.has(ask.answer.event.id))
+        return { ...ask, answer: null, status: "open", next_actor: "user" };
+      return ask;
+    }
+    if (ask.source.kind !== "widget") return ask;
+    const sourceId = ask.source.id;
+    const widget = widgets.get(sourceId);
+    const declaration = document.descriptors.get(ask.source.id)?.declaration[
+      "x-awaits"
+    ] as { value?: string } | undefined;
+    const verb = declaration?.value;
+    if (!verb || !widget) return ask;
+    const completed =
+      ask.status === "answered" &&
+      !(ask.answer?.event && projection.pendingWithdrawals.has(ask.answer.event.id));
+    const { value, present } = askValue(widget, verb, completed);
+    const pendingValue =
+      (widget.entries as { e: Event }[]).some(
+        ({ e }) => e.action === verb && !Number.isInteger(e.seq),
+      ) ||
+      [...projection.pendingWithdrawals.values()].some(
+        ({ e }) =>
           e.widget === sourceId &&
-          (e.action === verb || e.id === ask.answer?.event?.id));
-      const answer = present
-        ? { value, event: pendingValue ? null : ask.answer?.event ?? null }
-        : null;
-      return { ...ask, answer };
-    },
-  );
+          (e.action === verb || e.id === ask.answer?.event?.id),
+      );
+    const answer = present
+      ? { value, event: pendingValue ? null : (ask.answer?.event ?? null) }
+      : null;
+    return { ...ask, answer };
+  });
   const selection = (kind: "user" | "unanswered") => {
-    const admitted = new Set([...(page?.[kind] ?? []), ...(thread?.[kind] ?? [])]
-      .map((ask) => ask.id));
-    return all.filter((ask) => ask.source.kind === "approval"
-      ? kind === "user" ? ask.next_actor === "user" : ask.status === "open"
-      : admitted.has(ask.id));
+    const admitted = new Set(
+      [...(page?.[kind] ?? []), ...(thread?.[kind] ?? [])].map((ask) => ask.id),
+    );
+    return all.filter((ask) =>
+      ask.source.kind === "approval"
+        ? kind === "user"
+          ? ask.next_actor === "user"
+          : ask.status === "open"
+        : admitted.has(ask.id),
+    );
   };
   return { all, user: selection("user"), unanswered: selection("unanswered") };
 }
@@ -533,18 +577,16 @@ function normalizedAsks(
  * user is ending stands ended in the gesture's own turn, and one whose Done they are
  * undoing stands open again; a refused gesture leaves the ledger and so puts the to-do
  * back as the log has it. */
-function localTodos(
-  state: AuthoritativeState | null,
-  local: readonly LedgerEntry[],
-) {
+function localTodos(state: AuthoritativeState | null, local: readonly LedgerEntry[]) {
   const ending = new Set(
     local.flatMap(({ event }) => (event.kind === "todo_end" ? [event.todo] : [])),
   );
   const undoing = new Set(
     local.flatMap(({ event }) => (event.kind === "undo" ? [event.undoes] : [])),
   );
-  const served = state?.browser.todos ?? [];
-  const ended = state?.browser.ended_todos ?? [];
+  const all = state?.browser.todos ?? [];
+  const served = all.filter((todo) => todo.state === "open");
+  const ended = all.filter((todo) => todo.state !== "open");
   const reopened = (todo: WireTodo) =>
     todo.outcome !== null && undoing.has(todo.outcome.id ?? "");
   const open = [
@@ -692,15 +734,17 @@ function localQueues(
   // An ask item carries this tab's record of its ask.
   const current = <T extends QueueItem>(item: T): T =>
     item.kind === "ask" ? { ...item, ask: askOf(item) } : item;
-  const asOpen = ({ state: _state, ended: _ended, detail: _detail, ...item }: DoneItem) =>
-    current(item as QueueItem);
+  const asOpen = ({
+    state: _state,
+    ended: _ended,
+    detail: _detail,
+    ...item
+  }: DoneItem) => current(item as QueueItem);
   const asDone = (item: QueueItem): DoneItem => ({
     ...current(item),
     live: false,
     state:
-      item.kind === "ask" && askOf(item).status === "withdrawn"
-        ? "dropped"
-        : "done",
+      item.kind === "ask" && askOf(item).status === "withdrawn" ? "dropped" : "done",
     ended: null,
     detail: null,
   });
@@ -710,7 +754,16 @@ function localQueues(
   const resend = (id: string, subject: QueueItem["subject"], thread: string | null) =>
     listed.has(`resend:${id}`)
       ? []
-      : [{ kind: "resend" as const, id, owner: "user" as const, subject, thread, live: false }];
+      : [
+          {
+            kind: "resend" as const,
+            id,
+            owner: "user" as const,
+            subject,
+            thread,
+            live: false,
+          },
+        ];
   const reopenedFor = (owner: "user" | "agent") =>
     served.done.filter((item) => item.owner === owner && reopened(item));
   return {
@@ -730,7 +783,9 @@ function localQueues(
     ].toSorted(
       (a, b) =>
         onUserRank(a) - onUserRank(b) ||
-        (a.kind === "ask" && b.kind === "ask" ? asked.get(a.id)! - asked.get(b.id)! : 0),
+        (a.kind === "ask" && b.kind === "ask"
+          ? asked.get(a.id)! - asked.get(b.id)!
+          : 0),
     ),
     on_agent: [
       ...served.on_agent.filter((item) => item.kind !== "todo" && standsOpen(item)),
@@ -771,7 +826,9 @@ type MapValue<M> = M extends ReadonlyMap<unknown, infer V> ? V : never;
 interface WidgetEntries {
   readonly classified: readonly MapValue<RootProjection["classified"]>[];
   readonly desired: readonly MapValue<RootProjection["actions"]>[];
-  readonly undo: readonly NonNullable<SemanticRoot["effective"]["view"]>["undo"][number]["event"][];
+  readonly undo: readonly NonNullable<
+    SemanticRoot["effective"]["view"]
+  >["undo"][number]["event"][];
 }
 interface WidgetIndex {
   readonly byWidget: ReadonlyMap<string, WidgetEntries>;
@@ -792,12 +849,15 @@ function widgetIndex(root: SemanticRoot): WidgetIndex {
   const byWidget = new Map<string, Group>();
   const group = (widget: string) => {
     let entries = byWidget.get(widget);
-    if (!entries) byWidget.set(widget, (entries = { classified: [], desired: [], undo: [] }));
+    if (!entries)
+      byWidget.set(widget, (entries = { classified: [], desired: [], undo: [] }));
     return entries;
   };
   for (const entry of projection.classified.values())
-    if (!entry.terminal && entry.e.kind === "action") group(entry.e.widget).classified.push(entry);
-  for (const entry of projection.actions.values()) group(entry.e.widget).desired.push(entry);
+    if (!entry.terminal && entry.e.kind === "action")
+      group(entry.e.widget).classified.push(entry);
+  for (const entry of projection.actions.values())
+    group(entry.e.widget).desired.push(entry);
   for (const { event } of root.effective.view?.undo ?? [])
     if (event.kind === "action" && !projection.pendingWithdrawals.has(event.id))
       group(event.widget).undo.push(event);
@@ -989,12 +1049,14 @@ export function createSemanticApplication({
     const localProjections = local.flatMap((entry): PendingProjection[] => {
       const projection = entry.projection;
       if (!projection) return [];
-      if (projection.kind !== "undo") return drawsAction(projection.e) ? [projection] : [];
+      if (projection.kind !== "undo")
+        return drawsAction(projection.e) ? [projection] : [];
       const { target } = projection;
       const targetId = admittedId(entry.undoTarget, unresolved, receipts);
       const pending = !Number.isInteger(target.e.seq);
       const draws =
-        classifiedIds.has(targetId ?? target.e.id) || (pending && drawsAction(target.e));
+        classifiedIds.has(targetId ?? target.e.id) ||
+        (pending && drawsAction(target.e));
       return draws ? [{ ...projection, targetId }] : [];
     });
     const projection = foldProjection({
@@ -1018,7 +1080,11 @@ export function createSemanticApplication({
     );
     const folded = foldThreads(view?.thread.threads ?? [], gestures);
     const widgets = foldWidgetStates(document.authored, projection);
-    const { parents: widgetParents, memberships } = currentWidgetRelations(document, widgets, projection);
+    const { parents: widgetParents, memberships } = currentWidgetRelations(
+      document,
+      widgets,
+      projection,
+    );
     const asks = ready
       ? normalizedAsks(view, widgets, document, projection, local)
       : NO_ASKS;
@@ -1158,6 +1224,7 @@ export function createSemanticApplication({
       document,
       widgets,
       workflows,
+      todos.open,
       markingRead,
       ready,
     );
@@ -1187,10 +1254,16 @@ export function createSemanticApplication({
         // Historical system rows are event narration, never current approval state.
         approvalHistory: [
           ...(state?.browser.approval_history ?? []),
-          ...local.flatMap(({ event, localId, timestamp }) => event.kind === "done"
-            ? [{ ...event, id: localId, ts: timestamp }] : []),
-        ].filter((event) => !local.some(({ event: gesture }) =>
-          gesture.kind === "undo" && gesture.undoes === event.id)),
+          ...local.flatMap(({ event, localId, timestamp }) =>
+            event.kind === "done" ? [{ ...event, id: localId, ts: timestamp }] : [],
+          ),
+        ].filter(
+          (event) =>
+            !local.some(
+              ({ event: gesture }) =>
+                gesture.kind === "undo" && gesture.undoes === event.id,
+            ),
+        ),
         collection: {
           phase,
           threads: threads.filter(discussed),
@@ -1598,7 +1671,7 @@ export function createSemanticApplication({
       const ledger = publisher.peek().unresolved;
       const gone = [refused.localId];
       const dependents: string[] = [];
-      for (let grew = true; grew; ) {
+      for (let grew = true; grew;) {
         grew = false;
         for (const item of ledger)
           if (
@@ -1657,7 +1730,8 @@ export function createSemanticApplication({
       if (event !== item.event)
         update(attempt, (item) => ({
           ...item,
-          ...(event.parent !== item.event.parent && typeof item.event.parent === "string"
+          ...(event.parent !== item.event.parent &&
+          typeof item.event.parent === "string"
             ? { namedParent: item.event.parent }
             : {}),
           event,

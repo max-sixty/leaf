@@ -25,7 +25,7 @@ import { pageSelection } from "./composing/capture.js";
 import { blockAt, closestAcross, pageRange } from "./passages.js";
 import { readingBlock } from "./reading-place.js";
 import { scrollIntoReadingBand, scrollIntoView } from "./landing-scroll.js";
-import { THREAD } from "./thread/selectors.js";
+import { drawnThreadId, THREAD } from "./thread/selectors.js";
 import { under } from "./shadow.js";
 import { retainUserIntent } from "./user-intent.js";
 import { announce } from "./notifications.js";
@@ -51,7 +51,7 @@ const threadWalk = (panelIsOpen, { threadsBox, openThreadsInPageOrder }) => {
 // its target (`threadHere`), in the list or beside the page.
 const currentThread = (threads, threadHere) => {
   const held = threadHere();
-  const id = held?.dataset.id ?? held?.dataset.thread;
+  const id = drawnThreadId(held);
   return threads.find((thread) => thread.dataset.id === id);
 };
 
@@ -108,8 +108,9 @@ function stepThread(dir, destinations, panelIsOpen, narrowing, list) {
   const { threadsBox } = list;
   const { threadHere, threadAtStanding, threadPlace } = destinations;
   const { threads } = threadWalk(panelIsOpen, list);
+  const origin = walkOrigin();
   const current = currentThread(threads, threadHere);
-  const targetId = !current && threadAtStanding();
+  const targetId = !current && origin.kind === "standing" && threadAtStanding();
   const atTarget = targetId && threads.find((thread) => thread.dataset.id === targetId);
   // Focus on a list row the walk does not count, such as a withdrawn thread's notice.
   const atRow = panelIsOpen() && focused() !== threadsBox && standingIn(threadsBox);
@@ -118,10 +119,17 @@ function stepThread(dir, destinations, panelIsOpen, narrowing, list) {
     : atTarget
       ? { row: atTarget, wrapped: false }
       : atRow
-        ? stepFrom(threads, focused(), dir, (thread) => thread)
+        ? stepFrom(
+            threads,
+            { place: focused(), kind: "standing" },
+            dir,
+            (thread) => thread,
+          )
         : stepFrom(
             threads,
-            !panelIsOpen() || narrowing.listedInPageOrder() ? walkOrigin() : null,
+            !panelIsOpen() || narrowing.listedInPageOrder()
+              ? origin
+              : { place: null, kind: "enter" },
             dir,
             (thread) => threadPlace(thread.dataset.id),
           );

@@ -65,26 +65,78 @@ screenshots show arrival only. Unvisited required content remains
 insufficient evidence, while supported defects still fail when other parts remain
 unobserved. The judge follows the requested output's scope.
 
-An authored task's quality score is `uv run leaf-dev eval-pairs RUN...`, which
-judges its samples in two columns side by side, each pair in both orders, and counts
-a winner only when both completed live judgments name it. Unverified required
-observation is insufficient evidence; a failed judge is unscored. Each sample's
-own phase rubrics are diagnostics. Run each column the same number of times;
-the Nth samples pair. To keep
-host load and drift from favoring one column, alternate one-repeat runs of each
-condition, swapping which goes first, and pass every run:
+## Desktop comparisons and exploratory discovery
+
+Routine authored-task comparisons use a 1600 × 1000 CSS-pixel desktop window.
+The core loop keeps the task, screen size and requested journey fixed while
+changing the Leaf implementation or authoring guidance. `--base` compares a
+candidate against current Leaf. Occasional `--condition both` runs compare Leaf
+against ordinary HTML to check the product's value. Completion and preserved
+user decisions remain part of the judgment. Phone behavior stays visible in
+exploratory observations rather than contributing to a combined desktop/phone
+score.
+
+`uv run leaf-dev eval-pairs RUN...` judges saved samples from two provider
+columns side by side, each pair in both orders. A winner counts only when both
+completed live judgments name it. Unverified required observation is insufficient
+evidence; a failed judge is unscored. Each sample's own phase rubrics are
+diagnostics. Run each column the same number of times; the Nth samples pair.
+To keep host load and drift from favoring one column, alternate one-repeat runs
+of each condition, swapping which goes first, and pass every run:
 
 ```sh
 uv run leaf-dev eval configuration --harness claude-code --condition leaf --repeat 1 -j 1
 uv run leaf-dev eval configuration --harness claude-code --condition html --repeat 1 -j 1
 uv run leaf-dev eval configuration --harness claude-code --condition html --repeat 1 -j 1
 uv run leaf-dev eval configuration --harness claude-code --condition leaf --repeat 1 -j 1
-uv run leaf-dev eval-pairs .tmp/eval/<run>...
+uv run leaf-dev eval-pairs .tmp/eval/<leaf-run> .tmp/eval/<html-run> .tmp/eval/<html-repeat> .tmp/eval/<leaf-repeat>
 ```
 
-`uv run leaf-dev eval-report PAGE RUN...` then writes a Leaf page showing each pair's
-arrival screens side by side with what each sample spent, whether it applied the
-user's decision, and what the judge said.
+Each sample freezes its request, author phases, decision task and review sizes.
+The pair judge and report read that saved contract, and live judgments use the
+original runtime with disposable pre-decision and final page copies. A run
+authored for a narrow window retains that scope; viewing or rejudging it does
+not make it a fullscreen benchmark. Changed requests or authoring guidance need
+fresh, matched authoring runs. Focused cases retain the sizes their behavior
+requires: `sidebar-page-at-900px` tests the sidebar preference in short 900px
+windows and on phone. `leaf page check --render` has its own automated geometry
+coverage, independent of the comparison's review sizes.
+
+`leaf-dev eval-discover RUN SAMPLE [--focus TEXT]` gives an agent a saved sample
+and its original runtime to seek useful observations. The agent chooses window
+sizes and interaction sequences, following failures or surprising behavior into
+nearby variations. Most exploration should concern desktop use: short windows,
+layout breakpoints, long content, crowded queues, and edit/save/reload or
+choice/undo journeys. Occasional phone exploration checks functional access and
+records its impact separately. This is agent-led inquiry rather than an
+algorithm that mutates and ranks populations.
+
+```sh
+uv run leaf-dev eval-discover .tmp/eval/<run> <sample-directory-name> --focus 'Explore short desktop windows and decision undo; inspect phone access if useful.'
+uv run leaf-dev eval-report ~/.tmp/leaf/eval-comparison .tmp/eval/<run>
+```
+
+Discovery starts with saved pages to test robustness without another authoring
+run. A changed task, content requirement or authoring instruction requires a
+fresh author to test whether it produces better pages. A useful initial effort
+budget is roughly 80% fixed comparisons and 20% discovery, with most discovery
+also on desktop. The agent allocates that effort; there is no automatic
+scheduler or weighted score.
+
+Each attempt retains observations, viewport, reproduction steps, evidence,
+unverified work and a proposed next check under
+`RUN/discovery/SAMPLE/attempt-*/response.json`, beside native traces and captures.
+Discovery counts are not defect rates: the agent adapts its search toward
+interesting cases. Reproduce a useful finding, simplify its trigger, inspect
+nearby variations, fix the owning mechanism and retain a small regression case.
+Confirm broader gains on fresh or withheld cases.
+
+`uv run leaf-dev eval-report PAGE RUN...` writes a Leaf page with each pair's
+arrival screens, author spend, decision correctness, judge reasons and named
+defects. Provider labels distinguish Leaf versions as well as the HTML control.
+The report shows exploratory observations separately from pair outcomes, with
+expandable screenshot evidence. Missing captures and supplementary trace paths
+remain explicit.
 
 `pnpm run eval:view` opens Promptfoo's viewer on every run recorded on
 this machine, each named by branch, commits and cases. It shows each sample's
@@ -189,13 +241,13 @@ judge may read. `metadata.conditions` and `metadata.harnesses` restrict where it
 `metadata.authoring` and `metadata.executor` select distinct execution modes;
 declaring both on a case, including through inherited variant metadata, is an error.
 
-| Executor | Runs |
-| --- | --- |
-| `arrangement_eval` | Runs a page task the way its user would, in one live session per sample. The author builds the page from `request.md`; the user then asks in chat for the 900px preference, comments on a passage, and makes the page's decision in a browser before asking for it to be applied. Leaf runs as the installed plugin: its agent serves and hands over the page, the comment is posted from a browser selection on that page, and the hook delivers it. HTML gets the comment in chat, and pastes what its page offered to copy, or types the decision. A user agent (`eval_user.py`) makes the decision through the page's own controls; the judge reads the author's answer to the comment, a reader checks the applied result against what was chosen, and on Leaf a fresh reader also reports the decision from the page's state. The judge explores each saved version live on a laptop, at 900px with tall and short windows, and on a phone; reports retain arrival images. The executor records each phase's time, tokens, cost, and authored CSS and script lines. |
-| `usability_eval` | Seeded pages read, resumed and revised, and live handoffs where the harness posts user updates through the served page. Checks read Leaf's page state and its parse of the markup; answers and edited prose go to the text judge; script repairs exercise the affected control. Fixtures are in `usability/fixtures/`. |
-| `delivery_eval` | Comments posted between turns and mid-turn, each of which must be picked up, started and answered. |
-| `website_eval` | Runs the arm's hosted App Server adapter and installed plugin on its configured model and reasoning effort. Asks a page question and a contextual follow-up, without requesting page construction. Retains native notifications, the opening and final reply updates actually published, and exact-input completed replies. Checks successful turns, replies and an unchanged page; judges whether the answers and visible openings address the user. |
-| `reader_eval` | Calibrates the screenshot judge: `dashboard/reader-seeded` and `reader-clean` each show it one triage board, with a seeded count defect or the correct count, and ask both whether the count matches the cards. |
+| Executor           | Runs                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `arrangement_eval` | Runs a page task the way its user would, in one live session per sample. The author builds the page from `request.md`; the user then asks in chat for the fullscreen desktop preference (or the focused case's 900px sidebar preference), comments on a passage, and makes the page's decision in a browser before asking for it to be applied. Leaf runs as the installed plugin: its agent serves and hands over the page, the comment is posted from a browser selection on that page, and the hook delivers it. HTML gets the comment in chat, and pastes what its page offered to copy, or types the decision. A user agent (`eval_user.py`) makes the decision through the page's own controls; the judge reads the author's answer to the comment, a reader checks the applied result against what was chosen, and on Leaf a fresh reader also reports the decision from the page's state. The judge explores each saved version live at the sizes frozen in that sample's comparison contract; routine cases use a 1600 × 1000 desktop window, while focused regressions state their own sizes. Reports retain arrival images. The executor records each phase's time, tokens, cost, and authored CSS and script lines. |
+| `usability_eval`   | Seeded pages read, resumed and revised, and live handoffs where the harness posts user updates through the served page. Checks read Leaf's page state and its parse of the markup; answers and edited prose go to the text judge; script repairs exercise the affected control. Fixtures are in `usability/fixtures/`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `delivery_eval`    | Comments posted between turns and mid-turn, each of which must be picked up, started and answered.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `website_eval`     | Runs the arm's hosted App Server adapter and installed plugin on its configured model and reasoning effort. Asks a page question and a contextual follow-up, without requesting page construction. Retains native notifications, the opening and final reply updates actually published, and exact-input completed replies. Checks successful turns, replies and an unchanged page; judges whether the answers and visible openings address the user.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `reader_eval`      | Calibrates the screenshot judge: `dashboard/reader-seeded` and `reader-clean` each show it one triage board, with a seeded count defect or the correct count, and ask both whether the count matches the cards.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 `sidebar-page-at-900px` runs the complete authoring and render loop. Its
 `/instructions` diagnostic retains the read-only source probe, and `/live` checks

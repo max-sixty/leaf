@@ -124,9 +124,11 @@ def _base_state(
         "measurement_lag": [],
         # What is on the user (On me) and what is on the agent (On <agent>), each item
         # naming its kind and subject (`served_state.queues`); the to-dos on either
-        # side; and the complete canonical ask inventory those lists select from.
+        # side; the agent's plan, which arranges them (`plans`); and the complete
+        # canonical ask inventory those lists select from.
         "queues": {"on_user": [], "on_agent": []},
         "todos": [],
+        "plan": None,
         "asks": [],
         # Current semantic facts only. A thread's history belongs to
         # `page state PAGE THREAD`; keeping its sequence list here would make this
@@ -174,7 +176,7 @@ def _apply_document_state(
 ) -> None:
     parser = document.document
     projection = document.projection
-    state["title"] = parser.title.strip()
+    state["title"] = parser.authoring.title.strip()
     state["elements"] = [
         {
             "tag": record["tag"],
@@ -382,7 +384,8 @@ def _page_state(
             ]
             thread["attention"] = served_threads[thread["id"]]["attention"]
         state["asks"] = view["document"]["asks"]["all"] + view["thread"]["asks"]["all"]
-        state["todos"] = browser["todos"]
+        state["todos"] = [todo for todo in browser["todos"] if todo["state"] == "open"]
+        state["plan"] = browser["plan"]
         served_queues = view["queues"]
         state["queues"] = {
             side: served_queues[side] for side in ("on_user", "on_agent")

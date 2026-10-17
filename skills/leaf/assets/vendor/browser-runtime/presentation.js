@@ -143,6 +143,9 @@ import { untracked } from "./snapshot.js";
 
 
 
+
+
+
 export function describeFailure(reason         )         {
   const message = reason instanceof Error ? reason.message : String(reason);
   if (!(reason instanceof AggregateError) || reason.errors.length === 0) return message;
@@ -362,9 +365,11 @@ export function createPresentationCoordinator
       value       ,
       failSoft                             ,
     )                            => {
-      const { promise: completion, resolve, reject } = Promise.withResolvers
-
-       ();
+      const {
+        promise: completion,
+        resolve,
+        reject,
+      } = Promise.withResolvers                   ();
       const superseded = latest;
       latest = () => queueMicrotask(() => resolve(undefined));
       const ready = (async () => {
@@ -735,9 +740,6 @@ export function createPresentationSchedule(
     failSoft,
     order = 0,
   }
-
-
-
 
 
 

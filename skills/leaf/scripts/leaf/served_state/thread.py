@@ -79,12 +79,10 @@ def browser_thread(
         if is_answer(event):
             first_answers.setdefault(event["responds"], event["id"])
     for thread_id, thread in threads.items():
-        asks = work.thread_asks[thread_id]
+        prompt = work.prompts.get(thread_id)
         protected = set()
         if awaits_agent(thread):
             protected.add(turn_message(unanswered_agent_turn(thread)))
-        if asks.prompt is not None:
-            protected.add(asks.prompt["message"])
         ask_sources = {
             ask["source"]["id"]
             for ask in widget_asks["unanswered"]
@@ -118,7 +116,7 @@ def browser_thread(
                     if message["id"] == thread["root"]["id"]
                 ),
                 "resolved": thread["resolved"] and _named(thread["resolved"]),
-                "user_prompt": asks.prompt,
+                "user_prompt": prompt,
                 "bare_reaction": bare_reaction(thread),
                 "seat": seat_root(thread),
                 "summaries": summaries,

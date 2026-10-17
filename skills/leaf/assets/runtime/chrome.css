@@ -1,18 +1,12 @@
-/* Generated from skills/leaf/assets/styles/chrome.css by build/styles.mjs. */
+/* @noformat Generated from skills/leaf/assets/styles/chrome.css by build/styles.mjs. */
 /* skills/leaf/assets/styles/floating-panel.css */
 @scope (.lf-chrome) {
   html[data-lf-floating-chrome] :scope {
     --lf-notice-seat: panel;
     .lf-banner,
-    .lf-shortcut-bar {
-      display: none !important;
-    }
+    .lf-shortcut-bar,
     .lf-bottom-status {
-      top: calc(12px + var(--lf-safe-top));
-      bottom: auto;
-      right: auto;
-      left: 50%;
-      translate: -50% 0;
+      display: none !important;
     }
     .lf-page-search {
       top: auto;
@@ -104,11 +98,23 @@
     height: 16px;
   }
   .lf-fp-row {
+    --lf-fp-row-pad: 6px;
     display: flex;
     align-items: flex-end;
     gap: 2px;
-    padding: 6px;
+    padding: var(--lf-fp-row-pad);
     box-sizing: border-box;
+    position: relative;
+  }
+  .lf-fp-row > .lf-fp-expand {
+    position: absolute;
+    inset-block-start: var(--lf-fp-row-pad);
+    inset-inline-start: var(--lf-fp-row-pad);
+    width: var(--lf-fp-line);
+    height: var(--lf-fp-line);
+  }
+  .lf-floating-panel[data-long] .lf-fp-row:has(> .lf-fp-expand) {
+    min-height: calc(2 * var(--lf-fp-line) + 2 * var(--lf-fp-row-pad) + 4px);
   }
   .lf-fp-leaf {
     flex: none;
@@ -122,11 +128,35 @@
     --lf-mark-w: 19px;
   }
   .lf-fp-field {
+    position: relative;
     flex: 1;
     min-width: 0;
     display: flex;
     align-self: stretch;
     align-items: flex-end;
+  }
+  .lf-fp-expand {
+    flex: none;
+    display: none;
+    place-items: center;
+    width: 24px;
+    min-height: 0;
+    height: 1lh;
+    padding: 0;
+    color: var(--lf-fp-muted);
+  }
+  .lf-fp-expand .lf-action-icon {
+    width: 14px;
+    height: 14px;
+  }
+  .lf-floating-panel[data-long] .lf-fp-expand {
+    display: grid;
+  }
+  .lf-floating-panel[data-expanded] {
+    --lf-fp-width: min( 760px, calc(100vw - 24px - var(--lf-safe-left) - var(--lf-safe-right)) );
+  }
+  .lf-floating-panel[data-expanded] .lf-fp-field .lf-compose-field > leaf-text {
+    max-height: 75dvh;
   }
   .lf-fp-box,
   .lf-fp-reply,
@@ -145,7 +175,12 @@
     box-shadow: none;
   }
   .lf-fp-field .lf-compose-field:has(> leaf-text[data-lf-focus]) {
-    outline: none;
+    outline: var(--focus-ring);
+    outline-offset: 0;
+    border-radius: var(--r);
+  }
+  .lf-fp-box {
+    flex-wrap: wrap;
   }
   .lf-fp-resolved {
     flex: 1;
@@ -162,10 +197,28 @@
     box-shadow: none;
     padding: calc((var(--lf-fp-line) - 22px) / 2) 6px;
     min-height: var(--lf-fp-line);
-    max-height: 30dvh;
+    max-height: 50dvh;
     box-sizing: border-box;
     font: 14px / 22px var(--sans);
     --lf-field-end-room: 0px;
+  }
+  .lf-fp-field .lf-compose-field > leaf-text[data-scrolls] {
+    --lf-fp-fade-top: 0px;
+    --lf-fp-fade-bottom: 0px;
+    scrollbar-width: none;
+    mask-image:
+      linear-gradient(
+        to bottom,
+        transparent 0,
+        #000 var(--lf-fp-fade-top),
+        #000 calc(100% - var(--lf-fp-fade-bottom)),
+        transparent 100%);
+  }
+  .lf-fp-field .lf-compose-field > leaf-text:state(more-above) {
+    --lf-fp-fade-top: 16px;
+  }
+  .lf-fp-field .lf-compose-field > leaf-text:state(more-below) {
+    --lf-fp-fade-bottom: 16px;
   }
   .lf-fp-field .lf-compose-field > leaf-text[data-lf-focus] {
     outline: none;
@@ -179,12 +232,12 @@
   }
   @media (prefers-reduced-motion: no-preference) {
     .lf-floating-panel[data-says=status][data-tone=working]:not([data-asks]) .lf-fp-field leaf-text::part(placeholder) {
+      --lf-sheen-rest: 0.48;
       animation: lf-sheen 2s ease-in-out infinite alternate;
     }
   }
   .lf-floating-panel[data-says=status][data-asks] .lf-fp-field leaf-text::part(placeholder) {
-    color: var(--lf-fp-asks);
-    font-weight: 500;
+    color: color-mix(in srgb, var(--lf-fp-asks) 70%, transparent);
   }
   .lf-floating-panel[data-asks] {
     --lf-fp-asks: var(--ink);
@@ -205,9 +258,8 @@
     display: none;
   }
   .lf-fp-field :is(.lf-compose-submit, .lf-compose-dictate) {
-    position: relative;
-    inset: auto;
-    flex: none;
+    inset-inline-end: 0;
+    inset-block-end: 0;
     place-items: center;
     width: var(--lf-fp-line);
     min-width: 0;
@@ -215,14 +267,11 @@
     min-height: 0;
     padding: 0;
   }
+  .lf-floating-panel[data-writing] .lf-fp-field .lf-compose-field > leaf-text {
+    --lf-field-end-room: calc(var(--lf-fp-line) - 6px);
+  }
   .lf-fp-field .lf-compose-submit {
     display: none;
-    border-radius: 50%;
-    background: var(--ink);
-    color: var(--lf-fp-surface);
-  }
-  .lf-fp-field .lf-compose-submit:hover {
-    background: var(--ink);
   }
   .lf-floating-panel[data-typing] .lf-fp-field .lf-compose-submit {
     display: grid;
@@ -302,12 +351,34 @@
     min-height: 26px;
     padding: 0 9px;
     border-radius: 7px;
-    background: var(--warn-tint);
+    background: var(--lf-fp-notice-tint);
     color: var(--ink);
     font-size: 12px;
+    &[data-tone=danger] {
+      --lf-fp-notice-tint: var(--danger-tint);
+      --lf-fp-notice-ink: var(--danger-ink);
+    }
+    &[data-tone=warn] {
+      --lf-fp-notice-tint: var(--warn-tint);
+      --lf-fp-notice-ink: var(--warn-ink);
+    }
+    &[data-tone=accent] {
+      --lf-fp-notice-tint: var(--accent-tint);
+      --lf-fp-notice-ink: var(--accent);
+    }
+    &[data-tone=ok] {
+      --lf-fp-notice-tint: var(--ok-tint);
+      --lf-fp-notice-ink: var(--ok-ink);
+    }
   }
   .lf-fp-row-notice-press:hover .lf-fp-row-notice-face {
-    background: color-mix(in srgb, var(--warn-ink) 16%, var(--warn-tint));
+    background: color-mix(in srgb, var(--lf-fp-notice-ink) 16%, var(--lf-fp-notice-tint));
+  }
+  a.lf-fp-row-notice-press {
+    display: inline-flex;
+    align-items: center;
+    color: inherit;
+    text-decoration: none;
   }
   .lf-fp-row-notice-sep {
     color: var(--lf-fp-quiet);
@@ -324,16 +395,19 @@
   }
   .lf-fp-context {
     box-sizing: content-box;
+    display: flex;
+    gap: 8px;
     height: 1lh;
-    padding: 8px 14px 0;
-    color: var(--lf-fp-muted);
+    padding: 8px 10px 0 14px;
+    color: var(--ink);
     font-size: 12px;
+  }
+  .lf-fp-context-words {
+    flex: 1;
+    min-width: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-  }
-  .lf-fp-context[data-notice] {
-    color: var(--ink);
   }
   .lf-floating-panel[data-rest=mark] {
     width: var(--lf-fp-folded);
@@ -369,6 +443,39 @@
     from {
       opacity: 0;
     }
+  }
+  .lf-fp-minimize {
+    position: absolute;
+    top: -9px;
+    right: -9px;
+    display: grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    min-height: 0;
+    padding: 0;
+    border-radius: 50%;
+    background: var(--lf-fp-surface);
+    box-shadow: 0 0 0 1px var(--lf-fp-ring), var(--raise-1);
+    color: var(--lf-fp-muted);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 120ms, visibility 0s 120ms;
+  }
+  @media (hover: hover) {
+    .lf-floating-panel[data-rest=row][data-corner] .lf-fp-minimize {
+      opacity: 1;
+      visibility: visible;
+      transition: opacity 120ms;
+    }
+  }
+  .lf-fp-minimize:hover {
+    background: var(--lf-fp-surface);
+    color: var(--ink);
+  }
+  .lf-fp-minimize-icon {
+    width: 12px;
+    height: 12px;
   }
   .lf-fp-badge,
   .lf-fp-news-dot {
@@ -458,8 +565,25 @@
     flex: none;
     color: var(--lf-fp-muted);
   }
-  .lf-fp-where {
+  .lf-fp-facts {
+    flex: none;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
     margin-inline: auto 12px;
+  }
+  .lf-fp-news-outlet {
+    display: contents;
+  }
+  .lf-fp-news-outlet > .lf-thread-news {
+    --lf-fp-news-reach: calc((max(28px, var(--aim-floor)) - 1lh) / 2);
+    align-self: auto;
+    min-height: 0;
+    padding-block: var(--lf-fp-news-reach);
+    margin-block: calc(-1 * var(--lf-fp-news-reach));
+    font-size: 12px;
+  }
+  .lf-fp-where {
     font-size: 12px;
     font-variant-numeric: tabular-nums;
   }
@@ -744,6 +868,34 @@
   .lf-fp-version[data-current] .lf-fp-label {
     font-weight: 600;
   }
+  .lf-fp-failed {
+    padding: 6px 8px 8px;
+    color: var(--danger-ink);
+  }
+  .lf-fp-failed-error {
+    margin: 4px 0 0;
+    max-height: 8lh;
+    overflow-y: auto;
+    color: var(--ink);
+    font: 12px / 1.45 var(--mono);
+    white-space: pre-wrap;
+  }
+  .lf-fp-note {
+    margin-inline-start: 8px;
+    color: var(--lf-fp-muted);
+    font-weight: 400;
+  }
+  .lf-fp-approval .lf-fp-item {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .lf-fp-approval .lf-fp-end {
+    min-width: 0;
+    justify-content: end;
+  }
+  .lf-fp-approval .lf-fp-value {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   .lf-fp-compare {
     flex: none;
     font-size: 12px;
@@ -838,6 +990,7 @@
     max-height: -webkit-fill-available;
     max-height: stretch;
     overflow-y: auto;
+    overflow-x: hidden;
     width: 248px;
     padding: 6px;
     box-sizing: border-box;
@@ -854,6 +1007,33 @@
       translate: 0 6px;
     }
     transition: opacity 120ms linear, translate 200ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  .lf-fp-menu[data-level=versions] {
+    width: min(360px, calc(100vw - 32px));
+  }
+  .lf-fp-menu-page {
+    display: grid;
+  }
+  .lf-fp-menu-back {
+    margin-bottom: 4px;
+    border-bottom: 1px solid var(--lf-fp-faint);
+    border-radius: 6px 6px 0 0;
+  }
+  .lf-fp-menu-back .lf-fp-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .lf-fp-menu-back .lf-fp-chevron {
+    flex: none;
+    margin: 0;
+    scale: -1 1;
+  }
+  .lf-fp-menu-back b {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 600;
   }
   .lf-fp-state {
     display: grid;
@@ -938,7 +1118,7 @@
       --lf-fp-line: 34px;
     }
     .lf-fp-row {
-      padding: 7px;
+      --lf-fp-row-pad: 7px;
     }
     .lf-fp-item,
     .lf-fp-thread {
@@ -1084,7 +1264,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   line-height: inherit;
 }
 .lf-version-inline-deletion del {
-  margin-inline-end: .28em;
+  margin-inline-end: 0.28em;
   background: var(--del-tint);
   color: var(--danger-ink);
 }
@@ -1095,7 +1275,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
 }
 @keyframes lf-runtime-4f3c2a8d-working {
   to {
-    opacity: .5;
+    opacity: 0.5;
   }
 }
 @keyframes lf-runtime-4f3c2a8d-flash {
@@ -1106,7 +1286,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
 @keyframes lf-runtime-4f3c2a8d-grow {
   0% {
     opacity: 0;
-    transform: translateY(-6px) scale(.985);
+    transform: translateY(-6px) scale(0.985);
   }
 }
 @scope (.lf-chrome) {
@@ -1567,7 +1747,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-page-comment-card {
     --lf-card-inset: 8px;
-    --lf-card-width: min(28rem, calc(100% - 2 * var(--lf-card-inset) - var(--lf-safe-left) - var(--lf-safe-right)));
+    --lf-card-width: min( 28rem, calc(100% - 2 * var(--lf-card-inset) - var(--lf-safe-left) - var(--lf-safe-right)) );
     position: fixed;
     position-anchor: --lf-page-comment;
     top: var(--lf-banner-h);
@@ -1952,8 +2132,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     width: 2px;
     border-radius: 1px;
     background: var(--accent);
-    opacity: .55;
-    transition: opacity .12s;
+    opacity: 0.55;
+    transition: opacity 0.12s;
   }
   .lf-edge[data-lf-side=right] {
     left: -4px;
@@ -2260,7 +2440,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-thread-topic[data-lf-pending-title] {
     justify-self: start;
     font-weight: 500;
-    color: color-mix(in oklab, var(--muted) 80%, var(--paper));
+    color: color-mix(in srgb, var(--ink) 50%, transparent);
     animation: lf-sheen 2s ease-in-out infinite alternate;
   }
   .lf-thread-meta {
@@ -2424,7 +2604,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     animation: lf-runtime-4f3c2a8d-flash var(--lf-motion-flash) ease-out;
   }
   .lf-thread.grow {
-    animation: lf-runtime-4f3c2a8d-grow .32s cubic-bezier(.2, .7, .3, 1);
+    animation: lf-runtime-4f3c2a8d-grow 0.32s cubic-bezier(0.2, 0.7, 0.3, 1);
   }
   .lf-thread[data-lf-focus-within] {
     outline: none;
@@ -2543,9 +2723,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     --lf-comment-inset: 12px;
     --lf-comment-frame-inline: calc(var(--lf-comment-inset) + 1px);
     --lf-comment-foot-gap: var(--sp-3);
-    --lf-comment-frame-top: calc(1px + var(--lf-comment-inset) + var(--lf-msg-head-height) + var(--lf-msg-body-gap));
-    --lf-comment-reply-row: calc(var(--lf-comment-foot-gap) + var(--lf-compose-h) + 2px);
-    --lf-comment-frame-bottom: calc(var(--lf-comment-reply-row) + var(--lf-comment-inset) + 1px);
+    --lf-comment-frame-top: calc( 1px + var(--lf-comment-inset) + var(--lf-msg-head-height) + var(--lf-msg-body-gap) );
+    --lf-comment-reply-row: calc( var(--lf-comment-foot-gap) + var(--lf-compose-h) + 2px );
+    --lf-comment-frame-bottom: calc( var(--lf-comment-reply-row) + var(--lf-comment-inset) + 1px );
   }
   .lf-aim {
     position: absolute;

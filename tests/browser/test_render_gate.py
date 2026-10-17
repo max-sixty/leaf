@@ -102,6 +102,7 @@ from render_harness import (
     plant_quiet_word,
     primed,
     reader_state,
+    reported_browser_errors,
     resized,
     root_overflow,
     scroll_followers,
@@ -595,12 +596,34 @@ def test_a_released_entry_that_never_arrives_is_named_like_any_other_file(
     assert stopped.value.finding.values["requesting"] == [entry_path]
 
 
+def test_browser_like_console_words_remain_console_diagnostics(browser):
+    """An authored message cannot establish an HTTP failure by imitating Chrome."""
+    page = browser.new_page()
+    text = (
+        "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    )
+    page.evaluate("text => console.error(text)", text)
+    [problem] = reported_browser_errors(page, text)
+    assert problem.code == "console-error"
+    assert problem.values == {"text": text, "url": ""}
+    assert str(problem) == text
+    page.evaluate(
+        "console.error('ordinary failure')\n//# sourceURL=http://page/author.js"
+    )
+    [problem] = reported_browser_errors(page, "ordinary failure")
+    assert problem.values == {
+        "text": "ordinary failure",
+        "url": "http://page/author.js",
+    }
+    assert str(problem) == "ordinary failure — http://page/author.js"
+
+
 def test_a_refused_document_reports_the_status_beside_the_wait_that_stopped(
     browser, serve, monkeypatch
 ):
     """A server that refuses the document leaves the proof with nothing to wait for
-    and the page with no console message of its own. The status the gate collected is
-    the only thing that says why the wait stopped, so the named wait carries it."""
+    and the page with no authored console message. The browser's native diagnostic
+    explains the refusal, so the named wait retains its complete text and URL."""
     real_proof = render_gate_scheme.start_with_pre_upgrade_proof
 
     def promptly(page, url):
@@ -620,9 +643,12 @@ def test_a_refused_document_reports_the_status_beside_the_wait_that_stopped(
     assert (failure.code, failure.scheme) == ("never-reached", "light")
     assert failure.values["arrival"] == "an authored main"
     assert {
-        "code": "failed-load",
+        "code": "console-error",
         "severity": "error",
-        "values": {"status": 401, "url": refused},
+        "values": {
+            "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+            "url": refused,
+        },
     } in failure.values["console"], failure
 
 
@@ -1285,7 +1311,7 @@ flowchart TD
 
     assert page.locator("#identities").evaluate("e => [...e.visualParts.keys()]") == [
         "node:123",
-        "node:Ω",
+        "node:%CE%A9",
     ]
 
 
@@ -2568,6 +2594,11 @@ def resize_findings(page, path):
         ]
 
     left_alone(page)
+    # A sample can hold its child's growth while the reader sees the frame. Resizing
+    # interrupts that reading and releases the held height; take the baseline after
+    # that first release, so the return trip compares settled layouts at each width.
+    resized(page, path[-1], 900)
+    resized(page, path[0], 900)
     said = {width: at_width(width) for width in path}
     for width in path[-2::-1]:
         if changes := state_changes(said[width], at_width(width)):
@@ -3079,6 +3110,7 @@ RELOCATE_ADOPTED = """async () => {
     const order = [...document.styleSheets].map((sheet) => sheet.cssRules[0])
         .find((rule) => rule instanceof CSSLayerStatementRule);
     const style = document.createElement('style');
+    style.setAttribute('data-controls', '');
     style.textContent = [order, ...rules].map((rule) => rule.cssText).join('\\n');
     // A copy: adoptedStyleSheets is a live array, so the assignment below would empty
     // the saved reference along with it.
@@ -4017,10 +4049,10 @@ def test_an_ask_spanning_its_block_is_a_breakout(browser, serve):
     """An Ask allocated the column spans the wide block it holds, so its ring goes round
     the block, and the gate named it as set out in the margin on every page with one.
     The theme says which boxes it lets stand past their holders, so the gate reads the
-    Ask as the breakout it is, and a page width that moves it off the block is named,
-    as for any breakout. A box padded or sized past the
-    column without that leave is named, whether or not it paints there or a breakout
-    fills it."""
+    Ask as the breakout it is. A page width on an Ask moves its edges off the column's,
+    so its block keeps to it and neither stands past the column. A box padded or sized
+    past the column without that leave is named, whether or not it paints there or a
+    breakout fills it."""
     ask = """<lf-ask id="{id}"><h2>Which one?</h2>
   <figure data-width="wide"><p>Evidence the room holds.</p></figure>
   <lf-options id="{id}-o" choose><lf-option id="{id}-a">This one</lf-option></lf-options>
@@ -4053,7 +4085,6 @@ def test_an_ask_spanning_its_block_is_a_breakout(browser, serve):
     assert grown > 100, "the Ask never spanned its block, so nothing here was tested"
     found = sorted((m["code"], m["at"]) for m in misplaced)
     assert found == [
-        ("off-axis", "<lf-ask id=sized-ask>"),
         ("past-column", "<div id=bare>"),
         ("past-column", "<div id=sized>"),
         ("past-column", "<div id=tinted>"),
@@ -4549,6 +4580,7 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
         """() => {
              const s = document.createElement('style');
              s.id = 'trap';
+             s.setAttribute('data-controls', '');
              s.textContent =
                '.lf-thread { padding-top: 8px !important }'
                + '.lf-thread > .lf-thread-summary { margin-block-start: 9px !important }';

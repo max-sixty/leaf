@@ -24,6 +24,7 @@ from render_harness import (
     consume_browser_errors,
     expect_asks_answered,
     holding,
+    http_error_console,
     is_problem,
     leaf_page,
     open_page,
@@ -128,49 +129,6 @@ THREAD_FILTER_DECLARATION = {
     "x-content": "empty",
     "x-upgrade": True,
     "x-example": '<lf-thread-filter id="example"></lf-thread-filter>',
-}
-
-THREAD_MIRROR = r"""
-import {keeps, mountThreadViews, threadSummary} from '/runtime/widget-api.js';
-customElements.define('lf-thread-mirror', class extends HTMLElement {
-  connectedCallback() {
-    if (!this.outlet) {
-      this.input = document.createElement('input');
-      this.input.setAttribute('aria-label', `Filter ${this.id}`);
-      this.input.value = this.getAttribute('filter') ?? '';
-      this.outlet = document.createElement('div');
-      this.append(this.input, this.outlet);
-      this.input.addEventListener('input', () => this.consumer?.update());
-    }
-    this.consumer ??= mountThreadViews(this, (collection, surfaces) => {
-      this.updates = (this.updates ?? 0) + 1;
-      (this.signals ??= []).push(surfaces.signal);
-      if (this.holding) {
-        keeps(this, 'data-held', true);
-        return new Promise(resolve => (this.releases ??= []).push(resolve));
-      }
-      const query = this.input.value.toLowerCase();
-      for (const thread of collection.threads)
-        if (threadSummary(thread).topic.toLowerCase().includes(query))
-          surfaces.thread(thread.key, this.outlet);
-    });
-  }
-  disconnectedCallback() {
-    this.consumer?.unregister();
-    this.consumer = null;
-  }
-});
-"""
-
-THREAD_MIRROR_DECLARATION = {
-    "description": "A package-owned mirror of core Thread conversations.",
-    "type": "object",
-    "properties": {"id": {"type": "string"}, "filter": {"type": "string"}},
-    "required": ["id"],
-    "additionalProperties": False,
-    "x-content": "empty",
-    "x-upgrade": True,
-    "x-example": '<lf-thread-mirror id="mirror-example"></lf-thread-mirror>',
 }
 
 
@@ -427,7 +385,7 @@ def test_browser_trace_sheds_repeated_gestures_when_delivery_stalls(browser, ser
     assert sum(row["type"] == "pointermove" for row in browser_rows) < 512
     sequences = sorted(row["sequence"] for row in browser_rows)
     assert any(later - earlier > 1 for earlier, later in pairwise(sequences))
-    consume_browser_errors(page, {"code": "failed-load", "status": 503})
+    consume_browser_errors(page, http_error_console(503))
 
 
 def test_browser_trace_keeps_actions_ahead_of_new_repeated_observations(browser, serve):
@@ -473,7 +431,7 @@ def test_browser_trace_keeps_actions_ahead_of_new_repeated_observations(browser,
     browser_rows = [row for row in rows if row.get("source") == "client"]
     assert sum(row["type"] == "click" for row in browser_rows) == 512
     assert not any(row["type"] == "pointermove" for row in browser_rows)
-    consume_browser_errors(page, {"code": "failed-load", "status": 503})
+    consume_browser_errors(page, http_error_console(503))
 
 
 PAGE_MODULE = """\
@@ -734,7 +692,7 @@ def test_admission_holds_approval_until_the_answer_is_in_the_log(
     expect_asks_answered(page, "0/1")
     expect(approval).to_be_disabled()
     expect(approval).to_have_attribute(
-        "title", "Answer every ask before approving this work"
+        "title", "Answer every open widget before approving this work"
     )
 
     if expanded:

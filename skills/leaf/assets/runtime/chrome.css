@@ -68,11 +68,11 @@
     display: flex;
     flex-direction: column;
   }
-  :where(.lf-floating-panel) :is(button, input, textarea) {
+  :where(.lf-floating-panel) :is(button, input, textarea):where(:not(.lf-fp-outlet *)) {
     font: inherit;
     color: inherit;
   }
-  :where(.lf-floating-panel) button {
+  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *)) {
     background: none;
     border: 0;
     border-radius: 6px;
@@ -81,15 +81,15 @@
     padding: 0 8px;
     min-height: 28px;
   }
-  :where(.lf-floating-panel) button:hover {
+  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *)):hover {
     background: var(--lf-fp-hover);
   }
-  :where(.lf-floating-panel) button:is(:disabled, [aria-disabled=true]) {
+  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *)):is(:disabled, [aria-disabled=true]) {
     color: var(--lf-fp-muted);
     cursor: default;
     background: none;
   }
-  :where(.lf-floating-panel) :is(button, input, textarea, a, .lf-fp-on-item):focus-visible {
+  :where(.lf-floating-panel) :is(button, input, textarea, a, .lf-fp-on-item):where(:not(.lf-fp-outlet *)):focus-visible {
     outline: var(--focus-ring);
     outline-offset: -2px;
   }
@@ -1180,7 +1180,7 @@
     .lf-fp-page {
       min-height: 44px;
     }
-    :where(.lf-floating-panel) button {
+    :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *)) {
       min-height: 34px;
     }
     .lf-fp-leaf,

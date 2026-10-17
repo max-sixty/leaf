@@ -1554,9 +1554,12 @@ button.lf-media-open {
   padding-inline-end: calc(var(--lf-comment-text-end) - 1px);
 }
 .lf-fab-bar .lf-compose-field,
-.lf-margin-preview .lf-compose-field,
+.lf-margin-preview .lf-msg-editor .lf-compose-field,
 .lf-response-control {
   --lf-compose-pad-block: calc(var(--lf-thread-text-pad-block) - 1px);
+}
+.lf-margin-preview .lf-msg-editor .lf-compose-field {
+  --lf-compose-h: 0px;
 }
 .lf-response-control {
   box-sizing: border-box;

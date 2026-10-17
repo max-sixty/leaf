@@ -109,15 +109,15 @@ def test_a_rewrite_of_a_comment_just_sent_is_the_reply_box(browser, serve):
     box, reply_box = field.bounding_box(), reply.bounding_box()
     for side in ("x", "width"):
         assert abs(box[side] - reply_box[side]) < 0.5, (side, box, reply_box)
-    # Its words take the reply box's padding, over the lines the comment wrapped to.
+    # Its words take the reply box's frame and inset, and stand on the lines the
+    # comment wrapped to, where the message's words stood.
     frame = """el => {
       const field = getComputedStyle(el), text = getComputedStyle(el.querySelector(":scope > leaf-text"));
-      return [field.borderTopWidth, text.paddingTop, text.paddingBottom, text.paddingLeft];
+      return [field.borderTopWidth, text.paddingLeft];
     }"""
     assert field.evaluate(frame) == reply.evaluate(frame)
-    assert (
-        abs(editor.locator("leaf-text").evaluate(FIRST_LINE)[0] - first_line[0]) < 0.5
-    )
+    for axis, at in enumerate(editor.locator("leaf-text").evaluate(FIRST_LINE)):
+        assert abs(at - first_line[axis]) < 0.5, (axis, at, first_line)
     rendered(page)
     assert _ring_gaps(page, field) == []
     save = message.get_by_role("button", name="Save", exact=True)
@@ -343,12 +343,16 @@ def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surfac
     expect(editor).to_be_focused()
     rendered(page)
     # The message keeps its head's place, and its words their inset, in a box the
-    # reply box's size.
+    # reply box's width. The card pads the box as its message, so there the message
+    # keeps its height too; elsewhere the box is the reply box's height.
     assert abs(message.bounding_box()["y"] - rest["message"]["y"]) < 0.5
     field = message.locator(".lf-msg-editor > .lf-compose-field").bounding_box()
     reply_field = thread.locator(".lf-thread-reply .lf-compose-field").bounding_box()
-    for side in ("x", "width", "height"):
+    for side in ("x", "width") if surface == "card" else ("x", "width", "height"):
         assert abs(field[side] - reply_field[side]) < 0.5, (side, field, reply_field)
+    if surface == "card":
+        height = message.bounding_box()["height"]
+        assert abs(height - rest["message"]["height"]) < 0.5, (height, rest)
     # Feed mode draws its messages at the reply box's edge, not inset in a transcript,
     # so there the words take the reply box's inset instead.
     if surface != "feed":

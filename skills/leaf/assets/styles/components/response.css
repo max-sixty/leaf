@@ -416,10 +416,12 @@ button.lf-media-open {
      one text column, so neither Send nor opening or closing the rewrite moves a word:
      each starts the words `--lf-thread-text-inset` inside the field's or the
      transcript's edge, and ends them `--lf-comment-text-end` inside it, on every line,
-     the room Send stands in at the box's foot, and pads them `--lf-thread-text-pad-block`
-     above and below, so a card's rewrite is exactly as tall as its message and a card
-     with no room to grow scrolls none of it under the message's head. A field spends
-     one pixel of each inset on its frame, which the card's message does not draw. */
+     the room Send stands in at the box's foot. The comment box and the rewrite also pad
+     them `--lf-thread-text-pad-block` above and below, as the message does, so a card's
+     rewrite is exactly as tall as its message and a card with no room to grow scrolls
+     none of it under the message's head; the reply box keeps its own padding, which
+     centres one line beside Send. A field spends one pixel of each inset on its frame,
+     which the card's message does not draw. */
 :is(.lf-fab-bar, .lf-margin-preview) {
   --lf-thread-text-pad-block: calc((var(--lf-response-height) - 1lh) / 2);
   --lf-comment-send-inset: calc(
@@ -434,9 +436,14 @@ button.lf-media-open {
   padding-inline-end: calc(var(--lf-comment-text-end) - 1px);
 }
 .lf-fab-bar .lf-compose-field,
-.lf-margin-preview .lf-compose-field,
+.lf-margin-preview .lf-msg-editor .lf-compose-field,
 .lf-response-control {
   --lf-compose-pad-block: calc(var(--lf-thread-text-pad-block) - 1px);
+}
+/* A rewrite holds no Send, so in the card it keeps no Send's height either: a
+   one-line message's rewrite is the message's height. */
+.lf-margin-preview .lf-msg-editor .lf-compose-field {
+  --lf-compose-h: 0px;
 }
 /* The field and its choices are one anchored response control. This primitive owns
      their height, vertical padding and type. Tab extends

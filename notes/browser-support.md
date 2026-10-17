@@ -598,17 +598,18 @@ document, and the runtime relies on it (next entry).
 
 ### An anchor's transforms in Firefox
 
-- **Disposition: answered.** `anchorBox` (`runtime/css-anchors.js`) reads where
-  `anchor()` puts a transformed anchor through a probe anchored as the boxes are,
-  and every inset Leaf writes against an anchor is measured from it. The probe
-  runs only in an engine that leaves transforms out, read once, and only for an
-  anchor with a transform on it or an ancestor. Remove it when Firefox counts them.
+- **Disposition: answered.** `anchorBox` (`runtime/css-anchors.js`) is where every
+  inset Leaf writes against an anchor is measured from. In an engine that leaves
+  transforms out, read once, it takes off how far each transform on the anchor or
+  an ancestor moves its box, read from offsets, which leave transforms out too.
+  Remove it when Firefox counts them. A probe anchored to the same name was
+  rejected: read straight after a scroll it returns where the anchor stood before.
 - **Affected:** every box anchored in a table granted room, which `layouts.css`
   translates into place, and in any box a page transforms: margin rows and pins,
   the Alt outline, key chips, the comment box and the thread card.
 - **Observed, 2026-10-16, Firefox 155:** `anchor()` resolves to the anchor's box
-  as laid out, before the `transform`, `translate`, `rotate` or `scale` on it or an
-  ancestor; relative positioning is counted. The spec counts transforms, as
+  as laid out, before the `transform`, `translate`, `rotate`, `scale` or
+  `offset-path` on it or an ancestor; relative positioning is counted. The spec counts transforms, as
   Chromium 153 and WebKit 26.6 do. At 1728 px a `data-width="wide"` table stood
   translated 300 px from its layout box, so the comment box for its header opened
   over the row headers and the Alt outline stood 300 px left of the table.

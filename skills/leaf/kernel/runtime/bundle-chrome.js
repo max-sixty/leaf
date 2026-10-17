@@ -1257,39 +1257,55 @@ function contentStart(scroller) {
 }
 var anchorHolder = (anchor) => contentStarts.get(anchor)?.scroller ?? anchor;
 var anchorName = (el) => nameAnchor(anchorReading(el));
-var probe = null;
 var dropsTransforms;
-var TRANSFORMS = ["transform", "translate", "rotate", "scale"];
-function transformed(el) {
+function anchorDropsTransforms() {
+  if (dropsTransforms !== void 0) return dropsTransforms;
+  const moved = document.createElement("div");
+  const anchored = document.createElement("div");
+  moved.style.cssText = "position: fixed; left: 0; top: 0; translate: 8px 0; anchor-name: --lf-moved";
+  anchored.style.cssText = "position: fixed; top: 0; position-anchor: --lf-moved; left: anchor(left, 8px)";
+  chromeRoot.append(moved, anchored);
+  dropsTransforms = anchored.getBoundingClientRect().left < 4;
+  moved.remove();
+  anchored.remove();
+  return dropsTransforms;
+}
+var MOVES = ["transform", "translate", "rotate", "scale", "offsetPath"];
+function transformShift(el) {
+  let x = 0;
+  let y = 0;
   for (let at = el; at instanceof Element; at = renderedParent(at)) {
     const style = getComputedStyle(at);
-    if (TRANSFORMS.some((property) => style[property] !== "none")) return true;
+    if (MOVES.every((property) => style[property] === "none")) continue;
+    if (!(at instanceof HTMLElement)) return null;
+    const parent = at.offsetParent;
+    if (!parent) return null;
+    let left = at.offsetLeft;
+    let top = at.offsetTop;
+    if (parent === document.body) {
+      left -= scrollX;
+      top -= scrollY;
+    } else {
+      const from = parent.getBoundingClientRect();
+      left += from.left + parent.clientLeft - parent.scrollLeft;
+      top += from.top + parent.clientTop - parent.scrollTop;
+    }
+    for (let box = renderedParent(at); box !== parent; box = renderedParent(box)) {
+      if (!(box instanceof Element)) return null;
+      left -= box.scrollLeft;
+      top -= box.scrollTop;
+    }
+    const shown = at.getBoundingClientRect();
+    x += shown.left - left;
+    y += shown.top - top;
   }
-  return false;
-}
-function anchorProbe() {
-  if (probe) return probe;
-  probe = document.createElement("div");
-  probe.className = "lf-anchor-probe";
-  probe.setAttribute("aria-hidden", "true");
-  probe.style.cssText = "position: fixed; width: 0; height: 0; visibility: hidden; pointer-events: none;left: anchor(left, -99999px); top: anchor(top, -99999px)";
-  const translated = document.createElement("div");
-  translated.style.cssText = "position: fixed; left: 0; top: 0; width: 0; height: 0; translate: 8px 0;anchor-name: --lf-anchor-probe";
-  probe.style.positionAnchor = "--lf-anchor-probe";
-  chromeRoot.append(translated, probe);
-  dropsTransforms = probe.getBoundingClientRect().left === 0;
-  translated.remove();
-  return probe;
+  return { x, y };
 }
 function anchorBox(anchor) {
   const box = anchor.getBoundingClientRect();
-  const reader = anchorProbe();
-  if (!dropsTransforms || !transformed(anchorHolder(anchor))) return box;
-  if (!anchorReaches(anchor, reader)) return box;
-  const name = anchorName(anchor);
-  if (reader.style.positionAnchor !== name) reader.style.positionAnchor = name;
-  const { left, top } = reader.getBoundingClientRect();
-  return left === -99999 ? box : new DOMRect(left, top, box.width, box.height);
+  if (!anchorDropsTransforms()) return box;
+  const shift = transformShift(anchorHolder(anchor));
+  return shift && (shift.x || shift.y) ? new DOMRect(box.left - shift.x, box.top - shift.y, box.width, box.height) : box;
 }
 function anchorAt(node, anchor, box, at = anchor && anchorBox(anchor), visibility = "always") {
   const from = (side, length) => anchor ? `calc(anchor(${side}, -9999px) + ${layoutPx(length)})` : layoutPx(length);

@@ -179,7 +179,8 @@ WIDENED_TABLE_PAGE = leaf_page(
     "agent's status, for as long as the walk stands there.</td><td>The line over the "
     "field says it. It takes its own room in the panel, so it covers nothing.</td></tr>"
     * 3
-    + "</tbody></table>",
+    + "</tbody></table>"
+    + "<p>Prose after the table, so the page scrolls.</p>" * 40,
 )
 
 
@@ -188,32 +189,30 @@ def test_marks_stand_on_a_widened_table_in_every_engine(request, serve, engine):
     """A table granted room is translated into place (layouts.css), and Firefox leaves
     an anchor's transforms out of `anchor()`, so every box anchored in one stood the
     translation away from what it marked: at 1728px a comment's pin on a header sat
-    over the column beside it, and the Alt outline 300px left of the table. Each
-    engine stands both on what they mark, and the pin keeps its place through a
-    scroll."""
+    over the column beside it, and the Alt outline 300px left of the table. In each
+    engine the pin stands on the header it marks and keeps that place through a
+    scroll, and the outline Alt raises after the scroll stands on the table."""
     browser = request.getfixturevalue(engine)
     comment = _comment_on("grid", quote="Caret in the field")
     page = open_page(browser, serve(WIDENED_TABLE_PAGE, events=[comment]))
     resized(page, 1728, 999)
     margins_laid_out(page)
-    header = page.locator("#grid thead th").nth(2)
     reading = """() => {
       const box = (el) => el.getBoundingClientRect();
       const pin = box(document.querySelector('.lf-margin-cluster'));
       const header = box(document.querySelectorAll('#grid thead th')[2]);
-      return {pin: [pin.left, pin.top], header: [header.left, header.right, header.top]};
+      return {pin: [pin.left - header.left, pin.top - header.top],
+              header: [header.left, header.right, header.top]};
     }"""
     before = page.evaluate(reading)
-    pin, (left, right, top) = before["pin"], before["header"]
-    assert left <= pin[0] <= right, before
+    left, right, _ = before["header"]
+    assert 0 <= before["pin"][0] <= right - left, before
     page.evaluate("() => document.scrollingElement.scrollBy(0, 120)")
     margins_laid_out(page)
     after = page.evaluate(reading)
-    assert after["pin"][0] == pytest.approx(pin[0], abs=1), (before, after)
-    assert after["pin"][1] - pin[1] == pytest.approx(
-        after["header"][2] - top, abs=1
-    ), (before, after)
-    header.hover()
+    assert after["header"][2] == pytest.approx(before["header"][2] - 120, abs=1), after
+    assert after["pin"] == pytest.approx(before["pin"], abs=1), (before, after)
+    page.locator("#grid thead th").nth(2).hover()
     page.keyboard.down("Alt")
     aim = page.locator(".lf-aim")
     expect(aim).to_be_visible()

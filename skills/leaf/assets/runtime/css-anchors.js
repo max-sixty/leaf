@@ -339,47 +339,71 @@ export const anchorName = (el) => nameAnchor(anchorReading(el));
 // ancestors, so a box written from the script's reading of a transformed anchor lands
 // off by the transform: a table granted room is translated into place (layouts.css),
 // and at 1728 px every pin, chip and comment box against one stood 300 px left of what
-// it marked. There, and only for a transformed anchor, a probe anchored as the boxes
-// are reads the corner `anchor()` resolves (notes/browser-support.md, "An anchor's
-// transforms in Firefox"). An anchor the probe cannot reach keeps the script's reading.
-let probe = null;
+// it marked (notes/browser-support.md, "An anchor's transforms in Firefox"). There the
+// reading takes off how far each transform moves its box (`transformShift`).
+//
+// Rejected: a probe anchored to the same name, read for the corner `anchor()` resolves.
+// Firefox resolves it from where scrolls stood at its last anchor snapshot, so a probe
+// read straight after a scroll returned the earlier spot and the inset kept the error;
+// and a probe in the chrome reaches no anchor in a native layer.
 let dropsTransforms;
-const TRANSFORMS = ["transform", "translate", "rotate", "scale"];
-function transformed(el) {
+// Firefox lacks transforms in `anchor()`; read once whether this engine does.
+function anchorDropsTransforms() {
+  if (dropsTransforms !== undefined) return dropsTransforms;
+  const moved = document.createElement("div");
+  const anchored = document.createElement("div");
+  moved.style.cssText =
+    "position: fixed; left: 0; top: 0; translate: 8px 0; anchor-name: --lf-moved";
+  anchored.style.cssText =
+    "position: fixed; top: 0; position-anchor: --lf-moved; left: anchor(left, 8px)";
+  chromeRoot.append(moved, anchored);
+  dropsTransforms = anchored.getBoundingClientRect().left < 4;
+  moved.remove();
+  anchored.remove();
+  return dropsTransforms;
+}
+const MOVES = ["transform", "translate", "rotate", "scale", "offsetPath"];
+// How far the transforms on `el` and its ancestors move its box: for each transformed
+// box, where it stands less where layout put it, from its offset parent's box and the
+// scrolls between (offsets leave transforms and those scrolls out). Null where a
+// transformed box has no offset to read, as an SVG element or a fixed box has none.
+function transformShift(el) {
+  let x = 0;
+  let y = 0;
   for (let at = el; at instanceof Element; at = renderedParent(at)) {
     const style = getComputedStyle(at);
-    if (TRANSFORMS.some((property) => style[property] !== "none")) return true;
+    if (MOVES.every((property) => style[property] === "none")) continue;
+    if (!(at instanceof HTMLElement)) return null;
+    const parent = at.offsetParent;
+    if (!parent) return null;
+    let left = at.offsetLeft;
+    let top = at.offsetTop;
+    if (parent === document.body) {
+      left -= scrollX;
+      top -= scrollY;
+    } else {
+      const from = parent.getBoundingClientRect();
+      left += from.left + parent.clientLeft - parent.scrollLeft;
+      top += from.top + parent.clientTop - parent.scrollTop;
+    }
+    for (let box = renderedParent(at); box !== parent; box = renderedParent(box)) {
+      if (!(box instanceof Element)) return null;
+      left -= box.scrollLeft;
+      top -= box.scrollTop;
+    }
+    const shown = at.getBoundingClientRect();
+    x += shown.left - left;
+    y += shown.top - top;
   }
-  return false;
-}
-function anchorProbe() {
-  if (probe) return probe;
-  probe = document.createElement("div");
-  probe.className = "lf-anchor-probe";
-  probe.setAttribute("aria-hidden", "true");
-  probe.style.cssText =
-    "position: fixed; width: 0; height: 0; visibility: hidden; pointer-events: none;" +
-    "left: anchor(left, -99999px); top: anchor(top, -99999px)";
-  // Firefox lacks transforms in `anchor()`; read once whether this engine does.
-  const translated = document.createElement("div");
-  translated.style.cssText =
-    "position: fixed; left: 0; top: 0; width: 0; height: 0; translate: 8px 0;" +
-    "anchor-name: --lf-anchor-probe";
-  probe.style.positionAnchor = "--lf-anchor-probe";
-  chromeRoot.append(translated, probe);
-  dropsTransforms = probe.getBoundingClientRect().left === 0;
-  translated.remove();
-  return probe;
+  return { x, y };
 }
 export function anchorBox(anchor) {
   const box = anchor.getBoundingClientRect();
-  const reader = anchorProbe();
-  if (!dropsTransforms || !transformed(anchorHolder(anchor))) return box;
-  if (!anchorReaches(anchor, reader)) return box;
-  const name = anchorName(anchor);
-  if (reader.style.positionAnchor !== name) reader.style.positionAnchor = name;
-  const { left, top } = reader.getBoundingClientRect();
-  return left === -99999 ? box : new DOMRect(left, top, box.width, box.height);
+  if (!anchorDropsTransforms()) return box;
+  const shift = transformShift(anchorHolder(anchor));
+  return shift && (shift.x || shift.y)
+    ? new DOMRect(box.left - shift.x, box.top - shift.y, box.width, box.height)
+    : box;
 }
 
 // Writes `node` fixed over `box`, a client rectangle, or a point where `box` gives no

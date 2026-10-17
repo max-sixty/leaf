@@ -1350,6 +1350,111 @@ def test_historical_deferred_reads_keep_the_document_revision_and_layer(
     assert deferred["value"] == patch
 
 
+def news_layer(origin, **headers):
+    """The layer `/api/news` answers a tab sending these headers in."""
+    address = urllib.parse.urlsplit(origin)
+    connection = http.client.HTTPConnection(address.hostname, address.port)
+    connection.request("GET", f"/api/news?t={TOKEN}", headers=headers)
+    response = connection.getresponse()
+    response.read()
+    connection.close()
+    assert response.status == 200
+    return response.getheader("Leaf-Layer")
+
+
+def test_a_tab_on_a_re_vendored_page_hears_news_in_its_own_layer(page_dir):
+    """A re-vendor replaces the page's server, and a tab still open on the older layer
+    keeps hearing news it can read, so it takes the newer layer as a revision once the
+    user has finished what they are doing. Named in the newer layer, the token was
+    refused and reloaded the tab mid-keystroke."""
+    first = revisioning_model.activate_source(page_dir)
+    first_layer = artifact_model.read_revision(page_dir, first.revision).registry[
+        "$layer"
+    ]["generation"]
+    theme = page_dir / "theme.css"
+    theme.write_text(theme.read_text() + "\n/* repair installed edit */\n")
+    vendoring_model.cmd_init(page_dir)
+    (page_dir / "index.html").write_text(PAGE.replace("Plan", "Revised plan"))
+    second = revisioning_model.activate_source(page_dir)
+    assert second.error is None and second.revision != first.revision
+
+    with hosting_model.TemporaryPageServer(page_dir, token=TOKEN) as replaced:
+        stale = news_layer(
+            replaced.origin,
+            **{"Leaf-Layer": first_layer, "Leaf-View-Revision": str(first.revision)},
+        )
+        current = news_layer(replaced.origin)
+    assert stale == first_layer
+    assert current != first_layer
+
+
+def test_a_tab_on_a_revision_past_a_protocol_bump_hears_the_newer_layer(page_dir):
+    """Across a protocol bump the server admits nothing against the tab's revision,
+    so holding there for the user would strand their send. The tab hears the newer
+    layer instead and reloads at once, from its news and from a send alike."""
+    page_registry = registry_storage.read_page_registry(page_dir)
+    older = {
+        **page_registry.registry,
+        "$events": {
+            **page_registry.registry["$events"],
+            "protocol": page_registry.registry["$events"]["protocol"] - 1,
+        },
+        "$layer": {**page_registry.registry["$layer"], "generation": "older"},
+    }
+    document = structure_model.SourceDocument(PAGE)
+    artifact = artifact_model.capture_artifact(
+        page_dir,
+        document,
+        older,
+        declaration_sources=page_registry.declaration_sources,
+        widget_sources=page_registry.widget_sources,
+    )
+    artifact_model.write_artifact(
+        page_dir, 1, artifact, passages_model.SourceReading(document, older)
+    )
+    (page_dir / "index.html").write_text(PAGE.replace("Plan", "Revised plan"))
+    assert revisioning_model.activate_source(page_dir).error is None
+    with hosting_model.TemporaryPageServer(page_dir, token=TOKEN) as server:
+        stale = news_layer(
+            server.origin, **{"Leaf-Layer": "older", "Leaf-View-Revision": "1"}
+        )
+        assert stale == news_layer(server.origin)
+        status, answer = fetch(
+            f"{server.origin}/api/event",
+            data=json.dumps({"kind": "note", "author": "user"}).encode(),
+            layer="older",
+            headers={"Leaf-View-Revision": "1"},
+        )
+    assert (status, json.loads(answer)) == (200, {"layer": stale})
+
+
+def test_a_state_answer_speaks_the_layer_of_the_revision_it_read(page_dir):
+    """Reading state activates the page's source, so a state answer naming no
+    revision speaks the layer of the revision that activation left active, the one
+    its body describes."""
+    first = revisioning_model.activate_source(page_dir)
+    first_layer = artifact_model.read_revision(page_dir, first.revision).registry[
+        "$layer"
+    ]["generation"]
+    # A source that fails to save keeps the re-vendor from activating it, leaving
+    # the older layer's revision active until the repaired source is read.
+    (page_dir / "index.html").write_text(PAGE.replace("</section>", ""))
+    theme = page_dir / "theme.css"
+    theme.write_text(theme.read_text() + "\n/* repair installed edit */\n")
+    vendoring_model.cmd_init(page_dir)
+    (page_dir / "index.html").write_text(PAGE.replace("Plan", "Revised plan"))
+    with hosting_model.TemporaryPageServer(page_dir, token=TOKEN) as server:
+        address = urllib.parse.urlsplit(server.origin)
+        connection = http.client.HTTPConnection(address.hostname, address.port)
+        connection.request("GET", f"/api/state?t={TOKEN}")
+        response = connection.getresponse()
+        state = json.loads(response.read())
+        connection.close()
+    assert state["active"]["revision"] != first.revision
+    assert response.getheader("Leaf-Layer") == state["layer"]["generation"]
+    assert state["layer"]["generation"] != first_layer
+
+
 def test_a_bad_source_save_keeps_the_last_revision_live_and_reports_the_error(
     server, page_dir
 ):

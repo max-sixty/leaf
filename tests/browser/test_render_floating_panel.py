@@ -666,6 +666,77 @@ def test_news_in_an_open_thread_moves_nothing_at_its_head(browser, serve):
     assert {**page.evaluate(HEAD_SEATS), "where": seats["where"]} == seats
 
 
+# What news arriving must leave where it stood: the open thread's message, read word
+# by word, and how much of its title the head shows.
+HELD_READING = """() => {
+  const view = document.querySelector('.lf-fp-view[data-view=thread]');
+  const box = (node) => {
+    const r = node.getBoundingClientRect();
+    return [r.left, r.top, r.right, r.bottom];
+  };
+  const title = document.querySelector('.lf-fp-head .lf-fp-title');
+  return {
+    message: [...view.querySelectorAll('.lf-msg-head > *, .lf-msg-body')].map(box),
+    titleEnd: title.getBoundingClientRect().right,
+  };
+}"""
+
+
+def test_held_news_reads_whole_on_the_thread_s_head_line(browser, serve):
+    """News arriving while the user writes in an open thread waits behind a notice on the
+    view's head line, before where the thread stands among the open ones. It reads
+    whole, the title shortening to give it room, and nothing else at the head or in the
+    messages moves; no message head carries it. Pressing it shows what was held."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(
+        serve.page_dir,
+        "Which jobs should start first once the export and the reconciler have both "
+        "landed on the new cluster?",
+        author="agent",
+    )
+    page = floating(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    view = page.locator(".lf-fp-view[data-view=thread]")
+    expect(view.locator(".lf-msg")).to_have_count(1)
+    write(field(page), "I think the export")
+    settled(page)
+    seats = page.evaluate(HEAD_SEATS)
+    reading = page.evaluate(HELD_READING)
+
+    for text in (
+        "The export job first, since the reports read it.",
+        "Then the reconciler, once the export has landed.",
+    ):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Claude",
+                "parent": root,
+                "revision": 1,
+                "text": text,
+            },
+        )
+    told(page)
+    notice = page.locator(".lf-fp-head .lf-thread-news")
+    expect(notice).to_have_text("2 new replies")
+    expect(view.locator(".lf-msg")).to_have_count(1)
+    settled(page)
+    assert notice.evaluate("node => node.scrollWidth <= node.clientWidth")
+    assert page.evaluate(HEAD_SEATS) == seats
+    held = page.evaluate(HELD_READING)
+    assert held["message"] == reading["message"]
+    assert held["titleEnd"] < reading["titleEnd"], (reading, held)
+    expect(view.locator(".lf-msg-head .lf-thread-news")).to_have_count(0)
+
+    notice.click()
+    expect(view.locator(".lf-msg")).to_have_count(3)
+    expect(notice).to_be_hidden()
+    expect(field(page)).to_have_js_property("value", "I think the export")
+
+
 def test_threads_is_as_tall_as_the_threads_it_first_shows(browser, serve):
     """Threads takes the height of the rows it first shows, not of threads a filter
     hides, so three open threads leave no blank row for a resolved fourth."""
@@ -813,7 +884,7 @@ def test_threads_filter_in_place_and_hold_news_until_asked(browser, serve):
         },
     )
     told(page)
-    held = reader.locator(".lf-primary-news:visible")
+    held = page.locator(".lf-fp-head .lf-thread-news:visible")
     expect(held).to_be_visible()
     expect(reader.locator(".lf-msg")).to_have_count(2)
     held.click()
@@ -967,7 +1038,7 @@ def test_an_answer_the_user_waits_for_grows_the_view_up_to_its_cap(browser, serv
     assert risen(seats, page.evaluate(HEAD_SEATS), by), (seats, by)
     assert grown["turn"][0] >= 0 and grown["turn"][1] >= 0, grown
     expect(view.locator(".lf-fp-new-reply")).to_have_count(0)
-    expect(view.locator(".lf-primary-news:visible")).to_have_count(0)
+    expect(page.locator(".lf-fp-head .lf-thread-news:visible")).to_have_count(0)
 
     write(field(page), "And the weekend?")
     with sending(page, "the reply"):
@@ -995,7 +1066,9 @@ def test_an_answer_the_user_waits_for_grows_the_view_up_to_its_cap(browser, serv
     assert box["y"] <= shown["y"] < box["y"] + box["height"] - 40, (shown, box)
 
     answer("One more thing: the alarms page the on-call too.")
-    expect(view.locator(".lf-primary-news:visible")).to_contain_text("1 new reply")
+    expect(page.locator(".lf-fp-head .lf-thread-news:visible")).to_contain_text(
+        "1 new reply"
+    )
     expect(messages).to_have_count(4)
 
 
@@ -2792,8 +2865,9 @@ def test_send_stands_in_the_counts_place_while_the_user_types(browser, serve):
 
 def test_writing_reaches_the_field_however_the_panel_stands(browser, serve):
     """Asking to write reaches the panel's field from any state it stands in: `c`
-    unfolds a panel folded to the leaf, and Resume writing comes back to a reply left
-    unsent in a thread the user has since closed, in the same field."""
+    unfolds a panel folded to the leaf and rings the field as an anchored comment box is
+    ringed, so the move shows, and Resume writing comes back to a reply left unsent in a
+    thread the user has since closed, in the same field."""
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Is the window long enough?")
     page = floating(browser, url)
@@ -2805,6 +2879,10 @@ def test_writing_reaches_the_field_however_the_panel_stands(browser, serve):
     page.keyboard.press("c")
     expect(panel).to_have_attribute("data-rest", "row")
     expect(field(page)).to_be_focused()
+    ring = page.locator(".lf-fp-field .lf-compose-field").evaluate(
+        "box => [getComputedStyle(box).outlineStyle, getComputedStyle(box).outlineWidth]"
+    )
+    assert ring == ["solid", "2px"], f"the field holding the caret wears {ring}"
     page.keyboard.press("Escape")
 
     page.locator("body").focus()

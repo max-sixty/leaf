@@ -4316,7 +4316,7 @@ function createAnnotationInventory({
       });
     });
     for (const todo of runtime.todos) {
-      if (todo.owner !== "agent" || todo.subject.kind !== "widget" && todo.subject.kind !== "element" || todo.revision > runtime.currentRevision)
+      if (todo.owner !== "agent" || todo.state !== "open" || todo.subject.kind !== "widget" && todo.subject.kind !== "element" || todo.revision > runtime.currentRevision)
         continue;
       if (activityAlreadyShown.has(`widget:${todo.subject.id}`)) continue;
       const target = elementById(todo.subject.id);
@@ -5061,6 +5061,7 @@ function createStateFeed({
         const returned = readingReturn();
         try {
           const response = await fetch(pageUrl("api/news"), {
+            headers: layerHeaders(),
             signal: globalThis.AbortSignal.any([
               interval.signal,
               globalThis.AbortSignal.timeout(STATE_READ_TIMEOUT_MS)
@@ -6424,7 +6425,8 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
           signal: abort.signal,
           thread: (key, outlet) => nominate("thread", key, null, outlet),
           message: (key, id, outlet) => nominate("message", key, id, outlet),
-          reply: (key, outlet, options) => nominate("reply", key, null, outlet, options)
+          reply: (key, outlet, options) => nominate("reply", key, null, outlet, options),
+          news: (key, outlet) => nominate("news", key, null, outlet)
         })
       );
       if (rendering?.then)
@@ -6466,7 +6468,11 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
       if (!view) {
         if (item.kind === "thread")
           view = new ThreadView("outlet", { ...commands, nativeAuthored: true });
-        else {
+        else if (item.kind === "news") {
+          const notice2 = newsNotice();
+          view = { node: notice2.node, notice: notice2, dispose() {
+          } };
+        } else {
           const node = document.createElement("div");
           node.className = "lf-page-thread lf-ui lf-primary-part";
           node.dataset.lfPart = item.kind;
@@ -6486,9 +6492,13 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
               message,
               messageKey: item.message,
               reading: null,
+              // Whether the thread's notice stands in this message's head.
+              headNotice: true,
               // Draws the message again at once, as its rewrite opens or closes.
               draw() {
-                message.present(this.reading, { headerControls: this.notice.node });
+                message.present(this.reading, {
+                  headerControls: this.headNotice ? this.notice.node : void 0
+                });
                 message.commit();
               },
               dispose: () => message.retire()
@@ -6518,16 +6528,24 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
       if (item.kind === "thread") {
         view.present(shown.get(item.key));
         view.commit();
+      } else if (item.kind === "news") {
+        const news = shown.get(item.key)?.news;
+        if (news) view.notice.set(news);
+        keepsHidden(view.node, !news);
       } else {
         keeps(view.node, "data-thread", item.thread.id);
         keeps(view.node, "data-attempt", item.thread.root.attempt ?? null);
         const news = shown.get(item.key)?.news;
+        const nominated = selected.some(
+          (part) => part.key === item.key && part.kind === "news"
+        );
         const first = selected.find((part) => part.key === item.key && part.kind === "message") ?? selected.find((part) => part.key === item.key);
-        const notice2 = Boolean(news) && first === item;
+        const notice2 = Boolean(news) && !nominated && first === item;
         if (notice2) view.notice.set(news);
         keepsHidden(view.notice.node, !notice2);
         if (item.kind === "message") {
           const message = item.thread.msgs.find((entry) => entry.key === item.message);
+          view.headNotice = !nominated;
           view.reading = messageReading(message, {
             panel: false,
             nativeAuthored: true,
@@ -6542,7 +6560,8 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
           );
         } else {
           keepsHidden(view.node, !replyAvailable(item.thread));
-          if (view.notice.node.parentNode !== view.node)
+          if (nominated) view.notice.node.remove();
+          else if (view.notice.node.parentNode !== view.node)
             move(view.node, view.notice.node, null);
         }
       }
@@ -6566,6 +6585,7 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
       for (const slot of slots.splice(depth)) slot.remove();
       keeps(view.node, "slot", previous?.name ?? null);
       place(destination2, view.node);
+      if (item.kind === "news") continue;
       const parts = destinations.get(item.key) ?? [];
       parts.push(view);
       destinations.set(item.key, parts);

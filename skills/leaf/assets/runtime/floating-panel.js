@@ -94,7 +94,14 @@
  * stood to where it stands, the way the Codex app's floating panel moves
  * (`notes/floating-panel/GOAL.md`): nothing's layout tweens, so nothing a user aims at
  * travels after the gesture that moved it. */
-import { html, nothing, ref, render, repeat } from "/vendor/browser-runtime.js";
+import {
+  html,
+  keyed as keyedBy,
+  nothing,
+  ref,
+  render,
+  repeat,
+} from "/vendor/browser-runtime.js";
 import { el } from "./widget-elements.js";
 import { iconElement, iconTemplate } from "./icons.js";
 import { copyControl } from "./copy-control.js";
@@ -1536,10 +1543,21 @@ export function createFloatingPanel({
   // whose reader its threads then open, and gives the open thread's messages an outlet
   // here. Leaf draws each message there, with its reactions, rewrites, read marks and
   // agent-authored widgets, and holds news that would move what the reader is reading
-  // behind its own notice. The reply is the thread's reply box, which the reader draws
-  // in the field below rather than in the outlet. A thread anchored to a passage stays
-  // the page's: its card opens beside the words it is about.
+  // behind its notice, which the panel stands in the view's head (`newsOutlet`). The
+  // reply is the thread's reply box, which the reader draws in the field below rather
+  // than in the outlet. A thread anchored to a passage stays the page's: its card opens
+  // beside the words it is about.
   let presentation = null;
+  // The thread's held news is a fact about the thread, so it reads in the head with the
+  // others, its title and where it stands among the open ones, before the latter, whole,
+  // and pressing it shows what was held. The title gives it the room it takes, so news
+  // arriving moves nothing else in the head or the messages below (floating-panel.css,
+  // `.lf-fp-facts`). The user chose this on 16 October over the notice at the end of the
+  // first message's head, cut to 5rem there ("2 new rep…"), and over the news joining
+  // New reply at the view's foot. Each thread's head draws an outlet of its own, so the
+  // notice of the thread the user leaves goes with its head rather than standing in the
+  // next one's until the reader draws that.
+  const newsOutlet = () => head.querySelector(".lf-fp-news-outlet");
   // The view standing open, rather than one still leaving.
   const shownView = () => stage.querySelector(".lf-fp-view:not([data-leaving])");
   // The rows of the open view's list, which the arrows walk and Tab stands at one of. A
@@ -1578,6 +1596,8 @@ export function createFloatingPanel({
     );
     if (!outlet || !thread) return;
     for (const message of thread.msgs) parts.message(thread.key, message.key, outlet);
+    const news = newsOutlet();
+    if (news) parts.news(thread.key, news);
     if (replyOutlet.isConnected)
       parts.reply(thread.key, replyOutlet, replyOptionsFor(thread.key));
   }
@@ -2037,9 +2057,18 @@ export function createFloatingPanel({
             }
             <h2 class=${titleClass}>${titleOf(top)}</h2>
             ${
-              at >= 0
-                ? html`<span class="lf-fp-where"
-                    >${at + 1} of ${openThreads.length}</span
+              thread
+                ? html`<span class="lf-fp-facts"
+                    >${keyedBy(
+                      thread.key,
+                      html`<span class="lf-fp-news-outlet"></span>`,
+                    )}${
+                      at >= 0
+                        ? html`<span class="lf-fp-where"
+                            >${at + 1} of ${openThreads.length}</span
+                          >`
+                        : nothing
+                    }</span
                   >`
                 : nothing
             }`;

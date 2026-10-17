@@ -4,6 +4,9 @@ focus and session, and the revision a draft aims at."""
 import pytest
 from interact_support import append_carried_log_record, append_command
 from leaf import event_log as events_model
+from leaf import hosting as hosting_model
+from leaf import revisioning as revisioning_model
+from leaf import vendoring as vendoring_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import live_url, panel_comment
@@ -16,6 +19,7 @@ from render_harness import (
     panel_settled,
     refuse,
     resized,
+    restarting,
     round_trip,
     select,
     select_words,
@@ -331,6 +335,55 @@ def test_live_executable_replacement_keeps_a_resolved_reply_session(browser, ser
     wait_until_ready(page)
     expect(page.locator(".lf-thread-reply leaf-text")).not_to_be_visible()
     assert stored_draft_text(page, context) == words
+
+
+def test_a_re_vendor_waits_for_the_reply_being_written(browser, serve):
+    """A re-vendor replaces the page's server under a tab whose user is writing a
+    reply. The tab hears the newer layer as a revision and holds it while the words are
+    unsent, then follows it once they are sent, rather than reloading mid-keystroke."""
+    serve(editing_revision_source("before"))
+    page_dir = serve.page_dir
+    with hosting_model.TemporaryPageServer(page_dir) as before:
+        page = open_page(browser, before.url)
+        page.locator("#passage").click(click_count=3)
+        page.keyboard.press("c")
+        write(page.locator(".lf-composer leaf-text"), "An anchored root.")
+        page.keyboard.press("Control+Enter")
+        round_trip(page)
+        page.keyboard.press("c")
+        editor = page.locator(".lf-margin-preview .lf-thread-reply leaf-text")
+        words = "Half a thought the reload must not take"
+        write(editor, words)
+        birth = page.evaluate("performance.timeOrigin")
+        theme = page_dir / "theme.css"
+        theme.write_text(theme.read_text() + "\n/* a newer layer */\n")
+        vendoring_model.cmd_init(page_dir)
+        revised = revisioning_model.activate_source(page_dir)
+        assert revised.error is None
+        with restarting(page):
+            before.close()
+            replaced = hosting_model.TemporaryPageServer(
+                page_dir, token=before.token, port=before.port
+            ).start()
+            # The tab has read the state naming the newer revision.
+            told(page)
+    try:
+        # A second of news from the replaced server, which is where a token the tab
+        # refused would have sent it to reload.
+        for _ in range(4):
+            with page.expect_response("**/api/news*"):
+                pass
+        assert page.evaluate("performance.timeOrigin") == birth
+        expect(editor).to_be_focused()
+        expect(editor).to_have_js_property("value", words)
+        page.keyboard.press("Control+Enter")
+        wait_for_revision(page, revised.revision)
+        assert page.evaluate("performance.timeOrigin") != birth
+        assert events_model.read_events(page_dir)[-1]["text"] == words
+    finally:
+        # Closed while its server is still up, so no late module load meets a reset.
+        page.close()
+        replaced.close()
 
 
 @pytest.mark.parametrize("kind", ["edit", "first-message", "option"])

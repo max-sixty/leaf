@@ -163,7 +163,9 @@
     box-shadow: none;
   }
   .lf-fp-field .lf-compose-field:has(> leaf-text[data-lf-focus]) {
-    outline: none;
+    outline: var(--focus-ring);
+    outline-offset: 0;
+    border-radius: var(--r);
   }
   .lf-fp-box {
     flex-wrap: wrap;
@@ -554,8 +556,25 @@
     flex: none;
     color: var(--lf-fp-muted);
   }
-  .lf-fp-where {
+  .lf-fp-facts {
+    flex: none;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
     margin-inline: auto 12px;
+  }
+  .lf-fp-news-outlet {
+    display: contents;
+  }
+  .lf-fp-news-outlet > .lf-thread-news {
+    --lf-fp-news-reach: calc((max(28px, var(--aim-floor)) - 1lh) / 2);
+    align-self: auto;
+    min-height: 0;
+    padding-block: var(--lf-fp-news-reach);
+    margin-block: calc(-1 * var(--lf-fp-news-reach));
+    font-size: 12px;
+  }
+  .lf-fp-where {
     font-size: 12px;
     font-variant-numeric: tabular-nums;
   }

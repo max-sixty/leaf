@@ -150,11 +150,11 @@ function workingMessage(thread, attention, messages) {
   const stopped = workflows.find(
     (workflow) => STOPPED.has(workflow.condition?.kind) && workflow.detail,
   );
-  const todo = (thread.todos ?? []).find(({ line }) => line);
+  const todo = thread.todos.find((open) => open.running);
   const [words, live, condition, agent] = running
     ? [running.detail || said, true, null, running.agent]
     : todo
-      ? [todo.line, true, null, null]
+      ? [todo.running.text, true, null, null]
       : stopped
         ? [stopped.detail, false, workflowLabel(stopped), stopped.agent]
         : [said, false, null, null];
@@ -209,7 +209,7 @@ export function threadReading(thread, surface, commands, options) {
   // An answer says what it leaves (`--ask`, `--todo`); its head says so while that
   // stands: the prose ask the user still owes, the to-do still open on the thread.
   const asking = thread.user_prompt?.message;
-  const openTodos = new Set((thread.todos ?? []).map(({ id }) => id));
+  const openTodos = new Set(thread.todos.map(({ id }) => id));
   const leaves = (message) =>
     message.ask && message.id === asking
       ? "Waiting on me"
@@ -909,7 +909,10 @@ export class ThreadView {
     // - "title": a resolved panel card's title holds its one control, Reopen, or, while
     //   the thread holds news, the notice in Reopen's place, since the card has no other
     //   row to draw it in without growing.
-    // - "margin": a margin card's own controls row.
+    // - "margin": a margin card's own controls row, which also stands the notice,
+    //   whole, before Previous and Next: its own place with the thread's facts, as the
+    //   floating panel's head holds it (the user's choice, 16 October), rather than
+    //   over the end of the message head beside it.
     // - "head": the head's controls row, which reserves the room of one icon control
     //   (shadow.css, `--lf-thread-action-room`) beside the first message's own
     //   controls, so whatever stands there is the check: Resolve, or Reopen in its place
@@ -968,7 +971,12 @@ export class ThreadView {
     let threadActions = null;
     if (settlementPlace === "head" || settlementPlace === "margin") {
       const actions = marginControls
-        ? [marginControls.nav, settlement, marginControls.close].filter(Boolean)
+        ? [
+            model.news ? notice.node : null,
+            marginControls.nav,
+            settlement,
+            marginControls.close,
+          ].filter(Boolean)
         : [settlement].filter(Boolean);
       setChildren(this.#actions, actions);
       threadActions = actions.length || model.news ? this.#actions : null;
@@ -1171,12 +1179,7 @@ export class ThreadView {
       ${
         threadActions
           ? marginControls
-            ? html`${
-                  model.news
-                    ? html`<div class="lf-margin-thread-news">${news}</div>`
-                    : nothing
-                }
-                <div class="lf-margin-thread-controls">${threadActions}</div>`
+            ? html`<div class="lf-margin-thread-controls">${threadActions}</div>`
             : html`<div class="lf-thread-controls" data-lf-reflow="text">
                 ${news}${threadActions}
               </div>`

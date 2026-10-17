@@ -551,17 +551,38 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   .lf-margin-thread .lf-thread-transcript .lf-msg-body * {
     scroll-margin-top: calc(var(--lf-top) + var(--focus-ring-room));
   }
+  /* A head row narrower than its words, as when the actions row holds a notice of
+     news (thread-card.js), gives up room in one order: first the annotations after the
+     time, each cut with an ellipsis, then the author's name, with an ellipsis; the time
+     is never cut. The metadata's grid keeps the time's whole width as its least
+     (`min-width: min-content`, where an annotation's track contributes nothing), and
+     its shrink weight, a million to the name's one, spends its room before any of the
+     name's while it has room to give, so the name keeps its whole width whenever the
+     annotations alone can make the room. The heads' track narrows while the actions
+     row holds a notice of news, the card keeping its width (thread-preview.js). */
   .lf-margin-thread .lf-thread-transcript .lf-msg-meta {
+    display: grid;
+    grid-auto-flow: column;
+    grid-template-columns: max-content;
+    grid-auto-columns: minmax(0, max-content);
+    gap: 0;
+    flex-shrink: 1000000;
+    min-width: min-content;
     overflow: hidden;
   }
-  .lf-margin-thread .lf-thread-transcript .lf-msg-sending {
+  /* Each annotation carries its own gap, so one cut to nothing takes its gap too. */
+  .lf-margin-thread .lf-thread-transcript .lf-msg-meta > :not(time) {
+    padding-inline-start: var(--sp-2);
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   /* The actions' ground hides words scrolling past beside a head. It stands beneath the
      head's own controls, which stop short of the actions by its padding, so a focused
-     control's ring stays whole over that ground. */
+     control's ring stays whole over that ground. A notice of held news stands first
+     in the row, whole (thread-card.js); the card keeps its width while it holds news
+     (thread-preview.js), so the notice takes its room from the heads' track, and the
+     actions after it keep their places. */
   .lf-margin-thread .lf-page-thread > .lf-margin-thread-controls {
     grid-column: 2;
     grid-row: 2;
@@ -570,22 +591,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     display: flex;
     align-items: center;
     gap: 4px;
-    min-height: var(--lf-msg-head-height);
-    padding-inline-start: var(--sp-2);
-    background: var(--paper);
-  }
-  /* A held-news notice stands beside the actions over the end of the head beneath it,
-     message controls included, rather than narrowing that head, since news must not
-     rewrap it; pressing it shows the news. */
-  .lf-margin-thread .lf-page-thread > .lf-margin-thread-news {
-    grid-column: 1;
-    grid-row: 2;
-    justify-self: end;
-    align-self: start;
-    min-width: 0;
-    z-index: 3;
-    display: flex;
-    align-items: center;
     min-height: var(--lf-msg-head-height);
     padding-inline-start: var(--sp-2);
     background: var(--paper);
@@ -602,6 +607,13 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     z-index: 1;
     background-color: var(--lf-msg-ground);
     padding-inline-end: 0;
+  }
+  /* A short name keeps its whole width even where the shared cap
+     (components/surfaces.css) would cut it in a narrowed head; it shortens only once
+     the annotations after the time are gone. */
+  .lf-margin-thread .lf-thread-transcript .lf-msg-head > b {
+    flex-shrink: 1;
+    max-inline-size: max(40%, 5em);
   }
   /* Only the writer's name and the time stick. The head's annotations (a progress
      disclosure, a delivery receipt, a failure, a suggestion or edited label) belong

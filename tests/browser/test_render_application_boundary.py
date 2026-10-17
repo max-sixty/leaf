@@ -1782,9 +1782,9 @@ def test_failed_primary_reader_restores_the_same_native_ask_in_core(browser, ser
     consume_browser_errors(
         page, "leaf: Presentation failed: Deliberate primary failure"
     )
-    assert page.evaluate(
-        "nativeOption.isConnected && nativeOption.closest('.lf-thread') !== null"
-    )
+    # Core's own thread view holds the native Ask until the reader draws it again; with
+    # no Threads panel, that view stands in no surface until one shows the thread.
+    assert page.evaluate("nativeOption.closest('.lf-page-thread') !== null")
     page.evaluate("document.querySelector('#workspace').presentation.update()")
     email = page.locator("lf-option#email")
     expect(email).to_be_visible()

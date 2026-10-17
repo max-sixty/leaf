@@ -2348,6 +2348,10 @@ export function createFloatingPanel({
     keeps(newsDot, "data-shown", news ? "" : null);
 
     render(menuOpen ? menuTemplate() : nothing, menu);
+    // A copy control the menu keeps for its next showing leaves the list the render just
+    // took down, which it would otherwise hold whole, rows and all, as its parent.
+    for (const copy of [...copyItems.values(), ...copies.values()])
+      if (!copy.isConnected) copy.remove();
     keeps(menu, "data-level", menuOpen && menuAt ? menuAt.view : null);
     keeps(menu, "style", menuOpen && menuRoom ? `height: ${menuRoom}px` : null);
     // A text to select, which About holds where no clipboard copies it, is no menu's row.

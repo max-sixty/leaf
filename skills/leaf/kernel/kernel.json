@@ -82,7 +82,7 @@
     "runtime/editor-view.js": "6a62c848a69e12a2a8f1ea0f4125ef02a24faae42a1b3f3b1e29d13a8cbd7376",
     "runtime/element-frame.js": "fda3fa39ae7554359297e39f9546a6bf9d212d0950a431d85431b501e9c511ce",
     "runtime/file-api.js": "bb2768e9c8790868940f387093af789469fdbdd345188782ae4cdc9f623157fe",
-    "runtime/floating-panel.js": "3bd489125c9f0b468cce3e50442fd4b09667eb8d842143254dcc75af4278bb5b",
+    "runtime/floating-panel.js": "cb028fcb1b3d0634a540415c0aff92f40c498042ad473adb9893dcd396a1766c",
     "runtime/focus.js": "6339d9e6c2e495b4f0c1f621d83efc5fcdc624d952a7864fae3e88dc3cbac7a7",
     "runtime/geometry.js": "dece88710f1430a7c7a50e383ae46d031675157642e5ad7393d256b905e4b2b6",
     "runtime/held-word.js": "c7d09fc54a1201ac9e5b009bddac0148c0eb5705041ae0879c4f56ce91e6b912",
@@ -269,8 +269,8 @@
     "vendor/syntax/toml.js": "bdbbaf842db523f40867805302f06990ee16b9fcdb75c8ae6e01efabaffbb369",
     "vendor/syntax/typescript.js": "9f95bae3ff593a851ae931005e733292edc8a54d62cf4b351511f79230d643e5",
     "vendor/syntax/yaml.js": "d26d797bdd23183ea23fc5bd145ac49288f4513af32700f080139d1e484e1fcb",
-    "vendor/webawesome-chrome.js": "bd062eba60bd3b421bde5e540ba265c9ed1653809043228a8ca9b6992c3fb9a2",
-    "vendor/webawesome/chunk-YH3C4UOU.js": "23db37f953d37aa4549728a91484aa1d0cbf71097097a350a47bd3d51c407153",
+    "vendor/webawesome-chrome.js": "172b5c94c7c035fa3bedf915f51d2730b0f8deaa4787cdca51818a562957b61a",
+    "vendor/webawesome/chunk-HGEKUUYY.js": "a53aed21ac54df62b23372a123bf579499f168701f040f63d712ed124f999ef8",
     "widgets/lf-suggestion.js": "314abab661d88ebe625679b94a2b461b70484d354fc5a07b7bd3c8999d93cbc6"
   },
   "replaces": [

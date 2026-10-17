@@ -552,7 +552,27 @@ const bundles = {
     splitting: true,
     chunkNames: "webawesome/[name]-[hash]",
     external: ["/runtime/shadow-stage.js"],
-    adapt: [{ file: /webawesome\/dist\/chunks\/.*\.js$/, edit: patchTransitions }],
+    // Web Awesome 3.14.0 prepends a comment naming its docs to an element's shadow root
+    // on every `connectedCallback`, so an element the chrome keeps and connects again,
+    // as the floating panel's menu does its copy rows, grows by a node each time it
+    // shows. The element module's adaptation, listed first so it wins its chunk, keeps
+    // the one comment the first connection writes.
+    adapt: [
+      {
+        file: /webawesome\/dist\/chunks\/chunk\.AOKMSJXD\.js$/,
+        edit: (source) =>
+          patchTransitions(
+            seam(
+              source,
+              "this.shadowRoot?.prepend(",
+              "this.shadowRoot?.firstChild?.nodeType !== Node.COMMENT_NODE && this.shadowRoot?.prepend(",
+              "Web Awesome docs comment",
+              2,
+            ),
+          ),
+      },
+      { file: /webawesome\/dist\/chunks\/.*\.js$/, edit: patchTransitions },
+    ],
     platform: "browser",
     target: "chrome105",
     banner: {

@@ -7421,6 +7421,8 @@ function createFloatingPanel({
     keeps(badge, "data-shown", onUser ? "" : null);
     keeps(newsDot, "data-shown", news ? "" : null);
     render(menuOpen ? menuTemplate() : nothing, menu);
+    for (const copy of [...copyItems.values(), ...copies.values()])
+      if (!copy.isConnected) copy.remove();
     keeps(menu, "data-level", menuOpen && menuAt ? menuAt.view : null);
     keeps(menu, "style", menuOpen && menuRoom ? `height: ${menuRoom}px` : null);
     keeps(menu, "role", menu.querySelector("textarea") ? "dialog" : "menu");

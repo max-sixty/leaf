@@ -21,6 +21,7 @@ from render_harness import (
     leaf_page,
     nudge,
     open_page,
+    panel_field,
     panel_settled,
     refuse,
     told,
@@ -30,12 +31,15 @@ from render_harness import (
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
+# The status the panel's empty field says while the server does not answer.
+OFFLINE = re.compile(r"^Server offline")
+
 
 def test_a_quiet_page_reads_only_freshness_and_hears_changes(browser, serve):
     """Quiet freshness looks do not rebuild state; an external append does."""
     page = open_page(browser, serve(LONG_PAGE))
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
+    page.locator(".lf-fp-threads").click()
+    panel_settled(page, view="threads")
     asked = _traffic(page).asked
     page.wait_for_timeout(3000)
     assert _traffic(page).asked == asked, "a quiet page asked for state on a timer"
@@ -46,7 +50,7 @@ def test_a_quiet_page_reads_only_freshness_and_hears_changes(browser, serve):
     )
     told(page)
     assert _traffic(page).asked == asked + 1
-    expect(page.locator(".lf-thread", has_text="News.")).to_have_count(1)
+    expect(page.locator(".lf-fp-thread", has_text="News.")).to_have_count(1)
 
 
 def test_a_durable_server_restart_keeps_the_current_editor(browser, serve):
@@ -187,7 +191,7 @@ def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     """
     page = open_page(browser, serve(LONG_PAGE))
     d = serve.page_dir
-    text = page.locator(".lf-status-detail")
+    status = panel_field(page)
 
     def declare(detail):
         declare_work(d, detail)
@@ -207,7 +211,7 @@ def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     second = first.fetch().json()
     with page.expect_request("**/api/state*"):
         first.fulfill(json=second)
-    expect(text).to_have_text(re.compile(r"^\s*Claude is working — second"))
+    expect(status).to_have_attribute("placeholder", re.compile(r"second"))
     assert len(held) == 2
 
     trailing = held[1]
@@ -217,7 +221,7 @@ def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     third = trailing.fetch().json()
     trailing.fulfill(json=third)
     told(page)
-    expect(text).to_have_text(re.compile(r"^\s*Claude is working — third"))
+    expect(status).to_have_attribute("placeholder", re.compile(r"third"))
 
 
 def test_a_state_read_timing_out_during_its_body_is_offline(browser, serve):
@@ -245,9 +249,7 @@ def test_a_state_read_timing_out_during_its_body_is_offline(browser, serve):
     watched(page)
     page.add_init_script(delay_state_body_past_deadline)
     page.goto(live_url(serve(LONG_PAGE)), wait_until="load")
-    expect(page.locator(".lf-status-detail")).to_contain_text(
-        "Server offline — reconnecting"
-    )
+    expect(panel_field(page)).to_have_attribute("placeholder", OFFLINE)
 
 
 def test_the_first_read_and_the_user_s_later_ones_are_bounded_apart(browser, serve):
@@ -264,7 +266,7 @@ def test_the_first_read_and_the_user_s_later_ones_are_bounded_apart(browser, ser
     bound can sit outside every reading a live container takes. The deploy gate gives that container
     120 seconds for each read it makes of it.
 
-    Every read after presentation answers to the user instead. The banner's one way
+    Every read after presentation answers to the user instead. The status's one way
     to say the server stopped answering runs through a read that *completed* with
     nothing, and a read still in flight holds the page's one slot, so this bound is the
     whole time a live page can go on showing a reading the server has abandoned. It
@@ -323,7 +325,7 @@ def test_a_widget_presents_its_authored_state_offline_and_the_log_on_recovery(
     page.route("**/api/state*", refuse)
     page.goto(url, wait_until="load")
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
-    expect(page.locator(".lf-status-detail")).to_contain_text("Server offline")
+    expect(panel_field(page)).to_have_attribute("placeholder", OFFLINE)
     expect(page.locator("#options .lf-pick")).to_have_count(2)
     expect(page.locator("#two")).not_to_have_attribute("chosen", "")
     page.unroute("**/api/state*")
@@ -398,18 +400,14 @@ def test_a_pending_offline_paint_does_not_block_a_recovery_read(browser, serve):
     )
     page.route("**/api/state*", lambda route: route.fulfill(status=503, body=""))
     nudge(serve.page_dir)
-    expect(page.locator(".lf-status-detail")).to_contain_text(
-        "Server offline — reconnecting"
-    )
+    expect(panel_field(page)).to_have_attribute("placeholder", OFFLINE)
     page.wait_for_function("() => window.probePaints >= 2")
 
     page.unroute("**/api/state*")
     with page.expect_request("**/api/state*"):
         nudge(serve.page_dir)
     told(page)
-    expect(page.locator(".lf-status-detail")).not_to_contain_text(
-        "Server offline — reconnecting"
-    )
+    expect(panel_field(page)).not_to_have_attribute("placeholder", OFFLINE)
     consume_browser_errors(page, http_error_console(503))
 
 
@@ -418,10 +416,10 @@ def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
     page has moved wakes state once per changed reading, so a read that failed — refused here, a
     dropped request in the world — is asked again on the page's own tick, the
     spacing a failed exchange has always had. Without that a page would sit under
-    an offline banner until something else happened to it."""
+    an offline status until something else happened to it."""
     page = open_page(browser, serve(LONG_PAGE))
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
+    page.locator(".lf-fp-threads").click()
+    panel_settled(page, view="threads")
     page.route("**/api/state*", refuse)
     with page.expect_event(
         "requestfailed", predicate=lambda request: "/api/state" in request.url
@@ -430,9 +428,7 @@ def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
             serve.page_dir,
             {"kind": "comment", "author": "user", "revision": 1, "text": "Missed."},
         )
-    expect(page.locator(".lf-status-detail")).to_have_text(
-        "Server offline — reconnecting. Keep this page open so pending changes can send."
-    )
+    expect(panel_field(page)).to_have_attribute("placeholder", OFFLINE)
     # A failed answer does not turn every unchanged freshness look into another
     # expensive state read. At most one recovery tick fits in this interval.
     asked = _traffic(page).asked
@@ -440,10 +436,8 @@ def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
     assert _traffic(page).asked <= asked + 1
     page.unroute("**/api/state*")
     told(page)
-    expect(page.locator(".lf-thread", has_text="Missed.")).to_have_count(1)
-    expect(page.locator(".lf-status-detail")).not_to_have_text(
-        "Server offline — reconnecting. Keep this page open so pending changes can send."
-    )
+    expect(page.locator(".lf-fp-thread", has_text="Missed.")).to_have_count(1)
+    expect(panel_field(page)).not_to_have_attribute("placeholder", OFFLINE)
 
 
 def test_a_page_asks_its_source_before_reloading_onto_the_same_document(browser, serve):

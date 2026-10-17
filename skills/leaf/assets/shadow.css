@@ -701,7 +701,7 @@ button.lf-thread-notice[data-lf-focus] {
   border-top: 1px solid var(--rule);
   margin: var(--hr-margin-block) 0;
 }
-:is(.lf-thread-transcript, .lf-thread-reply) {
+:is(.lf-msg-body, leaf-text) {
   --quote-inset: 10px;
   --pre-inset: 10px;
 }

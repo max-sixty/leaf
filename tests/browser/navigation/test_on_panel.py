@@ -176,7 +176,10 @@ def test_the_on_panel_shows_each_list_with_its_own_done(browser, serve):
         )
 
     asked = said(
-        "agent", kind="comment", text="Weekly?", anchor={"section": "cadence"},
+        "agent",
+        kind="comment",
+        text="Weekly?",
+        anchor={"section": "cadence"},
         markup='<lf-ask id="cadence-question">Weekly?</lf-ask>',
     )
     said("user", kind="comment", text="Tighten this.", anchor={"section": "notes"})

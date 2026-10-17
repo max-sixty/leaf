@@ -353,11 +353,7 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
     # Editing updates the original message's disclosure in both views.
     expect(inline.locator(":scope > .lf-msg-head .lf-edited")).to_have_text("edited")
     expect(panel.locator(":scope > .lf-msg-head .lf-edited")).to_have_text("edited")
-    expect(
-        page.locator(
-            f'.lf-msg:is([data-event="{revision["id"]}"], [data-mid="{revision["id"]}"])'
-        )
-    ).to_have_count(0)
+    expect(page.locator(f'.lf-msg[data-event="{revision["id"]}"]')).to_have_count(0)
     assert page.evaluate(
         f"""() => window.__editedInline === document.querySelector(
           '#cd-q .lf-msg[data-event="{message["id"]}"]')

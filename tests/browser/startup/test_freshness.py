@@ -502,8 +502,9 @@ def test_a_page_asks_its_source_before_reloading_onto_the_same_document(browser,
             wake(f"Note {index}.")
             holding(page, reads, index + 1, "the reads the news woke")
             if index == 0:
-                expect(page.locator(".lf-notice")).to_have_text(
-                    "Waiting for the server to finish updating."
+                expect(panel_field(page)).to_have_attribute(
+                    "placeholder",
+                    re.compile("^Waiting for the server to finish updating."),
                 )
         assert page.evaluate("() => window.lfSameDocument === true"), (
             "the page reloaded onto the document it was already being served"

@@ -30,6 +30,7 @@ from render_harness import (
     write,
 )
 
+from browser.threads import open_panel_thread
 from browser.widgets import (
     PLAYGROUND_PAGE,
 )
@@ -735,9 +736,9 @@ def test_built_code_reader_design_comment_keeps_its_identity_after_revision(
     expect(page.locator("#target-reader-heading")).to_have_text(
         "Revised reader treatment"
     )
-    card = page.locator(f'.lf-thread[data-id="{event["id"]}"]')
-    expect(card.locator(".lf-quote")).to_contain_text("target-reader-heading")
-    expect(card.locator(".lf-quote")).not_to_have_class(re.compile(r"detached"))
+    quote = open_panel_thread(page, event["id"]).locator(".lf-fp-quote")
+    expect(quote).to_contain_text("target-reader-heading")
+    expect(quote).not_to_have_class(re.compile(r"detached"))
 
 
 def test_a_playground_sends_one_choice_while_the_first_press_is_in_flight(

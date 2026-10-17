@@ -1759,6 +1759,20 @@ def page_comment(page):
     return box
 
 
+def expect_panel_says(page, words, *, says=True):
+    """Wait until the panel says, or no longer says, `words` where it says whatever
+    passes, a notice or a walk's position: in the empty field's place, on the line over
+    the field once the caret is in it, or in the leaf's peek over an open view."""
+    page.wait_for_function(
+        """([words, says]) => [
+          document.querySelector('.lf-fp-field leaf-text')?.getAttribute('placeholder'),
+          document.querySelector('.lf-fp-context:not([hidden])')?.textContent,
+          document.querySelector('.lf-fp-peek:not([hidden])')?.textContent,
+        ].some((said) => said?.includes(words)) === says""",
+        arg=[words, says],
+    )
+
+
 # How many of the page's active Asks are answered, as "answered/total": the publisher's
 # own Ask reading, which the On panel's Done list and the `m` walk select from. Before
 # the page has admitted a state answer the reading is empty, which is no count at all.

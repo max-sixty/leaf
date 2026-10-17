@@ -4,6 +4,7 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record
+from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -22,13 +23,14 @@ from render_harness import (
     consume_browser_errors,
     open_page,
     page_registry,
-    panel_settled,
     round_trip,
     said,
     select,
     undo,
     write,
 )
+
+from browser.threads import open_panel_thread
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -156,7 +158,6 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
 
     row.focus()
     page.keyboard.press("?")
-    page.keyboard.press("?")
     settled_help = command_reference_rows(page, "On a disclosure")
     expect(settled_help.get_by_text("Open", exact=True)).to_have_count(1)
     expect(
@@ -231,16 +232,16 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     ], "the comment landed on the summary line rather than the card it was made on"
     row.click()
 
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    thread = page.locator(
-        ".lf-thread", has=page.locator(".lf-quote", has_text="arrives logged out")
-    )
-    thread.locator(".lf-thread-summary").click()
-    thread.locator(".lf-quote").click()
-    assert page.locator("#opt-strict").is_visible(), (
-        "clicking a thread's quote must open the group holding it"
-    )
+    [root] = [
+        e["id"]
+        for e in events_model.read_events(serve.page_dir)
+        if e["kind"] == "comment" and e["text"] == "which copy is this on?"
+    ]
+    open_panel_thread(page, root)
+    page.locator(".lf-fp-aux").get_by_role(
+        "button", name="On the page", exact=True
+    ).click()
+    expect(page.locator("#opt-strict")).to_be_visible()
 
 
 def test_a_settled_ask_reconciles_added_options_into_its_disclosure(browser, serve):
@@ -298,11 +299,11 @@ def test_a_printed_page_says_which_option_carries_the_pick(browser, serve):
     page = open_page(browser, serve(SETTLED_PAGE))
     row = page.locator("#transport .lf-settled")
     expect(row).to_contain_text("Settled: Lax cookie")
-    expect(page.locator(".lf-banner")).to_be_visible()
+    expect(page.locator(".lf-floating-panel")).to_be_visible()
 
     pick = page.locator("#opt-lax .lf-pick")
     page.emulate_media(media="print")
-    expect(page.locator(".lf-banner")).to_be_hidden()
+    expect(page.locator(".lf-floating-panel")).to_be_hidden()
     expect(row).to_be_hidden()
     expect(pick).to_be_hidden()
     expect(page.locator("#opt-strict .lf-pick")).to_be_hidden()
@@ -328,13 +329,13 @@ def test_a_settled_ask_keeps_its_heading_above_the_answer(browser, serve):
             "</lf-options></lf-ask>",
         },
     )
+    [root] = [
+        e["id"]
+        for e in events_model.read_events(serve.page_dir)
+        if e["kind"] == "comment" and e["text"] == "And settled in here."
+    ]
     page = open_page(browser, live_url(url))
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+T")
-    expect(page.locator(".lf-thread-panel")).to_be_visible()
-    page.locator(".lf-thread", has=page.locator("#th-done")).locator(
-        ".lf-thread-summary"
-    ).click()
+    open_panel_thread(page, root)
 
     top = "el => el.getBoundingClientRect().top"
     for ask, group in (("done-decision", "done"), ("th-done-decision", "th-done")):

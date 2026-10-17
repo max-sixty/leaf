@@ -2750,7 +2750,13 @@ def left_alone(page):
     rendered(page)
     prepare_children(page.main_frame)
     deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
-    while any(frame.locator(".lf-notice.show").count() for frame in page.frames):
+    # A passing notice stands in the panel's empty field, in the line over it once the
+    # field is written in, or in the leaf's peek (notifications.js).
+    notice = (
+        ".lf-floating-panel :is([data-says='notice'], .lf-fp-context[data-notice],"
+        " .lf-fp-peek[data-shown])"
+    )
+    while any(frame.locator(notice).count() for frame in page.frames):
         assert time.monotonic() < deadline, "the arrival notice never retired"
         # still_page fixes Date.now but its timer clock otherwise runs in real time.
         # Run every callback until the notice retires; fast_forward would skip ticks.

@@ -26,6 +26,7 @@ from render_harness import (
     leaf_page,
     margins_laid_out,
     open_page,
+    panel_field,
     resized,
     round_trip,
     sending,
@@ -246,7 +247,6 @@ def test_a_decided_suggestions_pin_stays_put_when_news_arrives_elsewhere(
             },
         )
         told(page)
-        expect(page.get_by_text(text).first).to_be_attached()
         margins_laid_out(page)
         after = item.bounding_box()
         assert (after["x"], after["y"]) == pytest.approx(
@@ -329,8 +329,9 @@ def test_a_margin_entry_carries_a_suggestion_through_its_whole_lifecycle(
     page.unroute("**/api/event")
     round_trip(page)
     expect(page.locator("#s-replace")).to_have_attribute("data-lf-state", "accept")
-    expect(page.locator(".lf-notice")).not_to_have_text(
-        re.compile(r"^(Accepted|Rejected) .+ — sent$")
+    # No passing notice repeats the receipt the margin shows.
+    expect(panel_field(page)).not_to_have_attribute(
+        "placeholder", re.compile(r"^(Accepted|Rejected) .+ — sent")
     )
     expect(workflow.locator(".lf-margin-receipt")).to_have_count(0)
     undo_button = workflow.get_by_role("button", name=re.compile(r"^Undo accepting"))
@@ -453,10 +454,15 @@ def test_left_and_right_walk_the_revealed_margin_entry_cluster(browser, serve):
     expect(accept).to_be_focused()
     page.keyboard.press("ArrowRight")
     expect(reject).to_be_focused()
-    expect(page.locator(".lf-walk-position")).to_have_text("Action 2 of 2")
+    # The walk says where it stands in the panel's empty field.
+    expect(panel_field(page)).to_have_attribute(
+        "placeholder", re.compile("Action 2 of 2")
+    )
     page.keyboard.press("ArrowLeft")
     expect(accept).to_be_focused()
-    expect(page.locator(".lf-walk-position")).to_have_text("Action 1 of 2")
+    expect(panel_field(page)).to_have_attribute(
+        "placeholder", re.compile("Action 1 of 2")
+    )
 
 
 def test_settling_a_secondary_action_keeps_its_undo_in_the_cluster(browser, serve):

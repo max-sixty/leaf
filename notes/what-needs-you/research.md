@@ -1,10 +1,9 @@
 # What needs you: research notes
 
-Research behind [the proposal page](page.html), gathered 2026-09-29. Preview the page with:
-
-```sh
-uv run leaf-dev preview --source notes/what-needs-you/page.html --slot what-needs-you --user
-```
+Research gathered 2026-09-29 behind the asks, to-dos and On lists, whose contracts now
+live in `asks.py`, `todos.py` and `served_state/queues.py`, and behind the plan outline
+(`plans.py`). It still informs the open TODO entries on when the agent asks before
+ending its own to-do and on independent jobs.
 
 ## Empirical: how threads and Asks are actually used (55 real pages, 169 threads, Jul–Sep 2026)
 

@@ -1092,6 +1092,55 @@
           "additionalProperties": false
         }
       },
+      "plan": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "const": "agent" },
+            "kind": { "const": "plan" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "steps": {
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "depth": { "type": "integer", "minimum": 0 },
+                      "title": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 80,
+                        "pattern": "\\S",
+                        "not": { "pattern": "[\\r\\n]" }
+                      },
+                      "state": { "enum": ["open", "working", "done", "dropped"] }
+                    },
+                    "required": ["depth", "title", "state"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "depth": { "type": "integer", "minimum": 0 },
+                      "item": { "type": "string", "minLength": 1 }
+                    },
+                    "required": ["depth", "item"],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 }
+          },
+          "required": ["attention", "id", "ts", "author", "kind", "seq", "steps"],
+          "additionalProperties": false
+        }
+      },
       "todo_end": {
         "record": {
           "type": "object",

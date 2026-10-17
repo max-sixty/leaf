@@ -1,4 +1,4 @@
-"""`WorkReading`: the to-dos, asks and workflows one document and its log hold.
+"""`WorkReading`: the to-dos, asks, plan and workflows one document and its log hold.
 
 Its readings come from the event log and one revision's document and registry.
 Admission builds it against the newest revision, under the registry of the page that
@@ -15,6 +15,7 @@ from functools import cached_property
 from .asks import collection, thread_ask_readings, thread_asks
 from .document_reading import read_document
 from .events import approvals_in_force, build_threads
+from .plans import plan_reading
 from .projection import frozen_thread_reading
 from .todos import TodoReading
 
@@ -134,6 +135,12 @@ class WorkReading:
             events=self.events,
             todo_reading=self.log,
             asks=self.all_asks,
+        )
+
+    @cached_property
+    def plan(self) -> dict | None:
+        return plan_reading(
+            self.events, self.log.withdrawn, self.log.todos, self.all_asks["all"]
         )
 
     def page_todos(self, aged: list[dict]) -> list[dict]:

@@ -261,6 +261,22 @@ export type Workflow = Omit<WireWorkflow, "quiet" | "dropped" | "stage"> & {
   dropped?: boolean;
 };
 
+/** One step of the agent's plan, as `plans.plan_reading` serves it: plain, or naming a
+ * to-do or ask whose title, owner and state it shows; `done` of `total` counts its
+ * children, dropped ones left out. */
+export interface WirePlanStep {
+  /** An ask whose prompt has no text names no title. */
+  title: string | null;
+  state: "open" | "working" | "done" | "failed" | "dropped";
+  owner: "agent" | "user";
+  item: { kind: "todo" | "ask"; id: string } | null;
+  running: WireTodo["running"];
+  since: string | null;
+  steps: WirePlanStep[];
+  done: number;
+  total: number;
+}
+
 /** One to-do, as `served_state.browser` serves it (`work_reading.WorkReading.page_todos`): `todos` holds
  * every to-do on either side, open or ended, an ended one with its outcome. It is the
  * one record of each; the queue items and thread readings the browser draws select
@@ -423,6 +439,14 @@ interface AuthoritativeState {
      * (`thread_context.thread_memberships`). */
     thread_memberships: Record<string, string[]>;
     todos: WireTodo[];
+    /** The agent's plan in force, or null (`plans.plan_reading`). */
+    plan: {
+      id: string;
+      ts: string;
+      agent: string | null;
+      session: string | null;
+      steps: WirePlanStep[];
+    } | null;
     /** Each version's note, by version (`served_state.browser`). */
     version_notes: Record<string, string>;
     /** The newest events as a history feed reads them, sent only to a page holding a

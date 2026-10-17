@@ -261,6 +261,22 @@ function advance(
 
 
 
+/** One step of the agent's plan, as `plans.plan_reading` serves it: plain, or naming a
+ * to-do or ask whose title, owner and state it shows; `done` of `total` counts its
+ * children, dropped ones left out. */
+
+
+
+
+
+
+
+
+
+
+
+
+
 /** One to-do, as `served_state.browser` serves it (`work_reading.WorkReading.page_todos`): `todos` holds
  * every to-do on either side, open or ended, an ended one with its outcome. It is the
  * one record of each; the queue items and thread readings the browser draws select
@@ -341,6 +357,14 @@ function advance(
 
 
 /** One verb's state as composition stamps it (`registry.contract.stamp_states`). */
+
+
+
+
+
+
+
+
 
 
 

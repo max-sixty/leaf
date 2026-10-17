@@ -319,6 +319,81 @@ def test_an_answer_says_what_it_leaves_the_thread_with(page_dir):
     assert state_json(page_dir)["queues"] == {"on_user": [], "on_agent": []}
 
 
+def test_a_plan_arranges_todos_asks_and_plain_steps_without_owning_them(page_dir):
+    """The plan nests steps by depth and shows a named item's own state, and a
+    rewrite that leaves a to-do out leaves it owed on the agent's list."""
+
+    def plan(steps) -> CliRunner:
+        return CliRunner().invoke(
+            cli_model.cli, ["task", "plan", str(page_dir)], input=json.dumps(steps)
+        )
+
+    asking(page_dir)
+    [ask] = state_json(page_dir)["queues"]["on_user"]
+    todo = written(leaf("task", "open", page_dir, "page", "Cut to two lines"))
+    written(leaf("task", "start", page_dir, todo["id"], "Cutting the example"))
+    written(
+        plan(
+            [
+                {"depth": 0, "title": "Review the change", "state": "working"},
+                {"depth": 1, "title": "Check the diffs", "state": "done"},
+                {"depth": 1, "title": "Draft the response", "state": "working"},
+                {"depth": 2, "item": todo["id"]},
+                {"depth": 1, "item": ask["id"]},
+                {"depth": 1, "title": "Post it", "state": "dropped"},
+            ]
+        )
+    )
+    [goal] = state_json(page_dir)["plan"]["steps"]
+
+    def shape(step):
+        return (
+            step["title"],
+            step["state"],
+            step["owner"],
+            step["done"],
+            step["total"],
+            [shape(child) for child in step["steps"]],
+        )
+
+    assert shape(goal) == (
+        "Review the change",
+        "working",
+        "agent",
+        1,
+        3,
+        [
+            ("Check the diffs", "done", "agent", 0, 0, []),
+            (
+                "Draft the response",
+                "working",
+                "agent",
+                0,
+                1,
+                [("Cut to two lines", "working", "agent", 0, 0, [])],
+            ),
+            (ask["title"], "open", "user", 0, 0, []),
+            ("Post it", "dropped", "agent", 0, 0, []),
+        ],
+    )
+    cut = goal["steps"][1]["steps"][0]
+    assert cut["item"] == {"kind": "todo", "id": todo["id"]}
+    assert cut["since"] == cut["running"]["ts"]
+
+    written(plan([{"depth": 0, "title": "Review the change", "state": "done"}]))
+    assert ("todo", todo["id"]) in kinds(state_json(page_dir)["queues"]["on_agent"])
+    outline = page_dir.parent / "plan.json"
+    for steps, code in (
+        ([{"depth": 1, "title": "Too deep", "state": "open"}], "plan-depth"),
+        ([{"depth": 0, "item": "no-such-item"}], "unknown-plan-item"),
+    ):
+        outline.write_text(json.dumps(steps))
+        [refused] = command_findings("task", "plan", page_dir, "--file", outline)
+        assert refused.code == code
+    written(plan([]))
+    assert state_json(page_dir)["plan"] is None
+
+
 def test_the_door_refuses_a_todo_off_the_page_and_an_outcome_twice(page_dir):
     publish(page_dir)
     comment = append_carried_log_record(

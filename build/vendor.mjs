@@ -169,6 +169,13 @@ const bundles = {
   // Leaf captures without `reconcile` (`runtime/composing/page-image.js` says why), and
   // SnapDOM then warns on the console that text may wrap differently. The capture's own
   // `warnings` keep that notice; the console copy would read as a page problem.
+  //
+  // SnapDOM sends a resource's cookies when its origin is `location.origin`, which is
+  // the URL's origin rather than the document's. In a live sample's sandboxed child the
+  // document's origin is opaque, so every request is cross-origin and Leaf's server
+  // answers it `Access-Control-Allow-Origin: *`, which a credentialed request may not
+  // read: the child's own icon.svg mask failed with a CORS error in every capture.
+  // Compare with the document's origin, `self.origin`, instead (SnapDOM 3.3.4).
   snapdom: () => ({
     out: `${assets}/vendor/snapdom.esm.js`,
     entry: 'export { snapdom } from "@zumer/snapdom";\n',
@@ -179,7 +186,12 @@ const bundles = {
           seam(
             seam(
               seam(
-                source,
+                seam(
+                  source,
+                  'y.origin===location.origin?"include":"omit"',
+                  'y.origin===self.origin?"include":"omit"',
+                  "SnapDOM credentials origin",
+                ),
                 "for(;r;r=r.parentElement||r.getRootNode?.()?.host)",
                 "for(;r;r=r.parentElement||(r.parentNode?.nodeType===11?r.parentNode.host:null))",
                 "SnapDOM mutation-ancestor",

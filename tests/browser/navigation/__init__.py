@@ -65,3 +65,27 @@ STANDING = """() => {
     inChrome: Boolean(at?.closest?.('.lf-chrome')),
   };
 }"""
+
+
+# The keyboard walk's position, the reading the panel says in its field's place
+# (walk-position.js, `walkPosition`): `{text, kind, boundary}`, or null with no walk
+# under way. Evaluating it leaves a synchronous reader for `wait_for_function`.
+WALK_POSITION = """async () => {
+  const {walkPosition} = await window.__lfCheckApi();
+  window.__lfWalkPosition = () => walkPosition();
+  return walkPosition();
+}"""
+
+
+def walk_position(page):
+    """The walk's position where the user stands now, or None with no walk."""
+    return page.evaluate(WALK_POSITION)
+
+
+def expect_walk_position(page, text):
+    """Wait until the walk says `text` ("1 of 4 waiting on me · Ask"), or, with None,
+    until no walk is under way."""
+    page.evaluate(WALK_POSITION)
+    page.wait_for_function(
+        "text => (window.__lfWalkPosition()?.text ?? null) === text", arg=text
+    )

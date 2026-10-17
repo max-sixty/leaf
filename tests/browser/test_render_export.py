@@ -35,6 +35,8 @@ from render_harness import (
     write,
 )
 
+from browser.threads import open_panel_thread
+
 pytestmark = pytest.mark.shifts_unsurveyed
 
 from journeys.test_render_export import (  # noqa: F401 (fixtures)
@@ -800,10 +802,8 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
     if not resolved:
         inline_workflow = thread.locator(".lf-msg-sending")
         expect(inline_workflow).to_have_text("Working")
-        live.keyboard.press("c")
-        panel_workflow = live.locator(
-            f'.lf-chrome .lf-thread[data-id="{root["id"]}"] .lf-msg-sending'
-        )
+        # The same message in the panel's view of the thread says it the same way.
+        panel_workflow = open_panel_thread(live, root["id"]).locator(".lf-msg-sending")
         expect(panel_workflow).to_have_text("Working")
         workflow_face = """node => {
           const style = getComputedStyle(node);

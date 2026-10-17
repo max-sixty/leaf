@@ -2182,7 +2182,7 @@ def test_repeated_design_control_names_keep_context_without_inventing_identity(
     assert event["anchor"] == inventory[1]["anchor"]
     assert event["about"] == "design"
     if generated:
-        card = page.locator(f'.lf-thread[data-id="{event["id"]}"]')
+        card = open_panel_thread(page, event["id"])
         expect(card.locator(".lf-msg-text")).to_contain_text("Keep this row.")
         # Replacing the authored owner retires its generated controls as their producer
         # would. The same owner id now holds just one native matching control.
@@ -2284,7 +2284,7 @@ def test_design_control_context_must_resolve_to_visible_words(
     else:
         assert event["anchor"] == {"section": "controls", "part": part}
     expect(
-        page.locator(f'.lf-thread[data-id="{event["id"]}"] .lf-msg-text')
+        open_panel_thread(page, event["id"]).locator(".lf-msg-text")
     ).to_contain_text("Review this control.")
 
 
@@ -3239,9 +3239,10 @@ def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, 
     assert [event["anchor"] for event in posted] == [
         {"section": "flow", "visual": "node:S"}
     ]
-    expect(page.locator(".lf-thread .lf-quote")).to_have_text(
-        "§ diagram · Start request"
-    )
+    open_panel_thread(page, posted[0]["id"])
+    expect(page.locator(".lf-fp-quote")).to_have_text("§ diagram · Start request")
+    page.locator(".lf-fp-close").click()
+    panel_settled(page, open=False)
     expect_comment_notes(page, "#flow", 1)
     expect(start).to_have_class(re.compile(r"\blf-mark-el\b"))
 
@@ -4104,8 +4105,8 @@ def test_a_chip_seated_below_its_neighbour_rides_the_scroll_with_it(browser, ser
     """A chip the picker seats below a neighbour's, which rides the scroll, rides it too
     (keyboard/hints.js, `seatHints`): only what stands still as the page scrolls, the
     window's edge or the chrome, holds a chip where the window does. Held because the
-    shortcut bar shared its column, such a chip stood still mid-page through a scroll
-    and jumped once it settled."""
+    chrome at the foot shared its column, such a chip stood still mid-page through a
+    scroll and jumped once it settled."""
     source = LONG_PAGE.replace(
         "<p id='p10'>",
         "<section id='outer' style='padding-bottom: 12px'><p id='inner'>A nested"
@@ -4676,7 +4677,7 @@ def test_design_can_comment_on_a_generated_tab_with_a_repeated_summary(browser, 
         is None
     )
     expect(
-        page.locator(f'.lf-thread[data-id="{event["id"]}"] .lf-msg-text')
+        open_panel_thread(page, event["id"]).locator(".lf-msg-text")
     ).to_contain_text("Clarify this summary.")
     assert page.evaluate(
         """async anchor => {

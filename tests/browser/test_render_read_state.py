@@ -214,7 +214,7 @@ def test_a_reopening_in_a_page_seat_waits_in_its_resolved_summary(
     _to_upper_third(resolved)
     if pointer == "fine":
         # The user stands on the summary as the reply comes. The key before the focus
-        # makes the shortcut bar's redraw an answer to input.
+        # makes the chrome's redraw an answer to input.
         page.keyboard.press("Shift")
         summary.focus()
     height = _box_height(resolved)
@@ -302,7 +302,7 @@ def test_a_thread_the_agent_starts_in_a_page_seat_waits_in_the_row_it_would_foll
 
     if end == "opened":
         # The notice as a Tab stop of its own, in keyboard modality. The key before the
-        # focus makes the shortcut bar's redraw for the new stop an answer to input.
+        # focus makes the chrome's redraw for the new stop an answer to input.
         page.keyboard.press("Shift")
         news.focus()
         page.keyboard.press("Shift+Tab")

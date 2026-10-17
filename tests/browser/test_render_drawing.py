@@ -30,7 +30,7 @@ from render_harness import (
     write,
 )
 
-from browser.threads import paste_image
+from browser.threads import open_panel_thread, paste_image
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -1128,7 +1128,14 @@ def test_a_posted_drawing_stands_down_without_a_false_page_reference(browser, se
     told(page)
 
     expect(page.locator(".lf-drawing-posted")).to_have_count(0)
-    references = page.locator(".lf-drawing-reference")
+    [comment] = [
+        e["id"]
+        for e in events_model.read_events(serve.page_dir)
+        if e["kind"] == "comment"
+    ]
+    # Out of Draw mode, whose step holds the panel's row, to reach Threads.
+    page.locator(".lf-fp-step", has_text="Exit Draw mode").click()
+    references = open_panel_thread(page, comment).locator(".lf-drawing-reference")
     expect(references.first).to_have_text("Drawing comment")
     assert set(references.all_text_contents()) == {"Drawing comment"}
 

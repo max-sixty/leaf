@@ -1544,7 +1544,7 @@ def test_a_nested_asks_commands_belong_only_to_their_own_ask(browser, serve):
 
     The outer Ask must therefore expose only its two choices. Otherwise both numbered
     command sets collide when the user navigates there, and the inner question either
-    breaks the shortcut bar or lends its answers to the wrong Ask.
+    breaks the key routes or lends its answers to the wrong Ask.
     """
     page = open_page(browser, serve(NESTED_ASK_PAGE))
     page.keyboard.press("m")
@@ -1632,7 +1632,7 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
 
     words = page.locator("#ro-column-p")
     # The expanded editor can leave this paragraph geometrically in the viewport but
-    # underneath the fixed shortcut bar. Centre the actual selection target before deriving
+    # underneath the panel at the foot. Centre the actual selection target before deriving
     # viewport coordinates; scroll_into_view_if_needed cannot see that occlusion.
     words.evaluate("el => el.scrollIntoView({block: 'center'})")
     start, end = words.evaluate("""el => {
@@ -2474,8 +2474,11 @@ def test_a_thread_asks_done_press_keeps_its_keys_and_one_workflow(browser, serve
     round_trip(page)
     done = question.locator(".lf-done")
     done.focus()
-    expect(done).to_have_attribute("aria-keyshortcuts", re.compile(r"\b4\b"))
-    expect(done.locator(".lf-key-badge[data-lf-binding-badge]")).to_have_text("4")
+    # Its digit follows the group's own stops (each option, then the add field where
+    # one stands), and its badge says the same digit ARIA names.
+    expect(done).to_have_attribute("aria-keyshortcuts", re.compile(r"^\d$"))
+    digit = done.get_attribute("aria-keyshortcuts")
+    expect(done.locator(".lf-key-badge[data-lf-binding-badge]")).to_have_text(digit)
     frame = question.bounding_box()
     done_row = question.locator(":scope > lf-options-done").bounding_box()
     assert frame["y"] + frame["height"] - done_row["y"] - done_row[

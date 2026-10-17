@@ -35,6 +35,7 @@ import { createThreadDestinations } from "./thread/destination.js";
 import { createThreadActions } from "./thread/actions.js";
 import { createQueueActions } from "./queue-api.js";
 import { createPrimaryReader } from "./thread/primary-reader.js";
+import { nextRender } from "./rendering.js";
 import { createReadTracking } from "./thread/read.js";
 import { renderMarginThread } from "./thread/inline.js";
 import { showHeld } from "./thread/held-news.js";
@@ -463,13 +464,17 @@ export function mountApplication(dependencies) {
   // registration, as that reader may ask it to present.
   // A presentation that makes room for the agent's answer to the user's last turn
   // itself says so (`answersAtOnce`), and its reader draws that answer at once.
-  const attachPresentation = (owner, { render, reveal, answersAtOnce = false }) => {
+  const attachPresentation = (
+    owner,
+    { render, reveal, answersAtOnce = false },
+    onFailure = undefined,
+  ) => {
     const reader = createPrimaryReader(
       owner,
       render,
       inlineView,
       () => threadPresenter.present(),
-      { answersAtOnce },
+      { answersAtOnce, onFailure },
     );
     const detachDestination = threadDestinations.register(owner, reveal, reader);
     let detachPresentation;
@@ -494,6 +499,41 @@ export function mountApplication(dependencies) {
     if (yielding && !yielding.attached)
       yielding.attached = attachPresentation(yielding.owner, yielding.spec);
   };
+  // A package's reader takes the place from the chrome's.
+  const takePlace = (entry) => {
+    const displaced = yielding?.attached;
+    const handOff = displaced ? yielding.spec.yielded() : null;
+    if (displaced) {
+      displaced.detach();
+      yielding.attached = null;
+    }
+    try {
+      entry.attached = attachPresentation(entry.owner, entry.spec, () =>
+        nextRender(() => fallBack(entry)),
+      );
+    } catch (error) {
+      if (displaced) restoreYielding();
+      throw error;
+    }
+    authored = entry;
+    if (handOff)
+      queueMicrotask(() => {
+        if (authored === entry) handOff();
+      });
+  };
+  // A package's reader whose pass failed holds nothing: its threads, and the asks in
+  // them, would stand in no surface the user can reach, and opening one would ask the
+  // failed reader again. So it gives the place back to the chrome's, whose floating
+  // panel draws them, until the package asks to draw again (`update`), when it takes
+  // the place, and the thread open in the panel, back. It gives way on the next frame,
+  // once the failed pass has rejected the `update` that asked for it, unless a later
+  // pass of its own has painted by then.
+  const fallBack = (entry) => {
+    if (authored !== entry || !entry.attached?.reader.failed) return;
+    entry.attached.detach();
+    entry.attached = null;
+    restoreYielding();
+  };
   const presentThreads = (owner, spec, yields) => {
     const entry = { owner, spec, attached: null };
     if (yields) {
@@ -502,31 +542,14 @@ export function mountApplication(dependencies) {
       yielding = entry;
       // A package's reader registered first keeps the place.
       if (!authored) entry.attached = attachPresentation(owner, spec);
-    } else {
-      const displaced = yielding?.attached;
-      const handOff = displaced ? yielding.spec.yielded() : null;
-      if (displaced) {
-        displaced.detach();
-        yielding.attached = null;
-      }
-      try {
-        entry.attached = attachPresentation(owner, spec);
-      } catch (error) {
-        if (displaced) restoreYielding();
-        throw error;
-      }
-      authored = entry;
-      if (handOff)
-        queueMicrotask(() => {
-          if (authored === entry) handOff();
-        });
-    }
+    } else takePlace(entry);
     let active = true;
     return Object.freeze({
       get primary() {
         return Boolean(entry.attached);
       },
       update: ({ release = false } = {}) => {
+        if (active && authored === entry && !entry.attached) takePlace(entry);
         if (release) entry.attached?.reader.release();
         return threadPresenter.present();
       },

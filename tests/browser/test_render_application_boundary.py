@@ -1782,9 +1782,18 @@ def test_failed_primary_reader_restores_the_same_native_ask_in_core(browser, ser
     consume_browser_errors(
         page, "leaf: Presentation failed: Deliberate primary failure"
     )
-    # Core's own thread view holds the native Ask until the reader draws it again; with
-    # no Threads panel, that view stands in no surface until one shows the thread.
-    assert page.evaluate("nativeOption.closest('.lf-page-thread') !== null")
+    # The failed reader gives its place back to Leaf's own, so the floating panel opens
+    # the thread, the same native Ask in it, where the package's reader would have.
+    page.wait_for_function(
+        "() => !document.querySelector('#workspace').presentation.primary"
+    )
+    panel_control(page, "queue").click()
+    page.locator(PANEL).get_by_role("button", name="Show", exact=True).first.click()
+    panel_settled(page, view="thread")
+    in_panel = page.locator(PANEL_THREAD).locator("lf-option#email")
+    expect(in_panel).to_be_visible()
+    assert in_panel.evaluate("node => node === nativeOption")
+    # Drawing again, the package's reader takes the place, and the thread, back.
     page.evaluate("document.querySelector('#workspace').presentation.update()")
     email = page.locator("lf-option#email")
     expect(email).to_be_visible()

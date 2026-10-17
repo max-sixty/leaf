@@ -167,7 +167,10 @@ else at the end of the first part's head; `readThreads()` stays current for coun
 supplies Resolve and Reopen through `threadActions`.
 
 Await the handle's `update()` after a local layout change, or `update({release: true})`
-to show held news for a deliberate change of view. `reveal(key, request)` shows the
+to show held news for a deliberate change of view. A pass in which `render` throws, or
+names an outlet outside the widget, rejects and hands the threads back to Leaf's
+floating panel, so their asks stay reachable; `primary` reads false until the next
+`update()` takes them back. `reveal(key, request)` shows the
 requested part in the package's layout, or returns `false` to leave a thread or reply
 part to the thread's place on the page, such as its margin card. Where nothing there
 shows it, Leaf asks again with `request.last` set, and a second `false` leaves the

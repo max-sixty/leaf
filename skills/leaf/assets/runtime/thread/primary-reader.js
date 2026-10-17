@@ -41,9 +41,14 @@ export function createPrimaryReader(
   render,
   commands,
   update,
-  { answersAtOnce = false } = {},
+  { answersAtOnce = false, onFailure = () => {} } = {},
 ) {
   let active = true;
+  // Whether the presentation's own part of the current pass failed: its render, the
+  // outlets it named, or their paint. The pass that fails cancels the reader, which
+  // then says so (`onFailure`), and reads as `failed` until a later pass paints.
+  let failing = false;
+  let failed = false;
   let generation = 0;
   let pending = null;
   let selected = [];
@@ -144,6 +149,7 @@ export function createPrimaryReader(
   };
   function prepare(collection, cancelled) {
     const current = ++generation;
+    failing = false;
     pending?.abort();
     const abort = new AbortController();
     pending = abort;
@@ -200,9 +206,16 @@ export function createPrimaryReader(
             nativeMessages.add(message.id);
       return {
         paint: async () => {
-          await paint(current);
-          if (active && current === generation && !abort.signal.aborted)
+          try {
+            await paint(current);
+          } catch (error) {
+            failing ||= current === generation;
+            throw error;
+          }
+          if (active && current === generation && !abort.signal.aborted) {
             candidate.commit();
+            failed = false;
+          }
         },
         current: () => active && current === generation && !abort.signal.aborted,
       };
@@ -222,12 +235,17 @@ export function createPrimaryReader(
       if (rendering?.then)
         return Promise.race([rendering, aborted(abort.signal)])
           .then(finish)
+          .catch((error) => {
+            failing ||= !abort.signal.aborted;
+            throw error;
+          })
           .finally(() => {
             accepting = false;
           });
       return finish();
     } catch (error) {
       accepting = false;
+      failing = true;
       throw error;
     }
   }
@@ -449,6 +467,14 @@ export function createPrimaryReader(
       pending?.abort();
       clear();
       held.release();
+      if (failing) {
+        failing = false;
+        failed = true;
+        onFailure();
+      }
+    },
+    get failed() {
+      return failed;
     },
     unregister() {
       active = false;

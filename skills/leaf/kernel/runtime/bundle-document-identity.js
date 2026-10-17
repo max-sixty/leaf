@@ -6275,8 +6275,11 @@ function createThreadActions({
 }
 
 // runtime/thread/primary-reader.js
-function createPrimaryReader(owner, render, commands, update, { answersAtOnce = false } = {}) {
+function createPrimaryReader(owner, render, commands, update, { answersAtOnce = false, onFailure = () => {
+} } = {}) {
   let active = true;
+  let failing = false;
+  let failed = false;
   let generation = 0;
   let pending = null;
   let selected = [];
@@ -6352,6 +6355,7 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
   };
   function prepare(collection, cancelled) {
     const current = ++generation;
+    failing = false;
     pending?.abort();
     const abort = new AbortController();
     pending = abort;
@@ -6404,9 +6408,16 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
             nativeMessages.add(message.id);
       return {
         paint: async () => {
-          await paint(current);
-          if (active && current === generation && !abort.signal.aborted)
+          try {
+            await paint(current);
+          } catch (error) {
+            failing ||= current === generation;
+            throw error;
+          }
+          if (active && current === generation && !abort.signal.aborted) {
             candidate.commit();
+            failed = false;
+          }
         },
         current: () => active && current === generation && !abort.signal.aborted
       };
@@ -6423,12 +6434,16 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
         })
       );
       if (rendering?.then)
-        return Promise.race([rendering, aborted(abort.signal)]).then(finish).finally(() => {
+        return Promise.race([rendering, aborted(abort.signal)]).then(finish).catch((error) => {
+          failing ||= !abort.signal.aborted;
+          throw error;
+        }).finally(() => {
           accepting = false;
         });
       return finish();
     } catch (error) {
       accepting = false;
+      failing = true;
       throw error;
     }
   }
@@ -6627,6 +6642,14 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
       pending?.abort();
       clear();
       held.release();
+      if (failing) {
+        failing = false;
+        failed = true;
+        onFailure();
+      }
+    },
+    get failed() {
+      return failed;
     },
     unregister() {
       active = false;
@@ -7608,13 +7631,13 @@ function mountApplication(dependencies) {
     requirePageAnnotations();
     return placePageThreads(owner, render, threadSurfaceCommands);
   };
-  const attachPresentation = (owner, { render, reveal: reveal3, answersAtOnce = false }) => {
+  const attachPresentation = (owner, { render, reveal: reveal3, answersAtOnce = false }, onFailure = void 0) => {
     const reader = createPrimaryReader(
       owner,
       render,
       inlineView,
       () => threadPresenter.present(),
-      { answersAtOnce }
+      { answersAtOnce, onFailure }
     );
     const detachDestination = threadDestinations.register(owner, reveal3, reader);
     let detachPresentation;
@@ -7639,6 +7662,35 @@ function mountApplication(dependencies) {
     if (yielding && !yielding.attached)
       yielding.attached = attachPresentation(yielding.owner, yielding.spec);
   };
+  const takePlace = (entry) => {
+    const displaced = yielding?.attached;
+    const handOff = displaced ? yielding.spec.yielded() : null;
+    if (displaced) {
+      displaced.detach();
+      yielding.attached = null;
+    }
+    try {
+      entry.attached = attachPresentation(
+        entry.owner,
+        entry.spec,
+        () => nextRender(() => fallBack(entry))
+      );
+    } catch (error) {
+      if (displaced) restoreYielding();
+      throw error;
+    }
+    authored2 = entry;
+    if (handOff)
+      queueMicrotask(() => {
+        if (authored2 === entry) handOff();
+      });
+  };
+  const fallBack = (entry) => {
+    if (authored2 !== entry || !entry.attached?.reader.failed) return;
+    entry.attached.detach();
+    entry.attached = null;
+    restoreYielding();
+  };
   const presentThreads = (owner, spec, yields) => {
     const entry = { owner, spec, attached: null };
     if (yields) {
@@ -7646,31 +7698,14 @@ function mountApplication(dependencies) {
         throw new Error("The page already has a yielding Thread presentation");
       yielding = entry;
       if (!authored2) entry.attached = attachPresentation(owner, spec);
-    } else {
-      const displaced = yielding?.attached;
-      const handOff = displaced ? yielding.spec.yielded() : null;
-      if (displaced) {
-        displaced.detach();
-        yielding.attached = null;
-      }
-      try {
-        entry.attached = attachPresentation(owner, spec);
-      } catch (error) {
-        if (displaced) restoreYielding();
-        throw error;
-      }
-      authored2 = entry;
-      if (handOff)
-        queueMicrotask(() => {
-          if (authored2 === entry) handOff();
-        });
-    }
+    } else takePlace(entry);
     let active = true;
     return Object.freeze({
       get primary() {
         return Boolean(entry.attached);
       },
       update: ({ release = false } = {}) => {
+        if (active && authored2 === entry && !entry.attached) takePlace(entry);
         if (release) entry.attached?.reader.release();
         return threadPresenter.present();
       },

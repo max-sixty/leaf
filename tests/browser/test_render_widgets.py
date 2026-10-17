@@ -1313,22 +1313,25 @@ def test_side_tabs_distinguish_withdrawn_asks_from_answers(browser, serve):
 def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, serve):
     """An ask answered before the page loads is named once the page presents, however
     late the answering widget's module arrives: startup imports every module the
-    document names before the first reading brings the ask inventory."""
+    document names before the first reading brings the ask inventory. A longer ticket
+    name and its summary keep their own lines beside a complete short outcome."""
     url = serve(
         leaf_page(
             "a late queue",
             """<lf-tabs id="queue" list="side">
-<lf-tab id="t-a" label="Ticket a">
+<lf-tab id="t-a" label="ESC-4107 · Northwind Labs" summary="Company-wide SSO outage · Severity 1">
   <lf-ask id="ask-a"><h3 id="q-a">What happens to a?</h3>
     <lf-options id="o-a" choose>
       <lf-option id="o-a-fix"><strong>Fix</strong> Ship the patch.</lf-option>
-      <lf-option id="o-a-close"><strong>Close</strong> Explain and close.</lf-option>
+      <lf-option id="o-a-close"><strong>Escalate to engineering</strong> Send the logs.</lf-option>
+      <lf-option id="o-a-long"><strong>Escalate to the international engineering incident response team</strong> Send all logs.</lf-option>
     </lf-options>
   </lf-ask>
 </lf-tab>
 <lf-tab id="t-b" label="Ticket b"><p id="p-b">Nothing to decide.</p></lf-tab>
 </lf-tabs>""",
             layout="workspace",
+            head="<style>#queue {grid-template-columns:14rem minmax(0,1fr)}</style>",
         )
     )
     page = open_page(browser, live_url(url))
@@ -1355,6 +1358,29 @@ def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, s
     wait_until_ready(page)
     expect(answer).to_be_visible()
     expect(answer).to_have_text("Fix")
+    row = page.locator("#queue .lf-tab-btn").first
+    summary = row.locator(".lf-tab-summary")
+    expect(summary).to_have_text("Company-wide SSO outage · Severity 1")
+    assert answer.bounding_box()["y"] >= (
+        summary.bounding_box()["y"] + summary.bounding_box()["height"]
+    )
+    before = row.bounding_box()
+    page.locator("#o-a-close").get_by_role("checkbox").click()
+    expect(answer).to_have_text("Escalate to engineering")
+    assert row.bounding_box() == before
+    words = answer.locator(".lf-tab-answer-words")
+    expect(words).to_be_visible()
+    assert words.evaluate("el => el.scrollWidth <= el.clientWidth")
+
+    undo(page)
+    expect(answer).to_have_text("Fix")
+    assert row.bounding_box() == before
+    page.locator("#o-a-long").get_by_role("checkbox").click()
+    expect(words).to_have_text(
+        "Escalate to the international engineering incident response team"
+    )
+    assert words.evaluate("el => el.scrollWidth > el.clientWidth")
+    assert row.bounding_box() == before
 
 
 def test_a_queue_stands_its_items_under_their_groups(browser, serve):
@@ -2855,6 +2881,7 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
     url = serve(source)
     page = open_page(browser, url)
     toc = page.get_by_role("navigation", name="On this page")
+    toc.locator("summary").click()
 
     expect(toc.get_by_role("link")).to_have_count(3)
     assert toc.get_by_role("link").all_text_contents() == [
@@ -2887,7 +2914,7 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
         verify_geometry
     )
 
-    details = page.locator("main details")
+    details = page.locator("main > details")
     expect(details).not_to_have_attribute("open", "")
     toc.get_by_role("link", name="Move the readers").click()
     expect(details).to_have_attribute("open", "")
@@ -2911,7 +2938,7 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
     # On first parse this id does not exist yet. The shared arrival pass runs after every
     # widget settles, so a copied link still reveals and reaches the heading it names.
     direct = open_page(browser, url + hrefs[1])
-    expect(direct.locator("main details")).to_have_attribute("open", "")
+    expect(direct.locator("main > details")).to_have_attribute("open", "")
     expect(direct).to_have_url(re.compile(f"{re.escape(hrefs[1])}$"))
     direct.wait_for_function(
         "heading => { const box = heading.getBoundingClientRect(); "
@@ -3263,10 +3290,12 @@ def test_a_table_of_contents_link_is_a_finger_s_aim(browser, serve):
         viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
     )
     page = open_page(browser, url, context=touch)
+    page.locator("lf-toc summary").tap()
     links = page.get_by_role("navigation", name="On this page").get_by_role("link")
     expect(links).to_have_count(2)
     assert all(h >= 44 for h in links.evaluate_all(heights))
     mouse = open_page(browser, url)
+    mouse.locator("lf-toc summary").click()
     links = mouse.get_by_role("navigation", name="On this page").get_by_role("link")
     expect(links).to_have_count(2)
     assert all(24 <= h < 30 for h in links.evaluate_all(heights))
@@ -3293,6 +3322,7 @@ def test_a_table_of_contents_can_stop_at_an_authored_heading_level(browser, serv
     )
     page = open_page(browser, serve(source))
     toc = page.get_by_role("navigation", name="On this page")
+    toc.locator("summary").click()
 
     assert toc.get_by_role("link").all_text_contents() == [
         "Prepare the readers",
@@ -3479,6 +3509,7 @@ def test_an_eyebrow_and_heading_keep_one_title_rhythm_through_contents(browser, 
     }
 
     toc = page.get_by_role("navigation", name="On this page")
+    toc.locator("summary").click()
     assert toc.get_by_role("link").evaluate_all(
         "links => links.map(link => link.getAttribute('href'))"
     ) == ["#section-two", "#section-three"]

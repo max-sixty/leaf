@@ -14,10 +14,12 @@ run:
 leaf page export <page> -o <file>
 ```
 
-Hand back the `file://` URL; don't start a server or wait. The file opens offline, and
-its widgets, controls and page code work, but threads and anything that needs the agent
-don't. A page with a live sample can't be exported. Write the file where the project
-keeps files for the user. Exporting a live page doesn't end its loop.
+Hand back the `file://` URL; don't start a server or wait. The file opens offline with
+the stamped content and recorded decisions. Reading controls and the page's own code
+work, but recording new Leaf choices or updates, Undo and threads require the served
+page and its server; an active agent is not required to record a choice. A page with a
+live sample can't be exported. Write the file where the project keeps files for the
+user. Exporting a live page doesn't end its loop.
 
 ## Address and authentication
 

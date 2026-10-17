@@ -29,6 +29,9 @@ A fact both runtimes use has one home (`skills/leaf/assets/AGENTS.md`, "Facts bo
 runtimes know"). When a change adds a parity fixture, or a test that scans one
 language's source for the other's names, ask why the fact isn't generated.
 
+For developer tooling and benchmarks, follow `dev/AGENTS.md`, "Tests", before
+adding coverage or selecting checks. `tests/` holds product behavior.
+
 ## Review a UI change
 
 Record browser API and rendering support gaps in

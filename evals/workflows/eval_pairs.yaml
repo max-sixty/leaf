@@ -1,9 +1,21 @@
 # Pairwise live-page judgment; the runner supplies blinded copies and task scope.
 prompt: |-
-  You are judging two web pages built for the same user request. Explore both
-  live pages at the provided window sizes before comparing them.
+  You are judging two web pages built for the same user request. Explore their
+  supplied live versions at the provided window sizes before comparing them.
 
   {brief}
+
+  Prescribed browser decision task:
+  <decision_task>
+  {decision_task}
+  </decision_task>
+
+  When a decision task applies, first perform it on each version before the
+  decision, through the page's offered completion route and preserving its
+  stated constraints, before making other exploratory changes. Report whether
+  the route completes. Additional exploration may reveal other behavior, but
+  must remain separate: changing decisions outside this task cannot establish
+  that the prescribed route works or repair a failure observed on it.
 
   Judge as the user who made the request would, from the rendered pages and
   the behavior you actually operate. Your inspection choices are not changes
@@ -13,7 +25,9 @@ prompt: |-
 
   Compare A and B on:
   - evidence: the request's substantive facts are present and readable
-  - decisions: the user can see and take the decisions or navigation the request asks for
+  - decisions: on the versions before the decision, the user can see and take the
+    prescribed decisions and complete the page's offered route; judge navigation
+    on the final versions
   - width: at the 900px windows, the page follows the lasting preference
   - phone: the page is usable at 390px
   - comment: the final page carries the change the comment asked for where a reader
@@ -21,8 +35,10 @@ prompt: |-
   - applied: after the later decision message, the author's final revision preserves
     the user's recorded decisions
 
-  Apply the requirements established by the request and later messages. An aspect
-  that does not apply to this task is a tie, rather than missing evidence.
+  Judge against the request and later messages. Where user intent has several
+  plausible readings, state the assumption behind a concern rather than treating
+  it as an established requirement. An aspect that does not apply to this task is
+  a tie, rather than missing evidence.
 
   Name the better page on each, and overall with its margin; list each page's
   defects; give your reason in two or three sentences.
@@ -85,4 +101,8 @@ output_schema:
   additionalProperties: false
 brief_intro:
   Pages A and B were each built for this request, then revised for each later message.
-  The live copies show their final versions before your inspection actions.
+  A and B show the final revisions. When the task includes a decision,
+  A_before_decision and B_before_decision show the latest revisions before the
+  user made it. Operate decision controls on those earlier versions. Use A and B
+  to judge the final evidence, layout, comment response and recorded decisions.
+  Each live copy starts before your inspection actions.

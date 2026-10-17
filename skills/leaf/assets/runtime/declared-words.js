@@ -314,7 +314,7 @@ export function markDeclared(root) {
     for (const tag of tags) {
       const declared = registry[tag][key];
       for (const el of elementsIn(root, tag))
-        keeps(el, paint, declared === true ? "" : declared);
+        keeps(el, paint, declared === true || mark.presence ? "" : declared);
     }
     // Message markup is all content (`authored_on`, schema.DECLARED_MARKS), so only a
     // mark held to declaring tags asks which tag an occurrence is.

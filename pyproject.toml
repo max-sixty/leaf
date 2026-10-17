@@ -134,6 +134,8 @@ extend-exclude = [
 # runner sets its count in ci.yaml.
 # `-n0` to debug a single test.
 [tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["tests"]
 addopts = "-n 2 --dist loadgroup --regtest-consider-line-endings --image-snapshot-save-diff -p leaf_dev.thread_snapshot_plugin -p leaf_dev.commands.suite_profile"
 markers = [
   "network: requires external network access after development setup",
@@ -174,6 +176,8 @@ ignore_names = [
   # pytest and its plugins
   "pytest_*",
   "pytestmark",
+  # Promptfoo's Python-provider entry point is called by the external runner.
+  "call_api",
   "image_snapshot_*",
   "show_differences",
   # a subject's module fixture another tier directory's module imports by its alias

@@ -10,12 +10,13 @@ from urllib.request import urlopen
 
 import pytest
 from interact_support import STATED_TIMEOUT, wait_for
-from journeys.test_browser_recording import (
-    trace_launch_guard_fixture,  # noqa: F401 (fixtures)
-)
 from leaf.render_gate.scheme import collect_page_exceptions
 from playwright._impl._driver import compute_driver_executable
 from playwright.sync_api import expect
+
+from ..journeys.test_browser_recording import (
+    trace_launch_guard_fixture,  # noqa: F401 (fixtures)
+)
 
 
 def test_trace_handoff_serves_the_native_viewer_without_desktop_launches(

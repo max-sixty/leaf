@@ -519,10 +519,16 @@
 @media screen {
 
   :scope:is(lf-options)[settled] > .lf-settled { display: flex; }
-    /* A collapsed card (`hidden="until-found"`) keeps its box in flow, so its border,
-     * padding and margin are zeroed. A block, because until-found's containment does not
-     * apply to a table box, which would leave a row on screen. */
-  :scope:is(lf-options)[settled] > lf-option[hidden] { display: block; padding: 0; border: 0;
-    box-shadow: none; margin: 0; }
+  /* Until-found keeps a box for search and anchored reveal, but collapsed children
+   * spend no height. This is the disclosure's behavior, including its generated add
+   * and Done rows, so it outranks authored card padding and minimum heights. Opening
+   * removes hidden and restores those styles. A block keeps until-found's containment
+   * effective even when an authored option normally uses a table display. */
+  :scope:is(lf-options)[settled] > [hidden="until-found"] {
+    display: block !important;
+    block-size: 0 !important; min-block-size: 0 !important;
+    padding: 0 !important; border: 0 !important; margin: 0 !important;
+    box-shadow: none !important;
+  }
 
 }

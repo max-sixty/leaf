@@ -4,7 +4,8 @@ import json
 
 import pytest
 from leaf_dev import leaf_assets
-from model.test_leaf_assets import publisher
+
+from ..model.test_leaf_assets import publisher
 
 
 def test_demo_publication_adopts_what_other_publishers_published(tmp_path, monkeypatch):

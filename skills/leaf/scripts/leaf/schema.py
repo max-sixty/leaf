@@ -568,6 +568,7 @@ ATTRIBUTE_KEYS = (
 # nothing paints it in a message, so delivery's paint is the whole of it. The others
 # are also read by tag (the asks fold, the render checks, the runtime's descriptors).
 #
+# `presence` paints only whether a declaration exists, without serializing its rules.
 # Delivery paints a page's document from this (`revision_delivery.mark_declared`).
 # Composition stamps it into the vocabulary as `$marks` (`registry.layer.
 # stamp_composition`), from which the runtime paints a message it renders and tells the
@@ -601,6 +602,7 @@ DECLARED_MARKS = {
     "x-reading-role": {"paint": "data-lf-reading-role", "message": True},
     "x-resident": {"paint": "data-lf-resident", "message": False},
     "x-views": {"paint": "data-lf-views", "message": True},
+    "x-awaits": {"paint": "data-lf-awaits", "presence": True, "message": True},
 }
 
 SKILL_ROOT = Path(__file__).resolve().parent.parent.parent

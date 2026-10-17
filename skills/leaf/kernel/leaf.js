@@ -1766,10 +1766,13 @@ function activateCommandEntry(entry) {
     return presentCommandReference();
   }
   const invokeCommand = commandReferenceInvoke;
-  closeCommandReference();
+  const origin = openerOf(commandReferenceDialog);
+  const returnTo = commandReferenceReturn;
+  closeCommandReference(false);
+  handBack(origin);
   if (invokeCommand?.(entry.id)) return;
   queueMicrotask(() => {
-    openCommandReference(invokeCommand);
+    openCommandReference(invokeCommand, returnTo);
     commandReferenceState = {
       ...commandReferenceState,
       metaOverride: "That command is no longer available"
@@ -1973,15 +1976,17 @@ commandReferenceDialog.addEventListener("cancel", (event) => {
   event.preventDefault();
   closeCommandReference();
 });
-function showCommandReference(open, restoreFocus, invokeCommand) {
+var commandReferenceReturn = null;
+function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
   const fresh = open && !commandReferenceIsOpen;
   const preserveSelection = fresh && Boolean(pageSelection());
   const handingBack = !open && restoreFocus && standingIn(commandReferenceDialog);
-  const restore = handingBack ? openerOf(commandReferenceDialog) : null;
+  const restore = handingBack ? commandReferenceReturn : null;
   if (fresh) {
     commandReferenceInvoke = invokeCommand;
     dismissPopoversOutside(commandReferenceDialog);
     openLayer(commandReferenceDialog);
+    commandReferenceReturn = returnTo ?? openerOf(commandReferenceDialog);
     commandRoutesAtOpen = availableCommandRoutes({ commands: true });
   }
   commandReferenceIsOpen = open;
@@ -2076,8 +2081,8 @@ function activateSelectedCommand() {
   return true;
 }
 var commandReferenceOpen = () => commandReferenceIsOpen;
-var openCommandReference = (invokeCommand) => showCommandReference(true, true, invokeCommand);
-var closeCommandReference = (restoreFocus = true) => showCommandReference(false, restoreFocus, null);
+var openCommandReference = (invokeCommand, returnTo = null) => showCommandReference(true, true, invokeCommand, returnTo);
+var closeCommandReference = (restoreFocus = true) => showCommandReference(false, restoreFocus, null, null);
 pageScope("command reference", {
   title: "In the command reference",
   escape: "inner",
@@ -12518,15 +12523,14 @@ var completeLine = (scopes, candidates) => {
     rows: rows2
   };
 };
-var openCompleteReference = () => openCommandReference((id) => executeCommand(id, beforeShortcutCommand));
+var openCompleteReference = (returnTo = null) => openCommandReference((id) => executeCommand(id, beforeShortcutCommand), returnTo);
 var keyboardSettings = el("button", "lf-btn", "Keyboard shortcuts");
 keyboardSettings.type = "button";
 keyboardSettings.addEventListener("click", () => {
-  closeLayer(dismissBannerControls, () => {
-    const door = bannerControlDoor(keyboardSettings);
-    if (door) focusDestination(door, "return");
-  });
-  openCompleteReference();
+  const held = bannerStanding();
+  closeLayer(dismissBannerControls, () => restoreBannerStanding(held));
+  const returnTo = bannerControlDoor(keyboardSettings);
+  openCompleteReference(returnTo);
 });
 registerBannerControl({
   key: "keyboard",

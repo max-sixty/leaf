@@ -43,7 +43,8 @@ from leaf.harness import claim_harness
 from leaf.interaction_log import read_interactions
 from leaf_dev.commands import preview
 from leaf_dev.page_fixtures import read_fixture, record_run_context
-from model.test_interact_preview import _ScriptedChanges
+
+from ..model.test_interact_preview import _ScriptedChanges
 
 
 # Archiving a chat moves its transcript away, which retires it the way deleting

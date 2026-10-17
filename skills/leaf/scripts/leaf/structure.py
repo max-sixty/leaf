@@ -306,7 +306,9 @@ class SourceDocument:
         # The authored page lives under one direct body > main because that is the
         # element the first-replay presentation boundary withholds. Both assets that
         # establish that boundary belong in head; anything paintable outside main would
-        # stand outside it. Body lines come from source tokens because recovery erases a
+        # stand outside it. Scripts carry no paint; executable identity owns their
+        # lifetime, including moves between head, main, and retained body.
+        # Body lines come from source tokens because recovery erases a
         # duplicate <body>; main placement comes from the recovered tree.
         self.body_lines = []
         self.head_lines = []
@@ -461,6 +463,7 @@ class SourceDocument:
             script = {
                 "attrs": attrs,
                 "parent": parent_tag,
+                "patch_region": "head" if in_head else "main" if in_main else "body",
                 "position": (line, column),
                 "early_head": in_head and before_body,
                 "line": line,
@@ -531,6 +534,7 @@ class SourceDocument:
         if (
             not in_main
             and tag not in DOCUMENT_WRAPPERS
+            and tag != "script"
             and not (in_head and tag in HEAD_METADATA_TAGS)
         ):
             self.outside_main.append({"tag": tag, "line": line, "text": False})

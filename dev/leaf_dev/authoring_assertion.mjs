@@ -1,8 +1,4 @@
-/**
- * Three-way grading by an agent exploring the selected saved version live.
- * The existing workflow owns criteria; native errors remain unscored.
- * Verdicts are model judgments, with browser/agent evidence retained by the provider.
- */
+/** One live agent grades the final result and its predecision controls. */
 import { mkdtemp } from "node:fs/promises";
 import { join } from "node:path";
 import { loadApiProvider } from "promptfoo";
@@ -14,70 +10,70 @@ const Verdict = z.strictObject({
 });
 
 export default async function grade(output, context, load = loadApiProvider) {
-  const { phase, rubric, judge, required_widths } = context.config;
-  const result = (verdict, response) => ({
+  let response;
+  const result = (verdict) => ({
     pass: verdict.status === "pass",
     score: Number(verdict.status === "pass"),
     reason: `${verdict.status}: ${verdict.reason}`,
     ...(response?.tokenUsage ? { tokensUsed: response.tokenUsage } : {}),
     metadata: {
-      authoring_grade: { phase, ...verdict },
+      authoring_grade: verdict,
       ...(response ? { judge: response } : {}),
     },
   });
-  let response;
   try {
     if (context.providerResponse.error) throw new Error(context.providerResponse.error);
-    const diagnostics = context.providerResponse.metadata?.diagnostics;
-    const reading = diagnostics?.phases?.[phase];
-    if (!reading) throw new Error(`No recorded version ${phase}`);
-    if (!reading.page)
+    const { diagnostics, work } = context.providerResponse.metadata;
+    const pages = Object.fromEntries(
+      Object.entries(diagnostics.comparison.phases).map(([suffix, phase]) => [
+        suffix ? "before_decision" : "final",
+        {
+          page: diagnostics.phases[phase].page,
+          payload: diagnostics.payload,
+          condition: diagnostics.condition,
+        },
+      ]),
+    );
+    if (Object.values(pages).some((page) => !page.page))
       return result({
         status: "insufficient_evidence",
-        reason: "No saved page exists for this version.",
+        reason: "A required saved page is missing.",
       });
-    if (!judge) throw new Error("Live judge is not configured");
-    const widths = Object.fromEntries(
-      (required_widths ?? Object.keys(diagnostics.widths)).map((name) => {
-        if (!diagnostics.widths[name])
-          throw new Error(`Unknown required width ${name}`);
-        return [name, diagnostics.widths[name]];
-      }),
-    );
-    if (!Object.keys(widths).length) throw new Error("No judge viewports configured");
-    const evidence = await mkdtemp(
-      join(context.providerResponse.metadata.work, "judge-"),
-    );
-    const prompt = `Judge version ${phase} against this criterion:
-${rubric}
+    const evidence = await mkdtemp(join(work, "judge-"));
+    const provider = await load(context.config.judge.id, {
+      options: context.config.judge,
+    });
+    response = await provider.callApi(
+      `Judge the completed task against this criterion:
+${diagnostics.criterion}
+${context.config.rubric}
 
-Request and version history (later requirements do not apply to earlier versions):
+Request, later user messages and original browser decision task:
 ${output}
 
-Version 1 answers the request; version 2 also answers the width preference;
-version 3 also answers the comment; version 4 also applies the user's decision.
-Use pass when observation establishes the whole criterion, defect for a supported
-user-facing failure, or insufficient_evidence when exploration cannot settle it.`;
-    const provider = await load(judge.id, { options: judge });
-    response = await provider.callApi(prompt, {
-      vars: {
-        page: reading.page,
-        payload: diagnostics.payload,
-        condition: diagnostics.condition,
-        widths,
-        schema: z.toJSONSchema(Verdict),
-        evidence,
+The final page is the author's result after all user feedback. The optional
+before_decision page is for operating its decision controls. Apply only feedback
+that exists for this task. Use pass when observation establishes the criterion,
+defect for a supported user-facing failure, or insufficient_evidence when
+exploration cannot settle it.`,
+      {
+        vars: {
+          pages,
+          widths: diagnostics.comparison.widths,
+          schema: z.toJSONSchema(Verdict),
+          evidence,
+        },
       },
-    });
-    if (response.error)
-      return result({ status: "unscored", reason: response.error }, response);
-    const verdict = Verdict.parse(
-      typeof response.output === "string"
-        ? JSON.parse(response.output)
-        : response.output,
     );
-    return result(verdict, response);
+    if (response.error) throw new Error(response.error);
+    return result(
+      Verdict.parse(
+        typeof response.output === "string"
+          ? JSON.parse(response.output)
+          : response.output,
+      ),
+    );
   } catch (error) {
-    return result({ status: "unscored", reason: error.message }, response);
+    return result({ status: "unscored", reason: error.message });
   }
 }

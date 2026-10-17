@@ -1047,3 +1047,36 @@ def test_a_settling_reaction_wakes_only_when_it_answers_the_agent(
         {"kind": "reply", "author": "user", "parent": ordinary["id"], "token": "keep"},
     )
     assert mark["attention"] is False
+
+
+def test_success_readers_require_the_same_exact_agent_answer(tmp_path):
+    from leaf.thread import answered_by_reply, successful_replies
+
+    comment = {
+        "kind": "comment",
+        "author": "user",
+        "id": "input",
+    }
+    answer = {
+        "kind": "reply",
+        "author": "agent",
+        "seq": 2,
+        "parent": "root",
+        "responds": comment["id"],
+        "text": "Checked",
+    }
+    for changes, success in (
+        ({}, True),
+        ({"ephemeral": True}, False),
+        ({"failure": "turn_failed"}, False),
+        ({"parent": "input", "responds": "later-input"}, False),
+        ({"parent": "input", "responds": None}, False),
+        ({"author": "user"}, False),
+        ({"kind": "comment"}, False),
+    ):
+        reply = {**answer, **changes}
+        events = [comment, reply]
+        expected = [reply] if success else []
+        (tmp_path / "events.jsonl").write_text("\n".join(json.dumps(e) for e in events))
+        assert successful_replies(events, "input") == expected
+        assert answered_by_reply(events, "input") is success

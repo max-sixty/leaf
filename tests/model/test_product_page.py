@@ -1,13 +1,11 @@
 """The product pages are Leaf documents using the site's composed vocabulary."""
 
-import html
 import json
 import re
 import shlex
 from pathlib import Path
 
 import click
-import pytest
 from click.testing import CliRunner
 from leaf import __main__ as leaf_entry
 from leaf import cli as cli_model
@@ -18,9 +16,6 @@ from leaf.registry import validation as registry_validation
 from leaf.registry.schema import check_schema
 from leaf.structure import SourceDocument
 from leaf.validation import composition as validation_model
-from leaf_dev import docs
-from leaf_dev.commands import record_demo
-from leaf_dev.example_data import document_metadata
 from leaf_dev.page_fixtures import authored_markup
 from unidiff import PatchSet
 
@@ -94,64 +89,6 @@ def test_every_published_source_says_what_its_page_is():
     # A description repeated across pages tells a user nothing about which one
     # they found, and search engines fold the duplicates together.
     assert len(set(descriptions.values())) == len(descriptions)
-
-
-def test_catalog_descriptions_follow_example_metadata(tmp_path, monkeypatch):
-    """A page edit changes its catalog caption without editing the catalog.
-
-    The catalog authors its selection, grouping and order; every builder composes
-    each caption from its example's description, escaped as text.
-    """
-    source = DOCS / "examples.html"
-    catalog = source.read_text()
-    links = SourceDocument(catalog).tree.select("a.example-link")
-    for link in links:
-        name = docs.example_name(link)
-        (tmp_path / f"{name}.html").write_text((EXAMPLES / f"{name}.html").read_text())
-    changed = tmp_path / "review-a-plan.html"
-    _, old = document_metadata(changed)
-    description = 'Review a plan & choose <the next step> with "clear evidence".'
-    changed.write_text(
-        changed.read_text().replace(
-            html.escape(old, quote=True), html.escape(description, quote=True)
-        )
-    )
-    monkeypatch.setattr(docs, "EXAMPLES", tmp_path)
-    composed = SourceDocument(docs.compose(source, catalog)).tree
-    assert [link.attrs["href"] for link in composed.select("a.example-link")] == [
-        link.attrs["href"] for link in links
-    ]
-    for link in composed.select("a.example-link"):
-        _, expected = document_metadata(tmp_path / f"{docs.example_name(link)}.html")
-        assert link.select_one(".example-description").text == expected
-    assert (
-        composed.select_one(
-            'a[href="/examples/review-a-plan/"] .example-description'
-        ).text
-        == description
-    )
-
-
-@pytest.mark.parametrize(
-    ("slot", "copy"),
-    [
-        (
-            '<nav class="sitenav" aria-label="Site"></nav>',
-            '<nav class="sitenav" aria-label="Site"><a href="/">leaf</a></nav>',
-        ),
-        (
-            '<img\n                alt="Sandbox',
-            '<img src="/media/0000000000000000.jpg"\n                alt="Sandbox',
-        ),
-    ],
-)
-def test_a_composed_part_refuses_an_authored_copy(slot, copy):
-    """A slot holding a copy of its owner's facts would go stale silently."""
-    source = DOCS / "index.html"
-    authored = source.read_text()
-    assert slot in authored
-    with pytest.raises(ValueError, match="composed from its owner"):
-        docs.compose(source, authored.replace(slot, copy))
 
 
 def links(name: str) -> set[tuple[str, str]]:
@@ -453,22 +390,3 @@ def test_every_command_the_docs_show_is_one_leaf_has():
     assert not unknown, "these pages show commands leaf hasn't got:\n  " + "\n  ".join(
         unknown
     )
-
-
-def test_demo_waiter_preserves_the_reason_a_wait_delivered_nothing():
-    class FailedWait:
-        returncode = 2
-
-        def communicate(self, *, timeout):
-            assert timeout == 10
-            return "", "the page closed while waiting\n"
-
-    waiter = object.__new__(record_demo.DemoWaiter)
-    waiter.process = FailedWait()
-
-    with pytest.raises(
-        RuntimeError,
-        match="the demo waiter exited 2 without one batch of user events\\n"
-        "the page closed while waiting",
-    ):
-        waiter.receive()

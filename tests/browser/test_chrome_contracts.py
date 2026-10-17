@@ -35,8 +35,10 @@ from render_harness import (
     resized,
     scroll_settled,
     select,
+    stamp_page,
     ticked,
     told,
+    wait_for_revision,
     write,
 )
 
@@ -1052,6 +1054,38 @@ def test_a_page_module_importing_the_widget_api_hears_dom_content_loaded(
     after the event instead, and a listener like this one never hears it."""
     page = open_page(browser, serve(ORDERED_PAGE))
     assert page.evaluate("() => window.__leafReadyHeard")
+
+
+def test_script_region_moves_reload_without_leaving_duplicate_nodes(browser, serve):
+    """Retained scripts and main's patched scripts have distinct document lifetimes."""
+    script = (
+        '<script id="page-behavior" type="module">'
+        "window.pageRuns = (window.pageRuns || 0) + 1;</script>"
+    )
+    source = leaf_page("Script lifetime", '<p id="words">Original words.</p>')
+    head = source.replace("</head>", script + "</head>")
+    main = source.replace("</main>", script + "</main>")
+    tail = source.replace("</body>", script + "</body>")
+    page = open_page(browser, live_url(serve(head)))
+    origin = page.evaluate("performance.timeOrigin")
+    for revision, html, region, reloads in [
+        (2, main, "main", True),
+        (3, main.replace(script, f"<div>{script}</div>"), "div", False),
+        (4, tail, "body", True),
+        (5, tail.replace("Original words.", "Revised words."), "body", False),
+    ]:
+        stamp_page(serve.page_dir, html, "Revise script placement or prose")
+        wait_for_revision(page, revision)
+        next_origin = page.evaluate("performance.timeOrigin")
+        assert (next_origin != origin) == reloads
+        origin = next_origin
+        expect(page.locator("#page-behavior")).to_have_count(1)
+        assert (
+            page.locator("#page-behavior").evaluate("el => el.parentElement.localName")
+            == region
+        )
+        assert page.evaluate("window.pageRuns") == 1
+    expect(page.locator("#words")).to_have_text("Revised words.")
 
 
 @pytest.mark.parametrize("mode", ["overlay", "page"])

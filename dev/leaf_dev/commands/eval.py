@@ -216,6 +216,8 @@ def workflow_provider(
             "screenshots": str(screenshots),
             "pythonExecutable": sys.executable,
             "timeout": WORKFLOW_LIMIT * 1000,
+            # A retry would replace a failed, side-effecting sample with a new one.
+            "maxRetries": 0,
         },
     }
 

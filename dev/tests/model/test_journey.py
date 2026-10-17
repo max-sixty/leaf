@@ -15,7 +15,7 @@ from types import SimpleNamespace
 import pytest
 from interact_support import STATED_TIMEOUT
 from leaf.interaction_log import read_interactions
-from leaf_dev import journey_claude_code, journey_pi
+from leaf_dev import ROOT, journey_claude_code, journey_pi
 from leaf_dev.commands import journey, journey_chart
 from leaf_dev.page_fixtures import record_run_context
 from leaf_dev.review_scenario import SLEEP
@@ -397,7 +397,6 @@ def test_the_release_ask_over_http_is_the_shared_check(tmp_path):
     is posted on its section."""
     from leaf.event_log import append_event, read_events
     from leaf.thread import post_reply, title_event
-    from leaf_dev import ROOT
     from leaf_dev.arms import run_leaf, serving
     from leaf_dev.review_scenario import post, prepare
 

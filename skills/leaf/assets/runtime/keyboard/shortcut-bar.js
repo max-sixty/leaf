@@ -93,10 +93,12 @@ import { repaint } from "../repaint.js";
 import { walkPosition } from "../walk-position.js";
 import { declareWindowChrome } from "../geometry.js";
 import { pageUpgraded } from "../page-paint.js";
-import { closeLayer, focusDestination } from "../focus.js";
+import { closeLayer } from "../focus.js";
 import {
   BANNER_CONTROL_RANK,
   bannerControlDoor,
+  bannerStanding,
+  restoreBannerStanding,
   dismissBannerControls,
   registerBannerControl,
 } from "../banner-toolbar.js";
@@ -318,18 +320,17 @@ const completeLine = (scopes, candidates) => {
     rows,
   };
 };
-const openCompleteReference = () =>
-  openCommandReference((id) => executeCommand(id, beforeShortcutCommand));
+const openCompleteReference = (returnTo = null) =>
+  openCommandReference((id) => executeCommand(id, beforeShortcutCommand), returnTo);
 const keyboardSettings = el("button", "lf-btn", "Keyboard shortcuts");
 keyboardSettings.type = "button";
 keyboardSettings.addEventListener("click", () => {
-  // Closing the More menu lands the user back on its door, which the complete
-  // reference returns them to (focus.js, `closeLayer`).
-  closeLayer(dismissBannerControls, () => {
-    const door = bannerControlDoor(keyboardSettings);
-    if (door) focusDestination(door, "return");
-  });
-  openCompleteReference();
+  // More borrows the reader's place. The reference must read that original scope,
+  // so its contextual commands can act on the source the reader came from.
+  const held = bannerStanding();
+  closeLayer(dismissBannerControls, () => restoreBannerStanding(held));
+  const returnTo = bannerControlDoor(keyboardSettings);
+  openCompleteReference(returnTo);
 });
 registerBannerControl({
   key: "keyboard",

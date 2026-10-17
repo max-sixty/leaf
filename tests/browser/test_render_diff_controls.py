@@ -521,3 +521,109 @@ def test_resolved_file_threads_share_the_file_disclosure_edge(browser, serve):
     expect(
         thread.get_by_role("button", name="Resolve thread", exact=True)
     ).to_be_visible()
+
+
+def test_a_live_line_reply_wraps_without_resize_observer_feedback(
+    browser, serve, request
+):
+    """A streaming answer can wrap when Pierre sizes its sticky line conversation.
+
+    The width write changes the observed code's height. It belongs in a frame,
+    outside ResizeObserver delivery, and must leave the answer readable while the
+    code scrolls. The browser fixture also refuses ResizeObserver window errors.
+    """
+    from interact_support import append_command
+
+    from browser.test_render_threads import claim_for_codex, stream_reply
+
+    patch = """diff --git a/uploader.py b/uploader.py
+--- a/uploader.py
++++ b/uploader.py
+@@ -1,4 +1,16 @@
+-def upload(client, job, payload):
+-    response = client.post("/objects", json=payload, timeout=10)
+-    response.raise_for_status()
+-    return response.json()["object_id"]
++import time
++
++def upload(client, job, payload, max_attempts=3):
++    key = f"upload:{job.tenant_id}:{job.id}"
++    for attempt in range(max_attempts):
++        try:
++            response = client.post(
++                "/objects", json=payload,
++                headers={"Idempotency-Key": key}, timeout=10,
++            )
++            response.raise_for_status()
++            return response.json()["object_id"]
++        except TimeoutError:
++            if attempt + 1 == max_attempts:
++                raise
++            time.sleep(0.5 * 2**attempt)
+"""
+    url = serve(
+        leaf_page(
+            "Live patch review",
+            f'<h1>Review</h1><details id="review" open><summary>Patch review</summary>'
+            f'<lf-diff id="patch"><pre>{escape(patch)}</pre></lf-diff></details>',
+            head="<style>main { width: 492px; max-width: calc(100% - 48px); padding: 0; }</style>",
+        )
+    )
+    comment = append_command(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Tenant-scoped key computed once before the loop looks right.",
+            "anchor": {"section": "patch", "datum": '["uploader.py","new",4]'},
+        },
+    )
+    claim_for_codex(serve.page_dir, request)
+    reply = (
+        "I’m recording the tenant-scoped key and two-attempt default as your final "
+        "review decision. The selected code will lead the page, with the unrun "
+        "tests and Thursday rollout conditions still clear."
+    )
+    stream_reply(serve.page_dir, comment["id"], reply)
+    context = browser.new_context(viewport={"width": 540, "height": 720})
+    page = open_page(browser, url, context=context)
+    diff = page.locator("#patch")
+    outlet = diff.locator(".lf-diff-thread-outlet")
+    expect(outlet).to_contain_text(reply)
+    code = diff.get_by_role("region", name="uploader.py", exact=True)
+    before = outlet.bounding_box()
+    code.focus()
+    page.keyboard.press("ArrowRight")
+    page.wait_for_function("""() => document.getElementById('patch')
+      .shadowRoot.querySelector('code[data-code]').scrollLeft > 0""")
+    rendered(page)
+    after = outlet.bounding_box()
+    assert abs(after["width"] - before["width"]) <= 1
+    assert after["x"] >= code.bounding_box()["x"] - 1
+    code_box = code.bounding_box()
+    assert after["x"] + after["width"] <= code_box["x"] + code_box["width"] + 1
+    # Retire a file with active geometry observations, then reopen its same source.
+    summary = diff.locator("summary").first
+    summary.focus()
+    page.keyboard.press("Enter")
+    expect(code).not_to_be_visible()
+    page.keyboard.press("Enter")
+    expect(outlet).to_contain_text(reply)
+    resized(page, 390, 844)
+    expect(outlet).to_be_visible()
+    resized(page, 900, 600)
+    expect(outlet).to_be_visible()
+    rendered(page)
+
+    # A retained diff can receive a reply while its native disclosure is closed.
+    page.locator("#review > summary").click()
+    expect(code).not_to_be_visible()
+    hidden_reply = reply + " The review is ready."
+    stream_reply(serve.page_dir, comment["id"], hidden_reply)
+    expect(outlet).to_contain_text(hidden_reply)
+    rendered(page)
+    page.locator("#review > summary").click()
+    expect(outlet).to_be_visible()
+    rendered(page)
+    assert outlet.bounding_box()["width"] <= code.bounding_box()["width"]

@@ -1,41 +1,15 @@
-"""Author, revise and decide on one page-task sample under its explicit condition,
-on the loop a user would run.
+"""Run a page task through an author, user feedback and one final live judge.
 
-Leaf and ordinary HTML receive the same task in one live session (`LiveSession`),
-then the same width preference as a chat message, then, where the task declares
-them, the same user comment and a decision the user makes on the page. Each
-sample contains only its selected condition; the HTML child sees no Leaf payload,
-instructions or runtime.
+Promptfoo owns providers, repetition, concurrency, assertions and saved results.
+This provider supplies the work Promptfoo cannot do: an installed Leaf or plain
+HTML workspace, a live multi-turn author, a browser user who makes the task's
+decision, and saved pages/traces. The author checks its own work. One agent judges
+the final page and, for a decision task, its earlier usable controls; there is no
+second decision reader or repeated render/quality grader for every revision.
 
-- **Leaf** runs as installed: the arm is the session's plugin, hooks included. The
-  agent serves the page and hands it over; the harness comments from a browser
-  selection on the served page (`eval_user.comment_on_passage`), and the hook
-  delivers the comment.
-- **HTML** keeps chat turns, since it has no page to wait on: the comment arrives
-  in chat, naming the passage in words.
-
-The decision round is the same in both: a user agent makes the page's decision in
-the browser (`eval_user.decide`), then the user asks in chat for it to be applied.
-Leaf's agent reads the gestures from the page's log; HTML's user pastes what the
-page offered to copy, or types the decision where it offered nothing, and so does
-a Leaf user whose page took none of it. A reader then says what the agent applied,
-from its answer and the page's final files, and `decision-applied` checks that
-against what was chosen. On Leaf a fresh reader also reports the decision from
-the page's state, without the conversation. A comment that directs an outcome is
-the user's pick for that item, so recording it as chosen is correct; whether the
-agent did is recorded, not checked.
-
-Each phase records what the author spent and wrote, from the session's records
-between the harness's `eval_phase` marks: time, turns, tokens and cost (`resumed`),
-the CSS and script lines in the files it authored. The user agent and the
-readers spend too; that is the harness's, recorded apart.
-
-The sample's output is what a judge needs: the user's request, the later messages,
-the author's answer to the comment, and each version's screenshots by width,
-written to `shots` for reports. The judge explores disposable live copies at the
-required widths, with native browser and agent traces recording its evidence. The YAML
-cases hold the visual criteria and their three-way verdict assertion;
-`eval-pairs` is the quality score, judging a pair's final versions side by side.
+Each revision is retained for investigation. Reports capture the final and
+predecision pages and retain native timing/token accounting. Optional eval-pairs
+judges compare saved samples without rerunning their authors.
 """
 
 import json
@@ -44,16 +18,14 @@ import shutil
 import subprocess
 import tempfile
 from contextlib import ExitStack
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 import turbohtml
 from leaf.delivery import opened_input_ids
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
-from leaf.schema import MESSAGE_KINDS
 from leaf.service import requires_agent_attention
-from leaf.structure import SourceDocument
 from leaf.thread import successful_replies
 
 from leaf_dev import ROOT, arrangement_plain
@@ -62,7 +34,6 @@ from leaf_dev.arms import (
     TURN_LIMIT,
     LiveChild,
     LiveSession,
-    completed,
     environment,
     now,
     observed_sum,
@@ -75,7 +46,7 @@ from leaf_dev.arms import (
     trace_result,
     trace_summary,
 )
-from leaf_dev.browser import headless_shell, load, tab
+from leaf_dev.browser import headless_shell, load, shell_executable, tab
 from leaf_dev.eval_cases import definition
 from leaf_dev.eval_user import COMMAND_LIMIT, cli, comment_on_passage, decide
 
@@ -112,13 +83,11 @@ class Comment:
 class Decision:
     """What the user decides on the page once it carries the comment, then asks
     the agent to apply. `task` tells the user agent what to do on the page; `typed`
-    is the decision as the user types it in chat. `chosen` is what applying it
-    records, item by item, each value one of the item's `values`."""
+    is the decision as the user types it in chat. The live judge checks the
+    resulting record against the same task."""
 
     task: str
     typed: str
-    chosen: dict[str, str]
-    values: dict[str, tuple[str, ...]]
 
 
 @dataclass(frozen=True)
@@ -129,9 +98,6 @@ class Scenario:
     reveal: str = ""
 
 
-# Each alert's candidate thresholds as the request lists them, and the user's setting.
-
-
 CASES = {
     name: Scenario(
         comment=(
@@ -140,19 +106,7 @@ CASES = {
             else None
         ),
         decision=(
-            Decision(
-                **(
-                    decision
-                    | {
-                        "values": {
-                            item: tuple(values)
-                            for item, values in decision["values"].items()
-                        }
-                    }
-                )
-            )
-            if (decision := case["inputs"]["decision"])
-            else None
+            Decision(**decision) if (decision := case["inputs"]["decision"]) else None
         ),
         reveal=case["inputs"]["reveal"],
     )
@@ -168,7 +122,6 @@ class Run:
     shots: Path
     harness: str = ClaudeCodeHarness.name
     condition: str = "leaf"
-    phase_starts: dict = field(default_factory=dict, compare=False)
 
     @property
     def leaf_condition(self) -> bool:
@@ -218,6 +171,7 @@ def first_prompt(payload: Path, page: Path, subject: str, condition="leaf") -> s
         payload=payload,
         page=page,
         request=(TASKS / subject / "request.md").read_text(),
+        browser=shell_executable(),
     )
 
 
@@ -291,7 +245,6 @@ def author(run: Run, cwd: Path) -> None:
             for phase in phases(run.subject):
                 live.note({"type": "eval_phase", "phase": phase, "received_at": now()})
                 since = live.answered
-                run.phase_starts[phase] = latest_seq(page)
                 before = None
                 if phase == 2:
                     live.send(preference_message())
@@ -356,9 +309,9 @@ def comment(run: Run, live: LiveSession):
 
 def decision_round(run: Run, live: LiveSession) -> None:
     """Make the scenario's decision on the page as its user, then ask for it to be
-    applied, recording the route the request took: what the page gave to copy
-    where it offered that, the page itself where it sent the decision to the
-    agent's log, and otherwise the decision typed."""
+    applied. Clipboard activity and admitted user events establish the handover
+    before the model's report of displayed copy text; without either, retain that
+    report for a page offering a manual export, or type the decision."""
     decision = CASES[run.subject].decision
     page = run.authored_page
     before = latest_seq(page)
@@ -379,13 +332,16 @@ def decision_round(run: Run, live: LiveSession) -> None:
         and e.get("author") == "user"
         and requires_agent_attention(e)
     ]
-    copied = (made["copies"] or [None])[-1] or made["copied"]
-    # The user copies only where the page has no way to send the decision, so
-    # what it copied is the handover even beside inputs the page sent.
+    # Observed clipboard activity is the export even beside inputs the page sent.
+    # Without one, admitted gestures outrank the model's report of displayed copy text.
+    copied = (made["copies"] or [None])[-1]
     if made["made"] and copied:
         route = "copied"
     elif made["made"] and gestures:
         route = "page"
+    elif made["made"] and made["copied"]:
+        route = "copied"
+        copied = made["copied"]
     else:
         route = "typed"
     message = apply_message(decision, route, copied)
@@ -394,159 +350,6 @@ def decision_round(run: Run, live: LiveSession) -> None:
         {**made, "gestures": gestures, "route": route, "message": message},
     )
     live.send(message)
-
-
-def answers_in_phase(run: Run, phase: int) -> list[str]:
-    """The agent's page messages from `phase` on, which a Leaf agent may answer
-    in rather than in chat."""
-    start = run.phase_starts.get(phase, 0)
-    return [
-        f"{e.get('title') or ''} {e.get('text') or ''}".strip()
-        for e in read_events(run.authored_page)
-        if e["seq"] > start
-        and e.get("author") == "agent"
-        and e["kind"] in MESSAGE_KINDS
-    ]
-
-
-def items(decision: Decision) -> str:
-    return "\n".join(
-        f"- {item}: {' | '.join(values)}" for item, values in decision.values.items()
-    )
-
-
-def reading_schema(decision: Decision) -> str:
-    """The reader's answer, which the harness's structured output holds to each
-    item's listed values."""
-    return json.dumps(
-        {
-            "type": "object",
-            "properties": {
-                item: {"type": "string", "enum": [*values, "undecided"]}
-                for item, values in decision.values.items()
-            },
-            "required": list(decision.values),
-            "additionalProperties": False,
-        }
-    )
-
-
-def matches(decision: Decision, reading: dict | None) -> dict[str, bool]:
-    """Each item, and whether the reading gives its chosen value."""
-    return {
-        item: reading is not None and reading[item] == chosen
-        for item, chosen in decision.chosen.items()
-    }
-
-
-def read_applied(run: Run, reply: str) -> dict:
-    """What the agent applied, read by a judge from the final page's authored
-    files, with its answers in the decision phase only to point the way."""
-    decision = CASES[run.subject].decision
-    evidence = run.directory / "applied"
-    files = evidence / "page"
-    page = run.authored_page
-    for found in authored_files(page, run.condition):
-        target = files / found.relative_to(page)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy(found, target)
-    answer = evidence / "answer.txt"
-    answer.write_text(
-        "\n\n".join([reply, *answers_in_phase(run, 4)]) if run.leaf_condition else reply
-    )
-    listed = "\n".join(
-        f"- {path}" for path in sorted(files.rglob("*")) if path.is_file()
-    )
-    prompt = DEFINITION["prompts"]["reading"].format(
-        situation=DEFINITION["prompts"]["reading_applied"].format(
-            listed=listed, answer=answer
-        ),
-        items=items(decision),
-    )
-    (evidence / "prompt.txt").write_text(prompt)
-    with scratch() as cwd:
-        trace = run_agent(
-            cwd,
-            prompt,
-            "--tools",
-            "Read",
-            "--json-schema",
-            reading_schema(decision),
-            out=evidence / "stream.jsonl",
-            err=evidence / "err.txt",
-            dirs=[evidence],
-            model=MODELS["judge"],
-        )
-    reading = trace_result(trace).get("structured_output")
-    return {
-        "reading": reading,
-        "items": matches(decision, reading),
-        "trace": trace_summary(trace),
-    }
-
-
-def read_decision(run: Run) -> dict:
-    """The user's decision as a fresh Leaf reader reports it from the page's state,
-    without the author's conversation."""
-    decision = CASES[run.subject].decision
-    page = run.authored_page
-    destination = run.directory / "reader"
-    destination.mkdir()
-    source_before = (page / "index.html").read_bytes()
-    events_before = (page / "events.jsonl").read_bytes()
-    prompt = DEFINITION["prompts"]["reading"].format(
-        situation=DEFINITION["prompts"]["reading_decision"].format(
-            payload=run.payload, page=page
-        ),
-        items=items(decision),
-    )
-    (destination / "prompt.txt").write_text(prompt)
-    with scratch() as work:
-        trace = run_agent(
-            work,
-            prompt,
-            "--json-schema",
-            reading_schema(decision),
-            out=destination / "stream.jsonl",
-            err=destination / "err.txt",
-            dirs=[run.payload, page],
-            env={
-                "LEAF": str(run.payload / "bin/leaf"),
-                "XDG_STATE_HOME": str(run.state),
-            },
-            harness=run.harness,
-        )
-    reading = trace_result(trace).get("structured_output")
-    return {
-        "completed": completed(trace),
-        "page_unchanged": source_before == (page / "index.html").read_bytes()
-        and events_before == (page / "events.jsonl").read_bytes(),
-        "reading": reading,
-        "items": matches(decision, reading),
-        "trace": trace_summary(trace),
-    }
-
-
-def chosen_options(page: Path | None) -> set[str]:
-    """The `lf-option`s a Leaf page's markup marks chosen."""
-    if page is None:
-        return set()
-    return {
-        r["attrs"]["id"]
-        for r in SourceDocument((page / "index.html").read_text()).lf_elements
-        if r["tag"] == "lf-option" and "chosen" in r["attrs"] and "id" in r["attrs"]
-    }
-
-
-def gate(run: Run, phase: int, page: Path) -> dict:
-    """Independently check the authored page, retaining the check's output."""
-    if run.condition == "html":
-        reading = arrangement_plain.gate(page, WIDTHS)
-    else:
-        proc = run.leaf("page", "check", str(page), "--render", timeout=900)
-        reading = {"passed": proc.returncode == 0, "output": proc.stdout + proc.stderr}
-    (run.directory / f"gate-{phase}.json").write_text(json.dumps(reading, indent=2))
-    return reading
 
 
 def capture_phase(
@@ -706,10 +509,10 @@ Task and criterion:
 
 
 def call_api(prompt: str, options: dict, context: dict) -> dict:
-    """Promptfoo's live visual-judge provider; the assertion selects one saved phase."""
+    """Promptfoo's live judge provider for the final and predecision pages."""
     request = context["vars"]
     return judge_pages(
-        {"page": {key: request[key] for key in ("page", "payload", "condition")}},
+        request["pages"],
         request["widths"],
         prompt,
         request["schema"],
@@ -718,8 +521,11 @@ def call_api(prompt: str, options: dict, context: dict) -> dict:
 
 
 def capture(run: Run) -> dict[int, dict[str, list[str]]]:
-    """Capture every phase's page."""
-    return {phase: capture_phase(run, phase) for phase in phases(run.subject)}
+    """Report the final page and, when applicable, its decision controls."""
+    return {
+        int(phase): capture_phase(run, int(phase))
+        for phase in comparison_inputs(run.subject)["phases"].values()
+    }
 
 
 AUTHORED = (".html", ".css", ".js", ".mjs", ".json")
@@ -767,7 +573,7 @@ def authored_lines(page: Path, condition: str) -> dict[str, int]:
 def comment_answer(run: Run, reply: str) -> str:
     """What the author told the user about their comment, where it was asked: its
     replies on the comment's thread in Leaf, its chat reply in HTML. The judge reads
-    it (the case's "comment-answered" assertion)."""
+    it together with the final page."""
     if not run.leaf_condition:
         return reply
     thread = run.recorded("comment").get("event")
@@ -819,7 +625,7 @@ def later_messages(subject: str, first: str = "version 1") -> list[str]:
             "",
             (
                 "Then the user made these decisions on the page and asked for them "
-                f'to be applied: "{decision.typed}"'
+                f'to be applied: "{apply_message(decision, "typed", None)}"'
             ),
         ]
     return lines
@@ -835,6 +641,8 @@ def brief(subject: str, answer: str = "") -> str:
         "",
         "Each message after the request produced the next version.",
     ]
+    if decision := CASES[subject].decision:
+        lines += ["", "The browser user was asked:", decision.task]
     if CASES[subject].comment:
         lines += [
             "",
@@ -844,32 +652,37 @@ def brief(subject: str, answer: str = "") -> str:
     return "\n".join(lines)
 
 
-def expected_checks(case: str, *, condition="leaf") -> list[str]:
-    """Common outcome checks apply to both tools; the hand-over, the comment's
-    delivery and the fresh reader are Leaf's own."""
-    if case not in CASES:
-        raise ValueError(f"Unknown authored task: {case}")
-    scenario, leaf = CASES[case], condition == "leaf"
-    return [
-        "completed",
-        *(
-            f"phase-{phase}-{check}"
-            for phase in phases(case)
-            for check in ("completed", "page", "render", "captures")
-        ),
-        *(["handed-over"] if leaf else []),
-        *(["comment-delivered"] if leaf and scenario.comment else []),
-        *(["decision-made", "decision-applied"] if scenario.decision else []),
-        *(
+def comparison_inputs(subject: str) -> dict:
+    """Capture the common task before authoring, independent of its delivery route.
+
+    Saved samples own the request, browser decision task, phase roles and viewports
+    later comparisons use. The browser task preserves constraints the final typed
+    decision summary need not repeat. The judge's methodology may change when rejudging;
+    rotating or removing a catalog case must not change what its authors were asked.
+    """
+    order = phases(subject)
+    decision = CASES[subject].decision
+    versions = {"": str(order[-1])}
+    if decision:
+        versions["_before_decision"] = str(order[-2])
+    return {
+        "brief": "\n".join(
             [
-                "decision-reader-completed",
-                "decision-reader-correct",
-                "decision-reader-page-unchanged",
+                f"<request>\n{(TASKS / subject / 'request.md').read_text()}</request>",
+                "",
+                *later_messages(subject, "the first version"),
             ]
-            if leaf and scenario.decision
-            else []
         ),
-    ]
+        "decision_task": decision.task if decision else None,
+        "phases": versions,
+        "author_phases": list(order),
+        "widths": {name: list(viewport) for name, (viewport, _) in WIDTHS.items()},
+    }
+
+
+def expected_checks(case: str, *, condition="leaf") -> list[str]:
+    """Smoke checks only; the agent judge owns the result's correctness."""
+    return ["completed", "page"]
 
 
 def execute_scenario(
@@ -886,16 +699,20 @@ def execute_scenario(
     checks = dict.fromkeys(expected_checks(case, condition=condition), False)
     run = Run(case, payload, work, shots, harness, condition)
     scenario = CASES[case]
+    comparison = comparison_inputs(case)
+    run.record("comparison", comparison)
     diagnostics = {
         "subject": case,
         "harness": harness,
         "condition": condition,
         "payload": str(payload),
-        "widths": {name: list(viewport) for name, (viewport, _) in WIDTHS.items()},
+        "widths": comparison["widths"],
+        "comparison": comparison,
+        "criterion": DEFINITION["prompts"]["quality"],
         "phases": {},
     }
     harness_costs = []
-    with scratch(payload) as child_work:
+    with scratch(payload if run.leaf_condition else None) as child_work:
         author(run, child_work)
         trace = read_trace(work / "stream.jsonl")
         split = phase_traces(trace)
@@ -905,62 +722,38 @@ def execute_scenario(
         )
         if run.leaf_condition:
             served = next((r["url"] for r in trace if r["type"] == "eval_served"), None)
-            checks["handed-over"] = served is not None and served in replies(
+            diagnostics["handed_over"] = served is not None and served in replies(
                 split.get(1, [])
             )
             if scenario.comment:
-                checks["comment-delivered"] = any(
+                diagnostics["comment_delivered"] = any(
                     r["type"] == "eval_received" for r in trace
                 )
                 remark = run.recorded("comment")
                 diagnostics["comment"] = remark
-                # A comment that directs an outcome may be recorded as the user's
-                # pick, which is right; record whether it was.
-                diagnostics["comment_recorded_pick"] = sorted(
-                    chosen_options(run.page(3)) - chosen_options(run.page(2))
-                )
         if scenario.decision:
             made = run.recorded("decision")
             harness_costs.append((made.get("trace") or {}).get("cost_usd"))
-            checks["decision-made"] = made.get("made") is True
-            decision = {"made": made}
-            if (run.authored_page / "index.html").exists() and 4 in split:
-                applied = read_applied(run, replies(split[4]))
-                harness_costs.append(applied["trace"]["cost_usd"])
-                decision["applied"] = applied
-                checks["decision-applied"] = all(applied["items"].values())
-                if run.leaf_condition:
-                    reader = read_decision(run)
-                    harness_costs.append(reader["trace"]["cost_usd"])
-                    decision["reader"] = reader
-                    checks["decision-reader-completed"] = reader["completed"]
-                    checks["decision-reader-correct"] = all(reader["items"].values())
-                    checks["decision-reader-page-unchanged"] = reader["page_unchanged"]
-            diagnostics["decision"] = decision
+            diagnostics["decision"] = made
         captures = capture(run)
         answer = ""
         for phase in order:
             summary = session[phase]
-            checks[f"phase-{phase}-completed"] = summary["completed"]
             page = run.page(phase)
-            checks[f"phase-{phase}-page"] = page is not None
-            checks[f"phase-{phase}-captures"] = all(captures[phase].values())
             row = {
                 "trace": summary,
-                "captures": captures[phase],
+                "captures": captures.get(phase, {}),
             }
             if page:
-                reading = gate(run, phase, page)
-                checks[f"phase-{phase}-render"] = reading["passed"]
                 row |= {
                     "page": str(page),
-                    "gate": reading,
                     **authored_lines(page, condition),
                 }
                 if phase == 3:
                     answer = comment_answer(run, summary["reply"])
             diagnostics["phases"][phase] = row
-    checks["completed"] = all(checks[f"phase-{phase}-completed"] for phase in order)
+    checks["completed"] = all(session[phase]["completed"] for phase in order)
+    checks["page"] = run.page(order[-1]) is not None
     authoring = [session[p]["cost_usd"] for p in order]
     diagnostics["cost"] = {
         "author": observed_sum(authoring),

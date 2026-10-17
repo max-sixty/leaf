@@ -1449,7 +1449,7 @@ function markDeclared(root) {
     for (const tag of tags) {
       const declared = registry[tag][key];
       for (const el2 of elementsIn(root, tag))
-        keeps(el2, paint2, declared === true ? "" : declared);
+        keeps(el2, paint2, declared === true || mark.presence ? "" : declared);
     }
     if (authored) {
       for (const el2 of elementsIn(root, `[${authored}]`))

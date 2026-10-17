@@ -1,8 +1,9 @@
 """Judge two columns' samples of an authored task side by side.
 
 This command pairs each task's samples across its two columns in the order they
-ran, and lets a judge explore disposable live copies of their final pages. Each
-copy uses its original runtime payload. Both orders are judged; only a winner
+ran, and lets a judge explore disposable live copies before decisions and after
+the final revision. Each copy uses its original runtime payload. Both orders
+are judged; only a winner
 both completed judgments name counts. Incomplete exploration is recorded as
 insufficient evidence, rather than a tie or a quality result. Model judgments
 and their native browser/agent traces are retained separately from execution checks.
@@ -16,15 +17,7 @@ from pathlib import Path
 
 import click
 
-from leaf_dev.arrangement_eval import (
-    CASES,
-    REACHABLE,
-    TASKS,
-    WIDTHS,
-    judge_pages,
-    later_messages,
-    phases,
-)
+from leaf_dev.arrangement_eval import REACHABLE, judge_pages
 from leaf_dev.eval_cases import definition
 
 DEFINITION = definition("eval_pairs")
@@ -41,7 +34,7 @@ def samples(runs: list[Path]) -> dict[str, dict[str, list[dict]]]:
         for result in results:
             metadata = (result.get("response") or {}).get("metadata") or {}
             subject = (metadata.get("diagnostics") or {}).get("subject")
-            if subject not in CASES or "work" not in metadata:
+            if subject is None or "work" not in metadata:
                 continue
             work = Path(metadata["work"])
             found[subject][result["provider"]["label"]].append(
@@ -60,50 +53,38 @@ def samples(runs: list[Path]) -> dict[str, dict[str, list[dict]]]:
     return found
 
 
-def brief(subject: str) -> str:
-    lines = [
-        f"<request>\n{(TASKS / subject / 'request.md').read_text()}</request>",
-        "",
-        *later_messages(subject, "the first version"),
-    ]
-    lines += [
-        "",
-        DEFINITION["brief_intro"],
-    ]
-    return "\n".join(lines)
+def saved_comparison(members: list[dict]) -> dict:
+    """The saved task is the contract; unlike tasks are not comparable."""
+    comparison = members[0]["diagnostics"]["comparison"]
+    if any(sample["diagnostics"]["comparison"] != comparison for sample in members[1:]):
+        raise ValueError("Compared samples have different saved task inputs.")
+    return comparison
 
 
-def judge(subject: str, a: dict, b: dict, evidence: Path) -> dict | None:
+def judge(a: dict, b: dict, evidence: Path) -> dict | None:
     """One judgment of A against B, or None when the judge gives no verdict."""
     evidence.mkdir(parents=True, exist_ok=True)
     attempt = Path(tempfile.mkdtemp(prefix="judge-", dir=evidence))
-    version = str(phases(subject)[-1])
-    if any(
-        not sample["diagnostics"]["phases"].get(version, {}).get("page")
-        or not sample["diagnostics"].get("payload")
-        for sample in (a, b)
-    ):
-        (evidence / "response.json").write_text(
-            json.dumps(
-                {
-                    "error": "Comparison lacks a saved final page or its original runtime.",
-                    "metadata": {"evidence": str(attempt)},
-                },
-                indent=2,
-            )
-        )
-        return None
+    comparison = saved_comparison([a, b])
+    versions = comparison["phases"]
     response = judge_pages(
         {
-            label: {
+            label + suffix: {
                 "page": Path(sample["diagnostics"]["phases"][version]["page"]),
                 "payload": Path(sample["diagnostics"]["payload"]),
                 "condition": sample["diagnostics"]["condition"],
             }
             for label, sample in (("A", a), ("B", b))
+            for suffix, version in versions.items()
         },
-        {name: viewport for name, (viewport, _) in WIDTHS.items()},
-        JUDGE.format(brief=brief(subject), reachable=REACHABLE),
+        comparison["widths"],
+        JUDGE.format(
+            brief=comparison["brief"] + "\n\n" + DEFINITION["brief_intro"],
+            decision_task=comparison["decision_task"]
+            if comparison["decision_task"] is not None
+            else "No browser decision task applies to these pages.",
+            reachable=REACHABLE,
+        ),
         VERDICT,
         attempt,
     )
@@ -158,7 +139,7 @@ def eval_pairs(runs: tuple[Path, ...]):
                 1,
             ):
                 evidence = runs[0] / "pairs" / f"{subject}-{n}-order-{order}"
-                orders.append(by_column(judge(subject, a, b, evidence), names))
+                orders.append(by_column(judge(a, b, evidence), names))
             complete = all(o and o["status"] == "complete" for o in orders)
             winners = {o["overall"] for o in orders if o}
             status = (

@@ -11,24 +11,9 @@ from render_cases_interaction import SEATED_ASK_LAYER
 from render_cases_navigation import go_to_address
 from render_harness import leaf_page, open_page
 
+from browser.navigation import offered_routes
+
 pytestmark = pytest.mark.shifts_unsurveyed
-
-
-# Each route the dispatcher would run from where the user stands, by the route's own id
-# (a parameterized command's route rather than its row), with the keys that reach it:
-# the reading the bottom key line used to paint as hints.
-def offered_routes(page):
-    rendered(page)
-    return page.evaluate(
-        """async () => {
-          const {availableCommandRoutes, commandEntries} = await window.__lfCheckApi();
-          const offered = {};
-          for (const [row, bindings] of availableCommandRoutes())
-            for (const entry of commandEntries(row, [...bindings]))
-              (offered[entry.id] ??= []).push(entry.binding);
-          return offered;
-        }"""
-    )
 
 
 @pytest.mark.parametrize("touch", [False, True])

@@ -1,6 +1,7 @@
 """Browser tests of comment marks, Go-to addresses and keyboard navigation, with the
 page constants and helpers their modules share."""
 
+from leaf.render_checks import rendered
 from render_harness import leaf_page, regions_side_by_side
 
 READING_REGIONS_PAGE = leaf_page(
@@ -89,3 +90,22 @@ def expect_walk_position(page, text):
     page.wait_for_function(
         "text => (window.__lfWalkPosition()?.text ?? null) === text", arg=text
     )
+
+
+# Each route the dispatcher would run from where the user stands, by the route's own id
+# (a parameterized command's route rather than its row, `page.down` rather than
+# `page.move`), with the keys that reach it: the reading the bottom key line painted.
+OFFERED_ROUTES = """async () => {
+  const {availableCommandRoutes, commandEntries} = await window.__lfCheckApi();
+  const offered = {};
+  for (const [row, bindings] of availableCommandRoutes())
+    for (const entry of commandEntries(row, [...bindings]))
+      (offered[entry.id] ??= []).push(entry.binding);
+  return offered;
+}"""
+
+
+def offered_routes(page):
+    """`{route id: [keys]}` the dispatcher would run from where the user stands now."""
+    rendered(page)
+    return page.evaluate(OFFERED_ROUTES)

@@ -305,6 +305,9 @@ export function createPrimaryReader(
             // What the box reads and how a send lands are the presentation's
             // (replies.js, `createReplyView`), given with its nomination.
             const { hint, accessibleName, sent } = item.options;
+            // The part draws whichever row the view holds: its own, or the session's
+            // row it takes from a view that can draw the thread no more, the user
+            // still in it (replies.js, `carry`).
             const reply = createReplyView(item.key, commands.reply, {
               onChange: () => {
                 if (joined) void update().catch(() => {});
@@ -313,6 +316,11 @@ export function createPrimaryReader(
               hint,
               accessibleName,
               sent,
+              redraw: () => {
+                for (const row of node.querySelectorAll(":scope > .lf-thread-reply"))
+                  if (row !== reply.node) row.remove();
+                move(node, reply.node, node.firstChild);
+              },
             });
             joined = true;
             node.append(reply.node);
@@ -397,6 +405,10 @@ export function createPrimaryReader(
       destinations.set(item.key, parts);
     }
     for (const [parent, nodes] of children) orderChildren(parent, nodes);
+    // A reply part standing in the document takes the row being written in its thread
+    // that no view holds (replies.js, `claim`).
+    for (const view of views.values())
+      view.reply?.claim(() => view.node.isConnected && !view.node.hidden);
     const widgets = [...readApplication().document.descriptors.values()]
       .filter(
         (descriptor) =>

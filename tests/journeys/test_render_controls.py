@@ -437,7 +437,11 @@ RING_CASES = (
     (
         "a reaction palette",
         (),
-        {"ship-review": ((".lf-react-palette:popover-open .lf-react", PANEL_RING),)},
+        {
+            "ship-review": (
+                (".lf-react-palette:popover-open .lf-react", ".lf-outline-chip"),
+            )
+        },
     ),
     # On me opens on its view; the walk's first step lands on a card.
     ("On me", ("ArrowDown",), {"ship-review": ((None, PANEL_RING),)}),
@@ -475,10 +479,12 @@ RING_CASES = (
             )
         },
     ),
+    # Media in a message the panel's thread view draws wears its own ring, as on the
+    # page: the panel's rule leaves what Leaf's reader draws in its outlet alone.
     (
         "message media",
         (),
-        {"feature-gallery": ((f"{PANEL} .lf-message-media", PANEL_RING),)},
+        {"feature-gallery": ((f"{PANEL} .lf-message-media", ".lf-media-open"),)},
     ),
     (
         "the Page Map dialog",

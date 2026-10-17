@@ -1,8 +1,8 @@
-/* CallDiff's plain output is a unified call-tree diff: a two-character status gutter,
- * tree glyphs and call text, then an optional source location separated by two spaces.
- * The host owns analysis and the captured text; this widget only parses that display
- * grammar and projects each row as commentable evidence. Each root keeps its native
- * disclosure separate from its source link, which remains available when closed.
+/* CallDiff owns the call hierarchy, status and source coordinates in its native JSON.
+ * This widget draws trees[].tree as commentable evidence, retaining unchanged nodes
+ * and deriving only the visible tree rails. Its optional locations are used directly,
+ * including paths with whitespace; terminal output is never read back as data.
+ * Each root keeps its disclosure separate from its source link.
  * Ordinary activation travels to the exact line; modified activation keeps the
  * native link's separate-tab, separate-window and context-menu routes. CallDiff
  * locations name the after tree for added and unchanged rows, and the before tree
@@ -31,54 +31,66 @@ import {
 
 import { diffLocationKey } from "./diff-coordinates.js";
 
-const LOCATION = /^(.*?)(?: {2,})((\S+):(\d+)(?:-\d+)?)$/;
-
-function parse(text) {
-  const lines = text.split(/\r?\n/).filter((line) => line.trim());
-  if (!lines[0]?.startsWith("calldiff diff "))
-    throw new Error("the first line must be a CallDiff diff header");
-  let entry = "Call diff";
-  let groupKey = "meta";
+function recordsOf(document) {
+  const records = [
+    {
+      body: `calldiff diff ${document.from} → ${document.to}`,
+      key: "meta",
+      groupKey: "meta",
+      entry: "",
+      location: "",
+      path: undefined,
+      line: null,
+      root: false,
+      meta: true,
+      status: "unchanged",
+      originPath: [],
+    },
+  ];
   const occurrences = new Map();
-  return lines.map((line, index) => {
-    const meta = index === 0;
-    if (!meta && !/^(?:  |\+ |\- )/.test(line))
-      throw new Error(`line ${index + 1} has no CallDiff status gutter`);
-    const status = line.startsWith("+ ")
-      ? "added"
-      : line.startsWith("- ")
-        ? "removed"
-        : "unchanged";
-    const displayed = meta ? line : line.slice(2);
-    const matched = displayed.match(LOCATION);
-    if (!meta && !matched)
-      throw new Error(
-        `line ${index + 1} has no source location; capture --locs output`,
+  for (const [treeIndex, { entry, tree }] of document.trees.entries()) {
+    let groupKey;
+    const walk = (node, indent, last, root, originPath) => {
+      const status = node.status === "same" ? "unchanged" : node.status;
+      const location =
+        node.file && node.line != null
+          ? `${node.file}:${node.line}${node.endLine != null && node.endLine !== node.line ? `-${node.endLine}` : ""}`
+          : "";
+      // Native keys identify calls independently of labels, rails and line shifts.
+      // Occurrences distinguish repeated calls without tying them to their parent.
+      const identity = [entry, node.key, status, node.file];
+      const occurrenceKey = JSON.stringify(identity);
+      const occurrence = occurrences.get(occurrenceKey) ?? 0;
+      occurrences.set(occurrenceKey, occurrence + 1);
+      const key = JSON.stringify([...identity, occurrence]);
+      if (root) groupKey = key;
+      records.push({
+        body: `${indent}${root ? "" : last ? "└─ " : "├─ "}${node.label}`,
+        entry,
+        originPath,
+        groupKey,
+        key,
+        location,
+        path: node.file,
+        line: node.line,
+        root,
+        meta: false,
+        status,
+      });
+      const rail = node.kind === "branch" || last || root ? "   " : "│  ";
+      const childIndent = root ? "" : `${indent}${rail}`;
+      node.children.forEach((child, index) =>
+        walk(child, childIndent, index === node.children.length - 1, false, [
+          ...originPath,
+          "children",
+          index,
+        ]),
       );
-    const body = matched ? matched[1] : displayed;
-    const location = matched?.[2] ?? "";
-    const root = !meta && !/[├└]/u.test(body);
-    if (!meta && !root && groupKey === "meta")
-      throw new Error(`line ${index + 1} appears before a changed root`);
-    if (root) entry = body.trim();
-    const identity = `${entry}\u0000${status}\u0000${body}\u0000${location}`;
-    const occurrence = occurrences.get(identity) ?? 0;
-    occurrences.set(identity, occurrence + 1);
-    const key = JSON.stringify([entry, status, body, location, occurrence]);
-    if (root) groupKey = key;
-    return {
-      body,
-      entry,
-      groupKey,
-      key,
-      location,
-      path: matched?.[3],
-      line: matched ? Number(matched[4]) : null,
-      meta,
-      root,
-      status,
     };
-  });
+    walk(tree, "", true, true, ["trees", treeIndex, "tree"]);
+  }
+  if (!document.trees.length && document.message) records[0].body = document.message;
+  return records;
 }
 
 function buildLine(tag = "div") {
@@ -202,8 +214,6 @@ function renderLine(record, line, owner, count = null) {
 }
 
 function labelOf(record) {
-  if (record.missing) return "Call-diff data unavailable";
-  if (record.invalid) return "Invalid call-diff data";
   if (record.meta) return record.body;
   const location = record.location ? ` at ${record.location}` : "";
   return `${record.status} call-tree item ${record.body.trim()}${location}`;
@@ -217,26 +227,22 @@ customElements.define(
       return nothing;
     }
 
-    message(key, message, snapshot) {
+    message(snapshot) {
       this.groups = new Map();
       this.rows = new Map();
       /** @type {HTMLElement} */
       this.messageNode = this.messageNode ?? el("div", "lf-call-line");
       const node = this.messageNode;
-      keeps(
-        node,
-        "class",
-        `lf-call-line lf-call-${key === "invalid" ? "invalid" : "missing"}`,
-      );
-      keepsText(node, message);
+      keeps(node, "class", "lf-call-line lf-call-missing");
+      keepsText(node, "Waiting for call-diff data.");
       setChildren(this, [node]);
       projectData(
         this,
         [
           {
             node,
-            key,
-            label: labelOf(key === "invalid" ? { invalid: true } : { missing: true }),
+            key: "unavailable",
+            label: "Call-diff data unavailable",
           },
         ],
         { snapshot },
@@ -244,23 +250,12 @@ customElements.define(
     }
 
     show(snapshot) {
-      let records;
-      try {
-        records = snapshot?.value ? parse(snapshot.value) : [];
-      } catch (error) {
-        this.classList.toggle("lf-rendered", true);
-        this.message(
-          "invalid",
-          `Call-diff data is invalid: ${error.message}.`,
-          snapshot,
-        );
-        return;
-      }
+      const records = snapshot?.value ? recordsOf(snapshot.value) : [];
       // Drawn from its data, which lifts the height the page reserved (x-height), and
       // held at that height again while the data is absent.
       this.classList.toggle("lf-rendered", records.length > 0);
       if (!records.length) {
-        this.message("unavailable", "Waiting for call-diff data.", snapshot);
+        this.message(snapshot);
         return;
       }
 
@@ -298,7 +293,13 @@ customElements.define(
           render(locationLink(record, this), group.location);
         }
         rows.set(record.key, node);
-        return { node, key: record.key, label: labelOf(record) };
+        return {
+          node,
+          key: record.key,
+          label: labelOf(record),
+          identity: record.key,
+          origin: { ...snapshot.origin, path: record.originPath },
+        };
       });
       const placements = [...groups].map(([key, { group, body }]) => {
         const [root, ...children] = groupRows.get(key);

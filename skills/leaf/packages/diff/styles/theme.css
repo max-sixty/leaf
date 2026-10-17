@@ -207,6 +207,7 @@
 }
 
 .lf-call-location {
+  white-space: pre;
   margin-inline-start: var(--sp-4);
   color: var(--code-muted);
   text-decoration-color: var(--rule);
@@ -219,18 +220,13 @@
   color: var(--accent);
 }
 
-.lf-call-missing,
-.lf-call-invalid {
+.lf-call-missing {
   display: block;
   min-width: 0;
   padding: var(--sp-3);
   color: var(--code-muted);
   font-family: var(--sans);
   white-space: normal;
-}
-
-.lf-call-invalid {
-  color: var(--danger-ink);
 }
 
 @media print {

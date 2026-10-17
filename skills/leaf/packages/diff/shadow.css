@@ -49,11 +49,14 @@
 :scope:host(.lf-rendered) .lf-diff-file-thread-outlet > .lf-resolved-threads[open] > .lf-resolved-summary::before {
   content: "▼" / "";
 }
+.lf-diff-path {
+  white-space: pre-wrap;
+}
 .lf-diff-head > .lf-diff-path {
   display: flex;
   flex: 1;
   min-width: 0;
-  white-space: nowrap;
+  white-space: pre;
 }
 .lf-diff-head :is(.lf-diff-source-path, .lf-diff-destination-path) {
   display: contents;
@@ -128,7 +131,7 @@
   background: var(--tip-bg);
   color: var(--tip-ink);
   box-shadow: var(--raise-1);
-  white-space: normal;
+  white-space: pre-wrap;
   overflow-wrap: anywhere;
   pointer-events: none;
 }
@@ -427,7 +430,7 @@
   }
   .lf-diff-head > .lf-diff-path {
     display: block;
-    white-space: normal;
+    white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
   .lf-diff-head .lf-diff-dir[data-folder-hidden] {

@@ -1015,7 +1015,8 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     expect(reset).to_be_focused()
     expect(anchored).to_be_visible()
 
-    # Parent view commands change presentation without borrowing child focus.
+    # Parent view commands never borrow child focus, nor the field the child's user
+    # stands in: a panel view would stand the thread's reply there, so it is declined.
     child_field = views["you"].locator(".lf-fp-field leaf-text")
     child_field.click()
     expect(child_field).to_be_focused()
@@ -1023,12 +1024,10 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
         page.locator("#on-you-sample").evaluate(
             "sample => sample.showThread('98850286', {surface: 'panel'})"
         )
-        is True
+        is False
     )
-    expect(
-        views["you"].locator(f'{PANEL_THREAD}[data-thread="98850286"]')
-    ).to_be_visible()
-    expect(views["you"].locator(".lf-fp-field leaf-text")).to_be_focused()
+    expect(views["you"].locator(PANEL_THREAD)).to_have_count(0)
+    expect(child_field).to_be_focused()
 
 
 def test_sample_fixture_history_presents_before_ready_and_returns_on_reset(
@@ -1156,6 +1155,8 @@ def test_sample_host_view_changes_leave_its_scroll_and_keyboard_position(
                         "Can you check the destination?", exact=True
                     )
                 ).to_be_visible()
+                # The page draws it, so the panel's view of it goes: it shows once.
+                expect(child.locator(PANEL_THREAD)).to_have_count(0)
 
 
 def test_sample_child_passage_and_reply_gestures_scroll_only_the_child(browser, serve):

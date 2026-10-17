@@ -2932,14 +2932,23 @@ export function createFloatingPanel({
 
   // A live sample's host showing its child's threads in the panel (sample.js, the
   // `thread` command): the thread it names, else Threads, on Resolved where it asks for
-  // `resolved`. A host's view never takes the child's focus.
+  // `resolved`. A host's view never takes the child's focus, nor the field from the
+  // child's user: a view that would stand another editor in the field (a thread's reply
+  // for the page's comment, or back) is declined while the caret stands in the field or
+  // its editor holds words, since the caret never passes between editors and the words
+  // would leave the screen under no key or press of the user's.
   function showForSample({ thread, status }) {
-    if (thread) {
-      if (!threadByKey(thread)) return Promise.resolve(false);
-      open(
-        { view: "thread", thread: threadByKey(thread).key },
-        { reopen: true, focus: false },
-      );
+    const wanted = thread ? threadByKey(thread) : null;
+    if (thread && !wanted) return Promise.resolve(false);
+    const top = trail.at(-1);
+    const shown = top?.view === "thread" ? threadByKey(top.thread)?.key : null;
+    if (
+      (wanted?.key ?? null) !== (shown ?? null) &&
+      (standingIn(field) || draftOf(fieldInput()).trim())
+    )
+      return Promise.resolve(false);
+    if (wanted) {
+      open({ view: "thread", thread: wanted.key }, { reopen: true, focus: false });
     } else {
       filter = status === "resolved" ? "resolved" : "open";
       query = "";
@@ -3004,6 +3013,11 @@ export function createFloatingPanel({
         if (thread.anchor && part !== "message") {
           if (!last) {
             unplaced.delete(thread.key);
+            // The page draws it, so a view of it here goes, as On the page puts it
+            // away, and the thread shows once.
+            const top = trail.at(-1);
+            if (top?.view === "thread" && threadByKey(top.thread)?.key === thread.key)
+              close();
             return false;
           }
           unplaced.add(thread.key);

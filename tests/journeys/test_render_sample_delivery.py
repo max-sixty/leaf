@@ -12,7 +12,6 @@ from leaf.render_checks import HANDOVER_DEADLINE_MS
 from playwright.sync_api import expect
 from render_harness import (
     PANEL,
-    PANEL_THREAD,
     consume_browser_errors,
     holding,
     http_error_console,
@@ -31,7 +30,8 @@ from render_harness import (
 def test_sample_upgrade_does_not_wait_for_child_saved_state(
     browser, serve, surface, newer_input
 ):
-    """A saved-thread request waits for history and yields to a newer child draft."""
+    """A saved-thread request waits for history and yields to a newer child draft, and
+    in the panel to any draft in the field its view would take."""
     source = leaf_page(
         "Independent sample startup",
         '<h1>Independent sample startup</h1><p id="outer">Parent passage.</p>'
@@ -100,25 +100,23 @@ def test_sample_upgrade_does_not_wait_for_child_saved_state(
     for route in held:
         route.continue_()
     page.wait_for_function("window.sampleSelected")
-    assert page.evaluate("window.sampleSelectionResult") is (not newer_input)
+    # The panel's view of a thread would stand its reply in the field the child's words
+    # stand in, so it yields to them as it does to newer input; the page's card doesn't.
+    shown = not newer_input and surface == "page"
+    assert page.evaluate("window.sampleSelectionResult") is shown
     expect(child.locator("body")).to_have_attribute("data-lf-presented", "1")
     expect(outer_box).to_have_js_property("value", "Parent draft")
-    if newer_input:
-        expect(inner_box).to_have_js_property("value", child_words)
-        expect(child.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
-        expect(inner_box).to_be_focused()
-        return
-    destination = child.locator(
-        PANEL_THREAD if surface == "panel" else ".lf-page-thread"
-    )
-    expect(
-        destination.get_by_text("A saved child conversation.", exact=True)
-    ).to_be_visible()
-    if surface == "panel":
-        # The thread's view stands its reply in the field; the page comment keeps its
-        # words for when the view is put away.
-        child.locator(".lf-fp-close").click()
     expect(inner_box).to_have_js_property("value", child_words)
+    if newer_input:
+        expect(inner_box).to_be_focused()
+    if not shown:
+        expect(child.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+        return
+    expect(
+        child.locator(".lf-page-thread").get_by_text(
+            "A saved child conversation.", exact=True
+        )
+    ).to_be_visible()
 
 
 def interaction_records(page, page_dir, *, document=None):

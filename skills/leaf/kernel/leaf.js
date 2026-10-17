@@ -7849,12 +7849,14 @@ function createFloatingPanel({
     }
   });
   function showForSample({ thread, status: status2 }) {
-    if (thread) {
-      if (!threadByKey(thread)) return Promise.resolve(false);
-      open(
-        { view: "thread", thread: threadByKey(thread).key },
-        { reopen: true, focus: false }
-      );
+    const wanted = thread ? threadByKey(thread) : null;
+    if (thread && !wanted) return Promise.resolve(false);
+    const top = trail.at(-1);
+    const shown = top?.view === "thread" ? threadByKey(top.thread)?.key : null;
+    if ((wanted?.key ?? null) !== (shown ?? null) && (standingIn(field) || draftOf(fieldInput()).trim()))
+      return Promise.resolve(false);
+    if (wanted) {
+      open({ view: "thread", thread: wanted.key }, { reopen: true, focus: false });
     } else {
       filter = status2 === "resolved" ? "resolved" : "open";
       query = "";
@@ -7910,6 +7912,9 @@ function createFloatingPanel({
         if (thread.anchor && part !== "message") {
           if (!last) {
             unplaced.delete(thread.key);
+            const top = trail.at(-1);
+            if (top?.view === "thread" && threadByKey(top.thread)?.key === thread.key)
+              close();
             return false;
           }
           unplaced.add(thread.key);

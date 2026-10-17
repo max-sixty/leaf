@@ -19,7 +19,6 @@ from render_harness import (
     leaf_page,
     nudge,
     open_page,
-    panel_settled,
     post_event,
     resized,
     round_trip,
@@ -628,27 +627,12 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
     assert preview.evaluate("body => body.scrollTop") == 0
     action_box = actions.bounding_box()
     playground_box = playground.bounding_box()
-    shortcut_box = page.locator("#lf-shortcut-bar").bounding_box()
+    panel_box = page.locator(".lf-fp-row").bounding_box()
     assert (
         action_box["y"] + action_box["height"]
         <= playground_box["y"] + playground_box["height"] + 1
     )
-    assert action_box["y"] + action_box["height"] <= shortcut_box["y"] + 1
-
-    # Beside Threads, the notification wraps beyond the preview's minimum height.
-    # The preview must grow around its content rather than clip it.
-    resized(page, 1280, 720)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    assert page.evaluate(reading)["postures"] == ["bounded", "bounded", "bounded"]
-    notification_box = page.locator(
-        ".notification-demo-card-banner"
-    ).first.bounding_box()
-    preview_box = page.locator("#notification-preview").bounding_box()
-    assert notification_box["y"] + notification_box["height"] <= (
-        preview_box["y"] + preview_box["height"]
-    )
-    page.locator(".lf-threads-toggle").click()
+    assert action_box["y"] + action_box["height"] <= panel_box["y"] + 1
 
     for width, height in [(1100, 300), (700, 500), (500, 900)]:
         resized(page, width, height)

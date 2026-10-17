@@ -185,9 +185,10 @@ one.
 On a column page, write the contents outline in the first `aside.sidebar` and short
 notes in `aside.sidenote`. Leaf moves them into the margin when they fit and leaves
 them where you wrote them in a narrow window. For CSS that depends on what is in the
-margin, read the tokens in `main`'s `data-lf-margin` (`rail`, `map`, `sidebar`,
-`note`), such as `main:not([data-lf-margin~="sidebar"]) #route { display: none }`, and
-check the page at the widths where an item leaves the margin.
+margin, read the tokens in the `data-lf-margin` of the box carrying `layout-column`
+(`rail`, `map`, `sidebar`, `note`), such as
+`.layout-column:not([data-lf-margin~="sidebar"]) #route { display: none }`, and check
+the page at the widths where an item leaves the margin.
 
 `data-rail="right"` on `body` gives a sidebar page a rail, and `data-rail="none"` gives
 a column page's right margin to the page's own content. A workspace has no rail; a

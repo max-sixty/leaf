@@ -98,11 +98,8 @@ def test_ask_binding_badges_follow_the_visible_margin_entries(browser, serve, wi
               const box = control.getBoundingClientRect();
               return {x: box.left, right: box.right, y: box.top, bottom: box.bottom};
             }),
-            foot: Math.min(innerHeight, ...[...document.querySelectorAll(
-              '.lf-shortcut-bar, .lf-bottom-status'
-            )].filter(node => node.checkVisibility()).map(
-              node => node.getBoundingClientRect().top
-            )),
+            foot: innerHeight,
+            panel: document.querySelector('.lf-floating-panel').getBoundingClientRect().toJSON(),
             chips: boxes([...document.querySelectorAll(
               '.lf-command-binding-badges .lf-command-binding-badge'
             )]),
@@ -114,8 +111,15 @@ def test_ask_binding_badges_follow_the_visible_margin_entries(browser, serve, wi
     # it opens it leftward from its toggle.
     for control in geometry["controls"]:
         assert 0 <= control["x"] < control["right"] <= width, geometry
+    # Above the window's foot, and clear of the floating panel standing over it.
+    panel = geometry["panel"]
     for control in geometry["controls"]:
         assert 0 < control["y"] < control["bottom"] <= geometry["foot"], geometry
+        assert (
+            control["bottom"] <= panel["top"]
+            or control["right"] <= panel["left"]
+            or control["x"] >= panel["right"]
+        ), geometry
     assert len(geometry["chips"]) == 2, geometry
 
     # Each chip hangs off its own control's upper corner, the left one unless that would
@@ -554,8 +558,6 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     expect(more).to_be_hidden()
     reject = options.get_by_role("button", name=re.compile(r"Reject"))
     expect(reject).to_be_focused()
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("close options")
-    page.keyboard.press("?")
     page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
     expect(reference).to_be_visible()
@@ -718,14 +720,12 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
     expect(options).to_be_visible()
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("dismiss thread")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(options).to_be_visible()
     # Back on the entry the card hung from, the cluster the user unfolded being the
     # level under it and the one the next press folds.
     expect(thread_margin_entry).to_be_focused()
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("close options")
     page.keyboard.press("Escape")
     expect(options).to_be_hidden()
     expect(more).to_be_focused()

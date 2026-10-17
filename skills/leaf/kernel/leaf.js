@@ -7733,10 +7733,11 @@ var capital = (word2) => word2[0].toUpperCase() + word2.slice(1);
 var coarse = () => matchMedia("(pointer: coarse)").matches;
 function passing() {
   const notice2 = noticeReading();
-  if (notice2.visible) return notice2;
+  if (notice2.visible)
+    return { message: notice2.message, visible: true, answers: !notice2.news };
   const { goTo, walk } = statusContextReading();
   const message = goTo ?? (walk?.shown ? walk.text : "");
-  return { message, visible: Boolean(message), news: false };
+  return { message, visible: Boolean(message), answers: false };
 }
 var TONE_WORDS = Object.freeze({
   working: "Working",
@@ -9201,7 +9202,7 @@ function createFloatingPanel({
     const empty = draftOf(input) === "";
     const notice2 = passing();
     const covered = notice2.visible && (!empty || reading.says === "destination");
-    overView = Boolean(top) && covered && !notice2.news;
+    overView = Boolean(top) && covered && notice2.answers;
     keeps(context, "data-notice", covered ? "" : null);
     keepsText(
       contextWords,

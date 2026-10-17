@@ -193,7 +193,6 @@ function addressableWord(addressable) {
     const own = addressable.lfWord?.();
     if (own) return own;
   }
-  if (registry[tag]?.["x-ask-context"]) return "ask";
   if (tag.startsWith("lf-")) return tag.slice(3);
   if (tag === "pre")
     return addressable.querySelector(":scope > code") ? "code" : "block";
@@ -1257,7 +1256,70 @@ function contentStart(scroller) {
 }
 var anchorHolder = (anchor) => contentStarts.get(anchor)?.scroller ?? anchor;
 var anchorName = (el) => nameAnchor(anchorReading(el));
-function anchorAt(node, anchor, box, at = anchor?.getBoundingClientRect(), visibility = "always") {
+var dropsTransforms;
+function anchorDropsTransforms() {
+  if (dropsTransforms !== void 0) return dropsTransforms;
+  const moved = document.createElement("div");
+  const anchored = document.createElement("div");
+  moved.style.cssText = "position: fixed; left: 0; top: 0; translate: 8px 0; anchor-name: --lf-moved";
+  anchored.style.cssText = "position: fixed; top: 0; position-anchor: --lf-moved; left: anchor(left, 8px)";
+  chromeRoot.append(moved, anchored);
+  dropsTransforms = anchored.getBoundingClientRect().left < 4;
+  moved.remove();
+  anchored.remove();
+  return dropsTransforms;
+}
+function laidOut(el) {
+  const parent = el.offsetParent;
+  let left = el.offsetLeft;
+  let top = el.offsetTop;
+  if (!parent) {
+    if (getComputedStyle(el).position !== "fixed") return null;
+    return { left, top };
+  }
+  if (parent === document.body && getComputedStyle(parent).position === "static") {
+    left -= scrollX;
+    top -= scrollY;
+  } else {
+    const from = parent.getBoundingClientRect();
+    left += from.left + parent.clientLeft - parent.scrollLeft;
+    top += from.top + parent.clientTop - parent.scrollTop;
+  }
+  for (let box = renderedParent(el); box !== parent; box = renderedParent(box)) {
+    if (!(box instanceof Element)) return null;
+    left -= box.scrollLeft;
+    top -= box.scrollTop;
+  }
+  return { left, top };
+}
+function movement(style) {
+  const matrix = style.transform === "none" ? null : new window.DOMMatrixReadOnly(style.transform);
+  const moves = Boolean(matrix) || style.translate !== "none" || style.rotate !== "none" || style.scale !== "none" || style.offsetPath !== "none";
+  const slides = style.rotate === "none" && style.scale === "none" && (style.offsetPath === "none" || style.offsetRotate === "0deg") && (!matrix || matrix.is2D && matrix.a === 1 && matrix.b === 0 && matrix.c === 0 && matrix.d === 1);
+  return { moves, slides };
+}
+function translationOf(el) {
+  let x = 0;
+  let y = 0;
+  for (let at = el; at instanceof Element; at = renderedParent(at)) {
+    const { moves, slides } = movement(getComputedStyle(at));
+    if (!moves) continue;
+    if (!slides || !(at instanceof HTMLElement) || at.currentCSSZoom !== 1) return null;
+    const layout = laidOut(at);
+    if (!layout) return null;
+    const shown = at.getBoundingClientRect();
+    x += shown.left - layout.left;
+    y += shown.top - layout.top;
+  }
+  return { x, y };
+}
+function anchorBox(anchor) {
+  const box = anchor.getBoundingClientRect();
+  if (!anchorDropsTransforms()) return box;
+  const shift = translationOf(anchorHolder(anchor));
+  return shift && (shift.x || shift.y) ? new DOMRect(box.left - shift.x, box.top - shift.y, box.width, box.height) : box;
+}
+function anchorAt(node, anchor, box, at = anchor && anchorBox(anchor), visibility = "always") {
   const from = (side, length) => anchor ? `calc(anchor(${side}, -9999px) + ${layoutPx(length)})` : layoutPx(length);
   Object.assign(node.style, {
     position: "fixed",
@@ -1284,7 +1346,7 @@ function headerLevels(item, clips = /* @__PURE__ */ new Map()) {
     return {
       anchor,
       reading: anchor && anchorReading(anchor),
-      at: anchor?.getBoundingClientRect(),
+      at: anchor && anchorBox(anchor),
       band: band ?? nowhere,
       axes: { x: false, y: true }
     };
@@ -1446,6 +1508,7 @@ export {
   carriedAnchor,
   anchorFor,
   anchorName,
+  anchorBox,
   anchorAt,
   headerLevels,
   cutFrames,

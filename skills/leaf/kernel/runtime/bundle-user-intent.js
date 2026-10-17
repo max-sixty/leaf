@@ -22,6 +22,7 @@ import {
   ADDRESSABLE,
   addressableWord,
   aimTargetAt,
+  anchorBox,
   anchorForPassage,
   anchorForRange,
   anchorReading,
@@ -1596,6 +1597,16 @@ function standUnderHeaders(copy, pre, levels) {
 }
 var revealed = (pre, copy) => {
   if (cuts.has(copy)) standUnderHeaders(copy, pre, headerLevels(pre));
+  const box = pre.getBoundingClientRect();
+  const at = anchorBox(pre);
+  for (const [property, length] of [
+    ["--lf-code-copy-dx", box.left - at.left],
+    ["--lf-code-copy-dy", box.top - at.top]
+  ]) {
+    const value = length ? layoutPx(length) : "";
+    if (copy.style.getPropertyValue(property) !== value)
+      copy.style.setProperty(property, value);
+  }
   refreshAnchorView(copy);
 };
 var COPY_SCOPE = /* @__PURE__ */ Symbol("code copy");

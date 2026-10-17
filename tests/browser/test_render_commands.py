@@ -39,6 +39,7 @@ from render_harness import (
     margins_laid_out,
     open_page,
     opened_tab,
+    page_registry,
     panel_settled,
     primed,
     resized,
@@ -1060,6 +1061,46 @@ def test_render_reads_widget_chrome_where_it_stands(
         ("chrome-words", "<lf-option id=c-lax>", "Session cookies"),
         ("chrome-words", "<lf-option id=c-lax>", "opens in a new tab"),
     ], failures
+
+
+CONTENTS_MAP_PAGE = leaf_page(
+    "Contents map",
+    """
+<aside class="sidebar" id="contents-sidebar"><lf-toc id="contents"></lf-toc></aside>
+<h1 id="t">Contents map</h1>
+<h2 id="first">First</h2><p>The first section's words.</p>
+<h2 id="second">Second</h2><p>The second section's words.</p>
+""",
+)
+
+
+def test_the_gate_passes_a_contents_map_resting_as_its_spine(browser, serve):
+    """A contents map written as page-authoring.md's "Contents navigation" shows rests
+    in a wide window's margin as a 24px spine whose labels reveal over the page. Held to
+    the width floor of a widget that reserves a region, that spine failed the render gate
+    on every such page. An overlay at rest is held to the height floor alone, so the
+    page passes; the same map at the same width in the flow still fails, so what passes
+    it is the resting posture and not a floor gone missing."""
+    page = open_page(browser, serve(CONTENTS_MAP_PAGE))
+    resized(page, 1200, 900)
+    width = page.locator("lf-toc").evaluate(
+        "el => Math.round(el.getBoundingClientRect().width)"
+    )
+    assert width < 40, (
+        f"the map is {width}px, so it clears the floor and proves nothing"
+    )
+    assert (
+        render_checks_model.evaluate_probe(page, "tinyBoxes", page_registry(page)) == []
+    )
+
+    page.add_style_tag(
+        content="lf-toc { position: static !important; pointer-events: auto !important; }"
+    )
+    flowed = render_checks_model.evaluate_probe(page, "tinyBoxes", page_registry(page))
+    page.close()
+    assert [box for box in flowed if box["tag"] == "lf-toc"], (
+        "a map in the flow at its spine's width reports nothing, so the floor is gone"
+    )
 
 
 FILM_DECLARATION = {

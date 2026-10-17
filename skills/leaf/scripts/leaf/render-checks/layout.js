@@ -25,6 +25,12 @@ const at = (el) => (el === pageScroller ? "<root scrollport>" : element(el));
 const breaksOut = (el) =>
   getComputedStyle(el).getPropertyValue("--lf-breakout").trim() === "1";
 
+// An overlay that takes no presses at rest, such as the contents map's spine, stands
+// over the page by design and reveals over it when the user reaches for it, so the box
+// it has at rest is not the room it shows in.
+export const restsOverPage = (style) =>
+  style.position === "fixed" && style.pointerEvents === "none";
+
 // The box a block's width and margins resolve against: its nearest ancestor that
 // generates a block, inside that ancestor's border, padding and any scrollbar gutter,
 // at the place its scroll puts it. An inline holder, such as a link around a chart, is
@@ -246,10 +252,8 @@ function marginReading(main) {
         ? "left"
         : "right";
   const isResident = (el, s = getComputedStyle(el), b = el.getBoundingClientRect()) => {
-    // A fixed overlay that takes no presses at rest, such as the contents map, stands over
-    // the page by design and reveals over it; it is a resident of the margin it starts in.
-    if (s.position === "fixed" && s.pointerEvents === "none")
-      return b.left < left - 1 || b.right > right + 1;
+    // An overlay at rest is a resident of the margin it starts in.
+    if (restsOverPage(s)) return b.left < left - 1 || b.right > right + 1;
     if (s.position === "absolute" || s.position === "fixed")
       return b.right <= left + 1 || b.left >= right - 1;
     if (s.float === "none") return false;
@@ -432,10 +436,8 @@ export function misplacedBoxes() {
     const b = el.getBoundingClientRect();
     const hit = residents.find((r) => {
       if (el.contains(r) || r.contains(el)) return false;
-      // An overlay that takes no presses at rest reveals over the page by design; the
-      // room it takes at rest is what it states to the column's free room.
-      const rs = getComputedStyle(r);
-      if (rs.position === "fixed" && rs.pointerEvents === "none") return false;
+      // An overlay at rest states the room it takes to the column's free room.
+      if (restsOverPage(getComputedStyle(r))) return false;
       const c = r.getBoundingClientRect();
       return (
         b.left < c.right - 1 &&

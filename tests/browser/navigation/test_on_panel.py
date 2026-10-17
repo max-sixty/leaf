@@ -98,14 +98,14 @@ def test_m_walks_what_waits_on_you_and_the_banner_counts_both_queues(browser, se
     expect(position).to_have_text("1 of 2 waiting on me · Thread")
     expect(thread).to_be_focused()
     page.keyboard.press("m")
-    expect(position).to_have_text("2 of 2 waiting on me · Ask")
+    expect(position).to_have_text("2 of 2 waiting on me · Options")
     expect(page.locator("#channel-ask")).to_be_focused()
     page.keyboard.press("m")
     expect(position).to_have_text("1 of 2 waiting on me · Thread")
     expect(position).to_have_attribute("data-lf-boundary", "")
     expect(thread).to_be_focused()
     page.keyboard.press("Shift+m")
-    expect(position).to_have_text("2 of 2 waiting on me · Ask")
+    expect(position).to_have_text("2 of 2 waiting on me · Options")
     expect(page.locator("#channel-ask")).to_be_focused()
     page.keyboard.press("Shift+m")
     expect(position).to_have_text("1 of 2 waiting on me · Thread")
@@ -128,7 +128,7 @@ def test_m_walks_what_waits_on_you_and_the_banner_counts_both_queues(browser, se
     counts(1, 2)
     page.locator("#h").click()
     page.keyboard.press("m")
-    expect(position).to_have_text("1 of 1 waiting on me · Ask")
+    expect(position).to_have_text("1 of 1 waiting on me · Options")
     page.locator("#h").click()
     page.keyboard.press("t")
     expect(position).to_have_text("Thread 1 of 2")
@@ -352,7 +352,7 @@ def test_the_on_panels_next_on_me_walks_as_m_does(browser, serve):
 
     button.click()
     expect(page.locator("#first-decision")).to_be_focused()
-    expect(position).to_have_text("1 of 2 waiting on me · Ask")
+    expect(position).to_have_text("1 of 2 waiting on me · Options")
     # The control: `m` from the first question steps to the second, and back.
     page.keyboard.press("m")
     expect(page.locator("#second-decision")).to_be_focused()
@@ -361,7 +361,7 @@ def test_the_on_panels_next_on_me_walks_as_m_does(browser, serve):
     # The button steps on from where the user stands, as `m` did.
     button.click()
     expect(page.locator("#second-decision")).to_be_focused()
-    expect(position).to_have_text("2 of 2 waiting on me · Ask")
+    expect(position).to_have_text("2 of 2 waiting on me · Options")
 
     # Answer both; the button leaves with the last question, and the panel stands on.
     for decision in ("#second-decision", "#first-decision"):
@@ -452,10 +452,10 @@ def test_a_tally_counts_its_regions_asks_and_walks_them(browser, serve):
 
     button.click()
     expect(first).to_be_focused()
-    expect(position).to_have_text("1 of 2 waiting on me here · Ask")
+    expect(position).to_have_text("1 of 2 waiting on me here · Options")
     button.click()
     expect(second).to_be_focused()
-    expect(position).to_have_text("2 of 2 waiting on me here · Ask")
+    expect(position).to_have_text("2 of 2 waiting on me here · Options")
     back_to_the_tally()
     page.keyboard.press("Enter")
     expect(first).to_be_focused()
@@ -513,7 +513,7 @@ def test_a_todo_on_you_ends_at_its_done_where_m_lands_and_in_the_panel(browser, 
     expect(position).to_have_text("1 of 3 waiting on me · To-do")
     expect(page.locator("#h")).to_be_focused()
     page.keyboard.press("m")
-    expect(position).to_have_text("2 of 3 waiting on me · Ask")
+    expect(position).to_have_text("2 of 3 waiting on me · Options")
     assert "x\ndone" not in shortcut_bar_text(page)
     page.keyboard.press("m")
     expect(position).to_have_text("3 of 3 waiting on me · To-do")

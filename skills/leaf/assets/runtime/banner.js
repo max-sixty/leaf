@@ -753,7 +753,7 @@ function approvalWords() {
       : !signoff || !pagePresented() || blockingAsks === null
         ? AWAITING_STATE
         : blockingAsks.length
-          ? "Answer every ask before approving this work"
+          ? "Answer every open widget before approving this work"
           : null;
   return {
     reason: reason ?? (approving ? "Approving this version" : null),

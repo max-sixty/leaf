@@ -95,6 +95,7 @@ import { LAYOUT } from "../widget-elements.js";
 import { inChrome } from "../passages.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import {
+  anchorBox,
   anchorFor,
   anchorElement,
   anchorReading,
@@ -1349,7 +1350,7 @@ export function layoutMarginRows() {
       .join("|");
     if (read.cuts.length)
       read.carrier ??= carriedAnchor(pageScroller) ?? anchorElement(targetBox(subject));
-    read.carrierBox = read.carrier?.getBoundingClientRect();
+    read.carrierBox = read.carrier && anchorBox(read.carrier);
     read.lane = read.scroller === pageScroller ? layer.root : null;
     if (read.carrier && !carrierNames.has(read.carrier))
       carrierNames.set(read.carrier, anchorReading(read.carrier));
@@ -1384,7 +1385,7 @@ export function layoutMarginRows() {
           return {
             anchor,
             reading: anchorReading(anchor),
-            at: anchor.getBoundingClientRect(),
+            at: anchorBox(anchor),
             band: !band
               ? null
               : i

@@ -66,6 +66,7 @@ import { askHolding, placeOf, stepFrom, walkOrigin } from "./standing-target.js"
 import { seenRect } from "./geometry.js";
 import { elementById, inChrome, pageDocument } from "./passages.js";
 import { byRenderedOrder, inUi, under } from "./shadow.js";
+import { askWord } from "./asks/answer.js";
 import { readAsks } from "./asks/model.js";
 import { asksIn, askPlace } from "./asks/place.js";
 import { readQueues, queueItemKey } from "./queue-api.js";
@@ -79,16 +80,20 @@ import { approvalTarget, presentedApproval } from "./banner.js";
 const QUALIFIER = "waiting on me";
 const WITHIN = "waiting on me here";
 const NOUNS = Object.freeze({
-  ask: "Ask",
   thread: "Thread",
   widget: "Update",
   page: "To-do",
   approval: "Approval",
 });
-// What a stop is called: by where it is arrived at, but a to-do on an element is a To-do
-// rather than the Update a widget's stop otherwise is.
+// What a stop is called: by where it is arrived at, a widget's item by the widget's own
+// word, but a to-do on an element is a To-do rather than the Update a widget's stop
+// otherwise is.
 const nounOf = (item, stop) =>
-  stop.kind === "widget" && itemNoun(item) === "todo" ? "To-do" : NOUNS[stop.kind];
+  stop.kind === "ask"
+    ? askWord(stop.ask)
+    : stop.kind === "widget" && itemNoun(item) === "todo"
+      ? "To-do"
+      : NOUNS[stop.kind];
 
 // Where an item of either list, or one that is done, is arrived at: a widget ask by
 // the ask's own id, anything else by the thread it stands in, a to-do on the page as a
@@ -355,13 +360,13 @@ export function createQueueWalk({
         id: "queue.next",
         binding: "m",
         title: "Next on me",
-        description: "Next ask, thread, to-do or resend waiting on me",
+        description: "Next item waiting on me",
       },
       {
         id: "queue.previous",
         binding: "Shift+m",
         title: "Previous on me",
-        description: "Previous ask, thread, to-do or resend waiting on me",
+        description: "Previous item waiting on me",
       },
     ],
     title: "On me",

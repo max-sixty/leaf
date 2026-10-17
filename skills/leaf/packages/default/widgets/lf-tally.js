@@ -60,7 +60,7 @@ customElements.define(
         this.#next = offer("button", "lf-btn lf-tally-next");
         seat.replaceWith(this.#next);
         relabel(this.#next, "Next on me", { says: false });
-        this.#next.title = "Go to the next ask on me here";
+        this.#next.title = "Go to the next item on me here";
         this.#next.setAttribute("aria-controls", this.getAttribute("for"));
         this.#next.addEventListener("mousedown", (event) => event.preventDefault());
         this.#next.addEventListener("click", () => {

@@ -23,6 +23,7 @@ import {
   MAX_DRAWING_STROKES,
   acceptData,
   askEnding,
+  askWord,
   beginRead,
   composerOpen,
   composerQuote,
@@ -7315,7 +7316,7 @@ var versionApproved = readPart(
 function approvalWords() {
   const approved = versionApproved();
   const blockingAsks = approvalBlockingAsks();
-  const reason = approved ? "Approved. Press z to undo while approval is still the latest update" : runtime.currentStamp === null ? "There is no stamped version to approve yet" : !signoff || !pagePresented() || blockingAsks === null ? AWAITING_STATE : blockingAsks.length ? "Answer every ask before approving this work" : null;
+  const reason = approved ? "Approved. Press z to undo while approval is still the latest update" : runtime.currentStamp === null ? "There is no stamped version to approve yet" : !signoff || !pagePresented() || blockingAsks === null ? AWAITING_STATE : blockingAsks.length ? "Answer every open widget before approving this work" : null;
   return {
     reason: reason ?? (approving ? "Approving this version" : null),
     text: approved ? "\u2713 Version approved" : "Approve version",
@@ -11125,7 +11126,7 @@ function createAskView({
       if (!arrived) return false;
       const state = unansweredIds().has(next.id) ? "waiting on me" : "answered";
       const index = asks2.findIndex((ask) => ask.id === next.id);
-      announce2(walkPositionLabel("Ask", index + 1, asks2.length, state));
+      announce2(walkPositionLabel(askWord(next), index + 1, asks2.length, state));
       return true;
     });
     void ready.catch(() => {
@@ -11137,7 +11138,7 @@ function createAskView({
   function mount() {
     if (mounted) return;
     mounted = true;
-    stopContextScopes = contextScopes("In this ask", askContext);
+    stopContextScopes = contextScopes("While answering", askContext);
     void syncAsks();
     document.addEventListener(PRESENTATION, actionsChanged);
     addEventListener("resize", repaint2);
@@ -11173,13 +11174,12 @@ function createAskView({
 var QUALIFIER = "waiting on me";
 var WITHIN = "waiting on me here";
 var NOUNS = Object.freeze({
-  ask: "Ask",
   thread: "Thread",
   widget: "Update",
   page: "To-do",
   approval: "Approval"
 });
-var nounOf = (item, stop) => stop.kind === "widget" && itemNoun(item) === "todo" ? "To-do" : NOUNS[stop.kind];
+var nounOf = (item, stop) => stop.kind === "ask" ? askWord(stop.ask) : stop.kind === "widget" && itemNoun(item) === "todo" ? "To-do" : NOUNS[stop.kind];
 var stopOf = (item) => item.kind === "ask" && item.ask.source.kind === "approval" ? { kind: "approval", id: item.id, thread: null } : item.kind === "ask" && item.ask.source.kind === "widget" ? { kind: "ask", id: item.id, thread: item.thread, ask: item.ask } : item.thread !== null ? { kind: "thread", id: item.thread, thread: item.thread } : item.subject.kind === "page" ? { kind: "page", id: "page", thread: null } : { kind: "widget", id: item.subject.id, thread: null };
 var sameStop = (a, b) => a.kind === b.kind && a.id === b.id;
 var pageHead = () => [...document.querySelectorAll("h1")].find((heading) => !inChrome(heading)) ?? pageDocument() ?? document.body.firstElementChild;
@@ -11346,13 +11346,13 @@ function createQueueWalk({
         id: "queue.next",
         binding: "m",
         title: "Next on me",
-        description: "Next ask, thread, to-do or resend waiting on me"
+        description: "Next item waiting on me"
       },
       {
         id: "queue.previous",
         binding: "Shift+m",
         title: "Previous on me",
-        description: "Previous ask, thread, to-do or resend waiting on me"
+        description: "Previous item waiting on me"
       }
     ],
     title: "On me",
@@ -11411,7 +11411,6 @@ function createQueueWalk({
 
 // runtime/queue-panel.js
 var WORDS = Object.freeze({
-  ask: "Ask",
   resend: "Resend",
   answer: "Answer",
   reply: "Reply",
@@ -11420,13 +11419,6 @@ var WORDS = Object.freeze({
 });
 var wordOf = (item, noun) => WORDS[noun];
 var HEADINGS = "h1, h2, h3, h4, h5, h6";
-function askWord(item) {
-  const ask = item.ask;
-  if (ask.source.kind === "reply") return "Thread";
-  if (ask.source.kind === "approval") return "Approval";
-  const word2 = registry[ask.source.tag]?.["x-word"] && addressableWord(askPlace(ask).source);
-  return word2 ? word2.charAt(0).toUpperCase() + word2.slice(1) : "Ask";
-}
 function sectionWords(element) {
   if (!element || inChrome(element)) return "";
   const heading = [...document.querySelectorAll(HEADINGS)].findLast(
@@ -11493,7 +11485,7 @@ function createQueuePanel({
   function row(item, list) {
     const thread = threadOf(item.thread);
     const noun = itemNoun(item);
-    const word2 = noun === "ask" ? askWord(item) : wordOf(item, noun);
+    const word2 = noun === "ask" ? askWord(item.ask) : wordOf(item, noun);
     const where = (list === "done" ? [wherePart(ended(item)), wherePart(place2(item, thread))] : [wherePart(place2(item, thread)), ...when(item, thread)]).filter((part) => part.text);
     const words = queueTitle(item);
     const at = noun === "ask" || item.kind === "resend" && item.subject.kind === "widget" && item.thread === null ? item.kind === "ask" ? item.ask.id : item.subject.id : null;

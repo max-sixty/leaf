@@ -6,6 +6,7 @@ import {
   residencyStarted
 } from "./bundle-content-layout.js";
 import {
+  anchorBox,
   anchorElement,
   anchorFor,
   anchorName,
@@ -1021,7 +1022,7 @@ function layoutMarginRows() {
     ).join("|");
     if (read.cuts.length)
       read.carrier ??= carriedAnchor(pageScroller) ?? anchorElement(targetBox(subject));
-    read.carrierBox = read.carrier?.getBoundingClientRect();
+    read.carrierBox = read.carrier && anchorBox(read.carrier);
     read.lane = read.scroller === pageScroller ? layer.root : null;
     if (read.carrier && !carrierNames.has(read.carrier))
       carrierNames.set(read.carrier, anchorReading(read.carrier));
@@ -1044,7 +1045,7 @@ function layoutMarginRows() {
         return {
           anchor,
           reading: anchorReading(anchor),
-          at: anchor.getBoundingClientRect(),
+          at: anchorBox(anchor),
           band: !band ? null : i ? band : {
             ...band,
             left: band.left - ring,
@@ -1307,7 +1308,7 @@ function floatingGeometry(contexts) {
   const anchors2 = /* @__PURE__ */ new Map();
   for (const context of contexts) {
     const anchor = anchorFor(context);
-    if (anchor) anchors2.set(anchor, anchor.getBoundingClientRect());
+    if (anchor) anchors2.set(anchor, anchorBox(anchor));
   }
   return { anchors: anchors2 };
 }
@@ -1417,7 +1418,7 @@ function floatingPlacement({ floating, update }) {
       const anchor = anchorFor(context);
       const client = reference.getBoundingClientRect();
       const geometry = reference.geometry ?? floatingGeometry([context]);
-      const anchorBox = geometry.anchors.get(anchor);
+      const anchorStood = geometry.anchors.get(anchor);
       const { getOverflowAncestors } = await floatingUi();
       if (placement !== epoch) return null;
       const measured = {
@@ -1433,9 +1434,9 @@ function floatingPlacement({ floating, update }) {
       const { offset, scale } = answer.middlewareData.anchorAt;
       const wanted = planeOf(answer);
       const holder = offset && physical && typeof wanted === "object" ? holderOf(wanted, physical, getOverflowAncestors(physical)) : null;
-      const plane = wanted === "page" && anchorBox && offset ? "page" : holder ? "region" : "window";
+      const plane = wanted === "page" && anchorStood && offset ? "page" : holder ? "region" : "window";
       const frameAnchor = plane === "page" ? anchor : plane === "region" ? anchorElement(holder) : null;
-      const frameBox = plane === "page" ? anchorBox : frameAnchor?.getBoundingClientRect();
+      const frameBox = plane === "page" ? anchorStood : frameAnchor && anchorBox(frameAnchor);
       const at = offset && {
         x: offset.x + (frameBox?.left ?? 0) / scale.x,
         y: offset.y + (frameBox?.top ?? 0) / scale.y

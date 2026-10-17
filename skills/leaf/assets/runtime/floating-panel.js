@@ -179,6 +179,7 @@ import { nextRender, sizeObserver } from "./rendering.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { moveScrollerBy, SCROLL_SLACK, scrollLimit, scrollToEnd } from "./scrolling.js";
 import { declareOccluder, declareWindowChrome } from "./geometry.js";
+import { registerReadingRegion } from "./reading-regions.js";
 import { agentName } from "./semantic-state.js";
 import { runtime } from "./context.js";
 import { renderedUnder } from "./shadow.js";
@@ -1050,16 +1051,21 @@ export function createFloatingPanel({
     if (waiting?.message === next.message) return;
     const arriving = !waiting;
     waiting = next;
-    paint();
-    if (!arriving || !atEnd) return;
-    // The user's turn stands wholly in sight, between the view's head and New reply's
-    // ground, its head first where it is taller than that.
-    const foot = view.querySelector(".lf-fp-foot")?.getBoundingClientRect();
-    const below = foot ? turn.getBoundingClientRect().bottom - foot.top : 0;
-    const by = Math.min(Math.max(below, 0), from());
-    if (Math.abs(by) < 0.5) return;
-    moveScrollerBy(view, by);
-    placed = view.scrollTop;
+    // New reply's foot joins the view, whose children other observers watch, so it is
+    // drawn in the next frame rather than inside this observer's delivery.
+    nextRender(() => {
+      if (waiting !== next || openView() !== view) return;
+      paint();
+      if (!arriving || !atEnd || !turn.isConnected) return;
+      // The user's turn stands wholly in sight, between the view's head and New
+      // reply's ground, its head first where it is taller than that.
+      const foot = view.querySelector(".lf-fp-foot")?.getBoundingClientRect();
+      const below = foot ? turn.getBoundingClientRect().bottom - foot.top : 0;
+      const by = Math.min(Math.max(below, 0), from());
+      if (Math.abs(by) < 0.5) return;
+      moveScrollerBy(view, by);
+      placed = view.scrollTop;
+    });
   }
   // Shows the answer waiting below the fold: its start comes into sight. The press that
   // took New reply away leaves the user standing on the thread, the view, as showing a
@@ -1732,6 +1738,28 @@ export function createFloatingPanel({
     whole: (view) => (openIn(view) ? openView() : null),
   });
   const declareView = (view) => view && declareThreadParts(view, viewParts);
+  // Each view scrolls what it holds, so each is a reading region while it stands, and a
+  // landing in it, as a rewrite opening on a message above its top, scrolls the view
+  // rather than the page its fixed box stands still over (reading-regions.js).
+  const viewRegions = new Map();
+  let regionCount = 0;
+  function regionViews() {
+    for (const [view, stop] of viewRegions)
+      if (!view.isConnected) {
+        stop();
+        viewRegions.delete(view);
+      }
+    for (const view of stage.querySelectorAll(".lf-fp-view"))
+      if (!viewRegions.has(view))
+        viewRegions.set(
+          view,
+          registerReadingRegion({
+            id: `floating-panel-view-${++regionCount}`,
+            host: view,
+            body: view,
+          }),
+        );
+  }
   declareView(head);
   declareView(replyOutlet);
 
@@ -2445,6 +2473,7 @@ export function createFloatingPanel({
       stage,
     );
     if (restoreFocus && heldView === shownView()) restoreFocus(heldView);
+    regionViews();
     // The open thread's messages are read where they land, and its view's height
     // whatever changes it (`fitAnswer`).
     const outlet = outletOf();

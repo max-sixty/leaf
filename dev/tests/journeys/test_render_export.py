@@ -1,5 +1,6 @@
 """Developer tooling checks; run explicitly from dev/tests."""
 
+import contextlib
 import json
 import os
 import signal
@@ -18,10 +19,10 @@ from interact_support import (
     append_carried_log_record,
     install_payload,
     wait_for,
+    woken,
 )
 from journeys.test_render_export import ROOT, _reachable
 from leaf import cli as cli_model
-from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import harness as harness_model
@@ -31,7 +32,7 @@ from leaf import server as server_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf.findings import Finding
-from leaf.render_checks import HANDOVER_DEADLINE_MS
+from leaf.render_checks import HANDOVER_DEADLINE_MS, wait_until_ready
 from leaf.structure import SourceDocument
 from leaf_dev.commands import preview as preview_model
 from playwright.sync_api import expect
@@ -118,7 +119,7 @@ class Watched(NamedTuple):
     log: Path
 
 
-def watching(tmp_path, preview_slot, spawn, user: bool):
+def watching(tmp_path, preview_slot, spawn, user: bool, *, env=None):
     source = tmp_path / "watched.html"
     source.write_text(REPLAYED_PAGE, encoding="utf-8")
     runtime = install_payload(tmp_path / "watched-runtime")
@@ -142,6 +143,7 @@ def watching(tmp_path, preview_slot, spawn, user: bool):
             *(["--user"] if user else []),
         ],
         log,
+        **({"env": env} if env is not None else {}),
     )
     return Watched(source, runtime, directory, process, url, log)
 
@@ -370,10 +372,11 @@ def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
     )
     prefix, default = preview_slot
     installed = install_payload(tmp_path / "other-runtime")
-    runtime_marker = "/* preview runtime marker */"
+    runtime_marker = "selected-preview-runtime"
     installed_runtime = installed / "skills" / "leaf" / "assets" / "leaf.js"
     installed_runtime.write_text(
-        installed_runtime.read_text(encoding="utf-8") + f"\n{runtime_marker}\n",
+        installed_runtime.read_text(encoding="utf-8")
+        + f"\nglobalThis.__previewRuntimeMarker = {json.dumps(runtime_marker)};\n",
         encoding="utf-8",
     )
     slots = [f"{prefix}-before", f"{prefix}-after"]
@@ -405,12 +408,13 @@ def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
     assert all(
         page.joinpath("index.html").read_text() == source.read_text() for page in pages
     )
-    assert runtime_marker not in pages[0].joinpath("leaf.js").read_text()
-    assert runtime_marker in pages[1].joinpath("leaf.js").read_text()
-
-    for url, runtime in zip(urls, runtimes, strict=True):
+    for url, runtime, expected_marker in zip(
+        urls, runtimes, [None, runtime_marker], strict=True
+    ):
         page = browser.new_page(viewport={"width": 1200, "height": 900})
         page.goto(url, wait_until="load")
+        wait_until_ready(page)
+        assert page.evaluate("globalThis.__previewRuntimeMarker") == expected_marker
         expect(page.locator(".lf-preview")).to_contain_text(f"Preview · {runtime.name}")
         expect(
             page.get_by_role("heading", name="Shared runtime comparison")
@@ -718,20 +722,51 @@ def test_preview_adds_immutable_media_before_stamping_source(watched_preview):
     assert (directory / "media" / image.name).read_bytes() == expected
 
 
-def test_terminating_a_preview_mid_update_leaves_no_service(served_preview):
-    """A SIGTERM during an update's stopped-service interval suppresses its restart."""
-    source, runtime, directory, process, _, _ = served_preview
-    # Real page-transaction contention pauses init after the watcher stops the service.
-    with cleanup_model.flocked(directory / "events.jsonl"):
+def test_terminating_a_preview_mid_update_leaves_no_service(
+    tmp_path, preview_slot, spawn
+):
+    """A SIGTERM after re-vendor stops the service leaves no restarted service."""
+    (tmp_path / "hold_update.py").write_text(
+        "import json, os, socket\n"
+        "def pause(page):\n"
+        "    record = page.page_dir / 'service.json'\n"
+        "    if not record.exists():\n"
+        "        return\n"
+        "    service = json.loads(record.read_text())\n"
+        "    theme = (page.page_dir / 'theme.css').read_text()\n"
+        "    if service.get('restart') and 'h1 { color: navy; }' in theme:\n"
+        "        port = int(os.environ['LEAF_TEST_UPDATE_BARRIER'])\n"
+        "        with socket.create_connection(('127.0.0.1', port)) as peer:\n"
+        "            if peer.recv(1) != b'x':\n"
+        "                os._exit(1)\n"
+    )
+    env = os.environ | {
+        "PYTHONPATH": os.pathsep.join(
+            filter(None, (str(tmp_path), os.environ.get("PYTHONPATH")))
+        ),
+        "LEAF_PAGE_COMMIT": "hold_update:pause",
+    }
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        listener.listen(1)
+        listener.settimeout(STATED_TIMEOUT)
+        env["LEAF_TEST_UPDATE_BARRIER"] = str(listener.getsockname()[1])
+        source, runtime, directory, process, _, log = watching(
+            tmp_path, preview_slot, spawn, user=True, env=env
+        )
         theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
         with theme.open("a", encoding="utf-8") as stream:
             stream.write("\nh1 { color: navy; }\n")
-        wait_for(
-            lambda: json.loads((directory / "service.json").read_text())["enabled"],
-            lambda enabled: not enabled,
-            failure="watcher did not begin the update",
-        )
-        os.killpg(process.pid, signal.SIGTERM)
+        try:
+            peer, _ = listener.accept()
+        except TimeoutError:
+            pytest.fail(f"watcher did not commit the updated layer: {log.read_text()}")
+        with peer:
+            assert "h1 { color: navy; }" in (directory / "theme.css").read_text()
+            assert not files_model.read_json(directory / "service.json")["enabled"]
+            os.killpg(process.pid, signal.SIGTERM)
+            with contextlib.suppress(BrokenPipeError, ConnectionResetError):
+                peer.sendall(b"x")
     process.wait(timeout=STATED_TIMEOUT)
     assert server_model.running_server(directory) is None
     assert (directory / "events.jsonl").is_file()
@@ -792,13 +827,9 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
         },
     )
     assert waiter.wait(timeout=STATED_TIMEOUT) == 0, waited.read_text()
-    lines = waited.read_text().splitlines()
-    start = next(i for i, line in enumerate(lines) if line.startswith("{"))
-    payload = json.loads("\n".join(lines[start:]))
+    payload, _, events = woken(waited.read_text(), session=session)
     assert f"leaf wait --ack {payload['id']}" in payload["acknowledge"]
-    delivery_model.receive(payload, session)
-    [batch] = payload["batches"]
-    assert [event["text"] for event in batch["events"]] == ["still there?"]
+    assert [event["text"] for event in events] == ["still there?"]
 
 
 def test_a_user_preview_brings_back_a_service_that_is_down_but_wanted(

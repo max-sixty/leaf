@@ -61,13 +61,13 @@ def upload(client, job, payload):
 
 ## Checks to review
 
-| Check | Expected result |
-|---|---|
-| Fast success | One request; return the created object ID |
-| Response lost after creation | Retry with the same key; return the same object ID |
-| All attempts time out | Raise the final TimeoutError after the selected attempt cap |
-| HTTP 403 | One request; propagate the HTTP error without retrying |
-| Stable key | Every attempt for the same upload sends the same key |
+| Check                        | Expected result                                             |
+| ---------------------------- | ----------------------------------------------------------- |
+| Fast success                 | One request; return the created object ID                   |
+| Response lost after creation | Retry with the same key; return the same object ID          |
+| All attempts time out        | Raise the final TimeoutError after the selected attempt cap |
+| HTTP 403                     | One request; propagate the HTTP error without retrying      |
+| Stable key                   | Every attempt for the same upload sends the same key        |
 
 The tests are proposed acceptance checks, not a claim that they have run. Keep that
 status clear. I want the risks and selected code readable when I return to this page.

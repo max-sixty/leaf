@@ -1229,7 +1229,7 @@ def test_a_news_resolved_card_keeps_its_place_after_an_offscreen_draft_is_cleare
     expect(card).to_have_attribute("data-resolved", "true")
     expect(reply).to_have_count(0)
     with sending(page, "explicitly reopen the saved reply"):
-        card.get_by_role("button", name="Reopen", exact=True).click()
+        card.get_by_role("button", name=re.compile(r"· Reopen$")).click()
     expect(reply).to_be_focused()
     expect(reply).to_have_js_property("value", words)
     append_carried_log_record(
@@ -1559,12 +1559,12 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
         '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
     )
     url = serve(html)
-    panel_comment(serve.page_dir, "Is this ready?", author="agent")
+    panel_comment(serve.page_dir, "Is this ready?", author="agent", question="Ship it?")
     page = open_page(browser, url)
     expect(page.locator(".lf-others")).to_have_text("All pages (2)")
     expect(page.locator(".lf-signoff")).to_be_disabled()
     expect(page.locator(".lf-signoff")).to_have_attribute(
-        "title", "Answer every ask before approving this work"
+        "title", "Answer every open widget before approving this work"
     )
     banner_control(page, ".lf-answer-all")
 

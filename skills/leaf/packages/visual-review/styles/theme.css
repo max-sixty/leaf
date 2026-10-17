@@ -273,7 +273,7 @@
   grid-template-areas:
     "action-term result-term"
     "action result";
-  grid-template-columns: minmax(0, .7fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1fr);
   gap: 0 var(--sp-4);
   margin: 0;
 }
@@ -289,10 +289,18 @@
   font: var(--t-5) / 1.4 var(--sans);
 }
 
-.lf-vr-action-term { grid-area: action-term; }
-.lf-vr-action { grid-area: action; }
-.lf-vr-result-term { grid-area: result-term; }
-.lf-vr-result { grid-area: result; }
+.lf-vr-action-term {
+  grid-area: action-term;
+}
+.lf-vr-action {
+  grid-area: action;
+}
+.lf-vr-result-term {
+  grid-area: result-term;
+}
+.lf-vr-result {
+  grid-area: result;
+}
 
 .lf-vr-links,
 .lf-vr-dispositions {
@@ -304,13 +312,13 @@
 .lf-vr-links > a {
   display: inline-flex;
   align-items: center;
-  gap: .35em;
+  gap: 0.35em;
   text-decoration: none;
 }
 
 .lf-vr-links .lf-external-mark {
-  width: .9em;
-  height: .9em;
+  width: 0.9em;
+  height: 0.9em;
   margin: 0;
   vertical-align: 0;
 }
@@ -413,7 +421,6 @@
   border-radius: var(--r);
   background: color-mix(in srgb, var(--field) 42%, var(--paper));
 }
-
 
 .lf-vr-review {
   display: flex;

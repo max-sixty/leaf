@@ -14,6 +14,7 @@ import test from "node:test";
 import {
   adoptRegistry,
   elementDeclarations,
+  layerFact,
   recordedWidgetSelector,
   registry,
   stateSpecs,
@@ -94,4 +95,14 @@ test("a later generation inherits nothing from the index warmed before it", () =
     ["lf-index-fresh"],
   );
   assert.equal(recordedWidgetSelector({ kind: "value", attr: "phase" }), "");
+});
+
+test("a layer fact is the registry's own value, which a module cannot change", () => {
+  load("frozen", { $work: { widgets: { "lf-task": { role: "goal" } } } });
+  const work = layerFact("$work");
+  assert.equal(layerFact("$work"), work);
+  assert.throws(() => {
+    work.widgets["lf-task"].role = "worker";
+  }, TypeError);
+  assert.equal(registry.$work.widgets["lf-task"].role, "goal");
 });

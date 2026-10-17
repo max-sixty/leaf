@@ -9,7 +9,8 @@ second decision reader or repeated render/quality grader for every revision.
 
 Each revision is retained for investigation. Reports capture the final and
 predecision pages and retain native timing/token accounting. Optional eval-pairs
-judges compare saved samples without rerunning their authors.
+judges compare saved samples without rerunning their authors. Routine coverage is a
+fullscreen desktop; focused cases declare their own work environment and viewports.
 """
 
 import json
@@ -175,8 +176,25 @@ def first_prompt(payload: Path, page: Path, subject: str, condition="leaf") -> s
     )
 
 
-def preference_message() -> str:
-    return DEFINITION["prompts"]["preference"].format(preference=PREFERENCE)
+def case_preference(subject: str) -> str:
+    """A focused regression can keep its explicitly requested work environment."""
+    return DEFINITION["cases"][subject].get("preference", PREFERENCE)
+
+
+def case_widths(subject: str) -> dict:
+    """Routine desktop coverage, or the focused case's declared viewports."""
+    if widths := DEFINITION["cases"][subject].get("widths"):
+        return {
+            name: (tuple(width["viewport"]), width["description"])
+            for name, width in widths.items()
+        }
+    return WIDTHS
+
+
+def preference_message(subject: str) -> str:
+    return DEFINITION["prompts"]["preference"].format(
+        preference=case_preference(subject)
+    )
 
 
 def comment_message(comment: Comment) -> str:
@@ -247,7 +265,7 @@ def author(run: Run, cwd: Path) -> None:
                 since = live.answered
                 before = None
                 if phase == 2:
-                    live.send(preference_message())
+                    live.send(preference_message(run.subject))
                 elif phase == 3:
                     before = comment(run, live)
                 elif phase == 4:
@@ -279,6 +297,7 @@ def comment(run: Run, live: LiveSession):
             remark.text,
             comment_message(remark),
             scenario.reveal,
+            viewport=next(iter(case_widths(run.subject).values()))[0],
         )
     )
     live.note({"type": "eval_post", **posted, "received_at": now()})
@@ -316,11 +335,15 @@ def decision_round(run: Run, live: LiveSession) -> None:
     page = run.authored_page
     before = latest_seq(page)
 
+    viewport = next(iter(case_widths(run.subject).values()))[0]
+
     def deciding():
         if run.leaf_condition:
-            return decide(live.url, decision.task, run.directory / "user")
+            return decide(
+                live.url, decision.task, run.directory / "user", viewport=viewport
+            )
         with arrangement_plain.serving(page) as url:
-            return decide(url, decision.task, run.directory / "user")
+            return decide(url, decision.task, run.directory / "user", viewport=viewport)
 
     made = live.during(deciding)
     # What the page sent the agent: the user's inputs admission marked as owing it
@@ -356,14 +379,15 @@ def capture_phase(
     run: Run, phase: int, page: Path | None = None
 ) -> dict[str, list[str]]:
     """One arrival screenshot per width for reports; the live judge owns inspection."""
-    captures = {name: [] for name in WIDTHS}
+    widths = case_widths(run.subject)
+    captures = {name: [] for name in widths}
     page = page or run.page(phase)
     if page is None:
         return captures
     run.shots.mkdir(parents=True, exist_ok=True)
     html = run.condition == "html"
     with headless_shell() as browser:
-        for name, (viewport, _) in WIDTHS.items():
+        for name, (viewport, _) in widths.items():
             with tempfile.TemporaryDirectory(prefix="leaf-capture-") as temporary:
                 copied = Path(temporary) / "page"
                 shutil.copytree(page, copied)
@@ -617,7 +641,9 @@ def listing(captures: dict[str, list[str]]) -> list[str]:
 def later_messages(subject: str, first: str = "version 1") -> list[str]:
     """The user's messages after the first version, as both judges read them."""
     scenario = CASES[subject]
-    lines = [f'After {first}, the user added a lasting preference: "{PREFERENCE}"']
+    lines = [
+        f'After {first}, the user added a lasting preference: "{case_preference(subject)}"'
+    ]
     if comment := scenario.comment:
         lines += ["", f'Then the user commented: "{comment_message(comment)}"']
     if decision := scenario.decision:
@@ -676,7 +702,9 @@ def comparison_inputs(subject: str) -> dict:
         "decision_task": decision.task if decision else None,
         "phases": versions,
         "author_phases": list(order),
-        "widths": {name: list(viewport) for name, (viewport, _) in WIDTHS.items()},
+        "widths": {
+            name: list(viewport) for name, (viewport, _) in case_widths(subject).items()
+        },
     }
 
 

@@ -224,8 +224,9 @@
     },
   };
 
-  // Which chrome the user reads the page with: the banner and bottom bar (`classic`,
-  // the default) or the floating panel (`floating`, floating-panel.js), with the size the
+  // Which chrome the user reads the page with: the floating panel (`floating`, the
+  // default, floating-panel.js) or the banner and bottom bar (`classic`), which a row in
+  // either chrome switches between (chrome-choice.js), with the size the
   // panel was left at (`row`, the comment field and its counts, or `mark`, the leaf
   // alone in the window's corner). One preference for every page on
   // the origin, read here because the classic bars' room is reserved before the
@@ -237,7 +238,7 @@
     rest: "lf-chrome-rest",
   };
   const chromeValues = {
-    mode: ["classic", "floating"],
+    mode: ["floating", "classic"],
     rest: ["row", "mark"],
   };
   const chrome = {};
@@ -465,39 +466,76 @@
     if (box.localName === "details") return !box.open && child.localName !== "summary";
     return getComputedStyle(box).contentVisibility === "hidden";
   };
+  // The box the page's Layout arranges (layouts.css, `--lf-layout-box`): the page's
+  // `main` (passages.js, `pageDocument`), or the shown child of a `main` that carries no
+  // Layout itself. Its parent is the shell the Layout places it in. CSS declares the box,
+  // so the runtime reads no Layout class. Without a Layout, the box is `main`.
+  const isLayoutBox = (box) =>
+    getComputedStyle(box).getPropertyValue("--lf-layout-box").trim() === "1";
+  const layoutBox = () => {
+    const main = document.querySelector("body > main");
+    if (!main || isLayoutBox(main)) return main;
+    for (const child of main.children)
+      if (child.checkVisibility() && isLayoutBox(child)) return child;
+    return main;
+  };
+  // The shell that last held the column, so a column that moves to another shell, as
+  // when another view is shown, leaves none of its tracks behind.
+  let lastShell = null;
   const seat = () => {
     const body = document.body;
     if (!body) return false;
-    // The page's `main` (passages.js, `pageDocument`), read here before any module runs.
-    const main = document.querySelector("body > main");
+    // Read here before any module runs.
+    const box = layoutBox();
+    const shellNode = box?.parentElement ?? body;
     // CSS declares the column's requested shell, without making the runtime read a
     // Layout class or making a root :has() re-check the whole page on every insertion.
     const tracksRequested =
-      Boolean(main) &&
-      getComputedStyle(main).getPropertyValue("--lf-column-shell").trim() === "grid";
-    const shellChanged = body.hasAttribute("data-lf-column-shell") !== tracksRequested;
-    if (!sourceShells.has(body)) sourceShells.set(body, body.cloneNode(false));
-    setRuntimeRootAttribute(body, "data-lf-column-shell", tracksRequested ? "" : null);
-    if (!main) {
+      Boolean(box) &&
+      getComputedStyle(box).getPropertyValue("--lf-column-shell").trim() === "grid";
+    let shellChanged =
+      shellNode.hasAttribute("data-lf-column-shell") !== tracksRequested;
+    if (lastShell && lastShell !== shellNode) {
+      shellChanged ||= lastShell.hasAttribute("data-lf-column-shell");
+      setRuntimeRootAttribute(lastShell, "data-lf-column-shell", null);
+    }
+    lastShell = shellNode;
+    if (!sourceShells.has(shellNode))
+      sourceShells.set(shellNode, shellNode.cloneNode(false));
+    setRuntimeRootAttribute(
+      shellNode,
+      "data-lf-column-shell",
+      tracksRequested ? "" : null,
+    );
+    // The shift is written on `body` whatever the shell, and the shell's tracks inherit
+    // it: `body` is root state, whose runtime styles a revision keeps (version.js).
+    if (!box) {
       const shifted = body.style.getPropertyValue("--lf-column-shift") !== "";
       removeRuntimeRootStyle(body, "--lf-column-shift");
       return shellChanged || shifted;
     }
-    const style = getComputedStyle(main);
+    const style = getComputedStyle(box);
     const need = (token) => parseFloat(style.getPropertyValue(token)) || 0;
     // Remove only the physical offset the shell's grid tracks actually apply. An
     // author's relative offset remains part of the available room. Read rendered
     // tracks rather than the last written shift, including under RTL.
-    const shellStyle = getComputedStyle(document.body);
+    const shellStyle = getComputedStyle(shellNode);
     const tracks = shellStyle.gridTemplateColumns.split(" ").map(parseFloat);
     const canShift = shellStyle.display === "grid" && style.gridColumnStart === "2";
     const gridShift = canShift
       ? ((tracks[0] - tracks.at(-1)) / 2) * (shellStyle.direction === "rtl" ? -1 : 1)
       : 0;
     const shellWritten =
-      parseFloat(document.body.style.getPropertyValue("--lf-column-shift")) || 0;
-    const column = main.getBoundingClientRect();
-    const shell = document.body.getBoundingClientRect();
+      parseFloat(body.style.getPropertyValue("--lf-column-shift")) || 0;
+    const column = box.getBoundingClientRect();
+    // Inside the shell's border and scrollbar gutters. A resident may stand in its
+    // padding, as the rail does in the strip `data-rail="right"` pads `body` with
+    // (annotation-theme.css). The client box is in the shell's own pixels, so it is
+    // scaled to the window's by any transform on the shell or around it.
+    const shellRect = shellNode.getBoundingClientRect();
+    const scale = shellRect.width / shellNode.offsetWidth || 1;
+    const shellLeft = shellRect.left + shellNode.clientLeft * scale;
+    const shell = { left: shellLeft, right: shellLeft + shellNode.clientWidth * scale };
     const room = {
       left: column.left - gridShift - shell.left,
       right: shell.right - column.right + gridShift,
@@ -506,7 +544,7 @@
     // A resident a box around it hides (a closed disclosure, a tab not chosen) needs no
     // room. One the page hides itself stays a resident, since a page may hide it until it
     // stands in the margin.
-    for (const aside of main.querySelectorAll("aside")) {
+    for (const aside of box.querySelectorAll("aside")) {
       if (skipped(aside)) continue;
       const own = getComputedStyle(aside);
       const hiddenItself =
@@ -522,17 +560,18 @@
     const preferences = [...declared.values()].sort(
       (a, b) => (side(a) === "left" ? 0 : 1) - (side(b) === "left" ? 0 : 1),
     );
-    const inputs = (box = column, placement = shellStyle) => [
-      box.left,
-      box.right,
+    const inputs = (rect = column, placement = shellStyle) => [
+      rect.left,
+      rect.right,
       shell.left,
       shell.right,
       placement.gridTemplateColumns,
       placement.direction,
       placement.display,
-      main.getAttribute("style"),
+      box.getAttribute("style"),
+      shellNode.getAttribute("style"),
       document.body.getAttribute("style"),
-      main.className,
+      box.className,
       document.body.className,
       root.className,
       document.body.dataset.annotations,
@@ -542,7 +581,7 @@
       preferences.flat().join(" "),
       ...authoredSheets(),
     ];
-    const priorFailure = failedPlacements.get(main);
+    const priorFailure = failedPlacements.get(box);
     const currentInputs = priorFailure ? inputs() : null;
     const sameFailure =
       priorFailure &&
@@ -578,7 +617,7 @@
             : 0,
       );
       // Auto margins can centre the column only while its track still holds it.
-      const reach = Math.max(0, (shell.width - column.width) / 2);
+      const reach = Math.max(0, (shell.right - shell.left - column.width) / 2);
       const shift = movable ? Math.max(-reach, Math.min(reach, requested)) : 0;
       return { taken, granted, shift };
     };
@@ -595,66 +634,67 @@
     // requested shift even on a grid. Verify the supplied room before admitting it;
     // when it cannot supply the request, withdraw it and allocate in actual flow.
     const place = (shift) => {
-      if (shift) setRuntimeRootStyle(document.body, "--lf-column-shift", `${shift}px`);
-      else removeRuntimeRootStyle(document.body, "--lf-column-shift");
+      if (shift) setRuntimeRootStyle(body, "--lf-column-shift", `${shift}px`);
+      else removeRuntimeRootStyle(body, "--lf-column-shift");
     };
     place(allocation.shift);
     const supplied =
-      allocation.shift === shellWritten ? column : main.getBoundingClientRect();
+      allocation.shift === shellWritten ? column : box.getBoundingClientRect();
     if (
       allocation.taken.left > supplied.left - shell.left + 0.5 ||
       allocation.taken.right > shell.right - supplied.right + 0.5
     ) {
       place(0);
-      const actual = main.getBoundingClientRect();
+      const actual = box.getBoundingClientRect();
       allocation = allocate(
         { left: actual.left - shell.left, right: shell.right - actual.right },
         false,
       );
-      failedPlacements.set(main, inputs(actual, getComputedStyle(document.body)));
+      failedPlacements.set(box, inputs(actual, getComputedStyle(shellNode)));
     } else if (!sameFailure) {
-      failedPlacements.delete(main);
+      failedPlacements.delete(box);
     }
     const { shift, granted } = allocation;
     const tokens = granted.join(" ");
-    const seated = (main.getAttribute("data-lf-margin") ?? "") !== tokens;
+    const seated = (box.getAttribute("data-lf-margin") ?? "") !== tokens;
     if (!seated && shift === shellWritten) return shellChanged;
     // Source copies keep the authored shell before initial geometry writes to it;
     // children still follow their original routes as the parser continues.
-    if (!sourceShells.has(main)) sourceShells.set(main, main.cloneNode(false));
+    if (!sourceShells.has(box)) sourceShells.set(box, box.cloneNode(false));
     if (seated) {
-      if (tokens) main.setAttribute("data-lf-margin", tokens);
-      else main.removeAttribute("data-lf-margin");
+      if (tokens) box.setAttribute("data-lf-margin", tokens);
+      else box.removeAttribute("data-lf-margin");
     }
     // Module-time adoption announces changed seats to reading-region discovery;
     // before upgrade the same attributes already provide the final authored box.
     return true;
   };
-  // How far each breakout's holder stands in from the column on each side
-  // (`--lf-indent-l`, `--lf-indent-r`), which the breakout's room counts as its own
-  // (layouts.css): a list item, a list the page resets, a page's own indented block,
-  // whatever moved it, read off the boxes rather than declared by each kind of holder.
-  // Only a column grows a breakout past its holder, so a page whose `main` requests no
-  // column shell (`seat`) carries no reading, and a breakout inside another takes its
-  // holder's width and none of this room. A breakout the browser is not drawing, such
-  // as one in a tab not chosen, is not read, since reading skipped content forces its
-  // style and layout: it keeps its last reading, and one never read stands as if its
-  // holder were the column. Every edge is read before any is written, so the page is
-  // laid out once however many breakouts it holds. Read with the column, so a breakout
-  // parsed before first paint is placed before it paints; one inserted or
-  // revealed later is read as it arrives (content-layout.js).
+  // Whether each breakout grows past its holder (layouts.css). Only a column grows one,
+  // so a page whose Layout's box requests no column shell (`seat`) holds none, and a breakout
+  // inside another takes its holder's width and is not read. In a column, a breakout
+  // grows only from a holder whose content box is the column's own: the column, a section,
+  // an Ask standing in it. Every other one wears `data-lf-kept` and keeps to the box it
+  // is laid out in, since the room beside that box is not the page's to give, and the
+  // holder's axis is not the prose's:
   //
-  // A breakout grows out of the column only down a chain of block flow: each box from
-  // the breakout up to `main` a block-level box its holder lays out one under another.
-  // Where the breakout, or a box between it and the column, is an item of a grid, a
-  // flex line, a table or one of a holder's columns, is an inline block, floats or is
-  // positioned, the page arranged that box itself, and the room beside it is the page's
-  // own, such as a sibling track's text: grown into it, a wide block in a grid cell
-  // stood over the other cell's words, and a table widened its own track and crushed
-  // the other to 30px. A link or other inline around a block is no such box, since the
-  // browser sets the block in its holder's flow (`holderOf`). Such a breakout
-  // wears `data-lf-arranged` and keeps to the box it is laid out in (layouts.css), so
-  // the indent is read only where the holder's content box is the breakout's block.
+  // - a holder standing in from the column, however it got there: a list item, a
+  //   quotation, a page's own indented block;
+  // - a breakout the page arranged, or one inside a box the page arranged, however wide:
+  //   one its holder does not lay out in block flow, one under another, as an item of a
+  //   grid, a flex line or a table, an inline block, one that floats or is positioned,
+  //   and one in a holder's columns. The room beside it is the page's own, such as a
+  //   sibling track's text: grown into it, a wide block in a grid cell stood over the
+  //   other cell's words, a table widened its own track and crushed the other to 30px,
+  //   and a block in a holder's second column stood over the first's words.
+  //
+  // A link or other inline around a block is no holder, since the browser sets the
+  // block in its own holder's flow (`holderOf`). A breakout the browser is not drawing,
+  // such as one in a tab not chosen, is not read, since reading skipped content forces
+  // its style and layout: it keeps its last reading, and one never read grows. Every box
+  // is read before any is written, so the page is laid out once however many breakouts
+  // it holds. Read with the column, so a breakout parsed before first paint is placed
+  // before it paints; one inserted or revealed later is read as it arrives
+  // (content-layout.js).
   const contentEdges = (element) => {
     const box = element.getBoundingClientRect();
     const style = getComputedStyle(element);
@@ -666,27 +706,26 @@
     };
   };
   const BREAKOUT = "[data-lf-space]";
-  const ARRANGED = "data-lf-arranged";
+  const KEPT = "data-lf-kept";
   // The box a breakout is laid out in: its slot's where a widget slots it, past any
   // ancestor that draws no box of its own (shadow-tree.js, `renderedParent`), and past
   // an inline one, such as a link around a chart or an unknown element, since the
   // browser sets a block inside an inline in an anonymous block of the inline's own
   // holder's flow.
-  const holderOf = (breakout, main) => {
+  const holderOf = (breakout, box) => {
     let holder = breakout;
     let display;
     do {
       // `renderedParent` spelled out: this classic script runs before any module loads.
       holder = holder.assignedSlot ?? holder.parentElement ?? holder.getRootNode().host;
-      if (holder === main) break;
+      if (holder === box) break;
       display = getComputedStyle(holder).display;
     } while (display === "contents" || display === "inline");
     return holder;
   };
   // A holder whose inner display is flow or flow-root, and which sets no columns, lays
   // its children out one under another at its full width; the computed display names
-  // that by its short keyword or in full. One that sets columns computes as a block too,
-  // and a wide block in its second column stood over the first's words.
+  // that by its short keyword or in full.
   const FLOWS =
     /^(block|flow-root|list-item|inline-block|table-cell|table-caption)$|\bflow\b|\bflow-root\b|\blist-item\b/;
   const inFlow = (box, holder) => {
@@ -704,68 +743,49 @@
   };
   // Whether the page arranged `holder` or a box above it, once per holder a reading
   // meets however many breakouts it holds.
-  const arrangedAbove = (holder, main, verdicts) => {
-    if (holder === main) return false;
+  const arrangedAbove = (holder, box, verdicts) => {
+    if (holder === box) return false;
     if (!verdicts.has(holder)) {
-      const above = holderOf(holder, main);
+      const above = holderOf(holder, box);
       verdicts.set(
         holder,
-        !inFlow(holder, above) || arrangedAbove(above, main, verdicts),
+        !inFlow(holder, above) || arrangedAbove(above, box, verdicts),
       );
     }
     return verdicts.get(holder);
   };
-  // Returns whether any breakout's indent or arrangement changed.
-  const indents = () => {
-    const main = document.querySelector("body > main");
-    if (!main) return { changed: false };
-    const grows = document.body.hasAttribute("data-lf-column-shell");
+  // Returns whether any breakout's reading changed.
+  const breakouts = () => {
+    const box = layoutBox();
+    if (!box) return { changed: false };
+    const grows = Boolean(box.parentElement?.hasAttribute("data-lf-column-shell"));
     const readings = [];
     const verdicts = new Map();
     let column = null;
-    for (const breakout of main.querySelectorAll(BREAKOUT)) {
+    for (const breakout of box.querySelectorAll(BREAKOUT)) {
       if (breakout.parentElement.closest(BREAKOUT)) continue;
       if (!grows) {
-        readings.push([breakout, 0, 0, false]);
+        readings.push([breakout, false]);
         continue;
       }
       if (!breakout.checkVisibility()) continue;
-      const holder = holderOf(breakout, main);
-      if (!inFlow(breakout, holder) || arrangedAbove(holder, main, verdicts)) {
-        readings.push([breakout, 0, 0, true]);
-        continue;
-      }
-      column ??= contentEdges(main);
-      const edges = contentEdges(holder);
-      const reading = [
-        Math.max(0, Math.round(edges.left - column.left)),
-        Math.max(0, Math.round(column.right - edges.right)),
-      ];
-      readings.push([breakout, ...reading, false]);
-      // A holder kept to the column can span the breakout it holds, as an Ask does
-      // (the default package's ask.css), and its padding keeps its content box where
-      // its own holder's is, so it stands in from the column as far: it takes the same
-      // reading, and grows as far each way as the block does.
-      if (holder.matches("[data-lf-column]"))
-        readings.push([holder, ...reading, false]);
+      const holder = holderOf(breakout, box);
+      column ??= contentEdges(box);
+      const edges = holder === box ? column : contentEdges(holder);
+      readings.push([
+        breakout,
+        !inFlow(breakout, holder) ||
+          arrangedAbove(holder, box, verdicts) ||
+          Math.abs(edges.left - column.left) > 0.5 ||
+          Math.abs(edges.right - column.right) > 0.5,
+      ]);
     }
     let changed = false;
-    for (const [breakout, left, right, arranged] of readings) {
-      const writes = [
-        ["--lf-indent-l", left],
-        ["--lf-indent-r", right],
-      ].filter(
-        ([property, length]) =>
-          breakout.style.getPropertyValue(property) !== (length ? `${length}px` : ""),
-      );
-      const rearranged = breakout.hasAttribute(ARRANGED) !== arranged;
-      if (!writes.length && !rearranged) continue;
+    for (const [breakout, held] of readings) {
+      if (breakout.hasAttribute(KEPT) === held) continue;
       if (!sourceShells.has(breakout))
         sourceShells.set(breakout, breakout.cloneNode(false));
-      for (const [property, length] of writes)
-        if (length) setRuntimeRootStyle(breakout, property, `${length}px`);
-        else removeRuntimeRootStyle(breakout, property);
-      if (rearranged) setRuntimeRootAttribute(breakout, ARRANGED, arranged ? "" : null);
+      setRuntimeRootAttribute(breakout, KEPT, held ? "" : null);
       changed = true;
     }
     return { changed };
@@ -775,8 +795,8 @@
   // block it holds in view only there. Flex wrapping places it, from the window's width,
   // the shares the page gives the track and the body, and the minimum the body's content
   // declares, and no query reads that. A track stands beside the body when one of the
-  // other boxes `main` lays out in its flex lines shares its line and stands wholly to
-  // one side of it: a box `main` lays out is a child that draws a box and is not taken
+  // other boxes the Layout's box lays out in its flex lines shares its line and stands wholly to
+  // one side of it: a box it lays out is a child that draws a box and is not taken
   // out of the flow, or one inside a child that draws none (`display: contents`), and
   // another track does not count. A track holding one block runs its line's height
   // (layouts.css), and a line holds its items' margin boxes whatever margins a page gives
@@ -805,14 +825,14 @@
     ];
   };
   const stand = () => {
-    const main = document.querySelector("body > main");
-    if (!main) return false;
-    const tracks = [...main.children].filter(
+    const box = layoutBox();
+    if (!box) return false;
+    const tracks = [...box.children].filter(
       (child) =>
         getComputedStyle(child).getPropertyValue("--lf-resident").trim() === "track",
     );
     if (!tracks.length) return false;
-    const laid = [...main.children].flatMap((child) => items(child));
+    const laid = [...box.children].flatMap((child) => items(child));
     const own = laid.filter((item) => !item.track);
     const readings = tracks.map((track) => {
       const line = laid.find((item) => item.element === track);
@@ -840,7 +860,7 @@
   const residency = () => {
     const seated = seat();
     const stood = stand();
-    const reading = indents();
+    const reading = breakouts();
     return { ...reading, changed: reading.changed || seated || stood };
   };
 
@@ -868,7 +888,8 @@
     runtimeRootStyles: (node) => new Set(runtimeStyles.get(node) ?? []),
     authoredShell: (node) => sourceShells.get(node) ?? sources.get(node) ?? node,
     residency,
-    indents,
+    breakouts,
+    layoutBox,
     skipped,
     register(tag, render) {
       // The widget loader imports unregistered producers for later revisions and

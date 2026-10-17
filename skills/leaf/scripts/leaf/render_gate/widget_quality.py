@@ -210,7 +210,7 @@ def _page_findings(
         candidate = read_page_registry(page_dir)
         (page_dir / MEDIA_DIR).mkdir(exist_ok=True)
         for layout, document in pages:
-            for reference in sorted(document.media_refs):
+            for reference in sorted(document.authoring.media_refs):
                 # Only a name the server serves gets a stand-in, which also keeps
                 # every write inside the page: a name cannot hold a directory.
                 if not MEDIA_REFERENCE.fullmatch(reference):

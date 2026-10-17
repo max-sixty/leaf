@@ -46,17 +46,16 @@ export function scheduleResidency() {
 export function settleResidency() {
   if (residencyOpen) readResidency();
 }
-// The same read also says how far each breakout's holder stands in from the column,
-// and whether the page arranged the box the breakout is in (prepaint.js, `indents`).
-// A breakout a revision or a widget inserts, or one a holder reveals (a panel losing
-// `hidden`, a disclosure opening), is read in the microtask its arrival queues. A
-// holder a class or a script moves or pads anew keeps its reading until the next pass.
+// The same read also says whether each breakout keeps to its holder (prepaint.js,
+// `breakouts`). A breakout a revision or a widget inserts, or one a holder reveals (a panel
+// losing `hidden`, a disclosure opening), is read in the microtask its arrival queues.
+// A holder a class or a script moves or pads anew keeps its reading until the next pass.
 const BREAKOUT = "[data-lf-space]";
 const bringsBreakout = (node) =>
   node.nodeType === Node.ELEMENT_NODE &&
   (node.matches(BREAKOUT) || node.querySelector(BREAKOUT) !== null);
-function readIndents() {
-  const { changed } = document.documentElement.lfInitial.indents();
+function readBreakouts() {
+  const { changed } = document.documentElement.lfInitial.breakouts();
   if (!changed) return;
   layoutChanged(pageDocument());
   repaintPage();
@@ -76,7 +75,7 @@ export function openResidency({ onRead }) {
             : [...record.addedNodes].some(bringsBreakout),
         )
       )
-        readIndents();
+        readBreakouts();
     }).observe(main, {
       childList: true,
       subtree: true,

@@ -28,8 +28,8 @@ prompt: |-
   - decisions: on the versions before the decision, the user can see and take the
     prescribed decisions and complete the page's offered route; judge navigation
     on the final versions
-  - width: at the 900px windows, the page follows the lasting preference
-  - phone: the page is usable at 390px
+  - layout: at the declared window sizes, the page uses the available space to support
+    the task and follows the user's recorded work environment and layout preference
   - comment: the final page carries the change the comment asked for where a reader
     of that passage would find it
   - applied: after the later decision message, the author's final revision preserves
@@ -48,8 +48,7 @@ prompt: |-
 aspects:
   - evidence
   - decisions
-  - width
-  - phone
+  - layout
   - comment
   - applied
 output_schema:
@@ -67,8 +66,7 @@ output_schema:
         - B
         - tie
     decisions: *id001
-    width: *id001
-    phone: *id001
+    layout: *id001
     comment: *id001
     applied: *id001
     overall: *id001
@@ -89,8 +87,7 @@ output_schema:
     - status
     - evidence
     - decisions
-    - width
-    - phone
+    - layout
     - comment
     - applied
     - overall

@@ -26,13 +26,38 @@ from leaf.files import revision_path
 from leaf.state import session_record
 from leaf_dev import ROOT, startup
 from leaf_dev.commands import journey, journey_chart, refresh_previews, verify_site
-from process.test_website_server import (  # noqa: F401
+from process.website_server import (  # noqa: F401
     _no_harness_outlives_its_test_fixture,
-    _Read,
     accept_in_turn,
     get,
     write_manifest,
 )
+
+
+class _Read:
+    ok = True
+    status = 200
+
+    def __init__(
+        self,
+        payload: dict,
+        body: str = "",
+        headers: dict | None = None,
+        *,
+        url: str = "",
+        request=None,
+    ):
+        self.payload = payload
+        self.body = body
+        self.headers = headers or {}
+        self.url = url
+        self.request = request
+
+    def json(self) -> dict:
+        return self.payload
+
+    def text(self) -> str:
+        return self.body
 
 
 class _PostedHeaders(_Read):
@@ -314,6 +339,9 @@ class _DeployedContainer:
         self.request = self
         self.closed = False
 
+    def add_init_script(self, script: str) -> None:
+        pass
+
     def new_page(self) -> _DeployedPage:
         return self.page
 
@@ -349,6 +377,9 @@ class _RollingOutContainer:
         self.page = page
         self.request = self
         self.closed = False
+
+    def add_init_script(self, script: str) -> None:
+        pass
 
     def new_page(self) -> _DeployedPage:
         return self.page

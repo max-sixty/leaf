@@ -110,7 +110,8 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
             }
         };
         // The composer's field joins the page at its first open.
-        const fab = () => document.querySelector('.lf-fab-input');
+        const commentField = () => document.querySelector('.lf-fab-input');
+        const commentOffered = () => commentField()?.checkVisibility({visibilityProperty: true});
         const speaks = el => {
             const near = el.closest('.lf-ui, [data-lf-said]');
             return !near || near.matches('[data-lf-said]');
@@ -166,9 +167,9 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
             // Mouse release snaps the native selection to word and sentence edges.
             // The mark must match the selection the reader now sees.
             range = pageRange(sel);
-            // Counted, not shrugged off: a selection the button declines to offer is
+            // Counted, not shrugged off: a selection the field declines to offer is
             // a passage silently outside this sweep, and the sweep is the coverage.
-            if (fab()?.style.display !== 'block') {
+            if (!commentOffered()) {
                 skipped.push(range.toString().replace(/\\s+/g, ' ').trim().slice(0, 70));
                 return false;
             }
@@ -182,7 +183,7 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
                 nonexact.push(anchor);
                 if (anchor.detached) detached++;
                 else fallback++;
-                if (range.collapsed || !range.toString().trim() || fab.disabled)
+                if (range.collapsed || !range.toString().trim())
                     missed.push('unusable native selection: ' + range.toString().slice(0, 70));
                 sel.removeAllRanges();
                 await rendered();
@@ -217,8 +218,8 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
             // selection's composer has closed; the rest of the page's rendering
             // settles before that drag is read.
             sel.removeAllRanges();
-            for (let i = 0; fab()?.style.display === 'block' && i < 1000; i++) await tick();
-            if (fab()?.style.display === 'block')
+            for (let i = 0; commentOffered() && i < 1000; i++) await tick();
+            if (commentOffered())
                 missed.push('Comment stayed open once the selection cleared');
             return true;
         };
@@ -250,7 +251,7 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
         f"can't find: {result['missed']}"
     )
     assert result["skipped"] == [], (
-        f"{len(result['skipped'])} passages in {source.stem} raised no Comment button, "
+        f"{len(result['skipped'])} passages in {source.stem} raised no Comment field, "
         f"so this sweep never tested them: {result['skipped']}"
     )
     assert result["astray"] == [], (

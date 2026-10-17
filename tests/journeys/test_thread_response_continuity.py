@@ -343,6 +343,7 @@ def test_passive_reply_room_ends_at_native_edit_and_new_inline_measure(browser, 
             mirrored,
         )
     assert stored_draft_text(page, "reply:" + parent) == replacement
+    other.close()
     page.bring_to_front()
     editor.focus()
     editor.evaluate("""box => {

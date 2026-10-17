@@ -36,6 +36,7 @@ import {
   readingKey,
   readingLabel,
   readingState,
+  spokenContext,
   spokenSubject,
   syncContributionSelection,
   syncContributionUnread,
@@ -47,7 +48,6 @@ import {
   ANNOTATIONS_KEY
 } from "./bundle-auxiliary-surfaces.js";
 import {
-  allThreads,
   anchorLabel,
   bannerControlDoor,
   beginWalk,
@@ -73,6 +73,8 @@ import {
   strongestWorkflow,
   tabStore,
   threadFocusDestination,
+  threadIdNamed,
+  threadNamed,
   writingIn
 } from "./bundle-user-intent.js";
 import "./bundle-widget-upgrade.js";
@@ -209,7 +211,6 @@ import {
   html,
   render,
   sameAnchor,
-  threadNames,
   turns
 } from "./bundle-queued-work.js";
 import "./bundle-__export.js";
@@ -877,7 +878,7 @@ function createThreadPreview({
     });
   }
   function focusTarget(id, { part = null } = {}) {
-    id = threadNames(allThreads()).get(id)?.id ?? id;
+    id = threadIdNamed(id);
     const thread = [...previewList.querySelectorAll(".lf-page-thread")].find(
       (candidate) => candidate.dataset.thread === id
     );
@@ -1185,6 +1186,7 @@ function createMarginProjection({
     targetFor,
     entryPoint,
     entryPlace,
+    entryPassage,
     sourceItem,
     workflowReceipt,
     threadIdsAt,
@@ -1197,7 +1199,7 @@ function createMarginProjection({
   toolbar.setAttribute("role", "toolbar");
   toolbar.setAttribute(
     "aria-label",
-    "Changes, threads, asks, delivery status, and activity"
+    "Changes, threads, items on me, delivery status, and activity"
   );
   nav.append(toolbar);
   const card = createThreadPreview({
@@ -1327,6 +1329,7 @@ function createMarginProjection({
     return {
       anchor: () => targetFor(row.lfEntry),
       point: () => entryPoint(row.lfEntry),
+      passage: () => entryPassage(row.lfEntry),
       order,
       fold: {
         able: () => canFold(row.lfEntry, {
@@ -1367,8 +1370,7 @@ function createMarginProjection({
     const choice = primaryReading(entry);
     const face = markerFace(entry).face;
     const count = choice?.items.length ?? 0;
-    const items = choice?.items ?? [];
-    const userContext = awaitingUser(items) || unreadIn(items) ? readingContext(choice) : null;
+    const userContext = spokenContext(choice);
     const reading = `${face.label}${count > 1 ? `s (${count})` : ""}${userContext ? `, ${userContext}` : ""}`;
     const subject = count === 1 && choice.items[0].workflowFace ? choice.text : entry.title;
     return `${reading}, ${index + 1} of ${anchored}${position == null ? "" : `, ${Math.max(0, Math.min(100, position))} percent down`}, ${spokenSubject(subject)}`;
@@ -1700,7 +1702,7 @@ function createMarginProjection({
     const face = readingFace(choice);
     const count = choice.items.length;
     const kind = count > 1 ? `${face.label}s` : face.label;
-    const userContext = awaitingUser(choice.items) || unreadIn(choice.items) ? readingContext(choice) : null;
+    const userContext = spokenContext(choice);
     const behavior = presentReading(node, entry, choice, {
       accessibleLabel: `${kind} for ${spokenSubject(entry.title)}${count > 1 ? `, ${count} items` : ""}${userContext ? `, ${userContext}` : ""}`
     });
@@ -2125,7 +2127,7 @@ function createMarginProjection({
     togglePinned(entry, button);
   }
   function openInlineThread(id, { origin = null, unfold = true } = {}) {
-    const itemId = marginThreadItem(threadNames(allThreads()).get(id));
+    const itemId = marginThreadItem(threadNamed(id));
     const entry = pageInventory.find(
       (candidate) => candidate.items.some((item) => item.id === itemId)
     );
@@ -2169,9 +2171,9 @@ function createMarginProjection({
   ].some((seat) => closestAcross(seat, ".lf-thread-seat[data-lf-thread-seat]"));
   const threadEntryAt = (node) => {
     const ids = threadIdsAt(node);
-    return pageInventory.find(
-      (entry) => threadReading(entry) && threadIdsOf(entry).some((id) => ids.includes(id)) && !seatedOnPage(threadIdOf(entry))
-    ) ?? null;
+    const here = (entry) => threadReading(entry) && threadIdsOf(entry).some((id) => ids.includes(id)) && !seatedOnPage(threadIdOf(entry));
+    const shown = previewOpen() && card.selection()?.entry?.key;
+    return pageInventory.find((entry) => entry.key === shown && here(entry)) ?? pageInventory.find(here) ?? null;
   };
   let standingUnfolded = null;
   const byKeyboard = () => !pressLed();

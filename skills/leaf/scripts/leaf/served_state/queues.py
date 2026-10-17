@@ -76,19 +76,19 @@ def queues(
     threads: list[dict],
     workflows: list[dict],
     todos: list[dict],
-    ended_todos: list[dict],
     asks: dict,
 ) -> dict:
     """Select asks, to-dos, resends and response obligations once.
 
     `threads` carry their attention, `workflows` are served strongest first, `todos`
-    are the open to-dos on either side and `ended_todos` the ended ones, and `asks`
-    is an `asks.collection`. An ask's canonical next actor selects its list;
+    are every to-do on either side, open and ended, and `asks` is an
+    `asks.collection`. An ask's canonical next actor selects its list;
     to-dos and resends keep their own completion routes. An update handed back in a
     thread is that thread's resend, and one handed back outside any thread is its
     own."""
+    open_todos = [todo for todo in todos if todo["state"] == "open"]
     on_user = [_ask_item(ask) for ask in asks["user"]]
-    on_user += [_todo_item(todo) for todo in todos if todo["owner"] == "user"]
+    on_user += [_todo_item(todo) for todo in open_todos if todo["owner"] == "user"]
     on_user += [
         {
             "kind": "resend",
@@ -128,7 +128,7 @@ def queues(
             on_agent.append(
                 {"kind": "work", **item, "owner": "agent", "detail": workflow["detail"]}
             )
-    on_agent += [_todo_item(todo) for todo in todos if todo["owner"] == "agent"]
+    on_agent += [_todo_item(todo) for todo in open_todos if todo["owner"] == "agent"]
     done = [
         {
             **_ask_item(ask),
@@ -146,7 +146,8 @@ def queues(
             "ended": (todo["outcome"] or {}).get("ts"),
             "detail": (todo["outcome"] or {}).get("detail"),
         }
-        for todo in ended_todos
+        for todo in todos
+        if todo["state"] != "open"
     ]
     # A reply the agent sent is the answer On <agent> listed for the input it responds
     # to. The input's first answer in the log takes that answer's identity, so the item

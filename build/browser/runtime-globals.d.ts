@@ -23,8 +23,8 @@ interface LeafStore {
   keys(): string[];
 }
 
-/** Whether a residency or indent reading changed what it writes (`prepaint.js`). */
-interface LeafIndents {
+/** Whether a residency or breakout reading changed what it writes (`prepaint.js`). */
+interface LeafReading {
   changed: boolean;
 }
 
@@ -55,8 +55,9 @@ interface LeafInitial {
   wear(node: Element, dress: LeafDress): void;
   runtimeRootStyles(node: Element): Set<string>;
   authoredShell(node: Node): Node;
-  residency(): LeafIndents;
-  indents(): LeafIndents;
+  residency(): LeafReading;
+  breakouts(): LeafReading;
+  layoutBox(): Element | null;
   skipped(element: Element, parent?: (node: Element) => Element | null): boolean;
   register(tag: string, render: LeafInitialRenderer): void;
   has(tag: string): boolean;
@@ -92,7 +93,10 @@ interface HTMLElement {
   /** Whether this document is still the one the browser shows. */
   lfDocumentLifetime?: { readonly active: boolean };
   /** User inputs since the first script, and a subscription to the next. */
-  lfInputs?: { readonly count: number; observe(read: (event: Event) => void): () => boolean };
+  lfInputs?: {
+    readonly count: number;
+    observe(read: (event: Event) => void): () => boolean;
+  };
   /** The exception behind the first startup fault, kept before modules load. */
   lfStartupException?: { name: string; message: string; stack?: string } | null;
   lfStorage?: {
@@ -159,9 +163,17 @@ interface HTMLElementTagNameMap {
 
 interface WindowEventMap {
   /** A page or module could not start (`prepaint.js`, `fault`). */
-  "lf-startup-failed": CustomEvent<{ reason?: string; error?: unknown; page?: boolean }>;
+  "lf-startup-failed": CustomEvent<{
+    reason?: string;
+    error?: unknown;
+    page?: boolean;
+  }>;
   /** The prepaint's first startup fault, said once (`bootstrap.js`, `recover`). */
-  "lf-startup-fault": CustomEvent<{ reason: string; incomplete: boolean; page: boolean }>;
+  "lf-startup-fault": CustomEvent<{
+    reason: string;
+    incomplete: boolean;
+    page: boolean;
+  }>;
 }
 
 interface DocumentEventMap {

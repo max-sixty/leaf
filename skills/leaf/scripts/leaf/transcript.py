@@ -34,7 +34,7 @@ def _revision_title(page_dir: Path) -> tuple[int | None, str]:
     title = ""
     revision = latest_revision(page_dir)
     if revision is not None:
-        title = read_revision(page_dir, revision).document.title.strip()
+        title = read_revision(page_dir, revision).document.authoring.title.strip()
     return revision, title
 
 

@@ -198,7 +198,7 @@ customElements.define(
           if (!wrapped) horizontal = pre.scrollLeft;
           paintWrap(!wrapped);
           tabStore.set(key, String(wrapped));
-          if (!wrapped) pre.scrollLeft = horizontal;
+          if (!wrapped) pre.scrollTo({ left: horizontal, behavior: "instant" });
           layoutChanged(this);
         };
         commands(this, "On a code block", [

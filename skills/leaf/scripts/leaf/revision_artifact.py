@@ -53,9 +53,9 @@ from tinycss2.serializer import serialize_string_value
 from tree_sitter import Language, Parser, Query, QueryCursor
 
 from leaf.files import file_stamp, latest_revision, list_revisions, revision_path
+from leaf.findings import Finding, Rejected
 from leaf.page_memory import Slot, memo
 from leaf.passages import SourceReading, enclosing_ids
-from leaf.refusals import Refused
 from leaf.registry.contract import is_element_name
 from leaf.render_checks import PROBE_SOURCES
 from leaf.schema import (
@@ -94,8 +94,22 @@ _IMPORT_NODES = Query(
 )
 
 
-class ArtifactError(Refused):
-    """A candidate cannot be captured as a complete local revision."""
+class ArtifactError(Rejected):
+    """A candidate cannot be captured as a complete local revision, refused with the
+    one finding that says why."""
+
+    def __init__(self, finding: Finding):
+        super().__init__([finding])
+
+
+def artifact_error(code: str, file=None, specifier=None, /, **values):
+    """The refusal of one capture problem: `code` names it, `file` the file it was
+    read in, `specifier` the reference in that file it concerns."""
+    if file is not None:
+        values["file"] = str(file)
+    if specifier is not None:
+        values["specifier"] = specifier
+    return ArtifactError(Finding(code, values=values))
 
 
 def _digest(data: bytes) -> str:
@@ -204,11 +218,12 @@ def dependency_path(specifier: str, importer: str, *, module=False) -> str | Non
     """
     if remote_reference(specifier) or specifier.startswith(("#", "data:")):
         return None
-    where = f"{importer}: {specifier!r}"
     try:
         parsed = urlsplit(specifier)
     except ValueError as error:
-        raise ArtifactError(f"{where}: invalid dependency URL: {error}") from error
+        raise artifact_error(
+            "dependency-url", importer, specifier, error=str(error)
+        ) from error
     if (
         not specifier
         or parsed.scheme
@@ -217,27 +232,20 @@ def dependency_path(specifier: str, importer: str, *, module=False) -> str | Non
         or "\\" in specifier
         or any(ord(char) < 33 for char in specifier)
     ):
-        raise ArtifactError(
-            f"{where}: dependency must be a local URL (module URLs have no query or fragment), or an "
-            "http(s) URL"
-        )
+        raise artifact_error("dependency-not-local", importer, specifier)
     path = unquote(parsed.path)
     if unquote(path) != path or "\\" in path or any(ord(char) < 33 for char in path):
-        raise ArtifactError(f"{where}: encoded dependency path is not allowed")
+        raise artifact_error("dependency-encoded", importer, specifier)
     if module and not path.startswith(("/", "./", "../")):
-        raise ArtifactError(
-            f"{where}: a module import must name a relative or absolute local URL"
-        )
+        raise artifact_error("module-not-local", importer, specifier)
     if path.startswith("/"):
         resolved = posixpath.normpath(path)
     else:
         resolved = posixpath.normpath(posixpath.join(posixpath.dirname(importer), path))
     if resolved.startswith("//") or not resolved.startswith("/"):
-        raise ArtifactError(f"{where}: dependency escapes the page")
+        raise artifact_error("dependency-escapes", importer, specifier)
     if module and Path(resolved).suffix not in JAVASCRIPT_SUFFIXES:
-        raise ArtifactError(
-            f"{where}: a module dependency must have JavaScript MIME type"
-        )
+        raise artifact_error("module-type", importer, specifier)
     return resolved
 
 
@@ -246,14 +254,11 @@ def resolve_dependency(specifier: str, importer: str, *, module=False) -> str | 
     resolved = dependency_path(specifier, importer, module=module)
     if resolved is None:
         return None
-    where = f"{importer}: {specifier!r}"
     if module:
         if not resolved.startswith("/page/") and resolved not in PUBLIC_MODULES:
-            raise ArtifactError(
-                f"{where}: module imports may use /page/ or a public layer entry point"
-            )
+            raise artifact_error("module-outside-page", importer, specifier)
     elif not resolved.startswith(("/page/", "/media/")):
-        raise ArtifactError(f"{where}: dependency escapes /page/ and /media/")
+        raise artifact_error("dependency-outside-page", importer, specifier)
     return resolved
 
 
@@ -273,7 +278,7 @@ def javascript_imports(data: bytes, path: str) -> tuple[tuple[int, int, str], ..
     try:
         data.decode("utf-8")
     except UnicodeDecodeError as error:
-        raise ArtifactError(f"{path}: JavaScript is not UTF-8") from error
+        raise artifact_error("script-not-utf8", path) from error
     tree = Parser(_JAVASCRIPT).parse(data)
     # Document order, a node before the nodes it holds, as a walk of the tree meets
     # them, so the spans come back in the order the file states them.
@@ -333,13 +338,13 @@ def _css_references(tokens):
             nested_import = True
             continue
         if token.type == "error":
-            raise ArtifactError(f"invalid CSS: {token.message}")
+            raise artifact_error("css-invalid", error=token.message)
         if token.type == "url":
             yield token
         elif token.type == "function" and token.lower_name == "url":
             values = _css_meaningful(token.arguments)
             if len(values) != 1 or values[0].type != "string":
-                raise ArtifactError("CSS url() requires one literal URL")
+                raise artifact_error("css-url")
             yield values[0]
         elif token.type == "function" and token.lower_name in {
             "image-set",
@@ -350,16 +355,12 @@ def _css_references(tokens):
             values = _css_meaningful(token.prelude)
             if values and values[0].type == "string":
                 if not _is_stylesheet_url(values[0].value):
-                    raise ArtifactError(
-                        "CSS @import requires a stylesheet with CSS MIME type"
-                    )
+                    raise artifact_error("css-import")
                 yield values[0]
             else:
                 imported = list(_css_references(token.prelude))
                 if not imported or not _is_stylesheet_url(imported[0].value):
-                    raise ArtifactError(
-                        "CSS @import requires a stylesheet with CSS MIME type"
-                    )
+                    raise artifact_error("css-import")
         for attribute in ("prelude", "content", "arguments", "value"):
             nested = getattr(token, attribute, None)
             if isinstance(nested, list):
@@ -427,8 +428,18 @@ def _read_css(source: str, declarations: bool) -> _CssReading:
     return _CssReading(references, tuple(parts[0::2]), order)
 
 
-def _css_dependencies(source: str, declarations: bool = False) -> tuple[str, ...]:
-    return tuple(value for value, _, _ in _read_css(source, declarations).references)
+def _css_dependencies(
+    source: str, path: str, declarations: bool = False
+) -> tuple[str, ...]:
+    """The URLs the CSS in the file at `path` loads. The parse is shared by every
+    file with the same text (`_read_css`), so a refusal of the text is told its file
+    here."""
+    try:
+        reading = _read_css(source, declarations)
+    except ArtifactError as error:
+        [finding] = error.findings
+        raise ArtifactError(finding.but(values={"file": path})) from None
+    return tuple(value for value, _, _ in reading.references)
 
 
 def rewrite_css(source: str, address, *, declarations: bool = False) -> str:
@@ -584,14 +595,12 @@ def capture_local_resource(page_dir: Path, path: str) -> Resource:
         not root.resolve().is_relative_to(page_dir.resolve())
         or not source.resolve().is_relative_to(root.resolve())
     ):
-        raise ArtifactError(
-            f"{path}: dependency escapes its source directory through a symlink"
-        )
+        raise artifact_error("dependency-symlink", path)
     try:
         data = source.read_bytes()
     except OSError as error:
-        raise ArtifactError(
-            f"{path}: cannot capture dependency: {error.strerror}"
+        raise artifact_error(
+            "dependency-unreadable", path, error=error.strerror
         ) from error
     mime = RESOURCE_TYPES.get(
         source.suffix,
@@ -600,7 +609,7 @@ def capture_local_resource(page_dir: Path, path: str) -> Resource:
         else None,
     )
     if mime is None or mime == "text/html":
-        raise ArtifactError(f"{path}: unsupported dependency MIME type")
+        raise artifact_error("dependency-type", path)
     return Resource(data, mime)
 
 
@@ -614,8 +623,8 @@ def _resource_dependencies(path: str, data: bytes, mime: str) -> tuple[str, ...]
         try:
             css = data.decode("utf-8")
         except UnicodeDecodeError as error:
-            raise ArtifactError(f"{path}: CSS is not UTF-8") from error
-        for specifier in _css_dependencies(css):
+            raise artifact_error("css-not-utf8", path) from error
+        for specifier in _css_dependencies(css, path):
             edges.append(resolve_dependency(specifier, path))
     return tuple(dict.fromkeys(edge for edge in edges if edge is not None))
 
@@ -693,7 +702,7 @@ def _capture_artifact(
     documents = [document]
     for authored in documents:
         documents.extend(sample["document"] for sample in authored.samples)
-        for script in authored.inline_scripts:
+        for script in authored.authoring.inline_scripts:
             if script_kind(script["attrs"]) not in {"module", "classic"}:
                 continue
             for _, _, specifier in javascript_imports(
@@ -702,7 +711,7 @@ def _capture_artifact(
                 entries.append(
                     resolve_dependency(specifier, "/index.html", module=True)
                 )
-        for script in authored.external_scripts:
+        for script in authored.authoring.external_scripts:
             if script_kind(script["attrs"]) not in {"module", "classic"}:
                 continue
             path = resolve_dependency(
@@ -711,27 +720,27 @@ def _capture_artifact(
             if path is None:
                 continue
             if not path.startswith("/page/"):
-                raise ArtifactError(f"{path}: authored scripts must be under /page/")
+                raise artifact_error("script-outside-page", path)
             entries.append(path)
-        for link in links_with_rel(authored.links, "stylesheet"):
+        for link in links_with_rel(authored.authoring.links, "stylesheet"):
             path = resolve_dependency(link["attrs"].get("href", ""), "/index.html")
             if path is None:
                 continue
             if Path(path).suffix != ".css":
-                raise ArtifactError(
-                    f"{path}: a stylesheet dependency must have CSS MIME type"
-                )
+                raise artifact_error("stylesheet-type", path)
             entries.append(path)
-        for sheet in authored.style_blocks:
-            for specifier in _css_dependencies(sheet["css"]):
+        for sheet in authored.authoring.style_blocks:
+            for specifier in _css_dependencies(sheet["css"], "/index.html"):
                 entries.append(resolve_dependency(specifier, "/index.html"))
-        for inline in authored.inline_styles:
-            for specifier in _css_dependencies(inline["style"], declarations=True):
+        for inline in authored.authoring.inline_styles:
+            for specifier in _css_dependencies(
+                inline["style"], "/index.html", declarations=True
+            ):
                 entries.append(resolve_dependency(specifier, "/index.html"))
-        entries.extend(authored.media_refs)
+        entries.extend(authored.authoring.media_refs)
         entries.extend(
             resolve_dependency(specifier, "/index.html")
-            for specifier in authored.page_resource_refs
+            for specifier in authored.authoring.page_resource_refs
         )
     entries = [entry for entry in entries if entry is not None]
     for entry in entries:
@@ -786,7 +795,10 @@ def _capture_artifact(
                         "body": _digest(script.get("body", "").encode("utf-8")),
                     }
                     for script in sorted(
-                        [*document.inline_scripts, *document.external_scripts],
+                        [
+                            *document.authoring.inline_scripts,
+                            *document.authoring.external_scripts,
+                        ],
                         key=lambda script: script["position"],
                     )
                 ],
@@ -820,7 +832,7 @@ def _capture_artifact(
     manifest = _canonical_json(
         {
             "html": _digest(document.data),
-            "title": document.title.strip(),
+            "title": document.authoring.title.strip(),
             "entries": sorted(set(entries)),
             "executable": executable,
             "widgets": widgets,
@@ -864,7 +876,7 @@ def stage_artifact(page_dir: Path, revision: int, artifact: RevisionArtifact) ->
     revisions = page_dir / "revisions"
     revisions.mkdir(exist_ok=True)
     if revision in list_revisions(page_dir):
-        raise ArtifactError(f"revision r{revision} already exists")
+        raise artifact_error("revision-exists", revision=revision)
     name = artifact_name(revision, artifact)
     destination = revisions / name
     if not destination.exists():
@@ -893,7 +905,7 @@ def stage_artifact(page_dir: Path, revision: int, artifact: RevisionArtifact) ->
             if durable:
                 fsync_parents([destination])
     elif (destination / "manifest.json").read_bytes() != artifact.manifest:
-        raise ArtifactError(f"{destination}: immutable artifact digest collision")
+        raise artifact_error("digest-collision", destination)
     return name
 
 
@@ -1267,9 +1279,7 @@ def _materialize(path: Path, bundle: Path) -> RevisionArtifact:
     html = path.read_bytes()
     artifact = RevisionArtifact(html, MappingProxyType(resources), manifest_bytes)
     if not path.stem.endswith(artifact.digest.removeprefix("sha256:")[:16]):
-        raise ArtifactError(
-            f"{bundle}: captured manifest digest does not match revision"
-        )
+        raise artifact_error("manifest-digest", bundle)
     return artifact
 
 
@@ -1303,11 +1313,7 @@ def captured_imports(data: bytes, logical_path: str, resources: Mapping[str, Res
     for start, end, specifier in javascript_imports(data, logical_path):
         target = dependency_path(specifier, logical_path, module=True)
         if target is None:
-            raise ArtifactError(
-                f"{logical_path}: {specifier!r}: captured layer import is not local"
-            )
+            raise artifact_error("layer-import-remote", logical_path, specifier)
         if target not in resources:
-            raise ArtifactError(
-                f"{logical_path}: {specifier!r}: captured layer import is missing"
-            )
+            raise artifact_error("layer-import-missing", logical_path, specifier)
         yield start, end, target

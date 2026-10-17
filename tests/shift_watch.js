@@ -141,8 +141,8 @@
       if (at.getAttribute("aria-hidden") === "true") return false;
     return true;
   };
-  // What the API names, which it does not once the node is gone.
-  const name = (node) => (node ? window.lfPlace(node) : "a node since removed");
+  // Where a node stands (write_watch.js, `place`); null once the API no longer names it.
+  const name = (node) => (node ? window.lfPlace(node) : null);
   // Both edges moved the same way. A box that grew moved one edge, or both apart, as
   // the painted box of a field does when it gains its focus ring.
   const carried = (from, to, start, end) => {
@@ -843,7 +843,7 @@
       depth(miss[0]) > depth(deepest[0]) ? miss : deepest,
     );
     const named = node ? name(node) : null;
-    report(`missed ${named}`, {
+    report(JSON.stringify(["missed", named]), {
       code: "shift-watch-missed",
       node: named,
       changed,
@@ -1068,6 +1068,7 @@
         reading: Boolean(range) || readingMedia(element),
         shown,
       };
+      const words = range ? node.textContent : null;
       const seen = placed.get(node) ?? [];
       const sameBox =
         last &&
@@ -1084,6 +1085,7 @@
         last.rect.top === rect.top &&
         last.rect.right === rect.right &&
         last.rect.bottom === rect.bottom &&
+        last.words === words &&
         Object.keys(paint).every((key) => last.paint[key] === paint[key]) &&
         fragments.length === last.fragments.length &&
         fragments.every((rect, i) =>
@@ -1120,6 +1122,7 @@
         nativeOrigin,
         rect,
         fragments,
+        words,
         paint,
       });
       pruneSamples(seen);
@@ -2214,6 +2217,9 @@
       for (const [before, after] of [[0, 2]]) {
         const prior = readings[before],
           next = readings[after];
+        // A changed text node is a new reading, even when Lit retained its DOM
+        // identity. Its old and new glyph fragments are not the same landmark.
+        if (node.nodeType === Node.TEXT_NODE && prior.words !== next.words) continue;
         const scroll = scrollMotion(node, around[before].at, around[after].at);
         const motion = animationMotion(
           node,
@@ -2352,7 +2358,7 @@
           ? { previousRect: first.previousRect, currentRect: last.currentRect }
           : chain.find(confirms);
         if (proof)
-          report(`moved ${name(node)}`, {
+          report(JSON.stringify(["moved", name(node)]), {
             code: "moved-without-input",
             node: name(node),
             by: by(proof.previousRect, proof.currentRect),
@@ -2390,9 +2396,9 @@
         Math.abs(from.top - to.top) >= 1 &&
         Math.abs(after.top - before.top - scroll.top - motion.top) >= 1;
       if (!x && !y) continue;
-      const field = window.lfPlace(typing.field),
-        place = window.lfPlace(node);
-      report(`typing in ${field} moved ${place}`, {
+      const field = name(typing.field),
+        place = name(node);
+      report(JSON.stringify(["typing", field, place]), {
         code: "typing-moved",
         node: place,
         field,

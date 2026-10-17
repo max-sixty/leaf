@@ -12,10 +12,12 @@ engineering or close.
 Summary: SSO login fails for every user since their IdP certificate rotated at 02:10.
 Customer says: "Nobody at Northwind can log in. 400 people idle."
 Log excerpt:
+
 ```
 02:11:04 saml: signature verification failed: cert fingerprint 3F:A2:…:9C not in trust store
 02:11:04 saml: rejecting assertion for northwind-labs (issuer https://idp.northwind.io)
 ```
+
 Prior contact: none. Account value: $210k/yr.
 Suggested: fix — upload the new certificate from their metadata URL; 10 minutes.
 
@@ -31,10 +33,12 @@ Suggested: close with an explanation and the refund reference RF-5521.
 Summary: exports to S3 stall at 99% for files over 2 GB.
 Customer says: "Our nightly reconciliation hasn't run for three nights."
 Log excerpt:
+
 ```
 23:58:12 export: part 412/413 uploaded
 23:58:12 export: CompleteMultipartUpload → 400 EntityTooLarge (part 413 is 5.3 GB)
 ```
+
 Prior contact: 2 (both about export performance).
 Suggested: escalate to engineering — the final part isn't being split; known bug LF-9921
 fixed in 4.12, not yet in their region.
@@ -49,10 +53,12 @@ Suggested: close — point to the feature request board, already planned for Q4.
 Summary: API rate limit errors (429) during their Monday batch, though they're under
 quota.
 Log excerpt:
+
 ```
 06:00:01 ratelimit: orbis-retail token t_91… 600/min bucket exhausted (burst)
 06:00:01 ratelimit: plan quota 6000/min; token-level cap 600/min applied
 ```
+
 Prior contact: 4 (three about rate limits).
 Suggested: fix — their integration uses one token; raise the token-level cap to the plan
 quota, which Enterprise contracts allow.
@@ -79,9 +85,11 @@ Summary: dashboard shows another customer's project names in the project switche
 Customer says: "I can see project names that aren't ours: 'orbis-q3-forecast',
 'orbis-pricing'."
 Log excerpt:
+
 ```
 08:51:30 cache: project-list key pl:org_2291 served from shard 7 (org_2219 entry)
 ```
+
 Prior contact: none.
 Suggested: escalate to engineering immediately (security incident: cross-tenant leak of
 project names via a cache key collision); do not reply with details until security has

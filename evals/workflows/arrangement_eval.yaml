@@ -1,32 +1,16 @@
 preference:
-  "A lasting preference for all my pages from now on: I read them in a window about
-  900px wide, beside my editor. At that width, keep the page's summary, status, contents or
-  queue beside the main content rather than stacked above or below it."
+  "A lasting preference for all my pages from now on: I use them fullscreen on my
+  desktop, in a window about 1600px wide and 1000px tall. Make evidence, decisions and
+  navigation comfortable to work through at that size, using the available space
+  where it helps the task."
 reachable:
   A labeled control whose content is out of view, such as a collapsed section, an unselected
   item or a scroll region's remainder, counts as reachable but costs the user a step; content
   cut off with no visible way to reach it does not count.
 widths:
-  laptop:
-    viewport:
-      - 1440
-      - 900
-    description: a 1440px laptop window
-  narrow:
-    viewport:
-      - 900
-      - 900
-    description: a 900px window
-  short:
-    viewport:
-      - 900
-      - 600
-    description: a short 900px by 600px window
-  phone:
-    viewport:
-      - 390
-      - 844
-    description: a 390px phone
+  desktop:
+    viewport: [1600, 1000]
+    description: a fullscreen 1600px by 1000px desktop window
 prompts:
   first:
     leaf: |-
@@ -69,8 +53,7 @@ prompts:
     At every declared width, substantive evidence and navigation are readable and reachable.
     The final page incorporates the user's comment and lasting width preference, and clearly
     preserves the final decision the user supplied. On the before_decision page, exercise the
-    original browser decision task through the offered controls, including keyboard and phone
-    routes; judge the actual outcome, not a settings summary or a claim of success. On the final
+    original browser decision task through the offered controls, including keyboard routes; judge the actual outcome, not a settings summary or a claim of success. On the final
     page, inspect the resulting record without replacing it with your own choices. The author's
     quoted comment answer should accurately describe the change. A recorded plan or approval
     does not imply execution, deployment or sending a message.
@@ -213,6 +196,17 @@ cases:
     assert:
       - *id001
   sidebar-page-at-900px:
+    preference:
+      "A lasting preference for all my pages from now on: I read them in a window about
+      900px wide, beside my editor. At that width, keep the page's summary, status, contents or
+      queue beside the main content rather than stacked above or below it."
+    widths:
+      short:
+        viewport: [900, 600]
+        description: a short 900px by 600px window
+      phone:
+        viewport: [390, 844]
+        description: a 390px phone
     inputs:
       comment: null
       decision: null
@@ -227,7 +221,7 @@ cases:
             for the user's task, makes its evidence readable and reachable, and provides the decisions
             or navigation the request requires. The completed rollout's forty entries must remain
             readable in the document's scroll, rather than showing only one screen of a separate
-            listing. At both 900px window heights, all six checks and their failing result stay
+            listing. At the short 900px window, all six checks and their failing result stay
             accessible beside the log as it scrolls. Page navigation and any supporting sidebar
             content remain reachable; a sticky box must not hold them below the window. On a phone,
             the regions stack without covering the log or hiding its entries.

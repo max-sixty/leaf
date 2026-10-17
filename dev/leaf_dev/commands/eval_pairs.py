@@ -61,22 +61,26 @@ def saved_comparison(members: list[dict]) -> dict:
     return comparison
 
 
+def comparison_pages(samples: dict[str, dict], comparison: dict) -> dict:
+    """Original-runtime page roles from the captured task, shared by live judges."""
+    return {
+        label + suffix: {
+            "page": Path(sample["diagnostics"]["phases"][version]["page"]),
+            "payload": Path(sample["diagnostics"]["payload"]),
+            "condition": sample["diagnostics"]["condition"],
+        }
+        for label, sample in samples.items()
+        for suffix, version in comparison["phases"].items()
+    }
+
+
 def judge(a: dict, b: dict, evidence: Path) -> dict | None:
     """One judgment of A against B, or None when the judge gives no verdict."""
     evidence.mkdir(parents=True, exist_ok=True)
     attempt = Path(tempfile.mkdtemp(prefix="judge-", dir=evidence))
     comparison = saved_comparison([a, b])
-    versions = comparison["phases"]
     response = judge_pages(
-        {
-            label + suffix: {
-                "page": Path(sample["diagnostics"]["phases"][version]["page"]),
-                "payload": Path(sample["diagnostics"]["payload"]),
-                "condition": sample["diagnostics"]["condition"],
-            }
-            for label, sample in (("A", a), ("B", b))
-            for suffix, version in versions.items()
-        },
+        comparison_pages({"A": a, "B": b}, comparison),
         comparison["widths"],
         JUDGE.format(
             brief=comparison["brief"] + "\n\n" + DEFINITION["brief_intro"],

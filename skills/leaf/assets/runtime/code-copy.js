@@ -16,6 +16,9 @@
    block, as the block's own words do, standing in the frames that cut every box
    following scrolled content (css-anchors.js, `headerLevels`), so a block scrolled
    under a stuck toolbar offers no Copy over the toolbar's controls.
+   Document copies share one stable chrome child, including their clipping frames.
+   Making every copy a sibling of transient chrome lets a new margin measurement
+   invalidate structural selectors on every block's control in a long page.
    The control follows the common pattern for code copy: hidden at rest, so it covers no
    words, and shown while a pointer is over the block or the user stands on it. A finger
    has no hover, so a tap on the block stands the user on it and shows the control in
@@ -25,6 +28,7 @@
 import { copyControl } from "./copy-control.js";
 import { watchArrivals } from "./arrivals.js";
 import {
+  anchorBox,
   anchorReading,
   cutFrames,
   headerLevels,
@@ -36,12 +40,15 @@ import { focusDestination, onStanding } from "./focus.js";
 import { upFrom } from "./shadow.js";
 import { chromeRoot } from "./chrome.js";
 import { move } from "./dom-move.js";
+import { layoutPx } from "./keeps.js";
 import { nextRender } from "./rendering.js";
 import { claimReachStop, releaseReachStop } from "./reach.js";
 import { commandScope, projectCommandScope } from "./keyboard/scopes.js";
 
 const controls = new WeakMap();
 const wired = new WeakMap();
+const documentCopies = document.createElement("div");
+documentCopies.className = "lf-code-copy-home";
 // The frames each document control stands in, under its block's sticky headers.
 const cuts = new WeakMap();
 const makeCut = () => {
@@ -66,13 +73,28 @@ function standUnderHeaders(copy, pre, levels) {
   const frames = cutFrames(levels, cuts.get(copy) ?? [], makeCut);
   cuts.set(copy, frames);
   placed.set(copy, pre);
-  if (frames[0] && frames[0].parentNode !== chromeRoot)
-    move(chromeRoot, frames[0], null);
-  const home = frames.at(-1) ?? chromeRoot;
+  if (documentCopies.parentNode !== chromeRoot) move(chromeRoot, documentCopies, null);
+  if (frames[0] && frames[0].parentNode !== documentCopies)
+    move(documentCopies, frames[0], null);
+  const home = frames.at(-1) ?? documentCopies;
   if (copy.parentNode !== home) move(home, copy, null);
 }
+// The control's anchor insets carry how far `anchor()` reads the block from where it
+// shows, which only an engine that leaves transforms out makes other than nothing
+// (css-anchors.js, `anchorBox`), such as Firefox on a block in a table granted room.
+// Read on each reveal, since only a shown control needs it.
 const revealed = (pre, copy) => {
   if (cuts.has(copy)) standUnderHeaders(copy, pre, headerLevels(pre));
+  const box = pre.getBoundingClientRect();
+  const at = anchorBox(pre);
+  for (const [property, length] of [
+    ["--lf-code-copy-dx", box.left - at.left],
+    ["--lf-code-copy-dy", box.top - at.top],
+  ]) {
+    const value = length ? layoutPx(length) : "";
+    if (copy.style.getPropertyValue(property) !== value)
+      copy.style.setProperty(property, value);
+  }
   refreshAnchorView(copy);
 };
 // The key this module projects its Copy scope under, beside the block's other owners.

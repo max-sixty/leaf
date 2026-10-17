@@ -187,16 +187,16 @@ def test_child_list_restatements_are_judged_across_one_delivery(browser):
     }""")
     failures = consume_browser_errors(page, {"code": "unchanged-write"})
     assert {
-        (failure.values["what"], failure.values["node"]) for failure in failures
+        (failure.values["what"], *failure.values["node"]) for failure in failures
     } == {
         ("children", "div#retained-shadow"),
         ("children", "div#retained-content"),
-        ("title", "span in div#retained-content"),
-        ("state", "span in div#retained-content"),
-        ("state", "span in div#changed-attribute"),
-        ("text", "#text in span in div#retained-content"),
+        ("title", "span", "div#retained-content"),
+        ("state", "span", "div#retained-content"),
+        ("state", "span", "div#changed-attribute"),
+        ("text", "#text", "span", "div#retained-content"),
         ("children", "div#nested-roundtrip"),
-        ("children", "span in div#nested-roundtrip"),
+        ("children", "span", "div#nested-roundtrip"),
         ("children", "div#before-restore"),
         ("children", "div#after-restore"),
         ("children", "div#retained"),

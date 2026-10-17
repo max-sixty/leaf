@@ -21,16 +21,16 @@ count is not a cap on simultaneous requests. Error values below are percentages:
 0.04 means 0.04%, not 4%.
 
 | Configuration | Workers | Throughput (requests/s) | p99 latency (ms) | Errors (%) |
-|---|---:|---:|---:|---:|
-| A | 1 | 680 | 420 | 0.01 |
-| A | 2 | 980 | 620 | 0.03 |
-| A | 4 | 1240 | 180 | 0.04 |
-| B | 1 | 760 | 390 | 0.02 |
-| B | 2 | 1130 | 590 | 0.04 |
-| B | 4 | 1380 | 650 | 0.18 |
-| C | 1 | 820 | 460 | 0.02 |
-| C | 2 | 1100 | 660 | 0.08 |
-| C | 4 | 1420 | 1460 | 0.25 |
+| ------------- | ------: | ----------------------: | ---------------: | ---------: |
+| A             |       1 |                     680 |              420 |       0.01 |
+| A             |       2 |                     980 |              620 |       0.03 |
+| A             |       4 |                    1240 |              180 |       0.04 |
+| B             |       1 |                     760 |              390 |       0.02 |
+| B             |       2 |                    1130 |              590 |       0.04 |
+| B             |       4 |                    1380 |              650 |       0.18 |
+| C             |       1 |                     820 |              460 |       0.02 |
+| C             |       2 |                    1100 |              660 |       0.08 |
+| C             |       4 |                    1420 |             1460 |       0.25 |
 
 The working note is: **A with 4 workers has p99 180 ms.** Keep this note near the
 chart so it can be corrected during review.

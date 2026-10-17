@@ -51,7 +51,7 @@ from leaf.registry.contract import element_declarations
 from leaf.structure import SourceDocument
 from leaf.thread_context import thread_digest
 from leaf.validation import composition as validation_model
-from leaf.validation.admission import check_markup
+from leaf.validation.admission import check_markup, revision_publication
 from leaf.validation.instances import reference_errors
 from leaf_dev.example_data import regression_sources
 from leaf_dev.page_fixtures import prepare_page, read_fixture
@@ -319,8 +319,15 @@ def test_ask_context_frames_any_number_of_independent_sources(page_dir):
     ):
         assert found(fragment_errors(untitled, registry), "ask-context-title")
 
-    # A context framing no live source would show a question the banner never
-    # counts. A retired source still counts: settling a decision keeps its context.
+    # A context framing no widget is a question the user answers in words, and needs
+    # no heading. One framing only widgets that ask nothing would show a question the
+    # On me list never counts. A retired source still counts: settling a decision
+    # keeps its context.
+    assert (
+        fragment_errors('<lf-ask id="question">Is this enough?</lf-ask>', registry)
+        == []
+    )
+    # A heading over no widget is a frame that lost its decision, not a question.
     empty = fragment_errors(
         '<lf-ask id="decision-empty"><h2>Nothing to answer</h2></lf-ask>', registry
     )
@@ -651,7 +658,15 @@ def test_a_playground_names_its_controls_within_itself(tmp_path, initialized_pag
     def reply(*playgrounds):
         markup = f'<lf-ask id="ask"><h2>Which?</h2>{"".join(playgrounds)}</lf-ask>'
         try:
-            check_markup(page_dir, "reply", markup, [])
+            check_markup(
+                page_dir,
+                "reply",
+                markup,
+                [],
+                publication=revision_publication(
+                    page_dir, files_model.latest_revision(page_dir)
+                ),
+            )
         except Rejected as refused:
             return refused.findings
         return []
@@ -1244,12 +1259,21 @@ def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
     assert [json.loads(line)["kind"] for line in later.output.splitlines()] == ["reply"]
 
 
-def test_an_agent_reply_records_only_an_ask_it_leaves_with_the_user(page_dir):
+def test_an_agent_reply_asks_the_user_only_through_a_widget_in_its_markup(page_dir):
+    """A reply leaves the user something to answer only by holding a widget that
+    asks, such as an lf-ask; its words alone ask nothing, and there is no flag that
+    makes them."""
     published(page_dir)
     root = append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "status?"},
     )
+
+    def reply(*options):
+        return CliRunner().invoke(
+            cli_model.cli,
+            ["thread", "reply", str(page_dir), root["id"], *options],
+        )
 
     answered = CliRunner().invoke(
         cli_model.cli,
@@ -1262,63 +1286,20 @@ def test_an_agent_reply_records_only_an_ask_it_leaves_with_the_user(page_dir):
             "Complete.",
         ],
     )
-    asking = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "thread",
-            "reply",
-            str(page_dir),
-            root["id"],
-            "--text",
-            "Which store?",
-            "--ask",
-        ],
-    )
-    duplicate = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "thread",
-            "reply",
-            str(page_dir),
-            root["id"],
-            "--text",
-            "Pick one.",
-            "--markup",
-            (
-                '<lf-ask id="stores-decision"><h2>Which store?</h2>'
-                '<lf-options id="stores" choose>'
-                '<lf-option id="store-a"><strong>A</strong></lf-option>'
-                "</lf-options></lf-ask>"
-            ),
-            "--ask",
-        ],
-    )
-    aggregate = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "thread",
-            "reply",
-            str(page_dir),
-            root["id"],
-            "--text",
-            "Should I continue?",
-            "--markup",
-            (
-                '<lf-test-tasks id="reply-plan"><lf-test-task id="reply-task" status="review">'
-                "<strong>Review</strong></lf-test-task></lf-test-tasks>"
-            ),
-            "--ask",
-        ],
-    )
     assert answered.exit_code == 0, answered.output
+    worded = reply("--text", "Which store?")
+    assert worded.exit_code == 0, worded.output
+    assert reply("--text", "Which store?", "--ask").exit_code == 2
+    asking = reply(
+        "--text",
+        "One question:",
+        "--markup",
+        '<lf-ask id="store">Which store?</lf-ask>',
+    )
     assert asking.exit_code == 0, asking.output
-    assert duplicate.exit_code == 1
-    assert refused_on(duplicate.stderr).values["tags"] == ["lf-options"]
-    assert aggregate.exit_code == 0, aggregate.output
-    replies = [e for e in events_model.read_events(page_dir) if e["kind"] == "reply"]
-    assert "ask" not in replies[0]
-    assert replies[1]["ask"] is True
-    assert replies[2]["ask"] is True
+    assert [item["id"] for item in state_json(page_dir)["queues"]["on_user"]] == [
+        "widget:store"
+    ]
 
 
 def test_an_agent_edits_predecessor_messages_without_rewriting_history(
@@ -1577,8 +1558,9 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
             "reply",
             response_reference(page_dir, again["id"]),
             "--text",
-            "Which year goes first?",
-            "--ask",
+            "One question:",
+            "--markup",
+            '<lf-ask id="first-year">Which year goes first?</lf-ask>',
         ],
     )
     assert asking.exit_code == 0, asking.output

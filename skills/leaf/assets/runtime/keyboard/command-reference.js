@@ -600,8 +600,10 @@ function activateCommandEntry(entry) {
   const invokeCommand = commandReferenceInvoke;
   const origin = openerOf(commandReferenceDialog);
   const returnTo = commandReferenceReturn;
-  closeCommandReference(false);
-  handBack(origin);
+  closeLayer(
+    () => closeCommandReference(false),
+    () => handBack(origin),
+  );
   if (invokeCommand?.(entry.id)) return;
   // Complete native close before opening its replacement. This microtask still belongs
   // to the same input turn: no newer gesture can intervene as it could before a frame.

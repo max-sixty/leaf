@@ -129,7 +129,7 @@ other page files and the external state listed below.
   `data.py` owns storage and updates.
 
 - `files.json` — explicit local text-file grants, written by `leaf file bind PAGE
-  ID PATH` as `{ "bindings": { "ID": "/absolute/canonical/path" } }`.
+ID PATH` as `{ "bindings": { "ID": "/absolute/canonical/path" } }`.
   `file_bindings.py` owns the grants and current-file reads and writes. Browser
   requests name only a binding, never a path. The page's reading stamps each bound
   file and the state answer carries those stamps under `files`, so a tab hears a

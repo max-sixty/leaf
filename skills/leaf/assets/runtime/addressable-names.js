@@ -42,15 +42,19 @@ const HTML_WORDS = {
 export function addressableWord(addressable) {
   if (!addressable) return "";
   const tag = addressable.tagName.toLowerCase();
-  if (registry[tag]?.["x-word"] === "module") {
-    const own = addressable.lfWord?.();
-    if (own) return own;
-  }
-  if (registry[tag]?.["x-ask-context"]) return "ask";
-  if (tag.startsWith("lf-")) return tag.slice(3);
+  const word = widgetWord(tag, addressable);
+  if (word) return word;
   if (tag === "pre")
     return addressable.querySelector(":scope > code") ? "code" : "block";
   return HTML_WORDS[tag] ?? tag;
+}
+
+// A widget's word for its kind: its registry's fixed `x-word`, its module's `lfWord()`
+// where `x-word` is `module` and `element` is drawn, else its tag without the prefix.
+export function widgetWord(tag, element = null) {
+  const declared = registry[tag]?.["x-word"];
+  const own = declared === "module" ? element?.lfWord?.() : declared;
+  return own || (tag.startsWith("lf-") ? tag.slice(3) : "");
 }
 
 // The label is rooted at the addressable and reads its authored words. Generated annotation

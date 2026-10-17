@@ -152,7 +152,7 @@ def framed_root_examples():
     framed = []
     for page in authored_examples():
         parsed = SourceDocument(page.read_text(encoding="utf-8"))
-        main = next(node for node in parsed.nodes if node["tag"] == "main")
+        main = next(node for node in parsed.authoring.nodes if node["tag"] == "main")
         if "layout-workspace" in main["attrs"].get("class", "").split():
             framed.append(page.stem)
     assert framed, "the corpus published no framed-root example to check"
@@ -392,7 +392,9 @@ def test_the_asset_site_is_the_live_immutable_half_of_each_page(site):
     """The edge gets served Leaf documents and browser assets, never session state."""
     assets = site_build.asset_site(site)
     pinned = pinned_assets()
-    root_media = SourceDocument(authored_markup(DOCS / "index.html")).media_refs
+    root_media = SourceDocument(
+        authored_markup(DOCS / "index.html")
+    ).authoring.media_refs
     root_media.add(media_url(pinned / site_build.SOCIAL_CARD))
     product_media = {
         Path(media_url(source)).name: source
@@ -1093,7 +1095,7 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
         wait_until_ready(page)
         assert page.evaluate("document.compatMode") == "CSS1Compat", name
         source = (DOCS / name).read_text(encoding="utf-8")
-        expected_title = SourceDocument(source).title.strip()
+        expected_title = SourceDocument(source).authoring.title.strip()
         assert expected_title
         assert page.title() == expected_title, name
         expect(page.locator("h1")).to_have_text(heading(source))

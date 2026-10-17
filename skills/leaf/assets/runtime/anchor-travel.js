@@ -50,7 +50,7 @@ import { prepareEntry } from "./history.js";
 import { pageScroller } from "./scrolling.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { PRESSABLE, reveal } from "./widget-elements.js";
-import { threadNames } from "./thread/model.js";
+import { threadNamed } from "./thread/state.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { targetElement, targetPlace, targetSegments } from "./resolved-target.js";
 import { closestAcross, rangeOf, selectEnds } from "./passages.js";
@@ -73,7 +73,6 @@ export function scrollToFragment(element) {
 /** @param {{
  *   anchors: any,
  *   surfaces: any,
- *   currentThreads: typeof import("./thread/state.js").allThreads,
  *   refreshThread: () => unknown,
  *   focusForNavigation: any,
  *   threadFocusTarget: any,
@@ -82,7 +81,6 @@ export function scrollToFragment(element) {
 export function createAnchorTravel({
   anchors,
   surfaces,
-  currentThreads,
   refreshThread,
   focusForNavigation,
   threadFocusTarget,
@@ -205,7 +203,9 @@ export function createAnchorTravel({
   // A remembered editor starts from its authored place, before a hidden editor is
   // materialized. Its owner opens without focus; the ordinary arrival owns surface
   // clearance, disclosure, presentation, caret and reading placement. A materializer
-  // may return its keyed focus-handoff release, retired after this landing.
+  // may return its keyed focus-handoff release, retired after this landing. Opening
+  // supplies geometry without moving the viewport: the final arrival places editor and
+  // passage together, taking over any native smooth travel still in progress.
   async function arriveEditor(resolve, { intent, caret }) {
     const mayArrive = retainTravel(intent);
     const destination = resolve();
@@ -227,15 +227,19 @@ export function createAnchorTravel({
             caret,
             scroll: input
               ? [
-                  { at: input, block: "nearest" },
+                  { at: input, block: "nearest", behavior: "instant" },
                   {
                     at: current.where,
+                    behavior: "instant",
                     when: () =>
                       !readableDestination(current.where) ||
                       !readableDestination(input),
                   },
+                  // The subject and editor can occupy different parts of a tall
+                  // page. Finish on the box the user asked to write in.
+                  { at: input, block: "nearest", behavior: "instant" },
                 ]
-              : [{ at: current.where }],
+              : [{ at: current.where, behavior: "instant" }],
           }
         );
       },
@@ -245,10 +249,6 @@ export function createAnchorTravel({
         present: async () => {
           const current = resolve();
           if (!current) return;
-          if (!readableDestination(current.where))
-            mayArrive.handoff(() => {
-              scrollIntoView(current.where, { behavior: "instant", block: "center" });
-            });
           if (current.open)
             mayArrive.handoff(() => {
               release = current.open();
@@ -514,7 +514,7 @@ export function createAnchorTravel({
     { part = null, focus = true, keep = false, presented = null, intent } = {},
   ) {
     const mayArrive = retainTravel(intent);
-    const thread = threadNames(currentThreads()).get(id);
+    const thread = threadNamed(id);
     const anchor = thread?.anchor;
     const status = anchors.placedAt(id)?.status;
     const hydrating = (anchor?.datum && status !== "outdated") || anchor?.visual;

@@ -274,8 +274,8 @@ class PageEndpoint:
         # Empty on the ordinary one-page server. A published site and a sample's child
         # serve beneath a prefix, and only Leaf-owned routes are rewritten under it.
         self.page_root = page_root
-        # The generation this answer speaks, which a route narrows to the revision it
-        # actually served.
+        # The generation this answer speaks: the tab's own once it is authorized
+        # (`_answer`), narrowed by a route to the revision it actually served.
         self.response_layer = self.layer
         # The revision a POST's layer gate held it to (`_layer_gate`): the one the tab
         # named, or the active one when it named none. None until that gate runs.
@@ -421,26 +421,42 @@ class PageEndpoint:
         Where the Leaf this server runs is another than the one that vendored the
         page, `leaf` names it, and the banner shows it beside the page's own
         (`AGENTS.md`, "Pages across Leaf updates").
+
+        A tab names the data version it holds in `Leaf-Data-Version`, and an answer
+        whose data is still that version leaves out its sources, which the tab
+        restores from the reading it named (`completeData` in `layer-client.js`).
+        Data moves only when an agent sets it, so without this every gesture's
+        answer would carry back each source value the tab already holds.
         """
         state = self._state_service().page_state(view_revision)
         if not same_leaf(state["layer"].get("producer", {}), self.server.leaf):
             state["leaf"] = self.server.leaf
+        if self.headers.get("Leaf-Data-Version") == state["data"]["version"]:
+            state["data"] = {"version": state["data"]["version"]}
         return state
 
     def page_browser_view(self, view_revision: int, through_seq: int) -> dict:
         """One revision projected at an exact already-observed log boundary."""
         return self._state_service().page_browser_view(view_revision, through_seq)
 
-    def requested_view_revision(self, *, header: bool = False) -> int | None:
-        raw = (
-            self.headers.get("Leaf-View-Revision")
-            if header
-            else self.query.get("revision", [None])[-1]
-            or self.headers.get("Leaf-View-Revision")
+    def requested_view_revision(self) -> int | None:
+        raw = self.query.get("revision", [None])[-1] or self.headers.get(
+            "Leaf-View-Revision"
         )
         if raw in (None, ""):
             return None
         return _query_int(raw, "view revision", 1)
+
+    def named_revision(self) -> int | None:
+        """The revision the tab reads: the one it names, or the active one when it
+        names none. None before the page has a revision; ValueError for a malformed
+        revision or one the page lacks."""
+        revision = self.requested_view_revision()
+        if revision is None:
+            return self.source.active_revision()
+        if revision not in self.source.revision_names:
+            raise ValueError(f"unknown view revision r{revision}")
+        return revision
 
     def requested_view_sequence(self) -> int:
         raw = self.query.get("through_seq", [None])[-1]
@@ -460,14 +476,12 @@ class PageEndpoint:
         ):
             if not isinstance(value, str) or not value:
                 raise ValueError(f"{name} is required")
-        view_revision = self.requested_view_revision()
-        if view_revision is not None:
-            if view_revision not in self.source.revision_names:
-                raise ValueError(f"unknown view revision r{view_revision}")
-            registry = self._registry(view_revision)
-        else:
-            registry = self.source.active_registry()
-        self.response_layer = registry["$layer"]["generation"]
+        view_revision = self.named_revision()
+        registry = (
+            self._registry(view_revision)
+            if view_revision is not None
+            else self.source.active_registry()
+        )
         reading = self.source.data_source(source, registry)
         return deferred_value(
             reading, registry, source=source, revision=revision, key=key
@@ -745,6 +759,7 @@ class PageEndpoint:
                 if prepare:
                     self.body_unread = True
                 return self._json({"error": NO_KEY}, 401)
+            self.response_layer = self._named_layer()
             if prepare:
                 self.posted, self.posted_error = prepare()
                 prepared = True
@@ -852,6 +867,34 @@ class PageEndpoint:
 
     def _registry(self, revision: int) -> dict:
         return self._reading(revision).registry
+
+    def _named_layer(self) -> str:
+        """The generation an answer speaks unless its route serves another revision.
+        It is the one the tab reading `named_revision` speaks (`_revision_layer`), or
+        the page's own layer when the tab names a revision the page lacks."""
+        try:
+            return self._revision_layer(self.named_revision())
+        except ValueError:
+            return self.layer
+
+    def _revision_layer(self, revision: int | None) -> str:
+        """The generation a tab reading `revision` speaks: that revision's layer, or
+        the page's own when there is no revision or this Leaf refuses it.
+
+        A tab whose page was re-vendored under it still holds a revision of the older
+        layer, and can read an answer that carries nothing newer, such as a freshness
+        token, in that layer. The newer layer reaches it as a revision whose executable
+        changed, which the tab installs once the user is not in the middle of
+        something (`version.js`). Named in the page's newer layer, the same answer
+        would be refused and reload the tab at once (`layer-client.js`), which is
+        what a revision this Leaf can no longer admit input against needs
+        (`incompatible_revision`): holding there would strand the user's send."""
+        if revision is None:
+            return self.layer
+        registry = self._registry(revision)
+        if incompatible_revision(revision, registry):
+            return self.layer
+        return registry["$layer"]["generation"]
 
     def _artifact_root(self, revision: int) -> str:
         return self._named_root(self._revision_name(revision).removesuffix(".html"))
@@ -997,7 +1040,7 @@ class PageEndpoint:
         path = self.path
         if match := re.fullmatch(r"/api/files/([^/]+)", path):
             if not self.source.writable:
-                return self._refuse("Captured previews cannot read live files.", 403)
+                return self._json(None)
             try:
                 return self._json(read_file(self.page_dir, match[1]))
             except FileBindingError as error:
@@ -1018,9 +1061,13 @@ class PageEndpoint:
             try:
                 revision = self.requested_view_revision()
                 state = self.page_state(revision)
-                self.response_layer = state["layer"]["generation"]
             except ValueError as error:
                 return self._json({"error": str(error)}, 400)
+            # Reading state activates the page's source, which may leave a newer
+            # revision active than the one `_answer` resolved before the read.
+            if revision is None and state["active"] is not None:
+                revision = state["active"]["revision"]
+            self.response_layer = self._revision_layer(revision)
             return self._json(state)
         if path == "/api/deferred":
             try:
@@ -1037,7 +1084,6 @@ class PageEndpoint:
                     raise ValueError("view revision is required")
                 sequence = self.requested_view_sequence()
                 browser = self.page_browser_view(revision, sequence)
-                self.response_layer = self._registry(revision)["$layer"]["generation"]
             except ValueError as error:
                 return self._json({"error": str(error)}, 400)
             return self._json({"browser": browser})
@@ -1082,27 +1128,18 @@ class PageEndpoint:
     def _layer_gate(self) -> Response | None:
         """Hold a write to the vocabulary the tab speaks.
 
-        The tab names the revision it reads in `Leaf-View-Revision`, or the active
-        one by naming none, and sends the layer generation it was built from. A
-        stale runtime gets the current generation instead of a verdict in a
-        vocabulary it no longer speaks; the body was already read, so the
-        connection stays reusable. The revision it held the write to is
-        `layer_revision`, which a handler reads rather than resolving the active
-        revision again after an activation may have moved it."""
+        The tab names the revision it reads (`named_revision`) and sends the layer
+        generation it was built from. A stale runtime gets the generation it should
+        speak (`_revision_layer`) instead of a verdict in a vocabulary it no longer
+        speaks; the body was already read, so the connection stays reusable. The
+        revision it held the write to is `layer_revision`, which a handler reads
+        rather than resolving the active revision again after an activation may have
+        moved it, and the generation is resolved from that same reading."""
         try:
-            view_revision = self.requested_view_revision(header=True)
+            self.layer_revision = self.named_revision()
         except ValueError as error:
             return self._refuse(str(error))
-        if view_revision is None:
-            view_revision = self.source.active_revision()
-        elif view_revision not in self.source.revision_names:
-            return self._refuse(f"unknown view revision r{view_revision}")
-        self.layer_revision = view_revision
-        self.response_layer = (
-            self._registry(view_revision)["$layer"]["generation"]
-            if view_revision is not None
-            else self.layer
-        )
+        self.response_layer = self._revision_layer(self.layer_revision)
         if self.headers.get("Leaf-Layer") != self.response_layer:
             return self._json({"layer": self.response_layer})
         return None
@@ -1202,7 +1239,7 @@ class PageEndpoint:
                 message,
                 asset_root,
             )
-        except ValueError as error:
+        except (ValueError, Rejected) as error:
             return self._refuse(str(error))
         root = f"{self.page_root}/api/samples/{identity}"
         return self._json(
@@ -1226,7 +1263,7 @@ class PageEndpoint:
         return self._json({"path": media_path})
 
     def _accept_event(self) -> Response:
-        view_revision = self.requested_view_revision(header=True)
+        view_revision = self.requested_view_revision()
         status, answer = accept_event(
             self.page_dir, self.posted, lambda: self.page_state(view_revision)
         )
@@ -1322,11 +1359,8 @@ def page_endpoint(
     The key has no default: every server over a page directory is reachable by
     whatever reached the machine, so there is no construction that should quietly go
     without one."""
-    identity = (
-        page_snapshot.context.layer
-        if page_snapshot is not None
-        else layer_metadata(page_dir)
-    )
+    # The registry first: its reader refuses a layer at another protocol before any
+    # check of a shape that is this Leaf's protocol's, as the identity's reader does.
     registry = (
         page_snapshot.context.registry
         if page_snapshot is not None
@@ -1334,6 +1368,11 @@ def page_endpoint(
     )
     if refusal := incompatible_layer(page_dir, registry):
         raise Rejected([refusal])
+    identity = (
+        page_snapshot.context.layer
+        if page_snapshot is not None
+        else layer_metadata(page_dir)
+    )
     return partial(
         endpoint,
         page_dir=page_dir,

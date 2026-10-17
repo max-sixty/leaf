@@ -1,4 +1,10 @@
-"""Page initialization and atomic layer vendoring."""
+"""Page initialization and atomic layer vendoring.
+
+Re-vendoring refreshes an active revision from valid source with its newly composed
+layer before returning, so deliveries use that layer's captured handling without
+needing a browser or state read first. Invalid source keeps its last good revision
+and reports its check errors. A page with no active revision stays unactivated.
+"""
 
 from __future__ import annotations
 
@@ -26,7 +32,6 @@ from .layer import (
 from .leases import lock_is_held, page_locked
 from .locations import located, locations_overlap, path_is_within, path_location
 from .refusals import Refused
-from .registry.kernel import kernel_protocol
 from .registry.storage import RegistryError, layer_metadata, layer_packages
 from .schema import (
     CURSOR_FILE,
@@ -110,12 +115,10 @@ def renew_layer(page_dir: Path, harness: Harness | None) -> Finding | None:
     (`hook_transport.read_plans`). Only the session holding the page renews it, or
     any caller while no live session does: another session may still run the Leaf
     that vendored the page, which a re-vendor would lock out of it, and its own
-    first hook under this Leaf renews it. Nor does a Leaf take back a page a newer
-    one vendored: a process the session started before its plugin updated would
-    otherwise re-vendor the page down, and the newer Leaf's next hook up again,
-    reloading the user's tabs each time. For the same reason a layer documenting an
-    x- key this Leaf does not admit stays refused: the key may be one a newer Leaf
-    added at the same protocol, which a re-vendor here would strip.
+    first hook under this Leaf renews it. Nor does it renew a page a newer Leaf
+    vendored, which `_plan_page` refuses. A layer documenting an x- key this Leaf
+    does not admit stays refused too: the key may be one a newer Leaf added at the
+    same protocol, which a re-vendor here would strip.
 
     What it finds is why the re-vendor was refused, or the `page check` errors that
     keep index.html from activating under the new layer, since a source an older
@@ -129,9 +132,6 @@ def renew_layer(page_dir: Path, harness: Harness | None) -> Finding | None:
 
         refusal = write_refusal(page_dir)
         if refusal is None or refusal.code != "foreign-layer":
-            return False
-        vendored = refusal.values["vendored"]
-        if type(vendored) is int and vendored > kernel_protocol():
             return False
         claim = page_claim(page_dir)
         return not claim_is_active(claim) or claimant_matches(claim, harness)
@@ -208,6 +208,8 @@ def _init_page(
     """Start or re-vendor the page under its lock and its service's restart, and
     return what keeps a re-vendored index.html from activating; a re-vendor `still`
     no longer wants under the transaction commits nothing."""
+    from .revisioning import activate_checked_source
+
     # The restart around this took the server down, but the page lock came after
     # it, and a start can land in between.
     if lock_is_held(page_dir / SERVER_LOCK):
@@ -233,11 +235,10 @@ def _init_page(
         if not plan.changed:
             return []
         _commit_layer(page_dir, plan)
-        events = page.events
-    # The re-vendored layer is in place, but the page shows it only once index.html
-    # activates, which runs the same check `page check` does. Say now what would
-    # hold it back, rather than leave the next read to refuse it unseen.
-    return check_source(page_dir, events).errors
+        checked = check_source(page_dir, page.events)
+        if checked.revision.active:
+            activate_checked_source(page, checked)
+        return checked.errors
 
 
 class _PagePlan(NamedTuple):
@@ -253,7 +254,18 @@ class _PagePlan(NamedTuple):
 def _plan_page(
     page_dir: Path, selected: tuple[str, ...] | None, *, fresh: bool
 ) -> _PagePlan:
-    """Validate incoming declarations and file destinations before writing."""
+    """Validate incoming declarations and file destinations before writing.
+
+    A page a newer Leaf vendored, at a higher page protocol, is refused rather than
+    taken back to this Leaf's: a process the session started before its plugin
+    updated, or an agent following an older Leaf's advice, would otherwise re-vendor
+    the page down, and the newer Leaf's next command or hook up again, reloading the
+    user's tabs each time."""
+    if not fresh:
+        from .event_contracts import write_refusal
+
+        if (refusal := write_refusal(page_dir)) and refusal.code == "newer-layer":
+            raise Refused(str(refusal))
     if selected is None and fresh:
         selected = ()
     elif selected is None:

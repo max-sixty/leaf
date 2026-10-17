@@ -159,6 +159,16 @@ const bundles = {
   // there answers `host` with its URL's host string. SnapDOM 3.3.0 to 3.3.3 then use
   // that string as a WeakMap key, so a removed link throws from the observer, an
   // uncaught page error. Climb only from an element whose parent is a shadow root.
+  //
+  // A fixed or sticky box keeps its place in the capture because SnapDOM rewrites its
+  // clone to an absolute box at the place it is painted. SnapDOM 3.3.0 to 3.3.4 rewrite
+  // only HTML elements, so an outer `<svg>`, which is a CSS box like any other, keeps
+  // `position: fixed` and lands at its viewport offset from the top of the document,
+  // outside a crop of the scrolled page. Rewrite an outer `<svg>` too.
+  //
+  // Leaf captures without `reconcile` (`runtime/composing/page-image.js` says why), and
+  // SnapDOM then warns on the console that text may wrap differently. The capture's own
+  // `warnings` keep that notice; the console copy would read as a page problem.
   snapdom: () => ({
     out: `${assets}/vendor/snapdom.esm.js`,
     entry: 'export { snapdom } from "@zumer/snapdom";\n',
@@ -167,10 +177,20 @@ const bundles = {
         file: /@zumer\/snapdom\/dist\/snapdom\.mjs$/,
         edit: (source) =>
           seam(
-            source,
-            "for(;r;r=r.parentElement||r.getRootNode?.()?.host)",
-            "for(;r;r=r.parentElement||(r.parentNode?.nodeType===11?r.parentNode.host:null))",
-            "SnapDOM mutation-ancestor",
+            seam(
+              seam(
+                source,
+                "for(;r;r=r.parentElement||r.getRootNode?.()?.host)",
+                "for(;r;r=r.parentElement||(r.parentNode?.nodeType===11?r.parentNode.host:null))",
+                "SnapDOM mutation-ancestor",
+              ),
+              "for(let[a,c]of n){if(!Rt(a)||c?.nodeType!==1",
+              'for(let[a,c]of n){if(!(Rt(a)||It(a)&&a.localName==="svg"&&!It(c?.parentNode))||c?.nodeType!==1',
+              "SnapDOM fixed-box rewrite",
+            ),
+            'I.warnedReconcile||(I.warnedReconcile=!0,console.warn("[SnapDOM] Some text may wrap differently in the capture. Pass { reconcile: true } to fix it (about 2x slower)."))',
+            "I.warnedReconcile=!0",
+            "SnapDOM reconcile console warning",
           ),
       },
     ],
@@ -433,48 +453,6 @@ const bundles = {
   "density-clustering": () => ({
     out: `${assets}/vendor/density-clustering.esm.js`,
     entry: 'export { default as DBSCAN } from "density-clustering/lib/DBSCAN.js";\n',
-  }),
-
-  // The optional DOM renderer loaded when a composer first carries a drawing.
-  //
-  // Every source needs computed styles and the requested crop. Upstream skips both
-  // for resource-free SVG roots, returning the live SVG before any clone hook runs;
-  // removing that shortcut sends SVG down the dependency's ordinary foreignObject
-  // path. A sample's opaque origin cannot read the nested scratch iframe; the
-  // dependency already uses an empty default-style map when no iframe exists, and
-  // copying all computed properties is the same safe fallback there.
-  "drawing-context": () => ({
-    out: `${assets}/vendor/drawing-context.esm.js`,
-    entry: 'export { domToCanvas } from "modern-screenshot";',
-    adapt: [
-      {
-        file: /modern-screenshot\/dist\/index\.mjs$/,
-        edit: (source) =>
-          seam(
-            seam(
-              source,
-              "  if (isElementNode(context.node) && isSVGElementNode(context.node) && !svgHasExternalResources(context.node))\n    return context.node;\n",
-              "",
-              "modern-screenshot's SVG shortcut",
-            ),
-            "  const sandboxDocument = sandboxWindow?.document;\n",
-            `  let sandboxDocument;
-  try {
-    sandboxDocument = sandboxWindow?.document;
-  } catch (error) {
-    if (error?.name !== "SecurityError") throw error;
-    // A sample's opaque origin cannot read the nested scratch iframe. The
-    // dependency already uses an empty default-style map when no iframe exists;
-    // copying all computed properties is the same safe fallback here.
-    const styles = new Map();
-    defaultComputedStyles.set(key, styles);
-    return styles;
-  }
-`,
-            "modern-screenshot's scratch iframe",
-          ),
-      },
-    ],
   }),
 
   // Observable Plot, which lf-chart hands a page's author. Nothing published is

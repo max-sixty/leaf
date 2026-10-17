@@ -50,7 +50,7 @@ here that the others import, never through `sys.path`, `PYTHONPATH` or a file pa
   `.tmp/stills/`. Repeat `--state NAME` to compare only some states.
 - `leaf-dev pins [--base]` places comment pins on a catalogue of ordinary and awkward
   targets (`CASES` in `pins.py`) at desktop and phone widths, and writes a Leaf page of
-  crops with the faults found in each. `test_render_margin.py` holds every case to the
+  crops with the faults found in each. `browser/margin/test_pins.py` holds every case to the
   same reading, so a placement that looks wrong anywhere becomes a case.
 - `leaf-dev thread-snapshots` (`thread_snapshots.py`) captures and accepts reviewed
   message-delivery images. Only acceptance moves `leaf-assets.json`'s

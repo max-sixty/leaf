@@ -65,7 +65,7 @@ def test_words_a_scroll_hides_fail(browser):
         {
             "code": "words-left-screen",
             "words": "Half a thought",
-            "place": "textarea#field",
+            "place": ["textarea#field"],
         },
     )
 
@@ -172,7 +172,7 @@ def test_words_a_native_paste_observes_only_its_actual_editor_edit(browser, serv
                 {
                     "code": "words-left-screen",
                     "words": words,
-                    "place": f"leaf-text#field-{operation}",
+                    "place": [f"leaf-text#field-{operation}"],
                 },
             )
     finally:
@@ -242,7 +242,7 @@ def command_commits_only_its_edit(page, field, command):
         judge_watches()
         consume_browser_errors(
             page,
-            {"code": "words-left-screen", "words": words, "place": name},
+            {"code": "words-left-screen", "words": words, "place": [name]},
         )
 
     write(field, "Keep these words")
@@ -297,7 +297,7 @@ def command_commits_only_its_edit(page, field, command):
     judge_watches()
     consume_browser_errors(
         page,
-        {"code": "words-left-screen", "words": words, "place": name},
+        {"code": "words-left-screen", "words": words, "place": [name]},
     )
 
 
@@ -545,7 +545,7 @@ def test_words_a_committed_value_editor_close_retires_only_its_exact_edit(
                 {
                     "code": "words-left-screen",
                     "words": "Another edit stays mine",
-                    "place": "textarea#other",
+                    "place": ["textarea#other"],
                 },
             )
         if exit_kind in {"new-edit", "same-value-new-edit"}:
@@ -575,7 +575,11 @@ def test_words_a_committed_value_editor_close_retires_only_its_exact_edit(
             {
                 "code": "words-left-screen",
                 "words": words,
-                "place": f"textarea#{field_id} in shadow of native-value-editor#editor",
+                "place": [
+                    f"textarea#{field_id}",
+                    "#shadow-root",
+                    "native-value-editor#editor",
+                ],
             },
         )
 
@@ -613,7 +617,7 @@ def test_words_a_passive_selection_change_cannot_close_a_draft(browser):
         {
             "code": "words-left-screen",
             "words": "Half a thought",
-            "place": "textarea#field",
+            "place": ["textarea#field"],
         },
     )
 
@@ -1175,7 +1179,7 @@ field.addEventListener('keydown', async event => {
         {
             "code": "words-left-screen",
             "words": "Other new edit stays watched",
-            "place": "textarea#other",
+            "place": ["textarea#other"],
         },
     )
 
@@ -1666,6 +1670,6 @@ def test_words_a_reactive_update_nothing_requested_still_fails(browser, cause):
         {
             "code": "words-left-screen",
             "words": "Half a thought",
-            "place": "input#inner in shadow of reactive-field#host",
+            "place": ["input#inner", "#shadow-root", "reactive-field#host"],
         },
     )

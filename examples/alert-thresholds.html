@@ -161,7 +161,11 @@
       }
     </style>
     <script type="module">
-      import { afterPresentation, keepsText } from "/runtime/widget-api.js";
+      import {
+        PAGE_INTERFACE,
+        keepsText,
+        whileConnected,
+      } from "/runtime/widget-api.js";
 
       const ALERTS = [
         {
@@ -354,13 +358,25 @@
           ]),
         ),
       };
-      afterPresentation(() => {
-        const playground = document.getElementById("alert-playground");
-        playground.registerInstructionProvider(instruction);
-        paint(playground.values, today);
-        playground.addEventListener("lf-playground-change", (event) =>
-          paint(event.detail.values, today),
+      const playground = document.getElementById("alert-playground");
+      let registered = false;
+      whileConnected(playground, (signal) => {
+        let unsubscribe;
+        const initialize = () => {
+          if (signal.aborted || unsubscribe) return;
+          if (!registered) {
+            playground.registerInstructionProvider(instruction);
+            registered = true;
+          }
+          unsubscribe = playground.subscribe((values) => paint(values, today));
+        };
+        document.addEventListener(
+          PAGE_INTERFACE,
+          (event) => event.detail.present(Promise.resolve().then(initialize)),
+          { signal },
         );
+        if (registered) initialize();
+        return () => unsubscribe?.();
       });
     </script>
   </head>

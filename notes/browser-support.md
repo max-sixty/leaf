@@ -12,6 +12,8 @@ feature and code owner, browser versions and check date, user-visible effect,
 evidence or reproduction, and disposition. Distinguish an observed failure from
 published compatibility data and an old test engine from a current browser gap.
 Update or remove the entry when the implementation or browser support changes.
+`uv run leaf-dev probe SOURCE --firefox` runs a probe or journey in Playwright's
+Firefox, the one other engine installed beside the suite's Chromium.
 
 Minor visual differences, including a small layout shift confined to one browser,
 are acceptable when content remains readable and controls remain usable. Record
@@ -129,7 +131,7 @@ PYCODE
 - **Observed:** Chrome 155's native accessibility tree exposes the named
   combobox, its controlled grid, and the selected row after filtering and Arrow
   navigation. Desktop and touch journeys retain native editor focus and caret
-  selection. The browser tests in `test_render_navigation.py` check the
+  selection. The browser tests in `navigation/test_command_reference.py` check the
   relationships through the native editor's element-reference properties.
 - **Disposition:** adopted without a fallback; no current browser support gap
   was found in the compatibility data. Native accessibility behavior in Firefox
@@ -208,6 +210,19 @@ PYCODE
   `anchor-scope`.
 - **Disposition:** adopted without a fallback. An engine without `until-found`
   reads the unknown value as plain `hidden`, which is what the removed check chose.
+
+### The sheen over a line cut short
+
+- **Owner:** `@keyframes lf-sheen` in `styles/components/surfaces.css`, run by the
+  floating panel's field (`floating-panel.css`), the thread card's working words
+  (`surfaces.css`) and a pending thread title (`chrome.css`). It paints the words in
+  ink and dims them with a moving `mask-image` to each box's rest face.
+- **Observed 2026-10-15:** the sheen it replaced, a background clipped to the glyphs
+  under a transparent fill, hid a cut line's ellipsis in Playwright Firefox 155, and
+  the user saw it in Firefox 157: Firefox draws the ellipsis outside the clipped
+  background. With the mask, Firefox 155 and Chromium 153 both draw the ellipsis in
+  every frame of the pass.
+- **Disposition:** adopted without a fallback.
 
 ## Known gaps
 
@@ -402,27 +417,23 @@ PYCODE
   `test_a_row_at_a_frame_edge_holds_the_trim_by_declaring_it` hold the required
   wrapper and row behavior. Parser support alone does not establish it.
 
-### Scroll-state containers and table fill
+### Scroll-state containers
 
-- **Disposition: scroll-state is progressive; Firefox's unfilled frames are an
-  accepted visual difference.** A `container-type` naming `scroll-state` is written
-  after the same declaration without it, so an engine without scroll-state keeps the
-  size container. A table in a drawn frame keeps its columns' natural width in
-  Firefox, short of the frame's far edge; every cell stays readable.
+- **Disposition: scroll-state is progressive.** A `container-type` naming
+  `scroll-state` is written after the same declaration without it, so an engine
+  without scroll-state keeps the size container.
 - **Owner:** the table rules in
   [`reading.css`](../skills/leaf/assets/styles/components/reading.css) and the
   granted-room table in [`layouts.css`](../skills/leaf/assets/layouts.css).
 - **Observed, 2026-10-14:** Firefox 157 (a user's page) and Playwright's Firefox and
   WebKit 26.6 drop `container-type: inline-size scroll-state` whole, so the table was
-  no size container and the 100cqi its fill caption reads measured the window: an
-  Ask's two-column table laid its rows out 1728px wide in a 720px column and cut off
-  its second column. Chrome 155 keeps it. Firefox also never widens a table grid to a
-  caption wider than its columns' natural width, whatever the caption's width, so the
-  caption fill does nothing there; Chromium and WebKit spread the columns to it.
+  no size container and the 100cqi a caption read measured the window: an Ask's
+  two-column table laid its rows out 1728px wide in a 720px column and cut off its
+  second column. Chrome 155 keeps it. Firefox also never widens a table grid to a
+  caption wider than its columns' natural width, so Leaf no longer widens a table's
+  columns to its frame in any engine.
 - **Recheck:** `test_a_table_of_prose_wraps_inside_its_box_in_every_engine` holds
-  the size container in all three engines; the Chromium-only
-  `test_a_table_fills_its_declared_allocation_or_frame_and_a_bare_one_keeps_its_content`
-  holds the fill.
+  the size container in all three engines.
 
 ### State-preserving content reordering (review #22)
 
@@ -560,7 +571,7 @@ application. Recheck the affected Leaf journey when resolving this entry.
 - **Recheck:** run
   `test_a_region_capture_keeps_scrolled_shadow_pixels_and_its_comment_anchor`
   and `test_touch_capture_can_cancel_and_reopen_before_attaching` in
-  `tests/*/test_render_threads.py`. Compare the rasterizer's same crop with a
+  `tests/browser/threads/test_media.py` and `tests/journeys/test_render_threads.py`. Compare the rasterizer's same crop with a
   native screenshot in each installed engine when updating SnapDOM.
 
 ### Anchoring from a shadow root to the outer document
@@ -608,7 +619,7 @@ document, and the runtime relies on it (next entry).
   which resolves the same `attr()` outside a `::part()` rule, so the runtime writes
   one rule per name. Words alone in a shadow scroller anchor to the start of what it
   holds the same way, through `::part(lf-a7)::before { content: ""; anchor-name:
-  --lf-a7 }`, which anchors and follows the scroller's scroll in all three engines.
+--lf-a7 }`, which anchors and follows the scroller's scroll in all three engines.
 - **Recheck:** attach a shadow root holding a scroller with a `part`-named child,
   declare `#host::part(name) { anchor-name: --x }` in the document, and compare a
   fixed `position-anchor: --x` box's rectangle with the child's after scrolling the
@@ -663,6 +674,30 @@ document, and the runtime relies on it (next entry).
   after it, and a document tall enough to scroll; scroll the document and the panel
   and compare the two rectangles' tops.
 
+### An anchor's transforms in Firefox
+
+- **Disposition: answered for translations.** `anchorBox` (`runtime/css-anchors.js`)
+  is where every inset Leaf writes against an anchor is measured from. In an engine
+  that leaves transforms out, read once, it takes off how far each translation on
+  the anchor or an ancestor moves its box, read from offsets, which leave
+  transforms out too. A scale, rotation or CSS zoom moves each point differently and
+  stays unanswered. Remove it when Firefox counts transforms. A probe anchored to
+  the same name was rejected: read straight after a scroll between it and the
+  anchor, it returns where the anchor stood before.
+- **Affected:** every box anchored in a table granted room, which `layouts.css`
+  translates into place, and in any box a page transforms: margin rows and pins,
+  the Alt outline, key chips, the comment box, the thread card, and a code block's
+  Copy, whose CSS-only anchor takes the shift on each reveal (`code-copy.js`).
+- **Observed, 2026-10-16, Firefox 155:** `anchor()` resolves to the anchor's box
+  as laid out, before the `transform`, `translate`, `rotate`, `scale` or
+  `offset-path` on it or an ancestor; relative positioning is counted. The spec counts transforms, as
+  Chromium 153 and WebKit 26.6 do. At 1728 px a `data-width="wide"` table stood
+  translated 300 px from its layout box, so the comment box for its header opened
+  over the row headers and the Alt outline stood 300 px left of the table.
+- **Recheck:** a box with `translate: 50px 0` named `--t`, and a `position: fixed`
+  box with `position-anchor: --t; left: anchor(left)` after it; compare the two
+  rectangles' lefts.
+
 ### Native reveal bounded to its scroller
 
 - **Disposition: worked around in Leaf.** Leaf reveals an item inside one box
@@ -674,7 +709,7 @@ document, and the runtime relies on it (next entry).
 - **Affected:** a tab strip, contents outline or page map list bringing its item
   into view while the page stays where the user reads.
 - **Observed, 2026-10-14:** `scrollIntoView({block: "nearest", inline: "nearest",
-  container: "nearest"})` on a button in a sideways strip whose foot stands 1 px
+container: "nearest"})` on a button in a sideways strip whose foot stands 1 px
   below its scroller's band scrolls the strip alone in Chromium 153 and WebKit 26.6,
   and the outer scroller by 2 px as well in Firefox 155, whether the outer scroller
   is the root or a nested box. An earlier check on another page also saw WebKit

@@ -178,13 +178,13 @@ a pasted link, so write a description that makes sense on its own.
 ```html
 <!doctype html>
 <html lang="en">
-<head>
-  <title>…</title>
-  <meta name="description" content="…">
-</head>
-<body>
-  <main class="layout-column">…</main>
-</body>
+  <head>
+    <title>…</title>
+    <meta name="description" content="…" />
+  </head>
+  <body>
+    <main class="layout-column">…</main>
+  </body>
 </html>
 ```
 

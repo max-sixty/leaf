@@ -38,7 +38,9 @@
  * face is the window's, the stylesheet-owned --lf-banner-face that also dresses
  * the banner, so the partition changes only when the window crosses that width.
  *
- * Each contribution also says what it is as one line of a menu (`row`): its `label`,
+ * Each contribution also says what it is as one line of a menu (`row`): its `label`
+ * (for a row that copies, the text it copies named as it reads mid-sentence, such as
+ * "link", which a presentation puts after "Copy" and capitalizes to head a line),
  * a terse `value` such as a count, the `shortcut` that reaches it from the keyboard as
  * its steps, each spelled as a key chip spells it (by default the one that reaches its
  * control, keyboard/control-keys.js), the `group` of controls it belongs with, the text

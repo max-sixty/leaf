@@ -22,7 +22,8 @@ import {
   renderedWords,
 } from "../markdown.js";
 import { reportPageError } from "../layer-client.js";
-import { editable, isReaction, messageKey, moved } from "./model.js";
+import { editable, isReaction, lastMovedAt, messageKey, moved } from "./model.js";
+import { labelWords } from "../words.js";
 import {
   MessageEditor,
   OPEN_MESSAGE_EDIT,
@@ -94,7 +95,7 @@ function proseReading(message) {
   return reading;
 }
 
-/** @param {import("../../../../../build/browser/domain.ts").Message | Extract<import("../../../../../build/browser/domain.ts").Command, {kind: "comment" | "reply"}>} message @returns {string} */
+/** @param {{readonly id?: string, readonly attempt?: string, readonly text?: string, readonly token?: string, readonly suggestion?: boolean, readonly edited?: {readonly id?: string} | null}} message @returns {string} */
 export function messageText(message) {
   if (message.token) {
     const token = tokenEntry(message.token);
@@ -102,6 +103,25 @@ export function messageText(message) {
   }
   return message.suggestion ? (message.text ?? "") : proseReading(message).plainText;
 }
+
+// A thread's name, on every surface that names one: its title, else the words its
+// opening message renders (an agent's authored opening, its captured text), else
+// Drawing for one drawn without words. A surface clips it to its own room.
+/** @param {{readonly title: string | null, readonly root: Parameters<typeof messageText>[0] & {readonly body: {readonly kind: string, readonly text?: string}, readonly drawing?: unknown}}} thread */
+export function threadName(thread) {
+  if (thread.title != null) return thread.title;
+  const { root } = thread;
+  const words = labelWords(
+    root.body.kind === "authored" ? root.body.text : messageText(root),
+  );
+  return words || (root.drawing ? "Drawing" : "");
+}
+
+/** @param {Parameters<typeof threadName>[0] & Parameters<typeof lastMovedAt>[0]} thread */
+export const threadSummary = (thread) => ({
+  topic: threadName(thread),
+  latest: lastMovedAt(thread),
+});
 
 // A rollback can withdraw an authored island, but neither retry nor a prose edit
 // may instantiate it twice. Its native identity is independent of the prose cache.
@@ -172,8 +192,9 @@ export function messageReading(
     // The agent's progress message (`ephemeral`): a step of work in hand, which the
     // thread shows as its working message until an answer folds it (thread-card.js).
     progress: Boolean(message.ephemeral),
-    // What an answer leaves standing, while it stands: "Waiting on me" for the prose ask the
-    // user owes, "To-do open" for work it promised and has not ended (thread-card.js).
+    // What an answer leaves standing, while it stands: "Waiting on me" for the question the
+    // user owes words to, "To-do open" for work it promised and has not ended
+    // (thread-card.js).
     leaves,
     version: message.content_version,
     seq: moved(message).seq,

@@ -310,7 +310,7 @@ customElements.define(
         this.#flowOpen ??= disclosure.open;
         if (!disclosure.open) disclosure.open = true;
       } else if (this.#flowOpen !== undefined) {
-        const open = this.#flowOpen || this.#rows.contains(focused());
+        const open = this.#flowOpen || standingIn(this.#rows);
         if (disclosure.open !== open) disclosure.open = open;
         this.#flowOpen = undefined;
       }

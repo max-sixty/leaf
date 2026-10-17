@@ -6,7 +6,7 @@ import urllib.error
 import urllib.request
 
 import pytest
-from journeys.test_site import (  # noqa: F401
+from journeys.test_site import (
     DOCS,
 )
 from journeys.test_site import (

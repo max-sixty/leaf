@@ -6,7 +6,6 @@ from urllib.parse import urlsplit
 from uuid import uuid4
 
 import pytest
-from browser.test_render_controls import leaf_page
 from interact_support import wait_for
 from leaf import interaction_log as interaction_model
 from leaf.render_checks import HANDOVER_DEADLINE_MS
@@ -15,6 +14,7 @@ from render_harness import (
     consume_browser_errors,
     holding,
     http_error_console,
+    leaf_page,
     open_page,
     page_comment,
     said,

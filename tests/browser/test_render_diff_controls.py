@@ -534,7 +534,7 @@ def test_a_live_line_reply_wraps_without_resize_observer_feedback(
     """
     from interact_support import append_command
 
-    from browser.test_render_threads import claim_for_codex, stream_reply
+    from browser.threads import claim_for_codex, stream_reply
 
     patch = """diff --git a/uploader.py b/uploader.py
 --- a/uploader.py

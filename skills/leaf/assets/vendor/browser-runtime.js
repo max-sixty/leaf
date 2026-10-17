@@ -12,13 +12,7 @@ export { styleMap } from "./lit.js";
 export { unsafeHTML } from "./lit.js";
 export { effect, signal } from "./browser-runtime/signals-core.js";
 export { createSemanticApplication } from "./browser-runtime/application.js";
-export {
-  collectOutside,
-  collectReads,
-  outsideReading,
-  share,
-  untracked,
-} from "./browser-runtime/snapshot.js";
+export { collectReads, outsideReading, share, untracked } from "./browser-runtime/snapshot.js";
 export {
   createPresentationCoordinator,
   createPresentationSchedule,

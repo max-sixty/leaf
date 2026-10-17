@@ -193,7 +193,7 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
         url.rsplit("/versions/", 1)[0] + "/api/event",
         data={"kind": "comment", "revision": 1, "text": "and another"},
     )
-    page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 2")
+    told(page)
     assert page.locator("#fig.lf-mark-el.lf-pending").count() == 1, (
         "a poll landing while the composer is open dropped the outline"
     )
@@ -626,7 +626,7 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
                      characterData: true, attributes: true, subtree: true});
     }""")
     comment({}, "On the page as a whole.")
-    page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 4")
+    told(page)
     assert page.evaluate("() => window.__churn") == 0, (
         "a poll that changed nothing still rewrote the block, so a screen reader re-reads it"
     )

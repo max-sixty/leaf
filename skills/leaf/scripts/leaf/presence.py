@@ -251,7 +251,7 @@ def presence_with_activity(
         "cursor": cursor,
         # The user's number, not the watcher's: their own messages the agent
         # hasn't taken in. Reports ride the same cursor but are the agent's debt,
-        # so the banner never tells a user that a worker's news is waiting on them.
+        # so the panel never tells a user that a worker's news is waiting on them.
         "pending": sum(
             1 for e in unacknowledged(events, cursor) if e["author"] == "user"
         ),
@@ -285,10 +285,10 @@ def presence_with_activity(
         # and left. Hidden tabs stop their freshness reads, so this records
         # user attention rather than tab lifetime.
         "viewed": _viewed_at(page_dir) if process else None,
-        # Where the claimant is working (claim_page), for the drawer's hover: what
+        # Where the claimant is working (claim_page), for All pages' hover: what
         # tells one leaf from another is the work behind it, and neither the title
         # nor the page directory says which that is. It outlives the session that
-        # wrote it, as every other fact in this record does — a page the drawer
+        # wrote it, as every other fact in this record does — a page All pages
         # calls unheld came out of somewhere, and that is still where it came from.
         # None for a page nothing ever claimed, which is the honest nothing.
         "session_cwd": claim.get("cwd") if claim else None,
@@ -318,7 +318,7 @@ def presence(page_dir: Path, events: list) -> dict:
 
 def presence_fingerprint(present: dict, others: list) -> str:
     """The half of a reading that file stamps cannot supply, from the facts a state
-    already carries: its `live_facts`, and the neighbours as the drawer shows them."""
+    already carries: its `live_facts`, and the neighbours as All pages shows them."""
     facts = (
         [present[key] for key in ("listening", "session_alive", "live_turn")],
         others,

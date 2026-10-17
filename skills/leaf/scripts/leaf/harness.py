@@ -166,7 +166,7 @@ class Harness:
     def turn_takes_input(self) -> bool:
         """Whether an open turn of this session takes new input before it ends: its
         hooks hand pending input into the turn between steps and as it would end.
-        The banner reads such a turn as listening between two waits
+        The page's status reads such a turn as listening between two waits
         (`activity.takes_input`)."""
         return self.hooks_carry()
 

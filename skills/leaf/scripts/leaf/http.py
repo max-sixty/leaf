@@ -229,8 +229,8 @@ class PageEndpoint:
     read the request off `self` and return the response they answer with. The transport
     underneath is uvicorn's: framing, keep-alive, the peer that closes mid-answer, and
     the body a route never asked for are its business, not this file's. What stays here
-    is the page's own boundary — selection, the key, the layer gate, and the faults a
-    banner has to be able to show.
+    is the page's own boundary — selection, the key, the layer gate, and the faults the
+    page's status has to be able to show.
     """
 
     def __init__(
@@ -265,7 +265,7 @@ class PageEndpoint:
         self.preview = preview
         self.page_snapshot = page_snapshot
         # Published website pages use the complete server contract without a Leaf work
-        # claim. Their banner reads this explicit presentation fact instead of mistaking
+        # claim. Their panel reads this explicit presentation fact instead of mistaking
         # the deliberately unattended page for an abandoned ordinary Leaf.
         self.publication = publication
         # A website release spans its document, static layer and container image.
@@ -419,7 +419,7 @@ class PageEndpoint:
         stale on arrival, which costs one more request and no news.
 
         Where the Leaf this server runs is another than the one that vendored the
-        page, `leaf` names it, and the banner shows it beside the page's own
+        page, `leaf` names it, and the leaf's menu shows it beside the page's own
         (`AGENTS.md`, "Pages across Leaf updates").
 
         A tab names the data version it holds in `Leaf-Data-Version`, and an answer
@@ -728,8 +728,8 @@ class PageEndpoint:
         """One boundary for page selection, authorization, preparation, and faults.
 
         Unanswered, a fault would reach the transport, which has no page to say it
-        about — and the banner would read "Server offline" about a server that is
-        up. So every fault becomes a 500 naming itself, which the banner can show to
+        about — and the page's status would read "Server offline" about a server that is
+        up. So every fault becomes a 500 naming itself, which the status can show to
         the one person still looking, and `record_fault` keeps a copy for whoever
         else reads this host. This is the only place a 500 is written: a route that
         cannot answer raises rather than composing one of its own, so no fault

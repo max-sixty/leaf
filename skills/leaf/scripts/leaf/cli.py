@@ -1229,7 +1229,7 @@ def task() -> None:
     Your list, which the user sees as On <your name>, holds each user update you owe
     an answer, named by the update's event id, and each to-do you opened. Before
     working on one, run `leaf task start` with a line saying what you are doing:
-    the item reads Working with that line, beside it and in the banner. A to-do
+    the item reads Working with that line, beside it and in Leaf's panel. A to-do
     stays on your list through replies, resolutions, versions and the end of the
     session that opened it, until `leaf task end` or a stamp that `--completes` its
     widget ends it. A to-do you open `--on user` goes on the user's On me list
@@ -1265,7 +1265,7 @@ def task_open(dir: str, subject: str, title: str, owner: str) -> dict:
 
 
 @task.command(
-    "start", short_help="Start work on an update or to-do, with the banner's line."
+    "start", short_help="Start work on an update or to-do, with its status line."
 )
 @click.argument("dir", metavar="PAGE")
 @click.argument("item", metavar="ID")
@@ -1275,7 +1275,7 @@ def task_start(dir: str, item: str, text: str) -> dict:
 
     ID is the event id of a user update you owe, as its delivery names it, or an
     open to-do's id. LINE names the work and its subject in one sentence; it shows
-    beside the update or to-do and in the banner. Your answer to the update, or the
+    beside the update or to-do and in Leaf's panel. Your answer to the update, or the
     to-do's end, ends the start. If your turn ends first, the item reads stalled
     until you answer it or start it again."""
     from leaf.todos import cmd_start

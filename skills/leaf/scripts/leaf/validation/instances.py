@@ -213,7 +213,7 @@ def ask_context_errors(document: SourceDocument, registry: dict) -> list[Finding
 
     Context never owns ask identity or registration. Any number of sources
     can select it, and each source retains its independent answer and lifecycle.
-    A context framing no source asks nothing: the page shows a question the banner
+    A context framing no source asks nothing: the page shows a question On me
     never counts and the user can't answer, so the error names what each framed
     widget lacks to ask (`unasked`).
     """

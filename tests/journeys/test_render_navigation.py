@@ -737,14 +737,24 @@ def test_a_panel_thread_closes_with_the_panel_as_go_to_threads_does(browser, ser
 
     page.keyboard.press("t")
     expect(view).to_be_focused()
+    # Threads, from the thread the user stands in, opens on that thread's row.
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    expect(threads.locator(f'.lf-fp-thread[data-key="{root}"]')).to_be_focused()
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
     assert page.evaluate("() => document.activeElement === document.body")
 
-    # Threads opens standing on the row of the thread the user left.
+    page.keyboard.press("t")
+    expect(page.locator(PANEL_THREAD)).to_be_focused()
+    page.keyboard.press("Escape")
+    panel_settled(page, open=False)
+    assert page.evaluate("() => document.activeElement === document.body")
+
+    # From the page, Threads holds focus itself.
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(threads.locator(f'.lf-fp-thread[data-key="{root}"]')).to_be_focused()
+    expect(threads).to_be_focused()
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
     assert page.evaluate("() => document.activeElement === document.body")
@@ -1095,13 +1105,15 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     panel_settled(page, open=False)
     assert page.evaluate("() => document.activeElement === document.body")
 
-    # The On me sequence follows the same contract: open the view and land on its first
-    # card.
+    # The On me sequence follows the same contract: open the view, whose walk's first
+    # step lands on its first card.
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")
-    expect(page.locator(".lf-fp-on-item").first).to_be_focused()
+    expect(page.locator('.lf-fp-view[data-view="queue"]')).to_be_focused()
     expect(page.locator(CHIPS)).to_have_count(0)
+    page.keyboard.press("ArrowDown")
+    expect(page.locator(".lf-fp-on-item").first).to_be_focused()
 
     # Replacing one view with another is lateral: Threads replaces On me while it
     # stands, and the Escape out of Threads lands on the page rather than putting On me
@@ -1166,8 +1178,13 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     expect(sheet).to_be_hidden()
 
     # A visible Margin entry shares the generated target map. Activating the hint
-    # opens the same thread preview as its marker.
-    go_to_address(page, "Margin entry", "p1")
+    # opens the same thread preview as its marker. Each quoted passage in p1 stands its
+    # own entry, so the walk takes the first.
+    page.keyboard.press("g")
+    entry = page.locator(
+        f'{CHIPS}[data-lf-go-to-kind="Margin entry"][data-lf-go-to-target="p1"]'
+    ).first
+    page.keyboard.type(entry.get_attribute("data-lf-hint-code"))
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(".lf-margin-thread .lf-page-thread")).to_be_focused()
     page.keyboard.press("Escape")  # onto the element the thread is about

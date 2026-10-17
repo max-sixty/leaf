@@ -741,9 +741,9 @@ def _each_aim_surface(page, page_dir):
     and takes the leaf's menu down as it opens, so a sweep that waited for the last of
     them would meet a page that had put two of the controls away again.
     """
-    comment = next(
+    comment, answered = [
         e["id"] for e in events_model.read_events(page_dir) if e["kind"] == "comment"
-    )
+    ][:2]
     # A resolved thread, which is the only state that has a Reopen to aim at. Resolving
     # moves the user on to the next open thread, so the resolved one is opened again.
     open_panel_thread(page, comment)
@@ -754,6 +754,19 @@ def _each_aim_surface(page, page_dir):
         re.compile(r"\blf-reopen\b")
     )
     yield
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    panel_settled(page, open=False)
+
+    # The agent's answer in the other thread, with its reaction palette open: its chips
+    # show only while it stands.
+    open_panel_thread(page, answered)
+    page.locator(f"{PANEL_THREAD} .lf-react-strip > .lf-react-trigger").first.click()
+    expect(
+        page.locator(".lf-react-palette:popover-open .lf-react").first
+    ).to_be_visible()
+    yield
+    page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)

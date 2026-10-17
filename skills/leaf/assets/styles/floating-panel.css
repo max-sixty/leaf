@@ -116,6 +116,23 @@
     padding: 0 8px;
     min-height: 28px;
   }
+  /* Each press reaches the pointer's floor (`--aim-floor`) above and below a face that
+     can be shorter: the crumb's back is a line of small words, and under a finger the
+     row's presses are its 34px line against a 44px floor. The reach is a box of the
+     press's own that paints nothing, so the line, and the face hover and pressing
+     paint, keep their height, and it lies in the room the row, the head and a menu's
+     rows already keep around their presses. Sideways a press is itself as wide as the
+     floor, since a reach there would lie over its neighbour's. The field's presses are
+     its editor's, which sizes and places them itself (response.css). */
+  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *, .lf-fp-field *)) {
+    position: relative;
+  }
+  :where(.lf-floating-panel)
+    button:where(:not(.lf-fp-outlet *, .lf-fp-field *))::after {
+    content: "";
+    position: absolute;
+    inset: min(0px, (100% - var(--aim-floor)) / 2) 0;
+  }
   :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *)):hover {
     background: var(--lf-fp-hover);
   }
@@ -777,7 +794,7 @@
   .lf-fp-icon-btn {
     display: grid;
     place-items: center;
-    min-width: 28px;
+    min-width: max(28px, var(--aim-floor));
     padding: 0;
     color: var(--lf-fp-muted);
   }
@@ -1395,7 +1412,7 @@
     :is(.lf-floating-panel, .lf-fp-ground) {
       --lf-fp-folded: 46px;
       --lf-fp-line: 34px;
-      --lf-fp-aim: 34px;
+      --lf-fp-aim: var(--aim-floor);
     }
     .lf-fp-row {
       padding: 7px;

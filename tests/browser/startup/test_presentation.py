@@ -14,6 +14,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import SHORT_SUGGESTION, live_url
 from render_cases_navigation import data_projection_page
 from render_harness import (
+    PANEL,
     displayed,
     leaf_page,
     open_page,
@@ -26,13 +27,13 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 
 @pytest.mark.parametrize(
-    ("width", "has_touch", "banner_height"),
-    [(390, True, 53), (740, True, 89), (800, False, 42), (1724, False, 42)],
+    ("width", "has_touch"), [(390, True), (740, True), (800, False), (1724, False)]
 )
 def test_authored_html_paints_while_runtime_startup_is_held(
-    browser, serve, width, has_touch, banner_height
+    browser, serve, width, has_touch
 ):
-    """Immediate authored paint is the contract for every page, not an example mode."""
+    """Immediate authored paint is the contract for every page, not an example mode.
+    No chrome stands over the window's head, so the page starts at its top."""
     boot = []
     context = browser.new_context(
         viewport={"width": width, "height": 900}, has_touch=has_touch
@@ -58,7 +59,7 @@ def test_authored_html_paints_while_runtime_startup_is_held(
         expect(page.locator("html")).to_have_attribute("data-lf-live", "")
         expect(page.locator("body > main")).to_have_css("pointer-events", "auto")
         initial = page.locator("body > main").bounding_box()
-        assert initial["y"] == pytest.approx(banner_height, abs=1)
+        assert initial["y"] == pytest.approx(0, abs=1)
         assert page.locator("body").bounding_box()["height"] == pytest.approx(
             900, abs=1
         )
@@ -116,132 +117,32 @@ def test_a_later_map_only_sidebar_keeps_its_flow_spacing_before_startup(browser,
         page.unroute_all(behavior="wait")
 
 
-RESTORED_PROSE = "".join(
-    f"<p id='p{n}'>" + "Words the reader was partway through, " * 24 + "</p>"
-    for n in range(12)
-)
-
-
-@pytest.mark.parametrize(
-    ("saved", "wide", "window", "contained"),
-    [
-        # The On panel stands on the Threads panel's edge, at the width the user drew it.
-        (
-            {"lf-auxiliary-surface": "queue", "lf-thread-panel-width": "380"},
-            False,
-            1600,
-            False,
-        ),
-        (
-            {"lf-auxiliary-surface": "threads", "lf-thread-panel-width": "500"},
-            True,
-            1440,
-            False,
-        ),
-        # Where it would leave less than a usable page it covers the page instead.
-        ({"lf-auxiliary-surface": "threads"}, True, 700, False),
-        # The On panel by the same rule: 420 of a 600px window leaves 180.
-        ({"lf-auxiliary-surface": "queue"}, False, 600, False),
-        # A sample's child page starts without its host's saved chrome. Isolation is
-        # one rule whatever the surface and window, so one case asks it.
-        (
-            {"lf-auxiliary-surface": "queue", "lf-thread-panel-width": "380"},
-            False,
-            1600,
-            True,
-        ),
-    ],
-    ids=["queue", "threads-wide-page", "covering", "queue-covering", "contained"],
-)
-def test_a_restored_auxiliary_surface_leaves_the_page_where_it_painted(
-    browser, serve, saved, wide, window, contained
-):
-    """Restored auxiliary chrome leaves a page's first-paint geometry alone; an
-    isolated sample starts without inheriting its host's saved chrome."""
-    surface = saved["lf-auxiliary-surface"]
-    content = "<h1>Restored surface</h1>" + RESTORED_PROSE
-    if contained:
-        content = (
-            '<lf-sample id="practice" label="Practice">'
-            '<template id="practice-source" data-sample>'
-            + content
-            + "</template></lf-sample>"
-        )
-    url = serve(
-        leaf_page(
-            "Restored surface",
-            f"<div>{content}</div>" if wide else content,
-            layout="sidebar" if wide else None,
-        )
+def test_a_sample_starts_without_its_host_s_saved_chrome(browser, serve):
+    """The reader's chrome preference, the panel folded to the leaf, is saved for every
+    page on the origin, but an isolated sample's child page starts without inheriting
+    it: the child's panel stands at its row while its host's stays folded."""
+    content = (
+        '<lf-sample id="practice" label="Practice">'
+        '<template id="practice-source" data-sample>'
+        "<h1>Practice</h1><p>A sentence to practise on.</p>"
+        "</template></lf-sample>"
     )
-    context = browser.new_context(viewport={"width": window, "height": 900})
+    url = serve(leaf_page("Folded host", content))
+    context = browser.new_context(viewport={"width": 1600, "height": 900})
     priming = context.new_page()
     priming.goto(url, wait_until="load")
     priming.evaluate(
-        """async saved => {
-            const {userStore} = document.documentElement.lfStorage;
-            for (const [key, value] of Object.entries(saved)) userStore.set(key, value);
-        }""",
-        saved,
+        "() => document.documentElement.lfStorage.userStore.set('lf-chrome-rest', 'mark')"
     )
     priming.close()
 
-    if contained:
-        host = context.new_page()
-        host.goto(url, wait_until="load")
-        wait_until_ready(
-            host.locator("#practice iframe").element_handle().content_frame()
-        )
-        expect(host.locator("body")).to_have_attribute(
-            "data-lf-auxiliary-surface", surface
-        )
-        child = host.frame_locator("#practice iframe")
-        expect(child.locator("body")).not_to_have_attribute(
-            "data-lf-auxiliary-surface", surface
-        )
-        context.close()
-        return
-
-    held = []
-    page = context.new_page()
-    watched(page)
-    page.route("**/leaf.js", lambda route: held.append(route))
-
-    def geometry():
-        return page.evaluate(
-            """() => {
-                const main = document.querySelector('body > main').getBoundingClientRect();
-                return {
-                    x: main.x,
-                    width: main.width,
-                    reading: document.querySelector('#p6').getBoundingClientRect().y,
-                };
-            }"""
-        )
-
-    try:
-        with page.expect_request("**/leaf.js"):
-            page.goto(url, wait_until="commit")
-        displayed(page)
-        expect(page.locator("h1")).to_be_visible()
-        initial = geometry()
-
-        held.pop().continue_()
-        wait_until_ready(page)
-        expect(page.locator("body")).to_have_attribute(
-            "data-lf-auxiliary-surface", surface
-        )
-        expect(page.locator("html[data-lf-covering-surface]")).to_have_count(
-            1 if window < 740 else 0
-        )
-        presented = geometry()
-        assert presented == pytest.approx(initial, abs=1), (
-            f"restoring {surface} moved the page between first paint and presentation"
-        )
-    finally:
-        for route in held:
-            route.continue_()
-        page.unroute_all(behavior="wait")
+    host = context.new_page()
+    host.goto(url, wait_until="load")
+    wait_until_ready(host.locator("#practice iframe").element_handle().content_frame())
+    expect(host.locator(PANEL)).to_have_attribute("data-rest", "mark")
+    child = host.frame_locator("#practice iframe")
+    expect(child.locator(PANEL)).to_have_attribute("data-rest", "row")
+    context.close()
 
 
 def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve):

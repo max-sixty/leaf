@@ -813,15 +813,12 @@ html {
    * height (lf-sample.js). So the body keeps to its content rather than filling the
    * frame, which would hold the frame at its tallest, nothing scrolls inside, and a
    * wheel reaches the containing page. The page's rhythm is set for a window; a block
-   * takes a block's. The banner keeps only its one row of actions (chrome.css). An open
-   * auxiliary surface covers the sample at the height its page already has: opening
-   * one changes nothing about the containing page's layout. */
+   * takes a block's. Its body keeps the floating panel's row room at its foot, as a
+   * window's does, so the frame is that much taller and the row stands under the
+   * sample's last block rather than over it. An open view covers the sample at the
+   * height its page already has: opening one changes nothing about the containing
+   * page's layout. */
   html[data-lf-live][data-lf-sample-block] {
-    --lf-banner-row: 48px;
-    --lf-banner-rows: 1;
-    --lf-bottom-bar-h: 0px;
-    --lf-bottom-status-bottom: calc(14px + var(--lf-safe-bottom));
-    --lf-bottom-status-translate: none;
     overflow-y: hidden;
     --page-pad-start: 24px;
     --page-pad-end: 24px;

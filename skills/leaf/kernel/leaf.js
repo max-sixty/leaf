@@ -8094,6 +8094,11 @@ function createFloatingPanel({
     return { says: "turn", words };
   }
   const whereTo = (key) => key ? "Reply in this thread" : "Comment on the page";
+  function saying2(key, input) {
+    const reading = fieldReading(key, input);
+    if (input) keeps(input, "data-says", reading.says);
+    return reading.words;
+  }
   let general = null;
   function pageEditor() {
     if (general) return general;
@@ -8105,7 +8110,7 @@ function createFloatingPanel({
     box.append(input, send);
     input.value = loadDraft(PAGE_DRAFT) ?? "";
     const sync = wireInput(input, {
-      hint: () => fieldReading(null, input).words,
+      hint: () => saying2(null, input),
       hintParts: () => {
         const parts = status().summaryParts;
         return fieldReading(null, input).says === "status" && parts?.some((part) => part.source) ? statusParts(parts) : null;
@@ -8154,7 +8159,7 @@ function createFloatingPanel({
   const replyOptionsFor = (key) => {
     if (!replyOptions.has(key))
       replyOptions.set(key, {
-        hint: () => fieldReading(key, replyInput()).words,
+        hint: () => saying2(key, replyInput()),
         accessibleName: () => `Reply to ${threadTitle(key)}`,
         sent: () => {
           landAtEnd = { key, after: outletOf()?.childElementCount ?? 0 };
@@ -8169,18 +8174,16 @@ function createFloatingPanel({
     if (Boolean(draftOf(fieldInput()).trim()) !== typing) paint();
   }
   field.addEventListener("input", retype);
-  const threads = () => {
-    const reading = readThreads();
-    return reading.phase === "ready" ? reading.threads : [];
-  };
+  const threads = () => readThreads().threads;
+  const inventoried = () => readThreads().phase === "ready";
   const threadByKey = (key) => threads().find((thread) => thread.key === key || thread.id === key) ?? null;
   const threadTitle = (key) => {
     const thread = threadByKey(key);
     return thread ? threadName(thread) : "this thread";
   };
   const unread = (thread) => thread.unread.length > 0;
-  const newCount = () => threads().filter(unread).length;
-  const openCount = () => threads().filter((thread) => !thread.resolved).length;
+  const newCount = () => inventoried() ? threads().filter(unread).length : 0;
+  const openCount = () => inventoried() ? threads().filter((thread) => !thread.resolved).length : null;
   const onUserCount = () => {
     const queues = readQueues();
     return queues.phase === "ready" ? queues.on_user.length : 0;
@@ -8511,6 +8514,7 @@ function createFloatingPanel({
   }
   function transition2(before, { focus = true } = {}) {
     const after2 = trail.at(-1);
+    const stoodIn = drawnThreadId(closestAcross(focused(), THREAD));
     const reading = [before, after2].some((route) => route?.view === "thread");
     if (after2?.view !== "queue") {
       seated = null;
@@ -8534,7 +8538,7 @@ function createFloatingPanel({
     if (!changed || reducedMotion() || !pagePresented()) {
       leaving = null;
       paint();
-      if (focus) focusView(after2, drawn2);
+      if (focus) focusView(after2, drawn2, stoodIn);
       return;
     }
     const arriving = stage.querySelector(".lf-fp-view:not([data-leaving])");
@@ -8557,9 +8561,9 @@ function createFloatingPanel({
     if (fade) fade.finished.then(settle, () => {
     });
     else leaving = null;
-    if (focus) focusView(after2, drawn2);
+    if (focus) focusView(after2, drawn2, stoodIn);
   }
-  function focusView(route, drawn2) {
+  function focusView(route, drawn2, stoodIn = null) {
     if (!route) return;
     const view = shownView();
     if (route.view === "thread") {
@@ -8572,13 +8576,15 @@ function createFloatingPanel({
       });
       return;
     }
-    const target = keyed2 ? listRows()[0] ?? view?.querySelector("button, input") : view;
+    const rows3 = listRows();
+    const stoodRow = stoodIn && rows3.find((row2) => threadByKey(row2.dataset.key)?.id === stoodIn);
+    const target = stoodRow || (keyed2 ? rows3[0] ?? view?.querySelector("button, input") ?? view : view);
     if (target) focusDestination(target, "move");
   }
   let keyed2 = false;
   onUserInput((event) => {
-    if (["keydown", "pointerdown"].includes(event.type) && event.composedPath().includes(host))
-      keyed2 = event.type === "keydown";
+    if (["keydown", "pointerdown"].includes(event.type))
+      keyed2 = event.type === "keydown" && event.composedPath().includes(host);
   });
   const menuItem = (label2, end, press, {
     urgent = false,
@@ -8858,7 +8864,12 @@ function createFloatingPanel({
                     >${threadStatus(thread, query.trim() ? null : filter)}</span
                   >
                 </button>`
-    ) : html`<p class="lf-fp-empty">${empty}</p>`}
+    ) : inventoried() ? html`<p class="lf-fp-empty">${empty}</p>` : nothing}
+      ${// This tab's sends are listed, but the saved threads are still to come, which
+    // the list says after the rows it has, so their arrival moves none of them.
+    inventoried() ? nothing : html`<p class="lf-fp-empty">
+              ${readThreads().phase === "offline" ? "Current threads are unavailable while the server is offline." : "Loading current threads\u2026"}
+            </p>`}
     </div>`;
   }
   let presentation = null;
@@ -9170,6 +9181,7 @@ function createFloatingPanel({
             ><span class="lf-fp-value">${row2.self ? "This page" : row2.line}</span>`;
         return row2.self ? html`<div class="lf-fp-page" title=${row2.account}>${face2}</div>` : html`<a
                 class="lf-fp-page"
+                data-key=${row2.key}
                 href=${row2.href}
                 target="_blank"
                 rel="noopener"
@@ -9417,6 +9429,8 @@ function createFloatingPanel({
       rove(rows3, rows3.includes(focused()) ? focused() : rows3[0]);
     }
     const views = [leaving, top].filter(Boolean);
+    const heldView = shownView();
+    const restoreFocus = heldView && holdFocus(heldView, { key: "data-key" });
     const shows = (route) => route.view === "thread" ? threadByKey(route.thread)?.id ?? null : null;
     render(
       repeat(
@@ -9439,6 +9453,7 @@ function createFloatingPanel({
       ),
       stage
     );
+    if (restoreFocus && heldView === shownView()) restoreFocus(heldView);
     const outlet = outletOf();
     if (outlet !== fitted) {
       fit.disconnect();
@@ -9485,7 +9500,6 @@ function createFloatingPanel({
     keeps(expand, "title", expanded ? "Less room to write" : "More room to write");
     render(iconTemplate(expanded ? "fit" : "expand", "lf-action-icon"), expand);
     const reading = fieldReading(replying ? top.thread : null, input);
-    keeps(host, "data-says", reading.says);
     keeps(host, "data-tone", status().tone || null);
     keeps(host, "data-asks", status().asks ? "" : null);
     keeps(
@@ -9530,7 +9544,7 @@ function createFloatingPanel({
     }
     const threadsOpen = top?.view === "threads" || top?.view === "thread";
     const onUserName = onUser ? `On me: ${onUser}` : "On me";
-    const threadsName = `Threads, ${openCount()} open${news ? `, ${news} with news` : ""}`;
+    const threadsName = inventoried() ? `Threads, ${openCount()} open${news ? `, ${news} with news` : ""}` : "Threads";
     render(
       html`<button
           type="button"

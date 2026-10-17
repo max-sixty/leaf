@@ -20,6 +20,7 @@ from leaf import interaction_log as interaction_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
+from leaf.render_checks import wait_until_ready
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import LIVE_V1, LIVE_V2, live_url, panel_comment
@@ -28,6 +29,7 @@ from render_harness import (
     LONG_PAGE,
     consume_browser_errors,
     expect_panel_says,
+    holding,
     http_error_console,
     open_page,
     select_words,
@@ -35,6 +37,7 @@ from render_harness import (
     stamp_page,
     ticked,
     told,
+    watched,
     write,
 )
 from render_harness import leaf_page as titled_page
@@ -314,7 +317,8 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     page = floating(browser, url)
     page.locator(".lf-fp-threads").click()
     page.locator(".lf-fp-view[data-view=threads] .lf-fp-thread").first.click()
-    thread = page.locator(".lf-fp-view[data-view=thread]")
+    # The thread standing open: moving on to the next thread fades the one it leaves.
+    thread = page.locator(".lf-fp-view[data-view=thread]:not([data-leaving])")
     expect(thread).to_be_visible()
     first = page.locator(".lf-fp-head .lf-fp-title").inner_text()
     thread.focus()
@@ -1630,7 +1634,7 @@ def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, 
     page.emulate_media(reduced_motion="reduce")
     sheen(False)
     alpha = float(re.search(r"/\s*([\d.]+)\)$", words.evaluate(ink)).group(1))
-    assert alpha < 0.5, f"the resting status reads at {alpha:.0%} of ink"
+    assert alpha < 0.7, f"the resting status reads at {alpha:.0%} of ink"
     page.emulate_media(reduced_motion="no-preference")
     sheen(True)
     # Forced colours drop the mask but keep the animation, so the words stay whole.
@@ -1687,7 +1691,7 @@ def test_a_status_that_asks_the_user_to_act_stands_out(browser, serve):
     declare_idle(serve.page_dir)
     expect(field(page)).to_have_attribute("placeholder", re.compile("^Key refused"))
     expect(panel).to_have_attribute("data-asks", "")
-    assert alpha() > 0.6, "the status asking the user to act reads as dim as a report"
+    assert alpha() > 0.75, "the status asking the user to act reads as dim as a report"
     expect(page.locator(".lf-fp-field")).to_have_attribute(
         "title", re.compile("^The server no longer accepts this tab's key")
     )
@@ -1695,7 +1699,8 @@ def test_a_status_that_asks_the_user_to_act_stands_out(browser, serve):
     # goes with it.
     field(page).click()
     expect(page.locator(".lf-fp-field")).not_to_have_attribute("title", re.compile("."))
-    assert alpha() < 0.5
+    expect(field(page)).to_have_attribute("data-says", "destination")
+    assert alpha() < 0.7
     # The refused reads recur on the page's clock until it closes.
     page.close()
     consume_browser_errors(page, http_error_console(401))
@@ -1797,8 +1802,7 @@ def test_a_walk_says_its_position_in_the_panel(browser, serve):
 
     page.locator("body").focus()
     page.keyboard.press("m")
-    panel = page.locator(".lf-floating-panel")
-    expect(panel).to_have_attribute("data-says", "notice")
+    expect(field(page)).to_have_attribute("data-says", "notice")
     expect(field(page)).to_have_attribute(
         "placeholder", re.compile("1 of 2 waiting on me")
     )
@@ -2633,6 +2637,35 @@ def test_a_long_draft_offers_more_room_at_a_press(browser, serve):
     assert panel.bounding_box()["width"] == pytest.approx(narrow, abs=1)
 
 
+def test_a_count_arriving_moves_no_mark_under_a_finger(browser, serve):
+    """Each mark keeps its count's room whether or not it has a number, under a finger
+    as under a mouse, so a question arriving in a reply puts On me's count in that room
+    and moves nothing beside it. The finger's larger aim floor once stood in place of
+    that room, so the mark widened by the digit as the count came."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Should the rollout wait?")
+    context = browser.new_context(
+        viewport={"width": 1280, "height": 800}, has_touch=True
+    )
+    page = open_page(browser, url, context=context)
+    assert page.evaluate("() => matchMedia('(pointer: coarse)').matches")
+    marks = page.locator(".lf-fp-quick")
+    on_me = page.locator(".lf-fp-on-user")
+    expect(on_me.locator(".lf-fp-num")).to_have_text("")
+    before = [box.bounding_box() for box in (marks, on_me)]
+    thread_model.post_reply(
+        serve.page_dir,
+        {"to": root, "for": root},
+        "Which week suits?",
+        '<lf-ask id="week"><h3>Which week?</h3><lf-options id="week-choice" choose>'
+        '<lf-option id="this">This week</lf-option>'
+        '<lf-option id="next">Next week</lf-option></lf-options></lf-ask>',
+    )
+    told(page)
+    expect(on_me.locator(".lf-fp-num")).to_have_text("1")
+    assert [box.bounding_box() for box in (marks, on_me)] == before
+
+
 def test_a_finger_finds_the_keyboard_s_conveniences_under_navigate(browser, serve):
     """Where no keyboard is there to reach them, the conveniences the desk's menu leaves
     to their keys stand under Navigate, so a finger keeps a way to each."""
@@ -2741,6 +2774,44 @@ def test_a_reply_its_card_cannot_draw_opens_in_the_panel(browser, serve):
     page.locator(".lf-page-thread-open").click()
     reader = page.locator(".lf-fp-view[data-view=thread]")
     expect(reader.locator("#first-job")).to_be_visible()
+
+
+def test_a_page_comment_sent_before_the_first_reading_stands_in_the_panel(
+    browser, serve
+):
+    """A page comment sent while the page still waits for its saved state is the thread
+    the user opened: its view draws it at once, Threads lists it above the line saying
+    the saved threads are still loading, and `t` walks to it once the view is put away.
+    The panel once read threads only from a settled reading, so its view said the
+    thread was not on the page, Threads listed nothing, and `t` was dropped."""
+    held = []
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    page.route("**/api/state*", lambda route: held.append(route))
+    page.route("**/api/event", lambda route: held.append(route))
+    page.goto(serve(LONG_PAGE), wait_until="load")
+    holding(page, held, 1, "the first state read")
+    wait_until_ready(page, through="upgraded")
+    words = "Sent before the page heard back."
+    write(field(page), words)
+    page.keyboard.press("Enter")
+    view = page.locator(".lf-fp-view[data-view=thread]:not([data-leaving])")
+    expect(view).to_contain_text(words)
+
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-fp-view")).to_have_count(0)
+    page.locator(".lf-fp-threads").click()
+    threads = page.locator(".lf-fp-view[data-view=threads]")
+    expect(threads.locator(".lf-fp-thread")).to_have_text([re.compile(words)])
+    expect(threads.locator(".lf-fp-empty")).to_have_text("Loading current threads…")
+
+    page.locator(".lf-fp-close").click()
+    expect(page.locator(".lf-fp-view")).to_have_count(0)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    expect(view).to_contain_text(words)
+    expect(view).to_be_focused()
 
 
 def test_a_refused_page_comment_hands_its_words_back_to_the_field(browser, serve):

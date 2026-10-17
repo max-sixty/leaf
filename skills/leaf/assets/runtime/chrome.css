@@ -16,12 +16,13 @@
   :is(.lf-floating-panel, .lf-fp-ground) {
     --lf-fp-surface: light-dark( var(--paper), color-mix(in srgb, var(--paper) 95%, white) );
     --lf-fp-ring: light-dark( color-mix(in srgb, var(--ink) 13%, transparent), color-mix(in srgb, var(--ink) 19%, transparent) );
-    --lf-fp-muted: color-mix(in srgb, var(--ink) 60%, transparent);
-    --lf-fp-quiet: color-mix(in srgb, var(--ink) 48%, transparent);
+    --lf-fp-muted: color-mix(in srgb, var(--ink) 72%, transparent);
+    --lf-fp-quiet: color-mix(in srgb, var(--ink) 62%, transparent);
     --lf-fp-faint: color-mix(in srgb, var(--ink) 8%, transparent);
     --lf-fp-hover: color-mix(in srgb, var(--ink) 5%, transparent);
     --lf-fp-radius: 12px;
     --lf-fp-folded: 42px;
+    --lf-fp-aim: 32px;
     --lf-fp-line: 32px;
     --lf-fp-width: min( 540px, calc(100vw - 24px - var(--lf-safe-left) - var(--lf-safe-right)) );
     --lf-fp-view-height: calc(100dvh - var(--lf-bottom-bar-h) - 160px);
@@ -68,11 +69,11 @@
     display: flex;
     flex-direction: column;
   }
-  :where(.lf-floating-panel) :is(button, input, textarea) {
+  :where(.lf-floating-panel) :is(button, input, textarea):where(:not(.lf-fp-outlet *)) {
     font: inherit;
     color: inherit;
   }
-  :where(.lf-floating-panel) button {
+  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *)) {
     background: none;
     border: 0;
     border-radius: 6px;
@@ -81,15 +82,15 @@
     padding: 0 8px;
     min-height: 28px;
   }
-  :where(.lf-floating-panel) button:hover {
+  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *)):hover {
     background: var(--lf-fp-hover);
   }
-  :where(.lf-floating-panel) button:is(:disabled, [aria-disabled=true]) {
+  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *)):is(:disabled, [aria-disabled=true]) {
     color: var(--lf-fp-muted);
     cursor: default;
     background: none;
   }
-  :where(.lf-floating-panel) :is(button, input, textarea, a, .lf-fp-on-item):focus-visible {
+  :where(.lf-floating-panel) :is(button, input, textarea, a, .lf-fp-on-item):where(:not(.lf-fp-outlet *)):focus-visible {
     outline: var(--focus-ring);
     outline-offset: -2px;
   }
@@ -226,18 +227,18 @@
   .lf-fp-field leaf-text::part(placeholder) {
     color: var(--lf-fp-quiet);
   }
-  .lf-floating-panel[data-says=notice] .lf-fp-field leaf-text::part(placeholder) {
+  .lf-fp-field leaf-text[data-says=notice]::part(placeholder) {
     color: var(--lf-fp-muted);
     font-weight: 500;
   }
   @media (prefers-reduced-motion: no-preference) {
-    .lf-floating-panel[data-says=status][data-tone=working]:not([data-asks]) .lf-fp-field leaf-text::part(placeholder) {
-      --lf-sheen-rest: 0.48;
+    .lf-floating-panel[data-tone=working]:not([data-asks]) .lf-fp-field leaf-text[data-says=status]::part(placeholder) {
+      --lf-sheen-rest: 0.62;
       animation: lf-sheen 2s ease-in-out infinite alternate;
     }
   }
-  .lf-floating-panel[data-says=status][data-asks] .lf-fp-field leaf-text::part(placeholder) {
-    color: color-mix(in srgb, var(--lf-fp-asks) 70%, transparent);
+  .lf-floating-panel[data-asks] .lf-fp-field leaf-text[data-says=status]::part(placeholder) {
+    color: color-mix(in srgb, var(--lf-fp-asks) 84%, transparent);
   }
   .lf-floating-panel[data-asks] {
     --lf-fp-asks: var(--ink);
@@ -297,7 +298,7 @@
     align-items: center;
     justify-content: center;
     gap: 4px;
-    min-width: 32px;
+    min-width: var(--lf-fp-aim);
     min-height: var(--lf-fp-line);
     padding: 0 7px;
     color: var(--lf-fp-muted);
@@ -1171,6 +1172,7 @@
     :is(.lf-floating-panel, .lf-fp-ground) {
       --lf-fp-folded: 46px;
       --lf-fp-line: 34px;
+      --lf-fp-aim: 34px;
     }
     .lf-fp-row {
       padding: 7px;
@@ -1180,12 +1182,11 @@
     .lf-fp-page {
       min-height: 44px;
     }
-    :where(.lf-floating-panel) button {
+    :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *)) {
       min-height: 34px;
     }
-    .lf-fp-leaf,
-    .lf-fp-chip {
-      min-width: 34px;
+    .lf-fp-leaf {
+      min-width: var(--lf-fp-aim);
     }
   }
   @media (prefers-reduced-motion: reduce) {

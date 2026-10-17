@@ -63,6 +63,7 @@ import {
   retainUserIntent,
   scrollIntoView,
   focused,
+  PRESSABLE,
 } from "/runtime/widget-api.js";
 
 const ACTIONS = [
@@ -119,15 +120,16 @@ customElements.define(
 
       this.#offerControls();
 
-      // A click opens the exact source at its rendered caret. Native controls,
-      // links and completed word selections own their own gestures.
+      // A click opens the exact source at its rendered caret. Presses, links and
+      // completed word selections own their own gestures; Leaf's generated chrome that
+      // is no press, such as the thread message a reply's draft stands in, does not.
       this.addEventListener("click", (ev) => {
         // A keyboard activation carries no place, and the keyboard's door is the ✎. The
         // primary button only: a middle- or right-press is not the gesture this is for.
         if (
           pressIsKeyboardActivation(ev) ||
           ev.button !== 0 ||
-          /** @type {Element} */ (ev.target).closest("[data-lf-offer], a, button")
+          /** @type {Element} */ (ev.target).closest(`${PRESSABLE}, a, button`)
         )
           return;
         if (reachedForWords(this)) return;

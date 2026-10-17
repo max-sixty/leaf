@@ -268,11 +268,6 @@ html {
     }
   }
   html[data-lf-live][data-lf-sample-block] {
-    --lf-banner-row: 48px;
-    --lf-banner-rows: 1;
-    --lf-bottom-bar-h: 0px;
-    --lf-bottom-status-bottom: calc(14px + var(--lf-safe-bottom));
-    --lf-bottom-status-translate: none;
     overflow-y: hidden;
     --page-pad-start: 24px;
     --page-pad-end: 24px;

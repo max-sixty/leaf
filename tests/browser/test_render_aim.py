@@ -3762,7 +3762,9 @@ def _draft_in_view(page, words, field=None):
 def _open_attachment_draft(browser, url, target):
     page = open_page(browser, url)
     rendered(page)
-    expect(page.locator(PANEL)).not_to_have_attribute("data-says", "notice")
+    expect(page.locator(".lf-fp-field leaf-text")).not_to_have_attribute(
+        "data-says", "notice"
+    )
     destination = page.locator(target).first
     for _ in range(50):
         if destination.evaluate("el => el.matches(':focus-within')"):
@@ -3781,7 +3783,9 @@ def _open_attachment_draft(browser, url, target):
 def test_quote_attachment_can_hide_while_its_paragraph_remains(browser, serve):
     page = open_page(browser, serve(COMPOSER_ATTACHMENT_PAGE))
     rendered(page)
-    expect(page.locator(PANEL)).not_to_have_attribute("data-says", "notice")
+    expect(page.locator(".lf-fp-field leaf-text")).not_to_have_attribute(
+        "data-says", "notice"
+    )
     page.locator("#quote-holder").scroll_into_view_if_needed()
     points = page.locator("#quote-holder").evaluate(
         """el => {

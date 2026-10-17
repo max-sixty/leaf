@@ -123,7 +123,7 @@ import { readThreads } from "./thread/state.js";
 import { watchProjection } from "./projection-watch.js";
 import { threadAttention, workflowLabel } from "./thread/workflow.js";
 import { messageReading, threadName } from "./thread/messages.js";
-import { drawnThreadId } from "./thread/selectors.js";
+import { drawnThreadId, THREAD } from "./thread/selectors.js";
 import { declareThreadParts } from "./thread/focus.js";
 import { quoteReading } from "./thread/thread-card.js";
 import { dismissReply, replyAvailable } from "./thread/replies.js";
@@ -162,6 +162,7 @@ import { onReadingInterrupted, readingIsContinuous } from "./reading-continuity.
 import {
   focusDestination,
   focused,
+  holdFocus,
   letGo,
   onStanding,
   onUserInput,
@@ -492,6 +493,14 @@ export function createFloatingPanel({
   // Where the words go, as the focused field's placeholder says it; the thread's own
   // name already heads its view.
   const whereTo = (key) => (key ? "Reply in this thread" : "Comment on the page");
+  // An editor's empty words, as its own paint draws them (composing/input.js, `hint`),
+  // which marks the editor with whose reading they are, so the face the theme gives that
+  // reading changes in the same paint as the words (floating-panel.css).
+  function saying(key, input) {
+    const reading = fieldReading(key, input);
+    if (input) keeps(input, "data-says", reading.says);
+    return reading.words;
+  }
   // The page's own editor: the field where no thread is open.
   let general = null;
   function pageEditor() {
@@ -504,7 +513,7 @@ export function createFloatingPanel({
     box.append(input, send);
     input.value = loadDraft(PAGE_DRAFT) ?? "";
     const sync = wireInput(input, {
-      hint: () => fieldReading(null, input).words,
+      hint: () => saying(null, input),
       hintParts: () => {
         const parts = status().summaryParts;
         return fieldReading(null, input).says === "status" &&
@@ -572,7 +581,7 @@ export function createFloatingPanel({
   const replyOptionsFor = (key) => {
     if (!replyOptions.has(key))
       replyOptions.set(key, {
-        hint: () => fieldReading(key, replyInput()).words,
+        hint: () => saying(key, replyInput()),
         accessibleName: () => `Reply to ${threadTitle(key)}`,
         sent: () => {
           landAtEnd = { key, after: outletOf()?.childElementCount ?? 0 };
@@ -593,10 +602,12 @@ export function createFloatingPanel({
   field.addEventListener("input", retype);
 
   // ---------- readings ----------
-  const threads = () => {
-    const reading = readThreads();
-    return reading.phase === "ready" ? reading.threads : [];
-  };
+  // The threads the page draws, this tab's sends among them while the saved ones are
+  // still on their way, so a thread the user just started opens and lists at once. A
+  // count is a reading of the saved inventory, so the marks and tabs say one only once
+  // it has arrived (`inventoried`).
+  const threads = () => readThreads().threads;
+  const inventoried = () => readThreads().phase === "ready";
   const threadByKey = (key) =>
     threads().find((thread) => thread.key === key || thread.id === key) ?? null;
   const threadTitle = (key) => {
@@ -604,8 +615,9 @@ export function createFloatingPanel({
     return thread ? threadName(thread) : "this thread";
   };
   const unread = (thread) => thread.unread.length > 0;
-  const newCount = () => threads().filter(unread).length;
-  const openCount = () => threads().filter((thread) => !thread.resolved).length;
+  const newCount = () => (inventoried() ? threads().filter(unread).length : 0);
+  const openCount = () =>
+    inventoried() ? threads().filter((thread) => !thread.resolved).length : null;
   const onUserCount = () => {
     const queues = readQueues();
     return queues.phase === "ready" ? queues.on_user.length : 0;
@@ -1090,6 +1102,9 @@ export function createFloatingPanel({
   }
   function transition(before, { focus = true } = {}) {
     const after = trail.at(-1);
+    // The thread the user stands in as the change begins, on the page or in the panel,
+    // read before the paint that may take its view away.
+    const stoodIn = drawnThreadId(closestAcross(focused(), THREAD));
     const reading = [before, after].some((route) => route?.view === "thread");
     if (after?.view !== "queue") {
       seated = null;
@@ -1122,7 +1137,7 @@ export function createFloatingPanel({
     if (!changed || reducedMotion() || !pagePresented()) {
       leaving = null;
       paint();
-      if (focus) focusView(after, drawn);
+      if (focus) focusView(after, drawn, stoodIn);
       return;
     }
     const arriving = stage.querySelector(".lf-fp-view:not([data-leaving])");
@@ -1144,14 +1159,17 @@ export function createFloatingPanel({
     };
     if (fade) fade.finished.then(settle, () => {});
     else leaving = null;
-    if (focus) focusView(after, drawn);
+    if (focus) focusView(after, drawn, stoodIn);
   }
-  function focusView(route, drawn) {
+  function focusView(route, drawn, stoodIn = null) {
     if (!route) return;
     const view = shownView();
     // A thread opens with the caret in its reply, as the one field means, once Leaf's
-    // reader has drawn the reply there; a list a key opened stands on its first row, or
-    // its first control where it has none; one a pointer opened holds focus itself.
+    // reader has drawn the reply there. A list stands on the row of the thread the user
+    // stood in, where it lists it, as `g T` from a thread does; else, opened by a key in
+    // the panel, on its first row, or its first control where it has none, or itself
+    // where it holds neither, as an empty Threads does; opened from anywhere else, as
+    // `g T` from the page or a pointer, it holds focus itself.
     if (route.view === "thread") {
       // A finger opening a thread reads it first; the keyboard rises when they tap in.
       if (coarse()) return;
@@ -1163,21 +1181,23 @@ export function createFloatingPanel({
       });
       return;
     }
-    const target = keyed
-      ? (listRows()[0] ?? view?.querySelector("button, input"))
-      : view;
+    const rows = listRows();
+    const stoodRow =
+      stoodIn && rows.find((row) => threadByKey(row.dataset.key)?.id === stoodIn);
+    const target =
+      stoodRow ||
+      (keyed ? (rows[0] ?? view?.querySelector("button, input") ?? view) : view);
     if (target) focusDestination(target, "move");
   }
 
-  // Whether the gesture now under way came from the keyboard: a key arriving in a view
-  // stands on its first control, a pointer in the view itself, with no ring drawn.
+  // Whether the gesture now under way is a key in the panel: a key arriving in a view
+  // stands on its first control, a pointer in the view itself, with no ring drawn. A
+  // gesture outside the panel, `g T` from the page among them, is neither, whatever the
+  // panel last heard, so the view it opens holds focus itself.
   let keyed = false;
   onUserInput((event) => {
-    if (
-      ["keydown", "pointerdown"].includes(event.type) &&
-      event.composedPath().includes(host)
-    )
-      keyed = event.type === "keydown";
+    if (["keydown", "pointerdown"].includes(event.type))
+      keyed = event.type === "keydown" && event.composedPath().includes(host);
   });
 
   // ---------- the leaf's menu ----------
@@ -1565,7 +1585,22 @@ export function createFloatingPanel({
                   >
                 </button>`,
             )
-          : html`<p class="lf-fp-empty">${empty}</p>`
+          : inventoried()
+            ? html`<p class="lf-fp-empty">${empty}</p>`
+            : nothing
+      }
+      ${
+        // This tab's sends are listed, but the saved threads are still to come, which
+        // the list says after the rows it has, so their arrival moves none of them.
+        inventoried()
+          ? nothing
+          : html`<p class="lf-fp-empty">
+              ${
+                readThreads().phase === "offline"
+                  ? "Current threads are unavailable while the server is offline."
+                  : "Loading current threads…"
+              }
+            </p>`
       }
     </div>`;
   }
@@ -2021,6 +2056,7 @@ export function createFloatingPanel({
             ? html`<div class="lf-fp-page" title=${row.account}>${face}</div>`
             : html`<a
                 class="lf-fp-page"
+                data-key=${row.key}
                 href=${row.href}
                 target="_blank"
                 rel="noopener"
@@ -2329,6 +2365,12 @@ export function createFloatingPanel({
     }
 
     const views = [leaving, top].filter(Boolean);
+    // A row leaving the list the user stands on, as a page that goes idle leaves All
+    // pages, hands them to the row after it, else before it, else the view that stays
+    // open, rather than to the body (focus.js, `holdFocus`). Each list's rows carry
+    // their key as `data-key`.
+    const heldView = shownView();
+    const restoreFocus = heldView && holdFocus(heldView, { key: "data-key" });
     // A thread's view stands for that thread (thread/selectors.js, `THREAD`), so the
     // user standing anywhere in it is in the thread, as in a card in Threads, and the
     // thread's keys find its reply and Resolve where the view declares them.
@@ -2360,6 +2402,7 @@ export function createFloatingPanel({
       ),
       stage,
     );
+    if (restoreFocus && heldView === shownView()) restoreFocus(heldView);
     // The open thread's messages are read where they land, and its view's height
     // whatever changes it (`fitAnswer`).
     const outlet = outletOf();
@@ -2426,13 +2469,12 @@ export function createFloatingPanel({
     keeps(expand, "aria-label", expanded ? "Less room to write" : "More room to write");
     keeps(expand, "title", expanded ? "Less room to write" : "More room to write");
     render(iconTemplate(expanded ? "fit" : "expand", "lf-action-icon"), expand);
-    // Whose reading the empty field says, which its face follows: a status dims, and
-    // carries the sheen while the agent works, unless it asks the user to act, such as
-    // to nudge the agent in its terminal, which it says in its tone's ink
+    // Whose reading the empty field says, which its face follows (`saying`): a status
+    // dims, and carries the sheen while the agent works, unless it asks the user to act,
+    // such as to nudge the agent in its terminal, which it says in its tone's ink
     // (`pageStatus`, `asks`). The field's room cuts a long status short, so pointing at
     // the field says it in full, as the folded leaf's peek does.
     const reading = fieldReading(replying ? top.thread : null, input);
-    keeps(host, "data-says", reading.says);
     keeps(host, "data-tone", status().tone || null);
     keeps(host, "data-asks", status().asks ? "" : null);
     keeps(
@@ -2496,7 +2538,9 @@ export function createFloatingPanel({
     // A mark's name is its tooltip too, as an icon control's title is elsewhere in Leaf.
     const threadsOpen = top?.view === "threads" || top?.view === "thread";
     const onUserName = onUser ? `On me: ${onUser}` : "On me";
-    const threadsName = `Threads, ${openCount()} open${news ? `, ${news} with news` : ""}`;
+    const threadsName = inventoried()
+      ? `Threads, ${openCount()} open${news ? `, ${news} with news` : ""}`
+      : "Threads";
     render(
       html`<button
           type="button"

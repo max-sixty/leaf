@@ -12,7 +12,6 @@ from render_cases_interaction import ASKS_PAGE, live_url
 from render_cases_navigation import NOTED_PAGE
 from render_harness import (
     INLINE_PAGE,
-    PANEL,
     PANEL_THREAD,
     open_page,
     page_comment,
@@ -78,7 +77,9 @@ def test_user_news_interrupts_and_then_restores_background_news(browser, serve):
         == 1
     ), "restoring background news announced it again"
     page.keyboard.press("g")
-    expect(page.locator(PANEL)).not_to_have_attribute("data-says", "notice")
+    expect(page.locator(".lf-fp-field leaf-text")).not_to_have_attribute(
+        "data-says", "notice"
+    )
     assert page.evaluate(
         """() => Object.entries(window.__lfStatusNodes).every(
           ([selector, node]) => document.querySelector(selector) === node

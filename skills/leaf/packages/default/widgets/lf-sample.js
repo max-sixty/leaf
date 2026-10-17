@@ -23,9 +23,9 @@
  * again until it says it has arrived. Until a child has arrived a resize the reader
  * would see, because they scrolled to the sample while it loaded, waits until it would
  * move nothing they see, the frame keeping its loading height (`heldGrowth`), or until
- * the reader gives input inside the child; a resize after Reset or Return to page, or
- * one the child says the rendering of the reader's input there made, is theirs and
- * applies at once. The status line keeps its room through loading, ready
+ * the reader gives input inside the child; a resize after Reset or Return to page, one
+ * of a frame the reader saw as it mounted, or one the child says the rendering of the
+ * reader's input there made, is theirs and applies at once. The status line keeps its room through loading, ready
  * and failure, so the frame below it stays put; a failure's words that run past it
  * stand in a disclosure the reader opens over the frame.
  * Reset stays focusable
@@ -174,19 +174,23 @@ customElements.define(
       // document that departs before upgrading holds it until the next document,
       // which a reload brings, or Reset: the parent cannot tell a reload from an
       // external destination.
-      const shown = this.#track(ready).catch(() => {});
       // The child's startup is another document's, and nothing in this page reads
       // it, so presentation waits for it only where its arrival would move what the
       // reader sees now: a block frame resizes to its child once that presents. A
       // window keeps its height, and a frame below the window or scrolled past grows
       // where the reader isn't looking, so the page presents and takes keys without
       // them while they load. The page reads as arriving until each child has.
-      if (
+      // A frame the reader sees as it mounts is part of what they are being shown,
+      // the page arriving or a view they opened, such as a thread in the floating
+      // panel: its resize is that showing's, not news, so it applies at once, as one
+      // the reader asked for does. Only a frame they come upon while it loads holds it.
+      const presented =
         !this.hasAttribute("window") &&
         !isNativeLayer(this.#view) &&
-        growthIsSeen(this.#frame)
-      )
-        widgetController(this).present(shown);
+        growthIsSeen(this.#frame);
+      this.#asked = presented;
+      const shown = this.#track(ready).catch(() => {});
+      if (presented) widgetController(this).present(shown);
     }
 
     // Removal closes a modal Full view at once, so the view returns to its embedded

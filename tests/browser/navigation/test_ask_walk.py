@@ -21,7 +21,6 @@ from render_cases_navigation import (
     OVER_WORDS,
 )
 from render_harness import (
-    PANEL,
     PANEL_THREAD,
     RELEASE_FOCUS,
     ROOT,
@@ -320,7 +319,9 @@ def test_keys_answer_an_ask_from_its_marks(browser, serve):
           dispatchEvent(new Event('resize'));
         }"""
     )
-    expect(page.locator(PANEL)).to_have_attribute("data-says", "notice")
+    expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
+        "data-says", "notice"
+    )
     expect(
         page.locator(
             "#live-question > lf-option > .lf-key-badge[data-lf-binding-badge]"
@@ -362,7 +363,9 @@ def test_keys_answer_an_ask_from_its_marks(browser, serve):
     expect(page.locator("#lq-keep")).to_have_attribute("chosen", "")
     # The pick's notice takes the panel's seat for passing words, and focus never left
     # the second option, so the walk's reading stands behind it rather than retiring.
-    expect(page.locator(PANEL)).to_have_attribute("data-says", "notice")
+    expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
+        "data-says", "notice"
+    )
     assert (
         page.evaluate(
             """async () => (await window.__lfCheckApi())

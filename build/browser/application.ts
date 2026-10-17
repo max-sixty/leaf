@@ -264,7 +264,7 @@ export type Workflow = Omit<WireWorkflow, "quiet" | "dropped" | "stage"> & {
 /** One step of the agent's plan, as `plans.plan_reading` serves it: plain, or naming a
  * to-do or ask whose title, owner and state it shows; `done` of `total` counts its
  * children, dropped ones left out. */
-export interface WirePlanStep {
+interface WirePlanStep {
   /** An ask whose prompt has no text names no title. */
   title: string | null;
   state: "open" | "working" | "done" | "failed" | "dropped";

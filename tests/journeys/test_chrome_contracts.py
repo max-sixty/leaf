@@ -1564,7 +1564,7 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
     expect(page.locator(".lf-others")).to_have_text("All pages (2)")
     expect(page.locator(".lf-signoff")).to_be_disabled()
     expect(page.locator(".lf-signoff")).to_have_attribute(
-        "title", "Answer every ask before approving this work"
+        "title", "Answer every open item before approving this work"
     )
     banner_control(page, ".lf-answer-all")
 

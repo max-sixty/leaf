@@ -430,8 +430,8 @@ def test_an_arrival_cannot_hide_an_ask_draft(browser, serve):
     ]
     action = next(e for e in events_model.read_events(d) if e["kind"] == "action")
     assert action["detail"] == {"option": added.get_attribute("id"), "text": draft}
-    page.locator(".lf-threads-toggle").click()
-    expect(page.locator(f'.lf-thread[data-id="{external["id"]}"]')).to_have_count(1)
+    page.locator(".lf-fp-threads").click()
+    expect(page.locator(f'.lf-fp-thread[data-key="{external["id"]}"]')).to_have_count(1)
 
 
 def test_the_add_field_says_its_whole_hint_on_a_phone(browser, serve):

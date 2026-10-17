@@ -19,6 +19,7 @@ from render_cases_navigation import (
     TARGETS_PAGE,
 )
 from render_harness import (
+    PANEL_THREAD,
     draft_key,
     leaf_page,
     open_page,
@@ -812,17 +813,14 @@ def test_draw_mode_leaves_chrome_controls_usable(browser, serve):
     expect(exit_mode).to_be_visible()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    panel_settled(page)
+    panel_settled(page, view="threads")
 
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
-    expect(page.locator(".lf-thread-panel")).to_be_visible()
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
     exit_mode.click()
     expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
-    threads = page.locator(".lf-banner-actions .lf-threads-toggle")
-    expect(threads).to_be_visible()
-    threads.click()
-    expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    page.locator(".lf-fp-threads").click()
+    panel_settled(page, open=False)
 
 
 def test_draw_mode_keeps_the_separate_design_mode_binding(browser, serve):
@@ -1160,7 +1158,7 @@ def test_page_mode_keeps_visible_native_ink_and_exact_drawing_comment(browser, s
     expect(page.locator(".lf-drawing-pending")).to_have_count(0)
     expect(page.locator(".lf-drawing-posted")).to_have_count(0)
     expect(
-        page.locator(".lf-thread-panel .lf-msg").filter(has_text="The bend I mean")
+        page.locator(f"{PANEL_THREAD} .lf-msg").filter(has_text="The bend I mean")
     ).to_be_visible()
     expect(
         page.locator(".lf-margin-layer, .lf-margin-cluster, .lf-margin-preview")

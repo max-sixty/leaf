@@ -416,14 +416,10 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     elif place in {"choose-earlier", "leave-displaced-title"}:
         selected.locator(".lf-thread-summary").click()
 
-    # Choosing an earlier thread while the failing reading is in flight starts two
-    # newer readings (its disclosure's and the publication's), and an attempt a newer
-    # one supersedes restores nothing. Both fail too, so restoring the committed reading
-    # is the last one's to do. There each failing reading waits before it paints and
-    # then fails in the same turn as its paint, as a renderer exception does, so the
-    # test decides which attempt is current and no candidate stands on screen between.
+    # Choosing an earlier thread while the failing reading is in flight keeps that
+    # disclosure open through rollback. Opening it does not start another list paint.
     choose_earlier = place == "choose-earlier"
-    failures = 3 if choose_earlier else 1
+    failures = 1
     page.evaluate(
         "([failures, gateBeforePaint]) => {"
         " window.listFailures = failures; window.gateBeforePaint = gateBeforePaint; }",
@@ -542,9 +538,6 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
         selected = page.locator('.lf-thread[data-id="earlier-thread"]')
         selected.locator(".lf-thread-summary").click()
         expect(selected).to_have_attribute("open", "")
-        # Both of the choice's readings stand at the gate, so the first is superseded,
-        # and all three fail once it opens.
-        page.wait_for_function("() => window.heldCandidates === 3")
         page.evaluate("window.releaseFirstListFailure()")
     else:
         expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 4")

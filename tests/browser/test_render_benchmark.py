@@ -1,5 +1,6 @@
 """Latency goals consume admission and presentation of the gesture being measured."""
 
+from leaf import event_log as events_model
 from leaf.render_checks import rendered
 from leaf_dev.commands.bench_latency import PROBE
 from playwright.sync_api import expect
@@ -10,7 +11,10 @@ from render_harness import (
     http_error_console,
     leaf_page,
     open_page,
+    panel_field,
 )
+
+from browser.threads import open_panel_thread
 
 
 def test_delivery_benchmark_does_not_borrow_an_older_thread_receipt(browser, serve):
@@ -22,11 +26,14 @@ def test_delivery_benchmark_does_not_borrow_an_older_thread_receipt(browser, ser
         ),
         init_script=PROBE.read_text(),
     )
-    page.locator(".lf-threads-toggle").click()
-    thread = page.locator(".lf-thread").last
-    thread.locator(".lf-thread-summary").click()
+    [root] = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    thread = open_panel_thread(page, root)
     expect(thread.locator(".lf-msg-sending")).to_have_text("Sent")
-    field = thread.locator("leaf-text")
+    field = panel_field(page)
     held = []
     page.route(
         "**/api/event",
@@ -50,7 +57,7 @@ def test_delivery_benchmark_does_not_borrow_an_older_thread_receipt(browser, ser
         if type_words:
             page.keyboard.insert_text(words)
         with page.expect_request("**/api/event"):
-            page.keyboard.press("Enter")
+            page.keyboard.press("ControlOrMeta+Enter")
         page.wait_for_function("window.__leafBench.watch().goals[0].at !== null")
         holding(page, held, 1, "the benchmark reply")
         [route] = held

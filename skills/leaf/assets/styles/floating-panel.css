@@ -1,33 +1,17 @@
-/* The floating panel (runtime/floating-panel.js): one box over the foot of the page in
-   place of the banner and the bottom bar, unless the reader asked for them
-   (`html[data-lf-floating-chrome]`, prepaint.js). The theme keeps its row's room at the
-   page's foot (theme.css).
+/* The floating panel (runtime/floating-panel.js): Leaf's chrome, one box over the foot
+   of the page. The theme keeps its row's room at the page's foot (theme.css,
+   `--lf-foot-room`).
 
    The panel stands on the page's own ground, set off by a hairline and the faintest
    shadow, with 12px corners: part of the page rather than a widget laid on it. Its
    controls are set in the sans at 13px, with 12px for what qualifies them, and the
-   page's words (asks, messages) in the page's serif; two inks, full and 60%, and
-   the accent for what is on the user. The leaf is the one symbol at rest, and its
-   colour is the agent's state. Every row is one line. */
+   page's words (asks, messages) in the page's serif; two inks, full and 72%, and
+   the accent for what is on the user, with the empty field's status a step dimmer
+   at 62%. The dim inks are as dim as WCAG AA's 4.5:1 for text lets them be on the
+   panel's ground in the light scheme, whose paper is the brighter: 62% reads 4.7:1
+   there, where the 48% the status first wore read 3.1:1. The user chose a dim
+   status, so it stays the dimmest words in the panel. Every row is one line. */
 @scope (.lf-chrome) {
-  html[data-lf-floating-chrome] :scope {
-    /* What passes, a notice, the Go-to filter's word or a walk's position, is said in
-       the panel's one seat for it (floating-panel.js, `passing`), so the bars and the
-       foot's status line stand down. */
-    --lf-notice-seat: panel;
-    .lf-banner,
-    .lf-shortcut-bar,
-    .lf-bottom-status {
-      display: none !important;
-    }
-    /* Page search's box stands over the panel's row, centred on it as the row is,
-       where Previous, Next and Close search stand while it is open, rather than at the
-       head of the window, where the banner it hung under was. */
-    .lf-page-search {
-      top: auto;
-      bottom: calc(var(--lf-bottom-bar-h) - var(--lf-floating-gap) + 8px);
-    }
-  }
   :is(.lf-floating-panel, .lf-fp-ground) {
     --lf-fp-surface: light-dark(
       var(--paper),
@@ -37,12 +21,15 @@
       color-mix(in srgb, var(--ink) 13%, transparent),
       color-mix(in srgb, var(--ink) 19%, transparent)
     );
-    --lf-fp-muted: color-mix(in srgb, var(--ink) 60%, transparent);
-    --lf-fp-quiet: color-mix(in srgb, var(--ink) 48%, transparent);
+    --lf-fp-muted: color-mix(in srgb, var(--ink) 72%, transparent);
+    --lf-fp-quiet: color-mix(in srgb, var(--ink) 62%, transparent);
     --lf-fp-faint: color-mix(in srgb, var(--ink) 8%, transparent);
     --lf-fp-hover: color-mix(in srgb, var(--ink) 5%, transparent);
     --lf-fp-radius: 12px;
     --lf-fp-folded: 42px;
+    /* The narrowest a mark or the leaf stands, larger under a finger. A mark with a
+       count keeps its count's room besides, which is wider (`.lf-fp-on-user`). */
+    --lf-fp-aim: 32px;
     /* The row's one line: the leaf, each mark and press beside the field, and the
        field's first line of words are each this tall, and the row stands them all on
        its foot, so every one of them is centred on the line the words are written on. */
@@ -54,7 +41,7 @@
     /* A view is as tall as what it holds, up to this: the window less the row's band
        and a band of the page above the box, so a long thread or list reads in most of
        the window while the page still shows over it. */
-    --lf-fp-view-height: calc(100dvh - var(--lf-bottom-bar-h) - 160px);
+    --lf-fp-view-height: calc(100dvh - var(--lf-foot-room) - 160px);
   }
 
   /* The surface: a layer over the whole window, cut to the box's outline by the
@@ -63,7 +50,7 @@
   .lf-fp-ground {
     position: fixed;
     inset: 0;
-    z-index: calc(var(--lf-z-banner) - 1);
+    z-index: calc(var(--lf-z-panel) - 1);
     pointer-events: none;
     filter: drop-shadow(var(--raise-2));
   }
@@ -82,7 +69,7 @@
 
   .lf-floating-panel {
     position: fixed;
-    z-index: var(--lf-z-banner);
+    z-index: var(--lf-z-panel);
     pointer-events: auto;
     bottom: calc(var(--lf-floating-gap) + var(--lf-safe-bottom));
     left: 0;
@@ -103,11 +90,15 @@
     display: flex;
     flex-direction: column;
   }
-  :where(.lf-floating-panel) :is(button, input, textarea) {
+  /* The panel's own controls share one face. What Leaf's reader draws in a view's
+     outlet, a thread's messages or an ask On shows as one, keeps the face its own
+     controls give it (controls.css): this face once reached a message's reaction
+     trigger there, under the aim floor, and took the fill off a chosen reaction. */
+  :where(.lf-floating-panel) :is(button, input, textarea):where(:not(.lf-fp-outlet *)) {
     font: inherit;
     color: inherit;
   }
-  :where(.lf-floating-panel) button {
+  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *)) {
     background: none;
     border: 0;
     border-radius: 6px;
@@ -116,16 +107,19 @@
     padding: 0 8px;
     min-height: 28px;
   }
-  :where(.lf-floating-panel) button:hover {
+  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *)):hover {
     background: var(--lf-fp-hover);
   }
-  :where(.lf-floating-panel) button:is(:disabled, [aria-disabled="true"]) {
+  :where(.lf-floating-panel)
+    button:where(:not(.lf-fp-outlet *)):is(:disabled, [aria-disabled="true"]) {
     color: var(--lf-fp-muted);
     cursor: default;
     background: none;
   }
   :where(.lf-floating-panel)
-    :is(button, input, textarea, a, .lf-fp-on-item):focus-visible {
+    :is(button, input, textarea, a, .lf-fp-on-item):where(
+      :not(.lf-fp-outlet *)
+    ):focus-visible {
     outline: var(--focus-ring);
     outline-offset: -2px;
   }
@@ -297,21 +291,24 @@
      notice is news, so it reads a step brighter until it passes. While the agent works,
      its status carries the sheen that marks work under way (surfaces.css), from its own
      dim face to ink and back. The face is the field's placeholder part, so it holds
-     whether the words come with a key drawn beside them or alone. */
+     whether the words come with a key drawn beside them or alone. Whose reading the
+     words are is the editor's own `data-says`, written in the paint that writes the
+     words (floating-panel.js, `saying`), so no face stands over another reading's words
+     for a frame, as the notice's weight once did over the status, carrying it sideways. */
   .lf-fp-field leaf-text::part(placeholder) {
     color: var(--lf-fp-quiet);
   }
-  .lf-floating-panel[data-says="notice"] .lf-fp-field leaf-text::part(placeholder) {
+  .lf-fp-field leaf-text[data-says="notice"]::part(placeholder) {
     color: var(--lf-fp-muted);
     font-weight: 500;
   }
   /* The shared reduced-motion guard (surfaces.css) stops at the field's closed tree. */
   @media (prefers-reduced-motion: no-preference) {
-    .lf-floating-panel[data-says="status"][data-tone="working"]:not([data-asks])
+    .lf-floating-panel[data-tone="working"]:not([data-asks])
       .lf-fp-field
-      leaf-text::part(placeholder) {
-      /* The quiet face is ink at 48% (`--lf-fp-quiet`). */
-      --lf-sheen-rest: 0.48;
+      leaf-text[data-says="status"]::part(placeholder) {
+      /* The quiet face is ink at 62% (`--lf-fp-quiet`). */
+      --lf-sheen-rest: 0.62;
       animation: lf-sheen 2s ease-in-out infinite alternate;
     }
   }
@@ -319,10 +316,10 @@
      legible as words, so a request stands apart from a report. It stays quiet, at the
      words' own weight and short of full strength: the user found full-strength
      medium-weight green bold for a line that stands at rest (15 October). */
-  .lf-floating-panel[data-says="status"][data-asks]
+  .lf-floating-panel[data-asks]
     .lf-fp-field
-    leaf-text::part(placeholder) {
-    color: color-mix(in srgb, var(--lf-fp-asks) 70%, transparent);
+    leaf-text[data-says="status"]::part(placeholder) {
+    color: color-mix(in srgb, var(--lf-fp-asks) 84%, transparent);
   }
   .lf-floating-panel[data-asks] {
     --lf-fp-asks: var(--ink);
@@ -395,7 +392,7 @@
     align-items: center;
     justify-content: center;
     gap: 4px;
-    min-width: 32px;
+    min-width: var(--lf-fp-aim);
     min-height: var(--lf-fp-line);
     padding: 0 7px;
     color: var(--lf-fp-muted);
@@ -1387,6 +1384,7 @@
     :is(.lf-floating-panel, .lf-fp-ground) {
       --lf-fp-folded: 46px;
       --lf-fp-line: 34px;
+      --lf-fp-aim: 34px;
     }
     .lf-fp-row {
       padding: 7px;
@@ -1396,12 +1394,11 @@
     .lf-fp-page {
       min-height: 44px;
     }
-    :where(.lf-floating-panel) button {
+    :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *)) {
       min-height: 34px;
     }
-    .lf-fp-leaf,
-    .lf-fp-chip {
-      min-width: 34px;
+    .lf-fp-leaf {
+      min-width: var(--lf-fp-aim);
     }
   }
   @media (prefers-reduced-motion: reduce) {

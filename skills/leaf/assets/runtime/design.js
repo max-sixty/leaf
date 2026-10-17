@@ -1,7 +1,7 @@
 /* This module owns Design mode and legend geometry. Anchor resolution owns the
  * target reading shared by its direct presses, pointer promise, and keyboard picker. */
 import { cancelRender, nextRender, sizeObserver } from "./rendering.js";
-import { bannerFoot, shownBox } from "./geometry.js";
+import { shownBox } from "./geometry.js";
 import { layoutPx } from "./keeps.js";
 import { paintSet } from "./target-paint-geometry.js";
 import { el } from "./widget-elements.js";
@@ -37,13 +37,13 @@ legendRoot.setAttribute("aria-hidden", "true");
  * what it lands on and does nothing else, so a card can be pointed at without moving it
  * and a pick mark without picking. The mode is about what the agent made: the page, a
  * margin entry, which stands for a page item or is a widget's own action, and a widget
- * the agent sent in a reply. Leaf's own chrome — the banner and More, a panel, its
- * close and its edge — works as it does outside the mode, as it does for the target
+ * the agent sent in a reply. Leaf's own chrome — the floating panel, its menu and its
+ * views — works as it does outside the mode, as it does for the target
  * picker: a remark on it has no reader who can act on it, and a mode that took it
  * would take the way out of whatever the mode's own send opened. Prose keeps the
  * browser's selection — words are still the way to point at words — and a plain click on
- * prose comments on the block it is in. `designModeOn` is the state; the body marker, the banner's
- * wash, the toggle's pressed face and the name under the pointer are its renderings,
+ * prose comments on the block it is in. `designModeOn` is the state; the body marker, the toggle's
+ * pressed face and the name under the pointer are its renderings,
  * written by the one setter, and every comment opened while it stands carries
  * `about: "design"`, which is how the agent tells design intent from a remark about
  * the page's words. The mode owns that state and supplies `active` to every
@@ -58,7 +58,6 @@ export function createDesignMode({
   closeDrawMode,
   closeTargetPicker,
   closeReactionMode,
-  banner,
   announce,
   repaint,
 }) {
@@ -79,7 +78,6 @@ export function createDesignMode({
     }
     designModeOn = on;
     document.body.toggleAttribute("data-lf-design-mode", on);
-    banner.toggleAttribute("data-lf-design-mode", on);
     tabStore.set(DESIGN_MODE_KEY, on ? "1" : null);
     // The renderings above are the eye's copy; the mode change is spoken, or it is silent
     // to exactly the user who can't see them. Restoring after a reload changes nothing
@@ -112,8 +110,8 @@ export function createDesignMode({
   // resize, the page's markup changing under it (legendMoves — a diagram finishing its
   // draw, a details opening, a card dragged), and a size changing with no mutation to
   // say so (legendSizes — an image landing inside an element, a font swapping in). The
-  // shell observer in chrome-layout hears the body's own size and auxiliary-surface or
-  // margin motion and sends them through pageShifted too. Coalesced to a frame off those
+  // shell observer in page-layout hears the body's own size and margin motion and sends
+  // them through pageShifted too. Coalesced to a frame off those
   // doors; the mode change paints in place, so the class and the legend land together.
   //
   // A scroll is none of these. Each box stands in the frames of the boxes that clip
@@ -156,7 +154,7 @@ export function createDesignMode({
     if (records.some(movesPage)) pageGeometry.pageShifted();
   });
   let legendFrame = 0;
-  // One tag's height, measured once: where a box's top is nearer the banner than this,
+  // One tag's height, measured once: where a box's top is nearer the window's head than this,
   // the tag sits inside.
   let legendTagH = 0;
   function queueLegend() {
@@ -244,12 +242,12 @@ export function createDesignMode({
   // out past the shorter as fragments of a word nobody wrote. The later tag (document
   // order, so the part's over its widget's) steps away from the corner by tag heights
   // until it stands clear. A tag stands above its box, or inside its corner where the
-  // banner or a frame cutting the box leaves no room above. Read where the elements and
+  // window or a frame cutting the box leaves no room above. Read where the elements and
   // the cuts stand now, on every scroll, since a sticky or fixed element's tag and the
   // tags the page carries past it move apart; a tag is written only where its step or
   // its side changed.
   function placeTags(scrolled = false) {
-    const roomTop = bannerFoot();
+    const roomTop = 0;
     const holders = new Map();
     const tags = [];
     for (const addressable of legendOrder) {
@@ -337,7 +335,6 @@ export function createDesignMode({
     legendBoxes.clear();
     legendRoot.replaceChildren();
     document.body.removeAttribute("data-lf-design-mode");
-    banner.removeAttribute("data-lf-design-mode");
     designModeOn = false;
   }
 

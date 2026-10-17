@@ -306,7 +306,7 @@
    these rules.
    Paragraphs keep the editor's whitespace and a blank line between them through
    send, replies and reopening. */
-:is(.lf-thread-transcript, .lf-thread-reply, .lf-general) {
+:is(.lf-thread-transcript, .lf-thread-reply) {
   --quote-inset: 10px;
   --pre-inset: 10px;
 }

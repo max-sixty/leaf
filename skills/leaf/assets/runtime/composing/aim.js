@@ -49,7 +49,7 @@ export function createAim({
   // Modifier aim, declared once: the key listeners, the press guard (claimPress) and the
   // reference's row all read this object. It is the register's one row that is not a key —
   // a modifier held while the pointer clicks — so it binds nothing and carries no press, and
-  // the rule that keeps it off the shortcut bar is the same one that keeps F7 off it. The label
+  // the rule that keeps it off the touch controls is the same one that keeps F7 off them. The label
   // is spelled from the modifier through the register's own table rather than written out
   // twice in two platforms' glyphs.
   const AIM = {

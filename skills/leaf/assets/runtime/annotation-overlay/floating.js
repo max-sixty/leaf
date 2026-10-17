@@ -106,7 +106,7 @@ const anchorAt = (reference) => ({
 
 // The box whose edge holds a surface in: of the scrollers and reading regions around what
 // it stands by, innermost first, the one whose box or visible band has that edge on the
-// client line `at`. The window's edges and the banner's foot are none of theirs, which
+// client line `at`. The window's edges and its head room are none of theirs, which
 // leaves the surface in the window's plane.
 function holderOf({ edge, at }, context, overflowAncestors) {
   const candidates = overflowAncestors.filter(

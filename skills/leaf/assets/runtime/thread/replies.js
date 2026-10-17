@@ -340,8 +340,6 @@ function wireReply(key, row, input, send, wireInput, { hint, accessibleName }) {
 function attach(composition, binding) {
   const { context, row, controls, sync } = composition;
   composition.binding = binding;
-  controls.input.lfRevealReply = binding.reveal ?? undefined;
-  binding.sizes?.observe(row);
   let instances = views.get(context);
   if (!instances) views.set(context, (instances = new Set()));
   instances.add(composition);
@@ -373,8 +371,6 @@ function attach(composition, binding) {
   return ({ handingOn = false } = {}) => {
     if (!handingOn) sync.cancelDictation();
     stopMirror();
-    binding.sizes?.unobserve(row);
-    delete controls.input.lfRevealReply;
     row.removeEventListener("focusin", begin);
     instances.delete(composition);
     if (!instances.size) views.delete(context);
@@ -437,8 +433,6 @@ export function createReplyView(
   {
     onChange = () => {},
     editLast = null,
-    reveal = null,
-    sizes = null,
     redraw = null,
     hint = "Reply",
     accessibleName = "Reply",
@@ -457,7 +451,7 @@ export function createReplyView(
     });
   };
   let composition = fresh();
-  const binding = { ...commands, onChange, editLast, reveal, sizes, sent };
+  const binding = { ...commands, onChange, editLast, sent };
   let detach = attach(composition, binding);
   // A view that draws its row again on `redraw` can take the session's in its place,
   // and give its own up for a fresh one (`carry`), drawn by the step it returns.

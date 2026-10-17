@@ -12,8 +12,8 @@
    surface: one the user just sent, and any turn, whoever wrote it, joining a thread
    view that was already presented. Opening a view cues nothing it already holds, and
    admission and later descriptor paints never replay the cue.
-   The fragment is captured inertly before its first upgrade; panel
-   presentation waits for preparation before capturing typed authored state. */
+   The fragment is captured inertly before its first upgrade; presentation waits for
+   preparation before capturing typed authored state. */
 import { html, render, nothing } from "/vendor/browser-runtime.js";
 import {
   loadMarkdown,
@@ -174,7 +174,7 @@ const authoredMessage = (message) => {
 const FAILURE_LABEL = "Not answered";
 export function messageReading(
   message,
-  { panel, nativeAuthored = false, reactions, workflows, leaves = null },
+  { nativeAuthored = false, reactions, workflows, leaves = null },
 ) {
   const workflow = strongestWorkflow(workflows);
   const token = isReaction(message) ? tokenEntry(message.token) : null;
@@ -228,7 +228,6 @@ export function messageReading(
       glyph: token?.glyph ?? "",
       authored: message.body.kind === "authored",
     }),
-    panel,
     nativeAuthored,
     reactions,
   });
@@ -255,7 +254,6 @@ export class MessageView {
   present(model, { arrived = false, headerControls = nothing } = {}) {
     const prior = this.#model;
     this.#model = model;
-    const panel = model.panel;
     // A view presents messages of one surface for its whole life, so what the surface
     // makes of the node is written once, on the first presentation.
     if (!prior) {
@@ -264,12 +262,9 @@ export class MessageView {
       // thread to another, as the floating panel does to a page's own reader.
       this.node.dataset.message = model.key;
       this.#header.className = "lf-msg-head";
-      if (panel) this.node.tabIndex = -1;
-      else {
-        this.node.classList.add("lf-ui");
-        this.node.dataset.lfGen = "1";
-        this.node.dataset.lfOffer = "";
-      }
+      this.node.classList.add("lf-ui");
+      this.node.dataset.lfGen = "1";
+      this.node.dataset.lfOffer = "";
       // A double click on the user's own words opens them for rewriting, as the word
       // under it would otherwise only be selected. The word it selected goes first: the
       // editor then sets its own caret, which clearing the selection after would take. A
@@ -289,7 +284,7 @@ export class MessageView {
     }
     // The view the user opened the rewrite in draws its editor (`message-edit.js`); a
     // closed editor goes with its subscription and keys.
-    const editing = model.editable && holdsMessageEdit(model.id, this, panel);
+    const editing = model.editable && holdsMessageEdit(model.id, this);
     if (editing && !this.#editor)
       this.#editor = new MessageEditor(model.id, this, {
         wireInput: this.#commands.reply.wireInput,
@@ -319,7 +314,7 @@ export class MessageView {
     if (prior && prior.author !== model.author)
       this.node.classList.toggle(prior.author, false);
     this.node.classList.toggle(model.author, true);
-    keeps(this.node, panel ? "data-mid" : "data-event", model.id);
+    keeps(this.node, "data-event", model.id);
     this.node.classList.toggle("lf-unread", Boolean(model.unread));
     keeps(this.node, "data-attempt", model.attempt || null);
     keeps(this.node, "aria-busy", model.pending ? "true" : null);
@@ -460,7 +455,7 @@ export class MessageView {
     const model = this.#model;
     if (!model?.editable) return false;
     if (!this.#editor) {
-      this.#commands.edit.opening(model.id, this, model.panel);
+      this.#commands.edit.opening(model.id, this);
       this.#commands.edit.paint(this.node);
     }
     this.#editor?.enter();

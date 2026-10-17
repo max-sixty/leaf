@@ -28,6 +28,7 @@ from leaf.files import version_revisions
 from leaf.findings import Finding
 from leaf.layer import incompatible_layer, incompatible_revision
 from leaf.page_view import CandidatePageView, PageView
+from leaf.plans import plan_error
 from leaf.projection import (
     authored_positions,
     generated_children,
@@ -734,7 +735,16 @@ def admission_error(
         or read_contract_error(event, events)
         or _withdrawal_error(view, event, events, readings)
         or _todo_error(view, event, readings)
+        or _plan_error(event, readings)
     )
+
+
+def _plan_error(event: dict, readings) -> Finding | None:
+    """A plan's outline nests one level at a time and names only items the page
+    holds (`plans.plan_error`)."""
+    if event["kind"] != "plan":
+        return None
+    return plan_error(event, readings.log.todos, readings.work.all_asks["all"])
 
 
 def _todo_error(view, event: dict, readings) -> Finding | None:

@@ -7,7 +7,15 @@ depending on a remote speech service or replacing a browser API.
 
 from playwright.sync_api import expect
 from render_cases_interaction import SEATED_ASK_LAYER, SEATED_ASK_WIDGETS
-from render_harness import leaf_page, open_page, page_comment, sending, write
+from render_harness import (
+    PANEL_THREAD,
+    leaf_page,
+    open_page,
+    page_comment,
+    panel_field,
+    sending,
+    write,
+)
 
 
 def test_every_comment_surface_shares_the_empty_microphone_and_typed_send(
@@ -62,17 +70,25 @@ def test_every_comment_surface_shares_the_empty_microphone_and_typed_send(
             )
         return field
 
-    # The page card returns empty after sending.
+    # The panel's field takes a page comment, then the reply of the thread it opens
+    # stands there, empty; that reply restores the microphone when its send clears it,
+    # and so does the page comment the field returns to.
     page_comment(page)
-    card = page.locator(".lf-page-comment-card")
-    field = enter_words(card, "Please add the Sunday timetable.")
+    panel = page.locator(".lf-fp-field")
+    field = enter_words(panel, "Please add the Sunday timetable.")
     with sending(page, "page comment"):
         field.press("Enter")
-    expect(card).to_be_hidden()
+    expect(panel_field(page)).to_have_attribute("name", "reply")
+    field = enter_words(panel, "And the first departure time.")
+    with sending(page, "panel reply"):
+        field.press("Enter")
+    expect(page.locator(PANEL_THREAD)).to_contain_text("And the first departure time.")
+    if supported:
+        expect(panel.locator(".lf-compose-dictate")).to_be_visible()
     page_comment(page)
     if supported:
-        expect(card.locator(".lf-compose-dictate")).to_be_visible()
-    card.locator("leaf-text").press("Escape")
+        expect(panel.locator(".lf-compose-dictate")).to_be_visible()
+    panel_field(page).press("Escape")
 
     # A widget's first message and its continuing reply use the same composer.
     first = page.locator("#proposal > .lf-thread-seat > .lf-say")
@@ -94,17 +110,3 @@ def test_every_comment_surface_shares_the_empty_microphone_and_typed_send(
     field = enter_words(anchored, "Could this run every half hour?")
     with sending(page, "anchored comment"):
         field.press("Enter")
-
-    # A reply retained in Threads restores the microphone when its send clears it.
-    page.locator(".lf-threads-toggle").click()
-    thread = page.locator(".lf-threads > .lf-thread").filter(
-        has_text="Please add the Sunday timetable."
-    )
-    thread.locator(":scope > .lf-thread-summary").click()
-    reply = thread.locator(":scope > .lf-thread-reply")
-    field = enter_words(reply, "And the first departure time.")
-    with sending(page, "panel reply"):
-        field.press("Enter")
-    expect(thread).to_contain_text("And the first departure time.")
-    if supported:
-        expect(reply.locator(".lf-compose-dictate")).to_be_visible()

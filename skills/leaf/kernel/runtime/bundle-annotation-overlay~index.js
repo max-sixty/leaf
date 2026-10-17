@@ -1,7 +1,6 @@
 import {
   SVG_NS,
   dropStand,
-  mapButton,
   paintGeometry,
   paintShape,
   paintStand,
@@ -41,15 +40,13 @@ import {
   syncContributionSelection,
   syncContributionUnread,
   threadReading,
-  unreadIn,
-  versionBtn
+  unreadIn
 } from "./bundle-contribution-model.js";
 import {
   ANNOTATIONS_KEY
-} from "./bundle-drawn-edge.js";
+} from "./bundle-restore-state.js";
 import {
   anchorLabel,
-  bannerControlDoor,
   beginWalk,
   carryingThreadPlace,
   claimSeatReplies,
@@ -179,7 +176,6 @@ import {
   cancelAnimation,
   cancelRender,
   closeLayer,
-  coveringFocus,
   declareRelease,
   drawn,
   focusDestination,
@@ -298,7 +294,6 @@ function createThreadPreview({
   renderMarginThread,
   placedAt,
   openPageThread,
-  panelIsOpen,
   scrollThreadIntoView,
   scrollToElement,
   onClose
@@ -766,8 +761,7 @@ function createThreadPreview({
           const thread = sourceItem(item).thread.id;
           const mayLand = retainUserIntent({
             source: focused(),
-            available: () => Boolean(target?.isConnected) && !panelIsOpen(),
-            fallback: bannerControlDoor(mapButton)
+            available: () => Boolean(target?.isConnected)
           });
           return {
             optimistic: () => {
@@ -1168,10 +1162,6 @@ function createMarginProjection({
   refreshInventory,
   renderAnnotations,
   openPageThread,
-  panel,
-  accompaniedThread,
-  accompanyThread,
-  panelIsOpen,
   designModeActive,
   pointerModeActive,
   leavePageMap,
@@ -1207,7 +1197,6 @@ function createMarginProjection({
     renderMarginThread,
     placedAt,
     openPageThread,
-    panelIsOpen,
     scrollThreadIntoView,
     scrollToElement,
     onClose: closedPreview
@@ -1259,7 +1248,7 @@ function createMarginProjection({
   let highlighted = null;
   let highlightFrame = 0;
   let rovingFrame = 0;
-  const inRetainedContext = (node) => node instanceof Element && (Boolean(nativeLayerHolding(node)) || under(node, preview) || panelIsOpen() && under(node, panel));
+  const inRetainedContext = (node) => node instanceof Element && (Boolean(nativeLayerHolding(node)) || under(node, preview));
   function readingMarginEntry(entry, kind) {
     const marker = hosts.get(entry.key)?.marker;
     if (marker && !marker.hidden && primaryReading(entry)?.kind === kind) return marker;
@@ -1292,13 +1281,8 @@ function createMarginProjection({
   };
   function syncReadingRelation(control, choice) {
     if (choice?.kind === "comment") {
-      const opensInline = !panelIsOpen();
-      keeps(control, "aria-controls", opensInline ? preview.id : panel.id);
-      keeps(
-        control,
-        "aria-expanded",
-        opensInline ? card.selection()?.control === control : null
-      );
+      keeps(control, "aria-controls", preview.id);
+      keeps(control, "aria-expanded", card.selection()?.control === control);
       return;
     }
     const disclosed = choice?.items.length === 1 ? sourceItem(choice.items[0]).discloses?.() : null;
@@ -1491,9 +1475,7 @@ function createMarginProjection({
     const visible = visibleRows();
     return [
       entry ? hosts.get(entry.key)?.marker : null,
-      bannerControlDoor(mapButton),
-      visible.find((row) => row.tabIndex === 0) ?? visible[0],
-      bannerControlDoor(versionBtn)
+      visible.find((row) => row.tabIndex === 0) ?? visible[0]
     ];
   }
   function holdTabStop(next) {
@@ -2101,14 +2083,6 @@ function createMarginProjection({
   function openThreadChoice(entry, button) {
     const choice = threadReading(entry);
     if (!choice) return;
-    if (panelIsOpen()) {
-      if (expandedOptionsKey && expandedOptionsKey !== entry.key)
-        setOptionsOpen(entry, false);
-      closePreview();
-      leavePageMap();
-      void openPageThread(sourceItem(choice.items[0]).thread.id);
-      return;
-    }
     if (expandedOptionsKey && expandedOptionsKey !== entry.key)
       setOptionsOpen(entry, false);
     const intent = retainUserIntent();
@@ -2131,7 +2105,7 @@ function createMarginProjection({
     const entry = pageInventory.find(
       (candidate) => candidate.items.some((item) => item.id === itemId)
     );
-    if (!entry || designModeActive() || panelIsOpen()) return null;
+    if (!entry || designModeActive()) return null;
     const choice = threadReading(entry);
     if (!choice) return null;
     const shown = (control) => control?.checkVisibility() ? control : null;
@@ -2218,15 +2192,9 @@ function createMarginProjection({
     refreshHighlight();
     const active = focused();
     unfoldStanding(active);
-    if (!active || active === document.body || renderedUnder(active, preview) || renderedUnder(active, panel) || designModeActive())
+    if (!active || active === document.body || renderedUnder(active, preview) || designModeActive())
       return;
     const host = closestAcross(active, "[data-lf-margin-for]");
-    if (panelIsOpen()) {
-      const entry2 = host ? host.lfEntry : threadEntryAt(active);
-      if (entry2 && threadReading(entry2) && byKeyboard())
-        accompanyThread(threadIdsOf(entry2));
-      return;
-    }
     if (host) {
       if (previewOpen() && host.lfEntry?.key !== card.selection()?.entry?.key)
         closePreview();
@@ -2258,14 +2226,7 @@ function createMarginProjection({
     if (completed && pressedAway(end.composedPath())) closePreview();
   } : null;
   const marginEntryChoices = (target) => clusterMarginEntries(marginEntryHost(target));
-  const accompaniedThreadHere = () => {
-    const active = focused();
-    if (panelIsOpen()) {
-      const entry = active && !renderedUnder(active, panel) && threadEntryAt(active);
-      return entry ? accompaniedThread(threadIdsOf(entry)) : null;
-    }
-    return card.accompanied();
-  };
+  const accompaniedThreadHere = () => card.accompanied();
   declareSide((node) => {
     const projected = marginTargetAt(node);
     if (projected) return projected;
@@ -2400,22 +2361,13 @@ var PENDING = "lf-pending";
 var REACT = "lf-react";
 var HOVER = "lf-mark-hover";
 var HERE = "lf-mark-here";
-function createAnchorPaint({
-  targetPaint,
-  pointer,
-  standingThreadId,
-  hoveredPanelThreadId,
-  panelThreadForId
-}) {
+function createAnchorPaint({ targetPaint, pointer, standingThreadId }) {
   const marked = /* @__PURE__ */ new Map();
   const visualTargets = /* @__PURE__ */ new Map();
   let pendingMarks = [];
   let pendingOutline = [];
   let actionOutline = [];
   let hovering = null;
-  let hoverFromPanel = false;
-  let hoverParts = [];
-  let hoverThread = null;
   let hereParts = [];
   let hoverFrame = 0;
   let mounted = false;
@@ -2429,10 +2381,9 @@ function createAnchorPaint({
   function paintVisualStates() {
     const pending = new Set(pendingOutline);
     const action = new Set(actionOutline);
-    const hover = new Set(elementMarks(hoverParts));
     const here = new Set(elementMarks(hereParts));
     const elements = new Set(
-      [pending, action, hover, here].flatMap((states) => [...states]).filter((element) => element instanceof Element)
+      [pending, action, here].flatMap((states) => [...states]).filter((element) => element instanceof Element)
     );
     const focus = new Set(
       [...elements].filter((element) => element.matches("[data-lf-focus]"))
@@ -2440,7 +2391,6 @@ function createAnchorPaint({
     const sources = [
       ["pending", pending],
       ["action", action],
-      ["hover", hover],
       ["focus", focus],
       ["here", here]
     ];
@@ -2468,31 +2418,15 @@ function createAnchorPaint({
       element.classList.toggle("lf-action-target", action.has(element));
     }
   }
-  function panelThread(id) {
-    return id ? panelThreadForId(id) : null;
-  }
-  function paintHover(id, fromPanel, repaintVisuals = true) {
+  function paintHover(id) {
     hovering = id;
-    hoverFromPanel = fromPanel;
-    const thread = panelThread(id);
-    if (hoverThread !== thread) {
-      hoverThread?.classList.toggle(HOVER, false);
-      thread?.classList.toggle(HOVER, true);
-      hoverThread = thread;
-    }
     const where = marksFor(id);
-    const parts = fromPanel ? where.filter((mark) => mark instanceof Element) : [];
-    for (const part of hoverParts)
-      if (!parts.includes(part)) part.classList.toggle(HOVER, false);
-    for (const part of parts) part.classList.toggle(HOVER, true);
-    hoverParts = parts;
     CSS.highlights.set(
       HOVER,
       Object.assign(new Highlight(...where.filter((mark) => mark instanceof Range)), {
         priority: 1
       })
     );
-    if (repaintVisuals) paintVisualStates();
   }
   function paintStanding(repaintVisuals = true) {
     const where = marksFor(standingThreadId());
@@ -2524,17 +2458,13 @@ function createAnchorPaint({
     return null;
   }
   function refreshHover() {
-    if (hoverFrame || !marked.size && !hovering && !hoverThread) return;
+    if (hoverFrame || !marked.size && !hovering) return;
     hoverFrame = nextRender(() => {
       hoverFrame = 0;
       const at = pointer();
       const onMark = markAt(at.x, at.y);
       document.body.classList.toggle("lf-over-mark", Boolean(onMark));
-      const row = hoveredPanelThreadId();
-      const id = row ?? onMark;
-      const fromPanel = Boolean(row);
-      if (id !== hovering || fromPanel !== hoverFromPanel || panelThread(id) !== hoverThread)
-        paintHover(id, fromPanel);
+      if (onMark !== hovering) paintHover(onMark);
     });
   }
   function paint({ readings, draft, action }) {
@@ -2579,8 +2509,7 @@ function createAnchorPaint({
       Object.assign(new Highlight(...pending), { priority: 3 })
     );
     paintStanding(false);
-    if (hovering || hoverThread || hoverParts.length)
-      paintHover(hovering, hoverFromPanel, false);
+    if (hovering) paintHover(hovering);
     paintVisualStates();
     refreshHover();
   }
@@ -2599,17 +2528,12 @@ function createAnchorPaint({
     pendingOutline = [];
     actionOutline = [];
     paintOutlines(before);
-    for (const element of hoverParts) element.classList.toggle(HOVER, false);
     for (const element of hereParts) element.classList.toggle(HERE, false);
-    hoverThread?.classList.toggle(HOVER, false);
     for (const name of [MARK, REACT, PENDING, HOVER, HERE]) CSS.highlights.delete(name);
     targetPaint.setTargets([]);
     pendingMarks = [];
     visualTargets.clear();
     hovering = null;
-    hoverFromPanel = false;
-    hoverParts = [];
-    hoverThread = null;
     hereParts = [];
   }
   return {
@@ -2739,8 +2663,6 @@ function createFloatingResponsePlacement({
   bar: fabBar,
   input: fabInput,
   response,
-  panelIsOpen,
-  threadsBox,
   positioned,
   dismiss,
   scrollToElement,
@@ -2776,7 +2698,7 @@ function createFloatingResponsePlacement({
   fabBar.append(carry.grip);
   let selectedPassage = null;
   const fabFrameAt = () => {
-    if (!response.open || !response.floating || panelIsOpen()) return null;
+    if (!response.open || !response.floating) return null;
     const bar = fabBar.getBoundingClientRect();
     const field = fabInput.getBoundingClientRect();
     const style = getComputedStyle(fabBar);
@@ -2938,10 +2860,6 @@ function createFloatingResponsePlacement({
   }
   function placeFab({ reveal = false } = {}) {
     if (!response.anchor) return false;
-    if (coveringFocus()) {
-      withholdFab();
-      return false;
-    }
     const geometry = anchorGeometry(response.anchor);
     if (!geometry && !response.open) return false;
     const context = geometry?.contextNode;
@@ -3051,19 +2969,13 @@ function createFloatingResponsePlacement({
     return true;
   }
   function withholdFab() {
-    const covered = coveringFocus();
     nativeAttachment = false;
     fabPosition.supersede();
     if (fabWithheld) return;
     fabWithheld = true;
     const held = holdFocus(fabBar);
-    const destination = covered ?? (panelIsOpen() && !fabFits() ? threadsBox : null);
-    const toSurface = held && destination;
-    closeLayer(
-      () => fabBar.toggleAttribute("data-lf-withheld", true),
-      toSurface && (() => focusDestination(destination, "return"))
-    );
-    if (!toSurface) fabWithheldFocus = held;
+    closeLayer(() => fabBar.toggleAttribute("data-lf-withheld", true));
+    fabWithheldFocus = held;
   }
   function stoodAgain() {
     if (!fabWithheld) return;

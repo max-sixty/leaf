@@ -143,15 +143,8 @@ interface Window {
 
 /** The runtime's own elements, by tag, as each module defines it. */
 interface HTMLElementTagNameMap {
-  "lf-queue-list": import("../../skills/leaf/assets/runtime/queue-list.js").QueueListElement;
-  "leaf-banner-status": import("../../skills/leaf/assets/runtime/banner-status-view.js").BannerStatusViewElement;
-  "lf-leaves-list": import("../../skills/leaf/assets/runtime/live-leaves-list.js").LiveLeavesListElement;
-  "lf-leaves-banner-face": import("../../skills/leaf/assets/runtime/live-leaves-list.js").LeavesBannerFaceElement;
-  "lf-ask-banner-face": import("../../skills/leaf/assets/runtime/asks/banner-controls.js").AskBannerFaceElement;
   "leaf-attached-media-shelf": import("../../skills/leaf/assets/runtime/composing/input.js").AttachedMediaShelfElement;
   "leaf-text": import("../../skills/leaf/assets/runtime/composing/text-field.js").LeafTextElement;
-  "leaf-thread-narrowing": import("../../skills/leaf/assets/runtime/thread/narrowing-view.js").ThreadNarrowingViewElement;
-  "leaf-thread-list": import("../../skills/leaf/assets/runtime/thread/thread-list-view.js").ThreadListViewElement;
   "leaf-margin-cluster": import("../../skills/leaf/assets/runtime/annotation-overlay/margin-cluster-view.js").MarginClusterViewElement;
 }
 

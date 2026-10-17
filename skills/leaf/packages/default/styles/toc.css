@@ -98,7 +98,7 @@
       :scope:is(lf-toc) {
         position: fixed;
         left: var(--sp-4);
-        top: var(--lf-banner-h, 0px);
+        top: var(--lf-head-room, 0px);
         z-index: 4;
         /* At rest only the spine has a box. The invisible labels keep their full
          * measure below, without a transparent map lying over document words. */

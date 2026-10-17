@@ -1,6 +1,6 @@
 /* The On me walk: `m` and Shift+`m` page through everything waiting on the user,
-   in page order: the On me list the panel shows first (queue-panel.js). The panel opens with
-   `g M`, as the Threads panel opens with `g T` and `t` walks the threads.
+   in page order: the list the floating panel's On me view shows. The view opens with
+   `g M`, as Threads opens with `g T` and `t` walks the threads.
 
    What waits on the user is the application's one reading, `queues.on_user`
    (the server's `served_state.queues`, with this tab's sends placed against it): each open
@@ -14,10 +14,9 @@
    t/T walk's own (navigation.js, `arriveAtThread`), so it lands wherever that walk
    lands; a page widget action, or a to-do on an element or the page, by travel's `arrive`,
    onto the widget the action was made on, the element, or the page's head; the
-   version's approval by the chrome showing it, travel onto the banner's control or
-   the floating panel's own arrival (banner.js, `registerApprovalPresentation`).
-   An On panel row arrives through the same function (`arriveAtItem`), for an item on
-   either list or one that is done.
+   version's approval by the floating panel's own arrival (page-status.js,
+   `registerApprovalPresentation`). An On me row arrives through the same function
+   (`arriveAtItem`), for an item on either list or one that is done.
 
    A walk starts from the user's place, in this order:
 
@@ -30,7 +29,7 @@
    the chrome is a binding badge, not a page position, so its controls do not become the
    walk's origin. The user stands on an item when they stand in its ask, in its thread
    (`threadHere`), or in its widget or element, and the press steps off it. Standing on
-   a to-do Done ends, `x` is that Done, a step on the banner's row under a finger
+   a to-do Done ends, `x` is that Done, a step in the panel's row under a finger
    (`queue-api.js`, `done`): the user's `todo_end`, which leaves On me in the turn it is
    pressed.
 
@@ -55,7 +54,7 @@
    this case reads it: anywhere else the user's own place decides.
 
    Experimental: the lists and the walk over them are new, and their shape is
-   expected to change a lot (notes/what-needs-you/). Change them freely.
+   expected to change a lot. Change them freely.
 */
 import { cycledRow, savedReadingSettled } from "./keyboard/bindings.js";
 import { pageCommand, pageScope } from "./keyboard/register.js";
@@ -74,7 +73,7 @@ import { drawnThreadId } from "./thread/selectors.js";
 import { watchProjection } from "./projection-watch.js";
 import { retainUserIntent } from "./user-intent.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
-import { approvalTarget, presentedApproval } from "./banner.js";
+import { approvalTarget, presentedApproval } from "./page-status.js";
 
 const QUALIFIER = "waiting on me";
 const WITHIN = "waiting on me here";
@@ -238,7 +237,7 @@ export function createQueueWalk({
     );
   }
 
-  // An answered ask is arrived at the same way, which is how the On panel's Done
+  // An answered ask is arrived at the same way, which is how On me's Done
   // rows return the user to one to review or revise it.
   function arriveAt(stop) {
     if (stop.kind === "ask") {
@@ -295,7 +294,7 @@ export function createQueueWalk({
       : null;
 
   // The to-do Done ends now. Under a finger with a keyboard beside it, as on a tablet,
-  // Tab onto the banner's Done step takes focus through Leaf's own controls and the
+  // Tab onto the floating panel's Done step takes focus through Leaf's own controls and the
   // page's body, where the user stands on no item, so while focus is there and no
   // caret or selection stands on the page the step keeps the to-do it was shown for,
   // if it is still on the user; anywhere else, the to-do the user stands on.
@@ -376,7 +375,7 @@ export function createQueueWalk({
   });
 
   // Where `m` lands on a to-do the user ends with Done, Done is a key, and a step on the
-  // banner's row under a finger. Its row in the On panel carries the same Done.
+  // floating panel's row under a finger. Its row in On me carries the same Done.
   pageScope("todo", {
     title: "On a to-do waiting on me",
     ready: savedReadingSettled,
@@ -397,13 +396,8 @@ export function createQueueWalk({
     ],
   });
 
-  // An On panel row arrives where the walk would (queue-panel.js), whichever list
-  // its item is on.
+  // An On me row arrives where the walk would, whichever list its item is on.
   const arriveAtItem = (item) => arriveAt(stopOf(item));
-
-  // The On panel's Next on me, which is `m` pressed from wherever the user
-  // stands (queue-panel.js).
-  const next = () => walk(1);
 
   // The id of the ask the user last went to, for a walk within a region pressed from
   // outside it. Sequential navigation passes over what it crosses, so it keeps the ask.
@@ -437,5 +431,5 @@ export function createQueueWalk({
       : walk(toward, within, here);
   }
 
-  return { mount, arriveAtItem, next, nextWithin };
+  return { mount, arriveAtItem, nextWithin };
 }

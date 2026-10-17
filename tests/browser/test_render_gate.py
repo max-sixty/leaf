@@ -49,13 +49,10 @@ from render_cases_layout import (
     CODE_CONTROL_PAGE,
     CODE_FAULT_PAGE,
     CUSTOM_WIDGET_PAGE,
-    EDGE_IDS,
-    EDGES,
     FLOATING_PAGE,
     HIDDEN_SCROLLERS,
     IDENTIFIERS_IN_CODE_PAGE,
     NOTE_BESIDE_A_CHANGE,
-    ON_PANEL,
     RESIZE_LOOP_EVENT,
     SCROLLED_CONTAINER,
     SHOT_SRC,
@@ -64,11 +61,6 @@ from render_cases_layout import (
     UNMARKABLE_PAGE,
     WIDE_TABLE_PAGE,
     arrival_findings,
-    banner_control,
-    draw_edge,
-    edge_settled,
-    edge_world,
-    geometry,
 )
 from render_cases_navigation import (
     CODE_PAGE,
@@ -83,7 +75,6 @@ from render_harness import (
     CORPUS_PAGE,
     CORPUS_SOURCES,
     EXAMPLE_PACKAGES,
-    EXAMPLES,
     INLINE_PAGE,
     LONG_PAGE,
     RELEASE_FOCUS,
@@ -98,7 +89,8 @@ from render_harness import (
     names,
     open_page,
     pane_posture,
-    panel_settled,
+    panel_control,
+    panel_menu,
     plant_quiet_word,
     primed,
     reader_state,
@@ -110,10 +102,10 @@ from render_harness import (
     scroll_writes,
     state_changes,
     still_page,
-    stored_draft_text,
     take_browser_errors,
-    write,
 )
+
+from browser.threads import open_panel_thread
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -470,8 +462,8 @@ def test_the_pre_upgrade_proof_reads_the_held_authored_document(browser, serve):
 def test_a_module_the_page_never_receives_names_the_wait_that_stopped(browser, serve):
     """A dropped subresource is the timeout the gate used to misattribute.
 
-    The runtime has already started and injected its banner by the time a held module
-    stalls the load event, so "the runtime never injected its banner" named the one
+    The runtime has already started and injected its chrome by the time a held module
+    stalls the load event, so "the runtime never injected its chrome" named the one
     thing that had happened. The document stays at `interactive` with nothing logged
     and no error raised, which leaves the open request as the only evidence of which
     file never arrived — this is where the local server dropping a request the browser
@@ -913,7 +905,7 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve, monkeypatch
     monkeypatch.setattr(http_model.PageEndpoint, "_json", hold_first_event_answer)
     page.on("framenavigated", release_after_reload)
     try:
-        banner_control(page, ".lf-answer-all").click()
+        panel_control(page, "blanket:accept").click()
         assert answer_ready.wait(STATED_TIMEOUT), (
             "the first event reached no server answer"
         )
@@ -934,7 +926,7 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve, monkeypatch
     # between the cascade's trips, which paint-to-paint sampling steps over. One
     # attempt leaving is bounded by one trip and stays true once it holds.
     sends = _traffic(page).sends
-    banner_control(page, ".lf-answer-all").click()
+    panel_control(page, "blanket:accept").click()
     first = []
 
     def first_trip_home(reading):
@@ -1463,7 +1455,10 @@ def test_the_state_wait_covers_a_status_that_moves_neither_log_nor_data(browser,
     try:
         held = render_gate_scheme.served(page, url, "/api/state").json()
         wait_until_ready(page, held, through="state")
-        assert "Pick a shard." in page.locator(".lf-status-text").text_content()
+        # The leaf names the agent's status.
+        assert "Pick a shard." in page.locator(".lf-fp-leaf").get_attribute(
+            "aria-label"
+        )
     finally:
         leases_model.release_lease(lease)
 
@@ -2388,9 +2383,15 @@ def test_reader_state_observes_behavior_without_freezing_the_dom(browser, serve)
     page.get_by_role("button", name="Continue", exact=True).focus()
 
     # This arm probes the field reading. The served Leaf page may finish placing
-    # unrelated chrome while these property-only changes are made.
-    def draft_reading():
+    # unrelated chrome while these property-only changes are made, and the panel's own
+    # field is read too, unchanged throughout, so it is set aside.
+    def fields():
         return [line for line in reader_state(page) if line.startswith("field: ")]
+
+    panel = [line for line in fields() if '"kept words"' not in line]
+
+    def draft_reading():
+        return [line for line in fields() if line not in panel]
 
     before = draft_reading()
     assert len(before) == 1
@@ -2410,14 +2411,25 @@ def test_reader_state_observes_behavior_without_freezing_the_dom(browser, serve)
 
 # Each surface a page-level key opens, by the keys that open it from the page, and the
 # control that shows the page has one to open: a page with no thread has no card, and a
-# page with nothing for a drawer has no door to it. Escape unwinds any of them to the
+# page with no other page live has no All pages. Escape unwinds any of them to the
 # page (keyboard/AGENTS.md); the ones Go-to opens take the most presses. A new surface
 # joins by its keys.
 #
-# A page has a thread card to open when the Threads control counts an open thread, in
-# its `data-lf-count` (banner.js). Its words are no door: Playwright's `:text-matches`
-# matches the smallest element holding them, the label inside the control.
-OPEN_THREADS = '.lf-threads-toggle[data-lf-count]:not([data-lf-count="0"])'
+# A page has a thread to open when the panel's Threads mark counts an open thread.
+OPEN_THREADS = ".lf-fp-threads .lf-fp-num:not(:empty)"
+
+
+def other_pages(page):
+    """Whether the leaf's menu offers All pages, which it does only while other pages
+    are live; the menu is put away again."""
+    offered = panel_menu(page, "navigate").locator('.lf-fp-item[data-row="leaves"]')
+    count = offered.count()
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-floating-panel")).not_to_have_attribute("data-menu", "")
+    return count > 0
+
+
 # Where the focus stands in a thread, by the runtime's own selectors
 # (thread/selectors.js): "reply" in that thread's reply field, "card" elsewhere in it,
 # or null outside every thread or where the user sees none of the focused node. Seeing
@@ -2442,15 +2454,14 @@ SURFACES = {
     "page search": (["/"], None),
     "go-to": (["g"], None),
     "thread card": (["t"], OPEN_THREADS),
-    "threads panel": (["g", "Shift+t"], None),
-    "on panel": (["g", "Shift+m"], ".lf-btn.lf-queue"),
-    "leaves drawer": (["g", "Shift+l"], ".lf-btn.lf-others"),
+    "threads view": (["g", "Shift+t"], None),
+    "on me view": (["g", "Shift+m"], None),
+    "all pages view": (["g", "Shift+l"], other_pages),
     "page map": (["g", "Shift+p"], None),
     "versions menu": (["g", "Shift+v"], None),
     "draw mode": (["w"], None),
     "design mode": (["l"], None),
-    "shortcut bar": (["?"], None),
-    "command reference": (["?", "?"], None),
+    "command reference": (["?"], None),
 }
 # A surface whose keys change the page even where it fails to open, as `t` announces
 # its walk, is open only where this reading finds it.
@@ -2480,6 +2491,12 @@ def surface_findings(page):
     Nothing happens between one trip's close and the next trip's keys, so the reading
     a trip closes on is the next trip's starting point; only a surface's first trip
     reads whether it opened."""
+    # Whether the page offers each surface, read before the round trips start.
+    offered = {
+        surface: not door
+        or (door(page) if callable(door) else page.locator(door).first.is_visible())
+        for surface, (_, door) in SURFACES.items()
+    }
     left_alone(page)
     page.evaluate(RELEASE_FOCUS)
 
@@ -2507,8 +2524,8 @@ def surface_findings(page):
 
     findings = []
     left = reader_state(page)
-    for surface, (keys, door) in SURFACES.items():
-        if door and not page.locator(door).first.is_visible():
+    for surface, (keys, _) in SURFACES.items():
+        if not offered[surface]:
             continue
         press(keys)
         opened = reader_state(page) != left and SHOWN.get(surface, lambda _: True)(page)
@@ -3449,7 +3466,7 @@ def test_a_box_of_text_that_scrolls_leaves_its_last_line_clear_of_the_bar(
     that and loop. One that fits keeps its padding, with no bar to make room for."""
     url = serve(WIDE_TABLE_PAGE)
     wide = "word " * 60
-    panel_comment(
+    root = panel_comment(
         serve.page_dir,
         f"A wide block:\n\n```\n{wide}\n{wide}\n```\n\nAnd one that fits:\n\n"
         "```\nshort\n```",
@@ -3457,14 +3474,14 @@ def test_a_box_of_text_that_scrolls_leaves_its_last_line_clear_of_the_bar(
         author="agent",
     )
     page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
+    open_panel_thread(page, root)
     measured = page.evaluate(
         """() => {
         const read = """
         + TEXT_CLEAR_OF_BAR
         + """;
-        const [wide, fits] = document.querySelectorAll('.lf-threads .lf-msg-body pre');
+        const [wide, fits] = document.querySelectorAll(
+          '.lf-fp-view[data-view="thread"] .lf-msg-body pre');
         const reading = { table: read(document.querySelector('#sessions')),
                           wide: read(wide), fits: read(fits),
                           fitsPad: parseFloat(getComputedStyle(fits).paddingBottom),
@@ -4184,261 +4201,6 @@ COMPARE_NOTE_PAGE = leaf_page(
 )
 
 
-@pytest.mark.parametrize("pointer", ["mouse", "touch", "touch-cancel"])
-def test_dragging_an_edge_preserves_user_state(browser, serve, pointer):
-    """Resizing owns its gesture, leaving drafts, selections, and arrow keys intact.
-
-    On the right edge, the one that leaves the page live beside it: the left one's Leaves
-    drawer covers the page, so there is no draft or selection beside it to keep."""
-    edge = EDGES[0]
-    context = browser.new_context(
-        viewport={"width": 1400, "height": 900}, has_touch=pointer != "mouse"
-    )
-    page = open_page(
-        browser, serve(edge.html(), comments=edge.comments), context=context
-    )
-    edge.stand(page)
-    edge_settled(page, edge)
-    handle = page.locator(f"{edge.region} .lf-edge")
-    cdp = context.new_cdp_session(page) if pointer != "mouse" else None
-
-    def drag():
-        box = handle.bounding_box()
-        x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
-        dx = -40 if edge.side == "right" else 40
-        before = geometry(page, edge)["width"]
-        if pointer == "mouse":
-            page.mouse.move(x, y)
-            page.mouse.down()
-            page.mouse.move(x + dx, y, steps=8)
-        else:
-            for event, at in [("touchStart", x), ("touchMove", x + dx)]:
-                cdp.send(
-                    "Input.dispatchTouchEvent",
-                    {"type": event, "touchPoints": [{"x": at, "y": y}]},
-                )
-        if pointer == "mouse":
-            # A pointer drag leaves the existing keyboard focus in place.
-            assert handle.evaluate(
-                "e => e.matches(':focus') && e.hasAttribute('data-lf-focus')"
-            )
-            assert handle.evaluate("e => getComputedStyle(e).outlineStyle") == "solid"
-        else:
-            assert handle.evaluate("e => getComputedStyle(e).outlineStyle") == "none"
-        if pointer == "mouse":
-            page.mouse.up()
-            assert not handle.evaluate("e => e.matches(':focus-visible')")
-        else:
-            cdp.send(
-                "Input.dispatchTouchEvent",
-                {
-                    "type": "touchCancel" if pointer == "touch-cancel" else "touchEnd",
-                    "touchPoints": [],
-                },
-            )
-        assert handle.evaluate("e => e === document.activeElement")
-        assert geometry(page, edge)["width"] == before + 40
-
-    handle.focus()
-    page.keyboard.press("ArrowRight")
-    assert handle.evaluate("e => e.matches(':focus-visible')")
-    drag()
-    drawn = geometry(page, edge)
-    page.keyboard.press("ArrowRight")
-    assert handle.evaluate("e => e.matches(':focus-visible')")
-    assert geometry(page, edge)["width"] == drawn["width"] + (
-        -24 if edge.side == "right" else 24
-    )
-
-    page.locator("main p").first.click(modifiers=["Alt"])
-    composer = page.locator(".lf-fab-input")
-    write(composer, "half a comment")
-    page.keyboard.press("ArrowLeft")
-    page.keyboard.press("Shift+ArrowLeft")
-    editing = composer.evaluate("""async input => {
-        const {captureDraftEditing} = await window.__lfCheckApi();
-        return captureDraftEditing(input);
-    }""")
-    drag()
-    expect(composer).to_be_visible()
-    expect(composer).to_have_js_property("value", "half a comment")
-    composer.focus()
-    page.keyboard.press("Escape")
-    expect(composer).to_be_hidden()
-
-    # An existing partial-word selection can come from native keyboard selection or
-    # browser commands. Only a new selection gesture may expand it to a sentence.
-    paragraph = page.locator("main p").nth(1)
-    paragraph.evaluate(
-        "p => getSelection().setBaseAndExtent(p.firstChild, 3, p.firstChild, 14)"
-    )
-    selected = page.evaluate("() => getSelection().toString()")
-    assert selected == paragraph.evaluate("p => p.firstChild.textContent.slice(3, 14)")
-    drag()
-    assert (
-        page.evaluate("""async () => {
-        await new Promise(resolve => setTimeout(resolve));
-        return getSelection().toString();
-    }""")
-        == selected
-    )
-    rendered(page)
-    expect(composer).to_be_hidden()
-    assert (
-        json.loads(stored_draft_text(page, editing["context"]))["text"]
-        == "half a comment"
-    )
-    page.keyboard.press("g")
-    page.keyboard.press("i")
-    expect(composer).to_be_focused()
-    expect(composer).to_have_js_property("value", "half a comment")
-    resumed = composer.evaluate("""async input => {
-        const {captureDraftEditing} = await window.__lfCheckApi();
-        return captureDraftEditing(input);
-    }""")
-    assert resumed["context"] == editing["context"]
-    assert resumed["selection"] == editing["selection"]
-
-
-@pytest.mark.parametrize("edge", EDGES, ids=EDGE_IDS)
-def test_edge_resizing_belongs_to_one_primary_pointer(browser, serve, edge, request):
-    """Other buttons, outside presses, and a second touch cannot take a resize."""
-    edge_world(request, edge)
-    context = browser.new_context(
-        viewport={"width": 1400, "height": 900}, has_touch=True
-    )
-    page = open_page(
-        browser, serve(edge.html(), comments=edge.comments), context=context
-    )
-    edge.stand(page)
-    edge_settled(page, edge)
-    handle = page.locator(f"{edge.region} .lf-edge")
-    box = handle.bounding_box()
-    x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
-    dx = -40 if edge.side == "right" else 40
-    before = geometry(page, edge)["width"]
-
-    page.mouse.move(x, y)
-    page.mouse.down(button="right")
-    page.mouse.move(x + dx, y)
-    assert geometry(page, edge)["width"] == before
-    page.mouse.up(button="right")
-
-    # A press that starts inside the region, which is open on either edge: past a
-    # covering drawer it would land on the scrim, which puts the drawer away.
-    page.mouse.move(x + 150 if edge.side == "right" else x - 150, y)
-    page.mouse.down()
-    page.mouse.move(x, y)
-    page.mouse.up()
-    assert geometry(page, edge)["width"] == before
-    assert not handle.evaluate("e => e === document.activeElement")
-
-    cdp = context.new_cdp_session(page)
-
-    def touch(kind, *points):
-        cdp.send(
-            "Input.dispatchTouchEvent",
-            {
-                "type": kind,
-                "touchPoints": [
-                    {"id": pointer_id, "x": at, "y": y} for pointer_id, at in points
-                ],
-            },
-        )
-
-    touch("touchStart", (1, x))
-    touch("touchMove", (1, x + dx))
-    assert geometry(page, edge)["width"] == before + 40
-    second_box = handle.bounding_box()
-    second_x = second_box["x"] + second_box["width"] / 2 + 10
-    touch("touchStart", (1, x + dx), (2, second_x))
-    touch("touchMove", (1, x + dx + dx / 2), (2, second_x))
-    page.evaluate("() => new Promise(requestAnimationFrame)")
-    assert geometry(page, edge)["width"] == before + 60
-    touch("touchEnd", (2, second_x))
-    touch("touchMove", (1, x + dx + dx))
-    page.evaluate("() => new Promise(requestAnimationFrame)")
-    assert geometry(page, edge)["width"] == before + 80
-    touch("touchEnd", (1, x + dx + dx))
-
-
-@pytest.mark.parametrize("edge", EDGES, ids=EDGE_IDS)
-def test_a_window_with_no_room_for_a_chosen_width_does_not_un_choose_it(
-    browser, serve, edge, request
-):
-    """A region may take the window and no more, and one that leaves no usable page
-    beside it covers the page rather than taking a strip from it. A window that shrinks
-    past what the user chose is a window, not a retraction: the user said 580 once, and a
-    laptop lid opened narrower is not them saying 500 instead.
-
-    So the choice and the current width are two facts. Clamping the stored one would read
-    identically on the narrow window and lose the user's answer for good on the wide one
-    they came back to, which is the failure this reading is here to catch — the third
-    geometry below is the whole of it."""
-    narrow, stands = edge.squeeze
-    edge_world(request, edge)
-    page = open_page(browser, serve(edge.html(), comments=edge.comments))
-    edge.stand(page)
-    edge_settled(page, edge)
-    draw_edge(page, edge, 160)
-    drawn = geometry(page, edge)
-
-    resized(page, narrow, 900)
-    squeezed = geometry(page, edge)
-    covering = page.locator("html[data-lf-covering-surface]").count()
-
-    resized(page, 1400, 900)
-    roomy = geometry(page, edge)
-    page.close()
-
-    assert drawn["width"] == edge.wide + 160, f"the drag did not land: {drawn}"
-    assert squeezed["width"] == stands, (
-        f"a {narrow}px window left the page less than the region took: {squeezed}"
-    )
-    assert covering, f"a region leaving no page beside it stood beside it: {squeezed}"
-    assert squeezed["page"] == (0 if edge.side == "left" else narrow), (
-        f"the page yielded a strip to a region covering it: {squeezed}"
-    )
-    assert squeezed["chosen"] == str(edge.wide + 160), (
-        f"the narrow window un-said what the user had said: {squeezed}"
-    )
-    assert roomy["width"] == edge.wide + 160, (
-        f"the width the user chose did not come back with the room for it: {roomy}"
-    )
-
-
-def test_threads_and_the_on_panel_stand_on_the_one_edge_the_user_drew(browser, serve):
-    """Threads and the On panel are two views of one side panel, one at a time on the right
-    of the window, so the width is the side's rather than either panel's. A user who drew
-    the edge out to read a long question has drawn the edge, and finding Threads back at
-    its default would be one fact kept in two places — which is what a width per panel
-    would have been, and what the shared property is instead. The handle names the side
-    panel it sizes, whichever view stands."""
-    page = open_page(browser, serve(ON_PANEL.html(), comments=1))
-    ON_PANEL.stand(page)
-    edge_settled(page, ON_PANEL)
-    handle = page.locator(f"{ON_PANEL.region} .lf-edge")
-    expect(handle).to_have_attribute("aria-label", "Side panel width")
-    draw_edge(page, ON_PANEL, 160)
-    drawn = geometry(page, ON_PANEL)
-
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
-    threads = EDGES[0]
-    edge_settled(page, threads)
-    expect(page.locator(ON_PANEL.region)).to_be_hidden()
-    expect(page.locator(f"{threads.region} .lf-edge")).to_have_attribute(
-        "aria-label", "Side panel width"
-    )
-    panel = geometry(page, threads)
-    page.close()
-
-    assert drawn["width"] == ON_PANEL.wide + 160, f"the drag did not land: {drawn}"
-    assert panel["width"] == drawn["width"], (
-        f"Threads came up at a width the user had already moved: {panel}"
-    )
-
-
 def test_the_syntax_probe_reports_code_the_user_cannot_tell_from_its_block(
     browser, serve
 ):
@@ -4552,7 +4314,7 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
     bare fixture because the panel has to be holding something for its boxes to exist,
     and a seeded example is the corpus's own thread. The log has to hold an
     anchored comment, not merely exist: the planted rule traps its margin against a
-    thread's title, so a page whose log carries only widget events opens the
+    thread's first message, so a page whose log carries only widget events opens the
     panel on nothing and reports the control as missing."""
     seeded = [
         path
@@ -4569,8 +4331,15 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
     )
     page = open_page(browser, serve(seeded[0]))
     resized(page, 1280, 900)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
+    [thread] = [
+        event["id"]
+        for event in map(
+            json.loads,
+            filter(None, seeded[0].with_suffix(".jsonl").read_text().splitlines()),
+        )
+        if event.get("kind") == "comment" and event.get("anchor")
+    ][:1]
+    open_panel_thread(page, thread)
 
     # The control. A thread's own box draws its inset, and a first block reserving a
     # margin against a neighbour it hasn't got is exactly what the reading names.
@@ -4582,8 +4351,9 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
              s.id = 'trap';
              s.setAttribute('data-controls', '');
              s.textContent =
-               '.lf-thread { padding-top: 8px !important }'
-               + '.lf-thread > .lf-thread-summary { margin-block-start: 9px !important }';
+               '.lf-floating-panel .lf-msg-body { padding-top: 8px !important }'
+               + '.lf-floating-panel .lf-msg-body > :first-child'
+               + ' { margin-block-start: 9px !important }';
              document.head.append(s);
            }"""
     )
@@ -4605,27 +4375,6 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
         f"shows {t['drawn'] + t['margin']:g}px {t['edge']} its <{t['child']}>"
         for t in trapped
     )
-
-
-def test_thread_content_keeps_spacing_with_or_without_quote(browser, serve):
-    example = next(path for path in EXAMPLES if path.stem == "ship-review")
-    page = open_page(browser, serve(example))
-    page.locator(".lf-threads-toggle").click()
-    gap = """el => {
-      const content = el.querySelector(':scope > .lf-thread-content');
-      const transcript = content.querySelector(':scope > .lf-thread-transcript');
-      const head = content.querySelector(':scope > .lf-thread-head');
-      return transcript.getBoundingClientRect().top -
-        (head || content).getBoundingClientRect()[head ? 'bottom' : 'top'];
-    }"""
-    quoted = page.locator('.lf-thread-compact[data-id="7b3e0a41"]')
-    assert quoted.evaluate(gap) == 12
-    page.locator(".lf-thread-filter-toggle").click()
-    page.locator('[data-filter-kind="status"][data-filter-value="resolved"]').click()
-    card = page.locator('.lf-thread-compact[data-id="5a81c093"]')
-    card.locator(":scope > .lf-thread-summary").click()
-    panel_settled(page)
-    assert card.evaluate(gap) == 12
 
 
 def test_a_code_frame_trims_the_note_on_its_last_line(browser, serve):

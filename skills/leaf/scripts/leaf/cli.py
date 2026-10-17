@@ -1221,9 +1221,10 @@ def thread_resolve(dir: str, thread: str) -> dict:
     return cmd_resolve(resolve_dir(dir), thread)
 
 
-@cli.group(short_help="Open or end to-dos, and start work on your list.")
+@cli.group(short_help="Open or end to-dos, start work on your list, and plan.")
 def task() -> None:
-    """Open and end to-dos, and say which item on your list you are working on.
+    """Open and end to-dos, say which item on your list you are working on, and
+    lay out your plan.
 
     Your list, which the user sees as On <your name>, holds each user update you owe
     an answer, named by the update's event id, and each to-do you opened. Before
@@ -1232,8 +1233,9 @@ def task() -> None:
     stays on your list through replies, resolutions, versions and the end of the
     session that opened it, until `leaf task end` or a stamp that `--completes` its
     widget ends it. A to-do you open `--on user` goes on the user's On me list
-    instead, until they press its Done or you end it. Every write prints the record
-    it appended, one JSON line, as `page events` prints it.
+    instead, until they press its Done or you end it. `leaf task plan` arranges
+    to-dos, asks and plain steps into one outline of the work. Every write prints
+    the record it appended, one JSON line, as `page events` prints it.
     """
 
 
@@ -1298,3 +1300,40 @@ def task_end(dir: str, task_id: str, outcome: str, detail: str | None) -> dict:
     from leaf.todos import cmd_end
 
     return cmd_end(resolve_dir(dir), task_id, outcome, detail)
+
+
+@task.command("plan", short_help="Write your plan for the page's work as one outline.")
+@click.argument("dir", metavar="PAGE")
+@click.option(
+    "--file",
+    "input_file",
+    type=click.File("r", encoding="utf-8"),
+    default="-",
+    help="JSON outline to read (default: stdin)",
+)
+def task_plan(dir: str, input_file) -> dict:
+    """Replace the page's plan with the JSON list of steps given, in order.
+
+    Each step has a `depth`, 0 for a goal and one more for each level under it.
+    A plain step has a `title` and a `state`: open, working, done or dropped.
+    A step can instead name an `item`, a to-do's id or an ask's id, and shows
+    that item's title and state, so work that stays owed past your turn is a
+    to-do the plan names:
+
+    \b
+    [{"depth": 0, "title": "Review the pull request", "state": "working"},
+     {"depth": 1, "title": "Check the snapshot diffs", "state": "done"},
+     {"depth": 1, "item": "<to-do id>"},
+     {"depth": 1, "item": "widget:<widget-id>"}]
+
+    Write the whole plan each time it changes. Leaving out an open to-do ends
+    nothing; it stays on its list. `[]` clears the plan."""
+    from leaf.plans import cmd_plan
+
+    try:
+        steps = json.loads(input_file.read())
+    except json.JSONDecodeError as error:
+        raise click.ClickException(
+            f"invalid JSON ({error.msg}, line {error.lineno})"
+        ) from error
+    return cmd_plan(resolve_dir(dir), steps)

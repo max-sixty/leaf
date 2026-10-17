@@ -29,7 +29,6 @@ export {
   visibleBand,
   landingBand,
   userScrollport,
-  bannerFoot,
   seenRect,
   growthAfterIsSeen,
   stuckBox,
@@ -101,13 +100,11 @@ export { sampleVisibility, readSampleVisibility } from "./sample-visibility.js";
 export { observeQueuedWork, bindQueuedWork } from "./queued-work.js";
 export { createPresentationSchedule } from "/vendor/browser-runtime.js";
 export {
-  BANNER_CONTROL_RANK,
-  registerBannerControl,
-  showBannerControl,
-  showNews,
-  markBannerControl,
-  returnToBannerControl,
-} from "./banner-toolbar.js";
+  PAGE_CONTROL_RANK,
+  pageControls,
+  pageControlsChanged,
+  registerPageControl,
+} from "./page-controls.js";
 export { reachScrollers, releaseReachStop } from "./reach.js";
 export { reveal, dragHeld } from "./widget-elements.js";
 export { flashDuration, agentArrivalDuration } from "./motion.js";

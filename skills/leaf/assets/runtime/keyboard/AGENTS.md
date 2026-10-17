@@ -6,8 +6,8 @@ This file holds the rules the modules here share; each module's header owns its 
 
 A command is one capability, owned by the layer that implements its result. A binding
 is a key that invokes it, and a scope says where the binding applies. Dispatch, the
-shortcut bar, the command reference, tooltips, announcements and `aria-keyshortcuts`
-all read one register, so register a capability once and derive every presentation from
+floating panel's menu rows, the command reference, tooltips, announcements and
+`aria-keyshortcuts` all read one register, so register a capability once and derive every presentation from
 its row. A visible control names an existing command rather than copying its callback.
 
 Core owns commands on the page, the chrome, navigation, comments and shared thread
@@ -46,23 +46,15 @@ innermost step as one `navigation.back` command.
   containing page.
 - Draw and Design are page modes; surfaces opened inside them close first.
 - A surface's own state, such as a Threads filter, clears before the surface closes.
-  Page-side selections, targets, clusters and the page composer coexist beside an
-  auxiliary surface, and focus decides which answers first.
+  Page-side selections, targets, clusters and the page composer coexist beside a view
+  the floating panel opens, and focus decides which answers first.
 - A composer, reply box or find box returns to its container: an element comment's
   composer to its element, a reply box to its thread, and a find box to its panel.
-  A layer opened from a banner control returns to that control.
+  A layer opened from the floating panel's menu returns to the panel.
 - After Send, a reply or a thread's first comment leaves focus on the thread's card or
-  title, never on the page. The page comment card closes after Send and returns focus
-  to its banner control. A box that stays open for more messages, such as a widget's
-  thread box (`x-thread-seat`), keeps focus in the box.
-- **Threads.** The Threads panel has one thread selected whenever it shows any, and
-  focus on the list goes to that thread's title: `g T` and Escape from the panel's find
-  box both land there. Moving onto a title by any route selects its thread, so the
-  focused thread is the open one and `c` replies to it. When the runtime returns focus
-  to a title, it selects nothing: it goes back to the title the user chose, or to the
-  open thread's title if a change removed theirs. A `holdFocus` restore that runs after
-  the selection moved is the one case that leaves focus on a closed title
-  (`thread/thread-list-view.js`).
+  title, never on the page. The panel's field keeps focus after Send for the next turn.
+  A box that stays open for more messages, such as a widget's thread box
+  (`x-thread-seat`), keeps focus in the box.
 - A selected destination (a thread, an ask, a heading) steps back to the document
   through `letGo` (`focus.js`), landing on the visible block rather than on the control
   that opened it. Page Map returns focus to whatever opened it.
@@ -77,18 +69,19 @@ reopens it.
 Page scope holds commands about the page; a surface's scope holds commands about its
 contents. A page-level letter must be useful on every page; any other control is
 reachable by Tab, native activation, ask digits or Go-to hints. `PAGE_COMMANDS` lists
-the page commands in shortcut-bar order. A lowercase letter steps a walk forward and
+the page commands in the order the menu and the reference list them. A lowercase letter steps a walk forward and
 Shift steps it back, wrapping at either end. A surface may reuse a page key for the same
 intent with a nearer destination. While the user is on an ask, or its margin or thread
 representative, core forwards only the widget's declared `contextKeys`; widgets assign their own `1`–`9`.
 
 ## Touch routes
 
-Every page capability that a key reaches and no direct gesture does has a banner
-control, for a finger and a mouse alike. The row names that control in `touch`, and
-`touch-controls.js` builds it from the same row the key uses: a page command's control
-is an entry in More, and a page-scope row's control appears on the banner's row while
-its scope is the innermost one offering steps. A mode a finger can enter declares its
+Every page capability that a key reaches and no direct gesture does has a row among
+the page's controls (`page-controls.js`), for a finger and a mouse alike. The row names
+that control in `touch`, and `touch-controls.js` builds it from the same row the key
+uses: a page command's control is a row of the floating panel's menu, and a page-scope
+row's control stands in the panel's row as a gesture's step while its scope is the
+innermost one offering steps. A mode a finger can enter declares its
 way out. The register refuses a page command without `touch`; `false` says a finger
 reaches the result directly, as it does for walks and Go-to by scrolling and tapping.
 
@@ -97,9 +90,9 @@ words; Suggest and reactions open by Tab from the field. The field deliberately 
 ellipsis menu, on phones too; change that only with the user, through a rendered design
 comparison.
 
-A command that should leave the user where they are declares `retainStanding`: More
-saves focus, caret and selection before taking focus, and its control restores them
-before running the row.
+A command that should leave the user where they are declares `retainStanding`: the
+floating panel saves focus, caret and selection as the user steps into it, and the
+row's press restores them before running the command.
 
 ## Modules
 
@@ -110,8 +103,8 @@ activation), `layer-stack.js` (popovers and dialogs over the page), `page.js` (t
 page's own scope and the last Escape step), `go-to-sequence.js` (the `g` keys),
 `hints.js` and `command-hints.js` (hint chips), `chip-seats.js` and
 `key-badge-placement.js` (where chips sit), `touch-controls.js` (a finger's controls
-for the keys), and `control-keys.js`, `key-sequence.js`, `shortcut-bar.js`,
-`command-reference.js`, `disclosure.js`.
+for the keys), `status-context.js` (what the panel says of a walk or a Go-to filter),
+and `control-keys.js`, `key-sequence.js`, `command-reference.js`, `disclosure.js`.
 
 Test a changed binding inside and outside its scope and inside any native editor the
 scope contains, and check that every way in has a matching way out across the register.

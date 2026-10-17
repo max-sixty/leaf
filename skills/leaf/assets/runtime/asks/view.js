@@ -20,7 +20,7 @@
 
    Every widget arrival shares the same retained-intent travel. Frozen thread sources
    are materialized at their exact owning message through the thread owner. A page
-   source arrives below the banner, at its declared context region or the nearest
+   source arrives at the window's head, at its declared context region or the nearest
    fitting heading/text block supplied by its document. A destination already readable
    on every clipped edge keeps its scroll position. DOM measurements and renderer
    nodes never enter the ask record.
@@ -29,15 +29,14 @@
    method. They preserve one admitted action per widget rather than recording a second
    page-wide answer. */
 
-import { landingRoom, scrollIntoView } from "../landing-scroll.js";
+import { landingRoom } from "../landing-scroll.js";
 import { landingBand, shownBox, shownParts } from "../geometry.js";
-import { createAskBannerControls } from "./banner-controls.js";
+import { PAGE_CONTROL_RANK, registerPageControl } from "../page-controls.js";
 import { decisionControls } from "../keyboard/bindings.js";
 import { closestAcross, inChrome, showsWords } from "../passages.js";
 import { TEXT_BLOCK } from "../passage-facts.js";
 import { scrollerFor } from "../reading-regions.js";
 import { keeps } from "../keeps.js";
-import { queueList } from "../drawers.js";
 import { decisionFor, registry, tagsDeclaring } from "../registry.js";
 import { askEntry, readAsks } from "./model.js";
 import { walkPositionLabel } from "../walk-position.js";
@@ -51,17 +50,11 @@ import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { scrollBehavior } from "../motion.js";
 import { ASK_CONTROL } from "./view-elements.js";
 import { ownedAskControl } from "./answer.js";
-import { rowAt } from "../queue-list.js";
 import { askHolding, placeOf, sideOf } from "../standing-target.js";
 import { PRESENTATION } from "../presentation.js";
 import { retainUserIntent } from "../user-intent.js";
 import { bindQueuedWork } from "../queued-work.js";
-import {
-  applicationPresenter,
-  failSoftAfterRetention,
-  PRESENTATION_ORDER,
-  PresentationRetentionError,
-} from "../semantic-state.js";
+import { applicationPresenter, PRESENTATION_ORDER } from "../semantic-state.js";
 import { hostIn, under, upFrom } from "../shadow.js";
 import { showHeld } from "../thread/held-news.js";
 import { askPlace } from "./place.js";
@@ -77,7 +70,6 @@ export function createAskView({
   repaint,
 }) {
   const askNode = (ask) => askPlace(ask).node;
-  const askRow = (ask) => (ask ? rowAt(queueList, ask.id) : null);
   const sourceNode = (ask) => askPlace(ask).source;
   const hasAsk = (asks, candidate) =>
     Boolean(candidate && asks.some((ask) => ask.id === candidate.id));
@@ -116,7 +108,7 @@ export function createAskView({
   const presentedActionControl = (control) => presentedControl?.(control) ?? control;
   const answeringAll = new Set();
   const bulkAnswers = new Map();
-  const bannerControls = createAskBannerControls(async (outcome) => {
+  async function answerAll(outcome) {
     if (answeringAll.has(outcome)) return;
     answeringAll.add(outcome);
     void syncAsks();
@@ -135,82 +127,48 @@ export function createAskView({
       answeringAll.delete(outcome);
       void syncAsks();
     }
-  });
-  const asksRenderer = Object.freeze({ banner: bannerControls });
+  }
   let mounted = false;
+  // The page's standing paint (repaint.js) reads the asks: which one the user stands at,
+  // and which keys each answers. A publication that changes them repaints it.
   const presenter = applicationPresenter({
     region: "asks",
-    renderer: asksRenderer,
     order: PRESENTATION_ORDER.asks,
     reading: () => (mounted ? true : null),
-    failSoft: failSoftAfterRetention(asksRenderer),
-    paint: (owed, current) => paintAsks(current),
+    paint: () => {
+      readAsks();
+      repaint();
+    },
   });
 
   // One blanket answer per outcome a widget declares one for (x-awaits.all), each
   // deciding its asks one at a time so the log records what was consented to rather than
   // one blanket yes — accepting the rest after rejecting one stays honest. The widget's
   // module exposes a method named for its deciding verb that takes the outcome; the
-  // label is built from the outcome's word.
+  // label is built from the outcome's word. Each is a row of the page's controls,
+  // offered while an ask it would take is open.
   //
   // Built from the asks each reading carries rather than written out above, so the second
   // widget to declare one gets its control by declaring it, and a widget in a frozen
-  // message declares it under its own publication. Until the first state answer there
-  // are no asks, so there is no control yet. Each takes its place in the row rather
-  // than a box of its own: a control with no siblings is a control the press sweep walks
-  // past, and one that only ever appears at upgrade spends the spacer's slack, not the
-  // room of anything to its right.
+  // message declares it under its own publication. Which outcomes exist is what the
+  // asks' own declarations answer, so core names none.
   function buildBulkAnswers() {
     for (const tag of tagsDeclaring((entry) => entry["x-awaits"]?.all)) {
       const outcome = registry[tag]["x-awaits"].all;
       if (bulkAnswers.has(outcome)) continue;
       const label = outcome[0].toUpperCase() + outcome.slice(1);
-      bannerControls.registerBulk(outcome, label);
       bulkAnswers.set(outcome, label);
-    }
-  }
-
-  // Each blanket answer with the asks it would take, from the list above. The banner
-  // writes its controls and counts from this one reading, without naming an outcome in
-  // core; which outcomes exist is what the asks' own declarations answer.
-  function blanketAnswers(asks) {
-    return [...bulkAnswers].map(([outcome, label]) => {
-      const n = asks.filter((ask) => askEntry(ask)?.all === outcome).length;
-      return Object.freeze({
-        busy: answeringAll.has(outcome),
-        offered: Boolean(n),
-        text: `${label} all (${n})`,
-        title: `${label} every one still waiting on me`,
-        outcome,
+      const waiting = () =>
+        readAsks().user.filter((ask) => askEntry(ask)?.all === outcome).length;
+      registerPageControl({
+        key: `blanket:${outcome}`,
+        rank: PAGE_CONTROL_RANK.blanket,
+        label: () => `${label} all (${waiting()})`,
+        offered: () => waiting() > 0,
+        disabled: () => answeringAll.has(outcome),
+        group: "page",
+        press: () => void answerAll(outcome),
       });
-    });
-  }
-  // The banner's reading of that one list. A publication that changes it refreshes it,
-  // and a publication is where the server's ask reading changes, so a send moves
-  // these counts once the state its POST returns has been adopted.
-  async function paintAsks(current) {
-    const bannerModel = Object.freeze({
-      bulk: Object.freeze(blanketAnswers(readAsks().user)),
-    });
-    repaint();
-    try {
-      const bannerPaint = await bannerControls.present(bannerModel);
-      if (!current()) return [];
-      bannerControls.commit();
-      return [bannerPaint];
-    } catch (error) {
-      // A current paint owns the same faces now. It will either commit or restore them;
-      // an obsolete attempt must not roll its predecessor over the newer reading.
-      if (!current()) return [];
-      try {
-        await bannerControls.retainCommitted();
-      } catch (retaining) {
-        throw new PresentationRetentionError(
-          [error, retaining],
-          "Ask presentation and retention failed",
-        );
-      }
-      throw error;
     }
   }
   // A publication that changes the asks opens the region's ticket synchronously, before
@@ -248,7 +206,7 @@ export function createAskView({
   // their focus rested on — a second thread on the child rather than the next line of their
   // own. The agent's reply put both back. Nothing the user did moved either. An
   // answered ask leaves both worklists but stays in the active inventory: the
-  // On panel's Done rows can return the user to it, and standing there restores
+  // On me's Done rows can return the user to it, and standing there restores
   // the same numeric action route so they can revise the recorded answer.
   function standingAsk(held = focused()) {
     if (!held || held === document.body) return null;
@@ -333,7 +291,7 @@ export function createAskView({
   // same place was marked or not by how the user had reached it.
   //
   // Pointer and keyboard arrivals share this location reading, as they share the
-  // focused control's ring. A On panel row's press lands the focus by script
+  // focused control's ring. An On me row's press lands the focus by script
   // after a click, and the ask it brought the user to must show where they are.
   //
   // The ask wears it, and so does every box it shows through (shownParts): the ask is
@@ -345,7 +303,7 @@ export function createAskView({
   // ask itself, and the fallback answers the wrapper any page can still style boxless
   // in a line, the same way the thread's mark does (paintAnchors).
   //
-  // The On panel's row for the ask is a second surface showing this one fact, so it
+  // On me's row for the ask is a second surface showing this one fact, so it
   // is painted from this one reading rather than from a mark the panel keeps for itself —
   // and the ring is the chrome's as much as the page's (the [data-lf-ask] rule in the
   // stylesheet is written against the attribute, not against the page), so wearing the
@@ -353,10 +311,7 @@ export function createAskView({
   function markHere() {
     const record = standingAsk();
     const here = askNode(record);
-    const row = askRow(record);
-    const wearing = new Set(
-      here ? [here, ...shownParts(here), ...(row ? [row] : [])] : [],
-    );
+    const wearing = new Set(here ? [here, ...shownParts(here)] : []);
     for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.ask}]`))
       if (!wearing.has(marked)) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.ask);
     for (const marked of wearing) keeps(marked, PAGE_PAINT_ATTRIBUTE.ask, "1");
@@ -400,7 +355,7 @@ export function createAskView({
   // place that cannot misfire, because it holds a lent tab stop rather than a decision:
   // the widget's context routes are live there and Space decides nothing.
   //
-  // Chrome is excluded because it has nothing to restore: a On panel row and a
+  // Chrome is excluded because it has nothing to restore: an On me row and a
   // margin entry for the same ask are keyed by that id already, so a patch hands each of
   // them back as the same element, still holding the focus the user put on it.
   function captureStanding() {
@@ -431,7 +386,7 @@ export function createAskView({
   // an edit to a phrase, and what explains it is the sentence it stands in and the heading
   // over that — so it can never satisfy "a question must name itself without context outside
   // the question", and no x-ask-context can be written round it. Landing on the change alone put
-  // its own top edge under the banner and took that sentence with it: the user arrived
+  // its own top edge under the window's head and took that sentence with it: the user arrived
   // at ✓ Accept with nothing on screen saying what they were accepting. So where the
   // author has not declared a region, the document supplies one in the shape a declared
   // region has.
@@ -454,15 +409,15 @@ export function createAskView({
     // measures (0,0) at the document's origin, which is not a degenerate answer but a
     // wrong one naming the top of the page (geometry.js says so at shownBox): a hidden
     // paragraph before the change fits every time, and the press then scrolls the page up
-    // by the banner's clearance instead of travelling to the ask.
+    // by the head room's clearance instead of travelling to the ask.
     // A region also has to begin at or above the change: it is the run-up to it, and one
     // starting below would be a region the change is not in. Document order alone does
     // not promise that — a preceding block can be painted lower — and the span such a
     // region measures is negative, which fits every screen there is.
     // The screen the user can use is the room a landing at the region's start leaves
     // for the run down to the ask's foot (landing-scroll.js, `landingRoom`): clear
-    // of the banner over its top and the bottom bar over its bottom, so an ask's foot
-    // that fits is one the user can read rather than one under the shortcut bar.
+    // of the window's head over its top and the floating panel's room over its bottom,
+    // so an ask's foot that fits is one the user can read rather than one under the panel.
     const fits = (region) => {
       if (!region) return false;
       const start = shownBox(region);
@@ -533,10 +488,10 @@ export function createAskView({
   //
   // Whether the ask itself is readable is travel's question (`readable`), asked of
   // every edge through whatever clips it or stands over it — an ask half cut off by a
-  // board's own scroller, or reaching under the thread panel, is not in front of the
+  // board's own scroller, or reaching under the floating panel, is not in front of the
   // user for having a box inside the window. This adds the one thing that reading
   // cannot know: the arrival is the region's start, so the start has to be standing
-  // clear of the banner too.
+  // clear of the window's head too.
   function framed(record, region, ask, box, readable) {
     return (
       readable(ask) &&
@@ -548,7 +503,7 @@ export function createAskView({
   }
 
   // Standing on one ask: what m and Shift+m do once the queue walk has decided on an ask
-  // (queue-walk.js), what a On panel row does, and what a Page Map entry does having
+  // (queue-walk.js), what an On me row does, and what a Page Map entry does having
   // been told outright. One
   // function because it is one act — a second would be a second answer to "how do I put
   // the user on an ask", and the two would drift the first time either the reveal or the
@@ -567,12 +522,11 @@ export function createAskView({
       ? await materializeAsk(next, mayArrive)
       : reachAsk(next);
     if (!mayArrive() || !target) return false;
-    // A page ask starts below the banner so its context comes before its control, and
+    // A page ask starts at the window's head so its context comes before its control, and
     // what counts as its context is arrivalRegion's answer: the region an author declared,
     // or the one the document supplies for a change that cannot declare one. Whether this
     // press moves the page is `framed`'s answer, and travel's departure owns what follows
-    // from it: clearing a surface that hides the ask (a covering drawer, or the thread
-    // panel standing over it), and whether the press is a departure. It runs before the
+    // from it: clearing a surface that hides the ask, and whether the press is a departure. It runs before the
     // focus lands, since focus sent behind a covering surface is sent back into it.
     // Capture the outgoing place before reveal can reshape it; only a successful
     // arrival commits the departure. A thread ask is
@@ -599,7 +553,6 @@ export function createAskView({
     const moving = Boolean(
       initial.box &&
       departure.plan(initial.target, {
-        required: [initial.source],
         there: (readable) =>
           framed(next, initial.region, initial.target, initial.box, readable),
       }),
@@ -629,15 +582,9 @@ export function createAskView({
               : [],
         };
       },
-      {
-        intent: mayArrive,
-        departure,
-        keep: true,
-      },
+      { intent: mayArrive, departure },
     );
-    if (!arrived) return false;
-    scrollIntoView(askRow(next), { block: "nearest" });
-    return true;
+    return arrived;
   }
 
   function arriveAtAsk(next) {

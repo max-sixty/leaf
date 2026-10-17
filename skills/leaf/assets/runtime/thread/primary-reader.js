@@ -151,7 +151,7 @@ export function createPrimaryReader(
     const candidate = held.prepare(
       {
         threads: collection.threads.map((thread) =>
-          threadReading(thread, "outlet", { ...commands, nativeAuthored: true }, {}),
+          threadReading(thread, "outlet", { ...commands, nativeAuthored: true }),
         ),
       },
       { row: false },
@@ -259,7 +259,7 @@ export function createPrimaryReader(
       let view = views.get(item.identity);
       if (!view) {
         if (item.kind === "thread")
-          view = new ThreadView("outlet", { ...commands, nativeAuthored: true });
+          view = new ThreadView({ ...commands, nativeAuthored: true });
         else if (item.kind === "news") {
           const notice = newsNotice();
           view = { node: notice.node, notice, dispose() {} };
@@ -272,8 +272,14 @@ export function createPrimaryReader(
           node.dataset.lfGen = "1";
           node.dataset.lfOffer = "";
           if (item.kind === "message") {
+            // A press on a reply's reactions is the user acting in this thread, so
+            // what the reader holds of it shows with it, as in a card (thread-card.js).
             const message = new MessageView({
               ...commands,
+              reaction: {
+                ...commands.reaction,
+                pressed: () => shown.get(item.key)?.news?.open(),
+              },
               edit: rewritesOf(item.key).edit,
             });
             message.node.classList.add("lf-primary-message");
@@ -341,7 +347,6 @@ export function createPrimaryReader(
           const message = item.thread.msgs.find((entry) => entry.key === item.message);
           view.headNotice = !nominated;
           view.reading = messageReading(message, {
-            panel: false,
             nativeAuthored: true,
             reactions: message.reactions,
             workflows: message.workflows,

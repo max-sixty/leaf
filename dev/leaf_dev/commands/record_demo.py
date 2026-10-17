@@ -326,7 +326,7 @@ def record(
     # notice has had its seat.
     page.wait_for_function(
         """() => document.querySelector(
-            '.lf-floating-panel[data-says="status"] .lf-fp-field leaf-text'
+            '.lf-fp-field leaf-text[data-says="status"]'
         )?.getAttribute('placeholder')?.includes('answering')"""
     )
     shot(900)
@@ -375,7 +375,7 @@ def record(
     # The floating panel's field acknowledges the move in its status's place.
     page.wait_for_function(
         """() => document.querySelector(
-            '.lf-floating-panel[data-says="notice"] .lf-fp-field leaf-text'
+            '.lf-fp-field leaf-text[data-says="notice"]'
         )?.getAttribute('placeholder')?.startsWith('Moved to During')"""
     )
     shot(2400)

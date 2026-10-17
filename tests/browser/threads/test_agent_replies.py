@@ -467,6 +467,12 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
         and row["presentation_kind"] == "working_words"
         for row in feedback
     )
+    assert any(
+        row.get("input_id") == root
+        and row["presentation_kind"] == "status_words"
+        and row["reply_id"] == steps[-1]["id"]
+        for row in feedback
+    )
     assert not any(
         row["presentation_kind"] == "message_words"
         and row.get("reply_id") in {step["id"] for step in steps}

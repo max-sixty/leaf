@@ -13,7 +13,7 @@
    process identity cannot invalidate the document. Do not let one delivery interpret
    another's state. A refused key is read here too, for every response: it is the page
    cut off from its log rather than an answer about any request, so the event door
-   throws it as it throws a lost connection and the banner names the link that ends it.
+   throws it as it throws a lost connection and the page status names the link that ends it.
 
    `reportPageError` is the common runtime error surface. A widget failure may `failSoft`
    its own element so the rest of the page and Threads remain usable, but a presentation
@@ -285,8 +285,8 @@ export const postEvent = async (event, held = runtime.data) => {
   }
   if (!admitResponse(response)) return null;
   // A refused key is no answer to the event: the server read none of it, so the send
-  // failed the way a lost connection fails and is retried as one. The banner names the
-  // link that ends it.
+  // failed the way a lost connection fails and is retried as one. The page status names
+  // the link that ends it.
   if (response.status === KEY_REFUSED)
     throw new Error("the server refused this page's key");
   return response;

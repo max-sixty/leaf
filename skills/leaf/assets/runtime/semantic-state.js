@@ -86,15 +86,13 @@ export const queueWidgetUpdate = (widget, update) =>
 
 // Where a document-wide renderer stands in one presentation pass. The projection
 // materializes provenance words and coordinate chrome inside authored elements, the
-// thread resolves its passages over the nodes that leaves, the ask view resolves
-// the widget nodes those passages placed, and the On panel formats the canonical
-// answers against those source nodes. Declaring the order here is what lets
-// every publisher simply publish.
+// thread resolves its passages over the nodes that leaves, and the ask view resolves
+// the widget nodes those passages placed. Declaring the order here is what lets every
+// publisher simply publish.
 export const PRESENTATION_ORDER = Object.freeze({
   projection: 0,
   thread: 1,
   asks: 2,
-  queue: 3,
 });
 
 // The document-wide presenters, in registration order. `presentDocument` is what a
@@ -263,12 +261,6 @@ export const presentDocument = () => {
 // failure of the pass so an accepted reading that could not be shown stays unrecorded.
 export const whenDocumentPresented = () => schedule.passed();
 
-export class PresentationRetentionError extends AggregateError {}
-
-export const failSoftAfterRetention = (proof) => (reason) => {
-  if (reason instanceof PresentationRetentionError) throw reason;
-  return proof;
-};
 // The epoch presentation proof compares against. A paint that waits on proof reads it
 // outside its collection, so waiting subscribes the paint to nothing.
 const currentEpoch = () => untracked(() => readApplication().semanticEpoch);

@@ -40,6 +40,7 @@ from browser.margin import (
     COMMENT_ON_ASK,
     leave_card_by_its_target,
 )
+from browser.threads import open_panel_thread
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -418,12 +419,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     }""")
     expect(marker).to_be_visible()
     resized(page, 390, 760)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    working_thread = page.locator(".lf-thread").filter(
-        has=page.locator(".lf-thread-status", has_text="Working")
-    )
-    working_thread.locator(".lf-thread-summary").click()
+    working_thread = open_panel_thread(page, roots[0]["id"])
     workflow = working_thread.locator(".lf-msg-sending", has_text="Working")
     expect(workflow).to_have_text("Working")
     expect(workflow).to_have_attribute("title", f"Working · {detail}")
@@ -765,11 +761,15 @@ def test_a_thread_an_open_to_do_holds_says_so_beside_the_page(browser, serve):
         if event["kind"] == "comment"
     )
     named = "Can these share one visit?"
-    # Until the agent answers, the On panel lists the answer it owes by the same name.
+    # Until the agent answers, On the agent lists the answer it owes by the same name.
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
-    page.locator(".lf-queue-tab").nth(1).click()
-    expect(page.locator(".lf-queue-panel .lf-queue-title")).to_have_text([named])
+    panel_settled(page, view="queue")
+    page.locator(".lf-floating-panel .lf-fp-filters button").nth(1).click()
+    queue = page.locator('.lf-fp-view[data-view="queue"]:not([data-leaving])')
+    owed = queue.locator('.lf-fp-on-item[data-list="agent"]')
+    expect(owed).to_have_count(1)
+    expect(owed.locator(".lf-fp-on-title, .lf-fp-prompt").first).to_have_text(named)
     page.keyboard.press("Escape")
     # The agent's answer settles the comment and opens the to-do that holds it.
     append_carried_log_record(
@@ -803,9 +803,10 @@ def test_a_thread_an_open_to_do_holds_says_so_beside_the_page(browser, serve):
     expect(dialog).to_be_hidden()
     page.keyboard.press("g")
     page.keyboard.press("Shift+T")
-    card = page.locator(f'.lf-thread[data-id="{root["id"]}"]')
-    expect(card.locator(".lf-thread-topic")).to_have_text(named)
-    expect(card.locator(".lf-thread-status")).to_have_text("To-do open")
+    panel_settled(page, view="threads")
+    listed = page.locator(f'.lf-fp-thread[data-key="{root["id"]}"]')
+    expect(listed.locator(".lf-fp-label")).to_have_text(named)
+    expect(listed.locator(".lf-fp-value")).to_contain_text("To-do open")
 
     # A title names it on every surface, the margin's included.
     append_carried_log_record(
@@ -818,7 +819,7 @@ def test_a_thread_an_open_to_do_holds_says_so_beside_the_page(browser, serve):
         },
     )
     told(page)
-    expect(card.locator(".lf-thread-topic")).to_have_text("Visit windows")
+    expect(listed.locator(".lf-fp-label")).to_have_text("Visit windows")
     # The renamed row is news the feed holds until the reader asks for it.
     page.locator("#feed .lf-activity-news").click()
     expect(feed).to_contain_text("replied in “Visit windows”")

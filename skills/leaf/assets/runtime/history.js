@@ -52,7 +52,7 @@ const claims = new Set();
 const places = new Map();
 
 // The user's working place, read once before something borrows it: leaving an entry, or
-// opening More (banner-toolbar.js), whose place-keeping commands hand it back. `focus` is
+// stepping into the floating panel, whose place-keeping commands hand it back. `focus` is
 // the node they stood on, when the reading comes after focus has left it. Plain endpoints
 // keep a removed passage from being silently retargeted by a live Range. pageRange
 // shares the declared-shadow reading used for commenting; the selection's direction also

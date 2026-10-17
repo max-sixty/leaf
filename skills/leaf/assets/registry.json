@@ -178,7 +178,7 @@
               }
             }
           },
-          "text": "A design comment is about how the page looks or behaves, not what it says. Its anchor's `section` is an authored element's id or, if it starts `lf-`, a part of Leaf's chrome, such as `lf-banner`, `lf-threads` (the Threads panel), `lf-queue` (the On panel), `lf-versions` or `lf-composer`. `part`, when present, describes the control, region or picture the user clicked. Fix it in this page's source. If the behavior belongs to a package's widget, or the user asks for a wider fix, change the package as the Leaf skill's `references/packages.md` says, re-vendor, and note the re-vendor on the stamp. A fix to Leaf itself is the user's to raise (the Leaf skill's \"Improve Leaf through use\"). Your reply reports the stamped version that carries the fix."
+          "text": "A design comment is about how the page looks or behaves, not what it says. Its anchor's `section` is an authored element's id or, if it starts `lf-`, a part of Leaf's chrome, such as `lf-fp-menu` (the floating panel's menu), `lf-composer` or `lf-command-reference`. `part`, when present, describes the control, region or picture the user clicked. Fix it in this page's source. If the behavior belongs to a package's widget, or the user asks for a wider fix, change the package as the Leaf skill's `references/packages.md` says, re-vendor, and note the re-vendor on the stamp. A fix to Leaf itself is the user's to raise (the Leaf skill's \"Improve Leaf through use\"). Your reply reports the stamped version that carries the fix."
         },
         {
           "when": {
@@ -1089,6 +1089,55 @@
             "session": { "type": "string", "minLength": 1 }
           },
           "required": ["attention", "id", "ts", "author", "kind", "seq"],
+          "additionalProperties": false
+        }
+      },
+      "plan": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "const": "agent" },
+            "kind": { "const": "plan" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "steps": {
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "depth": { "type": "integer", "minimum": 0, "maximum": 8 },
+                      "title": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 80,
+                        "pattern": "\\S",
+                        "not": { "pattern": "[\\r\\n]" }
+                      },
+                      "state": { "enum": ["open", "working", "done", "dropped"] }
+                    },
+                    "required": ["depth", "title", "state"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "depth": { "type": "integer", "minimum": 0, "maximum": 8 },
+                      "item": { "type": "string", "minLength": 1 }
+                    },
+                    "required": ["depth", "item"],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 }
+          },
+          "required": ["attention", "id", "ts", "author", "kind", "seq", "steps"],
           "additionalProperties": false
         }
       },

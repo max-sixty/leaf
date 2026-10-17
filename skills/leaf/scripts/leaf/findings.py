@@ -489,8 +489,8 @@ _TEXT = {
         f"the browser gate failed while running its probe module: {v['error']}"
     ),
     "probe-failed": lambda at, v: f"the browser probe module failed: {v['error']}",
-    "no-banner": lambda at, v: (
-        "the runtime never injected its banner — "
+    "no-runtime": lambda at, v: (
+        "the runtime never injected its chrome — "
         + (_explained(v["console"]) or "and no console message explains why")
     ),
     "never-reached": lambda at, v: (
@@ -1774,6 +1774,16 @@ _TEXT = {
     "duplicate-ask": lambda at, v: (
         f"{v['widget']!r} already has ask {v['ask']!r}; use that ask instead of"
         " opening duplicate work"
+    ),
+    "plan-depth": lambda at, v: (
+        f"plan step {v['step']!r} is at depth {v['depth']}, more than one below the"
+        " step before it; the first step is at depth 0 and each step is at most one"
+        " deeper than the one above"
+    ),
+    "unknown-plan-item": lambda at, v: (
+        f"{v['item']!r} names no to-do or ask on this page; name an id `leaf task"
+        " open` printed or an ask id from `leaf page state`, or write a plain step"
+        " with a title and state"
     ),
     "unowed-start": lambda at, v: (
         f"{v['item']!r} is neither an open to-do of yours nor an update you owe an"

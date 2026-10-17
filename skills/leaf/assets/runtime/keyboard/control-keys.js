@@ -13,10 +13,9 @@
    The pass runs in the fixed chrome's frame, so every name it writes goes through
    `keeps` and says nothing where the control already says it. Restated title or shortcut
    metadata is news to whatever is reading the page — the mutation stream a screen reader
-   rebuilds its buffer from — and these controls stand on the banner the margin projection
-   watches. */
+   rebuilds its buffer from. */
 import { ariaShortcuts, bindings, labelOf, live, word } from "./bindings.js";
-import { pageScopes, universalCommandReference } from "./register.js";
+import { pageScopes } from "./register.js";
 import { buttonCommand } from "./scopes.js";
 import { keeps } from "../keeps.js";
 
@@ -35,7 +34,7 @@ export function commandShortcut(id) {
   return commandSteps(id).join(" ");
 }
 /** The presses of `commandShortcut`, each a step as a key chip spells it, for a
- * presentation that draws a command as words with its keys (banner-toolbar.js, a row's
+ * presentation that draws a command as words with its keys (page-controls.js, a row's
  * `shortcut`). Empty for a command no key reaches. */
 export function commandSteps(id) {
   for (const scope of pageScopes())
@@ -46,13 +45,9 @@ export function commandSteps(id) {
 
 // Each visible control a page row names, with the row that reaches it.
 function controlRows() {
-  // The shortcut bar owns the permanent More control because its binding must first pass
-  // through the same contextual shadowing as the line's ordinary rows.
-  const more = universalCommandReference();
   const controls = new Map();
   for (const scope of pageScopes())
     for (const row of scope?.rows ?? []) {
-      if (row === more) continue;
       const control = word(row.control);
       if (!control) continue;
       const active = live(row) && bindings(row).length > 0;
@@ -64,17 +59,6 @@ function controlRows() {
         controls.set(control, { scope, row, active });
     }
   return controls;
-}
-
-/** The steps of the complete shortcut that reaches each visible control now, by
- * control, for a presentation that draws a control as words rather than the control
- * itself, as a menu built from the banner's rows does (banner-toolbar.js, `bannerRows`),
- * and draws each step as a key (key-sequence.js). */
-export function controlShortcuts() {
-  const shortcuts = new Map();
-  for (const [control, { scope, row, active }] of controlRows())
-    if (active) shortcuts.set(control, stepsIn(scope, row));
-  return shortcuts;
 }
 
 export function paintCoreControls() {

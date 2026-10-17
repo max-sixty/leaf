@@ -2,7 +2,9 @@ import { USER_VIEW_RESTORE_CASES } from "/runtime/check-api.js";
 import { at } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 
-export const runtimeStarted = () => document.querySelector(".lf-banner") !== null;
+// The runtime has started once its chrome, the floating panel, is in the page.
+export const runtimeStarted = () =>
+  document.querySelector(".lf-floating-panel") !== null;
 export const upgraded = () => document.body.dataset.lfUpgraded === "1";
 
 // Finite animations delay final geometry reads. Infinite ambient animation, such as the

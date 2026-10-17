@@ -1263,6 +1263,7 @@ UNDER_EMPTY_BOXES = r"""(el) => {
     const s = getComputedStyle(box);
     const seen = (colour) => !/^(transparent|rgba\(.*,\s*0\)|color\(.* \/ 0\))$/.test(colour);
     return seen(s.backgroundColor) || s.backgroundImage !== 'none' || s.boxShadow !== 'none'
+      || s.filter.includes('drop-shadow')
       || ['Top', 'Right', 'Bottom', 'Left'].some((side) =>
         parseFloat(s[`border${side}Width`]) > 0 && s[`border${side}Style`] !== 'none'
         && seen(s[`border${side}Color`]));

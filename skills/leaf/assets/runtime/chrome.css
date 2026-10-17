@@ -22,11 +22,15 @@
     pointer-events: none;
     filter: drop-shadow(var(--raise-2));
   }
+  .lf-fp-ground,
+  .lf-fp-ring,
+  .lf-fp-fill {
+    clip-path: inset(50%);
+  }
   .lf-fp-ring,
   .lf-fp-fill {
     position: absolute;
     inset: 0;
-    clip-path: inset(50%);
   }
   .lf-fp-ring {
     background: var(--lf-fp-ring);
@@ -52,6 +56,7 @@
     justify-content: flex-end;
     overflow: clip;
     border-radius: var(--lf-fp-radius);
+    background: var(--lf-fp-surface);
   }
   .lf-fp-inner {
     display: flex;

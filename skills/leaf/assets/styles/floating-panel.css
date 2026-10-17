@@ -46,7 +46,8 @@
 
   /* The surface: a layer over the whole window, cut to the box's outline by the
      panel's script, with a ring a pixel outside it and one soft shadow around both,
-     cast at the height of what opens over the page. */
+     cast at the height of what opens over the page. The layer itself is cut to that
+     outline grown by its shadow's reach. */
   .lf-fp-ground {
     position: fixed;
     inset: 0;
@@ -54,11 +55,15 @@
     pointer-events: none;
     filter: drop-shadow(var(--raise-2));
   }
+  .lf-fp-ground,
+  .lf-fp-ring,
+  .lf-fp-fill {
+    clip-path: inset(50%);
+  }
   .lf-fp-ring,
   .lf-fp-fill {
     position: absolute;
     inset: 0;
-    clip-path: inset(50%);
   }
   .lf-fp-ring {
     background: var(--lf-fp-ring);
@@ -79,12 +84,16 @@
     font: 13px / 1.45 var(--sans);
     color: var(--ink);
   }
+  /* The card wears the surface's colour over the ground's own fill, which it matches
+     at rest and inside every move, so what stands under the panel is under a box that
+     paints for a contrast checker too, which reads no clipped layer. */
   .lf-fp-card {
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
     overflow: clip;
     border-radius: var(--lf-fp-radius);
+    background: var(--lf-fp-surface);
   }
   .lf-fp-inner {
     display: flex;

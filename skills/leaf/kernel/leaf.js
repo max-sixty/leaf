@@ -6328,6 +6328,7 @@ function createFloatingPanel({
   }
   let outline = null;
   let viewMovingUntil = 0;
+  const SHADOW_REACH = 32;
   const outlineClip = (box, grow = 0) => `inset(${box.top - grow}px ${box.right - grow}px ${box.bottom - grow}px ${box.left - grow}px round ${box.radius + grow}px)`;
   function followBox() {
     const room = ground.getBoundingClientRect();
@@ -6350,6 +6351,7 @@ function createFloatingPanel({
     outline = next;
     const duration = performance.now() < viewMovingUntil ? VIEW_RESIZE_MS : RESIZE_MS;
     for (const [layer, grow] of [
+      [ground, SHADOW_REACH],
       [ring, 1],
       [fill, 0]
     ]) {

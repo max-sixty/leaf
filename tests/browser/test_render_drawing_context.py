@@ -17,6 +17,47 @@ CONTEXT_PAGE = leaf_page(
 )
 
 
+def test_releasing_a_drawing_does_not_read_every_card_before_preview(browser, serve):
+    lines = "\n".join(f"{number:02d} alpha bravo charlie delta echo" for number in range(40))
+    cards = "".join(
+        f'<article class="card" id="card-{number}"><h3>Card {number}</h3>'
+        f'<p>Card {number} summary</p><details open><summary>Transcript</summary>'
+        f'<pre><code>{lines}</code></pre></details></article>'
+        for number in range(40)
+    )
+    page = open_page(browser, serve(leaf_page("long drawing", f"<section>{cards}</section>")))
+    held = []
+    page.route("**/vendor/drawing-context.esm.js", lambda route: held.append(route))
+    target = page.locator("#card-20 code")
+    target.scroll_into_view_if_needed()
+    box = target.bounding_box()
+    x = box["x"] + box["width"] / 2
+    page.mouse.move(x, box["y"] + box["height"] * 0.1)
+    page.keyboard.press("w")
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
+    page.mouse.down()
+    page.mouse.move(x, box["y"] + box["height"] * 0.5, steps=8)
+    page.mouse.move(x, box["y"] + box["height"] * 0.9, steps=8)
+    page.evaluate("""() => {
+      const original = window.getComputedStyle;
+      window.drawingStyleCards = new Set();
+      window.getComputedStyle = function (element, pseudo) {
+        const card = element.closest?.('article.card');
+        if (card) window.drawingStyleCards.add(card.id);
+        return original.call(this, element, pseudo);
+      };
+    }""")
+    page.mouse.up()
+    holding(page, held, 1, "the drawing context renderer")
+    before_renderer = page.evaluate("[...window.drawingStyleCards]")
+    held[0].continue_()
+    expect(page.locator(".lf-composer-drawing canvas")).to_have_attribute(
+        "data-lf-drawing-context", "ready"
+    )
+    assert "card-20" in before_renderer
+    assert len(before_renderer) <= 2, before_renderer
+
+
 @pytest.mark.parametrize("scheme,touch", [("light", False), ("dark", True)])
 def test_drawing_preview_contains_page_content_and_freezes_it(
     browser, serve, scheme, touch

@@ -1853,17 +1853,30 @@ function placedMarkdownTokens(source) {
   const tokens3 = markdownTokens(source);
   if (!tokens3) return [];
   const starts = [0];
-  for (let at = 0; at < source.length; at++)
-    if (source[at] === "\n") starts.push(at + 1);
+  for (let at = 0; at < source.length; at++) {
+    if (source[at] === "\r" && source[at + 1] === "\n") at++;
+    if (source[at] === "\r" || source[at] === "\n") starts.push(at + 1);
+  }
   starts.push(source.length);
   const found = [];
   let inlineAt = 0;
-  for (const token of tokens3) {
+  for (const [index, token] of tokens3.entries()) {
     const from = token.map ? starts[token.map[0]] : 0;
     const to = token.map ? starts[token.map[1]] : source.length;
     if (token.type !== "inline") {
       if (token.map && (token.nesting === 1 || token.type === "fence" || token.type === "code_block"))
-        found.push({ token, from, to, words: token.nesting ? null : token.content });
+        found.push({
+          token,
+          from,
+          to,
+          markers: token.meta?.markers?.map(([line, a, b]) => [
+            starts[line] + a,
+            starts[line] + b
+          ]),
+          // A heading's inline token owns its content lines, excluding Setext syntax.
+          contentLines: token.type === "heading_open" ? tokens3[index + 1].map.map((at) => starts[at]) : void 0,
+          words: token.nesting ? null : token.content
+        });
       continue;
     }
     const positions = inlineSourcePositions(

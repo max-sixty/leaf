@@ -439,15 +439,24 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
      Bodies keep both tracks; each sticky head stops at the actions without copying
      their measured width into every message. */
   .lf-margin-thread .lf-thread-transcript > *,
-  .lf-margin-thread :is(.lf-thread-checkpoint, .lf-summary-originals) > * {
+  .lf-margin-thread
+    :is(.lf-thread-checkpoint, .lf-summary-checkpoint, .lf-summary-originals)
+    > * {
     grid-column: 1 / -1;
   }
   .lf-margin-thread
-    :is(.lf-msg, .lf-thread-checkpoint, .lf-summary-originals):not([hidden]) {
+    :is(
+      .lf-msg,
+      .lf-thread-checkpoint,
+      .lf-summary-checkpoint,
+      .lf-summary-originals
+    ):not([hidden]) {
     display: grid;
     grid-template-columns: subgrid;
   }
-  .lf-margin-thread .lf-msg-head {
+  /* A summary's head is a head too: one opening the transcript stands under the
+     actions, which would otherwise cover its disclosure on a narrow card. */
+  .lf-margin-thread :is(.lf-msg-head, .lf-summary-header) {
     grid-column: 1;
   }
   .lf-margin-thread .lf-msg-body {

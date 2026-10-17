@@ -17,6 +17,7 @@ from render_cases_interaction import (
 )
 from render_harness import (
     LONG_PAGE,
+    PANEL,
     REPLY_HOST_PAGE,
     compare_with,
     open_page,
@@ -28,6 +29,8 @@ from render_harness import (
     wait_for_revision,
     write,
 )
+
+from browser.threads import open_panel_thread
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -42,22 +45,22 @@ def test_composer_grows_caps_and_shrinks_with_its_text(browser, serve):
                                         scrollable: ta.scrollHeight > ta.clientHeight })""")
 
     empty = state()
-    box.type("A comment long enough to wrap onto a second line and then a third.")
+    box.type("A comment long enough to wrap onto a second line and then a third. " * 2)
     grown = state()
     write(box, "x " * 4000)  # far past the ceiling
     capped = state()
-    card_bottom = page.locator(".lf-page-comment-card").evaluate(
-        "card => card.getBoundingClientRect().bottom"
+    panel_bottom = page.locator(PANEL).evaluate(
+        "panel => panel.getBoundingClientRect().bottom"
     )
     write(box, "short again")
     shrunk = state()
 
     assert grown["h"] > empty["h"], "the box must grow with its content"
     assert not grown["scrollable"], "a box that fits its text must not be scrollable"
-    # The card takes the room beneath the banner, and the editor caps inside it.
-    assert capped["h"] > grown["h"], "the box must grow toward the card's room"
-    assert card_bottom <= page.viewport_size["height"] + 0.5, (
-        f"the capped box carried the card out of the window, to {card_bottom}px"
+    # The field grows up from the panel's row, and the editor caps inside the window.
+    assert capped["h"] > grown["h"], "the box must grow toward the field's room"
+    assert panel_bottom <= page.viewport_size["height"] + 0.5, (
+        f"the capped box carried the panel out of the window, to {panel_bottom}px"
     )
     assert capped["scrollable"], (
         "past the ceiling the scrollbar is real and belongs there"
@@ -71,7 +74,7 @@ def test_a_widget_a_message_carries_holds_the_room_its_words_will_need(browser, 
     The shipped board takes a number off a live box at upgrade — the room a card keeps
     clear of its grip — because a constant goes stale in the next face. A widget
     upgrades wherever the runtime connects it, and one of those places is a message body
-    inside a thread panel nobody has opened: `display: none`, so every box under it is
+    inside a thread view nobody has opened: `display: none`, so every box under it is
     zero. `once` then refuses the second upgrade that would put it right and the body is
     cached for the life of the tab, so the zero is permanent.
 
@@ -114,8 +117,7 @@ def test_a_widget_a_message_carries_holds_the_room_its_words_will_need(browser, 
         # sides reading the same nothing.
         assert held[suffix] not in ("0px", "", None), (suffix, prop, held)
 
-    page.locator(".lf-threads-toggle").click()
-    page.locator(".lf-thread-summary").click()
+    open_panel_thread(page, "c-room")
     expect(page.locator("#mr-msg-b")).to_be_visible()
     # The re-measure is delivered with the layout that gave these their boxes, so the
     # reading waits for the rendering it queued to settle.
@@ -188,10 +190,8 @@ def test_a_drag_across_an_ask_in_a_reply_is_not_a_passage_of_the_page(browser, s
         select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
         return page.evaluate("() => getSelection().toString()")
 
-    # The control, taken with the panel still shut: the same gesture on the page's own
-    # words raises the button here. Opening the panel slides the document over, and a
-    # drag run across that reads a box from the frame before and selects nothing — the
-    # panel's own contents are fixed and stay where they are read.
+    # The control, taken with the panel's view still shut, so it covers none of these
+    # words: the same gesture on the page's own words raises the button here.
     intro = page.locator("#intro")
     box = intro.bounding_box()
     y = box["y"] + box["height"] / 2
@@ -202,8 +202,7 @@ def test_a_drag_across_an_ask_in_a_reply_is_not_a_passage_of_the_page(browser, s
     page.locator("#h").click()
     expect(page.locator(".lf-fab-input")).to_be_hidden()
 
-    page.locator(".lf-threads-toggle").click()
-    page.locator(".lf-thread-summary").click()
+    open_panel_thread(page, "c-store")
     assert "Which store" in drag(page.locator("#ps-decision-region > h3"))
     # Both turns the handler could have used: it defers with a bare setTimeout, and the
     # step it queues queues nothing further.
@@ -311,15 +310,15 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
     resized(page, 1200, 900)
     inline = page.locator(f'#cd-q .lf-msg[data-event="{message["id"]}"]')
     expect(inline.locator(".lf-msg-body")).to_have_text("The north bracket fit.")
-    page.locator(".lf-threads-toggle").click()
-    panel = page.locator(f'.lf-msg[data-mid="{message["id"]}"]')
-    panel_thread = page.locator(f'.lf-thread:has(.lf-msg[data-mid="{message["id"]}"])')
+    panel_thread = open_panel_thread(page, "edited-agent-message")
+    panel = panel_thread.locator(f'.lf-msg[data-event="{message["id"]}"]')
     expect(panel.locator(".lf-msg-text")).to_have_text("The north bracket fit.")
     page.evaluate(
         """([message]) => {
           window.__editedInline = document.querySelector(
             `#cd-q .lf-msg[data-event="${message}"]`);
-          window.__editedPanel = document.querySelector(`.lf-msg[data-mid="${message}"]`);
+          window.__editedPanel = document.querySelector(
+            `.lf-fp-view .lf-msg[data-event="${message}"]`);
           window.__editedWidget = document.querySelector('#edited-message-choice');
         }""",
         [message["id"]],
@@ -344,7 +343,9 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
     )
     told(page)
     # Revealing the edit in either view settles the thread's shared unread state.
-    panel_thread.get_by_role("button", name="1 message edited", exact=True).click()
+    page.locator(".lf-fp-head").get_by_role(
+        "button", name="1 message edited", exact=True
+    ).click()
 
     expect(inline.locator(".lf-msg-body")).to_contain_text("The north bracket fits.")
     expect(panel.locator(".lf-msg-text")).to_contain_text("The north bracket fits.")
@@ -352,12 +353,12 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
     # Editing updates the original message's disclosure in both views.
     expect(inline.locator(":scope > .lf-msg-head .lf-edited")).to_have_text("edited")
     expect(panel.locator(":scope > .lf-msg-head .lf-edited")).to_have_text("edited")
-    expect(page.locator(f'.lf-msg[data-mid="{revision["id"]}"]')).to_have_count(0)
+    expect(page.locator(f'.lf-msg[data-event="{revision["id"]}"]')).to_have_count(0)
     assert page.evaluate(
         f"""() => window.__editedInline === document.querySelector(
           '#cd-q .lf-msg[data-event="{message["id"]}"]')
           && window.__editedPanel === document.querySelector(
-            '.lf-msg[data-mid="{message["id"]}"]')
+            '.lf-fp-view .lf-msg[data-event="{message["id"]}"]')
           && window.__editedWidget === document.querySelector('#edited-message-choice')"""
     ), "the edit replaced an existing message or its frozen widget"
     assert (
@@ -430,12 +431,7 @@ def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, s
     )
     page = open_page(browser, url)
     resized(page, 1200, 900)
-    page.locator(".lf-threads-toggle").click()
-
-    thread = page.locator('.lf-thread[data-id="c-on-sent"]')
-    expect(thread).to_be_visible()
-    # The card is a native disclosure; its quote is behind the title until it is opened.
-    thread.locator(":scope > .lf-thread-summary").click()
-    label = thread.locator(".lf-quote").inner_text()
+    thread = open_panel_thread(page, "c-on-sent")
+    label = thread.locator(".lf-fp-quote").inner_text()
     assert "Which store should I write up?" in label, label
     assert "ps-decision-region" not in label, label

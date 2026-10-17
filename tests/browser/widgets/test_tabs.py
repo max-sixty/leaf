@@ -206,7 +206,7 @@ def test_a_url_into_a_hidden_root_view_lands_once_the_view_is_built(browser, ser
 
 
 def test_a_stuck_root_tab_strip_hides_what_passes_under_it(browser, serve):
-    """The root strip sticks under the banner and paints over the document, so what
+    """The root strip sticks at the window's top and paints over the document, so what
     passes under it is not on screen: `shownRect`, the one reading of that, clips a
     block behind the stuck strip to the strip's foot, which the strip's stated height
     puts at `--lf-top` inside its panels. At the top of the page the strip is in flow
@@ -242,7 +242,8 @@ def test_a_stuck_root_tab_strip_hides_what_passes_under_it(browser, serve):
     )
     scroll_settled(page)
     stuck = page.evaluate(READ)
-    assert stuck["strip"]["top"] > 0, stuck
+    # Stuck at the window's top, where no chrome stands above it.
+    assert stuck["strip"]["top"] == pytest.approx(0, abs=0.5), stuck
     assert stuck["behind"]["top"] < stuck["strip"]["bottom"] < stuck["behind"]["bottom"]
     assert stuck["band"] == pytest.approx(stuck["strip"]["bottom"], abs=0.5), stuck
     assert stuck["shown"] == pytest.approx(stuck["strip"]["bottom"], abs=0.5), stuck
@@ -509,7 +510,7 @@ def test_wide_evidence_in_a_page_tab_takes_the_room_it_would_outside_one(
     """A page tab is a section of the page, so a `wide` or `available` table in its
     open panel takes the box and the column widths its twin outside the set takes: at
     first paint, before the runtime has drawn the strip, then at a desktop window, with
-    the thread panel open over it, and on a phone. A boxed set's panel draws a frame,
+    Threads open over it, and on a phone. A boxed set's panel draws a frame,
     so the same table there stays inside it. Each table has twelve columns, so on a
     column page, where a table granted room takes what its columns need, it needs the
     room."""
@@ -583,9 +584,9 @@ def test_wide_evidence_in_a_page_tab_takes_the_room_it_would_outside_one(
     assert twins("desktop") == first
     # Wider than the reading column, which a workspace's prose does not keep.
     assert first["in-wide"]["width"] > 720, first
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    twins("panel open")
+    page.locator(".lf-fp-threads").click()
+    panel_settled(page, view="threads")
+    twins("threads open")
     resized(page, 390, 800)
     twins("phone")
 

@@ -949,21 +949,6 @@ def accessible_details(page, selector):
         ]
 
 
-def accessible_expanded(page, selector):
-    """Whether the element `selector` is announced expanded, collapsed (False), or as
-    no disclosure at all (None). A `popovertarget` invoker gets this from the
-    platform, with no `aria-expanded` written."""
-    with _accessibility(page) as ax:
-        return next(
-            (
-                prop["value"]["value"]
-                for prop in ax(selector).get("properties", [])
-                if prop["name"] == "expanded"
-            ),
-            None,
-        )
-
-
 def plant_quiet_word(page, selector, holding):
     """Hang a word for a user listening (`.lf-quiet`, the shape a widget's quiet word
     takes) at the end of the first `selector` element whose text holds `holding`, and
@@ -1084,9 +1069,15 @@ def undo(page):
 # takes an async predicate's promise as a truthy answer and returns at once.
 AVAILABLE_COMMANDS = """async () => {
   const {availableCommandRoutes} = await window.__lfCheckApi();
-  window.__lfAvailableCommands = () => Object.fromEntries(
-    [...availableCommandRoutes()].map(([row, keys]) =>
-      [row.id, [...keys].filter((key) => typeof key === 'string').sort()]));
+  // A command can stand in more than one scope, such as a widget's own and the Ask's
+  // digit for it, so the keys of every row with its id are the keys that reach it.
+  window.__lfAvailableCommands = () => {
+    const reached = {};
+    for (const [row, keys] of availableCommandRoutes())
+      reached[row.id] = [...new Set([...(reached[row.id] ?? []),
+        ...[...keys].filter((key) => typeof key === 'string')])].sort();
+    return reached;
+  };
   return window.__lfAvailableCommands();
 }"""
 
@@ -1766,6 +1757,20 @@ def page_comment(page):
     box.click()
     expect(box).to_be_focused()
     return box
+
+
+def expect_panel_says(page, words, *, says=True):
+    """Wait until the panel says, or no longer says, `words` where it says whatever
+    passes, a notice or a walk's position: in the empty field's place, on the line over
+    the field once the caret is in it, or in the leaf's peek over an open view."""
+    page.wait_for_function(
+        """([words, says]) => [
+          document.querySelector('.lf-fp-field leaf-text')?.getAttribute('placeholder'),
+          document.querySelector('.lf-fp-context:not([hidden])')?.textContent,
+          document.querySelector('.lf-fp-peek:not([hidden])')?.textContent,
+        ].some((said) => said?.includes(words)) === says""",
+        arg=[words, says],
+    )
 
 
 # How many of the page's active Asks are answered, as "answered/total": the publisher's

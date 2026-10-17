@@ -1215,8 +1215,8 @@ def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, ser
     page.mouse.move(0, 0)
     expect(bubble).to_be_hidden()
     page.evaluate(RELEASE_FOCUS)
-    # Walk from the layer's skip link through the current banner controls to the
-    # first action in the page. The exact number of banner stops can change.
+    # Walk from the layer's skip link through the chrome's controls to the first
+    # action in the page. The exact number of chrome stops can change.
     for _ in range(12):
         page.keyboard.press("Tab")
         if mark.evaluate("node => document.activeElement === node"):
@@ -1271,8 +1271,9 @@ def test_a_nested_platform_control_does_not_pin_its_gloss(browser, serve):
 
 def test_a_comment_on_a_gloss_reopens_its_explanation(browser, serve):
     """The tip is x-says page text, so a comment can rest on it like a tab's rendered
-    label. Following that comment must reveal the otherwise hidden popover before the
-    anchor scrolls; a durable thread cannot point to words the page then keeps closed."""
+    label. Following that comment from its thread (On the page) must reveal the
+    otherwise hidden popover before the anchor scrolls; a durable thread cannot point to
+    words the page then keeps closed."""
     tip = "A thin, end-to-end path through the real system."
     source = leaf_page(
         "gloss comment",
@@ -1285,7 +1286,7 @@ def test_a_comment_on_a_gloss_reopens_its_explanation(browser, serve):
     bubble = page.locator("#lf-gloss-tip-1")
 
     expect(bubble).to_be_hidden()
-    page.locator(".lf-threads-toggle").click()
-    page.locator(".lf-thread-summary").click()
-    page.locator(".lf-thread .lf-quote").click()
+    page.locator(".lf-fp-threads").click()
+    page.locator(".lf-fp-thread").click()
+    page.locator(".lf-fp-head").get_by_role("button", name="On the page").click()
     expect(bubble).to_be_visible()

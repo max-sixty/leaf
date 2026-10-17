@@ -19,10 +19,11 @@ from render_harness import (
     leaf_page,
     names,
     open_page,
-    panel_settled,
     plant_quiet_word,
     resized,
 )
+
+from browser.threads import open_panel_thread
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -501,9 +502,7 @@ def test_a_chart_in_a_closed_thread_draws_at_its_visible_width_when_opened(
         page.evaluate("() => document.getElementById('msg-chart').clientWidth") == 0
     ), "the panel must be shut, or there was a box all along"
 
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    page.locator(".lf-thread-summary").click()
+    open_panel_thread(page, "c-chart")
     expect(page.locator("#msg-chart svg[role=img]")).to_be_visible()
     page.wait_for_function(
         """() => {

@@ -49,14 +49,6 @@ def test_ship_review_asks_are_directly_answerable(browser, serve, tmp_path):
     expect(page.locator("#off-workaround-approve .lf-pick")).to_have_attribute(
         "aria-checked", "true"
     )
-    # A shortcut bar with no rows in it is silent: the chrome paints, the console stays
-    # clean, and every other everyday assertion holds while no user can see a key.
-    # The boot's own failure is loud and covered by `errors` below, so what is asked
-    # for here is the rows — the More control's keycap is static and would show
-    # whatever happened. At rest a page shows `c` and `e`.
-    expect(
-        page.locator(".lf-shortcut-bar .lf-shortcut:not([data-lf-off-line])")
-    ).not_to_have_count(0)
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "2")
     page.locator("#off-workaround-review .lf-pick").first.click()
     expect_asks_answered(page, "0/2")

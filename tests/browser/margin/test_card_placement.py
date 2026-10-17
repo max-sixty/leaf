@@ -8,9 +8,10 @@ from leaf import thread as thread_model
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import ASK_PAGE, PANEL_PAGE, panel_comment
-from render_cases_layout import banner_control
 from render_harness import (
     EXAMPLES,
+    PANEL,
+    PANEL_THREAD,
     ROOT,
     holding,
     leaf_page,
@@ -75,12 +76,12 @@ def test_a_thread_card_is_unseen_until_its_first_placement_lands(browser, serve)
         expect(preview).to_contain_text("Check the tools separately.")
         page.keyboard.press("Escape")
         expect(preview).to_be_hidden()
-        page.locator(".lf-threads-toggle").focus()
+        page.locator(".lf-fp-threads").focus()
 
         held.pop(0).continue_()
         rendered(page)
         expect(preview).to_be_hidden()
-        expect(page.locator(".lf-threads-toggle")).to_be_focused()
+        expect(page.locator(".lf-fp-threads")).to_be_focused()
         expect(preview).not_to_have_attribute("data-lf-thread-placement")
 
         first.click()
@@ -483,13 +484,12 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     geometry = marker.evaluate(
         """markerNode => {
           const main = document.querySelector('main').getBoundingClientRect();
-          const banner = document.querySelector('.lf-banner').getBoundingClientRect();
           const controls = markerNode.closest('[data-lf-margin-for]').getBoundingClientRect();
           const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
           const reply = document.querySelector('.lf-margin-thread .lf-thread-reply')
             .getBoundingClientRect();
           const cardStyle = getComputedStyle(document.querySelector('.lf-margin-preview'));
-          return {bannerBottom: banner.bottom, mainLeft: main.left,
+          return {mainLeft: main.left,
                   mainRight: main.right, controlsRight: controls.right,
                   controlsTop: controls.top, controlsBottom: controls.bottom,
                   cardLeft: card.left, cardRight: card.right, cardTop: card.top,
@@ -498,13 +498,13 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
                   borderLeft: cardStyle.borderLeftWidth,
                   borderRight: cardStyle.borderRightWidth,
                   replyTop: reply.top, replyBottom: reply.bottom,
-                  panelOpen: document.querySelector('.lf-thread-panel').classList.contains('open')};
+                  panelOpen: 'open' in document.querySelector('.lf-floating-panel').dataset};
         }"""
     )
     assert geometry["cardLeft"] >= page.evaluate(WORDS_RIGHT) + 7.5, geometry
     assert geometry["cardRight"] <= geometry["viewportRight"] - 7, geometry
     assert geometry["cardWidth"] >= 379, geometry
-    assert geometry["cardTop"] >= geometry["bannerBottom"] + 7, geometry
+    assert geometry["cardTop"] >= 7, geometry
     assert geometry["cardBottom"] <= 892, geometry
     assert geometry["replyTop"] >= geometry["cardTop"], geometry
     assert geometry["replyBottom"] <= geometry["cardBottom"], geometry
@@ -537,14 +537,13 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     expect(preview).to_be_visible()
     capped = preview.evaluate(
         """card => {
-          const banner = document.querySelector('.lf-banner').getBoundingClientRect();
           const box = card.getBoundingClientRect();
           const list = card.querySelector('.lf-thread-transcript');
-          return {bannerBottom: banner.bottom, top: box.top, bottom: box.bottom,
+          return {top: box.top, bottom: box.bottom,
                   clientHeight: list.clientHeight, scrollHeight: list.scrollHeight};
         }"""
     )
-    assert capped["top"] >= capped["bannerBottom"] + 7, capped
+    assert capped["top"] >= 7, capped
     assert capped["bottom"] <= 472.5, capped
     assert capped["scrollHeight"] > capped["clientHeight"], capped
     # The thread scrolls while its opening metadata and settlement remain usable.
@@ -570,14 +569,16 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
-    expect(preview).to_be_hidden()
-    expect(page.locator(".lf-queue-panel")).to_have_class(re.compile(r"\bopen\b"))
-    # Exchanging one auxiliary surface for another is lateral, so the drawer's Escape
-    # lands on the page and the card it displaced is not put back up.
+    # On me opens in the panel over the page's foot, beside the card rather than in
+    # its place, and the view's Escape puts it away to the page; the card's own
+    # Escape follows.
+    panel_settled(page, view="queue")
+    expect(preview).to_be_visible()
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-queue-panel")).not_to_have_class(re.compile(r"\bopen\b"))
-    expect(preview).to_be_hidden()
+    panel_settled(page, open=False)
     assert page.evaluate("() => document.activeElement === document.body")
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
     marker.click()
     expect(preview).to_be_visible()
     expect(thread.locator(".lf-page-thread")).to_be_focused()
@@ -586,12 +587,11 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     open_full.focus()
     expect(open_full).to_be_focused()
     page.keyboard.press("Enter")
-    panel_settled(page)
-    expect(preview).to_be_hidden()
-    expect(page.locator(".lf-thread-panel")).to_have_class(re.compile(r"\bopen\b"))
-    expect(page.locator("#off-slip")).to_be_in_viewport()
+    # The thread opens in the panel, which draws the reply's interactive widgets.
+    panel_settled(page, view="thread")
+    expect(page.locator(f"{PANEL_THREAD} #off-slip")).to_be_in_viewport()
     expect(page.locator("#off-slip-chase [role=checkbox]")).to_be_checked()
-    page.get_by_role("button", name="Close threads").click()
+    page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
     marker.focus()
     page.keyboard.press("Enter")
@@ -631,13 +631,13 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     expect(preview).to_be_visible()
     expect(marker).to_have_attribute("aria-controls", "lf-margin-preview")
     expect(marker).to_have_attribute("aria-expanded", "true")
-    expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile(""))
     leave_card_by_its_target(page)
     marker.hover()
     expect(preview).to_be_hidden()
     marker.click()
     expect(preview).to_be_visible()
-    expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile(""))
 
     leave_card_by_its_target(page)
     resized(page, 1280, 600)
@@ -679,7 +679,6 @@ def test_crossing_to_the_small_screen_keeps_the_card_by_its_pin(browser, serve):
     row = marker.locator("xpath=ancestor::*[@data-lf-margin-for][1]")
     expect(row).to_have_attribute("data-lf-place", "pin")
     expect(marker).to_be_visible()
-    expect(banner_control(page, ".lf-page-map-toggle")).to_be_visible()
     expect(card).to_be_visible()
 
 
@@ -861,13 +860,13 @@ def test_a_card_beside_an_element_scrolled_past_its_top_waits_at_the_windows_top
 ):
     """Beside an element, a card stays level with some line of it. A scroll that takes
     the element's top past the window's, with the rest still showing, leaves the card
-    held at the window's top, below the banner, in the window's plane, so the scroll
-    writes nothing. Stood level with the element's clipped top instead, the card sat
-    under the banner in the page's plane: the browser carried it with each scroll
+    held at the window's top, in the window's plane, so the scroll writes nothing.
+    Stood level with the element's clipped top instead, the card sat at the window's
+    top in the page's plane: the browser carried it with each scroll
     frame and the next placement pulled it back, and Shift+a up to an Ask with a
     thread shook its card. Once the element's foot passes the window's top, the card
-    leaves with it. On an Ask's options, the binding badge the banner holds in stands
-    in the window's plane too, for the same reason."""
+    leaves with it. On an Ask's options, the binding badge held at the window's top
+    stands in the window's plane too, for the same reason."""
     comment = {**COMMENT_ON_ASK, "anchor": {"section": target}}
     # Give the last Ask room to pass above the viewport before scroll reaches the
     # document's end; the fixture otherwise stops with #bracket still visible.

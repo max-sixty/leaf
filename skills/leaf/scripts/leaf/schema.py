@@ -573,6 +573,7 @@ ATTRIBUTE_KEYS = (
 # measure in its own stylesheet (`max-inline-size: var(--lf-measure)`), so `x-space`
 # names a breakout and nothing else.
 #
+# `presence` paints only whether a declaration exists, without serializing its rules.
 # Delivery paints a page's document from this (`revision_delivery.mark_declared`).
 # Composition stamps it into the vocabulary as `$marks` (`registry.layer.
 # stamp_composition`), from which the runtime paints a message it renders and tells the
@@ -604,6 +605,7 @@ DECLARED_MARKS = {
     "x-reading-role": {"paint": "data-lf-reading-role", "message": True},
     "x-resident": {"paint": "data-lf-resident", "message": False},
     "x-views": {"paint": "data-lf-views", "message": True},
+    "x-awaits": {"paint": "data-lf-awaits", "presence": True, "message": True},
 }
 
 SKILL_ROOT = Path(__file__).resolve().parent.parent.parent

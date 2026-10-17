@@ -24,9 +24,15 @@
  *
  * `lfElementsFor(key)` answers another widget's indication (runtime/indication.js,
  * experimental) in that same grammar. A number outside the block addresses nothing,
- * so a driver can offer one key to several excerpts of the same file. */
+ * so a driver can offer one key to several excerpts of the same file.
+ * The reader can switch wrapping through the code block’s command scope without rebuilding source rows. This
+ * is tab-local reading state, retained by widget id across revisions, not a decision.
+ * Until the reader chooses, authored presentation remains the default. Paper wraps
+ * complete lines regardless of the screen choice. */
 import {
   bodyText,
+  commands,
+  tabStore,
   copyBlock,
   once,
   failSoft,
@@ -126,9 +132,10 @@ customElements.define(
           const at = Number(note.getAttribute("at"));
           byLine.set(at, [...(byLine.get(at) ?? []), note]);
         }
-        // No tab stop written here: the runtime's reachScrollers pass grants one to
-        // every scrollable box alike.
+        // Reading commands remain reachable when wrapping removes overflow.
         const pre = document.createElement("pre");
+        pre.setAttribute("data-lf-carry", "source");
+        pre.tabIndex = 0;
         // The gutter fits the widest number, so an excerpt from deep in a file keeps
         // its code aligned with its notes.
         pre.style.setProperty("--lf-code-digits", `${String(numbers.at(-1)).length}`);
@@ -170,6 +177,38 @@ customElements.define(
         pre.append(...notes.filter((note) => !pre.contains(note)));
         this.replaceChildren(pre);
         this.classList.add("lf-rendered");
+        const key = `code-wrap:${this.id}`;
+        const saved = tabStore.get(key);
+        let wrapped =
+          getComputedStyle(pre.querySelector(".lf-code-line")).whiteSpace !== "pre";
+        let horizontal = 0;
+        const paintWrap = (value) => {
+          wrapped = value;
+          if (!this.hasAttribute("data-lf-reader-wrap"))
+            this.setAttribute("data-lf-reader-wrap", "");
+          for (const line of /** @type {NodeListOf<HTMLElement>} */ (
+            pre.querySelectorAll(".lf-code-line")
+          )) {
+            line.style.whiteSpace = value ? "pre-wrap" : "pre";
+            line.style.overflowWrap = value ? "anywhere" : "normal";
+          }
+        };
+        if (saved !== null) paintWrap(saved === "true");
+        const toggleWrap = () => {
+          if (!wrapped) horizontal = pre.scrollLeft;
+          paintWrap(!wrapped);
+          tabStore.set(key, String(wrapped));
+          if (!wrapped) pre.scrollTo({ left: horizontal, behavior: "instant" });
+          layoutChanged(this);
+        };
+        commands(this, "On a code block", [
+          {
+            id: "code.wrap",
+            keys: ["w"],
+            title: () => (wrapped ? "unwrap lines" : "wrap lines"),
+            run: toggleWrap,
+          },
+        ]);
         this.append(copyBlock(pre, () => source, "code"));
         layoutChanged(this);
       } catch (err) {

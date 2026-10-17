@@ -48,18 +48,19 @@ def condition(column: str) -> str:
 
 
 def measures(sample: dict) -> dict:
-    """What a sample's author spent over its phases, and whether its final
-    decision values were recovered correctly."""
+    """What a sample's author spent over its phases. The live judge owns correctness."""
     recorded = sample["diagnostics"]["phases"]
     comparison = sample["diagnostics"]["comparison"]
     session = [
         recorded.get(str(p), {}).get("trace", {}) for p in comparison["author_phases"]
     ]
+    initial = recorded.get("1", {}).get("trace", {})
     return {
+        "initial_minutes": initial.get("minutes") if initial.get("completed") else None,
         "minutes": observed_sum(p.get("minutes") for p in session),
+        "input_tokens": observed_sum(p.get("input_tokens") for p in session),
         "cost": observed_sum(p.get("cost_usd") for p in session),
         "turns": observed_sum(p.get("turns") for p in session),
-        "applied": sample["checks"].get("decision-applied"),
     }
 
 
@@ -333,12 +334,12 @@ def task_section(page: Path, subject: str, columns: dict, pairs: list[dict]) -> 
     ]
     metrics = [
         ("samples", "Samples", ".0f", ""),
+        ("initial_minutes", "Initial author completion (min)", ".1f", ""),
         ("minutes", "All author phases (min)", ".1f", ""),
+        ("input_tokens", "Input tokens, including cached", ",.0f", ""),
         ("cost", "Reported author cost", ".2f", "$"),
         ("turns", "Author turns", ".0f", ""),
     ]
-    if "_before_decision" in comparison["phases"]:
-        metrics.append(("applied", "Final decision correct", ".0%", ""))
     rows = [
         f'<tr><th scope="row">{label}</th>'
         + "".join(
@@ -357,7 +358,10 @@ def task_section(page: Path, subject: str, columns: dict, pairs: list[dict]) -> 
         + "</tr></thead><tbody>"
         + "".join(rows)
         + "</tbody></table>"
-        + "<p>Means across samples. Unreported cost is unavailable, not zero.</p>"
+        + "<p>Means across samples. Initial completion ends when the author answers; "
+        "it does not measure first usability. An unfinished initial turn is unavailable. "
+        "Token totals include cached input; "
+        "unreported cost is unavailable, not zero.</p>"
     )
     first, second = sorted(columns)
     sections = "".join(

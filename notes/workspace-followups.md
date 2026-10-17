@@ -8,9 +8,13 @@ requires Max's real tasks.
 
 <a id="item-20"></a>
 
-- **#20 — Teach the compositions that prove useful.** Test short composition
-  suggestions against the failures the [plain HTML comparison](agent-usability-evals.md#authoring-against-plain-html-2026-10-12)
-  observed, with an unfamiliar author.
+- **#20 — Test compositions where evidence supports them.** Start from the
+  [recovered Codex comparison](agent-usability-evals.md#recovered-codex-comparison-2026-10-14),
+  whose paired grader now sees the decision surface as well as the final record.
+  Reproduce remaining authoring failures on current code before testing short
+  composition suggestions with an unfamiliar author. The older plain HTML
+  configuration advantage preceded per-item playground controls and does not by
+  itself justify more instructions.
   Keep widget-specific advice in `x-instructions`, cross-widget compositions in package
   instructions, and general selection principles in the authoring reference.
 

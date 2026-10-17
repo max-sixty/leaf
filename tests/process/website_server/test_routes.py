@@ -19,7 +19,7 @@ from leaf.revision_artifact import capture_artifact
 from leaf.revision_delivery import compose_document
 from leaf.served_state import page as served_page
 from leaf.structure import SourceDocument
-from leaf_dev.commands import journey, refresh_previews, verify_site
+from leaf_dev.commands import journey, verify_site
 
 from process.website_server import (
     FakeCodexHarness,
@@ -647,20 +647,3 @@ def test_a_product_route_uses_the_same_real_page_server(
         )
         assert started == {"status": "started", "thread": "codex-thread"}
         assert agent_harness.attached == [published]
-
-
-def test_the_preview_generator_uses_the_live_website_route(page_dir, tmp_path):
-    site = tmp_path / "site"
-    published = site / "examples" / "decision"
-    published.parent.mkdir(parents=True)
-    shutil.copytree(page_dir, published)
-    write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
-
-    with refresh_previews.serve_examples(site) as root:
-        state = json.loads(get(f"{root}/examples/decision/api/state")[0])
-
-    assert state["publication"] == {
-        "kind": "example",
-        "agent": "Agent",
-        "install_url": "/#install",
-    }

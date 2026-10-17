@@ -1,5 +1,5 @@
-"""The website container's routes, Codex harness and deploy gate, with the helpers and
-fake readings its test modules share."""
+"""The website container's routes and Codex harness, with the helpers its product
+test modules share."""
 
 import json
 import urllib.error
@@ -153,50 +153,3 @@ class FakeCodexHarness:
         return website_server.WebsiteCodexHarness("codex").failure_receipt(
             page_dir, event_id, failure
         )
-
-
-class _Read:
-    ok = True
-    status = 200
-
-    def __init__(
-        self,
-        payload: dict,
-        body: str = "",
-        headers: dict | None = None,
-        *,
-        url: str = "",
-        request=None,
-    ):
-        self.payload = payload
-        self.body = body
-        self.headers = headers or {}
-        self.url = url
-        self.request = request
-
-    def json(self) -> dict:
-        return self.payload
-
-    def text(self) -> str:
-        return self.body
-
-
-TURN_LOG = [
-    {"kind": "comment", "id": "test-comment", "ts": "2026-10-04T12:00:00.000-07:00"},
-    {
-        "kind": "thread_title",
-        "id": "test-title",
-        "thread": "test-comment",
-        "title": "Deployment heading",
-        "ts": "2026-10-04T12:00:02.250-07:00",
-    },
-    {
-        "kind": "reply",
-        "id": "test-answer",
-        "author": "agent",
-        "parent": "test-comment",
-        "responds": "test-comment",
-        "text": "deployment verified",
-        "ts": "2026-10-04T12:00:12.500-07:00",
-    },
-]

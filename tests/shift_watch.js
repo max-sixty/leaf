@@ -393,14 +393,14 @@
     window.visualViewport?.addEventListener(type, announce);
   document.fonts?.addEventListener("loadingdone", announce);
   // Emulated media changes style with no event but its query's.
-  for (const query of [
+  const presentationMedia = [
     "print",
     "(prefers-color-scheme: dark)",
     "(prefers-reduced-motion: reduce)",
     "(forced-colors: active)",
     "(prefers-contrast: more)",
-  ])
-    matchMedia(query).addEventListener("change", announce);
+  ].map((query) => matchMedia(query));
+  for (const query of presentationMedia) query.addEventListener("change", announce);
   // Page state that matches selectors or applies style without a DOM write.
   const announcing = (proto, names) => {
     for (const name of names) {
@@ -1360,21 +1360,27 @@
       event,
     );
   });
-  // A viewport resize is input, and its new size is the fact. Chrome lays out the
-  // resized viewport before dispatching resize, which precedes the frame's callbacks,
-  // so tick() always runs after it; a layout-shift record delivered between the two,
-  // as one from an earlier frame can be on a busy machine, has its pose read at the new
-  // size, so the observer looks at the size before reading. The preceding pose seals
-  // typing; taking a new pose here would attribute the resize to the key.
-  let viewport = [innerWidth, innerHeight];
-  const resized = () => {
-    if (innerWidth === viewport[0] && innerHeight === viewport[1]) return;
-    viewport = [innerWidth, innerHeight];
+  // Resizing and media preferences change the browser's presentation. Their new
+  // state is the fact: layout can precede the native event, and a shift record
+  // delivered between them already reads the new presentation, so the observer checks
+  // it before reading. The preceding pose seals typing; taking a new pose here would
+  // attribute the presentation change to the key.
+  const presentationState = () => [
+    innerWidth,
+    innerHeight,
+    ...presentationMedia.map((query) => query.matches),
+  ];
+  let presentation = presentationState();
+  const presentationChanged = () => {
+    const next = presentationState();
+    if (next.every((value, index) => value === presentation[index])) return;
+    presentation = next;
     const before = frames.at(-1)?.at ?? nativePerformance.now();
     if (open?.typing?.until === Infinity) open.typing.until = before;
     begin(nativePerformance.now());
   };
-  listen(window, "resize", resized);
+  listen(window, "resize", presentationChanged);
+  for (const query of presentationMedia) listen(query, "change", presentationChanged);
   // When the page adopted each server reading.
   new MutationObserver(() => {
     unwatch();
@@ -2460,7 +2466,7 @@
   // judges it is complete whatever changed the page, announced or not.
   const received = (entries) => {
     announce();
-    resized();
+    presentationChanged();
     for (const entry of entries) {
       const frame = frames.findLastIndex(({ start }) => start <= entry.startTime);
       // Layout follows the entering frame callback. Counted work can still own

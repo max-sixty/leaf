@@ -545,6 +545,46 @@ const bundles = {
     chunkNames: "pierre/[name]-[hash]",
     adapt: [
       {
+        file: /@pierre\/diffs\/dist\/managers\/ResizeManager\.js$/,
+        // Leaf seats wrapping conversations in Pierre's code grid. Its column
+        // widths can change those conversations' height, including the observed
+        // code/gutter boxes. Apply them in Leaf's next frame, outside ResizeObserver
+        // delivery, so readiness includes the resulting layout. The manager lookup
+        // at delivery drops retired nodes, so a file
+        // removed before that frame receives no writes. This is Leaf's integration
+        // adaptation, not an upstream backport.
+        edit: (source) => {
+          source = seam(
+            source,
+            "\t\tif (columnCount > 1 && !disableAnnotations) {",
+            `		// Pierre's code and gutter have no inline padding or border: their CSS
+		// widths are the content widths the observer will report. Initialize
+		// through the same update path before a wrapping conversation paints.
+		// No layout box has zero content width, as in ResizeObserver's reading;
+		// computed width can be "auto" while a file's ancestor is hidden.
+		const columnInlineSize = element => element == null || !element.getClientRects().length
+			? 0 : parseFloat(getComputedStyle(element).width);
+		this.applyColumnUpdates(new Map([...new Set(this.observedNodes.values())]
+			.filter(item => item.type === "code")
+			.map(item => [item, {
+				codeInlineSize: columnInlineSize(item.codeElement),
+				numberInlineSize: columnInlineSize(item.numberElement)
+			}])));
+		if (columnCount > 1 && !disableAnnotations) {`,
+            "Pierre initial column sizing",
+          );
+          return (
+            'import {nextFrame as leafNextFrame} from "/runtime/widget-api.js";\n' +
+            seam(
+              source,
+              "new ResizeObserver(ResizeManager.handleSharedResizeEntries)",
+              "new ResizeObserver((entries) => leafNextFrame(() => ResizeManager.handleSharedResizeEntries(entries)))",
+              "Pierre resize delivery phase",
+            )
+          );
+        },
+      },
+      {
         file: /@pierre\/diffs\/dist\/index\.js$/,
         edit: (source) =>
           selectedExports(
@@ -570,6 +610,7 @@ const bundles = {
       },
     ],
     platform: "browser",
+    external: ["/runtime/widget-api.js"],
     target: "chrome105",
     banner: {
       js: `/*! @pierre/diffs ${version("@pierre/diffs")} — Apache-2.0 — licenses: pierre-diffs.LICENSES.txt */`,

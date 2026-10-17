@@ -1396,42 +1396,9 @@ UNPARSABLE_DIAGRAM = LONG_PAGE.replace(
     "</main>",
     "<lf-diagram id='d-broken'><pre>\nleaf-unsupported\n  Ada,Review,3\n</pre></lf-diagram>\n</main>",
 )
-# The thread list is reconciled, not rebuilt, and the tests below are its faces: a
-# send is a gesture and reveals what it made; an arrival is news and moves nothing; a
-# resolution moves a thread without remaking its neighbours; and all of it holds
-# because the nodes survive the poll instead of being replaced by lookalikes. The old
-# rebuild passed a lookalike test easily — same markup, fresh nodes — which is why
-# these pin identity (a probed element) and geometry (a held thread's own box), not
-# appearance.
-
-
-def in_threads_scrollport(page, selector):
-    """Whether the node is fully inside the panel's open view's scrollport — waited
-    for, because the reveal scrolls smoothly and only the arrival is the fact."""
-    page.wait_for_function(
-        """(sel) => {
-            const box = document.querySelector('.lf-fp-view:not([data-leaving])');
-            const node = document.querySelector(sel);
-            if (!box || !node) return false;
-            const b = box.getBoundingClientRect(), n = node.getBoundingClientRect();
-            return n.top >= b.top && n.bottom <= b.bottom;
-        }""",
-        arg=selector,
-    )
 
 
 RINGS_DRAWN = browser_function("focus_rings.js", "ringsDrawn", using="control_name.js")
-
-
-COVERED_TOP = """() => {
-  const el = document.activeElement;
-  const box = document.querySelector('.lf-fp-view:not([data-leaving])');
-  if (!el || !box?.contains(el)) return null;
-  const r = el.getBoundingClientRect();
-  const top = box.getBoundingClientRect().top + box.clientTop;
-  if (r.top >= top - 0.5) return null;
-  return `the panel view's top edge cuts it ${Math.round(top - r.top)}px in`;
-}"""
 
 
 # Which focus ring a box wears is which rule drew it, and the browser says so: the

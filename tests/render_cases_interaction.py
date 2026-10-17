@@ -88,21 +88,6 @@ def answered_comment(d, text, anchor):
     return root
 
 
-# Every frame the fold paints, sampled from the page because there is nowhere else to
-# sample it: what a motion looks like is a sequence, and every other check here reads a
-# state. One height per animation frame until the node leaves the page, which is the
-# fold's own end and so the wait's fact.
-FRAME_BY_FRAME = """(sel) => {
-  window.__seen = [];
-  window.__done = false;
-  const tick = () => {
-    const el = document.querySelector(sel);
-    if (!el) return void (window.__done = true);
-    window.__seen.push(+el.getBoundingClientRect().height.toFixed(1));
-    requestAnimationFrame(tick);
-  };
-  requestAnimationFrame(tick);
-}"""
 STACKED_OPTIONS_PAGE = leaf_page(
     "stacked options",
     """
@@ -957,24 +942,6 @@ WRAP_TOP = """() => { const r = document.createRange();
 # that matched in width and not in colour would be two rings that look like one.
 RING = """(el) => { const s = getComputedStyle(el);
     return [s.outlineStyle, s.outlineWidth, s.outlineColor]; }"""
-# One target of ordinary height and one taller than any viewport, both far enough down
-# that arriving at either is a real scroll.
-TRAVEL_PAGE = leaf_page(
-    "travel",
-    f"""
-<h1 id="h">Placement</h1>
-{"".join(f"<p>Fill paragraph {i}, long enough to take a line of its own.</p>" for i in range(10))}
-<lf-diagram id="flow"><pre>
-graph LR
-  Cart --&gt; Pay
-</pre></lf-diagram>
-{"".join(f"<p>More fill, paragraph {i}.</p>" for i in range(10))}
-<section id="long-part">
-<h2>The long tail</h2>
-{"".join(f"<p>Tail fill, paragraph {i}, deep enough that the section outgrows any viewport.</p>" for i in range(24))}
-</section>
-""",
-)
 # One parent over two leaves, so a status report has to move both the marker and
 # the parent's computed done-fraction — the state a stylesheet cannot recount.
 REPORT_PAGE = leaf_page(

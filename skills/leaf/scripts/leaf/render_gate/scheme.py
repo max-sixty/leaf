@@ -19,7 +19,7 @@ from leaf.render_checks import (
     wait_until_ready,
 )
 
-from .readings import DevtoolsIssues, _scheme_findings, _SchemeContext
+from .readings import DevtoolsIssues, _scheme_findings, _SchemeContext, thread_findings
 
 
 def served(page, url: str, path: str, timeout_ms: int | None = None):
@@ -409,4 +409,8 @@ def _render_scheme(
     found = _scheme_findings(context)
     if then is not None:
         then(page, registry)
+    # Last, because opening a thread changes what the page shows `then`.
+    heard = len(errors)
+    found += thread_findings(context, found)
+    found += errors[heard:]
     return ended(found, resize_notices, complete=True)

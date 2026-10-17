@@ -1,4 +1,5 @@
 import { USER_VIEW_RESTORE_CASES } from "/runtime/check-api.js";
+import { readThreads, threadActions } from "/runtime/widget-api.js";
 import { at } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 
@@ -61,3 +62,28 @@ export function sendsAcked() {
   const { sends, acked } = JSON.parse(traffic);
   return sends === acked;
 }
+
+// The threads whose messages carry authored markup, whose widgets render only where the
+// thread is drawn: in its margin card, or in the floating panel's thread view where
+// nothing on the page shows it. The gate opens each in turn to read them.
+export const threadsHoldingMarkup = () =>
+  readThreads()
+    .threads.filter((thread) =>
+      thread.msgs.some((message) => message.body.kind === "authored"),
+    )
+    .map((thread) => thread.key);
+
+// Open one thread where a reader would find it, without moving focus or the page.
+// A probe is synchronous, so the opening's answer is kept for `threadOpening` to read:
+// null while it runs, then whether it drew the thread, or the error it threw.
+let opening = null;
+export function openThreadToCheck(key) {
+  const current = { key, answer: null };
+  opening = current;
+  threadActions.open(key, { focus: false, travel: false, flash: false }).then(
+    (destination) => (current.answer = { shown: Boolean(destination) }),
+    (error) =>
+      (current.answer = { shown: false, error: String(error?.stack ?? error) }),
+  );
+}
+export const threadOpening = (key) => (opening?.key === key ? opening.answer : null);

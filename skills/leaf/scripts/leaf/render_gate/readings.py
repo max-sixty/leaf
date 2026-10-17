@@ -21,7 +21,7 @@ from leaf.projection import (
     rewritten_bodies,
 )
 from leaf.registry.contract import is_element_name, retirement_slots
-from leaf.render_checks import evaluate_probe, one_frame, rendered
+from leaf.render_checks import evaluate_probe, one_frame, rendered, wait_for_probe
 from leaf.structure import SourceDocument
 
 # A probe's arguments cross as JSON, so a node only CDP can name is handed to the
@@ -240,15 +240,45 @@ def _retired_holders(context: _SchemeContext) -> list[dict]:
 def _scheme_findings(context: _SchemeContext) -> list[Finding]:
     """Every finding read from one settled scheme, without the scheme it was read in."""
     page = context.page
+    unmarkable = evaluate_probe(page, "unmarkableElements")
+    column = evaluate_probe(page, "columnGeometry")
+    scrollbars = evaluate_probe(page, "scrollbarClearance")
+    reachability = evaluate_probe(page, "reachabilityReading")
+    missing_threads = []
+    retired = []
+    if context.light:
+        # x-thread-seat promises one page view per matching instance. A widget in
+        # thread chrome already has the thread's reply surface and threadBox
+        # deliberately returns none there. Everywhere else, ask the merged registry
+        # for the instances and the module's own marker for the host it placed.
+        missing_threads = evaluate_probe(page, "missingThreads", context.declarations)
+        # Behind the caught-up wait: the settlement mark is replay's own write, so a
+        # reading taken earlier asks after paint the page has not been asked to make
+        # yet. Before the widget readings, whose replay is the last.
+        if context.replayed and (holders := _retired_holders(context)):
+            retired = evaluate_probe(page, "retiredSlots", holders)
+    found = [*context.errors, *_widget_findings(context)]
+    found += map(Finding.read, unmarkable)
+    found += _overflow(column["overflow"], column["misplaced"]).values()
+    found += _scrollbars(scrollbars).values()
+    for kind in ("clipped", "unreachable", "covered"):
+        found += map(Finding.read, reachability[kind])
+    found += context.devtools.findings()
+    found += map(Finding.read, missing_threads)
+    found += map(Finding.read, retired)
+    found += context.unsettled
+    return found
+
+
+def _widget_findings(context: _SchemeContext) -> list[Finding]:
+    """The readings of what widgets render, wherever they are drawn: the page, and an
+    open thread's messages (`thread_findings`)."""
+    page = context.page
     declarations = context.declarations
     replayed = context.replayed
     invalid_paints = evaluate_probe(page, "invalidPaints")
     missing_upgrades = evaluate_probe(page, "missingUpgrades", declarations)
     tiny = evaluate_probe(page, "tinyBoxes", declarations)
-    unmarkable = evaluate_probe(page, "unmarkableElements")
-    column = evaluate_probe(page, "columnGeometry")
-    scrollbars = evaluate_probe(page, "scrollbarClearance")
-    reachability = evaluate_probe(page, "reachabilityReading")
     # Shadow roots the registry doesn't declare: the passage walk, the
     # capture and the id lookups cross exactly the declared ones, so an
     # undeclared root's words silently anchor quotes astray. Generated controls
@@ -262,61 +292,64 @@ def _scheme_findings(context: _SchemeContext) -> list[Finding]:
     dishonest_verbatim = _verbatim_findings(context) if replayed else []
     # Replay is scheme-blind, so one scheme's reading covers both.
     silent = []
-    missing_threads = []
     undeclared_attrs = []
-    retired = []
     relative = []
-    if context.light:
-        # x-thread-seat promises one page view per matching instance. A widget in
-        # thread chrome already has the thread's reply surface and threadBox
-        # deliberately returns none there. Everywhere else, ask the merged registry
-        # for the instances and the module's own marker for the host it placed.
-        missing_threads = evaluate_probe(page, "missingThreads", declarations)
-        # Behind the caught-up wait above: a report moves a declared attribute, so
-        # a reading taken any earlier asks after a word the page has not been asked
-        # to say yet. A page that never caught up is already reported there and
-        # read no further.
-        if replayed:
-            silent = evaluate_probe(page, "silentWords", declarations)
-            # Behind the same wait, because reconciliation is one of the two
-            # writers: a widget's render states one declared fact whole, and a
-            # record form is exactly the attribute it may state that fact in.
-            undeclared_attrs = evaluate_probe(page, "undeclaredAttrs", declarations)
-            # Behind it too: the settlement mark is replay's own write, so a
-            # reading taken earlier asks after paint the page has not been
-            # asked to make yet.
-            if holders := _retired_holders(context):
-                retired = evaluate_probe(page, "retiredSlots", holders)
-            # Last: render the complete state again to prove idempotence.
-            # The caught-up wait ensures they observe the same settled projection as
-            # the preceding read-only probes.
-            relative = evaluate_probe(page, "relativeReplays")
+    # Behind the caught-up wait: a report moves a declared attribute, so a reading
+    # taken any earlier asks after a word the page has not been asked to say yet. A
+    # page that never caught up is already reported there and read no further.
+    if context.light and replayed:
+        silent = evaluate_probe(page, "silentWords", declarations)
+        # Behind the same wait, because reconciliation is one of the two writers: a
+        # widget's render states one declared fact whole, and a record form is
+        # exactly the attribute it may state that fact in.
+        undeclared_attrs = evaluate_probe(page, "undeclaredAttrs", declarations)
+        # Last: render the complete state again to prove idempotence, against the
+        # same settled projection the read-only probes before it observed.
+        relative = evaluate_probe(page, "relativeReplays")
     # The replay above can resize what an observer watches. Chrome
     # delivers that notice in the next rendering turn, so closing on the write
     # would call an attempt complete before its last error channel had spoken.
     one_frame(page)
-    found = [*context.errors, *map(Finding.read, invalid_paints)]
+    found = list(map(Finding.read, invalid_paints))
     if missing_upgrades:
         found.append(Finding("missing-upgrades", values={"tags": missing_upgrades}))
     if tiny:
         found.append(Finding("tiny-boxes", values={"boxes": tiny}))
-    found += map(Finding.read, unmarkable)
-    found += _overflow(column["overflow"], column["misplaced"]).values()
-    found += _scrollbars(scrollbars).values()
-    for kind in ("clipped", "unreachable", "covered"):
-        found += map(Finding.read, reachability[kind])
     if undeclared_shadow:
         found.append(Finding("undeclared-shadow", values={"hosts": undeclared_shadow}))
-    found += context.devtools.findings()
     found += dishonest_verbatim
     found += map(Finding.read, silent)
-    found += map(Finding.read, missing_threads)
     # One mistake is on every instance, so one finding per tag and attribute.
     found += {(u["tag"], u["attr"]): Finding.read(u) for u in undeclared_attrs}.values()
-    found += map(Finding.read, retired)
-    found += context.unsettled
     found += map(Finding.read, relative)
     return found
+
+
+def thread_findings(context: _SchemeContext, known: list[Finding]) -> list[Finding]:
+    """The widget readings of each thread whose messages carry markup, read with that
+    thread open, less what `known` already reports.
+
+    A message's widgets render only where its thread is drawn, and the page draws one
+    thread at a time: in its margin card, or in the floating panel's thread view where
+    nothing on the page shows it. So each such thread is opened where a reader would
+    find it, and the widget readings run again. The page's own widgets answer the same
+    each time, so a finding is reported once. A page with no such thread pays one
+    reading."""
+    page = context.page
+    found = dict.fromkeys(known)
+    for thread in evaluate_probe(page, "threadsHoldingMarkup"):
+        evaluate_probe(page, "openThreadToCheck", thread)
+        wait_for_probe(page, "threadOpening", thread)
+        answer = evaluate_probe(page, "threadOpening", thread)
+        if not answer["shown"]:
+            error = answer.get("error", "nothing drew it")
+            failed = f"opening thread {thread} to read its widgets: {error}"
+            found[Finding("gate-failed", values={"error": failed})] = None
+        else:
+            rendered(page)
+            wait_for_probe(page, "pageSettled")
+            found.update(dict.fromkeys(_widget_findings(context)))
+    return [finding for finding in found if finding not in known]
 
 
 def _scrollbars(boxes: list) -> dict[tuple[str, str], Finding]:

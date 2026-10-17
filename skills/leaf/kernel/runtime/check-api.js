@@ -158,6 +158,7 @@ import "./bundle-__export.js";
 // runtime/validation.js
 function validationWidgetStates(eventIds = null) {
   return [...selectWidgets(eventIds)].map(([id, { state, specs }]) => ({
+    id,
     get widget() {
       return elementById(id);
     },

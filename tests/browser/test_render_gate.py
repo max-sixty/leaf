@@ -1865,8 +1865,8 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
     resized(page, 1280, 900)
     current = page.evaluate(
         "async () => (await window.__lfCheckApi())"
-        ".validationWidgetStates().flatMap(({widget, state}) =>"
-        " Object.values(state).map(current => [widget.id, current.action]))"
+        ".validationWidgetStates().flatMap(({id, state}) =>"
+        " Object.values(state).map(current => [id, current.action]))"
     )
     page.close()
     assert ["an-set", "choose"] in current and ["an-set", "answer"] in current, (

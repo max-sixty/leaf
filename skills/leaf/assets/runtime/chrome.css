@@ -341,7 +341,7 @@
     align-items: center;
     min-height: var(--lf-fp-line);
   }
-  .lf-floating-panel[data-typing] .lf-fp-row-notice {
+  .lf-floating-panel[data-words] .lf-fp-row-notice {
     display: none;
   }
   .lf-fp-row-notice-press {

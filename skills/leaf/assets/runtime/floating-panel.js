@@ -21,7 +21,8 @@
  *   Threads, with at most one small notice beside the marks for a state the user should
  *   not miss, such as a failed save or reading an older version, tinted by its tone and
  *   with at most one press (`ROW_NOTICES`); the field gives it room, so the marks keep
- *   their seats. The empty
+ *   their seats, but only while it holds no words, which a narrower field would rewrap
+ *   under the reader; the notice waits while words stand there. The empty
  *   field says what the agent is doing or wants, in the status's words
  *   (`statusReading`), or what a passing notice says, where a placeholder would say
  *   "Comment"; in a thread it says whose turn it is. A status that reports reads dimmer
@@ -2491,6 +2492,7 @@ export function createFloatingPanel({
     if (postureMoved || !typed) typing = typed;
     postureMoved = false;
     keeps(host, "data-typing", typing ? "" : null);
+    keeps(host, "data-words", draftOf(input).trim() ? "" : null);
     if (!draftOf(input).trim()) expanded = false;
     // The mark stays while the field is wide, where the draft may fit three lines again.
     keeps(host, "data-long", (long || expanded) && !resting ? "" : null);

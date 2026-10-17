@@ -7489,6 +7489,7 @@ function createFloatingPanel({
     if (postureMoved || !typed) typing = typed;
     postureMoved = false;
     keeps(host, "data-typing", typing ? "" : null);
+    keeps(host, "data-words", draftOf(input).trim() ? "" : null);
     if (!draftOf(input).trim()) expanded = false;
     keeps(host, "data-long", (long || expanded) && !resting ? "" : null);
     keeps(host, "data-expanded", expanded ? "" : null);

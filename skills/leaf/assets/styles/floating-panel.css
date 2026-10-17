@@ -469,7 +469,10 @@
     align-items: center;
     min-height: var(--lf-fp-line);
   }
-  .lf-floating-panel[data-typing] .lf-fp-row-notice {
+  /* The field gives the notice its room only while it holds no words: words a notice
+     arriving would narrow rewrap, and the field grows up over its line under the
+     reader. It stands aside while they stand, as it does while the user types. */
+  .lf-floating-panel[data-words] .lf-fp-row-notice {
     display: none;
   }
   /* The press takes the row's whole line, as every mark does, so a finger finds it;

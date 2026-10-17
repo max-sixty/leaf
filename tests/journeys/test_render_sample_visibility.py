@@ -9,7 +9,9 @@ from journeys.test_render_read_state import (
     _open_first_unread,
     _read_by_the_sample,
     _sample_reading_page,
+    _scroll_to_message,
     _still_unread,
+    _threads_mark,
 )
 
 
@@ -29,10 +31,11 @@ def test_narrowing_a_partially_clipped_sample_does_not_acknowledge_hidden_words(
         "#clip iframe { min-width: 900px; }",
     )
     page.locator("#clip").evaluate("clip => clip.style.width = '250px'")
-    child.locator(".lf-threads-toggle").evaluate(
-        "toggle => toggle.focus({preventScroll: true})"
-    )
+    _threads_mark(child).evaluate("mark => mark.focus({preventScroll: true})")
     _open_first_unread(page, child)
+    # The sample's panel stands at its frame's foot, so the clip is scrolled to show
+    # the message's lines, cut at the narrow clip's right edge.
+    _scroll_to_message(page, child, "document.querySelector('#clip')")
     _still_unread(page, child)
 
     page.locator("#clip").evaluate("clip => clip.style.width = '950px'")
@@ -81,27 +84,33 @@ def test_sample_admission_follows_parent_inertness_and_native_modal(browser, ser
 
 def test_sample_exposure_preserves_parent_declared_occlusion(browser, serve):
     """The browser's implicit intersection sees through a nonmodal parent panel;
-    the containing geometry owner must still withhold the words under that panel."""
+    the containing geometry owner must still withhold the words under that panel. The
+    containing page's open Threads view stands over its window's foot, and the page is
+    scrolled so the sample's message reaches 20px under it."""
     page, _, child = _sample_reading_page(
         browser,
         serve,
         "<h1>Containing chrome</h1>{sample}",
         "#read-practice { min-width: 950px; }",
     )
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    child.locator(".lf-threads-toggle").evaluate(
-        "toggle => toggle.focus({preventScroll: true})"
-    )
+    page.locator(".lf-fp-threads").click()
+    panel_settled(page, view="threads")
+    _threads_mark(child).evaluate("mark => mark.focus({preventScroll: true})")
     _open_first_unread(page, child)
+    bottom = _message_body(child).evaluate(
+        "body => body.getBoundingClientRect().bottom"
+    )
+    page.evaluate(
+        """([bottom, card]) => scrollBy(0, document.querySelector('#read-practice iframe')
+            .getBoundingClientRect().top + bottom - card.getBoundingClientRect().top - 20)""",
+        [bottom, page.locator(".lf-fp-card").element_handle()],
+    )
     message = _message_body(child).bounding_box()
-    panel = page.locator(".lf-threads").bounding_box()
-    assert message["x"] + message["width"] > panel["x"]
+    panel = page.locator(".lf-fp-card").bounding_box()
+    assert message["y"] + message["height"] > panel["y"]
     _still_unread(page, child)
 
-    page.locator(".lf-threads-toggle").click()
+    page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
-    child.locator(".lf-threads-toggle").evaluate(
-        "toggle => toggle.focus({preventScroll: true})"
-    )
+    _threads_mark(child).evaluate("mark => mark.focus({preventScroll: true})")
     _read_by_the_sample(page, child)

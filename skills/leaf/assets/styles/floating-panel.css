@@ -1320,17 +1320,19 @@
     overflow: hidden;
     height: calc(var(--lines) * 1lh);
   }
+  /* A tone's words wear its ink, which reads as text on the menu's ground; the bare
+     tone is for marks, and the amber one reads 3.65:1 there. */
   .lf-fp-state[data-tone="working"] b {
     color: var(--accent);
   }
   .lf-fp-state[data-tone="listening"] b {
-    color: var(--ok);
+    color: var(--ok-ink);
   }
   .lf-fp-state[data-tone="away"] b {
-    color: var(--warn);
+    color: var(--warn-ink);
   }
   .lf-fp-state[data-tone="offline"] b {
-    color: var(--danger);
+    color: var(--danger-ink);
   }
 
   /* The status in full, on hover or focus of the folded leaf; and a passing notice,

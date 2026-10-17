@@ -1109,13 +1109,13 @@
     color: var(--accent);
   }
   .lf-fp-state[data-tone=listening] b {
-    color: var(--ok);
+    color: var(--ok-ink);
   }
   .lf-fp-state[data-tone=away] b {
-    color: var(--warn);
+    color: var(--warn-ink);
   }
   .lf-fp-state[data-tone=offline] b {
-    color: var(--danger);
+    color: var(--danger-ink);
   }
   .lf-fp-leaf {
     anchor-name: --lf-fp-leaf;

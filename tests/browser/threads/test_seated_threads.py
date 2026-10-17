@@ -1,6 +1,8 @@
 """Threads drawn in the page's own flow, on a seat or a diff line: what arriving turns,
 settlement and new patches do to their reply box and to the reading around them."""
 
+import re
+
 import pytest
 from interact_support import append_carried_log_record
 from leaf import data as data_model
@@ -9,11 +11,12 @@ from playwright.sync_api import expect
 from render_cases_interaction import ASK_PAGE, panel_comment
 from render_cases_navigation import source_revision
 from render_harness import (
+    PANEL,
+    PANEL_THREAD,
     consume_browser_errors,
     http_error_console,
     leaf_page,
     open_page,
-    panel_settled,
     reported_browser_errors,
     resized,
     round_trip,
@@ -24,13 +27,15 @@ from render_harness import (
 )
 
 from browser.threads import (
+    PANEL_REPLY,
     SEAT_DIFF,
     SEAT_FILLER,
     SEAT_WORDS,
     THIRTY_LINES,
     append_agent_reply,
-    clear_of_the_bar,
+    clear_of_the_panel,
     long_diff_thread,
+    open_panel_thread,
     paste,
     seated_page,
     to_window_foot,
@@ -318,7 +323,7 @@ def test_a_reopening_waits_where_the_reopened_thread_would_stand(
 
 def test_a_reaction_list_closes_once_its_trigger_is_out_of_sight(browser, serve):
     """An open reaction list hangs from its trigger, so it closes once none of the
-    trigger is in front of the user: scrolled under the banner, still in the window."""
+    trigger is in front of the user: scrolled out of the window."""
     url, root = long_diff_thread(serve)
     append_agent_reply(
         serve.page_dir, root, "The guard now covers the replacement path."
@@ -333,54 +338,14 @@ def test_a_reaction_list_closes_once_its_trigger_is_out_of_sight(browser, serve)
     trigger.click()
     strip = message.locator(":scope > .lf-react-strip")
     expect(strip).to_contain_class("lf-react-open")
-    banner = trigger.evaluate(
-        """async trigger => {
-          const {bannerFoot} = await window.__lfCheckApi();
-          scrollBy({top: trigger.getBoundingClientRect().bottom - bannerFoot() + 4,
-            behavior: 'instant'});
-          return bannerFoot();
-        }"""
+    trigger.evaluate(
+        """trigger => scrollBy({top: trigger.getBoundingClientRect().bottom + 4,
+          behavior: 'instant'})"""
     )
     box = trigger.bounding_box()
-    assert 0 < box["y"] and box["y"] + box["height"] < banner, (box, banner)
+    assert box["y"] + box["height"] < 0, box
     expect(strip).not_to_contain_class("lf-react-open")
     expect(page.locator(".lf-react-palette:popover-open")).to_have_count(0)
-
-
-def test_a_reaction_list_opens_from_a_trigger_under_the_thread_panel(browser, serve):
-    """The reaction list stands in the top layer, above the thread panel, so `e` on a
-    reply whose trigger the panel stands over opens it and leaves it open."""
-    url, root = long_diff_thread(serve)
-    append_agent_reply(
-        serve.page_dir, root, "The guard now covers the replacement path."
-    )
-    page = open_page(browser, url)
-    resized(page, 1280, 800)
-    thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
-    expect(thread).to_be_visible()
-    message = thread.locator(".lf-msg.agent")
-    # A resize preserves the page's reading place, which can leave this reply above
-    # the viewport; put its trigger where the panel will cover it.
-    message.locator(".lf-react-trigger").evaluate(
-        "trigger => scrollBy({top: trigger.getBoundingClientRect().top - 400, behavior: 'instant'})"
-    )
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    covered = message.locator(".lf-react-trigger").evaluate(
-        """trigger => {
-          const box = trigger.getBoundingClientRect();
-          const at = document.elementFromPoint((box.left + box.right) / 2,
-            (box.top + box.bottom) / 2);
-          return Boolean(at?.closest('.lf-thread-panel'));
-        }"""
-    )
-    assert covered, "the panel does not stand over the trigger, so this proves nothing"
-    thread.locator(".lf-msg").first.click()
-    page.keyboard.press("e")
-    strip = message.locator(":scope > .lf-react-strip")
-    expect(strip).to_contain_class("lf-react-open")
-    rendered(page)
-    expect(strip).to_contain_class("lf-react-open")
 
 
 def watch_blurs(box):
@@ -442,14 +407,15 @@ def seated_thread(serve, kind, messages, annotations="overlay"):
     return url, root
 
 
-def focus_clear_of_the_bar(page):
-    """Whether the focused node, through open shadow roots, shows in the window."""
+def focus_clear_of_the_panel(page):
+    """Whether the focused node, through open shadow roots, shows in the window, above
+    the floating panel where it spans the node's columns."""
     return page.evaluate(
         """() => {
           let node = document.activeElement;
           while (node?.shadowRoot?.activeElement) node = node.shadowRoot.activeElement;
           const box = node.getBoundingClientRect();
-          const b = document.querySelector('.lf-shortcut-bar')?.getBoundingClientRect();
+          const b = document.querySelector('.lf-fp-card')?.getBoundingClientRect();
           const covers = b && b.left < box.right && box.left < b.right;
           const foot = covers ? b.top : innerHeight;
           return box.height > 0 && box.bottom > 0 && box.top < foot;
@@ -457,7 +423,7 @@ def focus_clear_of_the_bar(page):
     )
 
 
-def test_a_diff_thread_reply_grown_by_a_paste_keeps_its_send_above_the_bar(
+def test_a_diff_thread_reply_grown_by_a_paste_keeps_its_send_above_the_panel(
     browser, serve
 ):
     """A diff draws its threads in its own shadow tree. The landing's climb stopped at
@@ -471,7 +437,7 @@ def test_a_diff_thread_reply_grown_by_a_paste_keeps_its_send_above_the_bar(
     write(box, "First line")
     to_window_foot(page, box, 60)
     paste(page, THIRTY_LINES)
-    assert clear_of_the_bar(
+    assert clear_of_the_panel(
         page, thread.locator(":scope > .lf-thread-reply .lf-compose-submit")
     )
 
@@ -560,7 +526,7 @@ def test_settling_a_long_diff_thread_by_key_keeps_it_in_view(browser, serve):
         page.keyboard.press("r")
     rendered(page)
     scroll_settled(page)
-    assert focus_clear_of_the_bar(page), "the resolved thread left the window"
+    assert focus_clear_of_the_panel(page), "the resolved thread left the window"
     expect(page.locator("lf-diff .lf-resolved-summary")).to_be_focused()
     page.keyboard.press("Enter")
     thread.focus()
@@ -568,7 +534,7 @@ def test_settling_a_long_diff_thread_by_key_keeps_it_in_view(browser, serve):
         page.keyboard.press("r")
     rendered(page)
     scroll_settled(page)
-    assert focus_clear_of_the_bar(page), "the reopened thread left the window"
+    assert focus_clear_of_the_panel(page), "the reopened thread left the window"
 
 
 @pytest.mark.parametrize("kind", ["diff", "bounded-short"])
@@ -662,13 +628,14 @@ def test_a_reply_box_whose_thread_leaves_the_diff_takes_the_user_to_its_card(
     )
     told(page)
     expect(inline).to_have_count(0)
-    # A page margin has the Threads panel to put the thread up in; an overlay its card.
-    card = page.locator(
-        f'.lf-thread-panel .lf-thread[data-id="{root}"]'
-        if annotations == "page"
-        else f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]'
-    )
-    reply = card.locator(":scope > .lf-thread-reply leaf-text")
+    # A page drawing no margin puts the thread up in the panel, its reply in the
+    # panel's field; an overlay margin in its card.
+    if annotations == "page":
+        expect(page.locator(f'{PANEL_THREAD}[data-thread="{root}"]')).to_be_visible()
+        reply = page.locator(PANEL_REPLY)
+    else:
+        card = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+        reply = card.locator(":scope > .lf-thread-reply leaf-text")
     expect(reply).to_be_focused()
     expect(reply).to_have_js_property("value", "Half a thought")
     assert reply.evaluate("box => [box.selectionStart, box.selectionEnd]") == [4, 4]
@@ -905,18 +872,14 @@ def test_a_thread_resolved_while_its_reply_is_written_keeps_the_user_on_it(
     if finish == "reload":
         page.reload()
         wait_until_ready(page)
-        page.locator(".lf-threads-toggle").click()
-        panel_settled(page)
-        page.locator(".lf-thread-filter-toggle").click()
-        page.locator('[data-filter-value="resolved"]').click()
-        card = page.locator(f'.lf-thread[data-id="{root}"]')
-        expect(card).to_have_attribute("data-resolved", "true")
+        # A resolved thread the page draws nowhere opens in the panel.
+        open_panel_thread(page, root)
+        settle = page.locator(".lf-fp-settle")
+        expect(settle).to_have_text("Reopen", use_inner_text=True)
         with sending(page, "reopen the thread with the saved reply"):
-            card.get_by_role("button", name="Reopen thread").click()
+            settle.click()
         round_trip(page)
-        expect(card.locator(":scope > .lf-thread-reply leaf-text")).to_have_js_property(
-            "value", "Half a thought"
-        )
+        expect(page.locator(PANEL_REPLY)).to_have_js_property("value", "Half a thought")
         return
     if finish == "clear":
         page.keyboard.press("ControlOrMeta+a")
@@ -936,7 +899,7 @@ def test_a_thread_resolved_while_its_reply_is_written_keeps_the_user_on_it(
         return
     page.keyboard.type(" tr")
     expect(box).to_have_js_property("value", "Half tr a thought")
-    expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
     with sending(page, "the reply"):
         thread.get_by_role("button", name="Send", exact=True).click()
     told(page)

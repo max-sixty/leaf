@@ -877,18 +877,23 @@ def annotation_mode(document: SourceDocument) -> str:
 
 
 def page_layout(document: SourceDocument):
-    """The `layout-` names the document's `main` carries (`layout-column` is `column`),
-    space-separated, or None.
+    """The `layout-` names the document's `main` and its children carry (`layout-column`
+    is `column`), space-separated, or None.
 
-    A Layout's class is on `main`, which the parser reaches after it has begun painting
-    the body, so delivery repeats it on the root for the Layout's own body rules
-    (layouts.css) to read before the first paint. Every name goes across, since a
-    block's own (`layout-tiles`) can stand on `main` beside the page's."""
+    A page Layout's class is on `main`, or on a child of a `main` that carries none
+    (layouts.css, `--lf-layout-box`), which the parser reaches after it has begun
+    painting the body, so delivery repeats it on the root for the Layout's own body rules
+    to read before the first paint. Every name goes across, since a block's own
+    (`layout-tiles`) can stand beside the page's and the body rules read only the page
+    Layouts' names."""
     main = document.tree.select_one("body > main")
-    tokens = main.attrs.get("class", []) if main else []
-    names = [
-        name for token in tokens if (name := token.removeprefix("layout-")) != token
-    ]
+    names = []
+    for box in [main, *main.children] if main else []:
+        if isinstance(box, turbohtml.Element):
+            for token in box.attrs.get("class", []):
+                name = token.removeprefix("layout-")
+                if name != token and name not in names:
+                    names.append(name)
     return " ".join(names) or None
 
 

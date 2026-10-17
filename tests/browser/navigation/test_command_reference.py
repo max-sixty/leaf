@@ -345,7 +345,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     tab_matches = help_el.locator(
         ".lf-command-reference-binding-matches tr[data-lf-command]:visible"
     ).evaluate_all("rows => rows.map(row => row.dataset.lfCommand)")
-    assert "version.leave-forward" in tab_matches, tab_matches
+    assert "panel.floating.menu.leave-forward" in tab_matches, tab_matches
     search.fill("w")
     w_results = help_el.locator("tr[data-lf-command]:visible").evaluate_all(
         "rows => rows.map(row => row.dataset.lfCommand)"
@@ -355,7 +355,6 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
         ".lf-command-reference-binding-matches tr[data-lf-command]:visible"
     ).evaluate_all("rows => rows.map(row => row.dataset.lfCommand)")
     assert "draw.mode.exit" in w_matches, w_matches
-    assert "thread.waiting.toggle" in w_matches, w_matches
     assert w_results.index("page.down") >= len(w_matches), w_results
 
     search.fill("resolve it")

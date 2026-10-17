@@ -808,7 +808,12 @@ def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(
     held.pop(0).continue_()
     page.unroute("**/api/event")
     round_trip(page)
-    expect(page.locator(".lf-thread")).to_have_count(1)
+    # The earlier comment is the page's one thread.
+    assert [
+        event["text"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ] == ["The first remark."]
 
     # The send landed behind them and left the passage picked out. Read as the user's
     # own next gesture rather than as the button's rendering: the button is a state that
@@ -859,7 +864,12 @@ def test_a_held_comment_send_leaves_a_later_keyboard_comment_open(held_events, s
     page.unroute("**/api/event")
     round_trip(page)
 
-    expect(page.locator(".lf-thread")).to_have_count(1)
+    # The earlier comment is the page's one thread.
+    assert [
+        event["text"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ] == ["The first remark."]
     expect(page.locator(".lf-fab-input")).to_be_focused()
     expect(page.locator("#p2")).to_have_class(
         re.compile(r"\blf-mark-el\b.*\blf-pending\b")

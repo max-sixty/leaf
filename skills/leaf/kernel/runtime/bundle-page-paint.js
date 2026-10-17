@@ -620,7 +620,6 @@ var titleOf = (row) => {
   return title;
 };
 var descriptionOf = (row) => word(row.description) ?? "";
-var lineOf = (row) => word(row.line) ?? titleOf(row);
 var allBindings = (row) => [
   .../* @__PURE__ */ new Set([
     ...declaredBindings(row),
@@ -1324,9 +1323,6 @@ function contextRows(declarations) {
           id: row.id,
           title: () => titleOf(row),
           description: () => descriptionOf(row),
-          get line() {
-            return row.line;
-          },
           get keys() {
             return this.routes.map(({ binding }) => binding);
           },
@@ -1353,7 +1349,6 @@ function contextRows(declarations) {
                     binding,
                     title: () => titleOf(contribution),
                     description: () => descriptionOf(contribution),
-                    line: contribution.line,
                     control: contribution.control ?? row.control,
                     bindingBadge: contribution.bindingBadge !== void 0 ? contribution.bindingBadge : row.bindingBadge,
                     intrinsicBindings: contribution === row ? declaredBindings(row) : contribution.binding ? [contribution.binding] : []
@@ -1714,7 +1709,7 @@ var paintKeysWithin = (root2) => {
   }
   repaint();
 };
-var saying = (rows) => activeRows(rows, "an announced scope").map((row) => `${spoken(row)} ${lineOf(row)}`).join(", ");
+var saying = (rows) => activeRows(rows, "an announced scope").map((row) => `${spoken(row)} ${titleOf(row)}`).join(", ");
 var spoken = (row) => {
   const active = bindings(row);
   if (active.some((binding) => parsed(binding).mods.length))
@@ -3322,7 +3317,6 @@ export {
   contextBindings,
   titleOf,
   descriptionOf,
-  lineOf,
   allBindings,
   commandRoutes,
   commandBinding,

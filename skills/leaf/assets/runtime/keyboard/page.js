@@ -103,7 +103,6 @@ pageCommand({
   title: "Caret browsing",
   description:
     "Select text with the browser's keyboard caret, then comment on the selection",
-  line: false,
 });
 
 // Standing is a destination on the page. Releasing it lands at its floor, the document.

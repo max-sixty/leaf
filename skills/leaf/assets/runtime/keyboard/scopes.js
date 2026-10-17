@@ -45,7 +45,6 @@ import {
   declaredBindings,
   titleOf,
   descriptionOf,
-  lineOf,
   live,
   parsed,
   spokenBinding,
@@ -346,9 +345,6 @@ function contextRows(declarations) {
           id: row.id,
           title: () => titleOf(row),
           description: () => descriptionOf(row),
-          get line() {
-            return row.line;
-          },
           get keys() {
             return this.routes.map(({ binding }) => binding);
           },
@@ -375,7 +371,6 @@ function contextRows(declarations) {
                     binding,
                     title: () => titleOf(contribution),
                     description: () => descriptionOf(contribution),
-                    line: contribution.line,
                     control: contribution.control ?? row.control,
                     bindingBadge:
                       contribution.bindingBadge !== undefined
@@ -932,7 +927,7 @@ export const paintKeysWithin = (root) => {
  */
 export const saying = (rows) =>
   activeRows(rows, "an announced scope")
-    .map((row) => `${spoken(row)} ${lineOf(row)}`)
+    .map((row) => `${spoken(row)} ${titleOf(row)}`)
     .join(", ");
 // A row's own label where it has one, read the way every other surface reads a cell, and
 // the bindings where it has none — which is what keeps a listener hearing "Escape" rather

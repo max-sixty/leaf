@@ -353,7 +353,6 @@ import {
   labelOf,
   landingBand,
   layoutWindow,
-  lineOf,
   live,
   liveEl,
   merge,
@@ -1511,7 +1510,7 @@ function captureCommandReferenceCatalog() {
             )
           ),
           directWords: commandReferenceWords(
-            `${id} ${sectionTitle} ${steps.join(" ")} ${title} ${description ?? ""} ${lineOf(route ?? rowInfo.row) || ""}`
+            `${id} ${sectionTitle} ${steps.join(" ")} ${title} ${description ?? ""}`
           ),
           familyWords: commandReferenceWords(
             `${rowInfo.row.id} ${rowInfo.familySteps.join(" ")} ${rowInfo.baseTitle} ${rowInfo.baseDescription ?? ""}`
@@ -3274,8 +3273,7 @@ function createDrawingController({
         keys: [],
         label: "drag",
         title: "Draw on the page",
-        description: "Each stroke adds to one drawing",
-        line: false
+        description: "Each stroke adds to one drawing"
       },
       {
         id: "draw.mode.undo",
@@ -3291,8 +3289,6 @@ function createDrawingController({
         keys: ["w"],
         title: "exit Draw mode",
         touch: "Exit Draw mode",
-        // Escape's step says the same on the line.
-        line: false,
         run: () => setDrawMode(false)
       }
     ]
@@ -3591,7 +3587,6 @@ function createAim({
     keys: [],
     label: `${spell("Alt")} click`,
     title: "Comment under the pointer",
-    line: false,
     when: aimIsAvailable
   };
   function onPage(node) {
@@ -8835,7 +8830,6 @@ function createQueueWalk({
       }
     ],
     title: "On me",
-    line: "on me",
     when: offered,
     repeat: true,
     // The same shape as the thread walk: it moves the user from item to item rather than
@@ -9026,7 +9020,6 @@ function createCommandHints({ presentedControl }) {
           {
             id: "keyboard.control-route",
             title: "Control shortcuts",
-            line: false,
             keys: [...keys2]
           }
         ])
@@ -9312,8 +9305,7 @@ function createDesignMode({
         keys: [],
         label: "click",
         title: "Comment on appearance",
-        description: "Click a widget, control, or picture; prose still selects",
-        line: false
+        description: "Click a widget, control, or picture; prose still selects"
       },
       {
         id: "design.mode.exit",
@@ -10044,8 +10036,7 @@ pageCommand({
   touch: false,
   keys: ["F7"],
   title: "Caret browsing",
-  description: "Select text with the browser's keyboard caret, then comment on the selection",
-  line: false
+  description: "Select text with the browser's keyboard caret, then comment on the selection"
 });
 var holding = () => {
   const active = focused(document);

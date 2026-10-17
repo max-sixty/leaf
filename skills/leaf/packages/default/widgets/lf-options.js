@@ -437,18 +437,16 @@ customElements.define(
                 line: "back to ask",
               }),
           },
-          // Numbered choices own the shortcut bar; arrow navigation stays in the reference.
           ...rowWalk({
             id: "option",
             noun: "Option",
             plural: "options",
             rows: () => this.#marks(),
-          }).map((row) => ({ ...row, line: false })),
+          }),
           {
             id: "option.toggle",
             keys: [" "],
             title: "toggle",
-            line: false,
             run: () => mark.click(),
           },
           {

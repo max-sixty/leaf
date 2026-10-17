@@ -19,14 +19,13 @@
      "Shift+a", "d"; a function where the set is the page's (an option group's 1–N).
    - `routes` are optional stable subcommands when those bindings mean different things.
      The command reference presents each route separately. A
-     route may override `title`, `description`, `line` and `label` for the case where a nearer scope shadows only
+     route may override `title`, `description` and `label` for the case where a nearer scope shadows only
      its sibling binding. A route without a description of its own lists under the
      row's, so the row's says what every route shares ("Filter visible targets by kind"),
      never what tells them apart ("Next / previous match").
    - `title` is the command's required concise name, or a function when state changes
      it. `description` optionally explains information the title cannot carry. The ask,
-     menu rows, reference, and announcements read these same words. `line` is a shorter
-     word where one is needed; false makes a reference-only row.
+     menu rows, reference, and announcements read these same words.
    - `label` overrides the compact keycap, independently of the action name. A keyless
      command remains named by its title in the reference.
    - `contextKeys` are explicit aliases that work inside the widget and may be forwarded
@@ -194,7 +193,6 @@ export const titleOf = (row) => {
   return title;
 };
 export const descriptionOf = (row) => word(row.description) ?? "";
-export const lineOf = (row) => word(row.line) ?? titleOf(row);
 export const allBindings = (row) => [
   ...new Set([
     ...declaredBindings(row),

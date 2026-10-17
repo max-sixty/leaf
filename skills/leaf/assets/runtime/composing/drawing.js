@@ -654,7 +654,6 @@ export function createDrawingController({
         label: "drag",
         title: "Draw on the page",
         description: "Each stroke adds to one drawing",
-        line: false,
       },
       {
         id: "draw.mode.undo",
@@ -670,8 +669,6 @@ export function createDrawingController({
         keys: ["w"],
         title: "exit Draw mode",
         touch: "Exit Draw mode",
-        // Escape's step says the same on the line.
-        line: false,
         run: () => setDrawMode(false),
       },
     ],

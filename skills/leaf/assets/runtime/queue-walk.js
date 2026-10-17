@@ -364,7 +364,6 @@ export function createQueueWalk({
       },
     ],
     title: "On me",
-    line: "on me",
     when: offered,
     repeat: true,
     // The same shape as the thread walk: it moves the user from item to item rather than

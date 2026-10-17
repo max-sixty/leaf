@@ -131,7 +131,6 @@ import {
   inWindowChrome,
   keys,
   landingBand,
-  lineOf,
   loadShadowRules,
   measure,
   nearestScrollBy,
@@ -836,7 +835,7 @@ function capturePlace(region = null, blocks = textBlocks()) {
   const column = bounds && readerColumn(bounds, body);
   let named = null;
   const range = document.createRange();
-  const lineOf2 = (block, rect, runs) => {
+  const lineOf = (block, rect, runs) => {
     for (const run of runs) {
       if (quoteFrom(run).length < QUOTABLE) continue;
       const segments = lineAt(run, boxTop, range, block.matches(HEADING));
@@ -854,7 +853,7 @@ function capturePlace(region = null, blocks = textBlocks()) {
     if (stuckBox(block, box) || scrollsAlone(block, box)) continue;
     const section = closestAcross(block, ADDRESSABLE);
     sectioned ??= section && { block, rect, section };
-    line = lineOf2(block, rect, runs);
+    line = lineOf(block, rect, runs);
     if (line) break;
   }
   if (line && column !== null && !spans(line.block, line.rect, column)) {
@@ -862,7 +861,7 @@ function capturePlace(region = null, blocks = textBlocks()) {
     for (const [block, rect, runs] of blocksOnScreen(region, blocks, row)) {
       if (block === line.block || stuckBox(block, box) || scrollsAlone(block, box) || !spans(block, rect, column))
         continue;
-      const beside = lineOf2(block, rect, runs);
+      const beside = lineOf(block, rect, runs);
       if (beside && beside.landmark.range.getBoundingClientRect().top < line.bottom) {
         line = beside;
         break;
@@ -3968,7 +3967,6 @@ var BACK_OUT = {
   keys: ["Escape"],
   title: () => rung() ? titleOf(rung()) : "Back",
   description: () => rung() ? descriptionOf(rung()) : void 0,
-  line: () => rung() ? lineOf(rung()) : false,
   when: () => Boolean(rung()),
   run: () => rung().out()
 };

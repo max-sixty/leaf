@@ -200,7 +200,6 @@ export function createCommandHints({ presentedControl }) {
           {
             id: "keyboard.control-route",
             title: "Control shortcuts",
-            line: false,
             keys: [...keys],
           },
         ]),

@@ -10,6 +10,7 @@ import {
   paintKeys,
   reflectFirstScopes,
   reflectKeys,
+  saying,
 } from "../../skills/leaf/assets/runtime/keyboard/scopes.js";
 import {
   activeRows,
@@ -774,7 +775,6 @@ test("a margin entry refuses what its grammar and its owner cannot state", async
       id: "fixture.status",
       keys: ["x"],
       title: "Act from status",
-      line: "act from status",
       run: () => {},
     },
   ]);
@@ -1403,4 +1403,15 @@ test("command aliases conflict by their canonical meaning while shifted Space st
       }),
       expected,
     );
+});
+
+test("an announced scope says each live row's key and title", () => {
+  // A row that once kept itself off the shortcut bar declared `line: false`, which the
+  // announcement read as its word; the title is the one word every surface says.
+  const rows = [
+    { id: "fixture.cancel", keys: ["Escape"], title: "cancel", line: false },
+    { id: "fixture.top", keys: ["g"], title: "top" },
+    { id: "fixture.off", keys: ["x"], title: "unavailable", when: () => false },
+  ];
+  assert.equal(saying(rows), "Escape cancel, g top");
 });

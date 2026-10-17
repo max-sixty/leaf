@@ -59,7 +59,6 @@ export function createAim({
     keys: [],
     label: `${spell("Alt")} click`,
     title: "Comment under the pointer",
-    line: false,
     when: aimIsAvailable,
   };
   // What the pointer is over, asked of the page rather than of an event, so pressing the key

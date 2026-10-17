@@ -351,7 +351,6 @@ export function createDesignMode({
         label: "click",
         title: "Comment on appearance",
         description: "Click a widget, control, or picture; prose still selects",
-        line: false,
       },
       {
         id: "design.mode.exit",

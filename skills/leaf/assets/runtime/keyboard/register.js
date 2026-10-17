@@ -22,7 +22,6 @@ import {
   touchPresses as pressesOf,
   titleOf,
   descriptionOf,
-  lineOf,
 } from "./bindings.js";
 import { focused } from "../focus.js";
 import { paintKeys, watchCommandScopes } from "./scopes.js";
@@ -170,7 +169,7 @@ export function pageCommand(row) {
 }
 
 /** Declare one instance's step of Escape's fallback ladder: a function answering what the press would
- * take off right now, as `{title, description?, line?, out}` plus an optional `root` for the surface the
+ * take off right now, as `{title, description?, out}` plus an optional `root` for the surface the
  * step is inside, or null where this step has nothing to take. `RUNG_LADDER` orders the steps. */
 export function pageRung(name, reading) {
   place(RUNG_LADDER, name);
@@ -212,7 +211,6 @@ const BACK_OUT = {
   keys: ["Escape"],
   title: () => (rung() ? titleOf(rung()) : "Back"),
   description: () => (rung() ? descriptionOf(rung()) : undefined),
-  line: () => (rung() ? lineOf(rung()) : false),
   when: () => Boolean(rung()),
   run: () => rung().out(),
 };

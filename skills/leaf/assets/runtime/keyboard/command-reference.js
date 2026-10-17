@@ -45,7 +45,6 @@ import {
   allBindings,
   descriptionOf,
   titleOf,
-  lineOf,
   live,
   routedCommand,
   spell,
@@ -409,7 +408,7 @@ function captureCommandReferenceCatalog() {
             ),
           ),
           directWords: commandReferenceWords(
-            `${id} ${sectionTitle} ${steps.join(" ")} ${title} ${description ?? ""} ${lineOf(route ?? rowInfo.row) || ""}`,
+            `${id} ${sectionTitle} ${steps.join(" ")} ${title} ${description ?? ""}`,
           ),
           familyWords: commandReferenceWords(
             `${rowInfo.row.id} ${rowInfo.familySteps.join(" ")} ${rowInfo.baseTitle} ${rowInfo.baseDescription ?? ""}`,

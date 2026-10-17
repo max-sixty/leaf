@@ -9,6 +9,7 @@
 
 import {
   anchorAt,
+  anchorBox,
   anchorElement,
   anchorReaches,
   anchorReading,
@@ -235,7 +236,7 @@ export function standBox(
   rect,
   stood,
   anchor,
-  at = anchor?.getBoundingClientRect(),
+  at = anchor && anchorBox(anchor),
 ) {
   if (stood.anchored) {
     anchorAt(box, anchor, rect, at, stood.visibility ?? "always");
@@ -260,7 +261,7 @@ export function standBox(
 // Answers the stand and the anchor, read as `placed` was, for what stands beside it.
 export function standOver(stand, placed, borderRadius) {
   const anchor = anchoredBy(placed.surface, stand.root);
-  const at = anchor?.getBoundingClientRect();
+  const at = anchor && anchorBox(anchor);
   const stood = standIn(stand, placed, Boolean(anchor));
   standBox(stand.box, placed.rect, stood, anchor, at);
   Object.assign(stand.box.style, { display: "block", borderRadius });
@@ -431,7 +432,7 @@ export function paintSet(root, { onNear = () => {} } = {}) {
         plane,
         framed,
         anchor: carriedBy,
-        at: carriedBy?.getBoundingClientRect(),
+        at: carriedBy && anchorBox(carriedBy),
         key: keyOf(placed, carriedBy, plane, framed),
       };
     });

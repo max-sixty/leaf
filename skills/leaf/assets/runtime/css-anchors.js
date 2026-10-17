@@ -33,7 +33,8 @@
  * than answered by either (notes/browser-support.md, "A stuck sticky anchor in
  * Firefox" and "An anchor under a fixed box in WebKit"): Firefox ignores a sticky
  * anchor's stuck offset, and WebKit adds the root scroll to a box anchored under a
- * fixed ancestor.
+ * fixed ancestor. A third is answered once, where every inset is measured
+ * (`anchorBox`): Firefox leaves an anchor's transforms out.
  *
  * A source keeps one name across those uses. Retained controls can observe whether its
  * source renders near the viewport before entering layout. That reading starts
@@ -332,17 +333,66 @@ const anchorHolder = (anchor) => contentStarts.get(anchor)?.scroller ?? anchor;
 // The name `el` answers to as an anchor, given it first where it has none.
 export const anchorName = (el) => nameAnchor(anchorReading(el));
 
+// Where `anchor()` reads `anchor`'s box, in client coordinates, which every inset written
+// against it is measured from: its border box as a script reads it, transforms included,
+// as the spec has it. Firefox (155) leaves out the transforms on the anchor and its
+// ancestors, so a box written from the script's reading of a transformed anchor lands
+// off by the transform: a table granted room is translated into place (layouts.css),
+// and at 1728 px every pin, chip and comment box against one stood 300 px left of what
+// it marked. There, and only for a transformed anchor, a probe anchored as the boxes
+// are reads the corner `anchor()` resolves (notes/browser-support.md, "An anchor's
+// transforms in Firefox"). An anchor the probe cannot reach keeps the script's reading.
+let probe = null;
+let dropsTransforms;
+const TRANSFORMS = ["transform", "translate", "rotate", "scale"];
+function transformed(el) {
+  for (let at = el; at instanceof Element; at = renderedParent(at)) {
+    const style = getComputedStyle(at);
+    if (TRANSFORMS.some((property) => style[property] !== "none")) return true;
+  }
+  return false;
+}
+function anchorProbe() {
+  if (probe) return probe;
+  probe = document.createElement("div");
+  probe.className = "lf-anchor-probe";
+  probe.setAttribute("aria-hidden", "true");
+  probe.style.cssText =
+    "position: fixed; width: 0; height: 0; visibility: hidden; pointer-events: none;" +
+    "left: anchor(left, -99999px); top: anchor(top, -99999px)";
+  // Firefox lacks transforms in `anchor()`; read once whether this engine does.
+  const translated = document.createElement("div");
+  translated.style.cssText =
+    "position: fixed; left: 0; top: 0; width: 0; height: 0; translate: 8px 0;" +
+    "anchor-name: --lf-anchor-probe";
+  probe.style.positionAnchor = "--lf-anchor-probe";
+  chromeRoot.append(translated, probe);
+  dropsTransforms = probe.getBoundingClientRect().left === 0;
+  translated.remove();
+  return probe;
+}
+export function anchorBox(anchor) {
+  const box = anchor.getBoundingClientRect();
+  const reader = anchorProbe();
+  if (!dropsTransforms || !transformed(anchorHolder(anchor))) return box;
+  if (!anchorReaches(anchor, reader)) return box;
+  const name = anchorName(anchor);
+  if (reader.style.positionAnchor !== name) reader.style.positionAnchor = name;
+  const { left, top } = reader.getBoundingClientRect();
+  return left === -99999 ? box : new DOMRect(left, top, box.width, box.height);
+}
+
 // Writes `node` fixed over `box`, a client rectangle, or a point where `box` gives no
-// right edge and the node keeps its own size, as insets from where `anchor` stood (`at`)
-// as `box` was measured, so the browser carries it through every scroll that moves the
-// anchor. With no anchor it stands where the window holds it. `visibility` is its
-// `position-visibility`: a cut box stays drawn while its anchor scrolls out of view, so
-// the frames cutting it decide what shows.
+// right edge and the node keeps its own size, as insets from where `anchor` stood (`at`,
+// `anchorBox`) as `box` was measured, so the browser carries it through every scroll
+// that moves the anchor. With no anchor it stands where the window holds it.
+// `visibility` is its `position-visibility`: a cut box stays drawn while its anchor
+// scrolls out of view, so the frames cutting it decide what shows.
 export function anchorAt(
   node,
   anchor,
   box,
-  at = anchor?.getBoundingClientRect(),
+  at = anchor && anchorBox(anchor),
   visibility = "always",
 ) {
   const from = (side, length) =>
@@ -387,7 +437,7 @@ export function headerLevels(item, clips = new Map()) {
     return {
       anchor,
       reading: anchor && anchorReading(anchor),
-      at: anchor?.getBoundingClientRect(),
+      at: anchor && anchorBox(anchor),
       band: band ?? nowhere,
       axes: { x: false, y: true },
     };

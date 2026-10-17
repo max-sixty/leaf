@@ -1257,7 +1257,41 @@ function contentStart(scroller) {
 }
 var anchorHolder = (anchor) => contentStarts.get(anchor)?.scroller ?? anchor;
 var anchorName = (el) => nameAnchor(anchorReading(el));
-function anchorAt(node, anchor, box, at = anchor?.getBoundingClientRect(), visibility = "always") {
+var probe = null;
+var dropsTransforms;
+var TRANSFORMS = ["transform", "translate", "rotate", "scale"];
+function transformed(el) {
+  for (let at = el; at instanceof Element; at = renderedParent(at)) {
+    const style = getComputedStyle(at);
+    if (TRANSFORMS.some((property) => style[property] !== "none")) return true;
+  }
+  return false;
+}
+function anchorProbe() {
+  if (probe) return probe;
+  probe = document.createElement("div");
+  probe.className = "lf-anchor-probe";
+  probe.setAttribute("aria-hidden", "true");
+  probe.style.cssText = "position: fixed; width: 0; height: 0; visibility: hidden; pointer-events: none;left: anchor(left, -99999px); top: anchor(top, -99999px)";
+  const translated = document.createElement("div");
+  translated.style.cssText = "position: fixed; left: 0; top: 0; width: 0; height: 0; translate: 8px 0;anchor-name: --lf-anchor-probe";
+  probe.style.positionAnchor = "--lf-anchor-probe";
+  chromeRoot.append(translated, probe);
+  dropsTransforms = probe.getBoundingClientRect().left === 0;
+  translated.remove();
+  return probe;
+}
+function anchorBox(anchor) {
+  const box = anchor.getBoundingClientRect();
+  const reader = anchorProbe();
+  if (!dropsTransforms || !transformed(anchorHolder(anchor))) return box;
+  if (!anchorReaches(anchor, reader)) return box;
+  const name = anchorName(anchor);
+  if (reader.style.positionAnchor !== name) reader.style.positionAnchor = name;
+  const { left, top } = reader.getBoundingClientRect();
+  return left === -99999 ? box : new DOMRect(left, top, box.width, box.height);
+}
+function anchorAt(node, anchor, box, at = anchor && anchorBox(anchor), visibility = "always") {
   const from = (side, length) => anchor ? `calc(anchor(${side}, -9999px) + ${layoutPx(length)})` : layoutPx(length);
   Object.assign(node.style, {
     position: "fixed",
@@ -1284,7 +1318,7 @@ function headerLevels(item, clips = /* @__PURE__ */ new Map()) {
     return {
       anchor,
       reading: anchor && anchorReading(anchor),
-      at: anchor?.getBoundingClientRect(),
+      at: anchor && anchorBox(anchor),
       band: band ?? nowhere,
       axes: { x: false, y: true }
     };
@@ -1446,6 +1480,7 @@ export {
   carriedAnchor,
   anchorFor,
   anchorName,
+  anchorBox,
   anchorAt,
   headerLevels,
   cutFrames,

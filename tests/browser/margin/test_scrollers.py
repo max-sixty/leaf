@@ -169,6 +169,60 @@ def test_rows_follow_a_pane_and_a_shadow_scroller_in_every_engine(
     assert after["deep"] == pytest.approx(before["deep"], abs=1), (before, after)
 
 
+WIDENED_TABLE_PAGE = leaf_page(
+    "a widened table",
+    "<h1>Seats</h1><p>A paragraph at the measure, long enough to fill the column it "
+    "stands in from one edge to the other.</p>"
+    '<table id="grid" data-width="wide"><thead><tr><th></th><th>Caret elsewhere</th>'
+    "<th>Caret in the field</th></tr></thead><tbody>"
+    + "<tr><th>No view open</th><td>The field's placeholder says it, in place of the "
+    "agent's status, for as long as the walk stands there.</td><td>The line over the "
+    "field says it. It takes its own room in the panel, so it covers nothing.</td></tr>"
+    * 3
+    + "</tbody></table>",
+)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+def test_marks_stand_on_a_widened_table_in_every_engine(request, serve, engine):
+    """A table granted room is translated into place (layouts.css), and Firefox leaves
+    an anchor's transforms out of `anchor()`, so every box anchored in one stood the
+    translation away from what it marked: at 1728px a comment's pin on a header sat
+    over the column beside it, and the Alt outline 300px left of the table. Each
+    engine stands both on what they mark, and the pin keeps its place through a
+    scroll."""
+    browser = request.getfixturevalue(engine)
+    comment = _comment_on("grid", quote="Caret in the field")
+    page = open_page(browser, serve(WIDENED_TABLE_PAGE, events=[comment]))
+    resized(page, 1728, 999)
+    margins_laid_out(page)
+    header = page.locator("#grid thead th").nth(2)
+    reading = """() => {
+      const box = (el) => el.getBoundingClientRect();
+      const pin = box(document.querySelector('.lf-margin-cluster'));
+      const header = box(document.querySelectorAll('#grid thead th')[2]);
+      return {pin: [pin.left, pin.top], header: [header.left, header.right, header.top]};
+    }"""
+    before = page.evaluate(reading)
+    pin, (left, right, top) = before["pin"], before["header"]
+    assert left <= pin[0] <= right, before
+    page.evaluate("() => document.scrollingElement.scrollBy(0, 120)")
+    margins_laid_out(page)
+    after = page.evaluate(reading)
+    assert after["pin"][0] == pytest.approx(pin[0], abs=1), (before, after)
+    assert after["pin"][1] - pin[1] == pytest.approx(
+        after["header"][2] - top, abs=1
+    ), (before, after)
+    header.hover()
+    page.keyboard.down("Alt")
+    aim = page.locator(".lf-aim")
+    expect(aim).to_be_visible()
+    table, outline = page.locator("#grid").bounding_box(), aim.bounding_box()
+    page.keyboard.up("Alt")
+    assert outline["x"] == pytest.approx(table["x"], abs=1), (outline, table)
+    assert outline["y"] == pytest.approx(table["y"], abs=1), (outline, table)
+
+
 def test_a_pin_in_a_pane_paints_in_the_frame_its_target_scrolls(browser, serve):
     """Every frame Chrome draws while a pane scrolls shows the pin level with its
     target, since the browser carries both through the same scroll."""

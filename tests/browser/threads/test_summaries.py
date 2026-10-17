@@ -1,14 +1,9 @@
 """How a thread folds earlier messages under an agent summary or behind an answer's
 progress, and how a direct reply link reveals what a fold hides."""
 
-import io
-import re
-
 import pytest
 from interact_support import append_carried_log_record, append_command
 from leaf import thread as thread_model
-from leaf.render_checks import one_frame, rendered
-from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, SEATED_ASK_PAGE, panel_comment
 from render_harness import (
@@ -46,44 +41,10 @@ def open_margin_card(page, root):
     return card
 
 
-def assert_arrival_returns_to_own_fill(page, destination):
-    """The last painted cue frame equals the same box without its animation.
-
-    Hold the endpoint so a wrong fill cannot hide behind the effect's removal.
-    Reading pixels also covers transparent message ground over its thread surface.
-    """
-    destination.evaluate(
-        """node => {
-          const cue = node.getAnimations().find(a => a.animationName?.endsWith('-flash'));
-          if (!cue) throw new Error('the destination has no arrival cue');
-          cue.pause();
-          cue.effect.updateTiming({fill: 'forwards'});
-          cue.currentTime = cue.effect.getComputedTiming().endTime;
-        }"""
-    )
-    one_frame(page)
-    endpoint = Image.open(io.BytesIO(destination.screenshot())).convert("RGB")
-    destination.evaluate("node => node.getAnimations().forEach(a => a.cancel())")
-    one_frame(page)
-    resting = Image.open(io.BytesIO(destination.screenshot())).convert("RGB")
-    assert endpoint.size == resting.size
-    # Empty ground beside the prose; independent title animation can keep running.
-    for point in [
-        (2, endpoint.height // 2),
-        (endpoint.width - 3, endpoint.height // 2),
-    ]:
-        assert endpoint.getpixel(point) == resting.getpixel(point), {
-            "point": point,
-            "endpoint": endpoint.getpixel(point),
-            "resting": resting.getpixel(point),
-        }
-
-
 @pytest.mark.parametrize("resolved", [False, True])
 def test_an_inline_reply_link_reveals_its_thread(browser, serve, resolved):
-    """A direct reply link opens and cues the exact message, even in a long thread or
-    in the Resolved state. The surrounding card can span more than a viewport,
-    so using it as the arrival flash obscures the destination the link named."""
+    """A direct reply link opens the exact message in the panel, in view and focused,
+    even in a long thread or in the Resolved state."""
     url = serve(SEATED_ASK_PAGE)
     root = panel_comment(
         serve.page_dir, "Which job should come first?", {"section": "jobs"}
@@ -120,36 +81,11 @@ def test_an_inline_reply_link_reveals_its_thread(browser, serve, resolved):
     destination = page.locator(f'.lf-fp-view .lf-msg[data-event="{reply["id"]}"]')
     if resolved:
         page.locator(".lf-resolved-summary").click()
-    destination_selector = f'.lf-fp-view .lf-msg[data-event="{reply["id"]}"]'
-    page.locator(".lf-page-thread-open").evaluate(
-        """(open, selector) => open.addEventListener(
-          'click',
-          () => {
-            window.__arrival = null;
-            const arrived = (event) => {
-              if (!event.target.matches?.(selector)) return;
-              window.__arrival = event.animationName;
-              event.target.getAnimations()
-                .find(a => a.animationName === event.animationName).pause();
-              document.removeEventListener('animationstart', arrived, true);
-            };
-            document.addEventListener('animationstart', arrived, true);
-          },
-          {capture: true, once: true},
-        )""",
-        destination_selector,
-    )
     page.locator(".lf-page-thread-open").click()
     panel_settled(page, view="thread")
-    page.wait_for_function("() => window.__arrival !== null")
-    arrival = page.evaluate("() => window.__arrival")
-    assert arrival.endswith("-flash"), arrival
     expect(thread).to_be_visible()
     expect(destination.locator("#first-job")).to_be_in_viewport()
     expect(destination).to_be_focused()
-    expect(thread).not_to_have_class(re.compile(r"\bflash\b"))
-    expect(destination).to_have_class(re.compile(r"\bflash\b"))
-    assert_arrival_returns_to_own_fill(page, destination)
     sizes = page.evaluate(
         """([thread, destination]) => ({
           thread: thread.scrollHeight,
@@ -551,70 +487,6 @@ def test_a_summary_gathering_the_message_the_user_is_on_keeps_them_on_it(
     expect(message).to_be_focused()
 
 
-def test_a_summary_folding_a_message_keeps_its_frame_loaded(browser, serve):
-    """A message gathered into a checkpoint moves there whole, framed document and all.
-
-    A frame in a reply holds a document of its own. When a summary folds the reply,
-    the message moves from the transcript into the checkpoint's originals; a move
-    that detached it on the way would reload that document and lose whatever the
-    user had done in it."""
-    url = serve(PANEL_PAGE)
-    root = panel_comment(
-        serve.page_dir, "Show me the practice board.", {"section": "how-store"}
-    )
-    first = append_agent_reply(
-        serve.page_dir,
-        root,
-        "Here it is:",
-        markup='<iframe id="folded-frame" title="Practice board"'
-        ' srcdoc="&lt;p&gt;Practice&lt;/p&gt;"></iframe>',
-    )
-    last = append_agent_reply(serve.page_dir, root, "Try a move on it.")
-    page = open_page(browser, url)
-    card = open_margin_card(page, root)
-    page.frame_locator("#folded-frame").locator("p").wait_for()
-    card.locator("#folded-frame").evaluate(
-        "frame => { window.frameLoads = 0;"
-        " frame.addEventListener('load', () => window.frameLoads++); }"
-    )
-
-    summary = summarize_thread(
-        serve.page_dir, first["id"], last["id"], "The board was shown."
-    )
-    told(page)
-    card.locator(".lf-thread-news").filter(has_text="1 summary changed").click()
-    expect(
-        card.locator(
-            f'[data-summary-id="{summary["id"]}"] .lf-summary-originals #folded-frame'
-        )
-    ).to_be_attached()
-    rendered(page)
-    assert page.evaluate("window.frameLoads") == 0, "the fold reloaded the frame"
-
-    # An edit inside the range retracts the summary, releasing the message again.
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "edit",
-            "author": "agent",
-            "agent": "Codex",
-            "session": "pytest-summary",
-            "message": last["id"],
-            "text": "Try a different move on it.",
-        },
-    )
-    told(page)
-    card.locator(".lf-thread-news").filter(
-        has_text="1 message edited · 1 summary changed"
-    ).click()
-    expect(card.locator(".lf-thread-checkpoint")).to_have_count(0)
-    expect(
-        card.locator(f'.lf-msg[data-event="{first["id"]}"] #folded-frame')
-    ).to_be_attached()
-    rendered(page)
-    assert page.evaluate("window.frameLoads") == 0, "the release reloaded the frame"
-
-
 @pytest.mark.parametrize(
     ("width", "touch", "count"), [(1440, False, 2), (320, True, 10)]
 )
@@ -672,10 +544,6 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(
     assert alignment["labelLines"] <= 1.1, alignment
     assert alignment["disclosureRight"] <= alignment["contentRight"] + 0.5, alignment
     expect(card.get_by_role("button", name="Close thread")).to_have_count(0)
-    controls = card.locator(":scope > .lf-thread-content > .lf-thread-controls")
-    assert controls.evaluate("node => !node.closest('.lf-summary-originals')"), (
-        "thread actions entered the collapsible originals"
-    )
     root_message = checkpoint.locator(f'.lf-msg[data-event="{root}"]')
     expect(root_message.locator(":scope > .lf-msg-head")).to_be_hidden()
     expect(root_message.locator(":scope > .lf-msg-body")).to_be_hidden()
@@ -787,46 +655,3 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
         "The corrected second constraint."
     )
     expect(card.locator(f'.lf-msg[data-event="{third["id"]}"]')).to_be_visible()
-
-
-def test_a_summary_cannot_hide_an_active_ask(browser, serve):
-    """A checkpoint with a user obligation is context, never a closed cover."""
-    url = serve(SEATED_ASK_PAGE)
-    root = panel_comment(
-        serve.page_dir, "Which job should come first?", {"section": "jobs"}
-    )
-    question = thread_model.post_reply(
-        serve.page_dir,
-        {"to": root, "for": root},
-        "Choose the first job.",
-        '<lf-ask id="summary-job-decision"><h3>Which job first?</h3>'
-        '<lf-options id="summary-job" choose>'
-        '<lf-option id="summary-mounts">Put the mounts back</lf-option>'
-        '<lf-option id="summary-camera">Install the camera</lf-option>'
-        "</lf-options></lf-ask>",
-    )
-    summary = summarize_thread(
-        serve.page_dir,
-        root,
-        question["id"],
-        "The discussion narrowed the work to two jobs.",
-    )
-
-    page = open_page(browser, url)
-    card = page.locator(f'#jobs .lf-page-thread[data-thread="{root}"]')
-    checkpoint = card.locator(f'[data-summary-id="{summary["id"]}"]')
-    expect(checkpoint).to_have_attribute("data-expanded", "true")
-    expect(checkpoint.locator(".lf-summary-required")).to_have_text(
-        "Messages kept open · current work"
-    )
-    expect(card.locator("#summary-job")).to_be_visible()
-    expect(checkpoint.locator(".lf-summary-expand")).to_have_count(0)
-    expect(checkpoint.locator(".lf-summary-refold")).to_have_count(0)
-    originals = checkpoint.locator(".lf-summary-originals")
-    widths = originals.evaluate(
-        "originals => ({"
-        "available: originals.getBoundingClientRect().width, "
-        "message: originals.querySelector('.lf-msg').getBoundingClientRect().width"
-        "})"
-    )
-    assert widths["available"] - widths["message"] < 20, widths

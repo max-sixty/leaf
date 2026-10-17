@@ -5,7 +5,7 @@ from html import escape
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
-from render_harness import leaf_page, open_page, told
+from render_harness import leaf_page, open_page, scroll_settled, told
 
 
 def test_code_wrapping_keeps_source_copy_and_reader_choice(browser, serve):
@@ -43,8 +43,10 @@ def test_code_wrapping_keeps_source_copy_and_reader_choice(browser, serve):
         "sourceRows.every((n,i) => n === document.querySelectorAll('#code .lf-code-line')[i])"
     )
     rendered(page)
-    page.keyboard.press("ArrowRight")
+    pre.hover()
+    page.mouse.wheel(200, 0)
     page.wait_for_function("document.querySelector('#code pre').scrollLeft > 0")
+    scroll_settled(page, "#code pre", axis="x")
     horizontal = pre.evaluate("e => e.scrollLeft")
     page.keyboard.press("w")
     rendered(page)

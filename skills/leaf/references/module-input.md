@@ -5,9 +5,9 @@ Read with [module-authoring.md](module-authoring.md), which holds what every beh
 ## Commands and keyboard routes
 
 A widget declares each command once, at upgrade, with
-`commands(element, title, rows, options)`. The key handler, shortcut bar, command
-reference, `aria-keyshortcuts` and inline hints all read that one declaration. `options`
-is the scope's `when`, alone or as `{when}`.
+`commands(element, title, rows, options)`. The key handler, command reference,
+`aria-keyshortcuts`, announcements and inline hints all read that one declaration.
+`options` is the scope's `when`, alone or as `{when}`.
 
 For controls Leaf draws, such as margin entries, build the scope as a value with
 `commandScope(title, rows, options)` and put it on the entry's `scope`

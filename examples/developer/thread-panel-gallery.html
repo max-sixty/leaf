@@ -1,10 +1,10 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <title>Threads panel gallery</title>
+    <title>Threads gallery</title>
     <meta
       name="description"
-      content="Live views of Leaf's Threads panel with open, unanswered, resolved, and summarized discussions."
+      content="Live views of Threads in Leaf's panel with open, unanswered, resolved, and summarized discussions."
     />
     <style>
       #thread-panel-views {
@@ -57,11 +57,11 @@
   </head>
   <body>
     <main>
-      <h1>Threads panel</h1>
+      <h1>Threads</h1>
       <p>
         These views share Leaf's conversation renderer across the panel and anchored
-        card. Each is a separate page with its own event log. Open a thread, change
-        View, reply, or Reset a sample to return to the starting view.
+        card. Each is a separate page with its own event log. Open a thread, filter
+        the list, reply, or Reset a sample to return to the starting view.
       </p>
       <nav id="thread-panel-jumps" aria-label="Panel views">
         <a href="#panel-overview">Open threads</a>
@@ -73,7 +73,7 @@
       <section
         id="thread-panel-views"
         data-width="available"
-        aria-label="Threads panel views"
+        aria-label="Threads views"
       >
         <section id="panel-overview">
           <h2>Open threads</h2>
@@ -122,7 +122,7 @@
 
         <section id="panel-resolved">
           <h2>Resolved</h2>
-          <p>View shows the closed discussion and its Reopen action.</p>
+          <p>The Resolved filter shows the closed discussion and its Reopen action.</p>
           <lf-sample id="resolved-sample" label="resolved thread">
             <template id="resolved-page" data-sample data-sample-threads="edf09a41">
               <h1>Workshop room</h1>

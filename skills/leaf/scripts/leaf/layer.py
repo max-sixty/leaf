@@ -746,7 +746,7 @@ def same_leaf(one: dict, other: dict) -> bool:
 def provenance_label(provenance: dict) -> str:
     """One line naming a payload's commit and date, as `payload_provenance` read it.
 
-    `+` marks uncommitted changes, as the page banner does.
+    `+` marks uncommitted changes, as the leaf's menu does.
     """
     commit = provenance.get("commit")
     if not commit:

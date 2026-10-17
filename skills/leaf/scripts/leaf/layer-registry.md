@@ -42,8 +42,8 @@ records its identities under `$layer`:
   Claude Code's Git-versioned plugin cache, and how old that commit is: `committed`,
   its committer date, where Git can read it, or `installed`, when the plugin cache
   copied it without `.git`, one update sweep after it landed. The page exposes that
-  identity and its age in its low-frequency banner controls; a press copies the full
-  layer diagnostics. A harness can ask its running payload for the same source identity
+  identity and its age in the floating panel's menu (Copy Leaf version); a press
+  copies the full layer diagnostics. A harness can ask its running payload for the same source identity
   and date with `leaf --version`.
 - `server` is the SHA-256 identity of the payload's Python serving code,
   `pyproject.toml`, and `uv.lock`. It excludes the interpreter version because a site

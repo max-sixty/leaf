@@ -1,6 +1,7 @@
 """Unsent words on a rendered page, in drafts, comments and replies, from editing
 through sending, sharing and revisions, with the helpers their modules share."""
 
+from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
@@ -13,6 +14,28 @@ from render_harness import (
     wait_for_revision,
     write,
 )
+
+# The words in the panel's one seat for what passes, such as a notice (floating-panel.js,
+# `passing`): the leaf's peek while it shows one over an open view, else the line over
+# the field while it stands, else the empty field's placeholder.
+PANEL_SAYS = """() => {
+  const peek = document.querySelector('.lf-fp-peek');
+  if (peek?.hasAttribute('data-shown')) return peek.textContent.trim();
+  const line = document.querySelector('.lf-fp-context');
+  if (line && !line.hidden && line.textContent.trim()) return line.textContent.trim();
+  return document.querySelector('.lf-fp-field leaf-text')?.getAttribute('placeholder')
+    ?? '';
+}"""
+
+
+def expect_panel_says(page, words):
+    """Wait until the panel's seat for passing words begins with `words`."""
+    try:
+        page.wait_for_function(f"w => ({PANEL_SAYS})().startsWith(w)", arg=words)
+    except PlaywrightTimeout:
+        raise AssertionError(
+            f"the panel says {page.evaluate(PANEL_SAYS)!r}, not {words!r}"
+        ) from None
 
 
 def choose_comment_target(page, selector):

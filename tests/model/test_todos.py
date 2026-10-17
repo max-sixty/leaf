@@ -56,6 +56,11 @@ def kinds(items) -> list:
     return [(item["kind"], item["id"]) for item in items]
 
 
+def question_options(id: str, words: str = "Warm or cool?") -> list[str]:
+    """Reply options asking the user `words` in an lf-ask with `id`."""
+    return ["--markup", f'<lf-ask id="{id}">{words}</lf-ask>']
+
+
 def test_page_state_tracks_both_lists_until_they_are_settled(page_dir):
     """Discovery reads the user's actual queue, including all three ask
     sources, and keeps agent work after On me reaches zero."""
@@ -65,11 +70,20 @@ def test_page_state_tracks_both_lists_until_they_are_settled(page_dir):
     theirs = written(
         leaf("task", "open", page_dir, "plan", "Check the plan", "--on", "user")
     )
-    question = written(leaf("thread", "open", page_dir, "--text", "Merge or abandon?"))
+    question = written(
+        leaf(
+            "thread",
+            "open",
+            page_dir,
+            "--text",
+            "One decision:",
+            *question_options("merge", "Merge or abandon?"),
+        )
+    )
     queue = state_json(page_dir)
     assert kinds(queue["queues"]["on_user"]) == [
         ("ask", ask["id"]),
-        ("ask", f"reply:{question['id']}"),
+        ("ask", "widget:merge"),
         ("todo", theirs["id"]),
     ]
     assert kinds(queue["queues"]["on_agent"]) == [("todo", mine["id"])]
@@ -285,37 +299,29 @@ def test_a_todo_holds_its_thread_on_the_agent_past_reply_and_resolve(page_dir):
 
 
 def test_an_answer_says_what_it_leaves_the_thread_with(page_dir):
-    """An answer declares whether it delivers (`--done`), asks back (`--ask`),
-    or promises work (`--todo`), one of them; progress declares none. A refused
-    answer leaves the comment owed."""
+    """An answer declares whether it delivers (`--done`) or promises work
+    (`--todo`), not both, unless its markup asks back; progress declares none. A
+    refused answer leaves the comment owed."""
     publish(page_dir)
     comment = append_carried_log_record(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "Tighten it."},
     )
     reference = response_reference(page_dir, comment["id"])
-    for flags in ([], ["--done", "--ask"], ["--ephemeral", "--done"]):
+    for flags in (
+        [],
+        ["--done", "--todo", "Tighten"],
+        ["--ephemeral", "--done"],
+        # Markup with no question in it asks nothing back, so it declares nothing.
+        ["--markup", '<figure id="sketch"><p>A sketch.</p></figure>'],
+    ):
         result = leaf("response", "reply", reference, "--text", "On it.", *flags)
         assert result.exit_code != 0, (flags, result.output)
     assert kinds(state_json(page_dir)["queues"]["on_agent"]) == [
         ("answer", comment["id"])
     ]
     reply = written(leaf("response", "reply", reference, "--text", "Done.", "--done"))
-    assert "todo" not in reply and "ask" not in reply
-    assert state_json(page_dir)["queues"]["on_agent"] == []
-    # A proactive turn may ask or promise, and the record holds one of them.
-    both = leaf(
-        "thread",
-        "reply",
-        page_dir,
-        comment["id"],
-        "--text",
-        "Both?",
-        "--ask",
-        "--todo",
-        "Tighten",
-    )
-    assert both.exit_code != 0, both.output
+    assert "todo" not in reply
     assert state_json(page_dir)["queues"] == {"on_user": [], "on_agent": []}
 
 
@@ -380,10 +386,19 @@ def test_a_plan_arranges_todos_asks_and_plain_steps_without_owning_them(page_dir
     assert cut["item"] == {"kind": "todo", "id": todo["id"]}
     assert cut["since"] == cut["running"]["ts"]
 
-    # A prose ask answered elsewhere reads done, and a rewrite that leaves the to-do
+    # A question answered elsewhere reads done, and a rewrite that leaves the to-do
     # out leaves it owed.
-    question = written(leaf("thread", "open", page_dir, "--text", "Merge it?"))
-    asked = f"reply:{question['id']}"
+    written(
+        leaf(
+            "thread",
+            "open",
+            page_dir,
+            "--text",
+            "One:",
+            *question_options("merge", "Merge?"),
+        )
+    )
+    asked = "widget:merge"
     written(leaf("task", "end", page_dir, asked, "done", "In chat"))
     written(
         plan(
@@ -462,49 +477,38 @@ def test_the_door_refuses_a_todo_off_the_page_and_an_outcome_twice(page_dir):
     assert events_model.read_events(page_dir) == before
 
 
-def test_user_queue_selects_widget_and_prose_asks(page_dir, sessionless):
-    """Widget and prose asks enter On me without joining the agent's list.
-    Answering prose retains its typed answer and hands the thread to the agent."""
+def test_user_queue_selects_decisions_and_questions(page_dir, sessionless):
+    """A decision widget and a question in a reply enter On me without joining the
+    agent's list. Answering the question retains the user's words and hands the
+    thread to the agent."""
     publish(page_dir)
     comment = append_carried_log_record(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "Which colour?"},
     )
-    question = written(
+    reply = written(
         leaf(
             "response",
             "reply",
             response_reference(page_dir, comment["id"]),
             "--text",
-            "Warm or cool?",
-            "--ask",
+            "One question:",
+            *question_options("colour"),
         )
     )
     state = state_json(page_dir)
-    asks = [("ask", ask["id"]) for ask in asks_on_user(state)]
-    assert kinds(state["queues"]["on_user"]) == asks + [
-        ("ask", "reply:" + question["id"])
-    ]
+    asks = [("ask", ask["id"]) for ask in asks_on_user(state) if ask["tag"] != "lf-ask"]
+    assert kinds(state["queues"]["on_user"]) == asks + [("ask", "widget:colour")]
     assert state["queues"]["on_agent"] == []
     assert state["todos"] == []
-    [asked] = [
-        entry for entry in state["asks"] if entry["source"]["id"] == question["id"]
-    ]
-    assert (asked["source"]["kind"], asked["thread"], asked["status"]) == (
-        "reply",
+    [asked] = [entry for entry in state["asks"] if entry["source"]["id"] == "colour"]
+    assert (asked["thread"], asked["message"], asked["status"]) == (
         comment["id"],
+        reply["id"],
         "open",
     )
-
-    served = full_state(page_dir, events_model.read_events(page_dir))
-    named_question = next(
-        message
-        for thread in served_thread(served["browser"])["threads"]
-        for message in thread["msgs"]
-        if message["id"] == question["id"]
-    )
-    assert question.get("agent") is None
-    assert asked["prompt"]["text"] == named_question["text"]
+    assert reply.get("agent") is None
+    assert asked["prompt"]["text"] == "Warm or cool?"
 
     warm = append_carried_log_record(
         page_dir,
@@ -518,13 +522,13 @@ def test_user_queue_selects_widget_and_prose_asks(page_dir, sessionless):
     )
     state = state_json(page_dir)
     assert kinds(state["queues"]["on_user"]) == asks
-    assert question["id"] not in [todo["id"] for todo in state["todos"]]
+    assert state["todos"] == []
     assert [item["id"] for item in state["queues"]["on_agent"]] == [warm["id"]]
     served = full_state(page_dir, events_model.read_events(page_dir))
     [answered] = [
         entry
         for entry in served_thread(served["browser"])["asks"]["all"]
-        if entry["source"]["id"] == question["id"]
+        if entry["source"]["id"] == "colour"
     ]
     assert (answered["status"], answered["answer"]["event"]["id"]) == (
         "answered",
@@ -534,11 +538,17 @@ def test_user_queue_selects_widget_and_prose_asks(page_dir, sessionless):
 
 @pytest.mark.parametrize("answer_kind", ["reply", "reaction"])
 def test_an_opening_ask_retains_its_answer_in_the_ask_inventory(page_dir, answer_kind):
-    """An implicit opening ask retains its answer across edits and updates."""
+    """A question opening a thread retains its answer across edits and updates."""
     publish(page_dir)
     question = append_carried_log_record(
         page_dir,
-        {"kind": "comment", "author": "agent", "revision": 1, "text": "Which colour?"},
+        {
+            "kind": "comment",
+            "author": "agent",
+            "revision": 1,
+            "text": "Which colour?",
+            "markup": '<lf-ask id="colour">Warm or cool?</lf-ask>',
+        },
     )
     edit = append_carried_log_record(
         page_dir,
@@ -565,7 +575,7 @@ def test_an_opening_ask_retains_its_answer_in_the_ask_inventory(page_dir, answer
     assert [
         entry["source"]["id"]
         for entry in served_thread(served["browser"])["asks"]["user"]
-    ] == [question["id"]]
+    ] == ["colour"]
     answer = append_carried_log_record(
         page_dir,
         {
@@ -581,7 +591,7 @@ def test_an_opening_ask_retains_its_answer_in_the_ask_inventory(page_dir, answer
     assert served["browser"]["todos"] == []
     [ended] = served_thread(served["browser"])["asks"]["all"]
     assert (ended["source"]["id"], ended["status"], ended["answer"]["event"]["id"]) == (
-        question["id"],
+        "colour",
         "answered",
         answer["id"],
     )
@@ -593,7 +603,7 @@ def test_an_opening_ask_retains_its_answer_in_the_ask_inventory(page_dir, answer
         assert [
             entry["source"]["id"]
             for entry in served_thread(served["browser"])["asks"]["user"]
-        ] == [question["id"]]
+        ] == ["colour"]
         assert served["browser"]["todos"] == []
 
 
@@ -612,8 +622,8 @@ def test_an_ask_ends_at_the_reaction_that_settles_it(page_dir):
             "reply",
             response_reference(page_dir, comment["id"]),
             "--text",
-            "Warm or cool?",
-            "--ask",
+            "One question:",
+            *question_options("colour"),
         )
     )
 
@@ -634,7 +644,7 @@ def test_an_ask_ends_at_the_reaction_that_settles_it(page_dir):
         next(
             item
             for item in state_json(page_dir)["asks"]
-            if item["source"]["id"] == question["id"]
+            if item["source"]["id"] == "colour"
         )["status"]
         == "open"
     )
@@ -643,7 +653,7 @@ def test_an_ask_ends_at_the_reaction_that_settles_it(page_dir):
         next(
             item
             for item in state_json(page_dir)["asks"]
-            if item["source"]["id"] == question["id"]
+            if item["source"]["id"] == "colour"
         )["status"]
         == "answered"
     )
@@ -680,22 +690,20 @@ def test_a_thread_is_on_you_once_however_many_moves_it_holds_for_you(page_dir):
     assert [item["next_actor"] for item in state["workflows"]] == ["user"]
     assert kinds(state["queues"]["on_user"]) == asks + [("resend", comment["id"])]
 
-    question = written(
+    written(
         leaf(
             "thread",
             "reply",
             page_dir,
             comment["id"],
             "--text",
-            "Short or long title?",
-            "--ask",
+            "One question:",
+            *question_options("title", "Short or long title?"),
         )
     )
     state = state_json(page_dir)
     assert [item["next_actor"] for item in state["workflows"]] == ["user"]
-    assert kinds(state["queues"]["on_user"]) == asks + [
-        ("ask", "reply:" + question["id"])
-    ]
+    assert kinds(state["queues"]["on_user"]) == asks + [("ask", "widget:title")]
     assert state["queues"]["on_agent"] == []
 
 
@@ -1250,7 +1258,8 @@ def test_a_todo_on_the_user_stands_on_any_element_until_their_done(page_dir):
 
 
 def test_a_thread_ask_remains_distinct_from_explicit_user_work(page_dir):
-    """A prose ask ends at a reply, without a to-do or separate Done action."""
+    """A question in a reply ends at the user's reply, without a to-do or separate
+    Done action."""
     publish(page_dir)
     comment = append_carried_log_record(
         page_dir,
@@ -1262,20 +1271,20 @@ def test_a_thread_ask_remains_distinct_from_explicit_user_work(page_dir):
             "reply",
             response_reference(page_dir, comment["id"]),
             "--text",
-            "Is the rollback plan enough?",
-            "--ask",
+            "One question:",
+            *question_options("rollback", "Is the rollback plan enough?"),
         )
     )
     [refused] = command_findings(
         "task", "open", page_dir, comment["id"], "Is it enough?", "--on", "user"
     )
-    # A to-do's subject is never a thread; the thread asks with `--ask`.
+    # A to-do's subject is never a thread; the thread asks with an lf-ask.
     assert (refused.code, refused.values["field"]) == ("invalid-event", "/subject")
 
-    status, answer = done(page_dir, "reply:" + question["id"])
+    status, answer = done(page_dir, "widget:rollback")
     assert status == 400, answer
     assert refused_on(answer).code == "users-prose-ask"
-    assert ("ask", "reply:" + question["id"]) in kinds(
+    assert ("ask", "widget:rollback") in kinds(
         state_json(page_dir)["queues"]["on_user"]
     )
 
@@ -1290,6 +1299,9 @@ def test_a_thread_ask_remains_distinct_from_explicit_user_work(page_dir):
         },
     )
     assert question["id"] not in [item["id"] for item in state_json(page_dir)["todos"]]
+    assert ("ask", "widget:rollback") not in kinds(
+        state_json(page_dir)["queues"]["on_user"]
+    )
 
 
 def test_the_user_ends_only_explicit_user_work_and_not_an_ask(page_dir):
@@ -1305,31 +1317,29 @@ def test_the_user_ends_only_explicit_user_work_and_not_an_ask(page_dir):
     assert state_json(page_dir)["todos"][-1]["id"] == mine["id"]
 
 
-def test_widget_ask_ends_through_its_source_and_agent_ends_a_prose_ask(page_dir):
-    """Widget asks follow source state. The agent ends a prose ask `done` when the
-    user answered it elsewhere and `dropped` when it no longer applies; neither
-    invents the user's answer, and `failed` says nothing about an ask."""
+def test_a_decision_ends_through_its_state_and_the_agent_ends_a_question(page_dir):
+    """A decision widget's ask follows its state. The agent ends a question `done`
+    when the user answered it elsewhere and `dropped` when it no longer applies;
+    neither invents the user's answer, and `failed` says nothing about an ask."""
     asking(page_dir)
     [ask] = asks_on_user(state_json(page_dir))
     asked = []
-    for text in ("Which colour?", "Which font?"):
+    for name, text in (("colour", "Which colour?"), ("font", "Which font?")):
         comment = append_carried_log_record(
             page_dir,
             {"kind": "comment", "author": "user", "revision": 1, "text": text},
         )
-        asked.append(
-            "reply:"
-            + written(
-                leaf(
-                    "response",
-                    "reply",
-                    response_reference(page_dir, comment["id"]),
-                    "--text",
-                    "Warm or cool?",
-                    "--ask",
-                )
-            )["id"]
+        written(
+            leaf(
+                "response",
+                "reply",
+                response_reference(page_dir, comment["id"]),
+                "--text",
+                "One question:",
+                *question_options(name),
+            )
         )
+        asked.append(f"widget:{name}")
     answered_elsewhere, dropped = asked
     [refused] = command_findings(
         "task", "end", page_dir, ask["id"], "dropped", "Decided in chat"

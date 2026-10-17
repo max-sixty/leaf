@@ -300,11 +300,22 @@
       took({ top: 0, left: 0, bottom: innerHeight, right: innerWidth }, "the window");
       for (const side of ["top", "left", "bottom", "right"])
         if (taken[side]) cuts.push(taken[side]);
-      const paints = (n) => {
+      // Whether a box paints at a ring sample: its fill anywhere, or its border where the
+      // sample lies on it. A face drawn by its border alone, such as a playground choice,
+      // covered 1px of its neighbour's ring unseen while this read only fills.
+      const clear = (colour) => /^(transparent$|rgba\(.*,\s*0\))/.test(colour);
+      const paints = (n, x, y) => {
         const s = getComputedStyle(n);
-        return (
-          s.backgroundImage !== "none" ||
-          !/^(transparent$|rgba\(.*,\s*0\))/.test(s.backgroundColor)
+        if (s.backgroundImage !== "none" || !clear(s.backgroundColor)) return true;
+        const o = n.getBoundingClientRect();
+        return Object.entries({
+          Left: x - o.left,
+          Right: o.right - x,
+          Top: y - o.top,
+          Bottom: o.bottom - y,
+        }).some(
+          ([side, by]) =>
+            by < parseFloat(s[`border${side}Width`]) && !clear(s[`border${side}Color`]),
         );
       };
       const mid = (x, y) => (x + y) / 2;
@@ -404,7 +415,7 @@
           if (over === el || holds(over, el)) break;
           if (holds(el, over)) {
             if (!lifted(over)) break;
-            if (!paints(over)) continue;
+            if (!paints(over, x, y)) continue;
             covers.push(
               `its ${side} edge is under ` +
                 named(over) +
@@ -413,7 +424,7 @@
             );
             break;
           }
-          if (!paints(over)) continue;
+          if (!paints(over, x, y)) continue;
           if (!scrolledTo && fixedOver(over)) break;
           // Is the control itself under this too? Where a control stands partly behind
           // something, the ring's run on that side is behind whatever the control is behind,

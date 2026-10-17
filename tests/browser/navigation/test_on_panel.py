@@ -89,8 +89,8 @@ def test_m_walks_what_waits_on_you_and_on_me_counts_it(browser, serve):
             "parent": asked["id"],
             "responds": asked["id"],
             "revision": 1,
-            "text": "Weekly or daily?",
-            "ask": True,
+            "text": "One question:",
+            "markup": '<lf-ask id="cadence-question">Weekly or daily?</lf-ask>',
         },
     )
     owed = append_carried_log_record(
@@ -113,19 +113,19 @@ def test_m_walks_what_waits_on_you_and_on_me_counts_it(browser, serve):
 
     thread = page.locator(f'.lf-page-thread[data-thread="{asked["id"]}"]')
     page.keyboard.press("m")
-    expect_walk_position(page, "1 of 2 waiting on me · Thread")
+    expect_walk_position(page, "1 of 2 waiting on me · Question")
     expect(thread).to_be_focused()
     page.keyboard.press("m")
-    expect_walk_position(page, "2 of 2 waiting on me · Ask")
+    expect_walk_position(page, "2 of 2 waiting on me · Options")
     expect(page.locator("#channel-ask")).to_be_focused()
     page.keyboard.press("m")
-    expect_walk_position(page, "1 of 2 waiting on me · Thread")
+    expect_walk_position(page, "1 of 2 waiting on me · Question")
     expect(thread).to_be_focused()
     page.keyboard.press("Shift+m")
-    expect_walk_position(page, "2 of 2 waiting on me · Ask")
+    expect_walk_position(page, "2 of 2 waiting on me · Options")
     expect(page.locator("#channel-ask")).to_be_focused()
     page.keyboard.press("Shift+m")
-    expect_walk_position(page, "1 of 2 waiting on me · Thread")
+    expect_walk_position(page, "1 of 2 waiting on me · Question")
     expect(thread).to_be_focused()
 
     page.keyboard.press("Enter")
@@ -145,7 +145,7 @@ def test_m_walks_what_waits_on_you_and_on_me_counts_it(browser, serve):
     counts(1)
     page.locator("#h").click()
     page.keyboard.press("m")
-    expect_walk_position(page, "1 of 1 waiting on me · Ask")
+    expect_walk_position(page, "1 of 1 waiting on me · Options")
     page.locator("#h").click()
     page.keyboard.press("t")
     expect_walk_position(page, "Thread 1 of 2")
@@ -249,10 +249,10 @@ def test_a_tally_counts_its_regions_asks_and_walks_them(browser, serve):
 
     button.click()
     expect(first).to_be_focused()
-    expect_walk_position(page, "1 of 2 waiting on me here · Ask")
+    expect_walk_position(page, "1 of 2 waiting on me here · Options")
     button.click()
     expect(second).to_be_focused()
-    expect_walk_position(page, "2 of 2 waiting on me here · Ask")
+    expect_walk_position(page, "2 of 2 waiting on me here · Options")
     back_to_the_tally()
     page.keyboard.press("Enter")
     expect(first).to_be_focused()
@@ -308,7 +308,7 @@ def test_a_todo_on_you_ends_at_its_done_where_m_lands_and_in_the_panel(browser, 
     expect_walk_position(page, "1 of 3 waiting on me · To-do")
     expect(page.locator("#h")).to_be_focused()
     page.keyboard.press("m")
-    expect_walk_position(page, "2 of 3 waiting on me · Ask")
+    expect_walk_position(page, "2 of 3 waiting on me · Options")
     assert not x_ends(page)
     page.keyboard.press("m")
     expect_walk_position(page, "3 of 3 waiting on me · To-do")
@@ -512,8 +512,8 @@ def test_an_m_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, se
             "parent": asked["id"],
             "responds": asked["id"],
             "revision": 1,
-            "text": "Weekly or daily?",
-            "ask": True,
+            "text": "One question:",
+            "markup": '<lf-ask id="cadence-question">Weekly or daily?</lf-ask>',
         },
     )
     page = open_page(browser, url)
@@ -541,7 +541,7 @@ def test_an_m_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, se
     # The control: the same press left alone arrives and says where.
     page.locator("#h").click()
     page.keyboard.press("m")
-    expect_walk_position(page, "1 of 2 waiting on me · Thread")
+    expect_walk_position(page, "1 of 2 waiting on me · Question")
     expect(
         page.locator(f'.lf-page-thread[data-thread="{asked["id"]}"]')
     ).to_be_focused()

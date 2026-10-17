@@ -14,7 +14,7 @@ import {
   readPart,
 } from "./semantic-state.js";
 import { announce, notice } from "./notifications.js";
-import { readAsks } from "./asks/model.js";
+import { askedInWords, readAsks } from "./asks/model.js";
 import { watchPendingTraffic } from "./traffic.js";
 import { createCommandDispatch } from "./pending/dispatch.js";
 import { createDelivery, deliverBookkeeping } from "./delivery.js";
@@ -579,7 +579,7 @@ export function mountApplication(dependencies) {
       if (!ask) return Promise.resolve(false);
       if (ask.source.kind === "approval")
         return queueActions.open(JSON.stringify(["ask", ask.id]));
-      if (ask.source.kind === "reply") {
+      if (ask.thread !== null && askedInWords(ask)) {
         showHeld(ask.thread);
         return threadDestinations.openPageThread(ask.message, {
           part: "message",

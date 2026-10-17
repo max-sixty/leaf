@@ -1189,7 +1189,7 @@ function createMarginProjection({
   toolbar.setAttribute("role", "toolbar");
   toolbar.setAttribute(
     "aria-label",
-    "Changes, threads, asks, delivery status, and activity"
+    "Changes, threads, items on me, delivery status, and activity"
   );
   nav.append(toolbar);
   const card = createThreadPreview({

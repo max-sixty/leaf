@@ -558,7 +558,7 @@ Revisit these when their stated trigger becomes real; they are not an active que
   owner, and outcomes across background commands, delegates, and external waits.
   See the [Thread plan](notes/threads.md#independent-jobs-delegation-and-continuation).
 - **Tell the agent when to ask before ending its own to-do.** The agent ends its to-dos
-  itself, and asks first, with a widget ask or a prose ask in a thread, when the result
+  itself, and asks first, with a widget ask or a question in a thread, when the result
   needs the user's sign-off, as the user decided. The shipped
   instructions don't yet say when that is. Trigger: an agent ends a to-do as done that
   the user wanted to see first.

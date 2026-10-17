@@ -41,6 +41,8 @@ from leaf import thread as thread_model
 from leaf import todos as todos_model
 from leaf.refusals import Refused
 
+QUESTION = '<lf-ask id="question">Which one?</lf-ask>'
+
 
 def test_reply_is_fenced_to_the_exact_current_obligation(page_dir):
     first = append_carried_log_record(
@@ -260,7 +262,8 @@ def test_response_author_api_covers_markup_question_title_progress_and_anchor(pa
             selected_ref,
             "--text",
             "Which store owns it?",
-            "--ask",
+            "--markup",
+            QUESTION,
             "--detach",
         ],
     )
@@ -268,7 +271,7 @@ def test_response_author_api_covers_markup_question_title_progress_and_anchor(pa
     record = json.loads(questioned.output)
     assert record["parent"] == asked["id"]
     assert record["responds"] == selected["id"]
-    assert record["ask"] is True
+    assert record["markup"] == QUESTION
     assert record["anchor"] is None
 
 
@@ -551,7 +554,14 @@ def test_provider_response_commits_full_content_before_reconnect(
     )
     markup = '<lf-options id="provider-choice" choose><lf-option id="provider-yes"><strong>Yes</strong></lf-option></lf-options>'
     flags = {
-        "question": ["--ask", "--title", "Storage choice", "--section", "plan"],
+        "question": [
+            "--markup",
+            QUESTION,
+            "--title",
+            "Storage choice",
+            "--section",
+            "plan",
+        ],
         "markup": [
             "--done",
             "--markup",
@@ -588,7 +598,7 @@ def test_provider_response_commits_full_content_before_reconnect(
         "Storage choice",
     )
     if rich == "question":
-        assert reply["ask"] is True
+        assert reply["markup"] == QUESTION
         assert reply["anchor"]["section"] == "plan"
     else:
         assert reply["markup"] == markup
@@ -616,7 +626,7 @@ def test_history_recovery_and_author_retry_survive_owner_process_restart(
     comment, target, delivery_id, _stream = _reserved_author_response(page_dir)
     identity = {"session": "worker-1", "agent": "Indexer"}
     thread_model.post_response(
-        target["ref"], "Worker question?", ask=True, identity=identity
+        target["ref"], "Worker question?", markup=QUESTION, identity=identity
     )
     payload = delivery_model.read_delivery(delivery_id)
     before = cleanup_model.session_record("codex-thread")
@@ -664,15 +674,15 @@ def test_history_recovery_and_author_retry_survive_owner_process_restart(
     [answer] = thread_model.successful_replies(
         events_model.read_events(page_dir), comment["id"]
     )
-    assert (answer["text"], answer["session"], answer["agent"], answer["ask"]) == (
+    assert (answer["text"], answer["session"], answer["agent"], answer["markup"]) == (
         "Worker question?",
         "worker-1",
         "Indexer",
-        True,
+        QUESTION,
     ), errors
     assert (
         thread_model.post_response(
-            target["ref"], "Worker question?", ask=True, identity=identity
+            target["ref"], "Worker question?", markup=QUESTION, identity=identity
         )
         == answer
     )
@@ -686,7 +696,7 @@ def test_explicit_answer_survives_a_provider_ending_without_final_text(
     answer = thread_model.post_response(
         target["ref"],
         "My question?",
-        ask=True,
+        markup=QUESTION,
         identity={"session": "codex-thread", "agent": "Codex"},
     )
     assert stream.finish(ending) is None
@@ -696,7 +706,7 @@ def test_explicit_answer_survives_a_provider_ending_without_final_text(
     assert comment["id"] not in delivery_model.current_responses(
         page_dir, events_model.read_events(page_dir)
     )
-    assert thread_model.post_response(target["ref"], "Retry", ask=True) == answer
+    assert thread_model.post_response(target["ref"], "Retry", markup=QUESTION) == answer
     with pytest.raises(Refused) as refused:
         thread_model.post_response(target["ref"], "Retry", todo="Promise it")
     assert refused_on(refused.value).code == "redeclared-answer"
@@ -781,7 +791,7 @@ def test_committed_answer_survives_a_newer_displayed_reply(page_dir):
     comment, target, _delivery_id, old = _reserved_author_response(page_dir)
     identity = {"session": "codex-thread", "agent": "Codex"}
     thread_model.post_response(
-        target["ref"], "Older question?", ask=True, identity=identity
+        target["ref"], "Older question?", markup=QUESTION, identity=identity
     )
     newer = append_command(
         page_dir,
@@ -803,10 +813,10 @@ def test_committed_answer_survives_a_newer_displayed_reply(page_dir):
         for event in events_model.read_events(page_dir)
         if event["kind"] == "reply"
     ]
-    assert (reply["responds"], reply["text"], reply["ask"]) == (
+    assert (reply["responds"], reply["text"], reply["markup"]) == (
         comment["id"],
         "Older question?",
-        True,
+        QUESTION,
     )
     status = files_model.read_json(page_dir / "status.json")["stream"]
     assert status["reply"]["text"] == "Newer opening"
@@ -880,13 +890,13 @@ def test_explicit_reply_refusal_reaches_its_author_before_commit(page_dir, inval
     assert files_model.latest_revision(page_dir) == before_revision
     (page_dir / "index.html").write_text(source)
     answer = thread_model.post_response(
-        target["ref"], "Corrected question?", ask=True, identity=identity
+        target["ref"], "Corrected question?", markup=QUESTION, identity=identity
     )
     assert stream.finish("completed", "Provider final") is None
     assert thread_model.successful_replies(
         events_model.read_events(page_dir), comment["id"]
     ) == [answer]
-    assert answer["ask"] is True
+    assert answer["markup"] == QUESTION
 
 
 def test_markup_obligation_cannot_be_discharged_by_reply_or_reply_failure(page_dir):
@@ -1046,7 +1056,7 @@ def test_old_provider_final_yields_to_new_reservation_for_same_input(page_dir, s
     )
     identity = {"session": "codex-thread", "agent": "Codex"}
     thread_model.post_response(
-        new_target["ref"], "New owner's question?", ask=True, identity=identity
+        new_target["ref"], "New owner's question?", markup=QUESTION, identity=identity
     )
     if settled:
         append_command(
@@ -1070,8 +1080,8 @@ def test_old_provider_final_yields_to_new_reservation_for_same_input(page_dir, s
         for event in events_model.read_events(page_dir)
         if event["kind"] == "reply"
     ]
-    assert (answer["responds"], answer["text"], answer["ask"]) == (
+    assert (answer["responds"], answer["text"], answer["markup"]) == (
         comment["id"],
         "New owner's question?",
-        True,
+        QUESTION,
     )

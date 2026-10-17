@@ -630,8 +630,8 @@ def test_an_answer_says_what_it_leaves_while_that_stands(browser, serve, request
     question = thread_model.post_reply(
         serve.page_dir,
         {"to": asked, "for": asked},
-        "The session store or the page store?",
-        ask=True,
+        "One question:",
+        markup='<lf-ask id="store-choice">The session store or the page store?</lf-ask>',
         identity=codex,
     )
     promise = thread_model.post_reply(

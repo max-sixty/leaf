@@ -28,7 +28,10 @@ an earlier answer, pose it in the next turn rather than writing every branch.
 The answering widget holds the ask's answer and status. A choice can record a partial
 answer before the user presses Done, and an empty selection can be a complete answer.
 A decision widget on its own also poses an ask; an `lf-ask` around it adds context, not
-a second ask.
+a second ask. An `lf-ask` holding no widget is a question the user answers in words:
+on the page, by commenting on it; in a thread message, by their next message there.
+Use it for an open question no widget can record, and a widget wherever the answer is
+a choice or an edit.
 
 If an ask stops mattering before the user answers, remove it in a new version or mark
 it `restated` (`authoring-revisions.md`). A to-do you put on the user is work for them
@@ -82,5 +85,5 @@ A page whose approval unblocks work declares:
 Leaf offers approval only on a stamped version that declares it, so stamp a draft
 before asking for sign-off. Each such version gets an approval ask, which approving the
 version answers and Undo reopens. Approval needs every widget ask on the page and in its
-unresolved threads answered or withdrawn; asks in resolved threads and asks written only
-in prose don't block it.
+unresolved threads answered or withdrawn, a question in an `lf-ask` included; asks in
+resolved threads don't block it.

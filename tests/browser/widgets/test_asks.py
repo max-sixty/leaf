@@ -189,7 +189,7 @@ def test_ideas_shortlist_survives_revision_and_can_reopen_before_approval(
     expect_approval(page, enabled=True)
 
     choices.get_by_role(
-        "button", name="Take back Done: reopen this ask", exact=True
+        "button", name="Take back Done: reopen these options", exact=True
     ).tap()
     round_trip(page)
     expect_asks_answered(page, "0/1")
@@ -242,7 +242,7 @@ def test_clearing_an_answer_reopens_its_ask_and_shuts_the_approval_gate(browser,
     round_trip(page)
     expect_asks_answered(page, "0/1")
     expect_approval(
-        page, enabled=False, title="Answer every ask before approving this work"
+        page, enabled=False, title="Answer every open widget before approving this work"
     )
 
 

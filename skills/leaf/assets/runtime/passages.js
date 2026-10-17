@@ -668,6 +668,10 @@ export const elementById = (id, root = document) => {
 // here, so markup a message quotes neither answers for the page nor reaches into it.
 // `doc` is a parsed revision's document, where a version reads its authored `main`.
 export const pageDocument = (doc = document) => doc.querySelector("body > main");
+// The box the page's Layout arranges: `main`, or the shown child of a `main` that carries
+// no Layout itself (layouts.css, `--lf-layout-box`). The margin, the rail and the
+// Layout's regions read this box; the authored content is still `pageDocument`.
+export const layoutBox = () => document.documentElement.lfInitial.layoutBox();
 export const authoredScope = (node) =>
   closestAcross(node, ".lf-msg-body") ?? pageDocument();
 

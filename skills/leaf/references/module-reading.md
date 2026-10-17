@@ -158,14 +158,14 @@ Each record looks like this:
 
 ```js
 {
-  id: "widget:release-disposition", // or "reply:<agent-message-id>"
+  id: "widget:release-disposition", // or "approval:v<version>"
   source: {kind: "widget", id: "release-disposition", tag: "lf-options"},
   thread: null,
   message: null,
   prompt: {text: "When should this ship?", target: "release-context"},
   answer: {value: ["release-later"], event: null},
   status: "answered", // open | answered | answered_elsewhere | withdrawn
-  end: null,          // a prose ask the agent ended: {detail, event}
+  end: null,          // a question the agent ended unanswered: {detail, event}
   next_actor: null,   // user | agent | null
 }
 ```
@@ -178,16 +178,18 @@ show while `status` is `open`, and an empty selection can be complete. `answer` 
 `lf-ask` or other `x-ask-context` wrapper supplies the prompt and where the user lands;
 `prompt.text` is `null` for a widget with no heading.
 
-A prose ask is a question in an agent's message, with `source.kind === "reply"`. The
-user's reply or reaction answers it. When the agent ends it with `leaf task end`
-instead, `status` is `answered_elsewhere` or `withdrawn` and `end.detail` says why.
+A widget whose entry declares `x-awaits.reply`, such as an `lf-ask` holding no
+widget, is a question the user answers in words: their next message in its thread, or
+a comment on it on the page, is its `answer.value` (`{text}`, or `{token}` for a
+settling reaction); `askedInWords(ask)` says whether an ask is one. When the agent ends it with `leaf task end` instead, `status` is
+`answered_elsewhere` or `withdrawn` and `end.detail` says why.
 
 An approval ask, `source.kind === "approval"`, asks the user to approve the stamped
 version `source.version`. Approving sets `answer.value` to `true`, and Undo reopens it.
 
-`thread` and `message` name the Thread and message of a prose ask or of a widget inside
-a Thread. `prompt.target` is where the user goes to answer. A user's answer shows in
-`answer` at once; which asks exist changes when the server's reading arrives.
+`thread` and `message` name the Thread and message of a widget inside a Thread.
+`prompt.target` is where the user goes to answer. A user's answer shows in `answer`
+at once; which asks exist changes when the server's reading arrives.
 
 `askWords(ask)` words an answer for display, using a widget's `answerWords`
 (`module-state.md`, "Declared widget state"). `asksIn(region, asks)` returns the widget

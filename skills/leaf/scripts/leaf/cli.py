@@ -1053,8 +1053,9 @@ def thread_open(
     --section points at a passage, general where neither does — a question about
     the work as a whole.
 
-    The user answers it in the browser. Refuses a quote the active revision does
-    not hold, or holds more than once. The comment's id is the thread's.
+    The user answers it in the browser; a question in an `<lf-ask>` in --markup
+    waits on them until they do. Refuses a quote the active revision does not
+    hold, or holds more than once. The comment's id is the thread's.
     """
     from leaf.thread import cmd_comment
 
@@ -1077,11 +1078,6 @@ def _reply_options(command):
         click.option("--text", help="reply text (default: stdin)"),
         click.option(
             "--markup", default="", help="frozen HTML fragment after the text"
-        ),
-        click.option(
-            "--ask",
-            is_flag=True,
-            help="the reply asks the user something, which waits on them as an ask",
         ),
         click.option(
             "--todo",
@@ -1125,10 +1121,11 @@ def response_reply(
 ) -> dict | None:
     """Reply to the update REFERENCE names: the `answer.ref` its delivery printed.
 
-    Mark every answer with one of --done (it delivers what the message asked for),
-    --ask (it asks the user something back) or --todo TITLE (it promises work it
-    doesn't deliver, which stays on you as a to-do). A progress line (--ephemeral)
-    or a failure (--failure) takes none of them.
+    Mark every answer with --done (it delivers what the message asked for) or
+    --todo TITLE (it promises work it doesn't deliver, which stays on you as a
+    to-do), or ask the user something back with an `<lf-ask>` in its --markup,
+    which waits on them until their next message in the thread. A progress line
+    (--ephemeral) or a failure (--failure) takes none of them.
 
     The reply can also set frozen HTML, the thread's title and a new anchor. Saved
     page edits are checked and made live before it posts. After an answer posts,
@@ -1142,7 +1139,6 @@ def response_reply(
         flag
         for flag, given in (
             ("--done", done),
-            ("--ask", options["ask"]),
             ("--todo", options["todo"] is not None),
         )
         if given
@@ -1155,12 +1151,13 @@ def response_reply(
             f"{declared[0]} declares what an answer leaves; progress and failure "
             "receipts answer nothing"
         )
-    if not declared and answers:
+    if not declared and answers and not options["markup"]:
         raise click.UsageError(
             "say what the answer leaves: --done when it delivers what was asked, "
-            "--ask when it asks the user something back, or --todo TITLE when "
-            "it promises work it doesn't deliver"
+            "--todo TITLE when it promises work it doesn't deliver, or a question "
+            "for the user as an <lf-ask> in --markup"
         )
+    options["asks_back"] = not declared and answers
     if attempt is not None:
         options["attempt"] = attempt
     return post_response(reference, failure=failure, **options)
@@ -1258,7 +1255,8 @@ def task_open(dir: str, subject: str, title: str, owner: str) -> dict:
     Your own to-do on a widget needs a widget that declares x-work or holds an
     unsettled update. With `--on user` the to-do is the user's: their Done ends it,
     and you can end it too. In a thread, open a to-do with `leaf response reply
-    --todo`, and ask the user something with `--ask`."""
+    --todo`, and ask the user something with an `<lf-ask>` in the reply's
+    `--markup`."""
     from leaf.todos import cmd_open
 
     return cmd_open(resolve_dir(dir), subject, title, owner)
@@ -1293,10 +1291,11 @@ def task_end(dir: str, task_id: str, outcome: str, detail: str | None) -> dict:
     version or reply holding it, or why there is none. TODO may be yours or the
     user's.
 
-    TODO may also be a prose ask's id (`reply:<message-id>`): `done` records that
-    the user answered it elsewhere, DETAIL saying where, and `dropped` withdraws it.
-    Neither records an answer from the user. A widget's ask ends through its
-    declared state or an authored withdrawal."""
+    TODO may also be the id of a question the user answers in words, such as an
+    `lf-ask` in a reply (`widget:<id>`): `done` records that the user answered it
+    elsewhere, DETAIL saying where, and `dropped` withdraws it. Neither records an
+    answer from the user. An ask a widget's state answers ends through that state
+    or an authored withdrawal."""
     from leaf.todos import cmd_end
 
     return cmd_end(resolve_dir(dir), task_id, outcome, detail)

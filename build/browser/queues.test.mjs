@@ -11,7 +11,15 @@ const adopted = (name) => {
   const served = servedReading(name);
   const app = createSemanticApplication();
   app.identify(served.active.revision);
-  assert.equal(app.adopt(served), true);
+  // A message with markup, such as one asking with an lf-ask, draws the body the
+  // page captured; this stands in its words.
+  const view = served.browser.views[String(served.active.revision)];
+  const messageBodies = new Map(
+    view.thread.threads.flatMap(({ msgs }) =>
+      msgs.filter(({ markup }) => markup).map(({ id, text }) => [id, { text }]),
+    ),
+  );
+  assert.equal(app.adopt(served, { ...app.read().document, messageBodies }), true);
   return { app, served: served.browser.views[String(served.active.revision)].queues };
 };
 const published = (app) => app.read().effective.queues;
@@ -91,10 +99,10 @@ test("a follow-up sent in a thread stands for the answer it was owed", () => {
   );
 });
 
-test("prose sent beside an ask leaves it on the user until the log answers", () => {
+test("words sent to a question leave it on the user until the log answers", () => {
   const { app } = adopted("queues on both sides");
   const asked = published(app).on_user.find(
-    (item) => item.kind === "ask" && item.ask.source.kind === "reply",
+    (item) => item.kind === "ask" && item.ask.source.tag === "lf-ask",
   );
   app.enqueue(
     {
@@ -106,8 +114,8 @@ test("prose sent beside an ask leaves it on the user until the log answers", () 
     },
     "now",
   );
-  // Whether the prose answers the ask is the server's reading; the send itself is
-  // the agent's to answer at once.
+  // Whether the words answer the question is the server's reading; the send itself
+  // is the agent's to answer at once.
   assert.ok(published(app).on_user.some((item) => item.id === asked.id));
   assert.ok(published(app).on_agent.some((item) => item.id === "pending:a4"));
   app.refuse("a4");

@@ -49,7 +49,7 @@ import {
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { scrollBehavior } from "../motion.js";
 import { ASK_CONTROL } from "./view-elements.js";
-import { ownedAskControl } from "./answer.js";
+import { askWord, ownedAskControl } from "./answer.js";
 import { askHolding, placeOf, sideOf } from "../standing-target.js";
 import { PRESENTATION } from "../presentation.js";
 import { retainUserIntent } from "../user-intent.js";
@@ -601,7 +601,7 @@ export function createAskView({
       if (!arrived) return false;
       const state = unansweredIds().has(next.id) ? "waiting on me" : "answered";
       const index = asks.findIndex((ask) => ask.id === next.id);
-      announce(walkPositionLabel("Ask", index + 1, asks.length, state));
+      announce(walkPositionLabel(askWord(next), index + 1, asks.length, state));
       return true;
     });
     void ready.catch(() => {});
@@ -614,7 +614,7 @@ export function createAskView({
   function mount() {
     if (mounted) return;
     mounted = true;
-    stopContextScopes = contextScopes("In this ask", askContext);
+    stopContextScopes = contextScopes("While answering", askContext);
     void syncAsks();
     document.addEventListener(PRESENTATION, actionsChanged);
     addEventListener("resize", repaint);

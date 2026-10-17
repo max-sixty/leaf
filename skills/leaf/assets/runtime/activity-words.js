@@ -324,9 +324,10 @@ export function pageStatus(state, { reach = "reached" } = {}) {
 
 // The page's two queues (`served_state.queues`), as the status's explanation names
 // them: each side's kinds and each open to-do's title. The floating panel counts what
-// waits on the user on its On me mark.
+// waits on the user on its On me mark. What a widget registered is counted as what is
+// left to answer, since only a row or the walk names it by its widget (`askWord`).
 const QUEUE_WORDS = Object.freeze({
-  ask: ["ask", "asks"],
+  ask: ["to answer", "to answer"],
   approval: ["approval", "approvals"],
   resend: ["update to send again", "updates to send again"],
   answer: ["answer", "answers"],

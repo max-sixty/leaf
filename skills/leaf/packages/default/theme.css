@@ -1603,6 +1603,9 @@
     padding: var(--sp-4);
     --lf-block-frame: 1;
   }
+  :scope:is(lf-tabs).lf-rendered > lf-tab[data-lf-focus] {
+    outline-offset: calc(-1 * var(--focus-ring-w));
+  }
   :scope:is(lf-tabs).lf-rendered > lf-tab[hidden] {
     margin: 0;
   }

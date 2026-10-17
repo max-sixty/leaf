@@ -293,8 +293,9 @@ variants:
         </main>
 
         You have opened one agent thread on remaining-next asking whether to prepare
-        #59 next. The live source is valid and queues.on_user contains only that ask,
-        reply:next-touch. queues.on_agent is empty. Your drafted final reply ends:
+        #59 next, its question in an lf-ask. The live source is valid and
+        queues.on_user contains only that ask, widget:next-touch. queues.on_agent is
+        empty. Your drafted final reply ends:
         "One ask is on your On me list: whether to prepare #59 next as a separate reviewed
         change. Nothing else currently needs your input."
 
@@ -321,8 +322,9 @@ variants:
           to assessment, while its detailed table already presents a proposal;
           either keeping assessment on the agent or asking about that proposed
           boundary is valid. Do not require exactly seven asks.
-          This is a read-only plan: execution is not required. Agent `leaf thread open
-          --text` registers a prose ask automatically; --ask is needed only on a reply.
+          This is a read-only plan: execution is not required. An agent thread or reply
+          registers a question only through an lf-ask (or other asking widget) in its
+          markup.
           Do not require exact wording, IDs, order, or a particular choice widget.
   # From 01a12305-235c-7613-8331-c007a55786e8: the agent read empty queues,
   # then handed over undecided rewrites as prose. At 87976febb, unchanged shipped
@@ -369,8 +371,8 @@ variants:
           decisions on the existing review page, one for the event-log proposal
           and one for the registry proposal, and reads the canonical queues with
           leaf page state after registration before handing over or waiting.
-          Each decision may use an lf-ask with an answering widget or an agent
-          thread opened with a direct question (or a reply with --ask).
+          Each decision may use an lf-ask with an answering widget, or an agent
+          thread or reply whose markup holds an lf-ask with the question.
           A user to-do whose Done merely reports completion cannot record acceptance
           or rejection of a rewrite. A status line, chat list, ordinary HTML
           comparison, or promise to add questions later fails. Home must remain
@@ -393,8 +395,8 @@ variants:
     vars:
       prompt: |
         You drive a live Leaf prose review at ~/.local/state/leaf/pages/prose-audit.
-        The review had two proposal questions, each opening its own agent thread:
-        event-log-q and registry-q. I answered in this chat: "Apply the event-log
+        The review had two proposal questions, each an lf-ask opening its own agent
+        thread: event-log-q and registry-q. I answered in this chat: "Apply the event-log
         rewrite; keep the original registry wording." Both edits are now applied
         and checked.
         The page has no required version approval. I also authorized you to
@@ -404,8 +406,8 @@ variants:
         The latest page state is:
         {"source":{"live":true,"error":null},
          "queues":{"on_user":[
-           {"id":"reply:event-log-q","kind":"ask","thread":"event-log-q"},
-           {"id":"reply:registry-q","kind":"ask","thread":"registry-q"}],
+           {"id":"widget:event-log-q","kind":"ask","thread":"event-log-thread"},
+           {"id":"widget:registry-q","kind":"ask","thread":"registry-thread"}],
            "on_agent":[{"id":"ci-work","kind":"todo"}]}}
         No work depends on further feedback; comments remain welcome.
 
@@ -416,8 +418,8 @@ variants:
       - type: llm-rubric
         metric: settled-queue
         value: |
-          Pass only if the agent retires both existing prose asks with leaf
-          task end on their ask IDs (reply:event-log-q and reply:registry-q)
+          Pass only if the agent retires both existing questions with leaf
+          task end on their ask IDs (widget:event-log-q and widget:registry-q)
           with outcome done, since the user answered them in chat, and inspects
           the canonical queues with leaf page state afterward. Ending either
           dropped or failed fails: that records the question withdrawn though

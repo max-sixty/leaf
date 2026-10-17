@@ -23,7 +23,7 @@
   --lf-bottom-status-translate: 0 50%;
   --lf-view-height: calc(100dvh - var(--lf-banner-h) - var(--lf-bottom-bar-h));
   --lf-top: var(--lf-banner-h);
-  --lf-top-covered: calc(var(--lf-banner-h) + var(--lf-root-headers, 0px));
+  --lf-top-covered: var(--lf-banner-h);
   --lf-landing-room: 12px;
   --lf-tabstrip-h: calc(9px + max(38px, var(--aim-floor)));
   --lf-z-page-paint: 8890;

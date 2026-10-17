@@ -53,6 +53,7 @@ function readBreakouts() {
   layoutChanged(pageDocument());
   repaintPage();
 }
+var mayHoldLayoutBox = (node) => node.matches("body > main > *, body > main > [data-lf-views] > *");
 function openResidency({ onRead }) {
   readFinished = onRead;
   residencyOpen = true;
@@ -62,6 +63,10 @@ function openResidency({ onRead }) {
   if (main)
     new MutationObserver((records) => {
       if (records.some(
+        (record) => record.type === "attributes" && record.attributeName === "hidden" && mayHoldLayoutBox(record.target)
+      ))
+        readResidency();
+      else if (records.some(
         (record) => record.type === "attributes" ? bringsBreakout(record.target) : [...record.addedNodes].some(bringsBreakout)
       ))
         readBreakouts();

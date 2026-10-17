@@ -90,10 +90,11 @@ Compose the page from these:
   (`page-layout.md`, "A workspace"). A document read top to bottom beside a panel kept
   in view, such as a postmortem beside its timeline, is a `layout-sidebar` page
   (`page-layout.md`, "A sidebar page").
-- **Several views of one artifact** are one `lf-tabs` set. Page tabs hold project-scale
-  views that share one history, Threads panel and set of asks; a tabbed section holds
-  local alternatives within a view. The `lf-tabs` entry says which placement makes
-  which.
+- **Several views of one subject**, such as a playground to try beside the proposal it
+  argues for and the reasoning behind it, are a page of views: one `lf-tabs` set in a
+  `main` with no Layout, each view with a Layout of its own (`page-layout.md`, "A page
+  of views"). The views share one history, Threads panel and set of asks. A tab set
+  inside a view holds local alternatives within it.
 
 A page can grow without changing its Layout: a report that gains live status gains a
 row of tiles. Leaf's banner and bottom bar take their own space, and comment markers go
@@ -107,7 +108,7 @@ none. The outline should be reachable from the top of the page on a desktop and 
 the document scrolls, and in a narrow window it comes before the main reading.
 
 Write an empty `lf-toc` with a stable id. On a column page, put it in an
-`aside.sidebar` directly inside `main`, near the top:
+`aside.sidebar` directly inside the box carrying `layout-column`, near the top:
 
 ```html
 <aside class="sidebar" id="contents-sidebar">
@@ -119,7 +120,8 @@ Leaf shows it in the desktop margin when there is room, and as an open outline i
 page's flow in a narrow window. On a sidebar page, put the outline and a short verdict
 or status at the top of the `aside` (`page-layout.md`, "A sidebar page"), short enough
 to fit the window, and put detailed evidence and history in the body or behind a
-disclosure. Workspaces and root page tabs have their own navigation.
+disclosure. A workspace has its own navigation, and so does a page of views, whose
+column views each take their own outline.
 
 ## Read the registry
 

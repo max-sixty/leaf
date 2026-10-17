@@ -9,7 +9,8 @@ which shape fits which subject.
 
 A Layout is a class that arranges the box it is on. Three set the page's shape. Each
 goes on `main`, or on a child of a `main` that carries none, which the page then lays
-out as it would `main` while that child is shown:
+out as it would `main` while that child is shown, as each view of a page of views
+does ("A page of views"):
 
 | Class              | The page                                                            |
 | ------------------ | ------------------------------------------------------------------- |
@@ -40,6 +41,36 @@ narrow its grid track or cap its blocks in the page's `<style>`, such as
 The page's own `<style>` comes after the Layout, so ordinary rules can change a track
 share, a gap or an order. Where a Layout fits, use it rather than rebuilding it; a page
 that no Layout fits writes its own grid or flex rules.
+
+## A page of views
+
+A page whose subject has several views, such as a playground to try, the proposal it
+argues for and the reasoning behind it, puts each in a view of its own with the Layout
+that suits it. Write one `lf-tabs` in a `main` that carries no Layout, and give each
+`lf-tab` one child carrying that view's Layout:
+
+```html
+<main>
+  <header>
+    <h1>Floating comment panel</h1>
+  </header>
+  <lf-tabs id="views">
+    <lf-tab id="try" label="Try" summary="The panel, live">
+      <div class="layout-workspace">…</div>
+    </lf-tab>
+    <lf-tab id="proposal" label="Proposal" summary="What changes and why">
+      <article class="layout-column">…</article>
+    </lf-tab>
+  </lf-tabs>
+</main>
+```
+
+The list of views stands down the window's left edge, beside the open view, with each
+view's `summary` under its label. The page's `header`, the one element to write before
+the set, stands over every view: keep it to a title, and a line on the subject where it
+needs one. On a phone the title, the list and the view stack. Each view opens where the
+user last read it. Give each view its own heading, and a column view its own contents
+outline. The views share the page's history, Threads panel and asks.
 
 ## A sidebar page
 

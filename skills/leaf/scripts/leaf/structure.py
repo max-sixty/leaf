@@ -877,24 +877,45 @@ def annotation_mode(document: SourceDocument) -> str:
 
 
 def page_layout(document: SourceDocument):
-    """The `layout-` names the document's `main` and its shown children carry
-    (`layout-column` is `column`), space-separated, or None.
+    """The `layout-` names the document's `main` and the boxes under it that can be its
+    Layout's carry (`layout-column` is `column`), space-separated, or None.
 
-    A page Layout's class is on `main`, or on a shown child of a `main` that carries none
-    (layouts.css, `--lf-layout-box`), which the parser reaches after it has begun
-    painting the body, so delivery repeats it on the root for the Layout's own body rules
-    to read before the first paint. A child the page hides is not the page's shape, so
-    its names stay off. Every other name goes across, since a block's own
+    A page Layout's class is on `main`, or on a shown child of a `main` that carries none,
+    or on a child of a view of such a `main`, a member of its child that shows one at a
+    time (layouts.css, `--lf-layout-box`). The parser reaches those
+    after it has begun painting the body, so delivery repeats them on the root for the
+    Layout's own body rules to read before the first paint. Which view opens is the
+    browser's, so every view's names go across. A child the page hides is not the page's
+    shape, so its names stay off. Every other name goes across, since a block's own
     (`layout-tiles`) can stand beside the page's and the body rules read only the page
     Layouts' names."""
     main = document.tree.select_one("body > main")
     names = []
-    for box in [main, *main.children] if main else []:
-        if isinstance(box, turbohtml.Element) and "hidden" not in box.attrs:
-            for token in box.attrs.get("class", []):
-                name = token.removeprefix("layout-")
-                if name != token and name not in names:
-                    names.append(name)
+
+    def shown(parent):
+        return [
+            child
+            for child in parent.children
+            if isinstance(child, turbohtml.Element) and "hidden" not in child.attrs
+        ]
+
+    def carried(box):
+        return [
+            token.removeprefix("layout-")
+            for token in box.attrs.get("class", [])
+            if token.startswith("layout-")
+        ]
+
+    boxes = [main, *shown(main)] if main else []
+    # Under a `main` that carries none, a view's children, two holders further down.
+    holders = boxes[1:] if main and not carried(main) else []
+    for _ in range(2):
+        holders = [child for box in holders if not carried(box) for child in shown(box)]
+        boxes.extend(holders)
+    for box in boxes:
+        for name in carried(box):
+            if name not in names:
+                names.append(name)
     return " ".join(names) or None
 
 

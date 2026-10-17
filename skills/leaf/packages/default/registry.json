@@ -466,8 +466,8 @@
     "x-upgrade": false
   },
   "lf-tabs": {
-    "description": "Several views shown one at a time: page navigation, a tabbed box, or a queue beside its open item.",
-    "x-instructions": "The first `lf-tabs` written directly in `main` is the page's navigation; any other tab set is a framed box within the page. Put the page's title and lede before page tabs, and the main current view first. Make each `lf-tab` a self-contained view; history, threads, versions and sign-off belong to the whole page. When current work no longer needs a view, remove it. Move any context still needed, and any passage an open thread or an unretracted decision is anchored to, into a `details` in the relevant tab. Use `list=\"side\"` for a queue listed beside the item it opens.",
+    "description": "Several views shown one at a time: a page's views, a tabbed box, or a queue beside its open item.",
+    "x-instructions": "The first `lf-tabs` written directly in a `main` that carries no Layout is the page's views: give each `lf-tab` one child carrying that view's Layout, such as `<article class=\"layout-column\">` (`page-layout.md`, \"A page of views\"), and put the page's short title in one `header` before the set. Any other tab set is a framed box within the page. Put the main current view first. Make each `lf-tab` a self-contained view; history, threads, versions and sign-off belong to the whole page. When current work no longer needs a view, remove it. Move any context still needed, and any passage an open thread or an unretracted decision is anchored to, into a `details` in the relevant tab. Use `list=\"side\"` for a queue listed beside the item it opens.",
     "type": "object",
     "properties": {
       "id": {
@@ -517,7 +517,7 @@
   },
   "lf-tab": {
     "description": "One labeled view in a tab set, optionally summarized and grouped in a side-list queue.",
-    "x-instructions": "In a side-list queue each item's `summary` shows under its label, so the user can choose an item without opening it. Start the summary with what the item is about, such as the problem a ticket reports, unless the label already says so, then what sets it apart from its neighbours, such as its age or suggested outcome. Leave out the item's group, which its heading shows. Where items fall into kinds the user works through in turn, such as merge, close and FYI, give each item its kind as `group` and place each kind's items together in the order to take them; adjacent tabs with the same group share one heading. Keep ids distinct across tabs, which share the page's id space.",
+    "x-instructions": "In a side-list queue or a page's list of views each item's `summary` shows under its label, so the user can choose an item without opening it. Start the summary with what the item is about, such as the problem a ticket reports, unless the label already says so, then what sets it apart from its neighbours, such as its age or suggested outcome. Leave out the item's group, which its heading shows. Where items fall into kinds the user works through in turn, such as merge, close and FYI, give each item its kind as `group` and place each kind's items together in the order to take them; adjacent tabs with the same group share one heading. Keep ids distinct across tabs, which share the page's id space.",
     "x-name": "label",
     "type": "object",
     "properties": {

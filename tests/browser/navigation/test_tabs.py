@@ -91,7 +91,8 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
                   generated: target?.dataset.lfGen === '1'};
         })"""
     )
-    assert targets[0] == {"href": "#bg-title", "tag": "hgroup", "generated": False}
+    # The open view's outline starts at the view, whose sections follow.
+    assert targets[0] == {"href": "#bg-view-data", "tag": "lf-tab", "generated": False}
     assert all(
         target["tag"] == "section" and not target["generated"] for target in targets[1:]
     ), targets
@@ -313,7 +314,9 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     # left in the flow it lands a screen below the fold. Which section that is belongs
     # to the gallery's authored order: naming one heading here made a section added
     # above it read as a layout failure.
-    expect(page.locator("#bg-view-threads > section").first).to_be_in_viewport()
+    expect(
+        page.locator("#bg-view-threads > article > section").first
+    ).to_be_in_viewport()
     page.keyboard.press("g")
     page.keyboard.press("Shift+p")
     page_map = page.get_by_role("dialog", name="Page Map", exact=True)
@@ -395,33 +398,31 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
 
 @pytest.mark.parametrize(
     "placement",
-    # Directly in main beside other blocks, and inside one; alone in main is the
-    # first case without its neighbours.
-    ["among-blocks", "nested"],
+    # Directly in a main with no Layout, under the page's title, and inside a block.
+    ["views", "nested"],
 )
 def test_the_gallery_tab_set_uses_the_boundary_of_its_composition(
     browser, serve, placement
 ):
     """The same tab vocabulary has page or section scope from where it is placed: the
-    first set directly in main is page navigation whatever stands beside it, and a set
-    inside another block is a tabbed section."""
+    first set directly in a main with no Layout is the page's views, and a set inside
+    another block is a tabbed section."""
     sample = re.search(
         r'<lf-tabs id="bg-tabs">.*?</lf-tabs>', FEATURE_GALLERY.read_text(), re.DOTALL
     )
     assert sample is not None
     heading = "<header><h1>Project views</h1></header>"
-    body = {
-        "alone": heading + sample[0],
-        "among-blocks": heading
-        + '<aside class="sidebar"><p>Contents</p></aside>'
-        + sample[0]
-        + "<p>This conclusion follows the tab set.</p>",
-        "nested": heading + "<section>" + sample[0] + "</section>",
-    }[placement]
     embedded = placement == "nested"
+    body = heading + ("<section>" + sample[0] + "</section>" if embedded else sample[0])
     page = open_page(
         browser,
-        live_url(serve(leaf_page("Root tab gallery", body))),
+        live_url(
+            serve(
+                leaf_page(
+                    "Root tab gallery", body, layout="column" if embedded else None
+                )
+            )
+        ),
     )
     tabs = page.locator("#bg-tabs")
     expect(tabs).to_have_css("border-left-width", "1px" if embedded else "0px")
@@ -441,8 +442,8 @@ def test_the_gallery_tab_set_uses_the_boundary_of_its_composition(
         page.evaluate("window.__retainedTabs = document.querySelector('#bg-tabs')")
         source = serve.page_dir / "index.html"
         original = source.read_text()
-        # An earlier tab set in main takes over the page's navigation, and this one
-        # becomes a tabbed section without being rebuilt.
+        # An earlier tab set in main becomes the page's views, and this one becomes a
+        # tabbed section without being rebuilt.
         stamp_page(
             serve.page_dir,
             original.replace(
@@ -458,7 +459,7 @@ def test_the_gallery_tab_set_uses_the_boundary_of_its_composition(
         assert page.evaluate(
             "window.__retainedTabs === document.querySelector('#bg-tabs')"
         )
-        stamp_page(serve.page_dir, original, "Restore page tabs")
+        stamp_page(serve.page_dir, original, "Restore the page's views")
         wait_for_revision(page, 3)
         expect(tabs).to_have_css("border-left-width", "0px")
         expect(tabs.get_by_role("tab").nth(1)).to_have_attribute(

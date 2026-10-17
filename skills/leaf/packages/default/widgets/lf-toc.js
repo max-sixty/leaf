@@ -121,8 +121,14 @@ customElements.define(
         this.#rememberFocus();
     };
 
+    // The outline is of the document it stands in: the page's `main`, or the view of a
+    // page with several that holds it (`data-lf-views`, lf-tabs.js).
+    #document() {
+      return this.closest("body > main > [data-lf-views] > *, main");
+    }
+
     connectedCallback() {
-      const main = this.closest("main");
+      const main = this.#document();
       if (!once(this) && main === this.#main && scrollerFor(this) === this.#scroller)
         return;
       // Moving to another reading region changes the resources, even if the
@@ -247,7 +253,7 @@ customElements.define(
     }
 
     #watch(signal) {
-      this.#main = this.closest("main");
+      this.#main = this.#document();
       if (!this.#main) return;
       this.#scroller = scrollerFor(this);
       // Root scrolling is reported on Document; nested scrollports report on the

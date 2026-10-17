@@ -21,21 +21,128 @@
    * below). A workspace does neither: its grid sizes its regions.
    *
    * The box a Layout arranges is `main`, or a child of a `main` that carries no Layout
-   * of its own, and the box's parent is the shell the Layout places it in: `body` or
-   * `main`. The box says so (`--lf-layout-box`), and the runtime finds it by that
-   * (prepaint.js, `layoutBox`) rather than by reading a Layout class. It is the style
-   * container a margin resident asks for the Layout's readings (`lf-content-frame`,
-   * theme.css), and a `main` holding it is its shell and the size its `cqi` measure. */
+   * of its own, or a child of a member of such a child that shows one member at a time
+   * (`data-lf-views`), as each view of a page with several holds its own. The box's
+   * parent is the shell the Layout places it in: `body`, `main` or the view. The box says so
+   * (`--lf-layout-box`), and the runtime finds the shown one by that (prepaint.js,
+   * `layoutBox`) rather than by reading a Layout class. It is the style container a
+   * margin resident asks for the Layout's readings (`lf-content-frame`, theme.css), and a
+   * shell other than `body` is the size its `cqi` measure. */
   @property --lf-layout-box {
     syntax: "*";
     inherits: false;
   }
-  :is(main, main > *):is(.layout-column, .layout-sidebar, .layout-workspace) {
+  :is(main, main > *, main > [data-lf-views] > * > *):is(
+    .layout-column,
+    .layout-sidebar,
+    .layout-workspace
+  ) {
     --lf-layout-box: 1;
     container-name: lf-content-frame;
   }
-  main:has(> :is(.layout-column, .layout-sidebar, .layout-workspace)) {
+  :is(main, main > [data-lf-views] > *):has(
+    > :is(.layout-column, .layout-sidebar, .layout-workspace)
+  ) {
     container-type: inline-size;
+  }
+  /* A page of views: a `main` that carries no Layout and holds a set that shows one of
+   * its members at a time (`data-lf-views`), as the page's tab set does (lf-tabs.js).
+   * Each member is a view, and the box its Layout arranges is the view's child (above).
+   * Live, the set's list (its `tablist`) stands in a column down the left from the top
+   * of the page, and the open view takes the rest of the width, its height at least the
+   * window's, under what the page writes before the set, its title, which stands at the
+   * reading measure over every view. The set itself draws nothing. The view is the
+   * shell its Layout's box stands in. On a phone the title, the list and the view stack.
+   * Before the set's module upgrades it, the column is empty. */
+  @media screen {
+    html[data-lf-interactive]
+      body
+      > main:not(.layout-column, .layout-sidebar, .layout-workspace):has(
+        > [data-lf-views]
+      ) {
+      --lf-views-list: 15rem;
+      display: grid;
+      grid-template-columns: var(--lf-views-list) minmax(0, 1fr);
+      grid-template-rows: auto minmax(0, 1fr);
+      align-items: start;
+    }
+    /* What the page writes before the set, named from itself rather than by a `:has()`
+     * on `main`, which would restyle the whole document on every write. */
+    html[data-lf-interactive]
+      body
+      > main:not(.layout-column, .layout-sidebar, .layout-workspace)
+      > :has(~ [data-lf-views]) {
+      grid-column: 2;
+      grid-row: 1;
+      box-sizing: border-box;
+      inline-size: min(100%, var(--col));
+      justify-self: center;
+      margin: 0;
+      padding: var(--page-pad-start) var(--col-pad) 0;
+    }
+    html[data-lf-interactive]
+      body
+      > main:not(.layout-column, .layout-sidebar, .layout-workspace)
+      > [data-lf-views] {
+      display: contents;
+    }
+    html[data-lf-interactive]
+      body
+      > main:not(.layout-column, .layout-sidebar, .layout-workspace)
+      > [data-lf-views]
+      > [role="tablist"] {
+      grid-column: 1;
+      grid-row: 1 / -1;
+    }
+    html[data-lf-interactive]
+      body
+      > main:not(.layout-column, .layout-sidebar, .layout-workspace)
+      > [data-lf-views]
+      > :not([role="tablist"]) {
+      grid-column: 2;
+      grid-row: 2;
+    }
+    html[data-lf-interactive]
+      body
+      > main:not(.layout-column, .layout-sidebar, .layout-workspace)
+      > [data-lf-views]
+      > :not([role="tablist"], [hidden]) {
+      min-block-size: var(--lf-view-height);
+    }
+    @container lf-shell (width < 640px) {
+      html[data-lf-interactive]
+        body
+        > main:not(.layout-column, .layout-sidebar, .layout-workspace):has(
+          > [data-lf-views]
+        ) {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: none;
+      }
+      html[data-lf-interactive]
+        body
+        > main:not(.layout-column, .layout-sidebar, .layout-workspace)
+        > :has(~ [data-lf-views]),
+      html[data-lf-interactive]
+        body
+        > main:not(.layout-column, .layout-sidebar, .layout-workspace)
+        > [data-lf-views]
+        > [role="tablist"],
+      html[data-lf-interactive]
+        body
+        > main:not(.layout-column, .layout-sidebar, .layout-workspace)
+        > [data-lf-views]
+        > :not([role="tablist"]) {
+        grid-column: 1;
+        grid-row: auto;
+      }
+      html[data-lf-interactive]
+        body
+        > main:not(.layout-column, .layout-sidebar, .layout-workspace)
+        > [data-lf-views]
+        > :not([role="tablist"], [hidden]) {
+        min-block-size: 0;
+      }
+    }
   }
   /* The pane role's grammar (theme.css owns its look): which row each child stands in,
    * and a body held to the pane's width. Not a page Layout, but it resets what a widget
@@ -75,7 +182,7 @@
       min-height: 100%;
     }
   }
-  :is(main, main > *).layout-column {
+  :is(main, main > *, main > [data-lf-views] > * > *).layout-column {
     max-width: var(--col);
     margin-inline: auto;
     padding-inline: var(--col-pad);
@@ -121,7 +228,7 @@
     [data-lf-column-shell] > :not(.layout-column) {
       grid-column: 1 / -1;
     }
-    :is(main, main > *).layout-column {
+    :is(main, main > *, main > [data-lf-views] > * > *).layout-column {
       --lf-column-shell: grid;
     }
     [data-lf-column-shell] > .layout-column {
@@ -144,7 +251,7 @@
   }
   /* An empty map-only slot already has its margin posture: no margin and no
    * formatting context between the blocks around it. */
-  :is(main, main > *).layout-column
+  :is(main, main > *, main > [data-lf-views] > * > *).layout-column
     > aside.sidebar:nth-child(1 of aside.sidebar):has(
       > [data-lf-resident="map"]:only-child:empty
     ) {
@@ -154,26 +261,35 @@
   /* A resident anchors no scroll (its passage does), and is a reading region of the
    * Layout's own in either posture (`--lf-reading-region`, reading-regions.js), so the
    * reader's place in it survives a change of posture. */
-  :is(main, main > *).layout-column > aside.sidebar:nth-child(1 of aside.sidebar) {
+  :is(main, main > *, main > [data-lf-views] > * > *).layout-column
+    > aside.sidebar:nth-child(1 of aside.sidebar) {
     --lf-resident: sidebar;
     --lf-sidebar-slot: margin;
     overflow-anchor: none;
     --lf-reading-region: layout;
   }
-  :is(main, main > *).layout-column aside.sidenote {
+  :is(main, main > *, main > [data-lf-views] > * > *).layout-column aside.sidenote {
     --lf-resident: note;
     overflow-anchor: none;
   }
   @media screen {
     /* Sticky, it can stand level with any band, so it takes its whole side. */
-    :is(main, main > *).layout-column[data-lf-margin~="sidebar"] {
+    :is(
+        main,
+        main > *,
+        main > [data-lf-views] > * > *
+      ).layout-column[data-lf-margin~="sidebar"] {
       --lf-sidebar-posture: margin;
       --lf-taken-l: calc(var(--lf-beside) + var(--lf-shift));
       --lf-top-outer: var(--lf-top);
     }
     /* It scrolls what it holds, so it restarts `--lf-top` and its landing band
      * (theme.css), and a focused link keeps the ring's room (`--lf-head-inset`). */
-    :is(main, main > *).layout-column[data-lf-margin~="sidebar"]
+    :is(
+        main,
+        main > *,
+        main > [data-lf-views] > * > *
+      ).layout-column[data-lf-margin~="sidebar"]
       > aside.sidebar:nth-child(1 of aside.sidebar) {
       float: left;
       clear: left;
@@ -193,29 +309,37 @@
    * `data-lf-resident`) rests as a spine in that slot and reveals its labels over the
    * page; its package draws it there once the slot is in the margin. */
   @media screen and (hover: hover) and (pointer: fine) {
-    :is(main, main > *).layout-column
+    :is(main, main > *, main > [data-lf-views] > * > *).layout-column
       > aside.sidebar:nth-child(1 of aside.sidebar):has([data-lf-resident="map"]) {
       --lf-resident: sidebar map;
     }
     /* A sidebar holding only the map stands as the map alone. */
-    :is(main, main > *).layout-column
+    :is(main, main > *, main > [data-lf-views] > * > *).layout-column
       > aside.sidebar:nth-child(1 of aside.sidebar):has(
         > [data-lf-resident="map"]:only-child
       ) {
       --lf-resident: map;
     }
-    :is(main, main > *).layout-column[data-lf-margin~="map"] {
+    :is(
+        main,
+        main > *,
+        main > [data-lf-views] > * > *
+      ).layout-column[data-lf-margin~="map"] {
       --lf-sidebar-posture: margin;
     }
     /* At rest the map is its spine, so a breakout stops short of it. */
-    :is(main, main > *).layout-column:is(
+    :is(main, main > *, main > [data-lf-views] > * > *).layout-column:is(
         [data-lf-margin~="map"],
         [data-lf-margin~="sidebar"]
       ):has(> aside.sidebar:nth-child(1 of aside.sidebar) [data-lf-resident="map"]) {
       --lf-taken-l: var(--map);
     }
     /* A sidebar whose map stands alone takes no room in the flow. */
-    :is(main, main > *).layout-column[data-lf-margin~="map"]
+    :is(
+        main,
+        main > *,
+        main > [data-lf-views] > * > *
+      ).layout-column[data-lf-margin~="map"]
       > aside.sidebar:nth-child(1 of aside.sidebar):has(
         > [data-lf-resident="map"]:only-child
       ) {
@@ -224,10 +348,20 @@
     }
   }
   @media screen {
-    :is(main, main > *).layout-column[data-lf-margin~="note"] [data-lf-space] {
+    :is(
+        main,
+        main > *,
+        main > [data-lf-views] > * > *
+      ).layout-column[data-lf-margin~="note"]
+      [data-lf-space] {
       clear: right;
     }
-    :is(main, main > *).layout-column[data-lf-margin~="note"] aside.sidenote {
+    :is(
+        main,
+        main > *,
+        main > [data-lf-views] > * > *
+      ).layout-column[data-lf-margin~="note"]
+      aside.sidenote {
       float: right;
       clear: right;
       width: calc(var(--note) - var(--sp-4));
@@ -289,7 +423,12 @@
      * A widget holding authored blocks (`x-content: markup`), one of which breaks out,
      * shares the arithmetic, so it may span that block: an Ask does (ask.css). `wide`
      * and `available` each refine the second rule. */
-    :where(:is(main, main > *):is(.layout-column, .layout-sidebar)) {
+    :where(
+      :is(main, main > *, main > [data-lf-views] > * > *):is(
+        .layout-column,
+        .layout-sidebar
+      )
+    ) {
       :is(
         [data-lf-space],
         [data-lf-content="markup"]:has(> [data-lf-space]:not([data-lf-kept]))
@@ -390,7 +529,7 @@
      * `normal` before `scroll-state` because Firefox and WebKit drop the second, and a
      * size container would zero its `max-content`. */
     @container not (style(--lf-room: 100%) or style(--lf-block-frame: 1)) {
-      :is(main, main > *).layout-column
+      :is(main, main > *, main > [data-lf-views] > * > *).layout-column
         table[data-lf-space]:not([data-lf-space] table, [data-lf-kept]) {
         contain: none;
         container-type: normal;
@@ -443,7 +582,7 @@
       min-height: 100%;
     }
   }
-  :is(main, main > *).layout-sidebar {
+  :is(main, main > *, main > [data-lf-views] > * > *).layout-sidebar {
     padding-inline: clamp(var(--col-pad), 4cqi, 64px);
     padding-block: var(--page-pad-start) var(--page-pad-end);
     --lf-block-frame: trim;
@@ -457,19 +596,23 @@
     align-items: flex-start;
     gap: var(--sp-4);
   }
-  :is(main, main > *).layout-sidebar > :is(header, footer) {
+  :is(main, main > *, main > [data-lf-views] > * > *).layout-sidebar
+    > :is(header, footer) {
     flex: 1 0 100%;
     margin-block: 0;
   }
-  :is(main, main > *).layout-sidebar > :not(header, footer) {
+  :is(main, main > *, main > [data-lf-views] > * > *).layout-sidebar
+    > :not(header, footer) {
     flex: 2 1 30rem;
     margin-block: 0;
   }
-  :is(main, main > *).layout-sidebar > aside {
+  :is(main, main > *, main > [data-lf-views] > * > *).layout-sidebar > aside {
     flex: 1 1 18rem;
     --lf-resident: track;
   }
-  :is(main, main > *).layout-sidebar > :not(header, footer) > :first-child {
+  :is(main, main > *, main > [data-lf-views] > * > *).layout-sidebar
+    > :not(header, footer)
+    > :first-child {
     margin-top: 0;
   }
   /* A track holding one block keeps it in view beside the scrolling body: sticky below
@@ -479,17 +622,22 @@
    * so the margin reading marks it (`data-lf-beside`, prepaint.js `residency`). Like a
    * margin sidebar, the block restarts the slot and landing band, keeps the ring's room,
    * anchors no reading, and is a reading region of the Layout's own. */
-  :is(main, main > *).layout-sidebar > aside:has(> :only-child) {
+  :is(main, main > *, main > [data-lf-views] > * > *).layout-sidebar
+    > aside:has(> :only-child) {
     align-self: stretch;
   }
-  :is(main, main > *).layout-sidebar > aside > :only-child {
+  :is(main, main > *, main > [data-lf-views] > * > *).layout-sidebar
+    > aside
+    > :only-child {
     --lf-reading-region: layout;
   }
   @media screen {
-    :is(main, main > *).layout-sidebar {
+    :is(main, main > *, main > [data-lf-views] > * > *).layout-sidebar {
       --lf-top-outer: var(--lf-top);
     }
-    :is(main, main > *).layout-sidebar > aside[data-lf-beside] > :only-child {
+    :is(main, main > *, main > [data-lf-views] > * > *).layout-sidebar
+      > aside[data-lf-beside]
+      > :only-child {
       position: sticky;
       top: calc(var(--lf-top-outer) + var(--sp-4));
       --lf-top: 0px;
@@ -530,14 +678,14 @@
       min-height: 100%;
     }
   }
-  :is(main, main > *).layout-workspace {
+  :is(main, main > *, main > [data-lf-views] > * > *).layout-workspace {
     padding-inline: 12px;
     padding-block: var(--sp-2) var(--page-pad-end);
     --lf-block-frame: trim;
   }
   /* The header is one row: the title with the page's status beside it, wrapping only
    * where the row runs out. A lede belongs in a pane. */
-  :is(main, main > *).layout-workspace > header {
+  :is(main, main > *, main > [data-lf-views] > * > *).layout-workspace > header {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
@@ -545,12 +693,12 @@
     padding-block: 0 var(--sp-2);
     --lf-block-frame: 1;
   }
-  :is(main, main > *).layout-workspace > header > * {
+  :is(main, main > *, main > [data-lf-views] > * > *).layout-workspace > header > * {
     margin-block: 0;
   }
   /* A body that is not itself a pane is a reading region of the Layout's own
    * (reading-regions.js, `syncLayoutRegion`). */
-  :is(main, main > *).layout-workspace
+  :is(main, main > *, main > [data-lf-views] > * > *).layout-workspace
     > :not(header, footer, [data-lf-reading-role="pane"]) {
     --lf-reading-region: layout;
   }
@@ -559,7 +707,7 @@
    * ring outside its box, so neighbours' rings fill the gap as one line and an empty
    * cell shows the page's ground. A pane a body widget generates
    * (`data-lf-generated`) is that widget's region, so neither is drawn for it. */
-  :is(main, main > *).layout-workspace
+  :is(main, main > *, main > [data-lf-views] > * > *).layout-workspace
     > :not(header, footer):has(
       > [data-lf-reading-role="pane"]:not([data-lf-generated])
     ) {
@@ -567,7 +715,7 @@
     border: 1px solid var(--rule);
     border-radius: var(--r);
   }
-  :is(main, main > *).layout-workspace
+  :is(main, main > *, main > [data-lf-views] > * > *).layout-workspace
     > :not(header, footer)
     > [data-lf-reading-role="pane"]:not([data-lf-generated]) {
     border: 0;
@@ -575,7 +723,7 @@
     box-shadow: 0 0 0 1px var(--rule);
   }
   @media screen and (min-width: 720px) and (min-height: 480px) {
-    :is(main, main > *).layout-workspace {
+    :is(main, main > *, main > [data-lf-views] > * > *).layout-workspace {
       --lf-full-height: 1;
       display: flex;
       flex-direction: column;
@@ -583,17 +731,19 @@
       padding-block-end: 0;
       box-sizing: border-box;
     }
-    :is(main, main > *).layout-workspace > :is(header, footer) {
+    :is(main, main > *, main > [data-lf-views] > * > *).layout-workspace
+      > :is(header, footer) {
       flex: none;
     }
-    :is(main, main > *).layout-workspace > :not(header, footer) {
+    :is(main, main > *, main > [data-lf-views] > * > *).layout-workspace
+      > :not(header, footer) {
       flex: 1 1 0;
       min-block-size: 0;
       margin-block: 0;
     }
     /* Only a page's grid of panes shares the body's height among its rows and gives its
      * panes a definite height; a body widget lays out its own tracks. */
-    :is(main, main > *).layout-workspace
+    :is(main, main > *, main > [data-lf-views] > * > *).layout-workspace
       > :not(header, footer):has(
         > [data-lf-reading-role="pane"]:not([data-lf-generated])
       ) {
@@ -604,7 +754,7 @@
      * as a whole. Each box that scrolls here stops sticking boxes at its own top
      * (`--lf-top: 0px`; the theme's banner offset is the window's) and holds its height
      * on purpose (`--lf-holds-height`, theme.css). */
-    :is(main, main > *).layout-workspace
+    :is(main, main > *, main > [data-lf-views] > * > *).layout-workspace
       > :not(header, footer, [data-lf-reading-role="pane"]) {
       overflow: auto;
       --lf-top: 0px;
@@ -635,7 +785,7 @@
      * a box that also scrolls. */
     @container style(--lf-holds-height: 1) {
       :is(
-          :is(main, main > *).layout-workspace
+          :is(main, main > *, main > [data-lf-views] > * > *).layout-workspace
             > :not(header, footer, [data-lf-reading-role="pane"]),
           [data-lf-reading-role="pane"] > :not(header, footer)
         )

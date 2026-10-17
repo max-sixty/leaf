@@ -214,7 +214,7 @@ export function shownBand(el) {
 //
 // `landingBand` is where a landing may put something: the shown band less the
 // `scroll-padding` the scroller declares, which is also what `scrollIntoView` honours.
-// It clears what stands over the whole scroller (the banner, a page tab strip); a header
+// It clears what stands over the whole scroller (the banner); a header
 // over part of it, a diff's file header, is cleared by the `scroll-margin` of the rows
 // it stands over. It is also where scroll anchoring looks for the box it keeps still:
 // the spec's optimal viewing region, which Chrome reads from `scroll-padding` too
@@ -320,8 +320,8 @@ export function headerCuts(item, clips = new Map()) {
 }
 // The sticky box holding `node` while it is stuck, else null. A stuck box stands at the
 // edge of the scroller it sticks in, or is pushed past it by its holder's end, rather
-// than at its own place in its holder, whose edge has scrolled beyond it: a page tab
-// strip over its panel's sixtieth paragraph, an open thread's title over the turns read
+// than at its own place in its holder, whose edge has scrolled beyond it: a tab strip
+// over its panel's sixtieth paragraph, an open thread's title over the turns read
 // below it, a reply row pinned at the foot of a long thread. It rides along with every
 // scroll, so being in view says nothing about where in its holder the user is. Whatever
 // a stuck box holds rides with it, a control in a scroller of its own included, such as

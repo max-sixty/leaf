@@ -88,7 +88,6 @@ var pageUpgraded = () => document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.upgrade
 // runtime/root-state.js
 var setRuntimeRootAttribute = (...args) => document.documentElement.lfInitial.setRuntimeRootAttribute(...args);
 var setRuntimeRootStyle = (...args) => document.documentElement.lfInitial.setRuntimeRootStyle(...args);
-var removeRuntimeRootStyle = (...args) => document.documentElement.lfInitial.removeRuntimeRootStyle(...args);
 var runtimeRootState = (root2) => ({
   attributes: document.documentElement.lfInitial.runtimeRootAttributes(root2),
   styles: document.documentElement.lfInitial.runtimeRootStyles(root2)
@@ -3314,7 +3313,6 @@ export {
   pageUpgraded,
   setRuntimeRootAttribute,
   setRuntimeRootStyle,
-  removeRuntimeRootStyle,
   runtimeRootState,
   countTraffic,
   watchPendingTraffic,

@@ -14,9 +14,6 @@ export const setRuntimeRootAttribute = (...args) =>
 /** @type {LeafInitial["setRuntimeRootStyle"]} */
 export const setRuntimeRootStyle = (...args) =>
   document.documentElement.lfInitial.setRuntimeRootStyle(...args);
-/** @type {LeafInitial["removeRuntimeRootStyle"]} */
-export const removeRuntimeRootStyle = (...args) =>
-  document.documentElement.lfInitial.removeRuntimeRootStyle(...args);
 
 export const runtimeRootState = (root) => ({
   attributes: document.documentElement.lfInitial.runtimeRootAttributes(root),

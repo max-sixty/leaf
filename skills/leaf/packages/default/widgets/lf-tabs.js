@@ -1,4 +1,4 @@
-/* lf-tabs: several views of one page, one panel on screen at a time.
+/* lf-tabs: several panels, one on screen at a time.
  * The upgrade builds the strip from the panels' `label` attributes and hides
  * inactive panels with hidden="until-found", so browser find-in-page and
  * fragment navigation still reach them — `beforematch` opens the owning tab,
@@ -15,32 +15,34 @@
  * (history.js).
  *
  * How a set is drawn is one fact, its flow (`data-lf-tabs-flow`), which this module
- * writes and reads and every rule for the set's presentation reads. The root set with
- * its strip written as a row is the page's own flow ("page"): its strip sticks under the
- * banner as a sticky header over the document it indexes, and its panels are sections of the
- * page, taking the page's width. Each is then a view with a place of its own: a switch,
- * by press, key, Back, or Forward, is not fragment travel, because a view is not a
- * destination, so the strip stays where it is on screen and the view opens where this
- * user last read it, or at its start when they never read past it. Every other set is a
- * box ("box"): framed, its horizontal strip sticky within the set, each panel a bounded
- * box that what it holds measures itself against. A switch leaves the page where it
- * stands until the strip is pinned; then it opens the new panel at its start. `list="side"`
- * stands the list beside the panels, a queue beside the item it opens, walked up and
- * down as well as across (theme.css says where it stacks); a side list is a box even as
- * the root set, which keeps the root's history, and Back or Forward there lands the
- * set's start when the user stood below it. Where a side list fills a height it is
- * given, as a full-height workspace's body (theme.css), its list and its open item each
- * scroll on their own. Its panels are reading regions, and so is its list while it
- * scrolls on its own, so reading keys and the user's place follow the list or the item
- * rather than the set.
+ * writes and reads and every rule for the set's presentation reads. The root set of a
+ * `main` that carries no Layout is the page's views ("views"): each panel is a view of
+ * the page whose child carries a Layout of its own, which arranges that child as it
+ * would `main` (layouts.css, `--lf-layout-box`), and the list of views
+ * stands down the window's left edge, beside whichever view is open, walked up and down
+ * as well as across (the package theme says where it stacks). Each view has a place of
+ * its own: a switch, by press, key, Back, or Forward, is not fragment travel, because a
+ * view is not a destination, so the list stays where it is on screen and the view opens
+ * where this user last read it, or at its start when they never read past it. Every
+ * other set is a box ("box"): framed, its horizontal strip sticky within the set, each
+ * panel a bounded box that what it holds measures itself against. A switch leaves the
+ * page where it stands until the strip is pinned; then it opens the new panel at its
+ * start. `list="side"` stands a box's list beside its panels, a queue beside the item it
+ * opens, walked up and down as well as across; a root box keeps the root's history, and
+ * Back or Forward there lands the set's start when the user stood below it. Where a side
+ * list fills a height it is given, as a full-height workspace's body (theme.css), its
+ * list and its open item each scroll on their own. Its panels are reading regions, and
+ * so is its list while it scrolls on its own, so reading keys and the user's place
+ * follow the list or the item rather than the set.
  *
  * Travel into a hidden panel briefly highlights its selected name, without moving
  * focus from the destination or delaying it. Reduced motion keeps the selected state
  * without the highlight; switching again or disconnecting cancels an unfinished cue.
  * Every tab's accessible name is its label; what else the tab shows describes it. A
  * side list stands each run of neighbouring panels that share a `group` under a label
- * of that group, which each of their tabs' descriptions names. A side list's row adds
- * the panel's `summary` under the name, and beside the name its asks' state: an open mark
+ * of that group, which each of their tabs' descriptions names, and so does a list of
+ * views. Either adds the panel's `summary` under the name. A side list's row also has,
+ * beside the name, its asks' state: an open mark
  * while any ask the panel holds is unanswered, and once every one is answered a check, with
  * the answer's own words where the panel holds one ask. So a queue shows each item's state
  * and how far the user has worked through it, and an undo that reopens an ask puts the
@@ -52,7 +54,6 @@
  * panels stack as labeled sections; authored content is never replaced, so
  * there is no failSoft. */
 import {
-  afterScript,
   PRESS,
   asksIn,
   askWords,
@@ -81,13 +82,11 @@ import {
   pushEntry,
   registerReadingRegion,
   relabel,
-  removeRuntimeRootStyle,
   replaceEntry,
   restorePlace,
   scrollBehavior,
   scrollIntoReadingBand,
   selectableOffer,
-  setRuntimeRootStyle,
   sizeObserver,
   tabStore,
   watchComparison,
@@ -99,17 +98,6 @@ import {
   scrollIntoView,
   focused,
 } from "/runtime/widget-api.js";
-
-// The page's navigation strip, where one stands: the first tab set in main, drawn as
-// a row (`#syncRootContext`).
-const PAGE_STRIP = 'body > main > lf-tabs[data-lf-tabs-flow="page"]';
-const paintRootHeader = () => {
-  const root = document.documentElement;
-  if (document.querySelector(PAGE_STRIP))
-    setRuntimeRootStyle(root, "--lf-root-headers", "var(--lf-tabstrip-h)");
-  else removeRuntimeRootStyle(root, "--lf-root-headers");
-};
-const syncRootHeader = () => afterScript(paintRootHeader);
 
 const PLACE_KEY = "lf-tabs-place:";
 const substantiveChildren = (owner) =>
@@ -133,9 +121,8 @@ customElements.define(
     #root = false;
     #contextObserver = null;
     #strip = null;
-    #covering = false;
     #side = false;
-    #pageFlow = false;
+    #views = false;
     #revealMotion = null;
     #stopList = null;
 
@@ -154,6 +141,8 @@ customElements.define(
       this.#side = side;
       this.#watchRootContext();
       this.#syncRootContext();
+      // A side list and a list of views both run down beside their panels.
+      const down = side || this.#views;
       // The strip is a thing to work, and its tabs ride inside it, so paper drops the
       // whole row and puts each panel's label back on the panel. What a tab says is not
       // the strip's word though — it is the panel's name, and once the strip exists it
@@ -168,7 +157,7 @@ customElements.define(
       const strip = offer("div", "lf-tabstrip");
       this.#strip = strip;
       strip.setAttribute("role", "tablist");
-      if (side) strip.setAttribute("aria-orientation", "vertical");
+      if (down) strip.setAttribute("aria-orientation", "vertical");
       strip.append(this.#edge("start"));
       // A queue sorts its items by the panels' `group`: each run of neighbouring panels
       // with one group, or with none, is a box of its own in the list, so the list
@@ -180,7 +169,7 @@ customElements.define(
       let run = strip;
       for (const [index, panel] of panels.entries()) {
         const group = panel.getAttribute("group");
-        if (side && (!index || group !== panels[index - 1].getAttribute("group"))) {
+        if (down && (!index || group !== panels[index - 1].getAttribute("group"))) {
           run = document.createElement("div");
           run.className = "lf-tab-run";
           run.setAttribute("role", "none");
@@ -200,9 +189,9 @@ customElements.define(
         relabel(name, panel.getAttribute("label"), { says: true });
         btn.append(name);
         btn.setAttribute("aria-label", panel.getAttribute("label"));
-        // A queue's row says more than its name: in a side list the panel's `summary`
+        // A row in a list down the side says more than its name: the panel's `summary`
         // stands under it, the page's words like the name.
-        if (side && panel.hasAttribute("summary")) {
+        if (down && panel.hasAttribute("summary")) {
           const summary = document.createElement("span");
           summary.className = "lf-tab-summary";
           relabel(summary, panel.getAttribute("summary"), { says: true });
@@ -269,11 +258,11 @@ customElements.define(
         {
           id: "tab.walk",
           // A list standing beside its panels is read down, so it walks down too.
-          keys: side
+          keys: down
             ? ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]
             : ["ArrowLeft", "ArrowRight"],
           routes: [
-            ...(side
+            ...(down
               ? [
                   { id: "tab.up", binding: "ArrowUp", title: "Previous tab" },
                   { id: "tab.down", binding: "ArrowDown", title: "Next tab" },
@@ -302,7 +291,6 @@ customElements.define(
       ]);
       strip.append(this.#edge("end"));
       this.prepend(strip);
-      this.#declareHeader();
       this.classList.add("lf-rendered"); // the upgraded marker every widget uses
       // Open on the tab the first paint showed: the one the address names, or this
       // user's last, whose id resolves in later versions because check forbids
@@ -339,8 +327,6 @@ customElements.define(
           stripSize.disconnect();
           this.#contextObserver?.disconnect();
           this.#contextObserver = null;
-          this.#covering = false;
-          syncRootHeader();
         };
       });
     }
@@ -432,16 +418,16 @@ customElements.define(
       const previous = this.#active;
       // A press or a traversal between views switches them; a reveal is travel to
       // something inside the view, which the traveller lands.
-      const switched = this.#pageFlow && ["ordinary", "history"].includes(reason);
+      const switched = this.#views && ["ordinary", "history"].includes(reason);
       const pinnedBox =
         previous &&
-        !this.#pageFlow &&
+        !this.#views &&
         !this.#side &&
         reason === "ordinary" &&
         this.getBoundingClientRect().top < this.#strip.getBoundingClientRect().top - 1;
       const change = () => {
         const from = pageScroller.scrollTop;
-        if (this.#pageFlow && previous) this.#leave(previous);
+        if (this.#views && previous) this.#leave(previous);
         if (this.#root && reason === "ordinary") this.#pushLocation(active);
         // Whatever opened another view, the entry the user stands on names it, so
         // Back and Forward to that entry return to this view. A fragment already
@@ -486,9 +472,7 @@ customElements.define(
         presentation.push(layoutChanged(this));
         return Promise.all(presentation);
       };
-      return this.#pageFlow && previous
-        ? preserveReadingRegions(this, change)
-        : change();
+      return this.#views && previous ? preserveReadingRegions(this, change) : change();
     }
 
     // The panel holding what the fragment names, read as Leaf's own arrival reads it, so
@@ -500,18 +484,21 @@ customElements.define(
     }
 
     #syncRootContext() {
-      const wasFlow = this.#pageFlow;
+      const wasFlow = this.#views;
       // The first tab set directly in the page is its navigation, whatever else the page
-      // holds beside it; a later one is a tabbed section like any nested set.
+      // holds beside it; a later one is a tabbed section like any nested set. It is the
+      // page's views where `main` is no Layout's box (layouts.css, `--lf-layout-box`), so
+      // that each of its panels can be one.
       const main = this.parentElement;
       this.#root =
         Boolean(main?.matches("body > main")) &&
         main.querySelector(":scope > lf-tabs") === this;
-      this.#pageFlow = this.#root && !this.#side;
-      keeps(this, "data-lf-tabs-flow", this.#pageFlow ? "page" : "box");
-      this.#declareHeader();
+      this.#views =
+        this.#root &&
+        getComputedStyle(main).getPropertyValue("--lf-layout-box").trim() !== "1";
+      keeps(this, "data-lf-tabs-flow", this.#views ? "views" : "box");
       // A set that changed flow drew its open panel at another width.
-      if (wasFlow !== this.#pageFlow && this.#active) {
+      if (wasFlow !== this.#views && this.#active) {
         const child = soleSubstantiveElement(this.#active);
         if (child) layoutChanged(child);
         layoutChanged(this);
@@ -527,19 +514,6 @@ customElements.define(
       // first.
       this.#contextObserver = new MutationObserver(() => this.#syncRootContext());
       this.#contextObserver.observe(main, { childList: true });
-    }
-
-    // A page-flow strip sticks under the banner over the whole document, so it is a
-    // sticky header of the root: its stated height (`--lf-tabstrip-h`, theme.css) joins
-    // the root's `scroll-padding` as `--lf-root-headers`, and every landing arrives
-    // below it. What the strip stands over inside its panels stacks through `--lf-top`
-    // (the package theme). A set that stops being the page's strip withdraws it only
-    // where no other set has become that strip.
-    #declareHeader() {
-      const covering = this.#pageFlow && Boolean(this.#strip?.isConnected);
-      if (covering === this.#covering) return;
-      this.#covering = covering;
-      syncRootHeader();
     }
 
     // A press at one edge of the strip, which pages the names that run past it (the
@@ -563,13 +537,14 @@ customElements.define(
       return edge;
     }
 
-    // A tab the row runs past is scrolled into the strip, and only the strip: a page
-    // strip sticks, and scrolling the page to it would move the view being read. It
+    // A tab the row runs past is scrolled into the strip, and only the strip: a strip
+    // sticks, and scrolling the page to it would move the panel being read. It
     // stops clear of the edge's press, which the strip states as its inline
     // `scroll-padding` (the package theme). A row runs past where it holds more names
-    // than it shows. A side list's column runs past only where it scrolls on its own,
-    // in a workspace that fills the window (theme.css), and the tab comes into it the
-    // same way, down the column.
+    // than it shows. A list of views runs past where it holds more names than the
+    // window's height, and a side list's column where it scrolls on its own, in a
+    // workspace that fills the window (theme.css); the tab comes into either the same
+    // way, down the column.
     // Where the strip has room for it, the tab comes in with its run's label, so the
     // name of the group the user opened stays beside it.
     #showTab(btn) {
@@ -639,13 +614,16 @@ customElements.define(
       pushEntry(this.#locationFor(panel));
     }
 
-    // A page-flow view starts where its strip sticks, so an offset short of that is the
-    // shared header, not a place in the view.
+    // A view starts where it stands, which every view shares, less the inset the list
+    // sticks at, so an offset short of that is what stands above the views in the page,
+    // such as its title, not a place in the view. The page lays its views out without a
+    // box for the set (layouts.css), so the view is read. On a phone the list stands in
+    // flow and sticks nowhere.
     #start() {
       return (
-        this.getBoundingClientRect().top +
+        this.#active.getBoundingClientRect().top +
         pageScroller.scrollTop -
-        parseFloat(getComputedStyle(this.#strip).top)
+        (parseFloat(getComputedStyle(this.#strip).top) || 0)
       );
     }
 
@@ -675,11 +653,11 @@ customElements.define(
       if (place) restorePlace(place);
     }
 
-    // A box's views have no places of their own, and Back or Forward is made from wherever
-    // the user reads: left where it stood, a view shorter than the one it replaced puts
-    // them at the page's end, partway down it. So a traversal lands the set's start, as a
-    // page-flow view without a place lands at its own, and leaves a set already in view
-    // where it is.
+    // A box's panels have no places of their own, and Back or Forward is made from
+    // wherever the user reads: left where it stood, a panel shorter than the one it
+    // replaced puts them at the page's end, partway down it. So a traversal lands the
+    // set's start, as a view without a place lands at its own, and leaves a set already
+    // in view where it is.
     #land() {
       if (this.getBoundingClientRect().top < 0)
         scrollIntoView(this, { block: "start", behavior: "instant" });

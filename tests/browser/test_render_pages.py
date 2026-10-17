@@ -3215,6 +3215,97 @@ def test_a_layout_on_a_child_of_main_arranges_it_as_it_would_main(browser, serve
         assert left <= edges[0] and edges[1] <= right, in_child
 
 
+def test_each_view_of_a_page_of_views_is_laid_out_as_a_page_of_its_own(browser, serve):
+    """A page of views stands the list of views in a column down the left, and lays the
+    open view out beside it, under the page's title, as a page of its own with that
+    view's Layout: a column view takes the column, margin residents, contents map and
+    breakouts a column page takes in a window as wide as the room beside the list, and a
+    workspace view fills that room to the window's height. On a phone the list stacks
+    over the view, under the title."""
+    column_body = """
+<h1>Migration plan</h1>
+<aside class="sidebar" id="route"><lf-toc id="contents"></lf-toc></aside>
+<aside class="sidenote" id="frequency">Support runs this twice a month.</aside>
+<h2 id="move">Move</h2>
+<p>Shift one cohort at a time while keeping the old readers available.</p>
+<div id="room" data-width="available">Available evidence.</div>
+<div style="height: 1200px"></div>
+"""
+    views = leaf_page(
+        "views",
+        f"""<header id="title"><h1>Release review</h1></header>
+<lf-tabs id="views">
+<lf-tab id="plan" label="Plan"><article id="box" class="layout-column">{column_body}</article></lf-tab>
+<lf-tab id="queue" label="Queue"><div id="work" class="layout-workspace">
+<header><h1>Queue</h1></header><div id="regions"><p>Work one item at a time.</p></div>
+</div></lf-tab>
+</lf-tabs>""",
+        layout=None,
+    )
+    reading = """() => {
+      const box = document.getElementById('box') ?? document.querySelector('main');
+      const shell = box.parentElement;
+      const origin = shell.getBoundingClientRect().left + shell.clientLeft;
+      const rect = (node) => {
+        const b = node.getBoundingClientRect();
+        return [Math.round(b.left - origin), Math.round(b.right - origin)];
+      };
+      const measured = {
+        width: shell.clientWidth,
+        box: rect(box),
+        margin: box.getAttribute('data-lf-margin'),
+      };
+      for (const id of ['route', 'frequency', 'room', 'contents']) {
+        const node = document.getElementById(id);
+        const style = getComputedStyle(node);
+        measured[id] = [rect(node), style.float, style.position];
+      }
+      return measured;
+    }"""
+    page = open_page(browser, serve(views))
+    resized(page, 1600, 900)
+    page.get_by_role("tab", name="Plan").click()
+    in_view = page.evaluate(reading)
+    list_box = page.locator("#views > [role=tablist]").bounding_box()
+    title_box = page.locator("#title h1").bounding_box()
+    view_box = page.locator("#plan").bounding_box()
+    assert title_box["y"] + title_box["height"] <= view_box["y"], (title_box, view_box)
+    assert list_box["x"] + list_box["width"] <= title_box["x"], (list_box, title_box)
+    assert list_box["x"] + list_box["width"] <= 1600 - in_view["width"], list_box
+    assert in_view["margin"] == "rail map note", in_view
+    assert root_overflow(page) == 0
+
+    alone = open_page(browser, serve(leaf_page("views", column_body, layout="column")))
+    resized(alone, in_view["width"], 900)
+    assert {**alone.evaluate(reading), "width": in_view["width"]} == in_view
+    alone.close()
+
+    page.get_by_role("tab", name="Queue").click()
+    work = page.evaluate(
+        """() => {
+          const work = document.getElementById('work').getBoundingClientRect();
+          return {width: Math.round(work.width), height: Math.round(work.height),
+                  box: document.documentElement.lfInitial.layoutBox().id};
+        }"""
+    )
+    assert work["box"] == "work", work
+    assert work["width"] == in_view["width"], work
+    assert work["height"] > 700, work
+
+    resized(page, 390, 800)
+    stacked = page.evaluate(
+        """() => ['#title', '#views > [role=tablist]', '#work'].map(selector => {
+          const box = document.querySelector(selector).getBoundingClientRect();
+          return [Math.round(box.top), Math.round(box.bottom), Math.round(box.width)];
+        })"""
+    )
+    (title, strip, view) = stacked
+    assert title[1] <= strip[0] and strip[1] <= view[0], stacked
+    assert view[2] == 390, stacked
+    assert root_overflow(page) == 0
+    page.close()
+
+
 def test_margin_residents_stand_where_the_room_beside_the_column_holds_them(
     browser, serve
 ):

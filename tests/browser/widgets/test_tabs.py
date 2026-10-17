@@ -1,5 +1,6 @@
-"""Root tabs, page tabs and side lists: switching views, fragments and history, the
-stuck strip and the headers stacked under it, and queue rows and groups."""
+"""Tab sets: a page's views, boxed sets and side lists, switching between them, fragments
+and history, a box's stuck strip and the headers stacked under it, and queue rows and
+groups."""
 
 import re
 
@@ -15,7 +16,6 @@ from render_harness import (
     leaf_page,
     open_page,
     pane_posture,
-    panel_settled,
     post_event,
     resized,
     root_overflow,
@@ -30,14 +30,12 @@ pytestmark = pytest.mark.shifts_unsurveyed
 ROOT_TABS_PAGE = ROOT / "tests/fixtures/pages/root-tabs.html"
 
 
-def test_root_tabs_switch_views_without_moving_the_strip_and_follow_history(
-    browser, serve
-):
-    """A tab switch is not fragment travel. The strip stays where it is on screen: a view
-    never read opens at its start when the strip is stuck and leaves the shared header
-    alone when it is not, and a view read past its start reopens where the user left it.
-    Pointer, keyboard, and Back/Forward agree, and a fresh load of the remembered view
-    shows the page's top.
+def test_views_switch_without_moving_the_list_and_follow_history(browser, serve):
+    """A switch between a page's views is not fragment travel. The list stays where it is
+    on screen: a view never read opens at its start, level with the list, and leaves the
+    page's title alone when it is on screen, and a view read past its start reopens
+    where the user left it. Pointer, keyboard, and Back/Forward agree, and a
+    fresh load of the remembered view shows the page's top.
 
     A view's place is where the user was reading in it, not a pixel offset: a window
     resized while the view is hidden rewraps everything above that passage, and the view
@@ -46,16 +44,26 @@ def test_root_tabs_switch_views_without_moving_the_strip_and_follow_history(
     page = open_page(browser, url)
     resized(page, 1280, 720)
     tabs = page.locator("#root-tabs")
+    expect(tabs).to_have_attribute("data-lf-tabs-flow", "views")
     plan = tabs.get_by_role("tab", name="Plan", exact=True)
     evidence = tabs.get_by_role("tab", name="Evidence", exact=True)
     summary = tabs.get_by_role("tab", name="Summary", exact=True)
+    strip = page.locator("#root-tabs > .lf-tabstrip")
 
     def switch(tab):
-        # Locator.click would scroll a sticky tab back to its static-flow box.
+        before = strip.bounding_box()
+        # Locator.click would scroll the list's tab into view first.
         box = tab.bounding_box()
         page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
         expect(tab).to_have_attribute("aria-selected", "true")
-        return settled()
+        at = settled()
+        after = strip.bounding_box()
+        assert all(after[k] == pytest.approx(before[k], abs=1) for k in after), (
+            "the list moved",
+            before,
+            after,
+        )
+        return at
 
     def settled():
         scroll_settled(page)
@@ -65,44 +73,35 @@ def test_root_tabs_switch_views_without_moving_the_strip_and_follow_history(
         page.evaluate("y => scrollTo({top: y, behavior: 'instant'})", y)
         return settled()
 
-    def stuck_at_start(panel):
-        geometry = page.evaluate(
-            """selector => {
-          const strip = document.querySelector('#root-tabs > .lf-tabstrip');
-          return {
-            panel: document.querySelector(selector).getBoundingClientRect().top,
-            strip: strip.getBoundingClientRect().toJSON(),
-            inset: parseFloat(getComputedStyle(strip).top),
-          };
-        }""",
+    def at_start(panel):
+        top = page.evaluate(
+            "selector => document.querySelector(selector).getBoundingClientRect().top",
             panel,
         )
-        assert geometry["strip"]["top"] == pytest.approx(geometry["inset"], abs=1)
-        assert geometry["panel"] == pytest.approx(geometry["strip"]["bottom"], abs=1)
+        assert top == pytest.approx(strip.bounding_box()["y"], abs=1)
 
     expect(plan).to_have_attribute("aria-selected", "true")
     assert settled() == 0
-    # With the header on screen, a switch leaves it there.
+    # With the title on screen, a switch leaves it there.
     assert switch(summary) == 0
     assert switch(evidence) == 0
     assert page.url.endswith("#evidence-tab")
-    # Read Evidence past its start; Plan, never read, opens at its start under the
-    # stuck strip rather than at the top of the page.
+    # Read Evidence past its start; Plan, never read, opens at its start, level with the
+    # list, rather than at the top of the page.
     evidence_read = read_at(450)
-    # Even a view shorter than the window keeps enough page below the sticky strip
-    # for the browser to land its start without pulling the strip downward.
     assert 0 < switch(summary) < evidence_read
-    stuck_at_start("#summary-tab")
+    at_start("#summary-tab")
     plan_start = switch(plan)
     assert 0 < plan_start < evidence_read
-    stuck_at_start("#plan-tab")
+    at_start("#plan-tab")
     # Evidence reopens where the user left it, and pressing the open tab moves nothing.
     assert switch(evidence) == pytest.approx(evidence_read, abs=2)
     assert switch(evidence) == pytest.approx(evidence_read, abs=2)
 
-    # The keyboard walk is the same switch, and focus stays in the strip.
+    # The keyboard walk is the same switch, down the list or across it, and focus stays
+    # in the list.
     expect(evidence).to_be_focused()
-    page.keyboard.press("ArrowLeft")
+    page.keyboard.press("ArrowUp")
     expect(plan).to_have_attribute("aria-selected", "true")
     expect(plan).to_be_focused()
     assert settled() == pytest.approx(plan_start, abs=2)
@@ -165,7 +164,7 @@ def test_root_tabs_switch_views_without_moving_the_strip_and_follow_history(
     left = passage.evaluate(below_landing_edge)
     assert left == pytest.approx(40, abs=2)
     switch(plan)
-    resized(page, 520, 720)
+    resized(page, 900, 720)
     switch(evidence)
     assert passage.evaluate(below_landing_edge) == pytest.approx(left, abs=2)
 
@@ -205,73 +204,9 @@ def test_a_url_into_a_hidden_root_view_lands_once_the_view_is_built(browser, ser
     )
 
 
-def test_a_stuck_root_tab_strip_hides_what_passes_under_it(browser, serve):
-    """The root strip sticks under the banner and paints over the document, so what
-    passes under it is not on screen: `shownRect`, the one reading of that, clips a
-    block behind the stuck strip to the strip's foot, which the strip's stated height
-    puts at `--lf-top` inside its panels. At the top of the page the strip is in flow
-    and hides nothing. In forced colors only the selected tab's name is marked."""
-    page = open_page(browser, serve(ROOT_TABS_PAGE) + "#plan-tab")
-    resized(page, 1280, 720)
-    READ = """async () => {
-      const geometry = await window.__lfCheckApi();
-      const strip = document
-        .querySelector('#root-tabs > .lf-tabstrip').getBoundingClientRect();
-      const behind = document.querySelector('#plan-stages h2');
-      return {
-        strip: {top: strip.top, bottom: strip.bottom},
-        behind: behind.getBoundingClientRect().toJSON(),
-        band: geometry.visibleBand(document.scrollingElement, behind).top,
-        shown: geometry.shownRect(behind, new Map())?.top,
-      };
-    }"""
-    page.evaluate("scrollTo({top: 0, behavior: 'instant'})")
-    scroll_settled(page)
-    at_top = page.evaluate(READ)
-    assert at_top["shown"] == pytest.approx(at_top["behind"]["top"], abs=0.5), at_top
-    # Stick the strip, then scroll the heading half under it.
-    page.evaluate("scrollTo({top: 600, behavior: 'instant'})")
-    scroll_settled(page)
-    at = page.evaluate(READ)
-    page.evaluate(
-        "y => scrollTo({top: y, behavior: 'instant'})",
-        page.evaluate("scrollY")
-        + at["behind"]["top"]
-        - at["strip"]["bottom"]
-        + at["behind"]["height"] / 2,
-    )
-    scroll_settled(page)
-    stuck = page.evaluate(READ)
-    assert stuck["strip"]["top"] > 0, stuck
-    assert stuck["behind"]["top"] < stuck["strip"]["bottom"] < stuck["behind"]["bottom"]
-    assert stuck["band"] == pytest.approx(stuck["strip"]["bottom"], abs=0.5), stuck
-    assert stuck["shown"] == pytest.approx(stuck["strip"]["bottom"], abs=0.5), stuck
-
-    # A forced transparent border must not make every page tab look selected.
-    page.emulate_media(forced_colors="active")
-    page.keyboard.press("Tab")
-    page.locator("#root-tabs > .lf-tabstrip .lf-tab-btn").first.focus()
-    reading = """() => {
-      const strip = document.querySelector('#root-tabs > .lf-tabstrip');
-      const background = getComputedStyle(strip).backgroundColor;
-      return [...strip.querySelectorAll('.lf-tab-btn')].map(tab => {
-        const name = getComputedStyle(tab.querySelector('.lf-tab-name'));
-        return {selected: tab.getAttribute('aria-selected') === 'true',
-          marked: name.borderBottomColor !== background
-            && parseFloat(name.borderBottomWidth) > 0};
-      });
-    }"""
-    for _ in range(2):
-        marks = page.evaluate(reading)
-        assert any(mark["selected"] for mark in marks), marks
-        assert all(mark["selected"] == mark["marked"] for mark in marks), marks
-        page.keyboard.press("ArrowRight")
-
-
 def _stacked_headers(browser, serve):
-    """A page tab strip over the root with a long pinned diff in its first tab, then a
-    short one whose code is wide enough to scroll sideways, and another long one after
-    the tabs."""
+    """A page of views whose first, a column, holds a long pinned diff, then a short one
+    whose code is wide enough to scroll sideways."""
     path = "src/lib.rs"
     rows = "".join(f"+    let value_{i} = {i};\n" for i in range(200))
     patch = (
@@ -290,59 +225,58 @@ def _stacked_headers(browser, serve):
         serve(
             leaf_page(
                 "Stacked headers",
-                '<h1>Stacked</h1><lf-tabs id="root-tabs">'
-                '<lf-tab id="diff-tab" label="Diff"><lf-diff id="patch"><pre>'
+                '<header><h1>Stacked</h1></header><lf-tabs id="root-tabs">'
+                '<lf-tab id="diff-tab" label="Diff"><article class="layout-column">'
+                '<lf-diff id="patch"><pre>'
                 + patch
                 + '</pre></lf-diff><lf-diff id="wide"><pre>'
                 + short
-                + '</pre></lf-diff></lf-tab><lf-tab id="notes-tab" label="Notes">'
-                "<p>Notes.</p></lf-tab></lf-tabs>"
-                '<lf-diff id="after-tabs"><pre>' + patch + "</pre></lf-diff>",
+                + '</pre></lf-diff></article></lf-tab><lf-tab id="notes-tab" label="Notes">'
+                '<article class="layout-column"><p>Notes.</p></article></lf-tab></lf-tabs>',
+                layout=None,
             )
         ),
     )
     resized(page, 1280, 720)
     page.wait_for_function(
-        "() => document.querySelectorAll('lf-diff.lf-rendered').length === 3"
+        "() => document.querySelectorAll('lf-diff.lf-rendered').length === 2"
     )
     return page
 
 
-def test_sticky_headers_stack_so_a_diff_in_a_page_tab_pins_under_the_strip(
-    browser, serve
-):
-    """A diff's file header in a page tab pins under the stuck tab strip rather than
-    over it: each sticky header has a stated height and adds it to `--lf-top` for what
-    it stands over. A landing on one of the diff's rows arrives below both headers, and
-    the part of a row under the diff's header reads as not on screen."""
+def test_a_diffs_header_in_a_view_pins_at_the_landing_edge(browser, serve):
+    """A diff's file header in a view pins at the inset the list of views sticks at: a
+    sticky header has a stated height and adds it to `--lf-top` for what it stands over. A
+    landing on one of the diff's rows arrives below the header, and the part of a row
+    under the header reads as not on screen."""
     page = _stacked_headers(browser, serve)
     read = page.evaluate(
         """async () => {
         const geometry = await window.__lfCheckApi();
         const box = (el) => el.getBoundingClientRect();
-        const strip = document.querySelector('#root-tabs > .lf-tabstrip');
         const diff = document.querySelector('lf-diff');
         const head = diff.shadowRoot.querySelector('.lf-diff-file > details > summary');
         const row = [...diff.shadowRoot.querySelectorAll('[data-line]')][150];
         row.scrollIntoView({block: 'start', behavior: 'instant'});
         await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-        const landed = {strip: box(strip).bottom, head: box(head).bottom, row: box(row).top};
+        // The list of views sticks at the same inset as every header over the page.
+        const edge = box(document.querySelector('#root-tabs > .lf-tabstrip')).top;
+        const landed = {edge, head: box(head).bottom, row: box(row).top};
         // Half a row under the diff's header.
         document.scrollingElement.scrollTop += box(row).top - box(head).bottom
             + box(row).height / 2;
         await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
         return {
             landed,
-            strip: {top: box(strip).top, bottom: box(strip).bottom},
             head: {top: box(head).top, bottom: box(head).bottom},
             row: {top: box(row).top, bottom: box(row).bottom},
             shown: geometry.shownRect(row, new Map())?.top,
         };
     }"""
     )
-    assert read["head"]["top"] == pytest.approx(read["strip"]["bottom"], abs=0.5), read
     landed = read["landed"]
-    assert landed["head"] == pytest.approx(landed["strip"] + 35, abs=0.5), landed
+    assert read["head"]["top"] == pytest.approx(landed["edge"], abs=0.5), read
+    assert landed["head"] == pytest.approx(landed["edge"] + 35, abs=0.5), landed
     assert landed["row"] > landed["head"], landed
     assert read["row"]["top"] < read["head"]["bottom"] < read["row"]["bottom"], read
     assert read["shown"] == pytest.approx(read["head"]["bottom"], abs=0.5), read
@@ -351,12 +285,11 @@ def test_sticky_headers_stack_so_a_diff_in_a_page_tab_pins_under_the_strip(
 def test_focus_in_a_stuck_header_leaves_the_page_where_it_is(browser, serve):
     """A control in a stuck sticky header stands inside the root's landing band, so the
     browser scrolled toward it on every focus and the header never came out from under
-    the band: the page crept 17px a focus under a diff's file header, and was centred,
-    hundreds of pixels a key, under a page tab strip. The focus margin is read from the
-    sticky-header slot, so focusing one where it sticks scrolls nothing: in a page tab,
-    where the strip stands over it, and after the tabs, where the root's band still
-    counts the strip. Focus moving on from the file header into its code, a tab stop
-    since it scrolls sideways, clears the header."""
+    the band: the page crept 17px a focus under a diff's file header. The focus margin
+    is read from the sticky-header slot, so focusing one where it sticks scrolls nothing,
+    and nor does focusing the open view's name in the list of views, which stays beside
+    the page. Focus moving on from the file header into its code, a tab stop since it
+    scrolls sideways, clears the header."""
     page = _stacked_headers(browser, serve)
     focus_in = """async (id) => {
         const page = document.scrollingElement;
@@ -366,10 +299,9 @@ def test_focus_in_a_stuck_header_leaves_the_page_where_it_is(browser, serve):
         await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
         const controls = {
             file: diff.shadowRoot.querySelector('.lf-diff-file > details > summary'),
+            tab: document.querySelector(
+                '#root-tabs > .lf-tabstrip [aria-selected="true"]'),
         };
-        if (id === 'patch')
-            controls.tab = document.querySelector(
-                '#root-tabs > .lf-tabstrip [aria-selected="true"]');
         const moved = {};
         for (const [name, control] of Object.entries(controls)) {
             const before = page.scrollTop;
@@ -380,7 +312,6 @@ def test_focus_in_a_stuck_header_leaves_the_page_where_it_is(browser, serve):
         return moved;
     }"""
     assert page.evaluate(focus_in, "patch") == {"file": 0, "tab": 0}
-    assert page.evaluate(focus_in, "after-tabs") == {"file": 0}
     # Tab from a stuck file header into its code, scrolled partly past above it.
     page.evaluate(
         """async () => {
@@ -465,54 +396,17 @@ def test_back_to_a_fragment_the_page_has_hidden_since_lands_on_it(browser, serve
     expect(target).to_be_in_viewport()
 
 
-def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
-    """Page tabs are sections of one page: on a sidebar page the header, the strip and
-    the open panel share main's left edge and the panel takes main's width."""
-    source = ROOT_TABS_PAGE.read_text().replace(
-        '<main class="layout-column">', '<main class="layout-sidebar">', 1
-    )
-    page = open_page(browser, serve(source))
-    resized(page, 1440, 900)
-    tabs = page.locator("#root-tabs")
-    expect(tabs).to_have_attribute("data-lf-tabs-flow", "page")
-    boxes = page.evaluate(
-        """() => {
-          const box = (el) => {
-            const r = el.getBoundingClientRect();
-            return {left: Math.round(r.left), width: Math.round(r.width)};
-          };
-          const main = document.querySelector('main');
-          const style = getComputedStyle(main);
-          const r = main.getBoundingClientRect();
-          return {
-            content: {
-              left: Math.round(r.left + parseFloat(style.paddingLeft)),
-              width: Math.round(r.width - parseFloat(style.paddingLeft)
-                - parseFloat(style.paddingRight)),
-            },
-            title: box(document.querySelector('main > header h1')),
-            strip: box(document.querySelector('#root-tabs > .lf-tabstrip')),
-            panel: box(document.querySelector('#root-tabs > lf-tab:not([hidden])')),
-          };
-        }"""
-    )
-    assert boxes["content"]["width"] > 720, boxes
-    assert boxes["panel"] == boxes["content"], boxes
-    assert boxes["strip"]["left"] == boxes["content"]["left"], boxes
-    assert boxes["title"]["left"] == boxes["content"]["left"], boxes
-
-
 @pytest.mark.parametrize("layout", ["column", "sidebar", "workspace"])
-def test_wide_evidence_in_a_page_tab_takes_the_room_it_would_outside_one(
+def test_wide_evidence_in_a_view_takes_the_room_it_would_on_a_page_of_its_own(
     browser, serve, layout
 ):
-    """A page tab is a section of the page, so a `wide` or `available` table in its
-    open panel takes the box and the column widths its twin outside the set takes: at
-    first paint, before the runtime has drawn the strip, then at a desktop window, with
-    the thread panel open over it, and on a phone. A boxed set's panel draws a frame,
-    so the same table there stays inside it. Each table has twelve columns, so on a
-    column page, where a table granted room takes what its columns need, it needs the
-    room."""
+    """A view of a page of views is laid out as a page of its own Layout, so a `wide` or
+    `available` table in it takes the box and the column widths, measured from the
+    view's edge, that its twin takes on a page with that Layout as wide as the view: at
+    first paint, before the runtime has drawn the list, then at a desktop window, and on
+    a phone. A boxed set's panel draws a frame, so the same table there stays inside it.
+    Each table has twelve columns, so on a column page, where a table granted room takes
+    what its columns need, it needs the room."""
 
     def tables(where):
         heads = "".join(f"<th>Case {i}</th>" for i in range(12))
@@ -524,70 +418,88 @@ def test_wide_evidence_in_a_page_tab_takes_the_room_it_would_outside_one(
         )
 
     content = (
-        f'<h1 id="t">Evidence in page tabs</h1><p id="prose">Prose.</p>{tables("out")}'
-        f'<lf-tabs id="root-tabs"><lf-tab id="compare" label="Compare">{tables("in")}'
-        '</lf-tab><lf-tab id="notes" label="Notes"><p>Notes.</p></lf-tab></lf-tabs>'
+        f'<h1 id="t">Evidence</h1><p id="prose">Prose.</p>{tables("in")}'
         f'<section><lf-tabs id="boxed"><lf-tab id="boxed-open" label="Boxed">{tables("boxed")}'
         '</lf-tab><lf-tab id="boxed-other" label="Other"><p>Other.</p></lf-tab></lf-tabs>'
         "</section>"
     )
     # A sidebar page with no aside holds one flow: the page's own CSS gives each block
-    # the row, and the tab set stays root, a direct child of main.
-    source = leaf_page(
-        "Evidence in page tabs",
-        content,
-        head="<style>main > * { flex-basis: 100%; }</style>"
+    # the row.
+    head = (
+        "<style>.layout-sidebar > * { flex-basis: 100%; }</style>"
         if layout == "sidebar"
-        else "",
-        layout=layout,
+        else ""
     )
-    boot = []
-    context = browser.new_context(viewport={"width": 1600, "height": 900})
-    page = context.new_page()
-    page.route("**/leaf.js", lambda route: boot.append(route))
-    measure = """() => Object.fromEntries(
-      ['prose', 'out-wide', 'out-available', 'in-wide', 'in-available', 'boxed-open',
-       'boxed-wide', 'boxed-available'].map(id => {
-        const el = document.getElementById(id), box = el.getBoundingClientRect();
-        return [id, {left: Math.round(box.left), width: Math.round(box.width),
-          columns: Math.round(el.querySelector('thead')?.getBoundingClientRect().width ?? 0)}];
-      }))"""
+    views = leaf_page(
+        "Evidence in a view",
+        '<header><h1>Evidence</h1></header><lf-tabs id="views">'
+        f'<lf-tab id="compare" label="Compare"><div id="box" class="layout-{layout}">'
+        f'{content}</div></lf-tab><lf-tab id="notes" label="Notes">'
+        '<article class="layout-column"><p>Notes.</p></article></lf-tab></lf-tabs>',
+        head=head,
+        layout=None,
+    )
+    alone = leaf_page("Evidence on a page", content, head=head, layout=layout)
+    measure = """() => {
+      const box = document.getElementById('box') ?? document.querySelector('main');
+      const shell = box.parentElement;
+      const origin = shell.getBoundingClientRect().left + shell.clientLeft;
+      return {width: shell.clientWidth, ...Object.fromEntries(
+        ['prose', 'in-wide', 'in-available', 'boxed-open', 'boxed-wide',
+         'boxed-available'].map(id => {
+          const el = document.getElementById(id), box = el.getBoundingClientRect();
+          return [id, {left: Math.round(box.left - origin), width: Math.round(box.width),
+            columns: Math.round(
+              el.querySelector('thead')?.getBoundingClientRect().width ?? 0)}];
+        }))};
+    }"""
 
-    def twins(state):
-        at = page.evaluate(measure)
+    def boxed(state, at):
         for space in ("wide", "available"):
-            assert at[f"in-{space}"] == at[f"out-{space}"], (state, space, at)
-            boxed, panel = at[f"boxed-{space}"], at["boxed-open"]
-            assert boxed["left"] >= panel["left"], (state, space, at)
-            assert boxed["left"] + boxed["width"] <= panel["left"] + panel["width"], (
+            table, panel = at[f"boxed-{space}"], at["boxed-open"]
+            assert table["left"] >= panel["left"], (state, space, at)
+            assert table["left"] + table["width"] <= panel["left"] + panel["width"], (
                 state,
                 space,
                 at,
             )
-        assert root_overflow(page) == 0, state
-        return at
 
+    def twin(at, state):
+        page = open_page(browser, serve(alone))
+        resized(page, at["width"], 900)
+        alone_at = page.evaluate(measure)
+        page.close()
+        assert alone_at == at, (state, alone_at, at)
+
+    boot = []
+    context = browser.new_context(viewport={"width": 1600, "height": 900})
+    page = context.new_page()
+    page.route("**/leaf.js", lambda route: boot.append(route))
     try:
         with page.expect_request("**/leaf.js"):
-            page.goto(serve(source), wait_until="commit")
+            page.goto(serve(views), wait_until="commit")
         displayed(page)
         assert boot, "the runtime was not held"
-        first = twins("first paint")
+        first = page.evaluate(measure)
         boot.pop().continue_()
         wait_until_ready(page)
     finally:
         for route in boot:
             route.continue_()
         page.unroute_all(behavior="wait")
-    expect(page.locator("#root-tabs")).to_have_attribute("data-lf-tabs-flow", "page")
-    assert twins("desktop") == first
+    expect(page.locator("#views")).to_have_attribute("data-lf-tabs-flow", "views")
+    desktop = page.evaluate(measure)
+    assert desktop == first
+    boxed("desktop", desktop)
+    twin(desktop, "desktop")
+    assert root_overflow(page) == 0
     # Wider than the reading column, which a workspace's prose does not keep.
-    assert first["in-wide"]["width"] > 720, first
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    twins("panel open")
+    assert desktop["in-wide"]["width"] > 720, desktop
     resized(page, 390, 800)
-    twins("phone")
+    phone = page.evaluate(measure)
+    boxed("phone", phone)
+    assert root_overflow(page) == 0
+    twin(phone, "phone")
 
 
 def test_a_side_list_workspace_scrolls_its_list_and_its_item_apart(browser, serve):
@@ -1006,11 +918,6 @@ def test_root_tab_targets_remain_global(browser, serve):
     tabs = page.locator("#root-tabs")
     scroll_settled(page)
     expect(page.locator("#plan-stages")).to_be_in_viewport()
-    arrival = page.evaluate("""() => ({
-      target: document.querySelector('#plan-stages').getBoundingClientRect().top,
-      strip: document.querySelector('#root-tabs > .lf-tabstrip').getBoundingClientRect().bottom
-    })""")
-    assert arrival["target"] >= arrival["strip"] - 1, arrival
     page.keyboard.press("m")
     expect(tabs.get_by_role("tab", name="Evidence", exact=True)).to_have_attribute(
         "aria-selected", "true"

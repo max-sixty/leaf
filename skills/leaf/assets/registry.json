@@ -1109,7 +1109,7 @@
                   {
                     "type": "object",
                     "properties": {
-                      "depth": { "type": "integer", "minimum": 0 },
+                      "depth": { "type": "integer", "minimum": 0, "maximum": 8 },
                       "title": {
                         "type": "string",
                         "minLength": 1,
@@ -1125,7 +1125,7 @@
                   {
                     "type": "object",
                     "properties": {
-                      "depth": { "type": "integer", "minimum": 0 },
+                      "depth": { "type": "integer", "minimum": 0, "maximum": 8 },
                       "item": { "type": "string", "minLength": 1 }
                     },
                     "required": ["depth", "item"],

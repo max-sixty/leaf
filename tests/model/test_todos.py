@@ -380,12 +380,32 @@ def test_a_plan_arranges_todos_asks_and_plain_steps_without_owning_them(page_dir
     assert cut["item"] == {"kind": "todo", "id": todo["id"]}
     assert cut["since"] == cut["running"]["ts"]
 
-    written(plan([{"depth": 0, "title": "Review the change", "state": "done"}]))
+    # A prose ask answered elsewhere reads done, and a rewrite that leaves the to-do
+    # out leaves it owed.
+    question = written(leaf("thread", "open", page_dir, "--text", "Merge it?"))
+    asked = f"reply:{question['id']}"
+    written(leaf("task", "end", page_dir, asked, "done", "In chat"))
+    written(
+        plan(
+            [
+                {"depth": 0, "title": "Review the change", "state": "done"},
+                {"depth": 1, "item": asked},
+            ]
+        )
+    )
+    [goal] = state_json(page_dir)["plan"]["steps"]
+    assert [(step["item"]["id"], step["state"]) for step in goal["steps"]] == [
+        (asked, "done")
+    ]
     assert ("todo", todo["id"]) in kinds(state_json(page_dir)["queues"]["on_agent"])
     outline = page_dir.parent / "plan.json"
     for steps, code in (
         ([{"depth": 1, "title": "Too deep", "state": "open"}], "plan-depth"),
         ([{"depth": 0, "item": "no-such-item"}], "unknown-plan-item"),
+        (
+            [{"depth": depth, "title": "Deep", "state": "open"} for depth in range(10)],
+            "invalid-event",
+        ),
     ):
         outline.write_text(json.dumps(steps))
         [refused] = command_findings("task", "plan", page_dir, "--file", outline)

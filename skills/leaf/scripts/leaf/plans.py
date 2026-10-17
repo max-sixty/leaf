@@ -2,7 +2,8 @@
 
 A plan is the newest `plan` event's `steps`, an outline in order. Each step has a
 `depth`, 0 for a goal and one more for each level under it, so a step belongs to the
-nearest step above it at one less depth. A step is either plain, a `title` with a
+nearest step above it at one less depth. The schema caps depth at 8, which keeps the
+served tree well within the nesting its readers and JSON encoders take. A step is either plain, a `title` with a
 `state` the agent sets (`open`, `working`, `done` or `dropped`), or it names an
 `item`, a to-do's id or an ask's id, and shows that item's title, owner and state.
 `leaf task plan` writes the whole outline each time, so reshaping the breakdown is a
@@ -37,7 +38,12 @@ from pathlib import Path
 from .findings import Finding
 
 # What an ask's status reads as on a step.
-_ASK_STATES = {"open": "open", "answered": "done", "withdrawn": "dropped"}
+_ASK_STATES = {
+    "open": "open",
+    "answered": "done",
+    "answered_elsewhere": "done",
+    "withdrawn": "dropped",
+}
 
 
 def latest_plan(events: list, withdrawn: set) -> dict | None:

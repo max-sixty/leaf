@@ -43,7 +43,7 @@ import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 import { replyAvailable } from "./replies.js";
 import { allThreads, threadNamed } from "./state.js";
 import { heldThread } from "./focus.js";
-import { showHeld, showHeldThread } from "./held-news.js";
+import { showHeldThread } from "./held-news.js";
 import { revealHeld, surfaceFocusTarget } from "./surfaces.js";
 import { reveal } from "../widget-elements.js";
 import { closestAcross } from "../passages.js";
@@ -168,7 +168,6 @@ export function createThreadDestinations({
               intent: arriving,
             })
           : null;
-      showHeld(id);
       const result = selected.open(thread.key, request);
       const selectedLayout = result?.then ? await whileCurrent(result) : result;
       if (!mayPresent()) return null;

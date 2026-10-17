@@ -5973,7 +5973,6 @@ function createThreadDestinations({
         landing: () => selected.reader.destination(thread.key, request),
         intent: arriving
       }) : null;
-      showHeld(id);
       const result = selected.open(thread.key, request);
       const selectedLayout = result?.then ? await whileCurrent(result) : result;
       if (!mayPresent()) return null;

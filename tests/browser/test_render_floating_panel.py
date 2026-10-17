@@ -1453,7 +1453,7 @@ def test_floating_status_records_feedback_only_when_its_words_show(
     rows = visible()
     assert len(rows) == 1
     assert rows[0]["input_id"] == root
-    assert rows[0]["presentation_kind"] == "banner_words"
+    assert rows[0]["presentation_kind"] == "status_words"
     assert rows[0]["surface"] == "panel"
     assert "text" not in rows[0]
 
@@ -1587,7 +1587,7 @@ def test_floating_menu_tracks_stalled_detail_hidden_by_a_draft(browser, serve, r
     rows = feedback()
     assert len(rows) == 1
     assert rows[0]["input_id"] == root
-    assert rows[0]["presentation_kind"] == "banner_words"
+    assert rows[0]["presentation_kind"] == "status_words"
     assert rows[0]["surface"] == "panel"
     assert "text" not in rows[0]
 

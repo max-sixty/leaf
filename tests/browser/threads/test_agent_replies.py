@@ -465,7 +465,7 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
     )
     assert any(
         row.get("input_id") == root
-        and row["presentation_kind"] == "banner_words"
+        and row["presentation_kind"] == "status_words"
         and row["reply_id"] == steps[-1]["id"]
         for row in feedback
     )

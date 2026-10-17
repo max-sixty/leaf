@@ -9173,6 +9173,7 @@ function createFloatingPanel({
             ><span class="lf-fp-value">${row2.self ? "This page" : row2.line}</span>`;
         return row2.self ? html`<div class="lf-fp-page" title=${row2.account}>${face2}</div>` : html`<a
                 class="lf-fp-page"
+                data-key=${row2.key}
                 href=${row2.href}
                 target="_blank"
                 rel="noopener"
@@ -9420,6 +9421,8 @@ function createFloatingPanel({
       rove(rows3, rows3.includes(focused()) ? focused() : rows3[0]);
     }
     const views = [leaving, top].filter(Boolean);
+    const heldView = shownView();
+    const restoreFocus = heldView && holdFocus(heldView, { key: "data-key" });
     const shows = (route) => route.view === "thread" ? threadByKey(route.thread)?.id ?? null : null;
     render(
       repeat(
@@ -9442,6 +9445,7 @@ function createFloatingPanel({
       ),
       stage
     );
+    if (restoreFocus && heldView === shownView()) restoreFocus(heldView);
     const outlet = outletOf();
     if (outlet !== fitted) {
       fit.disconnect();

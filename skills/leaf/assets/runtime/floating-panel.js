@@ -162,6 +162,7 @@ import { onReadingInterrupted, readingIsContinuous } from "./reading-continuity.
 import {
   focusDestination,
   focused,
+  holdFocus,
   letGo,
   onStanding,
   onUserInput,
@@ -2039,6 +2040,7 @@ export function createFloatingPanel({
             ? html`<div class="lf-fp-page" title=${row.account}>${face}</div>`
             : html`<a
                 class="lf-fp-page"
+                data-key=${row.key}
                 href=${row.href}
                 target="_blank"
                 rel="noopener"
@@ -2347,6 +2349,12 @@ export function createFloatingPanel({
     }
 
     const views = [leaving, top].filter(Boolean);
+    // A row leaving the list the user stands on, as a page that goes idle leaves All
+    // pages, hands them to the row after it, else before it, else the view that stays
+    // open, rather than to the body (focus.js, `holdFocus`). Each list's rows carry
+    // their key as `data-key`.
+    const heldView = shownView();
+    const restoreFocus = heldView && holdFocus(heldView, { key: "data-key" });
     // A thread's view stands for that thread (thread/selectors.js, `THREAD`), so the
     // user standing anywhere in it is in the thread, as in a card in Threads, and the
     // thread's keys find its reply and Resolve where the view declares them.
@@ -2378,6 +2386,7 @@ export function createFloatingPanel({
       ),
       stage,
     );
+    if (restoreFocus && heldView === shownView()) restoreFocus(heldView);
     // The open thread's messages are read where they land, and its view's height
     // whatever changes it (`fitAnswer`).
     const outlet = outletOf();

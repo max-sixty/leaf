@@ -87,7 +87,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 from browser.threads import open_panel_thread
 
-from journeys import expect_panel_says
+from journeys import expect_panel_says, first_thread_quote
 
 
 def test_call_diff_projects_stable_commentable_rows(browser, serve):
@@ -322,7 +322,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     write(page.locator(".lf-composer leaf-text"), "Review this added call.")
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
-    expect(page.locator(".lf-thread .lf-quote").first).to_have_text(
+    expect(first_thread_quote(page, serve.page_dir)).to_have_text(
         "§ added call-tree item └─ if request.token at gateway/limits.py:40"
     )
 
@@ -1481,7 +1481,7 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
     page = open_page(browser, url)
     expect(page.locator("#th-cache")).to_have_attribute("data-lf-state", "shelve")
     expect(page.locator("#th-cache lf-proposed")).to_be_hidden()
-    expect(page.locator(".lf-thread .lf-quote").first).to_have_class(
+    expect(first_thread_quote(page, serve.page_dir)).to_have_class(
         re.compile(r"\bdetached\b")
     )
     assert painted(page, "lf-mark") == "", (
@@ -1514,7 +1514,7 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
     page = open_page(browser, url)
     assert page.locator("#th-cache").get_attribute("data-lf-state") is None
     expect(page.locator("#th-cache lf-proposed")).to_be_visible()
-    expect(page.locator(".lf-thread .lf-quote").first).not_to_have_class(
+    expect(first_thread_quote(page, serve.page_dir)).not_to_have_class(
         re.compile(r"\bdetached\b")
     )
     assert painted(page, "lf-mark") != "", (

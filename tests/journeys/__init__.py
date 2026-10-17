@@ -1,6 +1,7 @@
 """Whole journeys through a served page, with the helpers several of them share."""
 
 from browser.threads import open_panel_thread
+from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_harness import PANEL, panel_settled
 
@@ -54,3 +55,13 @@ def detached_threads(page, thread_ids):
         page.locator(".lf-fp-close").click()
         panel_settled(page, open=False)
     return detached
+
+
+def first_thread_quote(page, page_dir):
+    """The quote heading the first thread's view in the panel, opened for it."""
+    first = next(
+        event["id"]
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "comment"
+    )
+    return open_panel_thread(page, first).locator(".lf-fp-quote")

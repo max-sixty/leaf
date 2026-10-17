@@ -59,6 +59,8 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 from browser.widgets import PLAYGROUND_PAGE
 
+from journeys import first_thread_quote
+
 
 def expect_accept_all(page, words):
     """The leaf's menu offers accepting every remaining suggestion, by its count; read
@@ -402,7 +404,7 @@ def test_pr_walkthrough_moves_from_semantic_call_to_exact_patch_comment(
     )
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
-    expect(page.locator(".lf-thread .lf-quote").first).to_contain_text("src/summary.rs")
+    expect(first_thread_quote(page, serve.page_dir)).to_contain_text("src/summary.rs")
     comments = [
         event
         for event in events_model.read_events(serve.page_dir)

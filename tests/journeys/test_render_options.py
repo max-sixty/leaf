@@ -277,7 +277,7 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
     )
     card_button.click()
     expect(page.locator(".lf-live")).to_contain_text("checking the shard")
-    expect(page.locator(".lf-thread")).to_have_count(0)
+    expect(page.locator(".lf-page-thread")).to_have_count(0)
     expect(page.locator(PANEL_THREAD)).to_have_count(0)
     expect(page.locator("#card-migration > .lf-msg-sending")).to_have_count(0)
     expect(card_button).to_have_class(re.compile(r"\blf-margin-entry\b"))

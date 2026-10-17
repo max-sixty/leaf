@@ -88,21 +88,6 @@ def answered_comment(d, text, anchor):
     return root
 
 
-# Every frame the fold paints, sampled from the page because there is nowhere else to
-# sample it: what a motion looks like is a sequence, and every other check here reads a
-# state. One height per animation frame until the node leaves the page, which is the
-# fold's own end and so the wait's fact.
-FRAME_BY_FRAME = """(sel) => {
-  window.__seen = [];
-  window.__done = false;
-  const tick = () => {
-    const el = document.querySelector(sel);
-    if (!el) return void (window.__done = true);
-    window.__seen.push(+el.getBoundingClientRect().height.toFixed(1));
-    requestAnimationFrame(tick);
-  };
-  requestAnimationFrame(tick);
-}"""
 STACKED_OPTIONS_PAGE = leaf_page(
     "stacked options",
     """

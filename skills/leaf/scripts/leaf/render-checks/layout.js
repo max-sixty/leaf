@@ -317,10 +317,13 @@ export function misplacedBoxes() {
   const shell = main.parentElement ?? document.body;
   const shellStyle = getComputedStyle(shell);
   const shellBox = shell.getBoundingClientRect();
-  // Inside the shell's border, scrollbar gutters and padding.
-  const roomLeft = shellBox.left + shell.clientLeft + parseFloat(shellStyle.paddingLeft);
+  // Inside the shell's border, scrollbar gutters and padding, which are in the shell's
+  // own pixels, scaled to the window's by any transform on the shell or around it.
+  const scale = shellBox.width / shell.offsetWidth || 1;
+  const roomLeft = shellBox.left + (shell.clientLeft + parseFloat(shellStyle.paddingLeft)) * scale;
   const roomRight =
-    shellBox.left + shell.clientLeft + shell.clientWidth - parseFloat(shellStyle.paddingRight);
+    shellBox.left +
+    (shell.clientLeft + shell.clientWidth - parseFloat(shellStyle.paddingRight)) * scale;
   // Both readings that hand a box to an ancestor ask shownBand, or a box inside a
   // container that clips without saying so in `overflow` is named for a spill it is
   // drawn nowhere near and left unnamed for the loss it did take, the walk at the foot

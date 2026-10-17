@@ -530,9 +530,12 @@
     const column = box.getBoundingClientRect();
     // Inside the shell's border and scrollbar gutters. A resident may stand in its
     // padding, as the rail does in the strip `data-rail="right"` pads `body` with
-    // (annotation-theme.css).
-    const shellLeft = shellNode.getBoundingClientRect().left + shellNode.clientLeft;
-    const shell = { left: shellLeft, right: shellLeft + shellNode.clientWidth };
+    // (annotation-theme.css). The client box is in the shell's own pixels, so it is
+    // scaled to the window's by any transform on the shell or around it.
+    const shellRect = shellNode.getBoundingClientRect();
+    const scale = shellRect.width / shellNode.offsetWidth || 1;
+    const shellLeft = shellRect.left + shellNode.clientLeft * scale;
+    const shell = { left: shellLeft, right: shellLeft + shellNode.clientWidth * scale };
     const room = {
       left: column.left - gridShift - shell.left,
       right: shell.right - column.right + gridShift,

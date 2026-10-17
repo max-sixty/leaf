@@ -610,10 +610,11 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
     card = open_margin_card(page, root)
     old_checkpoint = card.locator(f'[data-summary-id="{old["id"]}"]')
     expect(old_checkpoint).to_be_visible()
-    old_checkpoint.locator(".lf-summary-expand").click()
+    # The user stands on the summary they opened: a message takes no focus in a card.
+    opened = old_checkpoint.locator(".lf-summary-expand")
+    opened.click()
+    expect(opened).to_be_focused()
     standing = card.locator(f'.lf-msg[data-event="{second["id"]}"]')
-    standing.focus()
-    expect(standing).to_be_focused()
 
     replacement = summarize_thread(
         serve.page_dir,
@@ -625,7 +626,7 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
     notice = card.locator(".lf-thread-news").filter(has_text="1 summary changed")
     expect(notice).to_be_visible()
     expect(old_checkpoint).to_be_visible()
-    expect(standing).to_be_focused()
+    expect(opened).to_be_focused()
     notice.click()
     expect(card.locator(f'[data-summary-id="{old["id"]}"]')).to_have_count(0)
     checkpoint = card.locator(f'[data-summary-id="{replacement["id"]}"]')

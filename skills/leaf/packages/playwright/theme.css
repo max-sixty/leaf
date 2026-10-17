@@ -907,10 +907,12 @@
   max-inline-size: none;
   margin: 0;
 }
+/* The gap holds a focused button's ring, 2px off its face (controls.css), with a pixel to
+ * spare: the button after it paints its border over any of the ring that reaches it. */
 .lf-trace-image-tools {
   display: flex;
   align-items: center;
-  gap: var(--sp-1);
+  gap: var(--focus-ring-room);
   flex-wrap: wrap;
   margin-block: var(--sp-2) 0;
 }

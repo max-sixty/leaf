@@ -1671,6 +1671,7 @@ function commentPlacement() {
   let held2 = null;
   let reading = null;
   let edge = "top";
+  let unpressed = "top";
   let pressHeld = null;
   let pressAnswered = null;
   const forget = () => {
@@ -1684,6 +1685,7 @@ function commentPlacement() {
     held2 = null;
     reading = null;
     edge = "top";
+    unpressed = "top";
     pressHeld = null;
     pressAnswered = null;
   };
@@ -1737,14 +1739,15 @@ function commentPlacement() {
         replyTurn: keepReplyLine ? latest.key : null,
         draftText
       };
-      edge = hold ? side === "top" ? "foot" : "top" : pressHeld ?? (keepReplyLine || !drafting && side === "top" ? "foot" : "top");
+      unpressed = hold ? side === "top" ? "foot" : "top" : keepReplyLine || !drafting && side === "top" ? "foot" : "top";
+      edge = hold ? unpressed : pressHeld ?? unpressed;
       return edge;
     },
     // The edge a change the user did not make would hold, read before it is drawn: a
     // turn joining while they read releases a hold on their own reply's line, so it
     // holds the foot only where the surface stands above what it is about; any other
-    // change keeps the edge held now.
-    edgeFor: (turn) => turn ? side === "top" ? "foot" : "top" : edge,
+    // change keeps the edge held now, but for a press's hold, which that change ends.
+    edgeFor: (turn) => turn ? side === "top" ? "foot" : "top" : unpressed,
     // The held edge's offset for `options`' `hold`, and the height between the held
     // top and foot, which caps a held surface no shorter than it last stood.
     heldAt: (edge2) => held2 && { [edge2]: held2[edge2] },

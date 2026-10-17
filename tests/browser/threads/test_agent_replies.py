@@ -51,14 +51,6 @@ def card_of(root):
     return f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]'
 
 
-def content_height(card):
-    """How tall the card's content stands, its transcript's scrolled part included."""
-    return card.evaluate(
-        "card => card.querySelector('.lf-thread-transcript')?.scrollHeight"
-        " ?? card.scrollHeight"
-    )
-
-
 def open_margin_card(page, section):
     """Open the margin card of the thread on `section`, by its marker."""
     page.locator(f'[data-lf-margin-for="{section}"] .lf-margin-marker').click()
@@ -889,7 +881,8 @@ def test_a_bounded_log_in_an_agent_reply_follows_its_end_as_a_reading_region(
 def test_collapsing_progress_preserves_room_for_a_later_canceled_stream(
     browser, serve, request
 ):
-    """Only the disclosure's own change resizes the reply, even before a frame paints."""
+    """Only the disclosure's own change resizes the card, even before a frame paints:
+    the canceled stream's room stays, so the reply stands where it stood."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Keep this thread here.", {"section": "h-how"})
     for words in ("Checking labels.", "Measuring controls.", "Checking both schemes."):
@@ -918,7 +911,9 @@ def test_collapsing_progress_preserves_room_for_a_later_canceled_stream(
     stream = card.locator(f'.lf-msg[data-attempt="{STREAM_ATTEMPT}"]')
     expect(stream).to_be_visible()
     rendered(page)
-    compact = content_height(card)
+    reply = card.locator(".lf-thread-reply")
+    compact = card.bounding_box()["height"]
+    standing = reply.bounding_box()["y"]
     progress = card.locator(".lf-summary-expand")
     progress.press("Enter")
     rendered(page)
@@ -929,7 +924,8 @@ def test_collapsing_progress_preserves_room_for_a_later_canceled_stream(
             transaction.clear_stream_reply("codex-thread", "leaf-turn")
         expect(stream).to_have_count(0)
     rendered(page)
-    assert content_height(card) == pytest.approx(compact, abs=1)
+    assert card.bounding_box()["height"] == pytest.approx(compact, abs=0.5)
+    assert reply.bounding_box()["y"] == pytest.approx(standing, abs=0.5)
 
 
 def test_canceling_a_long_stream_keeps_the_panel_reading(browser, serve, request):

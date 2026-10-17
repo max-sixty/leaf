@@ -6495,6 +6495,10 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
           if (item.kind === "message") {
             const message = new MessageView({
               ...commands,
+              reaction: {
+                ...commands.reaction,
+                pressed: () => shown.get(item.key)?.news?.open()
+              },
               edit: rewritesOf(item.key).edit
             });
             message.node.classList.add("lf-primary-message");

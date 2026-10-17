@@ -272,8 +272,14 @@ export function createPrimaryReader(
           node.dataset.lfGen = "1";
           node.dataset.lfOffer = "";
           if (item.kind === "message") {
+            // A press on a reply's reactions is the user acting in this thread, so
+            // what the reader holds of it shows with it, as in a card (thread-card.js).
             const message = new MessageView({
               ...commands,
+              reaction: {
+                ...commands.reaction,
+                pressed: () => shown.get(item.key)?.news?.open(),
+              },
               edit: rewritesOf(item.key).edit,
             });
             message.node.classList.add("lf-primary-message");

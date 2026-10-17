@@ -1670,6 +1670,7 @@ function commentPlacement() {
   let moved = false;
   let held2 = null;
   let reading = null;
+  let tallest = null;
   let edge = "top";
   let pressHeld = null;
   let pressAnswered = null;
@@ -1683,6 +1684,7 @@ function commentPlacement() {
     moved = false;
     held2 = null;
     reading = null;
+    tallest = null;
     edge = "top";
     pressHeld = null;
     pressAnswered = null;
@@ -1745,10 +1747,10 @@ function commentPlacement() {
     // holds the foot only where the surface stands above what it is about; any other
     // change keeps the edge held now.
     edgeFor: (turn) => turn ? side === "top" ? "foot" : "top" : edge,
-    // The held edge's offset for `options`' `hold`, and the height between the held
-    // top and foot, which caps a held surface no shorter than it last stood.
+    // The held edge's offset for `options`' `hold`, and the height that caps a held
+    // surface no shorter than the tallest it has stood since its line last moved.
     heldAt: (edge2) => held2 && { [edge2]: held2[edge2] },
-    heldHeight: () => held2 ? held2.foot - held2.top : 0,
+    heldHeight: () => held2 ? Math.max(held2.foot - held2.top, tallest?.height ?? 0) : 0,
     scrolled() {
       input = null;
     },
@@ -1964,7 +1966,12 @@ function commentPlacement() {
       if (vertical(side)) inline ??= x - column;
       else if (side !== "left") carriedInline ??= (x - attachmentInline) * scale.x;
       const top = (y - (middlewareData.shift?.y ?? 0) - line2) * scale.y;
-      const spot = { top, foot: top + middlewareData.held.height * scale.y };
+      const height = middlewareData.held.height * scale.y;
+      const spot = { top, foot: top + height };
+      tallest = {
+        height: tallest && Math.abs(tallest.line - line2) < 0.5 ? Math.max(tallest.height, height) : height,
+        line: line2
+      };
       held2 = { ...spot, ...reading };
       return { scale };
     }

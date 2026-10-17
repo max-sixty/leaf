@@ -472,8 +472,8 @@ export function createThreadPreview({
             );
             // Choosing its spot, the card is capped by the boundary alone, and slides
             // inside it rather than shrinking. Held, it has the room from its held edge
-            // to the boundary's far edge, with that edge inside the boundary as far as
-            // its last height puts it. This cap holds for reading and writing alike:
+            // to the boundary's far edge, or the tallest it has stood since its line
+            // last moved where that is more. This cap holds for reading and writing alike:
             // a growing editor uses the room below its top, then scrolls internally.
             const minimum = session.side.heldHeight() / scale.y;
             const fitted = measureThreadCard(room, Math.max(minimum, height), reading);

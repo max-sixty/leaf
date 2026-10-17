@@ -292,7 +292,6 @@ export class MessageView {
     const editing = model.editable && holdsMessageEdit(model.id, this, panel);
     if (editing && !this.#editor)
       this.#editor = new MessageEditor(model.id, this, {
-        body: this.node.querySelector(":scope > .lf-msg-body"),
         wireInput: this.#commands.reply.wireInput,
         said: () => this.#model.body.text,
         base: () => this.#model.base,

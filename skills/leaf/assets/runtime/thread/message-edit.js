@@ -31,14 +31,7 @@
    field its reply box is, at the reply box's width and padding (shadow.css,
    `.lf-msg-editor`). Its Cancel and Save stand at the message's head, where the
    message's own control stood (`.lf-msg-edit-actions`), so opening it grows the
-   message by the box's padding alone. Its words are at least as tall as the words and
-   media they open over, up to the height past which the field scrolls, so neither a field that lays them out shorter than the message nor words
-   deleted while it is open move anything below it: only saving shorter words gives
-   that room back. A thread card held at the window's foot grows no taller than it
-   stands, so room the box gave up was room the message could not take back, and it
-   closed as a clipped scrolling box. Rejected: letting the card keep the tallest it
-   had stood, which let a card a saved shorter message had shrunk grow up the page as
-   the user drafted a reply. Rejected: a box painted around the words where
+   message by the box's padding alone. Rejected: a box painted around the words where
    they stood, with no padding of its own, so opening it moved nothing; beside the reply
    box it read as a thinner, narrower field (the user's decision, 2026-10-13).
 
@@ -90,7 +83,6 @@ import { announce, notice } from "../notifications.js";
 import { afterScript, sizeObserver } from "../rendering.js";
 import { retainUserIntent } from "../user-intent.js";
 import { offer } from "../widget-elements.js";
-import { layoutPx } from "../keeps.js";
 
 // What a message's view answers by opening its rewrite, as a press on its Edit control.
 export const OPEN_MESSAGE_EDIT = "lf-open-message-edit";
@@ -256,8 +248,7 @@ function closeMessageEdit(id, { discard }) {
  * box, or on the thread where it shows none, before the editor leaves the page; `paint`
  * draws the view again once the editor opens or closes; `previous` answers the view of
  * the user's message before this one that ↑ opens, or null; `reveal` brings the open
- * editor into view; `body` is the message's body as the view drew it before the editor
- * took the place of its words and media, or null where it drew none. */
+ * editor into view. */
 export class MessageEditor {
   #stop;
   #putAside;
@@ -268,7 +259,7 @@ export class MessageEditor {
   constructor(
     id,
     view,
-    { body, wireInput, said, base: currentBase, send, land, paint, previous, reveal },
+    { wireInput, said, base: currentBase, send, land, paint, previous, reveal },
   ) {
     const ctx = rewriteContext(id);
     // The revision these words are written over, which the log holds the rewrite to: the
@@ -283,19 +274,6 @@ export class MessageEditor {
       notice(`This message changed since this edit began. It now says: “${said()}”`);
     this.#reveal = reveal;
     this.node = offer("div", "lf-msg-editor lf-comment-box");
-    // The height of the words and media it opens over, which its own words keep at
-    // least (shadow.css, `.lf-msg-editor`).
-    const drawn = body?.querySelectorAll(":scope > :is(.lf-msg-text, .lf-msg-media)");
-    if (drawn?.length) {
-      const words = drawn[0];
-      const { paddingTop, paddingBottom } = getComputedStyle(words);
-      const height =
-        drawn[drawn.length - 1].getBoundingClientRect().bottom -
-        words.getBoundingClientRect().top -
-        parseFloat(paddingTop) -
-        parseFloat(paddingBottom);
-      this.node.style.setProperty("--lf-msg-words-height", layoutPx(height));
-    }
     this.input = offer(TEXT_FIELD);
     this.input.name = "edit";
     const actions = offer("span", "lf-msg-edit-actions");

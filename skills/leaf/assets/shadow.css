@@ -1478,8 +1478,7 @@ button.lf-media-open {
   background: transparent;
   color: var(--ink);
   font: var(--t-5)/1.5 var(--sans);
-  --lf-comment-box-max-height: 50vh;
-  max-height: var(--lf-comment-box-max-height);
+  max-height: 50vh;
   overflow-y: auto;
 }
 .lf-comment-box > .lf-compose-field > leaf-text[data-lf-focus] {
@@ -1499,9 +1498,6 @@ button.lf-media-open {
 }
 .lf-thread-transcript .lf-msg-editor {
   margin-inline-start: calc(-1 * var(--lf-thread-text-inset));
-}
-.lf-msg-editor > .lf-compose-field > leaf-text {
-  min-height: max(var(--lf-compose-h), min(calc(var(--lf-msg-words-height, 0px) + 2 * var(--lf-compose-pad-block)), var(--lf-comment-box-max-height)));
 }
 .lf-msg-edit-foot {
   display: block;

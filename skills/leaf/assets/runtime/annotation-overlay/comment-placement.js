@@ -73,6 +73,18 @@
    clear of, so a reflow of what it is about carries it. The card keeps its reply row
    still that way while a turn joins the transcript above it.
 
+   A held surface grows no taller than the room from its held edge, or than the tallest
+   it has stood since its line last moved (`heldHeight`), whichever is more. Against
+   the window's foot the boundary keeps a card's foot, so content that shrinks it, a
+   rewrite opening over long words, a fold, an edit, lowers its top, and growing back
+   raises it again to where it stood. A scroll moves the line and keeps only the
+   height the card stands at. Its top rising this way also lets a reply drafted after
+   shorter words were saved grow the card back up the page. Rejected: keeping only the
+   height it last stood at, which made every shrink at the foot permanent, so an
+   unchanged rewrite closed as a clipped scrolling box; holding its top where the
+   window had kept it as it shrank, which a press holding its foot undid; and a floor
+   in the rewrite for that one cause of shrinking.
+
    Send hands the editor's frame to the card (`adopt`). Its next choice keeps the
    frame's side and inline start where the boundary still matches, and returns its
    block offsets for the card to hold. The attachment is then the card's current one:
@@ -371,6 +383,8 @@ export function commentPlacement() {
   // reading the placement in flight answers, which its landing records.
   let held = null;
   let reading = null;
+  // The tallest the surface has stood since its line last moved, and that line.
+  let tallest = null;
   // The edge the last `holding` answer held, the one the user's latest press in the
   // surface chose for the change it made, and that press's input and the transcript
   // extent its change left.
@@ -387,6 +401,7 @@ export function commentPlacement() {
     moved = false;
     held = null;
     reading = null;
+    tallest = null;
     edge = "top";
     pressHeld = null;
     pressAnswered = null;
@@ -478,10 +493,10 @@ export function commentPlacement() {
     // holds the foot only where the surface stands above what it is about; any other
     // change keeps the edge held now.
     edgeFor: (turn) => (turn ? (side === "top" ? "foot" : "top") : edge),
-    // The held edge's offset for `options`' `hold`, and the height between the held
-    // top and foot, which caps a held surface no shorter than it last stood.
+    // The held edge's offset for `options`' `hold`, and the height that caps a held
+    // surface no shorter than the tallest it has stood since its line last moved.
     heldAt: (edge) => held && { [edge]: held[edge] },
-    heldHeight: () => (held ? held.foot - held.top : 0),
+    heldHeight: () => (held ? Math.max(held.foot - held.top, tallest?.height ?? 0) : 0),
     scrolled() {
       input = null;
     },
@@ -796,7 +811,15 @@ export function commentPlacement() {
       if (vertical(side)) inline ??= x - column;
       else if (side !== "left") carriedInline ??= (x - attachmentInline) * scale.x;
       const top = (y - (middlewareData.shift?.y ?? 0) - line) * scale.y;
-      const spot = { top, foot: top + middlewareData.held.height * scale.y };
+      const height = middlewareData.held.height * scale.y;
+      const spot = { top, foot: top + height };
+      tallest = {
+        height:
+          tallest && Math.abs(tallest.line - line) < 0.5
+            ? Math.max(tallest.height, height)
+            : height,
+        line,
+      };
       // The reading this placement answered, so a turn that joined while it was worked
       // out is one the next placement still sees join.
       held = { ...spot, ...reading };

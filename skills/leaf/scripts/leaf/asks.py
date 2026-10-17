@@ -799,12 +799,20 @@ def page_ask_readings(
     """Asks in one document basis; a discussion changes attention, not answer:
     an ask a thread with the agent is about is the agent's (`sections_with_agent`).
     A reply-answered ask is the exception, since a message about it is its answer:
-    the first user message in a thread opened inside it. `ends` holds the agent's
-    `todo_end` on each id."""
+    the first user message in a thread opened inside it, after the stamped version
+    that last restated it (`$restated`), so a rewritten question is asked again.
+    `ends` holds the agent's `todo_end` on each id."""
     reducer = _AskReducer(
         source, projection, byid, spk, registry, dropped, revision, events
     )
     records = reducer.inventory(settled_away or set(), prior)
+    restated = {
+        named: event["seq"]
+        for event in events
+        if event["kind"] == "note"
+        and (revision is None or event["revision"] <= revision)
+        for named in event.get("restated", [])
+    }
     for record in records:
         unit = record["source"]["id"]
         if record["status"] != "open" or not replied(registry[record["source"]["tag"]]):
@@ -822,6 +830,7 @@ def page_ask_readings(
                 if message["author"] == "user"
                 and not is_reaction(message)
                 and not message.get("ephemeral")
+                and message["seq"] > restated.get(unit, 0)
             ),
             key=lambda message: message["seq"],
             default=None,

@@ -20,7 +20,8 @@
     "x-instructions": "Around decision widgets, give it a heading that states the shared question or context without leaning on the prose around it, with any eyebrow beside it in an `<hgroup>`. Include the evidence the user needs to answer. Each widget inside that asks for input stays its own item with its own answer, and the frame asks nothing itself. With no widget inside, it is a question answered in words: in a reply's markup, by the user's next message in that thread; on the page, by their comment on it. Write the question itself as its content, with no heading needed. Wrap the context in a `section` when the document needs a section landmark.",
     "type": "object",
     "properties": {
-      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" }
+      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+      "restated": { "type": "boolean" }
     },
     "required": ["id"],
     "additionalProperties": false,

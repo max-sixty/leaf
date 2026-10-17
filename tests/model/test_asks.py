@@ -428,6 +428,44 @@ def test_a_question_on_the_page_is_answered_by_a_comment_on_it():
     assert ask["status"] == "answered"
 
 
+def test_a_restated_question_waits_on_an_answer_given_after_it():
+    """A comment answers the question it was about. A version that rewrites the
+    question and marks it `restated` asks again: only a message after that stamp
+    answers it."""
+
+    def question(attrs=""):
+        return model.leaf_page(
+            "Questions", f'<lf-ask id="q"{attrs}>Weekly or daily?</lf-ask>'
+        )
+
+    answer = {
+        "kind": "comment",
+        "id": "c",
+        "author": "user",
+        "revision": 1,
+        "text": "Daily",
+        "anchor": {"section": "q"},
+    }
+    stamp = {
+        "kind": "note",
+        "id": "n",
+        "author": "agent",
+        "revision": 2,
+        "version": 1,
+        "text": "Asked about weekends too",
+        "restated": ["q"],
+    }
+    documents = {1: question(), 2: question(" restated")}
+    [ask] = page_asks(model.reading(documents, [answer, stamp]), 2)["all"]
+    assert ask["status"] == "open"
+    again = {**answer, "id": "c2", "revision": 2, "text": "Daily, weekends too"}
+    [ask] = page_asks(model.reading(documents, [answer, stamp, again]), 2)["all"]
+    assert (ask["status"], ask["answer"]["value"]) == (
+        "answered",
+        {"text": "Daily, weekends too"},
+    )
+
+
 def test_a_frame_around_a_decision_widget_stays_one_ask():
     [ask] = page_asks(model.reading(page(context="frame"), []))["all"]
     assert (ask["id"], ask["prompt"]["target"]) == ("widget:choice", "frame")

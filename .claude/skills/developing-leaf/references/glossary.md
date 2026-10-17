@@ -181,9 +181,8 @@ In flow it lists every included heading; where the margin has room it may show t
 | **Target picker** | The `s` interaction that shows addressable elements and ends when the user picks one or closes it |
 | **Page search** | The `/` interaction that filters or steps through text matches for a query |
 | **Walk** | Stepping in order through one kind of destination: open threads (`t`), the user's On me list (`m`), a list's rows |
-| **On me** | The user's list of everything waiting on them (`queues.on_user`): open asks, to-dos the agent gave them, and resends. An ask the user has commented on leaves it until the agent replies. `m` walks it |
+| **On me** | The user's list of everything waiting on them (`queues.on_user`): open asks, to-dos the agent gave them, and resends. An ask the user has commented on leaves it until the agent replies. `m` walks it. Labels for what waits on the user name the list, as **Next on me** and **Waiting on me** do |
 | **On *agent*** | The agent's list of everything waiting on it (`queues.on_agent`), named for the agent, such as **On Claude**: answers it owes, work in hand and its own to-dos. Prose about no particular agent writes `On <agent>` |
-| **Ask** | One record of a request for the user's input, with its typed answer: a widget ask (`widget:<source-id>`), a prose ask from a reply sent with `--ask` (`reply:<agent-message-id>`), or an approval ask for a stamped version (`approval:v<version>`). `lf-ask` frames asks with context without changing their ids. The interface calls it an ask, never a question |
 | **To-do** | Explicit work owed until it ends (`todo` in the protocol), by the agent or by the user |
 | **Plan** | The agent's outline of the page's work (`plan` in the protocol): goals and steps by depth, each step plain or naming a to-do or ask, which it arranges without owning |
 | **Tally** | `lf-tally`: how many of a region's asks (`asksIn`) are still open, “7 of 8 to answer”, with an optional Next on me that walks the region's asks waiting on the user |

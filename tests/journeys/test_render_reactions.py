@@ -12,9 +12,9 @@ from render_cases_navigation import (
     TARGETS_PAGE,
 )
 from render_harness import (
+    PANEL_THREAD,
     RELEASE_FOCUS,
     open_page,
-    panel_settled,
     resized,
     sending,
 )
@@ -22,6 +22,7 @@ from render_harness import (
 pytestmark = pytest.mark.shifts_unsurveyed
 
 from browser.test_render_reactions import _thread, hint_code, painted
+from browser.threads import open_panel_thread
 
 
 def test_a_target_hint_opens_comment_and_a_token_seats_only_its_glyph(browser, serve):
@@ -49,21 +50,20 @@ def test_a_target_hint_opens_comment_and_a_token_seats_only_its_glyph(browser, s
     expect(page.locator("#prose")).to_have_css("outline-style", "none")
 
 
-def test_a_reply_s_reactions_keep_their_keys_in_a_covering_threads_panel(
-    browser, serve
-):
-    """At a phone's width the Threads panel covers the page, and the keyboard answers only
-    what stands inside it. The reaction mode stood nowhere, so every one of its rows fell
-    below the panel's floor: an arrow reached no row, read as a stray key, and closed the
-    list the user was walking. The open list is where the mode stands."""
+def test_a_reply_s_reactions_keep_their_keys_in_a_covering_thread_view(browser, serve):
+    """At a phone's width the panel's thread view covers the page, and the keyboard
+    answers only what stands inside it. The reaction mode stood nowhere, so every one of
+    its rows fell below the view's floor: an arrow reached no row, read as a stray key,
+    and closed the thread the user was reading. The open thread is where the mode
+    stands."""
     url = serve(PANEL_PAGE)
-    _, reply = _thread(serve.page_dir)
+    root, reply = _thread(serve.page_dir)
     page = open_page(browser, url)
     resized(page, 390, 844)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    page.locator(".lf-thread-summary").click()
-    strip = page.locator(f'.lf-msg[data-mid="{reply}"] .lf-react-strip')
+    open_panel_thread(page, root)
+    strip = page.locator(
+        f'{PANEL_THREAD} .lf-msg[data-message="{reply}"] .lf-react-strip'
+    )
     strip.locator(".lf-react-trigger").click()
     choices = strip.locator(".lf-react-palette > .lf-react")
     expect(choices.nth(0)).to_be_focused()

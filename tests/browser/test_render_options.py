@@ -46,11 +46,12 @@ from render_harness import (
     compare_with,
     consume_browser_errors,
     expect_asks_answered,
-    expect_banner_control_offered,
+    expect_panel_offers,
     hold_selection,
     holding,
     leaf_page,
     open_page,
+    panel_control,
     regions_side_by_side,
     resized,
     root_overflow,
@@ -62,6 +63,8 @@ from render_harness import (
     wait_for_revision,
     write,
 )
+
+from browser.threads import open_panel_thread
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -91,7 +94,7 @@ def test_the_runtime_does_not_replace_a_pages_keyframes(browser, serve):
         pageAnimation.currentTime = pageAnimation.effect.getTiming().duration / 2;
         const transform = getComputedStyle(document.getElementById("page-pulse")).transform;
 
-        const control = document.querySelector(".lf-threads-toggle");
+        const control = document.querySelector(".lf-fp-threads");
         control.setAttribute("aria-busy", "true");
         const runtimeAnimation = control.getAnimations()[0];
         return {
@@ -1118,16 +1121,18 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     assert page.locator('#quoted-settled .lf-pick[role="img"]').count() == 1
 
     # So a quoted suggestion stands as the page wrote it, the old words and the proposed
-    # ones both, with nothing to settle it with. It is not the banner's to count or
-    # Accept all's to decide either.
+    # ones both, with nothing to settle it with. It is not the leaf's menu's to count
+    # or Accept all's to decide either.
     expect(page.locator("#quoted-suggestion")).not_to_have_attribute(
         "data-lf-state", re.compile(".")
     )
     expect(page.locator("#quoted-suggestion lf-old")).to_be_visible()
     expect(page.locator("#quoted-suggestion lf-new")).to_be_visible()
     assert suggestion_control(page, "quoted-suggestion", visible=False).count() == 0
-    expect(page.locator(".lf-answer-all")).to_have_text("Accept all (1)")
-    expect_banner_control_offered(page.locator(".lf-answer-all"))
+    accept_all = panel_control(page, "blanket:accept")
+    expect(accept_all).to_contain_text("1")
+    page.locator(".lf-fp-leaf").click()
+    expect_panel_offers(page, "blanket:accept")
 
     # The control: the same markup unquoted wires all of it.
     assert page.locator('#live-group .lf-pick[role="checkbox"]').count() == 2
@@ -2334,23 +2339,22 @@ def test_a_sample_in_a_reply_is_quoted_there_too(browser, serve):
         },
     )
     page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    page.locator('.lf-thread[data-id="c-decision"] .lf-thread-summary').click()
-    page.wait_for_selector(
-        '#rp-live .lf-pick[role="checkbox"]'
-    )  # the reply's widgets upgraded
+    view = open_panel_thread(page, "c-decision")
+    expect(
+        view.locator('#rp-live .lf-pick[role="checkbox"]').first
+    ).to_be_attached()  # the reply's widgets upgraded
 
     # The gutter renders in the panel: the sample rules aren't scoped to the
     # document's column, and neither is the label — which reaches the panel only
     # because renderSaid runs over a reply's markup too, where no custom element
     # upgrade would have carried it.
-    label = page.locator('#rp-spec > [data-lf-said="label"]')
+    label = view.locator('#rp-spec > [data-lf-said="label"]')
     assert label.text_content() == "the April thread"
     assert (
         label.evaluate("el => getComputedStyle(el, '::before').content")
         == '"quoted · "'
     )
-    gutter = page.locator("#rp-spec").evaluate(
+    gutter = view.locator("#rp-spec").evaluate(
         "el => [getComputedStyle(el).borderLeftWidth,"
         " getComputedStyle(el).borderLeftColor]"
     )
@@ -2399,7 +2403,7 @@ def test_a_sample_in_a_reply_is_quoted_there_too(browser, serve):
 
 
 def test_a_table_in_a_reply_keeps_its_figures_whole(browser, serve):
-    """A reply is Markdown, so it can hold a table, and the panel is 420px wide.
+    """A reply is Markdown, so it can hold a table, and on a phone the panel is narrow.
     Prose there breaks anywhere — the thing a reply overflows on is a URL no wrap
     can help — and a table caught the same rule: "12,000" came out as "12,0" over
     "00", in the column of figures the table was written to compare. Both halves
@@ -2428,25 +2432,26 @@ def test_a_table_in_a_reply_keeps_its_figures_whole(browser, serve):
         },
     )
     page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    page.locator(".lf-thread-summary").click()
-    page.wait_for_selector(".lf-msg-body table")
+    # A phone's width, where the thread's view is narrower than the table.
+    resized(page, 390, 800)
+    view = open_panel_thread(page, "c-decision")
+    expect(view.locator(".lf-msg-body table")).to_be_visible()
 
     # One client rect is one line: the figure is drawn as a single run, the URL
     # in the same reply as several.
     lines = """(el) => { const r = document.createRange();
                          r.selectNodeContents(el); return r.getClientRects().length; }"""
-    assert page.get_by_role("cell", name="12,000").evaluate(lines) == 1
-    assert page.locator(".lf-msg.agent .lf-msg-body a").evaluate(lines) > 1
+    assert view.get_by_role("cell", name="12,000").evaluate(lines) == 1
+    assert view.locator(".lf-msg.agent .lf-msg-body a").evaluate(lines) > 1
     # And the room the cells stopped giving up went where the theme puts it.
     assert (
-        page.locator(".lf-msg.agent .lf-msg-body table").evaluate(
+        view.locator(".lf-msg.agent .lf-msg-body table").evaluate(
             "(t) => t.scrollWidth - t.clientWidth"
         )
         > 0
     )
     assert (
-        page.locator(".lf-msg.agent .lf-msg-body").evaluate(
+        view.locator(".lf-msg.agent .lf-msg-body").evaluate(
             "(b) => b.scrollWidth - b.clientWidth"
         )
         == 0
@@ -2454,7 +2459,7 @@ def test_a_table_in_a_reply_keeps_its_figures_whole(browser, serve):
 
 
 def test_a_thread_asks_done_press_keeps_its_keys_and_one_workflow(browser, serve):
-    """Done wears its digit in its button while the bar and ARIA expose its keys.
+    """Done wears its digit in its button while ARIA exposes its keys.
 
     A tick followed by Done are two coordinates. The message carries their shared
     strongest workflow once rather than painting two receipt classifiers.
@@ -2462,21 +2467,14 @@ def test_a_thread_asks_done_press_keeps_its_keys_and_one_workflow(browser, serve
     page = open_page(
         browser, serve(next(p for p in EXAMPLES if p.stem == "ship-review"))
     )
-    page.locator(".lf-threads-toggle").click()
-    page.wait_for_function(
-        "() => document.querySelector('.lf-thread-panel').classList.contains('open')"
-    )
-    question = page.locator(".lf-thread-panel lf-options[choose]").first
-    question.locator(
-        "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' lf-thread ')][1]"
-    ).locator(".lf-thread-summary").click()
+    # The example's one thread whose reply asks with options.
+    question = open_panel_thread(page, "7b3e0a41").locator("lf-options[choose]").first
     question.locator("lf-option:not([chosen]) > .lf-pick").first.click()
     round_trip(page)
     done = question.locator(".lf-done")
     done.focus()
     expect(done).to_have_attribute("aria-keyshortcuts", re.compile(r"\b4\b"))
     expect(done.locator(".lf-key-badge[data-lf-binding-badge]")).to_have_text("4")
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("Done")
     frame = question.bounding_box()
     done_row = question.locator(":scope > lf-options-done").bounding_box()
     assert frame["y"] + frame["height"] - done_row["y"] - done_row[

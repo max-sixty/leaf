@@ -1136,29 +1136,6 @@ def mark_edges(page, ident, ink):
     }
 
 
-# Twenty-four things waiting, which is more than any shipped example asks and the point: the
-# room a list reserves at its foot is invisible until the list is longer than the drawer.
-MANY_ASKS_PAGE = leaf_page(
-    "many decisions",
-    """
-<h1>Many decisions</h1>
-<p>A drawer long enough to scroll.</p>
-<lf-test-tasks id="plan">
-"""
-    + "\n".join(
-        f'<lf-test-task id="t-{i}" status="review" owner="wren">'
-        f"<strong>Waiting on me, item {i}</strong>"
-        f'<lf-ask id="t-{i}-decision"><h2>Decision {i}</h2>'
-        f'<lf-options id="t-{i}-choice" choose>'
-        f'<lf-option id="t-{i}-yes"><strong>Approve</strong></lf-option>'
-        f'<lf-option id="t-{i}-no"><strong>Request changes</strong></lf-option>'
-        f"</lf-options></lf-ask></lf-test-task>"
-        for i in range(24)
-    )
-    + """
-</lf-test-tasks>
-""",
-)
 # Native values and prose paths must remain readable in a narrow column.
 UNBREAKABLE_PAGE = leaf_page(
     "unbreakable",

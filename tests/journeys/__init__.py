@@ -32,9 +32,13 @@ _SAYS = """() => [document.querySelector('.lf-fp-field leaf-text')?.getAttribute
   .filter(Boolean).join(' | ')"""
 
 
-def expect_panel_says(page, words):
-    """Wait until the panel says `words` in a passing notice, wherever it says one."""
-    page.wait_for_function(f"(words) => ({_SAYS})().includes(words)", arg=words)
+def expect_panel_says(page, words, shown=True):
+    """Wait until the panel says `words` in a passing notice, wherever it says one, or,
+    with `shown` false, until it no longer does."""
+    page.wait_for_function(
+        f"([words, shown]) => ({_SAYS})().includes(words) === shown",
+        arg=[words, shown],
+    )
 
 
 def panel_says(page):

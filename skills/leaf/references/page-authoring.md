@@ -91,13 +91,13 @@ Compose the page from these:
   in view, such as a postmortem beside its timeline, is a `layout-sidebar` page
   (`page-layout.md`, "A sidebar page").
 - **Several views of one artifact** are one `lf-tabs` set. Page tabs hold project-scale
-  views that share one history, Threads panel and set of asks; a tabbed section holds
+  views that share one history, Threads list and set of asks; a tabbed section holds
   local alternatives within a view. The `lf-tabs` entry says which placement makes
   which.
 
 A page can grow without changing its Layout: a report that gains live status gains a
-row of tiles. Leaf's banner and bottom bar take their own space, and comment markers go
-in the margin or over their targets, so leave room for neither.
+row of tiles. Leaf's panel takes its own room at the window's foot, and comment markers
+go in the margin or over their targets, so leave room for neither.
 
 ## Contents navigation
 

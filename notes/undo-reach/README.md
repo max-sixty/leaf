@@ -34,8 +34,8 @@ it names. #1407 puts the view back where a thread settlement moved it when that
 settlement is undone, in the same tab only.
 
 The remaining problem: on a page the user left three weeks ago, the first `z`
-reopens a thread they resolved then, possibly below the fold, and the shortcut
-bar and notice name only the gesture's kind (`undoSentence` and the per-kind words
+reopens a thread they resolved then, possibly below the fold, and the command
+reference and notice name only the gesture's kind (`undoSentence` and the per-kind words
 in `undo.js`), not which thread or how old.
 
 Undo is one-way. Nothing puts back what an undo took:
@@ -67,7 +67,7 @@ take back; an add-on combines with any rule.
 
 | Add-on             | What it adds                                                                                                  | Build |
 | ------------------ | ------------------------------------------------------------------------------------------------------------- | ----- |
-| Say what `z` takes | The bar and the notice name the gesture and its age                                                           | Small |
+| Say what `z` takes | Undo in the leaf's menu and the notice name the gesture and its age                                           | Small |
 | Redo on `Z`        | Puts back what an undo took, as Vim's Ctrl-R does, until the user's next change and while it would still show | Large |
 | Changes panel      | Every gesture the user made, newest first, each with Undo, and Redo once redo exists                          | Large |
 

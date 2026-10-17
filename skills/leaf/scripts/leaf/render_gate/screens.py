@@ -67,7 +67,7 @@ def _down_the_page(page, into: Path, stem: str) -> tuple[list[Path], int]:
 
 
 # Where a press of `m` left the user: the ask they stand in, as the runtime marks it
-# (the outermost element wearing its ring, outside the On panel, which mirrors the
+# (the outermost element wearing its ring, outside the panel's On view, which mirrors the
 # same reading); else the thread holding focus; else the page widget holding it, where
 # the walk puts the user on an update handed back to them. Those are the walk's other
 # kinds of stop (queue-walk.js), which the screens pass, so each is read only to step

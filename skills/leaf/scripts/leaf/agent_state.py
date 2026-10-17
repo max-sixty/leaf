@@ -305,7 +305,7 @@ def _page_state(
     (`measurement_lag_entries`), each comment thread's current state, attention, and
     the agent messages in it the user has not read, every open to-do on either side,
     the asks, the two lists, On me and On <agent>, that they and the workflows add up
-    to (`served_state.queues`, the banner's own counts), and presence beside what
+    to (`served_state.queues`, the panel's own counts), and presence beside what
     answers for it. It is a
     selection from the reading /api/state serves (`read_served_page`), computed on
     demand from the log, revision, registry, and source store — no derived reading is

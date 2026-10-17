@@ -77,7 +77,7 @@ sidebar page, unless the reader also keeps a panel of its own in view, such as a
 verdict and its questions beside the document it judges; that panel is the `aside`.
 
 Put everything the `aside` holds in one block, as the `div` above does. While the two
-sit side by side, Leaf keeps that block in view below the banner as the body scrolls.
+sit side by side, Leaf keeps that block in view at the window's top as the body scrolls.
 Write no `position`, `top`, height or overflow for it.
 
 Draw each region as a `section.panel` with a short heading. Use one `.callout` with a
@@ -86,7 +86,7 @@ chips under the lede for the page's state.
 
 ## A workspace
 
-`<main class="layout-workspace">` fills the window below the banner, and the reader
+`<main class="layout-workspace">` fills the window above Leaf's panel, and the reader
 works in its regions rather than scrolling the page. The `header` and `footer` take
 their content's height and the body takes the rest. Keep the header to one row: the
 title, `.tag` chips for the page's state, and an `lf-tally` for the asks left. Put what
@@ -178,8 +178,8 @@ composition is the point.
 
 Leaf places comment markers in a rail beside the column, or over their target where
 nothing beside it is free. Don't pad a heading to make room for its marker; the reader
-hides markers with `o`, or More → Annotations → Hide annotations, to read what's under
-one.
+hides markers with `o`, or the leaf's menu → Annotations → Hide annotations, to read
+what's under one.
 
 On a column page, write the contents outline in the first `aside.sidebar` and short
 notes in `aside.sidenote`. Leaf moves them into the margin when they fit and leaves
@@ -203,7 +203,7 @@ rather than rebuilding the event log in page code.
 
 ## Page CSS and Leaf's controls
 
-The page's CSS styles the page's content, not Leaf's banner, panels or the controls
+The page's CSS styles the page's content, not Leaf's panel, thread cards or the controls
 widgets build: a rule for `button` styles only the page's own buttons. To style Leaf's
 controls on purpose, put their rules in a separate `<style data-controls>` or
 `<link rel="stylesheet" data-controls>` element. Its rules and imports stand as
@@ -217,18 +217,18 @@ To make a control you write match Leaf's, give it `class="button"`,
 `class="button primary"` for the committing action, or `class="field"` for a text
 input or select.
 
-Leaf's banner, panels and markers draw over everything in `main`, whatever its
+Leaf's panel, thread cards and markers draw over everything in `main`, whatever its
 `z-index`. Open a modal or menu of the page's own in the top layer: a `<dialog>` shown
 with `showModal()`, or an element with `popover`.
 
-`conversation-loop.md`, "The On lists", says what belongs in the On panel's lists. A
+`conversation-loop.md`, "The On lists", says what belongs in the On lists. A
 package can lay out conversations and asks itself with the APIs in
 `module-annotations.md`, "Owning the primary conversation presentation", and
 `module-reading.md`, "Reading asks and obligation queues".
 
 ## Activity from several contributors
 
-On a one-agent page, the banner shows the agent's activity. When several workers report
+On a one-agent page, Leaf's panel shows the agent's activity. When several workers report
 to one orchestrator, write a page-owned adapter that declares their report verbs and
 reads task and worker state from the public work projection. A page several people
 revisit, such as a working board or long review, can show recent changes in an

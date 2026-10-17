@@ -877,19 +877,20 @@ def annotation_mode(document: SourceDocument) -> str:
 
 
 def page_layout(document: SourceDocument):
-    """The `layout-` names the document's `main` and its children carry (`layout-column`
-    is `column`), space-separated, or None.
+    """The `layout-` names the document's `main` and its shown children carry
+    (`layout-column` is `column`), space-separated, or None.
 
-    A page Layout's class is on `main`, or on a child of a `main` that carries none
+    A page Layout's class is on `main`, or on a shown child of a `main` that carries none
     (layouts.css, `--lf-layout-box`), which the parser reaches after it has begun
     painting the body, so delivery repeats it on the root for the Layout's own body rules
-    to read before the first paint. Every name goes across, since a block's own
+    to read before the first paint. A child the page hides is not the page's shape, so
+    its names stay off. Every other name goes across, since a block's own
     (`layout-tiles`) can stand beside the page's and the body rules read only the page
     Layouts' names."""
     main = document.tree.select_one("body > main")
     names = []
     for box in [main, *main.children] if main else []:
-        if isinstance(box, turbohtml.Element):
+        if isinstance(box, turbohtml.Element) and "hidden" not in box.attrs:
             for token in box.attrs.get("class", []):
                 name = token.removeprefix("layout-")
                 if name != token and name not in names:

@@ -7,8 +7,9 @@ which shape fits which subject.
 
 ## Layouts
 
-A Layout is a class that arranges the box it is on. Three set the page's shape and go
-on `main`:
+A Layout is a class that arranges the box it is on. Three set the page's shape. Each
+goes on `main`, or on a child of a `main` that carries none, which the page then lays
+out as it would `main` while that child is shown:
 
 | Class              | The page                                                            |
 | ------------------ | ------------------------------------------------------------------- |

@@ -206,7 +206,8 @@ def test_a_sample_template_names_its_children_layout():
 def test_the_root_names_the_layout_of_a_child_of_a_main_without_one():
     """Delivery repeats the page's Layout on the root for the body rules that run before
     `main` is parsed, so a Layout on a child of a `main` that carries none goes across
-    too, including under a `main` that carries only a block's Layout."""
+    too, including under a `main` that carries only a block's Layout, while a child the
+    page hides names none."""
     in_child = structure_model.SourceDocument(
         '<main><section class="layout-column"><p>Words.</p></section></main>'
     )
@@ -216,6 +217,11 @@ def test_the_root_names_the_layout_of_a_child_of_a_main_without_one():
     )
     assert structure_model.page_layout(in_child) == "column"
     assert structure_model.page_layout(under_tiles) == "tiles workspace"
+    beside_hidden = structure_model.SourceDocument(
+        '<main><section class="layout-column"><p>Words.</p></section>'
+        '<section class="layout-workspace" hidden><p>Queue.</p></section></main>'
+    )
+    assert structure_model.page_layout(beside_hidden) == "column"
 
 
 @pytest.mark.parametrize(

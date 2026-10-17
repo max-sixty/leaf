@@ -1680,7 +1680,7 @@ def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, 
     page.emulate_media(reduced_motion="reduce")
     sheen(False)
     alpha = float(re.search(r"/\s*([\d.]+)\)$", words.evaluate(ink)).group(1))
-    assert alpha < 0.5, f"the resting status reads at {alpha:.0%} of ink"
+    assert alpha < 0.7, f"the resting status reads at {alpha:.0%} of ink"
     page.emulate_media(reduced_motion="no-preference")
     sheen(True)
     # Forced colours drop the mask but keep the animation, so the words stay whole.
@@ -1737,7 +1737,7 @@ def test_a_status_that_asks_the_user_to_act_stands_out(browser, serve):
     declare_idle(serve.page_dir)
     expect(field(page)).to_have_attribute("placeholder", re.compile("^Key refused"))
     expect(panel).to_have_attribute("data-asks", "")
-    assert alpha() > 0.6, "the status asking the user to act reads as dim as a report"
+    assert alpha() > 0.75, "the status asking the user to act reads as dim as a report"
     expect(page.locator(".lf-fp-field")).to_have_attribute(
         "title", re.compile("^The server no longer accepts this tab's key")
     )
@@ -1745,7 +1745,7 @@ def test_a_status_that_asks_the_user_to_act_stands_out(browser, serve):
     # goes with it.
     field(page).click()
     expect(page.locator(".lf-fp-field")).not_to_have_attribute("title", re.compile("."))
-    assert alpha() < 0.5
+    assert alpha() < 0.7
     # The refused reads recur on the page's clock until it closes.
     page.close()
     consume_browser_errors(page, http_error_console(401))

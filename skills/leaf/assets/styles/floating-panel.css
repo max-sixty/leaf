@@ -325,7 +325,7 @@
   .lf-floating-panel[data-says="status"][data-asks]
     .lf-fp-field
     leaf-text::part(placeholder) {
-    color: color-mix(in srgb, var(--lf-fp-asks) 70%, transparent);
+    color: color-mix(in srgb, var(--lf-fp-asks) 84%, transparent);
   }
   .lf-floating-panel[data-asks] {
     --lf-fp-asks: var(--ink);

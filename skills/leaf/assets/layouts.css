@@ -48,7 +48,16 @@
    * reads the free room beside the column from the lengths resolved here. Whatever
    * stands in a margin states the room it takes there (`--lf-taken-l`, `--lf-taken-r`).
    * `--lf-shift` moves the column off centre where a resident needs more room on one
-   * side (prepaint.js, `residency`). */
+   * side (prepaint.js, `residency`).
+   *
+   * A breakout centres on the prose's axis, so its left edge matches neither the title
+   * nor the prose. That suits a figure the prose cites. A page led by one wide surface
+   * is a workspace instead (page-authoring.md, "Composing a page"), so this Layout does
+   * not align them. Three alignments were sketched and rejected on 2026-10-16 because each
+   * adds a rule to every column page: the title on a leading breakout's edge, headings
+   * on the wide line, and prose and breakouts sharing one left edge. Reconsider if column
+   * pages keep opening with a wide surface, or keep writing their own CSS to line a
+   * title up with one. */
   html[data-lf-layout~="column"] body {
     margin: 0;
   }

@@ -270,8 +270,8 @@ def test_generated_hints_fit_the_visible_screen(browser, serve):
             )
         ),
     )
-    under_banner = page.locator("#over-top")
-    under_banner.evaluate(
+    over_top = page.locator("#over-top")
+    over_top.evaluate(
         """link => {
           link.style.top = '-18px';
           link.addEventListener('click', () => { link.dataset.activated = 'true'; });
@@ -308,7 +308,7 @@ def test_generated_hints_fit_the_visible_screen(browser, serve):
         f"Hint {under_code}: Link, Over the top. Press Enter to go there."
     )
     page.keyboard.press("Enter")
-    expect(under_banner).to_have_attribute("data-activated", "true")
+    expect(over_top).to_have_attribute("data-activated", "true")
     expect(page.locator("#top")).to_be_focused()
 
     page.keyboard.press("g")
@@ -422,7 +422,7 @@ def test_generated_hints_follow_the_page_while_it_moves(browser, serve):
         """async () => {
           const sel = '.lf-go-to-hints .lf-go-to-hint[data-lf-hint-code]';
           // A chip whose target sits well inside the room, so neither reading is held
-          // against the banner at one end or the window's foot at the other.
+          // against the window's head at one end or the panel at the other.
           const code = [...document.querySelectorAll(sel)]
             .map(chip => chip.dataset.lfGoToTarget)
             .find(id => {

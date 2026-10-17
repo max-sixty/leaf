@@ -456,7 +456,12 @@ def test_a_settlement_in_a_reply_leaves_its_own_anchor_on_the_page(browser, serv
                }""",
             wid,
         )
-        settled["detached"] = "tv-on-it" in detached_threads(page, ["tv-on-it"])
+        # The panel shows one thread at a time, so opening the anchored thread there
+        # to read its quote would take down the reply holding the change it is about:
+        # in a reply the outline (`marked`) is what says the anchor still resolves.
+        settled["detached"] = wid.startswith("tv-doc") and "tv-on-it" in (
+            detached_threads(page, ["tv-on-it"])
+        )
         assert settled["state"] == "accept" and settled["retired"] == 1, (
             f"{where}: the change did not settle, so nothing here is being read "
             f"({settled})"

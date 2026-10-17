@@ -167,8 +167,7 @@ import {
   watchArrivals,
   watchCommandScopes,
   watchOwner,
-  whenNone,
-  word
+  whenNone
 } from "./bundle-page-paint.js";
 import {
   applicationState,
@@ -1186,18 +1185,18 @@ async function highlightBlocks(root) {
 // runtime/declared-words.js
 var PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
 var isPagePaint = (name) => PAGE_PAINT_ATTRIBUTES.has(name) || Object.values(registry.$marks).some((mark) => mark.paint === name);
-function quietWord(el2, word2) {
+function quietWord(el2, word) {
   const title = el2.querySelector(":scope > strong");
   const seat = title ? title.nextSibling : el2.firstChild;
   const existing = el2.querySelector(":scope > .lf-quiet");
   if (existing) {
-    if (existing === seat && existing.textContent === word2) return;
+    if (existing === seat && existing.textContent === word) return;
     existing.remove();
   }
-  if (!word2) return;
+  if (!word) return;
   const span = Object.assign(document.createElement("span"), {
     className: "lf-ui lf-quiet",
-    textContent: word2
+    textContent: word
   });
   span.dataset.lfGen = "1";
   move(el2, span, title ? title.nextSibling : el2.firstChild);
@@ -3970,8 +3969,6 @@ var BACK_OUT = {
   title: () => rung() ? titleOf(rung()) : "Back",
   description: () => rung() ? descriptionOf(rung()) : void 0,
   line: () => rung() ? lineOf(rung()) : false,
-  lineWhen: () => word(rung()?.lineWhen) !== false,
-  promoteEscape: () => word(rung()?.promoteEscape) !== false,
   when: () => Boolean(rung()),
   run: () => rung().out()
 };
@@ -4086,9 +4083,9 @@ function snapOut(reading, at, back) {
     from.push(i);
     run += raw[i];
   }
-  const word2 = textUnits.segment(run).containing(boundary);
-  if (!word2 || word2.index >= boundary || !word2.isWordLike) return at;
-  return back ? from[word2.index] : from[word2.index + word2.segment.length - 1] + 1;
+  const word = textUnits.segment(run).containing(boundary);
+  if (!word || word.index >= boundary || !word.isWordLike) return at;
+  return back ? from[word.index] : from[word.index + word.segment.length - 1] + 1;
 }
 function snapSentence(reading, lo, hi) {
   const { raw, fences } = reading;
@@ -4228,7 +4225,7 @@ function walkPosition() {
   };
 }
 var STEPS = Object.freeze(["previous", "next", "first", "last"]);
-var capital = (word2) => word2[0].toUpperCase() + word2.slice(1);
+var capital = (word) => word[0].toUpperCase() + word.slice(1);
 function rowWalk({
   id,
   noun,
@@ -4270,10 +4267,6 @@ function rowWalk({
       keys: ["Home", "End"],
       routes: [route("Home", home), route("End", end)],
       title: `${home} / ${end}`,
-      // Home and End answer as they do in any list, so the shortcut bar spends its
-      // slots on the walk and on what the list offers that no other list does; the
-      // command reference and `aria-keyshortcuts` still name them.
-      lineWhen: false,
       run: (binding) => land2((list) => binding === "Home" ? list[0] : list.at(-1))
     }
   ];
@@ -5715,8 +5708,8 @@ function threadReading(thread, surface, commands2) {
   const resolved2 = Boolean(thread.resolved);
   const settling = Boolean(thread.settling);
   const kind = resolved2 ? "unresolve" : "resolve";
-  const word2 = resolved2 ? "Reopen" : "Resolve";
-  const label = resolved2 ? word2 : "Resolve thread";
+  const word = resolved2 ? "Reopen" : "Resolve";
+  const label = resolved2 ? word : "Resolve thread";
   const attention = threadAttention(thread);
   const asking = thread.user_prompt?.message;
   const openTodos = new Set(thread.todos.map(({ id }) => id));
@@ -5758,7 +5751,7 @@ function threadReading(thread, surface, commands2) {
     thread.resolved.agent}` : "",
     settlement: Object.freeze({
       kind,
-      word: word2,
+      word,
       label,
       pending: settling
     }),
@@ -6393,13 +6386,13 @@ var ThreadView = class {
       );
       button.type = "button";
       this.#settlements.set(face, button);
-      const word2 = reopen ? "Reopen" : "Resolve";
-      keys(button, `On a thread's ${word2} button`, [
+      const word = reopen ? "Reopen" : "Resolve";
+      keys(button, `On a thread's ${word} button`, [
         {
           id: reopen ? "thread.reopen" : "thread.resolve",
           keys: PRESS,
-          description: `${word2} it`,
-          title: word2.toLowerCase(),
+          description: `${word} it`,
+          title: word.toLowerCase(),
           control: button,
           when: () => !this.#model.settlement?.pending,
           run: this.#settle

@@ -680,7 +680,6 @@ export function createGoToSequence({
       ...destination,
       keys: [],
       touch: destination.touch ?? false,
-      lineWhen: () => false,
     });
 
   return {

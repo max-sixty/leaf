@@ -1181,7 +1181,6 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
         label: submitLabel,
         description: "Submit the text",
         title: sends,
-        lineWhen: () => hasContent(draftValue()) || !rows.some((row) => row.when?.() ?? true),
         run: () => pressed(send)
       },
       ...rows
@@ -2776,7 +2775,6 @@ function createResponseSurface({
         keys: ["Escape"],
         description: () => composer.composerHolds() ? "Close the comment box, keeping the draft" : "Close the comment box",
         title: () => composer.composerHolds() ? "close \u2014 draft kept" : "close",
-        promoteEscape: false,
         when: () => !composer.responseOptionsAreOpen(),
         run: () => dismissFab()
       }
@@ -2787,7 +2785,6 @@ function createResponseSurface({
     () => pageSelection() || fabAnchorAt() && !placement?.withheld() ? {
       title: "unselect",
       description: "Clear the selection",
-      promoteEscape: !Boolean(fabAnchorAt()) || reactionTokens2().length === 0,
       out: dismissFab
     } : null
   );
@@ -4626,9 +4623,6 @@ ${searchCount(maximum, maximum)}`
     keys: ["/"],
     description: "Search all the text on the page",
     title: "search page",
-    // Once a target is in hand, its actions own the two short-line slots. Search stays
-    // live to replace that target and remains in the complete reference.
-    lineWhen: () => !Boolean(fabAnchorAt()),
     when: () => anchoringIsReady() && !pageSearchOpen,
     run: openPageSearch
   };
@@ -4656,9 +4650,6 @@ ${searchCount(maximum, maximum)}`
   const TARGETING_BACK = {
     id: "targeting.back",
     keys: ["Escape"],
-    // Search keeps its two unfamiliar operations on the shortcut bar; Escape remains
-    // available in the complete reference.
-    promoteEscape: () => !pageSearchOpen,
     description: () => pageSearchOpen ? searchReturnsToHints ? "Return to the visible target hints" : "Close page search" : hints.prefix() ? "Remove the last hint letter" : "Close the target picker",
     title: () => pageSearchOpen ? searchReturnsToHints ? "back to hints" : "close search" : hints.prefix() ? "back one letter" : "close picker",
     touch: () => pageSearchOpen ? searchReturnsToHints ? "Back to hints" : "Close search" : hints.prefix() ? "Back one letter" : "Cancel selection",
@@ -4754,9 +4745,6 @@ ${searchCount(maximum, maximum)}`
     title: "select element",
     touch: "Select element",
     menu: "annotate",
-    // Once the field is open, its typing scope owns character keys. This gate also keeps
-    // the route off the short line while a target is in hand.
-    lineWhen: () => !Boolean(fabAnchorAt()),
     when: canChoose,
     run: (...args) => openTargetPicker(...args)
   });
@@ -9997,8 +9985,7 @@ function createGoToSequence({
     pageCommand({
       ...destination,
       keys: [],
-      touch: destination.touch ?? false,
-      lineWhen: () => false
+      touch: destination.touch ?? false
     });
   return {
     goToStatus,

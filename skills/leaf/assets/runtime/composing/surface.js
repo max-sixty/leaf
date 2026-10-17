@@ -1357,7 +1357,6 @@ export function createResponseSurface({
             ? "Close the comment box, keeping the draft"
             : "Close the comment box",
         title: () => (composer.composerHolds() ? "close — draft kept" : "close"),
-        promoteEscape: false,
         when: () => !composer.responseOptionsAreOpen(),
         run: () => dismissFab(),
       },
@@ -1365,16 +1364,12 @@ export function createResponseSurface({
   });
 
   // The first step of the page's Escape ladder: a selection or a captured target is the
-  // innermost thing the user is holding, and letting it go is one press. Clearing a
-  // captured target is still available while c and r are the two actions on the thing the
-  // user just chose, so it keeps its binding and its place in the reference while
-  // yielding the short line's promoted slot to them.
+  // innermost thing the user is holding, and letting it go is one press.
   pageRung("selection", () =>
     pageSelection() || (fabAnchorAt() && !placement?.withheld())
       ? {
           title: "unselect",
           description: "Clear the selection",
-          promoteEscape: !Boolean(fabAnchorAt()) || reactionTokens().length === 0,
           out: dismissFab,
         }
       : null,

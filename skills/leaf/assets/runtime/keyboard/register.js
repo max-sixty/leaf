@@ -7,8 +7,7 @@
  *
  * STACK orders ordinary dispatch, innermost first; the command reference reads it in
  * reverse. Escape additionally resolves inner claims and focused-surface containment.
- * PAGE_COMMANDS orders shortcut-bar hints. Escape is promoted unless its row waives
- * promotion; that waiver leaves its binding and reference entry available.
+ * PAGE_COMMANDS orders the page's commands wherever they are listed.
  *
  * RUNG_LADDER orders sibling fallback steps. `rung` selects the step inside the focused
  * surface first and exposes it as one navigation.back command, so dispatch and every
@@ -24,7 +23,6 @@ import {
   titleOf,
   descriptionOf,
   lineOf,
-  word,
 } from "./bindings.js";
 import { focused } from "../focus.js";
 import { paintKeys, watchCommandScopes } from "./scopes.js";
@@ -173,8 +171,7 @@ export function pageCommand(row) {
 
 /** Declare one instance's step of Escape's fallback ladder: a function answering what the press would
  * take off right now, as `{title, description?, line?, out}` plus an optional `root` for the surface the
- * step is inside and the `lineWhen` and `promoteEscape` this step wants on the compact
- * line, or null where this step has nothing to take. `RUNG_LADDER` orders the steps. */
+ * step is inside, or null where this step has nothing to take. `RUNG_LADDER` orders the steps. */
 export function pageRung(name, reading) {
   place(RUNG_LADDER, name);
   const readings = rungs.get(name) ?? [];
@@ -216,8 +213,6 @@ const BACK_OUT = {
   title: () => (rung() ? titleOf(rung()) : "Back"),
   description: () => (rung() ? descriptionOf(rung()) : undefined),
   line: () => (rung() ? lineOf(rung()) : false),
-  lineWhen: () => word(rung()?.lineWhen) !== false,
-  promoteEscape: () => word(rung()?.promoteEscape) !== false,
   when: () => Boolean(rung()),
   run: () => rung().out(),
 };

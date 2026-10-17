@@ -603,9 +603,6 @@ export function createTargetPicker({
     keys: ["/"],
     description: "Search all the text on the page",
     title: "search page",
-    // Once a target is in hand, its actions own the two short-line slots. Search stays
-    // live to replace that target and remains in the complete reference.
-    lineWhen: () => !Boolean(fabAnchorAt()),
     when: () => anchoringIsReady() && !pageSearchOpen,
     run: openPageSearch,
   };
@@ -635,9 +632,6 @@ export function createTargetPicker({
   const TARGETING_BACK = {
     id: "targeting.back",
     keys: ["Escape"],
-    // Search keeps its two unfamiliar operations on the shortcut bar; Escape remains
-    // available in the complete reference.
-    promoteEscape: () => !pageSearchOpen,
     description: () =>
       pageSearchOpen
         ? searchReturnsToHints
@@ -766,15 +760,10 @@ export function createTargetPicker({
     title: "select element",
     touch: "Select element",
     menu: "annotate",
-    // Once the field is open, its typing scope owns character keys. This gate also keeps
-    // the route off the short line while a target is in hand.
-    lineWhen: () => !Boolean(fabAnchorAt()),
     when: canChoose,
     run: (/** @type {Parameters<typeof openTargetPicker>} */ ...args) =>
       openTargetPicker(...args),
   });
-  // Search remains one press from the expanded shortcut bar and named in full by the
-  // reference.
   pageCommand(PAGE_SEARCH);
   pageCommand(REPEAT_PAGE_SEARCH);
 

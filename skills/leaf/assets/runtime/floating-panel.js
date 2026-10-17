@@ -43,7 +43,11 @@
  *   this (2026-10-14), reversing the line lying over the view's foot in 12px of room
  *   every open view kept for it whether or not it showed (#2902). Rejected: that
  *   overlay, whose room stood under every view's last words for a line that repeated
- *   the head or the placeholder.
+ *   the head or the placeholder. A walk's position and Go-to's word go unsaid there
+ *   too: they last while the user stands where they were said, which, for a walk that
+ *   reached the block being read, is as long as the user writes, so the peek, made for
+ *   a passing answer, lay on the view's last words that whole time. The empty field
+ *   says them until the caret enters it.
  * - **Opened**: a view above the same row (On, Threads, a thread or All pages), what
  *   the user reads there, with where they are at its top edge. It lasts while it is
  *   used: Escape or a press on the page puts it away, Escape once the caret has
@@ -240,12 +244,15 @@ const coarse = () => matchMedia("(pointer: coarse)").matches;
 // else what the status line says between notices, the Go-to filter's word or a walk's
 // position ("1 of 3 waiting on me · Ask"). The user asked on 16 October that whatever
 // is not anchored to the page stand at the panel rather than against the window.
+// `answers` marks a notice answering what the user did, the one kind the leaf's peek
+// says over an open view (`paintPeek`).
 function passing() {
   const notice = noticeReading();
-  if (notice.visible) return notice;
+  if (notice.visible)
+    return { message: notice.message, visible: true, answers: !notice.news };
   const { goTo, walk } = statusContextReading();
   const message = goTo ?? (walk?.shown ? walk.text : "");
-  return { message, visible: Boolean(message), news: false };
+  return { message, visible: Boolean(message), answers: false };
 }
 // What the leaf's colour says, in a word, at the head of its menu.
 const TONE_WORDS = Object.freeze({
@@ -2488,11 +2495,11 @@ export function createFloatingPanel({
     // in it. Who reads them goes unsaid: every word written here goes to the page's one
     // agent. With nothing to say the line is gone, and while a view is open it is gone
     // too: the leaf's peek says a notice answering the user there (`paintPeek`), and
-    // news arriving goes unsaid, since the view shows it.
+    // news arriving, a walk's position and Go-to's word go unsaid (`passing`).
     const empty = draftOf(input) === "";
     const notice = passing();
     const covered = notice.visible && (!empty || reading.says === "destination");
-    overView = Boolean(top) && covered && !notice.news;
+    overView = Boolean(top) && covered && notice.answers;
     keeps(context, "data-notice", covered ? "" : null);
     keepsText(
       contextWords,

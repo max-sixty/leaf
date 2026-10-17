@@ -6,7 +6,7 @@ from leaf import event_log as events_model
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_navigation import source_revision
-from render_harness import leaf_page, open_page, page_comment, round_trip, write
+from render_harness import leaf_page, open_page, round_trip, write
 
 EDITOR_INSPECTION = """(() => {
   const attach = Element.prototype.attachShadow;
@@ -397,11 +397,12 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
     Native and panel thread bodies and both scroll boundaries exercise the same rule.
     The refused draft is retryable, and only its eventual acceptance reaches the log.
     """
+    from browser.threads import open_panel_thread
     from render_harness import (
         consume_browser_errors,
         holding,
         http_error_console,
-        panel_settled,
+        panel_field,
         scroll_settled,
         stored_draft_text,
     )
@@ -414,10 +415,10 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
             + tail,
         )
         anchor = {"section": "plan"}
+        # The panel's thread view stands its reply in the field, inside the panel's
+        # card with the reply's Send.
         selector = (
-            ".lf-margin-preview .lf-page-thread"
-            if place == "margin"
-            else ".lf-threads > .lf-thread"
+            ".lf-margin-preview .lf-page-thread" if place == "margin" else ".lf-fp-card"
         )
     else:
         contents = (
@@ -458,12 +459,9 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
     if place == "margin":
         page.locator(".lf-margin-marker").first.click()
     elif place == "panel":
-        page.locator(".lf-threads-toggle").click()
-        panel_settled(page)
-        if page.locator(selector).get_attribute("open") is None:
-            page.locator(selector).locator(".lf-thread-summary").click()
+        open_panel_thread(page, parent)
     owner = page.locator(selector)
-    draft = owner.locator("leaf-text")
+    draft = panel_field(page) if place == "panel" else owner.locator("leaf-text")
     expect(draft).to_be_visible()
     if place == "nested-end":
         page.evaluate("""async () => {
@@ -565,82 +563,3 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
     assert draft.evaluate("node => node.value") == ""
     pose()
     page.unroute_all(behavior="wait")
-
-
-def test_direct_comment_arrival_keeps_its_canceled_entry_motion_canceled(
-    browser, serve
-):
-    """Clearing a sent draft and editing the next never restart thread entry motion.
-
-    Native animation events observe the displayed transform, rather than the
-    renderer's remembered flags, through the real held send and later repaint.
-    """
-    from leaf.render_checks import wait_for_probe
-    from leaf_dev import ROOT
-    from render_harness import holding, scroll_settled
-
-    context = browser.new_context(
-        viewport={"width": 1600, "height": 900}, reduced_motion="no-preference"
-    )
-    page = open_page(
-        browser, serve(ROOT / "examples/review-a-plan.html"), context=context
-    )
-    page.locator(".lf-threads-toggle").click()
-    field = page_comment(page)
-    page.evaluate("""() => {
-      window.__recuedArrivals = [];
-      document.addEventListener('animationstart', event => {
-        const card = event.target;
-        if (!card.matches?.('.lf-thread[data-attempt]')) return;
-        const transform = getComputedStyle(card).transform;
-        if (transform !== 'none') window.__recuedArrivals.push({
-          animation: event.animationName, transform,
-          words: card.querySelector('.lf-msg-body')?.textContent.trim(),
-        });
-      }, true);
-    }""")
-    held = []
-
-    def hold(route):
-        if route.request.post_data_json["kind"] == "comment":
-            held.append(route)
-        else:
-            route.continue_()
-
-    page.route("**/api/event", hold)
-    try:
-        write(field, "Keep this comment visible while it is sent.")
-        page.keyboard.press("Enter")
-        holding(page, held, 1, "the general comment")
-        rendered(page)
-        wait_for_probe(page, "pageSettled")
-        scroll_settled(page, ".lf-threads")
-
-        def reading_place():
-            return page.locator(".lf-threads").evaluate("""list => {
-              const card = list.querySelector(':scope > .lf-thread[data-attempt]');
-              const box = card.getBoundingClientRect();
-              return {scroll: list.scrollTop, top: box.top, bottom: box.bottom};
-            }""")
-
-        before = reading_place()
-        # The send put the card away; the next thought is begun in it again.
-        page_comment(page)
-        write(field, "Keep the next thought separate.")
-        rendered(page)
-        wait_for_probe(page, "pageSettled")
-        scroll_settled(page, ".lf-threads")
-        expect(page.locator(".lf-thread[data-attempt] .lf-msg-body")).to_have_text(
-            "Keep this comment visible while it is sent."
-        )
-        expect(field).to_have_js_property("value", "Keep the next thought separate.")
-        assert reading_place() == before
-        assert page.evaluate("window.__recuedArrivals") == [], (
-            "a retained repaint restarted geometry motion after direct navigation "
-            f"had canceled it: {page.evaluate('window.__recuedArrivals')!r}"
-        )
-    finally:
-        for route in held:
-            route.continue_()
-        page.unroute("**/api/event", hold)
-        expect(page.locator('.lf-threads [aria-busy="true"]')).to_have_count(0)

@@ -60,9 +60,11 @@ a `todo_end` of an open to-do; the user ends only a to-do opened on them.
 `TodoReading` reads the log's to-dos, starts and ends, and `WorkReading.page_todos`
 adds their thread and activity readings.
 
+A plan (`plans`) arranges to-dos and asks into an outline without owning them, so no
+rule here reads it.
+
 Experimental: to-dos and the two lists are new, and their shape is expected to
-change a lot (notes/what-needs-you/). Change them freely; nothing outside this
-repository depends on them.
+change a lot. Change them freely; nothing outside this repository depends on them.
 """
 
 from dataclasses import dataclass

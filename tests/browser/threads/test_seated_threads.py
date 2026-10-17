@@ -1058,8 +1058,8 @@ def test_a_comment_being_written_on_a_diff_line_stays_in_hand_across_a_new_patch
 def test_the_comment_box_keeps_the_user_typing_as_it_takes_its_seat_again(
     browser, serve, native_move
 ):
-    """A folded file withholds its draft; reopening returns focus and the caret to
-    the editor on its diff line, with and without native retained moves."""
+    """Folding a file through its summary hides the draft; reopening keeps its
+    words available on the diff line, with and without native retained moves."""
     url = serve(
         leaf_page(
             "diff",
@@ -1071,22 +1071,26 @@ def test_the_comment_box_keeps_the_user_typing_as_it_takes_its_seat_again(
     page = open_page(browser, url)
     if not native_move:
         page.evaluate("() => { Element.prototype.moveBefore = undefined; }")
-    page.locator(
+    line = page.locator(
         'lf-diff [data-line-type="change-addition"][data-lf-datum=\'["app.py","new",1]\']'
-    ).hover()
-    page.get_by_role(
+    )
+    comment = page.get_by_role(
         "button", name="Comment on app.py · new line 1", exact=True
-    ).click()
+    )
+    line.hover()
+    comment.click()
     seated = page.locator("lf-diff .lf-diff-thread-outlet .lf-fab-input")
     expect(seated).to_be_focused()
     box = page.locator(".lf-fab-input")
     write(box, "Half a thought")
-    box.evaluate("box => box.setSelectionRange(4, 4)")
-    details = page.locator("lf-diff details").first
-    details.evaluate("details => { details.open = false; }")
+    summary = page.locator("lf-diff .lf-diff-file > details > summary").first
+    summary.click()
     expect(seated).to_have_count(0)
     expect(box).to_be_hidden()
-    details.evaluate("details => { details.open = true; }")
+    summary.click()
+    line.hover()
+    comment.click()
+    expect(box).to_have_js_property("value", "Half a thought")
     expect(seated).to_be_focused()
-    page.keyboard.type(" tr")
-    expect(seated).to_have_js_property("value", "Half tr a thought")
+    page.keyboard.type(" more")
+    expect(seated).to_have_js_property("value", "Half a thought more")

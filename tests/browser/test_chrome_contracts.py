@@ -241,12 +241,6 @@ def test_page_thread_dismiss_and_resolve_share_the_metadata_row(
     expect(dismiss).to_be_focused()
 
 
-STATE_PAINT = """el => {
-  const style = getComputedStyle(el);
-  return {background: style.backgroundColor, shadow: style.boxShadow};
-}"""
-
-
 PHONE_PAGE = leaf_page(
     "phone",
     "<h1 id='t'>Phone</h1><p id='p1'>Paragraph one. " + "Filler. " * 40 + "</p>",

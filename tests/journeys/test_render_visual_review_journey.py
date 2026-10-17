@@ -16,6 +16,7 @@ from render_harness import (
     http_error_console,
     leaf_page,
     open_page,
+    panel_settled,
     resized,
     scroll_settled,
     sending,
@@ -304,16 +305,16 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     ) == [8, 12, "backward"]
     user.keyboard.press("Escape")
     expect(field).to_be_hidden()
-    # The composer returns to the reviewed case; the covered Threads panel uses a
-    # native modal envelope, which makes the page inert without an inert attribute.
+    # The composer returns to the reviewed case; Threads opens over it in the panel and
+    # Escape puts it away, leaving the page to the reader.
     expect(second).to_be_focused()
+    threads = user.locator('.lf-fp-view[data-view="threads"]:not([data-leaving])')
     user.keyboard.press("g")
     user.keyboard.press("Shift+t")
-    expect(user.get_by_role("region", name="Threads")).to_be_visible()
-    expect(user.locator(".lf-threads")).to_be_focused()
-    expect(user.locator(".lf-auxiliary-envelope:modal")).to_have_count(1)
+    expect(threads).to_be_visible()
+    expect(threads).to_be_focused()
     user.keyboard.press("Escape")
-    expect(user.get_by_role("region", name="Threads")).to_be_hidden()
+    panel_settled(user, open=False)
     assert user.evaluate("() => document.activeElement === document.body")
     user.keyboard.press("g")
     user.keyboard.press("i")
@@ -332,11 +333,10 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     expect(second).to_be_focused()
     user.keyboard.press("g")
     user.keyboard.press("Shift+t")
-    expect(user.get_by_role("region", name="Threads")).to_be_visible()
-    expect(user.locator(".lf-threads")).to_be_focused()
-    expect(user.locator(".lf-auxiliary-envelope:modal")).to_have_count(0)
+    expect(threads).to_be_visible()
+    expect(threads).to_be_focused()
     user.keyboard.press("Escape")
-    expect(user.get_by_role("region", name="Threads")).to_be_hidden()
+    panel_settled(user, open=False)
     assert user.evaluate("() => document.activeElement === document.body"), (
         user.evaluate("() => document.activeElement.outerHTML.slice(0, 300)")
     )

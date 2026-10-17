@@ -8514,6 +8514,7 @@ function createFloatingPanel({
   }
   function transition2(before, { focus = true } = {}) {
     const after2 = trail.at(-1);
+    const stoodIn = drawnThreadId(closestAcross(focused(), THREAD));
     const reading = [before, after2].some((route) => route?.view === "thread");
     if (after2?.view !== "queue") {
       seated = null;
@@ -8537,7 +8538,7 @@ function createFloatingPanel({
     if (!changed || reducedMotion() || !pagePresented()) {
       leaving = null;
       paint();
-      if (focus) focusView(after2, drawn2);
+      if (focus) focusView(after2, drawn2, stoodIn);
       return;
     }
     const arriving = stage.querySelector(".lf-fp-view:not([data-leaving])");
@@ -8560,9 +8561,9 @@ function createFloatingPanel({
     if (fade) fade.finished.then(settle, () => {
     });
     else leaving = null;
-    if (focus) focusView(after2, drawn2);
+    if (focus) focusView(after2, drawn2, stoodIn);
   }
-  function focusView(route, drawn2) {
+  function focusView(route, drawn2, stoodIn = null) {
     if (!route) return;
     const view = shownView();
     if (route.view === "thread") {
@@ -8575,13 +8576,15 @@ function createFloatingPanel({
       });
       return;
     }
-    const target = keyed2 ? listRows()[0] ?? view?.querySelector("button, input") ?? view : view;
+    const rows3 = listRows();
+    const stoodRow = stoodIn && rows3.find((row2) => threadByKey(row2.dataset.key)?.id === stoodIn);
+    const target = stoodRow || (keyed2 ? rows3[0] ?? view?.querySelector("button, input") ?? view : view);
     if (target) focusDestination(target, "move");
   }
   let keyed2 = false;
   onUserInput((event) => {
     if (["keydown", "pointerdown"].includes(event.type))
-      keyed2 = event.type === "keydown";
+      keyed2 = event.type === "keydown" && event.composedPath().includes(host);
   });
   const menuItem = (label2, end, press, {
     urgent = false,

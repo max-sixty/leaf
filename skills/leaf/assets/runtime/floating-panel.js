@@ -123,7 +123,7 @@ import { readThreads } from "./thread/state.js";
 import { watchProjection } from "./projection-watch.js";
 import { threadAttention, workflowLabel } from "./thread/workflow.js";
 import { messageReading, threadName } from "./thread/messages.js";
-import { drawnThreadId } from "./thread/selectors.js";
+import { drawnThreadId, THREAD } from "./thread/selectors.js";
 import { declareThreadParts } from "./thread/focus.js";
 import { quoteReading } from "./thread/thread-card.js";
 import { dismissReply, replyAvailable } from "./thread/replies.js";
@@ -1102,6 +1102,9 @@ export function createFloatingPanel({
   }
   function transition(before, { focus = true } = {}) {
     const after = trail.at(-1);
+    // The thread the user stands in as the change begins, on the page or in the panel,
+    // read before the paint that may take its view away.
+    const stoodIn = drawnThreadId(closestAcross(focused(), THREAD));
     const reading = [before, after].some((route) => route?.view === "thread");
     if (after?.view !== "queue") {
       seated = null;
@@ -1134,7 +1137,7 @@ export function createFloatingPanel({
     if (!changed || reducedMotion() || !pagePresented()) {
       leaving = null;
       paint();
-      if (focus) focusView(after, drawn);
+      if (focus) focusView(after, drawn, stoodIn);
       return;
     }
     const arriving = stage.querySelector(".lf-fp-view:not([data-leaving])");
@@ -1156,15 +1159,17 @@ export function createFloatingPanel({
     };
     if (fade) fade.finished.then(settle, () => {});
     else leaving = null;
-    if (focus) focusView(after, drawn);
+    if (focus) focusView(after, drawn, stoodIn);
   }
-  function focusView(route, drawn) {
+  function focusView(route, drawn, stoodIn = null) {
     if (!route) return;
     const view = shownView();
     // A thread opens with the caret in its reply, as the one field means, once Leaf's
-    // reader has drawn the reply there; a list a key opened stands on its first row, or
-    // its first control where it has none, or itself where it holds neither, as an
-    // empty Threads does; one a pointer opened holds focus itself.
+    // reader has drawn the reply there. A list stands on the row of the thread the user
+    // stood in, where it lists it, as `g T` from a thread does; else, opened by a key in
+    // the panel, on its first row, or its first control where it has none, or itself
+    // where it holds neither, as an empty Threads does; opened from anywhere else, as
+    // `g T` from the page or a pointer, it holds focus itself.
     if (route.view === "thread") {
       // A finger opening a thread reads it first; the keyboard rises when they tap in.
       if (coarse()) return;
@@ -1176,20 +1181,23 @@ export function createFloatingPanel({
       });
       return;
     }
-    const target = keyed
-      ? (listRows()[0] ?? view?.querySelector("button, input") ?? view)
-      : view;
+    const rows = listRows();
+    const stoodRow =
+      stoodIn && rows.find((row) => threadByKey(row.dataset.key)?.id === stoodIn);
+    const target =
+      stoodRow ||
+      (keyed ? (rows[0] ?? view?.querySelector("button, input") ?? view) : view);
     if (target) focusDestination(target, "move");
   }
 
-  // Whether the gesture now under way came from the keyboard: a key arriving in a view
-  // stands on its first control, a pointer in the view itself, with no ring drawn. A key
-  // is a key wherever it is pressed: `g T` from the page opens Threads as a key in the
-  // panel does, whatever the last gesture inside the panel was.
+  // Whether the gesture now under way is a key in the panel: a key arriving in a view
+  // stands on its first control, a pointer in the view itself, with no ring drawn. A
+  // gesture outside the panel, `g T` from the page among them, is neither, whatever the
+  // panel last heard, so the view it opens holds focus itself.
   let keyed = false;
   onUserInput((event) => {
     if (["keydown", "pointerdown"].includes(event.type))
-      keyed = event.type === "keydown";
+      keyed = event.type === "keydown" && event.composedPath().includes(host);
   });
 
   // ---------- the leaf's menu ----------

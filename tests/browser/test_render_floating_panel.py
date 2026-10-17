@@ -325,7 +325,8 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     page = floating(browser, url)
     page.locator(".lf-fp-threads").click()
     page.locator(".lf-fp-view[data-view=threads] .lf-fp-thread").first.click()
-    thread = page.locator(".lf-fp-view[data-view=thread]")
+    # The thread standing open: moving on to the next thread fades the one it leaves.
+    thread = page.locator(".lf-fp-view[data-view=thread]:not([data-leaving])")
     expect(thread).to_be_visible()
     first = page.locator(".lf-fp-head .lf-fp-title").inner_text()
     thread.focus()

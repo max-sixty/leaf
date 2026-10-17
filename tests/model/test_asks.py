@@ -83,7 +83,8 @@ def test_asks_name_their_exact_owning_message_without_conflating_thread_identity
             "kind": "comment",
             "id": "prompt",
             "author": "agent",
-            "text": "Is this useful?",
+            "text": "One question:",
+            "markup": '<lf-ask id="useful">Is this useful?</lf-ask>',
         },
     ]
     state = model.reading(document, events)
@@ -96,7 +97,7 @@ def test_asks_name_their_exact_owning_message_without_conflating_thread_identity
         "approval:v1": (None, None),
         "widget:root-choice": ("thread", "thread"),
         "widget:later-choice": ("thread", "later"),
-        "reply:prompt": ("prompt", "prompt"),
+        "widget:useful": ("prompt", "prompt"),
     }
 
 
@@ -311,22 +312,125 @@ def test_changed_partial_value_does_not_reuse_an_earlier_completion_event():
     assert ask["answer"] == {"value": ["b"], "event": None}
 
 
-def test_display_only_widget_does_not_suppress_a_prose_ask():
+def test_display_only_widget_does_not_suppress_a_question_beside_it():
     state = model.reading(
         page(),
         [
             {
                 "kind": "comment",
                 "author": "agent",
-                "text": "Is this useful?",
-                "markup": OPTIONS.format(attrs=""),
+                "text": "One question:",
+                "markup": OPTIONS.format(attrs="")
+                + '<lf-ask id="useful">Is this useful?</lf-ask>',
                 "anchor": {"section": "choice"},
             },
         ],
     )
-    assert [ask["source"]["kind"] for ask in served_thread(state)["asks"]["all"]] == [
-        "reply"
+    assert [ask["id"] for ask in served_thread(state)["asks"]["all"]] == [
+        "widget:useful"
     ]
+
+
+QUESTION = '<lf-ask id="q">Weekly or daily?</lf-ask>'
+
+
+def asked_in_words(*later):
+    """A user's comment, the agent's reply asking back with an lf-ask, then `later`."""
+    return [
+        {"kind": "comment", "id": "t", "author": "user", "text": "Schedule it."},
+        {
+            "kind": "reply",
+            "id": "asking",
+            "author": "agent",
+            "parent": "t",
+            "responds": "t",
+            "text": "Which cadence?",
+            "markup": QUESTION,
+        },
+        *later,
+    ]
+
+
+def test_a_question_in_a_reply_waits_on_the_user_until_their_next_message():
+    """An lf-ask holding no widget asks in words: it waits on the user, titled by its
+    words, until their next message in its thread, which is its answer."""
+    [ask] = served_thread(model.reading(page(""), asked_in_words()))["asks"]["all"]
+    assert (ask["id"], ask["status"], ask["next_actor"]) == ("widget:q", "open", "user")
+    assert ask["prompt"]["text"] == "Weekly or daily?"
+    state = model.reading(
+        page(""),
+        asked_in_words(
+            {
+                "kind": "reply",
+                "id": "r",
+                "author": "user",
+                "parent": "t",
+                "text": "Daily",
+            }
+        ),
+    )
+    [ask] = served_thread(state)["asks"]["all"]
+    assert (ask["status"], ask["next_actor"]) == ("answered", None)
+    assert ask["answer"]["value"] == {"text": "Daily"}
+    assert ask["answer"]["event"]["id"] == "r"
+    assert lists(state) == ([], ["r"], [])
+
+
+def test_the_agent_ends_a_question_the_user_answered_elsewhere():
+    state = model.reading(
+        page(""),
+        asked_in_words(
+            {
+                "kind": "todo_end",
+                "author": "agent",
+                "todo": "widget:q",
+                "outcome": "done",
+                "detail": "answered in chat",
+            }
+        ),
+    )
+    [ask] = served_thread(state)["asks"]["all"]
+    assert (ask["status"], ask["next_actor"], ask["answer"]) == (
+        "answered_elsewhere",
+        None,
+        None,
+    )
+    assert ask["end"]["detail"] == "answered in chat"
+
+
+def test_a_question_on_the_page_is_answered_by_a_comment_on_it():
+    document = model.leaf_page(
+        "Questions",
+        '<p id="intro">Context.</p><lf-ask id="q">Weekly or daily?</lf-ask>',
+    )
+    assert lists(model.reading(document, [])) == (["widget:q"], [], [])
+    comment = {
+        "kind": "comment",
+        "id": "c",
+        "author": "user",
+        "text": "Daily",
+        "anchor": {"section": "q"},
+    }
+    state = model.reading(document, [comment])
+    [ask] = page_asks(state)["all"]
+    assert (ask["status"], ask["answer"]["value"]) == ("answered", {"text": "Daily"})
+    assert lists(state) == ([], ["c"], [])
+    # Moving the thread elsewhere doesn't unsay the answer it holds.
+    moved = {
+        "kind": "reply",
+        "author": "agent",
+        "parent": "c",
+        "responds": "c",
+        "text": "Daily it is.",
+        "anchor": {"section": "intro"},
+    }
+    [ask] = page_asks(model.reading(document, [comment, moved]))["all"]
+    assert ask["status"] == "answered"
+
+
+def test_a_frame_around_a_decision_widget_stays_one_ask():
+    [ask] = page_asks(model.reading(page(context="frame"), []))["all"]
+    assert (ask["id"], ask["prompt"]["target"]) == ("widget:choice", "frame")
 
 
 def lists(state) -> tuple[list, list, list]:
@@ -692,7 +796,8 @@ def test_todo_validation_does_not_rewrite_ask_identity_and_refuses_bare_source()
                 "ts": model.NOW,
                 "author": "agent",
                 "revision": 1,
-                "text": "Which path?",
+                "text": "One question:",
+                "markup": '<lf-ask id="path">Which path?</lf-ask>',
             },
         )
     ]
@@ -700,13 +805,13 @@ def test_todo_validation_does_not_rewrite_ask_identity_and_refuses_bare_source()
         "kind": "todo_end",
         "id": "end",
         "author": "agent",
-        "todo": "reply:prompt",
+        "todo": "widget:path",
         "outcome": "dropped",
     }
     admitted = admitted_event(door, events, command)
-    assert command["todo"] == admitted["todo"] == "reply:prompt"
+    assert command["todo"] == admitted["todo"] == "widget:path"
     with pytest.raises(EventRefused) as refused:
-        admitted_event(door, events, {**command, "todo": "prompt"})
+        admitted_event(door, events, {**command, "todo": "path"})
     assert refused_on(refused.value).code == "unknown-todo"
 
 

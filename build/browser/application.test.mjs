@@ -1304,11 +1304,11 @@ test("a pending gesture leaves asks and On me as served until the log answers", 
   const app = setup();
   const accepted = state(2, [kept]);
   const answered = {
-    id: `reply:${ask.id}`,
-    source: { kind: "reply", id: ask.id },
+    id: "widget:keep-chart",
+    source: { kind: "widget", id: "keep-chart", tag: "lf-ask" },
     thread: ask.id,
     message: ask.id,
-    prompt: { text: ask.text, target: ask.id },
+    prompt: { text: ask.text, target: "keep-chart" },
     answer: { value: { token: "keep" }, event: kept },
     status: "answered",
     next_actor: null,

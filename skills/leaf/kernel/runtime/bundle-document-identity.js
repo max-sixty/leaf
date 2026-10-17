@@ -42,6 +42,7 @@ import {
   anchorLabel,
   askHolding,
   askPlace,
+  askedInWords,
   beginThreadSeats,
   beginWalk,
   blocksOnScreen,
@@ -200,7 +201,8 @@ import {
   targetElement,
   targetPlace,
   targetSegments,
-  visualPartLabel
+  visualPartLabel,
+  widgetWord
 } from "./bundle-chrome.js";
 import {
   initialOrigin,
@@ -7014,8 +7016,7 @@ function userObligations(page, threadView) {
       thread: null
     });
   for (const ask of threadView.asks.user) {
-    const version = ask.source.kind === "reply" ? ask.source.version : null;
-    held.set(JSON.stringify(["thread", ask.thread, ask.id, version]), {
+    held.set(JSON.stringify(["thread", ask.thread, ask.id]), {
       source: ask.id,
       thread: ask.thread
     });
@@ -7764,7 +7765,7 @@ function mountApplication(dependencies) {
       if (!ask) return Promise.resolve(false);
       if (ask.source.kind === "approval")
         return queueActions2.open(JSON.stringify(["ask", ask.id]));
-      if (ask.source.kind === "reply") {
+      if (ask.thread !== null && askedInWords(ask)) {
         showHeld(ask.thread);
         return threadDestinations.openPageThread(ask.message, {
           part: "message"
@@ -8175,16 +8176,14 @@ function ownedAskControl(source, commandSource) {
   return !selector || closestAcross(commandSource, selector) === source;
 }
 function askWord(ask) {
-  if (ask.source.kind === "reply") return "Thread";
   if (ask.source.kind === "approval") return "Approval";
-  const word = addressableWord(askPlace(ask).source) || ask.source.tag.replace(/^lf-/, "");
+  const word = widgetWord(ask.source.tag, elementById(ask.source.id));
   return word.charAt(0).toUpperCase() + word.slice(1);
 }
 function askWords(ask) {
   if (ask.answer === null) return "";
   if (ask.source.kind === "approval") return "Approved";
-  if (ask.source.kind === "reply")
-    return ask.answer.value.text ?? ask.answer.value.token ?? "";
+  if (askedInWords(ask)) return ask.answer.value.text ?? ask.answer.value.token ?? "";
   const source = elementById(ask.source.id);
   const formatter = (
     /** @type {{answerWords?: (value: unknown, element: Element) => unknown}} */

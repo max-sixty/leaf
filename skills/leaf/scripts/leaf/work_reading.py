@@ -12,11 +12,12 @@ state. A `WorkReading` lasts for one transaction and is never written to disk.
 
 from functools import cached_property
 
-from .asks import collection, thread_ask_readings, thread_asks
+from .asks import collection, replied, thread_ask_readings
 from .document_reading import read_document
 from .events import approvals_in_force, build_threads
 from .plans import plan_reading
 from .projection import frozen_thread_reading
+from .read_state import content_version
 from .todos import TodoReading
 
 
@@ -72,32 +73,38 @@ class WorkReading:
     @cached_property
     def widget_asks(self) -> dict:
         return thread_ask_readings(
-            self.events, self.registry, self.threads, reading=self.thread
+            self.events,
+            self.registry,
+            self.threads,
+            self.log.ends,
+            reading=self.thread,
         )
 
-    @cached_property
-    def thread_asks(self) -> dict:
-        open_widget_threads = {ask["thread"] for ask in self.widget_asks["user"]}
-        return {
-            identity: thread_asks(
-                identity,
-                held,
-                self.registry,
-                self.thread.structure,
-                open_widget_threads,
-                self.log.ends,
-            )
-            for identity, held in self.threads.items()
-        }
-
-    @cached_property
+    @property
     def asks(self) -> dict:
-        return collection(
-            [
-                *self.widget_asks["all"],
-                *(ask for reading in self.thread_asks.values() for ask in reading.asks),
-            ]
-        )
+        return self.widget_asks
+
+    @cached_property
+    def prompts(self) -> dict:
+        """Each thread's question the user owes words to: the latest open
+        reply-answered ask on them there, by its message and that message's content
+        version, which the thread's head marks Waiting on me."""
+        prompts = {}
+        for ask in self.widget_asks["user"]:
+            if not replied(self.registry[ask["source"]["tag"]]):
+                continue
+            message = next(
+                message
+                for message in self.threads[ask["thread"]]["msgs"]
+                if message["id"] == ask["message"]
+            )
+            held = prompts.get(ask["thread"])
+            if held is None or held[0]["seq"] < message["seq"]:
+                prompts[ask["thread"]] = (message, ask)
+        return {
+            thread: {"message": message["id"], "version": content_version(message)}
+            for thread, (message, _ask) in prompts.items()
+        }
 
     @cached_property
     def all_asks(self) -> dict:
@@ -108,21 +115,17 @@ class WorkReading:
             ]
         )
 
-    @property
-    def prompts(self) -> dict:
-        return {
-            identity: reading.prompt
-            for identity, reading in self.thread_asks.items()
-            if reading.prompt is not None
-        }
-
     @cached_property
     def approvals(self) -> list[dict]:
         return approvals_in_force(self.events, withdrawn=self.log.withdrawn)
 
     @cached_property
     def document(self):
-        return read_document(self.page, self.threads) if self.page is not None else None
+        return (
+            read_document(self.page, self.threads, self.log.ends)
+            if self.page is not None
+            else None
+        )
 
     @cached_property
     def workflows(self) -> list[dict]:

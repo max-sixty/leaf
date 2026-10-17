@@ -751,7 +751,7 @@ def _todo_error(view, event: dict, readings) -> Finding | None:
     """A `todo` event stands on a widget that seats work, an element, or the page; a
     to-do on a thread comes from the reply that promises it. A completing note and
     `todo_end` share completion authority.
-    A `todo_end` also admits an agent withdrawal of a prose ask; a
+    A `todo_end` also admits an agent's end of an ask answered in words; a
     start names explicit agent work or an owed update (`todos.todo_error`)."""
     from leaf.todos import start_reading
 
@@ -814,6 +814,7 @@ def _todo_error(view, event: dict, readings) -> Finding | None:
         user_widget_error=user_widget_error,
         owed=owed,
         asks=lambda: readings.work.all_asks["all"],
+        registry=readings.work.registry,
     )
 
 

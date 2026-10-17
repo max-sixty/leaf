@@ -183,16 +183,15 @@ press lands where the item is answered; on a widget ask, its numbered actions
 | Request                                                                         | Register it                                                                                                     | What answers it                                                                       |
 | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
 | A decision or input recorded by a widget                                        | Author a decision widget (`authoring-asks.md`); optional `lf-ask` frames its question and evidence              | The widget's declared answer; a multiple-choice ask also needs the user's Done        |
-| A conversational answer                                                         | Open an agent thread with the question, or add `--ask` to a reply (`threads.md`)                                | The user's next reply there or a settling reaction                                    |
+| A conversational answer                                                         | An `lf-ask` holding the question, with no widget inside, in a reply's or new thread's markup (`threads.md`)     | The user's next message there or a settling reaction                                  |
 | Required version sign-off                                                       | Declare sign-off and stamp the version (`authoring-asks.md`, "Sign-off")                                        | That version's banner approval                                                        |
 | An action neither route records, such as trying a build or connecting a browser | `leaf task open <page> <id> "<direct question naming the action>" --on user`, on its widget, section, or `page` | The user's Done; end it yourself when their action is established or no longer needed |
 
-Ask ids are `widget:<widget-id>` for a widget ask, `reply:<message-id>` for a prose
-ask, and `approval:v<version>` for a version's sign-off. A to-do on the user keeps
-the id `task open` printed. It cannot sit on a thread, so in a thread ask with
-`--ask`. When a thread holds several prose asks, the latest unanswered one is the
-current request, and the user's next reply there answers all of them. Ask a
-dependent question only once its prerequisite is answered. The user's Done on a
+Ask ids are `widget:<widget-id>` for a widget, `lf-ask` included, and
+`approval:v<version>` for a version's sign-off. A to-do on the user keeps the id
+`task open` printed. It cannot sit on a thread, so in a thread ask with an `lf-ask`.
+The user's next message in a thread answers every question asked before it there.
+Ask a dependent question only once its prerequisite is answered. The user's Done on a
 to-do says they did it; it grants nothing its question did not ask.
 
 Read the lists before a handoff, before waiting for the user, and after taking in an
@@ -219,9 +218,10 @@ unblock it, and leave questions about another session's work to that session.
 
 When the user answers in chat or elsewhere, use the answer and retire the page's ask
 in a revision (`authoring-revisions.md`), or end their to-do with `leaf task end`. End
-a prose ask answered elsewhere `done`, or `dropped` when it no longer applies:
+a question in a thread answered elsewhere `done`, or `dropped` when it no longer
+applies:
 
 ```bash
-leaf task end <page> reply:<message-id> done "<where the answer is>"
-leaf task end <page> reply:<message-id> dropped "<why>"
+leaf task end <page> widget:<lf-ask-id> done "<where the answer is>"
+leaf task end <page> widget:<lf-ask-id> dropped "<why>"
 ```

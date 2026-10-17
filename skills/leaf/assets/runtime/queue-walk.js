@@ -67,7 +67,7 @@ import { seenRect } from "./geometry.js";
 import { elementById, inChrome, pageDocument } from "./passages.js";
 import { byRenderedOrder, inUi, under } from "./shadow.js";
 import { askWord } from "./asks/answer.js";
-import { readAsks } from "./asks/model.js";
+import { askedInWords, readAsks } from "./asks/model.js";
 import { asksIn, askPlace } from "./asks/place.js";
 import { readQueues, queueItemKey } from "./queue-api.js";
 import { itemNoun } from "./queues.js";
@@ -85,24 +85,26 @@ const NOUNS = Object.freeze({
   page: "To-do",
   approval: "Approval",
 });
-// What a stop is called: by where it is arrived at, a widget's item by the widget's own
-// word, but a to-do on an element is a To-do rather than the Update a widget's stop
+// What a stop is called: an ask by its widget's own word, else by where it is arrived
+// at, but a to-do on an element is a To-do rather than the Update a widget's stop
 // otherwise is.
 const nounOf = (item, stop) =>
-  stop.kind === "ask"
-    ? askWord(stop.ask)
+  item.kind === "ask" && stop.kind !== "approval"
+    ? askWord(item.ask)
     : stop.kind === "widget" && itemNoun(item) === "todo"
       ? "To-do"
       : NOUNS[stop.kind];
 
 // Where an item of either list, or one that is done, is arrived at: a widget ask by
-// the ask's own id, anything else by the thread it stands in, a to-do on the page as a
-// whole at the page's head, or else the element it stands on, as an action is arrived at
-// on the widget it was made on.
+// the ask's own id, a question asked in words in a thread, like anything else, by the
+// thread it stands in, a to-do on the page as a whole at the page's head, or else the
+// element it stands on, as an action is arrived at on the widget it was made on.
 const stopOf = (item) =>
   item.kind === "ask" && item.ask.source.kind === "approval"
     ? { kind: "approval", id: item.id, thread: null }
-    : item.kind === "ask" && item.ask.source.kind === "widget"
+    : item.kind === "ask" &&
+        item.ask.source.kind === "widget" &&
+        !(item.thread !== null && askedInWords(item.ask))
       ? { kind: "ask", id: item.id, thread: item.thread, ask: item.ask }
       : item.thread !== null
         ? { kind: "thread", id: item.thread, thread: item.thread }

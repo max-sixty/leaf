@@ -116,6 +116,7 @@ import {
   askEntry,
   askHolding,
   askPlace,
+  askedInWords,
   asksIn,
   bannerActions,
   bannerControlDoor,
@@ -8759,13 +8760,14 @@ function createFloatingPanel({
   function onItemCard(item, list) {
     const ask = item.kind === "ask" ? item.ask : null;
     const thread = item.thread ? threadByKey(item.thread) : null;
-    const asking = ask?.source.kind === "reply" && thread ? thread.msgs.find((candidate) => candidate.id === ask.message) : null;
+    const inWords = ask !== null && askedInWords(ask);
+    const asking = inWords && thread ? thread.msgs.find((candidate) => candidate.id === ask.message) : null;
     const message = asking && presentation?.primary !== false ? asking : null;
     const title = message ? thread.title ?? (thread.root.id === message.id ? "" : threadName(thread)) : asking ? threadName(thread) : queueTitle(item);
     const said = message ? "" : asking ? messageReading(asking, { panel: false, reactions: [], workflows: [] }).body.plainText : ask?.prompt?.text;
     const prompt = said && said.trim() !== title.trim() ? said : "";
     const answered = ask && ask.status !== "open";
-    const choices = ask && !answered && ask.source.kind === "widget" ? askView.choicesOf(ask) : null;
+    const choices = ask && !answered && ask.source.kind === "widget" && !inWords ? askView.choicesOf(ask) : null;
     const gesture = answered ? answerGesture(ask) : null;
     const discuss = thread ? html`<button
           type="button"
@@ -8834,7 +8836,7 @@ function createFloatingPanel({
         >
           Done</button
         >${discuss}${arrive}`;
-    else if (ask?.source.kind === "reply" && thread)
+    else if (inWords && thread)
       answers = html`<button
         type="button"
         class="lf-fp-answer"
@@ -11179,8 +11181,8 @@ var NOUNS = Object.freeze({
   page: "To-do",
   approval: "Approval"
 });
-var nounOf = (item, stop) => stop.kind === "ask" ? askWord(stop.ask) : stop.kind === "widget" && itemNoun(item) === "todo" ? "To-do" : NOUNS[stop.kind];
-var stopOf = (item) => item.kind === "ask" && item.ask.source.kind === "approval" ? { kind: "approval", id: item.id, thread: null } : item.kind === "ask" && item.ask.source.kind === "widget" ? { kind: "ask", id: item.id, thread: item.thread, ask: item.ask } : item.thread !== null ? { kind: "thread", id: item.thread, thread: item.thread } : item.subject.kind === "page" ? { kind: "page", id: "page", thread: null } : { kind: "widget", id: item.subject.id, thread: null };
+var nounOf = (item, stop) => item.kind === "ask" && stop.kind !== "approval" ? askWord(item.ask) : stop.kind === "widget" && itemNoun(item) === "todo" ? "To-do" : NOUNS[stop.kind];
+var stopOf = (item) => item.kind === "ask" && item.ask.source.kind === "approval" ? { kind: "approval", id: item.id, thread: null } : item.kind === "ask" && item.ask.source.kind === "widget" && !(item.thread !== null && askedInWords(item.ask)) ? { kind: "ask", id: item.id, thread: item.thread, ask: item.ask } : item.thread !== null ? { kind: "thread", id: item.thread, thread: item.thread } : item.subject.kind === "page" ? { kind: "page", id: "page", thread: null } : { kind: "widget", id: item.subject.id, thread: null };
 var sameStop = (a, b) => a.kind === b.kind && a.id === b.id;
 var pageHead = () => [...document.querySelectorAll("h1")].find((heading) => !inChrome(heading)) ?? pageDocument() ?? document.body.firstElementChild;
 function createQueueWalk({

@@ -210,7 +210,11 @@ def _seed_card_threads(page_dir):
                 "parent": text["id"],
                 "revision": 1,
                 "text": reply,
-                **({"question": True} if question else {}),
+                **(
+                    {"markup": '<lf-ask id="crop-question">Wider?</lf-ask>'}
+                    if question
+                    else {}
+                ),
             },
         )
     crowded = comment(

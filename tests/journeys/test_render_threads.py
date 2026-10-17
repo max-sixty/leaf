@@ -832,7 +832,11 @@ def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, se
     d = serve.page_dir
     pagewide = panel_comment(d, "A page-wide content note.")
     waiting = panel_comment(
-        d, "Which local wording is right?", {"section": "lede"}, "agent"
+        d,
+        "Which local wording is right?",
+        {"section": "lede"},
+        "agent",
+        question="This one?",
     )
     design = append_carried_log_record(
         d,

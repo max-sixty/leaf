@@ -50,7 +50,7 @@ COMMENTS = {
     "rich-question": (
         "triage-lede",
         (
-            "Ask me whether I can own the release check, as a prose question in this "
+            "Ask me whether I can own the release check, as a question in this "
             "thread. Keep it waiting for my answer and move the thread to the release "
             "rationale section."
         ),

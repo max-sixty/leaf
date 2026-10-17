@@ -1,4 +1,4 @@
-"""Canonical asks from widget state, conversations and stamped page sign-off.
+"""Canonical asks from widgets and stamped page sign-off.
 
 One record contains its prompt, typed answer, completion and next actor. Its thread
 and exact owning message locate frozen sources without depending on a live renderer.
@@ -6,31 +6,37 @@ A widget source owns identity; context wrappers contribute only prompt words and
 The inventory is complete even when a work queue hides a resolved thread or an
 older prompt. To-dos never stand in for these records.
 
+A widget whose `x-awaits` declares `reply`, such as `lf-ask` holding no widget of its
+own, is a question the user answers in words: their next message in the thread
+whose message holds it, a reaction there whose token settles it, or on the page a
+message in a thread anchored inside it. It has no x-state, so its answer is that
+message's text or token. The user chose a question widget over a reply flag
+(`--ask`, which Leaf had), so that only widgets, to-dos, resends and sign-off put
+items on the user's list.
+
 A record's `status` is one of four, and this module is their one producer: `open`;
-`answered`, its typed answer in the record; `answered_elsewhere`, a prose ask the
-agent ended `done` because the user answered on another surface, with no answer
-value; and `withdrawn`, a widget ask the document no longer makes or a prose ask
-the agent ended `dropped`. Widget asks never take `answered_elsewhere`: an answer
-given elsewhere goes into the widget's declared state in a revision, which records
-the value itself."""
+`answered`, its typed answer in the record; `answered_elsewhere`, a reply-answered
+ask the agent ended `done` because the user answered on another surface, with no
+answer value; and `withdrawn`, an ask the document no longer makes or a
+reply-answered ask the agent ended `dropped`. A state-answered ask never takes
+`answered_elsewhere`: an answer given elsewhere goes into the widget's declared
+state in a revision, which records the value itself."""
 
 import hashlib
 import json
-from dataclasses import dataclass
 from functools import partial
 from typing import NamedTuple
 
 from leaf.events import (
     approvals_in_force,
     awaits_agent,
-    conversation_turns,
     is_reaction,
     retractions,
     taken_back,
     unanswered_agent_turn,
 )
 from leaf.files import stamped_version
-from leaf.gesture_words import element_name
+from leaf.gesture_words import element_name, element_text
 from leaf.page_memory import Slot
 from leaf.projection import (
     FrozenThreadReading,
@@ -44,7 +50,6 @@ from leaf.projection import (
     projected_action_holders,
     state_projection,
 )
-from leaf.read_state import content_version
 from leaf.registry.contract import WRITERS
 from leaf.structure import review_mode
 from leaf.thread_context import widget_messages
@@ -53,6 +58,46 @@ from leaf.thread_context import widget_messages
 def local_ask_entry(entry: dict) -> bool:
     """Whether a widget can originate an ask when its predicate holds."""
     return entry.get("x-awaits") is not None
+
+
+def replied(entry: dict) -> bool:
+    """Whether the user's own words answer this widget's ask (`x-awaits.reply`)
+    rather than its state."""
+    return bool((entry.get("x-awaits") or {}).get("reply"))
+
+
+def yields_to(record: dict, records: list[dict], registry: dict) -> bool:
+    """Whether a widget declaring `x-awaits.yields` holds another that can ask, and so
+    asks nothing itself: a frame around a decision widget stays one ask. It reads the
+    authored containment, so every revision and reading agrees on it."""
+    return bool((registry[record["tag"]].get("x-awaits") or {}).get("yields")) and any(
+        other is not record
+        and not quoted_in(other, registry)
+        and any(holder is record for holder in enclosing_widgets(other))
+        for other in records
+    )
+
+
+def settle_by_words(record: dict, answer: dict | None, ending: dict | None) -> None:
+    """Settle a reply-answered ask from the user's message that answers it and the
+    agent's `todo_end` on its id, whichever came first. An end records no answer,
+    since the user's words are not in the log; a message after an end reopens
+    nothing, as the end already retired it."""
+    if ending is not None and answer is not None and answer["seq"] < ending["seq"]:
+        ending = None
+    if ending is not None:
+        record["status"] = (
+            "answered_elsewhere" if ending["state"] == "done" else "withdrawn"
+        )
+        record["end"] = {"detail": ending["detail"], "event": event_reference(ending)}
+        record["next_actor"] = None
+    elif answer is not None:
+        record["status"] = "answered"
+        record["answer"] = {
+            "value": {key: answer[key] for key in ("text", "token") if key in answer},
+            "event": event_reference(answer),
+        }
+        record["next_actor"] = None
 
 
 class AskRegistration(NamedTuple):
@@ -99,23 +144,6 @@ def settles(reaction: dict, turn: str, tokens: dict) -> bool:
         and reaction.get("parent") == turn
         and bool((tokens.get(reaction["token"]) or {}).get("settles"))
     )
-
-
-@dataclass(frozen=True)
-class ThreadAsks:
-    """Prose asks and their settlement from one current thread.
-
-    Each record retains its source message, content version, state and settling
-    event. Widget asks have their own reading and never become prose asks.
-    `prompt` selects the latest unanswered prose ask unless the thread is
-    closed or an open widget ask owns attention. Earlier unanswered asks
-    remain available when a later one is settled; a user turn answers all that
-    precede it. Consumers select these facts rather than recognizing asks
-    or interpreting their answers again.
-    """
-
-    asks: list[dict]
-    prompt: dict | None
 
 
 def event_reference(event: dict | None) -> dict | None:
@@ -182,105 +210,6 @@ def approval_ask(document, revision: int, events: list) -> dict | None:
         "end": None,
         "next_actor": None if approved else "user",
     }
-
-
-def thread_asks(
-    thread_id: str,
-    thread: dict,
-    registry: dict,
-    structure,
-    open_widget_threads: set[str],
-    ends: dict[str, dict],
-) -> ThreadAsks:
-    """Keep every prose request, selecting only the latest open prompt for work.
-
-    A user turn or settling reaction answers preceding asks. An agent's `todo_end`
-    before any answer retires the request: `done` records it `answered_elsewhere`,
-    the user having answered on another surface, and `dropped` records it
-    `withdrawn`. Either keeps `answer` null, since the user's words are not in the
-    log, and carries the end's detail and event as `end`. Resolving a thread
-    suppresses attention without changing any of these facts. A message that
-    carries a widget ask poses no second prose ask.
-    """
-    turns = conversation_turns(thread)
-    user_turns = {message["id"] for message in turns if message["author"] == "user"}
-    tokens = registry.get("$reactions", {}).get("tokens", {})
-    asks = []
-    for message in turns:
-        if message["author"] != "agent":
-            continue
-        fragment = structure.fragments.get(message["id"])
-        if any(
-            local_ask_entry(registry.get(rec["tag"]) or {})
-            and asking(rec["attrs"], registry[rec["tag"]]["x-awaits"].get("when"))
-            and not quoted_in(rec, registry)
-            for rec in (fragment.lf_elements if fragment else [])
-        ):
-            continue
-        if message["kind"] == "reply" and not message.get("ask"):
-            continue
-        answer = next(
-            (
-                entry
-                for entry in thread["msgs"]
-                if entry["seq"] > message["seq"]
-                and (entry["id"] in user_turns or settles(entry, message["id"], tokens))
-            ),
-            None,
-        )
-        ending = ends.get("reply:" + message["id"])
-        if ending is not None and answer is not None and answer["seq"] < ending["seq"]:
-            ending = None
-        if ending is not None:
-            answer = None
-            status = "answered_elsewhere" if ending["state"] == "done" else "withdrawn"
-        else:
-            status = "open" if answer is None else "answered"
-        asks.append(
-            {
-                "id": "reply:" + message["id"],
-                "source": {
-                    "kind": "reply",
-                    "id": message["id"],
-                    "version": content_version(message),
-                },
-                "thread": thread_id,
-                "message": message["id"],
-                "prompt": {
-                    "text": message.get("text") or None,
-                    "target": message["id"],
-                },
-                "answer": {
-                    "value": {
-                        key: answer[key] for key in ("text", "token") if key in answer
-                    },
-                    "event": event_reference(answer),
-                }
-                if answer is not None
-                else None,
-                "status": status,
-                "end": {"detail": ending["detail"], "event": event_reference(ending)}
-                if ending is not None
-                else None,
-                "next_actor": None,
-            }
-        )
-    current = next(
-        (ask for ask in reversed(asks) if ask["status"] == "open"),
-        None,
-    )
-    prompt = None
-    if (
-        current is not None
-        and not thread["resolved"]
-        and thread_id not in open_widget_threads
-    ):
-        current["next_actor"] = "user"
-        prompt = {
-            "message": current["source"]["id"],
-            "version": current["source"]["version"],
-        }
-    return ThreadAsks(asks, prompt)
 
 
 def asking(attrs: dict, when: dict) -> bool:
@@ -607,6 +536,11 @@ class _AskReducer:
             if node["attrs"].get("id")
         }
         self.records = [record for record in elements if self._is_declared(record)]
+        self.yielded = {
+            id(record)
+            for record in self.records
+            if yields_to(record, self.records, registry)
+        }
         self.positioned_holders = projected_action_holders(projection, byid, registry)
 
         self.exists: dict[int, bool] = {}
@@ -713,6 +647,8 @@ class _AskReducer:
                 yield previous
 
         for record in self.records:
+            if id(record) in self.yielded:
+                continue
             unit = record["attrs"].get("id")
             answered = self._answered(record)
             if not self.exists[id(record)] and not (unit in settled_away and answered):
@@ -782,17 +718,22 @@ class _AskReducer:
                 if self.local[id(record)]
                 else "withdrawn"
             )
-            value_verb = entry["x-awaits"]["value"]
-            spec = entry["x-state"][value_verb]
-            value, has_content = ask_value(
-                unit,
-                value_verb,
-                spec,
-                self.byid,
-                self.spk,
-                self.registry,
-                self.projection,
-                answered=answered,
+            # A reply-answered ask has no state; its reading settles it from the
+            # conversation (`settle_by_words`).
+            value_verb = entry["x-awaits"].get("value")
+            value, has_content = (
+                ask_value(
+                    unit,
+                    value_verb,
+                    entry["x-state"][value_verb],
+                    self.byid,
+                    self.spk,
+                    self.registry,
+                    self.projection,
+                    answered=answered,
+                )
+                if value_verb
+                else (None, False)
             )
             latest_value_seq = max(
                 (
@@ -813,8 +754,13 @@ class _AskReducer:
                 key=lambda event: event["seq"],
                 default=None,
             )
+            # A question with no title of its own, such as an lf-ask in a reply, is
+            # named by its words.
+            node = self.nodes[surface["attrs"]["id"]]
             text = (
-                element_name(self.nodes[surface["attrs"]["id"]], self.registry) or None
+                element_name(node, self.registry)
+                or (element_text(node) if replied(entry) else "")
+                or None
             )
             records.append(
                 {
@@ -843,6 +789,7 @@ def page_ask_readings(
     dropped: set,
     threads: dict,
     within: dict,
+    ends: dict,
     *,
     settled_away: set[str] | None = None,
     prior=None,
@@ -850,11 +797,36 @@ def page_ask_readings(
     events: list = (),
 ) -> dict:
     """Asks in one document basis; a discussion changes attention, not answer:
-    an ask a thread with the agent is about is the agent's (`sections_with_agent`)."""
+    an ask a thread with the agent is about is the agent's (`sections_with_agent`).
+    A reply-answered ask is the exception, since a message about it is its answer:
+    the first user message in a thread opened inside it. `ends` holds the agent's
+    `todo_end` on each id."""
     reducer = _AskReducer(
         source, projection, byid, spk, registry, dropped, revision, events
     )
     records = reducer.inventory(settled_away or set(), prior)
+    for record in records:
+        unit = record["source"]["id"]
+        if record["status"] != "open" or not replied(registry[record["source"]["tag"]]):
+            continue
+        # The thread's opening anchor, not where it was moved since: a later move
+        # or detach doesn't unsay what the user wrote about the question.
+        answer = min(
+            (
+                message
+                for thread in threads.values()
+                if (anchor := thread["root"].get("anchor"))
+                and (section := anchor.get("section"))
+                and (section == unit or unit in within.get(section, ()))
+                for message in thread["msgs"]
+                if message["author"] == "user"
+                and not is_reaction(message)
+                and not message.get("ephemeral")
+            ),
+            key=lambda message: message["seq"],
+            default=None,
+        )
+        settle_by_words(record, answer, ends.get(record["id"]))
     discussed(records, sections_with_agent(threads), within)
     return collection(records)
 
@@ -863,13 +835,16 @@ def thread_ask_readings(
     events: list,
     registry: dict,
     threads: dict,
+    ends: dict,
     *,
     reading: FrozenThreadReading | None = None,
 ) -> dict:
     """Frozen widget asks retain inventory when their containing thread closes,
     with no next actor. While the thread is open, a user turn after the message
     that asks hands the ask to the agent until the agent answers that turn, as a
-    thread anchored on a page ask does (`sections_with_agent`)."""
+    thread anchored on a page ask does (`sections_with_agent`). That turn instead
+    answers a reply-answered ask, as does a reaction on the message whose token
+    settles it; `ends` holds the agent's `todo_end` on each id."""
     reading = reading or frozen_thread_reading(events, registry)
     reducer = _AskReducer(
         reading.structure,
@@ -882,20 +857,50 @@ def thread_ask_readings(
     )
     records = reducer.inventory(set())
     message_by_widget = widget_messages(reading.structure)
+    tokens = registry.get("$reactions", {}).get("tokens", {})
     for record in records:
         source = record["source"]["id"]
         record["thread"] = reading.thread_by_widget[source]
         record["message"] = message_by_widget[source]
+        thread = threads[record["thread"]]
+        in_words = replied(registry[record["source"]["tag"]])
+        if record["status"] == "open" and in_words:
+            asked = next(
+                message["seq"]
+                for message in thread["msgs"]
+                if message["id"] == record["message"]
+            )
+            answer = next(
+                (
+                    message
+                    for message in thread["msgs"]
+                    if message["seq"] > asked
+                    and message["author"] == "user"
+                    and (
+                        settles(message, record["message"], tokens)
+                        if is_reaction(message)
+                        else not message.get("ephemeral")
+                    )
+                ),
+                None,
+            )
+            settle_by_words(record, answer, ends.get(record["id"]))
         if record["next_actor"] is None:
             continue
-        thread = threads[record["thread"]]
         owed = unanswered_agent_turn(thread)
         if thread["resolved"]:
             record["next_actor"] = None
-        elif owed is not None and owed["seq"] > next(
-            message["seq"]
-            for message in thread["msgs"]
-            if message["id"] == record["message"]
+        # Only the user's words answer a question asked in words, so a turn the agent
+        # owes after it, such as one a user's edit up the thread opens, leaves it theirs.
+        elif (
+            not in_words
+            and owed is not None
+            and owed["seq"]
+            > next(
+                message["seq"]
+                for message in thread["msgs"]
+                if message["id"] == record["message"]
+            )
         ):
             record["next_actor"] = "agent"
     return collection(records)

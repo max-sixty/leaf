@@ -452,11 +452,15 @@ def test_an_html_document_previews_its_own_styles_and_refreshes_from_its_source(
     assert answer.ok
     snapshot = answer.json()["data"]["sources"]["html-text"]
     revision = snapshot["revision"]
+    # `wait_for_function` takes an async predicate's promise as its answer, so the
+    # reading is installed first and waited on synchronously.
+    page.evaluate(
+        """async () => {
+          window.__lfReadApplication = (await window.__lfCheckApi()).readApplication;
+        }"""
+    )
     page.wait_for_function(
-        """async run => {
-          const {readApplication} = await window.__lfCheckApi();
-          return readApplication().data.sources['html-text'].run === run;
-        }""",
+        "run => window.__lfReadApplication().data.sources['html-text'].run === run",
         arg=snapshot["run"],
     )
     assert (

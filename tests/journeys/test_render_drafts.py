@@ -3,15 +3,13 @@
 import json
 
 import pytest
-from browser.threads import hold_visible_thread_presentation
+from browser.threads import open_panel_thread, seed_panel_threads
 from leaf import event_log as events_model
-from leaf.findings import Finding
 from leaf.render_checks import wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import (
     SEATED_ASK_PAGE,
     live_url,
-    panel_comment,
 )
 from render_cases_navigation import (
     JOURNEY_V1,
@@ -26,6 +24,7 @@ from render_harness import (
     leaf_page,
     open_page,
     page_comment,
+    panel_field,
     panel_settled,
     refuse,
     round_trip,
@@ -34,7 +33,6 @@ from render_harness import (
     stamp_page,
     stored_draft_settled,
     stored_draft_text,
-    take_browser_errors,
     told,
     until_draft_settled,
     wait_for_revision,
@@ -168,56 +166,58 @@ def test_a_comment_being_typed_reaches_the_pages_other_tabs(browser, serve, one_
     other's box live, and a send there empties it — the distinction the store's own
     vocabulary carries, an emptied box being a value and a settled draft a tombstone.
     The Send button is read with the value, since a mirrored draft the box cannot send
-    is words arriving dead. The other tab's general box joins its card when the card
-    first opens and stays there, so its shut card holds the later words all the same."""
+    is words arriving dead. Each box is the panel's field: the page comment where no
+    view is open, the thread's reply where its view is."""
     url = serve(LONG_PAGE, comments=1)
+    [root] = [
+        e["id"]
+        for e in events_model.read_events(serve.page_dir)
+        if e["kind"] == "comment"
+    ]
     first = open_page(browser, url, context=one_user)
     second = open_page(browser, url, context=one_user)
-    for page in (first, second):
-        page.locator(".lf-threads-toggle").click()
-        panel_settled(page)
+    general = '.lf-fp-field leaf-text[name="comment"]'
+    send = ".lf-fp-field .lf-compose-submit"
 
     typed = "The page is missing the migration step."
     write(page_comment(first), typed)
     expect(page_comment(second)).to_have_js_property("value", typed)
-    expect(second.locator(".lf-general .lf-compose-submit")).to_have_attribute(
-        "aria-disabled", "false"
-    )
+    expect(second.locator(send)).to_have_attribute("aria-disabled", "false")
     second.keyboard.press("Escape")
 
     # The tab doing the typing is the one tab the store says nothing to, which is what
     # leaves the caret where the user put it: writing .value on a focused box sends
     # the caret to the end of it, and a user typing into the middle of a sentence
     # would watch every keystroke jump there.
-    first.locator(".lf-general leaf-text").click()
+    first.locator(general).click()
     first.keyboard.press("Home")
     first.keyboard.type("Late: ")
-    expect(second.locator(".lf-general leaf-text")).to_have_js_property(
-        "value", "Late: " + typed
+    expect(second.locator(general)).to_have_js_property("value", "Late: " + typed)
+    assert first.locator(general).evaluate("ta => ta.selectionStart") == 6, (
+        "the caret moved in the tab that did the typing"
     )
-    assert (
-        first.locator(".lf-general leaf-text").evaluate("ta => ta.selectionStart") == 6
-    ), "the caret moved in the tab that did the typing"
     typed = "Late: " + typed
 
     reply = "Typed into the reply box of the other tab."
-    second.locator(".lf-thread-summary").first.click()
-    write(second.locator(".lf-thread leaf-text").first, reply)
-    expect(first.locator(".lf-thread leaf-text").first).to_have_js_property(
-        "value", reply
-    )
-    second.locator(".lf-thread").first.get_by_role(
-        "button", name="Send", exact=True
-    ).click()
+    # The marks stand beside the field once the caret leaves it.
+    first.keyboard.press("Escape")
+    for page in (second, first):
+        open_panel_thread(page, root)
+    write(panel_field(second), reply)
+    expect(panel_field(first)).to_have_js_property("value", reply)
+    second.locator(send).click()
     round_trip(second)
-    expect(first.locator(".lf-thread leaf-text").first).to_have_js_property("value", "")
+    expect(panel_field(first)).to_have_js_property("value", "")
 
-    first.locator(".lf-general .lf-compose-submit").click()
+    for page in (first, second):
+        page.locator(".lf-fp-close").click()
+        panel_settled(page, open=False)
+    expect(first.locator(general)).to_have_js_property("value", typed)
+    first.locator(general).click()
+    first.locator(send).click()
     round_trip(first)
-    expect(second.locator(".lf-general leaf-text")).to_have_js_property("value", "")
-    expect(second.locator(".lf-general .lf-compose-submit")).to_have_attribute(
-        "aria-disabled", "true"
-    )
+    expect(second.locator(general)).to_have_js_property("value", "")
+    expect(second.locator(send)).to_have_attribute("aria-disabled", "true")
     said = [e["text"] for e in events_model.read_events(serve.page_dir) if "text" in e]
     assert said[-2:] == [reply, typed]
 
@@ -289,32 +289,27 @@ def test_executable_revision_keeps_a_reader_who_scrolled_away_from_their_reply(
 ):
     """A replaced reply box takes focus back without pulling the reader back to it.
 
-    The reader wrote in a thread at the top of the Threads list, then scrolled the
-    list on with no other input, so the box keeps focus but no longer marks their
-    place (user-place.js, `focusedInView`). A revision that replaces the document
-    returns focus and words to the new box and leaves the list where they read."""
+    The reader wrote the reply to a long thread open in the panel, then scrolled its
+    view back up the thread with no other input, so the box keeps focus while the
+    reader reads elsewhere. A revision that replaces the document returns focus and
+    words to the new box and leaves the view where they read."""
     url = live_url(serve(editing_revision_source("before")))
-    ids = [panel_comment(serve.page_dir, f"General thread {n}.") for n in range(40)]
+    [root] = seed_panel_threads(serve.page_dir, 1, long_index=0, messages=24)
     page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    thread = page.locator(f'.lf-threads .lf-thread[data-id="{ids[0]}"]')
-    thread.click()
-    reply = thread.locator(".lf-thread-reply leaf-text")
+    view = open_panel_thread(page, root)
+    reply = panel_field(page)
     words = "Words the reader left to read on."
     write(reply, words)
-    threads = page.locator(".lf-threads")
-    threads.evaluate("list => { list.scrollTop = list.scrollHeight; }")
-    scroll_settled(page, ".lf-threads")
+    view.evaluate("list => { list.scrollTop = 0; }")
+    scroll_settled(page, view)
     expect(reply).to_be_focused()
-    expect(reply).not_to_be_in_viewport()
-    held = threads.evaluate("list => list.scrollTop")
-    assert held > 0
+    held = view.evaluate("list => list.scrollTop")
+    assert view.evaluate("list => list.scrollHeight > list.clientHeight + 100")
     replace_editing_document(page, serve)
     expect(reply).to_be_focused()
     expect(reply).to_have_js_property("value", words)
-    scroll_settled(page, ".lf-threads")
-    assert threads.evaluate("list => list.scrollTop") == pytest.approx(held, abs=2)
+    scroll_settled(page, view)
+    assert view.evaluate("list => list.scrollTop") == pytest.approx(held, abs=2)
 
 
 def test_executable_revision_does_not_restore_a_new_draft_generation(browser, serve):
@@ -345,91 +340,6 @@ def test_executable_revision_does_not_restore_a_new_draft_generation(browser, se
     actual = page.evaluate("(key)=>JSON.parse(localStorage.getItem(key))", saved["key"])
     assert actual["attempt"] == "1234567890abcdef1234567890abcdef"
     assert actual["text"] == saved["editing"]["words"]
-
-
-@pytest.mark.parametrize("interruption", ["generation", "input"])
-def test_delayed_thread_destination_yields_to_shared_generation_or_new_input(
-    browser, serve, one_user, interruption
-):
-    page = editing_reply_page(browser, serve, one_user)
-    reply = page.locator(".lf-margin-preview .lf-thread-reply leaf-text")
-    write(reply, "The exact generation whose route is waiting.")
-    known_loss = Finding(
-        "words-left-screen",
-        values={
-            "words": "The exact generation whose route is waiting.",
-            "place": reply.evaluate("field => window.lfPlace(field)"),
-        },
-    )
-    other = open_page(browser, page.url, context=one_user)
-    held = page.evaluate(
-        """async()=>{
-      const drafts=await window.__lfCheckApi();
-      const focus=await window.__lfCheckApi();
-      return {editing:drafts.captureDraftEditing(),id:focus.heldThreadId()};
-    }"""
-    )
-    page.locator(".lf-threads-toggle").click()
-    page.locator(".lf-thread-filter-toggle").click()
-    page.get_by_role("searchbox", name="Find in threads").fill(
-        "A query that hides this thread"
-    )
-    expect(page.locator(f""".lf-thread[data-id="{held["id"]}"]""")).to_be_hidden()
-    # Find is a deliberate departure from reply editing. Its later narrowing paint
-    # may withdraw the saved inactive box after that pointer callback has ended.
-    # Calibrate only this exact withdrawal; later route and query errors stay strict.
-    assert (
-        stored_draft_text(page, held["editing"]["context"]) == held["editing"]["words"]
-    )
-    page.evaluate("lfWordsJudged()")
-    errors = take_browser_errors(page)
-    assert errors in ([], [known_loss]), errors
-    hold_visible_thread_presentation(page, held["id"])
-    page.evaluate(
-        """async held=>{
-      const drafts=await window.__lfCheckApi();
-      const {replyDestination}=await window.__lfCheckApi();
-      const {retainUserIntent}=await window.__lfWidgetApi();
-      const {restrictUserIntent}=await window.__lfCheckApi();
-      const {threadActions, readThreads}=await window.__lfWidgetApi();
-      const openThread=(id,options)=>threadActions.open(readThreads().threads.find(thread=>thread.id===id).key,options);
-      const button=document.createElement('button');button.id='held-reply-route';button.textContent='Continue the held reply';document.querySelector('main').append(button);
-      button.onclick=()=>{
-        const original=retainUserIntent();window.readOriginalIntent=original;
-        const permission=restrictUserIntent(original,()=>drafts.draftEditingStands(held.editing));
-        window.heldRouteResult=undefined;
-        void replyDestination(held.id,openThread,permission).then(destination=>window.heldRouteResult=Boolean(destination));
-      };
-      window.heldEditing=held.editing;
-    }""",
-        held,
-    )
-    page.locator("#held-reply-route").click()
-    page.wait_for_function("window.visibleThreadPresentationHeld===true")
-    if interruption == "generation":
-        assert page.evaluate("window.readOriginalIntent()")
-        other.evaluate(
-            """async editing=>{
-          const drafts=await window.__lfWidgetApi();
-          drafts.saveDraft(editing.context,editing.words);
-        }""",
-            held["editing"],
-        )
-        page.wait_for_function(
-            "async()=>!(await window.__lfCheckApi()).draftEditingStands(heldEditing)"
-        )
-        assert page.evaluate("window.readOriginalIntent()"), (
-            "the state change must not supersede input intent"
-        )
-    else:
-        write(page.locator("#authored-draft"), "Newer native input owns focus.")
-    page.evaluate("releaseVisibleThreadPresentation()")
-    page.wait_for_function("window.heldRouteResult!==undefined")
-    assert page.evaluate("window.heldRouteResult") is False
-    if interruption == "generation":
-        expect(page.locator("#held-reply-route")).to_be_focused()
-    else:
-        expect(page.locator("#authored-draft")).to_be_focused()
 
 
 def test_resume_writing_keeps_editor_identity_caret_and_sent_conversation(

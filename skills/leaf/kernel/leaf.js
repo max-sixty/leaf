@@ -8094,6 +8094,11 @@ function createFloatingPanel({
     return { says: "turn", words };
   }
   const whereTo = (key) => key ? "Reply in this thread" : "Comment on the page";
+  function saying2(key, input) {
+    const reading = fieldReading(key, input);
+    if (input) keeps(input, "data-says", reading.says);
+    return reading.words;
+  }
   let general = null;
   function pageEditor() {
     if (general) return general;
@@ -8105,7 +8110,7 @@ function createFloatingPanel({
     box.append(input, send);
     input.value = loadDraft(PAGE_DRAFT) ?? "";
     const sync = wireInput(input, {
-      hint: () => fieldReading(null, input).words,
+      hint: () => saying2(null, input),
       hintParts: () => {
         const parts = status().summaryParts;
         return fieldReading(null, input).says === "status" && parts?.some((part) => part.source) ? statusParts(parts) : null;
@@ -8154,7 +8159,7 @@ function createFloatingPanel({
   const replyOptionsFor = (key) => {
     if (!replyOptions.has(key))
       replyOptions.set(key, {
-        hint: () => fieldReading(key, replyInput()).words,
+        hint: () => saying2(key, replyInput()),
         accessibleName: () => `Reply to ${threadTitle(key)}`,
         sent: () => {
           landAtEnd = { key, after: outletOf()?.childElementCount ?? 0 };
@@ -9492,7 +9497,6 @@ function createFloatingPanel({
     keeps(expand, "title", expanded ? "Less room to write" : "More room to write");
     render(iconTemplate(expanded ? "fit" : "expand", "lf-action-icon"), expand);
     const reading = fieldReading(replying ? top.thread : null, input);
-    keeps(host, "data-says", reading.says);
     keeps(host, "data-tone", status().tone || null);
     keeps(host, "data-asks", status().asks ? "" : null);
     keeps(

@@ -226,17 +226,17 @@
   .lf-fp-field leaf-text::part(placeholder) {
     color: var(--lf-fp-quiet);
   }
-  .lf-floating-panel[data-says=notice] .lf-fp-field leaf-text::part(placeholder) {
+  .lf-fp-field leaf-text[data-says=notice]::part(placeholder) {
     color: var(--lf-fp-muted);
     font-weight: 500;
   }
   @media (prefers-reduced-motion: no-preference) {
-    .lf-floating-panel[data-says=status][data-tone=working]:not([data-asks]) .lf-fp-field leaf-text::part(placeholder) {
+    .lf-floating-panel[data-tone=working]:not([data-asks]) .lf-fp-field leaf-text[data-says=status]::part(placeholder) {
       --lf-sheen-rest: 0.62;
       animation: lf-sheen 2s ease-in-out infinite alternate;
     }
   }
-  .lf-floating-panel[data-says=status][data-asks] .lf-fp-field leaf-text::part(placeholder) {
+  .lf-floating-panel[data-asks] .lf-fp-field leaf-text[data-says=status]::part(placeholder) {
     color: color-mix(in srgb, var(--lf-fp-asks) 84%, transparent);
   }
   .lf-floating-panel[data-asks] {

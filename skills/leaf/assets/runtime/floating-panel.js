@@ -493,6 +493,14 @@ export function createFloatingPanel({
   // Where the words go, as the focused field's placeholder says it; the thread's own
   // name already heads its view.
   const whereTo = (key) => (key ? "Reply in this thread" : "Comment on the page");
+  // An editor's empty words, as its own paint draws them (composing/input.js, `hint`),
+  // which marks the editor with whose reading they are, so the face the theme gives that
+  // reading changes in the same paint as the words (floating-panel.css).
+  function saying(key, input) {
+    const reading = fieldReading(key, input);
+    if (input) keeps(input, "data-says", reading.says);
+    return reading.words;
+  }
   // The page's own editor: the field where no thread is open.
   let general = null;
   function pageEditor() {
@@ -505,7 +513,7 @@ export function createFloatingPanel({
     box.append(input, send);
     input.value = loadDraft(PAGE_DRAFT) ?? "";
     const sync = wireInput(input, {
-      hint: () => fieldReading(null, input).words,
+      hint: () => saying(null, input),
       hintParts: () => {
         const parts = status().summaryParts;
         return fieldReading(null, input).says === "status" &&
@@ -573,7 +581,7 @@ export function createFloatingPanel({
   const replyOptionsFor = (key) => {
     if (!replyOptions.has(key))
       replyOptions.set(key, {
-        hint: () => fieldReading(key, replyInput()).words,
+        hint: () => saying(key, replyInput()),
         accessibleName: () => `Reply to ${threadTitle(key)}`,
         sent: () => {
           landAtEnd = { key, after: outletOf()?.childElementCount ?? 0 };
@@ -2453,13 +2461,12 @@ export function createFloatingPanel({
     keeps(expand, "aria-label", expanded ? "Less room to write" : "More room to write");
     keeps(expand, "title", expanded ? "Less room to write" : "More room to write");
     render(iconTemplate(expanded ? "fit" : "expand", "lf-action-icon"), expand);
-    // Whose reading the empty field says, which its face follows: a status dims, and
-    // carries the sheen while the agent works, unless it asks the user to act, such as
-    // to nudge the agent in its terminal, which it says in its tone's ink
+    // Whose reading the empty field says, which its face follows (`saying`): a status
+    // dims, and carries the sheen while the agent works, unless it asks the user to act,
+    // such as to nudge the agent in its terminal, which it says in its tone's ink
     // (`pageStatus`, `asks`). The field's room cuts a long status short, so pointing at
     // the field says it in full, as the folded leaf's peek does.
     const reading = fieldReading(replying ? top.thread : null, input);
-    keeps(host, "data-says", reading.says);
     keeps(host, "data-tone", status().tone || null);
     keeps(host, "data-asks", status().asks ? "" : null);
     keeps(

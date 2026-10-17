@@ -300,19 +300,22 @@
      notice is news, so it reads a step brighter until it passes. While the agent works,
      its status carries the sheen that marks work under way (surfaces.css), from its own
      dim face to ink and back. The face is the field's placeholder part, so it holds
-     whether the words come with a key drawn beside them or alone. */
+     whether the words come with a key drawn beside them or alone. Whose reading the
+     words are is the editor's own `data-says`, written in the paint that writes the
+     words (floating-panel.js, `saying`), so no face stands over another reading's words
+     for a frame, as the notice's weight once did over the status, carrying it sideways. */
   .lf-fp-field leaf-text::part(placeholder) {
     color: var(--lf-fp-quiet);
   }
-  .lf-floating-panel[data-says="notice"] .lf-fp-field leaf-text::part(placeholder) {
+  .lf-fp-field leaf-text[data-says="notice"]::part(placeholder) {
     color: var(--lf-fp-muted);
     font-weight: 500;
   }
   /* The shared reduced-motion guard (surfaces.css) stops at the field's closed tree. */
   @media (prefers-reduced-motion: no-preference) {
-    .lf-floating-panel[data-says="status"][data-tone="working"]:not([data-asks])
+    .lf-floating-panel[data-tone="working"]:not([data-asks])
       .lf-fp-field
-      leaf-text::part(placeholder) {
+      leaf-text[data-says="status"]::part(placeholder) {
       /* The quiet face is ink at 62% (`--lf-fp-quiet`). */
       --lf-sheen-rest: 0.62;
       animation: lf-sheen 2s ease-in-out infinite alternate;
@@ -322,9 +325,9 @@
      legible as words, so a request stands apart from a report. It stays quiet, at the
      words' own weight and short of full strength: the user found full-strength
      medium-weight green bold for a line that stands at rest (15 October). */
-  .lf-floating-panel[data-says="status"][data-asks]
+  .lf-floating-panel[data-asks]
     .lf-fp-field
-    leaf-text::part(placeholder) {
+    leaf-text[data-says="status"]::part(placeholder) {
     color: color-mix(in srgb, var(--lf-fp-asks) 84%, transparent);
   }
   .lf-floating-panel[data-asks] {

@@ -1745,6 +1745,7 @@ def test_a_status_that_asks_the_user_to_act_stands_out(browser, serve):
     # goes with it.
     field(page).click()
     expect(page.locator(".lf-fp-field")).not_to_have_attribute("title", re.compile("."))
+    expect(field(page)).to_have_attribute("data-says", "destination")
     assert alpha() < 0.7
     # The refused reads recur on the page's clock until it closes.
     page.close()
@@ -1847,8 +1848,7 @@ def test_a_walk_says_its_position_in_the_panel(browser, serve):
 
     page.locator("body").focus()
     page.keyboard.press("m")
-    panel = page.locator(".lf-floating-panel")
-    expect(panel).to_have_attribute("data-says", "notice")
+    expect(field(page)).to_have_attribute("data-says", "notice")
     expect(field(page)).to_have_attribute(
         "placeholder", re.compile("1 of 2 waiting on me")
     )

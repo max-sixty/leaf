@@ -134,7 +134,7 @@ export function createThreadDestinations({
     if (selected && (!thread || !discussed(thread))) return null;
     // The registered primary reader, asked to show the thread: `last` says nothing on the
     // page will show it if the reader declines.
-    async function inPrimary(last) {
+    function inPrimary(last) {
       opening?.abort();
       const abort = new AbortController();
       opening = abort;
@@ -169,43 +169,51 @@ export function createThreadDestinations({
             })
           : null;
       const result = selected.open(thread.key, request);
-      const selectedLayout = result?.then ? await whileCurrent(result) : result;
-      if (!mayPresent()) return null;
-      if (selectedLayout === false) return DECLINED;
-      await whileCurrent(selected.reader.update());
-      if (!mayPresent()) return null;
-      const destination = selected.reader.destination(thread.key, request);
-      if (destination === null) return UNDRAWN;
-      if (
-        !(destination instanceof Element) ||
-        !destination.isConnected ||
-        !renderedUnder(destination, selected.owner) ||
-        !selected.reader.ownsDestination(destination)
-      )
-        throw new TypeError(
-          "A Thread destination must be a retained part of its registered presentation",
+      // A reader that declines at once is answered at once, so the page's own drawing
+      // of the thread opens in the task of the gesture that asked for it (`onPage`), as
+      // a walk's card does, rather than after a wait that no longer belongs to it.
+      if (result === false) return mayPresent() ? DECLINED : null;
+      return taken(result);
+      // The reader takes the thread: its layout, then its drawing of it.
+      async function taken(result) {
+        const selectedLayout = result?.then ? await whileCurrent(result) : result;
+        if (!mayPresent()) return null;
+        if (selectedLayout === false) return DECLINED;
+        await whileCurrent(selected.reader.update());
+        if (!mayPresent()) return null;
+        const destination = selected.reader.destination(thread.key, request);
+        if (destination === null) return UNDRAWN;
+        if (
+          !(destination instanceof Element) ||
+          !destination.isConnected ||
+          !renderedUnder(destination, selected.owner) ||
+          !selected.reader.ownsDestination(destination)
+        )
+          throw new TypeError(
+            "A Thread destination must be a retained part of its registered presentation",
+          );
+        if (focus === false) {
+          await whileCurrent(reveal(destination, intent).ready);
+          return mayPresent() ? destination : null;
+        }
+        departure?.plan(destination);
+        const reached = await whileCurrent(
+          arrive(
+            () => {
+              const current = selected.reader.destination(thread.key, request);
+              return (
+                current && {
+                  where: current,
+                  focus: current,
+                  scroll: trip ? [{ at: current, block: "nearest" }] : [],
+                }
+              );
+            },
+            { intent: arriving, departure },
+          ),
         );
-      if (focus === false) {
-        await whileCurrent(reveal(destination, intent).ready);
-        return mayPresent() ? destination : null;
+        return reached ? selected.reader.destination(thread.key, request) : null;
       }
-      departure?.plan(destination);
-      const reached = await whileCurrent(
-        arrive(
-          () => {
-            const current = selected.reader.destination(thread.key, request);
-            return (
-              current && {
-                where: current,
-                focus: current,
-                scroll: trip ? [{ at: current, block: "nearest" }] : [],
-              }
-            );
-          },
-          { intent: arriving, departure },
-        ),
-      );
-      return reached ? selected.reader.destination(thread.key, request) : null;
     }
     // The page's own drawings of the thread: its outlet, a held seat, a preview.
     async function onPage() {
@@ -281,7 +289,8 @@ export function createThreadDestinations({
       return DECLINED;
     }
 
-    const first = selected ? await inPrimary(false) : DECLINED;
+    const asked = selected ? inPrimary(false) : DECLINED;
+    const first = asked instanceof Promise ? await asked : asked;
     if (first !== DECLINED && first !== UNDRAWN) return first;
     if (part !== "message") {
       const shown = await onPage();

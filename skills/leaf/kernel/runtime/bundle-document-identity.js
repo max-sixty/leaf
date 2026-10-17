@@ -6019,7 +6019,7 @@ function createThreadDestinations({
     const selected = presentation?.owner.isConnected ? presentation : null;
     const thread = threadNamed(id);
     if (selected && (!thread || !discussed(thread))) return null;
-    async function inPrimary(last) {
+    function inPrimary(last) {
       opening?.abort();
       const abort = new AbortController();
       opening = abort;
@@ -6040,36 +6040,40 @@ function createThreadDestinations({
         intent: arriving
       }) : null;
       const result = selected.open(thread.key, request);
-      const selectedLayout = result?.then ? await whileCurrent(result) : result;
-      if (!mayPresent()) return null;
-      if (selectedLayout === false) return DECLINED;
-      await whileCurrent(selected.reader.update());
-      if (!mayPresent()) return null;
-      const destination = selected.reader.destination(thread.key, request);
-      if (destination === null) return UNDRAWN;
-      if (!(destination instanceof Element) || !destination.isConnected || !renderedUnder(destination, selected.owner) || !selected.reader.ownsDestination(destination))
-        throw new TypeError(
-          "A Thread destination must be a retained part of its registered presentation"
+      if (result === false) return mayPresent() ? DECLINED : null;
+      return taken(result);
+      async function taken(result2) {
+        const selectedLayout = result2?.then ? await whileCurrent(result2) : result2;
+        if (!mayPresent()) return null;
+        if (selectedLayout === false) return DECLINED;
+        await whileCurrent(selected.reader.update());
+        if (!mayPresent()) return null;
+        const destination = selected.reader.destination(thread.key, request);
+        if (destination === null) return UNDRAWN;
+        if (!(destination instanceof Element) || !destination.isConnected || !renderedUnder(destination, selected.owner) || !selected.reader.ownsDestination(destination))
+          throw new TypeError(
+            "A Thread destination must be a retained part of its registered presentation"
+          );
+        if (focus === false) {
+          await whileCurrent(reveal(destination, intent).ready);
+          return mayPresent() ? destination : null;
+        }
+        departure?.plan(destination);
+        const reached = await whileCurrent(
+          arrive(
+            () => {
+              const current = selected.reader.destination(thread.key, request);
+              return current && {
+                where: current,
+                focus: current,
+                scroll: trip ? [{ at: current, block: "nearest" }] : []
+              };
+            },
+            { intent: arriving, departure }
+          )
         );
-      if (focus === false) {
-        await whileCurrent(reveal(destination, intent).ready);
-        return mayPresent() ? destination : null;
+        return reached ? selected.reader.destination(thread.key, request) : null;
       }
-      departure?.plan(destination);
-      const reached = await whileCurrent(
-        arrive(
-          () => {
-            const current = selected.reader.destination(thread.key, request);
-            return current && {
-              where: current,
-              focus: current,
-              scroll: trip ? [{ at: current, block: "nearest" }] : []
-            };
-          },
-          { intent: arriving, departure }
-        )
-      );
-      return reached ? selected.reader.destination(thread.key, request) : null;
     }
     async function onPage() {
       const mayPresent = () => focus === false ? intent.available() : intent();
@@ -6130,7 +6134,8 @@ function createThreadDestinations({
       if (surfaceFocusTarget(id, { part: localPart })) return openSurface();
       return DECLINED;
     }
-    const first = selected ? await inPrimary(false) : DECLINED;
+    const asked = selected ? inPrimary(false) : DECLINED;
+    const first = asked instanceof Promise ? await asked : asked;
     if (first !== DECLINED && first !== UNDRAWN) return first;
     if (part !== "message") {
       const shown2 = await onPage();

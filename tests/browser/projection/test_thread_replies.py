@@ -289,13 +289,16 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
     held[0].continue_()
     page.unroute("**/widgets/lf-draft.js")
     told(page)
-    assert page.evaluate(frozen_reading) == {
+    # The reply's widget mounts where its thread is drawn, which is the panel's view
+    # once the user opens it there.
+    reading = page.evaluate(frozen_reading)
+    assert {key: reading[key] for key in ("descriptor", "authored", "body")} == {
         "descriptor": True,
         "authored": True,
         "body": "    First line.\n    Second line.\n",
-        "mounted": True,
     }
     open_panel_thread(page, "draft-question")
+    expect(page.locator("#crossed-draft")).to_have_count(1)
     widget = page.locator("#crossed-draft")
     original = widget.element_handle()
     body = widget.locator(".lf-draft-body")

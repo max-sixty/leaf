@@ -23,6 +23,7 @@ from leaf import interaction_log as interaction_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
+from leaf.render_checks import wait_until_ready
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import LIVE_V1, LIVE_V2, live_url, panel_comment
@@ -30,6 +31,7 @@ from render_cases_layout import solid_png
 from render_harness import (
     LONG_PAGE,
     consume_browser_errors,
+    holding,
     http_error_console,
     open_page,
     select_words,
@@ -37,6 +39,7 @@ from render_harness import (
     stamp_page,
     ticked,
     told,
+    watched,
     write,
 )
 from render_harness import leaf_page as titled_page
@@ -2808,6 +2811,44 @@ def test_a_reply_its_card_cannot_draw_opens_in_the_panel(browser, serve):
     reader = page.locator(".lf-fp-view[data-view=thread]")
     expect(reader.locator("#first-job")).to_be_visible()
     expect(page.locator(CLASSIC_SURFACES)).to_have_count(0)
+
+
+def test_a_page_comment_sent_before_the_first_reading_stands_in_the_panel(
+    browser, serve
+):
+    """A page comment sent while the page still waits for its saved state is the thread
+    the user opened: its view draws it at once, Threads lists it above the line saying
+    the saved threads are still loading, and `t` walks to it once the view is put away.
+    The panel once read threads only from a settled reading, so its view said the
+    thread was not on the page, Threads listed nothing, and `t` was dropped."""
+    held = []
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    page.route("**/api/state*", lambda route: held.append(route))
+    page.route("**/api/event", lambda route: held.append(route))
+    page.goto(serve(LONG_PAGE), wait_until="load")
+    holding(page, held, 1, "the first state read")
+    wait_until_ready(page, through="upgraded")
+    words = "Sent before the page heard back."
+    write(field(page), words)
+    page.keyboard.press("Enter")
+    view = page.locator(".lf-fp-view[data-view=thread]:not([data-leaving])")
+    expect(view).to_contain_text(words)
+
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-fp-view")).to_have_count(0)
+    page.locator(".lf-fp-threads").click()
+    threads = page.locator(".lf-fp-view[data-view=threads]")
+    expect(threads.locator(".lf-fp-thread")).to_have_text([re.compile(words)])
+    expect(threads.locator(".lf-fp-empty")).to_have_text("Loading current threads…")
+
+    page.locator(".lf-fp-close").click()
+    expect(page.locator(".lf-fp-view")).to_have_count(0)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    expect(view).to_contain_text(words)
+    expect(view).to_be_focused()
 
 
 def test_a_refused_page_comment_hands_its_words_back_to_the_field(browser, serve):

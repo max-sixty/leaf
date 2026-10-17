@@ -8169,18 +8169,16 @@ function createFloatingPanel({
     if (Boolean(draftOf(fieldInput()).trim()) !== typing) paint();
   }
   field.addEventListener("input", retype);
-  const threads = () => {
-    const reading = readThreads();
-    return reading.phase === "ready" ? reading.threads : [];
-  };
+  const threads = () => readThreads().threads;
+  const inventoried = () => readThreads().phase === "ready";
   const threadByKey = (key) => threads().find((thread) => thread.key === key || thread.id === key) ?? null;
   const threadTitle = (key) => {
     const thread = threadByKey(key);
     return thread ? threadName(thread) : "this thread";
   };
   const unread = (thread) => thread.unread.length > 0;
-  const newCount = () => threads().filter(unread).length;
-  const openCount = () => threads().filter((thread) => !thread.resolved).length;
+  const newCount = () => inventoried() ? threads().filter(unread).length : 0;
+  const openCount = () => inventoried() ? threads().filter((thread) => !thread.resolved).length : null;
   const onUserCount = () => {
     const queues = readQueues();
     return queues.phase === "ready" ? queues.on_user.length : 0;
@@ -8858,7 +8856,12 @@ function createFloatingPanel({
                     >${threadStatus(thread, query.trim() ? null : filter)}</span
                   >
                 </button>`
-    ) : html`<p class="lf-fp-empty">${empty}</p>`}
+    ) : inventoried() ? html`<p class="lf-fp-empty">${empty}</p>` : nothing}
+      ${// This tab's sends are listed, but the saved threads are still to come, which
+    // the list says after the rows it has, so their arrival moves none of them.
+    inventoried() ? nothing : html`<p class="lf-fp-empty">
+              ${readThreads().phase === "offline" ? "Current threads are unavailable while the server is offline." : "Loading current threads\u2026"}
+            </p>`}
     </div>`;
   }
   let presentation = null;
@@ -9530,7 +9533,7 @@ function createFloatingPanel({
     }
     const threadsOpen = top?.view === "threads" || top?.view === "thread";
     const onUserName = onUser ? `On me: ${onUser}` : "On me";
-    const threadsName = `Threads, ${openCount()} open${news ? `, ${news} with news` : ""}`;
+    const threadsName = inventoried() ? `Threads, ${openCount()} open${news ? `, ${news} with news` : ""}` : "Threads";
     render(
       html`<button
           type="button"

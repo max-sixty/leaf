@@ -593,10 +593,12 @@ export function createFloatingPanel({
   field.addEventListener("input", retype);
 
   // ---------- readings ----------
-  const threads = () => {
-    const reading = readThreads();
-    return reading.phase === "ready" ? reading.threads : [];
-  };
+  // The threads the page draws, this tab's sends among them while the saved ones are
+  // still on their way, so a thread the user just started opens and lists at once. A
+  // count is a reading of the saved inventory, so the marks and tabs say one only once
+  // it has arrived (`inventoried`).
+  const threads = () => readThreads().threads;
+  const inventoried = () => readThreads().phase === "ready";
   const threadByKey = (key) =>
     threads().find((thread) => thread.key === key || thread.id === key) ?? null;
   const threadTitle = (key) => {
@@ -604,8 +606,9 @@ export function createFloatingPanel({
     return thread ? threadName(thread) : "this thread";
   };
   const unread = (thread) => thread.unread.length > 0;
-  const newCount = () => threads().filter(unread).length;
-  const openCount = () => threads().filter((thread) => !thread.resolved).length;
+  const newCount = () => (inventoried() ? threads().filter(unread).length : 0);
+  const openCount = () =>
+    inventoried() ? threads().filter((thread) => !thread.resolved).length : null;
   const onUserCount = () => {
     const queues = readQueues();
     return queues.phase === "ready" ? queues.on_user.length : 0;
@@ -1565,7 +1568,22 @@ export function createFloatingPanel({
                   >
                 </button>`,
             )
-          : html`<p class="lf-fp-empty">${empty}</p>`
+          : inventoried()
+            ? html`<p class="lf-fp-empty">${empty}</p>`
+            : nothing
+      }
+      ${
+        // This tab's sends are listed, but the saved threads are still to come, which
+        // the list says after the rows it has, so their arrival moves none of them.
+        inventoried()
+          ? nothing
+          : html`<p class="lf-fp-empty">
+              ${
+                readThreads().phase === "offline"
+                  ? "Current threads are unavailable while the server is offline."
+                  : "Loading current threads…"
+              }
+            </p>`
       }
     </div>`;
   }
@@ -2496,7 +2514,9 @@ export function createFloatingPanel({
     // A mark's name is its tooltip too, as an icon control's title is elsewhere in Leaf.
     const threadsOpen = top?.view === "threads" || top?.view === "thread";
     const onUserName = onUser ? `On me: ${onUser}` : "On me";
-    const threadsName = `Threads, ${openCount()} open${news ? `, ${news} with news` : ""}`;
+    const threadsName = inventoried()
+      ? `Threads, ${openCount()} open${news ? `, ${news} with news` : ""}`
+      : "Threads";
     render(
       html`<button
           type="button"

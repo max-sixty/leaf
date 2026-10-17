@@ -9,7 +9,7 @@
     "runtime/anchor-note-view.js": "3729db9f637726cec04e92cf003377575d60b9a6d353664fe88605241a24c7fd",
     "runtime/anchor-placement.js": "fa4a04de9d86a5a122233e2436eae17a77b67312712c72218216afefb2c9f628",
     "runtime/anchor-resolution.js": "51bea173c61ae9a834ce211a6571258283fefccf1850d92718fdcdeb49bc319b",
-    "runtime/anchor-travel.js": "aab5c843257d3976dd802c91508f3e2fd42fa034b9365982584df4db5a2360b8",
+    "runtime/anchor-travel.js": "f0dae0fa56a8ad92e6bd29031eb25fe5132a64477d4a6ae1c00e38db3bee0f48",
     "runtime/annotation-inventory.js": "3c8ff2bcaba458389741240b5569625163dadc0b56bb1e96277d5161b6dcc7b3",
     "runtime/annotation-overlay/anchor-paint.js": "81e783f4de7a88e66d22e08c78778f5606fb4857875759439655c26a7e61eef5",
     "runtime/annotation-overlay/annotation-layer.js": "69b625f4c6bdc657da9e9952d8e9349c93dcd7526066b03e8701a47e7a69b699",

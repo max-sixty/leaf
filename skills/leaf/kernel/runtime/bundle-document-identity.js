@@ -2081,7 +2081,10 @@ function createAnchorTravel({
               at: current.where,
               behavior: "instant",
               when: () => !readableDestination(current.where) || !readableDestination(input)
-            }
+            },
+            // The subject and editor can occupy different parts of a tall
+            // page. Finish on the box the user asked to write in.
+            { at: input, block: "nearest", behavior: "instant" }
           ] : [{ at: current.where, behavior: "instant" }]
         };
       },

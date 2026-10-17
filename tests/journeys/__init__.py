@@ -24,6 +24,23 @@ def listed_threads(page):
     return keys
 
 
+# Where the panel says a passing notice: the empty field's placeholder, the line over a
+# focused field, or, over an open view, the leaf's peek (floating-panel.js).
+_SAYS = """() => [document.querySelector('.lf-fp-field leaf-text')?.getAttribute('placeholder'),
+  ...[...document.querySelectorAll('.lf-fp-context, .lf-fp-peek')].map((n) => n.textContent)]
+  .filter(Boolean).join(' | ')"""
+
+
+def expect_panel_says(page, words):
+    """Wait until the panel says `words` in a passing notice, wherever it says one."""
+    page.wait_for_function(f"(words) => ({_SAYS})().includes(words)", arg=words)
+
+
+def panel_says(page):
+    """Everything the panel says in passing now, joined."""
+    return page.evaluate(_SAYS)
+
+
 def detached_threads(page, thread_ids):
     """Which of `thread_ids` the panel's view of the thread quotes as detached from
     the page: its quote stands but names words the page no longer holds."""

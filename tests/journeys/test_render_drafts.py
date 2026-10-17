@@ -424,7 +424,6 @@ def test_resume_writing_keeps_editor_identity_caret_and_sent_conversation(
     expect(edit).not_to_be_focused()
     # The desktop More reference invokes the same semantic command as gi.
     page.keyboard.press("?")
-    page.keyboard.press("?")
     page.get_by_role("combobox", name="Search commands").fill("Resume writing")
     page.get_by_role("button", name="Resume writing", exact=True).click()
     expect(edit).to_be_focused()

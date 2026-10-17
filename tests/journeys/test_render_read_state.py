@@ -338,7 +338,6 @@ def test_keyboard_first_unread_exposes_authored_reply(browser, serve, origin):
     page = open_page(browser, url)
     if origin == "reference":
         page.keyboard.press("?")
-        page.keyboard.press("?")
         page.get_by_role("combobox", name="Search commands").fill("g u")
         route = page.locator(
             '.lf-command-reference tr[data-lf-command="thread.unread.first"]'

@@ -113,16 +113,16 @@ def test_a_resolution_from_elsewhere_moves_nothing_after_a_diff_thread(browser, 
     expect(page.locator("lf-diff .lf-resolved-summary")).to_have_text("Resolved · 1")
 
 
-@pytest.mark.parametrize("foot", ["under the banner", "under the file header"])
+@pytest.mark.parametrize("foot", ["above the window", "under the file header"])
 def test_diff_news_waits_only_where_its_growth_would_be_seen(browser, serve, foot):
     """A diff thread's new reply waits only where its growth would move what is seen.
 
-    A reply grows the thread at its last message's foot. With that foot under the
-    banner, scroll anchoring takes the growth into what was scrolled past, so the reply
+    A reply grows the thread at its last message's foot. With that foot above the
+    window, scroll anchoring takes the growth into what was scrolled past, so the reply
     shows at once. With it under the diff's stuck file header, which reaches lower than
     the landing band the page anchors in, the growth would push down the lines below
     the header, so the reply waits behind its notice, and shows once a scroll carries
-    the thread under the banner. Either way the line the user reads stays put."""
+    the thread above the window. Either way the line the user reads stays put."""
     url, root = long_diff_thread(serve)
     page = open_page(browser, url)
     resized(page, 1280, 800)
@@ -133,21 +133,20 @@ def test_diff_news_waits_only_where_its_growth_would_be_seen(browser, serve, foo
 
     last = thread.locator(".lf-msg").last
 
-    def stand(node, below_banner):
-        """Scroll `node`'s foot to `below_banner` px below the banner's foot, and
-        return the banner's foot and the root's landing band top."""
+    def stand(node, below_top):
+        """Scroll `node`'s foot to `below_top` px below the window's top, where no
+        chrome stands, and return the root's landing band top."""
         return node.evaluate(
-            """async (node, offset) => {
-              const {bannerFoot} = await window.__lfCheckApi();
-              scrollBy({top: node.getBoundingClientRect().bottom - bannerFoot() - offset,
+            """(node, offset) => {
+              scrollBy({top: node.getBoundingClientRect().bottom - offset,
                 behavior: 'instant'});
               const root = getComputedStyle(document.documentElement);
-              return {banner: bannerFoot(), landing: parseFloat(root.scrollPaddingTop)};
+              return {landing: parseFloat(root.scrollPaddingTop)};
             }""",
-            below_banner,
+            below_top,
         )
 
-    chrome = stand(last, -8 if foot == "under the banner" else 24)
+    chrome = stand(last, -8 if foot == "above the window" else 24)
     rendered(page)
     box = last.bounding_box()
     foot_at = box["y"] + box["height"]
@@ -156,7 +155,7 @@ def test_diff_news_waits_only_where_its_growth_would_be_seen(browser, serve, foo
         header_foot = header_box["y"] + header_box["height"]
         assert chrome["landing"] < foot_at < header_foot, (chrome, foot_at, header_foot)
     else:
-        assert foot_at < chrome["banner"], (chrome, foot_at)
+        assert foot_at < 0, (chrome, foot_at)
     # Chrome reports no shift within 500ms of input, so the news lands after it.
     page.wait_for_function(
         "at => performance.now() - at > 500", arg=page.evaluate("performance.now()")
@@ -169,7 +168,7 @@ def test_diff_news_waits_only_where_its_growth_would_be_seen(browser, serve, foo
     rendered(page)
     notice = thread.get_by_role("button", name="1 new reply", exact=True)
     messages = thread.locator(".lf-msg")
-    if foot == "under the banner":
+    if foot == "above the window":
         expect(messages).to_have_count(2)
         expect(notice).to_have_count(0)
     else:
@@ -186,7 +185,7 @@ def test_diff_news_waits_only_where_its_growth_would_be_seen(browser, serve, foo
 
 def test_growth_is_seen_only_below_where_scroll_anchoring_holds(browser, serve):
     """Scroll anchoring keeps still the first box in the root's landing band, which
-    starts a gap below the banner. A paragraph ending in that gap grows into what was
+    starts a gap below the window's top. A paragraph ending in that gap grows into what was
     scrolled past, so growth after it is not seen; one ending below the band's top
     pushes down what follows it, so growth after it is."""
     paragraphs = "".join(
@@ -197,8 +196,7 @@ def test_growth_is_seen_only_below_where_scroll_anchoring_holds(browser, serve):
     resized(page, 1280, 800)
     readings = page.evaluate(
         """async () => {
-          const {bannerFoot, growthAfterIsSeen} =
-            await window.__lfCheckApi();
+          const {growthAfterIsSeen} = await window.__lfCheckApi();
           const landing = parseFloat(
             getComputedStyle(document.documentElement).scrollPaddingTop);
           const frame = () => new Promise(requestAnimationFrame);
@@ -217,7 +215,8 @@ def test_growth_is_seen_only_below_where_scroll_anchoring_holds(browser, serve):
             await frame();
             return {foot, seen, moved};
           };
-          const banner = bannerFoot();
+          // No chrome stands over the page's head.
+          const banner = 0;
           return {banner, landing,
             gap: await read((banner + landing) / 2),
             band: await read(landing + 6)};

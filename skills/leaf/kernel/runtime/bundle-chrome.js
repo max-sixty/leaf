@@ -189,14 +189,16 @@ var HTML_WORDS = {
 function addressableWord(addressable) {
   if (!addressable) return "";
   const tag = addressable.tagName.toLowerCase();
-  if (registry[tag]?.["x-word"] === "module") {
-    const own = addressable.lfWord?.();
-    if (own) return own;
-  }
-  if (tag.startsWith("lf-")) return tag.slice(3);
+  const word = widgetWord(tag, addressable);
+  if (word) return word;
   if (tag === "pre")
     return addressable.querySelector(":scope > code") ? "code" : "block";
   return HTML_WORDS[tag] ?? tag;
+}
+function widgetWord(tag, element = null) {
+  const declared2 = registry[tag]?.["x-word"];
+  const own = declared2 === "module" ? element?.lfWord?.() : declared2;
+  return own || (tag.startsWith("lf-") ? tag.slice(3) : "");
 }
 function addressableSays(addressable) {
   if (!addressable) return "";
@@ -1463,6 +1465,7 @@ export {
   registerVisualParts,
   visualPartProblems,
   addressableWord,
+  widgetWord,
   addressableSays,
   addressableName,
   addressableLabel,

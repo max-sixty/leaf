@@ -1,6 +1,6 @@
 """Registry-declared markup instance validation."""
 
-from leaf.asks import asking, local_ask_entry, quoted_in
+from leaf.asks import asking, local_ask_entry, quoted_in, replied
 from leaf.findings import Finding, element_at
 from leaf.gesture_words import leading_title_node
 from leaf.projection import enclosing_widgets, recorded_owner
@@ -213,9 +213,11 @@ def ask_context_errors(document: SourceDocument, registry: dict) -> list[Finding
 
     Context never owns ask identity or registration. Any number of sources
     can select it, and each source retains its independent answer and lifecycle.
-    A context framing no source asks nothing: the page shows a question the banner
+    A context framing widgets none of which asks shows a question the On me list
     never counts and the user can't answer, so the error names what each framed
-    widget lacks to ask (`unasked`).
+    widget lacks to ask (`unasked`). A context framing no widget asks only if it
+    declares its own reply-answered ask (`x-awaits.reply`), and then needs no
+    heading: its words are the question.
     """
 
     def context_of(rec):
@@ -240,10 +242,18 @@ def ask_context_errors(document: SourceDocument, registry: dict) -> list[Finding
             framed[id(region)].append((rec, unasked(rec, entry)))
     errors = []
     for region in regions:
+        held = framed[id(region)]
+        # The ask's title is what the shared name rule reads, so this asks that rule
+        # rather than restating a shape it accepts. It must be a heading as well, the
+        # question's place in the outline and in heading navigation.
+        title = leading_title_node(document.authoring.node_of(region))
+        titled = bool(title) and title["tag"] in {f"h{n}" for n in range(1, 7)}
+        # A question is its words alone. A heading over no widget is a frame whose
+        # widget is missing, as when a revision drops the decision it framed.
+        if not held and replied(registry[region["tag"]]) and not titled:
+            continue
         # A quoted context is a mention whose widgets ask nothing by design.
-        if not quoted_in(region, registry) and all(
-            lacks for _, lacks in framed[id(region)]
-        ):
+        if not quoted_in(region, registry) and all(lacks for _, lacks in held):
             widgets = [
                 {
                     "at": element_at(rec["tag"], rec["attrs"].get("id", "")),
@@ -253,11 +263,7 @@ def ask_context_errors(document: SourceDocument, registry: dict) -> list[Finding
                 for rec, lacks in framed[id(region)]
             ]
             errors.append(found_at("empty-ask-context", region, widgets=widgets))
-        # The ask's title is what the shared name rule reads, so this asks that rule
-        # rather than restating a shape it accepts. It must be a heading as well, the
-        # question's place in the outline and in heading navigation.
-        title = leading_title_node(document.authoring.node_of(region))
-        if not title or title["tag"] not in {f"h{n}" for n in range(1, 7)}:
+        if not titled:
             errors.append(found_at("ask-context-title", region))
     return errors
 

@@ -2338,7 +2338,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
     )
     url = serve(html)
     stamp_page(serve.page_dir, html, "two")
-    panel_comment(serve.page_dir, "Is this ready?", author="agent")
+    panel_comment(serve.page_dir, "Is this ready?", author="agent", question="Ship it?")
     page = open_page(browser, url)
     resized(page, 1280, 900)
     # The complete real action set, wherever the fold has put each of them: what this is
@@ -2668,7 +2668,7 @@ def test_preview_diagnostics_keep_their_fixed_banner_overflow_seat(browser, serv
             "started": "2026-09-06T12:00:00+00:00",
         },
     )
-    panel_comment(serve.page_dir, "Is this ready?", author="agent")
+    panel_comment(serve.page_dir, "Is this ready?", author="agent", question="Ship it?")
     page = open_page(browser, url)
     expect(page.locator(".lf-preview")).to_have_count(1)
 
@@ -2746,7 +2746,7 @@ def test_a_phone_banner_keeps_fixed_primary_and_menu_seats(browser, serve, other
         '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
     )
     url = serve(html)
-    panel_comment(serve.page_dir, "Is this ready?", author="agent")
+    panel_comment(serve.page_dir, "Is this ready?", author="agent", question="Ship it?")
     page = open_page(browser, url)
     resized(page, 390, 800)
 

@@ -1,5 +1,6 @@
 """Shared interaction browser-integration cases and readings."""
 
+import hashlib
 import json
 from datetime import datetime, timedelta
 
@@ -53,13 +54,17 @@ LIST_ORDER = """() => [...document.querySelector(".lf-threads").children]
   .filter(Boolean)"""
 
 
-def panel_comment(d, text, anchor=None, author="user"):
-    """One thread's opening message, written straight to the log."""
+def panel_comment(d, text, anchor=None, author="user", *, question=None):
+    """One thread's opening message, written straight to the log. An agent's that
+    waits on the user carries its `question` in an lf-ask."""
     event = {"kind": "comment", "author": author, "revision": 1, "text": text}
     if author == "agent":
         event["agent"] = "Claude"
     if anchor:
         event["anchor"] = anchor
+    if question:
+        identity = "question-" + hashlib.sha256(question.encode()).hexdigest()[:6]
+        event["markup"] = f'<lf-ask id="{identity}">{question}</lf-ask>'
     return append_carried_log_record(d, event)["id"]
 
 
@@ -1474,8 +1479,9 @@ WORKSHOP_THREAD_EVENTS = tuple(
             "parent": PHOTO_THREAD,
             "responds": PHOTO_THREAD,
             "id": PHOTO_QUESTION,
-            "question": True,
-            "text": "Does the room photo show enough, or should I reshoot it wider?",
+            "text": "One question about the photo:",
+            "markup": '<lf-ask id="photo-question">Does the room photo show enough, or'
+            " should I reshoot it wider?</lf-ask>",
             "ts": "2026-09-02T00:12:55-07:00",
         },
         # Newer than the question and not one: the thread stays on the user for the

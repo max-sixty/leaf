@@ -1270,41 +1270,54 @@ function anchorDropsTransforms() {
   anchored.remove();
   return dropsTransforms;
 }
-var MOVES = ["transform", "translate", "rotate", "scale", "offsetPath"];
-function transformShift(el) {
+function laidOut(el) {
+  const parent = el.offsetParent;
+  let left = el.offsetLeft;
+  let top = el.offsetTop;
+  if (!parent) {
+    if (getComputedStyle(el).position !== "fixed") return null;
+    return { left, top };
+  }
+  if (parent === document.body && getComputedStyle(parent).position === "static") {
+    left -= scrollX;
+    top -= scrollY;
+  } else {
+    const from = parent.getBoundingClientRect();
+    left += from.left + parent.clientLeft - parent.scrollLeft;
+    top += from.top + parent.clientTop - parent.scrollTop;
+  }
+  for (let box = renderedParent(el); box !== parent; box = renderedParent(box)) {
+    if (!(box instanceof Element)) return null;
+    left -= box.scrollLeft;
+    top -= box.scrollTop;
+  }
+  return { left, top };
+}
+function movement(style) {
+  const matrix = style.transform === "none" ? null : new DOMMatrixReadOnly(style.transform);
+  const moves = Boolean(matrix) || style.translate !== "none" || style.rotate !== "none" || style.scale !== "none" || style.offsetPath !== "none";
+  const slides = style.rotate === "none" && style.scale === "none" && (style.offsetPath === "none" || style.offsetRotate === "0deg") && (!matrix || matrix.is2D && matrix.a === 1 && matrix.b === 0 && matrix.c === 0 && matrix.d === 1);
+  return { moves, slides };
+}
+function translationOf(el) {
   let x = 0;
   let y = 0;
   for (let at = el; at instanceof Element; at = renderedParent(at)) {
-    const style = getComputedStyle(at);
-    if (MOVES.every((property) => style[property] === "none")) continue;
-    if (!(at instanceof HTMLElement)) return null;
-    const parent = at.offsetParent;
-    if (!parent) return null;
-    let left = at.offsetLeft;
-    let top = at.offsetTop;
-    if (parent === document.body) {
-      left -= scrollX;
-      top -= scrollY;
-    } else {
-      const from = parent.getBoundingClientRect();
-      left += from.left + parent.clientLeft - parent.scrollLeft;
-      top += from.top + parent.clientTop - parent.scrollTop;
-    }
-    for (let box = renderedParent(at); box !== parent; box = renderedParent(box)) {
-      if (!(box instanceof Element)) return null;
-      left -= box.scrollLeft;
-      top -= box.scrollTop;
-    }
+    const { moves, slides } = movement(getComputedStyle(at));
+    if (!moves) continue;
+    if (!slides || !(at instanceof HTMLElement) || at.currentCSSZoom !== 1) return null;
+    const layout = laidOut(at);
+    if (!layout) return null;
     const shown = at.getBoundingClientRect();
-    x += shown.left - left;
-    y += shown.top - top;
+    x += shown.left - layout.left;
+    y += shown.top - layout.top;
   }
   return { x, y };
 }
 function anchorBox(anchor) {
   const box = anchor.getBoundingClientRect();
   if (!anchorDropsTransforms()) return box;
-  const shift = transformShift(anchorHolder(anchor));
+  const shift = translationOf(anchorHolder(anchor));
   return shift && (shift.x || shift.y) ? new DOMRect(box.left - shift.x, box.top - shift.y, box.width, box.height) : box;
 }
 function anchorAt(node, anchor, box, at = anchor && anchorBox(anchor), visibility = "always") {

@@ -340,12 +340,15 @@ export const anchorName = (el) => nameAnchor(anchorReading(el));
 // off by the transform: a table granted room is translated into place (layouts.css),
 // and at 1728 px every pin, chip and comment box against one stood 300 px left of what
 // it marked (notes/browser-support.md, "An anchor's transforms in Firefox"). There the
-// reading takes off how far each transform moves its box (`transformShift`).
+// reading takes off how far each translation on the anchor or an ancestor moves its box
+// (`translationOf`). A scale, rotation or zoom moves each point of a box differently,
+// and keeps the script's reading.
 //
 // Rejected: a probe anchored to the same name, read for the corner `anchor()` resolves.
 // Firefox resolves it from where scrolls stood at its last anchor snapshot, so a probe
-// read straight after a scroll returned the earlier spot and the inset kept the error;
-// and a probe in the chrome reaches no anchor in a native layer.
+// read straight after a scroll between it and the anchor, the widened table's own
+// included, returned where the anchor stood before; and a probe in the chrome reaches
+// no anchor in a native layer.
 let dropsTransforms;
 // Firefox lacks transforms in `anchor()`; read once whether this engine does.
 function anchorDropsTransforms() {
@@ -362,50 +365,75 @@ function anchorDropsTransforms() {
   anchored.remove();
   return dropsTransforms;
 }
-const MOVES = ["transform", "translate", "rotate", "scale", "offsetPath"];
-// How far the transforms on `el` and its ancestors move its box: for each transformed
-// box, where it stands less where layout put it, from its offset parent's box and the
-// scrolls between (offsets leave transforms and those scrolls out). Null where a
-// transformed box has no offset to read, as an SVG element or a fixed box has none.
-function transformShift(el) {
+// Where layout put `el`, in client coordinates, without its own transforms: its offset
+// from its offset parent's box, less the scrolls between, which offsets leave out. A
+// static body's offsets count from the document's corner, and a fixed box's from the
+// window's. Null where it has no offset to read.
+function laidOut(el) {
+  const parent = el.offsetParent;
+  let left = el.offsetLeft;
+  let top = el.offsetTop;
+  if (!parent) {
+    if (getComputedStyle(el).position !== "fixed") return null;
+    return { left, top };
+  }
+  if (parent === document.body && getComputedStyle(parent).position === "static") {
+    left -= scrollX;
+    top -= scrollY;
+  } else {
+    const from = parent.getBoundingClientRect();
+    left += from.left + parent.clientLeft - parent.scrollLeft;
+    top += from.top + parent.clientTop - parent.scrollTop;
+  }
+  for (let box = renderedParent(el); box !== parent; box = renderedParent(box)) {
+    if (!(box instanceof Element)) return null;
+    left -= box.scrollLeft;
+    top -= box.scrollTop;
+  }
+  return { left, top };
+}
+// Whether `style` moves its box at all, and whether only by a translation.
+function movement(style) {
+  const matrix =
+    style.transform === "none" ? null : new DOMMatrixReadOnly(style.transform);
+  const moves =
+    Boolean(matrix) ||
+    style.translate !== "none" ||
+    style.rotate !== "none" ||
+    style.scale !== "none" ||
+    style.offsetPath !== "none";
+  const slides =
+    style.rotate === "none" &&
+    style.scale === "none" &&
+    (style.offsetPath === "none" || style.offsetRotate === "0deg") &&
+    (!matrix || (matrix.is2D && matrix.a === 1 && matrix.b === 0 && matrix.c === 0 && matrix.d === 1));
+  return { moves, slides };
+}
+// How far the translations on `el` and its ancestors move its box, or null where one of
+// them scales, rotates or zooms it, or has no offset to read.
+function translationOf(el) {
   let x = 0;
   let y = 0;
   for (let at = el; at instanceof Element; at = renderedParent(at)) {
-    const style = getComputedStyle(at);
-    if (MOVES.every((property) => style[property] === "none")) continue;
-    if (!(at instanceof HTMLElement)) return null;
-    const parent = at.offsetParent;
-    if (!parent) return null;
-    let left = at.offsetLeft;
-    let top = at.offsetTop;
-    if (parent === document.body) {
-      left -= scrollX;
-      top -= scrollY;
-    } else {
-      const from = parent.getBoundingClientRect();
-      left += from.left + parent.clientLeft - parent.scrollLeft;
-      top += from.top + parent.clientTop - parent.scrollTop;
-    }
-    for (let box = renderedParent(at); box !== parent; box = renderedParent(box)) {
-      if (!(box instanceof Element)) return null;
-      left -= box.scrollLeft;
-      top -= box.scrollTop;
-    }
+    const { moves, slides } = movement(getComputedStyle(at));
+    if (!moves) continue;
+    if (!slides || !(at instanceof HTMLElement) || at.currentCSSZoom !== 1) return null;
+    const layout = laidOut(at);
+    if (!layout) return null;
     const shown = at.getBoundingClientRect();
-    x += shown.left - left;
-    y += shown.top - top;
+    x += shown.left - layout.left;
+    y += shown.top - layout.top;
   }
   return { x, y };
 }
 export function anchorBox(anchor) {
   const box = anchor.getBoundingClientRect();
   if (!anchorDropsTransforms()) return box;
-  const shift = transformShift(anchorHolder(anchor));
+  const shift = translationOf(anchorHolder(anchor));
   return shift && (shift.x || shift.y)
     ? new DOMRect(box.left - shift.x, box.top - shift.y, box.width, box.height)
     : box;
 }
-
 // Writes `node` fixed over `box`, a client rectangle, or a point where `box` gives no
 // right edge and the node keeps its own size, as insets from where `anchor` stood (`at`,
 // `anchorBox`) as `box` was measured, so the browser carries it through every scroll

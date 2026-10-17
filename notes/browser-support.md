@@ -598,12 +598,14 @@ document, and the runtime relies on it (next entry).
 
 ### An anchor's transforms in Firefox
 
-- **Disposition: answered.** `anchorBox` (`runtime/css-anchors.js`) is where every
-  inset Leaf writes against an anchor is measured from. In an engine that leaves
-  transforms out, read once, it takes off how far each transform on the anchor or
-  an ancestor moves its box, read from offsets, which leave transforms out too.
-  Remove it when Firefox counts them. A probe anchored to the same name was
-  rejected: read straight after a scroll it returns where the anchor stood before.
+- **Disposition: answered for translations.** `anchorBox` (`runtime/css-anchors.js`)
+  is where every inset Leaf writes against an anchor is measured from. In an engine
+  that leaves transforms out, read once, it takes off how far each translation on
+  the anchor or an ancestor moves its box, read from offsets, which leave
+  transforms out too. A scale, rotation or CSS zoom moves each point differently and
+  stays unanswered. Remove it when Firefox counts transforms. A probe anchored to
+  the same name was rejected: read straight after a scroll between it and the
+  anchor, it returns where the anchor stood before.
 - **Affected:** every box anchored in a table granted room, which `layouts.css`
   translates into place, and in any box a page transforms: margin rows and pins,
   the Alt outline, key chips, the comment box and the thread card.

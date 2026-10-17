@@ -1,0 +1,72 @@
+{
+  "mode": "diff",
+  "from": "HEAD~",
+  "to": "HEAD",
+  "trees": [
+    {
+      "entry": "double",
+      "ascii": "  double()\n- ├─ before()\n+ └─ after()",
+      "tree": {
+        "key": "double",
+        "label": "double()",
+        "status": "same",
+        "kind": "call",
+        "file": "src/my  file.ts",
+        "line": 1,
+        "children": [
+          {
+            "key": "before",
+            "label": "before()",
+            "status": "removed",
+            "kind": "call",
+            "file": "src/my  file.ts",
+            "line": 2,
+            "children": []
+          },
+          {
+            "key": "after",
+            "label": "after()",
+            "status": "added",
+            "kind": "call",
+            "file": "src/my  file.ts",
+            "line": 2,
+            "children": []
+          }
+        ]
+      }
+    },
+    {
+      "entry": "single",
+      "ascii": "  single()\n- ├─ before()\n+ └─ after()",
+      "tree": {
+        "key": "single",
+        "label": "single()",
+        "status": "same",
+        "kind": "call",
+        "file": "src/my file.ts",
+        "line": 1,
+        "children": [
+          {
+            "key": "before",
+            "label": "before()",
+            "status": "removed",
+            "kind": "call",
+            "file": "src/my file.ts",
+            "line": 2,
+            "children": []
+          },
+          {
+            "key": "after",
+            "label": "after()",
+            "status": "added",
+            "kind": "call",
+            "file": "src/my file.ts",
+            "line": 2,
+            "children": []
+          }
+        ]
+      }
+    }
+  ],
+  "ascii": "calldiff diff HEAD~ → HEAD\n\n  double()\n- ├─ before()\n+ └─ after()\n\n  single()\n- ├─ before()\n+ └─ after()"
+}

@@ -8,19 +8,21 @@
  * the containing inspector only allocates room and chooses the local view.
  * Print stacks both frames. */
 :scope:is(lf-shot) { display: block; margin: 16px 0; container: lf-shot / inline-size;
-    --lf-shot-rail-size: max(34px, var(--aim-floor)); }
+    --lf-shot-rail-size: max(34px, var(--aim-floor));
+    --lf-shot-ratio: attr(data-lf-media-width type(<number>)) /
+      attr(data-lf-media-height type(<number>)); }
 :scope:is(lf-shot):has(.lf-shotframe) { display: grid; }
 /* Where the runtime runs, the rail and the frame stand empty from the first paint, the
  * frame in the pair's shape, which delivery reads from the images
  * (`data-lf-media-width`, `data-lf-media-height`), so the images and the comparison
- * arrive in a box that is already there. */
+ * arrive in a box that is already there. The same ratio sizes the native frames
+ * after upgrade until decoded dimensions replace it. */
 @scope (html[data-lf-interactive] :scope) {
   :scope:is(lf-shot):not(:has(> .lf-shotrail)){
     &::before { content: ""; display: block; height: var(--lf-shot-rail-size); border: 1px solid var(--rule);
       border-bottom: 0; border-radius: var(--r) var(--r) 0 0; background: var(--card); }
     &::after { content: ""; display: block; box-sizing: border-box;
-      aspect-ratio: attr(data-lf-media-width type(<number>)) /
-      attr(data-lf-media-height type(<number>));
+      aspect-ratio: var(--lf-shot-ratio);
       border: 1px solid var(--rule); border-radius: 0 0 var(--r) var(--r);
       background: var(--card); }
   }
@@ -196,9 +198,11 @@
     align-self: stretch; justify-self: stretch; width: 100%; height: 100%;
     min-width: 0; min-height: 0; margin: 0; padding: 0; border: 0;
     appearance: none; opacity: 0; cursor: pointer; }
-:scope:is(lf-shot):not([data-lf-shot-mode="compare"], [data-lf-shot-mode="overlay"]):not(:has(> .lf-shotcomparison)) > .lf-shotframe {
-    grid-area: 2 / 1; border: 1px solid var(--rule);
-    border-radius: 0 0 var(--r) var(--r); }
+@media screen {
+  :scope:is(lf-shot):not([data-lf-shot-mode="compare"], [data-lf-shot-mode="overlay"]):not(:has(> .lf-shotcomparison)) > .lf-shotframe {
+    grid-area: 2 / 1; aspect-ratio: var(--lf-shot-ratio); box-sizing: border-box;
+    border: 1px solid var(--rule); border-radius: 0 0 var(--r) var(--r); }
+}
 :scope:is(lf-shot):not([data-lf-shot-mode="compare"], [data-lf-shot-mode="overlay"]):not(:has(> .lf-shotcomparison))
 > .lf-shotframe[data-lf-state="after"] { visibility: hidden; }
 :scope:is(lf-shot):not([data-lf-shot-mode="compare"], [data-lf-shot-mode="overlay"]):not(:has(> .lf-shotcomparison)):has(input:checked)

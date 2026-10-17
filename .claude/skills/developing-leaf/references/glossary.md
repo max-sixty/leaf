@@ -30,7 +30,7 @@ implementation terms keep their exact spelling where the reader needs them.
 | **Sent** | An update Leaf has logged that no harness has queued or opened into a turn yet (stage `sent` in `workflows.py`); before the log accepts it, the browser shows **Sending** |
 | **Working** | The agent has explicitly started this update or to-do; page activity alone doesn't mean it has |
 | **Undo** | Taking back the user's latest update that can be taken back |
-| **Threads** | The control and panel listing conversations. A **thread** is one conversation; a **comment box** is the field where the user writes a comment or reply |
+| **Threads** | The mark in Leaf's panel and the view it opens, listing conversations. A **thread** is one conversation; a **comment box** is the field where the user writes a comment or reply |
 | **Version** | A stamped page the user can revisit: **Showing v4** in the version picker, or **Showing Draft** for the live unstamped source |
 
 Visible copy speaks in the user's voice, since the page is their space. Use the first
@@ -49,13 +49,14 @@ event kind. Don't call an update a *move* or *feedback*, or an *input* as a coun
 a worker's news is a **report**, and the agent's interim thread message a **progress
 message**. Until an answer replaces it, the thread shows the agent's current line at
 its foot as the **working message**. Update counts don't count revisions. Where the
-kind is known, say **answer** or **reply** rather than *response*; the On panel lists a
+kind is known, say **answer** or **reply** rather than *response*; On *agent* lists a
 reply the agent owes as **Reply** and a revision it owes as **Answer**. Undo keeps its
 name whatever widget action it takes back.
 
-The **Pages drawer**, opened by **All pages**, lists live pages on this machine. **No
-session** means no agent session holds the page, on the banner and on neighboring-page
-rows. **Page closed** means the page's work has ended.
+**All pages**, a view of Leaf's panel opened from Navigate in the leaf's menu, lists
+live pages on this machine. **No session** means no agent session holds the page, in
+the panel's status and on All pages' rows. **Page closed** means the page's work has
+ended.
 
 ## Pages, packages, and layers
 
@@ -120,25 +121,20 @@ only how they look. Only a full-height workspace gives a pane bounded posture; a
 pane, including a page tab's, stays in flow. A compound widget may own reading regions
 without being a pane, and its own stylesheet decides whether they scroll.
 
-## Chrome and auxiliary surfaces
+## Chrome and the Leaf panel
 
 | Term | Identity criterion |
 |---|---|
 | **Chrome** | Interface the runtime draws outside authored content, rooted at the one `.lf-chrome` container |
-| **Leaf panel** | The default chrome (`floating-panel.js`) that replaces the banner and bottom bar with one box floating at the window's foot: the leaf, which opens a menu of the page's controls, the comment field, and the On me and Threads marks |
-| **Banner** | The other chrome, chosen with **Use the banner** in the leaf's menu (`chrome-choice.js`) or `?lf-chrome=classic`: the fixed row at the window's top with page status, the agent's count (**On Claude: 2**), the primary controls, and a More menu of the rest (`banner-toolbar.js`) |
-| **Page comment card** | The card under the banner's Comment on the page control, holding the page's general comment box, the one place a page thread starts (`thread/page-comment.js`) |
-| **Bottom bar** | Classic chrome's row at the window's foot, of fixed height (`--lf-bottom-bar-h`), holding the shortcut bar and the status |
-| **Auxiliary surface** | Chrome opened `beside`, `over` or `covering` the content frame |
-| **Side panel** | The right-edge slot, with one width and one drawn edge, that the thread panel and the On panel share; the banner's On me and Threads controls open it. The On panel's head is a tab per list, On me and On *agent*, and the open tab serves as its title |
-| **Thread panel** | The auxiliary surface listing threads, one of the two in the side panel |
-| **Drawer** | An auxiliary surface with a head over a list of rows, one open at a time: the On panel in the side panel, and the Pages drawer at the left |
+| **Leaf panel** | Leaf's chrome (`floating-panel.js`): one box floating at the window's foot. Its **row** holds the leaf, the comment field, and the On me and Threads marks with their counts; **folded**, it is the leaf alone in the window's corner |
+| **Leaf** | The mark at the row's start, coloured by the agent's state; a press opens the leaf's menu, or unfolds a folded panel |
+| **Leaf's menu** | The small menu above the leaf of the page's other controls (`page-controls.js`), one line each with its shortcut. A row ending in a chevron opens its list in the menu's place: Navigate, Annotations, About this page, Versions |
+| **Comment field** | The panel's one box for writing: a page comment, or a reply while a thread is open. Empty, it says the agent's status, a passing notice or a walk's position where a placeholder would |
+| **View** | What opens above the row and covers the page beneath it: Threads, a thread, the On view (one tab per list, On me and On *agent*) or All pages. Escape or a press on the page puts it away |
 
-The current drawers are the **On panel** (experimental) and the **Pages drawer**. Say
-*covering auxiliary surface*, not *modal workspace*: a covering surface makes the page
-inert behind it, but it is not a modal dialog. A surface over the page, such as the
-thread panel on a desktop window, takes no width from the page and leaves it live. A
-**sticky header** covers one edge of one scroller and is not modal.
+A view takes no width from the page and leaves it live. A **sticky header** covers one
+edge of one scroller. A thread about a passage opens as a **thread card** beside its
+words, and in the panel only where nothing on the page draws it.
 
 ## Page Map and the margin
 
@@ -188,15 +184,15 @@ In flow it lists every included heading; where the margin has room it may show t
 | **Tally** | `lf-tally`: how many of a region's asks (`asksIn`) are still open, “7 of 8 to answer”, with an optional Next on me that walks the region's asks waiting on the user |
 | **Resend** | An update the user has to send again, which stays in On me until they do |
 | **Done** | The control with which the user ends a to-do the agent gave them; it writes `todo_end`. A widget may also call its own submit control Done |
-| **Done fold** | The items that left a list, folded under it in the On panel |
+| **Done items** | The items that left either list, under a Done heading at the foot of the On view |
 | **Trip** | One move to a destination, such as a thread's passage, an ask, or the element a followed fragment link names. It clears any surface hiding the destination, then stays put if the user already sees it, or moves and adds a history entry (`history.js`) |
 | **Journey** | Consecutive trips, each starting where the last landed, that share one history entry, so Back returns to where the first began |
 | **Standing** | Being at a destination or a control inside it: a thread on the page or in the panel, an ask, or authored page content. A panel thread's title and its messages are one destination; chrome controls, margin rows, comment notes and contents links are not destinations |
 | **Standing target** | The addressable element the user is at, whether focus is on the element, inside it, on its margin cluster, on a note it names on the details shelf, or on the thread card showing its threads (`standing-target.js`) |
-| **Floor** | The place in a layer where the user is at nothing: the page's body, or the whole thread panel |
+| **Floor** | The place in a layer where the user is at nothing: the page's body, or an open view of Leaf's panel as a whole |
 | **Unwind** | What one Escape closes: the innermost open step, decided by what is open now rather than how the user got there (`runtime/keyboard/AGENTS.md`, "Escape"). It lands the user on the parent of what it closed |
 | **Landing** | Where a step leaves the user. Closing a box lands on its container, leaving a destination lands on the layer's floor, and closing a surface lands on the document block the user was reading |
-| **Layer stack** | Leaf's ordered record of the popovers and modal dialogs open over the page (`keyboard/layer-stack.js`); a covering auxiliary surface sits beneath it without being an entry |
+| **Layer stack** | Leaf's ordered record of the popovers and modal dialogs open over the page (`keyboard/layer-stack.js`); an open view of Leaf's panel sits beneath it without being an entry |
 | **Focus ring** | The one ring on whatever takes the user's next press: a focused control, a bounded decision, an ask the user is at. It shows standing as well as DOM focus (`--focus-ring` in `theme.css`) |
 | **Key badge** | A keycap-shaped label for a binding or a hint code |
 | **Binding badge** | A key badge showing a command's current binding |
@@ -211,14 +207,10 @@ prefix included (`g d`), and the only word visible text uses. A *keyboard route*
 keyboard path to an action, including Tab to a native control. A row's `routes` are
 its extra keyed meanings, each with its own id and binding.
 
-The keyboard help comes in three forms:
-
-- **Shortcut bar**: the always-visible list of commands that apply now, in the bottom
-  bar.
-- **Expanded shortcut bar**: what More's first press opens, the rest of the current
-  commands in up to two rows; not another surface.
-- **Command reference**: the searchable catalog of all commands, including pointer and
-  platform ones with no key.
+The **command reference** is the keyboard help: the searchable catalog of all
+commands, including pointer and platform ones with no key, opened by `?` or Keyboard
+shortcuts in the leaf's menu. The menu's rows show their own shortcuts; Leaf's panel
+shows no other key hints.
 
 ## Coined terms
 
@@ -257,6 +249,5 @@ These name Leaf concepts no standard term covers:
   counts anything; a tally counts a region's open asks against their total and leads to
   the next one.
 
-**Pin**, **Banner**, **Drawer**, **Toolbar** and **Picker** keep their ordinary UI
-meanings. Qualify **picker** (the target picker, the version picker) where the reaction
-picker could be meant.
+**Pin**, **Toolbar** and **Picker** keep their ordinary UI meanings. Qualify **picker**
+(the target picker, the version picker) where the reaction picker could be meant.

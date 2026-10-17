@@ -9,8 +9,8 @@
       "format": "unified-diff"
     },
     "pr-call-diff": {
-      "file": "pr-walkthrough-call-diff.txt",
-      "lines": "1:31"
+      "file": "pr-walkthrough-call-diff.json",
+      "format": "json"
     },
     "pr-prepared-diff-source": {
       "file": "pr-walkthrough-prepared-diff.rs",

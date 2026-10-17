@@ -522,6 +522,39 @@ def test_a_tall_shot_keeps_its_endpoint_labels_in_view(browser, serve, holder):
     assert rail.bounding_box()["y"] < reading["top"] - 100
 
 
+def test_a_shot_keeps_its_reserved_frame_while_images_load(browser, serve):
+    """Upgrading the controls cannot collapse the image allocation before decode."""
+    url = serve(SHOT_PAGE, media={SHOT_SRC[n]: data for n, data in SHOTS.items()})
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    modules, images = [], []
+    page.route("**/widgets/lf-shot.js", lambda route: modules.append(route))
+    page.route("**/media/*.png", lambda route: images.append(route))
+    page.goto(url, wait_until="domcontentloaded")
+    holding(page, modules, 1, "the screenshot widget before upgrade")
+    shot = page.locator("lf-shot")
+    page.wait_for_function(
+        "parseFloat(getComputedStyle(document.querySelector('lf-shot'), '::after').height) > 100"
+    )
+    before = shot.bounding_box()
+    for route in modules:
+        route.continue_()
+    page.unroute("**/widgets/lf-shot.js")
+    expect(shot.locator(".lf-shotframe img")).to_have_count(2)
+    holding(page, images, 2, "both screenshot image responses")
+    pending = shot.bounding_box()
+    assert shot.locator("img").evaluate_all(
+        "images => images.every(image => image.naturalWidth === 0)"
+    )
+    for route in images:
+        route.continue_()
+    page.unroute("**/media/*.png")
+    render_checks_model.wait_until_ready(page)
+    expect(shot.locator("wa-comparison")).to_be_visible()
+    complete = shot.bounding_box()
+    assert pending == pytest.approx(before, abs=1), (before, pending, complete)
+    assert complete == pytest.approx(before, abs=1), (before, pending, complete)
+
+
 def test_a_shot_adopts_a_fallback_choice_when_the_divider_arrives(browser, serve):
     """View choices preserve the initial split; endpoint choices survive upgrade."""
     after = solid_png(600, 300, (210, 220, 235), patch=(420, 200, 60, 40, (30, 30, 30)))

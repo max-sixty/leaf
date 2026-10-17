@@ -297,10 +297,11 @@ def javascript_imports(data: bytes, path: str) -> tuple[tuple[int, int, str], ..
             if function.type == "import" and (
                 arguments := node.child_by_field_name("arguments")
             ):
-                named = arguments.named_children
-                if len(named) == 1 and named[0].type == "string":
-                    literal = named[0]
-        if literal is not None:
+                literal = next(
+                    (child for child in arguments.named_children if not child.is_extra),
+                    None,
+                )
+        if literal is not None and literal.type == "string":
             imports.append(
                 (
                     literal.start_byte,

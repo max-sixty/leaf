@@ -48,13 +48,12 @@ def condition(column: str) -> str:
 
 
 def measures(sample: dict) -> dict:
-    """What a sample's author spent over its phases and its final version's code. The live judge owns correctness."""
+    """What a sample's author spent over its phases. The live judge owns correctness."""
     recorded = sample["diagnostics"]["phases"]
     comparison = sample["diagnostics"]["comparison"]
     session = [
         recorded.get(str(p), {}).get("trace", {}) for p in comparison["author_phases"]
     ]
-    final = recorded.get(comparison["phases"][""], {})
     initial = recorded.get("1", {}).get("trace", {})
     return {
         "initial_minutes": initial.get("minutes") if initial.get("completed") else None,
@@ -62,8 +61,6 @@ def measures(sample: dict) -> dict:
         "input_tokens": observed_sum(p.get("input_tokens") for p in session),
         "cost": observed_sum(p.get("cost_usd") for p in session),
         "turns": observed_sum(p.get("turns") for p in session),
-        "css": final.get("css_lines"),
-        "script": final.get("script_lines"),
     }
 
 
@@ -342,8 +339,6 @@ def task_section(page: Path, subject: str, columns: dict, pairs: list[dict]) -> 
         ("input_tokens", "Input tokens, including cached", ",.0f", ""),
         ("cost", "Reported author cost", ".2f", "$"),
         ("turns", "Author turns", ".0f", ""),
-        ("css", "Final CSS lines", ".0f", ""),
-        ("script", "Final script lines", ".0f", ""),
     ]
     rows = [
         f'<tr><th scope="row">{label}</th>'

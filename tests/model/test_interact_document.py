@@ -337,11 +337,14 @@ def test_the_captured_widget_digests_say_which_widgets_a_user_may_keep(page_dir)
 def test_module_capture_reads_javascript_syntax_and_rewrites_only_imports(page_dir):
     authored = page_dir / "page"
     (authored / "value.js").write_text("export const value = 1;")
+    (authored / "options.js").write_text("export const options = true;")
     module = """// import "https://outside.example/comment.js";
 const text = 'import "./missing.js"';
 const pattern = /import\\("missing"\\)/;
 const template = `import "./missing.js" ${await import('./value.js')}`;
 export { value } from "./value.js";
+const options = await import(/* module */ './options.js', { /* preserved */ });
+const computed = import(text, { with: { type: './missing.js' } });
 """
     (authored / "app.js").write_text(module)
     (page_dir / "index.html").write_text(
@@ -354,13 +357,18 @@ export { value } from "./value.js";
     assert activated.error is None, activated.error
     artifact = artifact_model.read_artifact(page_dir, activated.revision)
     resource = artifact.resources["/page/app.js"]
-    assert resource.dependencies == ("/page/value.js",)
+    assert resource.dependencies == ("/page/options.js", "/page/value.js")
     rewritten = revision_delivery_model.rebase_module(
         resource.data, "/page/app.js", lambda path: "/revisions/captured" + path
     )
     assert rewritten.decode() == module.replace(
         "import('./value.js')", 'import("/revisions/captured/page/value.js")'
-    ).replace('from "./value.js"', 'from "/revisions/captured/page/value.js"')
+    ).replace('from "./value.js"', 'from "/revisions/captured/page/value.js"').replace(
+        "'./options.js'", '"/revisions/captured/page/options.js"'
+    )
+    assert (
+        artifact.resources["/page/options.js"].data == b"export const options = true;"
+    )
 
 
 def test_invalid_dependencies_leave_the_previous_revision_active(page_dir, tmp_path):

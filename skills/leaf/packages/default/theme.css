@@ -5,6 +5,7 @@
   margin: 16px 0;
   container: lf-shot / inline-size;
   --lf-shot-rail-size: max(34px, var(--aim-floor));
+  --lf-shot-ratio: attr(data-lf-media-width type(<number>)) / attr(data-lf-media-height type(<number>));
 }
 :scope:is(lf-shot):has(.lf-shotframe) {
   display: grid;
@@ -24,7 +25,7 @@
       content: "";
       display: block;
       box-sizing: border-box;
-      aspect-ratio: attr(data-lf-media-width type(<number>)) / attr(data-lf-media-height type(<number>));
+      aspect-ratio: var(--lf-shot-ratio);
       border: 1px solid var(--rule);
       border-radius: 0 0 var(--r) var(--r);
       background: var(--card);
@@ -342,10 +343,14 @@
   opacity: 0;
   cursor: pointer;
 }
-:scope:is(lf-shot):not([data-lf-shot-mode=compare], [data-lf-shot-mode=overlay]):not(:has(> .lf-shotcomparison)) > .lf-shotframe {
-  grid-area: 2 / 1;
-  border: 1px solid var(--rule);
-  border-radius: 0 0 var(--r) var(--r);
+@media screen {
+  :scope:is(lf-shot):not([data-lf-shot-mode=compare], [data-lf-shot-mode=overlay]):not(:has(> .lf-shotcomparison)) > .lf-shotframe {
+    grid-area: 2 / 1;
+    aspect-ratio: var(--lf-shot-ratio);
+    box-sizing: border-box;
+    border: 1px solid var(--rule);
+    border-radius: 0 0 var(--r) var(--r);
+  }
 }
 :scope:is(lf-shot):not([data-lf-shot-mode=compare], [data-lf-shot-mode=overlay]):not(:has(> .lf-shotcomparison)) > .lf-shotframe[data-lf-state=after] {
   visibility: hidden;

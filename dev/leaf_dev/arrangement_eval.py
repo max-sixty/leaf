@@ -22,7 +22,6 @@ from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
 
-import turbohtml
 from leaf.delivery import opened_input_ids
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
@@ -552,48 +551,6 @@ def capture(run: Run) -> dict[int, dict[str, list[str]]]:
     }
 
 
-AUTHORED = (".html", ".css", ".js", ".mjs", ".json")
-
-
-def authored_files(page: Path, condition: str) -> list[Path]:
-    """The text files the author wrote: all of an HTML page's; a Leaf page's
-    document, its page-specific inputs and its data, leaving out what Leaf vendors."""
-    if condition == "html":
-        found = page.rglob("*")
-    else:
-        found = [
-            page / "index.html",
-            *(page / "page").rglob("*"),
-            *(page / "data").rglob("*"),
-        ]
-    return sorted(f for f in found if f.is_file() and f.suffix in AUTHORED)
-
-
-def authored_lines(page: Path, condition: str) -> dict[str, int]:
-    """Non-blank CSS and script lines across the authored files, inline or separate,
-    and the count of `style` attributes."""
-    counts = {"css_lines": 0, "script_lines": 0, "style_attributes": 0}
-
-    def lines(text: str) -> int:
-        return sum(1 for line in text.splitlines() if line.strip())
-
-    for file in authored_files(page, condition):
-        if file.suffix == ".css":
-            counts["css_lines"] += lines(file.read_text())
-        elif file.suffix in (".js", ".mjs"):
-            counts["script_lines"] += lines(file.read_text())
-        elif file.suffix == ".html":
-            # The parsed tree, template contents included, so a live sample's code
-            # counts as the author's too.
-            tree = turbohtml.parse(file.read_text())
-            counts["css_lines"] += sum(lines(e.text) for e in tree.select("style"))
-            counts["script_lines"] += sum(
-                lines(e.text) for e in tree.select("script:not([src])")
-            )
-            counts["style_attributes"] += len(tree.select("[style]"))
-    return counts
-
-
 def comment_answer(run: Run, reply: str) -> str:
     """What the author told the user about their comment, where it was asked: its
     replies on the comment's thread in Leaf, its chat reply in HTML. The judge reads
@@ -773,10 +730,7 @@ def execute_scenario(
                 "captures": captures.get(phase, {}),
             }
             if page:
-                row |= {
-                    "page": str(page),
-                    **authored_lines(page, condition),
-                }
+                row["page"] = str(page)
                 if phase == 3:
                     answer = comment_answer(run, summary["reply"])
             diagnostics["phases"][phase] = row

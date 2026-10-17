@@ -34,7 +34,7 @@ import {
 } from "./bundle-presence.js";
 import {
   inChrome,
-  pageDocument
+  layoutBox
 } from "./bundle-passage-facts.js";
 import {
   LAYOUT,
@@ -296,7 +296,7 @@ function carrierAnchor(subject, sources, scroller) {
   if (!scrollsWith(subject, inner)) return own();
   return carriedAnchor(inner) ?? own();
 }
-var marginColumn = () => pageDocument() || document.body;
+var marginColumn = () => layoutBox() || document.body;
 var railStands = (main) => (main.getAttribute("data-lf-margin") ?? "").split(" ").includes("rail");
 var railBeside = (scroller) => {
   if (scroller === pageScroller) return true;
@@ -365,7 +365,7 @@ function syncMarginResidency(changed) {
 }
 function paintPins() {
   if (!residencyStarted()) return;
-  const main = pageDocument();
+  const main = layoutBox();
   layer?.root.closest(".lf-chrome").toggleAttribute("data-lf-pins", !main || !railStands(main));
 }
 var labelRect = (name, left, top, label) => ({

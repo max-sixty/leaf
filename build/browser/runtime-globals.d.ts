@@ -57,6 +57,7 @@ interface LeafInitial {
   authoredShell(node: Node): Node;
   residency(): LeafReading;
   breakouts(): LeafReading;
+  layoutBox(): Element | null;
   skipped(element: Element, parent?: (node: Element) => Element | null): boolean;
   register(tag: string, render: LeafInitialRenderer): void;
   has(tag: string): boolean;

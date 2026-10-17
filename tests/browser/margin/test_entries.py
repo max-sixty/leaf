@@ -203,8 +203,7 @@ def _refreshes_restate_no_margin_name(page, population):
           // This reading covers Leaf's placement writes on authored boxes.
           const pageBoxes = [...document.querySelectorAll('main, main *')]
             .filter(box => !box.closest('.viewer-container'));
-          const roots = [layer, document.querySelector('.lf-page-map-toggle'),
-            ...document.querySelectorAll(
+          const roots = [layer, ...document.querySelectorAll(
               'div.lf-ui[data-lf-margin-for]:not(.lf-margin-cluster)')];
           // Collected from the callback rather than by `takeRecords` alone: letting a
           // frame settle passes a microtask checkpoint, which delivers the records to
@@ -640,8 +639,8 @@ def test_lit_inline_margin_projection_keys_controls_inside_thread_chrome(
 ):
     """The inline Lit seat reorders one retained control tree and completes its press."""
     page = open_page(browser, serve(PANEL_PAGE))
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
+    page.locator(".lf-fp-threads").click()
+    panel_settled(page, view="threads")
     page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
@@ -652,7 +651,8 @@ def test_lit_inline_margin_projection_keys_controls_inside_thread_chrome(
           const nextTarget = document.createElement('span');
           nextTarget.id = 'inline-margin-next';
           nextTarget.textContent = 'Next inline decision';
-          document.querySelector('.lf-threads').prepend(target, nextTarget);
+          document.querySelector('.lf-fp-view[data-view="threads"] .lf-fp-list')
+            .prepend(target, nextTarget);
           let swapped = false;
           let changed = false;
           const registration = registerContribution({
@@ -709,6 +709,10 @@ def test_lit_inline_margin_projection_keys_controls_inside_thread_chrome(
         "order": ["b", "a"],
     }
 
+    # The Threads view grows to hold what was prepended; press where the control
+    # stands once that motion has finished.
+    rendered(page)
+    panel_settled(page, view="threads")
     box = action_a.bounding_box()
     page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
     page.mouse.down()
@@ -979,8 +983,8 @@ def _a_pin_on_a_wide_figure_hides_with_o_while_the_rail_stays(page):
     status = child.locator('.lf-margin-entry[data-lf-kinds="sent"]')
     expect(status).to_be_visible()
     expect(status.locator("..")).to_have_attribute("data-lf-place", "pin")
-    expect(child.get_by_role("button", name="On me: 0")).to_be_visible()
-    expect(child.get_by_role("button", name="Open threads: 0")).to_be_visible()
+    expect(child.get_by_role("button", name="On me", exact=True)).to_be_visible()
+    expect(child.get_by_role("button", name="Threads, 0 open")).to_be_visible()
     for width in (720, 390):
         resized(page, width, 900)
         sample.scroll_into_view_if_needed()

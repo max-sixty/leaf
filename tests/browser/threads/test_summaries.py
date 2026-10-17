@@ -453,25 +453,29 @@ def test_progress_disclosure_keeps_its_words_visible_beside_margin_paging(
 def test_a_summary_gathering_the_message_the_user_is_on_keeps_them_on_it(
     browser, serve
 ):
-    """A checkpoint arriving over the message the user stands on opens around it.
+    """A checkpoint arriving over the message the user stands in opens around it.
 
-    The message moves into the checkpoint's originals, and the user moves with it
-    rather than dropping to the page. The summary waits behind the thread's notice
-    until the user shows it."""
+    The message moves into the checkpoint's originals, and the user, on a link in it,
+    moves with it rather than dropping to the page. The summary waits behind the
+    thread's notice until the user shows it."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Start with the measured constraint.", {"section": "how-store"}
     )
     first = append_agent_reply(serve.page_dir, root, "The constraint still applies.")
-    held = append_user_reply(serve.page_dir, root, "It holds for the camera too.")
+    held = append_agent_reply(
+        serve.page_dir,
+        root,
+        "It holds for [the camera](https://example.com/camera) too.",
+    )
     append_agent_reply(serve.page_dir, root, "The later result remains visible.")
 
     page = open_page(browser, url)
     resized(page, 1440, 600)
     card = open_margin_card(page, root)
-    message = card.locator(f'.lf-msg[data-event="{held["id"]}"]')
-    message.focus()
-    expect(message).to_be_focused()
+    link = card.locator(f'.lf-msg[data-event="{held["id"]}"] a')
+    link.focus()
+    expect(link).to_be_focused()
 
     summary = summarize_thread(
         serve.page_dir, first["id"], held["id"], "The constraint was confirmed."
@@ -484,7 +488,7 @@ def test_a_summary_gathering_the_message_the_user_is_on_keeps_them_on_it(
             f'.lf-summary-originals > .lf-msg[data-event="{held["id"]}"]'
         )
     ).to_be_visible()
-    expect(message).to_be_focused()
+    expect(link).to_be_focused()
 
 
 @pytest.mark.parametrize(

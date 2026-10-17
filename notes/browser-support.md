@@ -25,20 +25,6 @@ what fails and what still works.
 
 ## Supported APIs checked
 
-### Feedback clearance above a covering thread panel
-
-- **Owner:** `styles/chrome.css`. Native `anchor-size()` reads the panel foot and
-  selected reply, while `anchor()` reads the list's foot; feedback keeps one
-  clearance through list scrolling and draft growth. The list opens one chosen
-  thread, so it supplies one visible reply anchor.
-- **Observed 2026-10-14:** installed Playwright Chromium 153.0.8010.12, Firefox 155
-  and WebKit 26.6 match the former measured placement within one pixel for short
-  and multiline replies at both scroll ends, reply selection changes, an empty
-  list, a multiline page-mode foot composer, and the panel beside the page.
-  Empty lists use the foot anchor alone; a reply's presence adds its clearance.
-- **Disposition:** adopted without a fallback. These are installed engine checks,
-  rather than a current stable-browser compatibility survey.
-
 ### Help search result relationships
 
 - **Owner:** `runtime/keyboard/command-reference.js`. The shared input keeps its

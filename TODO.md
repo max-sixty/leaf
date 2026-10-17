@@ -250,7 +250,7 @@ and its chrome coordinate.
   unlayered and adopted after the page's sheets, so a page rule naming a chrome class
   wins only by out-weighing the chrome's own selector. Choose the deliberate route for
   the chrome — tokens it reads, named parts, or a layer the page ranks above — so a page
-  can change the thread panel's format or hide one surface where it needs to.
+  can change a thread card's format or hide one surface where it needs to.
 - **Let a block be a workspace.** `feature-gallery` shows a workspace inside a column
   page, and since `layout-workspace` works only on `main`, it restates the Layout's
   full-height switch (720px by 480px) and its pane scrolling in about 20 lines. The pane

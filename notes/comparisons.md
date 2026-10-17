@@ -136,7 +136,7 @@ following are the baseline, not proposed additions.
 - **#8 — Shared visual-viewport fixed-panel bounds.**
   [Lavish's sheet](https://github.com/kunchenguid/lavish-axi/blob/main/src/chrome.css)
   consumes visible bounds. Leaf measures them but fixed auxiliary panels still
-  reach the layout bottom. Route bounds through geometry/chrome-layout to all
+  reach the layout bottom. Route bounds through `geometry.js` to all
   affected surfaces. This condition is source-identified, not a reproduced bug;
   keyboard-only shrink needs first-frame caret/Send and draft/focus proof.
 

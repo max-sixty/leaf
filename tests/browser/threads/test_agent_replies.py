@@ -123,26 +123,25 @@ def test_a_durable_reply_completes_its_stream_placeholder_in_place(
     """One retained message gains its durable prose and validated authored island.
 
     The stream placeholder exists before the final event, so its owner must not freeze
-    the absence of markup at construction. The answer completes the reply the open card
-    was already streaming, so it shows as it lands. A later prose edit is held as an
-    edit and keeps both that owner and the island the durable reply introduced.
+    the absence of markup at construction. The answer completes the reply the open
+    thread was already streaming, so it shows as it lands. A later prose edit keeps both
+    that owner and the island the durable reply introduced. The panel's view reads it:
+    a passage's margin card draws no reply markup, which opens in the panel.
     """
     url = serve(PANEL_PAGE)
-    root = panel_comment(serve.page_dir, "Answer me here", {"section": "h-how"})
+    root = panel_comment(serve.page_dir, "Answer me here")
     claim_for_codex(serve.page_dir, request)
     stream_reply(serve.page_dir, root, "Looking at it now.")
 
     page = open_page(browser, url)
     expect(thread_row(page, root).locator(".lf-fp-value")).to_have_text("Replying")
-    open_margin_card(page, "h-how")
-    message = page.locator(
-        f'.lf-margin-preview .lf-msg[data-attempt="{STREAM_ATTEMPT}"]'
-    )
+    thread = open_panel_thread(page, root)
+    message = thread.locator(f'.lf-msg[data-attempt="{STREAM_ATTEMPT}"]')
     expect(message.locator(".lf-msg-text")).to_have_text("Looking at it now.")
     expect(message.locator(".lf-msg-head .lf-msg-sending")).to_have_count(0)
     page.evaluate(
         "attempt => { window.__streamMessage = document.querySelector("
-        '`.lf-margin-preview .lf-msg[data-attempt="${attempt}"]`); }',
+        '`.lf-fp-view .lf-msg[data-attempt="${attempt}"]`); }',
         STREAM_ATTEMPT,
     )
 
@@ -161,11 +160,10 @@ def test_a_durable_reply_completes_its_stream_placeholder_in_place(
         transaction.clear_stream_reply("codex-thread", "leaf-turn")
 
     told(page)
-    thread = page.locator(card_of(root))
     expect(message).to_have_attribute("data-event", reply["id"])
     expect(message.locator(".lf-msg-text")).to_have_text("The complete answer.")
     expect(message.locator("#stream-reply-choice")).to_have_count(1)
-    expect(thread.locator(".lf-thread-news")).to_have_count(0)
+    expect(page.locator(PANEL_NEWS)).to_be_hidden()
     page.evaluate(
         "() => { window.__streamWidget = document.querySelector("
         "'#stream-reply-choice'); }"
@@ -183,14 +181,18 @@ def test_a_durable_reply_completes_its_stream_placeholder_in_place(
         },
     )
     told(page)
-    edited = thread.get_by_role("button", name="1 message edited", exact=True)
-    expect(edited).to_be_visible()
-    expect(message.locator(".lf-msg-text")).to_have_text("The complete answer.")
-    edited.click()
+    # The edit shows at once, or behind the view's notice where it would move what
+    # the user reads.
+    edited = page.locator(f"{PANEL_NEWS}:not([hidden])")
+    expect(
+        edited.or_(message.locator(".lf-msg-text", has_text="edited")).first
+    ).to_be_visible()
+    if edited.count():
+        edited.click()
     expect(message.locator(".lf-msg-text")).to_have_text("The complete edited answer.")
     assert page.evaluate(
         f"""() => window.__streamMessage === document.querySelector(
-          '.lf-margin-preview .lf-msg[data-event="{reply["id"]}"]')
+          '.lf-fp-view .lf-msg[data-event="{reply["id"]}"]')
           && window.__streamWidget === document.querySelector('#stream-reply-choice')"""
     ), "the durable reply or its authored island was replaced after the edit"
 
@@ -455,7 +457,19 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
     )
     # The working line is actual agent feedback even while each underlying progress
     # MessageView is folded. It uses the input's exact workflow identity, not the
-    # thread parent, and carries no copy of the agent's words in diagnostics.
+    # thread parent, and carries no copy of the agent's words in diagnostics. A later
+    # acknowledged gesture flushes every observation made before it.
+    with page.expect_response(
+        lambda response: (
+            response.url.endswith("/api/interaction")
+            and response.ok
+            and any(
+                entry["type"] == "click"
+                for entry in response.request.post_data_json["entries"]
+            )
+        )
+    ):
+        thread.locator(".lf-msg").first.click()
     feedback = [
         row
         for row in interaction_model.read_interactions(serve.page_dir)
@@ -870,43 +884,6 @@ def test_a_bounded_log_in_an_agent_reply_follows_its_end_as_a_reading_region(
         }"""
     )
     assert held == {"scroller": True, "atEnd": True}, held
-
-
-def test_a_reply_disclosure_returns_its_room_after_progress_is_hidden(browser, serve):
-    """A native disclosure in rich reply content shares the card's resize behavior."""
-    url = serve(PANEL_PAGE)
-    root = panel_comment(
-        serve.page_dir, "Could we make the banner quieter?", {"section": "h-how"}
-    )
-    address = {"to": root, "for": root}
-    thread_model.post_reply(
-        serve.page_dir, address, "Checking the labels.", ephemeral=True
-    )
-    words = "The labels remain legible in both schemes. " * 12
-    thread_model.post_reply(
-        serve.page_dir,
-        address,
-        "Here is the inspection detail.",
-        markup=f"<details open><summary>Inspection detail</summary><p>{words}</p></details>",
-    )
-    page = open_page(browser, url)
-    resized(page, 1400, 900)
-    open_margin_card(page, "h-how")
-    card = page.locator(card_of(root))
-    progress = card.locator(".lf-summary-expand")
-    progress.click()
-    rendered(page)
-    progress.click()
-    rendered(page)
-    details = card.locator(".lf-msg-body details")
-    before = content_height(card)
-    expanded = details.bounding_box()["height"]
-    details.locator("summary").press("Enter")
-    expect(details).not_to_have_attribute("open", "")
-    rendered(page)
-    given_back = expanded - details.bounding_box()["height"]
-    assert given_back > 100
-    assert content_height(card) == pytest.approx(before - given_back, abs=1)
 
 
 def test_collapsing_progress_preserves_room_for_a_later_canceled_stream(

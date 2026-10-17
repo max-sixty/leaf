@@ -51,7 +51,15 @@ def open_threads(page):
 def thread_row(page, key):
     """The thread `key`'s row in the panel's Threads view, opening Threads where it is
     not the view standing open. Its `.lf-fp-value` says the thread's state, less the
-    word the filter showing it already says."""
+    word the filter showing it already says. `key` may be the thread's id: a thread this
+    tab started is keyed by the attempt that sent it (thread/model.js, `threadKey`)."""
+    key = page.evaluate(
+        """async (id) => {
+          const {readThreads} = await window.__lfWidgetApi();
+          return readThreads().threads.find((t) => t.id === id)?.key ?? id;
+        }""",
+        key,
+    )
     open_threads(page)
     return page.locator(
         f'.lf-fp-view[data-view="threads"] .lf-fp-thread[data-key="{key}"]'

@@ -5898,12 +5898,9 @@ var GROUPS = Object.freeze({
 });
 var OWN_VIEWS = Object.freeze(["leaves", "versions"]);
 var FOLD = "panel.floating.fold";
-var HELD_ELSEWHERE = Object.freeze([
-  "keyboard",
-  `command:${FOLD}`,
-  "command:target.picker.open"
-]);
-var listed = (entry) => !entry.gesture && !HELD_ELSEWHERE.includes(entry.key);
+var HELD_ELSEWHERE = Object.freeze(["keyboard", `command:${FOLD}`]);
+var PICK = "command:target.picker.open";
+var listed = (entry) => !entry.gesture && !HELD_ELSEWHERE.includes(entry.key) && !(entry.key === PICK && advertisesKeys());
 var copyRefused = false;
 var canCopy = () => !copyRefused && Boolean(navigator.clipboard?.writeText);
 var groupOf = (entry) => entry.group === "keys" && !advertisesKeys() ? "navigate" : entry.copies && !canCopy() ? "about" : entry.group;

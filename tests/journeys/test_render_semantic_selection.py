@@ -152,3 +152,17 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     step("Close search").tap()
     exit_draw.tap()
     expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
+
+    # Picking an element has no `s` under a finger, and selecting words picks no
+    # widget, so Annotations holds Select element; its step cancels it, and a tap on an
+    # element chooses it for a comment.
+    panel_control(page, "command:target.picker.open", at="annotate").tap()
+    cancel = step("Cancel selection")
+    expect(cancel).to_be_visible()
+    cancel.tap()
+    expect(cancel).to_have_count(0)
+    panel_control(page, "command:target.picker.open", at="annotate").tap()
+    expect(cancel).to_be_visible()
+    page.locator("#note-cli").tap()
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    expect(cancel).to_have_count(0)

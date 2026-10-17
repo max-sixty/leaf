@@ -834,26 +834,56 @@ def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
         expect(location).to_be_focused()
         expect(groups.last).not_to_have_attribute("open", "")
 
-    # Source coordinates describe the current capture, not the call's identity.
-    # A line inserted above it preserves its focused control and its comment.
+    # Native callee keys do not identify persistent invocation instances. Source
+    # replacements honestly mark the original comment as earlier data.
     page.keyboard.press("c")
     draft = page.locator(".lf-fab-input")
     write(draft, "Keep this helper")
     with sending(page, "the call comment"):
         draft.press("ControlOrMeta+Enter")
     expect(page.locator(".lf-thread .lf-anchor-status")).to_have_count(0)
-    location.focus()
-    location.evaluate("node => { node.dataset.lineShiftProbe = 'held'; }")
     capture(
         call_node("work()", "app.py", 31),
         call_node("work()", "app.py", 41, children=[dict(shared, line=9)]),
         dict(third_work, line=61, children=[dict(unfocused, line=10)]),
     )
     told(page)
-    shifted = widget.locator('.lf-call-location[data-line-shift-probe="held"]')
-    expect(shifted).to_be_focused()
-    expect(shifted).to_have_text("utils.py:9")
-    expect(page.locator(".lf-thread .lf-anchor-status")).to_have_count(0)
+    expect(page.locator(".lf-thread .lf-anchor-status")).to_have_text("Earlier data")
+
+    # Removing one duplicate must not transfer its comment to the surviving call,
+    # even when that survivor becomes occurrence zero in the next capture.
+    page.keyboard.press("Escape")
+    log = call_node("log()", "app.py", 10)
+    capture(
+        call_node(
+            "run()",
+            "app.py",
+            1,
+            children=[log, call_node("save()", "app.py", 15), dict(log, line=20)],
+        )
+    )
+    told(page)
+    first_log = widget.locator(".lf-call-location", has_text="app.py:10")
+    first_log.focus()
+    page.keyboard.press("c")
+    write(draft, "Remove this log")
+    with sending(page, "the duplicate call comment"):
+        draft.press("ControlOrMeta+Enter")
+    capture(
+        call_node(
+            "run()",
+            "app.py",
+            1,
+            children=[
+                dict(log, status="removed"),
+                call_node("save()", "app.py", 14),
+                dict(log, line=19),
+            ],
+        )
+    )
+    told(page)
+    comment = page.locator(".lf-thread").filter(has_text="Remove this log")
+    expect(comment.locator(".lf-anchor-status")).to_have_text("Earlier data")
 
 
 @pytest.mark.parametrize("quote_anchor", [True, False], ids=["passage", "whole-datum"])

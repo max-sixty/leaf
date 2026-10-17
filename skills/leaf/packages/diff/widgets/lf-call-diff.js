@@ -8,7 +8,8 @@
  * locations name the after tree for added and unchanged rows, and the before tree
  * for removed rows (calldiff's diffNode/pickLoc contract). Source navigation keeps
  * that side even when the same number names a different line on the other side.
- * Rows are keyed by call and placed with setChildren rather than a Lit repeat per root:
+ * Comments stay bound to the capture's source revision: callee keys do not identify
+ * persistent invocation instances. Rows are keyed by call and placed with setChildren rather than a Lit repeat per root:
  * a capture can move a call under another root, and a row leaving one repeat list
  * for another is recreated, which would drop the focus of a user standing on it. */
 import {
@@ -56,13 +57,13 @@ function recordsOf(document) {
         node.file && node.line != null
           ? `${node.file}:${node.line}${node.endLine != null && node.endLine !== node.line ? `-${node.endLine}` : ""}`
           : "";
-      // Native keys identify calls independently of labels, rails and line shifts.
+      // Native keys identify calls independently of their displayed labels and rails.
       // Occurrences distinguish repeated calls without tying them to their parent.
-      const identity = [entry, node.key, status, node.file];
-      const occurrenceKey = JSON.stringify(identity);
+      const keyParts = [entry, node.key, status, node.file, node.line];
+      const occurrenceKey = JSON.stringify(keyParts);
       const occurrence = occurrences.get(occurrenceKey) ?? 0;
       occurrences.set(occurrenceKey, occurrence + 1);
-      const key = JSON.stringify([...identity, occurrence]);
+      const key = JSON.stringify([...keyParts, occurrence]);
       if (root) groupKey = key;
       records.push({
         body: `${indent}${root ? "" : last ? "└─ " : "├─ "}${node.label}`,
@@ -297,7 +298,6 @@ customElements.define(
           node,
           key: record.key,
           label: labelOf(record),
-          identity: record.key,
           origin: { ...snapshot.origin, path: record.originPath },
         };
       });

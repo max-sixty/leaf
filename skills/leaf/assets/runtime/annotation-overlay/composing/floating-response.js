@@ -48,7 +48,7 @@ import {
   commentPlacement,
 } from "../comment-placement.js";
 import { pointBand } from "../../pointed-place.js";
-import { keeps, layoutPx } from "../../keeps.js";
+import { keeps, roomPx } from "../../keeps.js";
 
 export function createFloatingResponsePlacement({
   bar: fabBar,
@@ -379,11 +379,11 @@ export function createFloatingResponsePlacement({
     // the target instead of silently moving the draft.
     const setWidth = (available, scale) => {
       const room = available;
-      fabBar.style.setProperty("--lf-float-w", layoutPx(Math.max(0, room)));
+      fabBar.style.setProperty("--lf-float-w", roomPx(Math.max(0, room)));
       if (Math.ceil(fabBar.offsetWidth) > Math.ceil(room))
         fabBar.style.setProperty(
           "--lf-float-w",
-          layoutPx(Math.max(0, boundary.width / scale)),
+          roomPx(Math.max(0, boundary.width / scale)),
         );
     };
     // The frame may grow to the whole boundary on any side, past the room its held edge
@@ -395,7 +395,7 @@ export function createFloatingResponsePlacement({
       if (!response.open) return;
       fabBar.style.setProperty(
         "--lf-float-h",
-        layoutPx(Math.max(0, boundary.height / scale)),
+        roomPx(Math.max(0, boundary.height / scale)),
       );
     };
     fabPlacement.choose({

@@ -233,6 +233,7 @@ function keepsText(node, text) {
 }
 var atLayoutPrecision = (length) => Math.round(length * 64) / 64;
 var layoutPx = (length) => `${atLayoutPrecision(length)}px`;
+var roomPx = (length) => `${Math.floor(length * 64) / 64}px`;
 
 // runtime/control-selectors.js
 var TEXT_FIELD = "leaf-text";
@@ -1092,6 +1093,7 @@ export {
   keepsText,
   atLayoutPrecision,
   layoutPx,
+  roomPx,
   TEXT_FIELD,
   MODIFIER_KEYS,
   CARET_KEYS,

@@ -198,6 +198,7 @@ import {
   onUserInput,
   pressLed,
   renderedUnder,
+  roomPx,
   rove,
   standingIn,
   under
@@ -2895,18 +2896,18 @@ function createFloatingResponsePlacement({
     fabRegion = place.region;
     const setWidth = (available, scale) => {
       const room = available;
-      fabBar.style.setProperty("--lf-float-w", layoutPx(Math.max(0, room)));
+      fabBar.style.setProperty("--lf-float-w", roomPx(Math.max(0, room)));
       if (Math.ceil(fabBar.offsetWidth) > Math.ceil(room))
         fabBar.style.setProperty(
           "--lf-float-w",
-          layoutPx(Math.max(0, boundary.width / scale))
+          roomPx(Math.max(0, boundary.width / scale))
         );
     };
     const setHeight = (scale) => {
       if (!response.open) return;
       fabBar.style.setProperty(
         "--lf-float-h",
-        layoutPx(Math.max(0, boundary.height / scale))
+        roomPx(Math.max(0, boundary.height / scale))
       );
     };
     fabPlacement.choose({

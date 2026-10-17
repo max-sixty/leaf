@@ -98,22 +98,23 @@
     height: 16px;
   }
   .lf-fp-row {
+    --lf-fp-row-pad: 6px;
     display: flex;
     align-items: flex-end;
     gap: 2px;
-    padding: 6px;
+    padding: var(--lf-fp-row-pad);
     box-sizing: border-box;
     position: relative;
   }
   .lf-fp-row > .lf-fp-expand {
     position: absolute;
-    top: 6px;
-    left: 6px;
-    width: 32px;
+    inset-block-start: var(--lf-fp-row-pad);
+    inset-inline-start: var(--lf-fp-row-pad);
+    width: var(--lf-fp-line);
     height: var(--lf-fp-line);
   }
   .lf-floating-panel[data-long] .lf-fp-row:has(> .lf-fp-expand) {
-    min-height: calc(2 * var(--lf-fp-line) + 16px);
+    min-height: calc(2 * var(--lf-fp-line) + 2 * var(--lf-fp-row-pad) + 4px);
   }
   .lf-fp-leaf {
     flex: none;
@@ -1117,7 +1118,7 @@
       --lf-fp-line: 34px;
     }
     .lf-fp-row {
-      padding: 7px;
+      --lf-fp-row-pad: 7px;
     }
     .lf-fp-item,
     .lf-fp-thread {

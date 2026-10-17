@@ -31,15 +31,16 @@
  *   work under way; one that asks the user to act reads in its tone's ink, and pointing
  *   at the field says any status in full. Clicking in gives the placeholder to where
  *   the words go, and from then on, while the caret is in the field, the panel says
- *   one thing only: a gesture the page could not take, such as a send the server
- *   refused, whose words come back to the field with nothing else on screen to say
- *   why, or an image it could not attach (notifications.js, `refused`). That stands on
- *   one quiet line above the field, or, over an open view, in the leaf's peek
- *   (`paintPeek`), as it does on a folded panel. Everything else that passes, news, an
+ *   one thing only: what became of the words being written, such as a send the
+ *   server refused, whose words come back to the field with nothing else on screen to
+ *   say why, or an image the field could not attach (notifications.js, `draft`). That
+ *   stands on one quiet line above the field, or, over an open view, in the leaf's
+ *   peek (`paintPeek`), as it does on a folded panel. Everything else that passes, news, an
  *   acknowledgement, a walk's position, Go-to's word, goes unsaid there but for the
- *   live region; the empty field says what still stands once the caret leaves. The
- *   line also says a passing notice the placeholder cannot, while words hide the
- *   placeholder and the caret is elsewhere. Nothing names where the words go once they hide the
+ *   live region; the empty field says what still stands once the caret leaves. With no
+ *   view open the line also says a passing notice the placeholder cannot, while words
+ *   hide the placeholder and the caret is elsewhere; over a view the peek says only
+ *   what became of the words. Nothing names where the words go once they hide the
  *   placeholder, nor who reads them: with no view open they go to the page, whose one
  *   agent reads them, and an open thread's head names its own. The user chose this on
  *   17 October, comparing captures of three others: the line saying every passing word
@@ -254,15 +255,15 @@ const coarse = () => matchMedia("(pointer: coarse)").matches;
 // else what the status line says between notices, the Go-to filter's word or a walk's
 // position ("1 of 3 waiting on me · Options"). The user asked on 16 October that whatever
 // is not anchored to the page stand at the panel rather than against the window.
-// `refused` marks a gesture the page could not take, the one notice said while the
-// user writes.
+// `draft` marks a notice saying what became of the words being written, the one kind
+// said while the user writes.
 function passing() {
   const notice = noticeReading();
   if (notice.visible)
-    return { message: notice.message, visible: true, refused: notice.refused };
+    return { message: notice.message, visible: true, draft: notice.draft };
   const { goTo, walk } = statusContextReading();
   const message = goTo ?? (walk?.shown ? walk.text : "");
-  return { message, visible: Boolean(message), refused: false };
+  return { message, visible: Boolean(message), draft: false };
 }
 // What the leaf's colour says, in a word, at the head of its menu.
 const TONE_WORDS = Object.freeze({
@@ -314,7 +315,8 @@ export function createFloatingPanel({
   peek.setAttribute("role", "tooltip");
   let peekAsked = false; // the pointer or focus asking the folded leaf's peek to show
   let peekReading = null;
-  // A refusal the line over the field would say, were a view not open (`paintPeek`).
+  // What became of the words, which the line over the field would say were a view not
+  // open (`paintPeek`).
   let overView = false;
   context.append(contextWords);
   inner.append(opened, context, row);
@@ -402,8 +404,8 @@ export function createFloatingPanel({
       : 0;
     if (lines > 3.5 === long) return;
     long = lines > 3.5;
-    // The mark's strip resizes the field this watches, so it paints in the next frame
-    // rather than inside the observer's delivery.
+    // The row's floor while the mark stands resizes the field this watches, so it
+    // paints in the next frame rather than inside the observer's delivery.
     nextRender(paint);
   });
   lengthWatch.observe(field);
@@ -2311,16 +2313,16 @@ export function createFloatingPanel({
       reading.says === "status" ? status().explanation || status().summary : null,
     );
     // The line over the field says what the field cannot: while the caret is in, where
-    // the placeholder says where the words go, a gesture the page refused, such as a
-    // send whose words came back; and while words hide the placeholder with the caret
-    // elsewhere, the passing notice the placeholder would say. With nothing to say the
-    // line is gone but for the more-room mark, and while a view is open it is gone: the
-    // leaf's peek says the refusal there (`paintPeek`).
+    // the placeholder says where the words go, what became of them, such as a send
+    // refused and its words returned; and while words hide the placeholder with the
+    // caret elsewhere, the passing notice the placeholder would say. With nothing to
+    // say the line is gone, and while a view is open it is gone too: the leaf's peek
+    // says what became of the words there (`paintPeek`).
     const notice = passing();
     const said =
       notice.visible &&
-      (reading.says === "destination" ? notice.refused : draftOf(input) !== "");
-    overView = Boolean(top) && said && notice.refused;
+      (reading.says === "destination" ? notice.draft : draftOf(input) !== "");
+    overView = Boolean(top) && said && notice.draft;
     keepsText(contextWords, !top && said ? notice.message : "");
     keepsHidden(context, !contextWords.textContent);
     paintPeek();
@@ -2501,9 +2503,9 @@ export function createFloatingPanel({
   });
   // The folded leaf's peek says the status in full while the pointer or focus asks for
   // it, and a passing notice by itself, since a folded panel has no field to say it in.
-  // Over an open view it says a refusal the field cannot, which the line over the field
-  // would say with no view open (`overView`), unless the leaf's menu stands where it
-  // would show.
+  // Over an open view it says what became of the words being written, which the line
+  // over the field would say with no view open (`overView`), unless the leaf's menu
+  // stands where it would show.
   function paintPeek() {
     const folded = host.dataset.rest === "mark";
     const notice = passing();

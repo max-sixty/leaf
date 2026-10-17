@@ -1748,19 +1748,19 @@ def test_a_status_that_asks_the_user_to_act_stands_out(browser, serve):
     consume_browser_errors(page, http_error_console(401))
 
 
-def test_only_a_refusal_interrupts_the_user_writing(browser, serve):
+def test_only_what_became_of_the_words_interrupts_writing(browser, serve):
     """A passing notice is said in the empty field's place, and on the line above the
     field once words hide that with the caret elsewhere. While the caret is in the
-    field, whose placeholder then says where the words go, only a refused gesture is
-    said, on that line, so a refused send's reason is seen beside the words it
+    field, whose placeholder then says where the words go, only what became of the
+    words is said, on that line, so a refused send's reason is seen beside the words it
     returned; other news goes unsaid but for the live region. Over an open view, where
     that line never shows, the leaf's peek says the refusal, above the leaf, inside the
     window and clear of the view's head; on a folded panel the peek says any notice."""
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Is the window long enough?")
     page = floating(browser, url)
-    say = """async ([text, refused]) => (await window.__lfWidgetApi())
-      .notice(text, { refused })"""
+    say = """async ([text, draft]) => (await window.__lfWidgetApi())
+      .notice(text, { draft })"""
     line = page.locator(".lf-fp-context")
     peek = page.locator(".lf-fp-peek")
     page.evaluate(say, ["Saved for later", False])

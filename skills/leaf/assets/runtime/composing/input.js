@@ -686,7 +686,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       cancelDictation();
       const allowed = allowsMedia();
       if (allowed !== true) {
-        notice(allowed, { refused: true });
+        notice(allowed, { draft: true });
         return false;
       }
       rememberWriting(ta);
@@ -706,7 +706,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         if (paths.some((path) => path === null)) return false;
         if (arrivals !== attachedAt) {
           notice("Image not added — the comment moved before it finished uploading", {
-            refused: true,
+            draft: true,
           });
           return false;
         }
@@ -716,7 +716,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         announce(images.length === 1 ? "Image added" : `${images.length} images added`);
         return true;
       } catch (error) {
-        notice(`Could not add image — ${error?.message ?? error}`, { refused: true });
+        notice(`Could not add image — ${error?.message ?? error}`, { draft: true });
         return false;
       } finally {
         uploading = false;

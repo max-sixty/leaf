@@ -1199,7 +1199,7 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
       cancelDictation();
       const allowed = allowsMedia();
       if (allowed !== true) {
-        notice(allowed, { refused: true });
+        notice(allowed, { draft: true });
         return false;
       }
       rememberWriting(ta);
@@ -1217,7 +1217,7 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
         if (paths.some((path) => path === null)) return false;
         if (arrivals !== attachedAt) {
           notice("Image not added \u2014 the comment moved before it finished uploading", {
-            refused: true
+            draft: true
           });
           return false;
         }
@@ -1227,7 +1227,7 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
         announce(images.length === 1 ? "Image added" : `${images.length} images added`);
         return true;
       } catch (error) {
-        notice(`Could not add image \u2014 ${error?.message ?? error}`, { refused: true });
+        notice(`Could not add image \u2014 ${error?.message ?? error}`, { draft: true });
         return false;
       } finally {
         uploading = false;
@@ -7738,10 +7738,10 @@ var coarse = () => matchMedia("(pointer: coarse)").matches;
 function passing() {
   const notice2 = noticeReading();
   if (notice2.visible)
-    return { message: notice2.message, visible: true, refused: notice2.refused };
+    return { message: notice2.message, visible: true, draft: notice2.draft };
   const { goTo, walk } = statusContextReading();
   const message = goTo ?? (walk?.shown ? walk.text : "");
-  return { message, visible: Boolean(message), refused: false };
+  return { message, visible: Boolean(message), draft: false };
 }
 var TONE_WORDS = Object.freeze({
   working: "Working",
@@ -9206,8 +9206,8 @@ function createFloatingPanel({
       reading.says === "status" ? status().explanation || status().summary : null
     );
     const notice2 = passing();
-    const said = notice2.visible && (reading.says === "destination" ? notice2.refused : draftOf(input) !== "");
-    overView = Boolean(top) && said && notice2.refused;
+    const said = notice2.visible && (reading.says === "destination" ? notice2.draft : draftOf(input) !== "");
+    overView = Boolean(top) && said && notice2.draft;
     keepsText(contextWords, !top && said ? notice2.message : "");
     keepsHidden(context, !contextWords.textContent);
     paintPeek();

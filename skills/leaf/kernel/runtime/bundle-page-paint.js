@@ -2973,7 +2973,7 @@ var showingBackground = null;
 var waitingBackground = [];
 var userContext = false;
 var userHoldTimer = 0;
-var noticePresentation = Object.freeze({ message: "", visible: false, refused: false });
+var noticePresentation = Object.freeze({ message: "", visible: false, draft: false });
 var noticePresenters = /* @__PURE__ */ new Set();
 var noticeReading = () => noticePresentation;
 var noticeVisible = () => noticePresentation.visible;
@@ -2983,8 +2983,8 @@ function registerNoticePresentation(invalidate) {
 var presentAll = () => {
   for (const invalidate of noticePresenters) invalidate();
 };
-var presentNotice = (message, visible, refused = false) => {
-  noticePresentation = Object.freeze({ message, visible, refused });
+var presentNotice = (message, visible, draft = false) => {
+  noticePresentation = Object.freeze({ message, visible, draft });
   if (visible) presentAll();
   else afterScript(presentAll);
 };
@@ -2995,8 +2995,8 @@ function announce(msg) {
     liveEl.append(msg);
   }, 30);
 }
-function showNotice(msg, background = null, refused = false) {
-  presentNotice(msg, true, refused);
+function showNotice(msg, background = null, draft = false) {
+  presentNotice(msg, true, draft);
   showingBackground = background;
   clearTimeout(noticeTimer);
   noticeTimer = setTimeout(() => {
@@ -3035,7 +3035,7 @@ function queueBackground(entry, front = false) {
   if (front) waitingBackground.unshift(entry);
   else waitingBackground.push(entry);
 }
-function notice(msg, { background = false, announce: speak = true, group = null, refused = false } = {}) {
+function notice(msg, { background = false, announce: speak = true, group = null, draft = false } = {}) {
   if (speak) announce(msg);
   if (background) {
     const entry = group ?? textBackground(msg);
@@ -3043,7 +3043,7 @@ function notice(msg, { background = false, announce: speak = true, group = null,
     return showBackground(entry);
   }
   if (showingBackground) queueBackground(showingBackground, true);
-  showNotice(msg, null, refused);
+  showNotice(msg, null, draft);
 }
 function yieldNotice() {
   if (showingBackground) queueBackground(showingBackground, true);

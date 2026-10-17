@@ -165,7 +165,7 @@ export function mountApplication(dependencies) {
     afterEnqueue,
     withdraw: (candidate) => undo.withdraw(candidate),
     onCollision: (attempt) =>
-      notice(`Couldn't send — attempt ${attempt} is already in use`, { refused: true }),
+      notice(`Couldn't send — attempt ${attempt} is already in use`, { draft: true }),
   });
 
   const { post } = commandDispatch;

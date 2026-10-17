@@ -525,7 +525,14 @@ def test_firefox_paints_the_author_and_words_in_the_same_send_flash(
               cue.finished.then(() => {
                 const head = message.querySelector('.lf-msg-head').getBoundingClientRect();
                 const body = message.querySelector('.lf-msg-body').getBoundingClientRect();
-                const x = head.left + head.width * 0.7;
+                // Clear of the card's actions, whose own ground stands beside the
+                // heads of the messages they are level with.
+                const actions = root.querySelector('.lf-margin-thread-controls')
+                  ?.getBoundingClientRect();
+                const beside = actions && actions.top < head.bottom
+                  && actions.bottom > head.top;
+                const x = Math.min(head.left + head.width * 0.7,
+                  beside ? actions.left - 6 : Infinity);
                 resolve({head: [x, head.top + 3], body: [x, body.bottom - 3]});
               }, reject);
             });

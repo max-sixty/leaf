@@ -553,6 +553,7 @@ import {
   html,
   itemNoun,
   itemOutcome,
+  keyed,
   lastMovedAt,
   noChange,
   nothing,
@@ -8121,7 +8122,7 @@ function createFloatingPanel({
         { duration: VIEW_RESIZE_MS, easing: EASE }
       );
     }
-    if (!keyed && !outside) return;
+    if (!keyed2 && !outside) return;
     const target = level ? page?.querySelector(".lf-fp-item:not(.lf-fp-menu-back, :disabled)") : before && menu.querySelector(`[data-row="${levelRow(before)}"]`);
     if (target) focusDestination(target, "move");
   }
@@ -8355,13 +8356,13 @@ function createFloatingPanel({
       });
       return;
     }
-    const target = keyed ? listRows()[0] ?? view?.querySelector("button, input") : view;
+    const target = keyed2 ? listRows()[0] ?? view?.querySelector("button, input") : view;
     if (target) focusDestination(target, "move");
   }
-  let keyed = false;
+  let keyed2 = false;
   onUserInput((event) => {
     if (["keydown", "pointerdown"].includes(event.type) && event.composedPath().includes(host))
-      keyed = event.type === "keydown";
+      keyed2 = event.type === "keydown";
   });
   const menuItem = (label2, end, press, {
     urgent = false,
@@ -8646,6 +8647,7 @@ function createFloatingPanel({
     </div>`;
   }
   let presentation = null;
+  const newsOutlet = () => head.querySelector(".lf-fp-news-outlet");
   const shownView = () => stage.querySelector(".lf-fp-view:not([data-leaving])");
   const LIST_ROWS = Object.freeze({
     threads: ".lf-fp-thread",
@@ -8678,6 +8680,8 @@ function createFloatingPanel({
     );
     if (!outlet || !thread) return;
     for (const message of thread.msgs) parts.message(thread.key, message.key, outlet);
+    const news = newsOutlet();
+    if (news) parts.news(thread.key, news);
     if (replyOutlet.isConnected)
       parts.reply(thread.key, replyOutlet, replyOptionsFor(thread.key));
   }
@@ -9013,8 +9017,13 @@ function createFloatingPanel({
                       ${titleOf2(parent)}</button
                     ><span class="lf-fp-sep" aria-hidden="true">/</span>` : nothing}
             <h2 class=${titleClass}>${titleOf2(top)}</h2>
-            ${at >= 0 ? html`<span class="lf-fp-where"
-                    >${at + 1} of ${openThreads2.length}</span
+            ${thread ? html`<span class="lf-fp-facts"
+                    >${keyed(
+      thread.key,
+      html`<span class="lf-fp-news-outlet"></span>`
+    )}${at >= 0 ? html`<span class="lf-fp-where"
+                            >${at + 1} of ${openThreads2.length}</span
+                          >` : nothing}</span
                   >` : nothing}`;
     return html`<div class="lf-fp-crumb">${crumb}</div>
       <div class="lf-fp-aux">${aux}</div>
@@ -9336,7 +9345,7 @@ function createFloatingPanel({
       return;
     }
     setMenu(!menuOpen);
-    if (menuOpen && keyed) {
+    if (menuOpen && keyed2) {
       const first = menu.querySelector("button");
       if (first) focusDestination(first, "move");
     }

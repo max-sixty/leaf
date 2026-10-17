@@ -2431,14 +2431,18 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
 
-    # The leaf's menu, and its Versions.
+    # The leaf's menu, and its Versions, each read once its fade has finished.
     panel_menu(page)
+    panel_settled(page, open=False)
     sweep("in the leaf's menu")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fp-menu")).to_be_hidden()
     open_versions(page)
     expect(page.locator(".lf-fp-version").first).to_be_visible()
+    panel_settled(page, open=False)
     sweep("in the versions menu")
+    # Escape steps back to the menu's root, and then puts the menu away.
+    page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fp-menu")).to_be_hidden()
 

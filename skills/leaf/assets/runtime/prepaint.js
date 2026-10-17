@@ -528,13 +528,11 @@
     const shellWritten =
       parseFloat(body.style.getPropertyValue("--lf-column-shift")) || 0;
     const column = box.getBoundingClientRect();
-    // Inside the shell's border. A resident may stand in its padding, as the rail does in
-    // the strip `data-rail="right"` pads `body` with (annotation-theme.css).
-    const shellRect = shellNode.getBoundingClientRect();
-    const shell = {
-      left: shellRect.left + parseFloat(shellStyle.borderLeftWidth),
-      right: shellRect.right - parseFloat(shellStyle.borderRightWidth),
-    };
+    // Inside the shell's border and scrollbar gutters. A resident may stand in its
+    // padding, as the rail does in the strip `data-rail="right"` pads `body` with
+    // (annotation-theme.css).
+    const shellLeft = shellNode.getBoundingClientRect().left + shellNode.clientLeft;
+    const shell = { left: shellLeft, right: shellLeft + shellNode.clientWidth };
     const room = {
       left: column.left - gridShift - shell.left,
       right: shell.right - column.right + gridShift,

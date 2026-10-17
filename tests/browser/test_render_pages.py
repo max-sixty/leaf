@@ -3118,8 +3118,8 @@ def test_a_layout_on_a_child_of_main_arranges_it_as_it_would_main(browser, serve
     the same column, margin residents, contents map and breakouts as one on `main`
     itself, at a width where the shell must shift the column for its sidebar, and a
     workspace whose box is a child fills the window as it does on `main`. A `main` the
-    page narrows or borders is the shell the child column measures, so nothing it holds
-    stands past or over its edges."""
+    page narrows, borders or gives scrollbar gutters is the shell the child column
+    measures, so nothing it holds stands past its edges or over its border or gutters."""
     column_body = """
 <h1>Migration plan</h1>
 <aside class="sidebar" id="route"><nav aria-label="Route"><a href="#move">Move</a></nav></aside>
@@ -3147,6 +3147,8 @@ def test_a_layout_on_a_child_of_main_arranges_it_as_it_would_main(browser, serve
         regions: rect(document.getElementById('regions') ?? target),
         shifted: document.body.style.getPropertyValue('--lf-column-shift'),
         main: rect(main),
+        inner: [Math.round(rect(main)[0] + main.clientLeft),
+                Math.round(rect(main)[0] + main.clientLeft + main.clientWidth)],
       };
       for (const id of ['route', 'frequency', 'room', 'contents']) {
         const node = document.getElementById(id);
@@ -3159,7 +3161,7 @@ def test_a_layout_on_a_child_of_main_arranges_it_as_it_would_main(browser, serve
     }"""
 
     def without_main(reading):
-        return {key: value for key, value in reading.items() if key != "main"}
+        return {k: v for k, v in reading.items() if k not in ("main", "inner")}
 
     def measured(body, layout, width, head=""):
         on_main = leaf_page("layout box", body, layout=layout, head=head)
@@ -3201,9 +3203,14 @@ def test_a_layout_on_a_child_of_main_arranges_it_as_it_would_main(browser, serve
     for edges in (in_child["box"], in_child["room"][0]):
         assert left <= edges[0] and edges[1] <= right, in_child
 
-    bordered = "<style>main { border-inline: 100px solid; }</style>"
-    _, in_child = measured(column_body, "column", 1160, head=bordered)
-    left, right = in_child["main"][0] + 100, in_child["main"][1] - 100
+    bordered = (
+        "<style>main { border-inline: 100px solid; height: 700px; overflow-y: auto;"
+        " scrollbar-gutter: stable both-edges; }"
+        " main::-webkit-scrollbar { width: 40px; }</style>"
+    )
+    _, in_child = measured(column_body, "column", 1400, head=bordered)
+    left, right = in_child["inner"]
+    assert left - in_child["main"][0] == 140, in_child
     for edges in (in_child["box"], in_child["route"][0], in_child["room"][0]):
         assert left <= edges[0] and edges[1] <= right, in_child
 

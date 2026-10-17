@@ -942,24 +942,6 @@ WRAP_TOP = """() => { const r = document.createRange();
 # that matched in width and not in colour would be two rings that look like one.
 RING = """(el) => { const s = getComputedStyle(el);
     return [s.outlineStyle, s.outlineWidth, s.outlineColor]; }"""
-# One target of ordinary height and one taller than any viewport, both far enough down
-# that arriving at either is a real scroll.
-TRAVEL_PAGE = leaf_page(
-    "travel",
-    f"""
-<h1 id="h">Placement</h1>
-{"".join(f"<p>Fill paragraph {i}, long enough to take a line of its own.</p>" for i in range(10))}
-<lf-diagram id="flow"><pre>
-graph LR
-  Cart --&gt; Pay
-</pre></lf-diagram>
-{"".join(f"<p>More fill, paragraph {i}.</p>" for i in range(10))}
-<section id="long-part">
-<h2>The long tail</h2>
-{"".join(f"<p>Tail fill, paragraph {i}, deep enough that the section outgrows any viewport.</p>" for i in range(24))}
-</section>
-""",
-)
 # One parent over two leaves, so a status report has to move both the marker and
 # the parent's computed done-fraction — the state a stylesheet cannot recount.
 REPORT_PAGE = leaf_page(

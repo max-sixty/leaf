@@ -27,7 +27,6 @@ from render_harness import (
     page_comment,
     panel_field,
     panel_settled,
-    resized,
     scroll_settled,
     write,
 )
@@ -368,13 +367,6 @@ def seed_panel_threads(page_dir, threads, long_index=None, messages=12):
                 },
             )
     return roots
-
-
-def open_threads_list(page, width, height):
-    """Open the panel's Threads view at a window `width` by `height`."""
-    resized(page, width, height)
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
 
 
 def reply_by_keyboard(page, root):

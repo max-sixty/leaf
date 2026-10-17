@@ -2381,7 +2381,7 @@ def test_news_under_the_open_menu_moves_nothing_in_it(browser, serve):
     source = (serve.page_dir / "index.html").read_text()
     stamp_page(serve.page_dir, source.replace("Filler.", "Filler!", 1), "revised")
     newer = re.compile("New page available → open v2")
-    expect(page.locator(".lf-latest-chip")).to_have_text(newer)
+    told(page)
     assert page.evaluate(boxes) == before
     page.keyboard.press("Escape")
     leaf.click()

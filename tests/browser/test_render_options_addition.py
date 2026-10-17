@@ -1,7 +1,6 @@
 """Added-option presentation and replay tests."""
 
 import base64
-import re
 
 import pytest
 from interact_support import append_carried_log_record, stamp
@@ -21,6 +20,7 @@ from render_harness import (
     EXAMPLES,
     consume_browser_errors,
     example_media,
+    expect_panel_says,
     holding,
     http_error_console,
     open_page,
@@ -375,9 +375,7 @@ def test_the_add_field_says_why_it_will_not_take_a_pasted_image(browser, serve):
     pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
     field.evaluate(PASTE_IMAGE, base64.b64encode(pixels).decode())
 
-    notice = page.locator(".lf-notice")
-    expect(notice).to_have_class(re.compile(r"\bshow\b"))
-    assert notice.inner_text() == "Images can be added to comments, not options"
+    expect_panel_says(page, "Images can be added to comments, not options")
     expect(form.locator(".lf-composer-media")).to_be_hidden()
     expect(form.locator(".lf-composer-media img")).to_have_count(0)
     assert field.evaluate("box => box.value") == ""

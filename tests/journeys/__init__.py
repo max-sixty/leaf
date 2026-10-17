@@ -3,7 +3,7 @@
 from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from playwright.sync_api import expect
-from render_harness import PANEL, panel_settled
+from render_harness import PANEL, panel_menu, panel_settled
 
 THREADS_VIEW = '.lf-fp-view[data-view="threads"]:not([data-leaving])'
 
@@ -65,3 +65,12 @@ def first_thread_quote(page, page_dir):
         if event["kind"] == "comment"
     )
     return open_panel_thread(page, first).locator(".lf-fp-quote")
+
+
+def expect_showing(page, version):
+    """The leaf's menu names the version the page shows on its Versions row; read it
+    and put the menu away."""
+    expect(
+        panel_menu(page).locator('.lf-fp-item[data-row="versions"]')
+    ).to_contain_text(f"v{version}")
+    page.locator(".lf-fp-leaf").click()

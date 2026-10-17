@@ -48,9 +48,6 @@ from leaf_dev.leaf_assets import pinned_assets
 from leaf_dev.page_fixtures import authored_markup, source_packages
 from PIL import Image
 from playwright.sync_api import expect
-
-# The suite's own page primitives, so a navigation here waits on what every other
-# navigation waits on. tests/AGENTS.md, "Waits".
 from render_harness import (
     PANEL_THREAD,
     compare_with,
@@ -72,20 +69,15 @@ from render_harness import (
     write,
 )
 
+# The suite's own page primitives, so a navigation here waits on what every other
+# navigation waits on. tests/AGENTS.md, "Waits".
+from journeys import expect_showing
+
 ROOT = Path(__file__).parents[2]
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
 FEATURE_GALLERY = EXAMPLES / "developer" / "feature-gallery.html"
 DEVELOPER_PAGES = tuple(sorted((EXAMPLES / "developer").glob("*.html")))
-
-
-def expect_showing(page, version):
-    """The leaf's menu names the version the page shows on its Versions row; read it
-    and put the menu away."""
-    expect(
-        panel_menu(page).locator('.lf-fp-item[data-row="versions"]')
-    ).to_contain_text(f"v{version}")
-    page.locator(".lf-fp-leaf").click()
 
 
 def open_count(page):

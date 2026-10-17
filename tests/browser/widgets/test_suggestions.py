@@ -27,6 +27,7 @@ from render_harness import (
     leaf_page,
     margins_laid_out,
     open_page,
+    panel_field,
     panel_menu,
     refuse,
     resized,
@@ -37,6 +38,13 @@ from render_harness import (
 )
 
 pytestmark = pytest.mark.shifts_unsurveyed
+
+
+def expect_no_notice(page, words):
+    """Read that no passing notice says `words`: the panel says one in its empty
+    field's place (floating-panel.js), so a decision the live region alone announces
+    leaves the field saying something else."""
+    expect(panel_field(page)).not_to_have_attribute("placeholder", re.compile(words))
 
 
 def expect_accept_all(page, count):
@@ -433,8 +441,7 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     assert undo_button.evaluate(box) == before, (
         "Undo moved away from the press it replaces"
     )
-    expect(page.locator(".lf-notice")).to_have_text("")
-    expect(page.locator(".lf-notice")).not_to_have_class(re.compile(r"\bshow\b"))
+    expect_no_notice(page, "Accepted")
     expect(page.locator(".lf-live")).to_have_text(
         re.compile(r"^Accepted suggested change: Refill a feeder when")
     )
@@ -478,8 +485,7 @@ def test_a_pointer_decision_announces_without_needing_button_focus(browser, serv
     expect(page.locator(".lf-live")).to_have_text(
         re.compile(r"^Accepted suggested change: Refill a feeder when")
     )
-    expect(page.locator(".lf-notice")).to_have_text("")
-    expect(page.locator(".lf-notice")).not_to_have_class(re.compile(r"\bshow\b"))
+    expect_no_notice(page, "Accepted")
 
 
 def test_a_settled_deletion_keeps_undo_on_the_containing_passage(browser, serve):
@@ -607,13 +613,10 @@ def test_a_widget_naming_its_own_words_does_not_read_the_runtimes(browser, serve
             f"{verb} suggested change: Retry three times."
         )
         if outcome == "accept":
-            expect(page.locator(".lf-notice")).to_have_text("")
-            expect(page.locator(".lf-notice")).not_to_have_class(
-                re.compile(r"\bshow\b")
-            )
+            expect_no_notice(page, verb)
         else:
             # The undo before it said so in the notice; the decision says nothing there.
-            expect(page.locator(".lf-notice")).not_to_contain_text(verb)
+            expect_no_notice(page, verb)
         round_trip(page)
         if outcome == "accept":
             undo(page)
@@ -845,7 +848,9 @@ def test_a_refused_decision_returns_to_pending_with_failure_controls(
     expect(item.locator(".lf-margin-receipt")).to_have_text("Failed")
     # And the page's own count is derived from that, so it comes back too.
     expect_accept_all(page, 3)
-    expect(page.locator(".lf-notice")).to_contain_text("Couldn't send")
+    expect(panel_field(page)).to_have_attribute(
+        "placeholder", re.compile("Couldn't send")
+    )
     assert [
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
     ] == []
@@ -893,7 +898,9 @@ def test_an_ambiguous_decision_stays_one_gesture_while_retrying(browser, serve):
         accept.click()
     expect(page.locator("#sug-refill lf-old")).to_be_hidden()
     expect(page.locator("#sug-refill lf-new")).to_be_visible()
-    expect(page.locator(".lf-notice")).to_contain_text("retrying the change")
+    expect(panel_field(page)).to_have_attribute(
+        "placeholder", re.compile("retrying the change")
+    )
 
     expect(accept).to_have_count(0)
     expect(

@@ -912,7 +912,12 @@ export function createFloatingPanel({
       { duration, easing: EASE },
     );
   }
-  const fit = sizeObserver(() => fitAnswer());
+  // Leaf's reader draws into the open thread's view on its own schedule, a sent turn
+  // among them, so the view lands where that drawing shows, not at the panel's next paint.
+  const fit = sizeObserver(() => {
+    landReader();
+    fitAnswer();
+  });
   const follow = sizeObserver(() => followBox());
   addEventListener("resize", () => {
     outline = null;
@@ -2349,7 +2354,9 @@ export function createFloatingPanel({
     }
     if (draw) void present({ release: true });
   }
-  // A thread the reader opens, or answers, or asks to see the news of, stands at its end.
+  // A thread the reader opens, or answers, or asks to see the news of, stands at its end,
+  // once the drawing it waits for lands: on the panel's paint, the reader's presentation,
+  // or the outlet's resize (`fit`).
   function landReader() {
     const top = trail.at(-1);
     if (!landAtEnd || top?.view !== "thread" || top.thread !== landAtEnd.key) return;

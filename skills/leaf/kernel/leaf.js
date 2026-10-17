@@ -6378,7 +6378,10 @@ function createFloatingPanel({
       { duration, easing: EASE }
     );
   }
-  const fit = sizeObserver(() => fitAnswer());
+  const fit = sizeObserver(() => {
+    landReader();
+    fitAnswer();
+  });
   const follow = sizeObserver(() => followBox());
   addEventListener("resize", () => {
     outline = null;

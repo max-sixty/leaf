@@ -1,12 +1,12 @@
 /* Placement for threads: the page's order, which every reading of the threads
-   shares, the panel's Recent order, and the page part each thread stands in. */
+   shares, and the panel's Recent order. */
 import { addressableLabel, addressableWord } from "../addressable-names.js";
 import { sectionOf } from "../anchor-resolution.js";
-import { inChrome, pageParts, pageReadingVersion } from "../passages.js";
+import { pageParts, pageReadingVersion } from "../passages.js";
 import { documentChanged } from "../semantic-state.js";
 import { serverNow } from "../presence.js";
 import { readingRegionFor } from "../reading-regions.js";
-import { byRenderedOrder, renderedOrder, renderedUnder, upFrom } from "../shadow.js";
+import { byRenderedOrder, upFrom } from "../shadow.js";
 import { lastMovedAt } from "./model.js";
 // ---------- where the panel puts a thread ----------
 // The list reads in the page's order, not the log's. A page is a document with a
@@ -104,48 +104,6 @@ function regionLabel(node) {
     if (label) return label;
   }
   return "";
-}
-
-// Which part of the page an element is in: the heading that names everything from itself
-// to the next one. A place that contains a heading takes that heading rather than the one
-// before it — an anchor on a whole <section> is about that section, not about the end of
-// the one above.
-function headingFor(place, outline) {
-  let above = null;
-  for (const heading of outline) {
-    if (renderedUnder(heading, place)) return heading;
-    if (renderedOrder(heading, place) < 0) above = heading;
-    else break;
-  }
-  return above;
-}
-
-// Threads' Placement filter asks whether an anchored passage has a current location,
-// not why it is unplaced: it may be removed or ambiguous. Search also reads the page
-// part it stands in. A general comment never claims a location; a thread in the
-// runtime's own chrome stands in no authored part.
-// Which heading a thread stands under is kept while its place and the outline stand;
-// the heading's name is read each time, since an attribute can rename it without moving
-// the page reading.
-const headings = new WeakMap();
-export function threadSection(t, outline, placedAt) {
-  const place = threadPlace(t, placedAt);
-  // The authored owner may still order an unresolved passage; only the canonical
-  // resolver establishes that passage's location.
-  const unplaced = Boolean((t.detached_from || t.anchor) && !placedAt(t.id));
-  let kept = headings.get(t);
-  if (!kept || kept.place !== place || kept.outline !== outline) {
-    kept = {
-      place,
-      outline,
-      heading: place && !inChrome(place) ? headingFor(place, outline) : null,
-    };
-    headings.set(t, kept);
-  }
-  return Object.freeze({
-    unplaced,
-    section: kept.heading ? subjectLabel(kept.heading) : "",
-  });
 }
 
 // ---------- the panel's Recent order ----------

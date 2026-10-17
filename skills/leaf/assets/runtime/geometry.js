@@ -542,7 +542,7 @@ export function frameView(frame, within) {
 // is measured against changing size or ending a slide (`ROOM_MOVED`). Returns the call
 // that stops watching.
 const ROOM_MOVED = "lf-room-moved";
-export const announceRoom = (target) =>
+const announceRoom = (target) =>
   target.dispatchEvent(new Event(ROOM_MOVED, { bubbles: true, composed: true }));
 export function watchRoom(callback) {
   const viewport = window.visualViewport;

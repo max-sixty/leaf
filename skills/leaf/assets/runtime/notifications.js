@@ -31,7 +31,7 @@ let noticePresentation = Object.freeze({ message: "", visible: false, news: fals
 const noticePresenters = new Set();
 
 export const noticeReading = () => noticePresentation;
-export const noticeVisible = () => noticePresentation.visible;
+const noticeVisible = () => noticePresentation.visible;
 
 // The seat that draws the notice registers one synchronous invalidation door. A notice
 // acknowledges a gesture before its caller returns; routing this

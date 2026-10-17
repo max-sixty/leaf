@@ -158,7 +158,7 @@ import { watchOwner } from "../arrivals.js";
 // application publisher says which thread each stands in (`thread.gestured`). Their
 // words from another tab, or a turn a seat first draws after the log answered it, arrive
 // like the agent's.
-export const gesturedOn = (thread) => threadState().gestured.includes(thread.id);
+const gesturedOn = (thread) => threadState().gestured.includes(thread.id);
 
 // Whether the user acts in the thread a seat draws under `key` (`gesturedOn`).
 const gestured = (key) => {

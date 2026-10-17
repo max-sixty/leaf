@@ -25,17 +25,12 @@ const stepsBefore = (scope) => word(scope?.sequencePrefix ?? scope?.sequence) ??
 const stepsIn = (scope, row) => [...stepsBefore(scope), labelOf(row)].filter(Boolean);
 const shortcutIn = (scope, row) => stepsIn(scope, row).join(" ");
 
-/** The complete shortcut one command advertises, for a control whose own shortcut spans
- * more than one row and so cannot be painted by the pass below. Resolved by command id rather
- * than by row identity: a scope may carry another owner's command as a row of its own —
- * a `g` destination wraps the declaration it stands for — and the shortcut the user
- * presses is the one that scope prefixes. */
-export function commandShortcut(id) {
-  return commandSteps(id).join(" ");
-}
-/** The presses of `commandShortcut`, each a step as a key chip spells it, for a
- * presentation that draws a command as words with its keys (page-controls.js, a row's
- * `shortcut`). Empty for a command no key reaches. */
+/** The complete shortcut one command advertises, each press a step as a key chip
+ * spells it, for a presentation that draws a command as words with its keys
+ * (page-controls.js, a row's `shortcut`). Empty for a command no key reaches. Resolved by
+ * command id rather than by row identity: a scope may carry another owner's command as a
+ * row of its own — a `g` destination wraps the declaration it stands for — and the
+ * shortcut the user presses is the one that scope prefixes. */
 export function commandSteps(id) {
   for (const scope of pageScopes())
     for (const row of scope?.rows ?? [])

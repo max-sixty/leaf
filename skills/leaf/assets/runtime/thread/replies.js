@@ -161,14 +161,6 @@ function dismissContext(context) {
   session.owner?.changed();
 }
 export const dismissReply = (key) => dismissContext(replyContext(key));
-// Withholding an entire surface ends capture without dismissing its editing session
-// or discarding its words. A panel can retain all its reply nodes while it is hidden.
-export function cancelReplyDictation(surface) {
-  for (const instances of views.values())
-    for (const composition of instances)
-      if (surface.contains(composition.controls.input))
-        composition.sync.cancelDictation();
-}
 // A pointer press elsewhere puts the composition away. Keyboard activation emits
 // click too, but Send, Resolve and the declared leave command own their addressed row.
 document.addEventListener(

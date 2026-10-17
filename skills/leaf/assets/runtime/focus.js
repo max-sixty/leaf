@@ -165,16 +165,6 @@ export function focusDestination(
   });
   if (caret && holdsCaret(destination)) destination.setSelectionRange(...caret);
 }
-// A node handing on the focus it is gaining, from inside its own `focus` handler, to a
-// node of its own, as the Threads list hands it to the title the user stood on: the
-// arrival is the one that gave the node its focus, so the node it lands on takes that
-// arrival's cause, whether a placement or the user's own Tab or press gave it.
-export function forwardFocus(destination) {
-  if (!canPlaceFocus()) return;
-  placed(placing ?? cause(destination), () =>
-    destination.focus({ preventScroll: true }),
-  );
-}
 // The cause of the placement running now, null outside one. The outermost placement
 // names it, since whatever focus runs inside it is part of the same act.
 let placing = null;
@@ -1007,10 +997,7 @@ export const openerOf = (layer) => openers.get(layer) ?? null;
 // heard and counted as any is. Where `land` names none and the close left the user on
 // another node, as a platform hand-back does, readers hear it once as a `return`, which
 // is the layer's own and no newer word to a hold. One the close hid them under and no
-// landing put right is a drop, as any is. A native layer closed and shown again in one
-// act, as a modal posture change re-seats the auxiliary dialog and the layers above it
-// (layer-stack.js, `transitionNativeAncestor`), is such a close with no landing, after
-// which a hold put across it puts the user back.
+// landing put right is a drop, as any is.
 //
 // A close inside another, as a card closing while the page map that holds it closes,
 // is part of that act: it lands nobody and tells nobody. The outer close's landing

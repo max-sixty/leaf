@@ -600,9 +600,6 @@ export const dispatchWidget = commandDispatch.dispatchWidget;
 export const invalidateDom = (...args) => app().invalidateDom(...args);
 export const landInThread = (...args) => app().landInThread(...args);
 export const navigateToDatum = (...args) => app().navigateToDatum(...args);
-// The one route to a thread by its root id: the thread's inline destination while
-// it has one, Threads otherwise, the same choice a mark and t/T make.
-export const openThread = (...args) => app().threadDestinations.openPageThread(...args);
 export const post = commandDispatch.post;
 export const projectData = (...args) => app().projectData(...args);
 export const placePageThreads = (...args) => app().placePageThreads(...args);

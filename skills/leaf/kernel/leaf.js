@@ -19,6 +19,7 @@ import {
   MAX_DRAWING_POINTS,
   MAX_DRAWING_SAYS_LENGTH,
   MAX_DRAWING_STROKES,
+  PAGE_CONTROL_RANK,
   acceptData,
   askEnding,
   askWord,
@@ -42,6 +43,8 @@ import {
   mountHistory,
   notifyDataSubscribers,
   ownedAskControl,
+  pageControls,
+  pageControlsChanged,
   paintBarReactions,
   paintCoreControls,
   pendingAbout,
@@ -53,6 +56,7 @@ import {
   reactionTokens,
   readPlace,
   readQueues,
+  registerPageControl,
   returnPlace,
   sendReaction,
   standingThread,
@@ -60,6 +64,7 @@ import {
   threadInput,
   versionPicker,
   versionsReading,
+  watchPageControls,
   watchProjection
 } from "./runtime/bundle-document-identity.js";
 import "./runtime/bundle-dress.js";
@@ -92,13 +97,7 @@ import {
 import {
   restoreUserView
 } from "./runtime/bundle-restore-state.js";
-import {
-  PAGE_CONTROL_RANK,
-  pageControls,
-  pageControlsChanged,
-  registerPageControl,
-  watchPageControls
-} from "./runtime/bundle-projection~presentation.js";
+import "./runtime/bundle-projection~presentation.js";
 import {
   DESIGN_MODE_KEY,
   ELEMENTS,

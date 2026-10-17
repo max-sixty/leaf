@@ -19,9 +19,7 @@ import {
   watchContributions
 } from "./bundle-contribution-model.js";
 import {
-  PAGE_CONTROL_RANK,
-  createProjectionPresentation,
-  registerPageControl
+  createProjectionPresentation
 } from "./bundle-projection~presentation.js";
 import {
   HOLDS_WORD,
@@ -2019,8 +2017,8 @@ var presented2 = outsideReading(
   }
 );
 function watchProjection(owner, paint, ready = null) {
-  let read2 = null;
-  const moved2 = () => read2 === null || [...read2].some(([reading, value]) => reading.read() !== value);
+  let read3 = null;
+  const moved2 = () => read3 === null || [...read3].some(([reading, value]) => reading.read() !== value);
   let key = 0;
   let queued = false;
   let subscribed = [];
@@ -2037,7 +2035,7 @@ function watchProjection(owner, paint, ready = null) {
   };
   const follow = () => {
     for (const stop2 of subscribed) stop2();
-    subscribed = unsubscribe && read2 ? [...read2].map(
+    subscribed = unsubscribe && read3 ? [...read3].map(
       ([reading, value]) => reading.subscribe((now) => now !== value && update())
     ) : [];
   };
@@ -2047,7 +2045,7 @@ function watchProjection(owner, paint, ready = null) {
       presented2.read();
       return paint();
     });
-    read2 = outcome.reads;
+    read3 = outcome.reads;
     follow();
     if ("error" in outcome) throw outcome.error;
     return outcome.value;
@@ -2539,6 +2537,69 @@ function restoreCarry(records, held = /* @__PURE__ */ new Map(), handoffFocus = 
     }
     restoreFocus(true);
   };
+}
+
+// runtime/page-controls.js
+var EMPTY = Object.freeze([]);
+var PAGE_CONTROL_RANK = Object.freeze({
+  session: 10,
+  preview: 20,
+  layer: 30,
+  share: 35,
+  leaves: 40,
+  latest: 50,
+  map: 70,
+  // The page's commands reached by pointer here (touch-controls.js), among themselves
+  // in the register's order.
+  commands: 75,
+  blanket: 80,
+  versions: 90,
+  keyboard: 95,
+  // The next steps in the mode or picker the user stands in.
+  steps: 120,
+  commentSelection: 130
+});
+var GROUPS = Object.freeze(["page", "navigate", "annotate", "about", "keys"]);
+var rows = /* @__PURE__ */ new Map();
+var sequence = 0;
+var listeners = /* @__PURE__ */ new Set();
+var read2 = (value) => typeof value === "function" ? value() : value;
+function registerPageControl(row) {
+  if (!row.key || !Number.isFinite(row.rank) || !row.label || !GROUPS.includes(row.group))
+    throw new TypeError(
+      `Page control ${row.key} needs a key, a numeric rank, a label and one of the groups ${GROUPS.join(", ")}`
+    );
+  if (rows.has(row.key)) throw new TypeError(`Page control ${row.key} is registered`);
+  rows.set(row.key, Object.freeze({ ...row, sequence: sequence++ }));
+  pageControlsChanged();
+}
+function pageControls() {
+  const offered = [...rows.values()].sort((a, b) => a.rank - b.rank || a.sequence - b.sequence).filter((row) => read2(row.offered) ?? true);
+  const nearest = Math.max(
+    ...offered.filter((row) => row.gesture).map((row) => row.rank)
+  );
+  return offered.filter((row) => !row.gesture || row.rank === nearest).map(
+    (row) => Object.freeze({
+      key: row.key,
+      label: read2(row.label),
+      value: read2(row.value) ?? "",
+      shortcut: read2(row.shortcut) ?? EMPTY,
+      group: row.group,
+      copies: read2(row.copies) ?? "",
+      urgent: read2(row.urgent) ?? null,
+      gesture: Boolean(row.gesture),
+      disabled: Boolean(read2(row.disabled)),
+      press: row.press ?? null
+    })
+  );
+}
+var pageControlsChanged = () => afterScript(tell);
+function tell() {
+  for (const listener of listeners) listener();
+}
+function watchPageControls(listener) {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
 }
 
 // runtime/version-picker.js
@@ -3064,10 +3125,10 @@ function comparisonChanges(owner = null) {
 }
 function watchComparison(owner, callback) {
   const paint = readingPaint(owner, () => callback());
-  const read2 = () => paint(comparisonGeneration);
+  const read3 = () => paint(comparisonGeneration);
   const stop = whileConnected(owner, (signal) => {
-    document.addEventListener("lf-comparison", read2, { signal });
-    read2();
+    document.addEventListener("lf-comparison", read3, { signal });
+    read3();
   });
   return () => {
     stop();
@@ -4945,8 +5006,8 @@ function createStateFeed({
     await invalidateDom2();
     await tick();
   }
-  async function readAndApply(read2 = buffer(STATE_READ_TIMEOUT_MS)) {
-    const answer = await read2;
+  async function readAndApply(read3 = buffer(STATE_READ_TIMEOUT_MS)) {
+    const answer = await read3;
     if ("error" in answer) throw answer.error;
     const { state } = answer;
     if (!state) {
@@ -5130,7 +5191,7 @@ function createPendingLedger({ newAttempt, enqueue }) {
       const attempted = { ...event, attempt: event.attempt || newAttempt() };
       if (applicationState.entry(attempted.attempt)) return null;
       const { promise: answer, resolve } = Promise.withResolvers();
-      const { promise: read2, resolve: resolveRead } = Promise.withResolvers();
+      const { promise: read3, resolve: resolveRead } = Promise.withResolvers();
       const current = () => applicationState.entry(attempted.attempt);
       const handle = {
         get event() {
@@ -5140,7 +5201,7 @@ function createPendingLedger({ newAttempt, enqueue }) {
           return current()?.admitted ?? null;
         },
         answer,
-        read: read2,
+        read: read3,
         resolve(value) {
           resolve(value);
           handles.delete(attempted.attempt);
@@ -5607,7 +5668,7 @@ function createThreadPresentation({
   openThread,
   continueThread,
   threadAt,
-  read: read2
+  read: read3
 }) {
   let primary = null;
   const presenter = applicationPresenter({
@@ -5634,7 +5695,7 @@ function createThreadPresentation({
   };
   async function renderReading(cancelled, presenting, resume) {
     const generation = ++surfaceGeneration;
-    read2.begin();
+    read3.begin();
     const current = () => generation === surfaceGeneration && presenting();
     const batch = beginThreadSeats();
     const restorePlace2 = holdThreadPlace(openThread, {
@@ -5686,7 +5747,7 @@ function createThreadPresentation({
             surfaceView.composition.finishPlacement();
             untracked(renderAnnotations);
             pageGeometry.pageShifted();
-            read2.present();
+            read3.present();
             void continueReplies(restorePlace2).catch(
               (error) => reportPageError(error, `Reply continuation failed`)
             );
@@ -5698,7 +5759,7 @@ function createThreadPresentation({
       surfaces?.cancel();
       if (!current()) throw error;
       anchorControls.withholdVisualActions();
-      read2.abort();
+      read3.abort();
       primary?.cancel();
       if (!current()) return;
       retainThreadSeats(batch);
@@ -7320,7 +7381,7 @@ function mountApplication(dependencies) {
       applicationState.settleMarkRead(messages);
     }
   };
-  const read2 = createReadTracking({
+  const read3 = createReadTracking({
     markRead,
     openThread: openPageThread
   });
@@ -7355,7 +7416,7 @@ function mountApplication(dependencies) {
     reply: replyView,
     settlement: settlementView,
     reaction: reactionView,
-    read: read2,
+    read: read3,
     openThread: openPageThread,
     landInThread: dependencies.landInThread
   };
@@ -7460,7 +7521,7 @@ function mountApplication(dependencies) {
     // The thread a margin entry stands for, which a user on it goes on with when the
     // thread leaves the margin.
     threadAt: (node) => overlay?.entryThread(node) ?? null,
-    read: read2
+    read: read3
   });
   const accountPending = (receipts) => {
     ledger.present(receipts);
@@ -7638,8 +7699,8 @@ function mountApplication(dependencies) {
     mountAnnotations,
     overlay,
     threadDestinations,
-    read: read2,
-    mountRead: read2.mount,
+    read: read3,
+    mountRead: read3.mount,
     registerThreadPresentation: (owner, spec) => presentThreads(owner, spec, false),
     registerChromeThreadPresentation: (owner, spec) => presentThreads(owner, spec, true),
     navigateToDatum: dependencies.anchorTravel.navigateToDatum,
@@ -8034,6 +8095,11 @@ export {
   inPageOrder,
   commandSteps,
   paintCoreControls,
+  PAGE_CONTROL_RANK,
+  registerPageControl,
+  pageControls,
+  pageControlsChanged,
+  watchPageControls,
   createAnchorTravel,
   versionPicker,
   versionsReading,

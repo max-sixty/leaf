@@ -970,7 +970,7 @@ function activateSelectedCommand() {
 export const commandReferenceOpen = () => commandReferenceIsOpen;
 // The opening command supplies the action chosen from this particular reference. The
 // rendered catalog retains only ids and sends one back through that injected authority.
-export const openCommandReference = (invokeCommand) =>
+const openCommandReference = (invokeCommand) =>
   showCommandReference(true, true, invokeCommand);
 export const closeCommandReference = (restoreFocus = true) =>
   showCommandReference(false, restoreFocus, null);

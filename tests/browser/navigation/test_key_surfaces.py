@@ -472,7 +472,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     holds the reference to the register by command id rather than by its words, in the
     states that change what is live: a thread walk only once there are threads, and
     still over resolved ones; a thread's own commands only once the page has one; and
-    a version walk only once there is a version to walk to."""
+    the versions open from the page."""
     url = serve(NOTED_PAGE)
     d = serve.page_dir
     page = open_page(browser, live_url(url))
@@ -496,7 +496,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     # No threads and one version: there is nothing to walk, so the walks are dead
     # where the user stands, and the page has no thread scope and no link.
     register, reference = surfaces_name_what_runs()
-    assert {"thread.next", "thread.previous", "version.later"} <= register["dead"]
+    assert {"thread.next", "thread.previous"} <= register["dead"]
     assert {"thread.primary", "link.follow"} <= register["absent"]
     # The dispatcher asks the same declaration: neither half of the walk runs.
     page.keyboard.press("t")
@@ -516,7 +516,6 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     register, reference = surfaces_name_what_runs()
     assert {"thread.next", "thread.previous"} <= register["runs"]
     assert "thread.primary" in reference
-    assert "version.later" in register["dead"]
 
     # The walk's key, pressed, stands the user on a thread open in the panel, where the
     # thread's own commands run.
@@ -525,11 +524,13 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     register, reference = surfaces_name_what_runs()
     assert "thread.resolution.toggle" in register["runs"]
 
-    # A second version gives the versions menu somewhere to walk to.
+    # A second version gives the versions somewhere to go. Their walk is the Versions
+    # list's own, declared while it stands in the menu, so no surface names it here.
     stamp_page(d, NOTED_PAGE, "two")
     wait_for_revision(page, 2)
     register, reference = surfaces_name_what_runs()
-    assert {"version.later", "version.earlier"} <= reference
+    assert "version.open" in register["runs"]
+    assert not {"version.later", "version.earlier"} & reference
 
     # With every thread resolved and a resolved one open, the reference still names
     # only what runs.

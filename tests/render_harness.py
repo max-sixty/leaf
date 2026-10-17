@@ -949,21 +949,6 @@ def accessible_details(page, selector):
         ]
 
 
-def accessible_expanded(page, selector):
-    """Whether the element `selector` is announced expanded, collapsed (False), or as
-    no disclosure at all (None). A `popovertarget` invoker gets this from the
-    platform, with no `aria-expanded` written."""
-    with _accessibility(page) as ax:
-        return next(
-            (
-                prop["value"]["value"]
-                for prop in ax(selector).get("properties", [])
-                if prop["name"] == "expanded"
-            ),
-            None,
-        )
-
-
 def plant_quiet_word(page, selector, holding):
     """Hang a word for a user listening (`.lf-quiet`, the shape a widget's quiet word
     takes) at the end of the first `selector` element whose text holds `holding`, and

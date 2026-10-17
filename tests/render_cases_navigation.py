@@ -363,29 +363,6 @@ def wait_standing(page, text, ids=()):
         ) from None
 
 
-HOVERED = """(text) => {
-    const h = CSS.highlights.get('lf-mark-hover');
-    const said = (h ? [...h].map(r => r.toString()).join('') : '').split(/\\s+/)
-        .filter(Boolean).join(' ');
-    return said === text;
-}"""
-
-
-def wait_hovered(page, text):
-    """Wait for the page to be lighting exactly this passage under the pointer.
-
-    Answered in a coalesced frame rather than in the move itself: the page's half reads
-    layout, and the panel's half reads the browser's own :hover, which that frame is also
-    what settles. Reading straight after the move reads the move before its answer."""
-    try:
-        page.wait_for_function(HOVERED, arg=text)
-    except PlaywrightTimeout:
-        raise AssertionError(
-            f"the pointer should be lighting {text!r} on the page; it is lighting"
-            f" {painted(page, 'lf-mark-hover')!r}"
-        ) from None
-
-
 # Addressable links that start within one digit's width of each other: a run of footnote
 # markers, followed by a link that is the whole of a summary.
 CROWDED_PAGE = leaf_page(

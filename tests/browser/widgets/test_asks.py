@@ -346,7 +346,7 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     page.keyboard.press("?")
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_contain_text(
-        "thread, to-do or resend waiting on me"
+        "Next item waiting on me"
     )
     page.keyboard.press("Escape")
     assert "m" in available_commands(page).get("queue.walk", [])

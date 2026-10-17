@@ -25,12 +25,9 @@ from render_harness import (
     write,
 )
 
-from browser.threads import open_panel_thread, seed_panel_threads
+from browser.threads import PANEL_REPLY, open_panel_thread, seed_panel_threads
 
 pytestmark = pytest.mark.shifts_unsurveyed
-
-# The open thread's reply, the editor standing in the panel's field.
-REPLY = '.lf-fp-field leaf-text[name="reply"]'
 
 
 @pytest.mark.parametrize("bounded", [False, True])
@@ -108,7 +105,7 @@ def test_clicking_a_visible_reply_preserves_the_thread_reading(browser, serve):
     view = open_panel_thread(page, root)
     place = view.evaluate("view => { view.scrollTop = 70; return view.scrollTop; }")
     assert place == 70
-    field = page.locator(REPLY)
+    field = page.locator(PANEL_REPLY)
     field.click()
     expect(field).to_be_focused()
     assert view.evaluate("view => view.scrollTop") == place
@@ -201,7 +198,7 @@ def open_reply(page, surface, root):
     thread's view or card, and the reply box: the panel's field, or the card's."""
     if surface == "panel":
         thread = open_panel_thread(page, root)
-        field = page.locator(REPLY)
+        field = page.locator(PANEL_REPLY)
         field.click()
     else:
         page.keyboard.press("t")
@@ -364,12 +361,12 @@ def test_reply_editing_and_saved_words_have_separate_resolution_lifetimes(
     page.reload()
     wait_until_ready(page)
     recovered = open_panel_thread(page, root)
-    expect(page.locator(REPLY)).not_to_be_visible()
+    expect(page.locator(PANEL_REPLY)).not_to_be_visible()
     with sending(page, "reopen with the saved reply"):
         page.locator(".lf-fp-settle").click()
     expect(recovered).to_be_visible()
-    expect(page.locator(REPLY)).to_be_visible()
-    expect(page.locator(REPLY)).to_have_js_property("value", words)
+    expect(page.locator(PANEL_REPLY)).to_be_visible()
+    expect(page.locator(PANEL_REPLY)).to_have_js_property("value", words)
 
 
 @pytest.mark.parametrize(
@@ -621,7 +618,7 @@ def test_tab_browsing_continues_a_displaced_reply_without_an_annotation_overlay(
     expect(page.locator(".lf-margin-preview")).to_have_count(0)
     # A page drawing no margin continues the reply in the panel's thread.
     expect(page.locator(f'{PANEL_THREAD}[data-thread="{root}"]')).to_be_visible()
-    reply = page.locator(REPLY)
+    reply = page.locator(PANEL_REPLY)
     expect(reply).to_be_visible()
     expect(reply).to_have_js_property("value", words)
     assert reply.evaluate("node => [node.selectionStart,node.selectionEnd]") == [1, 1]

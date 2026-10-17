@@ -35,13 +35,12 @@ from render_harness import (
 )
 
 from browser.drafts import PANEL_SAYS, expect_panel_says
-from browser.threads import open_panel_thread, seed_panel_threads
+from browser.threads import PANEL_REPLY, open_panel_thread, seed_panel_threads
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
-# The panel's field: its Send, and the open thread's reply standing in it.
+# The panel's field's Send.
 FIELD_SEND = ".lf-fp-field .lf-compose-submit"
-REPLY = '.lf-fp-field leaf-text[name="reply"]'
 
 
 def thread_listed(page, attempt):
@@ -333,7 +332,7 @@ def test_a_reply_under_a_refused_parent_comes_back_with_it(
     card = page.locator(f'{PANEL_THREAD}[data-thread="pending:{attempt}"]')
     expect(card).to_be_visible()
     reply = "A reply written while the parent was in flight."
-    write(page.locator(REPLY), reply)
+    write(page.locator(PANEL_REPLY), reply)
     if reply_sent:
         page.locator(FIELD_SEND).click()
     # The user goes back to the page comment box, so the parent's words return in view.
@@ -397,7 +396,7 @@ def test_a_reply_under_a_refused_parent_comes_back_with_it(
     )
     # The comment's send opens its thread in the panel, its reply back in the field.
     expect(page.locator(f'{PANEL_THREAD}[data-thread="{sent["id"]}"]')).to_be_visible()
-    expect(page.locator(REPLY)).to_have_js_property("value", reply)
+    expect(page.locator(PANEL_REPLY)).to_have_js_property("value", reply)
     # An unsent reply's box goes down with the thread; the notice says where its words
     # went, which is what the guard's report is about.
     consume_browser_errors(
@@ -630,7 +629,7 @@ def test_a_held_reply_send_leaves_a_later_reply_box_focused(
     page = open_page(browser, url)
     page.emulate_media(reduced_motion="reduce")
     open_panel_thread(page, first_id)
-    reply = page.locator(REPLY)
+    reply = page.locator(PANEL_REPLY)
     sent = "\n\n".join(["The first reply is in flight."] * 15)
     write(reply, sent)
     page.locator(FIELD_SEND).click()
@@ -638,7 +637,7 @@ def test_a_held_reply_send_leaves_a_later_reply_box_focused(
 
     if not same_thread:
         open_panel_thread(page, later_id)
-    later = page.locator(REPLY)
+    later = page.locator(PANEL_REPLY)
     later.click()
     newer = "The later reply keeps the user here.\n" * (14 if same_thread else 1)
     write(later, newer)
@@ -667,7 +666,7 @@ def test_a_held_reply_send_leaves_the_panel_closed(held_events, serve):
     page = open_page(browser, url)
     page.emulate_media(reduced_motion="reduce")
     open_panel_thread(page, root)
-    reply = page.locator(REPLY)
+    reply = page.locator(PANEL_REPLY)
     write(reply, "Send this while I return to reading.")
     page.locator(FIELD_SEND).click()
     holding(page, held, 1, "the reply send")
@@ -697,7 +696,7 @@ def test_a_held_reply_send_preserves_a_later_scroll(browser, serve):
     round_trip(page)
     held = []
     page.route("**/api/event", lambda route: held.append(route))
-    reply = page.locator(REPLY)
+    reply = page.locator(PANEL_REPLY)
     write(reply, "A reply whose delivery is slow.")
     page.keyboard.press("ControlOrMeta+Enter")
     holding(page, held, 1, "the reply send")
@@ -751,7 +750,7 @@ def test_a_held_comment_send_leaves_a_later_reply_box_focused(browser, serve):
 
     # Another thread than the one in flight.
     open_panel_thread(page, later_id)
-    later = page.locator(REPLY)
+    later = page.locator(PANEL_REPLY)
     later.click()
     write(later, "The later reply keeps the user here.")
     later.evaluate("ta => ta.setSelectionRange(9, 9)")

@@ -32,6 +32,31 @@ from render_harness import (
     write,
 )
 
+# The open thread's reply, the editor standing in the panel's field, and the thread's
+# held news, which the panel stands in its view's head.
+PANEL_REPLY = '.lf-fp-field leaf-text[name="reply"]'
+PANEL_NEWS = ".lf-fp-head .lf-thread-news"
+
+
+def open_threads(page):
+    """Stand the panel's Threads view open: by the open thread's way back to it, which
+    stands while the counts step aside for words being typed, else by its count."""
+    if page.locator(PANEL).get_attribute("data-open") == "threads":
+        return
+    back = page.locator(".lf-fp-head .lf-fp-back", has_text="Threads")
+    (back if back.count() else page.locator(".lf-fp-threads")).click()
+    panel_settled(page, view="threads")
+
+
+def thread_row(page, key):
+    """The thread `key`'s row in the panel's Threads view, opening Threads where it is
+    not the view standing open. Its `.lf-fp-value` says the thread's state, less the
+    word the filter showing it already says."""
+    open_threads(page)
+    return page.locator(
+        f'.lf-fp-view[data-view="threads"] .lf-fp-thread[data-key="{key}"]'
+    )
+
 
 def open_panel_thread(page, thread_id):
     """Open the thread `thread_id` in the panel the way a reader finds it, and return its
@@ -52,9 +77,7 @@ def open_panel_thread(page, thread_id):
         thread_id,
     )
     assert found, f"the page holds no thread {thread_id}"
-    if page.locator(PANEL).get_attribute("data-open") != "threads":
-        page.locator(".lf-fp-threads").click()
-        panel_settled(page, view="threads")
+    open_threads(page)
     page.locator(".lf-fp-filters button").filter(
         has_text="Resolved" if found["resolved"] else "Open"
     ).click()

@@ -119,7 +119,7 @@ PHRASE = """(words) => {
 
 class Passage:
     """Words in the long paragraph, selected by dragging across them or, under a
-    finger, by the platform's selection and the banner's Comment on selection."""
+    finger, by the platform's selection and the panel's Comment on selection."""
 
     block = "#long"
 
@@ -135,9 +135,7 @@ class Passage:
                 }}""",
                 self.words,
             )
-            page.locator(".lf-banner-actions").get_by_role(
-                "button", name="Comment on selection"
-            ).tap()
+            page.locator(".lf-fp-step", has_text="Comment on selection").tap()
             return
         rect = self.line(page)
         y = rect["top"] + rect["height"] / 2
@@ -170,14 +168,15 @@ class Element:
         target.click(modifiers=["Alt"], position={"x": 40, "y": y})
 
     def line(self, page):
-        """Its top as the window shows it, which a scroll may have clipped."""
+        """Its top as the window shows it, which a scroll may have clipped, less the
+        ring's room at the window's head."""
         return page.evaluate(
             """([selector, head]) => {
               const {left, top, right, bottom} = document.querySelector(selector)
                 .getBoundingClientRect();
               return {left, top: Math.max(top, head), right, bottom};
             }""",
-            [self.block, page.evaluate(BANNER_FOOT) + 8],
+            [self.block, 8],
         )
 
 
@@ -215,10 +214,6 @@ CASES = {
         {"again": True},
     ),
 }
-
-BANNER_FOOT = (
-    "() => document.querySelector('.lf-banner').getBoundingClientRect().bottom"
-)
 
 SIDES = {
     "right-start": "right",
@@ -739,7 +734,11 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
         mouse = (
             (before_target["x"] + 50, content_box["y"] + 35)
             if region in ("code", "content")
-            else (120 if scroller else 100, 100 if region == "combined" else 350)
+            # Over the scroller, clear of the box that hangs under the passage.
+            else (
+                120 if scroller else 100,
+                100 if region in ("combined", "pane") else 350,
+            )
         )
         page.mouse.move(*mouse)
         page.mouse.wheel(0, wheel)
@@ -1142,7 +1141,7 @@ def test_send_grows_thread_around_the_words(
         page.locator(".lf-fab-input").focus()
         rendered(page)
     if long == "passage":
-        assert FIRST_LINE.line(page)["bottom"] > page.evaluate(BANNER_FOOT)
+        assert FIRST_LINE.line(page)["bottom"] > 0
     page.evaluate("""() => {
       const input = document.querySelector('.lf-fab-input');
       const blockRects = node => {

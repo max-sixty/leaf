@@ -110,7 +110,7 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     browser, serve
 ):
     """The workspace Layout takes the whole window, wider than a sidebar page's capped
-    frame, and its height below the banner: each pane's body scrolls on its own. Its
+    frame, and the window's height above the panel's band: each pane's body scrolls on its own. Its
     header is one row, the title with the status beside it, so the panes keep the
     window. A window too short to hold it hands the scroll to the page."""
     frame = """() => {
@@ -297,17 +297,17 @@ def test_a_table_at_a_pane_top_is_under_no_sticky_header(browser, serve):
 
 
 def clear_of_the_bottom_chrome(page, selector):
-    """Scroll the page to its end and measure one box against the shortcut bar.
+    """Scroll the page to its end and measure one box against the floating panel's row.
 
-    The bar is the fixed chrome a page's last line has to scroll clear of; a page whose
+    The row is the fixed chrome a page's last line has to scroll clear of; a page whose
     end room is missing leaves that line under it however far the user scrolls."""
     return page.evaluate(
         """selector => {
           const page = document.scrollingElement;
           page.scrollTop = page.scrollHeight;
-          const bar = document.querySelector('.lf-shortcut-bar').getBoundingClientRect();
+          const row = document.querySelector('.lf-fp-row').getBoundingClientRect();
           const box = document.querySelector(selector).getBoundingClientRect();
-          return {bottom: box.bottom, bar: bar.top, clear: box.bottom <= bar.top + 1};
+          return {bottom: box.bottom, row: row.top, clear: box.bottom <= row.top + 1};
         }""",
         selector,
     )
@@ -396,7 +396,7 @@ def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
     which fills the window, scrolls it. The control is the same pane as the workspace's
     body, which fills the window.
 
-    Whatever the user scrolls to in that full-height workspace clears the bottom bar,
+    Whatever the user scrolls to in that full-height workspace clears the panel's row,
     as a document's last line does: the body scrolls as a whole and its end stands
     above the band."""
     page = open_page(browser, serve(SECTIONED_PANE_PAGE))
@@ -546,19 +546,20 @@ def test_the_page_end_clears_the_bottom_chrome_around_a_workspace(browser, serve
     room = page.evaluate(
         """() => {
           const probe = document.createElement('div');
-          probe.style.cssText = 'position:fixed;visibility:hidden;height:var(--lf-bottom-bar-h)';
+          probe.style.cssText = 'position:fixed;visibility:hidden;height:var(--lf-foot-room)';
           document.body.append(probe);
           const band = probe.getBoundingClientRect().height;
           probe.remove();
           return {
             padding: parseFloat(getComputedStyle(document.body).paddingBottom),
             band,
-            line: document.querySelector('.lf-shortcut-bar').getBoundingClientRect().height,
+            panel: innerHeight
+              - document.querySelector('.lf-fp-row').getBoundingClientRect().top,
           };
         }"""
     )
-    # The page's end room is the band's stated height, and the band is that tall.
-    assert room["padding"] == room["band"] == room["line"] and room["band"] > 0, room
+    # The page's end room is the band's stated height, which holds the panel's row.
+    assert room["padding"] == room["band"] >= room["panel"] > 0, room
     end = clear_of_the_bottom_chrome(page, "#document-end")
     assert end["clear"], end
     page.close()

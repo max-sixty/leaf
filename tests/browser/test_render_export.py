@@ -35,6 +35,8 @@ from render_harness import (
     write,
 )
 
+from browser.threads import open_panel_thread
+
 pytestmark = pytest.mark.shifts_unsurveyed
 
 from journeys.test_render_export import (  # noqa: F401 (fixtures)
@@ -269,9 +271,7 @@ def test_interactive_export_with_an_ask_reaches_application_presentation(
         "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
     )
     expect(page.locator(".lf-chrome > #lf-media-viewer:not([open])")).to_have_count(1)
-    expect(page.locator("#lf-banner, .lf-thread-panel, .lf-queue-panel")).to_have_count(
-        0
-    )
+    expect(page.locator(".lf-floating-panel")).to_have_count(0)
 
 
 def test_an_interactive_export_paints_a_widget_owned_text_box(browser, serve, tmp_path):
@@ -373,9 +373,7 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
     expect(page.locator("#offline-widget #choice")).to_have_text("chosen")
     expect(page.locator(".lf-chrome > #lf-media-viewer:not([open])")).to_have_count(1)
-    expect(page.locator("#lf-banner, .lf-thread-panel, .lf-queue-panel")).to_have_count(
-        0
-    )
+    expect(page.locator(".lf-floating-panel")).to_have_count(0)
     assert (
         page.locator("#offline-widget #local").evaluate(
             "control => getComputedStyle(control).color"
@@ -804,10 +802,8 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
     if not resolved:
         inline_workflow = thread.locator(".lf-msg-sending")
         expect(inline_workflow).to_have_text("Working")
-        live.keyboard.press("c")
-        panel_workflow = live.locator(
-            f'.lf-chrome .lf-thread[data-id="{root["id"]}"] .lf-msg-sending'
-        )
+        # The same message in the panel's view of the thread says it the same way.
+        panel_workflow = open_panel_thread(live, root["id"]).locator(".lf-msg-sending")
         expect(panel_workflow).to_have_text("Working")
         workflow_face = """node => {
           const style = getComputedStyle(node);

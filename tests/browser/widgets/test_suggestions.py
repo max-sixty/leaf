@@ -16,17 +16,18 @@ from render_cases_interaction import (
     SUGGESTION_PAGE,
     SWAP_PAGE,
 )
-from render_cases_layout import banner_control, unfolded_button
+from render_cases_layout import unfolded_button
 from render_cases_navigation import actions
 from render_harness import (
     consume_browser_errors,
-    expect_banner_control_offered,
     expect_comment_notes,
     holding,
     http_error_console,
     leaf_page,
     margins_laid_out,
     open_page,
+    panel_field,
+    panel_menu,
     refuse,
     resized,
     root_overflow,
@@ -35,7 +36,16 @@ from render_harness import (
     undo,
 )
 
+from browser.widgets import expect_accept_all
+
 pytestmark = pytest.mark.shifts_unsurveyed
+
+
+def expect_no_notice(page, words):
+    """Read that no passing notice says `words`: the panel says one in its empty
+    field's place (floating-panel.js), so a decision the live region alone announces
+    leaves the field saying something else."""
+    expect(panel_field(page)).not_to_have_attribute("placeholder", re.compile(words))
 
 
 def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, serve):
@@ -418,8 +428,7 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     assert undo_button.evaluate(box) == before, (
         "Undo moved away from the press it replaces"
     )
-    expect(page.locator(".lf-notice")).to_have_text("")
-    expect(page.locator(".lf-notice")).not_to_have_class(re.compile(r"\bshow\b"))
+    expect_no_notice(page, "Accepted")
     expect(page.locator(".lf-live")).to_have_text(
         re.compile(r"^Accepted suggested change: Refill a feeder when")
     )
@@ -433,9 +442,8 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     assert "line-through" not in settled and "rgba(0, 0, 0, 0)" in settled, (
         f"settled text still wears a pending mark: {settled}"
     )
-    # The banner's count follows the page: three pending, one decided.
-    expect(page.locator(".lf-answer-all")).to_have_text("Accept all (2)")
-    expect_banner_control_offered(page.locator(".lf-answer-all"))
+    # The menu's count follows the page: three pending, one decided.
+    expect_accept_all(page, 2)
 
     # The boundary before reading the shared log: what the press sent has to have a
     # definitive outcome first. The fetch this replaced proved nothing —
@@ -464,8 +472,7 @@ def test_a_pointer_decision_announces_without_needing_button_focus(browser, serv
     expect(page.locator(".lf-live")).to_have_text(
         re.compile(r"^Accepted suggested change: Refill a feeder when")
     )
-    expect(page.locator(".lf-notice")).to_have_text("")
-    expect(page.locator(".lf-notice")).not_to_have_class(re.compile(r"\bshow\b"))
+    expect_no_notice(page, "Accepted")
 
 
 def test_a_settled_deletion_keeps_undo_on_the_containing_passage(browser, serve):
@@ -593,13 +600,10 @@ def test_a_widget_naming_its_own_words_does_not_read_the_runtimes(browser, serve
             f"{verb} suggested change: Retry three times."
         )
         if outcome == "accept":
-            expect(page.locator(".lf-notice")).to_have_text("")
-            expect(page.locator(".lf-notice")).not_to_have_class(
-                re.compile(r"\bshow\b")
-            )
+            expect_no_notice(page, verb)
         else:
             # The undo before it said so in the notice; the decision says nothing there.
-            expect(page.locator(".lf-notice")).not_to_contain_text(verb)
+            expect_no_notice(page, verb)
         round_trip(page)
         if outcome == "accept":
             undo(page)
@@ -727,29 +731,24 @@ def test_a_user_who_asked_for_less_motion_gets_the_collapse_at_once(browser, ser
 
 
 def test_accept_all_decides_every_pending_suggestion(browser, serve):
-    """The banner's button is a shortcut for the user who has read the page
+    """The menu's Accept all is a shortcut for the user who has read the page
     and wants all of it, so it has to reach the ones their eye didn't: the
     suggestion inside a widget, whose controls stand on the widget as a pin rather
     than in the rail. Each is decided individually, so the log records what was
     consented to one change at a time rather than one blanket yes."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
-    answer_all = page.locator(".lf-answer-all")
-    expect(answer_all).to_have_text("Accept all (3)")
-    page.evaluate(
-        "button => { window.__lfAnswerAll = button; }", answer_all.element_handle()
-    )
+    expect_accept_all(page, 3)
 
-    # The same public control survives a semantic change, and its later press resolves
-    # the current open inventory rather than replaying the list from its earlier face.
+    # A press after a semantic change resolves the current open inventory rather than
+    # replaying the list from an earlier reading.
     page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
     expect(
         page.locator("[data-lf-margin-for='sug-refill']").get_by_role(
             "button", name=re.compile(r"^Undo accepting")
         )
     ).to_be_enabled()
-    expect(answer_all).to_have_text("Accept all (2)")
-    assert answer_all.evaluate("button => button === window.__lfAnswerAll")
-    banner_control(page, ".lf-answer-all").click()
+    expect_accept_all(page, 2)
+    panel_menu(page).locator('.lf-fp-item[data-row="blanket:accept"]').click()
 
     for widget in ("sug-refill", "sug-thistle", "sug-in-card"):
         expect(page.locator(f"#{widget} lf-new")).to_be_visible()
@@ -770,8 +769,8 @@ def test_accept_all_decides_every_pending_suggestion(browser, serve):
         "sug-in-card",
     ):  # the two that replace rather than insert
         expect(page.locator(f"#{widget} lf-old")).to_be_hidden()
-    # Nothing left to accept, so the button says nothing rather than saying zero.
-    expect(page.get_by_role("button", name=re.compile("Accept all"))).to_be_hidden()
+    # Nothing left to accept, so the menu offers nothing rather than saying zero.
+    expect_accept_all(page, 0)
 
     # Every decision above is settled; this is the boundary for a stray post the
     # sequence below would otherwise read as absent.
@@ -835,9 +834,10 @@ def test_a_refused_decision_returns_to_pending_with_failure_controls(
     )
     expect(item.locator(".lf-margin-receipt")).to_have_text("Failed")
     # And the page's own count is derived from that, so it comes back too.
-    expect(page.locator(".lf-answer-all")).to_have_text("Accept all (3)")
-    expect_banner_control_offered(page.locator(".lf-answer-all"))
-    expect(page.locator(".lf-notice")).to_contain_text("Couldn't send")
+    expect_accept_all(page, 3)
+    expect(panel_field(page)).to_have_attribute(
+        "placeholder", re.compile("Couldn't send")
+    )
     assert [
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
     ] == []
@@ -885,7 +885,9 @@ def test_an_ambiguous_decision_stays_one_gesture_while_retrying(browser, serve):
         accept.click()
     expect(page.locator("#sug-refill lf-old")).to_be_hidden()
     expect(page.locator("#sug-refill lf-new")).to_be_visible()
-    expect(page.locator(".lf-notice")).to_contain_text("retrying the change")
+    expect(panel_field(page)).to_have_attribute(
+        "placeholder", re.compile("retrying the change")
+    )
 
     expect(accept).to_have_count(0)
     expect(

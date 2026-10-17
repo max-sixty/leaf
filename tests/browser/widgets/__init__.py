@@ -1,9 +1,39 @@
 """Browser tests of the widgets a page declares, one module per widget family or shared
 widget mechanism, and the page sources and helpers more than one module uses."""
 
+import re
+
 from leaf import data as data_model
+from playwright.sync_api import expect
 from render_cases_widgets import LONG_LINE_DIFF_PAGE, MULTI_HUNK_PATCH
-from render_harness import leaf_page, open_page
+from render_harness import PANEL, leaf_page, open_page, panel_field, panel_menu
+
+
+def expect_walk_says(page, words):
+    """Wait for a walk's position, such as "Hunk 2 of 3", to be said where the panel
+    says what passes: in its empty field's place (floating-panel.js), as a notice is."""
+    expect(panel_field(page)).to_have_attribute(
+        "placeholder", re.compile(re.escape(words))
+    )
+
+
+def expect_accept_all(page, count):
+    """Read the leaf's menu offering Accept all for `count` pending suggestions, enabled,
+    then put the menu away; `count` 0 reads no such row at all."""
+    menu = panel_menu(page)
+    row = menu.locator('.lf-fp-item[data-row="blanket:accept"]')
+    if count:
+        expect(row).to_be_enabled()
+        expect(row).to_contain_text(f"Accept all ({count})")
+    else:
+        expect(row).to_have_count(0)
+    put_menu_away(page)
+
+
+def put_menu_away(page):
+    """Close the leaf's menu by its leaf, which keeps the focus the press gave it."""
+    page.locator(".lf-fp-leaf").click()
+    expect(page.locator(PANEL)).not_to_have_attribute("data-menu", "")
 
 
 def observe_live_region(page):

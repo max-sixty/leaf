@@ -18,21 +18,20 @@ from render_cases_interaction import (
     answered_comment,
     live_url,
 )
-from render_cases_layout import banner_control
 from render_cases_navigation import BINDING_BADGE_PAGE
 from render_harness import (
     ROOT,
     active_digit_bindings,
+    available_commands,
     expect_asks_answered,
-    expect_banner_control_offered,
     expect_comment_notes,
     holding,
     leaf_page,
     open_page,
+    panel_control,
     resized,
     round_trip,
     scroll_settled,
-    shortcut_bar_text,
     stamp_page,
     undo,
     wait_for_revision,
@@ -40,10 +39,26 @@ from render_harness import (
 )
 
 from browser.widgets import (
+    expect_accept_all,
     observe_live_region,
+    put_menu_away,
 )
 
 pytestmark = pytest.mark.shifts_unsurveyed
+
+
+def expect_approval(page, *, enabled, title=None):
+    """Read the version's approval in the leaf's menu, under Versions, enabled or not,
+    with the reason `title` gives where it is refused; then put the menu away. The menu
+    holds what it opened with, so wait for the page state first."""
+    approve = panel_control(page, "approval")
+    if enabled:
+        expect(approve).to_be_enabled()
+    else:
+        expect(approve).to_be_disabled()
+    if title is not None:
+        expect(page.locator(".lf-fp-approval")).to_have_attribute("title", title)
+    put_menu_away(page)
 
 
 ACROSS_ASK = """
@@ -146,8 +161,7 @@ def test_ideas_shortlist_survives_revision_and_can_reopen_before_approval(
     )
     page = open_page(browser, live_url(serve(example)), context=context)
     choices = page.locator("#ideas-shortlist")
-    approve = page.locator(".lf-signoff")
-    expect(approve).to_be_disabled()
+    expect_approval(page, enabled=False)
 
     first = page.locator("#idea-shared-filters .lf-pick")
     first.focus()
@@ -164,7 +178,7 @@ def test_ideas_shortlist_survives_revision_and_can_reopen_before_approval(
     done.tap()
     round_trip(page)
     expect_asks_answered(page, "1/1")
-    expect(approve).to_be_enabled()
+    expect_approval(page, enabled=True)
 
     revised = example.read_text().replace("One API", "A permission-checked API")
     wait_for_revision(
@@ -172,14 +186,14 @@ def test_ideas_shortlist_survives_revision_and_can_reopen_before_approval(
     )
     expect(page.locator("#idea-shared-filters")).to_have_attribute("chosen", "")
     expect(page.locator("#idea-csv-export")).to_have_attribute("chosen", "")
-    expect(approve).to_be_enabled()
+    expect_approval(page, enabled=True)
 
     choices.get_by_role(
         "button", name="Take back Done: reopen these options", exact=True
     ).tap()
     round_trip(page)
     expect_asks_answered(page, "0/1")
-    expect(approve).to_be_disabled()
+    expect_approval(page, enabled=False)
     choices.get_by_text("Export the filtered table", exact=True).tap()
     round_trip(page)
     expect(page.locator("#idea-csv-export")).not_to_have_attribute("chosen", "")
@@ -188,9 +202,9 @@ def test_ideas_shortlist_survives_revision_and_can_reopen_before_approval(
     expect(page.locator("#idea-csv-export")).to_have_attribute("chosen", "")
     done.tap()
     round_trip(page)
-    banner_control(page, ".lf-signoff").tap()
+    panel_control(page, "approval").tap()
     round_trip(page)
-    expect(approve).to_contain_text("Version approved")
+    expect(panel_control(page, "approval")).to_contain_text("Version approved")
 
 
 def test_clearing_an_answer_reopens_its_ask_and_shuts_the_approval_gate(browser, serve):
@@ -208,13 +222,12 @@ def test_clearing_an_answer_reopens_its_ask_and_shuts_the_approval_gate(browser,
         head='<meta name="lf-review" content="sign-off">',
     )
     page = open_page(browser, serve(html))
-    approve = page.locator(".lf-signoff")
     pick = page.locator("#release-ship .lf-pick")
 
     pick.click()
     round_trip(page)
     expect_asks_answered(page, "1/1")
-    expect(approve).to_be_enabled()
+    expect_approval(page, enabled=True)
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))
@@ -228,9 +241,8 @@ def test_clearing_an_answer_reopens_its_ask_and_shuts_the_approval_gate(browser,
     page.unroute("**/api/event")
     round_trip(page)
     expect_asks_answered(page, "0/1")
-    expect(approve).to_be_disabled()
-    expect(approve).to_have_attribute(
-        "title", "Answer every open widget before approving this work"
+    expect_approval(
+        page, enabled=False, title="Answer every open widget before approving this work"
     )
 
 
@@ -254,7 +266,7 @@ def test_the_ask_reading_counts_completed_asks_against_the_active_total(browser,
     expect_asks_answered(page, "1/5")
     # The blanket answer counts the same list, narrowed to the one kind that declares
     # a verb for it, so the two numbers cannot describe different sets.
-    expect(page.locator(".lf-answer-all")).to_have_text("Accept all (1)")
+    expect_accept_all(page, 1)
 
     # Answering advances the numerator without erasing the denominator. A pick is state
     # the page itself carries, so the count follows the click; the suggestion's outcome
@@ -263,7 +275,7 @@ def test_the_ask_reading_counts_completed_asks_against_the_active_total(browser,
     expect_asks_answered(page, "2/5")
     page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
     expect_asks_answered(page, "3/5")
-    expect_banner_control_offered(page.locator(".lf-answer-all"), offered=False)
+    expect_accept_all(page, 0)
 
     # And clearing the pick asks again: an empty answer is no answer, which only a
     # reading of what the page carries can say.
@@ -330,14 +342,14 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
         == []
     ), "a lent tab stop was left on a decision the user has walked off"
 
-    # The overlay and the shortcut bar offer it because there is something to reach.
+    # The overlay and the dispatcher offer it because there is something to reach.
     page.keyboard.press("?")
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_contain_text(
         "Next item waiting on me"
     )
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("on me")
+    assert "m" in available_commands(page).get("queue.walk", [])
 
     # Leaving the ask takes the place off the count the way it takes the ring off the
     # page: a click into the prose is the user standing nowhere in the list.
@@ -389,7 +401,7 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
     the heading, premise, and evidence stood immediately above it, `d` centred the
     options and made the user scroll backward before they could answer. `lf-ask`
     encodes that broader unit while the nested x-awaits widget still owns the action:
-    the walk rings the region, aligns its opening below the banner, and stands the
+    the walk rings the region, aligns its opening at the window's head, and stands the
     user on it.
 
     On it, and not on the control that answers it, which was where the walk landed until
@@ -403,9 +415,10 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
     everything inside the decision comes after it.
     """
     page = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
-    # Short enough that even the pick in the card's compact header falls past the foot of
-    # the window once the decision's opening is at its head, which is the shape the fault
-    # has: the walk cannot both show the question and stand the user on its answer.
+    # Short enough that even the pick in the card's compact header falls under the
+    # panel's band at the window's foot once the decision's opening is at its head,
+    # which is the shape the fault has: the walk cannot both show the question and
+    # stand the user on its answer.
     resized(page, 900, 230)
 
     # The options really do begin below context, and enough page follows the region for
@@ -436,7 +449,9 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
           const box = document.activeElement.getBoundingClientRect();
           const pick = document.querySelector('#storage-options .lf-pick')
             .getBoundingClientRect();
-          return {top: box.top, pick: pick.top, height: innerHeight};
+          const foot = parseFloat(
+            getComputedStyle(document.scrollingElement).scrollPaddingBottom);
+          return {top: box.top, pick: pick.top, height: innerHeight - foot};
         }"""
     )
     assert standing["pick"] > standing["height"], (
@@ -458,7 +473,7 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
         }"""
     )
     assert abs(landed["ask"] - landed["clear"]) <= 2, (
-        f"the Ask starts at {landed['ask']:.1f}px instead of below the banner and its "
+        f"the Ask starts at {landed['ask']:.1f}px instead of the landing band's top and its "
         f"ring's room at {landed['clear']:.1f}px"
     )
     assert landed["options"] > landed["ask"] + 100, (
@@ -589,7 +604,7 @@ def test_ask_contextual_bindings_are_independent_of_widget_bindings(browser, ser
     inspect.focus()
     rendered(page)
     assert set(inspect.get_attribute("aria-keyshortcuts").split()) == {"x", "y", "3"}
-    assert "I\nInspect" in shortcut_bar_text(page)
+    assert {"x", "y"} <= set(available_commands(page)["test.inspect"])
     rendered(page)
     assert sorted(
         page.locator(
@@ -616,7 +631,8 @@ def test_ask_contextual_bindings_are_independent_of_widget_bindings(browser, ser
     )
     rendered(page)
     assert set(inspect.get_attribute("aria-keyshortcuts").split()) == {"y", "3"}
-    assert "y\nInspect" in shortcut_bar_text(page)
+    reaching = set(available_commands(page)["test.inspect"])
+    assert "y" in reaching and "x" not in reaching, reaching
     page.keyboard.press("x")
     expect(inspect).not_to_have_attribute("data-dead-local-x", "1")
     expect(inspect).not_to_have_attribute("data-activated", "1")
@@ -720,7 +736,7 @@ def test_an_ask_alias_runs_the_original_command_in_its_own_scope(browser, serve)
     expect(page.locator("#sug")).to_be_focused()
     page.keyboard.press("3")
     expect(page.get_by_role("button", name="Inside configuration")).to_be_focused()
-    assert "close configuration" in shortcut_bar_text(page)
+    assert available_commands(page).get("test.configure.close") == ["Escape"]
     page.keyboard.press("Escape")
     expect(page.locator("#test-command-layer")).to_be_hidden()
     expect(page.get_by_role("button", name="Configure")).to_be_focused()
@@ -888,12 +904,14 @@ def test_ask_actions_replace_unusable_package_binding_badge_faces(browser, serve
 
 
 def test_ask_binding_badges_do_not_cover_their_key_line(browser, serve):
-    """A binding badge that reaches the shortcut bar yields to its digit's legend."""
+    """A binding badge that reaches the floating panel's row yields to it."""
     page = open_page(browser, serve(BINDING_BADGE_PAGE))
-    resized(page, 900, 520)
+    # Narrow enough that the panel's row, which stands centred at the window's foot,
+    # spans the leading edge the badges stand at.
+    resized(page, 480, 520)
 
-    # The first Ask uses titled cards, whose trailing binding badges cannot meet the leading
-    # shortcut bar. Step to the compact row Ask, where both occupy the leading edge.
+    # The first Ask uses titled cards, whose trailing binding badges cannot meet the
+    # panel's row. Step to the compact row Ask, where both occupy the leading edge.
     #
     # The walk arrives and then travels, in that order and in one task, so the arrival is
     # the fact each stillness reading is taken behind. Stillness on its own answers the
@@ -910,7 +928,7 @@ def test_ask_binding_badges_do_not_cover_their_key_line(browser, serve):
     expect(
         page.locator("#rows > lf-option > .lf-key-badge[data-lf-binding-badge]")
     ).to_have_text(["1", "2"])
-    # Put the second row's badge one pixel into the shortcut bar's band. The first stays a
+    # Put the second row's badge one pixel into the panel row's band. The first stays a
     # row above it, so a placement pass that reserves the legend keeps one and removes
     # the other. Calculate the scroll from their current boxes rather than pinning the
     # fixture to today's spacing.
@@ -920,7 +938,7 @@ def test_ask_binding_badges_do_not_cover_their_key_line(browser, serve):
             '#rows > lf-option > .lf-key-badge[data-lf-binding-badge]'
           );
           const last = badges[badges.length - 1].getBoundingClientRect();
-          const line = document.querySelector('.lf-shortcut-bar').getBoundingClientRect();
+          const line = document.querySelector('.lf-fp-row').getBoundingClientRect();
           scrollTo(0, scrollY + last.top - line.top - 1);
         }"""
     )
@@ -935,7 +953,7 @@ def test_ask_binding_badges_do_not_cover_their_key_line(browser, serve):
             return {left: box.left, right: box.right, top: box.top, bottom: box.bottom};
           };
           return {
-            line: read(document.querySelector('.lf-shortcut-bar')),
+            line: read(document.querySelector('.lf-fp-row')),
             chips: [...document.querySelectorAll(
               '.lf-command-binding-badges .lf-command-binding-badge, [data-lf-binding-badge]'
             )].filter(node => node.checkVisibility({visibilityProperty: true})).map(read),
@@ -960,7 +978,7 @@ def test_an_ask_that_cannot_name_itself_arrives_on_the_words_that_explain_it(
     An x-ask-context widget states its own arrival region: a heading, the context, then the
     control. A suggestion can stand mid-sentence, so it can never satisfy "an ask must
     name itself without context outside the ask" and no region can be written round it.
-    Arriving on the change alone put its own top edge under the banner and took the
+    Arriving on the change alone put its own top edge at the window's head and took the
     sentence and the heading with it, leaving the user on the change with nothing on
     screen saying what they would be accepting.
 
@@ -1000,7 +1018,7 @@ def test_an_ask_that_cannot_name_itself_arrives_on_the_words_that_explain_it(
     )
     assert abs(landed["heading"] - landed["clear"]) <= 2, (
         f"the arrival put the heading over this change at {landed['heading']:.1f}px "
-        f"rather than below the banner at {landed['clear']:.1f}px"
+        f"rather than at the landing band's top at {landed['clear']:.1f}px"
     )
     assert landed["clear"] < landed["sentence"] < landed["change"], (
         "the sentence the change stands in is not on screen above it"
@@ -1008,13 +1026,13 @@ def test_an_ask_that_cannot_name_itself_arrives_on_the_words_that_explain_it(
     assert landed["foot"] <= landed["view"], "the change itself ran off the screen"
 
 
-def test_an_arrival_region_fits_above_the_bottom_bar(browser, serve):
+def test_an_arrival_region_fits_above_the_floating_panel(browser, serve):
     """The region an arrival takes in is measured against the landing band.
 
-    The shortcut bar stands over the window's foot, so a region measured against the
-    window below the banner put the heading at the top of the screen and the change it
-    was chosen for under the bar. The window is sized so the heading's region fits below
-    the banner but not above the bottom bar: the arrival takes a narrower region, and the
+    The floating panel's row stands over the window's foot, so a region measured against
+    the whole window put the heading at the top of the screen and the change it was
+    chosen for under the row. The window is sized so the heading's region fits in the
+    window but not above the panel's band: the arrival takes a narrower region, and the
     change stays where the user can read it.
     """
     page = open_page(browser, serve(SUGGESTION_IN_CONTEXT_PAGE))
@@ -1031,8 +1049,9 @@ def test_an_arrival_region_fits_above_the_bottom_bar(browser, serve):
       };
     }"""
     before = page.evaluate(measure)
-    assert before["bottom"] > 0, "the fixture has no bottom bar to land clear of"
-    resized(page, 900, round(before["span"] + before["top"] + before["bottom"] / 2))
+    assert before["bottom"] > 0, "the fixture has no panel band to land clear of"
+    # The region misses the room above the band by a few pixels; the change alone fits.
+    resized(page, 900, round(before["span"] + before["top"] + before["bottom"] - 8))
 
     page.keyboard.press("m")
     expect(page.locator("#sc-sug")).to_be_focused()
@@ -1099,7 +1118,7 @@ def test_an_arrival_does_not_reach_back_into_the_ask_before_it(browser, serve):
         "reachable, so this test can no longer tell the container bound is working"
     )
     assert abs(landed["other"] - landed["clear"]) > 2, (
-        "the arrival put the previous ask's heading below the banner, so the user "
+        "the arrival put the previous ask's heading at the band's top, so the user "
         "starts on the question they are not being asked"
     )
     assert landed["foot"] <= landed["view"], "the change itself ran off the screen"
@@ -1158,7 +1177,7 @@ def test_an_ask_inside_a_card_is_brought_into_that_card(browser, serve):
         "the change is still outside its card's own band, so the card was never scrolled"
     )
     # Where the card's own top ends up is not promised: the region can be a block inside
-    # the card, and placing that at the banner takes the card's top edge above it. What
+    # the card, and placing that at the band's top takes the card's top edge above it. What
     # is promised is the change, in the window and in its card's band at once.
     assert seen["onScreen"], "the change is in its card's band but off the window"
 
@@ -1184,7 +1203,7 @@ def test_an_ask_already_in_front_of_the_user_is_not_travelled_to(browser, serve)
     arrived = page.evaluate("() => document.scrollingElement.scrollTop")
     assert arrived > 0, "the walk did not travel to the ask at all"
 
-    # A little above that arrival: the region's start is still clear of the banner and
+    # A little above that arrival: the region's start is still in the window and
     # the change's foot is still on screen, so this is the same view with the user's
     # own adjustment in it.
     page.evaluate("() => document.scrollingElement.scrollBy(0, -40)")
@@ -1220,10 +1239,10 @@ def test_the_ask_walk_starts_from_where_the_user_is(browser, serve):
     and so was anyone who had just selected a paragraph to comment on.
 
     With focus in the chrome, the walk measures from what they are reading, which the
-    last walk's landing scroll put in front of them. The banner's button is no place — pressing it opens
-    the drawer and leaves the focus on itself, so a walk measured from the focus after it
-    would restart on every press, and the ring is gone from the page by then, the user
-    being in the banner. A selected passage now enters its comment field immediately;
+    last walk's landing scroll put in front of them. The panel's On me mark is no place:
+    pressing it opens On me and leaves the focus in the panel, so a walk measured from
+    the focus after it would restart on every press, and the ring is gone from the page
+    by then, the user being in the panel. A selected passage now enters its comment field immediately;
     while that field stands, letters are text rather than page-navigation keys."""
     page = open_page(browser, serve(ASKS_PAGE))
 
@@ -1241,16 +1260,10 @@ def test_the_ask_walk_starts_from_where_the_user_is(browser, serve):
     # that scroll leaves in front of the user, so the scroll has to have landed.
     scroll_settled(page)
 
-    # The banner's press opens the drawer and keeps the focus, so the walk after it
-    # measures from where the user stands in the page and steps on rather than
-    # restarting — the button being no place to measure from.
-    #
-    # Reached through `banner_control` rather than by clicking the button where it
-    # would stand on a wide row: at this fixture's 900px the row cannot hold every
-    # control in a face wider than this desk's, and folding one is the row's stated
-    # answer. Which control the fold takes is the banner's business and not this
-    # walk's, so the helper opens the door where it has to.
-    banner_control(page, ".lf-queue").click()
+    # The mark's press opens On me and takes the focus into the panel, so the walk
+    # after it measures from where the user stands in the page and steps on rather
+    # than restarting — the panel being no place to measure from.
+    panel_control(page, "queue").click()
     page.keyboard.press("m")
     expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-ask", "1")
 

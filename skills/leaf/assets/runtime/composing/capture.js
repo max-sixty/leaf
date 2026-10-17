@@ -60,7 +60,6 @@ export function createPassageSelection({ restore }) {
       description: "Restore the last selected passage",
       touch: "Restore selection",
       menu: "keys",
-      covering: true,
       when: () => previous !== null,
       run: async () => {
         const intent = retainUserIntent();

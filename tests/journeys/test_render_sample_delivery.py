@@ -11,6 +11,7 @@ from leaf import interaction_log as interaction_model
 from leaf.render_checks import HANDOVER_DEADLINE_MS
 from playwright.sync_api import expect
 from render_harness import (
+    PANEL,
     consume_browser_errors,
     holding,
     http_error_console,
@@ -18,6 +19,7 @@ from render_harness import (
     open_page,
     page_comment,
     said,
+    scroll_settled,
     take_browser_errors,
     write,
 )
@@ -28,7 +30,8 @@ from render_harness import (
 def test_sample_upgrade_does_not_wait_for_child_saved_state(
     browser, serve, surface, newer_input
 ):
-    """A saved-thread request waits for history and yields to a newer child draft."""
+    """A saved-thread request waits for history and yields to a newer child draft, and
+    in the panel to any draft in the field its view would take."""
     source = leaf_page(
         "Independent sample startup",
         '<h1>Independent sample startup</h1><p id="outer">Parent passage.</p>'
@@ -54,7 +57,13 @@ def test_sample_upgrade_does_not_wait_for_child_saved_state(
     expect(child.locator("body")).to_have_attribute("data-lf-upgraded", "1")
     expect(child.locator("body")).not_to_have_attribute("inert")
     expect(child.locator("body")).not_to_have_attribute("data-lf-presented", "1")
-    expect(child.locator(".lf-status-text")).to_have_text("Loading saved state…")
+    expect(child.locator(".lf-fp-leaf")).to_have_attribute(
+        "aria-label", "Page menu · Loading saved state…"
+    )
+    # The page's own panel floats over the window's foot, where the sample's stands
+    # too until the page is scrolled to the foot room it keeps clear of its chrome.
+    page.evaluate("scrollTo(0, document.scrollingElement.scrollHeight)")
+    scroll_settled(page)
     outer_box = page_comment(page)
     write(outer_box, "Parent draft")
     page.keyboard.press("Escape")
@@ -91,22 +100,23 @@ def test_sample_upgrade_does_not_wait_for_child_saved_state(
     for route in held:
         route.continue_()
     page.wait_for_function("window.sampleSelected")
-    assert page.evaluate("window.sampleSelectionResult") is (not newer_input)
+    # The panel's view of a thread would stand its reply in the field the child's words
+    # stand in, so it yields to them as it does to newer input; the page's card doesn't.
+    shown = not newer_input and surface == "page"
+    assert page.evaluate("window.sampleSelectionResult") is shown
     expect(child.locator("body")).to_have_attribute("data-lf-presented", "1")
     expect(outer_box).to_have_js_property("value", "Parent draft")
     expect(inner_box).to_have_js_property("value", child_words)
     if newer_input:
-        expect(child.locator(".lf-thread-panel")).not_to_have_class(
-            re.compile(r"\bopen\b")
-        )
         expect(inner_box).to_be_focused()
-    else:
-        destination = child.locator(
-            ".lf-thread-panel" if surface == "panel" else ".lf-page-thread"
+    if not shown:
+        expect(child.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+        return
+    expect(
+        child.locator(".lf-page-thread").get_by_text(
+            "A saved child conversation.", exact=True
         )
-        expect(
-            destination.get_by_text("A saved child conversation.", exact=True)
-        ).to_be_visible()
+    ).to_be_visible()
 
 
 def interaction_records(page, page_dir, *, document=None):

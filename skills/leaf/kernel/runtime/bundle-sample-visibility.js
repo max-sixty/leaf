@@ -374,13 +374,6 @@ function focusDestination(destination, cause2, { caret = null, ...unknown } = {}
   });
   if (caret && holdsCaret(destination)) destination.setSelectionRange(...caret);
 }
-function forwardFocus(destination) {
-  if (!canPlaceFocus()) return;
-  placed(
-    placing ?? cause(destination),
-    () => destination.focus({ preventScroll: true })
-  );
-}
 var placing = null;
 var placed = (cause2, move2) => {
   const was = placing;
@@ -1012,13 +1005,6 @@ var readingBlock = () => null;
 function declareReading(read2) {
   readingBlock = read2;
 }
-var coveringSurface = () => null;
-var coveringLanding = () => null;
-function declareCovering({ surface, landing }) {
-  coveringSurface = surface;
-  coveringLanding = landing;
-}
-var coveringFocus = () => coveringLanding();
 function releaseFocus() {
   focusDestination(document.body, "move");
   document.body.blur();
@@ -1036,12 +1022,6 @@ function release() {
 }
 function letGo() {
   letGoes++;
-  const covering = coveringSurface();
-  if (covering) {
-    if (!covering.contains(document.activeElement))
-      focusDestination(coveringFocus(), "move");
-    return;
-  }
   const block = readingBlock();
   if (!block?.isConnected) {
     releaseFocus();
@@ -1135,7 +1115,6 @@ export {
   tabStops,
   canPlaceFocus,
   focusDestination,
-  forwardFocus,
   wearsLentStop,
   whenLeft,
   readCaret,
@@ -1167,8 +1146,6 @@ export {
   takesLetters,
   controlNavigationKeys,
   declareReading,
-  declareCovering,
-  coveringFocus,
   releaseFocus,
   declareRelease,
   release,

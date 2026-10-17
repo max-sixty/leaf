@@ -188,7 +188,7 @@ own background.
 
 ## Notices and spoken words
 
-`notice(message)` shows a moment's news in Leaf's status line and announces it to screen
+`notice(message)` shows a moment's news in Leaf's panel and announces it to screen
 readers, such as confirming a gesture the widget recorded. News not caused by the user
 passes `{background: true}` and waits behind what the user just did; `{announce: false}`
 only shows it. `announce(message)` only announces, for words already on screen.

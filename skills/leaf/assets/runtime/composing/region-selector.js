@@ -1,13 +1,13 @@
 /* A bounded area-selection interaction over the current viewport.
  *
  * The page command owner supplies input and registers this controller's rows with the
- * shared keyboard and banner controls. The overlay only paints: it never intercepts
+ * shared keyboard and the floating panel's controls. The overlay only paints: it never intercepts
  * hit testing or introduces a modal. Its outline leaves the selected content clear;
  * instructions and errors belong to the shared controls and notice line. Pointer
  * drags set a rectangle; arrows move it and
  * Shift+arrows resize it, so capturing never requires a drag. The selected pixels stay
  * in viewport coordinates until confirmation, when `pageImage` draws that
- * document-coordinate crop, excluding the selector, banner and shortcut bar. The crop
+ * document-coordinate crop, excluding the selector and the floating panel. The crop
  * is approximate browser rendering, not privileged access to screen pixels.
  *
  * The closest containing semantic target at the rectangle's center anchors its comment.
@@ -150,7 +150,7 @@ export function createRegionSelector({
     paintKeys();
     try {
       const { blob, warnings } = await pageImage(clip, {
-        exclude: [".lf-region-capture", ".lf-shortcut-bar", ".lf-banner"],
+        exclude: [".lf-region-capture", ".lf-floating-panel", ".lf-fp-ground"],
       });
       if (ended || ticket !== attempt) return;
       if (revision !== runtime.currentRevision)

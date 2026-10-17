@@ -25,20 +25,6 @@ what fails and what still works.
 
 ## Supported APIs checked
 
-### Feedback clearance above a covering thread panel
-
-- **Owner:** `styles/chrome.css`. Native `anchor-size()` reads the panel foot and
-  selected reply, while `anchor()` reads the list's foot; feedback keeps one
-  clearance through list scrolling and draft growth. The list opens one chosen
-  thread, so it supplies one visible reply anchor.
-- **Observed 2026-10-14:** installed Playwright Chromium 153.0.8010.12, Firefox 155
-  and WebKit 26.6 match the former measured placement within one pixel for short
-  and multiline replies at both scroll ends, reply selection changes, an empty
-  list, a multiline page-mode foot composer, and the panel beside the page.
-  Empty lists use the foot anchor alone; a reply's presence adds its clearance.
-- **Disposition:** adopted without a fallback. These are installed engine checks,
-  rather than a current stable-browser compatibility survey.
-
 ### Help search result relationships
 
 - **Owner:** `runtime/keyboard/command-reference.js`. The shared input keeps its
@@ -481,6 +467,11 @@ application. Recheck the affected Leaf journey when resolving this entry.
   WeakMap key, throwing an uncaught page error (Firefox 157 and Chrome 155).
   `build/vendor.mjs` patches that climb to follow only a shadow root's host; drop
   the patch once upstream fixes it.
+- **Upstream credentials defect, 2026-10-17:** SnapDOM 3.3.4 sends cookies to a
+  resource whose origin equals `location.origin`, the URL's, so a sandboxed sample
+  child, whose document origin is opaque, sent them cross-origin and Leaf's
+  `Access-Control-Allow-Origin: *` answer refused the child's icon.svg mask in Chrome.
+  `build/vendor.mjs` compares with `self.origin`; drop the patch once upstream does.
 - **Published limitations:** the upstream
   [3.3.0 limitations](https://github.com/zumerlab/snapdom/blob/b27b35adfae9d9a8993c56b067837014bcef4750/README.md#limitations)
   require readable images, fonts, and stylesheets; cross-origin iframe contents

@@ -8,7 +8,7 @@ from interact_support import append_carried_log_record
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import thread as thread_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
     PANEL_PAGE,
@@ -30,9 +30,13 @@ from render_cases_widgets import (
     PART_DIAGRAM_PAGE,
 )
 from render_harness import (
+    PANEL,
+    PANEL_THREAD,
     RELEASE_FOCUS,
     ROOT,
     accessible_details,
+    available_commands,
+    expect_panel_says,
     held_frames,
     holding,
     leaf_page,
@@ -44,11 +48,13 @@ from render_harness import (
     scroll_settled,
     select,
     sending,
-    shortcut_bar_text,
     suggestion_control,
     told,
     write,
 )
+
+from browser.test_render_outbox import undo_offered
+from browser.threads import open_panel_thread
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -259,14 +265,16 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
         and level["clusters"] == 1
     ), level
     # A mark, not a thread: nothing in the panel, and nothing in its count.
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 0")
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    expect(page.locator(".lf-thread")).to_have_count(0)
+    expect(page.locator(".lf-fp-threads")).to_have_attribute(
+        "title", re.compile("^Threads, 0 open")
+    )
+    page.locator(".lf-fp-threads").click()
+    panel_settled(page, view="threads")
+    expect(page.locator(".lf-fp-thread")).to_have_count(0)
     # The bar raised on the same passage again says the token stands. Its general
     # response disclosure keeps those choices with the field, while the reaction's glyph
     # remains the margin receipt and removal disclosure.
-    page.locator(".lf-threads-toggle").click()
+    page.locator(".lf-fp-threads").click()
     panel_settled(page, open=False)
     receipt_item = page.locator('.lf-margin-cluster[data-lf-margin-for="how-store"]')
     expect(receipt_item).to_have_attribute("data-lf-place", "rail")
@@ -338,7 +346,6 @@ def test_e_immediately_opens_the_selection_s_reactions_and_digit_chooses(
     surface = page.locator(".lf-fab-bar")
     expect(surface).to_have_class(re.compile(r"\blf-response-open\b"))
     expect(surface.locator(".lf-react:visible")).to_have_count(6)
-    assert "1–6" in shortcut_bar_text(page)
 
     with sending(page, "the reaction 2 chose"):
         page.keyboard.press("2")
@@ -360,8 +367,6 @@ def test_comment_reaction_digits_stop_at_nine_for_a_larger_vocabulary(browser, s
 
     bar = page.locator(".lf-fab-bar")
     expect(bar.locator(".lf-react:visible")).to_have_count(11)
-    line = shortcut_bar_text(page)
-    assert "1–9" in line and "1–11" not in line, line
     with sending(page, "the ninth reaction shortcut"):
         page.keyboard.press("9")
     sent = events_model.read_events(serve.page_dir)[-1]
@@ -473,8 +478,6 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve):
     expect(bar.locator(".lf-fab-input")).not_to_be_focused()
     page.keyboard.press("c")
     page.keyboard.press("Tab")
-    line = shortcut_bar_text(page)
-    assert "1–6" in line and "react" in line, line
     surface = bar.locator(":scope > .lf-response-options")
     expect(surface).to_be_visible()
     expect(surface.locator(".lf-react:visible")).to_have_count(6)
@@ -503,10 +506,10 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve):
         expect(focused).to_be_focused()
         assert focused.evaluate(face)["outline"] == "solid"
         assert focused.evaluate(face)["ring"] != resting_face["ring"]
-    expect(page.locator(".lf-walk-position")).to_have_text("Response 7 of 7")
+    expect_panel_says(page, "Response 7 of 7")
     page.keyboard.press("ArrowRight")
     expect(surface.get_by_role("button", name="Suggest", exact=True)).to_be_focused()
-    expect(page.locator(".lf-walk-position")).to_have_text("Response 1 of 7")
+    expect_panel_says(page, "Response 1 of 7")
     assert (
         surface.locator(".lf-fab-input:visible, .lf-react:visible").evaluate_all(
             """els => new Set(els.map(el => {
@@ -527,15 +530,14 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve):
     )
     painted(page, [["how-cap", "shorten"]])
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
-    # The sentence behind the chip, off the register: the reference's z row names the
+    # The sentence behind the row, off the register: the reference's z row names the
     # token and the passage it stands on, where it promised a generic take-back before.
-    # The row and the line's chip ask one predicate, and it is dead for as long as the
-    # send this sentence would name is a gesture no log read has accounted for. The paint
+    # The row asks the dispatcher's predicate, and it is dead for as long as the send
+    # this sentence would name is a gesture no log read has accounted for. The paint
     # above arrives a turn before that reading does, so the reference is opened from the
-    # moment the line offers the press, which is the fact `render_harness.undo` waits
-    # on for the press itself.
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
-    page.keyboard.press("?")
+    # moment the dispatcher offers the press, which is the fact `render_harness.undo`
+    # waits on for the press itself.
+    undo_offered(page)
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_be_visible()
     rows = page.locator(".lf-command-reference").inner_text()
@@ -548,20 +550,19 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve):
     page.evaluate("() => getSelection().removeAllRanges()")
     page.mouse.move(0, 0)
     page.evaluate(RELEASE_FOCUS)
-    expect(
-        page.locator('.lf-shortcut-bar [data-lf-command-ids~="reaction.open"]')
-    ).to_have_count(0)
+    assert "reaction.open" not in available_commands(page)
     page.keyboard.press("e")
-    expect(page.locator(".lf-notice")).not_to_have_text("Select something to react to")
-    expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    rendered(page)
+    expect_panel_says(page, "Select something to react to", says=False)
+    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
 
-    # Neither Threads nor the page comment card adds an unanchored reaction target.
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    expect(page.locator(".lf-thread-panel .lf-react-strip")).to_have_count(0)
+    # Neither Threads nor the page comment adds an unanchored reaction target.
+    page.locator(".lf-fp-threads").click()
+    panel_settled(page, view="threads")
+    expect(page.locator(".lf-floating-panel .lf-react-strip")).to_have_count(0)
     page_comment(page)
-    expect(page.locator(".lf-page-comment-card .lf-react-strip")).to_have_count(0)
+    expect(page.locator(".lf-floating-panel .lf-react-strip")).to_have_count(0)
 
 
 @pytest.mark.parametrize(("width", "opener"), [(1440, "click"), (390, "keyboard")])
@@ -587,7 +588,7 @@ def test_reactions_keep_all_six_buttons_on_an_occupied_target(
     choices.first.focus()
     page.keyboard.press("ArrowRight")
     expect(reaction).to_be_focused()
-    expect(page.locator(".lf-walk-position")).to_have_text("Reaction 2 of 6")
+    expect_panel_says(page, "Reaction 2 of 6")
     if opener == "click":
         with sending(page, "the direct reaction"):
             reaction.click()
@@ -614,9 +615,9 @@ def test_deciding_a_reaction_target_releases_its_temporary_choices(browser, serv
     page.keyboard.press("e")
     expect(item.locator(f"{MARGIN_RESPONSES}:visible")).to_have_count(6)
     # The full inventory remains available to Page Map while the focused rail view
-    # shows reactions alone. Invoke its control directly here: this test is
-    # about reconciliation when another owner settles the target, not banner overflow.
-    page.locator(".lf-page-map-toggle").evaluate("button => button.click()")
+    # shows reactions alone.
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+p")
     sheet = page.get_by_role("dialog", name="Page Map", exact=True)
     decision = suggestion_control(sheet, target, action, visible=False)
     decision.focus()
@@ -638,43 +639,15 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
 ):
     """A raise stands the choices in the target's own fold, so putting them down folds
     that cluster back rather than leaving an empty fold for the user to close. Only the
-    cluster this raise unfolded, and only where it did the unfolding: the put-down runs on
-    every disarm, a reply strip's included, and that one never raised the margin at all —
-    `marginOffer?.unregister()` is written for exactly that case. Folding on the strength
-    of the disarm alone took away a layer the gesture had never put on, from a user
-    working in the panel with their own `…` open out on the page."""
+    cluster this raise unfolded: a raise that finds the user's own `…` already open
+    borrows it, and putting the choices down leaves it open."""
     url = serve(SUGGESTION_PAGE)
-    root = panel_comment(serve.page_dir, "Why refill?", {"section": "sug-refill"})
-    reply = append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "agent": "Claude",
-            "parent": root,
-            "text": "Because the finches take it through the cold.",
-        },
-    )["id"]
+    # A thread on the target gives its cluster more entries than it shows, so a fold.
+    panel_comment(serve.page_dir, "Why refill?", {"section": "sug-refill"})
     page = open_page(browser, url)
     resized(page, 1920, 900)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
     item = page.locator('[data-lf-margin-for="sug-refill"]')
     more = item.locator(":scope > .lf-margin-more")
-    more.click()
-    expect(item).to_have_attribute("data-lf-options-open", "")
-
-    # The user's own fold, and a reaction on a reply whose surface is that reply's
-    # strip: the disarm has no fold of its own to put back and must leave theirs alone.
-    page.locator(".lf-thread-summary").click()
-    strip = page.locator(f'.lf-msg[data-mid="{reply}"] .lf-react-strip')
-    strip.locator(".lf-react-trigger").click()
-    expect(strip.locator(".lf-react:visible")).to_have_count(6)
-    page.keyboard.press("Escape")
-    expect(strip.locator(".lf-react:visible")).to_have_count(0)
-    expect(item).to_have_attribute("data-lf-options-open", "")
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page, open=False)
     more.click()
     expect(item).to_have_attribute("data-lf-options-open", "")
 
@@ -777,13 +750,11 @@ def test_a_focused_response_choice_wears_the_layer_s_band(browser, serve, scheme
     ), ring
 
 
-def test_the_response_choices_stay_reachable_beside_the_panel(browser, serve):
+def test_the_response_choices_stay_reachable_in_a_narrow_bar(browser, serve):
     """A narrow side can wrap the choices while keeping every action whole and
-    inside the comment bar beside the open Threads panel."""
+    inside the comment bar."""
     page = open_page(browser, serve(PANEL_PAGE))
     resized(page, 1024, 768)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
     select_paragraph(page, "#how-cap")
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_be_visible()
@@ -1004,11 +975,11 @@ FIELD_BOX = """(t) => {
   return {w, h, r, over: intrusion - inset, scrolls: t.scrollHeight > t.clientHeight + 1};
 }"""
 
-# The band a float may stand in, in viewport terms: below the banner, above the foot,
-# inside the gutters. What `place` clamps against, read off the page's own chrome.
-FLOAT_ROOM = """() => {
-  const banner = document.querySelector('.lf-banner').getBoundingClientRect();
-  return {top: Math.max(48, banner.bottom + 6), bottom: innerHeight - 8,
+# The band a float may stand in, in viewport terms: the window the page shows, from its
+# head to the panel's row (geometry.js, `shownWindow`), inside the gutters.
+FLOAT_ROOM = """async () => {
+  const shown = (await window.__lfWidgetApi()).shownWindow();
+  return {top: shown.top, bottom: shown.bottom,
           right: Math.min(innerWidth, document.body.getBoundingClientRect().right) - 8};
 }"""
 
@@ -1016,7 +987,7 @@ FLOAT_ROOM = """() => {
 def test_the_response_field_grows_as_a_rectangle_and_spans_the_bar(browser, serve):
     """A one-line note uses the shared action corner. A longer one uses the width of
     its chosen rail and then wraps, growing through the room placement states — a dozen
-    lines shows them all, and only one taller than the band below the banner scrolls,
+    lines shows them all, and only one taller than the window the page shows scrolls,
     standing inside that band — and the corner stays fixed through all of that. On a
     narrow screen the same room caps the bar and the field is what gives. With nothing
     beside it, the field spans the bar, so the sent message spans the card as
@@ -1095,89 +1066,6 @@ def test_the_response_field_grows_as_a_rectangle_and_spans_the_bar(browser, serv
     assert message["x"] + message["width"] == pytest.approx(
         reply["x"] + reply["width"], abs=1
     ), (message, reply)
-
-
-def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
-    browser, serve
-):
-    """A covered composer cannot retain an invisible typing destination.
-
-    The panel can leave usable room beside it or cover the response controls at narrower
-    widths. Resizing between those postures preserves the draft, withdraws its unavailable
-    surface, and hands the keyboard to the visible Thread panel.
-    """
-    # Wide enough that some of the page stays visible beyond the covering panel.
-    covered_width = 450
-    page = open_page(browser, serve(PANEL_PAGE))
-    initial_events = events_model.read_events(serve.page_dir)
-    # Start with Threads beside the page. A covering panel makes the background inert,
-    # even when some of the page remains visible beyond its edge.
-    resized(page, 1000, 900)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    field = page.locator(".lf-fab-input")
-    bar = page.locator(".lf-fab-bar")
-
-    def enter_passage():
-        assert not page.locator(".lf-thread-panel").evaluate(
-            "el => el.closest('dialog').matches(':modal')"
-        )
-        box = page.locator("#how-cap").bounding_box()
-        select(
-            page,
-            (box["x"] + 4, box["y"] + 6),
-            (box["x"] + 190, box["y"] + 6),
-        )
-        expect(field).to_be_visible()
-        field.click()
-        expect(field).to_be_focused()
-
-    enter_passage()
-    draft = "Keep this unsent review attached to the capped store."
-    write(field, draft)
-    bounds = bar.bounding_box()
-    panel = page.locator(".lf-thread-panel").bounding_box()
-    assert bounds["x"] + bounds["width"] <= panel["x"], (bounds, panel)
-
-    # Retiring a background draft must not interrupt an unrelated typing surface.
-    search = page.get_by_role("searchbox", name="Find in threads")
-    search.click()
-    resized(page, covered_width, 900)
-    expect(bar).to_be_hidden()
-    expect(search).to_be_focused()
-    resized(page, 1000, 900)
-    enter_passage()
-    expect(field).to_have_js_property("value", draft)
-
-    resized(page, covered_width, 900)
-    expect(bar).to_be_hidden()
-    expect(page.locator(".lf-threads")).to_be_focused()
-    page.keyboard.insert_text("Invisible typing must not change the draft.")
-    expect(field).to_have_js_property("value", draft)
-    assert events_model.read_events(serve.page_dir) == initial_events
-
-    # A fresh reading proves the text survived in the draft store, rather than merely
-    # remaining in the hidden field. The same passage regains it when room returns.
-    resized(page, 1000, 900)
-    page.reload()
-    wait_until_ready(page)
-    expect(field).to_be_visible()
-    expect(field).to_have_js_property("value", draft)
-    page.keyboard.press("Escape")
-    expect(bar).to_be_hidden()
-    expect(page.locator(".lf-thread-panel")).to_be_visible()
-    enter_passage()
-    expect(field).to_have_js_property("value", draft)
-    bounds = bar.bounding_box()
-    panel = page.locator(".lf-thread-panel").bounding_box()
-    assert bounds["x"] + bounds["width"] <= panel["x"], (bounds, panel)
-    # End alone is the end of a visual line, while ControlOrMeta+End is not a document-
-    # end gesture on macOS. Select the whole draft and collapse the selection after it:
-    # the same platform-neutral route to the end at every soft-wrapped width.
-    field.press("ControlOrMeta+a")
-    field.press("ArrowRight")
-    field.press_sequentially(" It is visible again.")
-    expect(field).to_have_js_property("value", draft + " It is visible again.")
 
 
 def test_a_reaction_on_a_visual_part_names_that_part(browser, serve):
@@ -1586,12 +1474,12 @@ def test_a_declared_visual_part_can_raise_the_same_bar_from_the_keyboard(
     expect(page.locator("#flow")).to_have_class(re.compile(r"\blf-pending\b"))
     assert page.evaluate("() => getSelection().toString().trim()") == ""
     whole_bar = page.locator(".lf-fab-bar").bounding_box()
-    shortcut_bar = page.locator(".lf-shortcut-bar").bounding_box()
+    row = page.locator(".lf-fp-row").bounding_box()
     assert (
-        whole_bar["x"] + whole_bar["width"] <= shortcut_bar["x"]
-        or shortcut_bar["x"] + shortcut_bar["width"] <= whole_bar["x"]
-        or whole_bar["y"] + whole_bar["height"] <= shortcut_bar["y"] - 6
-    ), (whole_bar, shortcut_bar)
+        whole_bar["x"] + whole_bar["width"] <= row["x"]
+        or row["x"] + row["width"] <= whole_bar["x"]
+        or whole_bar["y"] + whole_bar["height"] <= row["y"] - 6
+    ), (whole_bar, row)
 
     control = page.locator(".lf-visual-action").filter(
         has_text=re.compile(r"^Respond to Start request$")
@@ -1602,14 +1490,9 @@ def test_a_declared_visual_part_can_raise_the_same_bar_from_the_keyboard(
     expect(start).to_have_class(re.compile(r"\blf-pending\b"))
     assert page.evaluate("() => getSelection().toString().trim()") == ""
     expect(page.locator(".lf-fab-input")).to_be_focused()
-    # The captured target spends the short line's two contextual slots on immediate
-    # comment entry and the route to its other responses.
-    line = shortcut_bar_text(page)
-    assert "comment" in line and "other responses" in line
-    assert "unselect" not in line
 
     # Escape hands the user back to the part itself, not the proxy they pressed:
-    # focused, a proxy's face stands under the banner, away from the drawing.
+    # focused, a proxy's face stands at the window's head, away from the drawing.
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
@@ -2178,21 +2061,21 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
         },
     )["id"]
     page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
 
     def strip(mid):
-        return page.locator(f'.lf-msg[data-mid="{mid}"] .lf-react-strip')
-
-    def card(mid):
-        return page.locator(f'.lf-thread:has(.lf-msg[data-mid="{mid}"])')
+        return page.locator(
+            f'{PANEL_THREAD} .lf-msg[data-message="{mid}"] .lf-react-strip'
+        )
 
     def message(mid):
-        return page.locator(f'.lf-msg[data-mid="{mid}"]')
+        return page.locator(f'{PANEL_THREAD} .lf-msg[data-message="{mid}"]')
 
     # At rest: no empty reply spends height, including the latest reply in each thread.
-    # Open each card before measuring its retained message nodes.
-    card(first).locator(".lf-thread-summary").click()
+    # Open each thread before measuring its message nodes, and leave the message the
+    # view stands on, whose focus would offer its control.
+    open_panel_thread(page, root)
+    page.evaluate(RELEASE_FOCUS)
+    page.mouse.move(4, 4)
     assert strip(latest).evaluate("s => s.getBoundingClientRect().height") == 0
     assert (
         strip(latest)
@@ -2205,7 +2088,9 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
     expect(strip(first).locator(".lf-react:visible")).to_have_attribute(
         "data-token", "clarify"
     )
-    card(quiet_first).locator(".lf-thread-summary").click()
+    open_panel_thread(page, quiet_root)
+    page.evaluate(RELEASE_FOCUS)
+    page.mouse.move(4, 4)
     for mid in (quiet_latest, quiet_first):
         assert strip(mid).evaluate("s => s.getBoundingClientRect().height") == 0
         assert (
@@ -2242,12 +2127,10 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
         == "0"
     )
 
-    # The keyboard's route in is the focus the walk puts on the card's native title; e
-    # opens the latest agent reply in that thread without disturbing the standing mark on
-    # an older reply. Opening this title closes the quiet card the measurements above
-    # needed open, which is the disclosure group doing its own work.
-    card(first).locator(":scope > .lf-thread-summary").click()
-    expect(card(first)).to_have_attribute("open", "")
+    # The keyboard's route in is the focus opening a thread puts on its view; e opens
+    # the latest agent reply in that thread without disturbing the standing mark on an
+    # older reply.
+    open_panel_thread(page, root).focus()
     page.keyboard.press("e")
     expect(strip(latest)).to_have_class(re.compile("lf-react-open"))
     expect(strip(latest).locator(".lf-react:visible")).to_have_count(6)
@@ -2290,8 +2173,8 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
 def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
     browser, serve, width, touch
 ):
-    """Reaction belongs to its own header, including an agent-authored root whose
-    first header shares space with Resolve. Both actions stay reachable, and a touch
+    """Reaction belongs to its own header, including an agent-authored root, and
+    stands clear of the view's Resolve. Both actions stay reachable, and a touch
     trigger takes its floor without covering the message's first line."""
     url = serve(PANEL_PAGE)
     text = (
@@ -2317,14 +2200,9 @@ def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
     def activate(control):
         control.tap() if touch else control.click()
 
-    activate(page.locator(".lf-threads-toggle"))
-    panel_settled(page)
-    card = page.locator(f'.lf-thread[data-id="{root}"]')
-    if card.get_attribute("open") is None:
-        activate(card.locator(":scope > .lf-thread-summary"))
-    expect(card).to_have_attribute("open", "")
+    card = open_panel_thread(page, root)
     for message_id in (reply, root):
-        message = card.locator(f'.lf-msg[data-mid="{message_id}"]')
+        message = card.locator(f'.lf-msg[data-message="{message_id}"]')
         if not touch:
             message.hover()
         trigger = message.get_by_role("button", name="Add reaction", exact=True)
@@ -2335,7 +2213,7 @@ def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
           const head = message.querySelector('.lf-msg-head').getBoundingClientRect();
           const metadata = [...message.querySelector('.lf-msg-head').children]
             .map(node => node.getBoundingClientRect());
-          const resolve = message.closest('.lf-thread').querySelector('.lf-resolve');
+          const resolve = document.querySelector('.lf-fp-settle');
           const action = resolve.getBoundingClientRect();
           const range = document.createRange();
           range.selectNodeContents(message.querySelector('.lf-msg-text'));
@@ -2374,8 +2252,8 @@ def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
         expect(message.locator(".lf-react-palette:popover-open")).to_have_count(0)
 
     with sending(page, "resolve beside the agent-root reaction"):
-        activate(card.get_by_role("button", name="Resolve thread", exact=True))
-    expect(card).to_be_hidden()
+        activate(page.locator(".lf-fp-settle"))
+    expect(card).to_have_count(0)
 
 
 def test_a_held_reaction_says_its_word_and_the_release_decides(browser, serve):
@@ -2401,10 +2279,8 @@ def test_a_held_reaction_says_its_word_and_the_release_decides(browser, serve):
         viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
     )
     page = open_page(browser, url, context=context)
-    page.locator(".lf-threads-toggle").tap()
-    panel_settled(page)
-    page.locator(".lf-thread-summary").first.tap()
-    strip = page.locator(f'.lf-msg[data-mid="{reply}"] .lf-react-strip')
+    view = open_panel_thread(page, root)
+    strip = view.locator(f'.lf-msg[data-message="{reply}"] .lf-react-strip')
     strip.get_by_role("button", name="Add reaction", exact=True).tap()
     expect(strip).to_have_class(re.compile(r"\blf-react-open\b"))
     cdp = context.new_cdp_session(page)
@@ -2538,10 +2414,8 @@ def test_a_reopened_message_picker_keeps_the_selected_reaction_visible(
     )["id"]
     page = open_page(browser, url, color_scheme=scheme)
     if placement == "panel":
-        page.locator(".lf-threads-toggle").click()
-        panel_settled(page)
-        page.locator(".lf-thread-summary").click()
-        message = page.locator(f'.lf-msg[data-mid="{reply}"]')
+        view = open_panel_thread(page, root)
+        message = view.locator(f'.lf-msg[data-message="{reply}"]')
     else:
         message = page.locator(f'lf-diff [data-event="{reply}"]')
     strip = message.locator(".lf-react-strip")
@@ -2606,20 +2480,18 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
     url = serve(PANEL_PAGE)
     root, reply = _thread(serve.page_dir)
     page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    page.locator(".lf-thread-summary").click()
-    strip = page.locator(f'.lf-msg[data-mid="{reply}"] .lf-react-strip')
+    on_me = page.locator(".lf-fp-on-user")
+    expect(on_me).to_have_attribute("title", "On me: 1")
+    view = open_panel_thread(page, root)
+    strip = view.locator(f'.lf-msg[data-message="{reply}"] .lf-react-strip')
     expect(strip.locator(".lf-react-trigger")).to_have_count(1)
     assert strip.evaluate("s => s.getBoundingClientRect().height") == 0
     expect(strip.locator(".lf-react")).to_have_count(6)
     expect(strip.locator(".lf-react:visible")).to_have_count(0)
     # The user's own message wears no strip: a reaction is on what the agent said.
-    expect(page.locator(f'.lf-msg[data-mid="{root}"] .lf-react-strip')).to_have_count(0)
-    page.locator(".lf-thread-filter-toggle").click()
-    page.locator(".lf-needs").click()  # the waiting-on-you narrowing
-    expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "true")
-    expect(page.locator(".lf-thread")).to_have_count(1)
+    expect(
+        view.locator(f'.lf-msg[data-message="{root}"] .lf-react-strip')
+    ).to_have_count(0)
 
     strip.locator(".lf-react-trigger").click()
     expect(strip.locator(".lf-react:visible")).to_have_count(6)
@@ -2630,35 +2502,27 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
     expect(strip.locator('.lf-react[data-token="change"]')).to_have_attribute(
         "aria-pressed", "true"
     )
-    expect(page.locator(".lf-thread")).to_have_count(1)  # `no` settles nothing
+    expect(on_me).to_have_attribute("title", "On me: 1")  # `no` settles nothing
 
     strip.locator(".lf-react-trigger").click()
     with sending(page, "the ok that settles the thread"):
         strip.locator('.lf-react[data-token="keep"]').click()
     ok = events_model.read_events(serve.page_dir)[-1]
     assert ok["token"] == "keep" and ok["parent"] == reply
-    expect(page.locator(".lf-needs")).to_have_text("Me (0)")  # none
-    expect(page.locator(".lf-thread:not([hidden])")).to_have_count(
-        0
-    )  # out of "waiting on me"
+    expect(on_me).to_have_attribute("title", "On me")  # out of "waiting on me"
     # The mark, pressed again, is the eraser — and the wait comes back with the undo.
-    page.locator(".lf-needs").click()
-    expect(page.locator(".lf-thread")).to_have_count(1)
-    # Narrowing retains the card's disclosure, so the thread the wait brings back is
-    # open on the strip the user was working in rather than needing a second press.
-    expect(page.locator(".lf-thread")).to_have_js_property("open", True)
     with sending(page, "the take-back of the ok"):
         strip.locator('.lf-react[data-token="keep"]').click()
     withdrawn = events_model.read_events(serve.page_dir)[-1]
     assert withdrawn["kind"] == "undo" and withdrawn["undoes"] == ok["id"]
-    expect(page.locator(".lf-needs")).to_have_text("Me (1)")
+    expect(on_me).to_have_attribute("title", "On me: 1")
     expect(strip.locator('.lf-react[data-token="keep"]')).to_have_attribute(
         "aria-pressed", "false"
     )
 
 
 def test_a_remote_resolve_disarms_the_open_reply_list_it_takes_away(browser, serve):
-    """A remote resolve waits behind the open card's notice, so the strip whose list is
+    """A remote resolve waits behind the open view's notice, so the strip whose list is
     open stays. A digit there means what the strip drew, and a resolved thread offers
     no reaction, so it sends nothing; as the user's gesture in the thread it shows the
     resolution, whose messages wear no strip. The detached list stops owning digits,
@@ -2666,28 +2530,22 @@ def test_a_remote_resolve_disarms_the_open_reply_list_it_takes_away(browser, ser
     url = serve(PANEL_PAGE)
     root, reply = _thread(serve.page_dir)
     page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    card = page.locator(f'.lf-thread[data-id="{root}"]')
-    card.locator(".lf-thread-summary").click()
-    strip = page.locator(f'.lf-msg[data-mid="{reply}"] .lf-react-strip')
+    view = open_panel_thread(page, root)
+    strip = view.locator(f'.lf-msg[data-message="{reply}"] .lf-react-strip')
     strip.locator(".lf-react-trigger").click()
     expect(strip).to_have_class(re.compile("lf-react-open"))
 
     thread_model.cmd_resolve(serve.page_dir, root)
     told(page)
-    expect(card.get_by_role("button", name="Resolved", exact=True)).to_be_visible()
-    expect(card).to_have_attribute("data-resolved", "false")
+    expect(page.locator(".lf-fp-head .lf-thread-news")).to_have_text("Resolved")
     expect(strip).to_have_class(re.compile("lf-react-open"))
     count = len(events_model.read_events(serve.page_dir))
     page.keyboard.press("1")
-    expect(card).to_have_attribute("data-resolved", "true")
     expect(page.locator(".lf-react-open")).to_have_count(0)
-    expect(card.locator(":scope > .lf-thread-summary")).to_be_focused()
+    expect(view).to_be_visible()
     page.keyboard.press("1")
     page.wait_for_timeout(100)
     assert len(events_model.read_events(serve.page_dir)) == count
-    assert "1–6" not in shortcut_bar_text(page)
 
 
 def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, serve):
@@ -2709,23 +2567,27 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
     )
     page = open_page(browser, url)
     painted(page, [["merge-both", "change"]])
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 0")
+    expect(page.locator(".lf-fp-threads")).to_have_attribute(
+        "title", re.compile("^Threads, 0 open")
+    )
 
     thread_model.post_reply(
         serve.page_dir, {"to": reaction["id"]}, "Which part — the case, or the answer?"
     )
     told(page)
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 1")
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    thread = page.locator(f'.lf-thread[data-id="{reaction["id"]}"]')
+    expect(page.locator(".lf-fp-threads")).to_have_attribute(
+        "title", re.compile("^Threads, 1 open")
+    )
+    thread = open_panel_thread(page, reaction["id"])
     expect(thread.locator(".lf-react-said")).to_have_text("❌ change")
     assert painted(page, []) == {"washed": "", "glyphs": [], "projected": 0}
     assert page.evaluate("() => CSS.highlights.get('lf-mark').size") > 0
 
     thread_model.cmd_resolve(serve.page_dir, reaction["id"])
     told(page)
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 0")
+    expect(page.locator(".lf-fp-threads")).to_have_attribute(
+        "title", re.compile("^Threads, 0 open")
+    )
     assert page.evaluate("() => CSS.highlights.get('lf-mark').size") == 0
 
 

@@ -34,12 +34,12 @@ from render_harness import (
     expect_comment_notes,
     leaf_page,
     open_page,
-    panel_settled,
     resized,
     round_trip,
     sending,
     stamp_page,
     told,
+    wait_for_revision,
     write,
 )
 
@@ -53,6 +53,7 @@ from browser.test_render_aim import (
     _open_attachment_draft,
     open_compact_comment,
 )
+from browser.threads import open_panel_thread
 
 
 @pytest.mark.parametrize("shift, placement", [(0, "right-start"), (250, "left-start")])
@@ -229,7 +230,7 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
     reached_paths = set()
     for i in range(total):
         # A control inside a fold or behind an unopened tab is nowhere a user can aim,
-        # which is the press sweep's reading of the same question, and a point the banner
+        # which is the press sweep's reading of the same question, and a point the panel
         # or a neighbour covers is not this target's press at all.
         target = page.locator(targets).nth(i)
         if not target.is_visible():
@@ -427,9 +428,9 @@ def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, 
         },
     )
     page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    page.locator('.lf-thread[data-id="c-inline-margin"] .lf-thread-summary').click()
+    open_panel_thread(page, "c-inline-margin")
+    # The thread opens with the caret in its reply; Escape stands on the thread.
+    page.keyboard.press("Escape")
     page.keyboard.press("l")
     accept = page.locator('[data-lf-margin-for="reply-suggestion"] .lf-sug-accept')
     expect(accept).to_be_visible()
@@ -554,7 +555,7 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
     state.evaluate("el => { window.lfOldQueued = el; }")
     stamp_page(serve.page_dir, TYPED_PARTS_V2, "one state earlier")
     told(page)
-    expect(page.locator(".lf-version")).to_contain_text("v2")
+    wait_for_revision(page, 2)
     assert page.evaluate("() => !window.lfOldQueued.isConnected")
     expect(state).to_have_class(re.compile(r"\blf-mark-el\b"))
 

@@ -75,13 +75,12 @@ has tried; settle that before building it.
   public home page's prompt.
 - **#28 — Finish the floating panel.** The floating panel, rebuilt on 12 October to
   the sketch the user configured ([its goal](notes/floating-panel/GOAL.md), "The
-  overhaul"), is the default chrome since 16 October; **Use the banner** in the leaf's
-  menu switches back. Work through its remaining list before removing the banner,
-  bottom bar, and preference. The phone waits until the desktop design is firm, and
-  where a passage thread opens from Threads waits until later. The suite and the
-  `leaf-dev` tools that drive the banner still pin it (`CLASSIC_CHROME`).
+  overhaul"), is Leaf's only chrome since 16 October, when the banner, the bottom
+  bar and the switch between them went. Work through its remaining list. The phone
+  waits until the desktop design is firm, and where a passage thread opens from
+  Threads waits until later.
 - **Give "update" one meaning on screen.** It names the user's input ("Undo the
-  latest update", "Stalled update", "1 update to send again", the On panel's
+  latest update", "Stalled update", "1 update to send again", the On view's
   Update rows) and, since the floating card's held-news notice, the agent's progress
   ("1 new update"); the glossary keeps it for the user's input alone. Choose one
   sense, rename the other surfaces, and update the glossary to match.
@@ -98,8 +97,8 @@ has tried; settle that before building it.
 ### Agent and author experience
 
 - **Decide whether `page check` should still refuse an `lf-ask` without a leading
-  heading.** The heading is the ask's title in the On panel, the banner
-  and the `m` announcement, which all show an empty title without one, and the
+  heading.** The heading is the ask's title in On me and the `m`
+  announcement, which all show an empty title without one, and the
   `lf-ask` instructions already ask for it. Wait until the other narrow checks
   removed in October 2026 have been gone a while; if pages written since still
   carry the heading, remove this check too. It fired in 4 sessions, 2 of them on
@@ -208,17 +207,18 @@ has tried; settle that before building it.
   Hover-only today: why Approve version is disabled, and "Press z" once approved; a
   reaction's word before it is sent; a margin marker's label and its status (Sent,
   Stalled); the diff's line "+"; and the latest-edit error, a dead passage's reason, a
-  disabled More entry's reason, and the compare state. A finger also lacks exits a key
-  has: a mode's or search's steps take Threads off the row until it ends, Android's back
+  disabled menu row's reason, and the compare state. A finger can't comment on a whole
+  block, since the leaf's menu leaves out Select element. A finger also lacks exits a
+  key has: a mode's or search's steps take the counts off the panel's row until it ends, Android's back
   gesture closes nothing (the Escape ladder could answer it), Draw mode blocks scrolling
   and zoom, and an `lf-draft` has no close that keeps the edit.
-- **Reconsider thread navigation.** Decide how the Threads panel should change
-  before refining it (`skills/leaf/assets/AGENTS.md`, "Space and scrolling"). The
+- **Reconsider thread navigation.** Decide how Threads should change before
+  refining it (`skills/leaf/assets/AGENTS.md`, "Space and scrolling"). The
   redesign also settles how focus stays off page content a panel covers (Max,
   2026-10-10). His rule (2026-10-06): the panels dominate focus, so moving focus never
   closes or changes an open panel, and focus never lands on content a panel covers.
-  Tab walked onto page content under Threads, or under the On panel that shares
-  its right edge, at 1440×900 on an example since retired; no surviving page has been
+  Tab walked onto page content under the old side panels, Threads and On, at
+  1440×900 on an example since retired; the floating panel's views have not been
   checked for it. Making covered content inert
   was built and withdrawn: the visible part of a partly covered element went dead to
   clicks and selection, and focus still reached chrome markers, sample frames,
@@ -245,15 +245,12 @@ and its chrome coordinate.
 - **Fit `rust-sort`'s stage pane.** At 720px it runs 100px past its region, which
   `page-layout.md` asks an author to trim or split
   ([why a workspace doesn't scroll](notes/chrome-and-covers.md#decided-a-workspace-is-a-screen)).
-- **Decide whether the desktop bottom bar goes.** Its key hints would move behind `?`
-  and its status into the banner; the bar is how a desktop user learns the keys
-  without asking, which is the trade to weigh ([plan](notes/chrome-and-covers.md)).
 - **Let a page restyle Leaf's chrome on purpose.** A page's rules reach a widget's
   controls when they name the widget (`runtime/page-sheets.js`), but `chrome.css` is
   unlayered and adopted after the page's sheets, so a page rule naming a chrome class
   wins only by out-weighing the chrome's own selector. Choose the deliberate route for
   the chrome — tokens it reads, named parts, or a layer the page ranks above — so a page
-  can change the thread panel's format or hide one surface where it needs to.
+  can change a thread card's format or hide one surface where it needs to.
 - **Let a block be a workspace.** `feature-gallery` shows a workspace inside a column
   page, and since `layout-workspace` works only on `main`, it restates the Layout's
   full-height switch (720px by 480px) and its pane scrolling in about 20 lines. The pane
@@ -274,7 +271,7 @@ and its chrome coordinate.
     short lines, a paragraph, an exchange with an agent reply, and an unbreakable URL,
     each opened at 1920, 1440, beside an open panel, 1024 and 360px and cropped to the
     card and the marker that opened it. The comment box, the selection action bar and
-    the Threads panel take the same treatment.
+    the floating panel's views take the same treatment.
   - Measurements beside each still: the surface's box, how much of its width its
     content fills, whether it covers the control that opened it while there is room
     beside it, and whether it crosses the visible edge. A threshold on each fails a
@@ -294,9 +291,6 @@ and its chrome coordinate.
   and which measurements become thresholds a test enforces rather than numbers a
   person reads.
 
-- **Offer the Page Map with the first paint.** The margin pass marks where markers are
-  pins (`data-lf-pins`), and the banner's Map toggle follows it, so on a phone the
-  toggle appears one pass after the banner rather than with it.
 - **Test the Layouts on agents.** Give fresh agents tasks across the Layouts, then ask
   them to revise the results: turn a report into a report with live status while
   keeping its comments. They hold if revisions happen by ordinary composition. Include
@@ -475,10 +469,10 @@ on 2026-10-07.
   them, but nothing runs them first. Write `evals/` cases in which agents author each
   kind and measure how often what they write fails to draw, then run the kinds agents
   get wrong and stop running those they reliably get right.
-- **Derive the waiting banner from the page's open ask.** Consider using the ask's
+- **Derive the waiting status from the page's open ask.** Consider using the ask's
   words when no explicit waiting detail is needed. **Unconfirmed:** try pages with
-  several open asks and an informational page before choosing how the banner
-  explains who owes the next move. Keep explicit agent status available when the
+  several open asks and an informational page before choosing how the panel's
+  status explains who owes the next move. Keep explicit agent status available when the
   ask alone does not explain the wait.
 
 ### Development velocity
@@ -568,9 +562,9 @@ Revisit these when their stated trigger becomes real; they are not an active que
   needs the user's sign-off, as the user decided. The shipped
   instructions don't yet say when that is. Trigger: an agent ends a to-do as done that
   the user wanted to see first.
-- **Let the user edit items in the On panel.** The user's only edit today is Done
+- **Let the user edit items in the On view.** The user's only edit today is Done
   on a to-do the agent put on them, so dropping a to-do, renaming it or ending one of the
-  agent's means asking in a thread. Editing the row directly in the panel would record the user's change as
+  agent's means asking in a thread. Editing the row directly in the view would record the user's change as
   their own move. Trigger: a user writes a comment only to close or adjust an item.
 - **Multiplayer:** let several users share a page, each recorded as themselves.
   Every browser event is `author: "user"` today, so the log cannot say who moved,

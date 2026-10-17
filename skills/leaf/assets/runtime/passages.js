@@ -20,7 +20,7 @@
    Both are bounded by the root they are handed. `.lf-ui` says the runtime built a node
    rather than the author, and a reading rooted at the document takes that straight.
    Rooted at an element it is a different sentence, and the difference is the whole of
-   what a widget in a message needs: such a widget stands inside the thread panel, so
+   what a widget in a message needs: such a widget stands inside the floating panel, so
    the panel is `.lf-ui` over every word it says, and an unbounded reading has it saying
    nothing at all. Chrome above the root is not the root's apparatus; chrome inside it
    still is. A page-rooted walk does not move.
@@ -363,10 +363,10 @@ function refusesBareText(root) {
 // holds is the layer's, which is the whole of what the anchor pass and the version diff
 // need. Inside a widget it is a different sentence, and the widget is where it changes.
 //
-// A widget riding a message stands inside the thread panel, so the panel is `.lf-ui`
+// A widget riding a message stands inside the floating panel, so the panel is `.lf-ui`
 // over every word it says — and read straight, a question an agent asked in a reply says
 // nothing whatever. That silence did not read as one: it read as an empty slot, so the
-// group named its options by their ids in the accessibility tree, the On panel named the
+// group named its options by their ids in the accessibility tree, On me named the
 // question by its id, and every widget reading its own words in a message got "" and fell
 // back to something else.
 //
@@ -1062,7 +1062,7 @@ export function neighbourhood(reading, at, want, before) {
 // the rest have one door each.
 //
 // Reported is not the same as read. The runtime's chrome lives in the same document —
-// the shortcut bar, the banner, the thread panel, the composer — and repaints on nearly
+// the floating panel, its views, the composer — and repaints on nearly
 // every gesture: one drag-select release wrote 38 records, every one of them under
 // `.lf-ui`, and each would have bought a walk the reading never needed. So a record counts
 // only where the reading reads, by the walk's own rules (`contextAt`) asked of the place
@@ -1072,8 +1072,8 @@ export function neighbourhood(reading, at, want, before) {
 // are the runtime's paint — `lf-mark-el` and its neighbours go on and off the page's own
 // elements between anchor passes, and a walk apiece for a class the reading never looks
 // at is the whole cost this exists to avoid. `slot` and `name` are in it for slot
-// assignment, and `name` assigns only on a `<slot>`: the thread panel rewrites the
-// `name` of its `<details>` rows on every paint, which says nothing about any words.
+// assignment, and `name` assigns only on a `<slot>`: a chrome that rewrites the
+// `name` of its `<details>` rows on every paint says nothing about any words.
 const READING_MARKERS = [
   "class",
   "data-lf-said",

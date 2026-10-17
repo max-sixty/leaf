@@ -169,6 +169,13 @@ const bundles = {
   // Leaf captures without `reconcile` (`runtime/composing/page-image.js` says why), and
   // SnapDOM then warns on the console that text may wrap differently. The capture's own
   // `warnings` keep that notice; the console copy would read as a page problem.
+  //
+  // SnapDOM sends a resource's cookies when its origin is `location.origin`, which is
+  // the URL's origin rather than the document's. In a live sample's sandboxed child the
+  // document's origin is opaque, so every request is cross-origin and Leaf's server
+  // answers it `Access-Control-Allow-Origin: *`, which a credentialed request may not
+  // read: the child's own icon.svg mask failed with a CORS error in every capture.
+  // Compare with the document's origin, `self.origin`, instead (SnapDOM 3.3.4).
   snapdom: () => ({
     out: `${assets}/vendor/snapdom.esm.js`,
     entry: 'export { snapdom } from "@zumer/snapdom";\n',
@@ -179,7 +186,12 @@ const bundles = {
           seam(
             seam(
               seam(
-                source,
+                seam(
+                  source,
+                  'y.origin===location.origin?"include":"omit"',
+                  'y.origin===self.origin?"include":"omit"',
+                  "SnapDOM credentials origin",
+                ),
                 "for(;r;r=r.parentElement||r.getRootNode?.()?.host)",
                 "for(;r;r=r.parentElement||(r.parentNode?.nodeType===11?r.parentNode.host:null))",
                 "SnapDOM mutation-ancestor",
@@ -552,7 +564,27 @@ const bundles = {
     splitting: true,
     chunkNames: "webawesome/[name]-[hash]",
     external: ["/runtime/shadow-stage.js"],
-    adapt: [{ file: /webawesome\/dist\/chunks\/.*\.js$/, edit: patchTransitions }],
+    // Web Awesome 3.14.0 prepends a comment naming its docs to an element's shadow root
+    // on every `connectedCallback`, so an element the chrome keeps and connects again,
+    // as the floating panel's menu does its copy rows, grows by a node each time it
+    // shows. The element module's adaptation, listed first so it wins its chunk, keeps
+    // the one comment the first connection writes.
+    adapt: [
+      {
+        file: /webawesome\/dist\/chunks\/chunk\.AOKMSJXD\.js$/,
+        edit: (source) =>
+          patchTransitions(
+            seam(
+              source,
+              "this.shadowRoot?.prepend(",
+              "this.shadowRoot?.firstChild?.nodeType !== Node.COMMENT_NODE && this.shadowRoot?.prepend(",
+              "Web Awesome docs comment",
+              2,
+            ),
+          ),
+      },
+      { file: /webawesome\/dist\/chunks\/.*\.js$/, edit: patchTransitions },
+    ],
     platform: "browser",
     target: "chrome105",
     banner: {

@@ -64,12 +64,7 @@ import {
 } from "./focus.js";
 import { repaint } from "./repaint.js";
 
-import {
-  allButCommandReference,
-  coveringAuxiliarySurface,
-  pageCommand,
-  pageScope,
-} from "./keyboard/register.js";
+import { allButCommandReference, pageCommand, pageScope } from "./keyboard/register.js";
 import { PRESS, rowArrows, savedReadingSettled } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { anchorLabel } from "./thread/messages.js";
@@ -394,7 +389,7 @@ export function createReactionController({
         // scrolled out of the list: it comes into view to be answered, since a list
         // hung from a trigger out of view would neither show nor stay open, and it
         // closes once none of the trigger is in front of the user (`seenRect`). The
-        // list stands in the top layer, above the thread panel, so a surface standing
+        // list stands in the top layer, above the floating panel, so a surface standing
         // over the trigger does not take it away; a scroll carrying the trigger out of
         // sight does.
         scrollIntoReadingBand(picker.trigger, picker.trigger, "nearest", "instant");
@@ -494,10 +489,8 @@ export function createReactionController({
     // the liveness captured at that boundary rather than listing every conditional choice.
     liveInCommandReference: true,
     at: () => reactArmed,
-    // The open list is where the mode stands, so a surface covering the page keeps it
-    // when the list is inside that surface: a reply's strip in a covering Threads panel
-    // lost every row to the panel's floor, and the stray key closed the list. The
-    // margin's list has no node of its own and stands wherever its entry does.
+    // The open list is where the mode stands. The margin's list has no node of its own
+    // and stands wherever its entry does.
     root: () => (reactSurface instanceof Element ? reactSurface : document),
     claims: allButCommandReference,
     rows: [
@@ -610,15 +603,10 @@ export function createReactionController({
         .map(([name, entry]) => `${entry.glyph} ${name}`)
         .join(", ")} — for the selection, the focused item, or the open reply`,
     title: "reactions",
-    // Reachable from a reply in a Threads panel covering the page, as `c` is; under a
-    // covering surface the page's own targets are out of reach.
-    covering: true,
     when: () =>
       reactionAvailable() &&
       reactionTokens().length > 0 &&
-      (coveringAuxiliarySurface()
-        ? reactionTarget()?.kind === "surface"
-        : hasReactionTarget()) &&
+      hasReactionTarget() &&
       (anchoringIsReady() || !pageSelection()),
     run: () => {
       // Selection capture normally follows the pointer gesture in its queued turn. A fast

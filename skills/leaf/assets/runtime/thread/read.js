@@ -38,7 +38,7 @@ import { recordInteraction } from "../interaction-log.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { moved } from "./model.js";
 import { readThreads } from "./state.js";
-import { keeps, keepsHidden } from "../keeps.js";
+
 import { savedReadingSettled } from "../keyboard/bindings.js";
 import {
   onSampleVisibility,
@@ -63,10 +63,9 @@ function mergeIntervals(intervals) {
 function visibleInterval(body, clips, band) {
   if (!presented(body)) return null;
   const box = body.getBoundingClientRect();
-  // Sticky headers, the open thread panel standing over the right of the page, and the
-  // banner and shortcut bar are left out of what is seen (geometry.js), so a message any
-  // part of which is under one has not been shown whole, and the full-width rule below
-  // withholds it.
+  // Sticky headers and the floating panel are left out of what is seen (geometry.js), so
+  // a message any part of which is under one has not been shown whole, and the
+  // full-width rule below withholds it.
   const clipped = seenRect(body, clips);
   if (!clipped || box.width <= 0 || box.height <= 0) return null;
   const shown = intersect(clipped, band);
@@ -110,7 +109,7 @@ function wordsAreVisible(body, clips, band) {
   return false;
 }
 
-export function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
+export function createReadTracking({ markRead, openThread }) {
   let coverage = new WeakMap();
   const renderedBodies = new Map();
   const visibleReplies = new Set();
@@ -166,8 +165,6 @@ export function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
     description: "Go to the first unread message",
     title: "first unread",
     touch: false,
-    covering: true,
-    control: () => firstUnreadBtn,
     when: () => actionableUnread().length > 0,
     run: firstUnread,
   };
@@ -326,7 +323,7 @@ export function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
                   : message.failure
                     ? "failure"
                     : "answer",
-              surface: message.panel ? "panel" : "margin",
+              surface: "margin",
             }
           : null,
     });
@@ -350,13 +347,6 @@ export function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
         const current = new Set(unread.map(({ item }) => keyOf(item)));
         for (const key of refusedThisVisit)
           if (!current.has(key)) refusedThisVisit.delete(key);
-        const count = unread.length;
-        keepsHidden(firstUnreadBtn, count === 0);
-        keeps(
-          firstUnreadBtn,
-          "aria-label",
-          `${count} unread ${count === 1 ? "message" : "messages"}. Go to first unread message`,
-        );
         scheduleScan();
       })
       .catch(() => {

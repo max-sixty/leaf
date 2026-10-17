@@ -22,7 +22,7 @@
    placement pass keeps every generated route visible. Unlike an ordinal address, an
    opaque hint has no meaning once its face is hidden, so collisions are spread rather
    than removed. Geometry belongs to each caller and is passed in so this module
-   introduces no ownership cycle through the shortcut bar. */
+   introduces no ownership cycle through its callers. */
 import { bindingEnabled, spell } from "./bindings.js";
 import { html, render } from "/vendor/browser-runtime.js";
 import { keySequenceModel, keySequenceTemplate } from "./key-sequence.js";
@@ -103,9 +103,8 @@ function nearestOpenTop(box, preferred, barriers, top, bottom, gap) {
 // each seat stands (chip-seats.js), its `box` a barrier for a following pass.
 // `placement` chooses the corner, below, before, or above the target;
 // outside seats keep the target clear.
-/** @param {any} seats @param {any} hints
- * @param {{barriers?: object[], lineBox?: DOMRect, viewportTop?: number}} [options] */
-function spreadHints(seats, hints, { barriers = [], lineBox, viewportTop = 0 } = {}) {
+/** @param {any} seats @param {any} hints @param {{barriers?: object[]}} [options] */
+function spreadHints(seats, hints, { barriers = [] } = {}) {
   const band =
     parseFloat(
       getComputedStyle(document.documentElement).getPropertyValue("--focus-ring-w"),
@@ -115,12 +114,7 @@ function spreadHints(seats, hints, { barriers = [], lineBox, viewportTop = 0 } =
     target,
     placement,
   }));
-  const placed = seatHints(faces, {
-    barriers,
-    lineBox,
-    band,
-    viewport: { ...layoutWindow(), top: viewportTop },
-  });
+  const placed = seatHints(faces, { barriers, band, viewport: layoutWindow() });
   return hints.map(({ seat, at, target, element }, index) => ({
     seat,
     target: element,
@@ -179,31 +173,21 @@ function nestOutsets(faces, room) {
 
 // Where each face stands, folded from rectangles `spreadHints` has already read. Each
 // face is `{ start, target, placement }`, `start` the box it was drawn at; the answer
-// is one box per face, in order, each clear of the barriers, the key line and every face
-// seated before it. A box is `held` where what decided its seat stands still as the page
-// scrolls, the window's edge, the key line or a fixed barrier, rather than its target or
-// a face riding with its own, so the window holds it where a scroll carries the rest.
-export function seatHints(
-  faces,
-  { barriers: fixedBarriers = [], lineBox, band, viewport },
-) {
+// is one box per face, in order, each clear of the barriers and every face seated
+// before it. A box is `held` where what decided its seat stands still as the page
+// scrolls, the window's edge or a fixed barrier, rather than its target or a face
+// riding with its own, so the window holds it where a scroll carries the rest.
+export function seatHints(faces, { barriers: fixedBarriers = [], band, viewport }) {
   const gap = 2;
   // The browsed hint wears the layer's band (--focus-shadow, theme.css), which a face's
   // own rectangle does not report. Any chip can become the browsed one as the user
   // types, so the pass seats every face as though it were, keeping the one layout. A
   // window edge takes the whole band, because a band drawn past it is clipped away. A
-  // barrier — another face, or the shortcut bar — takes the wider of the gap and the band,
+  // barrier — another face, or the chrome — takes the wider of the gap and the band,
   // because a band may stand in the gap it keeps but not past it; only the browsed chip
   // paints one, so it has that space to itself. Seated to the gap alone both cleared by
   // coincidence, the gap and the band both being 2px.
   const clear = Math.max(gap, band);
-  const line = lineBox ?? { left: 0, top: viewport.bottom, right: 0, height: 0 };
-  const lineBand = {
-    left: line.left,
-    top: line.top,
-    right: line.right,
-    bottom: viewport.bottom,
-  };
   const edgeLeft = viewport.left + band;
   const edgeTop = viewport.top + band;
   const edgeRight = viewport.right - band;
@@ -230,15 +214,8 @@ export function seatHints(
       clamp(preferredLeft, edgeLeft, Math.max(edgeLeft, edgeRight - start.width)),
       clamp(preferredTop, edgeTop, Math.max(edgeTop, edgeBottom - start.height)),
     );
-    const rightSeat = Math.max(target.left, line.right + clear);
-    const canSitRight = rightSeat + start.width <= Math.min(target.right, edgeRight);
-    const beside = line.height && overlaps(first, lineBand) && canSitRight;
-    const held = beside || first.left !== preferredLeft || first.top !== preferredTop;
-    return [
-      movedTo(first, beside ? rightSeat : first.left, first.top),
-      placement !== "corner" ? target : null,
-      held,
-    ];
+    const held = first.left !== preferredLeft || first.top !== preferredTop;
+    return [first, placement !== "corner" ? target : null, held];
   });
   const placed = [];
   for (const [seated, ownTarget, clamped] of measured) {
@@ -248,10 +225,6 @@ export function seatHints(
       ...placed.filter((other) => overlapsAcross(other, seated)),
     ];
     if (ownTarget && overlapsAcross(ownTarget, seated)) barriers.push(ownTarget);
-    if (lineBand.bottom > lineBand.top && overlapsAcross(lineBand, seated)) {
-      fixed.push(lineBand);
-      barriers.push(lineBand);
-    }
     const open = nearestOpenTop(
       seated,
       seated.top,
@@ -283,9 +256,7 @@ export function seatHints(
    the same measurement: derived from different readings they put the chip where neither
    reading said. `identity` names the element a walk and a re-read recognize a member by.
 
-   `extras` are chips the caller keeps outside the coded map, such as named destinations
-   on fixed chrome; they are seated first and become barriers for the coded ones.
-   `chrome` reads the fixed furniture the placement pass must keep clear.
+   `chrome.barriers` reads the fixed furniture the placement pass must keep clear.
    A map stands through a scroll once it has stood still long enough to be read: its
    chips ride with the things they name (chip-seats.js), so the codes the user is
    reading stay where they were read and stay pressable, while membership and seats
@@ -303,7 +274,6 @@ export function createHintSession({
   take: takeCandidate,
   words,
   chrome,
-  extras = () => [],
 }) {
   let armed = false;
   let prefix = "";
@@ -449,9 +419,8 @@ export function createHintSession({
     ];
   }
 
-  function draw(extraPlans, codedPlans) {
-    codedPlans = codedPlans.filter(shown);
-    const plans = [...extraPlans, ...codedPlans];
+  function draw(codedPlans) {
+    const plans = codedPlans.filter(shown);
     const drawn = plans.map((plan) => {
       const seat = seats.seat(plan.model.key);
       render(face(plan), seat);
@@ -463,17 +432,10 @@ export function createHintSession({
         placement: plan.placement,
       };
     });
-    // Fixed chips stay where the caller put them and reserve their own pixels; the
-    // coded map is spread around them, the fixed chrome, and the key line.
-    const reserved = spreadHints(seats, drawn.slice(0, extraPlans.length));
-    const coded = codedPlans.length
-      ? spreadHints(seats, drawn.slice(extraPlans.length), {
-          barriers: [...reserved.map(({ box }) => box), ...chrome.barriers()],
-          lineBox: chrome.lineBox(),
-          viewportTop: chrome.viewportTop(),
-        })
-      : [];
-    seats.place([...reserved, ...coded]);
+    // The coded map is spread around the fixed chrome.
+    seats.place(
+      plans.length ? spreadHints(seats, drawn, { barriers: chrome.barriers() }) : [],
+    );
   }
 
   function paint() {
@@ -484,10 +446,10 @@ export function createHintSession({
     // A scroll holds the seats, and the map the user has read keeps its faces up to date
     // in them as they type or walk it.
     if (scrolling()) {
-      const plans = [
-        ...extras(),
-        ...layout(hinted(), { current: hinted()[at], reading: scene() }).filter(shown),
-      ];
+      const plans = layout(hinted(), {
+        current: hinted()[at],
+        reading: scene(),
+      }).filter(shown);
       for (const plan of plans) {
         const seat = seats.seated(plan.model.key);
         if (seat) render(face(plan), seat);
@@ -495,7 +457,6 @@ export function createHintSession({
       seats.keepOnly(new Set(plans.map(({ model }) => model.key)));
       return;
     }
-    const extraPlans = extras();
     const wasWalking = at >= 0;
     const heard = hinted()[at];
     const emptyBefore = candidates.length === 0;
@@ -516,8 +477,8 @@ export function createHintSession({
     const plans = layout(hinted(), { current, reading: scene() });
     const drawn = new Set(plans.map((chip) => chip.candidate));
     if (wasWalking && current && !drawn.has(current)) at = -1;
-    draw(extraPlans, plans);
-    // The shortcut bar was painted before geometry retired the browsed hint, and a map
+    draw(plans);
+    // The keys were painted before geometry retired the browsed hint, and a map
     // that has just emptied or filled changes which of the caller's rows stand.
     if ((wasWalking && at < 0) || emptyBefore !== (candidates.length === 0)) repaint();
   }

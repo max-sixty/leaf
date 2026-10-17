@@ -4,10 +4,13 @@ saving and its controls, Enter, and comparing versions."""
 import re
 
 import pytest
-from interact_support import append_command
+from click.testing import CliRunner
+from interact_support import append_command, response_reference
+from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
+from render_cases_interaction import panel_comment
 from render_cases_navigation import DRAFT_TEXT, JOURNEY_V1, _publish
 from render_harness import (
     compare_with,
@@ -24,6 +27,8 @@ from render_harness import (
     sending,
     write,
 )
+
+from browser.threads import open_panel_thread
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -294,6 +299,33 @@ def test_a_rendered_continuation_click_edits_the_exact_source_position(browser, 
         page.keyboard.insert_text("here")
         expect(editor).to_have_js_property("value", source[:at] + "here" + source[at:])
         draft_control(page, "cancel", f"continuation-{i}").click()
+
+
+def test_a_click_on_a_reply_s_draft_opens_it_in_the_panel(browser, serve):
+    """A draft an agent sends in a reply opens at a click on its words in the panel's
+    thread, as one on the page does. The message the reader draws it in is Leaf's own
+    surface, marked as generated chrome, and the draft once took that mark for a press
+    of its own and left the click to it, so only its ✎ opened it."""
+    url = serve(leaf_page("Reply draft", "<h1>Reply draft</h1>"))
+    question = panel_comment(serve.page_dir, "Could you draft the note?")
+    replied = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "response",
+            "reply",
+            "--done",
+            response_reference(serve.page_dir, question),
+            "--text",
+            "Here it is:",
+            "--markup",
+            '<lf-draft id="reply-draft"><pre>The note to send.</pre></lf-draft>',
+        ],
+    )
+    assert replied.exit_code == 0, replied.output
+    page = open_page(browser, url)
+    draft = open_panel_thread(page, question).locator("lf-draft")
+    draft.locator(".lf-draft-body").get_by_text("The note to send.").click()
+    expect(draft.locator("leaf-text")).to_be_focused()
 
 
 def test_a_draft_in_an_ask_takes_no_digits_and_answers_from_its_controls(

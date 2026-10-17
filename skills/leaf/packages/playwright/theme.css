@@ -7,7 +7,7 @@
   /* Aim for the reading band; the stage's intrinsic minimum preserves detail. */
   --lf-trace-stage-height: max(
     320px,
-    calc(100dvh - var(--lf-top) - var(--lf-bottom-bar-h) - 2 * var(--lf-landing-room))
+    calc(100dvh - var(--lf-top) - var(--lf-foot-room) - 2 * var(--lf-landing-room))
   );
   --lf-block-frame: 1;
   display: flex;

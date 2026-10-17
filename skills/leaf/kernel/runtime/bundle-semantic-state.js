@@ -55,8 +55,7 @@ var queueWidgetUpdate = (widget, update) => schedule.enqueue(
 var PRESENTATION_ORDER = Object.freeze({
   projection: 0,
   thread: 1,
-  asks: 2,
-  queue: 3
+  asks: 2
 });
 var documentPresenters = [];
 var publications = applicationState.select((root) => root);
@@ -149,12 +148,6 @@ var presentDocument = () => {
   return schedule.passed();
 };
 var whenDocumentPresented = () => schedule.passed();
-var PresentationRetentionError = class extends AggregateError {
-};
-var failSoftAfterRetention = (proof) => (reason) => {
-  if (reason instanceof PresentationRetentionError) throw reason;
-  return proof;
-};
 var currentEpoch = () => untracked(() => readApplication().semanticEpoch);
 var currentApplicationPresentation = () => ({
   document: documentToken,
@@ -345,8 +338,6 @@ export {
   documentChanged,
   presentDocument,
   whenDocumentPresented,
-  PresentationRetentionError,
-  failSoftAfterRetention,
   whenApplicationPresented,
   applicationPresented,
   whenWidgetsPresented,

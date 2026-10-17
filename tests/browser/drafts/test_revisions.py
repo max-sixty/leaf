@@ -15,8 +15,7 @@ from render_harness import (
     REPLY_HOST_PAGE,
     consume_browser_errors,
     open_page,
-    page_comment,
-    panel_settled,
+    panel_field,
     refuse,
     resized,
     restarting,
@@ -38,6 +37,7 @@ from browser.drafts import (
     editing_revision_source,
     replace_editing_document,
 )
+from browser.threads import open_panel_thread
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -46,20 +46,18 @@ pytestmark = pytest.mark.shifts_unsurveyed
 def test_an_automatic_revision_keeps_the_empty_panel_reply_focused(
     browser, serve, installation
 ):
-    """A revision, installed in place or as a fresh document, leaves the Threads
-    panel's empty reply box focused and empty."""
+    """A revision, installed in place or as a fresh document, leaves the panel's empty
+    reply box, an open thread's, focused and empty."""
     url = live_url(serve(REPLY_HOST_PAGE))
     root = panel_comment(
         serve.page_dir, "Should reads fall back?", author="agent", question="Fall back?"
     )
     page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    thread = page.locator(f'.lf-thread[data-id="{root}"]')
-    thread.locator(":scope > .lf-thread-summary").click()
-    editor = thread.locator(".lf-thread-reply leaf-text")
+    open_panel_thread(page, root)
+    editor = panel_field(page)
     editor.click()
     expect(editor).to_be_focused()
+    expect(editor).to_have_attribute("name", "reply")
     assert editor.evaluate("el => el.value") == ""
     birth = page.evaluate("performance.timeOrigin")
     revision = int(
@@ -185,8 +183,7 @@ def test_an_untouched_and_an_emptied_reply_follow_live_revisions(browser, serve)
         "A short second passage.", "A revised short second passage."
     )
     stamp_page(d, v2, "v2")
-    told(page)
-    expect(page.locator(".lf-version")).to_contain_text("v2")
+    wait_for_revision(page, 2)
 
     # The untouched reply remains disposable UI rather than becoming a draft merely
     # because the authored page advanced around it.
@@ -200,8 +197,7 @@ def test_an_untouched_and_an_emptied_reply_follow_live_revisions(browser, serve)
         "A revised short second passage.", "A twice-revised short second passage."
     )
     stamp_page(d, v3, "v3")
-    told(page)
-    expect(page.locator(".lf-version")).to_contain_text("v3")
+    wait_for_revision(page, 3)
     expect(reply).to_have_js_property("value", "")
     expect(reply).to_be_focused()
 
@@ -219,7 +215,6 @@ def editing_read(editor):
         "composer",
         # The margin card's reply; the panel's open thread holds the same reply editor.
         "reply",
-        "general",
         "first-message",
         "edit",
         # A document edit opened and selected in, with no words changed, so no draft.
@@ -231,8 +226,6 @@ def test_executable_revision_preserves_each_editor_identity(browser, serve, kind
     page = open_page(browser, live_url(serve(editing_revision_source("overlay"))))
     if kind == "authored":
         editor = page.locator("#authored-draft")
-    elif kind == "general":
-        editor = page_comment(page)
     elif kind == "first-message":
         editor = page.locator("#seat-root > .lf-thread-seat > .lf-say leaf-text")
     elif kind in {"edit", "edit-unchanged"}:
@@ -310,11 +303,9 @@ def test_live_executable_replacement_keeps_a_resolved_reply_session(browser, ser
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     )
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    thread = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
-    thread.locator(".lf-thread-summary").focus()
-    editor = thread.locator("leaf-text")
+    # A passage thread's reply is its margin card's, where `c` left the user.
+    editor = page.locator(".lf-margin-preview .lf-thread-reply leaf-text")
+    expect(editor).to_be_focused()
     words = "Keep this actual editing session through the executable replacement."
     write(editor, words)
     editor.evaluate("el=>el.setSelectionRange(5,12,'backward')")
@@ -411,13 +402,9 @@ def test_in_place_revision_restores_the_current_generated_editor(browser, serve,
     birth = page.evaluate("performance.timeOrigin")
     stamp_page(serve.page_dir, revised, "Replace authored widget, retain executable")
     told(page)
-    if (
-        page.evaluate(
-            "document.querySelector('.lf-latest-chip')?.getAttribute('hidden')"
-        )
-        is None
-    ):
-        page.keyboard.press("Control+Alt+r")
+    # Takes the panel's offered Latest where the revision waits for one, and is a no-op
+    # where it installed by itself.
+    page.keyboard.press("Control+Alt+r")
     wait_for_revision(page, 2)
     assert page.evaluate("performance.timeOrigin") == birth
     expect(editor).to_be_visible()

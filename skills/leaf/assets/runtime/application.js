@@ -95,7 +95,7 @@ export function mountApplication(dependencies) {
         ),
       ]),
       whenApplicationRegionsPresented(
-        ["projection:chrome", "thread", "asks", "queue"],
+        ["projection:chrome", "thread", "asks"],
         stillCurrent,
       ),
     ]);
@@ -189,7 +189,6 @@ export function mountApplication(dependencies) {
   const read = createReadTracking({
     markRead,
     openThread: openPageThread,
-    firstUnreadBtn: dependencies.firstUnreadBtn,
   });
 
   const threadActions = createThreadActions({
@@ -226,19 +225,6 @@ export function mountApplication(dependencies) {
     read,
     openThread: openPageThread,
     landInThread: dependencies.landInThread,
-  };
-  const cardView = {
-    reply: replyView,
-    settlement: settlementView,
-    reaction: reactionView,
-    read,
-    openThread: inlineView.openThread,
-    anchors: {
-      placedAt: dependencies.anchorPlacement.placedAt,
-    },
-    travel: {
-      scrollToThread: dependencies.anchorTravel.scrollToThread,
-    },
   };
   const surfaceView = {
     ...inlineView,
@@ -309,10 +295,6 @@ export function mountApplication(dependencies) {
     refreshInventory: refreshAnnotationInventory,
     renderAnnotations,
     openPageThread,
-    panelIsOpen: dependencies.panelIsOpen,
-    panel: dependencies.panel,
-    accompaniedThread: dependencies.accompaniedThread,
-    accompanyThread: dependencies.accompanyThread,
     designModeActive: dependencies.annotationCommands.designModeActive,
     pointerModeActive: dependencies.annotationCommands.pointerModeActive,
     leavePageMap: dependencies.annotationCommands.leavePageMap,
@@ -327,8 +309,6 @@ export function mountApplication(dependencies) {
   const threadDestinations = createThreadDestinations({
     threadIdsAt: annotations.threadIdsAt,
     placedAt: dependencies.anchorPlacement.placedAt,
-    panelIsOpen: dependencies.panelIsOpen,
-    showThread: dependencies.showThread,
     scrollToThread: dependencies.anchorTravel.scrollToThread,
     arrive: dependencies.anchorTravel.arrive,
     prepareTrip: dependencies.anchorTravel.prepareTrip,
@@ -349,7 +329,7 @@ export function mountApplication(dependencies) {
     renderAnnotations,
     renderSurfaces,
     // Where a thread stands now, put up for a user carried there from a box a surface
-    // stopped drawing: the surface drawing it, its margin card, or the panel.
+    // stopped drawing: the surface drawing it, its margin card, or the floating panel.
     openThread: (id, options) =>
       threadDestinations.openPageThread(id, { ...options, travel: false }),
     // A native Tab visit outside a displaced row retains editing without taking focus.
@@ -366,22 +346,6 @@ export function mountApplication(dependencies) {
     threadAt: (node) => overlay?.entryThread(node) ?? null,
     read,
   });
-  const registerThreadPanel = ({ controller, threadsBox, view }) =>
-    threadPresenter.registerPanel({
-      controller,
-      threadsBox,
-      view: {
-        ...view,
-        card: {
-          ...cardView,
-          nativeAuthored: (message) => !threadPresenter.primaryOwnsMessage(message),
-          travel: { ...cardView.travel, ...view.travel },
-        },
-        placedAt: dependencies.anchorPlacement.placedAt,
-        repaintThread: refreshThread,
-      },
-    });
-
   const accountPending = (receipts) => {
     ledger.present(receipts);
     releasePendingSafely("receipt presentation");
@@ -593,7 +557,6 @@ export function mountApplication(dependencies) {
     overlay,
     threadDestinations,
     read,
-    mountThread: threadPresenter.mount,
     mountRead: read.mount,
     registerThreadPresentation: (owner, spec) => presentThreads(owner, spec, false),
     registerChromeThreadPresentation: (owner, spec) =>
@@ -607,7 +570,6 @@ export function mountApplication(dependencies) {
     watchThreadSurfaces,
     placePageThreads,
     consumeAnnotations,
-    registerThreadPanel,
     retireProjectionCoverage: projection.retireProjectionCoverage,
     threadActions,
     queueActions,

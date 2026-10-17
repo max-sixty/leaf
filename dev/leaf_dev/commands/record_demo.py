@@ -51,7 +51,7 @@ GIF_SIZE = (1120, 700)
 # The viewport used for the README's representative stills.
 STILL_SIZE = (1280, 953)
 # The card a shared link unfurls into, shot at the 1.91:1 an unfurler draws rather
-# than cropped from a still, which cut off the banner.
+# than cropped from a still, which cut off Leaf's chrome.
 CARD_SIZE = (1200, 630)
 # What one staged scene is photographed as: the README's light and dark stills,
 # and the card.
@@ -314,15 +314,20 @@ def record(
     field.press("ControlOrMeta+Enter")
     page.wait_for_selector(".lf-margin-thread")
     shot(1500)
-    page.locator(".lf-threads-toggle").click()
-    page.wait_for_selector(".lf-thread")
+    page.locator(".lf-fp-threads").click()
+    thread = page.locator(".lf-fp-view[data-view=threads] .lf-fp-thread").first
+    thread.wait_for()
 
     comment_id = next(
         event["id"] for event in waiter.receive() if event["kind"] == "comment"
     )
     cmd_start(page_dir, comment_id, "answering the backfill question")
+    # The floating panel's empty field says what the agent is doing, once any passing
+    # notice has had its seat.
     page.wait_for_function(
-        "() => document.querySelector('.lf-status-detail').textContent.includes('answering')"
+        """() => document.querySelector(
+            '.lf-fp-field leaf-text[data-says="status"]'
+        )?.getAttribute('placeholder')?.includes('answering')"""
     )
     shot(900)
 
@@ -342,13 +347,14 @@ def record(
     if page.url != live_url:
         raise RuntimeError(f"the live page navigated from {live_url} to {page.url}")
     wait_until_ready(page)
-    # An idle open panel shows the answer directly; only an active composition holds news.
-    page.locator(".lf-thread .lf-msg.agent").get_by_text(
+    # The thread opened from Threads shows its answer in the floating panel's view.
+    thread.click()
+    page.locator(".lf-fp-view[data-view=thread] .lf-msg.agent").get_by_text(
         "Yes. The fixed rate limit keeps the backfill online.", exact=True
     ).wait_for(state="visible")
     shot(2300)
 
-    page.get_by_role("button", name="Close threads").click()
+    page.locator(".lf-fp-close").click()
     page.locator("#top").scroll_into_view_if_needed()
     shot(2100)
 
@@ -366,8 +372,11 @@ def record(
     )
     page.mouse.up()
     page.wait_for_selector("#col-during #card-oncall")
+    # The floating panel's field acknowledges the move in its status's place.
     page.wait_for_function(
-        "() => document.querySelector('.lf-notice').classList.contains('show')"
+        """() => document.querySelector(
+            '.lf-fp-field leaf-text[data-says="notice"]'
+        )?.getAttribute('placeholder')?.startsWith('Moved to During')"""
     )
     shot(2400)
     page.wait_for_function(
@@ -385,7 +394,7 @@ def shoot_stills(browser, url: str, page_dir: Path, into: Path) -> None:
 
     Write the saved board arrangement into the document and stamp it before
     `waiting`, so the stills show the revised plan. The comment watcher remains
-    armed and the banner invites input. Each shot is a fresh context: viewport and
+    armed and the floating panel's field invites input. Each shot is a fresh context: viewport and
     color scheme are context settings, and the diagram palette is read once at load."""
     (page_dir / "index.html").write_text(
         demo_page(2, folded_board(page_dir)), encoding="utf-8"
@@ -394,7 +403,7 @@ def shoot_stills(browser, url: str, page_dir: Path, into: Path) -> None:
     cmd_waiting(page_dir, "")
 
     for name, size, scheme in STILLS:
-        with tab(browser, size, scheme, classic=True) as page:
+        with tab(browser, size, scheme) as page:
             page.goto(url)
             # Hold the server's state and authored revision before taking the still.
             state = wait_for_listening(page)
@@ -405,9 +414,10 @@ def shoot_stills(browser, url: str, page_dir: Path, into: Path) -> None:
                 ")?.content === String(revision)",
                 arg=revision,
             )
-            page.locator(".lf-banner .lf-threads-toggle").click()
-            page.locator(".lf-thread-summary").click()
-            page.wait_for_selector(".lf-thread .lf-msg.agent")
+            page.locator(".lf-fp-threads").click()
+            page.locator(".lf-fp-filters button", has_text="Open").click()
+            page.locator(".lf-fp-thread").first.click()
+            page.wait_for_selector(".lf-fp-view[data-view=thread] .lf-msg.agent")
             page.locator("#top").scroll_into_view_if_needed()
             settle(page)
             page.screenshot(
@@ -460,7 +470,7 @@ def record_demo(output: Path | None) -> None:
         try:
             with (
                 headless_shell() as browser,
-                tab(browser, GIF_SIZE, classic=True) as page,
+                tab(browser, GIF_SIZE) as page,
             ):
                 page.goto(url)
                 frames, durations = record(page, waiter, page_dir)

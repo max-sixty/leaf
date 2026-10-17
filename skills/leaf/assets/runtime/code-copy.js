@@ -7,7 +7,7 @@
    or moving them on arrival. Widgets connect their final styled block before
    requesting the control.
    Enter on a block the user stands on copies it. That press is a register row
-   projected onto the block beside any scope its owner declares, so the shortcut bar, the
+   projected onto the block beside any scope its owner declares, so the hints, the
    command reference and `aria-keyshortcuts` name it. A link or button inside the block
    keeps its own Enter (`nativeActivationAt`), and a document block's control stays out
    of the Tab sequence. Focus need not be on the control, so every copy's result also

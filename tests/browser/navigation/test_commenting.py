@@ -15,7 +15,6 @@ from render_cases_interaction import (
     SEATED_ASK_WIDGETS,
     panel_comment,
 )
-from render_cases_layout import banner_control
 from render_cases_navigation import DISCLOSED_PAGE, NOTED_PAGE, TARGETS_PAGE, _publish
 from render_cases_widgets import WHERE_I_STAND_PAGE
 from render_harness import (
@@ -29,6 +28,9 @@ from render_harness import (
     open_page,
     open_versions,
     page_comment,
+    panel_control,
+    panel_field,
+    panel_settled,
     refuse,
     resized,
     round_trip,
@@ -39,6 +41,8 @@ from render_harness import (
     told,
     write,
 )
+
+from browser.threads import open_panel_thread
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -140,17 +144,14 @@ def test_a_passage_selection_keeps_native_copy_and_context_menu(browser, serve):
     }
 
 
-def test_the_key_line_names_the_selected_comment_and_its_other_responses(
+def test_comment_enters_the_selected_passage_s_field_and_takes_its_letters(
     browser, serve
 ):
-    """Comment enters a selected passage's field; the line names send and Tab exit."""
+    """Comment enters a selected passage's field, where letters and `?` are words."""
     page = open_page(browser, serve(TARGETS_PAGE))
-    line = page.locator(".lf-shortcut-bar")
     help_el = page.locator(".lf-command-reference")
 
-    # Nothing in hand: c names and enters the page comment directly.
-    expect(line).to_contain_text("comment on the page")
-    page.keyboard.press("?")
+    # Nothing in hand: the reference names the page comment `c` enters directly.
     page.keyboard.press("?")
     expect(help_el).to_contain_text("Comment on the page")
     page.keyboard.press("Escape")
@@ -170,8 +171,6 @@ def test_the_key_line_names_the_selected_comment_and_its_other_responses(
     expect(field).not_to_be_focused()
     page.keyboard.press("c")
     expect(field).to_be_focused()
-    expect(line).to_contain_text("comment")
-    expect(line).to_contain_text("other responses")
     page.keyboard.type("?")
     expect(field).to_have_js_property("value", "?")
     page.keyboard.press("Escape")
@@ -181,7 +180,6 @@ def test_the_key_line_names_the_selected_comment_and_its_other_responses(
     page.locator("#fig svg").click(modifiers=["Alt"])
     expect(field).to_be_focused()
     expect(field).to_have_attribute("aria-label", re.compile("figure"))
-    expect(line).to_contain_text("other responses")
     page.keyboard.press("Escape")
 
 
@@ -208,19 +206,11 @@ def test_typing_in_a_selected_comment_wins_over_page_shortcuts(browser, serve):
     page.keyboard.press("Escape")
     page.evaluate(RELEASE_FOCUS)
 
-    version = page.locator(".lf-version")
-    version.evaluate(
-        """control => control.addEventListener('click', () => {
-          control.dataset.shortcutClicks =
-            String(Number(control.dataset.shortcutClicks || 0) + 1);
-        })"""
-    )
     open_versions(page)
-    expect(page.locator(".lf-version-menu")).to_be_visible()
-    expect(version).to_have_attribute("data-shortcut-clicks", "1")
+    expect(page.locator(".lf-fp-menu")).to_have_attribute("data-level", "versions")
+    page.keyboard.press("Escape")
     page.keyboard.press("Escape")
 
-    page.keyboard.press("?")
     page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
     expect(reference).to_be_visible()
@@ -344,27 +334,25 @@ def test_c_comments_on_what_the_user_is_standing_in(browser, serve):
     Focus is dropped between the phases rather than backed out of, because each press
     lands the user in a box and the typing scope owns the letter there."""
     page = open_page(browser, serve(WHERE_I_STAND_PAGE))
-    line = page.locator(".lf-shortcut-bar")
+    comment = page.locator('.lf-fp-field leaf-text[name="comment"]')
 
     def drop():
         if (
             page.locator(".lf-composer[data-lf-open]").count()
-            or page.locator(".lf-page-comment-card leaf-text:focus").count()
+            or page.locator('.lf-fp-field leaf-text[name="comment"]:focus').count()
         ):
             page.keyboard.press("Escape")
         page.evaluate("() => document.activeElement?.blur()")
 
     # Standing nowhere in the page: the page itself is the contextual target.
-    expect(line).to_contain_text("comment on the page")
     page.keyboard.press("c")
-    expect(page.locator(".lf-page-comment-card leaf-text")).to_be_focused()
+    expect(comment).to_be_focused()
     drop()
 
     # A decision: the composer opens on the question rather than on the option the
     # walk happens to stand the user on, and rather than on the page.
     page.keyboard.press("m")
     expect(page.locator("#shape-decision")).to_have_attribute("data-lf-ask", "1")
-    expect(line).to_contain_text("comment on the ask")
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator(".lf-composer")).to_contain_text("ask")
@@ -376,7 +364,6 @@ def test_c_comments_on_what_the_user_is_standing_in(browser, serve):
     # rather than by "options", which the composer standing open from the phase above
     # already says — an assertion true before the press is no assertion about the press.
     page.locator("#settled .lf-settled").focus()
-    expect(line).to_contain_text("comment on the options")
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_contain_text("Should we keep it?")
     drop()
@@ -388,7 +375,6 @@ def test_c_comments_on_what_the_user_is_standing_in(browser, serve):
     rewrite_action.focus()
     expect(rewrite_action).to_be_focused()
     expect(page.locator("#sug-window")).to_have_attribute("data-lf-ask", "1")
-    expect(line).to_contain_text("comment on the rewrite")
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator(".lf-composer")).to_contain_text("rewrite")
@@ -410,7 +396,6 @@ def test_c_comments_on_what_the_user_is_standing_in(browser, serve):
         link = page.locator(f"#{expected_id} a")
         link.focus()
         expect(link).to_be_focused()
-        expect(line).to_contain_text("comment on the option")
         page.keyboard.press("c")
         expect(page.locator(".lf-composer")).to_be_visible()
         assert page.evaluate(
@@ -423,7 +408,6 @@ def test_c_comments_on_what_the_user_is_standing_in(browser, serve):
     passage_link = page.locator("#p1 a")
     passage_link.focus()
     expect(passage_link).to_be_focused()
-    expect(line).to_contain_text("comment on the paragraph")
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_contain_text("paragraph")
 
@@ -487,34 +471,32 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     )
 
     page = open_page(browser, url)
-    line = page.locator(".lf-shortcut-bar")
 
     # The completion count includes every active Ask: the authored pick is complete;
     # the seated Ask and suggestion are not.
     expect_asks_answered(page, "1/3")
-    # In the On panel the seated Ask is the agent's: the comment in its seat is owed a
-    # reply, which stands for it, so it is neither the user's item nor done.
-    banner_control(page, ".lf-queue").click()
-    expect(page.locator('.lf-queue-row[data-lf-at="widget:shape"]')).to_have_count(0)
-    expect(page.locator('.lf-queue-row[data-lf-at="widget:picked"]')).to_have_count(1)
-    expect(page.locator('.lf-queue-row[data-lf-at="widget:sug-window"]')).to_have_count(
-        1
-    )
-    page.locator(".lf-queue-tab").nth(1).click()
-    agent_rows = page.locator("[data-lf-queue='agent'] .lf-queue-row")
+    # In On me the seated Ask is the agent's: the comment in its seat is owed a reply,
+    # which stands for it, so it is neither the user's item nor done.
+    panel_control(page, "queue").click()
+    panel_settled(page, view="queue")
+
+    def card(source):
+        return page.locator(f".lf-fp-on-item[data-key*='\"widget:{source}\"']")
+
+    expect(card("shape")).to_have_count(0)
+    expect(card("sug-window")).to_have_count(1)
+    # The picked group has left the user's list for its Done.
+    expect(card("picked")).to_have_attribute("data-list", "done")
+    page.locator(".lf-fp-filters button").nth(1).click()
+    agent_rows = page.locator('.lf-fp-on-item[data-list="agent"]')
     expect(agent_rows).to_have_count(1)
     expect(agent_rows).to_contain_text("Steel, unless the sealing is quick?")
-
-    # The user is standing in it all the same, first with the panel still open.
-    page.locator("#shape .lf-settle").focus()
-    expect(page.locator("#shape-decision")).to_have_attribute("data-lf-ask", "1")
-    page.evaluate("() => document.activeElement?.blur()")
-    banner_control(page, ".lf-queue").click()
+    page.locator(".lf-fp-close").click()
+    panel_settled(page, open=False)
 
     # And with it shut, which is every other reading below.
     page.locator("#shape .lf-settle").focus()
     expect(page.locator("#shape-decision")).to_have_attribute("data-lf-ask", "1")
-    expect(line).to_contain_text("comment on the thread")
     # The count is completion, not the open walk's position, so focus leaves it stable.
     expect_asks_answered(page, "1/3")
 
@@ -543,7 +525,6 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     expect_asks_answered(page, "1/3")
     expect(page.locator("#shape .lf-settle")).to_be_focused()
     expect(page.locator("#shape-decision")).to_have_attribute("data-lf-ask", "1")
-    expect(line).to_contain_text("comment on the thread")
 
     # And the press means that thread, so the next line joins the one the first line
     # opened rather than starting another on the Ask or the widget. Whichever surface
@@ -562,13 +543,11 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     page.evaluate("() => document.activeElement?.blur()")
 
     # The picked group is the control on the other side: answered, so off both readings,
-    # and the switch leaves it there. Read through the shortcut bar, because `markHere` paints
+    # and the switch leaves it there. Read after the repaint, because `markHere` paints
     # inside the shared repaint frame — an absence read in the same round trip as the focus is
     # the frame before the paint, and stays green while a ring lands here a frame later.
-    # The word is the other half of the same fact: with `standingIn` null the reading falls
-    # through to the innermost item, which from a pick is the option and not the question.
     page.locator("#picked .lf-pick").first.focus()
-    expect(line).to_contain_text(re.compile(r"comment on the option(?!s)"))
+    rendered(page)
     assert page.locator("[data-lf-ask]").count() == 0, (
         "an answered group wears the ring the switch was not about"
     )
@@ -597,26 +576,18 @@ def test_c_in_a_thread_reaches_that_threads_own_box(browser, serve):
     append_carried_log_record(d, {"kind": "resolve", "author": "user", "parent": gone})
 
     page = open_page(browser, url)
-    line = page.locator(".lf-shortcut-bar")
 
-    # Threads navigation is g T; page c is reserved for the page comment.
-    expect(line).to_contain_text("comment on the page")
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
-
-    # Standing in the open thread, where g T lands, it means that thread's reply box.
-    expect(
-        page.locator(f'.lf-thread[data-id="{live}"] > .lf-thread-summary')
-    ).to_be_focused()
-    expect(line).to_contain_text("comment on the thread")
+    # Standing in the thread open in the panel, it means that thread's reply box.
+    view = open_panel_thread(page, live)
+    view.focus()
+    expect(view).to_be_focused()
     page.evaluate("scrollTo(0, document.scrollingElement.scrollHeight)")
     scroll_settled(page)
     before_scroll = page.evaluate("scrollY")
     assert before_scroll > 0, "the page must be away from the thread's passage"
     page.keyboard.press("c")
-    expect(
-        page.locator(f'.lf-thread[data-id="{live}"] > .lf-thread-reply leaf-text')
-    ).to_be_focused()
+    expect(panel_field(page)).to_be_focused()
+    expect(panel_field(page)).to_have_attribute("name", "reply")
     scroll_settled(page)
     assert page.evaluate("scrollY") == before_scroll
 
@@ -624,25 +595,16 @@ def test_c_in_a_thread_reaches_that_threads_own_box(browser, serve):
     # class-only reading and the new climb agree, so this is the consistency half rather
     # than the gate — test_c_in_a_seated_thread_reaches_the_thread_it_is_in is what
     # actually goes red if the climb regresses, the page being where they diverge.
-    expect(line).to_contain_text("back to thread")
     page.keyboard.press("Escape")
-    expect(
-        page.locator(f'.lf-thread[data-id="{live}"] > .lf-thread-summary')
-    ).to_be_focused()
-    expect(line).to_contain_text("close threads")
+    expect(view).to_be_focused()
     page.evaluate("() => document.activeElement?.blur()")
 
     # A resolved thread has no box, so the press falls through to the general box, in
     # the page comment card, rather than reaching for one that is not there. What matters is that the thread is not
     # named, which is the phase above's answer and would be the wrong one here.
-    page.locator(".lf-thread-filter-toggle").click()
-    page.locator('[data-filter-value="resolved"]').click()
-    page.locator(
-        f'.lf-thread[data-id="{gone}"]:not([hidden]) > .lf-thread-summary'
-    ).focus()
-    expect(line).not_to_contain_text("comment on the thread")
+    open_panel_thread(page, gone).focus()
     page.keyboard.press("c")
-    expect(page.locator(".lf-page-comment-card .lf-general leaf-text")).to_be_focused()
+    expect(page.locator('.lf-fp-field leaf-text[name="comment"]')).to_be_focused()
 
 
 def test_c_in_a_seated_thread_reaches_the_thread_it_is_in(browser, serve):
@@ -706,14 +668,12 @@ def test_c_in_a_seated_thread_reaches_the_thread_it_is_in(browser, serve):
         )
 
     page = open_page(browser, url)
-    line = page.locator(".lf-shortcut-bar")
     threads = page.locator(".lf-page-thread")
     expect(threads).to_have_count(2)
 
     # The control: standing on a widget that seats nothing, so the press has no thread
     # to prefer and opens the composer on the widget itself.
     page.locator("#shape .lf-pick").first.focus()
-    expect(line).to_contain_text("comment on the ask")
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_be_visible()
     page.keyboard.press("Escape")
@@ -722,7 +682,6 @@ def test_c_in_a_seated_thread_reaches_the_thread_it_is_in(browser, serve):
     # Standing in the second thread, the press means that thread's box.
     second = page.locator(f'.lf-page-thread[data-thread="{said[1]}"]')
     second.focus()
-    expect(line).to_contain_text("comment on the thread")
     page.keyboard.press("c")
     expect(second.locator("> .lf-thread-reply leaf-text")).to_be_focused()
 
@@ -733,11 +692,9 @@ def test_c_in_a_seated_thread_reaches_the_thread_it_is_in(browser, serve):
     # standing in two feet away and no key back to it. Both ends read one climb now, so
     # the word going in ("comment on the thread") and the word coming out are about the
     # same element.
-    expect(line).to_contain_text("back to thread")
     page.keyboard.press("Escape")
     expect(second).to_be_focused()
     # One rung, not two: the page's own way out is the press after this one.
-    expect(line).to_contain_text("let go")
     page.keyboard.press("Escape")
     assert page.evaluate("() => document.activeElement === document.body")
 
@@ -767,8 +724,8 @@ def test_commenting_on_a_closed_disclosure_leaves_it_closed(browser, serve, gest
     [
         (1400, 320, False),
         (1400, -500, True),
-        (120, 850, False),
-        (120, 850, True),
+        (120, 780, False),
+        (120, 780, True),
     ],
 )
 def test_opening_comment_preserves_the_visible_reading_position(
@@ -942,31 +899,27 @@ def test_c_enters_a_seated_reply_without_revealing_the_thread_heading(
 def test_c_comments_and_g_t_navigates_to_threads(browser, serve):
     """c is contextual comment; g T is the one route into the Threads list."""
     page = open_page(browser, serve(NOTED_PAGE))
-    page.keyboard.press("c")  # page: straight into the banner's page comment card
-    expect(page.locator(".lf-page-comment-card leaf-text")).to_be_focused()
+    comment = page.locator('.lf-fp-field leaf-text[name="comment"]')
+    page.keyboard.press("c")  # page: straight into the panel's page comment
+    expect(comment).to_be_focused()
     # One level down, one press out, and Threads never opened.
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-page-comment-card")).to_be_hidden()
-    expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    expect(comment).not_to_be_focused()
+    panel_settled(page, open=False)
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.locator(".lf-threads")).to_be_focused()
-    # An empty list holds nothing to comment on, so `c` opens the same card over it,
-    # and Escape puts the card away onto its control with Threads still open.
+    threads = page.locator('.lf-fp-view[data-view="threads"]')
+    expect(threads).to_be_focused()
+    # An empty list holds nothing to comment on, so `c` opens the page comment.
     page.keyboard.press("c")
-    expect(page.locator(".lf-page-comment-card leaf-text")).to_be_focused()
-    expect(page.locator(".lf-thread-panel")).to_have_class(re.compile("open"))
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-page-comment-card")).to_be_hidden()
-    expect(page.locator(".lf-banner-actions > .lf-page-comment")).to_be_focused()
-    expect(page.locator(".lf-thread-panel")).to_have_class(re.compile("open"))
+    expect(comment).to_be_focused()
 
 
 def test_the_panels_own_c_answers_a_page_whose_log_has_not_arrived(browser, serve):
     """A page whose first poll cannot reach the server is a page the user still writes
-    on: `c` opens the page comment card, and the banner says only that a comment will
-    not send yet. What it has not got is a thread list, so narrowing by what awaits the
+    on: `c` opens the page comment, and the panel says only that a comment will not
+    send yet. What it has not got is a thread list, so narrowing by what awaits the
     user is dead. Find remains available as the panel's empty search, and the panel's
     scope used to take `c` down with the missing list, so `c` is pressed from the empty
     list too.
@@ -977,22 +930,21 @@ def test_the_panels_own_c_answers_a_page_whose_log_has_not_arrived(browser, serv
     page.route("**/api/state*", refuse)
     page.goto(serve(NOTED_PAGE), wait_until="load")
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
-    expect(page.locator(".lf-status-detail")).to_have_text(
-        "Server offline — reconnecting. Keep this page open so pending changes can send."
+    comment = page.locator('.lf-fp-field leaf-text[name="comment"]')
+    expect(page.locator(".lf-fp-leaf")).to_have_attribute(
+        "aria-label", re.compile("offline", re.IGNORECASE)
     )
 
     page.keyboard.press("c")
-    expect(page.locator(".lf-page-comment-card leaf-text")).to_be_focused()
-    page.keyboard.press("Escape")  # out of the box and the card it stood in
-    expect(page.locator(".lf-page-comment-card")).to_be_hidden()
+    expect(comment).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(comment).not_to_be_focused()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(page.locator('.lf-fp-view[data-view="threads"]')).to_be_focused()
 
-    # The missing list takes away its waiting filter, but not the panel's own search:
-    # a search over nothing still belongs to the scope in front of the page.
-    line = page.locator(".lf-shortcut-bar")
-    expect(line).not_to_contain_text("waiting on me")
-    expect(line).to_contain_text("find")
+    # The missing list leaves the panel's own search: a search over nothing still
+    # belongs to the view in front of the page.
+    expect(page.get_by_role("button", name="Find a thread or message")).to_be_visible()
     page.keyboard.press("c")
-    expect(page.locator(".lf-page-comment-card leaf-text")).to_be_focused()
+    expect(comment).to_be_focused()

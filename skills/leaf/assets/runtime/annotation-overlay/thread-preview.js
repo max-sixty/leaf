@@ -42,7 +42,6 @@ import { cancelRender, nextRender } from "../rendering.js";
 import { spokenSubject } from "../contribution-model.js";
 import { labelWords } from "../words.js";
 import { THREAD_CARD } from "./margin-layout.js";
-import { mapButton } from "../page-map-dialog.js";
 import {
   focusDestination,
   holdFocus,
@@ -66,7 +65,6 @@ import { turns } from "../thread/model.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { iconElement } from "../icons.js";
 import { anchorLabel } from "../thread/messages.js";
-import { bannerControlDoor } from "../banner-toolbar.js";
 import { coarsePointer } from "../pointer.js";
 import {
   cardMeasure,
@@ -98,7 +96,6 @@ export function createThreadPreview({
   renderMarginThread,
   placedAt,
   openPageThread,
-  panelIsOpen,
   scrollThreadIntoView,
   scrollToElement,
   onClose,
@@ -728,8 +725,7 @@ export function createThreadPreview({
           const thread = sourceItem(item).thread.id;
           const mayLand = retainUserIntent({
             source: focused(),
-            available: () => Boolean(target?.isConnected) && !panelIsOpen(),
-            fallback: bannerControlDoor(mapButton),
+            available: () => Boolean(target?.isConnected),
           });
           return {
             optimistic: () => {

@@ -168,7 +168,7 @@ A property a particular page causes belongs in `render_version`, because
 `leaf page check --render` must report it to that page's author. A property identical
 for every valid page, such as how the layer restores browser state
 (`arrival_findings`), belongs in the suite. A test of a state no authored page reaches,
-such as DOM a script changes after load or the open thread panel, puts the page in
+such as DOM a script changes after load or an open panel view, puts the page in
 that state and calls the probe through `leaf.render_checks.evaluate_probe`.
 
 Where the product already answers a question, use its answer rather than copying it:
@@ -361,10 +361,11 @@ matching frame even if the gesture goes on to another result. The helpers in
 - `told` waits until the page has applied what the server holds now; call it after
   changing a file behind a live page;
 - `nudge` gives the page a reason to read; `ticked` waits for its next tick;
-- `undo` presses `z` once it is offered and waits for the undo's round trip;
+- `undo` presses `z` once the dispatcher would take it and waits for the undo's round
+  trip;
 - `rendered` (`leaf.render_checks`) waits for every repaint the input so far queued,
-  and `shortcut_bar_text` reads the bar once after it;
-- `panel_settled`, `edge_settled` and `resized` wait for their motion to end, and
+  and `available_commands` reads the dispatcher once after it;
+- `panel_settled` and `resized` wait for their motion to end, and
   `scroll_settled` (`leaf_dev.browser`) for a scroll's.
 
 Wait for something the gesture itself changes. An empty highlight or an optimistic

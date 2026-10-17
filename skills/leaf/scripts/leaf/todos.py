@@ -6,7 +6,7 @@ follows from its owner and what it is on, so no field records that.
 
 An item on the agent's list is either an update it owes an answer, whose id is the
 update's event id (`workflows`), or a to-do it opened. `leaf task start` writes a
-`start` event naming one item and the line the banner shows as Working, and the
+`start` event naming one item and the line the page's status shows as Working, and the
 item is in hand from then on. An ephemeral reply to an owed update writes the same
 start, with its text as the line (`take_in_hand`), so the thread and the Working
 line show the same words.
@@ -21,7 +21,7 @@ why there is none, or until a stamped version naming its widget with `--complete
 ends it `done`. A reply, a resolution, another version, or the end of the session
 that opened it leaves it open; that is what a to-do adds over an update, which its
 answer settles. An open to-do keeps its thread `waiting` (`served_state.browser`),
-counts under `queues.on_agent` in `page state`, and shows in the banner.
+counts under `queues.on_agent` in `page state`, and shows in the page's status.
 `../../references/conversation-loop.md` tells the agent which work gets a to-do.
 
 A to-do on the user is a `todo` event opened with `--on user`, ended by the user's

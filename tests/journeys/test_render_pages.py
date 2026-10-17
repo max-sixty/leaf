@@ -21,7 +21,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import (
     live_url,
 )
-from render_cases_layout import banner_control
+from render_cases_layout import toggle_queue
 from render_cases_widgets import (
     FRAMED_SCROLLER_PAGE,
     OWN_MARGIN_FURNITURE,
@@ -34,11 +34,15 @@ from render_harness import (
     CORPUS_SOURCES,
     EXAMPLES,
     INLINE_PAGE,
+    PANEL_THREAD,
     leaf_page,
     margins_laid_out,
     nudge,
     open_page,
     page_registry,
+    panel_field,
+    panel_menu,
+    panel_settled,
     refuse,
     resized,
     root_overflow,
@@ -50,6 +54,10 @@ from render_harness import (
 )
 
 pytestmark = pytest.mark.shifts_unsurveyed
+
+from browser.threads import open_panel_thread
+
+from journeys import detached_threads, listed_threads
 
 
 def test_sort_film_comment_restores_its_input_and_step(browser, serve):
@@ -112,7 +120,10 @@ def test_sort_film_comment_restores_its_input_and_step(browser, serve):
     assert layout == [[1046, True]]
     page.locator('#sort-film input[value="nearly"]').check()
     expect(moment).to_have_attribute("data-part", "moment:nearly:7:0")
-    expect(page.locator(".lf-thread")).to_contain_text("Random, shuffle 7, step 1")
+    comment = next(event for event in events if event["kind"] == "comment")
+    view = open_panel_thread(page, comment["id"])
+    expect(view.locator(".lf-fp-quote")).to_contain_text("Random, shuffle 7, step 1")
+    page.locator(".lf-fp-close").click()
     page.get_by_role("button", name="1 comment").press("Enter")
     expect(moment).to_have_attribute("data-part", "moment:random:7:0")
 
@@ -226,6 +237,15 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
             )
             previous.add(event["id"])
         assert {event["id"] for event in events} <= previous
+        by_id = {event["id"]: event for event in logged}
+
+        def thread_of(event_id, by_id=by_id):
+            """The thread an event stands in: its root comment, up its parents."""
+            event = by_id[event_id]
+            while event.get("parent"):
+                event = by_id[event["parent"]]
+            return event["id"]
+
         # Read the roots in force through the same fold as the page. A resolved root keeps
         # its thread and attachment but owes no paint; a withdrawn reaction owes neither.
         page_ids = enclosing_ids(structure_model.SourceDocument(example.read_text()))
@@ -272,19 +292,19 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
         # also paints a mark. Counting threads against the anchored ones would red
         # this gate the day a seed carries a general comment, which is a thing a page
         # may hold.
-        expect(page.locator(".lf-thread")).to_have_count(len(listed))
+        assert len(listed_threads(page)) == len(listed), (
+            f"{example.stem}: Threads lists another number of threads than the log holds"
+        )
         open_targets = {event["anchor"]["section"] for event in anchored}
         for thread in listed:
             if not thread["resolved"]:
                 continue
-            card = page.locator(f'.lf-thread[data-id="{thread["id"]}"]')
-            expect(
-                card.get_by_role(
-                    "button",
-                    name=re.compile(r"\bReopen(?: thread)?$"),
-                    include_hidden=True,
-                )
-            ).to_have_count(1)
+            open_panel_thread(page, thread["id"])
+            expect(page.locator(".lf-fp-settle")).to_have_text(
+                "Reopen", use_inner_text=True
+            )
+            page.locator(".lf-fp-close").click()
+            panel_settled(page, open=False)
             anchor = thread["anchor"]
             if anchor and anchor["section"] not in open_targets:
                 item = page.locator(f'[data-lf-margin-for="{anchor["section"]}"]')
@@ -339,12 +359,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                     f"{example.stem}: the reaction's passage is painted nowhere; the "
                     f"wash reads {painted[:120]!r}"
                 )
-        detached = set(
-            page.eval_on_selector_all(
-                ".lf-thread .lf-quote.detached",
-                "els => els.map(el => el.closest('.lf-thread').dataset.id)",
-            )
-        )
+        detached = detached_threads(page, [thread["id"] for thread in listed])
         assert detached == retained, (
             f"{example.stem} has unexpected detached anchors: {detached - retained}. "
             "Recapture unintended quotes with `leaf thread open --quote` against "
@@ -394,17 +409,22 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
             event["kind"] == "reply" and event["author"] == "agent" for event in events
         ):
             replied.append(example.stem)
-            expect(page.locator(".lf-thread .lf-msg.agent")).not_to_have_count(0)
+            answered = next(
+                event["parent"]
+                for event in events
+                if event["kind"] == "reply" and event["author"] == "agent"
+            )
+            open_panel_thread(page, thread_of(answered))
+            expect(page.locator(f"{PANEL_THREAD} .lf-msg.agent")).not_to_have_count(0)
 
         # The other thing a log carries. A widget can arrive as a message's markup
         # rather than as authored page content, and it draws in the body the panel
         # builds — so its module has to reach a tree the runtime made, in a column
         # narrower than the document's. Every example's own widgets stand in
         # <main>, which is why the eight sweeps could all be green while nothing
-        # had rendered one here. It needs the panel open: shut, the fragment is in
-        # the DOM with no box at all, so a reading that walks text nodes sees it
+        # had rendered one here. It needs its thread open in the panel: shut, the
+        # fragment has no box at all, so a reading that walks text nodes sees it
         # and every reading that measures one does not.
-        page.locator(".lf-threads-toggle").click()
         registry = registry_storage.load_registry(serve.page_dir)
         carried_ids = set()
         carried_threads = set()
@@ -414,12 +434,10 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
             ).by_id.items():
                 drawn.append(wid)
                 carried_ids.add(wid)
-                shown = page.locator(f"#{wid}")
-                card = page.locator(".lf-thread").filter(has=shown)
-                carried_threads.add(card.get_attribute("data-id"))
-                summary = card.locator(".lf-thread-summary")
-                if card.get_attribute("open") is None:
-                    summary.click()
+                thread_id = thread_of(carried["id"])
+                carried_threads.add(thread_id)
+                view = open_panel_thread(page, thread_id)
+                shown = view.locator(f"#{wid}")
                 expect(shown).to_be_visible()
                 # Where the registry says the element holds a request for the
                 # user, whatever answers it has to have been built here too:
@@ -445,9 +463,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                 "two readings below were handed nothing of the panel's to look at"
             )
             for thread_id in sorted(carried_threads):
-                card = page.locator(f'.lf-thread[data-id="{thread_id}"]')
-                if card.get_attribute("open") is None:
-                    card.locator(".lf-thread-summary").click()
+                open_panel_thread(page, thread_id)
                 for finding, probe, arg in (
                     (
                         "draws a box of no size",
@@ -511,12 +527,15 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
             for event in [e for e in events if e["kind"] != "action"]:
                 append_carried_log_record(serve.page_dir, event)
             undecided = open_page(browser, plain)
-            undecided.locator(".lf-threads-toggle").click()
             for wid in decided_here:
-                shown = undecided.locator(f"#{wid}")
-                card = undecided.locator(".lf-thread").filter(has=shown)
-                if card.get_attribute("open") is None:
-                    card.locator(".lf-thread-summary").click()
+                carried = next(
+                    e
+                    for e in events
+                    if e.get("markup")
+                    and wid in structure_model.SourceDocument(e["markup"]).by_id
+                )
+                view = open_panel_thread(undecided, thread_of(carried["id"]))
+                shown = view.locator(f"#{wid}")
                 expect(shown).to_be_visible()
                 assert shown.inner_text() != read_as[wid], (
                     f"{example.stem}: #{wid} reads the same with the log's decision "
@@ -585,9 +604,10 @@ def test_an_anchor_written_from_the_mapped_revision_lands_on_the_page(
     page = open_page(browser, live_url(url))
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
-    # The runtime's own record of which threads it found a home for.
-    detached = page.eval_on_selector_all(
-        ".lf-thread .lf-quote.detached", "els => els.map(e => e.textContent)"
+    # The runtime's own record of which threads it found a home for, as each
+    # thread's view in the panel quotes it.
+    detached = sorted(
+        detached_threads(page, [f"written{i}" for i in range(len(anchors))])
     )
     assert detached == [], (
         f"{len(detached)} anchors resolved to nothing in {source.stem}: {detached}"
@@ -627,16 +647,18 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
         },
     )
     page = open_page(browser, live_url(url))
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 1")
+    expect(page.locator(".lf-fp-threads")).to_have_attribute(
+        "aria-label", "Threads, 1 open"
+    )
+    field = page.locator(".lf-fp-field leaf-text")
     stamp_page(d, TWIN_V2, "a twin")
     wait_for_revision(page, 2)
-    expect(page.locator(".lf-notice")).not_to_have_class(re.compile(r"\bshow\b"))
+    expect(field).not_to_have_attribute("placeholder", re.compile("replied"))
 
-    page.locator(".lf-threads-toggle").click()
-    page.locator(".lf-thread-summary").first.click()
-    reply_draft = page.locator(".lf-thread leaf-text")
-    write(reply_draft, "keep this unfinished reply")
-    page.locator(".lf-threads-toggle").click()
+    open_panel_thread(page, root["id"])
+    write(panel_field(page), "keep this unfinished reply")
+    page.locator(".lf-fp-close").click()
+    panel_settled(page, open=False)
 
     broken = []
 
@@ -682,28 +704,28 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     )
     page.lf_errors.remove(console_finding(fault.value))
 
-    expect(page.locator(".lf-msg.agent .lf-msg-body")).to_have_count(0)
-    expect(page.locator(".lf-msg.user .lf-msg-body")).to_have_text(
+    view = open_panel_thread(page, root["id"])
+    expect(view.locator(".lf-msg.agent .lf-msg-body")).to_have_count(0)
+    expect(view.locator(".lf-msg.user .lf-msg-body")).to_have_text(
         "which host answers?"
     )
-    expect(reply_draft).to_have_js_property("value", "keep this unfinished reply")
+    expect(panel_field(page)).to_have_js_property("value", "keep this unfinished reply")
+    page.locator(".lf-fp-close").click()
+    panel_settled(page, open=False)
 
-    version_menu = page.locator(".lf-version-menu")
-    banner_control(page, ".lf-version").click()
-    expect(version_menu).not_to_contain_text("Rejected version")
+    expect(panel_menu(page, "versions")).not_to_contain_text("Rejected version")
     page.keyboard.press("Escape")
 
-    notice_el = page.locator(".lf-notice")
-    assert "show" not in notice_el.get_attribute("class").split()
+    assert "replied" not in (field.get_attribute("placeholder") or "")
     page.wait_for_timeout(100)
     assert "Codex replied" not in page.locator(".lf-live").text_content()
 
     page.unroute("**/api/state*")
     nudge(d)
     told(page)
-    expect(notice_el).to_have_text("Codex replied")
-    expect(notice_el).to_have_class(re.compile(r"\bshow\b"))
-    expect(page.locator(".lf-msg.agent .lf-msg-body")).to_have_text("this one does")
+    expect(field).to_have_attribute("placeholder", re.compile("Codex replied"))
+    view = open_panel_thread(page, root["id"])
+    expect(view.locator(".lf-msg.agent .lf-msg-body")).to_have_text("this one does")
 
 
 def test_available_space_is_a_generic_package_capacity(browser, serve):
@@ -1033,8 +1055,8 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         "() => Number(getComputedStyle(document.querySelector('lf-toc a')).opacity) === 0"
     )
 
-    # The On panel stands over the page from the right and moves nothing in the left
-    # margin: the fixed ToC and the sidebar stay where the page put them while it stands.
+    # On me stands over the page in the panel and moves nothing in the left margin: the
+    # fixed ToC and the sidebar stay where the page put them while it stands.
     resized(page, 1700, 900)
     margin = """() => {
           const sidebar = document.querySelector('aside.sidebar').getBoundingClientRect();
@@ -1042,36 +1064,27 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
           return {sidebarLeft: sidebar.left, tocLeft: toc.left};
         }"""
     before = page.evaluate(margin)
-    banner_control(page, ".lf-queue").click()
-    expect(page.locator(".lf-queue-panel")).to_be_visible()
-    page.wait_for_function(
-        """() => document.querySelector('.lf-queue-panel').getAnimations().length === 0"""
-    )
+    toggle_queue(page)
     assert page.evaluate(margin) == before
     geometry = page.evaluate(
         """() => {
           const sidebar = document.querySelector('aside.sidebar').getBoundingClientRect();
           const toc = document.querySelector('lf-toc .lf-toc-nav').getBoundingClientRect();
-          const line = document.querySelector('.lf-shortcut-bar').getBoundingClientRect();
+          const panel = document.querySelector('.lf-fp-row').getBoundingClientRect();
           return {sidebarLeft: sidebar.left, tocLeft: toc.left,
-                  tocTop: toc.top, tocBottom: toc.bottom, lineTop: line.top,
+                  tocTop: toc.top, tocBottom: toc.bottom, panelTop: panel.top,
                   sidebarPosition: getComputedStyle(document.querySelector('aside.sidebar')).position,
                   tocPosition: getComputedStyle(document.querySelector('lf-toc')).position};
         }"""
     )
     assert geometry["sidebarPosition"] == "sticky"
     assert geometry["tocPosition"] == "fixed"
-    banner_box = page.locator(".lf-banner").bounding_box()
-    assert banner_box is not None
-    assert geometry["tocTop"] == pytest.approx(
-        banner_box["y"] + banner_box["height"], abs=1
+    assert geometry["tocTop"] == pytest.approx(0, abs=1)
+    # The map ends above the room the panel keeps at the foot, its last entry in view.
+    assert geometry["tocBottom"] <= geometry["panelTop"] + 1, (
+        f"the map's foot runs under the panel: {geometry}"
     )
-    # The map ends at the bottom bar, keeping its last entry in view.
-    assert abs(geometry["tocBottom"] - geometry["lineTop"]) <= 1, (
-        f"the map's foot is not at the band's top: {geometry}"
-    )
-    banner_control(page, ".lf-queue").click()
-    expect(page.locator(".lf-queue-panel")).to_be_hidden()
+    toggle_queue(page, open=False)
 
     resized(page, 1400, 900)
 

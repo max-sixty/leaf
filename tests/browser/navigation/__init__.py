@@ -1,6 +1,7 @@
 """Browser tests of comment marks, Go-to addresses and keyboard navigation, with the
 page constants and helpers their modules share."""
 
+from leaf.render_checks import rendered
 from render_harness import leaf_page, regions_side_by_side
 
 READING_REGIONS_PAGE = leaf_page(
@@ -53,23 +54,6 @@ def color_cue_markup():
     )
 
 
-# Every way into the Threads list while it shows a thread, which hands focus on to that
-# thread's title.
-EXPANDED = ".lf-threads > .lf-thread:not([hidden])[open]"
-
-
-# What the shortcut bar is saying, chip by chip. The word is the chip's own trailing span —
-# `keySequence` builds the keycaps into a classed element and the word is the unclassed
-# one beside it — and the commands are what the row projects, so a duplicate can be
-# reported as the pair of rows that made it rather than as a word said twice.
-KEY_LINE_HINTS = """() => [...document.querySelectorAll('.lf-shortcut-bar .lf-shortcut')]
-  .filter(chip => !chip.hidden)
-  .map(chip => ({
-    commands: chip.dataset.lfCommandIds,
-    word: [...chip.children].filter(c => !c.className).map(c => c.textContent).join(''),
-  }))"""
-
-
 # Where the user is standing, in the terms the next Tab is decided by: the document
 # position of the focused element, and whether it is the first stop in the document.
 STANDING = """() => {
@@ -82,3 +66,46 @@ STANDING = """() => {
     inChrome: Boolean(at?.closest?.('.lf-chrome')),
   };
 }"""
+
+
+# The keyboard walk's position, the reading the panel says in its field's place
+# (walk-position.js, `walkPosition`): `{text, kind, boundary}`, or null with no walk
+# under way. Evaluating it leaves a synchronous reader for `wait_for_function`.
+WALK_POSITION = """async () => {
+  const {walkPosition} = await window.__lfCheckApi();
+  window.__lfWalkPosition = () => walkPosition();
+  return walkPosition();
+}"""
+
+
+def walk_position(page):
+    """The walk's position where the user stands now, or None with no walk."""
+    return page.evaluate(WALK_POSITION)
+
+
+def expect_walk_position(page, text):
+    """Wait until the walk says `text` ("1 of 4 waiting on me · Options"), or, with None,
+    until no walk is under way."""
+    page.evaluate(WALK_POSITION)
+    page.wait_for_function(
+        "text => (window.__lfWalkPosition()?.text ?? null) === text", arg=text
+    )
+
+
+# Each route the dispatcher would run from where the user stands, by the route's own id
+# (a parameterized command's route rather than its row, `page.down` rather than
+# `page.move`), with the keys that reach it: the reading the bottom key line painted.
+OFFERED_ROUTES = """async () => {
+  const {availableCommandRoutes, commandEntries} = await window.__lfCheckApi();
+  const offered = {};
+  for (const [row, bindings] of availableCommandRoutes())
+    for (const entry of commandEntries(row, [...bindings]))
+      (offered[entry.id] ??= []).push(entry.binding);
+  return offered;
+}"""
+
+
+def offered_routes(page):
+    """`{route id: [keys]}` the dispatcher would run from where the user stands now."""
+    rendered(page)
+    return page.evaluate(OFFERED_ROUTES)

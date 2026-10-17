@@ -33,6 +33,8 @@ from render_harness import (
     write,
 )
 
+from browser.threads import open_panel_thread
+
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
@@ -41,9 +43,8 @@ def test_the_keyboard_reference_is_a_modal_tab_loop_and_returns_to_its_door(
 ):
     """A dialog-shaped command reference behaves like a dialog for the native Tab walk."""
     page = open_page(browser, serve(LONG_PAGE))
-    door = page.locator(".lf-threads-toggle")
+    door = page.locator(".lf-fp-threads")
     door.focus()
-    page.keyboard.press("?")
     page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
     expect(reference).to_be_visible()
@@ -144,22 +145,20 @@ def test_a_page_nobody_has_touched_scrolls_from_the_keyboard(browser, serve):
 
 
 def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, serve):
-    """Closing the panel hands the user back the place they held before they opened it.
+    """Putting Threads away hands the user back the page, however they opened it.
 
-    Opened with the pointer from the page, the panel's Escape lands on the page. The click
-    put focus on the toggle, but the user never chose that button: leaving them on it
-    rang a control they did not stand on and handed their next Space to it, so the panel
-    they had just dismissed came back and nothing said why. Opened from the keyboard, the
-    toggle was the user's place, and the same press hands it back — ringed, since a
-    keypress closed — with the rung below that takes them off the chrome.
+    Opened with the pointer, the view takes focus; opened from the keyboard, its first
+    row does. Either way Escape lands on the page rather than on the mark that opened
+    it: a focused button there would own the user's next Space, so the view they had
+    just dismissed would come back and nothing would say why.
 
     The scroll is what the landing has to hand back. Root scrolling is native now, but a
     focused button still owns Space; focus therefore returns to the page rather than
     merely blurring to nowhere."""
     page = open_page(browser, serve(LONG_PAGE, comments=1))
-    toggle = page.locator(".lf-threads-toggle")
-    panel = page.locator(".lf-thread-panel")
-    ringed = """() => getComputedStyle(document.querySelector('.lf-threads-toggle'))
+    toggle = page.locator(".lf-fp-threads")
+    panel = page.locator('.lf-fp-view[data-view="threads"]')
+    ringed = """() => getComputedStyle(document.querySelector('.lf-fp-threads'))
       .outlineStyle !== 'none'"""
     top = "() => document.scrollingElement.scrollTop"
     on_body = "() => document.activeElement === document.body"
@@ -170,11 +169,10 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     scroll_settled(page)
     was = page.evaluate(top)
 
-    # Opened with the pointer, the focused button draws the same ring as a keyboard arrival.
+    # Opened with the pointer, the view the user asked for holds the focus.
     toggle.click()
     expect(panel).to_be_visible()
-    expect(toggle).to_be_focused()
-    assert page.evaluate(ringed)
+    expect(panel).to_be_focused()
 
     # Closed with the key, the user is back on the page: nothing rings, and Space is
     # the page's again rather than the button's.
@@ -195,15 +193,16 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     scroll_settled(page)
 
     # Opened from the keyboard, and left the same way one opened by pointer is: the
-    # panel's parent is the document, so Escape lands the user there rather than on
-    # the toggle that reopens it.
+    # view's parent is the document, so Escape lands the user there rather than on
+    # the mark that reopens it.
     toggle.focus()
     assert page.evaluate(ringed), "the control the user is standing on says nothing"
     page.keyboard.press("Enter")
     expect(panel).to_be_visible()
+    expect(panel.locator(".lf-fp-thread").first).to_be_focused()
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
-    assert page.evaluate("() => document.activeElement === document.body")
+    assert page.evaluate(on_body)
 
     # And Space is the page's again.
     page.keyboard.press("Escape")
@@ -334,9 +333,7 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
         },
     )
     page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    page.locator(".lf-thread-summary").first.click()
-    page.wait_for_selector(".lf-thread")  # the panel is open and reconciled once
+    open_panel_thread(page, "c-diff")  # the thread is open and reconciled once
     append_carried_log_record(
         d,
         {
@@ -349,9 +346,6 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
         },
     )
     told(page)
-    expect(page.locator('.lf-thread[data-id="c-diff"] .lf-thread-news')).to_have_count(
-        0
-    )
     page.wait_for_function(
         """() => {
         const d = document.querySelector('#rp-diff');
@@ -642,7 +636,6 @@ def test_a_reference_command_finishes_its_gesture_before_a_newer_control(
         ),
     )
     page.locator("#origin").click()
-    page.keyboard.press("?")
     page.keyboard.press("?")
     search = page.get_by_role("combobox", name="Search commands")
     search.fill("comment on the control")

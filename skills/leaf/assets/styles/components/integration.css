@@ -39,9 +39,12 @@ html[data-lf-draw-mode] main {
 .lf-code-copy {
   position: absolute;
   /* Hidden sources have no anchor; their chrome controls stay outside the window. */
-  top: calc(anchor(top, -9999px) + var(--lf-code-copy-inset));
+  top: calc(
+    anchor(top, -9999px) + var(--lf-code-copy-inset) + var(--lf-code-copy-dy, 0px)
+  );
   left: calc(
-    anchor(right, -9999px) - var(--lf-code-copy-size) - var(--lf-code-copy-inset)
+    anchor(right, -9999px) - var(--lf-code-copy-size) - var(--lf-code-copy-inset) +
+      var(--lf-code-copy-dx, 0px)
   );
   width: var(--lf-code-copy-size);
   height: var(--lf-code-copy-size);

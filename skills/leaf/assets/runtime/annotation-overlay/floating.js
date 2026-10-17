@@ -57,7 +57,7 @@
 import { afterPresentation } from "../presentation.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import { keeps, layoutPx as px, atLayoutPrecision } from "../keeps.js";
-import { anchorElement, anchorFor, anchorName } from "../css-anchors.js";
+import { anchorBox, anchorElement, anchorFor, anchorName } from "../css-anchors.js";
 import { shownBand } from "../geometry.js";
 import { containingReadingRegionFor } from "../reading-regions.js";
 import { upFrom, renderedParent } from "../shadow.js";
@@ -189,7 +189,7 @@ export function floatingGeometry(contexts) {
   const anchors = new Map();
   for (const context of contexts) {
     const anchor = anchorFor(context);
-    if (anchor) anchors.set(anchor, anchor.getBoundingClientRect());
+    if (anchor) anchors.set(anchor, anchorBox(anchor));
   }
   return { anchors };
 }
@@ -323,7 +323,7 @@ export function floatingPlacement({ floating, update }) {
       const anchor = anchorFor(context);
       const client = reference.getBoundingClientRect();
       const geometry = reference.geometry ?? floatingGeometry([context]);
-      const anchorBox = geometry.anchors.get(anchor);
+      const anchorStood = geometry.anchors.get(anchor);
       const { getOverflowAncestors } = await floatingUi();
       if (placement !== epoch) return null;
       // Solver coordinates and the anchor's box are one reading. Capturing it before
@@ -347,7 +347,7 @@ export function floatingPlacement({ floating, update }) {
           ? holderOf(wanted, physical, getOverflowAncestors(physical))
           : null;
       const plane =
-        wanted === "page" && anchorBox && offset
+        wanted === "page" && anchorStood && offset
           ? "page"
           : holder
             ? "region"
@@ -355,7 +355,7 @@ export function floatingPlacement({ floating, update }) {
       const frameAnchor =
         plane === "page" ? anchor : plane === "region" ? anchorElement(holder) : null;
       const frameBox =
-        plane === "page" ? anchorBox : frameAnchor?.getBoundingClientRect();
+        plane === "page" ? anchorStood : frameAnchor && anchorBox(frameAnchor);
       const at = offset && {
         x: offset.x + (frameBox?.left ?? 0) / scale.x,
         y: offset.y + (frameBox?.top ?? 0) / scale.y,

@@ -740,7 +740,9 @@ export function createWritingResume({
     // A document behind the active one may lack a box the active one holds, so only
     // the active document moves the words to the page.
     if (runtime.showsActive && !holdsBox(place.context) && moveToPage(place.context)) {
-      notice("Its box is gone, so its words moved to a comment on the page");
+      notice("Its box is gone, so its words moved to a comment on the page", {
+        draft: true,
+      });
       return resume();
     }
     // A box that stands but takes no words now, as a resolved thread's in the floating

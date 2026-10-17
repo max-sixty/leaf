@@ -5367,7 +5367,7 @@ function createDelivery({
               void Promise.all(refused.map(({ answer }) => answer)).then(
                 () => afterScript(() => {
                   const kept = refusedWords(refused.map(({ attempt }) => attempt));
-                  notice(kept ? `${refusal}. ${kept}` : refusal);
+                  notice(kept ? `${refusal}. ${kept}` : refusal, { draft: true });
                 })
               );
             }
@@ -7376,7 +7376,7 @@ function mountApplication(dependencies) {
   commandDispatch.mount({
     afterEnqueue,
     withdraw: (candidate) => undo.withdraw(candidate),
-    onCollision: (attempt) => notice(`Couldn't send \u2014 attempt ${attempt} is already in use`)
+    onCollision: (attempt) => notice(`Couldn't send \u2014 attempt ${attempt} is already in use`, { draft: true })
   });
   const { post: post2 } = commandDispatch;
   const undo = createUndo({

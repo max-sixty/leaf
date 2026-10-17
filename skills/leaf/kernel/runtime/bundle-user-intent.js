@@ -2779,7 +2779,9 @@ function createWritingResume({
       return;
     }
     if (runtime.showsActive && !holdsBox(place2.context) && moveToPage(place2.context)) {
-      notice("Its box is gone, so its words moved to a comment on the page");
+      notice("Its box is gone, so its words moved to a comment on the page", {
+        draft: true
+      });
       return resume();
     }
     notice(

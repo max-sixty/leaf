@@ -1,10 +1,10 @@
 """Opaque sample exposure uses current native clipping and parent admission."""
 
 import pytest
-from playwright.sync_api import expect
 from render_harness import panel_settled
 
 from journeys.test_render_read_state import (
+    _expect_news,
     _message_body,
     _open_first_unread,
     _read_by_the_sample,
@@ -77,9 +77,7 @@ def test_sample_admission_follows_parent_inertness_and_native_modal(browser, ser
     child.wait_for_function("!sampleIsVisible()")
     page.locator("#modal").evaluate("modal => modal.close()")
     child.wait_for_function("sampleIsVisible()")
-    expect(child.locator(".lf-first-unread")).to_have_attribute(
-        "aria-label", "1 unread message. Go to first unread message"
-    )
+    _expect_news(child)
 
 
 def test_sample_exposure_preserves_parent_declared_occlusion(browser, serve):

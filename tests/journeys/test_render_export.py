@@ -50,6 +50,7 @@ from render_harness import (
     example_media,
     leaf_page,
     open_page,
+    panel_menu,
     restarting,
     sending,
 )
@@ -59,6 +60,15 @@ pytestmark = pytest.mark.shifts_unsurveyed
 ROOT = Path(__file__).parents[2]
 # `leaf-dev preview`, run by the interpreter this suite runs on.
 PREVIEW = [sys.executable, "-m", "leaf_dev", "preview"]
+
+
+def expect_preview_named(page, words):
+    """The leaf's menu names a preview page's preview on its diagnostics row, whose
+    title says who drives it and which checkout serves it; read it and put the menu
+    away."""
+    row = panel_menu(page).locator('.lf-fp-item[data-row="preview"]')
+    expect(row).to_have_attribute("title", re.compile(re.escape(words)))
+    page.locator(".lf-fp-leaf").click()
 
 
 def test_export_omits_neighboring_pages_and_their_access_key(serve, tmp_path):
@@ -397,7 +407,7 @@ def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
         page.goto(url, wait_until="load")
         wait_until_ready(page)
         assert page.evaluate("globalThis.__previewRuntimeMarker") == expected_marker
-        expect(page.locator(".lf-preview")).to_contain_text(f"Preview · {runtime.name}")
+        expect_preview_named(page, f"Preview · {runtime.name}")
         expect(
             page.get_by_role("heading", name="Shared runtime comparison")
         ).to_be_visible()
@@ -440,7 +450,7 @@ def test_a_preview_records_real_gestures_outside_the_task(
         os.environ["CLAUDE_CODE_SESSION_ID"]
     )
     driven = open_page(browser, driven_url)
-    expect(driven.locator(".lf-preview")).to_contain_text(f"Preview · {runtime.name}")
+    expect_preview_named(driven, f"Preview · {runtime.name}")
     with sending(driven, "the agent-driven option pick"):
         driven.locator("#opt-shim .lf-pick").click()
     expect(driven.locator("#opt-shim")).to_have_attribute("chosen", "")
@@ -481,7 +491,7 @@ def test_a_preview_records_real_gestures_outside_the_task(
     claim = service_model.page_claim(user_dir)
     assert claim is not None and claim["id"] == os.environ["CLAUDE_CODE_SESSION_ID"]
     user = open_page(browser, user_url)
-    expect(user.locator(".lf-preview")).to_contain_text(f"User · {runtime.name}")
+    expect_preview_named(user, f"User · {runtime.name}")
     with sending(user, "the user option pick"):
         user.locator("#opt-stage .lf-pick").click()
     expect(user.locator("#opt-stage")).to_have_attribute("chosen", "")
@@ -515,9 +525,7 @@ def test_a_preview_records_real_gestures_outside_the_task(
     assert service_model.page_claim(user_dir) is None
     assert user_event not in events_model.read_events(user_dir)
     replaced_page = open_page(browser, replaced_url)
-    expect(replaced_page.locator(".lf-preview")).to_contain_text(
-        f"Preview · {runtime.name}"
-    )
+    expect_preview_named(replaced_page, f"Preview · {runtime.name}")
     expect(replaced_page.locator("#opt-stage")).not_to_have_attribute("chosen", "")
 
 

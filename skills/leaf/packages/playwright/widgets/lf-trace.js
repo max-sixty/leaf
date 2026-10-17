@@ -243,6 +243,7 @@ customElements.define(
     #timelineScope = null;
     #pendingPicture = null;
     #scopeViews = new Map();
+    #pendingInspection = null;
     #applyingPictureView = false;
     #picture = null;
     #pictureId = null;
@@ -957,6 +958,12 @@ customElements.define(
       this.#draw();
       restore?.(this.#sources.value);
       this.dispatchEvent(new Event("lf-trace-ready"));
+      // Readiness may select a paired moment in another stream. Apply an incoming
+      // inspection once that destination exists, outside the archive reset above.
+      if (this.#trace && this.#pendingInspection) {
+        this.inspectionView = this.#pendingInspection;
+        this.#pendingInspection = null;
+      }
     }
 
     #scopeChoices() {
@@ -1079,9 +1086,13 @@ customElements.define(
     }
 
     get inspectionView() {
-      return this.#scopeView().image ?? null;
+      return this.#trace ? (this.#scopeView().image ?? null) : this.#pendingInspection;
     }
     set inspectionView(view) {
+      if (!this.#trace) {
+        this.#pendingInspection = view;
+        return;
+      }
       this.#scopeView().image = view;
       if (this.#picture?.viewed) {
         this.#picture.resize();

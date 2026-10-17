@@ -480,10 +480,28 @@ def test_trace_comparison_pairs_authored_results_across_delayed_sources(browser,
     expect(before.locator(".lf-trace-phase")).to_have_attribute(
         "data-lf-datum", targets[0]
     )
-    # Its peer had no data when the reader chose the result.
-    data_model.cmd_data_set(serve.page_dir, "after-trace", record)
+    before.get_by_role("button", name="Actual size", exact=True).click()
+    canvas = before.locator(
+        ".lf-trace-image:not(.lf-trace-image-pending) .lf-trace-canvas"
+    )
+    canvas.focus()
+    canvas.press("ArrowLeft")
+
+    def image_view(widget):
+        return widget.locator(
+            ".lf-trace-image:not(.lf-trace-image-pending) .viewer-canvas img"
+        ).evaluate("""image => {
+          const r = image.getBoundingClientRect();
+          const c = image.closest('.lf-trace-canvas').getBoundingClientRect();
+          return {x: r.x - c.x, y: r.y - c.y, width: r.width};
+        }""")
+
+    inspected = image_view(before)
+    # Both the semantic result and image inspection reach a peer selected before
+    # it has any data or an archive-specific scope in which to save that view.
     user.get_by_role("radio", name="After", exact=True).click()
     after = user.locator("#after")
+    data_model.cmd_data_set(serve.page_dir, "after-trace", record)
     expect(after.locator(".lf-trace-phase")).to_have_attribute(
         "data-lf-datum", targets[1]
     )
@@ -491,6 +509,7 @@ def test_trace_comparison_pairs_authored_results_across_delayed_sources(browser,
         "aria-current", "true"
     )
     wait_until_ready(user)
+    assert image_view(after) == pytest.approx(inspected, abs=1)
     expect(after.locator(".lf-trace-position")).to_be_visible()
     origin = record["streams"][0]["monotonicTime"]
     expected_positions = [

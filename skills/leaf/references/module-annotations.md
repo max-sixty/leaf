@@ -84,9 +84,9 @@ returns `null`. Call the returned `update()` after the parts or their positions 
 
 ### Reading and opening Threads from a widget
 
-`readThreads()` returns the `{phase, threads}` the Threads panel reads, and a paint that
-calls it repaints when it changes (`module-reading.md`, "Page readings"). A thread the
-user just started is there at once; only `phase === "ready"` means every saved thread is.
+`readThreads()` returns the `{phase, threads}` Leaf's Threads list reads, and a paint
+that calls it repaints when it changes (`module-reading.md`, "Page readings"). A
+thread the user just started is there at once; only `phase === "ready"` means every saved thread is.
 Each widget keeps its own search, filter and order. `threadTurns(thread)` returns a
 Thread's turns, and `threadSummary(thread)` its `topic`, the name Threads, the margin and
 Page Map show it under, and its `latest` activity.
@@ -199,7 +199,7 @@ threadOutlets(targets, { onCommit }) {
 Return `null` for data that is filtered out, collapsed or not loaded, and its thread
 stays in the margin. A thread the agent starts on a visible datum with no thread yet
 also waits in the margin until the user opens it, so nothing moves under their reading.
-A placed thread leaves the margin; the Threads panel still lists it. Call
+A placed thread leaves the margin; Threads still lists it. Call
 `threadSurface(this).update()` after a change that only shows or hides data.
 
 The widget creates, lays out and removes its outlets, and Leaf fills them. An outlet you
@@ -240,4 +240,5 @@ handles with `read()`, `update()` and `unregister()`; register them in `whileCon
 Keep rows keyed, and hold size changes back with `HeldReading`
 (`module-scroll-and-motion.md`, "Holding the reader's place"), while updating surviving
 controls at once. An owner that scrolls inside its own box registers it as a reading
-region. Whatever the owner doesn't show stays in Leaf's Threads and On panels.
+region. Whatever the owner doesn't show stays in Threads and the On lists of Leaf's
+panel.

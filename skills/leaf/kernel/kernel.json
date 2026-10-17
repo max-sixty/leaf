@@ -38,7 +38,7 @@
     "runtime/auxiliary-surfaces.js": "d4de53b636404adf7b175228f2c41b6efa36d91d0f070934e6a4b8aae3a23201",
     "runtime/banner-status-view.js": "c1a9f3957c56c5b21cc55797e12ef1eb5ae317b063288b7456995f582aefebb3",
     "runtime/banner-toolbar.js": "28f378e518de0faa41436d487137563fec75a61a0b7e918f4ddef5d847705f51",
-    "runtime/banner.js": "a57c78f366d1bbcb886d6397494f523f1cbf6ea6ee8c0f046dec962273236a20",
+    "runtime/banner.js": "a794cf49e646b0db6b6df57eef52f6174b8fe0f2c660c92f1e165c61839ce2ad",
     "runtime/bootstrap.js": "2792545b8e62eb01d7e36efa057f0933357e9e764e3f834933e690e24b057320",
     "runtime/bounds.js": "fb180668a7c5d82764bf9d9a19fb9707a2af79c9692c64526585b9f6d466e1f0",
     "runtime/carry.js": "00249adb3a85868acfca824d0a97ec21315637ebcc97bee79f9f78b155d1ad20",

@@ -695,7 +695,7 @@ def test_a_refused_approval_says_why_to_the_keyboard_and_the_finger(browser, ser
     page = open_page(browser, url)
     resized(page, 1440, 900)
     approval = page.locator(".lf-signoff")
-    reason = "Answer every open item before approving this work"
+    reason = "Answer every open widget before approving this work"
     expect(approval).to_have_attribute("aria-disabled", "true")
     expect(approval).to_have_attribute("aria-description", reason)
     expect(approval).to_be_disabled()

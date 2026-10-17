@@ -230,7 +230,7 @@ def test_clearing_an_answer_reopens_its_ask_and_shuts_the_approval_gate(browser,
     expect_asks_answered(page, "0/1")
     expect(approve).to_be_disabled()
     expect(approve).to_have_attribute(
-        "title", "Answer every open item before approving this work"
+        "title", "Answer every open widget before approving this work"
     )
 
 

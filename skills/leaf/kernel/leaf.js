@@ -7316,7 +7316,7 @@ var versionApproved = readPart(
 function approvalWords() {
   const approved = versionApproved();
   const blockingAsks = approvalBlockingAsks();
-  const reason = approved ? "Approved. Press z to undo while approval is still the latest update" : runtime.currentStamp === null ? "There is no stamped version to approve yet" : !signoff || !pagePresented() || blockingAsks === null ? AWAITING_STATE : blockingAsks.length ? "Answer every open item before approving this work" : null;
+  const reason = approved ? "Approved. Press z to undo while approval is still the latest update" : runtime.currentStamp === null ? "There is no stamped version to approve yet" : !signoff || !pagePresented() || blockingAsks === null ? AWAITING_STATE : blockingAsks.length ? "Answer every open widget before approving this work" : null;
   return {
     reason: reason ?? (approving ? "Approving this version" : null),
     text: approved ? "\u2713 Version approved" : "Approve version",

@@ -169,6 +169,75 @@ def test_views_switch_without_moving_the_list_and_follow_history(browser, serve)
     assert passage.evaluate(below_landing_edge) == pytest.approx(left, abs=2)
 
 
+def test_a_revision_that_takes_the_layout_off_main_turns_its_tabs_into_views(
+    browser, serve
+):
+    """Whether a root set is the page's views follows `main`: a revision that takes the
+    Layout off `main` turns the set the page keeps into its views, its list running down
+    beside them and walked down, and one that puts a Layout back turns it into a framed
+    box with a row again, each keeping the open tab. A later set beside the views is a
+    box of its own rather than a second list over them."""
+    later = (
+        '<lf-tabs id="later"><lf-tab id="later-a" label="A"><p>A.</p></lf-tab>'
+        '<lf-tab id="later-b" label="B"><p>B.</p></lf-tab></lf-tabs>'
+    )
+    boxed = ROOT_TABS_PAGE.read_text().replace(
+        "<main>", '<main class="layout-column">', 1
+    )
+    page = open_page(browser, live_url(serve(boxed)))
+    resized(page, 1280, 720)
+    tabs = page.locator("#root-tabs")
+    strip = page.locator("#root-tabs > .lf-tabstrip")
+    evidence = tabs.get_by_role("tab", name="Evidence", exact=True)
+    expect(tabs).to_have_attribute("data-lf-tabs-flow", "box")
+    expect(strip).not_to_have_attribute("aria-orientation", "vertical")
+    evidence.click()
+    page.evaluate("window.__retainedTabs = document.querySelector('#root-tabs')")
+
+    original = (serve.page_dir / "index.html").read_text()
+    views = original.replace('<main class="layout-column">', "<main>", 1)
+    stamp_page(serve.page_dir, views, "Take the Layout off main")
+    wait_for_revision(page, 2)
+    expect(tabs).to_have_attribute("data-lf-tabs-flow", "views")
+    expect(strip).to_have_attribute("aria-orientation", "vertical")
+    expect(evidence).to_have_attribute("aria-selected", "true")
+    assert page.evaluate(
+        "window.__retainedTabs === document.querySelector('#root-tabs')"
+    )
+    beside = views.replace(
+        "</lf-tabs>\n    </main>", "</lf-tabs>\n" + later + "\n    </main>", 1
+    )
+    assert later in beside
+    stamp_page(serve.page_dir, beside, "Add a later tab set")
+    wait_for_revision(page, 3)
+    expect(page.locator("#later")).to_have_attribute("data-lf-tabs-flow", "box")
+    evidence.focus()
+    page.keyboard.press("ArrowDown")
+    expect(tabs.get_by_role("tab", name="Workbench", exact=True)).to_have_attribute(
+        "aria-selected", "true"
+    )
+    later_box = page.locator("#later").evaluate(
+        "el => [...el.children].map(c => c.getBoundingClientRect())"
+        ".filter(r => r.height).map(r => [r.left, r.right, r.top, r.bottom])"
+    )
+    shown = page.locator("#workbench-tab").bounding_box()
+    for left, right, top, bottom in later_box:
+        assert (
+            right <= shown["x"]
+            or left >= shown["x"] + shown["width"]
+            or bottom <= shown["y"]
+            or top >= shown["y"] + shown["height"]
+        ), (later_box, shown)
+
+    stamp_page(serve.page_dir, original, "Put the Layout back")
+    wait_for_revision(page, 4)
+    expect(tabs).to_have_attribute("data-lf-tabs-flow", "box")
+    expect(strip).not_to_have_attribute("aria-orientation", "vertical")
+    expect(tabs.get_by_role("tab", name="Workbench", exact=True)).to_have_attribute(
+        "aria-selected", "true"
+    )
+
+
 def test_a_url_into_a_hidden_root_view_lands_once_the_view_is_built(browser, serve):
     """The browser lands a fragment while every view still stacks, before the tab set
     has hidden the others or put up its strip. The page lands it again once widgets

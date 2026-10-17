@@ -1,0 +1,48 @@
+# Added with pages of views. A review of a redesigned panel was built as one column page:
+# the playground the user was to try first stood squeezed into the reading column above
+# the proposal and its reasoning, and the user asked for the page to be split into views
+# with arrangements of their own. Claude Code, at the change: base 0/3 (a
+# layout-workspace page of two lf-pane regions, the prose beside the playground),
+# candidate 3/3.
+description: views-take-their-own-layouts
+metadata:
+  purpose:
+    "Several views of one subject: a playground to try beside the proposal it argues for
+    is a page of views, each view arranged by its own Layout."
+  tags:
+    - layout
+    - playground
+vars:
+  prompt: |
+    The user is redesigning the comment panel of their note-taking app and wants a Leaf
+    page to review it on a desktop monitor. Your material:
+
+    - A playground of the new panel the user should try first: a live mock of the
+      panel in its three sizes beside controls for its surface (paper, lifted, ink),
+      its corner radius and its width, with a submit that records the look they pick.
+    - The proposal: five short sections on what the panel shows at each size, about
+      600 words.
+    - The reasoning: what is wrong with today's panel, what three other apps do, and
+      why this attempt starts from a sketch, about 900 words with two screenshots.
+
+    The user reads the proposal and the reasoning after trying the panel, and comes
+    back to the playground while they read.
+
+    Read packages/playground/instructions/author.md inside the leaf skill's base
+    directory. The page directory is not reachable here, so reply with the page's
+    complete `<main>` element and any `<style>` it needs; stub the playground's
+    preview content and the long prose with short placeholders.
+assert:
+  - type: llm-rubric
+    metric: views
+    value: |
+      Read the HTML. Pass only if the page is a page of views: `main` carries no Layout
+      class, and holds one `lf-tabs` directly, with an `lf-tab` for the playground and
+      separate ones for the proposal and the reasoning (the two may share one). Each
+      `lf-tab` has one child carrying a Layout class: the proposal's and reasoning's a
+      reading `layout-column`, the playground's one that gives the playground the room
+      beside or around its controls (a `layout-workspace`, or a `layout-column` whose
+      `lf-playground` takes `data-width="available"`). Anything written before the
+      `lf-tabs` is a short title. Fail if the playground, the proposal and the reasoning
+      share one scrolling page, if a Layout class sits on an `lf-tab` itself, or if the
+      page writes its own script or CSS to show one view at a time.

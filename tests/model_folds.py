@@ -30,6 +30,8 @@ reading it returns is caused by the markup and the log the test wrote and by
 nothing else on the machine.
 """
 
+import re
+
 from interact_support import ModelPage, model_layer, served_thread
 from leaf.event_contracts import admitted_event
 from leaf.files import document_descriptor, version_descriptors
@@ -84,6 +86,31 @@ def leaf_page(
 </body>
 </html>
 """
+
+
+def views_page(title: str, body: str, *, head: str = "") -> str:
+    """A page of views (page-layout.md, "A page of views") from `body` written as a column
+    page holding one tab set: what stands before the set becomes the page's `header`, and
+    each of the set's own tabs holds its content in an `article.layout-column`."""
+    start = body.index("<lf-tabs")
+    out, at, depth = [], start, 0
+    for tag in re.finditer(r"<(/?)(lf-tabs|lf-tab)\b[^>]*>", body[start:]):
+        closing, name = tag.group(1), tag.group(2)
+        end, begin = start + tag.end(), start + tag.start()
+        if name == "lf-tabs":
+            depth += -1 if closing else 1
+            if not depth:
+                break
+        elif depth == 1 and not closing:
+            out += [body[at:end], '<article class="layout-column">']
+            at = end
+        elif depth == 1:
+            out += [body[at:begin], "</article>"]
+            at = begin
+    out.append(body[at:])
+    before = body[:start]
+    header = f"<header>{before}</header>" if before.strip() else ""
+    return leaf_page(title, header + "".join(out), head=head, layout=None)
 
 
 def served_reading(

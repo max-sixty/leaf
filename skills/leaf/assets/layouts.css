@@ -46,7 +46,8 @@
     container-type: inline-size;
   }
   /* A page of views: a `main` that carries no Layout and holds a set that shows one of
-   * its members at a time (`data-lf-views`), as the page's tab set does (lf-tabs.js).
+   * its members at a time (`data-lf-views`) as its first such child, as the page's tab
+   * set does (lf-tabs.js).
    * Each member is a view, and the box its Layout arranges is the view's child (above).
    * Live, the set's list (its `tablist`) stands in a column down the left from the top
    * of the page, and the open view takes the rest of the width, its height at least the
@@ -83,13 +84,13 @@
     html[data-lf-interactive]
       body
       > main:not(.layout-column, .layout-sidebar, .layout-workspace)
-      > [data-lf-views] {
+      > [data-lf-views]:nth-child(1 of [data-lf-views]) {
       display: contents;
     }
     html[data-lf-interactive]
       body
       > main:not(.layout-column, .layout-sidebar, .layout-workspace)
-      > [data-lf-views]
+      > [data-lf-views]:nth-child(1 of [data-lf-views])
       > [role="tablist"] {
       grid-column: 1;
       grid-row: 1 / -1;
@@ -97,7 +98,7 @@
     html[data-lf-interactive]
       body
       > main:not(.layout-column, .layout-sidebar, .layout-workspace)
-      > [data-lf-views]
+      > [data-lf-views]:nth-child(1 of [data-lf-views])
       > :not([role="tablist"]) {
       grid-column: 2;
       grid-row: 2;
@@ -105,7 +106,7 @@
     html[data-lf-interactive]
       body
       > main:not(.layout-column, .layout-sidebar, .layout-workspace)
-      > [data-lf-views]
+      > [data-lf-views]:nth-child(1 of [data-lf-views])
       > :not([role="tablist"], [hidden]) {
       min-block-size: var(--lf-view-height);
     }
@@ -125,12 +126,12 @@
       html[data-lf-interactive]
         body
         > main:not(.layout-column, .layout-sidebar, .layout-workspace)
-        > [data-lf-views]
+        > [data-lf-views]:nth-child(1 of [data-lf-views])
         > [role="tablist"],
       html[data-lf-interactive]
         body
         > main:not(.layout-column, .layout-sidebar, .layout-workspace)
-        > [data-lf-views]
+        > [data-lf-views]:nth-child(1 of [data-lf-views])
         > :not([role="tablist"]) {
         grid-column: 1;
         grid-row: auto;
@@ -138,7 +139,7 @@
       html[data-lf-interactive]
         body
         > main:not(.layout-column, .layout-sidebar, .layout-workspace)
-        > [data-lf-views]
+        > [data-lf-views]:nth-child(1 of [data-lf-views])
         > :not([role="tablist"], [hidden]) {
         min-block-size: 0;
       }

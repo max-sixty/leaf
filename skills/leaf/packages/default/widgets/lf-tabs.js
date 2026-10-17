@@ -123,6 +123,9 @@ customElements.define(
     #strip = null;
     #side = false;
     #views = false;
+    #panels = [];
+    #down = false;
+    #stripSize = null;
     #revealMotion = null;
     #stopList = null;
 
@@ -137,12 +140,76 @@ customElements.define(
         ...this.querySelectorAll(":scope > lf-tab"),
       ]);
       if (!panels.length) return;
-      const side = this.getAttribute("list") === "side";
-      this.#side = side;
+      this.#side = this.getAttribute("list") === "side";
+      this.#panels = panels;
+      for (const panel of panels) {
+        panel.setAttribute("role", "tabpanel");
+        panel.setAttribute("aria-label", panel.getAttribute("label"));
+        // The browser found something inside (find-in-page, an anchor jump), or
+        // the runtime is about to scroll a comment anchor into view: open up.
+        panel.addEventListener("beforematch", () => this.#activate(panel, "reveal"));
+        panel.addEventListener("lf-reveal", (event) => {
+          if (this.#active && this.#active !== panel) event.detail.replacedView();
+          const ready = this.#activate(panel, "reveal");
+          event.detail?.present?.(ready);
+        });
+      }
       this.#watchRootContext();
       this.#syncRootContext();
+      this.#buildStrip();
+      this.classList.add("lf-rendered"); // the upgraded marker every widget uses
+      // Open on the tab the first paint showed: the one the address names, or this
+      // user's last, whose id resolves in later versions because check forbids
+      // dropping ids. It opens here, during upgrade, so the runtime's view restore
+      // measures final geometry.
+      this.#activate(openingView(this, panels), "arrival");
+      if (this.#root) {
+        this.#replaceLocation(this.#active);
+      }
+      // The Δ count follows the version diff; the runtime announces each toggle.
+      this.#listenForAsks();
+      watchComparison(this, () => this.#marks());
+      whileConnected(this, (signal) => {
+        this.#watchRootContext();
+        this.#syncRootContext();
+        this.#listenForHistory(signal);
+        const stripSize = this.#watchStrip();
+        const stopPanels = this.#side
+          ? [...this.#buttons.keys()].map((panel) =>
+              registerReadingRegion({
+                id: compoundReadingRegionId(this, `panel-${panel.id}`),
+                host: panel,
+                body: panel,
+              }),
+            )
+          : [];
+        this.#syncRegions();
+        return () => {
+          for (const stop of stopPanels) stop();
+          this.#stopList?.();
+          this.#stopList = null;
+          this.#revealMotion?.cancel();
+          this.#revealMotion = null;
+          stripSize.disconnect();
+          this.#stripSize = null;
+          this.#contextObserver?.disconnect();
+          this.#contextObserver = null;
+        };
+      });
+    }
+
+    // The strip, built from the panels in the orientation the set's flow gives it: a
+    // side list and a list of views run down beside their panels, any other strip is a
+    // row. A set whose flow turns while the page is open, as when a revision takes the
+    // Layout off `main` and its root set becomes the page's views, is drawn again in
+    // the new one, keeping the open panel.
+    #buildStrip() {
+      const side = this.#side;
+      const panels = this.#panels;
       // A side list and a list of views both run down beside their panels.
       const down = side || this.#views;
+      this.#down = down;
+      this.#buttons = new Map();
       // The strip is a thing to work, and its tabs ride inside it, so paper drops the
       // whole row and puts each panel's label back on the panel. What a tab says is not
       // the strip's word though — it is the panel's name, and once the strip exists it
@@ -155,7 +222,6 @@ customElements.define(
       // A press is a span wearing the role rather than a <button> (see `offer`), which
       // is what makes a drag across the name possible at all.
       const strip = offer("div", "lf-tabstrip");
-      this.#strip = strip;
       strip.setAttribute("role", "tablist");
       if (down) strip.setAttribute("aria-orientation", "vertical");
       strip.append(this.#edge("start"));
@@ -215,16 +281,6 @@ customElements.define(
         btn.onclick = () => this.#activate(panel, "ordinary");
         run.append(btn);
         this.#buttons.set(panel, btn);
-        panel.setAttribute("role", "tabpanel");
-        panel.setAttribute("aria-label", panel.getAttribute("label"));
-        // The browser found something inside (find-in-page, an anchor jump), or
-        // the runtime is about to scroll a comment anchor into view: open up.
-        panel.addEventListener("beforematch", () => this.#activate(panel, "reveal"));
-        panel.addEventListener("lf-reveal", (event) => {
-          if (this.#active && this.#active !== panel) event.detail.replacedView();
-          const ready = this.#activate(panel, "reveal");
-          event.detail?.present?.(ready);
-        });
       }
       // Roving focus per the ARIA tabs pattern: arrows move and activate, and wrap, which
       // is a fact about this walk and so belongs in the words that name it.
@@ -290,45 +346,13 @@ customElements.define(
         },
       ]);
       strip.append(this.#edge("end"));
-      this.prepend(strip);
-      this.classList.add("lf-rendered"); // the upgraded marker every widget uses
-      // Open on the tab the first paint showed: the one the address names, or this
-      // user's last, whose id resolves in later versions because check forbids
-      // dropping ids. It opens here, during upgrade, so the runtime's view restore
-      // measures final geometry.
-      this.#activate(openingView(this, panels), "arrival");
-      if (this.#root) {
-        this.#replaceLocation(this.#active);
-      }
-      // The Δ count follows the version diff; the runtime announces each toggle.
-      this.#listenForAsks();
-      watchComparison(this, () => this.#marks());
-      whileConnected(this, (signal) => {
-        this.#watchRootContext();
-        this.#syncRootContext();
-        this.#listenForHistory(signal);
-        const stripSize = this.#watchStrip();
-        const stopPanels = this.#side
-          ? [...this.#buttons.keys()].map((panel) =>
-              registerReadingRegion({
-                id: compoundReadingRegionId(this, `panel-${panel.id}`),
-                host: panel,
-                body: panel,
-              }),
-            )
-          : [];
-        this.#syncRegions();
-        return () => {
-          for (const stop of stopPanels) stop();
-          this.#stopList?.();
-          this.#stopList = null;
-          this.#revealMotion?.cancel();
-          this.#revealMotion = null;
-          stripSize.disconnect();
-          this.#contextObserver?.disconnect();
-          this.#contextObserver = null;
-        };
-      });
+      const previous = this.#strip;
+      this.#strip = strip;
+      if (previous) {
+        previous.replaceWith(strip);
+        this.#stripSize?.unobserve(previous);
+        this.#stripSize?.observe(strip);
+      } else this.prepend(strip);
     }
 
     // A side list's panels are reading regions whatever their posture, as panes are, so
@@ -492,12 +516,21 @@ customElements.define(
       const main = this.parentElement;
       this.#root =
         Boolean(main?.matches("body > main")) &&
-        main.querySelector(":scope > lf-tabs") === this;
+        main.querySelector(":scope > [data-lf-views]") === this;
       this.#views =
         this.#root &&
         getComputedStyle(main).getPropertyValue("--lf-layout-box").trim() !== "1";
       keeps(this, "data-lf-tabs-flow", this.#views ? "views" : "box");
       // A set that changed flow drew its open panel at another width.
+      if (this.#strip && (this.#side || this.#views) !== this.#down) {
+        this.#buildStrip();
+        if (this.#active) {
+          for (const [panel, btn] of this.#buttons)
+            keeps(btn, "aria-selected", panel === this.#active);
+          rove(this.#buttons.values(), this.#buttons.get(this.#active));
+          this.#marks();
+        }
+      }
       if (wasFlow !== this.#views && this.#active) {
         const child = soleSubstantiveElement(this.#active);
         if (child) layoutChanged(child);
@@ -511,9 +544,13 @@ customElements.define(
       const main = this.parentElement;
       if (!main?.matches("body > main")) return;
       // Only a tab set arriving or leaving among main's children can change which is
-      // first.
+      // first, and only a Layout put on `main` or taken off whether it holds views.
       this.#contextObserver = new MutationObserver(() => this.#syncRootContext());
-      this.#contextObserver.observe(main, { childList: true });
+      this.#contextObserver.observe(main, {
+        childList: true,
+        attributes: true,
+        attributeFilter: ["class"],
+      });
     }
 
     // A press at one edge of the strip, which pages the names that run past it (the
@@ -573,9 +610,9 @@ customElements.define(
     // press, which the browser would otherwise report as a size change it could not
     // deliver.
     #watchStrip() {
-      const stripSize = sizeObserver(this.#positionStrip);
-      stripSize.observe(this.#strip);
-      return stripSize;
+      this.#stripSize = sizeObserver(this.#positionStrip);
+      this.#stripSize.observe(this.#strip);
+      return this.#stripSize;
     }
 
     #positionStrip = frameFor(this, () => {

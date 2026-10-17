@@ -8,6 +8,7 @@ from interact_support import append_carried_log_record
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
+from model_folds import views_page
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_cases_layout import page_at_rest
@@ -1473,7 +1474,7 @@ def test_restore_selection_across_views_keeps_the_source_history_entry(browser, 
     page = open_page(
         browser,
         serve(
-            leaf_page(
+            views_page(
                 "Return across views",
                 '<h1>Review two views</h1><lf-tabs id="views">'
                 '<lf-tab id="first" label="First"><p id="remembered">'

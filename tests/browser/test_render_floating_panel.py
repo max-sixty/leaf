@@ -1790,8 +1790,14 @@ def test_question_mark_opens_the_command_reference_at_once(browser, serve):
 def test_a_walk_says_its_position_in_the_panel(browser, serve):
     """A walk's position is said where the panel says whatever passes, not against the
     window: in the empty field's place, as a notice is. The room the page shows (geometry.js, `shownWindow`) runs from the window's
-    head to the panel's row whether or not a walk is under way."""
-    page = floating(browser, serve(ASK_PAGE))
+    head to the panel's row whether or not a walk is under way. The position lasts
+    while the ask it reached is the block being read, so it stands on the line over the
+    field while the user writes a comment; once the comment's thread opens over the
+    row, the leaf's peek, which would lie on the thread's last words all that time,
+    leaves it unsaid."""
+    heading = "<h3>How should the schema migrate?</h3>"
+    tall = "<p>The old schema has three tables, each a year of records.</p>" * 30
+    page = floating(browser, serve(ASK_PAGE.replace(heading, heading + tall)))
     room = """async () => {
       const shown = (await window.__lfWidgetApi()).shownWindow();
       return {top: shown.top, bottom: shown.bottom};
@@ -1807,6 +1813,25 @@ def test_a_walk_says_its_position_in_the_panel(browser, serve):
         "placeholder", re.compile("1 of 2 waiting on me")
     )
     assert page.evaluate(room) == before
+
+    # Once the landing's scroll has stopped, the ask is the block being read.
+    page.wait_for_function(
+        """() => new Promise((done) => {
+          const y = scrollY;
+          requestAnimationFrame(() => requestAnimationFrame(() => done(scrollY === y)));
+        })"""
+    )
+    field(page).click()
+    expect(page.locator(".lf-fp-context")).to_have_text(
+        re.compile("1 of 2 waiting on me")
+    )
+    write(field(page), "Is this the one?")
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()
+    expect(field(page)).to_have_attribute(
+        "placeholder", re.compile("^Reply in this thread")
+    )
+    expect(page.locator(".lf-fp-peek")).to_be_hidden()
 
 
 def test_the_leaf_s_menu_stays_in_the_window_over_a_tall_view(browser, serve):

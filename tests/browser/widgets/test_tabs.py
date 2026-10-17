@@ -192,6 +192,7 @@ def test_a_revision_that_takes_the_layout_off_main_turns_its_tabs_into_views(
     expect(tabs).to_have_attribute("data-lf-tabs-flow", "box")
     expect(strip).not_to_have_attribute("aria-orientation", "vertical")
     evidence.click()
+    expect(evidence).to_be_focused()
     page.evaluate("window.__retainedTabs = document.querySelector('#root-tabs')")
 
     original = (serve.page_dir / "index.html").read_text()
@@ -205,17 +206,27 @@ def test_a_revision_that_takes_the_layout_off_main_turns_its_tabs_into_views(
         "window.__retainedTabs === document.querySelector('#root-tabs')"
     )
     beside = views.replace(
-        "</lf-tabs>\n    </main>", "</lf-tabs>\n" + later + "\n    </main>", 1
+        "</lf-tabs>\n    </main>",
+        "</lf-tabs>\n" + later + later.replace('"later', '"last') + "\n    </main>",
+        1,
     )
     assert later in beside
     stamp_page(serve.page_dir, beside, "Add a later tab set")
     wait_for_revision(page, 3)
     expect(page.locator("#later")).to_have_attribute("data-lf-tabs-flow", "box")
-    evidence.focus()
+    # The redrawn strip kept the user's place in it.
+    expect(evidence).to_be_focused()
     page.keyboard.press("ArrowDown")
     expect(tabs.get_by_role("tab", name="Workbench", exact=True)).to_have_attribute(
         "aria-selected", "true"
     )
+    title = page.locator("main > header").bounding_box()
+    for set_id in ("later", "last"):
+        box = page.locator(f"#{set_id}").bounding_box()
+        assert (
+            box["y"] >= title["y"] + title["height"]
+            or box["x"] + box["width"] <= title["x"]
+        ), (set_id, box, title)
     later_box = page.locator("#later").evaluate(
         "el => [...el.children].map(c => c.getBoundingClientRect())"
         ".filter(r => r.height).map(r => [r.left, r.right, r.top, r.bottom])"

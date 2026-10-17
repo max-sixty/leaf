@@ -206,6 +206,8 @@ customElements.define(
     #buildStrip() {
       const side = this.#side;
       const panels = this.#panels;
+      // The user's place in a strip being replaced, carried to its new one.
+      const held = [...this.#buttons].find(([, btn]) => btn === focused())?.[0];
       // A side list and a list of views both run down beside their panels.
       const down = side || this.#views;
       this.#down = down;
@@ -352,6 +354,7 @@ customElements.define(
         previous.replaceWith(strip);
         this.#stripSize?.unobserve(previous);
         this.#stripSize?.observe(strip);
+        if (held) focusDestination(this.#buttons.get(held), "move");
       } else this.prepend(strip);
     }
 

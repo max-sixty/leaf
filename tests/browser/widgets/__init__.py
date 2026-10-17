@@ -1,9 +1,20 @@
 """Browser tests of the widgets a page declares, one module per widget family or shared
 widget mechanism, and the page sources and helpers more than one module uses."""
 
+import re
+
 from leaf import data as data_model
+from playwright.sync_api import expect
 from render_cases_widgets import LONG_LINE_DIFF_PAGE, MULTI_HUNK_PATCH
-from render_harness import leaf_page, open_page
+from render_harness import leaf_page, open_page, panel_field
+
+
+def expect_walk_says(page, words):
+    """Wait for a walk's position, such as "Hunk 2 of 3", to be said where the panel
+    says what passes: in its empty field's place (floating-panel.js), as a notice is."""
+    expect(panel_field(page)).to_have_attribute(
+        "placeholder", re.compile(re.escape(words))
+    )
 
 
 def observe_live_region(page):

@@ -387,9 +387,9 @@ def test_a_frozen_move_that_owes_nothing_stands_in_its_thread_without_holding_it
                 "author": "agent",
                 "parent": "e1",
                 "responds": "e1",
-                "text": "Here is the board. Which card goes first?",
-                "ask": True,
-                "markup": board,
+                "text": "Here is the board.",
+                "markup": board
+                + '<lf-ask id="first-card">Which card goes first?</lf-ask>',
             },
             {
                 "kind": "action",
@@ -460,30 +460,33 @@ def test_gesture_sequence_keeps_surviving_edits_and_durable_retractions():
     ]
 
 
-def test_ask_lifecycle_selects_current_prompt_and_preserves_first_settlement():
-    """Only the latest question is on the user; a settled later question uncovers
-    an older one, and a reply after a task end does not change that end."""
+def test_questions_settle_one_by_one_and_an_end_outlasts_a_later_reply():
+    """Each question in a thread waits on the user until a message or settling
+    reaction after it answers it; the thread's head marks the latest. A reply after
+    the agent ended a question does not change that end."""
     events = []
 
     def add(kind, identity, author="agent", **fields):
         events.append({"kind": kind, "id": identity, "author": author, **fields})
         return model.reading(HUB, events)
 
-    add("comment", "first", text="Which route?")
+    def question(name, words):
+        return f'<lf-ask id="{name}">{words}</lf-ask>'
+
+    add("comment", "first", text="One question:", markup=question("route", "Route?"))
     add("reply", "checking", parent="first", text="Checking.")
     add("reply", "progress", parent="first", text="Still checking.", ephemeral=True)
-    state = add("reply", "second", parent="first", text="Which colour?", ask=True)
+    state = add(
+        "reply", "second", parent="first", text="And:", markup=question("hue", "Hue?")
+    )
     assert model.threads(state)["first"]["user_prompt"] == {
         "message": "second",
         "version": "second",
     }
     assert state["todos"] == []
-    assert [ask["id"] for ask in served_thread(state)["asks"]["all"]] == [
-        "reply:first",
-        "reply:second",
-    ]
     assert [ask["id"] for ask in served_thread(state)["asks"]["user"]] == [
-        "reply:second"
+        "widget:route",
+        "widget:hue",
     ]
     state = add("reply", "reaction", "user", parent="second", token="keep")
     assert model.threads(state)["first"]["user_prompt"] == {
@@ -491,13 +494,13 @@ def test_ask_lifecycle_selects_current_prompt_and_preserves_first_settlement():
         "version": "first",
     }
     assert [ask["id"] for ask in served_thread(state)["asks"]["user"]] == [
-        "reply:first"
+        "widget:route"
     ]
     assert served_thread(state)["asks"]["all"][1]["answer"]["event"]["id"] == "reaction"
     state = add(
         "todo_end",
         "end",
-        todo="reply:first",
+        todo="widget:route",
         outcome="dropped",
         detail="Asked elsewhere",
     )
@@ -509,13 +512,15 @@ def test_ask_lifecycle_selects_current_prompt_and_preserves_first_settlement():
         "answered",
         "reaction",
     )
-    state = add("reply", "third", parent="first", text="Which size?", ask=True)
+    state = add(
+        "reply", "third", parent="first", text="Last:", markup=question("size", "Size?")
+    )
     state = add("resolve", "close", "user", parent="first")
     assert state["todos"] == []
     assert model.threads(state)["first"]["user_prompt"] is None
     state = add("unresolve", "reopen", "user", parent="first")
     assert [ask["id"] for ask in served_thread(state)["asks"]["user"]] == [
-        "reply:third"
+        "widget:size"
     ]
     assert model.threads(state)["first"]["user_prompt"] == {
         "message": "third",
@@ -572,7 +577,12 @@ def test_summary_protects_the_unanswered_ask_after_later_agent_messages():
     state = model.reading(
         HUB,
         (
-            {"kind": "comment", "author": "agent", "text": "Which route?"},
+            {
+                "kind": "comment",
+                "author": "agent",
+                "text": "One question:",
+                "markup": '<lf-ask id="route">Which route?</lf-ask>',
+            },
             {"kind": "reply", "author": "agent", "parent": "e1", "text": "Checking."},
             {
                 "kind": "reply",

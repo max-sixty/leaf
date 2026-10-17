@@ -34,7 +34,7 @@ def _served(events: tuple[dict, ...]) -> dict:
     }
 
 
-# Something of every kind on each list: a widget ask, a prose ask, a to-do the agent put
+# Something of every kind on each list: a widget ask, a question, a to-do the agent put
 # on the user, a reply that failed and a page action whose pickup failed are on On me;
 # a comment owed a reply and a to-do the agent has in hand are on On <agent>.
 BOTH_SIDES = (
@@ -45,8 +45,8 @@ BOTH_SIDES = (
         "agent": "Agent",
         "parent": "e1",
         "responds": "e1",
-        "text": "Weekly or daily?",
-        "ask": True,
+        "text": "One question:",
+        "markup": '<lf-ask id="cadence">Weekly or daily?</lf-ask>',
     },
     {"kind": "comment", "text": "Tighten this."},
     {"kind": "comment", "text": "Rebuild the chart."},
@@ -182,9 +182,9 @@ def build() -> dict:
                         "agent": "Agent",
                         "parent": "e1",
                         "responds": "e1",
-                        "text": "Here is the board. Which card goes first?",
-                        "ask": True,
-                        "markup": model_layer()["lf-board"]["x-example"],
+                        "text": "Here is the board.",
+                        "markup": model_layer()["lf-board"]["x-example"]
+                        + '<lf-ask id="first-card">Which card goes first?</lf-ask>',
                     },
                     {
                         "kind": "action",

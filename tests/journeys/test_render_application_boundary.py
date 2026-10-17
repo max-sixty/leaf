@@ -1140,8 +1140,8 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
                 "author": "agent",
                 "revision": 1,
                 "parent": "opening",
-                "text": text,
-                "ask": True,
+                "text": "One question:",
+                "markup": f'<lf-ask id="{question_id}-q">{text}</lf-ask>',
             },
         )
     page = open_page(browser, url, context=context)
@@ -1176,8 +1176,8 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
             "Control+Enter"
         )
     expect(workspace.get_by_text("A shared draft", exact=True)).to_be_visible()
-    # One reply answers both prose asks. Counts include them, while the
-    # compact answer summary names only widget choices instead of repeating prose.
+    # One reply answers both questions. Counts include them, while the
+    # compact answer summary names only widget choices instead of repeating words.
     expect(workspace.locator(".counts")).to_have_text(
         "0 asks on me · 3 answered · Email"
     )

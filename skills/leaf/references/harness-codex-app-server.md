@@ -24,8 +24,8 @@ the answer, or what you are about to do. Leaf streams this opening into the thre
 once, and later working messages stay in Codex. When the turn completes, your final
 message joins the opening as one reply. A turn with no final message posts none.
 
-When the reply needs widgets, an ask in prose (`--ask`), work promised beyond this turn
-(`--todo`), a title or a changed anchor, write it with
+When the reply needs widgets, a question for the user (an `lf-ask`), work promised
+beyond this turn (`--todo`), a title or a changed anchor, write it with
 `leaf response reply <answer.ref>` and the options in [threads](threads.md). The command
 checks the reply and posts it at once, and your final message then posts nothing. Leaf
 may title an untitled thread from your opening message, and that title stays.

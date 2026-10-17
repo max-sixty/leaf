@@ -273,7 +273,9 @@ def _ask_context(at: str, v: dict) -> str:
         for w in v["widgets"]
     )
     return f"{_line(at, v)}: an ask context registers no ask: " + (
-        widgets or "it holds no widget that declares x-awaits"
+        widgets
+        or "it holds no widget that declares x-awaits; a question with no widget is"
+        " its words alone, with no heading"
     )
 
 
@@ -1794,16 +1796,15 @@ _TEXT = {
         " at the page's Approval control"
     ),
     "widget-ask": lambda at, v: (
-        f"{v['todo']!r} is a widget ask; its source owns the answer, so retire it in"
-        " the document"
+        f"{v['todo']!r} is answered by its widget's state, so retire it in the document"
     ),
     "users-prose-ask": lambda at, v: (
-        "the user's reply or settling reaction answers a prose ask"
+        "the user's message or settling reaction answers a question asked in words"
     ),
     "ended-ask": lambda at, v: f"ask {v['todo']!r} is already {v['status']}",
     "failed-prose-ask": lambda at, v: (
-        "a prose ask ends `done` when the user answered it elsewhere, or `dropped`"
-        " when it no longer applies"
+        "a question asked in words ends `done` when the user answered it elsewhere,"
+        " or `dropped` when it no longer applies"
     ),
     "ended-todo": lambda at, v: f"to-do {v['todo']!r} has already ended ({v['state']})",
     "todo-execution": lambda at, v: (
@@ -1957,9 +1958,10 @@ _TEXT = {
     "no-anchor": lambda at, v: (
         f"thread {v['thread']!r} has no current anchor to detach"
     ),
-    "widget-ask-markup": lambda at, v: (
-        "--ask is for a prose ask; reply markup already declares a widget ask"
-        f" ({', '.join(f'<{tag}>' for tag in v['tags'])})"
+    "undeclared-answer": lambda at, v: (
+        "say what the answer leaves: --done when it delivers what was asked, --todo"
+        " TITLE when it promises work it doesn't deliver, or a question for the user"
+        " as an <lf-ask> in --markup"
     ),
     "detail-field": lambda at, v: f"detail fields are name=value, got {v['field']!r}",
 }

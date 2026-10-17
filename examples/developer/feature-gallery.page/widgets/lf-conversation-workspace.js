@@ -13,6 +13,7 @@ import {
   queueTitle,
   readAsks,
   askWords,
+  askedInWords,
   readQueues,
   readThreads,
   registerThreadPresentation,
@@ -271,9 +272,15 @@ customElements.define(
     paintObligations() {
       const asks = readAsks();
       const answered = asks.all.filter((ask) => ask.status === "answered");
-      // Counts cover every ask; this summary lists completed widget choices.
+      // Counts cover every ask; this summary lists completed widget choices, not the
+      // words that answered a question (an lf-ask).
       const labels = asks.all
-        .filter((ask) => ask.source.kind === "widget" && ask.status === "answered")
+        .filter(
+          (ask) =>
+            ask.source.kind === "widget" &&
+            !askedInWords(ask) &&
+            ask.status === "answered",
+        )
         .map(askWords)
         .filter(Boolean);
       keepsText(

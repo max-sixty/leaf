@@ -155,7 +155,7 @@ export function createDelivery({
               void Promise.all(refused.map(({ answer }) => answer)).then(() =>
                 afterScript(() => {
                   const kept = refusedWords(refused.map(({ attempt }) => attempt));
-                  notice(kept ? `${refusal}. ${kept}` : refusal);
+                  notice(kept ? `${refusal}. ${kept}` : refusal, { refused: true });
                 }),
               );
             }

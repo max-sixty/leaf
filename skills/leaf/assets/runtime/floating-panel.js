@@ -30,26 +30,27 @@
  *   than anything written, and while the agent works it carries the one sheen that marks
  *   work under way; one that asks the user to act reads in its tone's ink, and pointing
  *   at the field says any status in full. Clicking in gives the placeholder to where
- *   the words go, a passing notice included, which then moves to one quiet line above
- *   the field, where it also stands over words that hide the placeholder. Once words
- *   hide it, that line says where they go as well, and keeps saying it while they
- *   stand. It never names who reads them: the page has one agent. The keys that send
- *   are Send's hover name, where Return sends with Shift+Return's new line beside it
- *   (composing/input.js). The line shows only with no view open, standing above the
- *   row, where nothing above it moves. Over an open view it would mostly repeat what is
- *   already on screen: where the words go, which the placeholder said before words hid
- *   it and a thread's head names, or news arriving, such as the reply the open thread
- *   already shows. A notice answering what the user did, such as a refused send's
- *   reason, the leaf's peek says there instead, as it does on a folded panel
- *   (`paintPeek`); news arriving goes unsaid but for the live region. The user chose
- *   this (2026-10-14), reversing the line lying over the view's foot in 12px of room
- *   every open view kept for it whether or not it showed (#2902). Rejected: that
- *   overlay, whose room stood under every view's last words for a line that repeated
- *   the head or the placeholder. A walk's position and Go-to's word go unsaid there
- *   too: they last while the user stands where they were said, which, for a walk that
- *   reached the block being read, is as long as the user writes, so the peek, made for
- *   a passing answer, lay on the view's last words that whole time. The empty field
- *   says them until the caret enters it.
+ *   the words go, and from then on, while the caret is in the field, the panel says
+ *   one thing only: a gesture the page could not take, such as a send the server
+ *   refused, whose words come back to the field with nothing else on screen to say
+ *   why, or an image it could not attach (notifications.js, `refused`). That stands on
+ *   one quiet line above the field, or, over an open view, in the leaf's peek
+ *   (`paintPeek`), as it does on a folded panel. Everything else that passes, news, an
+ *   acknowledgement, a walk's position, Go-to's word, goes unsaid there but for the
+ *   live region; the empty field says what still stands once the caret leaves. The
+ *   line also says a passing notice the placeholder cannot, while words hide the
+ *   placeholder and the caret is elsewhere. Nothing names where the words go once they hide the
+ *   placeholder, nor who reads them: with no view open they go to the page, whose one
+ *   agent reads them, and an open thread's head names its own. The user chose this on
+ *   17 October, comparing captures of three others: the line saying every passing word
+ *   while the caret is in, which kept a walk's position over the words as long as they
+ *   wrote; the line saying only answers to the user, with "Comment on the page" rising
+ *   over typed words; and no line, with answers in the peek, which floats over the
+ *   page's text. The line shows only with no view open, standing above the row, where
+ *   nothing above it moves. The user chose that (2026-10-14), reversing the line lying
+ *   over the view's foot in 12px of room every open view kept for it whether or not it
+ *   showed (#2902). The keys that send are Send's hover name, where Return sends with
+ *   Shift+Return's new line beside it (composing/input.js).
  * - **Opened**: a view above the same row (On, Threads or a thread), what the user
  *   reads there, with where they are at its top edge. It lasts while
  *   it is used: Escape or a press on the page puts it away, Escape once the caret has
@@ -253,15 +254,15 @@ const coarse = () => matchMedia("(pointer: coarse)").matches;
 // else what the status line says between notices, the Go-to filter's word or a walk's
 // position ("1 of 3 waiting on me · Options"). The user asked on 16 October that whatever
 // is not anchored to the page stand at the panel rather than against the window.
-// `answers` marks a notice answering what the user did, the one kind the leaf's peek
-// says over an open view (`paintPeek`).
+// `refused` marks a gesture the page could not take, the one notice said while the
+// user writes.
 function passing() {
   const notice = noticeReading();
   if (notice.visible)
-    return { message: notice.message, visible: true, answers: !notice.news };
+    return { message: notice.message, visible: true, refused: notice.refused };
   const { goTo, walk } = statusContextReading();
   const message = goTo ?? (walk?.shown ? walk.text : "");
-  return { message, visible: Boolean(message), answers: false };
+  return { message, visible: Boolean(message), refused: false };
 }
 // What the leaf's colour says, in a word, at the head of its menu.
 const TONE_WORDS = Object.freeze({
@@ -313,8 +314,7 @@ export function createFloatingPanel({
   peek.setAttribute("role", "tooltip");
   let peekAsked = false; // the pointer or focus asking the folded leaf's peek to show
   let peekReading = null;
-  // A notice answering the user that the line over the field would say, were a view not
-  // open (`paintPeek`).
+  // A refusal the line over the field would say, were a view not open (`paintPeek`).
   let overView = false;
   context.append(contextWords);
   inner.append(opened, context, row);
@@ -372,9 +372,11 @@ export function createFloatingPanel({
   leaf.append(mark);
   const field = el("div", "lf-fp-field");
   // A long draft offers more room, by the user's press rather than on its own: past
-  // three lines a quiet mark stands at the end of a line already over the field, the
-  // line saying where the words go, or an open view's head, so it takes no room of
-  // its own (assets/AGENTS.md, "A control takes only its own room"). Pressing it widens the
+  // three lines a quiet mark stands over the leaf, in the corner the draft leaves free
+  // beside its first line, or in an open view's head, so it takes no room of its own
+  // (assets/AGENTS.md, "A control takes only its own room"). It stood at the end of the
+  // line over the field until, on 17 October, that line stopped saying where the words
+  // go and so stopped standing over them. Pressing it widens the
   // panel and lets the field take most of the window, so the words re-wrap because the
   // user asked. It folds back when the field empties, a send included, or on a second
   // press. The user chose this on 15 October over the panel widening by itself at the
@@ -2250,9 +2252,9 @@ export function createFloatingPanel({
         : (listed.find((row) => row.getAttribute("tabindex") === "0") ?? listed[0]),
     );
     render(top ? headTemplate(top) : nothing, head);
-    // The more-room mark stands in the view's head while one is open, else at the end
-    // of the line over the field.
-    if (!top) move(context, expand, null);
+    // The more-room mark stands in the view's head while one is open, else over the
+    // leaf.
+    if (!top) move(row, expand, leaf);
     const heading = top ? shows(top) : null;
     for (const drawing of [head, replyOutlet]) {
       keeps(drawing, "data-thread", heading);
@@ -2287,7 +2289,8 @@ export function createFloatingPanel({
     keeps(host, "data-typing", typing ? "" : null);
     if (!draftOf(input).trim()) expanded = false;
     // The mark stays while the field is wide, where the draft may fit three lines again.
-    keeps(host, "data-long", (long || expanded) && !resting ? "" : null);
+    const marked = (long || expanded) && !resting;
+    keeps(host, "data-long", marked ? "" : null);
     keeps(host, "data-expanded", expanded ? "" : null);
     keeps(expand, "aria-pressed", String(expanded));
     keeps(expand, "aria-label", expanded ? "Less room to write" : "More room to write");
@@ -2307,25 +2310,18 @@ export function createFloatingPanel({
       "title",
       reading.says === "status" ? status().explanation || status().summary : null,
     );
-    // The line over the field says what the field cannot: a passing notice is said
-    // where the field's placeholder would be, and once the caret is in, where the
-    // placeholder says where the words go, or words hide it, the notice stands on this
-    // line instead, as a refused send's reason does over the words it returned. Where the
-    // words go is said once: by the empty focused field's placeholder, and once words hide
-    // that, here in the same words, the way a field's label rises above what is written
-    // in it. Who reads them goes unsaid: every word written here goes to the page's one
-    // agent. With nothing to say the line is gone, and while a view is open it is gone
-    // too: the leaf's peek says a notice answering the user there (`paintPeek`), and
-    // news arriving, a walk's position and Go-to's word go unsaid (`passing`).
-    const empty = draftOf(input) === "";
+    // The line over the field says what the field cannot: while the caret is in, where
+    // the placeholder says where the words go, a gesture the page refused, such as a
+    // send whose words came back; and while words hide the placeholder with the caret
+    // elsewhere, the passing notice the placeholder would say. With nothing to say the
+    // line is gone but for the more-room mark, and while a view is open it is gone: the
+    // leaf's peek says the refusal there (`paintPeek`).
     const notice = passing();
-    const covered = notice.visible && (!empty || reading.says === "destination");
-    overView = Boolean(top) && covered && notice.answers;
-    keeps(context, "data-notice", covered ? "" : null);
-    keepsText(
-      contextWords,
-      top ? "" : covered ? notice.message : empty ? "" : whereTo(null),
-    );
+    const said =
+      notice.visible &&
+      (reading.says === "destination" ? notice.refused : draftOf(input) !== "");
+    overView = Boolean(top) && said && notice.refused;
+    keepsText(contextWords, !top && said ? notice.message : "");
     keepsHidden(context, !contextWords.textContent);
     paintPeek();
 
@@ -2505,9 +2501,9 @@ export function createFloatingPanel({
   });
   // The folded leaf's peek says the status in full while the pointer or focus asks for
   // it, and a passing notice by itself, since a folded panel has no field to say it in.
-  // Over an open view it says a notice answering the user that the field cannot, which
-  // the line over the field would say with no view open (`overView`), unless the leaf's
-  // menu stands where it would show.
+  // Over an open view it says a refusal the field cannot, which the line over the field
+  // would say with no view open (`overView`), unless the leaf's menu stands where it
+  // would show.
   function paintPeek() {
     const folded = host.dataset.rest === "mark";
     const notice = passing();

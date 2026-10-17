@@ -144,6 +144,21 @@
     gap: 2px;
     padding: 6px;
     box-sizing: border-box;
+    position: relative;
+  }
+  /* With no view open the more-room mark stands over the leaf, in the corner a long
+     draft leaves free beside the field's first line (floating-panel.js, `expand`). A
+     widened field may hold fewer lines than the two that corner needs, so the row keeps
+     their height while the mark stands. */
+  .lf-fp-row > .lf-fp-expand {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    width: 32px;
+    height: var(--lf-fp-line);
+  }
+  .lf-floating-panel[data-long] .lf-fp-row:has(> .lf-fp-expand) {
+    min-height: calc(2 * var(--lf-fp-line) + 16px);
   }
   .lf-fp-leaf {
     flex: none;
@@ -165,9 +180,9 @@
     align-items: flex-end;
   }
   /* More room for a long draft (floating-panel.js, `expand`): past three lines the
-     mark stands at the end of the line over the field, or of an open view's head, so
-     it takes no room the panel had not already given that line. Pressed, the panel
-     widens and the field may take most of the window. */
+     mark stands over the leaf, beside the field's first line, or at the end of an open
+     view's head, so it takes no room the panel had not already given it. Pressed, the
+     panel widens and the field may take most of the window. */
   .lf-fp-expand {
     flex: none;
     display: none;
@@ -488,8 +503,8 @@
   }
 
   /* One quiet line over the field, there only while it has something to say and no
-     view is open (floating-panel.js): where the words go once they hide the
-     placeholder, or a notice the placeholder has given up. It is one line tall
+     view is open (floating-panel.js): a refused gesture while the caret is in the
+     field, or a notice the placeholder has given up to words. It is one line tall
      whatever it says, and stands above the row, with nothing above it to move. */
   .lf-fp-context {
     box-sizing: content-box;
@@ -497,7 +512,7 @@
     gap: 8px;
     height: 1lh;
     padding: 8px 10px 0 14px;
-    color: var(--lf-fp-muted);
+    color: var(--ink);
     font-size: 12px;
   }
   .lf-fp-context-words {
@@ -506,9 +521,6 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-  }
-  .lf-fp-context[data-notice] {
-    color: var(--ink);
   }
 
   /* ---------- folded to the leaf, in the window's corner ---------- */

@@ -191,7 +191,9 @@ own background.
 `notice(message)` shows a moment's news in Leaf's status line and announces it to screen
 readers, such as confirming a gesture the widget recorded. News not caused by the user
 passes `{background: true}` and waits behind what the user just did; `{announce: false}`
-only shows it. `announce(message)` only announces, for words already on screen.
+only shows it. A gesture the page could not take, such as a value the widget refused,
+passes `{refused: true}`, the one kind shown while the user writes in Leaf's comment
+field. `announce(message)` only announces, for words already on screen.
 
 `quietWord(element, word)` gives an element words screen readers say after its leading
 `<strong>` title but the screen doesn't show; pass the whole quiet word each time, or an

@@ -103,6 +103,17 @@
     gap: 2px;
     padding: 6px;
     box-sizing: border-box;
+    position: relative;
+  }
+  .lf-fp-row > .lf-fp-expand {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    width: 32px;
+    height: var(--lf-fp-line);
+  }
+  .lf-floating-panel[data-long] .lf-fp-row:has(> .lf-fp-expand) {
+    min-height: calc(2 * var(--lf-fp-line) + 16px);
   }
   .lf-fp-leaf {
     flex: none;
@@ -387,7 +398,7 @@
     gap: 8px;
     height: 1lh;
     padding: 8px 10px 0 14px;
-    color: var(--lf-fp-muted);
+    color: var(--ink);
     font-size: 12px;
   }
   .lf-fp-context-words {
@@ -396,9 +407,6 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-  }
-  .lf-fp-context[data-notice] {
-    color: var(--ink);
   }
   .lf-floating-panel[data-rest=mark] {
     width: var(--lf-fp-folded);

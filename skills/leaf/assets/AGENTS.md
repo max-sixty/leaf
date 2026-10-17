@@ -48,8 +48,9 @@ representative desktop viewport.
 - **A control takes only its own room.** Leaf never reserves a strip, a row or
   full-width padding to seat one small control. The control joins a line that is
   already there, such as a head, the line over a field or a row's end, or a corner its
-  content leaves free. The floating panel's more-room mark stands on the line over its
-  field (`floating-panel.js`, `expand`) rather than in a strip of its own over the words.
+  content leaves free. The floating panel's more-room mark stands in the corner a long
+  draft leaves free over the leaf (`floating-panel.js`, `expand`) rather than in a strip
+  of its own over the words.
 - **Auxiliary surfaces open over the page and never change its geometry.** The On
   panel, the thread panel and the Pages drawer take no space from the page;
   `auxiliary-surfaces.js` decides whether one sits beside a live page or covers it

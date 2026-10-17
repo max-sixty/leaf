@@ -95,18 +95,23 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     # A finger does not hover, so no name stays where the last tap was.
     expect(page.locator(".lf-inspect")).to_be_hidden()
 
-    # Prose still selects in Design mode. The selection's step stands beside the mode's
-    # way out on the narrowest phone row until the words are let go.
+    # Prose still selects in Design mode. Only the nearest gesture's steps stand
+    # (page-controls.js), so the selection's step takes the mode's way out's place on
+    # the narrowest phone row until the words are let go, and the row holds it whole.
     page.set_viewport_size({"width": 320, "height": 700})
     page.locator("#h").evaluate("el => getSelection().selectAllChildren(el)")
     comment = step("Comment on selection")
     expect(comment).to_be_visible()
-    expect(exit_design).to_be_visible()
+    expect(exit_design).to_have_count(0)
     assert row.evaluate("el => el.scrollWidth <= el.clientWidth"), (
-        "the selection's and the mode's steps overflow a 320px row"
+        "the selection's step overflows a 320px row"
     )
     page.evaluate("getSelection().removeAllRanges()")
-    expect(comment).to_be_hidden()
+    expect(comment).to_have_count(0)
+    expect(exit_design).to_be_visible()
+    assert row.evaluate("el => el.scrollWidth <= el.clientWidth"), (
+        "the mode's way out overflows a 320px row"
+    )
     exit_design.tap()
     expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
 

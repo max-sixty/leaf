@@ -51,6 +51,7 @@
     color: var(--ink);
   }
   .lf-fp-card {
+    anchor-name: --lf-fp-panel;
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
@@ -288,8 +289,11 @@
     display: none;
   }
   .lf-fp-quick {
-    flex: none;
+    flex: 0 1 auto;
+    min-width: 0;
     display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
     align-items: center;
     gap: 2px;
   }
@@ -2024,7 +2028,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     position: fixed;
     z-index: var(--lf-z-page-search);
     pointer-events: auto;
-    bottom: calc(var(--lf-foot-room) - var(--lf-floating-gap) + 8px);
+    position-anchor: --lf-fp-panel;
+    bottom: calc(anchor(top) + 12px);
     left: 50%;
     transform: translateX(-50%);
     width: min(390px, calc(100vw - 28px));

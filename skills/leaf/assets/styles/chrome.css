@@ -1045,12 +1045,15 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     box-shadow: inset 0 -2px color-mix(in srgb, var(--accent) 72%, transparent);
   }
   /* Page search's box stands over the floating panel's row, centred on it as the row
-     is, where Previous, Next and Close search stand while it is open. */
+     is, where Previous, Next and Close search stand while it is open. It stands on the
+     panel's top, so a row that grows to hold those steps on a narrow phone carries the
+     box up rather than standing under it. */
   .lf-page-search {
     position: fixed;
     z-index: var(--lf-z-page-search);
     pointer-events: auto;
-    bottom: calc(var(--lf-foot-room) - var(--lf-floating-gap) + 8px);
+    position-anchor: --lf-fp-panel;
+    bottom: calc(anchor(top) + 12px);
     left: 50%;
     transform: translateX(-50%);
     width: min(390px, calc(100vw - 28px));

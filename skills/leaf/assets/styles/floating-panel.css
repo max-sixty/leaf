@@ -88,6 +88,7 @@
      at rest and inside every move, so what stands under the panel is under a box that
      paints for a contrast checker too, which reads no clipped layer. */
   .lf-fp-card {
+    anchor-name: --lf-fp-panel;
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
@@ -406,9 +407,15 @@
   }
 
   /* Marks with counts: what waits on the user, the threads, and annotating. */
+  /* A gesture's steps that the row can't hold on one line, as search's four can't on
+     the narrowest phone, wrap onto a line above, the field having given up its room
+     first; the row grows into the window to hold them. */
   .lf-fp-quick {
-    flex: none;
+    flex: 0 1 auto;
+    min-width: 0;
     display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
     align-items: center;
     gap: 2px;
   }

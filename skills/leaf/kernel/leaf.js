@@ -10889,7 +10889,6 @@ if (!offlineInteractive) {
     marksSheet
   ];
   chromeForeground.append(
-    pageSearchSurface,
     targetTraceLayer,
     aimLayer,
     liveEl,
@@ -10911,6 +10910,7 @@ if (!offlineInteractive) {
     approveVersion: () => app.post({ kind: "done", version: runtime.currentStamp })
   });
   floatingPanel.mount(chromeForeground);
+  chromeForeground.append(pageSearchSurface);
   responseSurface.mount();
   holdToRead();
   reactions.mount();

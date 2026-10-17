@@ -659,7 +659,6 @@ if (!offlineInteractive) {
   // One permanent home for the chrome's foreground; none of these live descendants is
   // reparented.
   chromeForeground.append(
-    pageSearchSurface,
     targetPaint.targetTraceLayer,
     targetPaint.aimLayer,
     liveEl,
@@ -681,6 +680,9 @@ if (!offlineInteractive) {
     approveVersion: () => app.post({ kind: "done", version: runtime.currentStamp }),
   });
   floatingPanel.mount(chromeForeground);
+  // Page search's box stands on the panel's top, and an anchor has to be laid out
+  // before the box placed against it (chrome.css, `.lf-page-search`).
+  chromeForeground.append(pageSearchSurface);
   responseSurface.mount();
   holdToRead();
   reactions.mount();

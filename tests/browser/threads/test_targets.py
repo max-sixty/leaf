@@ -456,7 +456,19 @@ def test_original_quoted_words_remain_readable_after_the_page_rewrites_them(
     expect(disclosure).to_be_visible()
     before = disclosure.bounding_box()
     if touch:
-        assert before["height"] >= 44
+        # A finger reaches it across the 44px floor, by its face or, in the panel, by
+        # the reach its face carries above and below.
+        reach = disclosure.evaluate(
+            """press => {
+              const box = press.getBoundingClientRect();
+              const x = box.left + box.width / 2, y = box.top + box.height / 2;
+              return [-21.5, 21.5].every((by) => {
+                const at = document.elementFromPoint(x, y + by);
+                return at === press || press.contains(at);
+              });
+            }"""
+        )
+        assert reach, before
         disclosure.tap()
     else:
         disclosure.focus()

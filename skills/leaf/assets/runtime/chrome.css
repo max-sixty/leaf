@@ -886,6 +886,7 @@
     overflow: visible;
   }
   .lf-fp-quote-head > .lf-quote-expand {
+    margin-block-start: max(0px, (var(--aim-floor) - 1lh) / 2 - 8px);
     min-height: 0;
     padding: 0;
     color: var(--lf-fp-muted);

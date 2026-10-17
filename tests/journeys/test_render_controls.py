@@ -80,35 +80,773 @@ from render_harness import (
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
-from browser.test_render_controls import (
-    AIM_BOXES,
-    AIM_PAGE,
-    AIM_SURFACES,
-    CONTROL_ARCHETYPES,
-    CONTROL_STABILITY_PAGE,
-    LIVE_SAMPLE_PAGE,
+from browser.controls import (
     LIVE_SAMPLES_PAGE,
-    RING_CASES,
-    RING_CHROME,
-    RING_EXAMPLE_FILES,
-    RING_EXAMPLES,
-    RING_FOCUS_START,
-    RING_REMOTE_CARRIER,
-    RING_SCOPE_OPENER,
-    RING_SCOPE_SURFACE,
-    RING_SCOPE_WIDTH,
-    RING_SCOPES_STARTING_WITHOUT_PANEL,
-    RING_VIEWPORT,
+    RING_NEW_STOP,
     SAMPLE_STARTUP_FAILURE,
-    STATUS_FIT,
-    WEBSITE_LINE,
-    _each_aim_surface,
-    _sample_containment_page,
-    _tab_stops_without_indication,
     _touch_drag,
-    fail_sample_startup,
     offered,
-    seen_stop,
+)
+from browser_sources import browser_function
+from render_cases_layout import ring_rules
+from render_harness import CORPUS_SOURCES, any_owner_entry
+
+VISUAL_REVIEW_GALLERY = next(
+    path for path in CORPUS_SOURCES if path.stem == "visual-review-gallery"
+)
+
+
+# One practice page, for the journeys that need no second child to compare against:
+# each child is a whole page to load.
+LIVE_SAMPLE_PAGE = re.sub(
+    r'<lf-sample id="second-practice".*?</lf-sample>\n',
+    "",
+    LIVE_SAMPLES_PAGE,
+    flags=re.DOTALL,
+)
+assert "second-practice" not in LIVE_SAMPLE_PAGE
+
+
+def fail_sample_startup(route):
+    """The real child reports its fixture's failure over the private bridge.
+
+    Keep native document delivery: an intercepted synthetic response has no network
+    address space, so Chromium refuses its opaque origin's real loopback resources.
+    """
+    route.fulfill(
+        status=307, headers={"Location": route.request.url + "?startup-failure"}
+    )
+
+
+def _sample_containment_page():
+    """A host can change a distant child's view; its passage needs two scrollports."""
+    return leaf_page(
+        "Contained practice",
+        """
+<h1>Contained practice</h1>
+<div id="host-controls">
+  <button id="show-page" type="button">Show page conversation</button>
+  <button id="show-panel" type="button">Show panel conversation</button>
+  <button id="reset-child" type="button">Restart conversation</button>
+  <output id="completed">0</output>
+</div>
+<div style="height: 1400px"></div>
+<lf-sample id="practice" label="Contained conversation" window>
+  <template id="practice-source" data-sample data-sample-events="history">
+    <h1>Child conversation</h1>
+    <div style="height: 900px"></div>
+    <div id="nested-reading" style="height: 240px; overflow: auto">
+      <div style="height: 900px"></div>
+      <p id="destination">Nested landing target.</p>
+      <div style="height: 300px"></div>
+    </div>
+    <div style="height: 800px"></div>
+  </template>
+</lf-sample>
+<div style="height: 1400px"></div>
+""",
+        head="""
+<style>#host-controls { position: fixed; top: 90px; left: 20px; z-index: 2;
+  background: white; padding: 8px; }</style>
+<script id="history" type="application/json">
+  [{"id":"question","kind":"comment","anchor":{"section":"destination"},
+    "text":"Can you check the destination?"},
+   {"kind":"reply","author":"agent","parent":"question","ephemeral":true,
+    "text":"Checking the nested reading region."},
+   {"kind":"reply","author":"agent","parent":"question",
+    "text":"The destination is inside the nested reading region."}]
+</script>
+<script type="module">
+  const sample = document.querySelector('#practice');
+  let surface = 'page';
+  let completed = 0;
+  for (const button of document.querySelectorAll('#host-controls button')) {
+    button.addEventListener('click', async () => {
+      if (button.id === 'reset-child') await sample.reset();
+      else surface = button.id === 'show-page' ? 'page' : 'panel';
+      const shown = await sample.showThread('question', {surface});
+      document.querySelector('#completed').textContent =
+        shown ? String(++completed) : 'cancelled';
+    });
+  }
+</script>
+""".replace(
+            "Checking the nested reading region.",
+            "Checking the nested reading region and its surrounding reading context. "
+            * 50,
+        ),
+    )
+
+
+CONTROL_STABILITY_PAGE = leaf_page(
+    "control stability",
+    """
+<h1 id="control-target">Control stability</h1>
+<lf-suggestion id="stable-suggestion">
+  <lf-old>Keep the broad sweep.</lf-old>
+  <lf-new>Keep one causal case per control archetype.</lf-new>
+</lf-suggestion>
+<lf-ask id="stable-options-decision"><h2>Which control should stay?</h2>
+<lf-options id="stable-options" choose>
+  <lf-option id="stable-choice-a" for="control-target">Keep A</lf-option>
+  <lf-option id="stable-choice-b" for="control-target">Keep B</lf-option>
+</lf-options></lf-ask>
+<lf-tabs id="stable-tabs">
+  <lf-tab id="stable-tab-a" label="First">First panel.</lf-tab>
+  <lf-tab id="stable-tab-b" label="Second">Second panel.</lf-tab>
+</lf-tabs>
+
+<lf-ask id="stable-playground-decision"><h2>How should the release card look?</h2>
+<lf-playground id="stable-playground" submit-label="Use these settings">
+  <lf-playground-control name="radius" label="Corner radius" kind="range"
+    value="12" min="0" max="24" step="1" unit="px"></lf-playground-control>
+  <lf-playground-control name="tone" label="Tone" kind="choice" value="quiet">
+    <lf-playground-choice value="quiet" label="Quiet"></lf-playground-choice>
+    <lf-playground-choice value="bold" label="Bold"></lf-playground-choice>
+  </lf-playground-control>
+  <lf-playground-preview id="stable-playground-preview">
+    <article id="stable-playground-card"><strong>Release card</strong><p>The ceiling doubles per approval.</p></article>
+  </lf-playground-preview>
+  <lf-playground-output id="stable-playground-instruction">Use a
+    <lf-playground-value for="radius"></lf-playground-value> corner radius and a
+    <lf-playground-value for="tone"></lf-playground-value> tone.
+  </lf-playground-output>
+</lf-playground></lf-ask>
+<lf-diff id="stable-diff"><pre>
+diff --git a/gateway/limits.py b/gateway/limits.py
+--- a/gateway/limits.py
++++ b/gateway/limits.py
+@@ -1,2 +1,3 @@
+ def ceiling(limit, approvals):
+-    return limit
++    # the ceiling doubles per approval
++    return "over" if approvals &gt; 12 else limit
+</pre></lf-diff>
+"""
+    f"""<lf-shot id="stable-shot" alt="the release card"
+         before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>
+""",
+    head='<meta name="lf-review" content="sign-off">',
+)
+
+
+SIGNOFF_STABILITY_PAGE = LONG_PAGE.replace(
+    "<title>long</title>",
+    '<title>long</title><meta name="lf-review" content="sign-off">',
+)
+
+
+# The rendered control mechanisms whose rows must keep their geometry across a press.
+# `target` is the one causal transition that proves each mechanism's stability contract.
+CONTROL_ARCHETYPES = (
+    {
+        "name": "banner",
+        "source": SIGNOFF_STABILITY_PAGE,
+        "target": ".lf-signoff",
+    },
+    {
+        # Accept and Reject share the resting row. A thread adds the third margin entry that
+        # puts the secondary choices behind `…`; opening it must leave Accept still.
+        "name": "margin-entry",
+        "target": '[data-lf-margin-for="stable-suggestion"] > .lf-margin-more',
+    },
+    {
+        "name": "option-pick",
+        "target": "#stable-choice-a .lf-pick",
+    },
+    {
+        "name": "tab",
+        "target": "#stable-tabs .lf-tab-btn:nth-child(2)",
+    },
+    {
+        # The playground's action row: Reset, Copy instruction, and the send beside each
+        # other under the controls. The send is the press with something to prove — it
+        # posts the configuration and comes back disabled, and a control that changes its
+        # own paint on the press is where a neighbour moves.
+        "name": "playground-actions",
+        "target": "#stable-playground .lf-playground-submit",
+    },
+    {
+        # The comparison rail: Before and After stand beside each other above the frames,
+        # and each caption chooses its own frame. Pressing After is the transition with
+        # something to prove — the caption the user leaves and the one they arrive at
+        # both change their active paint, and a rule that spent width on the active word
+        # would move the other caption under the user's pointer.
+        "name": "shot-caption",
+        "target": '#stable-shot .lf-shotcap[data-lf-state="after"]',
+    },
+    {
+        # The case queue's Previous, case selector, and Next controls share the
+        # row above the evidence. Selecting another title changes the select's
+        # contents without moving the buttons around it.
+        "name": "visual-review-navigation",
+        "source": VISUAL_REVIEW_GALLERY,
+        "target": ".lf-vr-case-select",
+        "option": "All mobile destinations remain reachable",
+    },
+    {
+        # The visual inspector's view and size presses are joined groups whose selected
+        # treatment changes in place. Pressing Flip exercises both states while its
+        # Compare, Overlay, and size neighbours stay under the user's pointer.
+        "name": "visual-review-inspection",
+        "source": VISUAL_REVIEW_GALLERY,
+        "open": ".lf-vr-inspection-summary",
+        "target": '.lf-vr-mode-group > [value="flip"]',
+    },
+    {
+        # A disposition changes both its selected paint and the case's durable review
+        # state while its opposite remains beside it.
+        "name": "visual-review-disposition",
+        "source": VISUAL_REVIEW_GALLERY,
+        "target": ".lf-vr-case[data-selected] .lf-vr-needs-work",
+    },
+)
+
+
+WEBSITE_LINE = (
+    "This is an example on the Leaf website. Leaf guide replies and revises this "
+    "private copy. Other examples Install Leaf"
+)
+
+
+# Measure the real status and its complete hover text in the same rendering turn.
+STATUS_FIT = """() => {
+  const status = document.querySelector('.lf-status-text');
+  const style = getComputedStyle(status);
+  const actions = document.querySelector('.lf-banner-actions');
+  return {across: {shown: status.clientWidth, needed: status.scrollWidth},
+          down: {shown: status.clientHeight, needed: status.scrollHeight},
+          lineHeight: parseFloat(style.lineHeight), ellipsis: style.textOverflow,
+          title: status.title, text: status.textContent,
+          actions: {shown: actions.clientWidth, needed: actions.scrollWidth}};
+}"""
+
+
+# The page the chrome's surfaces are sampled on: small, with a board's grips, and served
+# with a second version so the versions menu has a comparison to offer.
+RING_CHROME = "triage-board"
+
+
+# A causal sample in each surface the keyboard reaches. Each case names its surface, the
+# real keys that open it, the element whose focus state paints the ring, and the rule
+# that paints it, as the part of its matched selector that makes the rule that
+# control's own (`ring_rules`, render_cases_layout.py). A null selector means the
+# opening keys themselves leave the required non-focusable carrier lit.
+RING_CASES = (
+    (
+        "the page",
+        (),
+        {
+            # The chrome's own surfaces stand on the smallest page that offers them all,
+            # since every page carries the same chrome and each reading over a large
+            # document costs seconds.
+            RING_CHROME: (
+                (".lf-skip", ".lf-skip"),
+                (".lf-grip", ".lf-grip"),
+                (".lf-status-button", ".lf-status-button"),
+                (".lf-others", ":is(.lf-btn, .button)"),
+                (".lf-edge:visible", ".lf-edge"),
+                # Before the fields: More stands down while a field takes its key.
+                (".lf-shortcut-more", ".lf-shortcut-more"),
+                (".lf-find-box input", "wa-input::part"),
+                (".lf-thread-panel leaf-text", ".lf-compose-field"),
+            ),
+            "feature-gallery": (
+                (".lf-tab-btn", ".lf-tab-btn"),
+                ("lf-option > .lf-pick", "lf-option:has(> .lf-pick"),
+                (
+                    any_owner_entry("suggestion", "accept") + ":visible",
+                    "margin-entry",
+                ),
+                (".lf-draft-edit", ".lf-draft-edit"),
+            ),
+            "heat-loss": ((".lf-visual-action", ".lf-visual-action"),),
+            # Working density, where a choice's gap is narrowest beside the next face.
+            "notification-playground": (
+                (".lf-playground-radio", ".lf-playground-choice-face"),
+            ),
+            "review-a-plan": (("main details > summary", ":where([data-lf-focus])"),),
+            "pr-walkthrough": (
+                ("#pr-flow-tab", ":where([data-lf-focus])"),
+                ("lf-gloss:visible > .lf-gloss-mark", ".lf-gloss-mark"),
+                (".lf-diff-search input", "wa-input::part"),
+                ("lf-diff summary", ".lf-diff-file > details > summary"),
+                ("lf-diff code", "code[data-code]"),
+            ),
+            "release-notes": (
+                ("main p.lf-mark-el", ".lf-mark-el"),
+                (
+                    'lf-shot .lf-shotcomparison [part~="handle"]',
+                    "wa-comparison::part(lf-focus)",
+                ),
+                (".lf-shotcap", "[data-lf-offer]"),
+            ),
+            "ship-review": ((".lf-reopen", ".lf-thread-action"),),
+            "wt-merge": (
+                (
+                    '[data-lf-reading-role="pane"] > [tabindex="0"]',
+                    "[data-lf-reading-role=pane]",
+                ),
+            ),
+        },
+    ),
+    ("a landed diff line", ("]",), {"pr-walkthrough": ((None, "[data-line]"),)}),
+    (
+        "an inline response",
+        (),
+        {"pr-walkthrough": (("leaf-text.lf-fab-input", ".lf-response-control"),)},
+    ),
+    # The list holds focus itself only while it shows no thread, so the sample finds
+    # nothing and backs out of the find box onto the emptied list.
+    (
+        "the thread list",
+        ("g", "Shift+t", "/", "z", "q", "x", "j", "Escape"),
+        {RING_CHROME: ((None, ".lf-threads-frame"),)},
+    ),
+    (
+        "a thread title",
+        (),
+        {"ship-review": ((".lf-thread-summary:visible", ".lf-thread-summary"),)},
+    ),
+    # The keyboard walk lands on the accordion title, whose inset band also marks
+    # its native Tab stop.
+    (
+        "a walked thread",
+        ("g", "Shift+t", "t"),
+        {"ship-review": ((None, ".lf-thread-summary"),)},
+    ),
+    # The same walk with the panel shut lands in the margin's thread view, on the
+    # thread itself rather than a control inside it.
+    ("an inline thread", ("t",), {"ship-review": ((None, ".lf-page-thread"),)}),
+    (
+        "passage search",
+        ("/",),
+        {RING_CHROME: ((".lf-page-search-box input:visible", "wa-input::part"),)},
+    ),
+    # Item hints, and the anchored bar the user answers a chosen item on. Both open the
+    # same mode, and both step back and then forward through it, which lands on the last
+    # item the window is showing whatever a page's count is: the browse wraps, so one step
+    # back from a fresh open is the second from the end. That item is the lowest on
+    # screen, which is where the layer has the least room to draw a band around a chip and
+    # the least room to hang a bar under one.
+    #
+    # The Tab in front of both sequences is a stop, not a gesture in the mode: target hints
+    # claim Tab for browsing themselves, so the sample below moves nothing once the mode
+    # is open, and with the document under it the sample would stand on nothing and read no
+    # page at all. Standing on a control first leaves the hint the keyboard is browsing on
+    # screen for the sweep, which is where its band is read — the chips are a layer nothing
+    # can focus, so the user's place in that mode is not a stop.
+    (
+        "target hints",
+        ("Tab", "s", "Shift+Tab", "Tab"),
+        {RING_CHROME: ((None, ".lf-key-hint.lf-current"),)},
+    ),
+    # Enter opens Comment on the item the keyboard is browsing and focuses its field.
+    (
+        "the response bar",
+        ("Tab", "s", "Shift+Tab", "Tab", "Enter"),
+        {RING_CHROME: ((".lf-fab-input", ".lf-response-control"),)},
+    ),
+    # These controls live behind exact page-owned view states: a settled group's
+    # disclosure, and the options it puts away.
+    (
+        "a settled decision",
+        (),
+        {
+            "current-proposed-comparison": (
+                ("#comparison-policy > .lf-settled", ".lf-settled"),
+            )
+        },
+    ),
+    (
+        "a settled option",
+        (),
+        {
+            "current-proposed-comparison": (
+                (
+                    "#comparison-policy > lf-option > .lf-pick",
+                    ":is(lf-option) .lf-pick",
+                ),
+            )
+        },
+    ),
+    (
+        "a contents link",
+        (),
+        {"feature-gallery": (("#bg-contents li a:visible", ":is(lf-toc) a"),)},
+    ),
+    # The reaction palette a message's strip opens. Its chips are the last boxes the
+    # layer dresses in the chrome's chip face, and they are behind a press: the strip
+    # shows a token nobody has pressed only while it is open, so a walk of the panel
+    # that never opens one stands on the trigger and nothing under it.
+    (
+        "a reaction palette",
+        (),
+        {
+            "ship-review": (
+                (".lf-react-palette:popover-open .lf-react", ".lf-outline-chip"),
+            )
+        },
+    ),
+    ("the On panel", (), {"ship-review": ((".lf-queue-row", ".lf-queue-row"),)}),
+    ("the pages drawer", ("g", "Shift+l"), {RING_CHROME: ((None, ".lf-others-row"),)}),
+    ("page status", (), {RING_CHROME: ((None, ".lf-status-detail"),)}),
+    # The menu's own route after the key that opens it: an open lands on the version being
+    # read, which is the first row, and the comparison press beside a row is a Tab forward
+    # from the row below it. The walk is clamped, so a second press at the bottom moves
+    # nothing and the pair reaches a menu of any length this corpus can hold.
+    (
+        "the versions menu",
+        ("g", "Shift+v", "ArrowDown", "ArrowDown"),
+        {
+            RING_CHROME: (
+                (".lf-version-row", ".lf-version-row"),
+                (".lf-version-diff:visible:not(:disabled)", ".lf-version-diff"),
+            )
+        },
+    ),
+    (
+        "the command reference",
+        ("?", "?"),
+        {
+            RING_CHROME: (
+                (".lf-command-reference-search input:visible", "wa-input::part"),
+                (".lf-command-reference-command", ".lf-command-reference-command"),
+            )
+        },
+    ),
+    # A Thread card and the compact Page Map dialog are the two layers a Tab walk of the
+    # page cannot open for itself. The card is a press on a thread margin entry; the sheet is a
+    # press on a Page Map control the wide posture does not draw at all, so its sample asks for
+    # the narrow window the control lives in.
+    (
+        "a thread card",
+        (),
+        {
+            "ship-review": (
+                (
+                    ".lf-margin-preview .lf-resolve",
+                    ".lf-page-thread :is(.lf-btn, summary)",
+                ),
+            )
+        },
+    ),
+    (
+        "message media",
+        (),
+        {"feature-gallery": ((".lf-message-media", ".lf-media-open"),)},
+    ),
+    # Both controls of a summarized range wear one band: the checkpoint's own button, and
+    # the rail that folds the originals back once it has opened them.
+    (
+        "a summarized range",
+        (),
+        {"feature-gallery": ((".lf-summary-expand", ".lf-thread-disclosure"),)},
+    ),
+    (
+        "the Page Map dialog",
+        (),
+        {
+            RING_CHROME: (
+                (".lf-page-map-action:visible", ".lf-page-map-action"),
+                (".lf-page-map-search input:visible", "wa-input::part"),
+            )
+        },
+    ),
+)
+
+
+# The selected pages jointly load the core and optional package stylesheets.
+RING_EXAMPLES = tuple(
+    dict.fromkeys(name for _scope, _keys, cases in RING_CASES for name in cases)
+)
+
+
+RING_EXAMPLE_FILES = {
+    example.stem: example
+    for example in (
+        *EXAMPLES,
+        FEATURE_GALLERY,
+        ROOT / "tests/fixtures/pages/current-proposed-comparison.html",
+    )
+}
+
+
+# Rings whose carrier is semantic state elsewhere in the page rather than the focused
+# control or one of its ancestors. Mark the exact carrier before reading the composed
+# paint so an unrelated ring drawn by the same rule cannot credit the sample.
+RING_REMOTE_CARRIER = {
+    ".lf-key-hint.lf-current": ".lf-target-picker-hint.lf-current",
+    # A pane draws its focused body's band inset over the body's cell (theme.css).
+    "[data-lf-reading-role=pane]": '[data-lf-reading-role="pane"]:has(> [data-lf-focus])',
+}
+
+
+# A surface must open before its sample can count. Conditional banner controls are
+# checked only on a page that offers them.
+RING_SCOPE_SURFACE = {
+    "an inline response": (
+        'lf-diff .lf-fab-bar[data-lf-presentation="inline"] .lf-composer[data-lf-open]',
+        None,
+    ),
+    "the thread list": (".lf-thread-panel.open", None),
+    "a walked thread": (".lf-thread-panel.open", None),
+    "an inline thread": (".lf-margin-preview:not([hidden])", None),
+    "a thread card": (".lf-margin-preview:not([hidden])", None),
+    "the Page Map dialog": (".lf-page-map-dialog[open]", None),
+    "passage search": (".lf-page-search:not([hidden])", None),
+    # The hint the keyboard is browsing, and the field the chosen item's bar opens with.
+    # Each is the mode's own state rather than a box that merely exists: the chips are
+    # rebuilt from nothing on every open, and the bar is in the document from the first
+    # frame and shows only for an anchor.
+    "target hints": (".lf-target-picker-hint.lf-current", None),
+    "the response bar": (".lf-fab-bar .lf-composer[data-lf-open]", None),
+    "the On panel": (".lf-queue-panel.open", ".lf-queue"),
+    "the pages drawer": (".lf-others-panel.open", ".lf-others"),
+    "the versions menu": (".lf-version-menu:popover-open", None),
+    "the command reference": (".lf-command-reference.open", None),
+    "page status": (".lf-status-detail:popover-open", None),
+    "a reaction palette": (".lf-react-strip.lf-react-open", None),
+}
+
+
+RING_SCOPE_OPENER = {
+    "an inline response": "#pr-exact-patch .lf-diff-file-comment",
+    "the On panel": ".lf-queue",
+    "a thread card": '.lf-margin-marker[data-lf-kinds~="comment"]',
+    "the Page Map dialog": ".lf-page-map-toggle",
+    "a reaction palette": ".lf-react-strip > .lf-react-trigger",
+    # Any control inside the diff puts the user in its scope, where `]` lands a line.
+    "a landed diff line": "#pr-exact-patch summary",
+}
+
+
+# The window a scope's own surface stands in, where that is not the page's own. These
+# entries are floors the layer states rather than preferences: the Page Map control is drawn
+# under the margin's breakpoint and nowhere else, while the contents-link and thread-card
+# samples use a wide window where their page-margin surfaces can stand beside the source.
+# Every other scope is read at the width the page opened at.
+RING_VIEWPORT = (1200, 900)
+
+
+# Scopes whose own route starts with Threads shut. A thread card and the narrow map need
+# page-margin surfaces the panel replaces; the thread-list sample's `g T` is the door
+# under test, and now correctly toggles an already-open panel closed.
+RING_SCOPES_STARTING_WITHOUT_PANEL = {
+    "an inline response",
+    "the thread list",
+    "a walked thread",
+    "an inline thread",
+    "a contents link",
+    "a thread card",
+    "the Page Map dialog",
+    "a landed diff line",
+}
+
+
+RING_SCOPE_WIDTH = {
+    "a contents link": 1600,
+    "an inline thread": 1600,
+    "a thread card": 1600,
+    "the Page Map dialog": 760,
+}
+
+
+# Focus put back at the document's start. A blur retains the previous sequential
+# navigation position, which would make the opening key sequences depend on the last case.
+RING_FOCUS_START = RELEASE_FOCUS
+
+
+SEEN_STOP = browser_function("focus_rings.js", "seenStop", using="control_name.js")
+
+
+# Both readings of a Tab's landing in one round trip: whether the stop is new, and for a
+# new one, what it shows of where the keyboard is.
+WALKED_STOP = f"""() => {{
+  const stop = ({RING_NEW_STOP})();
+  return [stop, stop === "new" ? ({SEEN_STOP})() : null];
+}}"""
+
+
+def seen_stop(page, seen=...):
+    """The focused stop as the user would fail to find it, or None where they can.
+
+    `seen` is a `SEEN_STOP` reading already taken. The rings off the stop itself that
+    it leaves undecided answer only where a ring rule drew them (`ring_rules`)."""
+    if seen is ...:
+        seen = page.evaluate(SEEN_STOP)
+    if seen is None:
+        return None
+    if any(ring_rules(page, [(pseudo, "outline") for pseudo in seen["carriers"]])):
+        return None
+    return seen["lost"]
+
+
+def _tab_stops_without_indication(page, stem):
+    """Walk the page's whole ordinary Tab order, Threads open, and name every stop
+    that shows nothing of where the keyboard is. The panel is closed again after."""
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.evaluate("() => { window.__lfSeen = new WeakSet(); }")
+    page.evaluate(RELEASE_FOCUS)
+    failures = []
+    empty = 0
+    for _ in range(400):
+        page.keyboard.press("Tab")
+        stop, seen = page.evaluate(WALKED_STOP)
+        lost = seen_stop(page, seen)
+        if stop == "seen":
+            break
+        if stop == "empty":
+            empty += 1
+            assert empty <= 2, f"Tab never entered {stem}"
+            continue
+        empty = 0
+        if lost:
+            failures.append(f"{stem}: {lost}")
+    else:
+        raise AssertionError(f"Tab order never came round in {stem}")
+    page.get_by_role("button", name="Close threads", exact=True).click()
+    panel_settled(page, open=False)
+    page.evaluate(RELEASE_FOCUS)
+    return failures
+
+
+# Every box the layer promises a press on, wherever it stands. Not a list of class names:
+# what makes something a target is that the runtime built it (data-lf-offer) or that it
+# stands in the runtime's own layer, and that the page under the pointer says a press
+# lands there. A twelfth control joins by being one, which is how the six this first
+# reported were found.
+#
+# The reading takes the element's box together with any absolutely positioned pseudo it
+# hangs, because a control may enlarge its target outside layout rather than make the
+# visible line or row taller.
+#
+# Inline boxes are out, and that is the target-size exception rather than an excuse: a
+# link inside a sentence is sized by the words around it, and nothing can be done about
+# that which does not damage the sentence.
+AIM_BOXES = """(floor) => {
+  const found = [];
+  const seen = new Set();
+  for (const el of document.querySelectorAll(
+    '[data-lf-offer], .lf-chrome button, .lf-chrome [role="button"],' +
+    ' .lf-chrome [role="checkbox"], .lf-chrome [role="tab"], .lf-chrome .lf-btn,' +
+    ' .lf-chrome .lf-outline-chip, .lf-chrome .lf-quote'
+  )) {
+    if (seen.has(el)) continue;
+    seen.add(el);
+    const style = getComputedStyle(el);
+    if (!['pointer', 'grab'].includes(style.cursor)) continue;
+    // A box that takes no press is not an aim, however its cursor reads.
+    if (style.pointerEvents === 'none') continue;
+    if (!el.checkVisibility({ visibilityProperty: true, opacityProperty: true })) continue;
+    if (style.display === 'inline') continue;
+    // The option mark is the one control held out, and it is a handover rather than an
+    // exemption: its box is being rewritten alongside the group's pressable rule, and
+    // this line goes with that change. It stands at 11x11 today.
+    if (el.classList.contains('lf-pick')) continue;
+    const box = el.getBoundingClientRect();
+    if (!box.width || !box.height) continue;
+    let [w, h] = [box.width, box.height];
+    for (const pseudo of ['::before', '::after']) {
+      const at = getComputedStyle(el, pseudo);
+      if (at.content === 'none' || at.position !== 'absolute') continue;
+      w = Math.max(w, parseFloat(at.width) || 0);
+      h = Math.max(h, parseFloat(at.height) || 0);
+    }
+    const name = (el.className || el.tagName).toString().trim().split(/\\s+/)[0]
+      + ` ${JSON.stringify((el.textContent || '').trim().slice(0, 32))}`;
+    if (Math.min(w, h) < floor - 0.5)
+      found.push(`${name} at ${w.toFixed(1)}x${h.toFixed(1)}`);
+  }
+  return found;
+}"""
+
+
+# What the sweep has to have stood in front of before its answer means anything. Each is
+# on a surface the walk has to open, and each was under the floor.
+AIM_SURFACES = (
+    ".lf-thread-action",
+    ".lf-preview",
+    ".lf-outline-chip",
+    ".lf-version-diff",
+    ".lf-command-reference-command",
+    ".lf-quote",
+    ".lf-tab-btn",
+    ".lf-grip",
+)
+
+
+def _each_aim_surface(page, page_dir):
+    """Stand each surface up in turn, yielding at every stop.
+
+    In turn rather than all at once, because they do not coexist: the reference is modal
+    and takes the version menu down as it opens, so a sweep that waited for the last of
+    them would meet a page that had put two of the controls away again.
+    """
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    comment = next(
+        e["id"] for e in events_model.read_events(page_dir) if e["kind"] == "comment"
+    )
+    resolved_before = page.locator('.lf-thread[data-resolved="true"]').count()
+    # A resolved thread, which is the only state that has a Reopen to aim at.
+    page.locator(f'.lf-thread[data-id="{comment}"] .lf-thread-summary').click()
+    page.locator(f'.lf-thread[data-id="{comment}"] .lf-resolve').click()
+    round_trip(page)
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_text(
+        f"Resolved ({resolved_before + 1})"
+    )
+    page.locator(".lf-thread-filter-toggle").click()
+    page.locator('[data-filter-value="resolved"]').click()
+    # Narrowing retains the card's disclosure, so the resolved thread comes back open
+    # and a second press on its summary would put the Reopen away again.
+    expect(page.locator(f'.lf-thread[data-id="{comment}"]')).to_have_js_property(
+        "open", True
+    )
+    expect(page.locator(f'.lf-thread[data-id="{comment}"] .lf-reopen')).to_be_visible()
+    yield
+
+    banner_control(page, ".lf-version").click()
+    expect(page.locator(".lf-version-menu")).to_be_visible()
+    yield
+    page.keyboard.press("Escape")
+
+    # The first press can open the reference or expand the shortcut bar.
+    page.keyboard.press("?")
+    if not page.locator(".lf-command-reference").is_visible():
+        page.keyboard.press("?")
+    expect(page.locator(".lf-command-reference-command").first).to_be_visible()
+    yield
+
+
+# Every kind of box AIM_SURFACES names, beside the widgets whose built controls the
+# sweep reads at rest: tabs, a board's grips, a question with its own Done and field,
+# and a suggestion's margin pair.
+AIM_PAGE = leaf_page(
+    "aims",
+    """<h1 id="t">Aims</h1>
+<p id="aim-lead">The first view holds the board and the question.</p>
+<lf-tabs id="aim-views">
+  <lf-tab id="aim-first" label="First">
+    <lf-board id="aim-board">
+      <lf-column id="aim-todo" label="Todo">
+        <lf-card id="aim-card"><strong>Heated perch</strong></lf-card>
+        <lf-card id="aim-other"><strong>Squirrel baffle</strong></lf-card>
+      </lf-column>
+      <lf-column id="aim-done" label="Done"></lf-column>
+    </lf-board>
+    <lf-ask id="aim-ask"><h2>Which jobs?</h2>
+      <lf-options id="aim-jobs" choose multiple>
+        <lf-option id="aim-mounts">Replace the mounts</lf-option>
+        <lf-option id="aim-bath">Heat the bird bath</lf-option>
+      </lf-options>
+    </lf-ask>
+    <p>Start at <lf-suggestion id="aim-change"><lf-old>nine.</lf-old><lf-new>ten.</lf-new>
+    </lf-suggestion></p>
+  </lf-tab>
+  <lf-tab id="aim-second" label="Second"><p>The second view.</p></lf-tab>
+</lf-tabs>""",
 )
 
 
@@ -1600,7 +2338,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
     )
     url = serve(html)
     stamp_page(serve.page_dir, html, "two")
-    panel_comment(serve.page_dir, "Is this ready?", author="agent")
+    panel_comment(serve.page_dir, "Is this ready?", author="agent", question="Ship it?")
     page = open_page(browser, url)
     resized(page, 1280, 900)
     # The complete real action set, wherever the fold has put each of them: what this is
@@ -1930,7 +2668,7 @@ def test_preview_diagnostics_keep_their_fixed_banner_overflow_seat(browser, serv
             "started": "2026-09-06T12:00:00+00:00",
         },
     )
-    panel_comment(serve.page_dir, "Is this ready?", author="agent")
+    panel_comment(serve.page_dir, "Is this ready?", author="agent", question="Ship it?")
     page = open_page(browser, url)
     expect(page.locator(".lf-preview")).to_have_count(1)
 
@@ -2008,7 +2746,7 @@ def test_a_phone_banner_keeps_fixed_primary_and_menu_seats(browser, serve, other
         '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
     )
     url = serve(html)
-    panel_comment(serve.page_dir, "Is this ready?", author="agent")
+    panel_comment(serve.page_dir, "Is this ready?", author="agent", question="Ship it?")
     page = open_page(browser, url)
     resized(page, 390, 800)
 

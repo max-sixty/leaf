@@ -1,8 +1,4 @@
 import {
-  dressSamples,
-  wear
-} from "./bundle-dress.js";
-import {
   LeafEditorView,
   askActions,
   askWords,
@@ -15,7 +11,6 @@ import {
   joinDataDelivery,
   landInThread,
   loadDeferred,
-  mountThreadViews,
   navigateToDatum,
   placePageThreads,
   projectData,
@@ -33,6 +28,10 @@ import {
   wireInput
 } from "./bundle-document-identity.js";
 import {
+  dressSamples,
+  wear
+} from "./bundle-dress.js";
+import {
   CONTRIBUTION_ENTRY_SCHEMA,
   contributionEntry,
   contributionItemKey,
@@ -46,6 +45,7 @@ import {
   HeldReading,
   allButCommandReference,
   anchorLabel,
+  askedInWords,
   asksIn,
   beginWalk,
   capturePlace,
@@ -85,6 +85,7 @@ import {
   synNodes,
   syntax,
   tabStore,
+  threadSummary,
   threadSurface,
   tokenLines,
   watchDraft
@@ -282,7 +283,6 @@ import {
   render,
   repeat,
   styleMap,
-  threadSummary,
   turns,
   unsafeHTML,
   untracked
@@ -1643,6 +1643,7 @@ export {
   announce,
   askActions,
   askWords,
+  askedInWords,
   asksIn,
   atLayoutPrecision,
   atScrollEnd,
@@ -1735,7 +1736,6 @@ export {
   motion,
   motionPreview,
   mountSample,
-  mountThreadViews,
   move,
   navigateToDatum,
   nextAnimation,

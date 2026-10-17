@@ -189,15 +189,16 @@ var HTML_WORDS = {
 function addressableWord(addressable) {
   if (!addressable) return "";
   const tag = addressable.tagName.toLowerCase();
-  if (registry[tag]?.["x-word"] === "module") {
-    const own = addressable.lfWord?.();
-    if (own) return own;
-  }
-  if (registry[tag]?.["x-ask-context"]) return "ask";
-  if (tag.startsWith("lf-")) return tag.slice(3);
+  const word = widgetWord(tag, addressable);
+  if (word) return word;
   if (tag === "pre")
     return addressable.querySelector(":scope > code") ? "code" : "block";
   return HTML_WORDS[tag] ?? tag;
+}
+function widgetWord(tag, element = null) {
+  const declared2 = registry[tag]?.["x-word"];
+  const own = declared2 === "module" ? element?.lfWord?.() : declared2;
+  return own || (tag.startsWith("lf-") ? tag.slice(3) : "");
 }
 function addressableSays(addressable) {
   if (!addressable) return "";
@@ -282,11 +283,13 @@ var targetRange = (resolved) => {
 };
 function rangeGeometry(range) {
   return {
+    range,
     contextNode: range.startContainer.nodeType === Node.TEXT_NODE ? range.startContainer : range.startContainer.childNodes[range.startOffset] ?? range.startContainer,
     box: range.getBoundingClientRect(),
     attachment: [...range.getClientRects()].find((rect) => rect.width > 0 && rect.height > 0) ?? null
   };
 }
+var passageBoxes = (resolved) => targetRange(resolved) ? targetSegments(resolved).flatMap((segment) => [...rangeOf([segment]).getClientRects()]).filter((box) => box.width && box.height) : [];
 function passageGeometry(resolved) {
   const range = targetRange(resolved);
   return range && rangeGeometry(range);
@@ -1068,10 +1071,31 @@ function localScrollBy(source, { x, y }) {
   if (!horizontal) return { left: 0, top: vertical ? along(axes.y) : 0 };
   if (!vertical) return { left: along(axes.x), top: 0 };
   const determinant = axes.x.x * axes.y.y - axes.x.y * axes.y.x;
-  return {
-    left: (x * axes.y.y - y * axes.y.x) / determinant,
-    top: (y * axes.x.x - x * axes.x.y) / determinant
-  };
+  const left = (x * axes.y.y - y * axes.y.x) / determinant;
+  const top = (y * axes.x.x - x * axes.x.y) / determinant;
+  const reach = (offset, current, minimum, maximum) => Math.max(minimum - current, Math.min(maximum - current, offset));
+  const horizontalLimit = source.scrollWidth - source.clientWidth;
+  const rtl = getComputedStyle(source).direction === "rtl";
+  const reachLeft = (offset) => reach(
+    offset,
+    source.scrollLeft,
+    rtl ? -horizontalLimit : 0,
+    rtl ? 0 : horizontalLimit
+  );
+  const reachTop = (offset) => reach(offset, source.scrollTop, 0, source.scrollHeight - source.clientHeight);
+  const reachableLeft = reachLeft(left);
+  const reachableTop = reachTop(top);
+  if (reachableLeft !== left && axes.y.y)
+    return {
+      left: reachableLeft,
+      top: reachTop((y - reachableLeft * axes.x.y) / axes.y.y)
+    };
+  if (reachableTop !== top && axes.x.x)
+    return {
+      left: reachLeft((x - reachableTop * axes.y.x) / axes.x.x),
+      top: reachableTop
+    };
+  return { left, top };
 }
 
 // runtime/css-anchors.js
@@ -1234,7 +1258,70 @@ function contentStart(scroller) {
 }
 var anchorHolder = (anchor) => contentStarts.get(anchor)?.scroller ?? anchor;
 var anchorName = (el) => nameAnchor(anchorReading(el));
-function anchorAt(node, anchor, box, at = anchor?.getBoundingClientRect(), visibility = "always") {
+var dropsTransforms;
+function anchorDropsTransforms() {
+  if (dropsTransforms !== void 0) return dropsTransforms;
+  const moved = document.createElement("div");
+  const anchored = document.createElement("div");
+  moved.style.cssText = "position: fixed; left: 0; top: 0; translate: 8px 0; anchor-name: --lf-moved";
+  anchored.style.cssText = "position: fixed; top: 0; position-anchor: --lf-moved; left: anchor(left, 8px)";
+  chromeRoot.append(moved, anchored);
+  dropsTransforms = anchored.getBoundingClientRect().left < 4;
+  moved.remove();
+  anchored.remove();
+  return dropsTransforms;
+}
+function laidOut(el) {
+  const parent = el.offsetParent;
+  let left = el.offsetLeft;
+  let top = el.offsetTop;
+  if (!parent) {
+    if (getComputedStyle(el).position !== "fixed") return null;
+    return { left, top };
+  }
+  if (parent === document.body && getComputedStyle(parent).position === "static") {
+    left -= scrollX;
+    top -= scrollY;
+  } else {
+    const from = parent.getBoundingClientRect();
+    left += from.left + parent.clientLeft - parent.scrollLeft;
+    top += from.top + parent.clientTop - parent.scrollTop;
+  }
+  for (let box = renderedParent(el); box !== parent; box = renderedParent(box)) {
+    if (!(box instanceof Element)) return null;
+    left -= box.scrollLeft;
+    top -= box.scrollTop;
+  }
+  return { left, top };
+}
+function movement(style) {
+  const matrix = style.transform === "none" ? null : new window.DOMMatrixReadOnly(style.transform);
+  const moves = Boolean(matrix) || style.translate !== "none" || style.rotate !== "none" || style.scale !== "none" || style.offsetPath !== "none";
+  const slides = style.rotate === "none" && style.scale === "none" && (style.offsetPath === "none" || style.offsetRotate === "0deg") && (!matrix || matrix.is2D && matrix.a === 1 && matrix.b === 0 && matrix.c === 0 && matrix.d === 1);
+  return { moves, slides };
+}
+function translationOf(el) {
+  let x = 0;
+  let y = 0;
+  for (let at = el; at instanceof Element; at = renderedParent(at)) {
+    const { moves, slides } = movement(getComputedStyle(at));
+    if (!moves) continue;
+    if (!slides || !(at instanceof HTMLElement) || at.currentCSSZoom !== 1) return null;
+    const layout = laidOut(at);
+    if (!layout) return null;
+    const shown = at.getBoundingClientRect();
+    x += shown.left - layout.left;
+    y += shown.top - layout.top;
+  }
+  return { x, y };
+}
+function anchorBox(anchor) {
+  const box = anchor.getBoundingClientRect();
+  if (!anchorDropsTransforms()) return box;
+  const shift = translationOf(anchorHolder(anchor));
+  return shift && (shift.x || shift.y) ? new DOMRect(box.left - shift.x, box.top - shift.y, box.width, box.height) : box;
+}
+function anchorAt(node, anchor, box, at = anchor && anchorBox(anchor), visibility = "always") {
   const from = (side, length) => anchor ? `calc(anchor(${side}, -9999px) + ${layoutPx(length)})` : layoutPx(length);
   Object.assign(node.style, {
     position: "fixed",
@@ -1261,7 +1348,7 @@ function headerLevels(item, clips = /* @__PURE__ */ new Map()) {
     return {
       anchor,
       reading: anchor && anchorReading(anchor),
-      at: anchor?.getBoundingClientRect(),
+      at: anchor && anchorBox(anchor),
       band: band ?? nowhere,
       axes: { x: false, y: true }
     };
@@ -1371,12 +1458,14 @@ export {
   exactTarget,
   targetRange,
   rangeGeometry,
+  passageBoxes,
   passageGeometry,
   targetSurface,
   targetParts,
   registerVisualParts,
   visualPartProblems,
   addressableWord,
+  widgetWord,
   addressableSays,
   addressableName,
   addressableLabel,
@@ -1422,6 +1511,7 @@ export {
   carriedAnchor,
   anchorFor,
   anchorName,
+  anchorBox,
   anchorAt,
   headerLevels,
   cutFrames,

@@ -7,8 +7,9 @@ which shape fits which subject.
 
 ## Layouts
 
-A Layout is a class that arranges the box it is on. Three set the page's shape and go
-on `main`:
+A Layout is a class that arranges the box it is on. Three set the page's shape. Each
+goes on `main`, or on a child of a `main` that carries none, which the page then lays
+out as it would `main` while that child is shown:
 
 | Class              | The page                                                            |
 | ------------------ | ------------------------------------------------------------------- |
@@ -48,14 +49,19 @@ verdict and file list stay beside the code. The region kept in view is the `asid
 
 ```html
 <main class="layout-sidebar">
-  <header><h1>…</h1><p class="lede">…</p></header>
+  <header>
+    <h1>…</h1>
+    <p class="lede">…</p>
+  </header>
   <aside id="status">
     <div class="overview">
       <lf-toc id="contents"></lf-toc>
-      <p>…</p>                 <!-- short verdict or status -->
+      <p>…</p>
+      <!-- short verdict or status -->
     </div>
   </aside>
-  <div id="body">…</div>        <!-- document and supporting evidence -->
+  <div id="body">…</div>
+  <!-- document and supporting evidence -->
 </main>
 ```
 
@@ -92,7 +98,10 @@ grid of panes:
 
 ```html
 <main class="layout-workspace density-working">
-  <header><h1>…</h1><p><span class="tag warn">…</span></p></header>
+  <header>
+    <h1>…</h1>
+    <p><span class="tag warn">…</span></p>
+  </header>
   <div id="regions">
     <lf-pane id="log" label="Log">…</lf-pane>
     <lf-pane id="chart" label="Chart">…</lf-pane>
@@ -101,8 +110,15 @@ grid of panes:
 ```
 
 ```css
-#regions { display: grid; grid-template-columns: minmax(16rem, 1fr) 2fr; }
-@media (width < 720px) { #regions { grid-template-columns: 1fr; } }
+#regions {
+  display: grid;
+  grid-template-columns: minmax(16rem, 1fr) 2fr;
+}
+@media (width < 720px) {
+  #regions {
+    grid-template-columns: 1fr;
+  }
+}
 ```
 
 Stack the panes below 720px, where the page can scroll; above that, stacked panes share
@@ -169,9 +185,10 @@ one.
 On a column page, write the contents outline in the first `aside.sidebar` and short
 notes in `aside.sidenote`. Leaf moves them into the margin when they fit and leaves
 them where you wrote them in a narrow window. For CSS that depends on what is in the
-margin, read the tokens in `main`'s `data-lf-margin` (`rail`, `map`, `sidebar`,
-`note`), such as `main:not([data-lf-margin~="sidebar"]) #route { display: none }`, and
-check the page at the widths where an item leaves the margin.
+margin, read the tokens in the `data-lf-margin` of the box carrying `layout-column`
+(`rail`, `map`, `sidebar`, `note`), such as
+`.layout-column:not([data-lf-margin~="sidebar"]) #route { display: none }`, and check
+the page at the widths where an item leaves the margin.
 
 `data-rail="right"` on `body` gives a sidebar page a rail, and `data-rail="none"` gives
 a column page's right margin to the page's own content. A workspace has no rail; a

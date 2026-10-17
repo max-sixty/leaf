@@ -48,7 +48,7 @@ before testing to wait for it and see failures. A plain clone starts it with
 
 ```sh
 wt setup
-uv run pytest tests/browser/test_render_widgets.py -q -n0 -k board   # the tests a change needs
+uv run pytest tests/browser/widgets/test_boards.py -q -n0 -k lifecycle  # the tests a change needs
 pnpm run test:runtime                 # tests/runtime/, under Node
 uv run pytest tests                  # broad selection; the landing gate runs it (root AGENTS.md, "Working on the repository")
 uv run pytest --lf --lfnf=none -x -n0
@@ -76,11 +76,17 @@ test to an earlier tier, make it cheaper. The user chose directory tiers (2026-1
 so that the landing gates stop growing with every test.
 
 A subject whose tests cross different boundaries has a module of the same name in each
-directory, such as `browser/test_render_margin.py` and `journeys/test_render_margin.py`.
+directory, such as `browser/test_render_aim.py` and `journeys/test_render_aim.py`.
 The module holding most of them keeps the helpers, and the others import from it; a
 module fixture they share is declared with `name=` and imported as `<name>_fixture`.
 `model/` and `process/` run in the same tier, so a subject's tests of both kinds stay in
 one module.
+
+A subject too large to read as one module is a package in its directory, with a module
+per behavior, such as `browser/margin/` beside `journeys/test_render_margin.py`. A helper
+one module uses stays in it; the package's `__init__.py` holds those that several use or
+that other directories import, and its `conftest.py` imports the fixtures every module
+takes, as `process/website_server/` does for its autouse one.
 
 Broad discovery skips `browser/` and `journeys/`; `--run-main` adds `browser/` and
 `--run-nightly` runs every tier. An explicit directory, file, node id, `-k`, `-m` or

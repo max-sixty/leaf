@@ -13,7 +13,7 @@ import { closestAcross } from "../passages.js";
 import { upFrom } from "../shadow.js";
 import { nextRender } from "../rendering.js";
 import { repaint } from "../repaint.js";
-import { SAY_BOX, THREAD } from "./selectors.js";
+import { drawnThreadId, SAY_BOX, THREAD } from "./selectors.js";
 import { allThreads } from "./state.js";
 import { replyAvailable, replyControlDestination, replyThreadKey } from "./replies.js";
 import { threadKey } from "./model.js";
@@ -53,16 +53,13 @@ const ownParts = {
       (control) => control.closest(THREAD) === thread,
     ) ?? null,
 };
-// A drawn thread's logged id: a list thread carries it as `data-id`, a card, seat or
-// chrome's view as `data-thread`.
-const threadIdOf = (thread) => thread.dataset.id ?? thread.dataset.thread;
 // The drawings of one thread from `thread` outward: itself, then each drawing of the
 // same thread around it.
 function* drawingsOf(thread) {
-  const id = threadIdOf(thread);
+  const id = drawnThreadId(thread);
   for (
     let at = thread;
-    at === thread || (at && id && threadIdOf(at) === id);
+    at === thread || (at && id && drawnThreadId(at) === id);
     at = closestAcross(upFrom(at), THREAD)
   )
     yield at;
@@ -121,11 +118,8 @@ export function focusedThreadTarget() {
 // further, to a seat holding no thread yet (landing.js, `heldThreadOrSeat`).
 export const heldThread = () => closestAcross(focused(), THREAD);
 
-// Its logged id (`threadIdOf`).
-export function heldThreadId() {
-  const thread = heldThread();
-  return (thread && threadIdOf(thread)) ?? null;
-}
+// Its logged id.
+export const heldThreadId = () => drawnThreadId(heldThread());
 
 // The thread every painter of standing draws — the page's contour and wash, the margin
 // entry's selection — which is the held thread except across a pointer press. A press
@@ -240,7 +234,7 @@ export function holdThreadPlace(open, { threadAt, seated }) {
   const id = key
     ? allThreads().find((each) => threadKey(each) === key)?.id
     : thread
-      ? (thread.dataset.id ?? thread.dataset.thread)
+      ? drawnThreadId(thread)
       : threadAt(node);
   if (!id) return null;
   const intent = retainUserIntent({ source: node });

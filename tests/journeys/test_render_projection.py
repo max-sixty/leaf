@@ -1548,7 +1548,7 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
     )
     assert render_gate_model.render_version(browser, url).failures == []
 
-    hide = "[data-lf-retired] { display: none; }"
+    hide = "  [data-lf-retired] {\n    display: none;\n  }"
     vendored = serve.page_dir / "theme.css"
     css = vendored.read_text()
     assert css.count(hide) == 1

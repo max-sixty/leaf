@@ -52,9 +52,12 @@ the choice, and add what is missing. Use product copy for visible and accessible
 and put commentary about the prototype in the surrounding playground only where needed.
 
 When the decision changes an existing interface, include its current state as a labeled
-baseline. Derive each candidate from the baseline and change only what is under review,
-keeping its controls, words, tokens and interaction state unless the candidate proposes
-changing them.
+baseline. Derive each candidate from the baseline and change only what is under review.
+Draw everything else as the product shows it, copied from the files that define it: its
+controls and words, its icons and logos, theme tokens and interaction state. The user
+reads any difference from the product as part of the proposal, so a lookalike, such as
+an emoji, a Unicode symbol or a plain dot standing in for an icon or logo, shows a change
+nobody proposed. Where a part can't be copied, leave a plain blank of its size.
 
 A copy of a component's DOM has its appearance but none of its listeners, state or
 lifecycle. When behavior is part of the comparison, mount the component through its
@@ -90,20 +93,33 @@ In this comparison, `format` names which of the two candidates to build:
 ```html
 <lf-ask id="notification-ask">
   <h2>Which deployment notification should we build?</h2>
-  <lf-playground id="notification-playground" submit-label="Create notification"
-    data-width="available">
+  <lf-playground
+    id="notification-playground"
+    submit-label="Create notification"
+    data-width="available"
+  >
     <lf-playground-control name="format" label="Format" kind="choice" value="banner">
       <lf-playground-choice value="banner" label="Banner"></lf-playground-choice>
       <lf-playground-choice
-        value="status strip" label="Status strip"
+        value="status strip"
+        label="Status strip"
       ></lf-playground-choice>
     </lf-playground-control>
     <lf-playground-control
-      name="radius" label="Corner radius" kind="range"
-      value="10" min="0" max="24" step="1" unit="px"
+      name="radius"
+      label="Corner radius"
+      kind="range"
+      value="10"
+      min="0"
+      max="24"
+      step="1"
+      unit="px"
     ></lf-playground-control>
     <lf-playground-control
-      name="compact" label="Compact spacing" kind="toggle" value="false"
+      name="compact"
+      label="Compact spacing"
+      kind="toggle"
+      value="false"
     ></lf-playground-control>
 
     <lf-playground-preset label="Status strip">
@@ -115,10 +131,12 @@ In this comparison, `format` names which of the two candidates to build:
     <lf-playground-preview>
       <section class="notification-candidates" aria-label="Notification candidates">
         <article data-candidate="banner">
-          <h3>Banner</h3><p>Checkout deployed. Review the deployment run.</p>
+          <h3>Banner</h3>
+          <p>Checkout deployed. Review the deployment run.</p>
         </article>
         <article data-candidate="status strip">
-          <h3>Status strip</h3><p>Checkout · deployed · 18 checks passed</p>
+          <h3>Status strip</h3>
+          <p>Checkout · deployed · 18 checks passed</p>
         </article>
       </section>
     </lf-playground-preview>
@@ -138,11 +156,18 @@ on the `lf-playground` as a custom property, `--playground-NAME`, and an attribu
 attribute holds the unquoted text:
 
 ```css
-.notification-candidates > article { border-radius: var(--playground-radius); }
+.notification-candidates > article {
+  border-radius: var(--playground-radius);
+}
 #notification-playground[data-playground-compact="true"]
-  .notification-candidates > article { padding: var(--sp-2); }
+  .notification-candidates
+  > article {
+  padding: var(--sp-2);
+}
 #notification-playground[data-playground-format="status strip"]
-  [data-candidate="status strip"] { outline: 2px solid var(--accent); }
+  [data-candidate="status strip"] {
+  outline: 2px solid var(--accent);
+}
 ```
 
 To study Leaf's own live interface, embed each candidate in an `lf-sample window` inside

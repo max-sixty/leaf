@@ -125,8 +125,8 @@ without being a pane, and its own stylesheet decides whether they scroll.
 | Term | Identity criterion |
 |---|---|
 | **Chrome** | Interface the runtime draws outside authored content, rooted at the one `.lf-chrome` container |
-| **Leaf panel** | Opt-in chrome (`?lf-chrome=floating`, `floating-panel.js`) that replaces the banner and bottom bar with one box floating at the window's foot: the leaf, which opens a menu of the page's controls, the comment field, and the On me and Threads marks |
-| **Banner** | The default chrome (`?lf-chrome=classic` restores it): the fixed row at the window's top with page status, the agent's count (**On Claude: 2**), the primary controls, and a More menu of the rest (`banner-toolbar.js`) |
+| **Leaf panel** | The default chrome (`floating-panel.js`) that replaces the banner and bottom bar with one box floating at the window's foot: the leaf, which opens a menu of the page's controls, the comment field, and the On me and Threads marks |
+| **Banner** | The other chrome, chosen with **Use the banner** in the leaf's menu (`chrome-choice.js`) or `?lf-chrome=classic`: the fixed row at the window's top with page status, the agent's count (**On Claude: 2**), the primary controls, and a More menu of the rest (`banner-toolbar.js`) |
 | **Page comment card** | The card under the banner's Comment on the page control, holding the page's general comment box, the one place a page thread starts (`thread/page-comment.js`) |
 | **Bottom bar** | Classic chrome's row at the window's foot, of fixed height (`--lf-bottom-bar-h`), holding the shortcut bar and the status |
 | **Auxiliary surface** | Chrome opened `beside`, `over` or `covering` the content frame |
@@ -150,8 +150,8 @@ dialog**. The margin projection has its own terms:
 |---|---|
 | **Rail** | The strip right of `main` where margin rows sit beside their targets. It appears where there is room beside `main` and never moves the column; `data-rail="right"` on `body` reserves its width and narrows the page instead (`page-layout.md`, "The rail and the margin") |
 | **Margin resident** | Something the margin holds: the rail, the contents map, a column page's first sidebar, its sidenotes. `residency` in `prepaint.js` admits each where there is room beside `main` |
-| **Margin row** | One row tied to a target, placed in the `rail`, as a `pin`, or `withheld` |
-| **Pin** | A margin row drawn over the page by its target, used where the row can't sit in the rail (`rowPosture`). It takes the first spot touching its target that covers no words, control, media or other pin; with none free it folds, and failing that it covers the target (`seatRows` in `margin-placement.js`) |
+| **Margin row** | One row tied to a target, placed in the `rail`, as a `pin`, or `withheld`. A target has its own row, plus one for each row inside it a pointing gesture named and one for each passage its comments quote, each standing level with what it is about (`groupFor` in `annotation-inventory.js`) |
+| **Pin** | A margin row drawn over the page by its target, used where the row can't sit in the rail (`rowPosture`). It takes the first spot touching its target that covers no words, control, media or other pin, and a quoted passage's pin then tries its paragraph's spots near the words; with none free it folds, and failing that it covers the target (`seatRows` in `margin-placement.js`) |
 | **Folded pin** | A pin drawn as its options' toggle alone (`data-lf-folded`) because its full face found no room |
 | **Margin lane** | The layer holding one scroller's margin rows: the root lane for the document, and one lane per bounded reading region, clipped to what that region shows |
 | **Margin cluster** | The visible group attached to one target |
@@ -181,10 +181,10 @@ In flow it lists every included heading; where the margin has room it may show t
 | **Target picker** | The `s` interaction that shows addressable elements and ends when the user picks one or closes it |
 | **Page search** | The `/` interaction that filters or steps through text matches for a query |
 | **Walk** | Stepping in order through one kind of destination: open threads (`t`), the user's On me list (`m`), a list's rows |
-| **On me** | The user's list of everything waiting on them (`queues.on_user`): open asks, to-dos the agent gave them, and resends. An ask the user has commented on leaves it until the agent replies. `m` walks it |
+| **On me** | The user's list of everything waiting on them (`queues.on_user`): open asks, to-dos the agent gave them, and resends. An ask the user has commented on leaves it until the agent replies. `m` walks it. Labels for what waits on the user name the list, as **Next on me** and **Waiting on me** do |
 | **On *agent*** | The agent's list of everything waiting on it (`queues.on_agent`), named for the agent, such as **On Claude**: answers it owes, work in hand and its own to-dos. Prose about no particular agent writes `On <agent>` |
-| **Ask** | One record of a request for the user's input, with its typed answer: a widget ask (`widget:<source-id>`), a prose ask from a reply sent with `--ask` (`reply:<agent-message-id>`), or an approval ask for a stamped version (`approval:v<version>`). `lf-ask` frames asks with context without changing their ids. The interface calls it an ask, never a question |
 | **To-do** | Explicit work owed until it ends (`todo` in the protocol), by the agent or by the user |
+| **Plan** | The agent's outline of the page's work (`plan` in the protocol): goals and steps by depth, each step plain or naming a to-do or ask, which it arranges without owning |
 | **Tally** | `lf-tally`: how many of a region's asks (`asksIn`) are still open, “7 of 8 to answer”, with an optional Next on me that walks the region's asks waiting on the user |
 | **Resend** | An update the user has to send again, which stays in On me until they do |
 | **Done** | The control with which the user ends a to-do the agent gave them; it writes `todo_end`. A widget may also call its own submit control Done |

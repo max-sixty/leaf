@@ -12,6 +12,9 @@ import { registry } from "../registry.js";
 export const readAsks = readPart((root) => root.effective.asks);
 
 export const askEntry = (ask) => registry[ask?.source.tag]?.["x-awaits"];
+// Whether the user's words answer this ask (`x-awaits.reply`), as they do an `lf-ask`
+// holding no widget: in its thread, it reads and is answered as a message.
+export const askedInWords = (ask) => Boolean(askEntry(ask)?.reply);
 // The asks approving the shown version waits on, which the server names
 // (`asks.approval_blocking`, the rule its append door refuses a sign-off by).
 // Approval needs an admitted inventory, so its gate never reads unknown as empty: with

@@ -27,11 +27,11 @@ counts under `queues.on_agent` in `page state`, and shows in the banner.
 A to-do on the user is a `todo` event opened with `--on user`, ended by the user's
 Done or by the agent. Asks are separate records (`asks`) that the lists read
 directly, never turned into to-dos. The agent's `todo_end` can also close an open
-prose ask by its ask id: `done` when the user answered it elsewhere, `dropped` when
-it no longer applies, never `failed`. Neither records an answer from the user
-(`asks.thread_asks`). A stamped version declaring `lf-review=sign-off` adds an
-approval ask for that version, which only an approval the user has not withdrawn
-answers.
+ask the user answers in words, such as an `lf-ask` in a reply, by its ask id: `done`
+when the user answered it elsewhere, `dropped` when it no longer applies, never
+`failed`. Neither records an answer from the user (`asks.settle_by_words`). A
+stamped version declaring `lf-review=sign-off` adds an approval ask for that
+version, which only an approval the user has not withdrawn answers.
 
 A start lasts until its item ends: the to-do's end, or for an update, the reply or
 stamped version that answers it (`workflows.canonical_workflows`). It names the turn
@@ -60,15 +60,18 @@ a `todo_end` of an open to-do; the user ends only a to-do opened on them.
 `TodoReading` reads the log's to-dos, starts and ends, and `WorkReading.page_todos`
 adds their thread and activity readings.
 
+A plan (`plans`) arranges to-dos and asks into an outline without owning them, so no
+rule here reads it.
+
 Experimental: to-dos and the two lists are new, and their shape is expected to
-change a lot (notes/what-needs-you/). Change them freely; nothing outside this
-repository depends on them.
+change a lot. Change them freely; nothing outside this repository depends on them.
 """
 
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
 
+from .asks import replied
 from .events import note_settlements, taken_back
 from .findings import Finding, Rejected
 from .thread_context import thread_names
@@ -84,7 +87,7 @@ def todo_reading(event: dict, threads: dict[str, str]) -> dict | None:
     `threads` is `thread_context.thread_names`, which names the thread a reply's
     to-do stands on. A reply's to-do keeps the reply's identity, as its start does."""
     if event["kind"] == "todo":
-        return event if "owner" in event else None
+        return event
     if event["kind"] == "reply" and "todo" in event:
         return {
             **event,
@@ -173,12 +176,21 @@ class TodoReading:
         return item_starts(self.events)
 
     @cached_property
-    def todos(self) -> list[dict]:
-        return _todos(self.events, self.withdrawn, self.starts)
+    def ends(self) -> dict:
+        """The `todo_end` in force on each id it names, by that id: a to-do's, or an
+        ask's the agent ended unanswered (`asks.settle_by_words`)."""
+        return {
+            event["todo"]: {
+                "state": event["outcome"],
+                **_outcome(event, event.get("detail")),
+            }
+            for event in self.events
+            if event["kind"] == "todo_end" and event["id"] not in self.withdrawn
+        }
 
     @cached_property
-    def ends(self) -> dict:
-        return _ends(self.events, self.withdrawn)
+    def todos(self) -> list[dict]:
+        return _todos(self.events, self.ends, self.starts)
 
     @property
     def owed(self) -> list[dict]:
@@ -217,62 +229,46 @@ class TodoReading:
         return None
 
 
-def _todos(events: list, withdrawn: set, starts: dict) -> list[dict]:
+def _todos(events: list, ends: dict, starts: dict) -> list[dict]:
+    """Every to-do the log opened, with how it ended: by its `todo_end` in force
+    (`ends`) or by the first stamped version whose `--completes` names it, whichever
+    came first."""
     todos: dict[str, dict] = {}
-
-    def end(todo: dict, state: str, event: dict, detail: str | None) -> None:
-        todo["state"] = state
-        todo["outcome"] = _outcome(event, detail)
-
     threads = thread_names(events)
     for event in events:
         if opened := todo_reading(event, threads):
-            event = opened
-            todos[event["id"]] = {
-                "id": event["id"],
-                "owner": event["owner"],
-                "subject": event["subject"],
-                "title": event["title"],
+            todos[opened["id"]] = {
+                "id": opened["id"],
+                "owner": opened["owner"],
+                "subject": opened["subject"],
+                "title": opened["title"],
                 "state": "open",
-                "seq": event["seq"],
-                "ts": event["ts"],
-                "agent": event.get("agent"),
-                "session": event.get("session"),
-                "revision": event.get("revision"),
+                "seq": opened["seq"],
+                "ts": opened["ts"],
+                "agent": opened.get("agent"),
+                "session": opened.get("session"),
+                "revision": opened.get("revision"),
                 "running": None,
                 "outcome": None,
             }
-        elif (
-            event["kind"] == "todo_end"
-            and event["todo"] in todos
-            and event["id"] not in withdrawn
-        ):
-            end(todos[event["todo"]], event["outcome"], event, event.get("detail"))
         elif event["kind"] == "note":
             for identity in note_settlements(event, "todo"):
                 todo = todos.get(identity)
-                if todo is not None and todo["state"] == "open":
-                    end(todo, "done", event, f"v{event['version']}")
+                ended = ends.get(identity)
+                if (
+                    todo is not None
+                    and todo["state"] == "open"
+                    and (ended is None or ended["seq"] > event["seq"])
+                ):
+                    todo["state"] = "done"
+                    todo["outcome"] = _outcome(event, f"v{event['version']}")
     for todo in todos.values():
+        if todo["state"] == "open" and (ended := ends.get(todo["id"])):
+            todo["state"] = ended["state"]
+            todo["outcome"] = {key: ended[key] for key in ended if key != "state"}
         if todo["state"] == "open" and todo["id"] in starts:
             todo["running"] = running(starts[todo["id"]])
     return list(todos.values())
-
-
-def _ends(events: list, withdrawn: set) -> dict:
-    return {
-        event["todo"]: {
-            "state": event["outcome"],
-            **_outcome(event, event.get("detail")),
-        }
-        for event in events
-        if event["kind"] == "todo_end" and event["id"] not in withdrawn
-    }
-
-
-def owed_todos(events: list) -> list[dict]:
-    """The agent's to-dos nothing has ended: the work it still owes."""
-    return TodoReading(events).owed
 
 
 def todo_error(
@@ -283,8 +279,8 @@ def todo_error(
     element_error,
     user_widget_error,
     owed: set[str],
-    todos,
     asks,
+    registry: dict,
 ) -> Finding | None:
     """Why the append door refuses a to-do, start or completion, or None.
 
@@ -293,8 +289,8 @@ def todo_error(
     schema keeps off a `todo` event. A start names an open agent to-do or an owed
     update. Both completion carriers share `TodoReading.completion_error`.
     Either side can end a to-do within its ownership rules. An agent end may
-    also withdraw an open prose ask by canonical id or source message id, while
-    widget asks remain owned by their declared state.
+    also end an open ask the user answers in words (`asks.replied`) by its id,
+    while an ask its widget's state answers stays owned by that state.
     """
     kind = event["kind"]
     if kind == "todo":
@@ -323,7 +319,7 @@ def todo_error(
         return None
     identity = event["todo"]
     named = {"todo": identity}
-    todo = next((todo for todo in todos() if todo["id"] == identity), None)
+    todo = next((todo for todo in log.todos if todo["id"] == identity), None)
     if todo is None:
         ask = next(
             (ask for ask in asks() if identity == ask["id"]),
@@ -335,7 +331,7 @@ def todo_error(
                     "approval-ask",
                     values={**named, "version": ask["source"]["version"]},
                 )
-            if ask["source"]["kind"] == "widget":
+            if not replied(registry[ask["source"]["tag"]]):
                 return Finding("widget-ask", values=named)
             if event["author"] != "agent":
                 return Finding("users-prose-ask", values=named)

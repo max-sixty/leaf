@@ -55,8 +55,7 @@ function userObligations(page, threadView) {
       thread: null,
     });
   for (const ask of threadView.asks.user) {
-    const version = ask.source.kind === "reply" ? ask.source.version : null;
-    held.set(JSON.stringify(["thread", ask.thread, ask.id, version]), {
+    held.set(JSON.stringify(["thread", ask.thread, ask.id]), {
       source: ask.id,
       thread: ask.thread,
     });

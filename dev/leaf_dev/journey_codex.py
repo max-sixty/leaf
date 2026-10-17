@@ -307,8 +307,8 @@ def steps(
             )
         else:
             require(
-                reply.get("ask") is True,
-                "the prose question does not await the user's answer",
+                "<lf-ask" in reply.get("markup", ""),
+                "the question does not await the user's answer",
             )
         require(
             title(read_events(page), posted) is not None,

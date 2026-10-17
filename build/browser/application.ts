@@ -186,16 +186,16 @@ interface WireProjection {
 interface AskRecord {
   id: string;
   source:
-    | { kind: "widget" | "reply"; id: string; tag?: string }
-    | { kind: "approval"; version: number };
+    { kind: "widget"; id: string; tag: string } | { kind: "approval"; version: number };
   thread: string | null;
   message: string | null;
   prompt: { text: string | null; target: string };
   answer: { value: unknown; event: Event | null } | null;
-  /** `asks.py` owns the statuses; only a prose ask is `answered_elsewhere`. */
+  /** `asks.py` owns the statuses; only an ask answered in words is
+   * `answered_elsewhere`. */
   status: "open" | "answered" | "answered_elsewhere" | "withdrawn";
-  /** The agent's `leaf task end` that retired a prose ask: where the answer is, or why
-   * the ask no longer applies. */
+  /** The agent's `leaf task end` that retired an ask answered in words: where the
+   * answer is, or why the ask no longer applies. */
   end: { detail: string | null; event: Event } | null;
   next_actor: "user" | "agent" | null;
 }
@@ -261,10 +261,27 @@ export type Workflow = Omit<WireWorkflow, "quiet" | "dropped" | "stage"> & {
   dropped?: boolean;
 };
 
+/** One step of the agent's plan, as `plans.plan_reading` serves it: plain, or naming a
+ * to-do or ask whose title, owner and state it shows; `done` of `total` counts its
+ * children, dropped ones left out. */
+interface WirePlanStep {
+  /** An ask whose prompt has no text names no title. */
+  title: string | null;
+  state: "open" | "working" | "done" | "failed" | "dropped";
+  owner: "agent" | "user";
+  item: { kind: "todo" | "ask"; id: string } | null;
+  running: WireTodo["running"];
+  since: string | null;
+  steps: WirePlanStep[];
+  done: number;
+  total: number;
+}
+
 /** One to-do, as `served_state.browser` serves it (`work_reading.WorkReading.page_todos`): `todos` holds
- * the open ones on either side and `ended_todos` the ones that ended, with their
- * outcome. Asks are separate records and never appear in this list. */
-interface WireTodo {
+ * every to-do on either side, open or ended, an ended one with its outcome. It is the
+ * one record of each; the queue items and thread readings the browser draws select
+ * from it. Asks are separate records and never appear in this list. */
+export interface WireTodo {
   id: string;
   owner: "agent" | "user";
   subject: { kind: "thread" | "widget" | "element"; id: string } | { kind: "page" };
@@ -422,7 +439,14 @@ interface AuthoritativeState {
      * (`thread_context.thread_memberships`). */
     thread_memberships: Record<string, string[]>;
     todos: WireTodo[];
-    ended_todos: WireTodo[];
+    /** The agent's plan in force, or null (`plans.plan_reading`). */
+    plan: {
+      id: string;
+      ts: string;
+      agent: string | null;
+      session: string | null;
+      steps: WirePlanStep[];
+    } | null;
     /** Each version's note, by version (`served_state.browser`). */
     version_notes: Record<string, string>;
     /** The newest events as a history feed reads them, sent only to a page holding a
@@ -560,8 +584,9 @@ function localTodos(state: AuthoritativeState | null, local: readonly LedgerEntr
   const undoing = new Set(
     local.flatMap(({ event }) => (event.kind === "undo" ? [event.undoes] : [])),
   );
-  const served = state?.browser.todos ?? [];
-  const ended = state?.browser.ended_todos ?? [];
+  const all = state?.browser.todos ?? [];
+  const served = all.filter((todo) => todo.state === "open");
+  const ended = all.filter((todo) => todo.state !== "open");
   const reopened = (todo: WireTodo) =>
     todo.outcome !== null && undoing.has(todo.outcome.id ?? "");
   const open = [
@@ -1199,6 +1224,7 @@ export function createSemanticApplication({
       document,
       widgets,
       workflows,
+      todos.open,
       markingRead,
       ready,
     );

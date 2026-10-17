@@ -74,7 +74,7 @@ export {
 export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
 // Making an element's children a list, moving only what is out of place.
 export { setChildLists, setChildren, setRenderedChildren } from "./dom-children.js";
-export { readAsks } from "./asks/model.js";
+export { askedInWords, readAsks } from "./asks/model.js";
 // The asks a region of the page holds, by the rule every count and walk of them reads.
 export { asksIn } from "./asks/place.js";
 export { comparisonChanges, watchComparison } from "./version.js";
@@ -95,13 +95,13 @@ export {
   threadBox,
   placePageThreads,
   consumeAnnotations,
-  mountThreadViews,
   registerThreadPresentation,
   threadActions,
 } from "./application.js";
 export { readThreads } from "./thread/state.js";
 export { releaseOutlets, threadSurface } from "./thread/surfaces.js";
-export { turns as threadTurns, threadSummary } from "./thread/model.js";
+export { turns as threadTurns } from "./thread/model.js";
+export { threadSummary } from "./thread/messages.js";
 // Holding a region's rows the log or the clock decides while their growth would be seen
 // (assets/AGENTS.md, "Stability").
 export { HeldReading } from "./thread/held-news.js";

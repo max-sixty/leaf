@@ -88,7 +88,8 @@ returns `null`. Call the returned `update()` after the parts or their positions 
 calls it repaints when it changes (`module-reading.md`, "Page readings"). A thread the
 user just started is there at once; only `phase === "ready"` means every saved thread is.
 Each widget keeps its own search, filter and order. `threadTurns(thread)` returns a
-Thread's turns, and `threadSummary(thread)` its `topic` and `latest` activity.
+Thread's turns, and `threadSummary(thread)` its `topic`, the name Threads, the margin and
+Page Map show it under, and its `latest` activity.
 
 Address a Thread by its `key`, which stays the same after the server admits it. Its `id`
 is the name asks and workflows use. `root` is its opening message, `anchor` names the
@@ -144,28 +145,6 @@ thread about it, built with `threadBox(this, hint)`. It returns `null` in Leaf's
 interface or in quoted markup, and throws for a widget without an id or outside the
 declaration's `when`.
 
-### Rendering Threads in a widget
-
-A Thread list or dashboard can show Leaf's conversation view in containers of its own.
-Register `mountThreadViews(owner, render)` in `whileConnected` and call `unregister()`
-from its cleanup:
-
-```js
-this.threads = mountThreadViews(this, (collection, surfaces) => {
-  for (const thread of collection.threads) {
-    const outlet = this.outletFor(thread.key);
-    if (outlet) surfaces.thread(thread.key, outlet);
-  }
-});
-```
-
-Leaf calls `render` with the `readThreads()` collection whenever the threads change, and
-fills each outlet `surfaces.thread(key, outlet)` names with the messages, reply editor,
-reactions and receipts. The widget creates and lays out its outlets, inside itself. These
-views are copies: the Thread also stays where it is on the page. An asynchronous `render`
-checks `surfaces.signal` before changing its UI, and the handle's `update()` asks for a
-new call after a local layout change.
-
 ### Owning the primary conversation presentation
 
 A package that provides the page's main conversation reader, such as a shelf of
@@ -181,7 +160,8 @@ Leaf fills them and keeps the rendering, reactions, read tracking and reply draf
 package keeps layout, order, selection, scroll and disclosure. `parts.reply` takes
 `{hint, accessibleName, sent}`, where `sent()` runs after a send instead of moving the
 user to the thread. The collection holds back changes that would move what the user
-sees, behind a notice; `readThreads()` stays current for counts. A feed of single turns
+sees, behind a notice, which stands where `parts.news(thread.key, outlet)` names, or
+else at the end of the first part's head; `readThreads()` stays current for counts. A feed of single turns
 supplies Resolve and Reopen through `threadActions`.
 
 Await the handle's `update()` after a local layout change, or `update({release: true})`
